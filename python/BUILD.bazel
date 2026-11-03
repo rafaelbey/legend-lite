@@ -11,6 +11,7 @@ load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
+load("//rust/lite-ffi:shared_library.bzl", "shared_library_file")
 load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/java_run:defs.bzl", "java_run")
 load(
@@ -175,6 +176,7 @@ py_test(
     ],
     data = [
         "//native:compiler",
+        "//rust/lite-ffi:lite_ffi",
         "//wasm:corpus/model.pure",
         "//wasm:corpus/queries.tsv",
         "//wasm:jvm_answers",
@@ -202,7 +204,10 @@ py_test(
         "tests/test_frames.py",
     ],
     args = ["test_frames"],
-    data = ["//native:compiler"],
+    data = [
+        "//native:compiler",
+        "//rust/lite-ffi:lite_ffi",
+    ],
     # zone names (a zoned timestamp's) from the pinned tzdata, never the machine's (as scripts/corpus's gates). On
     # Windows, the platform's architecture as Windows names it: where Python cannot ask WMI it reads it from
     # PROCESSOR_ARCHITECTURE, which a test does not inherit, and polars refuses to import without it (its CPU check, found
@@ -250,6 +255,7 @@ py_test(
         "//datacube:headless_bundle",
         "//datacube:test/fixtures/parity/parity.json",
         "//native:compiler",
+        "//rust/lite-ffi:lite_ffi",
     ],
     # and DuckDB's extensions as the wheel carries them: a page's remote file is read through httpfs (step 2b), an
     # Iceberg table through iceberg and avro (G5); and the screen's documents, which Python's are held to (parity.json)
@@ -286,6 +292,7 @@ py_test(
         ":wheel_duckdb",
         "//datacube:headless_bundle",
         "//native:compiler",
+        "//rust/lite-ffi:lite_ffi",
     ],
     env = select({
         "//tools/platforms:windows_x86_64": _MODEL_ENV | {"PROCESSOR_ARCHITECTURE": "AMD64"},
@@ -360,6 +367,7 @@ py_test(
         "//datacube:test/fixtures/chart-rules.json",
         "//datacube:test/fixtures/pages/trades.page.json",
         "//native:compiler",
+        "//rust/lite-ffi:lite_ffi",
         "//warehouse:sqlapi_corpus",
     ],
     # the warehouse's driver (legend_lite/warehouse.py), held to the one corpus its binding is (C3); a page's charts
@@ -399,6 +407,7 @@ py_test(
         ":wheel_site",
         "//datacube:headless_bundle",
         "//native:compiler",
+        "//rust/lite-ffi:lite_ffi",
     ],
     env = _ENV | _HEADLESS_ENV | {"LEGEND_LITE_SITE": "$(rlocationpath :wheel_site)"},
     main = "tests/main.py",
@@ -427,6 +436,7 @@ py_test(
         "//datacube:markets_data",
         "//datacube:markets_page",
         "//native:compiler",
+        "//rust/lite-ffi:lite_ffi",
         "//scripts/corpus:trading_model",
     ],
     env = _ENV | _HEADLESS_ENV | {
@@ -457,6 +467,7 @@ py_binary(
         "//datacube:dist",
         "//datacube:headless_bundle",
         "//native:compiler",
+        "//rust/lite-ffi:lite_ffi",
     ],
     env = _HEADLESS_ENV | {
         "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
@@ -500,6 +511,18 @@ copy_file(
     src = "//native:compiler",
     out = "legend_lite/_native/libcompiler.dll",
     target_compatible_with = ["@platforms//os:windows"],
+)
+
+# the Rust compiler library the compiler's library calls (docs/rust-port/PHASE1.md §1, 2026-11-03), beside it in
+# _native/: libcompiler finds it there (native/.../RustLibrary.java), so _library.py names libcompiler alone
+shared_library_file(
+    name = "wheel_rust_library",
+    src = "//rust/lite-ffi:lite_ffi",
+    out = select({
+        "@platforms//os:linux": "legend_lite/_native/liblite_ffi.so",
+        "@platforms//os:macos": "legend_lite/_native/liblite_ffi.dylib",
+        "@platforms//os:windows": "legend_lite/_native/lite_ffi.dll",
+    }),
 )
 
 # the engine page alone (DataCube's demo/engine.html, its bundle, its lazy chunks, its type) and a notebook's cube (the
@@ -683,6 +706,7 @@ py_wheel(
         ":wheel_duckdb",
         ":wheel_package",
         ":wheel_query_site",
+        ":wheel_rust_library",
         ":wheel_site",
         ":wheel_studio_site",
     ] + select({

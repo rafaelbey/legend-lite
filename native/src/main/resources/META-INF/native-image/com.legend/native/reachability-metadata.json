@@ -6,5 +6,33 @@
     {
       "glob": "com/legend/builtin/engine-handlers.tsv"
     }
-  ]
+  ],
+  "foreign": {
+    "downcalls": [
+      {
+        "returnType": "void*",
+        "parameterTypes": []
+      },
+      {
+        "returnType": "void*",
+        "parameterTypes": ["void*"]
+      },
+      {
+        "returnType": "void*",
+        "parameterTypes": ["void*", "void*", "jint", "jint", "void*"]
+      },
+      {
+        "returnType": "void",
+        "parameterTypes": ["void*"]
+      },
+      {
+        "returnType": "jlong",
+        "parameterTypes": []
+      },
+      {
+        "returnType": "void*",
+        "parameterTypes": ["void*", "void*", "void*"]
+      }
+    ]
+  }
 }

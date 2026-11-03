@@ -35,6 +35,11 @@ public final class Compiler {
      *  show that it frees every answer -- an exact count, where the process's size moves with the heap. */
     private static final AtomicLong UNFREED = new AtomicLong();
 
+    // before any entry point runs: the dialects this library plans with call the Rust library, found beside it
+    static {
+        RustLibrary.besideThisLibrary();
+    }
+
     private Compiler() {
     }
 

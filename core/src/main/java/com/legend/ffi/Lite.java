@@ -84,8 +84,7 @@ public final class Lite {
      * builds with runfiles trees too (.bazelrc's {@code --enable_runfiles}).
      */
     static Path locate() {
-        String os = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
-        String file = os.contains("win") ? "lite_ffi.dll" : os.contains("mac") ? "liblite_ffi.dylib" : "liblite_ffi.so";
+        String file = fileName();
         String named = System.getProperty("legend.lite.library");
         if (named != null && !named.isEmpty()) {
             return Path.of(named);
@@ -103,6 +102,12 @@ public final class Lite {
         }
         throw new IllegalStateException("the Rust library (" + file + ") is not found: set -Dlegend.lite.library, or run"
                 + " under Bazel with //core:ffi's data in the runfiles (looked in " + tried + ")");
+    }
+
+    /** The library's file name on this platform: what Bazel builds, and what a package ships beside libcompiler. */
+    public static String fileName() {
+        String os = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
+        return os.contains("win") ? "lite_ffi.dll" : os.contains("mac") ? "liblite_ffi.dylib" : "liblite_ffi.so";
     }
 
     /**

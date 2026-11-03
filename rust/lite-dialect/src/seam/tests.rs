@@ -174,8 +174,12 @@ fn the_spec_carries_the_engines_scan_order() {
     let plain = ok("query.render", &wrap("query", join));
     assert!(!plain.contains("rowid"), "{plain}");
     let spec = r#"{"dialect":"DuckDb","server":null,"engineScanOrder":true}"#;
+    let fired = || ok("scanOrderFirings", "{}").parse::<u64>().unwrap();
+    let before = fired();
     let ordered = dispatch(spec, "query.render", &wrap("query", join)).unwrap();
     assert!(ordered.contains("ORDER BY t0.rowid NULLS LAST, t1.rowid NULLS LAST"), "{ordered}");
+    // the statement changed, so the process's count moved (other tests render beside this one: at least one)
+    assert!(fired() > before, "StableScanOrder's firings did not move");
     // missing: off; a server: DuckDB's text depends on none
     let bare = dispatch(r#"{"dialect":"DuckDb"}"#, "query.render", &wrap("query", join)).unwrap();
     assert_eq!(bare, plain);

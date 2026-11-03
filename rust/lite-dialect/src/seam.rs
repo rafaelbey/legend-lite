@@ -52,6 +52,7 @@ pub const OPS: &[&str] = &[
     "host.statements",
     "duckdb.tables",
     "duckdb.readsStored",
+    "scanOrderFirings",
 ];
 
 /// One op of the dialect `spec` names, over `args`: the answer as compact JSON text, or Java's refusal. Refused in
@@ -105,6 +106,8 @@ fn answer(d: &dyn SqlDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
     Ok(match op {
         "facts" => facts(d),
         "duckdb.tables" => duckdb_tables(),
+        // the process's StableScanOrder firings, every dialect's (Java's `StableScanOrder.firings()` adds them)
+        "scanOrderFirings" => number(crate::scan_order::firings() as i64),
         // DuckDB's `readsStored(ColumnType)` (a function of the type alone), which the JVM's DuckDb still offers
         "duckdb.readsStored" => {
             let t = lite_sql::read_column_type(a.obj("type").map_err(json)?).map_err(json)?;

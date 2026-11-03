@@ -95,6 +95,8 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/ffi/Lite*.java"]),
     # the library itself, in the runfiles of every test and binary that reaches core (Lite.locate)
     data = ["//rust/lite-ffi:lite_ffi"],
+    # libcompiler names the library it ships beside itself by Lite.fileName (native/.../RustLibrary.java)
+    visibility = ["//native:__pkg__"],
     deps = ["//base"],
 )
 
@@ -828,18 +830,28 @@ junit_test(
 # ConnectionResolver and the product's own driver set (:drivers), against the Postgres 16 that
 # gate 7P starts (@embedded_postgres, //testing EmbeddedPostgres). Light: one class, and the cases it shares with
 # core's tests (:test_cases).
+_NATIVE_METADATA = "//native:src/main/resources/META-INF/native-image/com.legend/native/reachability-metadata.json"
+
 junit_test(
     name = "ffi_test",
     memory_mb = 512,
     size = "small",
     srcs = ["src/test/java/com/legend/ffi/LiteTest.java"],
-    data = ["//rust/lite-ffi:lite_ffi"],
+    data = [
+        _NATIVE_METADATA,
+        "//rust/lite-ffi:lite_ffi",
+    ],
     # the target's outputs as a list: on Windows the import library comes with the DLL
     env = {"LEGEND_FFI_LIBRARY": "$(rlocationpaths //rust/lite-ffi:lite_ffi)"},
-    jvm_flags = ["--enable-native-access=ALL-UNNAMED"],
+    jvm_flags = [
+        "--enable-native-access=ALL-UNNAMED",
+        # libcompiler's downcall declarations, held to Lite's descriptors (docs/rust-port/PHASE1.md §1)
+        "-Dnative.metadata=$(rlocationpath " + _NATIVE_METADATA + ")",
+    ],
     select = ["--select-class=com.legend.ffi.LiteTest"],
     deps = [
         ":ffi",
+        "//json",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],

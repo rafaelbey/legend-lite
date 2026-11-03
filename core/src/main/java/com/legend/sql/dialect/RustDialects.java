@@ -31,6 +31,9 @@ public interface RustDialects {
     /** Whether the dialect reads a column stored as {@code type} through its stored read ({@link StoredReads}). */
     boolean readsStored(String name, SqlDdl.ColumnType type);
 
+    /** The statements the library's {@link StableScanOrder} has changed in this process, every dialect's. */
+    long scanOrderFirings();
+
     /** The provider, found once. */
     static RustDialects provider() {
         return Found.PROVIDER;

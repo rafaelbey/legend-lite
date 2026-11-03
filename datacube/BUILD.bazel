@@ -708,6 +708,7 @@ py_test(
         ":headless_bundle",
         ":headless_test_bundles",
         "//native:compiler",
+        "//rust/lite-ffi:lite_ffi",
     ],
     env = {
         "HEADLESS_BUNDLE": "$(rlocationpath :headless_bundle)",
@@ -1238,6 +1239,7 @@ browser_test(
         "//python:wheel_duckdb",
         "//python:wheel_query_site",
         "//python:wheel_studio_site",
+        "//rust/lite-ffi:lite_ffi",
         "//warehouse:duckdb_library",
         "//warehouse:server_native",
     ],
@@ -1281,6 +1283,7 @@ node_test(
         ":engine_fixture",
         ":headless_bundle",
         "//native:compiler",
+        "//rust/lite-ffi:lite_ffi",
         "//sdlc-client:conformance",
     ],
     entry_point = "test/python-engine/model-home.test.ts",
@@ -1342,6 +1345,7 @@ node_test(
         ":src",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         "//native:compiler",
+        "//rust/lite-ffi:lite_ffi",
     ],
     entry_point = "test/python-engine/execute.test.ts",
     env = {
@@ -1368,6 +1372,7 @@ node_test(
         ":headless_bundle",
         ":src",
         "//native:compiler",
+        "//rust/lite-ffi:lite_ffi",
     ],
     entry_point = "test/python-engine/saved-pages.test.ts",
     env = {
@@ -1394,6 +1399,7 @@ node_test(
         ":headless_bundle",
         "//native:compiler",
         "//query-store:conformance",
+        "//rust/lite-ffi:lite_ffi",
     ],
     entry_point = "test/python-engine/saved-queries.test.ts",
     env = {

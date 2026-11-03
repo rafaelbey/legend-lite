@@ -3,11 +3,19 @@
 
 package com.legend.ffi;
 
+import com.legend.json.Json;
 import com.legend.testing.Runfile;
 import org.junit.jupiter.api.Test;
 
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.MemoryLayout;
+import java.lang.foreign.ValueLayout;
+import java.lang.reflect.Field;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -93,5 +101,43 @@ class LiteTest {
         assertThrows(LiteRefusal.class, () -> LITE.probePanic("p"));
         assertEquals(before, LITE.unfreed());
         assertEquals(0, LITE.unfreed());
+    }
+
+    /**
+     * libcompiler's image declares every downcall shape this class makes (docs/rust-port/PHASE1.md §1): a shape
+     * missing there fails the image's first call through it, not its build.
+     */
+    @Test
+    void theNativeImageDeclaresEveryDowncall() throws Exception {
+        Set<String> made = new TreeSet<>();
+        for (Field f : Lite.class.getDeclaredFields()) {
+            if (f.getType() == FunctionDescriptor.class) {
+                FunctionDescriptor d = (FunctionDescriptor) f.get(null);
+                made.add(d.returnLayout().map(LiteTest::metadataType).orElse("void")
+                        + d.argumentLayouts().stream().map(LiteTest::metadataType).toList());
+            }
+        }
+        Json.Obj metadata = (Json.Obj) Json.parse(Files.readString(Runfile.property("native.metadata")));
+        Set<String> declared = new TreeSet<>();
+        for (Json.Node n : metadata.getObj("foreign").getArr("downcalls").items()) {
+            Json.Obj downcall = (Json.Obj) n;
+            declared.add(downcall.getString("returnType") + downcall.getArr("parameterTypes").items().stream()
+                    .map(p -> ((Json.Str) p).value()).toList());
+        }
+        assertEquals(made, declared, "native/src/main/resources/.../reachability-metadata.json's foreign downcalls");
+    }
+
+    /** A layout as the image's metadata names it. */
+    private static String metadataType(MemoryLayout layout) {
+        if (layout.equals(ValueLayout.ADDRESS)) {
+            return "void*";
+        }
+        if (layout.equals(ValueLayout.JAVA_INT)) {
+            return "jint";
+        }
+        if (layout.equals(ValueLayout.JAVA_LONG)) {
+            return "jlong";
+        }
+        throw new IllegalStateException("a layout the metadata check does not name yet: " + layout);
     }
 }

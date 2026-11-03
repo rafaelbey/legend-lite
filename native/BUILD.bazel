@@ -33,6 +33,8 @@ legend_java_library(
     resource_strip_prefix = "native/src/main/resources",
     deps = [
         ":graal_api",
+        # the Rust compiler library's file name, which RustLibrary looks for beside this one (docs/rust-port/PHASE1.md §1)
+        "//core:ffi",
         # the saved queries' rules over a folder (SavedQueriesHome: the program's B5)
         "//core:saved_queries",
         "//depot-server:rules",
@@ -54,7 +56,14 @@ legend_java_library(
 native_image(
     name = "compiler",
     executable_name = "libcompiler",
-    extra_args = ["--link-at-build-time"] + select({
+    # the dialects call the Rust compiler library through java.lang.foreign (docs/rust-port/PHASE1.md §1, 2026-11-03):
+    # native access allowed, each downcall's shape declared in META-INF/native-image (reachability-metadata.json, held
+    # to com.legend.ffi.Lite's descriptors by //core:ffi_test), and RustLibrary's entry-point literal made at build time
+    extra_args = [
+        "--link-at-build-time",
+        "--enable-native-access=ALL-UNNAMED",
+        "--initialize-at-build-time=com.legend.nativelib.RustLibrary",
+    ] + select({
         "@platforms//os:linux": [
             "-H:NativeLinkerOption=-Wl,-soname,libcompiler.so",
             # the oldest CPUs of the architecture, not GraalVM's default (x86-64-v3, AVX2; armv8.1-a): a manylinux wheel
@@ -90,5 +99,8 @@ native_image(
     ],
     deps = [":entry"],
 )
+
+# the downcalls this image declares, which //core:ffi_test holds to com.legend.ffi.Lite's descriptors (2026-11-03)
+exports_files(["src/main/resources/META-INF/native-image/com.legend/native/reachability-metadata.json"])
 
 guards_package()

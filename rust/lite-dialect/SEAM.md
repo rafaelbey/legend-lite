@@ -104,6 +104,7 @@ Each answer is one JSON value. "string" is a JSON string, `[string]` an array of
 | `host.statements` | `{"operation": HostOperation}` | `[string]`, in order; empty when the operation has nothing to do |
 | `duckdb.tables` | `{}` | DuckDB's own tables, which the JVM's `com.legend.sql.dialect.DuckDb` still offers by name (`LEXICON`, `CATALOG_TYPES`, `CATALOG_REFUSED`): `{"lexicon": {"quoteChar": string, "reservedWords": [string] (sorted)}, "catalogTypes": {<canonical type>: CatalogType, ...} (Java's order), "catalogRefused": {<canonical type>: <reason>, ...} (Java's order)}` |
 | `duckdb.readsStored` | `{"type": MIR column type}` | boolean: `readsStored(ColumnType)`, the `StoredReads` pass's question (a plain `OTHER` or `DISTINCT` column is read as text) |
+| `scanOrderFirings` | `{}` | integer: the statements `StableScanOrder` has changed in this process, every dialect's (Java's `StableScanOrder.firings()`, which adds them to its own; the corpus runner's engine-order register) |
 
 ### `facts`
 

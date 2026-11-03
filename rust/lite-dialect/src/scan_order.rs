@@ -17,6 +17,7 @@ use crate::rewriter::{Rw, SqlRewriter, rewrite};
 use crate::typing::children;
 use lite_sql::{AggFn, Cte, Projection, Reducer, Scalar, SortKey, SqlExpr, SqlQuery, SqlSelect, SqlSource, SqlType};
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 fn bigint() -> SqlType {
     SqlType::Scalar(Scalar::Bigint)
@@ -141,11 +142,20 @@ fn contains_reducer(e: &SqlExpr) -> bool {
 // StableScanOrder
 // ==================================================================
 
+/// Java's `FIRINGS`: the statements every [`StableScanOrder`] of this process changed (an order the statement lacked
+/// was added). The corpus runner attributes them to the test that ran and pins that set per lane
+/// (`rcorpus/<lane>-engine-order-register.txt`); the JVM reads it through the seam (`scanOrderFirings`).
+static FIRINGS: AtomicU64 = AtomicU64::new(0);
+
+/// The statements every [`StableScanOrder`] of this process has changed (Java's `StableScanOrder.firings()`).
+pub fn firings() -> u64 {
+    FIRINGS.load(Ordering::Relaxed)
+}
+
 /// The engine-corpus scan-order pass (Java's `StableScanOrder`).
 #[derive(Debug, Default)]
 pub struct StableScanOrder {
-    /// The statements this pass changed (an order the statement lacked was added), for the corpus runner. Java's
-    /// `FIRINGS` is a static `AtomicLong` shared by every instance; this counts per pass object.
+    /// The statements this pass object changed; [`firings`] counts them for the whole process, as Java's does.
     pub firings: u64,
     /// Java's `cteOrds`: the ordinals each frame CTE of the statement exports, per statement.
     cte_ords: HashMap<String, Vec<String>>,
@@ -563,6 +573,7 @@ impl SqlRewriter for StableScanOrder {
         let out = ScanOrder::stabilize(walked, &self.frames)?.into_inner();
         if out != original {
             self.firings += 1;
+            FIRINGS.fetch_add(1, Ordering::Relaxed);
         }
         Ok(out)
     }

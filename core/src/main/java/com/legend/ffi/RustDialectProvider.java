@@ -89,4 +89,15 @@ public final class RustDialectProvider implements RustDialects {
         }
         return Boolean.parseBoolean(answer);
     }
+
+    @Override
+    public long scanOrderFirings() {
+        String answer;
+        try {
+            answer = Lite.shared().dialect(spec("DuckDb"), "scanOrderFirings", "{}");
+        } catch (LiteRefusal refusal) {
+            throw RustDialect.rethrown(refusal.kind(), String.valueOf(refusal.getMessage()));
+        }
+        return Long.parseLong(answer);
+    }
 }

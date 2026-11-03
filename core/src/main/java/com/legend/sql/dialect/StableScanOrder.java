@@ -31,7 +31,9 @@ public final class StableScanOrder extends SqlRewriter {
             new java.util.concurrent.atomic.AtomicLong();
 
     public static long firings() {
-        return FIRINGS.get();
+        // 2026-11-03 (docs/rust-port/PHASE1.md): DuckDB's pass list is the Rust library's, which counts its own
+        // firings (rust/lite-dialect/SEAM.md, scanOrderFirings); the corpus runner reads both here
+        return FIRINGS.get() + RustDialects.provider().scanOrderFirings();
     }
 
     /** Leg 3.4 step 2: the ordinals each frame CTE of the statement
