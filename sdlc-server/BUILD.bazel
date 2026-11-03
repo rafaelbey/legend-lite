@@ -59,6 +59,9 @@ legend_java_library(
 # `bazel run //sdlc-server:server -- --port 6100 --repo DIR [--user id[:Name]]`
 legend_java_binary(
     name = "server",
+    # its grammar reaches the planner, whose dialects call the Rust library through java.lang.foreign
+    # (com.legend.ffi.Lite, 2026-11-03): java -jar allows it, as //core:server's does
+    deploy_manifest_lines = ["Enable-Native-Access: ALL-UNNAMED"],
     main_class = "com.legend.sdlc.server.SdlcServer",
     visibility = [
         "//:__pkg__",
