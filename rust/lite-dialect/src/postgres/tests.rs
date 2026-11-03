@@ -214,6 +214,11 @@ fn the_list_calls_the_oracles_do_not_hold() {
     );
     assert_eq!(render(&call(SqlFn::ListInit, vec![xs.clone()])), "(\"t0\".xs)[:cardinality(\"t0\".xs) - 1]");
     assert_eq!(render(&call(SqlFn::ListTail, vec![xs.clone()])), "(\"t0\".xs)[2:]");
+    // no duplicates iff the distinct count is the count; an empty or NULL list is distinct
+    assert_eq!(
+        render(&call(SqlFn::AllDistinct, vec![xs.clone()])),
+        "coalesce((SELECT count(*) = count(DISTINCT \"__x\") FROM unnest((SELECT \"t0\".xs)) AS __u(\"__x\")), TRUE)"
+    );
     let bs = list("bs", Scalar::Boolean);
     assert_eq!(
         render(&call(SqlFn::ListBoolAnd, vec![bs.clone()])),
@@ -300,6 +305,17 @@ fn the_scalar_calls_the_oracles_do_not_hold() {
     assert_eq!(render(&call(SqlFn::Monthname, vec![ts])), "to_char(\"t0\".ts, 'FMMonth')");
     assert_eq!(render(&call(SqlFn::ConcatJoin, vec![s.clone(), string_lit(",")])), "concat(\"t0\".s, ',')");
     assert_eq!(render(&call(SqlFn::FloorRaw, vec![col("f", Scalar::Double)])), "floor(\"t0\".f)");
+    // the shared spellings: the null-safe comparison, the negation
+    assert_eq!(
+        render(&call(SqlFn::IsDistinctFrom, vec![s.clone(), string_lit("x")])),
+        "(\"t0\".s IS DISTINCT FROM 'x')"
+    );
+    assert_eq!(render(&call(SqlFn::Negate, vec![col("n", Scalar::Bigint)])), "-\"t0\".n");
+    // a temporal amount: amount times a one-unit interval, as ADD_INTERVAL
+    assert_eq!(
+        render(&call(SqlFn::AddIntervalTemporal, vec![part(DatePart::Week), int_lit(2), d.clone()])),
+        "\"t0\".d + 2 * INTERVAL '1 week'"
+    );
     assert_eq!(render(&call(SqlFn::Chr, vec![col("n", Scalar::Bigint)])), "chr(CAST(\"t0\".n AS INTEGER))");
     assert_eq!(render(&call(SqlFn::BitNot, vec![int_lit(5)])), "(~ CAST(5 AS BIGINT))");
     assert_eq!(

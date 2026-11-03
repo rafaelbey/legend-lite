@@ -1,21 +1,22 @@
-# Dialect parity: DuckDB, H2, H2Modern and the engine-text dialects (2026-11-03)
+# Dialect parity: DuckDB, H2, H2Modern, the engine-text dialects and Postgres (2026-11-03)
 
 Every dialect Rust answers, held to the JVM's own answers on the golden oracles (docs/rust-port/PHASE1.md §4): DuckDB
-(step 3, its renderer and passes), the H2 family's execution dialects, H2 and H2Modern (step 4b), and the engine-text
-dialects, EngineStyleH2, EngineStyleDB2 and EngineStyleComposite (step 4c). Each is ported from its Java class, over a
-walk that keeps Java's identity semantics and a port of the typing rules Java's constructors apply. This file measures
-each on the oracles and says what of Java it does not reproduce exactly.
+(step 3, its renderer and passes), the H2 family's execution dialects, H2 and H2Modern (step 4b), the engine-text
+dialects, EngineStyleH2, EngineStyleDB2 and EngineStyleComposite (step 4c), and Postgres (step 5b). Each is ported from
+its Java class, over a walk that keeps Java's identity semantics and a port of the typing rules Java's constructors
+apply. This file measures each on the oracles and says what of Java it does not reproduce exactly.
 
 Measured by `tests/dialect_differential.rs` over `//rust/oracles:mir_dump` (`mir/mir-dump.jsonl`),
-`//rust/oracles:h2_dump` (`mir/h2-dump.jsonl`) and `mir/tagged-engine.jsonl` (the one engine-text query holding a
-tagged value, as the shim sends it), an input more than one holds (the same dialect, op, configuration and MirJson; an
+`//rust/oracles:h2_dump` (`mir/h2-dump.jsonl`), `//rust/oracles:dialects_dump` (`mir/dialects-dump.jsonl`, the ten Java
+dialects left after the H2 family's switch) and `mir/tagged-engine.jsonl` (the one engine-text query holding a tagged
+value, as the shim sends it), an input more than one holds (the same dialect, op, configuration and MirJson; an
 engine-text dialect's default configuration and the first dump's none are one) counted once:
 
 - `<dialect>_renders_as_java_does` (`duckdb_`, `h2_`, `h2modern_`, `enginestyleh2_`, `enginestyledb2_`,
-  `enginestylecomposite_`): every distinct input of the dialect, answered by a fresh Rust dialect of that name and
-  configuration (made by the seam's `open`, as the JVM's shim makes it) and compared with the fresh JVM dialect's
-  answer -- the SQL text exactly, a statement's binds and regions as Java's record text, a refusal by its Java class and
-  message, an engine-text op's string (or a select list's null); at least the dialect's floor
+  `enginestylecomposite_`, `postgres_`): every distinct input of the dialect, answered by a fresh Rust dialect of that
+  name and configuration (made by the seam's `open`, as the JVM's shim makes it) and compared with the fresh JVM
+  dialect's answer -- the SQL text exactly, a statement's binds and regions as Java's record text, a refusal by its Java
+  class and message, an engine-text op's string (or a select list's null); at least the dialect's floor
   (`tests/<dialect>-floor.txt`) identical;
 - `typing_reproduces_javas_facts`: every node of every distinct statement of the oracles (all dialects: one tree), its
   type fact recomputed by `src/typing.rs` from its children's and compared with the fact Java's constructor stored;
@@ -26,8 +27,8 @@ engine-text dialect's default configuration and the first dump's none are one) c
 
 ```
 cd rust
-LITE_ORACLES="<mir-dump.jsonl> <h2-dump.jsonl> oracles/mir/tagged-engine.jsonl" cargo test --release -p lite-dialect \
-  --test dialect_differential -- --ignored --nocapture
+LITE_ORACLES="<mir-dump.jsonl> <h2-dump.jsonl> oracles/mir/tagged-engine.jsonl <dialects-dump.jsonl>" \
+  cargo test --release -p lite-dialect --test dialect_differential -- --ignored --nocapture
 ```
 
 (`LITE_ORACLES` names the oracle files, separated by whitespace; `LITE_DIALECT_MISMATCHES=<dir>` writes each dialect's
@@ -455,10 +456,127 @@ None of these reaches the oracles.
 - The seam refuses `duckdb.*` on the engine-text dialects, as on H2, and `engine.*` on every other dialect: ops no Java
   method of theirs answers.
 
+# Postgres
+
+Step 5b (docs/rust-port/PHASE1.md §4): Java's `Postgres` and `PostgresHostOperations` (`src/postgres.rs`,
+`src/host_ops.rs`), and the passes `Postgres.passes()` installs that no earlier dialect ran (`src/shared_passes.rs`).
+
+## The numbers
+
+**11,630 of 11,630 distinct inputs identical (100 %)**; the floor (`tests/postgres-floor.txt`) is 11,630. The oracles
+hold 13,694 Postgres lines (11,613 of the dialects dump, 2,081 of the first); an input both hold is one statement, and
+none has two answers. The SQL, the binds and the regions are compared exactly: 42 statements bind a parameter or write a
+region and carry Java's record text. All 9 of Java's refusals are reproduced, class and message (8 `DialectCapability`
+-- the four catalog grids, a PIVOT, three folds into a struct accumulator -- and one `IllegalStateException`, a bound
+statement asked for as text), and Rust refuses nothing Java rendered. **The first measurement was already 100 %.**
+
+| op | identical | different | refused (Java rendered) | accepted (Java refused) |
+|---|---:|---:|---:|---:|
+| `ddl.render` | 45 | 0 | 0 | 0 |
+| `dml.render` | 17 | 0 | 0 | 0 |
+| `dml.renderStatement` | 1,398 | 0 | 0 | 0 |
+| `query.render` | 42 | 0 | 0 | 0 |
+| `query.renderStatement` | 10,128 | 0 | 0 | 0 |
+
+By MIR kind every one is identical: `SqlSelect` 10,070, `InsertSelect` 462, `Merge` 407, `CreateTempTableAs` 404,
+`SqlUnion` 100, `DeleteWhere` 85, `Update` 37, `DropTable` 31, `InsertValues` 20, `CreateTable` 13, `CreateSchema` 1.
+
+The oracle exercises nearly every arm of `call` (153 of the 181 `SqlFn`s; the maps, Levenshtein and Jaro-Winkler, the
+exact Float remainder, printf, the list lambdas, folds and reductions, the regex family among them), 22 aggregates and
+29 windowed functions. The 28 it holds none of -- `ALL_DISTINCT`, `LIST_DISTINCT`, `LIST_INIT`, the list Boolean
+reductions, `REPEAT_VALUE`, `STRUCT_INSERT`, `JSON_ARRAY_LENGTH`, `JSON_PRETTY`, the epoch conversions, the day and
+month names, `CONCAT_JOIN`, `FLOOR_RAW`, `IS_DISTINCT_FROM`, `NEGATE`, `ADD_INTERVAL_TEMPORAL`, every wall (`STRPTIME`,
+`JSON_MERGE_PATCH`, `EPOCH_NS`, `FROM_EPOCH_NS`, `LIST_FLATTEN`, `LIST_ZIP`, `LIST_PRODUCT`, `TYPEOF`); `FLOAT_CANON`'s
+arm, which the Float expansion run first leaves nothing to reach -- with the aggregates `ANY_VALUE`, `VARIANCE` and
+`STDDEV` and the refusals of a shape Postgres cannot spell, are held to the Java by `src/postgres/tests.rs`, as
+`fromEngineText` is (no oracle line).
+
+The seam answers every op of them as a direct call does: 11,630 ops and 42 inline renders (11,523 statements read back
+from their JSON equal and with Java's record text, 14 refusals).
+
+## What is ported
+
+- **The dialect** (`src/postgres.rs`): every one of `Postgres.java`'s overrides -- the lexicon (the documented reserved
+  set), `maxFunctionArguments` (100), the scalar, struct, map and DDL type tables, the catalog (`CATALOG_TYPES` in
+  Java's order, `CATALOG_RULES`), the session, the script and its abort, the host operations, `fromEngineText`, the keys
+  snapshot and column limit, the static pivot, the passes, the materialized CTE, the whole `call` table (all 181
+  `SqlFn`s, its walls among them) with its helpers (`maps`, `listCall`, `listConcat`, `listTransform`, `listReduce`,
+  `range`, the predicates, `format`, `pattern`, the exact remainder, `roundHalfUp`, `timeBucket`, `dateTrunc`,
+  `dateDiff`, the raise, `levenshtein`, `jaroWinkler`), `membership`, `reduceCollection`, the list literal,
+  `unnestProjection`, `foldCall`, the stored reads as jsonb, the labels, `projection`'s three typed slots, the
+  identifier rules (`ident`, `physicalName`, `bareNameReaches`, `ddlIdentifier`, `tableName`, `columnName`), the refused
+  row order and star exclusion, `expr`'s array literal and ordered list aggregate, the type hole and the truncated
+  timestamp literal, the NUL refusal, `variantAwareCast` (lists, maps, Variants, a value out of a variant, the Float
+  text, the typed text), `variantGet`, `variantConstruct`, the struct literal and field read, `caseExpr`'s typed raise,
+  `hashSigned`, `roundHalfEven`, `bitOp`, every aggregate, `windowCall`, the frame bounds, the JSON constructors, the
+  date format, `jsonKindName`, `typeofName`, `deliversOwn` and the four store writes and the staged table. Java's
+  `SqlWriter.Piece` is a shared closure (`postgres::P`): a piece written several times writes its parameters each time,
+  and what Java evaluates when it makes a piece (a type's name, a string literal, an argument read eagerly) Rust
+  evaluates then too.
+- **The passes** (`src/shared_passes.rs`, where the dialects still to come find them): `StarExceptToColumns`,
+  `WholePartitionOrderedSets`, `StringCountsAsInt`, `RootNumericTypes`, and `QualifyToSubselect`'s by-outputs form
+  (`new QualifyToSubselect(true)`), moved there with its plain form and `AggregatesDeliverDouble` (re-exported by
+  `h2_passes`). `CarrierStrategies` ran under Postgres's caps (no native lists, correlated explosion, the JSON carrier,
+  FULL OUTER native) for the first time, unchanged; `SubstringClamp` and `ConstantKeysAsExpressions()` (the no-argument
+  form, ported with DuckDB's) are `src/passes.rs`'.
+- **`fromEngineText`**: `RawSqlBoundary.translated` (`src/raw_sql.rs`) with Postgres's column types --
+  `(?i)\bDOUBLE\b(?!\s+PRECISION)` to `DOUBLE PRECISION` (`raw_sql::double_precision`), then `(?i)\bTINYINT\b` to
+  `SMALLINT` (`raw_sql::replace_word`), each a hand-written matcher of Java's pattern -- and a bare name in lower case.
+- **The shared renderer**, for the hooks Postgres reads a node's fact in or throws from: `call`, `case_expr` and
+  `struct_get` take the node's type fact (Java's `c.type()`, `g.type()`; a field read's fact is not a function of its
+  source), `fold_call` the `FoldCall` node; `string_lit` (the NUL refusal), `bound` (an unknown frame unit, an
+  overflow), `row_order_column` and `star_except_keyword` may refuse. DuckDB, H2 and the engine text follow, their
+  output unchanged.
+
+## Identity
+
+- `StarExceptToColumns`: the select as it came unless a projection is a star exclusion; then `withProjections`.
+- `WholePartitionOrderedSets`: the select as it came when grouped, over a join or holding no whole-partition ordered
+  set; a projection rebuilt (`new Projection`) only where its expression changed (Java's `e != p.expr()`), each
+  expression through `withChildren` (`carrier::with_children`, which keeps an array literal's and a field read's given
+  fact), the copy's alias `<from>_ops<i>` and one level down `_<child>`; a source no copy can be made of leaves the
+  window.
+- `StringCountsAsInt`: `new Call` only where a count was cast; every other call as the walk hands it on.
+- `QualifyToSubselect` by outputs: its two expression walks are the rewriter's own (`rewrite_expr` with one hook), so a
+  hidden column is minted in the walk's post-order; a projection is found by Java's `same` (a column by table and name,
+  any other node by record equality).
+- `RootNumericTypes`: root only (a union's branches and a WITH's body); a union always rebuilt, its labels
+  re-reconciled; its `cast` map (a `HashMap` by equality, a repeated expression's last cast) only looked up.
+- `AggregatesDeliverDouble` over Postgres's ten Float aggregates: each grouped one cast; a windowed one is the dialect's
+  (`windowCall`).
+
+## Java's behavior reproduced that looks like a bug
+
+Each is Java's text or refusal as it is, reproduced; none is fixed here.
+
+- `format` (printf unrolled): a precision on `%s` or `%d` (`%.3s`) is read and ignored, and the `0` flag of `%f`
+  (`%08.2f`) pads with spaces -- only `%d` pads with zeros.
+- A window frame's interval unit is looked up by its plural name alone (`YEARS`, ..., `SECONDS`; a week 7 days): a
+  singular `DAY` is refused (`a DAY window frame offset has no Postgres interval qualifier`), where H2 takes either.
+- `percentile` writes its value from the reducer's first argument and reads only the direction of its one order key,
+  whatever that key's expression.
+- `structGet`'s declared-field search does not stop at the first match: of two fields of one name the last decides the
+  read's type.
+- `LENGTH` over a text literal writes every argument the call holds (`length(<a>, <b>, ...)`); over anything else only
+  the first.
+
+## What Java does that this does not reproduce exactly
+
+None of these reaches the oracles.
+
+- `physicalName`'s, `bareNameReaches`' and `fromEngineText`'s `toLowerCase(Locale.ROOT)` and the frame unit's
+  `toUpperCase(Locale.ROOT)` are Rust's `to_lowercase` and `to_uppercase`: the same casing, each from its own Unicode
+  version.
+- `timestampLit` counts a fraction's digits with `Character.isDigit` (any Unicode digit); Rust counts ASCII digits.
+- A lambda read as `(SqlExpr.Lambda) x` that is none is refused as a `ClassCastException` naming the simple classes
+  (DuckDB's note above), and a lambda of too few parameters in `ArrayList`'s words (`Index 1 out of bounds for length
+  1`; a `List.of` of two words it `Index: 1 Size: 1`).
+- The seam refuses `duckdb.*` and `engine.*` on Postgres: ops no Java method of Postgres answers.
+
 # Typing
 
-Over the three oracles, every distinct statement (every dialect's, the engine-text ops' queries included: one tree,
-counted once): **2,257,734 facts of 24,645 statements, 0 different.**
+Over the four oracles, every distinct statement (every dialect's, the ten dialects' of the dialects dump and the
+engine-text ops' queries included: one tree, counted once): **4,045,363 facts of 34,069 statements, 0 different.**
 
 # Tests
 
@@ -519,21 +637,42 @@ counted once): **2,257,734 facts of 24,645 statements, 0 different.**
   table, the names, the raw text and the interface's defaults naming each dialect, and the five engine ops (a null
   select list, a refused RAW splice, `renderedAlias` with and without the rendered query), refused on every other
   dialect.
+- `src/postgres/tests.rs` (22 tests): Postgres's hooks on hand-built nodes, from its Java and the texts core's own
+  Postgres tests pin -- the identifier rules (every name the query writes quoted, a store's bare name folded, a
+  reserved or non-word name delimited, the stored table, the catalog name a bare declaration reaches), the references
+  by origin and the refused row order and star exclusion, the NUL refusal, the truncated timestamp and the type hole,
+  the typed list literal, the list calls the oracles hold none of and the empty collection, the scalar calls they hold
+  none of, every wall and refusal by name, printf unrolled, the RE2 flags as ARE options, the exact remainder and the
+  roundings, every aggregate and its shape refusals, the windowed Float cast and the ordered-set refusal, the frame
+  units and their overflow, every cast branch (`NullVariantCastTest`'s typed NULL), the jsonb navigation and the
+  struct read, the typed projections, the constant ORDER BY key (`PostgresDialectTest`), the DDL and the staged table
+  (`TempTableAsTest`), the type tables and the date format, the stored reads (`StoredReadsTest`), `fromEngineText`,
+  the catalog decisions (`PostgresCatalogTest`'s probe), the interface's answers, and the pass list.
+- `src/shared_passes/tests.rs` (7 tests): `StarExceptToColumns`' spelled star and its identity;
+  `WholePartitionOrderedSets`' correlated copy (the filter remapped, the partition matched null-safely), what it
+  leaves alone, a nested ordered set one level down; `StringCountsAsInt`'s casts and what it leaves; the
+  `AggregatesDeliverDouble` cast; `QualifyToSubselect` by outputs (a hidden window column, a star when nothing is
+  hidden, the DISTINCT and subquery refusals) and its plain form; `RootNumericTypes`' casts, the unbounded Decimal, the
+  DISTINCT sort key, a union's branches.
+- `src/seam/postgres_tests.rs` (7 tests): every op of the seam for Postgres (§3c of `SEAM.md`): the facts and
+  `forServer`, the renders and a finer date-time's type hole, the DDL, the DML and a session table, the names and the
+  engine text, the interface's answers and refusals naming Postgres, the catalog decisions, the host operations (a
+  query counted, everything else refused by name), and `readsStored` and `tableName` for every dialect.
 - `tests/dialect_differential.rs`: the differentials above, one per dialect, the typing test, and the seam's, one per
   dialect: every op of the dialect's inputs (and each `query.render` asked inline, and for an engine-text dialect each
   of its aliases after the render) answered through `dispatch` exactly as a direct call answers it, each statement read
   back from its JSON equal to the direct one with Java's record text -- DuckDB's 16,154 ops and 1,023 inline renders
   (13,011 statements, 10 refusals), H2's 21,847 and 1,813 (14,962 statements, 1,103 refusals), H2Modern's 394 and 17
   (352 statements, 20 refusals), EngineStyleH2's 2,105, 1,638 and 5,104 aliases (7 statements, 26 refusals),
-  EngineStyleDB2's 56, 42 and 43 (20 refusals), EngineStyleComposite's 24, 14 and 11 (20 refusals): all the same; and
-  the zone shift held to java.time (above).
+  EngineStyleDB2's 56, 42 and 43 (20 refusals), EngineStyleComposite's 24, 14 and 11 (20 refusals), Postgres's 11,630
+  and 42 (11,523 statements, 14 refusals): all the same; and the zone shift held to java.time (above).
 
 # Stack
 
 The deepest DuckDB statement needs between 1 and 2 MB of stack in a debug build for its parse, read, passes and render
-together, the deepest H2 statement (and the typing walk over both oracles) between 2 and 4 MB, and every one less than
-1 MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The thirteen tests run in
-parallel in 59 s in debug (the H2 seam's, the longest, 57 s alone; the six engine-text tests together 6.4 s), 47 s
-under Bazel (`//rust/lite-dialect:dialect_differential_test`, `size = medium`: 300 s) and 9.2 s in release. A MIR at
-MirJson's depth limit (2,045 nested calls) needs between 32 and 64 MB in a debug build and more than 1 MB in release;
-the seam's C export runs each call on a 256 MB thread (`SEAM.md` §1).
+together, the deepest H2 statement (and the typing walk over both oracles) between 2 and 4 MB, and every one less than 1
+MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The fifteen tests (and the two
+zone tests) run in 54 s under Bazel (`//rust/lite-dialect:dialect_differential_test`, `size = medium`: 300 s; 47 s
+before Postgres's two) and 10.6 s in release. A MIR at MirJson's depth limit (2,045 nested calls) needs between 32 and
+64 MB in a debug build and more than 1 MB in release; the seam's C export runs each call on a 256 MB thread (`SEAM.md`
+§1).

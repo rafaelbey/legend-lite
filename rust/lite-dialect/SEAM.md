@@ -5,13 +5,14 @@ method of Java's `SqlDialect` (and its `HostOperations`) per call, JSON in and J
 this file; `src/seam.rs` (`lite_dialect::dispatch`) and `lite-ffi`'s `lite_dialect` implement it, and their tests hold
 every op below (`src/seam/tests.rs`, `src/seam/h2_tests.rs`, `src/seam/engine_tests.rs`, `lite-ffi/src/lib.rs`, and
 `tests/dialect_differential.rs`'s `the_seam_answers_as_<dialect>s_renderer_does` over every op of each dialect's inputs
-in the golden oracles).
+in the golden oracles; `src/seam/postgres_tests.rs` for Postgres).
 
-Rust answers DuckDB, H2 and H2Modern (docs/rust-port/PHASE1.md §4, steps 3 and 4b), and the engine-text dialects
-`EngineStyleH2`, `EngineStyleDB2` and `EngineStyleComposite` (step 4c). Every answer below is DuckDB's --
-`DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations and `SqlDialect`'s defaults, exactly as Java answers them
--- unless §3a gives H2's and H2Modern's (`H2.java`'s and `H2Modern.java`'s overrides over the same base) or §3b the
-engine-text dialects' (theirs over the same base, and Java's `EngineTextDialect`).
+Rust answers DuckDB, H2 and H2Modern (docs/rust-port/PHASE1.md §4, steps 3 and 4b), the engine-text dialects
+`EngineStyleH2`, `EngineStyleDB2` and `EngineStyleComposite` (step 4c), and Postgres (step 5b). Every answer below is
+DuckDB's -- `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations and `SqlDialect`'s defaults, exactly as Java
+answers them -- unless §3a gives H2's and H2Modern's (`H2.java`'s and `H2Modern.java`'s overrides over the same base),
+§3b the engine-text dialects' (theirs over the same base, and Java's `EngineTextDialect`) or §3c Postgres's
+(`Postgres.java`'s and `PostgresHostOperations.java`'s).
 
 ## 1. The call
 
@@ -36,34 +37,34 @@ The phase and position fields are always `-`; the message is the rest of the tex
   depth limit (§2) and that headroom are what keep it out of reach.
 - **Panics.** A panic on the dialect's thread, or a thread that cannot start, is answered `ERR\nINTERNAL\n-\n-\n<the
   panic's message>`; nothing unwinds into the caller.
-- **Fresh per call.** The dialect is made from `spec` for each call and dropped after it: DuckDB and the H2 family carry
-  no state from one render to the next. (This supersedes PHASE1.md §3's handle: no dialect state is held between
-  calls.) The JVM may read `facts` once per dialect and cache it. An engine-text dialect's render leaves one piece of
-  state on Java's dialect object -- the engine's alias plan of the query, which `renderedAlias` then reads -- and the
-  seam rebuilds it from the query the caller says it rendered (`engine.renderedAlias`'s `rendered`, §3b).
+- **Fresh per call.** The dialect is made from `spec` for each call and dropped after it: DuckDB, the H2 family and
+  Postgres carry no state from one render to the next. (This supersedes PHASE1.md §3's handle: no dialect state is held
+  between calls.) The JVM may read `facts` once per dialect and cache it. An engine-text dialect's render leaves one
+  piece of state on Java's dialect object -- the engine's alias plan of the query, which `renderedAlias` then reads --
+  and the seam rebuilds it from the query the caller says it rendered (`engine.renderedAlias`'s `rendered`, §3b).
 
 ## 2. Arguments
 
 ### `spec`
 
 ```json
-{"dialect": "DuckDb" | "H2" | "H2Modern" | "EngineStyleH2" | "EngineStyleDB2" | "EngineStyleComposite",
+{"dialect": "DuckDb" | "H2" | "H2Modern" | "EngineStyleH2" | "EngineStyleDB2" | "EngineStyleComposite" | "Postgres",
  "server": "<version>" | null, "engineScanOrder": true | false,
  "quoteIdentifiers": true | false, "timeZone": "<zone>" | null}
 ```
 
 | field | | |
 |---|---|---|
-| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2` or `EngineStyleComposite`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite`). |
-| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern and the engine-text dialects keep themselves. |
+| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite` or `Postgres`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres`). |
+| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects and Postgres keep themselves. |
 | `engineScanOrder` | boolean or missing (false) | `Boolean.getBoolean("legend.exec.engineScanOrder")`, which Java's `DuckDb` reads at each render: the engine corpus runner's opt-in to `StableScanOrder`. The JVM passes its property's value. Read as a boolean for every dialect; only DuckDB reads it. |
 | `quoteIdentifiers` | boolean or missing (false) | an engine-text dialect's constructor argument (`new EngineStyleH2(quoteIdentifiers, timeZone)`, `new EngineStyleDB2(...)`; the plan text's connection): every physical identifier double-quoted. |
 | `timeZone` | string, null or missing (null) | the same constructors' second argument, the connection's zone: a DATETIME placeholder written in `GMTtoTZ`, a date-time constant shifted from GMT to the zone (`GMT` itself shifts none; §6). |
 
-`quoteIdentifiers` and `timeZone` configure an engine-text dialect alone: on `DuckDb`, `H2` or `H2Modern` either field,
-present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone configure an
-engine-text dialect (EngineStyleH2, EngineStyleDB2), not <Dialect>`). `EngineStyleComposite` has only Java's
-no-argument constructor: the fields may be absent or their defaults (`false`, `null`); any other value is refused
+`quoteIdentifiers` and `timeZone` configure an engine-text dialect alone: on `DuckDb`, `H2`, `H2Modern` or `Postgres`
+either field, present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone
+configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not <Dialect>`). `EngineStyleComposite` has only
+Java's no-argument constructor: the fields may be absent or their defaults (`false`, `null`); any other value is refused
 (`EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers false, timeZone
 null)`). The JVM's `new EngineStyleH2()` is `{"dialect":"EngineStyleH2"}` (or the fields at their defaults), `new
 EngineStyleH2(q)` is `{"dialect":"EngineStyleH2","quoteIdentifiers":q}`, and `new EngineStyleH2(q, tz)` adds
@@ -123,7 +124,9 @@ Each answer is one JSON value. "string" is a JSON string, `[string]` an array of
 | `host.closeDatabase` | `{"name": string}` | `[string]`: `DETACH DATABASE IF EXISTS "<name>"` |
 | `host.statements` | `{"operation": HostOperation}` | `[string]`, in order; empty when the operation has nothing to do |
 | `duckdb.tables` | `{}` | (DuckDB only) DuckDB's own tables, which the JVM's `com.legend.sql.dialect.DuckDb` still offers by name (`LEXICON`, `CATALOG_TYPES`, `CATALOG_REFUSED`): `{"lexicon": {"quoteChar": string, "reservedWords": [string] (sorted)}, "catalogTypes": {<canonical type>: CatalogType, ...} (Java's order), "catalogRefused": {<canonical type>: <reason>, ...} (Java's order)}` |
-| `duckdb.readsStored` | `{"type": MIR column type}` | (DuckDB only) boolean: `readsStored(ColumnType)`, the `StoredReads` pass's question (a plain `OTHER` or `DISTINCT` column is read as text) |
+| `duckdb.readsStored` | `{"type": MIR column type}` | (DuckDB only) boolean: `readsStored(ColumnType)`, the `StoredReads` pass's question (a plain `OTHER` or `DISTINCT` column is read as text); `readsStored` answers the same for DuckDB |
+| `readsStored` | `{"type": MIR column type}` | (every dialect) boolean: Java's protected `AnsiSqlRenderer.readsStored(ColumnType)`, the dialect's override or the base's rule (a plain `OTHER` or `DISTINCT` column read as text): what `new StoredReads(new Postgres()::readsStored)` asks in core's same-package tests. DuckDB's is the base's; the engine-text dialects' `false` (every column as stored); Postgres's §3c |
+| `tableName` | `{"name": string, "quoting": {"schema": boolean, "table": boolean}}` | (every dialect) string: Java's protected `AnsiSqlRenderer.tableName(name, quoting)`, a stored table's name as a query reads it (`quoting` is `NameQuoting`, its components by name): what `new Postgres().tableName(...)` asks in `TempTableAsTest`. DuckDB's is the base's (a schema-qualified name each part delimited, else `delimited` when declared quoted, `ident` otherwise) |
 | `scanOrderFirings` | `{}` | integer: the statements `StableScanOrder` has changed in this process, every dialect's (Java's `StableScanOrder.firings()`, which adds them to its own; the corpus runner's engine-order register) |
 | `engine.renderAsAliased` | `{"query": MIR query}` | (engine-text dialects only, §3b) string: `renderAsAliased(SqlQuery)` |
 | `engine.selectList` | `{"query": MIR query}` | (engine-text only) string, or null when the query is no select (`selectList(SqlQuery)`, `@Nullable`) |
@@ -214,6 +217,35 @@ The refusals the engine text's Java words with "engine-H2" or "the engine text" 
 (`QUALIFY has no engine-H2 golden spelling`, `plan: struct extraction has no engine-H2 spelling`, `a TYPEOF compared
 with <TYPE>'s name reached the engine text`); those of `AnsiSqlRenderer` and `SqlDialect` name the dialect.
 
+### 3c. Postgres
+
+PostgreSQL 16+ (`Postgres.java`, `PostgresHostOperations.java`; `src/postgres.rs`). Postgres answers every op of §3 but
+`duckdb.*` and `engine.*`; where its answer differs from DuckDB's it is:
+
+| op | Postgres |
+|---|---|
+| `facts` | `{"temporaryTables": true, "loadsRowsInBulk": false, "relational": true, "inProcess": false, "dropsStagedTablesWithTheirTransaction": false, "needsStaticPivot": true, "serverVersions": null, "inMemoryPath": null, "scriptAbort": "ROLLBACK", "sessionSetup": ["SET TimeZone='UTC'"], "keysSnapshot": "REPEATABLE_READ", "resultColumnLimit": 1664}` |
+| `forServer` | `"Postgres"` whatever the version |
+| the renders | Postgres's (`PARITY.md`): every name the query writes delimited (an alias, a derived label), a store's bare name folded to lower case, an alias-less projection labelled from its declared output; lists as native arrays (a nested list, a struct or a map element held as jsonb), structs and Variants as jsonb, maps as a `JSONB[]` of `{"key", "value"}`; error() a TIMESTAMPTZ cast of the sentinel-wrapped message; a placeholder bound bare, a date-time's to a type hole (`TIMESTAMP`; a finer one `TIMESTAMP` of six digits, `fraction` 6); Postgres's passes (the portable carrier strategies with FULL OUTER native, the star exclusion spelled out, whole-partition ordered sets correlated, the substring clamp, string counts as INTEGER, the Float aggregates as DOUBLE, QUALIFY by outputs, constant keys typed, the root's numeric types stated) |
+| `physicalName` | the name as written when pre-quoted (`"x"`, its interior a valid quoted body), else folded to lower case: bare when `[a-z_][a-z0-9_]*` and not one of Postgres's reserved words, else delimited |
+| `storedName` | delimited when declared quoted, else `physicalName`'s |
+| `insertColumnName` | delimited when declared quoted, else `physicalName`'s |
+| `raw`, `fromEngineText` | the engine's H2 text in DuckDB's flavour (`RawSqlBoundary.translated`), each column type's `DOUBLE` (not already `DOUBLE PRECISION`) as `DOUBLE PRECISION` and `TINYINT` as `SMALLINT`, a bare column name in lower case (`toLowerCase(Locale.ROOT)`) |
+| `wireTypeName`, `typingWireName`, `failingStatement`, `catalogColumnsQuery`, a converting `copySelectList` | the interface's defaults, the refusals naming `Postgres` |
+| `deliversOwn` | `true` for a map label at the wire `ARRAY` (a map is carried as its entries' jsonb[]), else `false` |
+| `script` | DuckDB's: `BEGIN TRANSACTION;\n<s1>;\n<s2>;\nCOMMIT;` |
+| `catalogType` | Postgres's own catalog (`pg_catalog`'s type names, upper-cased; `CATALOG_RULES`, database `Postgres`): a number, a text, a date or a timestamp as itself (`int4` `INTEGER`, `bool` `BIT`, `text` `VARCHAR(4096)`, ...), `timestamptz` `COPY_CONVERTED` to `TIMESTAMP` (`CAST(timezone('UTC', %s) AS TIMESTAMP)`), json and jsonb `SEMISTRUCTURED`, `bytea` `LEFT_OUT`, every other built-in type and the kinds `ARRAY`, `ENUM`, `COMPOSITE`, `RANGE`, `USER-DEFINED` `OTHER`; a `numeric` with precision and scale `DECIMAL(p,s)`, without them `DOUBLE`; any other refused (`a column of Postgres type '<dataType>' cannot be declared in a Pure Database (<why>)`) |
+| `bareNameReaches` | `true` when the catalog name is its own lower-case fold |
+| `host.openDatabase`, `host.useDatabase`, `host.closeDatabase` | refused: `a project's own database on Postgres is not built: only DuckDB makes one so far (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5)` |
+| `host.statements` | a `count` of a `query` source: `["SELECT count(*) AS n FROM (<sql>) AS counted"]`; every other operation (a count of a relation or a file too) refused: `a host's <Operation> on Postgres is not built (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5)` |
+| `readsStored` | `true` for a plain `JSON` (read `CAST(x AS JSONB)`), `ARRAY` or `OBJECT` (read `to_jsonb(x)`), `OTHER` or `DISTINCT` (read as text); `false` for every other type |
+| `tableName` | each part (a schema before the first `.`, at a place past the first character) a `storedName` by its `quoting` part: `legend_stage_rowsA` is `legend_stage_rowsa` |
+| `duckdb.tables`, `duckdb.readsStored` | refused (`IllegalArgumentException`): `'<op>' is DuckDb's op, not Postgres's` |
+
+Postgres's public statics (`LEXICON`, `CAPS`, `CATALOG_TYPES`, `CATALOG_RULES`) are read by no Java code outside
+`Postgres.java` (main and test sources), so no op offers them; the two protected methods core's same-package tests ask
+of a Postgres object are `readsStored` and `tableName` above.
+
 ### Op refusals
 
 Beyond MirJson's and `lite_json`'s words (§2), each op refuses as Java's method throws, class and message:
@@ -227,6 +259,8 @@ Beyond MirJson's and `lite_json`'s words (§2), each op refuses as Java's method
 - `script`, `failingStatement`: `field 'statements' is an array of strings`.
 - `forServer`: `missing field 'version'`, `field 'version' is null, not a string`.
 - `duckdb.tables`, `duckdb.readsStored` asked of another dialect: `'<op>' is DuckDb's op, not <Dialect>'s`.
+- `readsStored`: `missing field 'type'`, and the column type reader's words. `tableName`: `missing field 'name'`,
+  `missing field 'quoting'`, `missing field 'schema'` / `'table'`, `field 'schema' is ..., not a boolean`.
 - `engine.*` asked of a dialect that is no engine-text dialect (`IllegalArgumentException`): `'<op>' is an engine-text
   dialect's op (EngineStyleH2, EngineStyleDB2, EngineStyleComposite), not <Dialect>'s`.
 - `engine.collectionSplice`: `engine.collectionSplice's param is a planParam, not <_type>` (Java's signature takes a
@@ -356,10 +390,12 @@ matched exactly (a subclass not listed is not its parent's kind):
 | `java.lang.IndexOutOfBoundsException` | `INDEX_OUT_OF_BOUNDS` | `new IndexOutOfBoundsException(message)` |
 | anything else | `INTERNAL` | the message is `<class>: <Java's message>` |
 
-The dialects' code throws two classes not in the table, both `INTERNAL` with the class in the message:
+The dialects' code throws three classes not in the table, each `INTERNAL` with the class in the message:
 `java.lang.NumberFormatException` (a NaN or infinite float written as a decimal, `new BigDecimal(double)`'s refusal;
-a malformed JSON number in `CarrierStrategies`) and `java.lang.StringIndexOutOfBoundsException` (a JSON literal cut
-off, in `CarrierStrategies`, which DuckDB does not run).
+a malformed JSON number in `CarrierStrategies`; Postgres's `Integer.parseInt` of a printf width or precision past an
+int, `For input string: "<digits>"`), `java.lang.StringIndexOutOfBoundsException` (a JSON literal cut off, in
+`CarrierStrategies`, which DuckDB does not run) and `java.lang.ArithmeticException` (`long overflow`: Postgres's
+`Math.multiplyExact` of a week-long window frame offset past a long).
 
 `lite-ffi` itself answers `INVALID_ARGUMENT` for an argument that is null (`spec is null`, `op is null`, `args is
 null`) or not UTF-8 (`<name> is not UTF-8: ...`), and `INTERNAL` for a panic, a thread that cannot start (`the
@@ -378,6 +414,8 @@ answer cannot hold one, as JSON writes it `\u0000`).
   (every character at or below U+0020) is kept as is.
 - `Boolean.parseBoolean` (a secret's `USE_SSL`) is ASCII case-insensitive `true`, as Java's `equalsIgnoreCase` is on
   that word; `extensionName`'s pattern is ASCII, as Java's.
+- Postgres's `physicalName`, `bareNameReaches` and `fromEngineText` fold with Rust's `to_lowercase` where Java uses
+  `toLowerCase(Locale.ROOT)`: the same casing (a final sigma too), each from its own Unicode version.
 - An engine-text dialect's `timeZone` shifts a date-time constant with Java's time-zone rules (`ZoneId.of(zone,
   ZoneId.SHORT_IDS)`): the Rust library embeds the build JDK's whole tzdb (JDK 25.0.4, tzdb 2026b; every region and
   short ID, each region's rules exactly as `ZoneRules` holds them: `rust/oracles/tzdb`, `PARITY.md`), and a zone Java

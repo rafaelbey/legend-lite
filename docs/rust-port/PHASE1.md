@@ -211,6 +211,40 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      rust/BASELINE.tsv -- 517 pass, the same 2 skipped, every baseline target at its baseline status, the new targets
      the Rust crates' tests and `//core:ffi_test`.
 
+   **Postgres** (step 5; the cloud dialects, MariaDB/MySQL, SQLite and MongoDB follow over the same oracle):
+
+   - **5a, done 2026-11-03: the oracle.** `rust/oracles/mir/dialects-dump.jsonl.zst` (`//rust/oracles:dialects_dump`;
+     its `MANIFEST.tsv` line): the ten Java dialects left after the H2 family's switch, rendered over `bazel test //...`
+     by a probe never committed to the sources -- 13,918 entries, Postgres 11,613 of them, SQLite 2,081, the others 8 to
+     39 each.
+   - **5b, done 2026-11-03: Postgres in Rust** (`rust/lite-dialect/src/postgres.rs`, `src/shared_passes.rs`;
+     `rust/lite-dialect/PARITY.md`, `SEAM.md` §3c). Every Postgres input of both oracles answers as Java's -- **11,630
+     of 11,630** distinct inputs (11,613 dialects-dump lines, 2,081 of the first dump), the SQL, binds and regions exact
+     and all 9 of Java's refusals by class and message, **the first measurement already 100 %** -- and the seam answers
+     every op as a direct call does (11,630 ops, 42 inline renders); DuckDB, H2, H2Modern and the engine text stay at
+     16,154, 21,847, 394, 2,105, 56 and 24. The typing holds over the three dumps (34,069 statements, 4,045,363 facts, 0
+     different), and lite-sql reads back every MirJson text of the three (36,330; the new dump's ten dialects 9,443 of
+     them). The oracle exercises 153 of the 181 `SqlFn` arms; the other 28 (but `FLOAT_CANON`'s, which the Float
+     expansion leaves nothing to reach), the refusals and `fromEngineText` (no oracle line) are unit-tested from the
+     Java (`src/postgres/tests.rs`, 22 tests). The passes Postgres installs that no
+     earlier dialect ran (`StarExceptToColumns`, `WholePartitionOrderedSets`, `StringCountsAsInt`, `RootNumericTypes`,
+     `QualifyToSubselect(true)`) are in `src/shared_passes.rs` with `QualifyToSubselect`'s plain form and
+     `AggregatesDeliverDouble`, where the remaining dialects find them; `CarrierStrategies` ran under Postgres's caps
+     unchanged. The renderer trait took what Postgres's overrides need: `call`, `case_expr` and `struct_get` see the
+     node's type fact, `fold_call` the node, and `string_lit`, `bound`, `row_order_column` and `star_except_keyword` may
+     refuse (DuckDB's, H2's and the engine text's output unchanged). Under Bazel the differential takes 54 s (47 s
+     before) and the round trip 67 s, both `size = medium`.
+
+     For the switch (5c): a `Postgres` shim (`new Postgres()`, `Databases.dialect(Postgres)`; `PostgresCatalogTest`
+     tests `instanceof Postgres`) whose every method is one seam call, the facts read once; `hostOperations()` through
+     the `host.*` ops (`PostgresHostOperations` moves); and two protected methods core's same-package tests call on a
+     Postgres object, answered by two new ops every dialect answers -- `readsStored` (`StoredReadsTest:49`, `new
+     StoredReads(new Postgres()::readsStored)`) and `tableName` (`TempTableAsTest:71`). No public static of Postgres's
+     (`LEXICON`, `CAPS`, `CATALOG_TYPES`, `CATALOG_RULES`) is read outside `Postgres.java`, and Postgres keeps no state
+     between renders. `StarExceptToColumns`, `WholePartitionOrderedSets`, `StringCountsAsInt`, `RootNumericTypes`,
+     `QualifyToSubselect`, `AggregatesDeliverDouble`, `ConstantKeysAsExpressions` and `SubstringClamp` stay Java for
+     the dialects still Java.
+
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 
 Switching DuckDB to Rust takes core's dialects out of what TeaVM can compile. Deleting the TeaVM planner would have

@@ -5,11 +5,11 @@
 //! a dialect's `SqlDialect` surface, JSON in and JSON out. `SEAM.md` is its contract -- every op, its args, its
 //! answer, its refusals -- and the JVM's side is written against it.
 //!
-//! A dialect is made fresh for each call from its spec (DuckDB and the H2 family carry no state from one render to the
-//! next; an engine-text dialect's alias plan is rebuilt by the op that reads it). A MIR is read with `lite_sql`,
-//! nested at most [`MAX_DEPTH`] deep; every other record has the JSON form `SEAM.md` gives it: an object of the Java
-//! record's components by name, in declaration order, a nested record the same way, a Java enum by its `name()`. Every
-//! refusal is a [`Refusal`]: Java's class and message.
+//! A dialect is made fresh for each call from its spec (DuckDB, the H2 family and Postgres carry no state from one
+//! render to the next; an engine-text dialect's alias plan is rebuilt by the op that reads it). A MIR is read with
+//! `lite_sql`, nested at most [`MAX_DEPTH`] deep; every other record has the JSON form `SEAM.md` gives it: an object of
+//! the Java record's components by name, in declaration order, a nested record the same way, a Java enum by its
+//! `name()`. Every refusal is a [`Refusal`]: Java's class and message.
 
 use crate::catalog_model::{CatalogColumn, CatalogType, Conversion};
 use crate::dialect::{EngineTextDialect, SqlDialect};
