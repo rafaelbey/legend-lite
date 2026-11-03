@@ -120,6 +120,19 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      `fromEngineText`), H2Modern 386, EngineStyleH2 about 2,100 over five configurations (`quoteIdentifiers`, the plan
      text's time zone: none, GMT, EST, US/Arizona) with every `EngineTextDialect` method, DB2 51, Composite 19. An
      engine-text dialect is made with arguments, so each line carries its `config`, and the seam's spec must too.
+   - **4b, done 2026-11-03: H2 and H2Modern in Rust** (`rust/lite-dialect/src/h2.rs`, `h2_passes.rs`;
+     `rust/lite-dialect/PARITY.md`). Every input of both oracles renders as Java's -- H2 21,847 of 21,847 distinct
+     inputs, H2Modern 394 of 394, the SQL, binds and regions exact and every refusal Java's class and message -- and
+     DuckDB stays at 16,154; the typing rules hold over both oracles (2,257,711 facts, 0 different) and lite-sql reads
+     back every MirJson text of both (26,887). H2Modern is H2's struct with a `modern` flag (its ten overrides branch on
+     it). The passes `H2.passes()` installs are ported (`QualifyToSubselect`'s plain form, never installed on H2, and
+     `ConstantLateralsAsRows`, `LateralExplodeToUnion`, `AggregatesDeliverDouble`, `SourceSpelling`), and
+     `CarrierStrategies` ran under H2's caps for the first time, unchanged. The differential is one test file for every
+     dialect (`tests/dialect_differential.rs`, `//rust/lite-dialect:dialect_differential_test`, a floor per dialect).
+     The seam opens `H2` and `H2Modern` and answers a new op, `forServer` (the chosen dialect's name, for the shim to
+     build: no Java code chooses a dialect by its class), and `facts` writes H2Modern's refused `serverVersions`
+     (`rust/lite-dialect/SEAM.md` §3a). For the switch (4d): the shims of `H2` and `H2Modern` (`H2Modern extends
+     H2` kept), `forServer` through the op, `serverVersions` rethrown from the facts, and the guards listed below.
    - **Four engine-text queries hold a `SqlExpr.Tagged`**, which MirJson refuses by design (a tagged value is resolved
      before a plan is written) and lite-sql has no variant for; `EngineStyleH2.tagged` writes the value's `comparable`
      alone. Before 4c switches, either the shim substitutes the comparable before writing MirJson -- exact only if
