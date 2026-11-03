@@ -61,7 +61,13 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
    TeaVM exports left in `//wasm` until it goes.
 2. `lite-json` (a port of `json/`: insertion order, raw number tokens) and `lite-sql`'s MIR, mirroring `MirJson`'s tags,
    with its reader; a golden dump from the probe -- `(dialect, server, MirJson, Java's render)`, deduplicated and
-   measured before deciding what is committed.
+   measured before deciding what is committed. **Done 2026-11-02**: the dump is 28,951 statements answered on fresh
+   dialects (DuckDB 16,154; 138 refusals), 2.9 MB compressed (`rust/oracles/mir/`, decompressed for tests by the
+   hermetic zstd); `lite-sql` reads every one into the MIR and writes it back to the bytes Java wrote
+   (`//rust/lite-sql:mir_round_trip_test`). The deepest tree needs more than 1 MB of stack in a debug build (256 KB in
+   release): the dialect calls run on a big-stack thread or behind a depth limit (TRIAGE A3). The DuckDB slice of step
+   3 is measured at about 16K lines of Java (`AnsiSqlRenderer`, `SqlTyping`, `CarrierStrategies`, `DuckDb`, and about
+   60 passes and helpers, without the other dialects).
 3. The shared passes, `AnsiSqlRenderer` as a trait with defaults, the writer; DuckDB to byte parity on the dump and the
    probe's differential. Then **DuckDB alone switches**: `Databases.dialect(DUCKDB)` answers the Rust-backed dialect,
    `DuckDb.java` is deleted, the other fifteen stay Java. The TeaVM planner targets go in the same commit (core's
