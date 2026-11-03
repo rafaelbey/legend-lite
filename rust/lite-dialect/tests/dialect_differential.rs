@@ -127,6 +127,18 @@ fn the_seam_answers_as_postgress_renderer_does() {
     the_seam_answers_as_the_renderer_does("Postgres");
 }
 
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn sqlite_renders_as_java_does() {
+    renders_as_java_does("SQLite");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_sqlites_renderer_does() {
+    the_seam_answers_as_the_renderer_does("SQLite");
+}
+
 /// An engine-text dialect's default configuration (Java's no-argument constructor), as the H2 dump writes it: an input
 /// the first dump holds with no configuration is the same input.
 const DEFAULT_ENGINE_CONFIG: &str = r#"{"quoteIdentifiers":false,"timeZone":null}"#;
@@ -706,6 +718,20 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             (t.substring, "SubstringClamp"),
             (t.string_count, "StringCountsAsInt"),
             (t.avg, "AggregatesDeliverDouble"),
+            (t.qualify, "QualifyToSubselect (by outputs)"),
+            (t.constant_key, "ConstantKeysAsExpressions"),
+            (t.stored_reads, "StoredReads"),
+        ]
+    } else if dialect == "SQLite" {
+        // SQLite's passes (SQLite.passes()), in their order
+        vec![
+            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
+            (t.float_canon, "FloatCanonText.Expansion, bound (later passes see the expansion)"),
+            (t.carrier || t.pivot, "CarrierStrategies"),
+            (t.star_except, "StarExceptToColumns"),
+            (t.substring, "SubstringClamp"),
+            (t.ordered_set_window, "WholePartitionOrderedSets"),
+            (t.lateral, "ExplosionMarkers"),
             (t.qualify, "QualifyToSubselect (by outputs)"),
             (t.constant_key, "ConstantKeysAsExpressions"),
             (t.stored_reads, "StoredReads"),

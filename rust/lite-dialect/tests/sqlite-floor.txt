@@ -1,0 +1,4 @@
+# The SQLite differential's floor (tests/dialect_differential.rs): how many of the oracles' 2,158 distinct SQLite
+# statements must render exactly as Java's. Measured 2026-11-03 with SQLite, SqliteRegex, SqliteDigests and the passes it
+# installs ported (PARITY.md): all of them.
+2158
