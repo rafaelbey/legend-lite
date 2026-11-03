@@ -133,11 +133,13 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      build: no Java code chooses a dialect by its class), and `facts` writes H2Modern's refused `serverVersions`
      (`rust/lite-dialect/SEAM.md` §3a). For the switch (4d): the shims of `H2` and `H2Modern` (`H2Modern extends
      H2` kept), `forServer` through the op, `serverVersions` rethrown from the facts, and the guards listed below.
-   - **Four engine-text queries hold a `SqlExpr.Tagged`**, which MirJson refuses by design (a tagged value is resolved
-     before a plan is written) and lite-sql has no variant for; `EngineStyleH2.tagged` writes the value's `comparable`
-     alone. Before 4c switches, either the shim substitutes the comparable before writing MirJson -- exact only if
-     the alias plan, which walks the whole tree, numbers nothing inside the tag or the candidates -- or MirJson and
-     lite-sql carry a tagged form for the dialect seam. Decided on those four inputs, measured.
+   - **One engine-text query holds a `SqlExpr.Tagged`** (`sqlstring::testGreatestLeast`, met four times: the H2 and
+     DuckDB lanes' two passes each), which MirJson refuses by design (a tagged value is resolved before a plan is
+     written) and lite-sql has no variant for; `EngineStyleH2.tagged` writes the value's `comparable` alone.
+     **Decided 2026-11-03, measured:** the engine-text shim replaces each `Tagged` by its comparable before it writes
+     MirJson. A probe on the lane rendered both on fresh dialects: the substituted query's text equals Java's text of
+     the original exactly, and MirJson writes it. `rust/oracles/mir/tagged-engine.jsonl` holds it (the substituted
+     MIR, Java's answer for the original) for 4c's differential.
    - **What a shim must keep** (an inventory of every use outside the five files): production code only constructs
      them -- `H2()`, `H2Modern()`, `EngineStyleH2()`, `(boolean)`, `(boolean, String)`, `EngineStyleDB2()`,
      `(boolean, String)`, `EngineStyleComposite()` -- and calls `SqlDialect` / `EngineTextDialect` methods; no static

@@ -11,3 +11,9 @@ mir-dump.jsonl.zst	{"dialect","fresh","op","kind","mir","answer"} per line; ops 
 # {"quoteIdentifiers","timeZone"}; null otherwise) and the engine-text entry points. 4 inputs are absent: queries
 # holding SqlExpr.Tagged, which MirJson refuses by design (docs/rust-port/PHASE1.md §4 step 4).
 h2-dump.jsonl.zst	{"dialect","config","fresh","op","kind","mir","answer"} per line; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement, fromEngineText, engine.renderAsAliased, engine.selectList, engine.collectionSplice, engine.renderedAlias, engine.inTempTableSelect (a string op's mir is its input string)	7623053c860a06a1fc0b0bc1c53f64ba31cfffd0dc671c805742001657acc5a6
+# Made 2026-11-03 by a probe on //spec:corpus_h2's judge passes (the h2-dump probe plus a TaggedProbe, never committed):
+# the one engine-text query of the whole suite holding a SqlExpr.Tagged (sqlstring::testGreatestLeast, seen 4 times on
+# the H2 and DuckDB lanes), written with each Tagged replaced by its comparable -- the form the engine-text shim sends
+# the seam -- and Java's answer for the ORIGINAL query, which the substituted query's text equals exactly
+# (docs/rust-port/PHASE1.md §4 step 4). Plain text: one line.
+tagged-engine.jsonl	h2-dump.jsonl's line format	55f55a0a84bf4be79e5d33181b06a3c0bdfb552e911d9bdaa65134ca000c8317

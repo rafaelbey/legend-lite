@@ -3,7 +3,11 @@ load(":zstd.bzl", "zstd_decompress")
 
 # The JVM's answers the Rust port is held to (rust/README.md): frozen data, read by the crates' tests.
 exports_files(
-    ["java-compat/double-tostring.tsv"],
+    [
+        "java-compat/double-tostring.tsv",
+        # the engine-text query holding a tagged value, as the shim sends it (mir/MANIFEST.tsv)
+        "mir/tagged-engine.jsonl",
+    ],
     visibility = ["//rust:__subpackages__"],
 )
 
