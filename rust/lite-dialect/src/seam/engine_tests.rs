@@ -190,11 +190,44 @@ fn names_raw_text_and_the_interfaces_defaults() {
             refused(spec, "catalogType", column).message,
             format!("reading this database's catalog type 'INTEGER' is not implemented for {name}")
         );
+        let r = refused(spec, "bareNameReaches", r#"{"catalogName":"T"}"#);
+        assert_eq!(
+            (r.class, r.message),
+            (
+                Refusal::DIALECT_CAPABILITY,
+                format!("reading this database's catalog names is not implemented for {name}")
+            )
+        );
         assert_eq!(ok(spec, "copySelectList", r#"{"conversions":[]}"#), r#""*""#);
-        let r = refused(spec, "host.openDatabase", r#"{"name":"p1"}"#);
-        assert!(r.message.starts_with(&format!("a project's own database on {name} is not built")), "{}", r.message);
-        let r = refused(spec, "duckdb.tables", "{}");
-        assert_eq!(r.message, format!("'duckdb.tables' is DuckDb's op, not {name}'s"));
+        let r = refused(spec, "copySelectList", r#"{"conversions":[{"column":"a","sql":"b"}]}"#);
+        assert_eq!(r.message, format!("a copy that converts columns in its star select is not implemented for {name}"));
+        for op in ["host.openDatabase", "host.useDatabase", "host.closeDatabase"] {
+            let r = refused(spec, op, r#"{"name":"p1"}"#);
+            assert_eq!(
+                (r.class, r.message),
+                (
+                    Refusal::DIALECT_CAPABILITY,
+                    format!(
+                        "a project's own database on {name} is not built: only DuckDB makes one so far \
+                         (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5)"
+                    )
+                )
+            );
+        }
+        let r = refused(spec, "host.statements", r#"{"operation":{"op":"platform"}}"#);
+        assert_eq!(
+            r.message,
+            format!("a host's Platform on {name} is not built (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5)")
+        );
+        for op in ["duckdb.tables", "duckdb.readsStored"] {
+            let r = refused(spec, op, r#"{"type":{"_type":"plain","kind":"OTHER"}}"#);
+            assert_eq!(
+                (r.class, r.message),
+                (Refusal::ILLEGAL_ARGUMENT, format!("'{op}' is DuckDb's op, not {name}'s"))
+            );
+        }
+        // the process's scan-order firings, every dialect's: a count
+        assert!(ok(spec, "scanOrderFirings", "{}").parse::<u64>().is_ok());
     }
 }
 
