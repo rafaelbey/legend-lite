@@ -365,12 +365,38 @@ The first measurement was already 100 %: nothing was found by the differential t
   `reducer` delegate every constant to EngineStyleH2's, so they are its.
 - **EngineStyleComposite** (`Profile::Composite`): `composite_call` (plain `char_length`, the full `substring`), every
   other function `db2_call`; its `scalarTypeName`, `formatText` and `reducer` are DB2's, which are H2's.
-- **The shared renderer**, one change: `timestamp_lit` may refuse (a date-time constant under a zone whose rules the
-  port does not carry, below).
 - **`java.time`** (`src/java_time.rs`), what `timestampLit` uses: `LocalDateTime.parse` (strict ISO, case-insensitive,
-  Java's sign rules for the year), `ZoneId.of(id, SHORT_IDS)` (offset IDs, the `UTC`/`GMT`/`UT` prefixes, region names,
-  JDK 25's `SHORT_IDS` and its 604 region IDs), the instant's offset under the carried rules, and `LocalDateTime`'s
-  `toString`.
+  Java's sign rules for the year) and `toString`, `ZoneId.of(id, SHORT_IDS)` (offset IDs, the `UTC`/`GMT`/`UT`
+  prefixes, region names), and `java.time.zone.ZoneRules` over the JDK's tzdb, embedded (below): `getOffset(Instant)`,
+  `getStandardOffset`, `getValidOffsets`, `getTransition` and `ZonedDateTime.of`'s resolution of a local date-time (a
+  gap moved later by its length, an overlap's earlier offset), each written from its JDK 25 source -- Java's own
+  `Arrays.binarySearch` (which of equal local transitions it finds is Java's), `findYear`, the last rules'
+  `ZoneOffsetTransitionRule.createTransition` for any year (`previousOrSame`/`nextOrSame`, the end-of-day flag, the
+  UTC, wall and standard time definitions), and a `DateTimeException` as `None`.
+
+## The JDK's time-zone database
+
+`rust/oracles/tzdb` (its `BUILD.bazel` and `MANIFEST.tsv`): `TzdbData.java`, a build action on the build's JDK
+(`//rust/oracles/tzdb:tzdb_data`, JDK 25.0.4+7, tzdb 2026b), writes every region `ZoneId.of(id, SHORT_IDS)` accepts --
+604 regions over 345 distinct rule sets (links share theirs), and the 28 short IDs -- each rule set copied from
+`ZoneRules`' own fields (the standard transitions have no public accessor; each array is checked against the public
+answers): the standard transitions and offsets, the savings transitions and wall offsets, the last rules. Its compact
+form (`tzdb.bin`: LEB128 varints, the transitions delta-encoded) is 145,799 bytes, committed with its SHA-256 and
+embedded by `include_bytes!`, read once. The release `liblite_ffi` grows from 4,185,776 to 4,320,976 bytes (+135,200,
+3.2 %; the hand-carried zone tables it replaces went).
+
+**Held to java.time: 0 different** (`the_zone_shift_answers_as_java_does`, `LITE_ZONE_ORACLES`):
+
+| oracle | lines | different |
+|---|---:|---:|
+| `zone-golden.tsv` `O`: an instant's offset, standard offset and local date-time (every ID at 63 instants of years 1, 1000, 1800-2100 and 9999; every rule set at each transition of 1800-2100 and of years 1, 1000, 5000 and 9999, a second before and at it) | 119,376 | 0 |
+| the same instants' UTC text through `timestampLit`'s shift (`shift_to_zone`) | 119,376 | 0 |
+| `zone-golden.tsv` `L`: a local date-time's valid offsets, its transition and `ZonedDateTime.of` (the same days at noon for every ID; around every transition a second before the gap or overlap, its start, its middle and its end) | 196,892 | 0 |
+| `engine-text-zones.tsv`: Java's own `EngineStyleH2(false, zone)` rendering `select TIMESTAMP'<iso>' as "t"`, 30 zones (half-hour and 45-minute offsets, negative and skipped-day transitions, short IDs, offset IDs, unknown ones) by their transitions of 1950, 2019 and 2050 and timestampLit's reading's edges | 684 | 0 |
+
+The `O` and `L` lines are generated with the data (`zone-golden.tsv.zst`, 1.46 MB); the renders run on core's built
+jars (`EngineTextZones.java`, its command in its comment), the only way to reach Java's dialect from `rust/oracles`.
+The first measurement was already exact.
 
 ## Identity and state
 
@@ -412,15 +438,11 @@ Each is Java's text or refusal as it is, reproduced and pinned by a unit test; n
 
 None of these reaches the oracles.
 
-- **A zone whose rules are not carried.** `timestampLit` shifts a date-time constant with Java's time-zone database
-  (JDK 25, tzdb 2026b here; the JVM's own at run time). The port carries every zone whose offset never changes (offset
-  IDs, `UTC`/`GMT`/`UT` and their offsets, the 49 fixed regions), America/Panama's rules (America/Atikokan,
-  America/Cayman, America/Coral_Harbour; `EST`, which `SHORT_IDS` maps to America/Panama on JDK 25 -- on JDKs before it
-  `EST` is the fixed `-05:00`, the same offset since 1908) and America/Phoenix's (America/Creston, US/Arizona; `MST`,
-  `PNT`), each with its whole history, and the list of all 604 region IDs. A region Java knows whose rules are not
-  carried (America/New_York, Europe/London, `HST`, ...) refuses the render (`IllegalStateException`, naming the zone)
-  where Java shifts the constant; an ID Java does not know is written unshifted, as Java's. The oracles' zones are GMT,
-  EST and US/Arizona.
+- **The tzdb is the build JDK's.** The JVM shifts by its own JDK's tzdb; the Rust library by the build JDK's (JDK
+  25.0.4, tzdb 2026b), embedded. A JVM of another tzdb version (a later JDK, or `tzupdater`) could shift a constant of a
+  zone whose rules changed differently until the data is regenerated (`rust/oracles/tzdb/BUILD.bazel`). (`SHORT_IDS`
+  differs across JDKs too: `EST` is America/Panama on JDK 25 and the fixed `-05:00` before it -- the same offset since
+  1908.)
 - A refusal that embeds the call's argument list (`strftime format has no engine-H2 formatdatetime spelling yet: [...]`,
   the `strptime` one, DB2's `date_trunc unit`, `interval shape` and `strptime` ones) writes each argument's simple name
   (`[Column[...], FormatLit[...]]`) where Java writes `List.toString()` of the records' whole text; likewise the
@@ -488,9 +510,10 @@ counted once): **2,257,734 facts of 24,645 statements, 0 different.**
   Composite's function spellings and their refusals (DB2's truncations and intervals the oracles hold none of), the
   list calls and joinStrings, the aggregates and windows, the clauses (top, fetch, the group keys, DB2's WHERE wrap),
   the casts, the DDL and the seed rows, and Java's bugs listed above.
-- `src/java_time.rs` (4 tests) and `src/decode_shapes.rs` (1): `LocalDateTime`'s strict reading and its `toString`,
-  `ZoneId.of` with `SHORT_IDS` over every ID form (each measured on JDK 25), the shifts (Panama's local mean time,
-  Arizona's 1967 summer), and the decode chain's branches and one source.
+- `src/java_time.rs` (6 tests) and `src/decode_shapes.rs` (1): `LocalDateTime`'s strict reading and its `toString`,
+  the embedded tzdb's versions and counts, `ZoneId.of` with `SHORT_IDS` over every ID form (each measured on JDK 25),
+  New York's gap and overlap and its last rules in 2500, Lord Howe's half hour, Dublin's rearguard summer, the shifts
+  (Panama's local mean time, Arizona's 1967 summer), and the decode chain's branches and one source.
 - `src/seam/engine_tests.rs` (6 tests): every op of the seam for the three (§3b of `SEAM.md`): the spec's
   configuration and its refusals, the facts, the renders and the refused statement, the DDL, seed rows and a session
   table, the names, the raw text and the interface's defaults naming each dialect, and the five engine ops (a null
@@ -502,7 +525,8 @@ counted once): **2,257,734 facts of 24,645 statements, 0 different.**
   back from its JSON equal to the direct one with Java's record text -- DuckDB's 16,154 ops and 1,023 inline renders
   (13,011 statements, 10 refusals), H2's 21,847 and 1,813 (14,962 statements, 1,103 refusals), H2Modern's 394 and 17
   (352 statements, 20 refusals), EngineStyleH2's 2,105, 1,638 and 5,104 aliases (7 statements, 26 refusals),
-  EngineStyleDB2's 56, 42 and 43 (20 refusals), EngineStyleComposite's 24, 14 and 11 (20 refusals): all the same.
+  EngineStyleDB2's 56, 42 and 43 (20 refusals), EngineStyleComposite's 24, 14 and 11 (20 refusals): all the same; and
+  the zone shift held to java.time (above).
 
 # Stack
 

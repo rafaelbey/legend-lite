@@ -152,15 +152,21 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      refused on any other dialect; Composite has only its default) and answers five `engine.*` ops (SEAM.md §3b).
      `renderedAlias`, the one stateful method (it reads the alias plan of the dialect object's last `render` or
      `selectList`), takes the query the caller rendered and replays its plan; the differential holds 5,158 aliases to
-     the stateful answer. A date-time constant under a connection's zone is shifted with Java's (JDK 25) rules for
-     every fixed-offset zone and America/Panama's and America/Phoenix's (the oracle's EST and US/Arizona) with their
-     whole history; a zone Java does not know stays unshifted, as Java's; a region Java knows whose rules are not
-     carried refuses (`IllegalStateException`, naming it) rather than shift wrongly. For the switch (4d): shims of
-     `EngineStyleH2()`, `(boolean)`, `(boolean, String)`, `EngineStyleDB2()`, `(boolean, String)` and
-     `EngineStyleComposite()` sending their arguments in the spec; each `Tagged` replaced by its comparable before
+     the stateful answer. A date-time constant under a connection's zone is shifted exactly as Java's: **decided
+     2026-11-03 (the user: reproduce Java, no refusal)**, the dialect library embeds the build JDK's whole tzdb --
+     `rust/oracles/tzdb` (`TzdbData.java`, the build action `//rust/oracles/tzdb:tzdb_data` on remotejdk_25: JDK
+     25.0.4+7, tzdb 2026b; 604 regions, 345 rule sets, the 28 short IDs; each rule set `ZoneRules`' own arrays), 145,799
+     bytes in `tzdb.bin` (its SHA-256 in MANIFEST.tsv; the release `liblite_ffi` grows by 135,200 bytes, 3.2 %) -- and
+     `java_time.rs` answers `ZoneRules`' `getOffset`, `getStandardOffset`, `getValidOffsets`, `getTransition` and
+     `ZonedDateTime.of`'s resolution as the JDK 25 source does, for any year. Held to java.time with 0 different: 119,376
+     instants (and their `timestampLit` shifts) and 196,892 local date-times (gaps and overlaps) over every ID and every
+     rule set's transitions of 1800-2100 and years 1, 1000, 5000 and 9999 (`zone-golden.tsv.zst`), and 684 renders of
+     Java's own `EngineStyleH2(false, zone)` over 30 zones (`engine-text-zones.tsv`, run on core's built jars). For the
+     switch (4d): shims of `EngineStyleH2()`, `(boolean)`, `(boolean, String)`, `EngineStyleDB2()`, `(boolean, String)`
+     and `EngineStyleComposite()` sending their arguments in the spec; each `Tagged` replaced by its comparable before
      MirJson; `selectList`'s JSON null as Java's null; the shim remembering the last query it passed to `render` or
      `selectList` (and none after `renderAsAliased`) for `renderedAlias`; a `PlanParam`'s MirJson for
-     `collectionSplice`; and the user's word on the zones not carried (accept the refusal, or carry more rules).
+     `collectionSplice`; and the tzdb regenerated whenever the build's JDK changes.
    - **What a shim must keep** (an inventory of every use outside the five files): production code only constructs
      them -- `H2()`, `H2Modern()`, `EngineStyleH2()`, `(boolean)`, `(boolean, String)`, `EngineStyleDB2()`,
      `(boolean, String)`, `EngineStyleComposite()` -- and calls `SqlDialect` / `EngineTextDialect` methods; no static

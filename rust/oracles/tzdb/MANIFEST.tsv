@@ -1,0 +1,13 @@
+# file	producing target or command	JDK and tzdb	sha256 of the uncompressed output
+# Made 2026-11-03 on worktree-rust-port-phase0 by the build's JDK (remotejdk_25). tzdb.bin: every region
+# ZoneId.of(id, ZoneId.SHORT_IDS) accepts (604 regions, 345 distinct rule sets, the 28 short IDs), each rule set exactly
+# as java.time.zone.ZoneRules holds it -- standard transitions and offsets, savings transitions and wall offsets, last
+# rules -- in the LTZDB format TzdbData.java writes and rust/lite-dialect/src/java_time.rs reads; embedded by
+# //rust/lite-dialect:lite_dialect. zone-golden.tsv: java.time's answers over it (119,376 O lines: an instant's offset,
+# standard offset and local date-time; 196,892 L lines: a local date-time's valid offsets, transition and
+# ZonedDateTime.of resolution), every ID sparsely and every rule set around each transition of 1800-2100 and of years
+# 1, 1000, 5000 and 9999. engine-text-zones.tsv: Java's own EngineStyleH2(false, <zone>) rendering a date-time constant
+# for 30 zones (684 lines), run on core's built jars (EngineTextZones.java says how).
+tzdb.bin	//rust/oracles/tzdb:tzdb_data	25.0.4+7-LTS, tzdb 2026b	a13971d1077fd9c6753f000d4a04606e51a0a03a56d5774c9e0faa3343bd6eaf
+zone-golden.tsv.zst	//rust/oracles/tzdb:tzdb_data	25.0.4+7-LTS, tzdb 2026b	72bca9911d96a5edf435f88a56f339197f1123797be72d9cd69c7dd8acccbbcd
+engine-text-zones.tsv	EngineTextZones.java over //core:sql_dialect's jars	25.0.4+7-LTS, tzdb 2026b	a12616c5e1b051334873b91fff6321613e547b782772570e2d9f6e471ab7a733

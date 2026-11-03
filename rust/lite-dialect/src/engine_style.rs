@@ -2861,8 +2861,9 @@ impl AnsiSqlRenderer for EngineStyle {
     }
 
     /// `TIMESTAMP'...'`, its date-time separator a space; under a connection's zone other than GMT, the constant
-    /// shifted from GMT to that zone (engine adjustDate).
-    fn timestamp_lit(&self, iso: &str) -> Result<String, Refusal> {
+    /// shifted from GMT to that zone (engine adjustDate) by the JDK's rules (`java_time`), unshifted where Java's
+    /// `DateTimeException` is caught.
+    fn timestamp_lit(&self, iso: &str) -> String {
         let mut iso = iso.to_owned();
         if let Some(at) = byte_of_unit(&iso, 10)
             && iso[at..].starts_with('T')
@@ -2872,11 +2873,11 @@ impl AnsiSqlRenderer for EngineStyle {
         if let Some(tz) = &self.time_zone
             && tz != "GMT"
             && utf16_len(&iso) >= 19
-            && let Some(shifted) = java_time::shift_to_zone(&iso, tz)?
+            && let Some(shifted) = java_time::shift_to_zone(&iso, tz)
         {
             iso = shifted;
         }
-        Ok(format!("TIMESTAMP'{iso}'"))
+        format!("TIMESTAMP'{iso}'")
     }
 
     fn time_lit(&self, iso: &str) -> Result<String, Refusal> {

@@ -1,0 +1,56 @@
+load("//rust/oracles:zstd.bzl", "zstd_decompress")
+load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/java_run:defs.bzl", "java_run")
+
+# the committed outputs (MANIFEST.tsv): the rules the dialect library embeds, and Java's own engine-text renders of a
+# shifted constant (EngineTextZones.java, run on core's built jars), which its differential reads
+exports_files(
+    [
+        "engine-text-zones.tsv",
+        "tzdb.bin",
+    ],
+    visibility = ["//rust:__subpackages__"],
+)
+
+# java.time's answers over the rules, for the Rust port's differential
+zstd_decompress(
+    name = "zone_golden",
+    testonly = True,
+    src = "zone-golden.tsv.zst",
+    out = "zone-golden.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
+# THE JDK'S TIME-ZONE DATABASE, the generator (docs/rust-port/PHASE1.md §4 step 4c): every region
+# ZoneId.of(id, ZoneId.SHORT_IDS) accepts, with its rules exactly as java.time.zone.ZoneRules holds them, for the engine
+# text's date-time constant shifted to a connection's zone (EngineStyleH2.timestampLit). Run on the build's JDK
+# (remotejdk_25), it writes out/tzdb.bin, which rust/lite-dialect embeds, and out/zone-golden.tsv, java.time's answers
+# over it, which the Rust port is held to; both are committed beside this file (tzdb.bin, zone-golden.tsv.zst), each with
+# the tzdb version and its SHA-256 in MANIFEST.tsv. To regenerate:
+#   bazel build //rust/oracles/tzdb:tzdb_data
+#   cp bazel-bin/rust/oracles/tzdb/out/tzdb.bin rust/oracles/tzdb/tzdb.bin
+#   zstd -19 -f bazel-bin/rust/oracles/tzdb/out/zone-golden.tsv -o rust/oracles/tzdb/zone-golden.tsv.zst
+legend_java_library(
+    name = "generator",
+    srcs = glob(["src/main/java/tzdb/*.java"]),
+)
+
+java_run(
+    name = "tzdb_data",
+    testonly = True,
+    outs = [
+        "out/tzdb.bin",
+        "out/zone-golden.tsv",
+    ],
+    arguments = [
+        "{OUT_DIR}/tzdb.bin",
+        "{OUT_DIR}/zone-golden.tsv",
+    ],
+    # the arrays are ZoneRules' own private fields: the standard transitions have no public accessor
+    jvm_flags = ["--add-opens=java.base/java.time.zone=ALL-UNNAMED"],
+    main_class = "tzdb.TzdbData",
+    deps = [":generator"],
+)
+
+guards_package()

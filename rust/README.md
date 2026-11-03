@@ -35,6 +35,12 @@ names. Change both together.
   build's JDK (25.0.4, tzdata 2026b): every code point's character classes, as runs, and `ZoneId.SHORT_IDS`. And
   `double-tostring.tsv`, the `Double.toString` families of `conformance_jvm` extracted to plain text so a test reads
   them with no decompressor (`<bits in hex>\t<text>`, 86,285 cases).
+- `oracles/tzdb/`: the JDK's time-zone database as `java.time.zone.ZoneRules` holds it, for the engine text's
+  date-time constant shifted to a connection's zone: `TzdbData.java`, a build action on the build's JDK
+  (`//rust/oracles/tzdb:tzdb_data`), writes `tzdb.bin` (every region and short ID, each rule set's own arrays; the
+  dialect library embeds it) and `zone-golden.tsv.zst` (java.time's answers over it, the differential's); and
+  `engine-text-zones.tsv`, Java's own `EngineStyleH2` renders of a shifted constant. `MANIFEST.tsv` names each one's
+  producer, JDK, tzdb version and SHA-256.
 - `tools/mirjson-roundtrip-probe.patch`: the probe that proved the SQL-tree seam (docs/rust-port/PHASE0.md §4).
   `git apply` it, run any suite with `--test_env=LEGEND_MIRJSON_ROUNDTRIP=1 --nozip_undeclared_test_outputs`, and
   read `mirjson-roundtrip-*` in each test's outputs; never commit it to the sources. Phase 1's differential is the

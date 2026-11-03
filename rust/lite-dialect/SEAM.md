@@ -379,9 +379,9 @@ answer cannot hold one, as JSON writes it `\u0000`).
 - `Boolean.parseBoolean` (a secret's `USE_SSL`) is ASCII case-insensitive `true`, as Java's `equalsIgnoreCase` is on
   that word; `extensionName`'s pattern is ASCII, as Java's.
 - An engine-text dialect's `timeZone` shifts a date-time constant with Java's time-zone rules (`ZoneId.of(zone,
-  ZoneId.SHORT_IDS)`, JDK 25): the Rust port carries every fixed-offset zone, the regions of America/Panama's rules
-  (`EST` on JDK 25) and of America/Phoenix's (`MST`, `US/Arizona`), and the list of every region JDK 25 knows; a zone
-  Java does not know leaves the constant unshifted, as Java's caught `DateTimeException` does; a region Java knows whose
-  rules are not carried refuses the render (`IllegalStateException`, naming the zone) rather than shift it wrongly
-  (`PARITY.md`).
+  ZoneId.SHORT_IDS)`): the Rust library embeds the build JDK's whole tzdb (JDK 25.0.4, tzdb 2026b; every region and
+  short ID, each region's rules exactly as `ZoneRules` holds them: `rust/oracles/tzdb`, `PARITY.md`), and a zone Java
+  does not know leaves the constant unshifted, as Java's caught `DateTimeException` does. The JVM's own tzdb is the
+  JDK's: a JVM of another tzdb version would shift by its own rules, and the data is regenerated with the build's JDK
+  (`rust/oracles/tzdb/BUILD.bazel` says how).
 - The renders' own differences from Java, none of which the golden dump reaches, are `PARITY.md`'s.

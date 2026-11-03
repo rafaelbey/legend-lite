@@ -1275,3 +1275,134 @@ fn expr_facts(at: &str, e: &SqlExpr, f: &mut Facts) {
     };
     f.check(at, &kind, computed, e.r#type());
 }
+
+// ==================================================================
+// java.time over the JDK's tzdb, held to Java's own answers
+// ==================================================================
+
+/// The engine text's zone shift held to the JDK (`LITE_ZONE_ORACLES`: `rust/oracles/tzdb`'s `zone-golden.tsv` and
+/// `engine-text-zones.tsv`, its MANIFEST.tsv): every `O` line an instant's offset, standard offset and local date-time
+/// in a zone (and, for a year of four digits, `timestampLit`'s shift of its UTC text there), every `L` line a local
+/// date-time's valid offsets, transition and `ZonedDateTime.of` resolution, each as `lite_dialect::java_time` answers
+/// it; and every line of Java's own `EngineStyleH2(false, zone)` render of a date-time constant, rendered by the seam's
+/// dialect of that configuration. All exactly.
+#[test]
+#[ignore = "reads the JVM's zone oracles named by LITE_ZONE_ORACLES"]
+fn the_zone_shift_answers_as_java_does() {
+    let paths = std::env::var("LITE_ZONE_ORACLES")
+        .expect("LITE_ZONE_ORACLES is unset: it names zone-golden.tsv and engine-text-zones.tsv");
+    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut different = Vec::new();
+    for path in paths.split_whitespace() {
+        let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("cannot read {path}: {e}"));
+        let engine = path.ends_with("engine-text-zones.tsv");
+        for (n, line) in text.lines().enumerate().filter(|(_, l)| !l.starts_with('#')) {
+            let fields: Vec<&str> = line.split('\t').collect();
+            let at = format!("{}:{}", path.rsplit(['/', '\\']).next().unwrap_or(path), n + 1);
+            let differs = if engine {
+                *counts.entry("engine-text renders").or_default() += 1;
+                engine_text_zone(&fields)
+            } else if fields[0] == "O" {
+                *counts.entry("O, instants").or_default() += 1;
+                let (o, shifted) = zone_instant(&fields);
+                *counts.entry("O, timestampLit shifts").or_default() += usize::from(shifted);
+                o
+            } else {
+                *counts.entry("L, local date-times").or_default() += 1;
+                zone_local(&fields)
+            };
+            if let Some(d) = differs {
+                different.push(format!("{at}: {line}\n    rust: {d}"));
+            }
+        }
+    }
+    let data = lite_dialect::java_time::tzdb();
+    eprintln!(
+        "zones: java {}, tzdb {}, {} regions, {} rule sets; {counts:?}; {} different",
+        data.java,
+        data.version,
+        data.region_ids().count(),
+        data.rule_sets(),
+        different.len()
+    );
+    for d in different.iter().take(SHOWN) {
+        eprintln!("{d}");
+    }
+    assert!(counts.values().sum::<usize>() > 0, "the zone oracles hold no line");
+    assert!(different.is_empty(), "{} zone answers differ from Java's", different.len());
+}
+
+/// `O <zone> <epoch second> <offset> <standard offset> <local date-time>`: what differs, if anything, and whether the
+/// shift of the instant's UTC text was checked too.
+fn zone_instant(f: &[&str]) -> (Option<String>, bool) {
+    use lite_dialect::java_time::{LocalDateTime, shift_to_zone, zone_of};
+    let zone = zone_of(f[1]);
+    let epoch: i64 = f[2].parse().unwrap();
+    let offset = zone.offset_at(epoch);
+    let standard = zone.standard_offset_at(epoch);
+    let local = offset.and_then(|o| LocalDateTime::at_offset(epoch, o)).map(|l| l.to_java_string());
+    let java = (Some(f[3].parse::<i32>().unwrap()), Some(f[4].parse::<i32>().unwrap()), Some(f[5].to_owned()));
+    if (offset, standard, local.clone()) != java {
+        return (Some(format!("{offset:?} {standard:?} {local:?}")), false);
+    }
+    // timestampLit's shift of the instant's UTC text (a year of four digits: the text the engine writes)
+    let utc = LocalDateTime::of_epoch_second(epoch).unwrap();
+    if !(0..=9999).contains(&utc.year) {
+        return (None, false);
+    }
+    let iso =
+        format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", utc.year, utc.month, utc.day, utc.hour, utc.minute, utc.second);
+    let mut expected = f[5].replace('T', " ");
+    if expected.len() == 16 {
+        expected.push_str(":00");
+    }
+    let shifted = shift_to_zone(&iso, f[1]);
+    ((shifted.as_deref() != Some(expected.as_str())).then(|| format!("shift {iso}: {shifted:?}")), true)
+}
+
+/// `L <zone> <local date-time> <valid offsets> <transition epoch second or -> <resolved local> <its offset> <its epoch
+/// second>`: what differs, if anything.
+fn zone_local(f: &[&str]) -> Option<String> {
+    use lite_dialect::java_time::{LocalDateTime, zone_of};
+    let zone = zone_of(f[1]);
+    let ldt = LocalDateTime::parse(f[2]).unwrap_or_else(|| panic!("an unreadable local date-time {}", f[2]));
+    let valid: Vec<i32> = f[3].split(',').filter(|s| !s.is_empty()).map(|s| s.parse().unwrap()).collect();
+    let transition = (f[4] != "-").then(|| f[4].parse::<i64>().unwrap());
+    let resolved = (f[5].to_owned(), f[6].parse::<i32>().unwrap(), f[7].parse::<i64>().unwrap());
+    let rust_valid = zone.valid_offsets(&ldt);
+    let rust_transition = zone.transition(&ldt).map(|t| t.map(|t| t.epoch_second));
+    let rust_resolved = zone.resolve(&ldt).map(|(l, o)| (l.to_java_string(), o, l.to_epoch_second(o)));
+    (rust_valid.as_ref() != Some(&valid) || rust_transition != Some(transition) || rust_resolved != Some(resolved))
+        .then(|| format!("{rust_valid:?} {rust_transition:?} {rust_resolved:?}"))
+}
+
+/// `<zone> <iso> <Java's render>`: the seam's EngineStyleH2 of that zone rendering `select TIMESTAMP'<iso>' as "t"`.
+fn engine_text_zone(f: &[&str]) -> Option<String> {
+    let mut spec = Obj::new();
+    spec.insert("dialect", Node::Str("EngineStyleH2".to_owned()));
+    spec.insert("quoteIdentifiers", Node::Bool(false));
+    spec.insert("timeZone", Node::Str(f[0].to_owned()));
+    let d = open(&to_compact(&Node::Obj(spec))).unwrap();
+    let literal = SqlExpr::TimestampLit {
+        iso: f[1].to_owned(),
+        r#type: TypeFact::Typed { r#type: SqlType::Scalar(Scalar::Timestamp), nullable: false },
+    };
+    let select = SqlSelect {
+        projections: vec![Projection { expr: literal, alias: Some("t".to_owned()), out: None }],
+        distinct: false,
+        from: SqlSource::Dual,
+        r#where: None,
+        group_by: Vec::new(),
+        having: None,
+        qualify: None,
+        order_by: Vec::new(),
+        limit: None,
+        offset: None,
+        outputs: Vec::new(),
+    };
+    let rendered = match d.render(SqlQuery::Select(Box::new(select))) {
+        Ok(text) => text,
+        Err(r) => format!("THROWS {}: {}", r.class, r.message),
+    };
+    (rendered != f[2]).then_some(rendered)
+}

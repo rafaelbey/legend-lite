@@ -8,10 +8,11 @@ exports_files(["src/passes.rs"])
 # and 4): the shared renderer (Java's AnsiSqlRenderer as a trait), the writer, the pass pipeline with every pass DuckDB
 # and the H2 family run, the typing rules its constructors apply (Java's SqlTyping), DuckDB, H2 and H2Modern, and the
 # engine-text dialects (EngineStyleH2, EngineStyleDB2, EngineStyleComposite), rendering a lite_sql statement as the JVM
-# does.
+# does. It embeds the JDK's time-zone rules (src/java_time.rs includes //rust/oracles/tzdb:tzdb.bin, 146 KB).
 rust_library(
     name = "lite_dialect",
     srcs = glob(["src/**/*.rs"]),
+    compile_data = ["//rust/oracles/tzdb:tzdb.bin"],
     crate_root = "src/lib.rs",
     edition = "2024",
     version = "0.1.0",
@@ -34,8 +35,10 @@ rust_test(
 # dialect Rust answers -- DuckDb 16,154, H2 21,847, H2Modern 394, EngineStyleH2 2,105, EngineStyleDB2 56,
 # EngineStyleComposite 24 -- rendered by a fresh Rust dialect and held to Java's answer, at least each dialect's floor
 # (tests/<dialect>-floor.txt) identical; every type fact of every statement of the oracles recomputed and held to Java's;
-# and every op of each dialect's statements answered through the seam (SEAM.md) exactly as a direct call answers it
-# (tests/dialect_differential.rs, PARITY.md; cargo runs it with --ignored and LITE_ORACLES)
+# and every op of each dialect's statements answered through the seam (SEAM.md) exactly as a direct call answers it;
+# and the engine text's zone shift held to java.time over the JDK's tzdb (//rust/oracles/tzdb: every region's offsets,
+# gaps and overlaps, and Java's own EngineStyleH2 renders) (tests/dialect_differential.rs, PARITY.md; cargo runs it with
+# --ignored, LITE_ORACLES and LITE_ZONE_ORACLES)
 rust_test(
     name = "dialect_differential_test",
     srcs = ["tests/dialect_differential.rs"],
@@ -50,6 +53,8 @@ rust_test(
         "//rust/oracles:h2_dump",
         "//rust/oracles:mir/tagged-engine.jsonl",
         "//rust/oracles:mir_dump",
+        "//rust/oracles/tzdb:engine-text-zones.tsv",
+        "//rust/oracles/tzdb:zone_golden",
     ],
     edition = "2024",
     env = {
@@ -65,6 +70,10 @@ rust_test(
             "$(rootpath //rust/oracles:mir_dump)",
             "$(rootpath //rust/oracles:h2_dump)",
             "$(rootpath //rust/oracles:mir/tagged-engine.jsonl)",
+        ]),
+        "LITE_ZONE_ORACLES": " ".join([
+            "$(rootpath //rust/oracles/tzdb:zone_golden)",
+            "$(rootpath //rust/oracles/tzdb:engine-text-zones.tsv)",
         ]),
     },
     visibility = ["//gates:__pkg__"],
