@@ -1,0 +1,4 @@
+# The EngineStyleComposite differential's floor (tests/dialect_differential.rs): how many of the oracles' 24 distinct
+# EngineStyleComposite inputs must answer exactly as Java's. Measured 2026-11-03 with every override of
+# EngineStyleComposite.java ported (PARITY.md): all of them.
+24

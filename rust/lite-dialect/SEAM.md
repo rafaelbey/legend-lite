@@ -3,13 +3,15 @@
 How the JVM uses a Rust dialect (docs/rust-port/PHASE1.md §3, step 3): one C export, `lite_dialect`, answering one
 method of Java's `SqlDialect` (and its `HostOperations`) per call, JSON in and JSON out. The JVM side is written against
 this file; `src/seam.rs` (`lite_dialect::dispatch`) and `lite-ffi`'s `lite_dialect` implement it, and their tests hold
-every op below (`src/seam/tests.rs`, `src/seam/h2_tests.rs`, `lite-ffi/src/lib.rs`, and
+every op below (`src/seam/tests.rs`, `src/seam/h2_tests.rs`, `src/seam/engine_tests.rs`, `lite-ffi/src/lib.rs`, and
 `tests/dialect_differential.rs`'s `the_seam_answers_as_<dialect>s_renderer_does` over every op of each dialect's inputs
 in the golden oracles).
 
-Rust answers DuckDB, H2 and H2Modern (docs/rust-port/PHASE1.md §4, steps 3 and 4b). Every answer below is DuckDB's --
+Rust answers DuckDB, H2 and H2Modern (docs/rust-port/PHASE1.md §4, steps 3 and 4b), and the engine-text dialects
+`EngineStyleH2`, `EngineStyleDB2` and `EngineStyleComposite` (step 4c). Every answer below is DuckDB's --
 `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations and `SqlDialect`'s defaults, exactly as Java answers them
--- unless §3a gives H2's and H2Modern's (`H2.java`'s and `H2Modern.java`'s overrides over the same base).
+-- unless §3a gives H2's and H2Modern's (`H2.java`'s and `H2Modern.java`'s overrides over the same base) or §3b the
+engine-text dialects' (theirs over the same base, and Java's `EngineTextDialect`).
 
 ## 1. The call
 
@@ -36,21 +38,36 @@ The phase and position fields are always `-`; the message is the rest of the tex
   panic's message>`; nothing unwinds into the caller.
 - **Fresh per call.** The dialect is made from `spec` for each call and dropped after it: DuckDB and the H2 family carry
   no state from one render to the next. (This supersedes PHASE1.md §3's handle: no dialect state is held between
-  calls.) The JVM may read `facts` once per dialect and cache it.
+  calls.) The JVM may read `facts` once per dialect and cache it. An engine-text dialect's render leaves one piece of
+  state on Java's dialect object -- the engine's alias plan of the query, which `renderedAlias` then reads -- and the
+  seam rebuilds it from the query the caller says it rendered (`engine.renderedAlias`'s `rendered`, §3b).
 
 ## 2. Arguments
 
 ### `spec`
 
 ```json
-{"dialect": "DuckDb" | "H2" | "H2Modern", "server": "<version>" | null, "engineScanOrder": true | false}
+{"dialect": "DuckDb" | "H2" | "H2Modern" | "EngineStyleH2" | "EngineStyleDB2" | "EngineStyleComposite",
+ "server": "<version>" | null, "engineScanOrder": true | false,
+ "quoteIdentifiers": true | false, "timeZone": "<zone>" | null}
 ```
 
 | field | | |
 |---|---|---|
-| `dialect` | required string | Java's simple class name: `DuckDb`, `H2` or `H2Modern`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern`). |
-| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern keeps itself. |
-| `engineScanOrder` | boolean or missing (false) | `Boolean.getBoolean("legend.exec.engineScanOrder")`, which Java's `DuckDb` reads at each render: the engine corpus runner's opt-in to `StableScanOrder`. The JVM passes its property's value. Read as a boolean for every dialect; H2 and H2Modern ignore it. |
+| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2` or `EngineStyleComposite`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite`). |
+| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern and the engine-text dialects keep themselves. |
+| `engineScanOrder` | boolean or missing (false) | `Boolean.getBoolean("legend.exec.engineScanOrder")`, which Java's `DuckDb` reads at each render: the engine corpus runner's opt-in to `StableScanOrder`. The JVM passes its property's value. Read as a boolean for every dialect; only DuckDB reads it. |
+| `quoteIdentifiers` | boolean or missing (false) | an engine-text dialect's constructor argument (`new EngineStyleH2(quoteIdentifiers, timeZone)`, `new EngineStyleDB2(...)`; the plan text's connection): every physical identifier double-quoted. |
+| `timeZone` | string, null or missing (null) | the same constructors' second argument, the connection's zone: a DATETIME placeholder written in `GMTtoTZ`, a date-time constant shifted from GMT to the zone (`GMT` itself shifts none; §6). |
+
+`quoteIdentifiers` and `timeZone` configure an engine-text dialect alone: on `DuckDb`, `H2` or `H2Modern` either field,
+present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone configure an
+engine-text dialect (EngineStyleH2, EngineStyleDB2), not <Dialect>`). `EngineStyleComposite` has only Java's
+no-argument constructor: the fields may be absent or their defaults (`false`, `null`); any other value is refused
+(`EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers false, timeZone
+null)`). The JVM's `new EngineStyleH2()` is `{"dialect":"EngineStyleH2"}` (or the fields at their defaults), `new
+EngineStyleH2(q)` is `{"dialect":"EngineStyleH2","quoteIdentifiers":q}`, and `new EngineStyleH2(q, tz)` adds
+`"timeZone":tz`.
 
 ### `op` and `args`
 
@@ -108,6 +125,11 @@ Each answer is one JSON value. "string" is a JSON string, `[string]` an array of
 | `duckdb.tables` | `{}` | (DuckDB only) DuckDB's own tables, which the JVM's `com.legend.sql.dialect.DuckDb` still offers by name (`LEXICON`, `CATALOG_TYPES`, `CATALOG_REFUSED`): `{"lexicon": {"quoteChar": string, "reservedWords": [string] (sorted)}, "catalogTypes": {<canonical type>: CatalogType, ...} (Java's order), "catalogRefused": {<canonical type>: <reason>, ...} (Java's order)}` |
 | `duckdb.readsStored` | `{"type": MIR column type}` | (DuckDB only) boolean: `readsStored(ColumnType)`, the `StoredReads` pass's question (a plain `OTHER` or `DISTINCT` column is read as text) |
 | `scanOrderFirings` | `{}` | integer: the statements `StableScanOrder` has changed in this process, every dialect's (Java's `StableScanOrder.firings()`, which adds them to its own; the corpus runner's engine-order register) |
+| `engine.renderAsAliased` | `{"query": MIR query}` | (engine-text dialects only, §3b) string: `renderAsAliased(SqlQuery)` |
+| `engine.selectList` | `{"query": MIR query}` | (engine-text only) string, or null when the query is no select (`selectList(SqlQuery)`, `@Nullable`) |
+| `engine.collectionSplice` | `{"param": MIR expression}` | (engine-text only) string: `collectionSplice(PlanParam)`; `param` is a `planParam` |
+| `engine.renderedAlias` | `{"alias": string, "rendered": MIR query \| null}` | (engine-text only) string: `renderedAlias(alias)` on a dialect whose last render was `render(rendered)`; with no `rendered`, a dialect that rendered nothing (the alias itself) |
+| `engine.inTempTableSelect` | `{"table": string}` | (engine-text only) string: `inTempTableSelect(table)` |
 
 ### `facts`
 
@@ -152,6 +174,46 @@ The refusals H2's Java words with the literal "H2" keep it on H2Modern: `a TYPEO
 H2`, `plan parameter '<name>' has no type and is not typed by its value, and H2 types a parameter when it prepares the
 statement: not bound on H2`, `origin-less column reference reached the case-sensitive H2 renderer: <ref> — ...`.
 
+### 3b. The engine-text dialects: EngineStyleH2, EngineStyleDB2, EngineStyleComposite
+
+legend-engine's own SQL text (`EngineStyleH2.java`, `EngineStyleDB2.java`, `EngineStyleComposite.java`;
+`src/engine_style.rs`), never executed: the `toSQLString` and plan goldens. The three answer every op of §3 but
+`duckdb.*`, and the five `engine.*` ops (Java's `EngineTextDialect`), which every other dialect refuses. Where their
+answer differs from DuckDB's it is:
+
+| op | EngineStyleH2 | EngineStyleDB2 | EngineStyleComposite |
+|---|---|---|---|
+| `facts` | `SqlDialect`'s defaults: `{"temporaryTables": true, "loadsRowsInBulk": false, "relational": true, "inProcess": false, "dropsStagedTablesWithTheirTransaction": false, "needsStaticPivot": false, "serverVersions": null, "inMemoryPath": null, "scriptAbort": null, "sessionSetup": [], "keysSnapshot": {"refused": {"kind": "DIALECT_CAPABILITY", "message": "a dynamic pivot's probe plan reached EngineStyleH2, which says no snapshot for it"}}, "resultColumnLimit": {"refused": {"kind": "DIALECT_CAPABILITY", "message": "a dynamic pivot's probe plan reached EngineStyleH2, which says no column limit for it"}}}` | the same, naming `EngineStyleDB2` | the same, naming `EngineStyleComposite` |
+| `forServer` | `"EngineStyleH2"` | `"EngineStyleDB2"` | `"EngineStyleComposite"` |
+| `query.render`, `query.renderInline` | the engine's text on one line (`renderInline` is the same text): the passes (H2's carrier strategies with no literal reduction folded, the lateral explode as a union), a TDS join's bare star wrapped, the engine's alias plan (`"root"`, `<table>_<n>`), lowercase keywords, plan parameters as FreeMarker templates (`PARITY.md`) | H2's, but `concat` infix, DB2's function forms, the null-safe OR expansions, a WHERE conjunction over an OR-rooted conjunct wrapped, group keys as expressions joined by `,`, `+`/`-` tight, a boolean placeholder quoted | DB2's, but `char_length` and the full `substring` |
+| `query.renderStatement` | refused (`DialectCapability`): `the legacy engine-text plan binds no parameters: its parameters are template variables in its text (render)` | the same | the same |
+| `ddl.render` | the engine's `dataTypeToSqlText` types (`INT`, `OTHER`), its column rule (a reserved word of the engine's H2 list, a pre-quoted or a space-bearing name quoted), columns joined by `,`, key names raw | H2's | H2's |
+| `dml.render`, `dml.renderStatement` | a seed row as `loadValuesToDbTableH2` writes it (`insert into S.T (a,b) values (1,'x');`: one row, a cell a value); the other writes the base's (a store write refused naming the dialect) | H2's, naming `EngineStyleDB2` | H2's, naming `EngineStyleComposite` |
+| `sessionTable` | the interface's default over these renders | the same | the same |
+| `physicalName` | the base's identifier rule over a lexicon of no reserved word: bare when `[A-Za-z_][A-Za-z0-9_]*`, a valid pre-quoted name as it is, else double-quoted | H2's | H2's |
+| `storedName` | `physicalName`'s, declared quoted or not | H2's | H2's |
+| `insertColumnName` | double-quoted when declared quoted; a name that is no plain identifier double-quoted with its quotes dropped; else the engine's column rule | H2's | H2's |
+| `raw`, `fromEngineText` | the engine's H2 text as it is | the same | the same |
+| `wireTypeName`, `typingWireName`, `deliversOwn`, `script`, `failingStatement` | the interface's defaults (`failingStatement`: null) | the same | the same |
+| `catalogType`, `catalogColumnsQuery`, `bareNameReaches`, a converting `copySelectList`, `host.*` | the interface's refusals, naming `EngineStyleH2` | naming `EngineStyleDB2` | naming `EngineStyleComposite` |
+| `duckdb.tables`, `duckdb.readsStored` | refused: `'<op>' is DuckDb's op, not EngineStyleH2's` | naming `EngineStyleDB2` | naming `EngineStyleComposite` |
+| `engine.renderAsAliased` | the query as `render` writes it, with the aliases it carries | DB2's text | Composite's text |
+| `engine.selectList` | the select list of the query's first select (a union's first branch, recursively) after the passes, the wrap and the alias plan; `null` for a `with` | DB2's | Composite's |
+| `engine.collectionSplice` | `${renderCollection(<name>![] "," <prefix> <suffix> <escapes> "null")}`, the escape pair with a trailing space (`{"'" : "''" }`); a RAW parameter refused (`IllegalStateException`: `RAW plan params are bare splices, never collections`) | H2's, a BOOLEAN quoted (`"'" "'" {}`) | DB2's |
+| `engine.renderedAlias` | the alias's rename in the engine's alias plan of `rendered` (as `render(rendered)` planned it: its passes, its wrap); the alias itself when `rendered` is absent or plans no rename of it | the same | the same |
+| `engine.inTempTableSelect` | `select "<table, lower case>_0".ColumnForStoringInCollection as ColumnForStoringInCollection from <table> as "<table, lower case>_0"` | the same | the same |
+
+`engine.renderedAlias` is the one stateful call of Java's `EngineTextDialect`: Java's `renderedAlias` reads the alias
+plan its dialect object's last `render` (or `selectList`) made, and `renderAsAliased` clears it. The JVM's shim keeps
+the last query it rendered through `query.render` (or asked `engine.selectList` of) and sends it as `rendered`; after an
+`engine.renderAsAliased`, or before any render, it sends none. The plan is a function of the query alone (made after the
+passes, which a render that succeeded ran without refusal), so the replay is Java's answer; the differential holds
+every alias of every engine-text `query.render` input of the oracles to it (`tests/dialect_differential.rs`).
+
+The refusals the engine text's Java words with "engine-H2" or "the engine text" keep their words on DB2 and Composite
+(`QUALIFY has no engine-H2 golden spelling`, `plan: struct extraction has no engine-H2 spelling`, `a TYPEOF compared
+with <TYPE>'s name reached the engine text`); those of `AnsiSqlRenderer` and `SqlDialect` name the dialect.
+
 ### Op refusals
 
 Beyond MirJson's and `lite_json`'s words (§2), each op refuses as Java's method throws, class and message:
@@ -165,6 +227,11 @@ Beyond MirJson's and `lite_json`'s words (§2), each op refuses as Java's method
 - `script`, `failingStatement`: `field 'statements' is an array of strings`.
 - `forServer`: `missing field 'version'`, `field 'version' is null, not a string`.
 - `duckdb.tables`, `duckdb.readsStored` asked of another dialect: `'<op>' is DuckDb's op, not <Dialect>'s`.
+- `engine.*` asked of a dialect that is no engine-text dialect (`IllegalArgumentException`): `'<op>' is an engine-text
+  dialect's op (EngineStyleH2, EngineStyleDB2, EngineStyleComposite), not <Dialect>'s`.
+- `engine.collectionSplice`: `engine.collectionSplice's param is a planParam, not <_type>` (Java's signature takes a
+  `PlanParam`), and the dialect's own refusal of a RAW one.
+- `engine.renderedAlias`: `missing field 'alias'`, and whatever planning `rendered` refuses (its passes').
 - `catalogType`: `DialectCapability` -- `a DECIMAL column whose catalog gives no precision and scale ('<dataType>')
   cannot be declared`; `a column of DuckDB type '<dataType>' cannot be declared in a Pure Database (<why>)`, `<why>`
   the refused type's recorded reason, `a type this dialect does not read`, or `its catalog names no canonical type`.
@@ -311,4 +378,10 @@ answer cannot hold one, as JSON writes it `\u0000`).
   (every character at or below U+0020) is kept as is.
 - `Boolean.parseBoolean` (a secret's `USE_SSL`) is ASCII case-insensitive `true`, as Java's `equalsIgnoreCase` is on
   that word; `extensionName`'s pattern is ASCII, as Java's.
+- An engine-text dialect's `timeZone` shifts a date-time constant with Java's time-zone rules (`ZoneId.of(zone,
+  ZoneId.SHORT_IDS)`, JDK 25): the Rust port carries every fixed-offset zone, the regions of America/Panama's rules
+  (`EST` on JDK 25) and of America/Phoenix's (`MST`, `US/Arizona`), and the list of every region JDK 25 knows; a zone
+  Java does not know leaves the constant unshifted, as Java's caught `DateTimeException` does; a region Java knows whose
+  rules are not carried refuses the render (`IllegalStateException`, naming the zone) rather than shift it wrongly
+  (`PARITY.md`).
 - The renders' own differences from Java, none of which the golden dump reaches, are `PARITY.md`'s.

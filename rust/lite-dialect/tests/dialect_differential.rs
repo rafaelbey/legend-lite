@@ -6,7 +6,10 @@
 //! fresh, op, kind, mir, answer}`), answered by a fresh Rust dialect of that name and compared with what the JVM's
 //! fresh dialect answered -- the SQL text exactly, a statement's binds and regions as Java's record text, a refusal by
 //! its class and message. An input both oracles hold (the same op, configuration and MirJson) is one statement, so a
-//! dialect's count is of its distinct inputs.
+//! dialect's count is of its distinct inputs (an engine-text dialect's default configuration and the first dump's none
+//! are one configuration). An engine-text dialect's own ops (`engine.*`) are answered as its `EngineTextDialect`
+//! answers them: a query's text, a select list or null, a collection parameter's template, an alias, the temp table's
+//! read.
 //!
 //! One test per dialect asserts that at least its floor (`tests/<dialect>-floor.txt`, or the file of that name among
 //! `LITE_DIALECT_FLOORS`) of its statements are identical. Each prints the counts by op and by MIR kind, the first
@@ -22,11 +25,11 @@
 use lite_dialect::rewriter::{Rw, SqlRewriter, rewrite};
 use lite_dialect::seam::{open, read_statement, statement_json};
 use lite_dialect::statement::list_text;
-use lite_dialect::{Refusal, RenderedStatement, SqlDialect, dispatch};
+use lite_dialect::{EngineTextDialect, PlanParam, Refusal, RenderedStatement, SqlDialect, dispatch};
 use lite_json::{Node, Obj, parse_with_depth, to_compact};
 use lite_sql::{
     AggFn, ColumnKind, ColumnType, JoinKind, MAX_DEPTH, Origin, Projection, Scalar, SqlDml, SqlExpr, SqlFn, SqlQuery,
-    SqlSelect, SqlSource, SqlType, TypeFact, read_ddl, read_dml, read_query,
+    SqlSelect, SqlSource, SqlType, TypeFact, read_ddl, read_dml, read_expr, read_query,
 };
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -75,6 +78,46 @@ fn the_seam_answers_as_h2s_renderer_does() {
 fn the_seam_answers_as_h2moderns_renderer_does() {
     the_seam_answers_as_the_renderer_does("H2Modern");
 }
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn enginestyleh2_renders_as_java_does() {
+    renders_as_java_does("EngineStyleH2");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn enginestyledb2_renders_as_java_does() {
+    renders_as_java_does("EngineStyleDB2");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn enginestylecomposite_renders_as_java_does() {
+    renders_as_java_does("EngineStyleComposite");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_enginestyleh2s_renderer_does() {
+    the_seam_answers_as_the_renderer_does("EngineStyleH2");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_enginestyledb2s_renderer_does() {
+    the_seam_answers_as_the_renderer_does("EngineStyleDB2");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_enginestylecomposites_renderer_does() {
+    the_seam_answers_as_the_renderer_does("EngineStyleComposite");
+}
+
+/// An engine-text dialect's default configuration (Java's no-argument constructor), as the H2 dump writes it: an input
+/// the first dump holds with no configuration is the same input.
+const DEFAULT_ENGINE_CONFIG: &str = r#"{"quoteIdentifiers":false,"timeZone":null}"#;
 
 /// The spec the JVM's shim of `dialect` sends (`SEAM.md`), with a configured dialect's configuration's fields.
 fn spec(dialect: &str, config: Option<&Obj>) -> String {
@@ -193,7 +236,10 @@ fn input_key(line: &str) -> u128 {
     };
     let op =
         field("op", ",\"kind\":").unwrap_or_else(|| panic!("a line without an op: {}", &line[..line.len().min(200)]));
-    let config = field("config", ",\"fresh\":").unwrap_or("null");
+    let config = match field("config", ",\"fresh\":").unwrap_or("null") {
+        DEFAULT_ENGINE_CONFIG => "null",
+        other => other,
+    };
     hash(&[op, config, raw_mir(line)])
 }
 
@@ -274,8 +320,17 @@ struct Mismatch {
 #[derive(Debug, PartialEq)]
 enum Answer {
     Text(String),
-    Statement { sql: String, binds: String, regions: String },
-    Throws { class: String, message: String },
+    /// `{"ok": null}`: an engine-text dialect's select list of a query that is no select
+    Null,
+    Statement {
+        sql: String,
+        binds: String,
+        regions: String,
+    },
+    Throws {
+        class: String,
+        message: String,
+    },
 }
 
 const IDENTICAL: usize = 0;
@@ -363,6 +418,7 @@ fn compare(dialect: &str, e: &Entry, tally: &mut Tally) {
     let outcome = match (&java, &rust) {
         (Answer::Throws { .. }, Answer::Throws { .. })
         | (Answer::Text(_), Answer::Text(_))
+        | (Answer::Null, Answer::Null)
         | (Answer::Statement { .. }, Answer::Statement { .. }) => {
             if java == rust {
                 IDENTICAL
@@ -405,21 +461,30 @@ fn java_answer(a: &Obj) -> Answer {
     }
     match a.get("ok").expect("an answer is ok or throws") {
         Node::Str(s) => Answer::Text(s.clone()),
+        Node::Null => Answer::Null,
         Node::Obj(o) => Answer::Statement {
             sql: o.str("sql").unwrap().to_owned(),
             binds: o.str("binds").unwrap().to_owned(),
             regions: o.str("regions").unwrap().to_owned(),
         },
-        other => panic!("an ok answer neither text nor a statement: {other:?}"),
+        other => panic!("an ok answer neither text, null nor a statement: {other:?}"),
     }
+}
+
+/// An engine-text dialect's surface, refused (a test's failure) on any other.
+fn engine(d: &dyn SqlDialect) -> &dyn EngineTextDialect {
+    d.engine_text().unwrap_or_else(|| panic!("{} is no engine-text dialect", d.dialect_name()))
 }
 
 /// Rust's answer for the op, and the query the passes would have seen (a DML statement's own, or its expressions in
 /// a select; none for DDL and for text).
 fn answer(d: &dyn SqlDialect, op: &str, mir: &Node) -> Result<(Answer, Option<SqlQuery>), lite_sql::Error> {
-    if op == "fromEngineText" {
-        let statement = mir.as_str().map_err(|e| lite_sql::Error(format!("{op}'s input: {e}")))?;
-        return Ok((text(d.from_engine_text(statement)), None));
+    let input = |what: &str| mir.as_str().map_err(|e| lite_sql::Error(format!("{what}'s input: {e}")));
+    match op {
+        "fromEngineText" => return Ok((text(d.from_engine_text(input(op)?)), None)),
+        "engine.renderedAlias" => return Ok((Answer::Text(engine(d).rendered_alias(input(op)?)), None)),
+        "engine.inTempTableSelect" => return Ok((Answer::Text(engine(d).in_temp_table_select(input(op)?)), None)),
+        _ => {}
     }
     let mir = mir.as_obj()?;
     Ok(match op {
@@ -439,6 +504,24 @@ fn answer(d: &dyn SqlDialect, op: &str, mir: &Node) -> Result<(Answer, Option<Sq
         "dml.renderStatement" => {
             let dml = read_dml(mir)?;
             (statement(d.render_dml_statement(&dml)), dml_query(&dml))
+        }
+        "engine.renderAsAliased" => {
+            let q = read_query(mir)?;
+            (text(engine(d).render_as_aliased(q.clone())), Some(q))
+        }
+        "engine.selectList" => {
+            let q = read_query(mir)?;
+            let list = match engine(d).select_list(q.clone()) {
+                Ok(Some(s)) => Answer::Text(s),
+                Ok(None) => Answer::Null,
+                Err(e) => Answer::Throws { class: e.class.to_owned(), message: e.message },
+            };
+            (list, Some(q))
+        }
+        "engine.collectionSplice" => {
+            let param = read_expr(mir)?;
+            let p = PlanParam::of(&param).unwrap_or_else(|| panic!("{op}'s input is no plan parameter"));
+            (text(engine(d).collection_splice(&p)), None)
         }
         other => panic!("unknown op {other}"),
     })
@@ -492,6 +575,7 @@ fn statement(r: Result<RenderedStatement, Refusal>) -> Answer {
 fn flat(a: &Answer) -> String {
     match a {
         Answer::Text(s) => s.clone(),
+        Answer::Null => "NULL (no select)".to_owned(),
         Answer::Statement { sql, binds, regions } => format!("{sql} binds={binds} regions={regions}"),
         Answer::Throws { class, message } => format!("THROWS {class}: {message}"),
     }
@@ -595,6 +679,14 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             (t.outer_join_subquery, "OuterJoinSubqueryFilters"),
             (t.variant_egress, "VariantEgress"),
             (t.stored_reads, "StoredReads"),
+        ]
+    } else if dialect.starts_with("EngineStyle") {
+        // the engine text's passes (EngineStyleH2.passes()): the carrier strategies, the lateral explode
+        vec![
+            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
+            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (t.carrier || t.pivot, "CarrierStrategies"),
+            (t.lateral, "LateralExplodeToUnion"),
         ]
     } else {
         // the H2 family's passes (H2.passes()): a cast to DOUBLE over AVG, a reference re-spelled by its source
@@ -759,15 +851,16 @@ impl SqlRewriter for Triggers {
 /// dialect's statements exactly as a fresh dialect called directly answers it: the same JSON text (the SQL as a JSON
 /// string, a statement in `SEAM.md`'s form), a statement read back from its JSON equal to the direct one (record for
 /// record) and its binds and regions Java's record text, a refusal the same class and message. Each `query.render`
-/// line is also asked for `query.renderInline`.
+/// line is also asked for `query.renderInline`, and an engine-text dialect's for each of its aliases after the render
+/// (`engine.renderedAlias` with the rendered query).
 fn the_seam_answers_as_the_renderer_does(dialect: &'static str) {
     let tally = on_a_big_stack(move || seam_all(dialect));
     let mut report = String::new();
     let _ = writeln!(
         report,
-        "seam: {} {dialect} ops (and {} inline renders) dispatched, {} answered as the renderer does, {} statements \
-         read back from JSON equal and Java's record text, {} refusals",
-        tally.ops, tally.inline, tally.same, tally.statements, tally.refusals
+        "seam: {} {dialect} ops (and {} inline renders, {} aliases after a render) dispatched, {} answered as the \
+         renderer does, {} statements read back from JSON equal and Java's record text, {} refusals",
+        tally.ops, tally.inline, tally.aliases, tally.same, tally.statements, tally.refusals
     );
     for (op, n) in &tally.by_op {
         let _ = writeln!(report, "  {op:<24} {n:>6}");
@@ -778,13 +871,15 @@ fn the_seam_answers_as_the_renderer_does(dialect: &'static str) {
     eprintln!("{report}");
     assert!(tally.ops > 0, "the oracles hold no {dialect} statement");
     assert!(tally.different.is_empty(), "{} answers differ:\n{report}", tally.different.len());
-    assert_eq!(tally.same, tally.ops + tally.inline);
+    assert_eq!(tally.same, tally.ops + tally.inline + tally.aliases);
 }
 
 #[derive(Default)]
 struct SeamTally {
     ops: usize,
     inline: usize,
+    /// engine-text aliases asked after a render
+    aliases: usize,
     same: usize,
     statements: usize,
     refusals: usize,
@@ -810,17 +905,92 @@ fn seam_all(dialect: &str) -> SeamTally {
         if op == "query.render" {
             tally.inline += 1;
             seam_one(&e.at, &spec, "query.renderInline", (mir, raw), None, &mut tally);
+            if dialect.starts_with("EngineStyle") {
+                rendered_aliases(&e.at, &spec, (mir, raw), &mut tally);
+            }
         }
     }
     tally
+}
+
+/// An engine-text dialect's aliases after a render: each source alias of the query asked through the seam's
+/// `engine.renderedAlias` with the query it rendered, held to Java's order of calls on one dialect object -- `render`,
+/// then `renderedAlias` (the oracle's dialects are fresh, so the oracle holds no alias a render planned).
+fn rendered_aliases(at: &str, spec: &str, input: (&Node, &str), tally: &mut SeamTally) {
+    let (mir, raw) = input;
+    let q = read_query(mir.as_obj().unwrap()).unwrap();
+    let mut aliases = Vec::new();
+    query_aliases(&q, &mut aliases);
+    let d = open(spec).unwrap();
+    if d.render(q).is_err() {
+        return;
+    }
+    for alias in aliases {
+        tally.aliases += 1;
+        let args = format!("{{\"alias\":{},\"rendered\":{raw}}}", to_compact(&Node::Str(alias.clone())));
+        let seam = dispatch(spec, "engine.renderedAlias", &args);
+        let direct = engine(d.as_ref()).rendered_alias(&alias);
+        match seam {
+            Ok(json) if json == to_compact(&Node::Str(direct.clone())) => tally.same += 1,
+            other => {
+                tally.different.push(format!("{at} engine.renderedAlias {alias}: seam {other:?}, direct {direct}"))
+            }
+        }
+    }
+}
+
+/// Every source alias of a query, its subqueries' too.
+fn query_aliases(q: &SqlQuery, out: &mut Vec<String>) {
+    match q {
+        SqlQuery::Select(s) => source_aliases(&s.from, out),
+        SqlQuery::Union(u) => u.branches.iter().for_each(|b| query_aliases(b, out)),
+        SqlQuery::With(w) => {
+            w.ctes.iter().for_each(|c| query_aliases(&c.query, out));
+            query_aliases(&w.body, out);
+        }
+    }
+}
+
+fn source_aliases(s: &SqlSource, out: &mut Vec<String>) {
+    match s {
+        SqlSource::Join { left, right, .. } => {
+            source_aliases(left, out);
+            source_aliases(right, out);
+        }
+        SqlSource::Subselect { inner, alias, .. } => {
+            out.push(alias.clone());
+            query_aliases(inner, out);
+        }
+        SqlSource::Table { alias, .. } | SqlSource::VarSetPlaceholder { alias, .. } | SqlSource::Cte { alias, .. } => {
+            out.push(alias.clone())
+        }
+        _ => {}
+    }
+}
+
+/// The seam's argument key of an op's input.
+fn input_key_of(op: &str) -> &'static str {
+    match op {
+        "fromEngineText" => "statement",
+        "engine.collectionSplice" => "param",
+        "engine.renderedAlias" => "alias",
+        "engine.inTempTableSelect" => "table",
+        "query.render"
+        | "query.renderInline"
+        | "query.renderStatement"
+        | "engine.renderAsAliased"
+        | "engine.selectList" => "query",
+        "ddl.render" => "ddl",
+        "dml.render" | "dml.renderStatement" => "dml",
+        other => panic!("unknown op {other}"),
+    }
 }
 
 /// One op through the seam and directly, its input the MirJson (read, and as the text Java wrote); `java` the JVM's
 /// answer, to hold a statement's record text to.
 fn seam_one(at: &str, spec: &str, op: &str, input: (&Node, &str), java: Option<&Answer>, tally: &mut SeamTally) {
     let (mir, raw) = input;
-    let key = if op == "fromEngineText" { "statement" } else { op.split('.').next().unwrap() };
-    let seam = dispatch(spec, op, &format!("{{\"{key}\":{raw}}}"));
+    let seam = dispatch(spec, op, &format!("{{\"{}\":{raw}}}", input_key_of(op)));
     let d = open(spec).unwrap();
     let obj = || mir.as_obj().unwrap();
     let direct: Result<Direct, Refusal> = match op {
@@ -831,6 +1001,16 @@ fn seam_one(at: &str, spec: &str, op: &str, input: (&Node, &str), java: Option<&
         "dml.render" => d.render_dml(&read_dml(obj()).unwrap()).map(Direct::Text),
         "dml.renderStatement" => d.render_dml_statement(&read_dml(obj()).unwrap()).map(Direct::Statement),
         "fromEngineText" => d.from_engine_text(mir.as_str().unwrap()).map(Direct::Text),
+        "engine.renderAsAliased" => engine(d.as_ref()).render_as_aliased(read_query(obj()).unwrap()).map(Direct::Text),
+        "engine.selectList" => {
+            engine(d.as_ref()).select_list(read_query(obj()).unwrap()).map(|s| s.map_or(Direct::Null, Direct::Text))
+        }
+        "engine.collectionSplice" => {
+            let param = read_expr(obj()).unwrap();
+            engine(d.as_ref()).collection_splice(&PlanParam::of(&param).unwrap()).map(Direct::Text)
+        }
+        "engine.renderedAlias" => Ok(Direct::Text(engine(d.as_ref()).rendered_alias(mir.as_str().unwrap()))),
+        "engine.inTempTableSelect" => Ok(Direct::Text(engine(d.as_ref()).in_temp_table_select(mir.as_str().unwrap()))),
         other => panic!("unknown op {other}"),
     };
     let differs = match (&seam, &direct) {
@@ -841,6 +1021,7 @@ fn seam_one(at: &str, spec: &str, op: &str, input: (&Node, &str), java: Option<&
         (Ok(json), Ok(Direct::Text(sql))) => {
             (*json != to_compact(&Node::Str(sql.clone()))).then(|| format!("seam {json}\n    direct {sql:?}"))
         }
+        (Ok(json), Ok(Direct::Null)) => (json != "null").then(|| format!("seam {json}\n    direct null")),
         (Ok(json), Ok(Direct::Statement(st))) => {
             let doc = parse_with_depth(json, MAX_DEPTH).unwrap_or_else(|e| panic!("{at}: the seam's JSON: {e}"));
             let back = read_statement(doc.as_obj().unwrap()).unwrap_or_else(|r| panic!("{at}: {r}"));
@@ -868,6 +1049,8 @@ fn seam_one(at: &str, spec: &str, op: &str, input: (&Node, &str), java: Option<&
 /// The direct renderer's answer.
 enum Direct {
     Text(String),
+    /// an engine-text dialect's select list of a query that is no select
+    Null,
     Statement(RenderedStatement),
 }
 

@@ -1,0 +1,4 @@
+# The EngineStyleDB2 differential's floor (tests/dialect_differential.rs): how many of the oracles' 56 distinct
+# EngineStyleDB2 inputs must answer exactly as Java's. Measured 2026-11-03 with every override of EngineStyleDB2.java
+# ported (PARITY.md): all of them.
+56

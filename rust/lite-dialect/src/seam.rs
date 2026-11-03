@@ -6,22 +6,25 @@
 //! answer, its refusals -- and the JVM's side is written against it.
 //!
 //! A dialect is made fresh for each call from its spec (DuckDB and the H2 family carry no state from one render to the
-//! next). A MIR is read with `lite_sql`, nested at most [`MAX_DEPTH`] deep; every other record has the JSON form
-//! `SEAM.md` gives it: an object of the Java record's components by name, in declaration order, a nested record the
-//! same way, a Java enum by its `name()`. Every refusal is a [`Refusal`]: Java's class and message.
+//! next; an engine-text dialect's alias plan is rebuilt by the op that reads it). A MIR is read with `lite_sql`,
+//! nested at most [`MAX_DEPTH`] deep; every other record has the JSON form `SEAM.md` gives it: an object of the Java
+//! record's components by name, in declaration order, a nested record the same way, a Java enum by its `name()`. Every
+//! refusal is a [`Refusal`]: Java's class and message.
 
 use crate::catalog_model::{CatalogColumn, CatalogType, Conversion};
-use crate::dialect::SqlDialect;
+use crate::dialect::{EngineTextDialect, SqlDialect};
 use crate::duckdb::DuckDb;
+use crate::engine_style::{EngineStyle, Profile};
 use crate::h2::H2;
 use crate::host_ops;
 use crate::refusal::Refusal;
+use crate::renderer::PlanParam;
 use crate::statement::{Bind, Binding, Digits, Region, RenderedStatement, TypeHole, TypeSpelling};
 use lite_json::{Node, Num, Obj, parse, parse_with_depth, to_compact};
-use lite_sql::{MAX_DEPTH, SqlDdl, SqlDml, SqlQuery, ValueKind, read_ddl, read_dml, read_query, read_type};
+use lite_sql::{MAX_DEPTH, SqlDdl, SqlDml, SqlQuery, ValueKind, read_ddl, read_dml, read_expr, read_query, read_type};
 
 /// The dialects the seam opens, by the name a spec gives (Java's simple class name).
-pub const DIALECTS: &[&str] = &["DuckDb", "H2", "H2Modern"];
+pub const DIALECTS: &[&str] = &["DuckDb", "H2", "H2Modern", "EngineStyleH2", "EngineStyleDB2", "EngineStyleComposite"];
 
 /// Every op the seam answers (`SEAM.md`, "Ops").
 pub const OPS: &[&str] = &[
@@ -55,6 +58,11 @@ pub const OPS: &[&str] = &[
     "duckdb.tables",
     "duckdb.readsStored",
     "scanOrderFirings",
+    "engine.renderAsAliased",
+    "engine.selectList",
+    "engine.collectionSplice",
+    "engine.renderedAlias",
+    "engine.inTempTableSelect",
 ];
 
 /// One op of the dialect `spec` names, over `args`: the answer as compact JSON text, or Java's refusal. Refused in
@@ -72,8 +80,10 @@ pub fn dispatch(spec: &str, op: &str, args: &str) -> Result<String, Refusal> {
     Ok(to_compact(&answer(dialect.as_ref(), op, &args)?))
 }
 
-/// The dialect a spec names (`{"dialect": name, "server": version or null, "engineScanOrder": bool}`), made fresh and
-/// then taken for its server (`forServer`) when the spec names one.
+/// The dialect a spec names (`{"dialect": name, "server": version or null, "engineScanOrder": bool,
+/// "quoteIdentifiers": bool, "timeZone": zone or null}`), made fresh and then taken for its server (`forServer`) when
+/// the spec names one. `quoteIdentifiers` and `timeZone` configure an engine-text dialect (Java's constructor
+/// arguments) and are refused on any other; `EngineStyleComposite` has only its default configuration.
 pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
     let spec = parse(spec).map_err(json)?;
     let Node::Obj(spec) = spec else {
@@ -85,7 +95,20 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
         None => false,
         Some(_) => spec.bool("engineScanOrder").map_err(json)?,
     };
+    // an engine-text dialect's configuration: Java's `new EngineStyleH2(quoteIdentifiers, timeZone)`
+    let quote_identifiers = match spec.get("quoteIdentifiers") {
+        None => None,
+        Some(_) => Some(spec.bool("quoteIdentifiers").map_err(json)?),
+    };
+    let time_zone = spec.str_or_null("timeZone").map_err(json)?;
+    let configured = spec.get("quoteIdentifiers").is_some() || spec.get("timeZone").is_some();
     let dialect: Box<dyn SqlDialect> = match name {
+        "DuckDb" | "H2" | "H2Modern" if configured => {
+            return Err(Refusal::illegal_argument(format!(
+                "quoteIdentifiers and timeZone configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not \
+                 {name}"
+            )));
+        }
         "DuckDb" => {
             let mut d = DuckDb::new();
             d.engine_scan_order = engine_scan_order;
@@ -93,6 +116,17 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
         }
         "H2" => Box::new(H2::new()),
         "H2Modern" => Box::new(H2::modern()),
+        "EngineStyleComposite" if quote_identifiers == Some(true) || time_zone.is_some() => {
+            return Err(Refusal::illegal_argument(
+                "EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers \
+                 false, timeZone null)",
+            ));
+        }
+        "EngineStyleH2" | "EngineStyleDB2" | "EngineStyleComposite" => Box::new(EngineStyle::new(
+            Profile::of(name).expect("an engine-style name"),
+            quote_identifiers.unwrap_or(false),
+            time_zone.map(str::to_owned),
+        )),
         other => {
             return Err(Refusal::illegal_argument(format!(
                 "unknown dialect '{other}': Rust answers {}",
@@ -110,6 +144,17 @@ fn answer(d: &dyn SqlDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
     // DuckDB's own tables and stored-read rule, which only the JVM's DuckDb asks for
     if op.starts_with("duckdb.") && d.dialect_name() != "DuckDb" {
         return Err(Refusal::illegal_argument(format!("'{op}' is DuckDb's op, not {}'s", d.dialect_name())));
+    }
+    // Java's EngineTextDialect methods, which only the engine-text dialects have
+    if op.starts_with("engine.") {
+        let Some(e) = d.engine_text() else {
+            return Err(Refusal::illegal_argument(format!(
+                "'{op}' is an engine-text dialect's op (EngineStyleH2, EngineStyleDB2, EngineStyleComposite), not \
+                 {}'s",
+                d.dialect_name()
+            )));
+        };
+        return engine_answer(e, op, a);
     }
     Ok(match op {
         "facts" => facts(d),
@@ -179,6 +224,37 @@ fn answer(d: &dyn SqlDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
             };
             texts(d.host_operations().statements(&host_ops::read_operation(operation)?)?)
         }
+        other => return Err(Refusal::illegal_argument(format!("unknown dialect op '{other}'"))),
+    })
+}
+
+/// An engine-text dialect's own op (Java's `EngineTextDialect`).
+fn engine_answer(e: &dyn EngineTextDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
+    Ok(match op {
+        "engine.renderAsAliased" => text(e.render_as_aliased(query(a)?)?),
+        // null when the query is no select
+        "engine.selectList" => e.select_list(query(a)?)?.map_or(Node::Null, Node::Str),
+        "engine.collectionSplice" => {
+            let param_json = a.obj("param").map_err(json)?;
+            let param = read_expr(param_json).map_err(json)?;
+            let Some(p) = PlanParam::of(&param) else {
+                return Err(Refusal::illegal_argument(format!(
+                    "engine.collectionSplice's param is a planParam, not {}",
+                    param_json.str("_type").unwrap_or("?")
+                )));
+            };
+            text(e.collection_splice(&p)?)
+        }
+        // the alias as the plan text writes it after `render(rendered)`, the query Java's dialect object last planned
+        // (none: a dialect that planned none, which answers the alias itself)
+        "engine.renderedAlias" => {
+            let alias = string(a, "alias")?;
+            if let Some(rendered) = a.obj_or_null("rendered").map_err(json)? {
+                e.plan_aliases(read_query(rendered).map_err(json)?)?;
+            }
+            text(e.rendered_alias(alias))
+        }
+        "engine.inTempTableSelect" => text(e.in_temp_table_select(string(a, "table")?)),
         other => return Err(Refusal::illegal_argument(format!("unknown dialect op '{other}'"))),
     })
 }
@@ -525,6 +601,8 @@ fn index_of(n: &Node) -> Result<usize, Refusal> {
     }
 }
 
+#[cfg(test)]
+mod engine_tests;
 #[cfg(test)]
 mod h2_tests;
 #[cfg(test)]

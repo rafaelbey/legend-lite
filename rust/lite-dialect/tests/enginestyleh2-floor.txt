@@ -1,0 +1,5 @@
+# The EngineStyleH2 differential's floor (tests/dialect_differential.rs): how many of the oracles' 2,105 distinct
+# EngineStyleH2 inputs (the renders over its five configurations, its DDL and seed rows, and its five engine-text ops;
+# the tagged engine-text query as the shim sends it among them) must answer exactly as Java's. Measured 2026-11-03 with
+# every override of EngineStyleH2.java and both of its passes ported (PARITY.md): all of them.
+2105

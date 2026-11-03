@@ -1,28 +1,33 @@
-# Dialect parity: DuckDB, H2 and H2Modern (2026-11-03)
+# Dialect parity: DuckDB, H2, H2Modern and the engine-text dialects (2026-11-03)
 
 Every dialect Rust answers, held to the JVM's own answers on the golden oracles (docs/rust-port/PHASE1.md §4): DuckDB
-(step 3, its renderer and passes) and the H2 family's execution dialects, H2 and H2Modern (step 4b). Each is ported from
-its Java class, over a walk that keeps Java's identity semantics and a port of the typing rules Java's constructors
-apply. This file measures each on the oracles and says what of Java it does not reproduce exactly.
+(step 3, its renderer and passes), the H2 family's execution dialects, H2 and H2Modern (step 4b), and the engine-text
+dialects, EngineStyleH2, EngineStyleDB2 and EngineStyleComposite (step 4c). Each is ported from its Java class, over a
+walk that keeps Java's identity semantics and a port of the typing rules Java's constructors apply. This file measures
+each on the oracles and says what of Java it does not reproduce exactly.
 
-Measured by `tests/dialect_differential.rs` over `//rust/oracles:mir_dump` (`mir/mir-dump.jsonl`) and
-`//rust/oracles:h2_dump` (`mir/h2-dump.jsonl`), an input both hold (the same dialect, op, configuration and MirJson)
-counted once:
+Measured by `tests/dialect_differential.rs` over `//rust/oracles:mir_dump` (`mir/mir-dump.jsonl`),
+`//rust/oracles:h2_dump` (`mir/h2-dump.jsonl`) and `mir/tagged-engine.jsonl` (the one engine-text query holding a
+tagged value, as the shim sends it), an input more than one holds (the same dialect, op, configuration and MirJson; an
+engine-text dialect's default configuration and the first dump's none are one) counted once:
 
-- `<dialect>_renders_as_java_does` (`duckdb_`, `h2_`, `h2modern_`): every distinct input of the dialect, answered by a
-  fresh Rust dialect of that name (made by the seam's `open`, as the JVM's shim makes it) and compared with the fresh
-  JVM dialect's answer -- the SQL text exactly, a statement's binds and regions as Java's record text, a refusal by its
-  Java class and message; at least the dialect's floor (`tests/<dialect>-floor.txt`) identical;
+- `<dialect>_renders_as_java_does` (`duckdb_`, `h2_`, `h2modern_`, `enginestyleh2_`, `enginestyledb2_`,
+  `enginestylecomposite_`): every distinct input of the dialect, answered by a fresh Rust dialect of that name and
+  configuration (made by the seam's `open`, as the JVM's shim makes it) and compared with the fresh JVM dialect's
+  answer -- the SQL text exactly, a statement's binds and regions as Java's record text, a refusal by its Java class and
+  message, an engine-text op's string (or a select list's null); at least the dialect's floor
+  (`tests/<dialect>-floor.txt`) identical;
 - `typing_reproduces_javas_facts`: every node of every distinct statement of the oracles (all dialects: one tree), its
   type fact recomputed by `src/typing.rs` from its children's and compared with the fact Java's constructor stored;
   every projection frame's outputs, union's labels and join's delivered columns likewise;
 - `the_seam_answers_as_<dialect>s_renderer_does`: every op of the dialect's inputs answered through the seam
-  (`SEAM.md`) exactly as a direct call answers it.
+  (`SEAM.md`) exactly as a direct call answers it (an engine-text dialect's, each alias of each rendered query too, as
+  `renderedAlias` after the render).
 
 ```
 cd rust
-LITE_ORACLES="<mir-dump.jsonl> <h2-dump.jsonl>" cargo test --release -p lite-dialect --test dialect_differential -- \
-  --ignored --nocapture
+LITE_ORACLES="<mir-dump.jsonl> <h2-dump.jsonl> oracles/mir/tagged-engine.jsonl" cargo test --release -p lite-dialect \
+  --test dialect_differential -- --ignored --nocapture
 ```
 
 (`LITE_ORACLES` names the oracle files, separated by whitespace; `LITE_DIALECT_MISMATCHES=<dir>` writes each dialect's
@@ -271,10 +276,167 @@ None of these reaches the oracles.
   `IllegalArgumentException`): ops of DuckDB's shim that no Java method of H2's answers.
 - Java's frame interval `n * 7` and H2Modern's index `ix + 1` are `long` arithmetic, wrapping: so are Rust's.
 
+# The engine-text dialects: EngineStyleH2, EngineStyleDB2, EngineStyleComposite
+
+Step 4c (docs/rust-port/PHASE1.md §4): legend-engine's own SQL text, `EngineStyleH2.java`, `EngineStyleDB2.java` and
+`EngineStyleComposite.java` (`src/engine_style.rs`), with Java's `EngineTextDialect` (`dialect::EngineTextDialect`).
+
+## The numbers
+
+**EngineStyleH2: 2,105 of 2,105 distinct inputs identical (100 %); EngineStyleDB2: 56 of 56; EngineStyleComposite: 24
+of 24.** The floors (`tests/enginestyleh2-floor.txt`, `tests/enginestyledb2-floor.txt`,
+`tests/enginestylecomposite-floor.txt`) are 2,105, 56 and 24. The oracles hold 2,132 EngineStyleH2 lines (2,092 of the
+H2 dump over five configurations, 39 of the first, the tagged query's one), 61 EngineStyleDB2 lines (51 and 10) and 29
+EngineStyleComposite lines (19 and 10). Every one of Java's refusals is reproduced, class and message --
+EngineStyleH2's 18, DB2's 15, Composite's 15, all `DialectCapability` -- and Rust refuses nothing Java answered. No
+engine-text statement binds a parameter (the plan text's parameters are FreeMarker templates in its text).
+
+| EngineStyleH2 op | identical | different | refused (Java rendered) | accepted (Java refused) |
+|---|---:|---:|---:|---:|
+| `ddl.render` | 292 | 0 | 0 | 0 |
+| `dml.render` | 141 | 0 | 0 | 0 |
+| `dml.renderStatement` | 12 | 0 | 0 | 0 |
+| `engine.collectionSplice` | 6 | 0 | 0 | 0 |
+| `engine.inTempTableSelect` | 2 | 0 | 0 | 0 |
+| `engine.renderAsAliased` | 9 | 0 | 0 | 0 |
+| `engine.renderedAlias` | 1 | 0 | 0 | 0 |
+| `engine.selectList` | 4 | 0 | 0 | 0 |
+| `query.render` | 1,638 | 0 | 0 | 0 |
+
+| EngineStyleH2 configuration (`quoteIdentifiers`, `timeZone`) | distinct inputs | identical | of them `query.render` |
+|---|---:|---:|---:|
+| `false`, `null` (Java's `new EngineStyleH2()`; the first dump's) | 1,961 | 1,961 | 1,503 |
+| `false`, `"GMT"` | 129 | 129 | 121 |
+| `false`, `"EST"` | 1 | 1 | 1 |
+| `false`, `"US/Arizona"` | 5 | 5 | 5 |
+| `true`, `null` | 6 | 6 | 5 |
+| `true`, `"GMT"` | 3 | 3 | 3 |
+
+| EngineStyleDB2 op | identical | | EngineStyleComposite op | identical |
+|---|---:|---|---|---:|
+| `dml.render` | 5 | | `dml.render` | 5 |
+| `dml.renderStatement` | 5 | | `dml.renderStatement` | 5 |
+| `engine.collectionSplice` | 2 | | `query.render` | 14 |
+| `engine.inTempTableSelect` | 2 | | | |
+| `query.render` | 42 | | | |
+
+(DB2 and Composite are met with their default configuration alone; nothing is different, refused or accepted.)
+
+By MIR kind every one is identical: EngineStyleH2's `SqlSelect` 1,628, `CreateTable` 148, `InsertValues` 143,
+`DropTable` 132, `SqlUnion` 23, `CreateSchema` 6, `DropSchema` 6, `PlanParam` 6, `String` 3, and `CreateTempTableAs`,
+`DeleteWhere`, `InsertSelect`, `Merge` and `Update` 2 each; DB2's `SqlSelect` 42 and Composite's 14, and each two of
+the five store writes, DB2's `PlanParam` 2 and `String` 2. The tagged query (`sqlstring::testGreatestLeast`, its
+`SqlExpr.Tagged` replaced by its comparable as the shim will send it) renders as Java rendered the original:
+`greatest("root".quantity, 1, 3)`.
+
+The seam answers every op of them as a direct call does: EngineStyleH2's 2,105 ops, 1,638 inline renders and 5,104
+aliases asked after a render (`engine.renderedAlias` with the rendered query, held to `render` then `renderedAlias` on
+one dialect object), 26 refusals; DB2's 56, 42 and 43, 20 refusals; Composite's 24, 14 and 11, 20 refusals.
+
+The first measurement was already 100 %: nothing was found by the differential that the port had not reproduced.
+
+## What is ported
+
+- **EngineStyleH2** (`EngineStyle` with `Profile::H2`): every one of its overrides but `tagged` -- the one-line `query`
+  (WITH and UNION inline), the `select` (H2's `top`, `offset .. fetch next`, QUALIFY refused), the select head (an
+  exists-key frame's bare DISTINCT keys), the projection (a date constant as a plain string, a scalar-map column
+  unaliased, a view frame's unquoted aliases, a pre-quoted alias quoted once), the sources (a table's parts quoted under
+  `quoteIdentifiers`, a subselect's frame depth, the plan variable), the engine's alias plan (`planQuery`: groups by
+  lowercased table, frame or variable name, a root scope's leftmost source `"root"` spending its group's index once,
+  pre-order numbering, correlated EXISTS in the outer numbering), `wrapTdsJoinTop`, the expression forms (Float and
+  Decimal literals, the correlated `exists (select 1 ...)`, mixed-operator arithmetic wrapped, every plan-parameter
+  template and `GMTtoTZ`, the enum selector and the optional parameter's null-safe equality, the dotted struct
+  placeholder, the quoted frame reads, flat AND/OR, the guarded IN, the temp-table splice, the collection templates, a
+  singleton IN as equality), `engineDateDiff` (the elapsed-time and Sunday-week folds, the decode chain, the lowercase
+  CASE), the whole `call` table and `listCall` (variadic greatest/least, the infix reduction chains, firstNotNull as
+  coalesce, joinStrings' flat concat, `collectionSize`), the aggregates (`listagg ... within group`, the percentiles,
+  the bare ANY_VALUE), the window's ordered `listagg`, the lowercase keywords and sort keys (no null placement), the
+  per-dynafunction casts, membership, the date, timestamp (with the zone shift) and time literals, the scalar types, the
+  DDL (`DdlSpelling.engineText`, the engine's column rule, raw key names, `,`), `storedName`, `insertColumnName`, the
+  seed rows, `renderStatement`'s refusal, `fromEngineText`, the passes (`CarrierStrategies(H2.CAPS, false)` -- its
+  literal reductions not folded, a mode first run here -- then `LateralExplodeToUnion`), and `EngineTextDialect`'s five
+  methods. `DecodeShapes.flattenDecode` and `sourceExpr` are `src/decode_shapes.rs`.
+- **EngineStyleDB2** (`Profile::Db2`): each of its twelve overrides is a branch where EngineStyleH2's method is written
+  -- `expr`'s null-safe OR expansions, `whereSql`'s wrap, `nullSafeEq`, `holderArgs`' quoted boolean, `groupKey`,
+  `groupBySeparator`, `infixPad`, `variantAwareCast` (`varchar(16000)`, the bare date-typed parses), and `call`
+  (`db2_call`: infix `concat`, `trim`, `cbrt`, `position`, `substr`, the pads, `reverse`, `dayofyear`, `trim(left(..))`,
+  `date(current date)`, `CHARACTER_LENGTH(x,CODEUNITS32)`, the `date(1)` truncations, the labeled intervals, `to_date`
+  and `timestamp_format`), every other function `h2_call` (Java's `super.call`). Its `scalarTypeName`, `formatText` and
+  `reducer` delegate every constant to EngineStyleH2's, so they are its.
+- **EngineStyleComposite** (`Profile::Composite`): `composite_call` (plain `char_length`, the full `substring`), every
+  other function `db2_call`; its `scalarTypeName`, `formatText` and `reducer` are DB2's, which are H2's.
+- **The shared renderer**, one change: `timestamp_lit` may refuse (a date-time constant under a zone whose rules the
+  port does not carry, below).
+- **`java.time`** (`src/java_time.rs`), what `timestampLit` uses: `LocalDateTime.parse` (strict ISO, case-insensitive,
+  Java's sign rules for the year), `ZoneId.of(id, SHORT_IDS)` (offset IDs, the `UTC`/`GMT`/`UT` prefixes, region names,
+  JDK 25's `SHORT_IDS` and its 604 region IDs), the instant's offset under the carried rules, and `LocalDateTime`'s
+  `toString`.
+
+## Identity and state
+
+- The engine text runs two passes, both ported for H2 (`CarrierStrategies`, `LateralExplodeToUnion`): their identity is
+  H2's (above). `CarrierStrategies` with `foldLiteralReductions` false leaves a reduction over a literal list as it
+  came; the engine text spells it as its infix chain.
+- `wrapTdsJoinTop` builds its select through `new SqlSelect` (`build::select_of`, the outputs recomputed from the
+  projections, each projection's output normalized to DERIVED), as Java's.
+- `planQuery` mutates the dialect's alias plan (`renames`, `subselects`, `rootConsumed`, `placeholders`, cleared at each
+  plan): Rust keeps it in a `RefCell` on the dialect, cleared at the same point (after the passes and the wrap). Java's
+  `subselects` keeps the frame itself; Rust keeps only what `quotedFrameRead` reads of it (a union frame's output names,
+  a plain frame's projection aliases, or nothing), replaced as Java's `put` replaces. `frameDepth` and
+  `anonDistinctDepth` are `Cell`s restored after the frame is written, a refusal included (Java's `finally`).
+- `renderedAlias` reads the last plan, as Java's; the seam replays it from the query the caller rendered (`SEAM.md`
+  §3b), and the differential holds every alias of every rendered query to the stateful answer.
+
+## Java's behavior reproduced that looks like a bug
+
+Each is Java's text or refusal as it is, reproduced and pinned by a unit test; none is fixed here.
+
+- `timestampLit` under a connection's zone: `LocalDateTime.toString` drops a zero second, and `:00` is put back only
+  when nothing follows the 19 characters read, so `2019-04-08 18:00:00.000` shifts to `2019-04-08 13:00.000` (the
+  seconds lost before the fraction). The shift also swallows every `DateTimeException`: a constant that is no date-time,
+  or a zone Java does not know, is written unshifted, silently. A year past 9999 written `+10000-...` would not have its
+  `T` replaced (only position 10 is looked at).
+- `engineDateDiff` reads the elapsed time's unit through `(int) u.value()`: a `long` divisor of `2^32 + 60000` folds to
+  `datediff(minute, ...)`.
+- DB2's interval: `-v` of `Long.MIN_VALUE` stays negative (`x - -9223372036854775808 DAYS`) and a week count's `v * 7`
+  wraps.
+- `joinedReduction` checks only that a COALESCE's first argument is the string aggregate over a literal list, not that
+  its default is `''`: `COALESCE(<joined list>, 'x')` is written as the flat concat, the default dropped.
+- The IN arm writes any two-argument IN as equality (`x = y`), the second argument any expression, not only a literal
+  (its comment says "singleton literal in-list").
+- `wrapTdsJoinTop` quotes an output name into the wrap's column as `"<name>"` without doubling a quote inside it.
+- The seed text refuses an integer literal cell ("a IntLit cell reached the engine's seed text, which writes values
+  only"): it writes numbers from decimal literals alone.
+
+## What Java does that this does not reproduce exactly
+
+None of these reaches the oracles.
+
+- **A zone whose rules are not carried.** `timestampLit` shifts a date-time constant with Java's time-zone database
+  (JDK 25, tzdb 2026b here; the JVM's own at run time). The port carries every zone whose offset never changes (offset
+  IDs, `UTC`/`GMT`/`UT` and their offsets, the 49 fixed regions), America/Panama's rules (America/Atikokan,
+  America/Cayman, America/Coral_Harbour; `EST`, which `SHORT_IDS` maps to America/Panama on JDK 25 -- on JDKs before it
+  `EST` is the fixed `-05:00`, the same offset since 1908) and America/Phoenix's (America/Creston, US/Arizona; `MST`,
+  `PNT`), each with its whole history, and the list of all 604 region IDs. A region Java knows whose rules are not
+  carried (America/New_York, Europe/London, `HST`, ...) refuses the render (`IllegalStateException`, naming the zone)
+  where Java shifts the constant; an ID Java does not know is written unshifted, as Java's. The oracles' zones are GMT,
+  EST and US/Arizona.
+- A refusal that embeds the call's argument list (`strftime format has no engine-H2 formatdatetime spelling yet: [...]`,
+  the `strptime` one, DB2's `date_trunc unit`, `interval shape` and `strptime` ones) writes each argument's simple name
+  (`[Column[...], FormatLit[...]]`) where Java writes `List.toString()` of the records' whole text; likewise the
+  unreachable `decode branch is not an equality: <node>`.
+- `toLowerCase(Locale.ROOT)` (an alias group, a temp table's alias, the keywords, a type name) and the engine column
+  rule's reserved-word check are Rust's `to_lowercase`: the same casing, each from its own Unicode version.
+- `tagged` (Java's spelling of a `SqlExpr.Tagged` by its comparable) is not ported: the Rust MIR has no tagged node, and
+  the JVM's shim replaces each by its comparable before sending a query (`tagged-engine.jsonl` holds the one the suite
+  meets, its text Java's).
+- The seam refuses `duckdb.*` on the engine-text dialects, as on H2, and `engine.*` on every other dialect: ops no Java
+  method of theirs answers.
+
 # Typing
 
-Over both oracles, every distinct statement (every dialect's, the engine-text ops' queries included: one tree, counted
-once): **2,257,711 facts of 24,644 statements, 0 different.**
+Over the three oracles, every distinct statement (every dialect's, the engine-text ops' queries included: one tree,
+counted once): **2,257,734 facts of 24,645 statements, 0 different.**
 
 # Tests
 
@@ -317,17 +479,37 @@ once): **2,257,711 facts of 24,644 statements, 0 different.**
   and a spec's `server`, the renders and a type hole's JSON, the DDL and a session table, the names, the engine text,
   the interface's defaults, `failingStatement`, the catalog and host refusals naming the dialect, and the DuckDB-only
   ops refused.
+- `src/engine_style/tests.rs` (15 tests): the engine-text dialects' hooks on hand-built nodes, from their Java -- the
+  alias plan (a self-join, a joined subselect numbered pre-order, a view frame, the DISTINCT root frame, an exists-key
+  frame's bare keys, a plan variable, a correlated EXISTS), `renderedAlias` after a render and after `renderAsAliased`,
+  the TDS join's wrap and its select list, a union's and a WITH's, the literals and references (`quoteIdentifiers`, the
+  zone-shifted constants), every plan-parameter template, the enum selector and the optional parameter's null-safe
+  equality (H2's and DB2's), the boolean text and every IN form, the date-difference and decode folds, H2's, DB2's and
+  Composite's function spellings and their refusals (DB2's truncations and intervals the oracles hold none of), the
+  list calls and joinStrings, the aggregates and windows, the clauses (top, fetch, the group keys, DB2's WHERE wrap),
+  the casts, the DDL and the seed rows, and Java's bugs listed above.
+- `src/java_time.rs` (4 tests) and `src/decode_shapes.rs` (1): `LocalDateTime`'s strict reading and its `toString`,
+  `ZoneId.of` with `SHORT_IDS` over every ID form (each measured on JDK 25), the shifts (Panama's local mean time,
+  Arizona's 1967 summer), and the decode chain's branches and one source.
+- `src/seam/engine_tests.rs` (6 tests): every op of the seam for the three (§3b of `SEAM.md`): the spec's
+  configuration and its refusals, the facts, the renders and the refused statement, the DDL, seed rows and a session
+  table, the names, the raw text and the interface's defaults naming each dialect, and the five engine ops (a null
+  select list, a refused RAW splice, `renderedAlias` with and without the rendered query), refused on every other
+  dialect.
 - `tests/dialect_differential.rs`: the differentials above, one per dialect, the typing test, and the seam's, one per
-  dialect: every op of the dialect's inputs (and each `query.render` asked inline) answered through `dispatch` exactly
-  as a direct call answers it, each statement read back from its JSON equal to the direct one with Java's record text --
-  DuckDB's 16,154 ops and 1,023 inline renders (13,011 statements, 10 refusals), H2's 21,847 and 1,813 (14,962
-  statements, 1,103 refusals), H2Modern's 394 and 17 (352 statements, 20 refusals): all the same.
+  dialect: every op of the dialect's inputs (and each `query.render` asked inline, and for an engine-text dialect each
+  of its aliases after the render) answered through `dispatch` exactly as a direct call answers it, each statement read
+  back from its JSON equal to the direct one with Java's record text -- DuckDB's 16,154 ops and 1,023 inline renders
+  (13,011 statements, 10 refusals), H2's 21,847 and 1,813 (14,962 statements, 1,103 refusals), H2Modern's 394 and 17
+  (352 statements, 20 refusals), EngineStyleH2's 2,105, 1,638 and 5,104 aliases (7 statements, 26 refusals),
+  EngineStyleDB2's 56, 42 and 43 (20 refusals), EngineStyleComposite's 24, 14 and 11 (20 refusals): all the same.
 
 # Stack
 
 The deepest DuckDB statement needs between 1 and 2 MB of stack in a debug build for its parse, read, passes and render
 together, the deepest H2 statement (and the typing walk over both oracles) between 2 and 4 MB, and every one less than
-1 MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The seven tests run in
-parallel in 58 s in debug (the H2 seam's, the longest, 57 s alone) and 8.7 s in release. A MIR at MirJson's
-depth limit (2,045 nested calls) needs between 32 and 64 MB in a debug build and more than 1 MB in release; the seam's
-C export runs each call on a 256 MB thread (`SEAM.md` §1).
+1 MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The thirteen tests run in
+parallel in 59 s in debug (the H2 seam's, the longest, 57 s alone; the six engine-text tests together 6.4 s), 47 s
+under Bazel (`//rust/lite-dialect:dialect_differential_test`, `size = medium`: 300 s) and 9.2 s in release. A MIR at
+MirJson's depth limit (2,045 nested calls) needs between 32 and 64 MB in a debug build and more than 1 MB in release;
+the seam's C export runs each call on a 256 MB thread (`SEAM.md` §1).

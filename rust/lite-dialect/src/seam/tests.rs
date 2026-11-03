@@ -432,7 +432,11 @@ fn the_seam_refuses_what_it_cannot_read() {
     let r = dispatch(r#"{"dialect":"Oracle"}"#, "facts", "{}").unwrap_err();
     assert_eq!(
         (r.class, r.message.as_str()),
-        (Refusal::ILLEGAL_ARGUMENT, "unknown dialect 'Oracle': Rust answers DuckDb, H2, H2Modern")
+        (
+            Refusal::ILLEGAL_ARGUMENT,
+            "unknown dialect 'Oracle': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, \
+             EngineStyleComposite"
+        )
     );
     assert_eq!(dispatch("[]", "facts", "{}").unwrap_err().message, "a dialect's spec is a JSON object");
     assert_eq!(dispatch("{}", "facts", "{}").unwrap_err().message, "missing field 'dialect'");

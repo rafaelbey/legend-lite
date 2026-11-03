@@ -484,8 +484,10 @@ pub trait AnsiSqlRenderer: Sized {
         format!("DATE '{iso}'")
     }
 
-    fn timestamp_lit(&self, iso: &str) -> String {
-        format!("TIMESTAMP '{iso}'")
+    /// A date-time literal (a dialect may refuse one: the engine text's, shifted to a zone whose rules the port does
+    /// not carry).
+    fn timestamp_lit(&self, iso: &str) -> Result<String, Refusal> {
+        Ok(format!("TIMESTAMP '{iso}'"))
     }
 
     fn time_lit(&self, iso: &str) -> Result<String, Refusal> {

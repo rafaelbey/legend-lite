@@ -5,7 +5,8 @@ load(":zstd.bzl", "zstd_decompress")
 exports_files(
     [
         "java-compat/double-tostring.tsv",
-        # the engine-text query holding a tagged value, as the shim sends it (mir/MANIFEST.tsv)
+        # the engine-text query holding a tagged value, as the shim sends it (mir/MANIFEST.tsv): the dialects'
+        # differential reads it
         "mir/tagged-engine.jsonl",
     ],
     visibility = ["//rust:__subpackages__"],
@@ -22,7 +23,7 @@ zstd_decompress(
 )
 
 # The H2 family's renders and engine-text entry points over the whole suite, the corpus lanes included (phase 1 step 4;
-# mir/MANIFEST.tsv): the MIR's round trip and the dialects' differential (H2, H2Modern; the engine-style ones next) read
+# mir/MANIFEST.tsv): the MIR's round trip and the dialects' differential (H2, H2Modern and the engine-style ones) read
 # it.
 zstd_decompress(
     name = "h2_dump",

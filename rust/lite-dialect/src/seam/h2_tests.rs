@@ -252,7 +252,10 @@ fn the_catalog_and_the_host_are_the_interfaces_refusals_naming_the_dialect() {
 #[test]
 fn the_seam_opens_the_h2_family_and_names_every_dialect_it_answers() {
     let r = dispatch(r#"{"dialect":"Oracle"}"#, "facts", "{}").unwrap_err();
-    assert_eq!(r.message, "unknown dialect 'Oracle': Rust answers DuckDb, H2, H2Modern");
+    assert_eq!(
+        r.message,
+        "unknown dialect 'Oracle': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite"
+    );
     // the engine's scan order is DuckDB's switch: read as a boolean, ignored by H2
     assert_eq!(dispatch(r#"{"dialect":"H2","engineScanOrder":true}"#, "facts", "{}").unwrap(), ok(H2, "facts", "{}"));
     for op in OPS {

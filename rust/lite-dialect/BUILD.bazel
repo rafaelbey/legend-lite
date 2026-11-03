@@ -6,8 +6,9 @@ exports_files(["src/passes.rs"])
 
 # legend-lite's SQL dialects, ported from core/'s com.legend.sql.dialect (src/lib.rs; docs/rust-port/PHASE1.md steps 3
 # and 4): the shared renderer (Java's AnsiSqlRenderer as a trait), the writer, the pass pipeline with every pass DuckDB
-# and the H2 family run, the typing rules its constructors apply (Java's SqlTyping), DuckDB, H2 and H2Modern, rendering
-# a lite_sql statement as the JVM does.
+# and the H2 family run, the typing rules its constructors apply (Java's SqlTyping), DuckDB, H2 and H2Modern, and the
+# engine-text dialects (EngineStyleH2, EngineStyleDB2, EngineStyleComposite), rendering a lite_sql statement as the JVM
+# does.
 rust_library(
     name = "lite_dialect",
     srcs = glob(["src/**/*.rs"]),
@@ -29,26 +30,42 @@ rust_test(
     visibility = ["//gates:__pkg__"],
 )
 
-# every statement of the golden oracles (//rust/oracles:mir_dump and :h2_dump) of each dialect Rust answers -- DuckDb
-# 16,154, H2 21,847, H2Modern 394 -- rendered by a fresh Rust dialect and held to Java's answer, at least each dialect's
-# floor (tests/<dialect>-floor.txt) identical; every type fact of every statement of the oracles recomputed and held to
-# Java's; and every op of each dialect's statements answered through the seam (SEAM.md) exactly as a direct call answers
-# it (tests/dialect_differential.rs, PARITY.md; cargo runs it with --ignored and LITE_ORACLES)
+# every statement of the golden oracles (//rust/oracles:mir_dump, :h2_dump and the tagged engine-text query) of each
+# dialect Rust answers -- DuckDb 16,154, H2 21,847, H2Modern 394, EngineStyleH2 2,105, EngineStyleDB2 56,
+# EngineStyleComposite 24 -- rendered by a fresh Rust dialect and held to Java's answer, at least each dialect's floor
+# (tests/<dialect>-floor.txt) identical; every type fact of every statement of the oracles recomputed and held to Java's;
+# and every op of each dialect's statements answered through the seam (SEAM.md) exactly as a direct call answers it
+# (tests/dialect_differential.rs, PARITY.md; cargo runs it with --ignored and LITE_ORACLES)
 rust_test(
     name = "dialect_differential_test",
     srcs = ["tests/dialect_differential.rs"],
     args = ["--ignored"],
     data = [
         "tests/duckdb-floor.txt",
+        "tests/enginestylecomposite-floor.txt",
+        "tests/enginestyledb2-floor.txt",
+        "tests/enginestyleh2-floor.txt",
         "tests/h2-floor.txt",
         "tests/h2modern-floor.txt",
         "//rust/oracles:h2_dump",
+        "//rust/oracles:mir/tagged-engine.jsonl",
         "//rust/oracles:mir_dump",
     ],
     edition = "2024",
     env = {
-        "LITE_DIALECT_FLOORS": "$(rootpath tests/duckdb-floor.txt) $(rootpath tests/h2-floor.txt) $(rootpath tests/h2modern-floor.txt)",
-        "LITE_ORACLES": "$(rootpath //rust/oracles:mir_dump) $(rootpath //rust/oracles:h2_dump)",
+        "LITE_DIALECT_FLOORS": " ".join([
+            "$(rootpath tests/duckdb-floor.txt)",
+            "$(rootpath tests/h2-floor.txt)",
+            "$(rootpath tests/h2modern-floor.txt)",
+            "$(rootpath tests/enginestyleh2-floor.txt)",
+            "$(rootpath tests/enginestyledb2-floor.txt)",
+            "$(rootpath tests/enginestylecomposite-floor.txt)",
+        ]),
+        "LITE_ORACLES": " ".join([
+            "$(rootpath //rust/oracles:mir_dump)",
+            "$(rootpath //rust/oracles:h2_dump)",
+            "$(rootpath //rust/oracles:mir/tagged-engine.jsonl)",
+        ]),
     },
     visibility = ["//gates:__pkg__"],
     deps = [

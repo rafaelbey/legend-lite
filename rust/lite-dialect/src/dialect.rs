@@ -39,10 +39,44 @@ impl KeysSnapshot {
     }
 }
 
+/// legend-engine's own text for a database whose engine spelling is built (Java's `EngineTextDialect`, `extends
+/// SqlDialect`): what the engine-text and plan-text paths ask of `EngineStyleH2`, `EngineStyleDB2` and
+/// `EngineStyleComposite` beyond the renders.
+pub trait EngineTextDialect {
+    /// Java's `collectionSplice(PlanParam)`: a collection-valued plan parameter as the engine's plan text splices it
+    /// (its FreeMarker collection template). `param` is a `SqlExpr::PlanParam`.
+    fn collection_splice(&self, param: &crate::renderer::PlanParam<'_>) -> Result<String, Refusal>;
+
+    /// Java's `renderedAlias(alias)`: a relation alias as the plan text writes it -- after this dialect's last
+    /// `render` or `selectList`, the engine's alias plan of that query (see [`EngineTextDialect::plan_aliases`]); on a
+    /// dialect that planned none, the alias itself.
+    fn rendered_alias(&self, alias: &str) -> String;
+
+    /// Java's `selectList(query)`: the select list of the query's (first) select as `render` writes it; `None` when
+    /// the query is no select (a `with`).
+    fn select_list(&self, query: SqlQuery) -> Result<Option<String>, Refusal>;
+
+    /// Java's `renderAsAliased(query)`: the query as `render` writes it, with the aliases it carries.
+    fn render_as_aliased(&self, query: SqlQuery) -> Result<String, Refusal>;
+
+    /// Java's `inTempTableSelect(tempTable)`: the engine's read of its in-collection temp table.
+    fn in_temp_table_select(&self, temp_table: &str) -> String;
+
+    /// The alias plan `render(query)` leaves on Java's dialect object, which its `renderedAlias` then reads: the
+    /// query planned as `render` plans it (its passes run, its aliases planned), the text not written. The seam is
+    /// stateless (a dialect per call), so a caller that asks for an alias after a render says which query it rendered.
+    fn plan_aliases(&self, query: SqlQuery) -> Result<(), Refusal>;
+}
+
 /// A dialect as its callers use it (Java's `SqlDialect`).
 pub trait SqlDialect {
     /// Java's `getClass().getSimpleName()`, which the defaults' refusals name.
     fn dialect_name(&self) -> &'static str;
+
+    /// This dialect as an [`EngineTextDialect`] (Java's `instanceof EngineTextDialect`): the engine-style ones are.
+    fn engine_text(&self) -> Option<&dyn EngineTextDialect> {
+        None
+    }
 
     // ---- the renders (AnsiSqlRenderer's)
 
