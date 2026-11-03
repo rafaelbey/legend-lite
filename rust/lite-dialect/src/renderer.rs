@@ -283,12 +283,14 @@ pub trait AnsiSqlRenderer: Sized {
         ansi::expr(self, w, e, parent_prec)
     }
 
-    fn star_except_keyword(&self) -> String {
-        "EXCLUDE".to_owned()
+    /// The star exclusion's keyword (a dialect without one refuses: Postgres's).
+    fn star_except_keyword(&self) -> Result<String, Refusal> {
+        Ok("EXCLUDE".to_owned())
     }
 
-    fn row_order_column(&self) -> String {
-        "rowid".to_owned()
+    /// The stable row-order column (a dialect without one refuses: Postgres's).
+    fn row_order_column(&self) -> Result<String, Refusal> {
+        Ok("rowid".to_owned())
     }
 
     fn membership(&self, w: &mut SqlWriter, needle: &SqlExpr, collection: &SqlExpr) -> Result<(), Refusal> {
@@ -323,8 +325,16 @@ pub trait AnsiSqlRenderer: Sized {
         ansi::json_array_agg(self, w, value, order_keys)
     }
 
-    /// A function call: each dialect decides every `SqlFn` in its own exhaustive match.
-    fn call(&self, w: &mut SqlWriter, r#fn: SqlFn, args: &[SqlExpr], parent_prec: i32) -> Result<(), Refusal>;
+    /// A function call: each dialect decides every `SqlFn` in its own exhaustive match. `r#type` is the call's own
+    /// type fact (Java's `c.type()`), which some arms read.
+    fn call(
+        &self,
+        w: &mut SqlWriter,
+        r#fn: SqlFn,
+        args: &[SqlExpr],
+        r#type: &TypeFact,
+        parent_prec: i32,
+    ) -> Result<(), Refusal>;
 
     fn max_function_arguments(&self) -> usize {
         // Java's Integer.MAX_VALUE: no limit
@@ -357,16 +367,9 @@ pub trait AnsiSqlRenderer: Sized {
         Err(Refusal::capability("toVariant reached a dialect without JSON support"))
     }
 
-    fn fold_call(
-        &self,
-        w: &mut SqlWriter,
-        source: &SqlExpr,
-        lambda: &Lambda,
-        init: &SqlExpr,
-        acc_is_list: bool,
-        homogeneous: bool,
-    ) -> Result<(), Refusal> {
-        let _ = (w, source, lambda, init, acc_is_list, homogeneous);
+    /// A fold (`fold` is the `SqlExpr::FoldCall` node: Java's record, its type fact with it).
+    fn fold_call(&self, w: &mut SqlWriter, fold: &SqlExpr) -> Result<(), Refusal> {
+        let _ = (w, fold);
         Err(Refusal::capability("fold reached a dialect without a fold encoding"))
     }
 
@@ -431,7 +434,15 @@ pub trait AnsiSqlRenderer: Sized {
 
     // ---- window, aggregate, case
 
-    fn case_expr(&self, w: &mut SqlWriter, whens: &[When], otherwise: Option<&SqlExpr>) -> Result<(), Refusal> {
+    /// A CASE; `r#type` is its own type fact (Java's `c.type()`).
+    fn case_expr(
+        &self,
+        w: &mut SqlWriter,
+        whens: &[When],
+        otherwise: Option<&SqlExpr>,
+        r#type: &TypeFact,
+    ) -> Result<(), Refusal> {
+        let _ = r#type;
         ansi::case_expr(self, w, whens, otherwise)
     }
 
@@ -454,8 +465,9 @@ pub trait AnsiSqlRenderer: Sized {
         r#fn.as_str().to_owned()
     }
 
-    fn bound(&self, b: &Bound) -> String {
-        ansi::bound(self, b)
+    /// A window frame bound (a dialect may refuse one it cannot spell: Postgres's interval units).
+    fn bound(&self, b: &Bound) -> Result<String, Refusal> {
+        Ok(ansi::bound(self, b))
     }
 
     /// Each dialect names every aggregate itself.
@@ -472,8 +484,9 @@ pub trait AnsiSqlRenderer: Sized {
 
     // ---- lexical extension points
 
-    fn string_lit(&self, value: &str) -> String {
-        ansi::string_lit(value)
+    /// A string literal (a dialect may refuse one its text type cannot hold: Postgres's NUL).
+    fn string_lit(&self, value: &str) -> Result<String, Refusal> {
+        Ok(ansi::string_lit(value))
     }
 
     fn bool_lit(&self, value: bool) -> String {
@@ -501,7 +514,10 @@ pub trait AnsiSqlRenderer: Sized {
         ansi::struct_lit(self, w, fields)
     }
 
-    fn struct_get(&self, w: &mut SqlWriter, source: &SqlExpr, field: &str) -> Result<(), Refusal> {
+    /// A struct's field read; `r#type` is the read's own type fact (Java's `g.type()`: not a function of its source
+    /// alone, a builder may have given it).
+    fn struct_get(&self, w: &mut SqlWriter, source: &SqlExpr, field: &str, r#type: &TypeFact) -> Result<(), Refusal> {
+        let _ = r#type;
         ansi::struct_get(self, w, source, field)
     }
 

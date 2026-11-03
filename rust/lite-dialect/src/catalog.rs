@@ -118,9 +118,9 @@ pub fn write<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, catalog: &SqlSource, 
             "upper(table_schema)".into(),
             "upper(table_name)".into(),
             "upper(column_name)".into(),
-            type_case(d, types, &|t| t.code().to_string(), "1111"),
+            type_case(d, types, &|t| Ok(t.code().to_string()), "1111")?,
             types.type_name.to_owned(),
-            type_case(d, types, &|t| d.string_lit(t.name()), &d.string_lit("OTHER")),
+            type_case(d, types, &|t| d.string_lit(t.name()), &d.string_lit("OTHER")?)?,
         ],
         CatalogGrid::PrimaryKeys => vec![
             "NULL".into(),
@@ -145,29 +145,30 @@ pub fn write<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, catalog: &SqlSource, 
         let text = format!("{}{p} AS {q}{}{q}", if i == 0 { "" } else { ", " }, outputs[i].name);
         w.append(&text);
     }
-    let pattern = |w: &mut SqlWriter, expr: &str, pattern: &Option<String>| {
+    let pattern = |w: &mut SqlWriter, expr: &str, pattern: &Option<String>| -> Result<(), Refusal> {
         if let Some(p) = pattern {
-            let text = format!(" AND {expr} LIKE {}", d.string_lit(p));
+            let text = format!(" AND {expr} LIKE {}", d.string_lit(p)?);
             w.append(&text);
         }
+        Ok(())
     };
     match grid {
         CatalogGrid::Schemas => {
             w.append(" FROM information_schema.schemata WHERE schema_name").append(NOT_SYSTEM);
-            pattern(w, "upper(schema_name)", schema_pattern);
+            pattern(w, "upper(schema_name)", schema_pattern)?;
             w.append(" ORDER BY 1");
         }
         CatalogGrid::Tables => {
             w.append(" FROM information_schema.tables WHERE table_schema").append(NOT_SYSTEM);
-            pattern(w, "upper(table_schema)", schema_pattern);
-            pattern(w, "upper(table_name)", table_pattern);
+            pattern(w, "upper(table_schema)", schema_pattern)?;
+            pattern(w, "upper(table_name)", table_pattern)?;
             w.append(" ORDER BY 2, 3");
         }
         CatalogGrid::Columns => {
             w.append(" FROM information_schema.columns WHERE table_schema").append(NOT_SYSTEM);
-            pattern(w, "upper(table_schema)", schema_pattern);
-            pattern(w, "upper(table_name)", table_pattern);
-            pattern(w, "upper(column_name)", column_pattern);
+            pattern(w, "upper(table_schema)", schema_pattern)?;
+            pattern(w, "upper(table_name)", table_pattern)?;
+            pattern(w, "upper(column_name)", column_pattern)?;
             w.append(" ORDER BY 2, 3, ordinal_position");
         }
         // the standard key_column_usage and table_constraints pair
@@ -178,8 +179,8 @@ pub fn write<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, catalog: &SqlSource, 
                  t.table_name WHERE t.constraint_type = 'PRIMARY KEY' AND k.table_schema",
             )
             .append(NOT_SYSTEM);
-            pattern(w, "upper(k.table_schema)", schema_pattern);
-            pattern(w, "upper(k.table_name)", table_pattern);
+            pattern(w, "upper(k.table_schema)", schema_pattern)?;
+            pattern(w, "upper(k.table_name)", table_pattern)?;
             w.append(" ORDER BY 2, 3, 5");
         }
     }
@@ -187,11 +188,16 @@ pub fn write<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, catalog: &SqlSource, 
 }
 
 /// `CASE <typeKey> WHEN <name> THEN <value> ... ELSE <otherwise> END`, a value for each type name.
-fn type_case<D: AnsiSqlRenderer>(d: &D, types: &Types, value: &dyn Fn(TypeCode) -> String, otherwise: &str) -> String {
+fn type_case<D: AnsiSqlRenderer>(
+    d: &D,
+    types: &Types,
+    value: &dyn Fn(TypeCode) -> Result<String, Refusal>,
+    otherwise: &str,
+) -> Result<String, Refusal> {
     let mut sql = format!("CASE {}", types.type_key);
     for (name, code) in types.codes {
-        sql.push_str(&format!(" WHEN {} THEN {}", d.string_lit(name), value(*code)));
+        sql.push_str(&format!(" WHEN {} THEN {}", d.string_lit(name)?, value(*code)?));
     }
     sql.push_str(&format!(" ELSE {otherwise} END"));
-    sql
+    Ok(sql)
 }

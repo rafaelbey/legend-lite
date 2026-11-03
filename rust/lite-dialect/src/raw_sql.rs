@@ -1,7 +1,8 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! Java's `RawSqlBoundary.translated`: one statement of the engine's H2 text in the flavour DuckDB and Postgres share.
+//! Java's `RawSqlBoundary.translated`: one statement of the engine's H2 text in the flavour DuckDB and Postgres share,
+//! and the column-type rewrites Postgres's `fromEngineText` applies over it ([`double_precision`], [`replace_word`]).
 //! Its regular expressions are hand-written matchers here, each Java's pattern exactly as `java.util.regex` reads it
 //! on the JDK 25 the corpora ran on: `(?i)` folds ASCII only, `\w` is `[a-zA-Z_0-9]`, `\s` is `[ \t\n\x0B\f\r]`,
 //! and `\b` is the boundary between `\w` and the rest (ASCII since JDK 19).
@@ -173,14 +174,35 @@ fn non_column_head(head: &str) -> bool {
     ["primary", "constraint", "foreign", "unique", "check"].iter().any(|w| head.eq_ignore_ascii_case(w))
 }
 
-/// `(?i)\b<word>\b` to `replacement`.
-fn replace_word(s: &str, word: &'static str, replacement: &'static str) -> String {
+/// `(?i)\b<word>\b` to `replacement` (`word` ASCII).
+pub fn replace_word(s: &str, word: &str, replacement: &str) -> String {
     replace_all(s, |b, i| {
         if !boundary(b, i) {
             return None;
         }
         let j = keyword(b, i, word)?;
         boundary(b, j).then(|| (j, replacement.to_owned()))
+    })
+}
+
+/// `(?i)\bDOUBLE\b(?!\s+PRECISION)` to `DOUBLE PRECISION` (Postgres's `ENGINE_DOUBLE`): the engine's 8-byte double as
+/// Postgres spells it, a `DOUBLE PRECISION` already spelled left as it is.
+pub fn double_precision(s: &str) -> String {
+    replace_all(s, |b, i| {
+        if !boundary(b, i) {
+            return None;
+        }
+        let j = keyword(b, i, "DOUBLE")?;
+        if !boundary(b, j) {
+            return None;
+        }
+        // the lookahead: one or more spaces, then PRECISION (backtracking into the spaces reaches no other match)
+        if let Some(k) = spaces1(b, j)
+            && keyword(b, k, "PRECISION").is_some()
+        {
+            return None;
+        }
+        Some((j, "DOUBLE PRECISION".to_owned()))
     })
 }
 

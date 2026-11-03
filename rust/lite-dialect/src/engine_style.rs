@@ -38,7 +38,7 @@ use crate::writer::SqlWriter;
 use lite_sql::{
     AggFn, ColumnKind, ColumnType, DateFmt, DateFmtPart, DatePart, Frame, JoinKind, JsonKind, ParamKind, Projection,
     Reducer, Scalar, SortKey, SqlAgg, SqlDdl, SqlDml, SqlExpr, SqlFn, SqlQuery, SqlSelect, SqlSource, SqlType,
-    StructField,
+    StructField, TypeFact,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -1591,7 +1591,7 @@ impl EngineStyle {
             w.append("extract(doy from ").expr(self, &a[1], 0)?.append(")");
             return Ok(());
         }
-        let spelled = self.string_lit(engine_part(part(arg(a, 0)?)?)?);
+        let spelled = self.string_lit(engine_part(part(arg(a, 0)?)?)?)?;
         w.append("date_part(").append(&spelled).append(", ").list(self, tail(a, 1)?)?.append(")");
         Ok(())
     }
@@ -1610,7 +1610,7 @@ impl EngineStyle {
             w.append(") as timestamp) as date)");
             return Ok(());
         }
-        let spelled = self.string_lit(engine_part(u)?);
+        let spelled = self.string_lit(engine_part(u)?)?;
         ansi::date_trunc_date_grained(self, w, a, &spelled)
     }
 
@@ -2594,7 +2594,14 @@ impl AnsiSqlRenderer for EngineStyle {
         Ok(())
     }
 
-    fn call(&self, w: &mut SqlWriter, f: SqlFn, a: &[SqlExpr], parent_prec: i32) -> Result<(), Refusal> {
+    fn call(
+        &self,
+        w: &mut SqlWriter,
+        f: SqlFn,
+        a: &[SqlExpr],
+        _type: &TypeFact,
+        parent_prec: i32,
+    ) -> Result<(), Refusal> {
         match self.profile {
             Profile::H2 => self.h2_call(w, f, a, parent_prec),
             Profile::Db2 => self.db2_call(w, f, a, parent_prec),
@@ -3101,6 +3108,14 @@ impl SqlDialect for EngineStyle {
 
     fn insert_column_name(&self, name: &str, declared_quoted: bool) -> String {
         AnsiSqlRenderer::insert_column_name(self, name, declared_quoted)
+    }
+
+    fn reads_stored(&self, t: &ColumnType) -> bool {
+        <EngineStyle as AnsiSqlRenderer>::reads_stored(t)
+    }
+
+    fn table_name_spelled(&self, name: &str, quoting: lite_sql::NameQuoting) -> String {
+        AnsiSqlRenderer::table_name(self, name, quoting)
     }
 }
 

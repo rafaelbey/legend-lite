@@ -103,6 +103,13 @@ pub trait SqlDialect {
     fn physical_name(&self, name: &str) -> String;
     /// Java's `insertColumnName(name, declaredQuoted)`.
     fn insert_column_name(&self, name: &str, declared_quoted: bool) -> String;
+    /// Java's `AnsiSqlRenderer.readsStored(ColumnType)` (protected; the `StoredReads` pass's question, which core's
+    /// same-package tests ask a dialect directly): whether this dialect reads a column stored as `t` other than as the
+    /// database holds it.
+    fn reads_stored(&self, t: &lite_sql::ColumnType) -> bool;
+    /// Java's `AnsiSqlRenderer.tableName(name, quoting)` (protected; a same-package test asks it): a stored table's
+    /// name as a query reads it.
+    fn table_name_spelled(&self, name: &str, quoting: lite_sql::NameQuoting) -> String;
 
     // ---- the interface's defaults
 

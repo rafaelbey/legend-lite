@@ -553,8 +553,8 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
         }
         SqlExpr::RowOrder { table, .. } => {
             let text = match table {
-                None => d.row_order_column(),
-                Some(t) => format!("{}.{}", d.alias_ident(t), d.row_order_column()),
+                None => d.row_order_column()?,
+                Some(t) => format!("{}.{}", d.alias_ident(t), d.row_order_column()?),
             };
             w.append(&text);
         }
@@ -583,16 +583,16 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
                 Some(t) => format!("{}.*", d.alias_ident(t)),
             };
             let names: Vec<String> = except.iter().map(|n| d.star_except_name(n)).collect();
-            let text = format!("{head} {} ({})", d.star_except_keyword(), names.join(", "));
+            let text = format!("{head} {} ({})", d.star_except_keyword()?, names.join(", "));
             w.append(&text);
         }
         SqlExpr::StringLit { value, .. } => {
-            let text = d.string_lit(value);
+            let text = d.string_lit(value)?;
             w.append(&text);
         }
         SqlExpr::FormatLit { parts, .. } => {
             let text = d.format_text(parts)?;
-            let lit = d.string_lit(&text);
+            let lit = d.string_lit(&text)?;
             w.append(&lit);
         }
         SqlExpr::DatePartLit { part, .. } => {
@@ -602,12 +602,12 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
         }
         SqlExpr::JsonKindLit { kind, .. } => {
             let name = d.json_kind_name(*kind)?;
-            let lit = d.string_lit(&name);
+            let lit = d.string_lit(&name)?;
             w.append(&lit);
         }
         SqlExpr::TypeNameLit { scalar, .. } => {
             let name = d.typeof_name(*scalar)?;
-            let lit = d.string_lit(&name);
+            let lit = d.string_lit(&name)?;
             w.append(&lit);
         }
         SqlExpr::IntLit { value, .. } => {
@@ -654,9 +654,9 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
         }
         SqlExpr::ArrayLit { elements, .. } => return d.array_lit(w, elements),
         SqlExpr::StructLit { fields, .. } => return d.struct_lit(w, fields),
-        SqlExpr::StructGet { source, field, .. } => return d.struct_get(w, source, field),
-        SqlExpr::Call { r#fn, args, .. } => return d.call(w, *r#fn, args, parent_prec),
-        SqlExpr::Case { whens, otherwise, .. } => return d.case_expr(w, whens, otherwise.as_deref()),
+        SqlExpr::StructGet { source, field, r#type } => return d.struct_get(w, source, field, r#type),
+        SqlExpr::Call { r#fn, args, r#type } => return d.call(w, *r#fn, args, r#type, parent_prec),
+        SqlExpr::Case { whens, otherwise, r#type } => return d.case_expr(w, whens, otherwise.as_deref(), r#type),
         SqlExpr::Exists { subquery, .. } => {
             w.append("EXISTS (");
             inline(d, w, subquery)?;
@@ -706,9 +706,7 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
         // a cast to the tagged carrier is the identity
         SqlExpr::Cast { value, target: SqlType::Tagged { .. }, .. } => return d.expr(w, value, parent_prec),
         SqlExpr::Cast { value, target, conform, .. } => return d.variant_aware_cast(w, value, target, *conform),
-        SqlExpr::FoldCall { source, lambda, init, acc_is_list, homogeneous, .. } => {
-            return d.fold_call(w, source, lambda, init, *acc_is_list, *homogeneous);
-        }
+        SqlExpr::FoldCall { .. } => return d.fold_call(w, e),
         SqlExpr::JsonObject { kv, .. } => return d.json_object(w, kv),
         SqlExpr::JsonArray { elements, .. } => return d.json_array(w, elements),
         SqlExpr::JsonArrayAgg { value, order_keys, .. } => return d.json_array_agg(w, value, order_keys),
@@ -1189,9 +1187,9 @@ pub fn over<D: AnsiSqlRenderer>(
             " {} {} {} {} {}",
             kw(fr.kind.as_str()),
             kw("BETWEEN"),
-            d.bound(&fr.from),
+            d.bound(&fr.from)?,
             kw("AND"),
-            d.bound(&fr.to)
+            d.bound(&fr.to)?
         );
         w.append(&text);
     }

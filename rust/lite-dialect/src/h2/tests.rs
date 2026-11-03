@@ -99,8 +99,8 @@ fn every_alias_and_derived_label_quotes() {
     // a lone quote is no pre-quoted name
     assert_eq!(d.alias_ident("\""), "\"\"\"\"");
     assert_eq!(d.star_except_name("v"), "\"v\"");
-    assert_eq!(d.star_except_keyword(), "EXCEPT");
-    assert_eq!(d.row_order_column(), "_ROWID_");
+    assert_eq!(d.star_except_keyword().unwrap(), "EXCEPT");
+    assert_eq!(d.row_order_column().unwrap(), "_ROWID_");
 }
 
 #[test]
@@ -529,11 +529,12 @@ fn h2modern_navigates_typed_json() {
 #[test]
 fn a_frame_interval_is_the_standards_quoted_singular() {
     let d = H2::new();
-    assert_eq!(d.bound(&Bound::IntervalPreceding { n: 3, unit: "days".into() }), "INTERVAL '3' DAY PRECEDING");
-    assert_eq!(d.bound(&Bound::IntervalPreceding { n: 2, unit: "WEEKS".into() }), "INTERVAL '14' DAY PRECEDING");
-    assert_eq!(d.bound(&Bound::IntervalFollowing { n: 1, unit: "MONTH".into() }), "INTERVAL '1' MONTH FOLLOWING");
-    assert_eq!(d.bound(&Bound::Preceding { n: JavaNumber::Long(2) }), "2 PRECEDING");
-    assert_eq!(d.bound(&Bound::CurrentRow), "CURRENT ROW");
+    let bound = |b: Bound| d.bound(&b).unwrap();
+    assert_eq!(bound(Bound::IntervalPreceding { n: 3, unit: "days".into() }), "INTERVAL '3' DAY PRECEDING");
+    assert_eq!(bound(Bound::IntervalPreceding { n: 2, unit: "WEEKS".into() }), "INTERVAL '14' DAY PRECEDING");
+    assert_eq!(bound(Bound::IntervalFollowing { n: 1, unit: "MONTH".into() }), "INTERVAL '1' MONTH FOLLOWING");
+    assert_eq!(bound(Bound::Preceding { n: JavaNumber::Long(2) }), "2 PRECEDING");
+    assert_eq!(bound(Bound::CurrentRow), "CURRENT ROW");
 }
 
 #[test]

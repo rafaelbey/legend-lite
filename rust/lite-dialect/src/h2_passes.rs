@@ -6,7 +6,8 @@
 //! under H2's caps ([`crate::carrier`]), [`QualifyToSubselect`] where QUALIFY is not native (never on H2, whose
 //! QUALIFY is), [`ConstantLateralsAsRows`], [`LateralExplodeToUnion`], [`AggregatesDeliverDouble`] over AVG, and
 //! [`SourceSpelling`] last. [`crate::ansi::render_passes`] runs the Float expansions before them and `StoredReads`
-//! after. `QualifyToSubselect` and `AggregatesDeliverDouble` are other dialects' passes too.
+//! after. `QualifyToSubselect` and `AggregatesDeliverDouble` are other dialects' passes too: they are
+//! [`crate::shared_passes`]', re-exported here.
 //!
 //! Each pass rebuilds through [`crate::build`] (Java's `new ...` constructors), and an expression rebuilt by Java's
 //! `mapChildren` through [`crate::carrier::with_children`]; each answers [`Rw::Same`] exactly where Java hands back its
@@ -24,13 +25,15 @@ use lite_sql::{
 };
 use std::collections::HashMap;
 
+pub use crate::shared_passes::{AggregatesDeliverDouble, QualifyToSubselect};
+
 /// H2's `passes()`: the carrier strategies first, QUALIFY wrapped only where it is not native, a lateral over a
 /// constant list as its rows before the per-row explosion, AVG delivered as DOUBLE, and -- last, so every source the
 /// passes above introduced is in scope -- each reference spelled as its source declared it.
 pub fn h2_passes(supports_qualify: bool) -> Vec<Box<dyn SqlRewriter>> {
     let mut ps: Vec<Box<dyn SqlRewriter>> = vec![Box::new(CarrierStrategies::new(crate::h2::CAPS))];
     if !supports_qualify {
-        ps.push(Box::new(QualifyToSubselect));
+        ps.push(Box::new(QualifyToSubselect::default()));
     }
     // a lateral over a constant list first: its rows need no correlation
     ps.push(Box::new(ConstantLateralsAsRows));
@@ -79,33 +82,6 @@ fn unwrap(mut e: &SqlExpr) -> &SqlExpr {
 
 #[cfg(test)]
 mod tests;
-
-// ==================================================================
-// QualifyToSubselect
-// ==================================================================
-
-/// A backend without a QUALIFY clause filters window results by wrapping the select (Java's `QualifyToSubselect`, its
-/// plain form: `new QualifyToSubselect()`): `SELECT * FROM (inner) AS qualify_src WHERE <qualify>`. The by-outputs form
-/// (`new QualifyToSubselect(true)`) is Postgres's, and waits for it.
-#[derive(Debug, Default)]
-pub struct QualifyToSubselect;
-
-impl SqlRewriter for QualifyToSubselect {
-    fn name(&self) -> &'static str {
-        "QualifyToSubselect"
-    }
-
-    fn select(&mut self, s: SqlSelect) -> Result<Rw<SqlQuery>, Refusal> {
-        let Some(qualify) = s.qualify.clone() else {
-            return same(s);
-        };
-        let outputs = s.outputs.clone();
-        let inner = build::select(SqlSelect { qualify: None, ..s })?;
-        let star = vec![build::projection(build::star(None), None, None)?];
-        let from = build::subselect(query(inner), "qualify_src", None);
-        Ok(Rw::New(query(plain_select(star, from, Some(qualify), outputs)?)))
-    }
-}
 
 // ==================================================================
 // ConstantLateralsAsRows
@@ -608,40 +584,6 @@ fn element_type_of(list: &SqlExpr) -> Result<SqlType, Refusal> {
          and the list has none",
         type_fact_text(list.r#type())
     )))
-}
-
-// ==================================================================
-// AggregatesDeliverDouble
-// ==================================================================
-
-/// The dialect delivers the platform's type facts on its wire (Java's `AggregatesDeliverDouble`): each named grouped
-/// aggregate cast to DOUBLE over its exact result (H2 computes every average as DECFLOAT). A windowed one is not seen:
-/// the walk hands a window's reducer to no hook.
-#[derive(Debug)]
-pub struct AggregatesDeliverDouble {
-    fns: Vec<AggFn>,
-}
-
-impl AggregatesDeliverDouble {
-    /// Java's `new AggregatesDeliverDouble(Set.of(fns...))`.
-    pub fn new(fns: &[AggFn]) -> AggregatesDeliverDouble {
-        AggregatesDeliverDouble { fns: fns.to_vec() }
-    }
-}
-
-impl SqlRewriter for AggregatesDeliverDouble {
-    fn name(&self) -> &'static str {
-        "AggregatesDeliverDouble"
-    }
-
-    fn expr(&mut self, e: SqlExpr) -> Result<Rw<SqlExpr>, Refusal> {
-        if let SqlExpr::Reducer(r) = &e
-            && self.fns.contains(&r.r#fn)
-        {
-            return Ok(Rw::New(build::cast(e, SqlType::Scalar(Scalar::Double))));
-        }
-        Ok(Rw::Same(e))
-    }
 }
 
 // ==================================================================

@@ -247,6 +247,40 @@ impl HostOperations for Refused {
     }
 }
 
+/// Postgres's host operations (Java's `PostgresHostOperations`): the one a host asks of a Postgres database today, a
+/// query's rows counted -- Snap's preflight on a warehouse's catalog that is Postgres (docs/ONE_PLATFORM_PROGRAM_
+/// 2026_10_12.md D5), written as Postgres reads it, its subquery aliased as Postgres before 16 requires. Every other is
+/// refused by name: a project's own database as [`Refused`] words it, a named operation by [`refusal`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PostgresHostOperations;
+
+impl PostgresHostOperations {
+    fn not_built() -> Refusal {
+        Refused { database: "Postgres".to_owned() }.refused()
+    }
+}
+
+impl HostOperations for PostgresHostOperations {
+    fn open_database(&self, _name: &str) -> Result<Vec<String>, Refusal> {
+        Err(PostgresHostOperations::not_built())
+    }
+
+    fn use_database(&self, name: &str) -> Result<Vec<String>, Refusal> {
+        self.open_database(name)
+    }
+
+    fn close_database(&self, name: &str) -> Result<Vec<String>, Refusal> {
+        self.open_database(name)
+    }
+
+    fn statements(&self, operation: &HostOperation) -> Result<Vec<String>, Refusal> {
+        if let HostOperation::Count { from: Source::Query { sql } } = operation {
+            return Ok(vec![format!("SELECT count(*) AS n FROM ({sql}) AS counted")]);
+        }
+        Err(refusal(operation, "Postgres"))
+    }
+}
+
 /// DuckDB's host operations (Java's `DuckDbHostOperations`): a project's own database is an in-memory database
 /// ATTACHed to the host's, a connection points at it with USE, DETACH drops it; the named operations are DuckDB's
 /// readers, `CREATE ... AS SELECT`, `SELECT * REPLACE`, its secrets, its extensions' settings and its catalog

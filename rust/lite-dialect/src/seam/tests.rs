@@ -89,6 +89,12 @@ impl SqlDialect for Plain {
     fn insert_column_name(&self, n: &str, _: bool) -> String {
         n.into()
     }
+    fn reads_stored(&self, _: &lite_sql::ColumnType) -> bool {
+        false
+    }
+    fn table_name_spelled(&self, n: &str, _: lite_sql::NameQuoting) -> String {
+        n.into()
+    }
 }
 
 #[test]
@@ -435,7 +441,7 @@ fn the_seam_refuses_what_it_cannot_read() {
         (
             Refusal::ILLEGAL_ARGUMENT,
             "unknown dialect 'Oracle': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, \
-             EngineStyleComposite"
+             EngineStyleComposite, Postgres"
         )
     );
     assert_eq!(dispatch("[]", "facts", "{}").unwrap_err().message, "a dialect's spec is a JSON object");

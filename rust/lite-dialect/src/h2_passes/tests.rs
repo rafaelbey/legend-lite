@@ -99,9 +99,9 @@ fn field(name: &str, value: SqlExpr) -> StructLitField {
 fn a_qualify_is_a_filter_over_the_wrapped_select() {
     let base = table("T", "t0", vec![out("A", t(Scalar::Bigint), Origin::Physical)]);
     let mut s = sel(vec![proj(col("t0", "A", Origin::Physical), "a", t(Scalar::Bigint))], base);
-    assert!(!run(&mut QualifyToSubselect, query(s.clone())).is_new(), "no QUALIFY: as it came");
+    assert!(!run(&mut QualifyToSubselect::default(), query(s.clone())).is_new(), "no QUALIFY: as it came");
     s.qualify = Some(call(SqlFn::Equal, vec![col("t0", "K", Origin::Physical), int_lit(1)]));
-    let wrapped = run(&mut QualifyToSubselect, query(s)).into_inner();
+    let wrapped = run(&mut QualifyToSubselect::default(), query(s)).into_inner();
     assert_eq!(
         written(&wrapped),
         "SELECT *\nFROM (\n  SELECT \"t0\".A AS \"a\"\n  FROM T AS \"t0\"\n) AS \"qualify_src\"\nWHERE \"t0\".K = 1"

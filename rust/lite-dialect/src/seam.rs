@@ -17,6 +17,7 @@ use crate::duckdb::DuckDb;
 use crate::engine_style::{EngineStyle, Profile};
 use crate::h2::H2;
 use crate::host_ops;
+use crate::postgres::Postgres;
 use crate::refusal::Refusal;
 use crate::renderer::PlanParam;
 use crate::statement::{Bind, Binding, Digits, Region, RenderedStatement, TypeHole, TypeSpelling};
@@ -24,7 +25,8 @@ use lite_json::{Node, Num, Obj, parse, parse_with_depth, to_compact};
 use lite_sql::{MAX_DEPTH, SqlDdl, SqlDml, SqlQuery, ValueKind, read_ddl, read_dml, read_expr, read_query, read_type};
 
 /// The dialects the seam opens, by the name a spec gives (Java's simple class name).
-pub const DIALECTS: &[&str] = &["DuckDb", "H2", "H2Modern", "EngineStyleH2", "EngineStyleDB2", "EngineStyleComposite"];
+pub const DIALECTS: &[&str] =
+    &["DuckDb", "H2", "H2Modern", "EngineStyleH2", "EngineStyleDB2", "EngineStyleComposite", "Postgres"];
 
 /// Every op the seam answers (`SEAM.md`, "Ops").
 pub const OPS: &[&str] = &[
@@ -57,6 +59,8 @@ pub const OPS: &[&str] = &[
     "host.statements",
     "duckdb.tables",
     "duckdb.readsStored",
+    "readsStored",
+    "tableName",
     "scanOrderFirings",
     "engine.renderAsAliased",
     "engine.selectList",
@@ -103,7 +107,7 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
     let time_zone = spec.str_or_null("timeZone").map_err(json)?;
     let configured = spec.get("quoteIdentifiers").is_some() || spec.get("timeZone").is_some();
     let dialect: Box<dyn SqlDialect> = match name {
-        "DuckDb" | "H2" | "H2Modern" if configured => {
+        "DuckDb" | "H2" | "H2Modern" | "Postgres" if configured => {
             return Err(Refusal::illegal_argument(format!(
                 "quoteIdentifiers and timeZone configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not \
                  {name}"
@@ -116,6 +120,7 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
         }
         "H2" => Box::new(H2::new()),
         "H2Modern" => Box::new(H2::modern()),
+        "Postgres" => Box::new(Postgres::new()),
         "EngineStyleComposite" if quote_identifiers == Some(true) || time_zone.is_some() => {
             return Err(Refusal::illegal_argument(
                 "EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers \
@@ -175,6 +180,18 @@ fn answer(d: &dyn SqlDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
         "duckdb.readsStored" => {
             let t = lite_sql::read_column_type(a.obj("type").map_err(json)?).map_err(json)?;
             Node::Bool(<DuckDb as crate::renderer::AnsiSqlRenderer>::reads_stored(&t))
+        }
+        // any dialect's `readsStored(ColumnType)` (its override, or the base's rule), which core's same-package tests
+        // ask a dialect directly (`new StoredReads(new Postgres()::readsStored)`)
+        "readsStored" => {
+            let t = lite_sql::read_column_type(a.obj("type").map_err(json)?).map_err(json)?;
+            Node::Bool(d.reads_stored(&t))
+        }
+        // any dialect's `tableName(name, quoting)`, which core's same-package tests ask a dialect directly
+        "tableName" => {
+            let q = a.obj("quoting").map_err(json)?;
+            let quoting = lite_sql::NameQuoting { schema: boolean(q, "schema")?, table: boolean(q, "table")? };
+            text(d.table_name_spelled(string(a, "name")?, quoting))
         }
         "query.render" => text(d.render(query(a)?)?),
         "query.renderInline" => text(d.render_inline(query(a)?)?),
@@ -311,7 +328,10 @@ fn duckdb_tables() -> Node {
         (
             "catalogRefused",
             object(
-                crate::duckdb::CATALOG_REFUSED.iter().map(|(name, why)| (*name, Node::Str((*why).to_owned()))).collect(),
+                crate::duckdb::CATALOG_REFUSED
+                    .iter()
+                    .map(|(name, why)| (*name, Node::Str((*why).to_owned())))
+                    .collect(),
             ),
         ),
     ])
@@ -605,5 +625,7 @@ fn index_of(n: &Node) -> Result<usize, Refusal> {
 mod engine_tests;
 #[cfg(test)]
 mod h2_tests;
+#[cfg(test)]
+mod postgres_tests;
 #[cfg(test)]
 mod tests;

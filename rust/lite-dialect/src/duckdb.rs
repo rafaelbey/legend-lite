@@ -326,7 +326,7 @@ impl DuckDb {
     /// date_trunc('day', ts) cast back to the TIMESTAMP the engine's H2 keeps; the coarser parts stay DATE.
     fn date_trunc_arm(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let p = part(arg(args, 0)?)?;
-        let spelled = self.string_lit(spellings::date_part(p));
+        let spelled = self.string_lit(spellings::date_part(p))?;
         if part(arg(args, 0)?)? == DatePart::Day {
             w.append("CAST(");
             ansi::date_trunc_date_grained(self, w, args, &spelled)?;
@@ -567,7 +567,14 @@ impl AnsiSqlRenderer for DuckDb {
         })
     }
 
-    fn call(&self, w: &mut SqlWriter, f: SqlFn, a: &[SqlExpr], parent_prec: i32) -> Result<(), Refusal> {
+    fn call(
+        &self,
+        w: &mut SqlWriter,
+        f: SqlFn,
+        a: &[SqlExpr],
+        _type: &TypeFact,
+        parent_prec: i32,
+    ) -> Result<(), Refusal> {
         use SqlFn as F;
         match f {
             // ---- DuckDB's own spellings
@@ -756,13 +763,13 @@ impl AnsiSqlRenderer for DuckDb {
             F::Sha1 => self.plain(w, "sha1", a),
             F::Sha256 => self.plain(w, "sha256", a),
             F::Extract => {
-                let p = self.string_lit(spellings::date_part(part(arg(a, 0)?)?));
+                let p = self.string_lit(spellings::date_part(part(arg(a, 0)?)?))?;
                 w.append("date_part(").append(&p).append(", ").list(self, tail(a, 1)?)?.append(")");
                 Ok(())
             }
             F::MakeDate => self.plain(w, "make_date", a),
             F::DateDiff => {
-                let p = self.string_lit(spellings::date_part(part(arg(a, 0)?)?));
+                let p = self.string_lit(spellings::date_part(part(arg(a, 0)?)?))?;
                 w.append("date_diff(").append(&p).append(", ").list(self, tail(a, 1)?)?.append(")");
                 Ok(())
             }
@@ -894,11 +901,11 @@ impl AnsiSqlRenderer for DuckDb {
                 return Err(Refusal::illegal_state(format!("invalid data: URI (no comma): {url}")));
             };
             let content = &url[comma + 1..];
-            return Ok(format!("SELECT unnest(CAST({} AS JSON[])) AS data", self.string_lit(content)));
+            return Ok(format!("SELECT unnest(CAST({} AS JSON[])) AS data", self.string_lit(content)?));
         }
         if url.starts_with("file:") {
             let path = file_url_path(url)?;
-            return Ok(format!("SELECT json AS data FROM read_json_objects({})", self.string_lit(&path)));
+            return Ok(format!("SELECT json AS data FROM read_json_objects({})", self.string_lit(&path)?));
         }
         Err(Refusal::illegal_state(format!("unsupported sourceUrl scheme: {url}")))
     }
@@ -1046,7 +1053,7 @@ impl AnsiSqlRenderer for DuckDb {
     /// A struct literal, each field's name a string literal (a Pure property name may carry quotes).
     fn struct_lit(&self, w: &mut SqlWriter, fields: &[StructLitField]) -> Result<(), Refusal> {
         w.append("{").join(fields, ", ", |w, f| {
-            let name = self.string_lit(&f.name);
+            let name = self.string_lit(&f.name)?;
             w.append(&name).append(": ");
             self.struct_field_value(w, f)
         })?;
@@ -1055,9 +1062,9 @@ impl AnsiSqlRenderer for DuckDb {
     }
 
     /// A positional field (list_zip's unnamed structs) is its 1-based index, never a quoted name.
-    fn struct_get(&self, w: &mut SqlWriter, source: &SqlExpr, field: &str) -> Result<(), Refusal> {
+    fn struct_get(&self, w: &mut SqlWriter, source: &SqlExpr, field: &str, _type: &TypeFact) -> Result<(), Refusal> {
         w.append("struct_extract(").expr(self, source, 0)?.append(", ");
-        let f = if field.chars().all(|c| c.is_ascii_digit()) { field.to_owned() } else { self.string_lit(field) };
+        let f = if field.chars().all(|c| c.is_ascii_digit()) { field.to_owned() } else { self.string_lit(field)? };
         w.append(&f).append(")");
         Ok(())
     }
@@ -1343,6 +1350,14 @@ impl crate::dialect::SqlDialect for DuckDb {
         AnsiSqlRenderer::insert_column_name(self, name, declared_quoted)
     }
 
+    fn reads_stored(&self, t: &ColumnType) -> bool {
+        <DuckDb as AnsiSqlRenderer>::reads_stored(t)
+    }
+
+    fn table_name_spelled(&self, name: &str, quoting: lite_sql::NameQuoting) -> String {
+        AnsiSqlRenderer::table_name(self, name, quoting)
+    }
+
     /// DuckDB's: one giant INSERT cost most of a 61 s first query.
     fn loads_rows_in_bulk(&self) -> bool {
         true
@@ -1409,9 +1424,9 @@ impl crate::dialect::SqlDialect for DuckDb {
         Ok(format!(
             "{}{}{}{}{}",
             &CATALOG_COLUMNS_SQL[..s],
-            self.string_lit(schema),
+            self.string_lit(schema)?,
             &CATALOG_COLUMNS_SQL[s + SCHEMA.len()..t],
-            self.string_lit(table),
+            self.string_lit(table)?,
             &CATALOG_COLUMNS_SQL[t + TABLE.len()..]
         ))
     }

@@ -1,0 +1,4 @@
+# The Postgres differential's floor (tests/dialect_differential.rs): how many of the oracles' 11,630 distinct Postgres
+# statements must render exactly as Java's. Measured 2026-11-03 with Postgres and the passes it installs ported (PARITY.md):
+# all of them.
+11630

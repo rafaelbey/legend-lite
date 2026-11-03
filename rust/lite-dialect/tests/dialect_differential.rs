@@ -115,6 +115,18 @@ fn the_seam_answers_as_enginestylecomposites_renderer_does() {
     the_seam_answers_as_the_renderer_does("EngineStyleComposite");
 }
 
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn postgres_renders_as_java_does() {
+    renders_as_java_does("Postgres");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_postgress_renderer_does() {
+    the_seam_answers_as_the_renderer_does("Postgres");
+}
+
 /// An engine-text dialect's default configuration (Java's no-argument constructor), as the H2 dump writes it: an input
 /// the first dump holds with no configuration is the same input.
 const DEFAULT_ENGINE_CONFIG: &str = r#"{"quoteIdentifiers":false,"timeZone":null}"#;
@@ -680,6 +692,24 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             (t.variant_egress, "VariantEgress"),
             (t.stored_reads, "StoredReads"),
         ]
+    } else if dialect == "Postgres" {
+        // Postgres's passes (Postgres.passes()), in their order
+        if java_rest.starts_with("CAST(") && rust_rest.starts_with("CAST(") && recent.ends_with("SELECT ") {
+            return "RootNumericTypes";
+        }
+        vec![
+            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
+            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (t.carrier || t.pivot, "CarrierStrategies"),
+            (t.star_except, "StarExceptToColumns"),
+            (t.ordered_set_window, "WholePartitionOrderedSets"),
+            (t.substring, "SubstringClamp"),
+            (t.string_count, "StringCountsAsInt"),
+            (t.avg, "AggregatesDeliverDouble"),
+            (t.qualify, "QualifyToSubselect (by outputs)"),
+            (t.constant_key, "ConstantKeysAsExpressions"),
+            (t.stored_reads, "StoredReads"),
+        ]
     } else if dialect.starts_with("EngineStyle") {
         // the engine text's passes (EngineStyleH2.passes()): the carrier strategies, the lateral explode
         vec![
@@ -731,6 +761,10 @@ struct Triggers {
     stored_reads: bool,
     lateral: bool,
     avg: bool,
+    star_except: bool,
+    ordered_set_window: bool,
+    string_count: bool,
+    qualify: bool,
 }
 
 impl Triggers {
@@ -794,6 +828,9 @@ impl SqlRewriter for Triggers {
         if s.group_by.iter().any(|k| matches!(k, SqlExpr::IntLit { .. })) {
             self.constant_key = true;
         }
+        if s.qualify.is_some() {
+            self.qualify = true;
+        }
         Ok(Rw::Same(SqlQuery::Select(Box::new(s))))
     }
 
@@ -836,7 +873,18 @@ impl SqlRewriter for Triggers {
             }
             SqlExpr::FoldCall { .. } => self.fold = true,
             SqlExpr::CheckedDefects { .. } | SqlExpr::CheckedChildValue { .. } => self.checked_defects = true,
+            SqlExpr::StarExcept { .. } => self.star_except = true,
+            SqlExpr::Call {
+                r#fn: SqlFn::Left | SqlFn::Right | SqlFn::RepeatStr | SqlFn::Lpad | SqlFn::Rpad | SqlFn::Chr,
+                ..
+            } => self.string_count = true,
             _ => {}
+        }
+        if let SqlExpr::WindowCall { r#fn, .. } = &e
+            && matches!(r#fn.as_ref(), lite_sql::SqlAgg::Reducer(r)
+                if matches!(r.r#fn, AggFn::Median | AggFn::Mode | AggFn::QuantileCont | AggFn::QuantileDisc))
+        {
+            self.ordered_set_window = true;
         }
         let _ = TypeFact::Unknown;
         Ok(Rw::Same(e))

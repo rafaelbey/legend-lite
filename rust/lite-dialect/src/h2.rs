@@ -352,10 +352,10 @@ impl H2 {
             && let SqlExpr::IntLit { value: ix, .. } = arg(a, 2)?
             && *ix >= 1
         {
-            let sep_lit = self.string_lit(sep);
+            let sep_lit = self.string_lit(sep)?;
             let q = format!("\\Q{sep}\\E");
             let cls = format!("[^{q}]*");
-            let pat = self.string_lit(&format!("^(?:{cls}{q}){{{}}}({cls}).*$", ix - 1));
+            let pat = self.string_lit(&format!("^(?:{cls}{q}){{{}}}({cls}).*$", ix - 1))?;
             w.append("CASE WHEN (CHAR_LENGTH(").expr(self, &a[0], 0)?.append(") - CHAR_LENGTH(REPLACE(");
             w.expr(self, &a[0], 0)?.append(", ").append(&sep_lit).append(", ''))) < ").append_long(ix - 1);
             w.append(" THEN '' ELSE REGEXP_REPLACE(").expr(self, &a[0], 0)?.append(", ").append(&pat);
@@ -386,7 +386,7 @@ impl H2 {
         w.append("REGEXP_LIKE(").expr(self, arg(a, 0)?, 0)?.append(", ");
         match arg(a, 1)? {
             SqlExpr::StringLit { value, .. } => {
-                let lit = self.string_lit(&format!("^(?:{value})$"));
+                let lit = self.string_lit(&format!("^(?:{value})$"))?;
                 w.append(&lit);
             }
             other => {
@@ -529,7 +529,7 @@ impl H2 {
     fn json_parse_cast(&self, w: &mut SqlWriter, value: &SqlExpr) -> Result<(), Refusal> {
         match value {
             SqlExpr::StringLit { value, .. } => {
-                let lit = self.string_lit(value);
+                let lit = self.string_lit(value)?;
                 w.append("JSON ").append(&lit);
             }
             SqlExpr::NullLit { .. } => {
@@ -798,7 +798,14 @@ impl AnsiSqlRenderer for H2 {
         })
     }
 
-    fn call(&self, w: &mut SqlWriter, f: SqlFn, a: &[SqlExpr], parent_prec: i32) -> Result<(), Refusal> {
+    fn call(
+        &self,
+        w: &mut SqlWriter,
+        f: SqlFn,
+        a: &[SqlExpr],
+        _type: &TypeFact,
+        parent_prec: i32,
+    ) -> Result<(), Refusal> {
         use SqlFn as F;
         match f {
             // H2Modern: CARDINALITY counts a JSON array's elements on 2.3+
@@ -921,7 +928,7 @@ impl AnsiSqlRenderer for H2 {
             }
             F::DateTruncDay => ansi::cast_as(self, w, arg(a, 0)?, "DATE"),
             F::DateTrunc => {
-                let spelled = self.string_lit(&date_part(part(arg(a, 0)?)?)?.to_lowercase());
+                let spelled = self.string_lit(&date_part(part(arg(a, 0)?)?)?.to_lowercase())?;
                 ansi::date_trunc_date_grained(self, w, a, &spelled)
             }
             F::CurrentUserFn => {
@@ -1065,12 +1072,12 @@ impl AnsiSqlRenderer for H2 {
     }
 
     /// Window-frame interval bounds in the SQL standard's quoted singular form.
-    fn bound(&self, b: &Bound) -> String {
-        match b {
+    fn bound(&self, b: &Bound) -> Result<String, Refusal> {
+        Ok(match b {
             Bound::IntervalPreceding { n, unit } => format!("{} PRECEDING", h2_interval(*n, unit)),
             Bound::IntervalFollowing { n, unit } => format!("{} FOLLOWING", h2_interval(*n, unit)),
             other => ansi::bound(self, other),
-        }
+        })
     }
 
     /// Collection values ride the JSON carrier: `JSON_ARRAY(e1, ..., eN NULL ON NULL)`.
@@ -1090,13 +1097,13 @@ impl AnsiSqlRenderer for H2 {
     }
 
     /// `SELECT * EXCEPT (...)`.
-    fn star_except_keyword(&self) -> String {
-        "EXCEPT".to_owned()
+    fn star_except_keyword(&self) -> Result<String, Refusal> {
+        Ok("EXCEPT".to_owned())
     }
 
     /// H2's row-order pseudo-column.
-    fn row_order_column(&self) -> String {
-        "_ROWID_".to_owned()
+    fn row_order_column(&self) -> Result<String, Refusal> {
+        Ok("_ROWID_".to_owned())
     }
 
     /// FORMATDATETIME's java.time patterns; literal text quoted always.
@@ -1315,7 +1322,7 @@ impl AnsiSqlRenderer for H2 {
             cls.push_str(&format!("\\x{{{:x}}}", u32::from(c)));
         }
         cls.push_str("]+");
-        let lit = self.string_lit(&cls);
+        let lit = self.string_lit(&cls)?;
         w.append("REGEXP_SUBSTR(").expr(self, arg(a, 0)?, 0)?.append(", ").append(&lit).append(", 1, ");
         w.expr(self, arg(a, 2)?, 0)?.append(")");
         Ok(())
@@ -1372,7 +1379,7 @@ impl AnsiSqlRenderer for H2 {
             return ansi::struct_lit(self, w, fields);
         }
         w.append("JSON_OBJECT(").join(fields, ", ", |w, f| {
-            let name = self.string_lit(&f.name);
+            let name = self.string_lit(&f.name)?;
             w.append(&name).append(": ").expr(self, &f.value, 0)?;
             Ok(())
         })?;
@@ -1381,7 +1388,7 @@ impl AnsiSqlRenderer for H2 {
     }
 
     /// H2Modern: a field read is navigation, `(x)."field"`.
-    fn struct_get(&self, w: &mut SqlWriter, source: &SqlExpr, field: &str) -> Result<(), Refusal> {
+    fn struct_get(&self, w: &mut SqlWriter, source: &SqlExpr, field: &str, _type: &TypeFact) -> Result<(), Refusal> {
         if !self.modern {
             return ansi::struct_get(self, w, source, field);
         }
@@ -1467,6 +1474,14 @@ impl crate::dialect::SqlDialect for H2 {
 
     fn insert_column_name(&self, name: &str, declared_quoted: bool) -> String {
         AnsiSqlRenderer::insert_column_name(self, name, declared_quoted)
+    }
+
+    fn reads_stored(&self, t: &ColumnType) -> bool {
+        <H2 as AnsiSqlRenderer>::reads_stored(t)
+    }
+
+    fn table_name_spelled(&self, name: &str, quoting: NameQuoting) -> String {
+        AnsiSqlRenderer::table_name(self, name, quoting)
     }
 
     /// H2 2.3+ has typed-JSON navigation, which H2Modern spells natively; 2.1 and 2.2 (the engine-parity target,
