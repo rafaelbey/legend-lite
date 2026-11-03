@@ -39,9 +39,11 @@ PCT channel B, and spec.
 | queries (`SqlQuery`) | 33,478 | 33,453 | 25 | 0 |
 | statements (`SqlDdl`, `SqlDml`) | 5,608,721 | 5,608,718 | 3 | 0 |
 
-**Every one of the 28 differences is Java's own, not the JSON's.** The tree read back is structurally equal to the
-one written in each case, and rendering the *original* tree a second time differs in the same way — the renderer does
-not give the same answer twice:
+**Every one of the 28 differences is Java's own, not the JSON's.** In each, what was read back is structurally equal
+to what was written. For the 25 queries, rendering the *original* tree a second time was measured to differ in the
+same way. The statement probe had no such re-render check; its 3 differences are the same `__b<n>` renumbering
+(`0` → `4`, `0` → `12`) inside an equal statement, so the same cause is inferred, not measured. The renderer does not
+give the same answer twice:
 
 - **Fresh-name counters that outlive a render.** `SQLite`'s `binds` (`__b<n>`, `SQLite.java:1373`), `Snowflake`'s
   `fresh` (`__f<n>`, `Snowflake.java:402`) and `CommonSubexpressions`' `fresh` (`__cse<n>`, `:39`) are instance state

@@ -58,7 +58,11 @@ Steps 1–4 done 2026-11-02; the measurements are [`PHASE0.md`](PHASE0.md).
 
 `sql/dialect` and its 38 rewrite passes → `lite-sql`. Java's dialect entry points become the shim; Java's
 `sql/dialect` is deleted (the `sql` records stay: the Java Lowerer still builds them). The TeaVM planner targets
-(`wasm/BUILD.bazel:73,214`) and every TeaVM target that compiles core's planning code are deleted.
+(`wasm/BUILD.bazel:73,214`) and every TeaVM target that compiles core's planning code are deleted. **Keep the
+generator of the golden sets:** `wasm/src/main/java/conformance/*` and `//wasm:conformance_jvm` produce
+`rust/oracles/jvm/conformance_jvm.txt.zst`; move them under `rust/oracles/` as a JVM-only target before `//wasm` goes,
+or the golden set can no longer be regenerated. The differential is `rust/tools/mirjson-roundtrip-probe.patch` with
+its second render made by Rust, compared with Java's first render on a fresh dialect (PHASE0.md §4).
 **Gates:** the baseline; the SQL tests that build a tree and render it (untouched); `corpus_duckdb`, `corpus_h2`,
 `sql-parity`.
 

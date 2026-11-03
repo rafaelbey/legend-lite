@@ -115,7 +115,7 @@ test runners, `testdatagen`, `probe` (already scheduled for deletion), `protocol
    there (SQLite, BigQuery) → a deterministic rule.
 6. Fresh-name counters on dialect objects are never reset per render (`SQLite` `binds`, `Snowflake` `fresh`,
    `CommonSubexpressions` `fresh`), so Java's SQL depends on what the dialect rendered before → the Rust renderer
-   resets them per render ([`PHASE0.md`](PHASE0.md) §4: 28 of 5.6M renders).
+   resets them per render ([`PHASE0.md`](PHASE0.md) §4: 28 of about 5.64M renders, queries and statements).
 
 ## Sources
 
