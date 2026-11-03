@@ -3,23 +3,26 @@
 
 //! Java's `DuckDb` (`core/src/main/java/com/legend/sql/dialect/DuckDb.java`): the base renderer plus DuckDB's own
 //! capabilities and idioms -- native QUALIFY, native PIVOT, ASOF joins, list lambdas, bracket array literals, the
-//! `->`/`->>` JSON operators. Its catalog decisions, host operations and session facts are not rendering and are not
-//! here.
+//! `->`/`->>` JSON operators -- and, as its [`crate::SqlDialect`], its catalog decisions, host operations and session
+//! facts (the trait is implemented by its path, so a method call here never has two traits to choose from).
 
 use crate::ansi::{self, part};
 use crate::catalog::{self, TypeCode, Types};
+use crate::catalog_model::{CatalogColumn, CatalogRules, CatalogType, Conversion, sql_ident};
+use crate::dialect::KeysSnapshot;
 use crate::duckdb_spellings as spellings;
+use crate::host_ops::{DuckDbHostOperations, HostOperations};
 use crate::passes::duckdb_passes;
 use crate::raw_sql;
 use crate::refusal::{Refusal, arg, tail};
 use crate::renderer::{AnsiSqlRenderer, AnsiState, Lexicon};
 use crate::rewriter::SqlRewriter;
-use crate::statement::{Digits, TypeSpelling};
+use crate::statement::{Digits, RenderedStatement, TypeSpelling};
 use crate::writer::SqlWriter;
 use lite_sql::{
     AggFn, Column, ColumnKind, ColumnType, Cte, DateFmt, DateFmtPart, DatePart, JoinKind, JsonKind, Lambda, Origin,
-    Projection, Reducer, Scalar, SqlDml, SqlExpr, SqlFn, SqlSelect, SqlSource, SqlType, StructField, StructLitField,
-    TypeFact, ValueKind,
+    Projection, Reducer, Scalar, SqlDdl, SqlDml, SqlExpr, SqlFn, SqlQuery, SqlSelect, SqlSource, SqlType, StructField,
+    StructLitField, TypeFact, ValueKind,
 };
 use std::borrow::Cow;
 use std::sync::LazyLock;
@@ -1195,5 +1198,226 @@ impl DuckDb {
     fn plain(&self, w: &mut SqlWriter, name: &str, args: &[SqlExpr]) -> Result<(), Refusal> {
         w.function(self, name, args)?;
         Ok(())
+    }
+}
+
+// ==================================================================
+// DuckDB's `SqlDialect`: the renders as its renderer writes them, and what DuckDb.java overrides of the interface
+// ==================================================================
+
+/// DuckDB's own name for an in-memory database: a connection's path (`jdbc:duckdb::memory:`) and an `ATTACH`'s.
+pub const IN_MEMORY: &str = ":memory:";
+
+/// Every canonical DuckDB type (`duckdb_types().logical_type`) a Database declares, and how (Java's `CATALOG_TYPES`, in
+/// its order). DECIMAL is declared from its precision and scale; a canonical type is here, in [`CATALOG_REFUSED`], or
+/// DECIMAL.
+pub fn catalog_types() -> Vec<(&'static str, CatalogType)> {
+    // a type Pure cannot name is declared OTHER: a Pure String, read as its text wherever it is referenced
+    let other = || CatalogType::as_stored("OTHER");
+    // nested: a Variant as stored
+    let variant = || CatalogType::as_stored("SEMISTRUCTURED");
+    vec![
+        ("VARCHAR", CatalogType::as_stored("VARCHAR(4096)")),
+        ("BOOLEAN", CatalogType::as_stored("BIT")),
+        ("TINYINT", CatalogType::as_stored("TINYINT")),
+        ("SMALLINT", CatalogType::as_stored("SMALLINT")),
+        ("INTEGER", CatalogType::as_stored("INTEGER")),
+        ("BIGINT", CatalogType::as_stored("BIGINT")),
+        // an unsigned or 128-bit integer holds values its signed width cannot: the next width, or exact decimals
+        ("UTINYINT", CatalogType::as_stored("SMALLINT")),
+        ("USMALLINT", CatalogType::as_stored("INTEGER")),
+        ("UINTEGER", CatalogType::as_stored("BIGINT")),
+        ("UBIGINT", CatalogType::converted("DECIMAL(20,0)", "CAST(%s AS DECIMAL(20,0))")),
+        ("HUGEINT", CatalogType::converted("DECIMAL(38,0)", "CAST(%s AS DECIMAL(38,0))")),
+        ("FLOAT", CatalogType::as_stored("REAL")),
+        ("DOUBLE", CatalogType::as_stored("DOUBLE")),
+        ("DATE", CatalogType::as_stored("DATE")),
+        ("TIMESTAMP", CatalogType::as_stored("TIMESTAMP")),
+        ("TIMESTAMP_S", CatalogType::as_stored("TIMESTAMP")),
+        ("TIMESTAMP_MS", CatalogType::as_stored("TIMESTAMP")),
+        ("TIMESTAMP_NS", CatalogType::as_stored("TIMESTAMP")),
+        // a zoned timestamp is its UTC instant: read in place under the UTC session, a copy holds its UTC wall time
+        (
+            "TIMESTAMP WITH TIME ZONE",
+            CatalogType::copy_converted("TIMESTAMP", "CAST(timezone('UTC', %s) AS TIMESTAMP)"),
+        ),
+        ("TIME", other()),
+        ("TIME WITH TIME ZONE", other()),
+        ("UUID", other()),
+        ("INTERVAL", other()),
+        ("BIT", other()),
+        ("BIGNUM", other()),
+        ("ENUM", other()),
+        ("STRUCT", variant()),
+        ("LIST", variant()),
+        ("MAP", variant()),
+        ("UNION", variant()),
+        ("ARRAY", variant()),
+        // bytes: the column is left out, by name, and the table still opens
+        ("BLOB", CatalogType::left_out("bytes: no Pure Database type holds them")),
+    ]
+}
+
+/// Canonical types refused, each with its reason (Java's `CATALOG_REFUSED`).
+pub const CATALOG_REFUSED: &[(&str, &str)] = &[
+    ("GEOMETRY", "a spatial value: no Pure Database type holds it"),
+    ("UHUGEINT", "not yet decided"),
+    ("TIME_NS", "not yet decided"),
+    ("VARIANT", "not yet decided"),
+    ("NULL", "a column of no type"),
+    ("TYPE", "a type, not a value"),
+];
+
+/// DuckDB's catalog decisions as one [`CatalogRules`] (Java's `CATALOG_RULES`): JSON, an alias of VARCHAR, known by its
+/// alias name as a Variant; an unsized DECIMAL refused.
+pub static CATALOG_RULES: LazyLock<CatalogRules> = LazyLock::new(|| CatalogRules {
+    database: "DuckDB",
+    types: catalog_types(),
+    aliases: vec![("JSON", CatalogType::as_stored("SEMISTRUCTURED"))],
+    refused: CATALOG_REFUSED.to_vec(),
+    decimal: "DECIMAL",
+    unsized_decimal: None,
+});
+
+/// The question every reader asks DuckDB's catalog for a table's columns (Java's `CATALOG_COLUMNS_SQL`: its text
+/// block's common indentation stripped, no newline last), `{schema}` and `{table}` filled with string literals.
+pub const CATALOG_COLUMNS_SQL: &str = "SELECT c.column_name, c.data_type, t.logical_type, c.numeric_precision, \
+c.numeric_scale, NOT c.is_nullable AS not_null
+FROM duckdb_columns() c
+LEFT JOIN (SELECT DISTINCT type_oid, logical_type FROM duckdb_types()
+           WHERE internal AND type_oid IS NOT NULL) t ON t.type_oid = c.data_type_id
+WHERE c.database_name = current_database() AND c.schema_name = {schema} AND c.table_name = {table}
+ORDER BY c.column_index";
+
+impl crate::dialect::SqlDialect for DuckDb {
+    fn dialect_name(&self) -> &'static str {
+        AnsiSqlRenderer::simple_name(self)
+    }
+
+    fn render(&self, query: SqlQuery) -> Result<String, Refusal> {
+        AnsiSqlRenderer::render(self, query)
+    }
+
+    fn render_inline(&self, query: SqlQuery) -> Result<String, Refusal> {
+        ansi::render_inline(self, query)
+    }
+
+    fn render_statement(&self, query: SqlQuery) -> Result<RenderedStatement, Refusal> {
+        AnsiSqlRenderer::render_statement(self, query)
+    }
+
+    fn render_ddl(&self, ddl: &SqlDdl) -> Result<String, Refusal> {
+        AnsiSqlRenderer::render_ddl(self, ddl)
+    }
+
+    fn render_dml(&self, dml: &SqlDml) -> Result<String, Refusal> {
+        AnsiSqlRenderer::render_dml(self, dml)
+    }
+
+    fn render_dml_statement(&self, dml: &SqlDml) -> Result<RenderedStatement, Refusal> {
+        AnsiSqlRenderer::render_dml_statement(self, dml)
+    }
+
+    fn raw(&self, statement: &str, written_for: Option<&str>) -> Result<String, Refusal> {
+        ansi::raw(self, statement, written_for)
+    }
+
+    fn from_engine_text(&self, statement: &str) -> Result<String, Refusal> {
+        AnsiSqlRenderer::from_engine_text(self, statement)
+    }
+
+    fn stored_name(&self, name: &str, declared_quoted: bool) -> String {
+        AnsiSqlRenderer::stored_name(self, name, declared_quoted)
+    }
+
+    fn physical_name(&self, name: &str) -> String {
+        AnsiSqlRenderer::physical_name(self, name)
+    }
+
+    fn insert_column_name(&self, name: &str, declared_quoted: bool) -> String {
+        AnsiSqlRenderer::insert_column_name(self, name, declared_quoted)
+    }
+
+    /// DuckDB's: one giant INSERT cost most of a 61 s first query.
+    fn loads_rows_in_bulk(&self) -> bool {
+        true
+    }
+
+    /// An embedded engine.
+    fn in_process(&self) -> bool {
+        true
+    }
+
+    /// Written beside this dialect ([`DuckDbHostOperations`]).
+    fn host_operations(&self) -> Box<dyn HostOperations> {
+        Box::new(DuckDbHostOperations)
+    }
+
+    /// DuckDB's own name for an in-memory database: legend-engine's DuckDB opens `jdbc:duckdb:<path>`.
+    fn in_memory_path(&self) -> Option<String> {
+        Some(IN_MEMORY.to_owned())
+    }
+
+    /// DuckDB sessions pin UTC: the driver's Timestamps are wall-preserving under it.
+    fn session_setup(&self) -> Vec<String> {
+        vec!["SET TimeZone='UTC'".to_owned()]
+    }
+
+    /// An effect segment runs as one transaction: DuckDB's DDL is transactional.
+    fn script(&self, statements: &[String]) -> String {
+        format!("BEGIN TRANSACTION;\n{};\nCOMMIT;", statements.join(";\n"))
+    }
+
+    fn script_abort(&self) -> Option<String> {
+        Some("ROLLBACK".to_owned())
+    }
+
+    /// A DuckDB column, from its structured catalog ([`CATALOG_RULES`]).
+    fn catalog_type(&self, column: &CatalogColumn) -> Result<CatalogType, Refusal> {
+        CATALOG_RULES.type_of(column)
+    }
+
+    /// DuckDB matches a name case-insensitively, so a bare declaration reaches every catalog name.
+    fn bare_name_reaches(&self, catalog_name: &str) -> Result<bool, Refusal> {
+        let _ = catalog_name;
+        Ok(true)
+    }
+
+    /// DuckDB's star modifier, `* REPLACE (<conversion> AS "<column>", ...)`.
+    fn copy_select_list(&self, conversions: &[Conversion]) -> Result<String, Refusal> {
+        if conversions.is_empty() {
+            return Ok("*".to_owned());
+        }
+        let items: Vec<String> = conversions.iter().map(|c| format!("{} AS {}", c.sql, sql_ident(&c.column))).collect();
+        Ok(format!("* REPLACE ({})", items.join(", ")))
+    }
+
+    /// [`CATALOG_COLUMNS_SQL`], each placeholder filled by its place in the template, so a name holding `{table}`
+    /// stays a name.
+    fn catalog_columns_query(&self, schema: &str, table: &str) -> Result<String, Refusal> {
+        const SCHEMA: &str = "{schema}";
+        const TABLE: &str = "{table}";
+        let (s, t) = match (CATALOG_COLUMNS_SQL.find(SCHEMA), CATALOG_COLUMNS_SQL.find(TABLE)) {
+            (Some(s), Some(t)) => (s, t),
+            _ => return Err(Refusal::illegal_state("the catalog question's template names no {schema} or {table}")),
+        };
+        Ok(format!(
+            "{}{}{}{}{}",
+            &CATALOG_COLUMNS_SQL[..s],
+            self.string_lit(schema),
+            &CATALOG_COLUMNS_SQL[s + SCHEMA.len()..t],
+            self.string_lit(table),
+            &CATALOG_COLUMNS_SQL[t + TABLE.len()..]
+        ))
+    }
+
+    /// Measured 2026-10-20: setTransactionIsolation refused, every transaction a snapshot.
+    fn keys_snapshot(&self) -> Result<KeysSnapshot, Refusal> {
+        Ok(KeysSnapshot::Transaction)
+    }
+
+    /// Measured 2026-10-20: 70,000 columns answered, no limit met.
+    fn result_column_limit(&self) -> Result<Option<i32>, Refusal> {
+        Ok(None)
     }
 }

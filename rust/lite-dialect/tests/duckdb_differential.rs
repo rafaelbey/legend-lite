@@ -13,12 +13,14 @@
 //! `LITE_DIALECT_MISMATCHES` set, every mismatch is written to the file it names.
 //!
 //! A second test holds the typing rules (`lite_dialect::typing`, Java's `SqlTyping`) to the facts Java stored on every
-//! node of every statement of the dump.
+//! node of every statement of the dump. A third holds the seam (`lite_dialect::dispatch`, `SEAM.md`) to the renderer:
+//! every DuckDB render op of the dump answered through it exactly as a direct call answers it.
 
 use lite_dialect::rewriter::{Rw, SqlRewriter, rewrite};
+use lite_dialect::seam::{read_statement, statement_json};
 use lite_dialect::statement::list_text;
-use lite_dialect::{DuckDb, Refusal, RenderedStatement, SqlDialect};
-use lite_json::{Node, Obj, parse_with_depth};
+use lite_dialect::{DuckDb, Refusal, RenderedStatement, SqlDialect, dispatch};
+use lite_json::{Node, Obj, parse_with_depth, to_compact};
 use lite_sql::{
     AggFn, ColumnKind, ColumnType, JoinKind, MAX_DEPTH, Origin, Projection, Scalar, SqlDml, SqlExpr, SqlFn, SqlQuery,
     SqlSelect, SqlSource, SqlType, TypeFact, read_ddl, read_dml, read_query,
@@ -541,6 +543,134 @@ impl SqlRewriter for Triggers {
         let _ = TypeFact::Unknown;
         Ok(Rw::Same(e))
     }
+}
+
+// ==================================================================
+// The seam held to the renderer it dispatches to
+// ==================================================================
+
+/// The spec the JVM's DuckDB sends (`SEAM.md`).
+const DUCKDB_SPEC: &str = r#"{"dialect":"DuckDb","server":null,"engineScanOrder":false}"#;
+
+/// The seam (`lite_dialect::dispatch`, the path `lite-ffi`'s `lite_dialect` takes) answering every DuckDB render op of
+/// the dump exactly as a fresh `DuckDb` called directly answers it: the same JSON text (the SQL as a JSON string, a
+/// statement in `SEAM.md`'s form), a statement read back from its JSON equal to the direct one (record for record)
+/// and its binds and regions Java's record text, a refusal the same class and message. Each `query.render` line is
+/// also asked for `query.renderInline`.
+#[test]
+#[ignore = "reads the JVM's MirJson dump named by LITE_MIR_DUMP"]
+fn the_seam_answers_as_the_renderer_does() {
+    let path = std::env::var("LITE_MIR_DUMP")
+        .expect("LITE_MIR_DUMP is unset: it names the JVM's MirJson dump (JSON lines) this test reads");
+    let stack_mb: usize = std::env::var("LITE_DIALECT_STACK_MB").ok().and_then(|v| v.parse().ok()).unwrap_or(256);
+    let run = std::thread::Builder::new().stack_size(stack_mb << 20).spawn(move || seam_all(&path)).unwrap();
+    let tally = run.join().unwrap();
+    let mut report = String::new();
+    let _ = writeln!(
+        report,
+        "seam: {} DuckDb render ops (and {} inline renders) dispatched, {} answered as the renderer does, {} \
+         statements read back from JSON equal and Java's record text, {} refusals",
+        tally.ops, tally.inline, tally.same, tally.statements, tally.refusals
+    );
+    for (op, n) in &tally.by_op {
+        let _ = writeln!(report, "  {op:<24} {n:>6}");
+    }
+    for d in tally.different.iter().take(SHOWN) {
+        let _ = writeln!(report, "{d}");
+    }
+    eprintln!("{report}");
+    assert!(tally.ops > 0, "the dump holds no DuckDb statement");
+    assert!(tally.different.is_empty(), "{} answers differ:\n{report}", tally.different.len());
+    assert_eq!(tally.same, tally.ops + tally.inline);
+}
+
+#[derive(Default)]
+struct SeamTally {
+    ops: usize,
+    inline: usize,
+    same: usize,
+    statements: usize,
+    refusals: usize,
+    by_op: BTreeMap<String, usize>,
+    different: Vec<String>,
+}
+
+fn seam_all(path: &str) -> SeamTally {
+    let file = std::fs::File::open(path).unwrap_or_else(|e| panic!("cannot open {path}: {e}"));
+    let mut tally = SeamTally::default();
+    for (i, line) in BufReader::new(file).lines().enumerate() {
+        let line = line.unwrap_or_else(|e| panic!("{path}:{}: {e}", i + 1));
+        if !line.starts_with("{\"dialect\":\"DuckDb\"") {
+            continue;
+        }
+        let doc = parse_with_depth(&line, MAX_DEPTH).unwrap_or_else(|e| panic!("line {}: unparsable: {e}", i + 1));
+        let doc = doc.as_obj().unwrap();
+        let op = doc.str("op").unwrap();
+        let mir = doc.obj("mir").unwrap();
+        let java = java_answer(doc.obj("answer").unwrap());
+        tally.ops += 1;
+        *tally.by_op.entry(op.to_owned()).or_default() += 1;
+        seam_one(i + 1, op, mir, Some(&java), &mut tally);
+        if op == "query.render" {
+            tally.inline += 1;
+            seam_one(i + 1, "query.renderInline", mir, None, &mut tally);
+        }
+    }
+    tally
+}
+
+/// One op through the seam and directly; `java` the JVM's answer, to hold a statement's record text to.
+fn seam_one(at: usize, op: &str, mir: &Obj, java: Option<&Answer>, tally: &mut SeamTally) {
+    let key = op.split('.').next().unwrap();
+    let mut args = Obj::new();
+    args.insert(key, Node::Obj(mir.clone()));
+    let seam = dispatch(DUCKDB_SPEC, op, &to_compact(&Node::Obj(args)));
+    let d = DuckDb::new();
+    let direct: Result<Direct, Refusal> = match op {
+        "query.render" => SqlDialect::render(&d, read_query(mir).unwrap()).map(Direct::Text),
+        "query.renderInline" => SqlDialect::render_inline(&d, read_query(mir).unwrap()).map(Direct::Text),
+        "query.renderStatement" => SqlDialect::render_statement(&d, read_query(mir).unwrap()).map(Direct::Statement),
+        "ddl.render" => SqlDialect::render_ddl(&d, &read_ddl(mir).unwrap()).map(Direct::Text),
+        "dml.render" => SqlDialect::render_dml(&d, &read_dml(mir).unwrap()).map(Direct::Text),
+        "dml.renderStatement" => SqlDialect::render_dml_statement(&d, &read_dml(mir).unwrap()).map(Direct::Statement),
+        other => panic!("unknown op {other}"),
+    };
+    let differs = match (&seam, &direct) {
+        (Err(s), Err(r)) => {
+            tally.refusals += 1;
+            (s.class != r.class || s.message != r.message).then(|| format!("refused {s} / {r}"))
+        }
+        (Ok(json), Ok(Direct::Text(sql))) => {
+            (*json != to_compact(&Node::Str(sql.clone()))).then(|| format!("seam {json}\n    direct {sql:?}"))
+        }
+        (Ok(json), Ok(Direct::Statement(st))) => {
+            let doc = parse_with_depth(json, MAX_DEPTH).unwrap_or_else(|e| panic!("line {at}: the seam's JSON: {e}"));
+            let back = read_statement(doc.as_obj().unwrap()).unwrap_or_else(|r| panic!("line {at}: {r}"));
+            let javas = match java {
+                Some(Answer::Statement { sql, binds, regions }) => {
+                    *sql == back.sql && *binds == list_text(&back.binds) && *regions == list_text(&back.regions)
+                }
+                _ => true,
+            };
+            if *json == to_compact(&statement_json(st)) && back == *st && javas {
+                tally.statements += 1;
+                None
+            } else {
+                Some(format!("seam {json}\n    direct {st:?}\n    java {java:?}"))
+            }
+        }
+        (s, r) => Some(format!("seam {s:?}\n    direct {:?}", r.as_ref().map(|_| "an answer"))),
+    };
+    match differs {
+        None => tally.same += 1,
+        Some(d) => tally.different.push(format!("line {at} {op}: {d}")),
+    }
+}
+
+/// The direct renderer's answer.
+enum Direct {
+    Text(String),
+    Statement(RenderedStatement),
 }
 
 // ==================================================================

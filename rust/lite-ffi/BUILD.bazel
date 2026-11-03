@@ -10,7 +10,11 @@ rust_shared_library(
     edition = "2024",
     # Cargo.toml's version: what lite_version answers, the same under both builds
     version = "0.1.0",
-    visibility = ["//core:__pkg__"],
+    # public: //core:ffi carries it to every test and binary that reaches core, and every java_run takes it as an
+    # input (tools/java_run/defs.bzl), wherever the java_run lives
+    visibility = ["//visibility:public"],
+    # lite_dialect: the dialects' seam (rust/lite-dialect/SEAM.md), the lite_dialect export
+    deps = ["//rust/lite-dialect:lite_dialect"],
 )
 
 rust_test(
@@ -20,6 +24,7 @@ rust_test(
     edition = "2024",
     version = "0.1.0",
     visibility = ["//gates:__pkg__"],
+    deps = ["//rust/lite-dialect:lite_dialect"],
 )
 
 guards_package()

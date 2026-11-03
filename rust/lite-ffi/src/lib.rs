@@ -13,9 +13,12 @@
 //! No export lets a panic out: an unwind that reached the `extern "C"` boundary would abort the host process, so every
 //! one is caught and answered as an `INTERNAL` refusal.
 //!
-//! Phase 0 exports only the contract itself -- a version, an echo, and two probes that refuse and panic on purpose --
-//! so the shim and its test can hold the whole round trip before any compiler code lands.
+//! Phase 0 exported only the contract itself -- a version, an echo, and two probes that refuse and panic on purpose --
+//! so the shim and its test could hold the whole round trip before any compiler code landed. Phase 1 adds
+//! [`lite_dialect`], the dialects' seam (`rust/lite-dialect/SEAM.md`): one op of a dialect, its answer JSON, its
+//! refusal's kind folded from the Java class the dialect threw.
 
+use std::any::Any;
 use std::ffi::{CStr, CString, c_char};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -71,16 +74,68 @@ pub fn fold(answer: &Answer) -> String {
 fn respond(body: impl FnOnce() -> Answer) -> *mut c_char {
     let answer = match catch_unwind(AssertUnwindSafe(body)) {
         Ok(answer) => answer,
-        Err(payload) => {
-            let what = payload
-                .downcast_ref::<&str>()
-                .map(|s| (*s).to_owned())
-                .or_else(|| payload.downcast_ref::<String>().cloned())
-                .unwrap_or_else(|| "a panic with no message".to_owned());
-            Answer::Err(Refusal::new("INTERNAL", what))
-        }
+        Err(payload) => Answer::Err(Refusal::new("INTERNAL", panic_message(payload.as_ref()))),
     };
     into_c(fold(&answer))
+}
+
+/// A panic's message, when it carried one.
+fn panic_message(payload: &(dyn Any + Send)) -> String {
+    payload
+        .downcast_ref::<&str>()
+        .map(|s| (*s).to_owned())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "a panic with no message".to_owned())
+}
+
+/// The stack a dialect call runs on: reserved, not committed, so it costs only what the call touches. A MIR nests
+/// thousands deep (the golden dump's deepest statement needs more than 1 MB in a debug build), and the thread the
+/// host calls from may have 1 MB (a JVM thread's default).
+pub const DIALECT_STACK_BYTES: usize = 256 << 20;
+
+/// `body` on a thread of its own with [`DIALECT_STACK_BYTES`] of stack, joined before this returns: its answer, or the
+/// message of its panic (or of the thread's failure to start).
+fn on_dialect_thread<T: Send>(body: impl FnOnce() -> T + Send) -> Result<T, String> {
+    std::thread::scope(|scope| {
+        let thread = std::thread::Builder::new()
+            .name("lite-dialect".to_owned())
+            .stack_size(DIALECT_STACK_BYTES)
+            .spawn_scoped(scope, body)
+            .map_err(|e| format!("the dialect's thread did not start: {e}"))?;
+        // joined here, so the scope has no unjoined panic to rethrow
+        thread.join().map_err(|payload| panic_message(payload.as_ref()))
+    })
+}
+
+/// A dialect's refusal at the seam: its kind folded from the Java class it carries (`SEAM.md`, "Refusals"), the class
+/// prefixed to the message where the kind is `INTERNAL`.
+fn dialect_refusal(r: &lite_dialect::Refusal) -> Refusal {
+    Refusal::new(r.kind(), r.seam_message())
+}
+
+/// One op of a dialect (`rust/lite-dialect/SEAM.md`): `spec` names the dialect (`{"dialect":"DuckDb","server":...,
+/// "engineScanOrder":...}`), `op` the method, `args` its arguments as JSON. Answers `OK\n<answer as JSON>`, or
+/// `ERR\n<kind>\n-\n-\n<message>`. Each call runs on a fresh thread with a big stack ([`DIALECT_STACK_BYTES`]), joined
+/// before it returns; a panic there is an `INTERNAL` refusal.
+///
+/// # Safety
+/// `spec`, `op` and `args` are null or NUL-terminated strings the caller keeps alive for the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn lite_dialect(spec: *const c_char, op: *const c_char, args: *const c_char) -> *mut c_char {
+    respond(|| {
+        let read = || -> Result<(&str, &str, &str), Refusal> {
+            Ok((unsafe { text(spec, "spec") }?, unsafe { text(op, "op") }?, unsafe { text(args, "args") }?))
+        };
+        let (spec, op, args) = match read() {
+            Ok(texts) => texts,
+            Err(r) => return Answer::Err(r),
+        };
+        match on_dialect_thread(|| lite_dialect::dispatch(spec, op, args)) {
+            Ok(Ok(json)) => Answer::Ok(json),
+            Ok(Err(r)) => Answer::Err(dialect_refusal(&r)),
+            Err(panic) => Answer::Err(Refusal::new("INTERNAL", panic)),
+        }
+    })
 }
 
 /// A C string the caller owns. Text holding a NUL cannot be one, so such an answer is refused instead.
@@ -251,5 +306,120 @@ mod tests {
         assert_eq!(lite_unfreed(), before);
         unsafe { lite_free(std::ptr::null_mut()) };
         assert_eq!(lite_unfreed(), before);
+    }
+
+    // ---- lite_dialect (rust/lite-dialect/SEAM.md)
+
+    const DUCKDB: &str = r#"{"dialect":"DuckDb","server":null,"engineScanOrder":false}"#;
+
+    /// A select over raw SQL, as the golden dump holds one.
+    const RAW_SELECT: &str = r#"{"query":{"_type":"select","projections":[],"distinct":false,"from":{"_type":"rawSql","sql":"select 3 as V","alias":"_p","outputs":[],"writtenFor":"DuckDB"},"where":null,"groupBy":[],"having":null,"qualify":null,"orderBy":[],"limit":0,"offset":null,"outputs":[]}}"#;
+
+    /// A select of one plan parameter.
+    const PARAM_SELECT: &str = r##"{"query":{"_type":"select","projections":[{"expr":{"_type":"planParam","type":{"_type":"typed","sqlType":{"_type":"scalar","name":"BIGINT"},"nullable":false},"name":"#count","kind":"OTHER","optional":false,"enumMapFn":null,"byValue":null},"alias":"value","out":{"name":"value","type":{"_type":"scalar","name":"BIGINT"},"nullable":false,"origin":"DERIVED"}}],"distinct":false,"from":{"_type":"dual"},"where":null,"groupBy":[],"having":null,"qualify":null,"orderBy":[],"limit":null,"offset":null,"outputs":[{"name":"value","type":{"_type":"scalar","name":"BIGINT"},"nullable":false,"origin":"DERIVED"}]}}"##;
+
+    /// `lite_dialect`'s answer as text, freed.
+    fn dialect(spec: &str, op: &str, args: &str) -> String {
+        let (spec, op, args) = (c(spec), c(op), c(args));
+        take(unsafe { lite_dialect(spec.as_ptr(), op.as_ptr(), args.as_ptr()) })
+    }
+
+    #[test]
+    fn a_dialect_renders_a_query_and_a_statement() {
+        let _serial = serial();
+        let before = lite_unfreed();
+        assert_eq!(
+            dialect(DUCKDB, "query.render", RAW_SELECT),
+            "OK\n\"SELECT *\\nFROM (select 3 as V) AS _p\\nLIMIT 0\""
+        );
+        assert_eq!(
+            dialect(DUCKDB, "query.renderStatement", PARAM_SELECT),
+            "OK\n{\"sql\":\"SELECT ? AS value\",\"binds\":[{\"parameter\":\"#count\",\"binding\":{\"_type\":\"one\",\
+             \"nullType\":\"BIGINT\",\"hole\":null}}],\"regions\":[]}"
+        );
+        assert_eq!(dialect(DUCKDB, "physicalName", r#"{"name":"order"}"#), "OK\n\"\\\"order\\\"\"");
+        assert_eq!(lite_unfreed(), before);
+    }
+
+    #[test]
+    fn a_dialect_answers_its_facts() {
+        let _serial = serial();
+        assert_eq!(
+            dialect(DUCKDB, "facts", "{}"),
+            "OK\n{\"temporaryTables\":true,\"loadsRowsInBulk\":true,\"relational\":true,\"inProcess\":true,\
+             \"dropsStagedTablesWithTheirTransaction\":false,\"needsStaticPivot\":false,\"serverVersions\":null,\
+             \"inMemoryPath\":\":memory:\",\"scriptAbort\":\"ROLLBACK\",\"sessionSetup\":[\"SET TimeZone='UTC'\"],\
+             \"keysSnapshot\":\"TRANSACTION\",\"resultColumnLimit\":null}"
+        );
+    }
+
+    #[test]
+    fn a_dialects_refusal_folds_its_java_class_into_a_kind() {
+        let _serial = serial();
+        assert_eq!(
+            dialect(r#"{"dialect":"Oracle"}"#, "facts", "{}"),
+            "ERR\nILLEGAL_ARGUMENT\n-\n-\nunknown dialect 'Oracle': Rust answers DuckDb"
+        );
+        let geometry = r#"{"column":{"name":"g","dataType":"GEOMETRY","logicalType":"GEOMETRY","precision":null,"scale":null,"notNull":false}}"#;
+        assert_eq!(
+            dialect(DUCKDB, "catalogType", geometry),
+            "ERR\nDIALECT_CAPABILITY\n-\n-\na column of DuckDB type 'GEOMETRY' cannot be declared in a Pure Database \
+             (a spatial value: no Pure Database type holds it)"
+        );
+        assert_eq!(
+            dialect(DUCKDB, "query.render", PARAM_SELECT),
+            "ERR\nILLEGAL_STATE\n-\n-\na statement with bound parameters [Bind[parameter=#count, binding=One[nullType=\
+             BIGINT, hole=null]]] was asked for as text: render it as a statement"
+        );
+        let (spec, args) = (c(DUCKDB), c("{}"));
+        assert_eq!(
+            take(unsafe { lite_dialect(spec.as_ptr(), std::ptr::null(), args.as_ptr()) }),
+            "ERR\nINVALID_ARGUMENT\n-\n-\nop is null"
+        );
+        // a class the seam names no kind for is INTERNAL, the class kept in the message
+        let r = dialect_refusal(&lite_dialect::Refusal {
+            class: lite_dialect::Refusal::NUMBER_FORMAT,
+            message: "For input string: \"x\"".to_owned(),
+        });
+        assert_eq!(
+            fold(&Answer::Err(r)),
+            "ERR\nINTERNAL\n-\n-\njava.lang.NumberFormatException: For input string: \"x\""
+        );
+    }
+
+    #[test]
+    fn a_panic_on_the_dialects_thread_is_an_answer() {
+        let _serial = serial();
+        assert_eq!(on_dialect_thread(|| 7), Ok(7));
+        assert_eq!(on_dialect_thread(|| -> i32 { panic!("on purpose") }), Err("on purpose".to_owned()));
+        assert_eq!(
+            on_dialect_thread(|| -> i32 { std::panic::panic_any(3) }),
+            Err("a panic with no message".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_deep_tree_renders_when_called_from_a_small_stack() {
+        let _serial = serial();
+        // 2045 NOTs over a typed literal: the MIR at MirJson's depth limit (4096), far deeper than a 1 MB stack takes
+        // in a debug build
+        let typed = r#"{"_type":"typed","sqlType":{"_type":"scalar","name":"BOOLEAN"},"nullable":true}"#;
+        let nots = 2045;
+        let mut e = format!(r#"{{"_type":"boolLit","type":{typed},"value":true}}"#);
+        for _ in 0..nots {
+            e = format!(r#"{{"_type":"call","type":{typed},"fn":"NOT","args":[{e}]}}"#);
+        }
+        let args = format!(
+            r#"{{"query":{{"_type":"select","projections":[{{"expr":{e},"alias":"x","out":null}}],"distinct":false,"from":{{"_type":"dual"}},"where":null,"groupBy":[],"having":null,"qualify":null,"orderBy":[],"limit":null,"offset":null,"outputs":[]}}}}"#
+        );
+        // the caller's thread has a JVM thread's default stack
+        let answer = std::thread::Builder::new()
+            .stack_size(1 << 20)
+            .spawn(move || dialect(DUCKDB, "query.render", &args))
+            .expect("a thread")
+            .join()
+            .expect("no panic");
+        assert!(answer.starts_with("OK\n\"SELECT "), "{}", &answer[..answer.len().min(200)]);
+        assert_eq!(answer.matches("NOT").count(), nots);
     }
 }

@@ -17,6 +17,10 @@
 //! - The MIR passes ([`rewriter`], [`passes`], [`carrier`], [`scan_order`]) run at render entry in Java's order, each
 //!   its Java class ported; a node they build carries the type fact Java's constructor computes ([`build`] over
 //!   [`typing`], Java's `SqlTyping`).
+//! - [`SqlDialect`] is Java's interface: every method, its defaults Java's, so [`DuckDb`] overrides what `DuckDb.java`
+//!   overrides -- the catalog decisions ([`catalog_model`]), the host operations ([`host_ops`]), the session facts.
+//! - [`dispatch`] is the seam the JVM calls through (`lite-ffi`'s `lite_dialect`): one op of a dialect, JSON in and
+//!   JSON out, every op and form written down in `SEAM.md`.
 //!
 //! A statement nests deep: render it on a thread with a big stack (the deepest tree of the dump needs more than 1 MB
 //! in a debug build).
@@ -25,9 +29,12 @@ pub mod ansi;
 pub mod build;
 pub mod carrier;
 pub mod catalog;
+pub mod catalog_model;
+pub mod dialect;
 pub mod duckdb;
 pub mod duckdb_spellings;
 pub mod float_text;
+pub mod host_ops;
 pub mod java;
 pub mod json;
 pub mod passes;
@@ -36,85 +43,20 @@ pub mod refusal;
 pub mod renderer;
 pub mod rewriter;
 pub mod scan_order;
+pub mod seam;
 pub mod statement;
 pub mod typing;
+pub mod wire_names;
 pub mod writer;
 
+pub use dialect::{KeysSnapshot, SqlDialect};
 pub use duckdb::DuckDb;
 pub use refusal::Refusal;
 pub use renderer::{AnsiSqlRenderer, AnsiState, Lexicon, PlanParam};
 pub use rewriter::SqlRewriter;
+pub use seam::dispatch;
 pub use statement::{Bind, Binding, Digits, Region, RenderedStatement, TypeHole, TypeSpelling};
 pub use writer::SqlWriter;
-
-use lite_sql::{SqlDdl, SqlDml, SqlQuery};
-
-/// A dialect as its callers use it (Java's `SqlDialect`, the interface the JVM shim keeps): the renders and the
-/// naming helpers, object-safe so a handle can hold any dialect.
-pub trait SqlDialect {
-    /// Java's `render(SqlQuery)`: the statement as text, refused when it binds a parameter.
-    fn render(&self, query: SqlQuery) -> Result<String, Refusal>;
-    /// Java's `renderInline(SqlQuery)`: `render` in single-line mode.
-    fn render_inline(&self, query: SqlQuery) -> Result<String, Refusal>;
-    /// Java's `renderStatement(SqlQuery)`.
-    fn render_statement(&self, query: SqlQuery) -> Result<RenderedStatement, Refusal>;
-    /// Java's `render(SqlDdl)`.
-    fn render_ddl(&self, ddl: &SqlDdl) -> Result<String, Refusal>;
-    /// Java's `render(SqlDml)`.
-    fn render_dml(&self, dml: &SqlDml) -> Result<String, Refusal>;
-    /// Java's `renderStatement(SqlDml)`.
-    fn render_dml_statement(&self, dml: &SqlDml) -> Result<RenderedStatement, Refusal>;
-    /// Java's `raw(statement, writtenFor)`: authored raw SQL in this session's language.
-    fn raw(&self, statement: &str, written_for: Option<&str>) -> Result<String, Refusal>;
-    /// Java's `storedName(name, declaredQuoted)`.
-    fn stored_name(&self, name: &str, declared_quoted: bool) -> String;
-    /// Java's `physicalName(name)`.
-    fn physical_name(&self, name: &str) -> String;
-    /// Java's `insertColumnName(name, declaredQuoted)`.
-    fn insert_column_name(&self, name: &str, declared_quoted: bool) -> String;
-}
-
-impl<T: AnsiSqlRenderer> SqlDialect for T {
-    fn render(&self, query: SqlQuery) -> Result<String, Refusal> {
-        AnsiSqlRenderer::render(self, query)
-    }
-
-    fn render_inline(&self, query: SqlQuery) -> Result<String, Refusal> {
-        ansi::render_inline(self, query)
-    }
-
-    fn render_statement(&self, query: SqlQuery) -> Result<RenderedStatement, Refusal> {
-        AnsiSqlRenderer::render_statement(self, query)
-    }
-
-    fn render_ddl(&self, ddl: &SqlDdl) -> Result<String, Refusal> {
-        AnsiSqlRenderer::render_ddl(self, ddl)
-    }
-
-    fn render_dml(&self, dml: &SqlDml) -> Result<String, Refusal> {
-        AnsiSqlRenderer::render_dml(self, dml)
-    }
-
-    fn render_dml_statement(&self, dml: &SqlDml) -> Result<RenderedStatement, Refusal> {
-        AnsiSqlRenderer::render_dml_statement(self, dml)
-    }
-
-    fn raw(&self, statement: &str, written_for: Option<&str>) -> Result<String, Refusal> {
-        ansi::raw(self, statement, written_for)
-    }
-
-    fn stored_name(&self, name: &str, declared_quoted: bool) -> String {
-        AnsiSqlRenderer::stored_name(self, name, declared_quoted)
-    }
-
-    fn physical_name(&self, name: &str) -> String {
-        AnsiSqlRenderer::physical_name(self, name)
-    }
-
-    fn insert_column_name(&self, name: &str, declared_quoted: bool) -> String {
-        AnsiSqlRenderer::insert_column_name(self, name, declared_quoted)
-    }
-}
 
 #[cfg(test)]
 mod pass_tests;

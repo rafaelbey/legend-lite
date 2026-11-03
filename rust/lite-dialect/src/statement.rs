@@ -152,6 +152,11 @@ impl Digits {
             Digits::PrecisionAndScale => "PRECISION_AND_SCALE",
         }
     }
+
+    /// The constant whose Java `name()` is `name`.
+    pub fn from_name(name: &str) -> Option<Digits> {
+        [Digits::None, Digits::Precision, Digits::PrecisionAndScale].into_iter().find(|d| d.as_str() == name)
+    }
 }
 
 /// A run of the statement written once per key of its plan's keys probe (Java's `RenderedStatement.Region`).

@@ -144,8 +144,10 @@ not run.
   `StringIndexOutOfBoundsException`, is written as it came.
 - A `SqlExpr.Tagged`/`TaggedList` reaching the renderer (Java's `tagged` hook and its refusal): the Rust MIR has no such
   node; MirJson refuses it before a dialect sees it.
-- Not ported, as no DuckDB render reaches them: `starsAsSourceColumns` (MariaDB, MySQL and BigQuery's), and DuckDB's
-  non-rendering surface (its catalog types and rules, host operations, session setup, scripts, `copySelectList`).
+- Not ported, as no DuckDB render reaches it: `starsAsSourceColumns` (MariaDB, MySQL and BigQuery's). DuckDB's
+  non-rendering surface -- the rest of `SqlDialect` (its catalog types and rules, host operations, session setup,
+  scripts, `copySelectList`, the facts) -- is ported with the seam the JVM calls it through (`SEAM.md`, whose §6 says
+  what of it is not exact).
 
 ## Tests
 
@@ -165,10 +167,21 @@ not run.
   `CAST(... AS DOUBLE)` because its leading `1.0` is a DECIMAL(2,1), as Java's), the collect fusions, the JSON literal
   navigation, membership -- each rewritten tree rendered without passes and held to the Java's logic; and Java's JSON
   reading and canonical text.
-- `tests/duckdb_differential.rs`: the two dump differentials above.
+- `src/seam/tests.rs` (18 tests), `src/host_ops.rs` (6), `src/catalog_model.rs` (3), `src/wire_names.rs` (1): every op
+  of the seam through `dispatch`, each answer held to the Java's logic -- the facts, the renders, `sessionTable`, the
+  names, `raw` and the engine text, the wire names, the script, every catalog decision and refusal, the catalog
+  question's text, the copy's select list, each host operation's statements and the browser reader's every refusal,
+  `SqlDialect`'s defaults (on a dialect that overrides none), the records' JSON forms read back through their
+  constructors, the refusal kinds, and a MIR exactly at MirJson's depth limit.
+- `tests/duckdb_differential.rs`: the two dump differentials above, and the seam's: every DuckDB render op of the
+  dump (and each `query.render` asked inline) answered through `dispatch` exactly as a direct call answers it, each
+  statement read back from its JSON equal to the direct one with Java's record text (16,154 ops and 1,023 inline
+  renders, 13,011 statements, 10 refusals: all the same).
 
 ## Stack
 
 The deepest statement of the dump needs between 1 and 2 MB of stack in a debug build for its parse, read, passes and
 render together, and less than 1 MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB).
-Both differentials run in 16 s in debug and 2.2 s in release.
+Both differentials run in 16 s in debug and 2.2 s in release (with the seam's, 4.8 s in release). A MIR at MirJson's
+depth limit (2,045 nested calls) needs between 32 and 64 MB in a debug build and more than 1 MB in release; the seam's
+C export runs each call on a 256 MB thread (`SEAM.md` §1).

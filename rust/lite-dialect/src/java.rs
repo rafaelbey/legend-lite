@@ -206,6 +206,11 @@ pub fn strip(s: &str) -> &str {
     s.trim_matches(is_java_whitespace)
 }
 
+/// Java's `String.trim()`: every character at or below U+0020 trimmed from both ends (not `strip`'s whitespace).
+pub fn trim(s: &str) -> &str {
+    s.trim_matches(|c: char| c <= ' ')
+}
+
 /// Java's `s.split(sep)` for a one-character literal separator: trailing empty strings dropped, and the whole string
 /// when the separator is not in it.
 pub fn split(s: &str, sep: char) -> Vec<&str> {

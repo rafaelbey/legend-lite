@@ -11,3 +11,6 @@ rust-version.workspace = true
 name = "lite_ffi"
 # cdylib for the hosts, rlib for the crate's own tests
 crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+lite-dialect = { path = "../lite-dialect" }

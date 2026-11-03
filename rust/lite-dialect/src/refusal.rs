@@ -25,6 +25,39 @@ impl Refusal {
     pub const INDEX_OUT_OF_BOUNDS: &'static str = "java.lang.IndexOutOfBoundsException";
     pub const CLASS_CAST: &'static str = "java.lang.ClassCastException";
     pub const NUMBER_FORMAT: &'static str = "java.lang.NumberFormatException";
+    pub const UNSUPPORTED_OPERATION: &'static str = "java.lang.UnsupportedOperationException";
+    pub const NOT_IMPLEMENTED: &'static str = "com.legend.error.NotImplementedException";
+
+    /// The seam's kinds (`SEAM.md`, "Refusals"): each Java class the JVM rethrows by kind, by its exact class -- a
+    /// subclass not listed (`StringIndexOutOfBoundsException`) is `INTERNAL` like any other.
+    pub const KINDS: &'static [(&'static str, &'static str)] = &[
+        (Refusal::DIALECT_CAPABILITY, "DIALECT_CAPABILITY"),
+        (Refusal::ILLEGAL_STATE, "ILLEGAL_STATE"),
+        (Refusal::ILLEGAL_ARGUMENT, "ILLEGAL_ARGUMENT"),
+        (Refusal::UNSUPPORTED_OPERATION, "UNSUPPORTED_OPERATION"),
+        (Refusal::NOT_IMPLEMENTED, "NOT_IMPLEMENTED"),
+        (Refusal::NULL_POINTER, "NULL_POINTER"),
+        (Refusal::CLASS_CAST, "CLASS_CAST"),
+        (Refusal::INDEX_OUT_OF_BOUNDS, "INDEX_OUT_OF_BOUNDS"),
+    ];
+
+    /// The kind every other class is answered as, its class named in the message ([`Refusal::seam_message`]).
+    pub const INTERNAL: &'static str = "INTERNAL";
+
+    /// The refusal's kind at the seam: its class's, by [`Refusal::KINDS`], else `INTERNAL`.
+    pub fn kind(&self) -> &'static str {
+        Refusal::KINDS.iter().find(|(class, _)| *class == self.class).map_or(Refusal::INTERNAL, |(_, kind)| kind)
+    }
+
+    /// The refusal's message at the seam: Java's message, prefixed `<class>: ` when its kind is `INTERNAL` (the kind
+    /// alone would not say which exception it was).
+    pub fn seam_message(&self) -> String {
+        if self.kind() == Refusal::INTERNAL {
+            format!("{}: {}", self.class, self.message)
+        } else {
+            self.message.clone()
+        }
+    }
 
     /// Java's `new DialectCapability(message)`.
     pub fn capability(message: impl Into<String>) -> Refusal {

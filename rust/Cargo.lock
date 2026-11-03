@@ -14,6 +14,9 @@ dependencies = [
 [[package]]
 name = "lite-ffi"
 version = "0.1.0"
+dependencies = [
+ "lite-dialect",
+]
 
 [[package]]
 name = "lite-javacompat"
