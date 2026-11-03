@@ -1,0 +1,13 @@
+[package]
+name = "lite-dialect"
+version = "0.1.0"
+description = "legend-lite's SQL dialects (core/'s com.legend.sql.dialect, ported): the shared renderer and DuckDB"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+lite-javacompat = { path = "../lite-javacompat" }
+lite-json = { path = "../lite-json" }
+lite-sql = { path = "../lite-sql" }

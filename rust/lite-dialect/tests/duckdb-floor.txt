@@ -1,0 +1,3 @@
+# The DuckDB differential's floor (tests/duckdb_differential.rs): how many of the dump's 16,154 DuckDb statements must
+# render exactly as Java's. Measured 2026-11-02 with every pass a stub (PARITY.md); the passes' port ratchets it up.
+15602

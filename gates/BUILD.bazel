@@ -43,6 +43,9 @@ test_suite(
         "//rust/lite-json:lite_json_test",
         "//rust/lite-sql:lite_sql_test",
         "//rust/lite-sql:mir_round_trip_test",
+        # the dialects in Rust: the shared renderer and DuckDB, held to the JVM's answers on the golden dump
+        "//rust/lite-dialect:lite_dialect_test",
+        "//rust/lite-dialect:duckdb_differential_test",
         # the planner on java.base alone (P3-19): seconds
         "//core:planner_on_java_base_test",
         "//core:postgres_arm_test",

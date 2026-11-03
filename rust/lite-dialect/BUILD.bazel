@@ -1,0 +1,52 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# legend-lite's SQL dialects, ported from core/'s com.legend.sql.dialect (src/lib.rs; docs/rust-port/PHASE1.md step 3):
+# the shared renderer (Java's AnsiSqlRenderer as a trait), the writer, the pass pipeline (its passes stubs for now) and
+# DuckDB, rendering a lite_sql statement as the JVM does.
+rust_library(
+    name = "lite_dialect",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    version = "0.1.0",
+    visibility = ["//rust:__subpackages__"],
+    deps = [
+        "//rust/lite-javacompat:lite_javacompat",
+        "//rust/lite-json:lite_json",
+        "//rust/lite-sql:lite_sql",
+    ],
+)
+
+rust_test(
+    name = "lite_dialect_test",
+    crate = ":lite_dialect",
+    edition = "2024",
+    visibility = ["//gates:__pkg__"],
+)
+
+# every DuckDb statement of the golden dump (//rust/oracles:mir_dump, 16,154 of its 28,951) rendered by a fresh DuckDb
+# and held to Java's answer, at least the floor of them identical (tests/duckdb_differential.rs, PARITY.md; cargo runs
+# it with --ignored and LITE_MIR_DUMP)
+rust_test(
+    name = "duckdb_differential_test",
+    srcs = ["tests/duckdb_differential.rs"],
+    args = ["--ignored"],
+    data = [
+        "tests/duckdb-floor.txt",
+        "//rust/oracles:mir_dump",
+    ],
+    edition = "2024",
+    env = {
+        "DUCKDB_FLOOR": "$(rootpath tests/duckdb-floor.txt)",
+        "LITE_MIR_DUMP": "$(rootpath //rust/oracles:mir_dump)",
+    },
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":lite_dialect",
+        "//rust/lite-json:lite_json",
+        "//rust/lite-sql:lite_sql",
+    ],
+)
+
+guards_package()

@@ -12,6 +12,10 @@ names. Change both together.
   `java.lang.foreign`, and Python's bindings will once `libcompiler` is Rust. Phase 0: the contract only.
 - `lite-javacompat/`: the Java spellings legend-engine's output carries (`double_to_string`), each held to the JDK's
   frozen answers.
+- `lite-json/`: legend-lite's JSON (json/'s `Json.java`): insertion order, numbers kept as written, Java's escapes.
+- `lite-sql/`: the SQL tree (the MIR) and its JSON, `MirJson`, held to every statement of `oracles/mir/`.
+- `lite-dialect/`: the SQL dialects -- the shared renderer as a trait, the writer, the pass pipeline, DuckDB -- held to
+  Java's answers by the differential over `oracles/mir/` (`PARITY.md` measures where it stands).
 
 - `BASELINE.tsv`: every test target of `bazel test //...` on the pristine tree (upstream `main` at `cf73e6ef7`,
   2026-11-02, macOS arm64): 508 passed, 2 skipped as incompatible with the platform. A phase lands only when every
