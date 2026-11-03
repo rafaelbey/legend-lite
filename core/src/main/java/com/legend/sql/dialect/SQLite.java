@@ -284,6 +284,10 @@ public final class SQLite extends AnsiSqlRenderer {
 
     @Override
     public String render(SqlQuery query) {
+        if (roots.isEmpty()) {
+            // a statement's own fresh names: the outermost render starts them over (the user's ruling, 2026-11-03: fresh-name counters reset per render, as the Rust port's dialect, made fresh for each call, numbers its own; docs/rust-port/PHASE1.md)
+            binds[0] = 0;
+        }
         roots.push(query.outputs());
         rootSelects.push(new IdentityHashMap<>());
         try {
@@ -296,6 +300,10 @@ public final class SQLite extends AnsiSqlRenderer {
 
     @Override
     public RenderedStatement renderStatement(SqlQuery query) {
+        if (roots.isEmpty()) {
+            // a statement's own fresh names: the outermost render starts them over (the user's ruling, 2026-11-03: fresh-name counters reset per render, as the Rust port's dialect, made fresh for each call, numbers its own; docs/rust-port/PHASE1.md)
+            binds[0] = 0;
+        }
         roots.push(query.outputs());
         rootSelects.push(new IdentityHashMap<>());
         try {
@@ -1369,7 +1377,7 @@ public final class SQLite extends AnsiSqlRenderer {
             SqlFn.ADD_INTERVAL, SqlFn.ADD_INTERVAL_TEMPORAL, SqlFn.DATE_DIFF, SqlFn.TIME_BUCKET, SqlFn.VARIANT_GET,
             SqlFn.MAKE_TIMESTAMP);
 
-    /** Fresh names for bound operands, unique within a statement. */
+    /** Fresh names for bound operands, unique within a statement: numbered from 0 by each outermost render. */
     private final int[] binds = {0};
 
     /**
