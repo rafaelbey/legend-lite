@@ -14,25 +14,30 @@
 //!   placeholder lands, the per-key regions; [`RenderedStatement`] is what it hands back, every record's `Display`
 //!   Java's record `toString`.
 //! - Every Java `throw` is a [`Refusal`]: the class Java threw and its exact message.
-//! - The MIR passes ([`rewriter`], [`passes`]) run at render entry in Java's order; in this step every pass is a named
-//!   stub that hands the statement back unchanged, for the next step to fill in.
+//! - The MIR passes ([`rewriter`], [`passes`], [`carrier`], [`scan_order`]) run at render entry in Java's order, each
+//!   its Java class ported; a node they build carries the type fact Java's constructor computes ([`build`] over
+//!   [`typing`], Java's `SqlTyping`).
 //!
 //! A statement nests deep: render it on a thread with a big stack (the deepest tree of the dump needs more than 1 MB
 //! in a debug build).
 
 pub mod ansi;
 pub mod build;
+pub mod carrier;
 pub mod catalog;
 pub mod duckdb;
 pub mod duckdb_spellings;
 pub mod float_text;
 pub mod java;
+pub mod json;
 pub mod passes;
 pub mod raw_sql;
 pub mod refusal;
 pub mod renderer;
 pub mod rewriter;
+pub mod scan_order;
 pub mod statement;
+pub mod typing;
 pub mod writer;
 
 pub use duckdb::DuckDb;
@@ -111,5 +116,7 @@ impl<T: AnsiSqlRenderer> SqlDialect for T {
     }
 }
 
+#[cfg(test)]
+mod pass_tests;
 #[cfg(test)]
 mod tests;

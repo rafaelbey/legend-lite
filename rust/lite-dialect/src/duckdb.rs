@@ -33,6 +33,10 @@ pub struct DuckDb {
     pub engine_scan_order: bool,
 }
 
+/// Java's `DuckDb.CAPS`: every collection capability.
+pub const CAPS: crate::carrier::Caps =
+    crate::carrier::Caps { native_lists: true, correlated_explode: true, json_carrier: true, native_full_outer: true };
+
 impl DuckDb {
     pub fn new() -> DuckDb {
         DuckDb::default()

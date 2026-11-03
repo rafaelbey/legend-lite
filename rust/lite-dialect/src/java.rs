@@ -218,3 +218,32 @@ pub fn split(s: &str, sep: char) -> Vec<&str> {
     }
     parts
 }
+
+/// Java's `String.hashCode()`: `s[0]*31^(n-1) + ... + s[n-1]` over the UTF-16 code units, wrapping.
+pub fn string_hash(s: &str) -> i32 {
+    s.encode_utf16().fold(0i32, |h, u| h.wrapping_mul(31).wrapping_add(i32::from(u)))
+}
+
+/// The order a `java.util.HashMap<String, V>` built by putting `keys` in turn (a repeated key kept where it first
+/// went) iterates them: by bucket under the final table size (16, doubled whenever the size passes three quarters of
+/// it), a bucket's keys in insertion order (`resize` splits a bucket keeping its order). A bucket of eight or more
+/// keys is a tree in Java, whose iteration this does not model.
+pub fn hash_map_order<S: AsRef<str>>(keys: &[S]) -> Vec<&str> {
+    let mut distinct: Vec<&str> = Vec::new();
+    for k in keys {
+        if !distinct.contains(&k.as_ref()) {
+            distinct.push(k.as_ref());
+        }
+    }
+    let mut capacity: usize = 16;
+    while distinct.len() > capacity * 3 / 4 {
+        capacity *= 2;
+    }
+    let bucket = |k: &str| {
+        let h = string_hash(k) as u32;
+        ((h ^ (h >> 16)) as usize) & (capacity - 1)
+    };
+    let mut ordered: Vec<(usize, usize, &str)> = distinct.iter().enumerate().map(|(i, k)| (bucket(k), i, *k)).collect();
+    ordered.sort();
+    ordered.into_iter().map(|(_, _, k)| k).collect()
+}

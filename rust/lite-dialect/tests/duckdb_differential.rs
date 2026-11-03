@@ -7,12 +7,15 @@
 //! binds and regions by whether they are empty.
 //!
 //! The test asserts that at least the floor (`tests/duckdb-floor.txt`, or the file `DUCKDB_FLOOR` names) of the
-//! statements are identical; the passes' port ratchets it up. It prints the counts by op and by MIR kind, the first
-//! mismatches, and each mismatch's likely cause: the first stubbed pass, in the order the passes run, whose trigger
-//! the statement holds (`rust/lite-dialect/PARITY.md` is that classification, read by hand). With
+//! statements are identical (all of them, since every pass is ported). It prints the counts by op and by MIR kind, the
+//! first mismatches, and each mismatch's likely cause: the pass whose signature its first difference carries, else the
+//! first pass, in the order the passes run, whose trigger the statement holds (`rust/lite-dialect/PARITY.md`). With
 //! `LITE_DIALECT_MISMATCHES` set, every mismatch is written to the file it names.
+//!
+//! A second test holds the typing rules (`lite_dialect::typing`, Java's `SqlTyping`) to the facts Java stored on every
+//! node of every statement of the dump.
 
-use lite_dialect::rewriter::{SqlRewriter, rewrite};
+use lite_dialect::rewriter::{Rw, SqlRewriter, rewrite};
 use lite_dialect::statement::list_text;
 use lite_dialect::{DuckDb, Refusal, RenderedStatement, SqlDialect};
 use lite_json::{Node, Obj, parse_with_depth};
@@ -127,10 +130,7 @@ impl Tally {
             out,
             "\n(refused = Rust refused where Java rendered; accepted = Rust rendered where Java refused)"
         );
-        let _ = writeln!(
-            out,
-            "\nmismatches by likely cause (the stubbed pass whose signature the first difference carries):"
-        );
+        let _ = writeln!(out, "\nmismatches by likely cause (the pass whose signature the first difference carries):");
         let mut causes: Vec<_> = self.causes.iter().collect();
         causes.sort_by(|a, b| b.1.cmp(a.1));
         for (cause, n) in causes {
@@ -342,7 +342,7 @@ fn around(s: &str, at: usize, width: usize) -> String {
 }
 
 /// The likely cause of a mismatch: the pass whose signature the difference carries (the refusal Rust wrote in its
-/// stead, or the text at the first difference), else the first stubbed pass, in the order the passes run, whose
+/// stead, or the text at the first difference), else the first pass, in the order the passes run, whose
 /// trigger the statement holds.
 fn cause(q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &'static str {
     let mut t = Triggers::default();
@@ -418,7 +418,7 @@ fn cause(q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &'static str {
     }
 }
 
-/// The stubbed passes' triggers a statement holds, found by the shared walk.
+/// The passes' triggers a statement holds, found by the shared walk.
 #[derive(Default)]
 struct Triggers {
     float_print: bool,
@@ -477,9 +477,9 @@ fn holds_scalar_subquery(e: &SqlExpr) -> bool {
         fn name(&self) -> &'static str {
             "find"
         }
-        fn expr(&mut self, e: SqlExpr) -> Result<SqlExpr, Refusal> {
+        fn expr(&mut self, e: SqlExpr) -> Result<Rw<SqlExpr>, Refusal> {
             self.0 |= matches!(e, SqlExpr::ScalarSubquery { .. });
-            Ok(e)
+            Ok(Rw::Same(e))
         }
     }
     let mut f = Find(false);
@@ -492,14 +492,14 @@ impl SqlRewriter for Triggers {
         "triggers"
     }
 
-    fn select(&mut self, s: SqlSelect) -> Result<SqlQuery, Refusal> {
+    fn select(&mut self, s: SqlSelect) -> Result<Rw<SqlQuery>, Refusal> {
         if s.group_by.iter().any(|k| matches!(k, SqlExpr::IntLit { .. })) {
             self.constant_key = true;
         }
-        Ok(SqlQuery::Select(Box::new(s)))
+        Ok(Rw::Same(SqlQuery::Select(Box::new(s))))
     }
 
-    fn source(&mut self, s: SqlSource) -> Result<SqlSource, Refusal> {
+    fn source(&mut self, s: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
         match &s {
             SqlSource::Pivot { .. } => self.pivot = true,
             SqlSource::Join { kind: JoinKind::Left, on: Some(on), .. } if holds_scalar_subquery(on) => {
@@ -514,10 +514,10 @@ impl SqlRewriter for Triggers {
             }
             _ => {}
         }
-        Ok(s)
+        Ok(Rw::Same(s))
     }
 
-    fn expr(&mut self, e: SqlExpr) -> Result<SqlExpr, Refusal> {
+    fn expr(&mut self, e: SqlExpr) -> Result<Rw<SqlExpr>, Refusal> {
         match &e {
             SqlExpr::Call { r#fn: SqlFn::FloatPrint, .. } => self.float_print = true,
             SqlExpr::Call { r#fn: SqlFn::FloatCanon, .. } => self.float_canon = true,
@@ -539,6 +539,220 @@ impl SqlRewriter for Triggers {
             _ => {}
         }
         let _ = TypeFact::Unknown;
-        Ok(e)
+        Ok(Rw::Same(e))
     }
+}
+
+// ==================================================================
+// The typing rules held to Java's own facts
+// ==================================================================
+
+/// Java's `SqlTyping` as `lite_dialect::typing` ports it, held to the facts Java's constructors stored: every node of
+/// every statement of the dump (every dialect's: one tree), its fact recomputed from its children's and compared with
+/// the one MirJson carries; a projection frame's outputs rebuilt from its projections, a union's labels reconciled, a
+/// join's delivered columns, each compared with Java's. A leaf the builder supplies (a column, a lambda, a parameter,
+/// a key cell) has no rule; an array literal or a field read whose children prove no type keeps the one it was given.
+#[test]
+#[ignore = "reads the JVM's MirJson dump named by LITE_MIR_DUMP"]
+fn typing_reproduces_javas_facts() {
+    let path = std::env::var("LITE_MIR_DUMP")
+        .expect("LITE_MIR_DUMP is unset: it names the JVM's MirJson dump (JSON lines) this test reads");
+    let stack_mb: usize = std::env::var("LITE_DIALECT_STACK_MB").ok().and_then(|v| v.parse().ok()).unwrap_or(256);
+    let run = std::thread::Builder::new().stack_size(stack_mb << 20).spawn(move || check_all_facts(&path)).unwrap();
+    let facts = run.join().unwrap();
+    let mut report = String::new();
+    let _ = writeln!(report, "typing: {} statements, {} facts checked", facts.statements, facts.checked);
+    for (kind, [checked, wrong]) in &facts.by_kind {
+        let _ = writeln!(report, "  {kind:<28} {checked:>9} checked {wrong:>6} different");
+    }
+    for e in facts.examples.iter().take(SHOWN) {
+        let _ = writeln!(report, "{e}");
+    }
+    eprintln!("{report}");
+    let wrong: usize = facts.by_kind.values().map(|v| v[1]).sum();
+    assert!(facts.checked > 0, "the dump holds no statement");
+    assert_eq!(wrong, 0, "{wrong} facts differ from Java's");
+}
+
+#[derive(Default)]
+struct Facts {
+    statements: usize,
+    checked: usize,
+    /// node kind -> [checked, different]
+    by_kind: BTreeMap<String, [usize; 2]>,
+    examples: Vec<String>,
+}
+
+impl Facts {
+    fn check<T: PartialEq + std::fmt::Debug>(&mut self, at: usize, kind: &str, computed: T, stored: &T) {
+        self.checked += 1;
+        let tally = self.by_kind.entry(kind.to_owned()).or_default();
+        tally[0] += 1;
+        if computed != *stored {
+            tally[1] += 1;
+            if self.examples.len() < SHOWN {
+                self.examples.push(format!("line {at} {kind}:\n    java: {stored:?}\n    rust: {computed:?}"));
+            }
+        }
+    }
+}
+
+fn check_all_facts(path: &str) -> Facts {
+    let file = std::fs::File::open(path).unwrap_or_else(|e| panic!("cannot open {path}: {e}"));
+    let mut facts = Facts::default();
+    for (i, line) in BufReader::new(file).lines().enumerate() {
+        let line = line.unwrap_or_else(|e| panic!("{path}:{}: {e}", i + 1));
+        let doc = parse_with_depth(&line, MAX_DEPTH).unwrap_or_else(|e| panic!("line {}: unparsable: {e}", i + 1));
+        let doc = doc.as_obj().unwrap();
+        let op = doc.str("op").unwrap();
+        let mir = doc.obj("mir").unwrap();
+        let query = match op {
+            "query.render" | "query.renderStatement" => read_query(mir).ok(),
+            "dml.render" | "dml.renderStatement" => read_dml(mir).ok().and_then(|d| dml_query(&d)),
+            _ => None,
+        };
+        if let Some(q) = query {
+            facts.statements += 1;
+            query_facts(i + 1, &q, &mut facts);
+        }
+    }
+    facts
+}
+
+fn query_facts(at: usize, q: &SqlQuery, f: &mut Facts) {
+    use lite_dialect::typing;
+    match q {
+        SqlQuery::Select(s) => {
+            for p in &s.projections {
+                if let Some(out) = &p.out {
+                    let normalized = matches!(out.origin, Origin::Derived | Origin::PerKey);
+                    f.check(at, "Projection.out origin", normalized, &true);
+                }
+                expr_facts(at, &p.expr, f);
+            }
+            source_facts(at, &s.from, f);
+            s.r#where.iter().chain(&s.group_by).chain(&s.having).chain(&s.qualify).for_each(|e| expr_facts(at, e, f));
+            s.order_by.iter().for_each(|k| expr_facts(at, &k.expr, f));
+            if !s.projections.is_empty() {
+                f.check(at, "SqlSelect.outputs", typing::outputs_from(s).ok(), &Some(s.outputs.clone()));
+            } else if let (SqlSource::Join { .. }, Some(w)) = (&s.from, &s.r#where)
+                && !s.outputs.is_empty()
+            {
+                let neutralized = typing::where_pad_neutralized(&s.from, w, s.outputs.clone());
+                f.check(at, "SqlSelect.outputs (star)", neutralized, &s.outputs);
+            }
+        }
+        SqlQuery::Union(u) => {
+            u.branches.iter().for_each(|b| query_facts(at, b, f));
+            let reconciled = typing::reconcile_union_labels(&u.branches, u.outputs.clone());
+            f.check(at, "SqlUnion.outputs", reconciled, &u.outputs);
+        }
+        SqlQuery::With(w) => {
+            w.ctes.iter().for_each(|c| query_facts(at, &c.query, f));
+            query_facts(at, &w.body, f);
+        }
+    }
+}
+
+fn source_facts(at: usize, s: &SqlSource, f: &mut Facts) {
+    use lite_dialect::typing;
+    match s {
+        SqlSource::Subselect { inner, .. } => query_facts(at, inner, f),
+        SqlSource::Values { rows, .. } => rows.iter().flatten().for_each(|e| expr_facts(at, e, f)),
+        SqlSource::Join { left, right, kind, on, outputs } => {
+            source_facts(at, left, f);
+            source_facts(at, right, f);
+            on.iter().for_each(|e| expr_facts(at, e, f));
+            f.check(at, "Join.outputs", typing::join_delivered(left, right, *kind), outputs);
+        }
+        SqlSource::Pivot { source, on, r#in, named, usings, .. } => {
+            source_facts(at, source, f);
+            on.iter().chain(r#in).chain(named).for_each(|e| expr_facts(at, e, f));
+            usings.iter().for_each(|u| expr_facts(at, &SqlExpr::Reducer(u.agg.clone()), f));
+        }
+        _ => {}
+    }
+}
+
+fn expr_facts(at: usize, e: &SqlExpr, f: &mut Facts) {
+    use lite_dialect::typing::{self, scalar};
+    // the subqueries a node holds, and a window function's arguments, which `children` leaves out
+    match e {
+        SqlExpr::Exists { subquery, .. }
+        | SqlExpr::ScalarSubquery { subquery, .. }
+        | SqlExpr::InSubquery { subquery, .. }
+        | SqlExpr::Quantified { subquery, .. } => query_facts(at, subquery, f),
+        SqlExpr::DeferredTdsString { inner, .. } => query_facts(at, &SqlQuery::Select(inner.clone()), f),
+        SqlExpr::WindowCall { r#fn, .. } => match r#fn.as_ref() {
+            lite_sql::SqlAgg::RankingFn { args, .. } | lite_sql::SqlAgg::ValueFn { args, .. } => {
+                args.iter().for_each(|a| expr_facts(at, a, f))
+            }
+            lite_sql::SqlAgg::Reducer(_) => {}
+        },
+        _ => {}
+    }
+    for c in typing::children(e) {
+        expr_facts(at, &c, f);
+    }
+    let computed = match e {
+        SqlExpr::Call { r#fn, args, .. } => typing::call_type(*r#fn, args),
+        SqlExpr::Case { whens, otherwise, .. } => typing::case_type(whens, otherwise.as_deref()),
+        SqlExpr::Cast { value, target, .. } => typing::cast_type(value, target),
+        SqlExpr::Membership { needle, collection, .. } => typing::membership_type(needle, collection),
+        SqlExpr::ReduceCollection { reducer, collection, .. } => typing::reduce_collection_type(*reducer, collection),
+        SqlExpr::Group { inner, .. } | SqlExpr::CompactList { list: inner, .. } => inner.r#type().clone(),
+        SqlExpr::OrderedListAgg { value, .. } => typing::reducer_type(AggFn::List, value.r#type()),
+        SqlExpr::ArrayLit { elements, .. } => match typing::array_lit_type(elements) {
+            TypeFact::Unknown => return,
+            proven => proven,
+        },
+        SqlExpr::StructLit { fields, .. } => typing::struct_lit_type(fields),
+        SqlExpr::StructGet { source, field, .. } => match typing::struct_get_type(source, field) {
+            TypeFact::Unknown => return,
+            proven => proven,
+        },
+        SqlExpr::ScalarSubquery { subquery, .. } => typing::scalar_subquery_type(subquery),
+        SqlExpr::CheckedOne { list, at_least_only, .. } => {
+            if *at_least_only {
+                list.r#type().clone()
+            } else {
+                typing::checked_one_type(list)
+            }
+        }
+        SqlExpr::WindowCall { r#fn, .. } => typing::window_type(r#fn),
+        SqlExpr::FoldCall { source, lambda, init, acc_is_list, .. } => {
+            typing::fold_type(source, lambda, init, *acc_is_list)
+        }
+        SqlExpr::Reducer(r) => typing::reducer_fact(r),
+        SqlExpr::StoredRead { column, .. } => column.r#type.clone(),
+        SqlExpr::StringLit { .. }
+        | SqlExpr::JsonKindLit { .. }
+        | SqlExpr::TypeNameLit { .. }
+        | SqlExpr::DeferredTdsString { .. } => scalar(Scalar::Varchar),
+        SqlExpr::IntLit { .. } | SqlExpr::RowOrder { .. } => scalar(Scalar::Bigint),
+        SqlExpr::FloatLit { value, .. } => typing::float_lit_type(value.text()),
+        SqlExpr::DecimalLit { value, .. } => typing::decimal_lit_type(value),
+        SqlExpr::BoolLit { .. } | SqlExpr::Exists { .. } | SqlExpr::InSubquery { .. } | SqlExpr::Quantified { .. } => {
+            scalar(Scalar::Boolean)
+        }
+        SqlExpr::NullLit { .. } => TypeFact::Bottom,
+        SqlExpr::DateLit { .. } => scalar(Scalar::Date),
+        SqlExpr::TimestampLit { .. } => scalar(Scalar::Timestamp),
+        SqlExpr::TimeLit { .. } => scalar(Scalar::Time),
+        SqlExpr::JsonObject { .. } | SqlExpr::JsonArray { .. } | SqlExpr::JsonArrayAgg { .. } => scalar(Scalar::Json),
+        SqlExpr::CheckedDefects { .. }
+        | SqlExpr::CheckedChildValue { .. }
+        | SqlExpr::Star { .. }
+        | SqlExpr::StarExcept { .. }
+        | SqlExpr::FormatLit { .. }
+        | SqlExpr::DatePartLit { .. }
+        | SqlExpr::TempTableInSplice { .. } => TypeFact::Unknown,
+        // the leaves the builder supplies
+        SqlExpr::Column(_) | SqlExpr::Lambda(_) | SqlExpr::PlanParam { .. } | SqlExpr::KeyCell { .. } => return,
+    };
+    let kind = match e {
+        SqlExpr::Call { r#fn, .. } => format!("Call {fn}", fn = r#fn),
+        other => lite_dialect::java::simple_name(other).to_owned(),
+    };
+    f.check(at, &kind, computed, e.r#type());
 }

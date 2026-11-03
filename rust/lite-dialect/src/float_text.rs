@@ -5,7 +5,7 @@
 //! as SQL over the database's text of the double: the trees the renderer's `FLOAT_CANON` and `FLOAT_PRINT` arms
 //! write (`AnsiSqlRenderer.floatCanonByText`, `floatPrintByText`). The first passes of a dialect that does not spell
 //! the calls itself (`FloatCanonText.Expansion`, `FloatPrintText.Expansion`, [`crate::passes`]) build the same trees
-//! before every other pass sees the statement; their bodies are the next step's.
+//! before every other pass sees the statement, so on DuckDB the renderer's arms are never reached.
 
 use crate::build::{call, case, cast, float_lit, int_lit, null_lit, string_lit, when};
 use lite_sql::{Scalar, SqlExpr, SqlFn, SqlType};
