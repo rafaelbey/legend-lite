@@ -43,4 +43,14 @@ zstd_decompress(
     visibility = ["//rust:__subpackages__"],
 )
 
+# The SQLite arms the dumps hold none of, rendered by Java's own SQLite (phase 1 step 5d; mir/SqliteArms.java,
+# mir/MANIFEST.tsv): for the MIR's round trip and SQLite's differential.
+zstd_decompress(
+    name = "sqlite_arms",
+    testonly = True,
+    src = "mir/sqlite-arms.jsonl.zst",
+    out = "mir/sqlite-arms.jsonl",
+    visibility = ["//rust:__subpackages__"],
+)
+
 guards_package()
