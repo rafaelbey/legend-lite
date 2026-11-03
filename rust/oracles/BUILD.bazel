@@ -1,8 +1,19 @@
 load("//tools/guards:defs.bzl", "guards_package")
+load(":zstd.bzl", "zstd_decompress")
 
 # The JVM's answers the Rust port is held to (rust/README.md): frozen data, read by the crates' tests.
 exports_files(
     ["java-compat/double-tostring.tsv"],
+    visibility = ["//rust:__subpackages__"],
+)
+
+# Every statement the SQL-rendering suites render, as its MirJson and Java's answer on a fresh dialect
+# (docs/rust-port/PHASE1.md §4; mir/MANIFEST.tsv): the MIR's round trip and the dialects' differential read it.
+zstd_decompress(
+    name = "mir_dump",
+    testonly = True,
+    src = "mir/mir-dump.jsonl.zst",
+    out = "mir/mir-dump.jsonl",
     visibility = ["//rust:__subpackages__"],
 )
 

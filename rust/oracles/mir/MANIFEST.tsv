@@ -1,0 +1,6 @@
+# file	what	sha256 of the uncompressed output
+# Made 2026-11-02 on rust-port (core as of 8c35f8182) by rust/tools/mirjson-roundtrip-probe.patch over the 51 targets of
+# docs/rust-port/PHASE0.md §4, deduplicated by (dialect, op, MirJson): 28,951 entries, every one answered on a fresh
+# dialect of its class, 138 of them a refusal. Version 1: a statement's binds and regions are Java's record toString
+# (ambiguous where a string holds ", "), its SQL exact; the seam's statement JSON replaces them at the DuckDB switch.
+mir-dump.jsonl.zst	{"dialect","fresh","op","kind","mir","answer"} per line; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement	14993de10df736f7b005ad6e20cbfc06d43e145cc701a42220a8b17b15c0d15a
