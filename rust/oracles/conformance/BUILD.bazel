@@ -1,0 +1,27 @@
+load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/java_run:defs.bzl", "java_run")
+
+# THE JDK'S ANSWERS, the generator (docs/rust-port/PHASE1.md §4; moved from //wasm 2026-11-02, before //wasm is
+# deleted): the families of the JDK's class library legend-lite's output depends on -- a number's text both ways,
+# Character and String, the formats and regular expressions lite writes, time and zones, the order hashed collections
+# iterate in, the codecs. Run on the JVM, they answer rust/oracles/jvm/conformance_jvm.txt.zst (its SHA-256 in that
+# folder's MANIFEST.tsv), which the Rust port's spellings are held to. Until //wasm goes, the TeaVM differential
+# (//wasm:conformance_test) compiles the same families into its module.
+legend_java_library(
+    name = "conformance",
+    srcs = glob(["src/main/java/conformance/*.java"]),
+    visibility = ["//wasm:__pkg__"],
+)
+
+java_run(
+    name = "conformance_jvm",
+    testonly = True,
+    outs = ["conformance_jvm.txt"],
+    arguments = ["{OUT}"],
+    main_class = "conformance.ConformanceJvm",
+    visibility = ["//wasm:__pkg__"],
+    deps = [":conformance"],
+)
+
+guards_package()

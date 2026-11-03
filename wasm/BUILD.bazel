@@ -196,19 +196,15 @@ node_test(
 # expressions lite writes, time and zones, the order hashed collections iterate in, the codecs. The families
 # (src/main/java/conformance) are compiled twice, as the zone probe is: run on the JVM as a build action, and by TeaVM
 # into a module of their own; conformance.mjs compares the two line by line.
+# The families and their JVM run live in //rust/oracles/conformance since 2026-11-02 (the Rust port holds its spellings
+# to their answers; docs/rust-port/PHASE1.md §4); the TeaVM exports stay here, with this module.
 legend_java_library(
     name = "conformance",
     srcs = glob(["src/main/java/conformance/*.java"]),
-    deps = ["//tools/teavm:api"],
-)
-
-java_run(
-    name = "conformance_jvm",
-    testonly = True,
-    outs = ["conformance_jvm.txt"],
-    arguments = ["{OUT}"],
-    main_class = "conformance.ConformanceJvm",
-    deps = [":conformance"],
+    deps = [
+        "//rust/oracles/conformance",
+        "//tools/teavm:api",
+    ],
 )
 
 teavm_wasm(
@@ -217,6 +213,7 @@ teavm_wasm(
     main_class = "conformance.ConformanceExports",
     deps = [
         ":conformance",
+        "//rust/oracles/conformance",
         "@maven_teavm//:org_teavm_teavm_classlib",
         "@maven_teavm//:org_teavm_teavm_jso",
     ],
@@ -236,11 +233,11 @@ node_test(
     data = [
         "conformance-known.tsv",
         ":conformance_dir",
-        ":conformance_jvm",
+        "//rust/oracles/conformance:conformance_jvm",
     ],
     entry_point = "conformance.mjs",
     env = {
-        "CONFORMANCE_JVM": "$(rlocationpath :conformance_jvm)",
+        "CONFORMANCE_JVM": "$(rlocationpath //rust/oracles/conformance:conformance_jvm)",
         "CONFORMANCE_KNOWN": "$(rlocationpath conformance-known.tsv)",
         "CONFORMANCE_MODULE": "$(rlocationpath :conformance_dir)",
     },

@@ -1,5 +1,5 @@
 # file	producing target	sha256 of the uncompressed output
 jvm_answers.txt	//wasm:jvm_answers	23161ef9e67d45cf4a3bee0ef05f235d0f78ad1aa7d15afed806013f46a0697f
 zone_jvm.txt	//wasm:zone_jvm	bd604e9ee506a51c567b2c53c3b20e010d35b6555d4f849c7bf94d4fe91e640f
-conformance_jvm.txt.zst	//wasm:conformance_jvm	2e9682ec9ee19de79c907fbbe351407587473f88922ce11db2d3dc11a2f35625
+conformance_jvm.txt.zst	//rust/oracles/conformance:conformance_jvm	2e9682ec9ee19de79c907fbbe351407587473f88922ce11db2d3dc11a2f35625
 tab-round-trip.jsonl.zst	//parser-equivalence:tab_round_trip	c12ddb3c18e4a48f4070bba6a6657ebcdb5f567538a1d7c6462eb4c6673c1d70

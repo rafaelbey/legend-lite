@@ -53,8 +53,12 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
 
 ## 4. Order
 
-1. Pre-deletion records: `bazel run //tools/metrics:baseline` on a quiet machine, the receipt beside
-   `BASELINE_2026_10_08.md`; `wasm/src/main/java/conformance` and `:conformance_jvm` moved under `rust/oracles/`.
+1. Pre-deletion records -- **done 2026-11-02**: the receipt
+   `docs/build-inventory/program/evidence/compiler/BASELINE_2026_11_02.md` (the machine was not quiet: load 10.4 at its
+   start, recorded in the receipt; the render stage, phase 1's comparison, is p50 0.01 ms over the stress corpus's
+   4,733 queries and 0.04 ms over the DataCube set's 69); the conformance families and their JVM run moved to
+   `//rust/oracles/conformance`, regenerating the frozen snapshot byte for byte (its SHA-256 in `MANIFEST.tsv`), the
+   TeaVM exports left in `//wasm` until it goes.
 2. `lite-json` (a port of `json/`: insertion order, raw number tokens) and `lite-sql`'s MIR, mirroring `MirJson`'s tags,
    with its reader; a golden dump from the probe -- `(dialect, server, MirJson, Java's render)`, deduplicated and
    measured before deciding what is committed.
