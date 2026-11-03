@@ -88,10 +88,11 @@ reaches the library as `?`, the JVM's UTF-8 encoder's replacement.
 
 **The first Java spelling** (`rust/lite-javacompat`): `double_to_string` writes all 86,285 `Double.toString` answers
 of the frozen JDK snapshot (`rust/oracles/java-compat/double-tostring.tsv`: its edges, random and short-decimal
-families). Rust's own shortest form gets 86,272 of them: it breaks a tie between two equally close shortest decimals
-the other way (2⁻²⁵ is `2.9802322387695312E-8` to the JDK, `…313` to Rust), and writes one digit where the JDK's
-specification takes two (`5e-324`, `4.9E-324`). The JDK's choice is the correctly rounded decimal of the shortest
-length, at least two digits, when it reads back as the same double.
+families). Rust's own shortest form differs from the JDK's choice in two classes. Where the fewest digits is one, the
+JDK's specification takes two (`4.9E-324` where Rust's shortest is `5e-324`): handled first, and with it in place 13 of
+the 86,285 still differed -- all ties between two equally close shortest decimals, which Rust breaks the other way
+(2⁻²⁵ is `2.9802322387695312E-8` to the JDK, `…313` to Rust). The JDK's choice, both classes at once, is the
+correctly rounded decimal of the shortest length, at least two digits, when it reads back as the same double.
 
 **What only CI can check.** The Rust targets are built and tested here on macOS arm64 only; Linux (the hermetic LLVM
 toolchain links them) and Windows (MSVC; the test reads the library from `$(rlocationpaths)` because the DLL comes with
@@ -101,5 +102,6 @@ macOS: the new tests list their data file by file, none of it Markdown.
 **Where it stands.** `bazel test //...` on this state: 514 targets, 512 passed and the same 2 skipped; no target of
 `rust/BASELINE.tsv` changed its status, and the four new ones (`//core:ffi_test`, `//rust/lite-ffi:lite_ffi_test`,
 `//rust/lite-javacompat:lite_javacompat_test`, `//rust/lite-javacompat:double_to_string_test`) pass, in the core
-lane. The checks gate, the every-test-in-a-lane query, `bazel build --nobuild --config=bazel10 //...`, `cargo test`
-and `cargo clippy --all-targets -- -D warnings` are clean.
+lane. On the same state the every-test-in-a-lane query is empty, `bazel build --nobuild --config=bazel10 //...`
+analyzes all 1,388 targets, and `cargo test` and `cargo clippy --all-targets -- -D warnings` are clean; the checks
+gate passed on steps 5–6.

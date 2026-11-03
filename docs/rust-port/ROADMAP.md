@@ -94,6 +94,8 @@ spec corpus through about 8 shim functions for `driver`.
 `rust_shared_library` exporting the compiler's `lite_*` entries: the Boundary, the PureV1Api routes, `Folded`'s
 encoding. The warehouse, SDLC, depot and saved-queries entries are dropped; `python/legend_lite/_library.py` loses the
 GraalVM isolate calls. `//native`'s `native_image` is deleted; GraalVM then remains only in the warehouse's image.
+The library keeps today's platform floor and names: macOS 14 (`native/BUILD.bazel` passes `-mmacosx-version-min=14.0`;
+rustc's default deployment target is far older), the `libcompiler` install name and soname.
 **Gates:** `//python:bindings_test` against the frozen JVM answers (the dropped entries' tests ledgered); the
 `wasm/corpus` answers through the native library; `lite_unfreed == 0`.
 
