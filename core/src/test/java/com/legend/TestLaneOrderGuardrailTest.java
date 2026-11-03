@@ -63,7 +63,9 @@ class TestLaneOrderGuardrailTest {
                 // tree (read back exactly); it adds no scan order of its own
                 "com/legend/executionplan/MirJson.java",
                 "com/legend/sql/ScanOrder.java",
-                "com/legend/sql/dialect/LateralExplodeToUnion.java",
+                // LateralExplodeToUnion.java left 2026-11-03 (docs/rust-port/PHASE1.md §4 step 4; rust/RETIRED_TESTS.md):
+                // H2 and the engine text, its last users, are the Rust library's, which keys the explode's legs
+                // (rust/lite-dialect/src/h2_passes.rs)
                 "com/legend/sql/dialect/StableScanOrder.java",
                 "com/legend/sql/dialect/UnqualifyPivotArgs.java")),
                 filesMatching(ROW_ORDER_MINT),

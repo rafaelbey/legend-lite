@@ -95,6 +95,9 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/ffi/Lite*.java"]),
     # the library itself, in the runfiles of every test and binary that reaches core (Lite.locate)
     data = ["//rust/lite-ffi:lite_ffi"],
+    # and inside the jar, for a process that runs outside Bazel with nothing naming the library: the self-contained
+    # server jar run as java -jar (2026-11-03; Lite.locate writes it out)
+    resources = ["//rust/lite-ffi:lite_ffi_jar_resource"],
     # libcompiler names the library it ships beside itself by Lite.fileName (native/.../RustLibrary.java)
     visibility = ["//native:__pkg__"],
     deps = ["//base"],
@@ -454,6 +457,8 @@ legend_java_library(
 # `bazel build //core:server_deploy.jar` is the one self-contained jar to ship.
 legend_java_binary(
     name = "server",
+    # the dialects call the Rust library through java.lang.foreign (com.legend.ffi.Lite): java -jar allows it
+    deploy_manifest_lines = ["Enable-Native-Access: ALL-UNNAMED"],
     main_class = "com.legend.server.LegendHttpServer",
     runtime_deps = [
         ":core",
@@ -1492,6 +1497,8 @@ junit_test(
         # 2026-11-03 (docs/rust-port/PHASE1.md, the DuckDB switch): DuckDB's pass list is Rust's; the scan-order
         # guard reads where it installs StableScanOrder
         "//rust/lite-dialect:src/passes.rs",
+        # 2026-11-03 (the H2 family's switch): the engine text is Rust's; the parked-work ledger's PARK-18 reads it
+        "//rust/lite-dialect:src/engine_style.rs",
         ":guardrails_sources",
         ":product_jars",
     ],
@@ -1501,6 +1508,7 @@ junit_test(
         "-Dcore.literal_unroll=$(rlocationpath src/main/java/com/legend/compiler/spec/LiteralUnroll.java)",
         "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/ffi/RustDialect.java)",
         "-Dcore.duckdb_passes=$(rlocationpath //rust/lite-dialect:src/passes.rs)",
+        "-Dcore.engine_style_rs=$(rlocationpath //rust/lite-dialect:src/engine_style.rs)",
         "-Dlegend.sources=$(rlocationpath :guardrails_sources)",
         "-Dlegend.product.jars=$(rlocationpath :product_jars)",
         "-Dlegend.test.jars=$(rlocationpath :core_test_jar)",

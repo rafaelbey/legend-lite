@@ -45,6 +45,9 @@ public final class Lite {
     /** The library's file under Bazel's runfiles, and its name on this platform. */
     private static final String RUNFILES_DIR = "_main/rust/lite-ffi/";
 
+    /** The library inside a jar that carries it (//rust/lite-ffi:lite_ffi_jar_resource, a resource of //core:ffi). */
+    private static final String JAR_DIR = "/rust/lite-ffi/jar/";
+
     private final MethodHandle dialect;
     private final MethodHandle version;
     private final MethodHandle echo;
@@ -80,8 +83,9 @@ public final class Lite {
     /**
      * Where the library is: the system property {@code legend.lite.library} (a launcher, a build action or a host that
      * loads this code as a library names it: java_run, libcompiler from its environment), else Bazel's runfiles tree
-     * ({@code RUNFILES_DIR}, {@code JAVA_RUNFILES}, {@code TEST_SRCDIR}), where //core:ffi's data puts it. Windows
-     * builds with runfiles trees too (.bazelrc's {@code --enable_runfiles}).
+     * ({@code RUNFILES_DIR}, {@code JAVA_RUNFILES}, {@code TEST_SRCDIR}), where //core:ffi's data puts it, else the
+     * copy //core:ffi's jar carries ({@code java -jar} of the self-contained server jar), written out. Windows builds
+     * with runfiles trees too (.bazelrc's {@code --enable_runfiles}).
      */
     static Path locate() {
         String file = fileName();
@@ -100,8 +104,21 @@ public final class Lite {
                 tried.add(candidate.toString());
             }
         }
-        throw new IllegalStateException("the Rust library (" + file + ") is not found: set -Dlegend.lite.library, or run"
-                + " under Bazel with //core:ffi's data in the runfiles (looked in " + tried + ")");
+        // a self-contained jar (//core:server_deploy.jar, run as java -jar) carries the library its build made, as the
+        // DuckDB driver beside it carries its own: written to a file of this process's, deleted when it exits
+        try (java.io.InputStream bundled = Lite.class.getResourceAsStream(JAR_DIR + file)) {
+            if (bundled != null) {
+                Path written = java.nio.file.Files.createTempFile("lite_ffi", file.substring(file.lastIndexOf('.')));
+                written.toFile().deleteOnExit();
+                java.nio.file.Files.copy(bundled, written, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                return written;
+            }
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException("the Rust library this jar carries could not be written out", e);
+        }
+        throw new IllegalStateException("the Rust library (" + file + ") is not found: set -Dlegend.lite.library, run"
+                + " under Bazel with //core:ffi's data in the runfiles (looked in " + tried + "), or run a jar that"
+                + " carries it");
     }
 
     /** The library's file name on this platform: what Bazel builds, and what a package ships beside libcompiler. */

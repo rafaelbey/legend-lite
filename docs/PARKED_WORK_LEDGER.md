@@ -407,7 +407,10 @@ shows no other legacy statement changing.
 **When.** With the compatibility mode (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8, phase 4), or sooner if a golden
 needs it. Cost of leaving it parked: a legacy text over an explicit `emptyFirst()`/`emptyLast()` omits the clause.
 
-**Anchor.** `aggOrderNullPlacement` in `EngineStyleH2.java` returns `""`.
+**Anchor.** `agg_order_null_placement` in `rust/lite-dialect/src/engine_style.rs` returns an empty string (re-pointed
+2026-11-03: the legacy printer is the Rust library's since the H2 family's switch, docs/rust-port/PHASE1.md §4 step 4;
+until then `aggOrderNullPlacement` in `EngineStyleH2.java` returned `""`). The fix lands there, and in the Rust
+`SortKey`'s MirJson.
 
 ---
 

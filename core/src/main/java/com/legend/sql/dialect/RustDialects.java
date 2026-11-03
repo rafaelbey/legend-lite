@@ -3,7 +3,10 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.base.Nullable;
 import com.legend.sql.SqlDdl;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlQuery;
 
 import java.util.Map;
 import java.util.ServiceLoader;
@@ -16,8 +19,16 @@ import java.util.ServiceLoader;
  */
 public interface RustDialects {
 
-    /** The dialect the Rust library answers for {@code name} (Java's simple class name: {@code DuckDb}). */
+    /** The dialect the Rust library answers for {@code name} (Java's simple class name: {@code DuckDb}, {@code H2}). */
     SqlDialect dialect(String name);
+
+    /** The engine-text dialect the Rust library answers for {@code name} ({@code EngineStyleH2}, ...), made as Java's
+     *  {@code new EngineStyleH2(quoteIdentifiers, timeZone)} is. */
+    EngineText engineText(String name, boolean quoteIdentifiers, @Nullable String timeZone);
+
+    /** The name of the dialect {@code name}'s {@code forServer(version)} takes ({@code H2} for a 2.1 or 2.2 server,
+     *  {@code H2Modern} for any other; a dialect that keeps itself names itself). */
+    String forServer(String name, String version);
 
     /** The dialect's quote character and reserved words. */
     Lexicon lexicon(String name);
@@ -33,6 +44,32 @@ public interface RustDialects {
 
     /** The statements the library's {@link StableScanOrder} has changed in this process, every dialect's. */
     long scanOrderFirings();
+
+    /**
+     * An engine-text dialect as the Rust library answers it (rust/lite-dialect/SEAM.md §3b): a {@link SqlDialect} and
+     * the engine text's own entry points. Not {@link EngineTextDialect}, which the engine-text shims implement over
+     * it: that interface belongs to the paths that print the engine's text (ArchitectureTest), and the library's
+     * provider is not one. {@link #renderedAlias} takes the query whose alias plan it reads -- the library holds no
+     * state between calls -- which the shim remembers from its last render.
+     */
+    interface EngineText extends SqlDialect {
+
+        /** The query as {@link #render} writes it, with the aliases it carries. */
+        String renderAsAliased(SqlQuery query);
+
+        /** The select list of the query's first select as {@link #render} writes it; null for a {@code with}. */
+        @Nullable String selectList(SqlQuery query);
+
+        /** A collection-valued plan parameter spliced as the engine's plan text writes it. */
+        String collectionSplice(SqlExpr.PlanParam param);
+
+        /** {@code alias}'s rename in the engine's alias plan of {@code rendered} (as {@link #render} planned it), or
+         *  the alias itself when there is no such query or it plans no rename of it. */
+        String renderedAlias(String alias, @Nullable SqlQuery rendered);
+
+        /** The query that reads the in-collection temp table back. */
+        String inTempTableSelect(String tempTable);
+    }
 
     /** The provider, found once. */
     static RustDialects provider() {

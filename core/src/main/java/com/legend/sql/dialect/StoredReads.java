@@ -26,7 +26,7 @@ import java.util.function.Predicate;
  *
  * <p>The facts: each scanned {@link SqlSource.Table} carries its columns' stored types (the
  * Lowerer stamps them); the dialect says which it reads ({@code reads}). Aliases are unique per
- * statement (the {@link SourceSpelling} precedent), so a reference qualified by a table's alias
+ * statement (the {@code SourceSpelling} precedent), so a reference qualified by a table's alias
  * is a reference to that table's column, over the whole statement, correlated ones included.
  * Each becomes a {@link SqlExpr.StoredRead}. A star over such a table is spelled out, column by
  * column, so the read reaches the columns it would have carried unread; each read keeps its

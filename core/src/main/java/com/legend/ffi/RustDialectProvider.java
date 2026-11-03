@@ -3,6 +3,7 @@
 
 package com.legend.ffi;
 
+import com.legend.base.Nullable;
 import com.legend.executionplan.MirJson;
 import com.legend.json.Json;
 import com.legend.sql.SqlDdl;
@@ -27,6 +28,24 @@ public final class RustDialectProvider implements RustDialects {
     @Override
     public SqlDialect dialect(String name) {
         return new RustDialect(name);
+    }
+
+    @Override
+    public RustDialects.EngineText engineText(String name, boolean quoteIdentifiers, @Nullable String timeZone) {
+        return new RustDialect(name, quoteIdentifiers, timeZone);
+    }
+
+    @Override
+    public String forServer(String name, String version) {
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("version", version);
+        String answer;
+        try {
+            answer = Lite.shared().dialect(spec(name), "forServer", Json.toCompact(args));
+        } catch (LiteRefusal refusal) {
+            throw RustDialect.rethrown(refusal.kind(), String.valueOf(refusal.getMessage()));
+        }
+        return ((Json.Str) Json.parse(answer)).value();
     }
 
     private static String spec(String name) {

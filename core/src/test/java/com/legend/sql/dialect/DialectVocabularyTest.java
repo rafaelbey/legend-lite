@@ -98,7 +98,11 @@ class DialectVocabularyTest {
                 }
             }
         }
-        assertTrue(dialects >= 15, "the dialect package's concrete dialects were not found: " + dialects);
+        // 15 -> 10 on 2026-11-03 (docs/rust-port/PHASE1.md §4 step 4; rust/RETIRED_TESTS.md): DuckDb, H2, H2Modern and the
+        // three engine-text dialects are the Rust library's, their vocabulary decided in rust/lite-dialect (held to
+        // Java's every answer by its differential); BigQuery, ClickHouse, Databricks, MariaDb, MySql, MongoDb, Postgres,
+        // SQLite, Snowflake and Trino remain
+        assertTrue(dialects >= 10, "the dialect package's concrete dialects were not found: " + dialects);
         assertTrue(wrong.isEmpty(), "a dialect that does not decide its whole vocabulary itself: " + wrong);
     }
 

@@ -184,6 +184,32 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      `docs/dialect-capability`. The H2 family is the last user of `ConstantLateralsAsRows`, `SourceSpelling`,
      `LateralExplodeToUnion` and `DuckDbSpellings`, which go with it; `QualifyToSubselect`, `AggregatesDeliverDouble`
      and `CarrierStrategies` stay for the other dialects.
+   - **4d, done 2026-11-03: the switch.** `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2` and
+     `EngineStyleComposite` are shims over the Rust library, keeping their names, constructors and hierarchy
+     (`H2Modern extends H2`; DB2 and Composite extend the engine text), each method one seam call through
+     `RustDialects` (the SQL layer still depends on nothing outside itself). `H2.forServer` asks the library which
+     profile a version takes (`forServer`) and makes `H2Modern` by name; an engine-text dialect is made with its
+     configuration (`RustDialects.engineText`), replaces each tagged value by its comparable before the seam
+     (`TaggedComparables`), and remembers the query it last rendered for `renderedAlias`. The Java renderers are gone,
+     with `ConstantLateralsAsRows`, `SourceSpelling`, `LateralExplodeToUnion` and `DuckDbSpellings`, whose last users
+     they were; ten dialects remain on `AnsiSqlRenderer`. Three guards moved with the code (`rust/RETIRED_TESTS.md`):
+     `DialectVocabularyTest`'s floor, the RowOrder mint list, and PARK-18's anchor (re-pointed to
+     `engine_style.rs`); `docs/dialect-capability` regenerated without the five columns.
+
+     **The shipped server jar carries the library** (found by this switch's full run). `//core:server_deploy.jar`,
+     "the one self-contained jar to ship", run as `java -jar` outside Bazel had no way to find `liblite_ffi` -- no
+     property, no runfiles -- so since the DuckDB switch its first Rust dialect call failed; every test runs under
+     Bazel, and `//fixtures/saved-queries:gen`, which starts the jar to record saved queries on H2, was the first to
+     call one. `//core:ffi`'s jar now carries the library its build made (`//rust/lite-ffi:lite_ffi_jar_resource`),
+     which `Lite.locate` writes out to a file of the process's own when neither the property nor the runfiles name one
+     (as the DuckDB driver beside it does with its own), and the jar's manifest allows native access. The jar is now
+     the build platform's (it was platform-independent Java; the DuckDB driver already bundles every platform's
+     natives): a jar for several platforms would carry each platform's library, built where CI builds the wheels.
+
+     The gates: the H2 and DuckDB corpus verdicts pass and all ten of their roster diffs regenerate byte for byte;
+     `pct_h2` and PCT channel B on H2 pass; the frozen browser module's differential passes; `bazel test //...` against
+     rust/BASELINE.tsv -- 517 pass, the same 2 skipped, every baseline target at its baseline status, the new targets
+     the Rust crates' tests and `//core:ffi_test`.
 
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 

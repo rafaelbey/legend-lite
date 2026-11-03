@@ -139,9 +139,11 @@ class ParkedWorkLedgerTest {
             // its session's dialect writes; ReservedNamesGenerationTest is its acceptance
             // PARK-18 (2026-10-09, E-4b): the legacy printer writes no null placement, the
             // IR not telling a query's explicit emptyFirst()/emptyLast() from pure's own null order
+            // re-pointed 2026-11-03 (docs/rust-port/PHASE1.md §4 step 4; rust/RETIRED_TESTS.md): the legacy printer is
+            // the Rust library's, and still writes none (rust/lite-dialect/src/engine_style.rs, read beside the Java)
             Map.entry("PARK-18 the legacy printer cannot write an explicit null placement",
-                    new Anchor("protected String aggOrderNullPlacement\\(com\\.legend\\.sql\\.SqlSelect"
-                            + "\\.SortKey k\\) \\{\\s*return \"\";", List.of("EngineStyleH2.java"))),
+                    new Anchor("fn agg_order_null_placement\\(&self, k: &SortKey\\) -> String \\{\\s*let _ = k;"
+                            + "\\s*String::new\\(\\)", List.of("engine_style.rs"))),
             // PARK-20 (2026-10-09, step 2's landing 2 slice (e)): DuckDB's driver makes a decimal array of
             // scale 3, and a Date's or Number's list has no one element type
             Map.entry("PARK-20 a list of decimals, Dates or Numbers is not bound as a parameter",
@@ -205,7 +207,9 @@ class ParkedWorkLedgerTest {
     @Test
     @DisplayName("every parked row's anchor still holds (docs/PARKED_WORK_LEDGER.md)")
     void parkedRowsStillHold() throws IOException {
-        List<Path> sources = mainSources();
+        List<Path> sources = new java.util.ArrayList<>(mainSources());
+        // the engine text's Rust source, where PARK-18's code lives since 2026-11-03
+        sources.add(com.legend.testing.Runfile.property("core.engine_style_rs"));
         for (var row : REGISTER.entrySet()) {
             Anchor anchor = row.getValue();
             Pattern p = Pattern.compile(anchor.pattern());

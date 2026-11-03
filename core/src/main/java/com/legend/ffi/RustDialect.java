@@ -8,6 +8,7 @@ import com.legend.executionplan.MirJson;
 import com.legend.json.Json;
 import com.legend.sql.SqlDdl;
 import com.legend.sql.SqlDml;
+import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlType;
 import com.legend.sql.ValueKind;
@@ -17,6 +18,7 @@ import com.legend.sql.dialect.DialectCapability;
 import com.legend.sql.dialect.HostOperation;
 import com.legend.sql.dialect.HostOperations;
 import com.legend.sql.dialect.RenderedStatement;
+import com.legend.sql.dialect.RustDialects;
 import com.legend.sql.dialect.SqlDialect;
 
 import java.util.ArrayList;
@@ -34,10 +36,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * the dialect threw (SEAM.md §5). The Rust dialect is made fresh for each call, so this object holds no dialect state;
  * the answers that take no argument (the facts) and the wire names are read once per dialect object and kept.
  */
-public final class RustDialect implements SqlDialect {
+public final class RustDialect implements SqlDialect, RustDialects.EngineText {
 
     private final String name;
     private final @Nullable String server;
+    /** An engine-text dialect's configuration (SEAM.md §2), sent with it alone: the seam refuses it on any other. */
+    private final boolean engineText;
+    private final boolean quoteIdentifiers;
+    private final @Nullable String timeZone;
 
     /** The facts, read once by this dialect object. */
     private volatile Json.@Nullable Obj factsRead;
@@ -45,14 +51,24 @@ public final class RustDialect implements SqlDialect {
     private final Map<String, String> wireNames = new ConcurrentHashMap<>();
     private final Map<String, Json.Node> typingWireNames = new ConcurrentHashMap<>();
 
-    /** The dialect Rust names {@code name} (Java's simple class name: {@code DuckDb}). */
+    /** The dialect Rust names {@code name} (Java's simple class name: {@code DuckDb}, {@code H2}). */
     public RustDialect(String name) {
-        this(name, null);
+        this(name, null, false, false, null);
     }
 
-    private RustDialect(String name, @Nullable String server) {
+    /** The engine-text dialect Rust names {@code name}, made as Java's {@code new EngineStyleH2(quoteIdentifiers,
+     *  timeZone)} is. */
+    public RustDialect(String name, boolean quoteIdentifiers, @Nullable String timeZone) {
+        this(name, null, true, quoteIdentifiers, timeZone);
+    }
+
+    private RustDialect(String name, @Nullable String server, boolean engineText, boolean quoteIdentifiers,
+            @Nullable String timeZone) {
         this.name = name;
         this.server = server;
+        this.engineText = engineText;
+        this.quoteIdentifiers = quoteIdentifiers;
+        this.timeZone = timeZone;
     }
 
     // ---- the call
@@ -63,6 +79,10 @@ public final class RustDialect implements SqlDialect {
         s.put("server", server);
         // read at each call, as Java's DuckDb read it at each render
         s.put("engineScanOrder", Boolean.getBoolean("legend.exec.engineScanOrder"));
+        if (engineText) {
+            s.put("quoteIdentifiers", quoteIdentifiers);
+            s.put("timeZone", timeZone);
+        }
         return Json.toCompact(s);
     }
 
@@ -238,14 +258,16 @@ public final class RustDialect implements SqlDialect {
 
     @Override
     public SqlDialect forServer(String version) {
-        // a dialect whose spelling depends on the server says which versions it knows; DuckDB's keeps itself
-        return facts().getOr("serverVersions", null) == null ? this : new RustDialect(name, version);
+        // the seam names the dialect the server takes (SEAM.md §3a): H2's for its own servers, H2Modern's for another
+        String chosen = string(call("forServer", args("version", version)));
+        return chosen.equals(name) ? this : new RustDialect(chosen);
     }
 
     @Override
     public @Nullable List<String> serverVersions() {
-        Json.Node v = facts().getOr("serverVersions", null);
-        return v == null ? null : strings(v);
+        // H2Modern refuses: a plan is written for H2's servers
+        Json.Node v = factOrRefusal("serverVersions");
+        return v instanceof Json.Null ? null : strings(v);
     }
 
     @Override
@@ -405,6 +427,37 @@ public final class RustDialect implements SqlDialect {
                 return strings(call("host.statements", args("operation", RustDialectJson.operation(operation))));
             }
         };
+    }
+
+    // ---- the engine text's own entry points (SEAM.md §3b; another dialect refuses them)
+
+    @Override
+    public String renderAsAliased(SqlQuery query) {
+        return string(call("engine.renderAsAliased", args("query", MirJson.query(query))));
+    }
+
+    @Override
+    public @Nullable String selectList(SqlQuery query) {
+        return stringOrNull(call("engine.selectList", args("query", MirJson.query(query))));
+    }
+
+    @Override
+    public String collectionSplice(SqlExpr.PlanParam param) {
+        return string(call("engine.collectionSplice", args("param", MirJson.expr(param))));
+    }
+
+    @Override
+    public String renderedAlias(String alias, @Nullable SqlQuery rendered) {
+        Map<String, Object> a = args("alias", alias);
+        if (rendered != null) {
+            a.put("rendered", MirJson.query(rendered));
+        }
+        return string(call("engine.renderedAlias", a));
+    }
+
+    @Override
+    public String inTempTableSelect(String tempTable) {
+        return string(call("engine.inTempTableSelect", args("table", tempTable)));
     }
 
     @Override

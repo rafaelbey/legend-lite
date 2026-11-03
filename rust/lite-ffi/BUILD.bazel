@@ -1,4 +1,5 @@
 load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_test")
+load(":shared_library.bzl", "shared_library_file")
 load("//tools/guards:defs.bzl", "guards_package")
 
 # legend-lite's compiler as a C library (src/lib.rs; docs/rust-port/ROADMAP.md, "The shim"): what the JVM's shim,
@@ -15,6 +16,19 @@ rust_shared_library(
     visibility = ["//visibility:public"],
     # lite_dialect: the dialects' seam (rust/lite-dialect/SEAM.md), the lite_dialect export
     deps = ["//rust/lite-dialect:lite_dialect"],
+)
+
+# The library as a resource of //core:ffi's jar (2026-11-03): the self-contained server jar (//core:server_deploy.jar)
+# carries the one its build made, and com.legend.ffi.Lite writes it out when nothing else names one (java -jar)
+shared_library_file(
+    name = "lite_ffi_jar_resource",
+    src = ":lite_ffi",
+    out = select({
+        "@platforms//os:linux": "jar/liblite_ffi.so",
+        "@platforms//os:macos": "jar/liblite_ffi.dylib",
+        "@platforms//os:windows": "jar/lite_ffi.dll",
+    }),
+    visibility = ["//core:__pkg__"],
 )
 
 rust_test(
