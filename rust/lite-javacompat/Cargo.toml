@@ -1,0 +1,8 @@
+[package]
+name = "lite-javacompat"
+version = "0.1.0"
+description = "The Java spellings legend-engine's output carries, as Rust (docs/rust-port/TRIAGE.md B)"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true

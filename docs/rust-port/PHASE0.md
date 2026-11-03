@@ -1,7 +1,7 @@
 # Rust port — phase 0 findings (2026-11-02)
 
-Steps 1–4 of [`ROADMAP.md`](ROADMAP.md)'s phase 0, measured on upstream `main` at `cf73e6ef7` (macOS arm64). No Java
-was deleted. Steps 5–6 (the Cargo workspace and the FFI shim) are next.
+[`ROADMAP.md`](ROADMAP.md)'s phase 0, measured on upstream `main` at `cf73e6ef7` (macOS arm64): steps 1–4 (§1–4) and
+steps 5–6 (§5). No Java was deleted.
 
 ## 1. The baseline
 
@@ -64,3 +64,42 @@ give the same answer twice:
 - Per-render state lives in the dialect objects (`SQLite`'s `roots` and its identity map of root `SELECT`s, pushed in
   its `render` override). A Rust dialect keeps it in a per-render context passed down the writer, never in the dialect.
 - The probe is the phase-1 differential's harness: replace its second render with the Rust call.
+
+## 5. Rust in the build, and the JVM calling it
+
+**The toolchain.** `rules_rust` 0.75.0 in `MODULE.bazel` with its default compiler (Rust 1.99.1, edition 2024);
+`rust/` is also a Cargo workspace for the edit loop, its `rust-toolchain.toml` pinned to the same compiler. No crate
+comes from crates.io yet, so there is no `crate_universe`. `MODULE.bazel.lock` gains only registry hashes
+(`rules_rust`; `apple_support` 1.24.1 beside the 1.24.2 already resolved; `bazel_features` 1.42.1 → 1.50.0) and no
+per-platform extension entry, so `--lockfile_mode=error` should hold on every CI platform -- only CI can say.
+
+**The library** (`rust/lite-ffi`) is the contract alone: `lite_version`, `lite_echo`, and two probes that refuse and
+panic on purpose. Answers are folded `OK\n<answer>` or `ERR\n<kind>\n<phase>\n<line:col>\n<message>`, kinds Rust's
+own; every export runs under `catch_unwind`, so a panic is an `INTERNAL` refusal, never an abort of the host;
+`lite_free` and `lite_unfreed` are libcompiler's.
+
+**The shim** (`//core:ffi`, `com.legend.ffi.Lite`) calls it through `java.lang.foreign`. Each export is a typed
+interface over its downcall (`MethodHandleProxies`), so a call declares no `Throwable` and the shim needs no broad
+catch -- core's `ErrorShapeGuardrailTest` pins broad catches per file at their reviewed counts, and a first draft that
+caught `Throwable` around `invoke` failed it. `//core:ffi_test` holds the round trip against the library Bazel builds:
+text there and back (astral, multi-line, 1 MB), refusals with kind, phase and position, a panic answered, NUL refused
+before the call, every answer freed. It pins one Java-side fact for the port to decide (TRIAGE C2): a lone surrogate
+reaches the library as `?`, the JVM's UTF-8 encoder's replacement.
+
+**The first Java spelling** (`rust/lite-javacompat`): `double_to_string` writes all 86,285 `Double.toString` answers
+of the frozen JDK snapshot (`rust/oracles/java-compat/double-tostring.tsv`: its edges, random and short-decimal
+families). Rust's own shortest form gets 86,272 of them: it breaks a tie between two equally close shortest decimals
+the other way (2⁻²⁵ is `2.9802322387695312E-8` to the JDK, `…313` to Rust), and writes one digit where the JDK's
+specification takes two (`5e-324`, `4.9E-324`). The JDK's choice is the correctly rounded decimal of the shortest
+length, at least two digits, when it reads back as the same double.
+
+**What only CI can check.** The Rust targets are built and tested here on macOS arm64 only; Linux (the hermetic LLVM
+toolchain links them) and Windows (MSVC; the test reads the library from `$(rlocationpaths)` because the DLL comes with
+its import library) are CI's. `//tools/guards:markdown_inputs_test` (no Markdown among any test's inputs) is skipped on
+macOS: the new tests list their data file by file, none of it Markdown.
+
+**Where it stands.** `bazel test //...` on this state: 514 targets, 512 passed and the same 2 skipped; no target of
+`rust/BASELINE.tsv` changed its status, and the four new ones (`//core:ffi_test`, `//rust/lite-ffi:lite_ffi_test`,
+`//rust/lite-javacompat:lite_javacompat_test`, `//rust/lite-javacompat:double_to_string_test`) pass, in the core
+lane. The checks gate, the every-test-in-a-lane query, `bazel build --nobuild --config=bazel10 //...`, `cargo test`
+and `cargo clippy --all-targets -- -D warnings` are clean.

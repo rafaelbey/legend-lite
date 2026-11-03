@@ -1,0 +1,32 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# The Java spellings legend-engine's output carries, as Rust (docs/rust-port/TRIAGE.md B; src/lib.rs).
+rust_library(
+    name = "lite_javacompat",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    version = "0.1.0",
+    visibility = ["//rust:__subpackages__"],
+)
+
+rust_test(
+    name = "lite_javacompat_test",
+    crate = ":lite_javacompat",
+    edition = "2024",
+    visibility = ["//gates:__pkg__"],
+)
+
+# every Double.toString case of the frozen JDK answers (tests/double_to_string.rs)
+rust_test(
+    name = "double_to_string_test",
+    srcs = ["tests/double_to_string.rs"],
+    data = ["//rust/oracles:java-compat/double-tostring.tsv"],
+    edition = "2024",
+    env = {"JAVA_COMPAT_DOUBLES": "$(rootpath //rust/oracles:java-compat/double-tostring.tsv)"},
+    visibility = ["//gates:__pkg__"],
+    deps = [":lite_javacompat"],
+)
+
+guards_package()

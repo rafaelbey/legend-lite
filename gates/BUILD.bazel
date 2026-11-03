@@ -37,6 +37,9 @@ test_suite(
         # shim over it
         "//rust/lite-ffi:lite_ffi_test",
         "//core:ffi_test",
+        # Java's spellings in Rust, held to the JDK's frozen answers
+        "//rust/lite-javacompat:lite_javacompat_test",
+        "//rust/lite-javacompat:double_to_string_test",
         # the planner on java.base alone (P3-19): seconds
         "//core:planner_on_java_base_test",
         "//core:postgres_arm_test",

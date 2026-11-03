@@ -1,0 +1,9 @@
+load("//tools/guards:defs.bzl", "guards_package")
+
+# The JVM's answers the Rust port is held to (rust/README.md): frozen data, read by the crates' tests.
+exports_files(
+    ["java-compat/double-tostring.tsv"],
+    visibility = ["//rust:__subpackages__"],
+)
+
+guards_package()

@@ -1,7 +1,17 @@
 # rust/
 
-The Rust port of legend-lite's compiler (docs/rust-port/TRIAGE.md, docs/rust-port/ROADMAP.md). Phase 0 holds the
-references the port is judged against; the Cargo workspace joins in phase 0 step 5.
+The Rust port of legend-lite's compiler (docs/rust-port/TRIAGE.md, docs/rust-port/ROADMAP.md): its crates, and the
+references the port is judged against.
+
+Bazel builds the crates (`rules_rust`, each crate's `BUILD.bazel`) and its targets are the gate:
+`bazel test //rust/... //core:ffi_test`. `rust/` is also a Cargo workspace for the edit loop (`cargo test`,
+`cargo clippy --all-targets -- -D warnings` from here); `rust-toolchain.toml` pins cargo to the compiler `MODULE.bazel`
+names. Change both together.
+
+- `lite-ffi/`: the compiler as a C library -- the exports `//core:ffi` (`com.legend.ffi.Lite`) calls through
+  `java.lang.foreign`, and Python's bindings will once `libcompiler` is Rust. Phase 0: the contract only.
+- `lite-javacompat/`: the Java spellings legend-engine's output carries (`double_to_string`), each held to the JDK's
+  frozen answers.
 
 - `BASELINE.tsv`: every test target of `bazel test //...` on the pristine tree (upstream `main` at `cf73e6ef7`,
   2026-11-02, macOS arm64): 508 passed, 2 skipped as incompatible with the platform. A phase lands only when every
@@ -17,7 +27,9 @@ references the port is judged against; the Cargo workspace joins in phase 0 step
   - `tab-round-trip.jsonl.zst`: 9,424 sources from the engine corpus and lite's projects, with the JVM's
     text→JSON→text→JSON answers.
 - `oracles/java-compat/`: the Java facts `conformance_jvm` does not pin, from `JavaCompatExtras.java` run on the
-  build's JDK (25.0.4, tzdata 2026b): every code point's character classes, as runs, and `ZoneId.SHORT_IDS`.
+  build's JDK (25.0.4, tzdata 2026b): every code point's character classes, as runs, and `ZoneId.SHORT_IDS`. And
+  `double-tostring.tsv`, the `Double.toString` families of `conformance_jvm` extracted to plain text so a test reads
+  them with no decompressor (`<bits in hex>\t<text>`, 86,285 cases).
 - `tools/mirjson-roundtrip-probe.patch`: the probe that proved the SQL-tree seam (docs/rust-port/PHASE0.md §4).
   `git apply` it, run any suite with `--test_env=LEGEND_MIRJSON_ROUNDTRIP=1 --nozip_undeclared_test_outputs`, and
   read `mirjson-roundtrip-*` in each test's outputs; never commit it to the sources. Phase 1's differential is the

@@ -94,7 +94,9 @@ test runners, `testdatagen`, `probe` (already scheduled for deletion), `protocol
 **B. Spelling that is upstream spec (kept exactly)**
 
 1. `Double.toString` (`1.0`, `1.0E10`) in SQL, plan JSON, protocol JSON and cell text (`AnsiSqlRenderer:2087`,
-   `MirJson:319`, `ProtocolEmitter:2258`, `CellText:274`, …).
+   `MirJson:319`, `ProtocolEmitter:2258`, `CellText:274`, …). Done in phase 0: `lite_javacompat::double_to_string`,
+   86,285 of 86,285 JDK answers. Rust's own shortest form is not enough -- it breaks a tie between two shortest
+   decimals the other way (13 of the 86,285) and writes one digit where Java writes two (`5e-324`, `4.9E-324`).
 2. `BigDecimal`: scale-sensitive equality used as hash keys, exponent `toString`, 38 digits → the `bigdecimal` crate
    with custom `Eq`/`Hash`/`Display`.
 3. java.time: `ZoneId` `SHORT_IDS` (`LiteralSpelling:529`, `EngineStyleH2:1027`), a pinned tzdata,

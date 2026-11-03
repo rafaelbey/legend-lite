@@ -3,7 +3,7 @@
 # compiler: rust-toolchain.toml pins the version MODULE.bazel's rust.toolchain names.
 [workspace]
 resolver = "3"
-members = ["lite-ffi"]
+members = ["lite-ffi", "lite-javacompat"]
 
 [workspace.package]
 edition = "2024"

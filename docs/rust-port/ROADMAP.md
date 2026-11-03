@@ -39,7 +39,10 @@ reason, per AGENTS.md's rule for moving a pin or a ledger.
 
 ### Phase 0 — groundwork (no Java deleted)
 
-Steps 1–4 done 2026-11-02; the measurements are [`PHASE0.md`](PHASE0.md).
+Steps 1–6 done 2026-11-02; the measurements are [`PHASE0.md`](PHASE0.md). Two deviations from the list below,
+both deliberate: step 5 made the crates the work needed now (`lite-ffi`, `lite-javacompat`), not six empty ones --
+`lite-json`, `lite-sql`, `lite-front` and `lite-core` arrive with phases 1–3; and `crate_universe` waits for the
+first crates.io dependency (none yet).
 
 1. The baseline: `bazel test //...` on the pristine tree, recorded per target as `rust/BASELINE.tsv`.
 2. The JVM's answers that are build outputs today, committed: `//wasm:jvm_answers`, `//wasm:zone_jvm`,

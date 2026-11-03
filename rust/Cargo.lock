@@ -5,3 +5,7 @@ version = 4
 [[package]]
 name = "lite-ffi"
 version = "0.1.0"
+
+[[package]]
+name = "lite-javacompat"
+version = "0.1.0"
