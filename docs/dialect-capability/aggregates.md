@@ -12,7 +12,6 @@ What each dialect does with each aggregate of the SQL IR. The legend, the method
 - [Trino](#trino)
 - [BigQuery](#bigquery)
 - [Databricks](#databricks)
-- [DuckDb](#duckdb)
 - [ClickHouse](#clickhouse)
 - [SQLite](#sqlite)
 - [MariaDb](#mariadb)
@@ -339,53 +338,6 @@ Database types planned with it: Databricks.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | spelled | `VARIANCE (unordered)` |  | 0 |
 | `STDDEV` | spelled | `STDDEV (unordered)` |  | 0 |
-| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `NTILE` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `LAG` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `LEAD` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
-
-## DuckDb
-
-Database types planned with it: DuckDB.
-
-| aggregate | decision | writes, or why not | read through | PCT cases |
-|---|---|---|---|---:|
-| `SUM` | spelled | `SUM` |  | 212 |
-| `COUNT` | spelled | `COUNT` |  | 16 |
-| `AVG` | spelled | `AVG` |  | 10 |
-| `MIN` | spelled | `MIN` |  | 7 |
-| `MAX` | spelled | `MAX` |  | 7 |
-| `ANY_VALUE` | spelled | `ANY_VALUE` |  | 0 |
-| `STDDEV_SAMP` | spelled | `STDDEV_SAMP` |  | 2 |
-| `STDDEV_POP` | spelled | `STDDEV_POP` |  | 5 |
-| `VAR_SAMP` | spelled | `VAR_SAMP` |  | 2 |
-| `VAR_POP` | spelled | `VAR_POP` |  | 2 |
-| `MEDIAN` | spelled | `MEDIAN` |  | 6 |
-| `MODE` | spelled | `MODE` |  | 6 |
-| `STRING_AGG` | spelled | `STRING_AGG` |  | 506 |
-| `LIST` | spelled | `LIST` |  | 3 |
-| `QUANTILE_CONT` | spelled | `QUANTILE_CONT` |  | 0 |
-| `QUANTILE_DISC` | spelled | `QUANTILE_DISC` |  | 0 |
-| `CORR` | spelled | `CORR` |  | 4 |
-| `COVAR_SAMP` | spelled | `COVAR_SAMP` |  | 5 |
-| `COVAR_POP` | spelled | `COVAR_POP` |  | 4 |
-| `ARG_MAX` | spelled | `ARG_MAX` |  | 1 |
-| `ARG_MIN` | spelled | `ARG_MIN` |  | 1 |
-| `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `BOOL_AND` | spelled | `BOOL_AND` |  | 0 |
-| `BOOL_OR` | spelled | `BOOL_OR` |  | 0 |
-| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `VARIANCE` | spelled | `VARIANCE` |  | 0 |
-| `STDDEV` | spelled | `STDDEV` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |

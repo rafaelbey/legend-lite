@@ -46,6 +46,11 @@ impl DuckDb {
     }
 }
 
+/// DuckDB's lexicon ([`LEXICON`]).
+pub fn lexicon() -> &'static Lexicon {
+    &LEXICON
+}
+
 /// Every keyword DuckDB will not take as a table or column name (its `reserved` and `type_function` categories of
 /// `duckdb_keywords()`), and a few more DML words besides: Java's `DuckDb.LEXICON`.
 static LEXICON: LazyLock<Lexicon> = LazyLock::new(|| {

@@ -1130,6 +1130,11 @@ final class ArchitectureTest {
     void reflectionIsBannedInProduction() {
         noClasses()
             .that().resideInAPackage("com.legend..")
+            // 2026-11-03 (docs/rust-port/ROADMAP.md, the shim; rust/RETIRED_TESTS.md): com.legend.ffi.Lite calls the
+            // Rust library through java.lang.foreign, whose downcalls ARE java.lang.invoke.MethodHandles
+            // (Linker.downcallHandle) -- a C symbol of the Rust library bound by its fixed name, not a type of ours
+            // discovered or invoked by name. Lite alone; every other ffi class stays under the rule
+            .and().haveNameNotMatching("com\\.legend\\.ffi\\.Lite(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAnyPackage("java.lang.reflect..", "java.lang.invoke..")
             // and the reflective doors on Class itself (no java.lang.reflect

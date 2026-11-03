@@ -74,21 +74,25 @@ class TestLaneOrderGuardrailTest {
 
     @Test
     void emulationIsInstalledOnlyBehindTheSwitch() throws IOException {
-        assertEquals(new TreeSet<>(List.of("com/legend/sql/dialect/DuckDb.java")),
-                filesMatching(PASS_INSTALL), "StableScanOrder is installed outside DuckDb's pass list");
-        assertEquals(new TreeSet<>(List.of("com/legend/sql/dialect/DuckDb.java")),
+        // 2026-11-03 (docs/rust-port/PHASE1.md, the DuckDB switch; rust/RETIRED_TESTS.md): DuckDB's pass list is the
+        // Rust library's (rust/lite-dialect/src/passes.rs, duckdb_passes), so no Java source installs the pass; the
+        // switch is read once on the JVM, by the shim that hands it to the library in the dialect's spec
+        assertEquals(new TreeSet<>(),
+                filesMatching(PASS_INSTALL), "StableScanOrder is installed in Java again: DuckDB's pass list is Rust's");
+        assertEquals(new TreeSet<>(List.of("com/legend/ffi/RustDialect.java")),
                 filesMatching(SWITCH_LITERAL),
-                "legend.exec.engineScanOrder is named outside DuckDb: only the corpus lanes'"
-                + " build flags (spec/corpus.bzl) set it, only DuckDb's pass list reads it");
-        String duck = Files.readString(Runfile.property("core.duckdb_dialect"));
-        assertEquals(1, count(SWITCH_READ, duck), "the switch is read exactly once");
-        assertEquals(1, count(PASS_INSTALL, duck), "the pass is installed exactly once");
-        String shape = duck.replaceAll("\\s+", " ");
-        assertEquals(true, shape.contains(
-                "if (Boolean.getBoolean(\"legend.exec.engineScanOrder\")) { ps.add(new StableScanOrder()); }"),
-                "the pass must be installed INSIDE the switch's if-block — never unconditionally");
-        assertEquals(0, count(Pattern.compile("setProperty\\(\"legend\\.exec\\.engineScanOrder\""), duck),
+                "legend.exec.engineScanOrder is named outside the Rust dialect's shim: only the corpus lanes'"
+                + " build flags (spec/corpus.bzl) set it, only the shim reads it");
+        String shim = Files.readString(Runfile.property("core.duckdb_dialect"));
+        assertEquals(1, count(SWITCH_READ, shim), "the switch is read exactly once");
+        assertEquals(0, count(Pattern.compile("setProperty\\(\"legend\\.exec\\.engineScanOrder\""), shim),
                 "product never sets the switch");
+        String passes = Files.readString(Runfile.property("core.duckdb_passes"));
+        assertEquals(1, count(Pattern.compile("StableScanOrder::new\\(\\)"), passes),
+                "the pass is installed exactly once");
+        assertEquals(true, passes.replaceAll("\\s+", " ").contains(
+                "if engine_scan_order { ps.push(Box::new(StableScanOrder::new())); }"),
+                "the pass must be installed INSIDE the switch's if-block — never unconditionally");
     }
 
     @Test

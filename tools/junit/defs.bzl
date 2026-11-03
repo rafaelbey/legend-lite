@@ -52,6 +52,9 @@ def junit_test(
         "-Duser.language=en",
         "-Duser.country=US",
         "-Dfile.encoding=UTF-8",
+        # core calls the Rust library through java.lang.foreign (docs/rust-port/PHASE1.md; com.legend.ffi.Lite): every
+        # JVM test may, so none warns on its first downcall
+        "--enable-native-access=ALL-UNNAMED",
         "-Xmx%dm" % memory_mb,
     ] + jvm_flags
     inputs = list(data)

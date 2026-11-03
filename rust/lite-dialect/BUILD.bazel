@@ -1,6 +1,9 @@
 load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
 load("//tools/guards:defs.bzl", "guards_package")
 
+# 2026-11-03: core's scan-order guard (TestLaneOrderGuardrailTest) reads where DuckDB's pass list installs StableScanOrder
+exports_files(["src/passes.rs"])
+
 # legend-lite's SQL dialects, ported from core/'s com.legend.sql.dialect (src/lib.rs; docs/rust-port/PHASE1.md step 3):
 # the shared renderer (Java's AnsiSqlRenderer as a trait), the writer, the pass pipeline with every pass DuckDB runs, the
 # typing rules its constructors apply (Java's SqlTyping) and DuckDB, rendering a lite_sql statement as the JVM does.

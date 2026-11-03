@@ -116,3 +116,7 @@ server_lib	base cache compiler compiler_element_type database driver error exec 
 # 2026-11-02 (docs/rust-port/ROADMAP.md, phase 0 step 6): `ffi`, the JVM's shim over the Rust compiler library
 # (java.lang.foreign over //rust/lite-ffi), base only; the phases of the port move core's entry points onto it.
 ffi	base
+# 2026-11-03 (docs/rust-port/PHASE1.md, the DuckDB switch): `rust_dialect`, a SqlDialect the Rust library answers
+# (MirJson over :ffi), sql_dialect's RustDialects provider; `database` carries it at run time only (runtime_deps),
+# found through META-INF/services, so no compile edge reaches it.
+rust_dialect	base error execution_plan ffi json sql sql_dialect

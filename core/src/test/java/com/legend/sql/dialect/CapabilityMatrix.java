@@ -93,7 +93,13 @@ public final class CapabilityMatrix {
         Map<Class<?>, List<DatabaseType>> out = new LinkedHashMap<>();
         for (DatabaseType t : DatabaseType.values()) {
             try {
-                out.computeIfAbsent(com.legend.database.Databases.dialect(t).getClass(), k -> new ArrayList<>()).add(t);
+                SqlDialect dialect = com.legend.database.Databases.dialect(t);
+                // a dialect the Rust library answers (DuckDB's since 2026-11-03, docs/rust-port/PHASE1.md) has no Java
+                // source to read: its capability walls are rust/lite-dialect's, held by the golden dump there
+                if (!(dialect instanceof AnsiSqlRenderer)) {
+                    continue;
+                }
+                out.computeIfAbsent(dialect.getClass(), k -> new ArrayList<>()).add(t);
             } catch (com.legend.error.NotImplementedException noDialect) {
                 // a database type with no dialect yet: no column of the matrix
             }

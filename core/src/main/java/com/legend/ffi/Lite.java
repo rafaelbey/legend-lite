@@ -40,7 +40,12 @@ public final class Lite {
             FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, JAVA_INT, JAVA_INT, ADDRESS);
     static final FunctionDescriptor FREE = FunctionDescriptor.ofVoid(ADDRESS);
     static final FunctionDescriptor COUNT = FunctionDescriptor.of(JAVA_LONG);
+    static final FunctionDescriptor TERNARY = FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS);
 
+    /** The library's file under Bazel's runfiles, and its name on this platform. */
+    private static final String RUNFILES_DIR = "_main/rust/lite-ffi/";
+
+    private final MethodHandle dialect;
     private final MethodHandle version;
     private final MethodHandle echo;
     private final MethodHandle probeRefusal;
@@ -49,6 +54,7 @@ public final class Lite {
     private final MethodHandle unfreed;
 
     private Lite(SymbolLookup library) {
+        dialect = downcall(library, "lite_dialect", TERNARY);
         version = downcall(library, "lite_version", NULLARY);
         echo = downcall(library, "lite_echo", UNARY);
         probeRefusal = downcall(library, "lite_probe_refusal", REFUSAL_PROBE);
@@ -60,6 +66,57 @@ public final class Lite {
     /** The library at {@code path}, loaded for the life of the process. */
     public static Lite load(Path path) {
         return new Lite(SymbolLookup.libraryLookup(path, Arena.global()));
+    }
+
+    /** The process's library, found once ({@link #locate}). */
+    public static Lite shared() {
+        return Shared.LITE;
+    }
+
+    private static final class Shared {
+        static final Lite LITE = load(locate());
+    }
+
+    /**
+     * Where the library is: the system property {@code legend.lite.library} (a launcher, a build action or a host that
+     * loads this code as a library names it: java_run, libcompiler from its environment), else Bazel's runfiles tree
+     * ({@code RUNFILES_DIR}, {@code JAVA_RUNFILES}, {@code TEST_SRCDIR}), where //core:ffi's data puts it. Windows
+     * builds with runfiles trees too (.bazelrc's {@code --enable_runfiles}).
+     */
+    static Path locate() {
+        String os = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
+        String file = os.contains("win") ? "lite_ffi.dll" : os.contains("mac") ? "liblite_ffi.dylib" : "liblite_ffi.so";
+        String named = System.getProperty("legend.lite.library");
+        if (named != null && !named.isEmpty()) {
+            return Path.of(named);
+        }
+        java.util.List<String> tried = new java.util.ArrayList<>();
+        for (String variable : new String[] {"RUNFILES_DIR", "JAVA_RUNFILES", "TEST_SRCDIR"}) {
+            String root = System.getenv(variable);
+            if (root != null && !root.isEmpty()) {
+                Path candidate = Path.of(root, RUNFILES_DIR + file);
+                if (java.nio.file.Files.isRegularFile(candidate)) {
+                    return candidate;
+                }
+                tried.add(candidate.toString());
+            }
+        }
+        throw new IllegalStateException("the Rust library (" + file + ") is not found: set -Dlegend.lite.library, or run"
+                + " under Bazel with //core:ffi's data in the runfiles (looked in " + tried + ")");
+    }
+
+    /**
+     * A dialect's operation, answered by the Rust library ({@code lite_dialect}; rust/lite-dialect/SEAM.md): the
+     * dialect named by {@code spec}, the operation {@code op} over {@code args}, each JSON; the answer's JSON text, or
+     * its refusal thrown as a {@link LiteRefusal}.
+     */
+    public String dialect(String spec, String op, String args) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment s = utf8(arena, spec);
+            MemorySegment o = utf8(arena, op);
+            MemorySegment a = utf8(arena, args);
+            return answer(take(guarded(() -> (MemorySegment) dialect.invokeExact(s, o, a))));
+        }
     }
 
     private static MethodHandle downcall(SymbolLookup library, String name, FunctionDescriptor descriptor) {

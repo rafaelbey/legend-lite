@@ -43,6 +43,11 @@ impl Lexicon {
         self.quote
     }
 
+    /// The reserved words, in no particular order (Java's `Lexicon.reservedWords()`).
+    pub fn reserved_words(&self) -> impl Iterator<Item = &'static str> + '_ {
+        self.reserved.iter().copied()
+    }
+
     /// Whether `lower` (a lower-cased word) is reserved.
     pub fn is_reserved(&self, lower: &str) -> bool {
         self.reserved.contains(lower)

@@ -550,3 +550,68 @@ fn refusals_fold_to_the_seams_kinds() {
         r#"{"refused":{"kind":"INTERNAL","message":"java.lang.NumberFormatException: x"}}"#
     );
 }
+
+/// Java's `DuckDb.LEXICON` reserved words, as its source listed them (held to DuckDB's `duckdb_keywords()` by
+/// `DuckDbKeywordsTest`).
+const JAVA_RESERVED_WORDS: &[&str] = &[
+    "all", "analyse", "analyze", "and", "anti", "any", "array", "as", "asc", "asof", "asymmetric", "at",
+    "authorization", "between", "binary", "both", "by", "case", "cast", "check", "collate", "collation", "column",
+    "columns", "concurrently", "constraint", "create", "cross", "default", "deferrable", "delete", "desc", "describe",
+    "distinct", "do", "drop", "else", "end", "except", "exists", "false", "fetch", "for", "foreign", "freeze", "from",
+    "full", "generated", "glob", "group", "having", "ilike", "in", "initially", "inner", "insert", "intersect", "into",
+    "is", "isnull", "join", "lambda", "lateral", "leading", "left", "like", "limit", "map", "natural", "not", "notnull",
+    "null", "offset", "on", "only", "or", "order", "outer", "overlaps", "pivot", "pivot_longer", "pivot_wider",
+    "placing", "positional", "primary", "qualify", "references", "returning", "right", "select", "semi", "show",
+    "similar", "some", "struct", "summarize", "symmetric", "table", "tablesample", "then", "to", "trailing", "true",
+    "try_cast", "union", "unique", "unpack", "unpivot", "update", "using", "values", "variadic", "verbose", "when",
+    "where", "window", "with",
+];
+
+#[test]
+fn duckdbs_tables_are_javas() {
+    let answer = parse(&ok("duckdb.tables", "{}")).unwrap();
+    let tables = answer.as_obj().unwrap();
+    let lexicon = tables.obj("lexicon").unwrap();
+    assert_eq!(lexicon.str("quoteChar").unwrap(), "\"");
+    let words: Vec<&str> = lexicon.arr("reservedWords").unwrap().iter().map(|w| w.as_str().unwrap()).collect();
+    let mut java = JAVA_RESERVED_WORDS.to_vec();
+    java.sort_unstable();
+    assert_eq!(words, java, "Java's LEXICON, sorted");
+    // CATALOG_TYPES: every canonical type, in Java's order (each decision is catalog_types_are_duckdbs_decisions')
+    let types = tables.obj("catalogTypes").unwrap();
+    let names: Vec<&str> = types.iter().map(|(name, _)| name).collect();
+    assert_eq!(
+        names,
+        [
+            "VARCHAR", "BOOLEAN", "TINYINT", "SMALLINT", "INTEGER", "BIGINT", "UTINYINT", "USMALLINT", "UINTEGER",
+            "UBIGINT", "HUGEINT", "FLOAT", "DOUBLE", "DATE", "TIMESTAMP", "TIMESTAMP_S", "TIMESTAMP_MS", "TIMESTAMP_NS",
+            "TIMESTAMP WITH TIME ZONE", "TIME", "TIME WITH TIME ZONE", "UUID", "INTERVAL", "BIT", "BIGNUM", "ENUM",
+            "STRUCT", "LIST", "MAP", "UNION", "ARRAY", "BLOB",
+        ]
+    );
+    assert_eq!(
+        to_compact(types.get("TIMESTAMP WITH TIME ZONE").unwrap()),
+        r#"{"read":"COPY_CONVERTED","declared":"TIMESTAMP","conversion":"CAST(timezone('UTC', %s) AS TIMESTAMP)","reason":null}"#
+    );
+    assert_eq!(
+        to_compact(types.get("BLOB").unwrap()),
+        r#"{"read":"LEFT_OUT","declared":null,"conversion":null,"reason":"bytes: no Pure Database type holds them"}"#
+    );
+    // CATALOG_REFUSED, in Java's order
+    assert_eq!(
+        to_compact(tables.get("catalogRefused").unwrap()),
+        r#"{"GEOMETRY":"a spatial value: no Pure Database type holds it","UHUGEINT":"not yet decided","#.to_owned()
+            + r#""TIME_NS":"not yet decided","VARIANT":"not yet decided","NULL":"a column of no type","#
+            + r#""TYPE":"a type, not a value"}"#
+    );
+}
+
+#[test]
+fn duckdb_reads_its_other_and_distinct_columns_stored() {
+    let reads = |t: &str| ok("duckdb.readsStored", &wrap("type", t));
+    assert_eq!(reads(r#"{"_type":"plain","kind":"OTHER"}"#), "true");
+    assert_eq!(reads(r#"{"_type":"plain","kind":"DISTINCT"}"#), "true");
+    assert_eq!(reads(r#"{"_type":"plain","kind":"INTEGER"}"#), "false");
+    assert_eq!(reads(r#"{"_type":"plain","kind":"JSON"}"#), "false");
+    assert_eq!(refused("duckdb.readsStored", "{}").message, "missing field 'type'");
+}

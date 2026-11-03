@@ -72,6 +72,7 @@ public final class Databases {
     /** The dialect a query on {@code type} is planned and executed with. */
     public static SqlDialect dialect(DatabaseType type) {
         return switch (type) {
+            // the Rust library's since 2026-11-03 (docs/rust-port/PHASE1.md: rendering exactly as DuckDb.java did)
             case DuckDB -> new com.legend.sql.dialect.DuckDb();
             case H2 -> new com.legend.sql.dialect.H2();
             case Postgres -> new com.legend.sql.dialect.Postgres();

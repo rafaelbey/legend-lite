@@ -90,7 +90,32 @@ legend_java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.j
 
 # THE RUST SHIM (docs/rust-port/ROADMAP.md, phase 0 step 6): the JVM's calls into the Rust compiler library
 # (//rust/lite-ffi) through java.lang.foreign; each phase of the port moves core's entry points onto it.
-legend_java_library(name = "ffi", srcs = glob(["src/main/java/com/legend/ffi/*.java"]), deps = ["//base"])
+legend_java_library(
+    name = "ffi",
+    srcs = glob(["src/main/java/com/legend/ffi/Lite*.java"]),
+    # the library itself, in the runfiles of every test and binary that reaches core (Lite.locate)
+    data = ["//rust/lite-ffi:lite_ffi"],
+    deps = ["//base"],
+)
+
+# The dialects the Rust library answers (docs/rust-port/PHASE1.md; rust/lite-dialect/SEAM.md): every SqlDialect method
+# one call through :ffi, the SQL tree as MirJson -- com.legend.sql.dialect.RustDialects' provider, found through its
+# META-INF/services (the SQL layer depends on nothing outside itself), which com.legend.sql.dialect.DuckDb uses.
+legend_java_library(
+    name = "rust_dialect",
+    srcs = glob(["src/main/java/com/legend/ffi/RustDialect*.java"]),
+    resources = glob(["src/main/ffi/META-INF/**"]),
+    resource_strip_prefix = "core/src/main/ffi",
+    deps = [
+        ":error",
+        ":execution_plan",
+        ":ffi",
+        ":sql",
+        ":sql_dialect",
+        "//base",
+        "//json",
+    ],
+)
 # legend-engine's query store's rules (/api/pure/v1/query) over a records interface
 # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B5): the one implementation legend-lite's server, Python's native library
 # and the page's module answer with, the storage each host's own (a directory, or the page's records handed in).
@@ -153,6 +178,8 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/database/*.java"]),
     visibility = ["//datacube:__pkg__"],
     deps = ["//base", ":error", ":model", ":sql_dialect"],
+    # DuckDB's dialect is the Rust library's (docs/rust-port/PHASE1.md): its provider, found at run time
+    runtime_deps = [":rust_dialect"],
 )
 
 # the compiler quartet: resolver-of-names, element compiler, typer, typed tree
@@ -312,7 +339,7 @@ legend_java_library(
 )
 
 _CORE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door", ":ffi", ":rust_dialect",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":judge", ":probe", ":testdatagen",
     ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":driver", ":ide", ":test", ":server_lib",
@@ -322,7 +349,7 @@ _CORE_TARGETS = [
 # stands on, and none of execution (exec, testdatagen, driver, probe, ide, test, server_lib). A plan-only consumer
 # depends on this, so the build proves it carries no database and no driver.
 _PLAN_SIDE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door", ":ffi", ":rust_dialect",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":result", ":planner", ":pure_v1",
 ]
@@ -1448,8 +1475,11 @@ junit_test(
     # single files, and the jar lists
     data = [
         "src/main/java/com/legend/compiler/spec/LiteralUnroll.java",
-        "src/main/java/com/legend/sql/dialect/DuckDb.java",
+        "src/main/java/com/legend/ffi/RustDialect.java",
         ":core_test_jar",
+        # 2026-11-03 (docs/rust-port/PHASE1.md, the DuckDB switch): DuckDB's pass list is Rust's; the scan-order
+        # guard reads where it installs StableScanOrder
+        "//rust/lite-dialect:src/passes.rs",
         ":guardrails_sources",
         ":product_jars",
     ],
@@ -1457,7 +1487,8 @@ junit_test(
     # read, as one declared list (SourceFiles, P3-27): no guard walks a directory
     jvm_flags = [
         "-Dcore.literal_unroll=$(rlocationpath src/main/java/com/legend/compiler/spec/LiteralUnroll.java)",
-        "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/sql/dialect/DuckDb.java)",
+        "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/ffi/RustDialect.java)",
+        "-Dcore.duckdb_passes=$(rlocationpath //rust/lite-dialect:src/passes.rs)",
         "-Dlegend.sources=$(rlocationpath :guardrails_sources)",
         "-Dlegend.product.jars=$(rlocationpath :product_jars)",
         "-Dlegend.test.jars=$(rlocationpath :core_test_jar)",

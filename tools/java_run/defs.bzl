@@ -82,12 +82,23 @@ def _java_run_impl(ctx):
     # its own declared scratch directory, never the host's /tmp. The target's own flags come after,
     # so a generator that needs a different setting can still say so.
     scratch = ctx.actions.declare_directory(ctx.label.name + "_tmp")
+    # The Rust library core calls through java.lang.foreign (docs/rust-port/PHASE1.md; com.legend.ffi.Lite): an
+    # action has no runfiles, so it is an input and named by path (on Windows its import library comes with the DLL).
+    lite_ffi = [
+        f
+        for f in ctx.attr._lite_ffi[DefaultInfo].files.to_list()
+        if f.extension in ("so", "dylib", "dll")
+    ]
+    if len(lite_ffi) != 1:
+        fail("java_run: the Rust library is one shared library, found %s" % lite_ffi)
     pinned = [
         "-Duser.timezone=GMT",
         "-Duser.language=en",
         "-Duser.country=US",
         "-Dfile.encoding=UTF-8",
         "-Djava.io.tmpdir=" + scratch.path,
+        "--enable-native-access=ALL-UNNAMED",
+        "-Dlegend.lite.library=" + lite_ffi[0].path,
     ]
     memory = ctx.attr.memory_mb
     if memory and memory not in _RESOURCE_SETS:
@@ -107,7 +118,7 @@ def _java_run_impl(ctx):
     ctx.actions.run(
         executable = runtime.java_executable_exec_path,
         arguments = [args],
-        inputs = depset(ctx.files.srcs + ctx.files.roots, transitive = [jars, runtime.files]),
+        inputs = depset(ctx.files.srcs + ctx.files.roots + lite_ffi, transitive = [jars, runtime.files]),
         outputs = ctx.outputs.outs + [scratch],
         mnemonic = ctx.attr.mnemonic,
         progress_message = "%s %%{label}" % ctx.attr.mnemonic,
@@ -145,6 +156,11 @@ _java_run = rule(
             default = "@rules_java//toolchains:current_host_java_runtime",
             cfg = "exec",
             providers = [java_common.JavaRuntimeInfo],
+        ),
+        # the Rust library core calls (com.legend.ffi.Lite), for the exec platform the action's JVM runs on
+        "_lite_ffi": attr.label(
+            default = "//rust/lite-ffi:lite_ffi",
+            cfg = "exec",
         ),
     },
     doc = "Runs main_class over deps' target-configuration jars on the exec Java runtime.",

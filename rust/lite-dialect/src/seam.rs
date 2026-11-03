@@ -50,6 +50,8 @@ pub const OPS: &[&str] = &[
     "host.useDatabase",
     "host.closeDatabase",
     "host.statements",
+    "duckdb.tables",
+    "duckdb.readsStored",
 ];
 
 /// One op of the dialect `spec` names, over `args`: the answer as compact JSON text, or Java's refusal. Refused in
@@ -102,6 +104,12 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
 fn answer(d: &dyn SqlDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
     Ok(match op {
         "facts" => facts(d),
+        "duckdb.tables" => duckdb_tables(),
+        // DuckDB's `readsStored(ColumnType)` (a function of the type alone), which the JVM's DuckDb still offers
+        "duckdb.readsStored" => {
+            let t = lite_sql::read_column_type(a.obj("type").map_err(json)?).map_err(json)?;
+            Node::Bool(<DuckDb as crate::renderer::AnsiSqlRenderer>::reads_stored(&t))
+        }
         "query.render" => text(d.render(query(a)?)?),
         "query.renderInline" => text(d.render_inline(query(a)?)?),
         "query.renderStatement" => statement_json(&d.render_statement(query(a)?)?),
@@ -177,6 +185,34 @@ fn facts(d: &dyn SqlDialect) -> Node {
         ("sessionSetup", texts(d.session_setup())),
         ("keysSnapshot", keys_snapshot),
         ("resultColumnLimit", result_column_limit),
+    ])
+}
+
+/// DuckDB's own tables, which the JVM's `com.legend.sql.dialect.DuckDb` still offers by name: its `LEXICON` (the quote
+/// character and the reserved words, sorted), `CATALOG_TYPES` (each canonical type and how a Database declares it, in
+/// its order) and `CATALOG_REFUSED` (each refused type and its reason).
+fn duckdb_tables() -> Node {
+    let lexicon = crate::duckdb::lexicon();
+    let mut words: Vec<&str> = lexicon.reserved_words().collect();
+    words.sort_unstable();
+    object(vec![
+        (
+            "lexicon",
+            object(vec![
+                ("quoteChar", Node::Str(lexicon.quote_char().to_string())),
+                ("reservedWords", Node::Arr(words.into_iter().map(|w| Node::Str(w.to_owned())).collect())),
+            ]),
+        ),
+        (
+            "catalogTypes",
+            object(crate::duckdb::catalog_types().iter().map(|(name, t)| (*name, catalog_type_json(t))).collect()),
+        ),
+        (
+            "catalogRefused",
+            object(
+                crate::duckdb::CATALOG_REFUSED.iter().map(|(name, why)| (*name, Node::Str((*why).to_owned()))).collect(),
+            ),
+        ),
     ])
 }
 

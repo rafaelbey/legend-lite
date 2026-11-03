@@ -50,7 +50,12 @@ class CompileOnlyTest {
                     // a binary's packaging: registered, never built by //:java, which takes only the classpath jars
                     "java_binary JavaDeployJar", "the deploy jar: registered, never built by //:java",
                     "java_binary JavaSingleJar", "the single-jar step: registered, never built by //:java",
-                    "java_binary JavaLauncherMaker", "the Windows launcher: registered, never built by //:java")),
+                    "java_binary JavaLauncherMaker", "the Windows launcher: registered, never built by //:java",
+                    // 2026-11-03 (docs/rust-port/PHASE1.md, the DuckDB switch; rust/RETIRED_TESTS.md): //core:ffi
+                    // carries the Rust compiler library as data, so the product compiles Rust
+                    "rust_library Rustc", "compiles a crate of the Rust compiler library (rust/)",
+                    "rust_cdylib_library Rustc", "compiles the Rust compiler library, liblite_ffi, that //core:ffi"
+                            + " loads")),
             "wasm", with(JAVA_LIBRARY, Map.of(
                     "jvm_import CreateCompileJar", "rules_jvm_external's compile-only copy of a TeaVM jar",
                     "_teavm_wasm TeaVM", "compiles Java to WebAssembly")),
@@ -63,7 +68,12 @@ class CompileOnlyTest {
                     "cc_library CppCompile", "compiles zlib, which the native image links",
                     "cc_library CppArchive", "archives zlib for the image (libz.a)",
                     "cc_library CppLink", "zlib's shared library: registered on Linux and Windows, unused",
-                    "cc_library DefParser", "zlib's DLL export list: registered on Windows (MSVC), unused")),
+                    "cc_library DefParser", "zlib's DLL export list: registered on Windows (MSVC), unused",
+                    // 2026-11-03 (docs/rust-port/PHASE1.md, the DuckDB switch): the compiler's native library calls
+                    // the Rust compiler library through //core:ffi, which carries it as data
+                    "rust_library Rustc", "compiles a crate of the Rust compiler library (rust/)",
+                    "rust_cdylib_library Rustc", "compiles the Rust compiler library, liblite_ffi, that //core:ffi"
+                            + " loads")),
             "web", Map.of(
                     "_esbuild_bundle Esbuild", "esbuild's native binary bundles TypeScript (tools/js/esbuild.bzl)",
                     "_copy_to_bin CopyFile", "a source file copied into the output tree for esbuild",
@@ -93,6 +103,14 @@ class CompileOnlyTest {
     private static final Map<String, String> SKIPS = Map.of(
             "java", "//tools/nullaway:nullaway",
             "native", "//tools/nullaway:nullaway");
+
+    /**
+     * A product target a walk may also meet as an exec-configuration tool, with its reason. 2026-11-03
+     * (docs/rust-port/PHASE1.md, the DuckDB switch; rust/RETIRED_TESTS.md): java_run (tools/java_run/defs.bzl) loads
+     * the Rust compiler library into the program it runs at build time, so it is built for the exec platform there;
+     * the product's own build of it (//core:ffi's data) is walked like any other, its Rustc pairs in ALLOWED.
+     */
+    private static final Set<String> PRODUCT_TOOLS = Set.of("//rust/lite-ffi:lite_ffi");
 
     /** The fixture tier's targets, and the pair each must be flagged for. */
     private static final Map<String, String> FIXTURES = Map.of(
@@ -157,7 +175,7 @@ class CompileOnlyTest {
         });
         // the walk must never take the product for a tool: every first-party target it skipped is under //tools
         report.skipped.forEach((tier, labels) -> labels.stream()
-                .filter(l -> l.startsWith("//") && !l.startsWith("//tools/"))
+                .filter(l -> l.startsWith("//") && !l.startsWith("//tools/") && !PRODUCT_TOOLS.contains(l))
                 .forEach(l -> problems.add(tier + " skipped " + l + " as an exec-configuration tool")));
         // NO NODE IN THE BUILD: esbuild runs natively (tools/js/esbuild.bzl). A js_binary is Node's launcher, so any
         // rule of that kind in a build target means Node is back. Node run as some allowlisted kind's exec tool would

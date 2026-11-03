@@ -70,7 +70,9 @@ class RawSqlLedgerTest {
             // the boundary named DuckDB and Postgres to branch on them (h2ToDuckDb, h2ToPostgres). It is one
             // translation now, RawSqlBoundary.translated, and each dialect passes what is its own (its column types,
             // its folding of a bare name): DuckDB's call and Postgres's, the same two translations as before
-            "DuckDb.java", 1,
+            // 2026-11-03 (docs/rust-port/PHASE1.md, the DuckDB switch; rust/RETIRED_TESTS.md): DuckDB's call left
+            // Java with its dialect -- the Rust library's one translation (rust/lite-dialect/src/raw_sql.rs) has the
+            // one caller, DuckDb's fromEngineText (rust/lite-dialect/src/duckdb.rs)
             "Postgres.java", 1);
 
     private static final Pattern SITE =
