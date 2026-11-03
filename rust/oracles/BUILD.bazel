@@ -33,4 +33,14 @@ zstd_decompress(
     visibility = ["//rust:__subpackages__"],
 )
 
+# The ten Java dialects left after the H2 family's switch (Postgres, SQLite, the cloud ones, MariaDB/MySQL, MongoDB):
+# their renders over the whole suite (phase 1 step 5; mir/MANIFEST.tsv), for the MIR's round trip and their differentials.
+zstd_decompress(
+    name = "dialects_dump",
+    testonly = True,
+    src = "mir/dialects-dump.jsonl.zst",
+    out = "mir/dialects-dump.jsonl",
+    visibility = ["//rust:__subpackages__"],
+)
+
 guards_package()

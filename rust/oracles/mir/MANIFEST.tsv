@@ -17,3 +17,10 @@ h2-dump.jsonl.zst	{"dialect","config","fresh","op","kind","mir","answer"} per li
 # the seam -- and Java's answer for the ORIGINAL query, which the substituted query's text equals exactly
 # (docs/rust-port/PHASE1.md §4 step 4). Plain text: one line.
 tagged-engine.jsonl	h2-dump.jsonl's line format	55f55a0a84bf4be79e5d33181b06a3c0bdfb552e911d9bdaa65134ca000c8317
+# Made 2026-11-03 on worktree-rust-port-phase0 (core as of ec7261efd) by rust/tools/dialects-dump-probe.patch over
+# `bazel test //...` (every test and build action): the ten Java dialects left after the H2 family's switch -- Postgres
+# 11,613 entries, SQLite 2,081, Snowflake 39, BigQuery 35, ClickHouse 37, MariaDb 27, MySql 27, Databricks 26, Trino 25,
+# MongoDb 8 -- deduplicated by (dialect, op, MirJson) across every JVM: 13,918 entries, no key with two answers, every one
+# answered by a fresh dialect made without arguments (config null). The cloud dialects, MariaDB/MySQL and MongoDB run on
+# no lane, so their oracle is thin; their Java unit tests remain their gate through the shims.
+dialects-dump.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement	df2719d83b308199e53a25b48779ae78ed2734aa17f08b158120a5ef7e7115c7

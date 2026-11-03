@@ -1,0 +1,411 @@
+diff --git a/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java b/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
+index f4453b6b7..bc1c110e3 100644
+--- a/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
++++ b/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
+@@ -66,11 +66,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+ 
+     @Override
+     public String render(SqlQuery query) {
++        MirDumpProbe.dump(this, "query.render", query);
+         return write(query).text();
+     }
+ 
+     @Override
+     public RenderedStatement renderStatement(SqlQuery query) {
++        MirDumpProbe.dump(this, "query.renderStatement", query);
+         return write(query).statement();
+     }
+ 
+@@ -1736,6 +1738,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+ 
+     @Override
+     public String render(com.legend.sql.SqlDdl ddl) {
++        MirDumpProbe.dump(this, "ddl.render", ddl);
+         return switch (ddl) {
+             case com.legend.sql.SqlDdl.CreateTable ct -> {
+                 // a TEMPORARY table: the one ANSI spelling every target here accepts
+@@ -1774,6 +1777,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+ 
+     @Override
+     public String render(com.legend.sql.SqlDml dml) {
++        MirDumpProbe.dump(this, "dml.render", dml);
+         return switch (dml) {
+             case com.legend.sql.SqlDml.InsertValues iv -> {
+                 SqlWriter writer = newWriter().append("INSERT INTO ").append(ddlQualified(iv.schema(), iv.table(), iv.quoting()))
+@@ -1803,6 +1807,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+ 
+     @Override
+     public RenderedStatement renderStatement(com.legend.sql.SqlDml dml) {
++        MirDumpProbe.dump(this, "dml.renderStatement", dml);
+         return switch (dml) {
+             // a seed's rows, a copy, a table emptied: setup's statements, which bind no value (their text, as this
+             // dialect renders it)
+diff --git a/core/src/main/java/com/legend/sql/dialect/BigQuery.java b/core/src/main/java/com/legend/sql/dialect/BigQuery.java
+index a0fcc3e03..e5b03db41 100644
+--- a/core/src/main/java/com/legend/sql/dialect/BigQuery.java
++++ b/core/src/main/java/com/legend/sql/dialect/BigQuery.java
+@@ -101,6 +101,7 @@ public final class BigQuery extends AnsiSqlRenderer {
+      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+     @Override
+     public String fromEngineText(String statement) {
++        MirDumpProbe.dump(this, "fromEngineText", statement);
+         throw new DialectCapability("the engine's H2 text reached BigQuery, which has no translation of it");
+     }
+ 
+@@ -253,6 +254,7 @@ public final class BigQuery extends AnsiSqlRenderer {
+ 
+     @Override
+     public String render(SqlQuery query) {
++        MirDumpProbe.dump(this, "query.render", query);
+         roots.push(query.outputs());
+         try {
+             return super.render(query);
+@@ -263,6 +265,7 @@ public final class BigQuery extends AnsiSqlRenderer {
+ 
+     @Override
+     public RenderedStatement renderStatement(SqlQuery query) {
++        MirDumpProbe.dump(this, "query.renderStatement", query);
+         roots.push(query.outputs());
+         try {
+             return super.renderStatement(query);
+@@ -2954,6 +2957,7 @@ public final class BigQuery extends AnsiSqlRenderer {
+      *  one BigQuery refuses it, measured), unqualified; a key is declared NOT ENFORCED. */
+     @Override
+     public String render(com.legend.sql.SqlDdl ddl) {
++        MirDumpProbe.dump(this, "ddl.render", ddl);
+         return switch (ddl) {
+             case com.legend.sql.SqlDdl.CreateTable ct -> {
+                 StringBuilder sb = new StringBuilder(ct.temporary() ? "CREATE TEMP TABLE " : "CREATE TABLE ")
+@@ -2984,6 +2988,7 @@ public final class BigQuery extends AnsiSqlRenderer {
+     /** A DELETE needs a WHERE clause in GoogleSQL. */
+     @Override
+     public String render(com.legend.sql.SqlDml dml) {
++        MirDumpProbe.dump(this, "dml.render", dml);
+         if (dml instanceof com.legend.sql.SqlDml.DeleteAll da) {
+             return "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + " WHERE TRUE;";
+         }
+diff --git a/core/src/main/java/com/legend/sql/dialect/ClickHouse.java b/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
+index 181ce5998..d20da1018 100644
+--- a/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
++++ b/core/src/main/java/com/legend/sql/dialect/ClickHouse.java
+@@ -94,6 +94,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
+      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+     @Override
+     public String fromEngineText(String statement) {
++        MirDumpProbe.dump(this, "fromEngineText", statement);
+         throw new DialectCapability("the engine's H2 text reached ClickHouse, which has no translation of it");
+     }
+ 
+diff --git a/core/src/main/java/com/legend/sql/dialect/Databricks.java b/core/src/main/java/com/legend/sql/dialect/Databricks.java
+index 800ee4027..1a06f982d 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Databricks.java
++++ b/core/src/main/java/com/legend/sql/dialect/Databricks.java
+@@ -45,6 +45,7 @@ public final class Databricks extends AnsiSqlRenderer {
+      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+     @Override
+     public String fromEngineText(String statement) {
++        MirDumpProbe.dump(this, "fromEngineText", statement);
+         throw new DialectCapability("the engine's H2 text reached Databricks, which has no translation of it");
+     }
+ 
+diff --git a/core/src/main/java/com/legend/sql/dialect/MariaDb.java b/core/src/main/java/com/legend/sql/dialect/MariaDb.java
+index 9ff955131..53e5ce887 100644
+--- a/core/src/main/java/com/legend/sql/dialect/MariaDb.java
++++ b/core/src/main/java/com/legend/sql/dialect/MariaDb.java
+@@ -187,6 +187,7 @@ public class MariaDb extends AnsiSqlRenderer {
+      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+     @Override
+     public String fromEngineText(String statement) {
++        MirDumpProbe.dump(this, "fromEngineText", statement);
+         throw new DialectCapability("the engine's H2 text reached MariaDB, which has no translation of it");
+     }
+ 
+@@ -365,6 +366,7 @@ public class MariaDb extends AnsiSqlRenderer {
+ 
+     @Override
+     public String render(SqlQuery query) {
++        MirDumpProbe.dump(this, "query.render", query);
+         roots.push(query.outputs());
+         rootSelects.push(new IdentityHashMap<>());
+         try {
+@@ -377,6 +379,7 @@ public class MariaDb extends AnsiSqlRenderer {
+ 
+     @Override
+     public RenderedStatement renderStatement(SqlQuery query) {
++        MirDumpProbe.dump(this, "query.renderStatement", query);
+         roots.push(query.outputs());
+         rootSelects.push(new IdentityHashMap<>());
+         try {
+diff --git a/core/src/main/java/com/legend/sql/dialect/MirDumpProbe.java b/core/src/main/java/com/legend/sql/dialect/MirDumpProbe.java
+new file mode 100644
+index 000000000..9a886b768
+--- /dev/null
++++ b/core/src/main/java/com/legend/sql/dialect/MirDumpProbe.java
+@@ -0,0 +1,143 @@
++// Copyright 2026 Legend Contributors
++// SPDX-License-Identifier: Apache-2.0
++
++package com.legend.sql.dialect;
++
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.StandardOpenOption;
++import java.util.Set;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * TEMPORARY (Rust port, phase 1 step 5a -- never committed; rust/tools/dialects-dump-probe.patch): every distinct
++ * input the ten Java dialects left (Postgres, SQLite, Snowflake, BigQuery, Databricks, Trino, ClickHouse, MariaDb,
++ * MySql, MongoDb) are asked to render or translate, dumped once per JVM with the answer of a FRESH dialect of the same
++ * class, in the line format of rust/oracles/mir/h2-dump.jsonl (config null: every one is made without arguments).
++ * Reflection, because sql/dialect may not depend on executionplan or json. Written to the test's undeclared outputs,
++ * else java.io.tmpdir (a java_run action's declared scratch directory).
++ */
++final class MirDumpProbe {
++
++    private MirDumpProbe() {
++    }
++
++    private static final Set<String> FAMILY = Set.of("Postgres", "SQLite", "Snowflake", "BigQuery", "Databricks",
++            "Trino", "ClickHouse", "MariaDb", "MySql", "MongoDb");
++    private static final ThreadLocal<Boolean> BUSY = ThreadLocal.withInitial(() -> Boolean.FALSE);
++    private static final Set<String> SEEN = ConcurrentHashMap.newKeySet();
++    private static final ConcurrentHashMap<String, AtomicLong> PER_KIND = new ConcurrentHashMap<>();
++    private static final long STATEMENT_CAP = 400;
++    private static final String TAG = String.valueOf(ProcessHandle.current().pid());
++
++    /** One input of {@code op}, dumped with a fresh dialect's answer. {@code input} is the Java value. */
++    static void dump(AnsiSqlRenderer dialect, String op, Object input) {
++        String name = dialect.getClass().getSimpleName();
++        if (!FAMILY.contains(name) || BUSY.get()) {
++            return;
++        }
++        BUSY.set(Boolean.TRUE);
++        try {
++            String mir = mirOf(input);
++            String kind = input instanceof String ? "String" : input.getClass().getSimpleName();
++            boolean statement = op.startsWith("ddl") || op.startsWith("dml");
++            AtomicLong perKind = PER_KIND.computeIfAbsent(name + "/" + kind, k -> new AtomicLong());
++            if (statement && perKind.get() >= STATEMENT_CAP) {
++                return;
++            }
++            if (!SEEN.add(name + '\u0000' + op + '\u0000' + mir)) {
++                return;
++            }
++            if (statement) {
++                perKind.incrementAndGet();
++            }
++            AnsiSqlRenderer fresh = dialect.getClass().getDeclaredConstructor().newInstance();
++            String out;
++            try {
++                out = "{\"ok\":" + answerOf(fresh, op, input) + "}";
++            } catch (RuntimeException e) {
++                out = "{\"throws\":" + quote(e.getClass().getName()) + ",\"message\":"
++                        + quote(String.valueOf(e.getMessage())) + "}";
++            }
++            append("{\"dialect\":" + quote(name) + ",\"config\":null,\"fresh\":true,\"op\":" + quote(op)
++                    + ",\"kind\":" + quote(kind) + ",\"mir\":" + mir + ",\"answer\":" + out + "}\n");
++        } catch (Throwable t) {
++            Throwable cause = t instanceof java.lang.reflect.InvocationTargetException i && i.getCause() != null
++                    ? i.getCause() : t;
++            append("{\"probeError\":" + quote(name + " " + op + ": " + cause) + ",\"input\":"
++                    + quote(String.valueOf(input)) + "}\n");
++        } finally {
++            BUSY.set(Boolean.FALSE);
++        }
++    }
++
++    private static String answerOf(AnsiSqlRenderer d, String op, Object input) {
++        return switch (op) {
++            case "query.render" -> quote(d.render((com.legend.sql.SqlQuery) input));
++            case "query.renderStatement" -> statement(d.renderStatement((com.legend.sql.SqlQuery) input));
++            case "ddl.render" -> quote(d.render((com.legend.sql.SqlDdl) input));
++            case "dml.render" -> quote(d.render((com.legend.sql.SqlDml) input));
++            case "dml.renderStatement" -> statement(d.renderStatement((com.legend.sql.SqlDml) input));
++            case "fromEngineText" -> quote(d.fromEngineText((String) input));
++            default -> throw new IllegalStateException(op);
++        };
++    }
++
++    private static String mirOf(Object input) throws ReflectiveOperationException {
++        if (input instanceof String s) {
++            return quote(s);
++        }
++        Class<?> mir = Class.forName("com.legend.executionplan.MirJson");
++        Class<?> json = Class.forName("com.legend.json.Json");
++        Object tree;
++        if (input instanceof com.legend.sql.SqlQuery q) {
++            tree = mir.getMethod("query", com.legend.sql.SqlQuery.class).invoke(null, q);
++        } else if (input instanceof com.legend.sql.SqlDdl d) {
++            tree = mir.getMethod("ddl", com.legend.sql.SqlDdl.class).invoke(null, d);
++        } else if (input instanceof com.legend.sql.SqlDml d) {
++            tree = mir.getMethod("dml", com.legend.sql.SqlDml.class).invoke(null, d);
++        } else {
++            throw new IllegalStateException("no MirJson for " + input.getClass());
++        }
++        return (String) json.getMethod("toCompact", Object.class).invoke(null, tree);
++    }
++
++    private static String statement(RenderedStatement s) {
++        return "{\"sql\":" + quote(s.sql()) + ",\"binds\":" + quote(String.valueOf(s.binds())) + ",\"regions\":"
++                + quote(String.valueOf(s.regions())) + "}";
++    }
++
++    static String quote(String s) {
++        StringBuilder b = new StringBuilder("\"");
++        for (char c : s.toCharArray()) {
++            switch (c) {
++                case '"' -> b.append("\\\"");
++                case '\\' -> b.append("\\\\");
++                case '\n' -> b.append("\\n");
++                case '\r' -> b.append("\\r");
++                case '\t' -> b.append("\\t");
++                default -> {
++                    if (c < 0x20) {
++                        b.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) c));
++                    } else {
++                        b.append(c);
++                    }
++                }
++            }
++        }
++        return b.append('"').toString();
++    }
++
++    private static synchronized void append(String line) {
++        try {
++            String d = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
++            Path dir = Path.of(d != null ? d : System.getProperty("java.io.tmpdir"));
++            Files.writeString(dir.resolve("dialects-dump-" + TAG + ".jsonl"), line, StandardCharsets.UTF_8,
++                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
++        } catch (Throwable ignored) {
++            // the probe never fails the run
++        }
++    }
++}
+diff --git a/core/src/main/java/com/legend/sql/dialect/MongoDb.java b/core/src/main/java/com/legend/sql/dialect/MongoDb.java
+index 40576bc9c..0eac3fa87 100644
+--- a/core/src/main/java/com/legend/sql/dialect/MongoDb.java
++++ b/core/src/main/java/com/legend/sql/dialect/MongoDb.java
+@@ -198,6 +198,7 @@ public final class MongoDb extends AnsiSqlRenderer {
+     /** {@inheritDoc} The engine's H2 text has no translation into a pipeline. */
+     @Override
+     public String fromEngineText(String statement) {
++        MirDumpProbe.dump(this, "fromEngineText", statement);
+         throw new DialectCapability("the engine's H2 text reached MongoDb, which runs no SQL text");
+     }
+ 
+@@ -2601,6 +2602,7 @@ public final class MongoDb extends AnsiSqlRenderer {
+      *  collection's database is the connection's), nor has a temporary collection. */
+     @Override
+     public String render(com.legend.sql.SqlDdl ddl) {
++        MirDumpProbe.dump(this, "ddl.render", ddl);
+         return switch (ddl) {
+             case com.legend.sql.SqlDdl.CreateTable ct -> {
+                 if (ct.temporary()) {
+@@ -2634,6 +2636,7 @@ public final class MongoDb extends AnsiSqlRenderer {
+      *  document. A copy between collections and a temporary collection from a query are not shaped. */
+     @Override
+     public String render(com.legend.sql.SqlDml dml) {
++        MirDumpProbe.dump(this, "dml.render", dml);
+         return switch (dml) {
+             case com.legend.sql.SqlDml.InsertValues iv -> insert(iv);
+             case com.legend.sql.SqlDml.InsertFromTable it -> throw new DialectCapability("a copy from a table"
+diff --git a/core/src/main/java/com/legend/sql/dialect/Postgres.java b/core/src/main/java/com/legend/sql/dialect/Postgres.java
+index 75dffa6be..414e2332a 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Postgres.java
++++ b/core/src/main/java/com/legend/sql/dialect/Postgres.java
+@@ -210,6 +210,7 @@ public final class Postgres extends AnsiSqlRenderer {
+      *  store's ({@link #physicalName}, decision D8). */
+     @Override
+     public String fromEngineText(String statement) {
++        MirDumpProbe.dump(this, "fromEngineText", statement);
+         return RawSqlBoundary.translated(statement,
+                 types -> ENGINE_TINYINT.matcher(ENGINE_DOUBLE.matcher(types).replaceAll("DOUBLE PRECISION"))
+                         .replaceAll("SMALLINT"),
+diff --git a/core/src/main/java/com/legend/sql/dialect/SQLite.java b/core/src/main/java/com/legend/sql/dialect/SQLite.java
+index 8d6afc319..df06e993c 100644
+--- a/core/src/main/java/com/legend/sql/dialect/SQLite.java
++++ b/core/src/main/java/com/legend/sql/dialect/SQLite.java
+@@ -120,6 +120,7 @@ public final class SQLite extends AnsiSqlRenderer {
+      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+     @Override
+     public String fromEngineText(String statement) {
++        MirDumpProbe.dump(this, "fromEngineText", statement);
+         throw new DialectCapability("the engine's H2 text reached SQLite, which has no translation of it");
+     }
+ 
+@@ -284,6 +285,7 @@ public final class SQLite extends AnsiSqlRenderer {
+ 
+     @Override
+     public String render(SqlQuery query) {
++        MirDumpProbe.dump(this, "query.render", query);
+         roots.push(query.outputs());
+         rootSelects.push(new IdentityHashMap<>());
+         try {
+@@ -296,6 +298,7 @@ public final class SQLite extends AnsiSqlRenderer {
+ 
+     @Override
+     public RenderedStatement renderStatement(SqlQuery query) {
++        MirDumpProbe.dump(this, "query.renderStatement", query);
+         roots.push(query.outputs());
+         rootSelects.push(new IdentityHashMap<>());
+         try {
+@@ -3080,6 +3083,7 @@ public final class SQLite extends AnsiSqlRenderer {
+     /** A schema names no object of its own ({@link #tableName}): its creation and its drop are no statement. */
+     @Override
+     public String render(com.legend.sql.SqlDdl ddl) {
++        MirDumpProbe.dump(this, "ddl.render", ddl);
+         return switch (ddl) {
+             case com.legend.sql.SqlDdl.CreateSchema cs -> "SELECT 1;";
+             case com.legend.sql.SqlDdl.DropSchema ds -> "SELECT 1;";
+@@ -3109,6 +3113,7 @@ public final class SQLite extends AnsiSqlRenderer {
+     /** Rows in and out of a table, named as {@link #tableName} names it. */
+     @Override
+     public String render(com.legend.sql.SqlDml dml) {
++        MirDumpProbe.dump(this, "dml.render", dml);
+         return switch (dml) {
+             case com.legend.sql.SqlDml.InsertValues iv -> {
+                 SqlWriter writer = newWriter().append("INSERT INTO ").append(qualified(iv.schema(), iv.table(), iv.quoting()))
+diff --git a/core/src/main/java/com/legend/sql/dialect/Snowflake.java b/core/src/main/java/com/legend/sql/dialect/Snowflake.java
+index 3fffad11a..45aec9c59 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Snowflake.java
++++ b/core/src/main/java/com/legend/sql/dialect/Snowflake.java
+@@ -67,6 +67,7 @@ public final class Snowflake extends AnsiSqlRenderer {
+      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+     @Override
+     public String fromEngineText(String statement) {
++        MirDumpProbe.dump(this, "fromEngineText", statement);
+         throw new DialectCapability("the engine's H2 text reached Snowflake, which has no translation of it");
+     }
+ 
+@@ -129,6 +130,7 @@ public final class Snowflake extends AnsiSqlRenderer {
+ 
+     @Override
+     public String render(SqlQuery query) {
++        MirDumpProbe.dump(this, "query.render", query);
+         roots.push(query.outputs());
+         try {
+             return super.render(query);
+@@ -139,6 +141,7 @@ public final class Snowflake extends AnsiSqlRenderer {
+ 
+     @Override
+     public RenderedStatement renderStatement(SqlQuery query) {
++        MirDumpProbe.dump(this, "query.renderStatement", query);
+         roots.push(query.outputs());
+         try {
+             return super.renderStatement(query);
+diff --git a/core/src/main/java/com/legend/sql/dialect/Trino.java b/core/src/main/java/com/legend/sql/dialect/Trino.java
+index bc89b16c4..e1e0d6268 100644
+--- a/core/src/main/java/com/legend/sql/dialect/Trino.java
++++ b/core/src/main/java/com/legend/sql/dialect/Trino.java
+@@ -73,6 +73,7 @@ public final class Trino extends AnsiSqlRenderer {
+      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
+     @Override
+     public String fromEngineText(String statement) {
++        MirDumpProbe.dump(this, "fromEngineText", statement);
+         throw new DialectCapability("the engine's H2 text reached Trino, which has no translation of it");
+     }
+ 
