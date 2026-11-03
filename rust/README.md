@@ -18,3 +18,7 @@ references the port is judged against; the Cargo workspace joins in phase 0 step
     text→JSON→text→JSON answers.
 - `oracles/java-compat/`: the Java facts `conformance_jvm` does not pin, from `JavaCompatExtras.java` run on the
   build's JDK (25.0.4, tzdata 2026b): every code point's character classes, as runs, and `ZoneId.SHORT_IDS`.
+- `tools/mirjson-roundtrip-probe.patch`: the probe that proved the SQL-tree seam (docs/rust-port/PHASE0.md §4).
+  `git apply` it, run any suite with `--test_env=LEGEND_MIRJSON_ROUNDTRIP=1 --nozip_undeclared_test_outputs`, and
+  read `mirjson-roundtrip-*` in each test's outputs; never commit it to the sources. Phase 1's differential is the
+  same probe with the second render made by Rust.

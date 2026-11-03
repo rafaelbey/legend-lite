@@ -1,0 +1,296 @@
+diff --git a/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java b/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
+index f4453b6b7..3b5028a51 100644
+--- a/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
++++ b/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
+@@ -66,12 +66,16 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+ 
+     @Override
+     public String render(SqlQuery query) {
+-        return write(query).text();
++        String text = write(query).text();
++        MirRoundTripProbe.check(this, query, text, q -> render(q));
++        return text;
+     }
+ 
+     @Override
+     public RenderedStatement renderStatement(SqlQuery query) {
+-        return write(query).statement();
++        RenderedStatement statement = write(query).statement();
++        MirRoundTripProbe.check(this, query, statement, q -> renderStatement(q));
++        return statement;
+     }
+ 
+     /** {@inheritDoc} This dialect's own {@link #render}, in the single-line mode {@link #inline} writes a subquery
+@@ -1736,6 +1740,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+ 
+     @Override
+     public String render(com.legend.sql.SqlDdl ddl) {
++        MirRoundTripProbe.checkDdl(this, ddl);
+         return switch (ddl) {
+             case com.legend.sql.SqlDdl.CreateTable ct -> {
+                 // a TEMPORARY table: the one ANSI spelling every target here accepts
+@@ -1774,6 +1779,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+ 
+     @Override
+     public String render(com.legend.sql.SqlDml dml) {
++        MirRoundTripProbe.checkDml(this, dml);
+         return switch (dml) {
+             case com.legend.sql.SqlDml.InsertValues iv -> {
+                 SqlWriter writer = newWriter().append("INSERT INTO ").append(ddlQualified(iv.schema(), iv.table(), iv.quoting()))
+@@ -1803,6 +1809,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+ 
+     @Override
+     public RenderedStatement renderStatement(com.legend.sql.SqlDml dml) {
++        MirRoundTripProbe.checkDml(this, dml);
+         return switch (dml) {
+             // a seed's rows, a copy, a table emptied: setup's statements, which bind no value (their text, as this
+             // dialect renders it)
+diff --git a/core/src/main/java/com/legend/sql/dialect/BigQuery.java b/core/src/main/java/com/legend/sql/dialect/BigQuery.java
+index a0fcc3e03..d9eda0897 100644
+--- a/core/src/main/java/com/legend/sql/dialect/BigQuery.java
++++ b/core/src/main/java/com/legend/sql/dialect/BigQuery.java
+@@ -2954,6 +2954,7 @@ public final class BigQuery extends AnsiSqlRenderer {
+      *  one BigQuery refuses it, measured), unqualified; a key is declared NOT ENFORCED. */
+     @Override
+     public String render(com.legend.sql.SqlDdl ddl) {
++        MirRoundTripProbe.checkDdl(this, ddl);
+         return switch (ddl) {
+             case com.legend.sql.SqlDdl.CreateTable ct -> {
+                 StringBuilder sb = new StringBuilder(ct.temporary() ? "CREATE TEMP TABLE " : "CREATE TABLE ")
+@@ -2984,6 +2985,7 @@ public final class BigQuery extends AnsiSqlRenderer {
+     /** A DELETE needs a WHERE clause in GoogleSQL. */
+     @Override
+     public String render(com.legend.sql.SqlDml dml) {
++        MirRoundTripProbe.checkDml(this, dml);
+         if (dml instanceof com.legend.sql.SqlDml.DeleteAll da) {
+             return "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + " WHERE TRUE;";
+         }
+diff --git a/core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java b/core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java
+index f995ab0b2..0506230ba 100644
+--- a/core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java
++++ b/core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java
+@@ -418,6 +418,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect
+      *  {@code setup/Ddl} wrote this text). Every other statement is the base's. */
+     @Override
+     public String render(com.legend.sql.SqlDml dml) {
++        MirRoundTripProbe.checkDml(this, dml);
+         return switch (dml) {
+             case com.legend.sql.SqlDml.InsertValues iv -> seedRow(iv);
+             case com.legend.sql.SqlDml.InsertFromTable it -> super.render(it);
+diff --git a/core/src/main/java/com/legend/sql/dialect/MirRoundTripProbe.java b/core/src/main/java/com/legend/sql/dialect/MirRoundTripProbe.java
+new file mode 100644
+index 000000000..a790ccca5
+--- /dev/null
++++ b/core/src/main/java/com/legend/sql/dialect/MirRoundTripProbe.java
+@@ -0,0 +1,171 @@
++// Copyright 2026 Legend Contributors
++// SPDX-License-Identifier: Apache-2.0
++
++package com.legend.sql.dialect;
++
++import com.legend.sql.SqlQuery;
++import java.io.IOException;
++import java.lang.reflect.Method;
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.StandardOpenOption;
++import java.util.concurrent.atomic.AtomicLong;
++import java.util.function.Function;
++
++/**
++ * TEMPORARY (Rust port, phase 0 step 4 -- never committed): with LEGEND_MIRJSON_ROUNDTRIP set, every query a dialect
++ * renders is also rendered after a hop through its plan JSON (MirJson.query, Json.toCompact, Json.parse,
++ * MirJson.readQuery), and the two answers are compared. Reflection, because sql/dialect may not depend on
++ * executionplan or json. Mismatches and errors go to the test's undeclared outputs.
++ */
++final class MirRoundTripProbe {
++
++    private MirRoundTripProbe() {
++    }
++
++    static final boolean ON = System.getenv("LEGEND_MIRJSON_ROUNDTRIP") != null;
++    private static final ThreadLocal<Boolean> BUSY = ThreadLocal.withInitial(() -> Boolean.FALSE);
++    private static final AtomicLong OK = new AtomicLong();
++    private static final AtomicLong MISMATCH = new AtomicLong();
++    private static final AtomicLong ERROR = new AtomicLong();
++    private static final AtomicLong STMT_OK = new AtomicLong();
++    private static final AtomicLong STMT_MISMATCH = new AtomicLong();
++    private static final AtomicLong STMT_ERROR = new AtomicLong();
++    private static final AtomicLong LOGGED = new AtomicLong();
++    private static final long MAX_LOGGED = 500;
++    private static final Path DIR = dir();
++    private static final String TAG = String.valueOf(ProcessHandle.current().pid());
++
++    static {
++        if (ON) {
++            Runtime.getRuntime().addShutdownHook(new Thread(() -> append("mirjson-roundtrip-summary-" + TAG + ".txt",
++                    "ok\t" + OK.get() + "\nmismatch\t" + MISMATCH.get() + "\nerror\t" + ERROR.get()
++                            + "\nstmt_ok\t" + STMT_OK.get() + "\nstmt_mismatch\t" + STMT_MISMATCH.get()
++                            + "\nstmt_error\t" + STMT_ERROR.get() + "\n")));
++        }
++    }
++
++    private static Path dir() {
++        String d = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
++        return Path.of(d != null ? d : System.getProperty("java.io.tmpdir"));
++    }
++
++    static <T> void check(AnsiSqlRenderer dialect, SqlQuery query, T original, Function<SqlQuery, T> again) {
++        if (!ON || BUSY.get()) {
++            return;
++        }
++        BUSY.set(Boolean.TRUE);
++        try {
++            SqlQuery back = roundTrip(query);
++            T second = again.apply(back);
++            if (second.equals(original)) {
++                OK.incrementAndGet();
++            } else {
++                MISMATCH.incrementAndGet();
++                T direct = again.apply(query);
++                String a = query.toString();
++                String b = back.toString();
++                int i = 0;
++                while (i < Math.min(a.length(), b.length()) && a.charAt(i) == b.charAt(i)) {
++                    i++;
++                }
++                int from = Math.max(0, i - 150);
++                log("MISMATCH", dialect, String.valueOf(original), String.valueOf(second)
++                        + "\tdirect-rerender-same=" + direct.equals(original)
++                        + "\ttree-equal=" + query.equals(back)
++                        + "\ttree-diverges-at=" + i
++                        + "\tq=" + a.substring(from, Math.min(a.length(), i + 250))
++                        + "\tback=" + b.substring(from, Math.min(b.length(), i + 250)));
++            }
++        } catch (Throwable t) {
++            ERROR.incrementAndGet();
++            log("ERROR", dialect, String.valueOf(original), t.getClass().getName() + ": " + t.getMessage());
++        } finally {
++            BUSY.set(Boolean.FALSE);
++        }
++    }
++
++    static void checkDdl(AnsiSqlRenderer dialect, com.legend.sql.SqlDdl d) {
++        statement(dialect, d, "ddl", "readDdl", com.legend.sql.SqlDdl.class,
++                x -> dialect.render((com.legend.sql.SqlDdl) x));
++    }
++
++    static void checkDml(AnsiSqlRenderer dialect, com.legend.sql.SqlDml d) {
++        statement(dialect, d, "dml", "readDml", com.legend.sql.SqlDml.class,
++                x -> outcome(() -> dialect.render((com.legend.sql.SqlDml) x)) + " | "
++                        + outcome(() -> String.valueOf(dialect.renderStatement((com.legend.sql.SqlDml) x))));
++    }
++
++    private static String outcome(java.util.function.Supplier<String> s) {
++        try {
++            return "OK:" + s.get();
++        } catch (RuntimeException e) {
++            return "THROWS:" + e.getClass().getName() + ": " + e.getMessage();
++        }
++    }
++
++    private static void statement(AnsiSqlRenderer dialect, Object d, String writer, String reader, Class<?> type,
++            Function<Object, String> render) {
++        if (!ON || BUSY.get()) {
++            return;
++        }
++        BUSY.set(Boolean.TRUE);
++        try {
++            Class<?> mir = Class.forName("com.legend.executionplan.MirJson");
++            Class<?> json = Class.forName("com.legend.json.Json");
++            Class<?> obj = Class.forName("com.legend.json.Json$Obj");
++            String text = (String) json.getMethod("toCompact", Object.class)
++                    .invoke(null, mir.getMethod(writer, type).invoke(null, d));
++            Object back = mir.getMethod(reader, obj).invoke(null, json.getMethod("parse", String.class).invoke(null, text));
++            String a = outcome(() -> render.apply(d));
++            String b = outcome(() -> render.apply(back));
++            if (a.equals(b) && d.equals(back)) {
++                STMT_OK.incrementAndGet();
++            } else {
++                STMT_MISMATCH.incrementAndGet();
++                log("STMT-MISMATCH", dialect, a, b + "\tstatement-equal=" + d.equals(back));
++            }
++        } catch (Throwable t) {
++            STMT_ERROR.incrementAndGet();
++            log("STMT-ERROR", dialect, String.valueOf(d), t.getClass().getName() + ": " + t.getMessage());
++        } finally {
++            BUSY.set(Boolean.FALSE);
++        }
++    }
++
++    private static SqlQuery roundTrip(SqlQuery q) throws ReflectiveOperationException {
++        Class<?> mir = Class.forName("com.legend.executionplan.MirJson");
++        Class<?> json = Class.forName("com.legend.json.Json");
++        Class<?> config = Class.forName("com.legend.json.Json$Config");
++        Class<?> obj = Class.forName("com.legend.json.Json$Obj");
++        Method query = mir.getMethod("query", SqlQuery.class);
++        Method toCompact = json.getMethod("toCompact", Object.class);
++        Method parse = json.getMethod("parse", String.class, config);
++        Method readQuery = mir.getMethod("readQuery", obj);
++        String text = (String) toCompact.invoke(null, query.invoke(null, q));
++        Object node = parse.invoke(null, text, config.getConstructor(int.class).newInstance(4096));
++        return (SqlQuery) readQuery.invoke(null, node);
++    }
++
++    private static void log(String kind, AnsiSqlRenderer dialect, String original, String other) {
++        if (LOGGED.incrementAndGet() > MAX_LOGGED) {
++            return;
++        }
++        append("mirjson-roundtrip-" + TAG + ".tsv", kind + "\t" + dialect.getClass().getSimpleName() + "\t"
++                + escape(original) + "\t" + escape(other) + "\n");
++    }
++
++    private static String escape(String s) {
++        return s.replace("\\", "\\\\").replace("\t", "\\t").replace("\n", "\\n");
++    }
++
++    private static synchronized void append(String file, String line) {
++        try {
++            Files.writeString(DIR.resolve(file), line, StandardCharsets.UTF_8, StandardOpenOption.CREATE,
++                    StandardOpenOption.APPEND);
++        } catch (IOException e) {
++            // a probe that cannot write must not fail the test it rides on
++        }
++    }
++}
+diff --git a/core/src/main/java/com/legend/sql/dialect/MongoDb.java b/core/src/main/java/com/legend/sql/dialect/MongoDb.java
+index 40576bc9c..77f094736 100644
+--- a/core/src/main/java/com/legend/sql/dialect/MongoDb.java
++++ b/core/src/main/java/com/legend/sql/dialect/MongoDb.java
+@@ -2601,6 +2601,7 @@ public final class MongoDb extends AnsiSqlRenderer {
+      *  collection's database is the connection's), nor has a temporary collection. */
+     @Override
+     public String render(com.legend.sql.SqlDdl ddl) {
++        MirRoundTripProbe.checkDdl(this, ddl);
+         return switch (ddl) {
+             case com.legend.sql.SqlDdl.CreateTable ct -> {
+                 if (ct.temporary()) {
+@@ -2634,6 +2635,7 @@ public final class MongoDb extends AnsiSqlRenderer {
+      *  document. A copy between collections and a temporary collection from a query are not shaped. */
+     @Override
+     public String render(com.legend.sql.SqlDml dml) {
++        MirRoundTripProbe.checkDml(this, dml);
+         return switch (dml) {
+             case com.legend.sql.SqlDml.InsertValues iv -> insert(iv);
+             case com.legend.sql.SqlDml.InsertFromTable it -> throw new DialectCapability("a copy from a table"
+diff --git a/core/src/main/java/com/legend/sql/dialect/SQLite.java b/core/src/main/java/com/legend/sql/dialect/SQLite.java
+index 8d6afc319..ba6deed9b 100644
+--- a/core/src/main/java/com/legend/sql/dialect/SQLite.java
++++ b/core/src/main/java/com/legend/sql/dialect/SQLite.java
+@@ -3080,6 +3080,7 @@ public final class SQLite extends AnsiSqlRenderer {
+     /** A schema names no object of its own ({@link #tableName}): its creation and its drop are no statement. */
+     @Override
+     public String render(com.legend.sql.SqlDdl ddl) {
++        MirRoundTripProbe.checkDdl(this, ddl);
+         return switch (ddl) {
+             case com.legend.sql.SqlDdl.CreateSchema cs -> "SELECT 1;";
+             case com.legend.sql.SqlDdl.DropSchema ds -> "SELECT 1;";
+@@ -3109,6 +3110,7 @@ public final class SQLite extends AnsiSqlRenderer {
+     /** Rows in and out of a table, named as {@link #tableName} names it. */
+     @Override
+     public String render(com.legend.sql.SqlDml dml) {
++        MirRoundTripProbe.checkDml(this, dml);
+         return switch (dml) {
+             case com.legend.sql.SqlDml.InsertValues iv -> {
+                 SqlWriter writer = newWriter().append("INSERT INTO ").append(qualified(iv.schema(), iv.table(), iv.quoting()))

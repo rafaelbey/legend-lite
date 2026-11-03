@@ -113,6 +113,9 @@ test runners, `testdatagen`, `probe` (already scheduled for deletion), `protocol
    lookahead, `SavedQueries:48` possessive, `AgreementArm:130` `\R`).
 5. `CommonSubexpressions:93` breaks ties in identity-hash order, so Java's own output is already nondeterministic
    there (SQLite, BigQuery) → a deterministic rule.
+6. Fresh-name counters on dialect objects are never reset per render (`SQLite` `binds`, `Snowflake` `fresh`,
+   `CommonSubexpressions` `fresh`), so Java's SQL depends on what the dialect rendered before → the Rust renderer
+   resets them per render ([`PHASE0.md`](PHASE0.md) §4: 28 of 5.6M renders).
 
 ## Sources
 

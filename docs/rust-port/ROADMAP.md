@@ -39,6 +39,8 @@ reason, per AGENTS.md's rule for moving a pin or a ledger.
 
 ### Phase 0 — groundwork (no Java deleted)
 
+Steps 1–4 done 2026-11-02; the measurements are [`PHASE0.md`](PHASE0.md).
+
 1. The baseline: `bazel test //...` on the pristine tree, recorded per target as `rust/BASELINE.tsv`.
 2. The JVM's answers that are build outputs today, committed: `//wasm:jvm_answers`, `//wasm:zone_jvm`,
    `//parser-equivalence:tab_round_trip`, and `//python:bindings_test`'s answers — otherwise the differentials
