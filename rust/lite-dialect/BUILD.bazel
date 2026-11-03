@@ -37,8 +37,9 @@ rust_test(
 # (tests/<dialect>-floor.txt) identical; every type fact of every statement of the oracles recomputed and held to Java's;
 # and every op of each dialect's statements answered through the seam (SEAM.md) exactly as a direct call answers it;
 # and the engine text's zone shift held to java.time over the JDK's tzdb (//rust/oracles/tzdb: every region's offsets,
-# gaps and overlaps, and Java's own EngineStyleH2 renders) (tests/dialect_differential.rs, PARITY.md; cargo runs it with
-# --ignored, LITE_ORACLES and LITE_ZONE_ORACLES)
+# gaps and overlaps, and Java's own EngineStyleH2 renders), the embedded tzdb.bin held to the generator's output on the
+# build's JDK (a JDK bump that changes the rules fails until they are regenerated) (tests/dialect_differential.rs,
+# PARITY.md; cargo runs it with --ignored, LITE_ORACLES, LITE_ZONE_ORACLES and LITE_TZDB_GENERATED)
 rust_test(
     name = "dialect_differential_test",
     srcs = ["tests/dialect_differential.rs"],
@@ -54,6 +55,7 @@ rust_test(
         "//rust/oracles:mir/tagged-engine.jsonl",
         "//rust/oracles:mir_dump",
         "//rust/oracles/tzdb:engine-text-zones.tsv",
+        "//rust/oracles/tzdb:out/tzdb.bin",
         "//rust/oracles/tzdb:zone_golden",
     ],
     edition = "2024",
@@ -71,6 +73,7 @@ rust_test(
             "$(rootpath //rust/oracles:h2_dump)",
             "$(rootpath //rust/oracles:mir/tagged-engine.jsonl)",
         ]),
+        "LITE_TZDB_GENERATED": "$(rootpath //rust/oracles/tzdb:out/tzdb.bin)",
         "LITE_ZONE_ORACLES": " ".join([
             "$(rootpath //rust/oracles/tzdb:zone_golden)",
             "$(rootpath //rust/oracles/tzdb:engine-text-zones.tsv)",

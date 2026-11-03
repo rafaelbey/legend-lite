@@ -685,6 +685,12 @@ pub fn tzdb() -> &'static Tzdb {
     &TZDB
 }
 
+/// The embedded tzdb's bytes, as committed (`rust/oracles/tzdb/tzdb.bin`): the differential holds them to the
+/// generator's output on the build's JDK, so a JDK bump that changes the rules fails until they are regenerated.
+pub fn tzdb_bytes() -> &'static [u8] {
+    TZDB_BYTES
+}
+
 // ==================================================================
 // ZoneId
 // ==================================================================

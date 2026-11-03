@@ -50,6 +50,9 @@ java_run(
     # the arrays are ZoneRules' own private fields: the standard transitions have no public accessor
     jvm_flags = ["--add-opens=java.base/java.time.zone=ALL-UNNAMED"],
     main_class = "tzdb.TzdbData",
+    # //rust/lite-dialect:dialect_differential_test holds the committed tzdb.bin to out/tzdb.bin: a JDK whose rules
+    # differ fails it until the data is regenerated
+    visibility = ["//rust:__subpackages__"],
     deps = [":generator"],
 )
 

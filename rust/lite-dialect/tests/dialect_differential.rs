@@ -1332,6 +1332,33 @@ fn the_zone_shift_answers_as_java_does() {
     assert!(different.is_empty(), "{} zone answers differ from Java's", different.len());
 }
 
+/// The embedded tzdb is the build JDK's (`LITE_TZDB_GENERATED`: `//rust/oracles/tzdb:tzdb_data`'s `out/tzdb.bin`,
+/// written on the build's JDK by every build): the committed `rust/oracles/tzdb/tzdb.bin` the dialect library embeds
+/// is that output byte for byte, so a JDK bump whose tzdb changes the rules fails here until the data is regenerated.
+#[test]
+#[ignore = "reads the tzdb the build's JDK writes, named by LITE_TZDB_GENERATED"]
+fn the_embedded_tzdb_is_the_build_jdks() {
+    let path = std::env::var("LITE_TZDB_GENERATED")
+        .expect("LITE_TZDB_GENERATED is unset: it names //rust/oracles/tzdb:tzdb_data's out/tzdb.bin");
+    let generated = std::fs::read(&path).unwrap_or_else(|e| panic!("cannot read {path}: {e}"));
+    let embedded = lite_dialect::java_time::tzdb_bytes();
+    let data = lite_dialect::java_time::tzdb();
+    assert!(
+        generated == embedded,
+        "the embedded tzdb (rust/oracles/tzdb/tzdb.bin: java {}, tzdb {}, {} bytes) is not what the build's JDK writes \
+         ({path}, {} bytes): the JDK's time-zone rules changed. Regenerate the data and its oracles \
+         (rust/oracles/tzdb/BUILD.bazel): bazel build //rust/oracles/tzdb:tzdb_data; cp \
+         bazel-bin/rust/oracles/tzdb/out/tzdb.bin rust/oracles/tzdb/tzdb.bin; zstd -19 -f \
+         bazel-bin/rust/oracles/tzdb/out/zone-golden.tsv -o rust/oracles/tzdb/zone-golden.tsv.zst; rerun \
+         EngineTextZones.java as its comment says; update rust/oracles/tzdb/MANIFEST.tsv's versions and SHA-256s, and \
+         the counts java_time.rs's tests pin",
+        data.java,
+        data.version,
+        embedded.len(),
+        generated.len()
+    );
+}
+
 /// `O <zone> <epoch second> <offset> <standard offset> <local date-time>`: what differs, if anything, and whether the
 /// shift of the instant's UTC text was checked too.
 fn zone_instant(f: &[&str]) -> (Option<String>, bool) {
