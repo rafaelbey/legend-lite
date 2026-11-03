@@ -35,6 +35,12 @@ final class ModelHome {
     private static final Map<String, Sdlc> SDLCS = new HashMap<>();
     private static final Map<String, Depot> DEPOTS = new HashMap<>();
 
+    // as Compiler's: the SDLC's grammar (//sdlc-server/grammar) reaches the planner and its dialects, which call the
+    // Rust library, and a host may call here first
+    static {
+        RustLibrary.besideThisLibrary();
+    }
+
     private ModelHome() {
     }
 

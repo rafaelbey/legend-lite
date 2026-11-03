@@ -90,7 +90,10 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
    two side by side in `_native/` (`//python:wheel_rust_library`), and `//python:wheel_test` measures both and runs the
    installed wheel with nothing pointing anywhere. Bazel's runs carry `//rust/lite-ffi:lite_ffi` beside
    `//native:compiler` and find it in their runfiles. Probed by hand before the wiring: libcompiler and liblite_ffi
-   alone in a folder, no runfiles, Python planning a DuckDB query -- answered, 0 unfreed.
+   alone in a folder, no runfiles, Python planning a DuckDB query -- answered, 0 unfreed. The lookup runs when an entry
+   class that can reach the dialects loads: `nativelib.Compiler` (through `//wasm:boundary`) and `ModelHome` (through
+   `//sdlc-server/grammar`); by `bazel query`, the warehouse's, the saved queries' and the depot's entries reach no
+   dialect -- what phase 4's entry-point drop needs to know.
 
    `bazel test //...` against rust/BASELINE.tsv: every baseline target keeps its status; the new targets are the Rust
    crates' tests and `//core:ffi_test`.
