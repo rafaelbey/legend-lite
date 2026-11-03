@@ -73,7 +73,10 @@ class RawSqlLedgerTest {
             // 2026-11-03 (docs/rust-port/PHASE1.md, the DuckDB switch; rust/RETIRED_TESTS.md): DuckDB's call left
             // Java with its dialect -- the Rust library's one translation (rust/lite-dialect/src/raw_sql.rs) has the
             // one caller, DuckDb's fromEngineText (rust/lite-dialect/src/duckdb.rs)
-            "Postgres.java", 1);
+            // 2026-11-03 (docs/rust-port/PHASE1.md, the Postgres switch; rust/RETIRED_TESTS.md): Postgres's call left
+            // Java too -- its fromEngineText is rust/lite-dialect/src/postgres.rs over raw_sql::translated. No Java
+            // caller is left: RawSqlBoundary's translation is the Rust library's
+            );
 
     private static final Pattern SITE =
             Pattern.compile("RawSqlBoundary(\\.|::)translated");

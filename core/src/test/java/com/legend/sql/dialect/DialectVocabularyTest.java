@@ -102,7 +102,8 @@ class DialectVocabularyTest {
         // three engine-text dialects are the Rust library's, their vocabulary decided in rust/lite-dialect (held to
         // Java's every answer by its differential); BigQuery, ClickHouse, Databricks, MariaDb, MySql, MongoDb, Postgres,
         // SQLite, Snowflake and Trino remain
-        assertTrue(dialects >= 10, "the dialect package's concrete dialects were not found: " + dialects);
+        // 10 -> 9 on 2026-11-03 (the Postgres switch; rust/RETIRED_TESTS.md): Postgres is the Rust library's too
+        assertTrue(dialects >= 9, "the dialect package's concrete dialects were not found: " + dialects);
         assertTrue(wrong.isEmpty(), "a dialect that does not decide its whole vocabulary itself: " + wrong);
     }
 

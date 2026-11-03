@@ -244,6 +244,24 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      between renders. `StarExceptToColumns`, `WholePartitionOrderedSets`, `StringCountsAsInt`, `RootNumericTypes`,
      `QualifyToSubselect`, `AggregatesDeliverDouble`, `ConstantKeysAsExpressions` and `SubstringClamp` stay Java for
      the dialects still Java.
+   - **5c, done 2026-11-03: Postgres switches.** `Postgres` is a shim over the Rust library -- its name, its
+     constructor, and `readsStored` and `tableName`, which same-package tests call, through the seam's general
+     `readsStored` and `tableName` ops (`RustDialects`). `PostgresHostOperations` and `StringCountsAsInt`, whose last
+     user it was, are deleted. Two guards moved (`rust/RETIRED_TESTS.md`): `RawSqlLedgerTest`, whose ledger is empty (no
+     Java caller of the raw translation is left), and `DialectVocabularyTest`'s floor (10 -> 9); `docs/dialect-capability`
+     regenerated. `bazel test //...` against rust/BASELINE.tsv: 517 pass, the same 2 skipped, every baseline target at its
+     baseline status (run with the counter reset below).
+   - **Fresh-name counters reset per render (the user's ruling, 2026-11-03).** SQLite's `__b<n>`, Snowflake's `__f<n>`,
+     `__s<n>`, ... and `CommonSubexpressions`' `__cse<n>` were numbered by counters that, in Java, could outlive a render
+     (PHASE0.md §4): the text a dialect object wrote depended on the statements it had written before, and the seam
+     makes a fresh dialect per call. Posted with both options -- keep Java's counters through the seam, or reset per
+     render -- and the user ruled: reset per render, and asked whether Java could do the same. Measured: the
+     `CommonSubexpressions` pass already reset (`renderPasses` builds a fresh one for each render); SQLite's and
+     Snowflake's names are a statement's own ("unique within a statement", SQLite's comment), no caller pastes one
+     render into another statement, and no test pins their numbers. So Java took the ruling first: SQLite and Snowflake
+     start their names over at each outermost query render (their `roots` stack empty). The same full run as 5c held
+     every baseline target, so the change is invisible to the suite, and their Rust ports reproduce Java exactly; the
+     golden dumps, made on fresh dialects, hold as they are.
 
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 

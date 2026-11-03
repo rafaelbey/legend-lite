@@ -42,6 +42,9 @@ public interface RustDialects {
     /** Whether the dialect reads a column stored as {@code type} through its stored read ({@link StoredReads}). */
     boolean readsStored(String name, SqlDdl.ColumnType type);
 
+    /** A table's name as the dialect writes a query's read of it. */
+    String tableName(String name, String table, com.legend.sql.NameQuoting quoting);
+
     /** The statements the library's {@link StableScanOrder} has changed in this process, every dialect's. */
     long scanOrderFirings();
 

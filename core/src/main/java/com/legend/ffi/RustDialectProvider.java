@@ -19,9 +19,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * {@link RustDialects} over the Rust library (META-INF/services names it): a dialect is a {@link RustDialect}, and
- * DuckDB's tables come from the seam's {@code duckdb.tables} and {@code duckdb.readsStored}
- * (rust/lite-dialect/SEAM.md).
+ * {@link RustDialects} over the Rust library (META-INF/services names it): a dialect is a {@link RustDialect}, DuckDB's
+ * tables come from the seam's {@code duckdb.tables}, and a dialect's stored reads and table names from
+ * {@code readsStored} and {@code tableName} (rust/lite-dialect/SEAM.md).
  */
 public final class RustDialectProvider implements RustDialects {
 
@@ -102,11 +102,28 @@ public final class RustDialectProvider implements RustDialects {
         args.put("type", MirJson.columnType(type));
         String answer;
         try {
-            answer = Lite.shared().dialect(spec(name), "duckdb.readsStored", Json.toCompact(args));
+            answer = Lite.shared().dialect(spec(name), "readsStored", Json.toCompact(args));
         } catch (LiteRefusal refusal) {
             throw RustDialect.rethrown(refusal.kind(), String.valueOf(refusal.getMessage()));
         }
         return Boolean.parseBoolean(answer);
+    }
+
+    @Override
+    public String tableName(String name, String table, com.legend.sql.NameQuoting quoting) {
+        Map<String, Object> q = new LinkedHashMap<>();
+        q.put("schema", quoting.schema());
+        q.put("table", quoting.table());
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("name", table);
+        args.put("quoting", q);
+        String answer;
+        try {
+            answer = Lite.shared().dialect(spec(name), "tableName", Json.toCompact(args));
+        } catch (LiteRefusal refusal) {
+            throw RustDialect.rethrown(refusal.kind(), String.valueOf(refusal.getMessage()));
+        }
+        return ((Json.Str) Json.parse(answer)).value();
     }
 
     @Override

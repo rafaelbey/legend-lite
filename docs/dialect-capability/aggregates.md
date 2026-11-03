@@ -5,7 +5,6 @@
 
 What each dialect does with each aggregate of the SQL IR. The legend, the method and the summary are in [README.md](README.md).
 
-- [Postgres](#postgres)
 - [Snowflake](#snowflake)
 - [Trino](#trino)
 - [BigQuery](#bigquery)
@@ -15,53 +14,6 @@ What each dialect does with each aggregate of the SQL IR. The legend, the method
 - [MariaDb](#mariadb)
 - [MySql](#mysql)
 - [MongoDb](#mongodb)
-
-## Postgres
-
-Database types planned with it: Postgres.
-
-| aggregate | decision | writes, or why not | read through | PCT cases |
-|---|---|---|---|---:|
-| `SUM` | spelled | `SUM` |  | 212 |
-| `COUNT` | spelled | `COUNT` |  | 14 |
-| `AVG` | spelled | `AVG` |  | 10 |
-| `MIN` | emulated | `extreme: MIN, bool_and,  ASC` |  | 11 |
-| `MAX` | emulated | `extreme: MAX, bool_or,  DESC` |  | 11 |
-| `ANY_VALUE` | spelled | `ANY_VALUE` |  | 0 |
-| `STDDEV_SAMP` | spelled | `STDDEV_SAMP` |  | 2 |
-| `STDDEV_POP` | spelled | `STDDEV_POP` |  | 5 |
-| `VAR_SAMP` | spelled | `VAR_SAMP` |  | 2 |
-| `VAR_POP` | spelled | `VAR_POP` |  | 2 |
-| `MEDIAN` | emulated | `median` |  | 6 |
-| `MODE` | emulated | `mode` |  | 6 |
-| `STRING_AGG` | spelled | `STRING_AGG` |  | 506 |
-| `LIST` | emulated | `listOfValues` |  | 1 |
-| `QUANTILE_CONT` | emulated | `percentile: percentile_cont` |  | 1 |
-| `QUANTILE_DISC` | emulated | `percentile: percentile_disc` |  | 1 |
-| `CORR` | spelled | `CORR` |  | 4 |
-| `COVAR_SAMP` | spelled | `COVAR_SAMP` |  | 5 |
-| `COVAR_POP` | spelled | `COVAR_POP` |  | 4 |
-| `ARG_MAX` | emulated | `argExtreme:  DESC` |  | 1 |
-| `ARG_MIN` | emulated | `argExtreme:  ASC` |  | 1 |
-| `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `BOOL_AND` | spelled | `BOOL_AND` |  | 0 |
-| `BOOL_OR` | spelled | `BOOL_OR` |  | 0 |
-| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `VARIANCE` | spelled | `VARIANCE` |  | 0 |
-| `STDDEV` | spelled | `STDDEV` |  | 0 |
-| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `NTILE` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `LAG` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `LEAD` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
 
 ## Snowflake
 
