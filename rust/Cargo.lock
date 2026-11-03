@@ -16,3 +16,10 @@ version = "0.1.0"
 dependencies = [
  "lite-javacompat",
 ]
+
+[[package]]
+name = "lite-sql"
+version = "0.1.0"
+dependencies = [
+ "lite-json",
+]

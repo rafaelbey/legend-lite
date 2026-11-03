@@ -1,0 +1,39 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# legend-lite's SQL tree, the MIR, ported from core/'s com.legend.sql (src/lib.rs), and its JSON codec, MirJson:
+# Java's records field for field, and the wire read and written back byte for byte.
+rust_library(
+    name = "lite_sql",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    version = "0.1.0",
+    visibility = ["//rust:__subpackages__"],
+    deps = ["//rust/lite-json:lite_json"],
+)
+
+rust_test(
+    name = "lite_sql_test",
+    crate = ":lite_sql",
+    edition = "2024",
+    visibility = ["//gates:__pkg__"],
+)
+
+# every MirJson text the SQL-rendering suites render (//rust/oracles:mir_dump, 28,951 statements), read into the MIR and
+# written back to the bytes Java wrote (tests/mir_round_trip.rs; cargo runs it with --ignored and LITE_MIR_DUMP)
+rust_test(
+    name = "mir_round_trip_test",
+    srcs = ["tests/mir_round_trip.rs"],
+    args = ["--ignored"],
+    data = ["//rust/oracles:mir_dump"],
+    edition = "2024",
+    env = {"LITE_MIR_DUMP": "$(rootpath //rust/oracles:mir_dump)"},
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":lite_sql",
+        "//rust/lite-json:lite_json",
+    ],
+)
+
+guards_package()

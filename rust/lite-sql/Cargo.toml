@@ -1,0 +1,11 @@
+[package]
+name = "lite-sql"
+version = "0.1.0"
+description = "legend-lite's SQL tree, the MIR (core/'s com.legend.sql, ported), and its JSON codec, MirJson"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+lite-json = { path = "../lite-json" }

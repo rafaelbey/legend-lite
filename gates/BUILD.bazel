@@ -41,6 +41,8 @@ test_suite(
         "//rust/lite-javacompat:lite_javacompat_test",
         "//rust/lite-javacompat:double_to_string_test",
         "//rust/lite-json:lite_json_test",
+        "//rust/lite-sql:lite_sql_test",
+        "//rust/lite-sql:mir_round_trip_test",
         # the planner on java.base alone (P3-19): seconds
         "//core:planner_on_java_base_test",
         "//core:postgres_arm_test",
