@@ -140,6 +140,27 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      MirJson. A probe on the lane rendered both on fresh dialects: the substituted query's text equals Java's text of
      the original exactly, and MirJson writes it. `rust/oracles/mir/tagged-engine.jsonl` holds it (the substituted
      MIR, Java's answer for the original) for 4c's differential.
+   - **4c, done 2026-11-03: the engine-text dialects in Rust** (`rust/lite-dialect/src/engine_style.rs`,
+     `java_time.rs`, `decode_shapes.rs`; `rust/lite-dialect/PARITY.md`). Every input of the three oracles answers as
+     Java's -- EngineStyleH2 2,105 of 2,105 distinct inputs over its five configurations (the tagged query among them),
+     EngineStyleDB2 56 of 56, EngineStyleComposite 24 of 24: the text, every engine-text op and every refusal exact,
+     the first measurement already 100 % -- and DuckDB, H2 and H2Modern stay at 16,154, 21,847 and 394; the typing
+     holds over the three oracles (2,257,734 facts of 24,645 statements). The three are one struct with a profile:
+     each of DB2's twelve overrides and Composite's `call` is a branch where EngineStyleH2's method is written, a
+     `super.call` is `h2_call`. Java's `EngineTextDialect` is a trait the seam reaches through
+     `SqlDialect::engine_text`. The seam opens the three with their configuration (`quoteIdentifiers`, `timeZone`;
+     refused on any other dialect; Composite has only its default) and answers five `engine.*` ops (SEAM.md §3b).
+     `renderedAlias`, the one stateful method (it reads the alias plan of the dialect object's last `render` or
+     `selectList`), takes the query the caller rendered and replays its plan; the differential holds 5,158 aliases to
+     the stateful answer. A date-time constant under a connection's zone is shifted with Java's (JDK 25) rules for
+     every fixed-offset zone and America/Panama's and America/Phoenix's (the oracle's EST and US/Arizona) with their
+     whole history; a zone Java does not know stays unshifted, as Java's; a region Java knows whose rules are not
+     carried refuses (`IllegalStateException`, naming it) rather than shift wrongly. For the switch (4d): shims of
+     `EngineStyleH2()`, `(boolean)`, `(boolean, String)`, `EngineStyleDB2()`, `(boolean, String)` and
+     `EngineStyleComposite()` sending their arguments in the spec; each `Tagged` replaced by its comparable before
+     MirJson; `selectList`'s JSON null as Java's null; the shim remembering the last query it passed to `render` or
+     `selectList` (and none after `renderAsAliased`) for `renderedAlias`; a `PlanParam`'s MirJson for
+     `collectionSplice`; and the user's word on the zones not carried (accept the refusal, or carry more rules).
    - **What a shim must keep** (an inventory of every use outside the five files): production code only constructs
      them -- `H2()`, `H2Modern()`, `EngineStyleH2()`, `(boolean)`, `(boolean, String)`, `EngineStyleDB2()`,
      `(boolean, String)`, `EngineStyleComposite()` -- and calls `SqlDialect` / `EngineTextDialect` methods; no static
