@@ -68,17 +68,18 @@ legend_java_library(
     ],
 )
 
-# The module: the tab's adapter and all it reaches, with the class library TeaVM
-# substitutes for the JDK's.
-teavm_wasm(
+# The module: the tab's adapter and all it reaches, with the class library TeaVM substitutes for the JDK's -- FROZEN
+# since 2026-11-03 (the Rust port's phase 1, docs/rust-port/PHASE1.md §5): core's dialects move to Rust, which TeaVM
+# cannot compile, so the browser keeps the module TeaVM last built from :tab (at 6f61be3f0; sha-256 classes.wasm
+# f4b7caf0..., the runtime 05a76aac...) until the Rust wasm32 planner replaces it. The Rust dialects render exactly as
+# Java's, so :differential_test still holds this frozen module to the live JVM's answers.
+filegroup(
     name = "planner",
-    main_class = "planner.TabExports",
-    visibility = ["//visibility:public"],
-    deps = [
-        ":tab",
-        "@maven_teavm//:org_teavm_teavm_classlib",
-        "@maven_teavm//:org_teavm_teavm_jso",
+    srcs = [
+        "planner/classes.wasm",
+        "planner/wasm-gc-module-runtime.js",
     ],
+    visibility = ["//visibility:public"],
 )
 
 # The planner as ONE directory (classes.wasm beside its runtime), so a test names it with one $(rlocationpath)

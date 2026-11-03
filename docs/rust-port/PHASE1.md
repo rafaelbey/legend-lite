@@ -75,3 +75,15 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
 4. Then by lane: H2 with the engine-style dialects (`corpus_h2`, `pct_h2`), Postgres, SQLite; the cloud dialects;
    MongoDB (and its pipeline) as an implementation of its own. `AnsiSqlRenderer` and the passes are deleted with the
    last.
+
+## 5. The browser keeps a frozen planner (decided 2026-11-03)
+
+Switching DuckDB to Rust takes core's dialects out of what TeaVM can compile. Deleting the TeaVM planner would have
+broken 103 test targets (DataCube 71, Studio 8, Query 5, the Python wheel and notebook, engine-client, the site, guards)
+and in-browser planning in DataCube, Query and Studio; `//sdlc-server:page` compiles core too. Because the Rust
+dialects render exactly as Java's, the user chose to **freeze** instead: `//wasm:planner` and `//sdlc-server:page` are
+the modules TeaVM last built (at `6f61be3f0`), committed under `wasm/planner/` and `sdlc-server/page/` and served by
+filegroups of the same names. All 243 tests that reach them pass on the frozen files; `//wasm:differential_test` now
+holds the frozen Java module to the live JVM's answers, a differential of its own once DuckDB renders in Rust.
+`//:wasm` therefore registers no action, so `CompileOnlyTest` no longer expects a TeaVM compile or a javac plugin in
+that tier (`rust/RETIRED_TESTS.md`). The Rust wasm32 build replaces both modules later.

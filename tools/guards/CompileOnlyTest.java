@@ -74,21 +74,25 @@ class CompileOnlyTest {
                     "java_library Javac", "the fixtures' empty library",
                     "java_library JavaSourceJar", "the fixtures' empty library"));
 
-    /** Tier -> the compile it must show, so an empty or broken report cannot pass. */
+    /**
+     * Tier -> the compile it must show, so an empty or broken report cannot pass. No "wasm" since 2026-11-03 (the Rust
+     * port's phase 1, docs/rust-port/PHASE1.md §5, reviewed): //:wasm's two modules are FROZEN files TeaVM built
+     * last, so the tier registers no action at all -- nothing to show and, with ALLOWED's "wasm" kept, nothing that
+     * could hide; the Rust wasm32 build brings its signature back.
+     */
     private static final Map<String, String> SIGNATURE = Map.of(
             "java", "java_library Javac",
             "web", "_esbuild_bundle Esbuild",
-            "wasm", "_teavm_wasm TeaVM",
             "native", "_native_image NativeImage");
 
     /**
      * Tier -> a tool its walk must stop at, as an exec-configuration target. If the walk goes through it instead,
-     * Bazel's naming of exec configurations changed. NullAway is every first-party library's javac plugin.
+     * Bazel's naming of exec configurations changed. NullAway is every first-party library's javac plugin. No "wasm"
+     * since 2026-11-03: its frozen modules compile nothing, so its walk reaches no javac plugin (SIGNATURE's reason).
      */
     private static final Map<String, String> SKIPS = Map.of(
             "java", "//tools/nullaway:nullaway",
-            "native", "//tools/nullaway:nullaway",
-            "wasm", "//tools/nullaway:nullaway");
+            "native", "//tools/nullaway:nullaway");
 
     /** The fixture tier's targets, and the pair each must be flagged for. */
     private static final Map<String, String> FIXTURES = Map.of(
