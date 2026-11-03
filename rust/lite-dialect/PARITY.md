@@ -1,22 +1,34 @@
-# DuckDB parity: the renderer and its passes (2026-11-03)
+# Dialect parity: DuckDB, H2 and H2Modern (2026-11-03)
 
-Step 2 of the DuckDB slice (docs/rust-port/PHASE1.md §4, step 3): every pass DuckDB's render runs, ported from its Java
-class, over a walk that keeps Java's identity semantics and a port of the typing rules Java's constructors apply. This
-file measures it on the golden dump and says what of Java it does not reproduce exactly.
+Every dialect Rust answers, held to the JVM's own answers on the golden oracles (docs/rust-port/PHASE1.md §4): DuckDB
+(step 3, its renderer and passes) and the H2 family's execution dialects, H2 and H2Modern (step 4b). Each is ported from
+its Java class, over a walk that keeps Java's identity semantics and a port of the typing rules Java's constructors
+apply. This file measures each on the oracles and says what of Java it does not reproduce exactly.
 
-Measured by `tests/duckdb_differential.rs` over `//rust/oracles:mir_dump` (`mir/mir-dump.jsonl`):
+Measured by `tests/dialect_differential.rs` over `//rust/oracles:mir_dump` (`mir/mir-dump.jsonl`) and
+`//rust/oracles:h2_dump` (`mir/h2-dump.jsonl`), an input both hold (the same dialect, op, configuration and MirJson)
+counted once:
 
-- `duckdb_renders_as_java_does`: every line whose dialect is `DuckDb`, rendered by a fresh `DuckDb` and compared with
-  the fresh JVM `DuckDb`'s answer -- the SQL text exactly, a refusal by its Java class and message, a statement's binds
-  and regions by whether they are empty (and, where they are not, by Java's record text, counted);
-- `typing_reproduces_javas_facts`: every node of every statement of the dump (all dialects: one tree), its type fact
-  recomputed by `src/typing.rs` from its children's and compared with the fact Java's constructor stored; every
-  projection frame's outputs, union's labels and join's delivered columns likewise.
+- `<dialect>_renders_as_java_does` (`duckdb_`, `h2_`, `h2modern_`): every distinct input of the dialect, answered by a
+  fresh Rust dialect of that name (made by the seam's `open`, as the JVM's shim makes it) and compared with the fresh
+  JVM dialect's answer -- the SQL text exactly, a statement's binds and regions as Java's record text, a refusal by its
+  Java class and message; at least the dialect's floor (`tests/<dialect>-floor.txt`) identical;
+- `typing_reproduces_javas_facts`: every node of every distinct statement of the oracles (all dialects: one tree), its
+  type fact recomputed by `src/typing.rs` from its children's and compared with the fact Java's constructor stored;
+  every projection frame's outputs, union's labels and join's delivered columns likewise;
+- `the_seam_answers_as_<dialect>s_renderer_does`: every op of the dialect's inputs answered through the seam
+  (`SEAM.md`) exactly as a direct call answers it.
 
 ```
 cd rust
-LITE_MIR_DUMP=<the dump> cargo test --release -p lite-dialect --test duckdb_differential -- --ignored --nocapture
+LITE_ORACLES="<mir-dump.jsonl> <h2-dump.jsonl>" cargo test --release -p lite-dialect --test dialect_differential -- \
+  --ignored --nocapture
 ```
+
+(`LITE_ORACLES` names the oracle files, separated by whitespace; `LITE_DIALECT_MISMATCHES=<dir>` writes each dialect's
+every mismatch to `<dir>/<dialect>.txt`.)
+
+# DuckDB
 
 ## The numbers
 
@@ -36,9 +48,11 @@ By MIR kind every one is identical: `SqlSelect` 11,183, `SqlWith` 2,056, `SqlUni
 `Merge` 26, `Update` 16, `CreateSchema` 8. All 10 of Java's DuckDB refusals are reproduced, class and message, and Rust
 refuses nothing Java rendered (step 1's 73 wrong refusals -- 72 folds, one checked-defects envelope -- are now Java's
 `list_reduce` and list-lambda spellings). The 72 statements that bind or write a region carry Java's record text
-exactly.
+exactly. (Since step 4b a statement is identical only with its binds and regions Java's record text; DuckDB's count did
+not move.)
 
-**Typing: 1,494,436 facts of 26,095 statements, 0 different** -- every `Call` rule the dump exercises (165 functions),
+**Typing, over the first dump's every line: 1,494,436 facts of 26,095 statements, 0 different** -- every `Call` rule the
+dump exercises (165 functions),
 `Case` (24,368), `Cast` (35,557), the reducers and windows, the decimal and float literals, `ScalarSubquery`,
 `StructGet`/`StructLit`, `FoldCall`, and 60,597 select outputs, 22,594 join outputs, 365 union labels, 8 star frames'
 pad neutralizations, 192,143 projection slots' origin normalization.
@@ -149,7 +163,120 @@ not run.
   scripts, `copySelectList`, the facts) -- is ported with the seam the JVM calls it through (`SEAM.md`, whose §6 says
   what of it is not exact).
 
-## Tests
+# H2 and H2Modern
+
+Step 4b (docs/rust-port/PHASE1.md §4): Java's `H2` and `H2Modern` (`src/h2.rs`) and every pass `H2.passes()` installs
+(`src/h2_passes.rs`), each ported from its Java class.
+
+## The numbers
+
+**H2: 21,847 of 21,847 distinct statements identical (100 %); H2Modern: 394 of 394 (100 %).** The floors
+(`tests/h2-floor.txt`, `tests/h2modern-floor.txt`) are 21,847 and 394. The oracles hold 29,379 H2 lines (21,453 of the
+H2 dump, 7,926 of the first) and 763 H2Modern lines (386 and 377); an input both hold is one statement, and none has two
+answers. The SQL, the binds and the regions are compared exactly: 59 H2 and 8 H2Modern statements bind a parameter
+(type holes among them) and carry Java's record text. Every one of Java's refusals is reproduced, class and message --
+H2's 939 (931 `DialectCapability`, 8 `IllegalStateException`), H2Modern's 19 (17 and 2) -- and Rust refuses nothing Java
+rendered.
+
+| H2 op | identical | different | refused (Java rendered) | accepted (Java refused) |
+|---|---:|---:|---:|---:|
+| `ddl.render` | 1,295 | 0 | 0 | 0 |
+| `dml.render` | 820 | 0 | 0 | 0 |
+| `dml.renderStatement` | 395 | 0 | 0 | 0 |
+| `fromEngineText` | 2,190 | 0 | 0 | 0 |
+| `query.render` | 1,813 | 0 | 0 | 0 |
+| `query.renderStatement` | 15,334 | 0 | 0 | 0 |
+
+| H2Modern op | identical | different | refused (Java rendered) | accepted (Java refused) |
+|---|---:|---:|---:|---:|
+| `dml.render` | 9 | 0 | 0 | 0 |
+| `dml.renderStatement` | 9 | 0 | 0 | 0 |
+| `query.render` | 17 | 0 | 0 | 0 |
+| `query.renderStatement` | 359 | 0 | 0 | 0 |
+
+By MIR kind every one is identical: H2's `SqlSelect` 13,544, `SqlWith` 3,565, `String` (the engine text) 2,190,
+`InsertValues` 861, `DropTable` 664, `CreateTable` 618, `CreateTempTableAs` 187, `InsertSelect` 86, `DeleteWhere` 40,
+`SqlUnion` 38, `Merge` 26, `Update` 14, `CreateSchema` 13, `DeleteAll` 1; H2Modern's `SqlSelect` 373,
+`CreateTempTableAs` 6, `Update` 4, `SqlUnion` 3, `DeleteWhere`, `InsertSelect`, `InsertValues` and `Merge` 2 each.
+
+The passes, measured by adding each in `H2.passes()`'s order (and, in brackets, the statements that differ with it alone
+left out):
+
+| passes | H2 identical | H2Modern identical |
+|---|---:|---:|
+| `CarrierStrategies` alone (the renderer and its hooks all ported) | 19,338 | 390 |
+| + `ConstantLateralsAsRows` [4 and 4] | 19,342 | 394 |
+| + `LateralExplodeToUnion` [16] | 19,358 | 394 |
+| + `AggregatesDeliverDouble` (AVG) [104] | 19,462 | 394 |
+| + `SourceSpelling` [2,385] | 21,847 | 394 |
+
+The seam answers every op of them as a direct call does: H2's 21,847 ops and 1,813 inline renders (14,962 statements
+read back from their JSON equal and with Java's record text, 1,103 refusals), H2Modern's 394 and 17 (352 statements, 20
+refusals).
+
+## What is ported
+
+- **The dialect** (`src/h2.rs`): every one of `H2.java`'s 45 overrides -- the scalar and DDL type tables, the passes,
+  `failingStatement`, the schema-qualified table name, the star's EXCEPT and its names, the `information_schema` catalog
+  with H2's type names and codes, the local transactional staged table, the alias and reference rules (a derived label
+  quoted always, a physical name as its DDL spelled it, an origin-less reference refused), the typed placeholders and
+  type holes, `forServer` and the facts, native QUALIFY, the whole `call` table, the frame bounds, the JSON carrier's
+  literals and aggregates, the java.time date format, the aggregates (MIN for `first()`, the WITHIN GROUP percentiles,
+  `JSON_ARRAYAGG` lists), banker's ROUND, the JSON-parsing and boolean-text casts, splitPart, the JSON kind and TYPEOF
+  names, the standard store writes -- and `H2Modern.java`'s 10: H2Modern is the same struct with `modern` set, its own
+  overrides (`serverVersions` refused, `forServer`, `variantGet`, `structLit`, `structGet`, `call`'s LIST_LENGTH,
+  `variantAwareCast`'s navigation cast) each branch on it, and its `scalarTypeName`, `formatText` and `reducer` are H2's
+  (Java's are exhaustive switches delegating every constant to `super`). The refusals Java words with the literal "H2"
+  (a TYPEOF, a placeholder, an origin-less column) keep it on H2Modern; the interface's defaults name the dialect
+  (`getClass().getSimpleName()`), so H2Modern's say "H2Modern".
+- **The passes** (`src/h2_passes.rs`), in `H2.passes()`'s order (`h2_passes`): `CarrierStrategies` under H2's caps (no
+  native lists, no correlated explosion, no JSON carrier, no native FULL OUTER: `src/carrier.rs`, ported with DuckDB and
+  first exercised here), `QualifyToSubselect` where QUALIFY is not native (never on H2; its plain form, `new
+  QualifyToSubselect()`, ported and unit-tested; the by-outputs form is Postgres's), `ConstantLateralsAsRows`,
+  `LateralExplodeToUnion`, `AggregatesDeliverDouble` over AVG, and `SourceSpelling` last. `render_passes` runs the Float
+  expansions before them and `StoredReads` after, as for DuckDB.
+- **The shared renderer**, three changes the port needed: `column_name`, `column_ref` and `implicit_label` may refuse
+  (H2's origin-less and per-key columns), `SqlDialect::server_versions` may refuse (H2Modern's, written in the facts as
+  `keysSnapshot` is), and the base's `variant_get`, `struct_lit` and `struct_get` refusals are `ansi`'s free functions
+  (H2Modern's `super` calls).
+
+## Identity
+
+- `ConstantLateralsAsRows`: the select as it came unless a lateral over a constant list became its rows and every read
+  of an exploded struct element is a field read; then `new SqlSelect` over it, a projection or sort key rebuilt only
+  where its expression changed (Java's `x == p.expr()`), each expression through `mapChildren` (`carrier::map_children`
+  and `with_children`, which keep an array literal's given type and a lambda's fact). `rewriteJoins` rebuilds a join
+  only where its left side changed or its lateral became rows. Its explosions are a `LinkedHashMap` (an alias replaced
+  in place), only looked up.
+- `LateralExplodeToUnion`: the select as it came on every guard, `withFrom` otherwise.
+- `AggregatesDeliverDouble`: each AVG reducer the walk's hook sees, cast to DOUBLE (`new SqlExpr.Cast`); a window's
+  reducer is handed to no hook (`rewriteAgg`), so a windowed AVG stays as Java leaves it.
+- `SourceSpelling`: a reference re-stamped (`Column.of(table, out)`, the output's type and origin) only where its origin
+  is not its source's declared one (a null origin is not); every other node as it came. Its scope (alias to outputs,
+  over every source of the statement but a join and Dual, the last one of an alias the walk meets kept, as
+  `HashMap.put` keeps it) is only looked up.
+
+## What Java does that this does not reproduce exactly
+
+None of these reaches the oracles.
+
+- `formatAsConcat` reads the template by characters where Java reads UTF-16 units: a `%` before a character outside the
+  Basic Multilingual Plane is refused naming that character whole, where Java's message holds its high surrogate alone
+  (a lone surrogate a Rust string cannot hold). The `split_part` arm's one-character separator is one UTF-16 unit, and
+  `translate`'s lengths are code points, as Java's.
+- `equalArm`'s `toLowerCase(Locale.ROOT)`, `h2Interval`'s `toUpperCase(Locale.ROOT)` and `execPart`'s reserved-word
+  check are Rust's `to_lowercase` and `to_uppercase`: the same casing for every word they compare, each from its own
+  Unicode version (only ASCII reaches the reserved-word check, past the plain-word pattern).
+- The seam refuses `duckdb.tables` and `duckdb.readsStored` on H2 and H2Modern (`'<op>' is DuckDb's op, not H2's`, an
+  `IllegalArgumentException`): ops of DuckDB's shim that no Java method of H2's answers.
+- Java's frame interval `n * 7` and H2Modern's index `ix + 1` are `long` arithmetic, wrapping: so are Rust's.
+
+# Typing
+
+Over both oracles, every distinct statement (every dialect's, the engine-text ops' queries included: one tree, counted
+once): **2,257,711 facts of 24,644 statements, 0 different.**
+
+# Tests
 
 - `src/pass_tests.rs`: each pass's rewrite over a hand-built tree from its Java class's logic, with the identity cases
   (an untouched tree `Same`, a clamp's parent rebuilt with its fact recomputed and its untouched sibling not, the
@@ -173,15 +300,34 @@ not run.
   question's text, the copy's select list, each host operation's statements and the browser reader's every refusal,
   `SqlDialect`'s defaults (on a dialect that overrides none), the records' JSON forms read back through their
   constructors, the refusal kinds, and a MIR exactly at MirJson's depth limit.
-- `tests/duckdb_differential.rs`: the two dump differentials above, and the seam's: every DuckDB render op of the
-  dump (and each `query.render` asked inline) answered through `dispatch` exactly as a direct call answers it, each
-  statement read back from its JSON equal to the direct one with Java's record text (16,154 ops and 1,023 inline
-  renders, 13,011 statements, 10 refusals: all the same).
+- `src/h2/tests.rs` (25 tests): H2's and H2Modern's hooks on hand-built nodes, from their Java -- the alias, reference
+  and table-name rules and the refusals of an origin-less or per-key reference, the lexicon, every own spelling of
+  `call` and its refusals by name, a boolean compared with text, the format template's concatenation and its three
+  refusals, `split_part` (which the oracles hold none of) and `regexp_extract`, Pure's splitPart, `translate`, the
+  aggregates (MIN for `first()` and its refusals naming the type, the WITHIN GROUP percentiles, the JSON list, the
+  ordered NULL placement), banker's ROUND, the JSON carrier, the JSON-parsing and boolean-text casts, H2Modern's
+  navigation and its navigation cast, the frame intervals (a week as 7 days), the date format, the placeholders and
+  type holes, a projection labelled from its declared output, the DDL types, the staged temporary table, the catalog
+  grid, and the pass list.
+- `src/h2_passes/tests.rs` (9 tests): `QualifyToSubselect`'s wrap; `ConstantLateralsAsRows` over scalar elements, a NULL
+  list (`WHERE FALSE`), struct elements read by field, and each case it leaves as it came; `LateralExplodeToUnion`'s
+  keyed union, its null-dropping singleton and CROSS lateral, what it leaves alone, and its refusal of a list of no
+  element type; `AggregatesDeliverDouble` (a windowed AVG not cast); `SourceSpelling`'s re-stamp and what it keeps.
+- `src/seam/h2_tests.rs` (9 tests): every op of the seam for H2 and H2Modern (§3a of `SEAM.md`): the facts, `forServer`
+  and a spec's `server`, the renders and a type hole's JSON, the DDL and a session table, the names, the engine text,
+  the interface's defaults, `failingStatement`, the catalog and host refusals naming the dialect, and the DuckDB-only
+  ops refused.
+- `tests/dialect_differential.rs`: the differentials above, one per dialect, the typing test, and the seam's, one per
+  dialect: every op of the dialect's inputs (and each `query.render` asked inline) answered through `dispatch` exactly
+  as a direct call answers it, each statement read back from its JSON equal to the direct one with Java's record text --
+  DuckDB's 16,154 ops and 1,023 inline renders (13,011 statements, 10 refusals), H2's 21,847 and 1,813 (14,962
+  statements, 1,103 refusals), H2Modern's 394 and 17 (352 statements, 20 refusals): all the same.
 
-## Stack
+# Stack
 
-The deepest statement of the dump needs between 1 and 2 MB of stack in a debug build for its parse, read, passes and
-render together, and less than 1 MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB).
-Both differentials run in 16 s in debug and 2.2 s in release (with the seam's, 4.8 s in release). A MIR at MirJson's
+The deepest DuckDB statement needs between 1 and 2 MB of stack in a debug build for its parse, read, passes and render
+together, the deepest H2 statement (and the typing walk over both oracles) between 2 and 4 MB, and every one less than
+1 MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The seven tests run in
+parallel in 58 s in debug (the H2 seam's, the longest, 57 s alone) and 8.7 s in release. A MIR at MirJson's
 depth limit (2,045 nested calls) needs between 32 and 64 MB in a debug build and more than 1 MB in release; the seam's
 C export runs each call on a 256 MB thread (`SEAM.md` §1).

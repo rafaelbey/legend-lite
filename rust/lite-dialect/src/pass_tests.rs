@@ -4,7 +4,7 @@
 //! The passes, the shared walk and the typing rules held to their Java classes' own logic, one hand-built tree at a
 //! time: each pass's rewrite, the identity Java's `==` keeps (a parent rebuilt only when a child changed), and the
 //! facts Java's constructors compute. The golden dump holds the passes over real statements
-//! (`tests/duckdb_differential.rs`); `CarrierStrategies` and `StableScanOrder` pin theirs in their own modules.
+//! (`tests/dialect_differential.rs`); `CarrierStrategies` and `StableScanOrder` pin theirs in their own modules.
 
 use crate::build::{self, call, cast, int_lit, string_lit};
 use crate::passes::{

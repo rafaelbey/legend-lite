@@ -186,7 +186,7 @@ pub trait AnsiSqlRenderer: Sized {
         ansi::append_qualify(self, w, s, depth)
     }
 
-    fn column_ref(&self, c: &Column) -> String {
+    fn column_ref(&self, c: &Column) -> Result<String, Refusal> {
         ansi::column_ref(self, c)
     }
 
@@ -206,7 +206,7 @@ pub trait AnsiSqlRenderer: Sized {
         ansi::per_key_name(self, w, stem)
     }
 
-    fn implicit_label(&self, p: &Projection) -> Option<String> {
+    fn implicit_label(&self, p: &Projection) -> Result<Option<String>, Refusal> {
         ansi::implicit_label(self, p)
     }
 
@@ -406,8 +406,7 @@ pub trait AnsiSqlRenderer: Sized {
     }
 
     fn variant_get(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
-        let _ = (w, args);
-        Err(Refusal::capability("variant navigation reached a dialect without JSON support"))
+        ansi::variant_get(self, w, args)
     }
 
     fn struct_insert(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
@@ -499,13 +498,11 @@ pub trait AnsiSqlRenderer: Sized {
     }
 
     fn struct_lit(&self, w: &mut SqlWriter, fields: &[StructLitField]) -> Result<(), Refusal> {
-        let _ = (w, fields);
-        Err(Refusal::capability("a struct literal reached a dialect without struct support"))
+        ansi::struct_lit(self, w, fields)
     }
 
     fn struct_get(&self, w: &mut SqlWriter, source: &SqlExpr, field: &str) -> Result<(), Refusal> {
-        let _ = (w, source, field);
-        Err(Refusal::capability("a struct extraction reached a dialect without struct support"))
+        ansi::struct_get(self, w, source, field)
     }
 
     /// A scalar type's name: each dialect decides every scalar, a name or a refusal.
@@ -542,8 +539,9 @@ pub trait AnsiSqlRenderer: Sized {
         ansi::table_name(self, name, quoting)
     }
 
-    fn column_name(&self, c: &Column) -> String {
-        ansi::column_name(self, c)
+    /// A column's name at a reference (a dialect may refuse one it cannot spell: H2's origin-less column).
+    fn column_name(&self, c: &Column) -> Result<String, Refusal> {
+        Ok(ansi::column_name(self, c))
     }
 
     fn delimited(&self, name: &str) -> String {

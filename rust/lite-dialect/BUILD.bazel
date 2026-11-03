@@ -4,9 +4,10 @@ load("//tools/guards:defs.bzl", "guards_package")
 # 2026-11-03: core's scan-order guard (TestLaneOrderGuardrailTest) reads where DuckDB's pass list installs StableScanOrder
 exports_files(["src/passes.rs"])
 
-# legend-lite's SQL dialects, ported from core/'s com.legend.sql.dialect (src/lib.rs; docs/rust-port/PHASE1.md step 3):
-# the shared renderer (Java's AnsiSqlRenderer as a trait), the writer, the pass pipeline with every pass DuckDB runs, the
-# typing rules its constructors apply (Java's SqlTyping) and DuckDB, rendering a lite_sql statement as the JVM does.
+# legend-lite's SQL dialects, ported from core/'s com.legend.sql.dialect (src/lib.rs; docs/rust-port/PHASE1.md steps 3
+# and 4): the shared renderer (Java's AnsiSqlRenderer as a trait), the writer, the pass pipeline with every pass DuckDB
+# and the H2 family run, the typing rules its constructors apply (Java's SqlTyping), DuckDB, H2 and H2Modern, rendering
+# a lite_sql statement as the JVM does.
 rust_library(
     name = "lite_dialect",
     srcs = glob(["src/**/*.rs"]),
@@ -28,22 +29,26 @@ rust_test(
     visibility = ["//gates:__pkg__"],
 )
 
-# every DuckDb statement of the golden dump (//rust/oracles:mir_dump, 16,154 of its 28,951) rendered by a fresh DuckDb
-# and held to Java's answer, at least the floor of them identical; every type fact of every statement of the dump
-# recomputed and held to Java's; and every DuckDb render op answered through the seam (SEAM.md) exactly as a direct call
-# answers it (tests/duckdb_differential.rs, PARITY.md; cargo runs it with --ignored and LITE_MIR_DUMP)
+# every statement of the golden oracles (//rust/oracles:mir_dump and :h2_dump) of each dialect Rust answers -- DuckDb
+# 16,154, H2 21,847, H2Modern 394 -- rendered by a fresh Rust dialect and held to Java's answer, at least each dialect's
+# floor (tests/<dialect>-floor.txt) identical; every type fact of every statement of the oracles recomputed and held to
+# Java's; and every op of each dialect's statements answered through the seam (SEAM.md) exactly as a direct call answers
+# it (tests/dialect_differential.rs, PARITY.md; cargo runs it with --ignored and LITE_ORACLES)
 rust_test(
-    name = "duckdb_differential_test",
-    srcs = ["tests/duckdb_differential.rs"],
+    name = "dialect_differential_test",
+    srcs = ["tests/dialect_differential.rs"],
     args = ["--ignored"],
     data = [
         "tests/duckdb-floor.txt",
+        "tests/h2-floor.txt",
+        "tests/h2modern-floor.txt",
+        "//rust/oracles:h2_dump",
         "//rust/oracles:mir_dump",
     ],
     edition = "2024",
     env = {
-        "DUCKDB_FLOOR": "$(rootpath tests/duckdb-floor.txt)",
-        "LITE_MIR_DUMP": "$(rootpath //rust/oracles:mir_dump)",
+        "LITE_DIALECT_FLOORS": "$(rootpath tests/duckdb-floor.txt) $(rootpath tests/h2-floor.txt) $(rootpath tests/h2modern-floor.txt)",
+        "LITE_ORACLES": "$(rootpath //rust/oracles:mir_dump) $(rootpath //rust/oracles:h2_dump)",
     },
     visibility = ["//gates:__pkg__"],
     deps = [

@@ -99,7 +99,7 @@ fn slot0(outs: &[OutputCol]) -> Option<OutputCol> {
 // ==================================================================
 
 /// `f` over each direct child, the node rebuilt through `withChildren` when one changed (`None`: the node itself).
-fn map_children(
+pub(crate) fn map_children(
     e: &SqlExpr,
     f: &mut dyn FnMut(&SqlExpr) -> Result<Option<SqlExpr>, Refusal>,
 ) -> Result<Option<SqlExpr>, Refusal> {

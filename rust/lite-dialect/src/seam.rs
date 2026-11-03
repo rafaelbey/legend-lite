@@ -5,14 +5,15 @@
 //! a dialect's `SqlDialect` surface, JSON in and JSON out. `SEAM.md` is its contract -- every op, its args, its
 //! answer, its refusals -- and the JVM's side is written against it.
 //!
-//! A dialect is made fresh for each call from its spec (DuckDB carries no state from one render to the next). A MIR is
-//! read with `lite_sql`, nested at most [`MAX_DEPTH`] deep; every other record has the JSON form `SEAM.md` gives it:
-//! an object of the Java record's components by name, in declaration order, a nested record the same way, a Java
-//! enum by its `name()`. Every refusal is a [`Refusal`]: Java's class and message.
+//! A dialect is made fresh for each call from its spec (DuckDB and the H2 family carry no state from one render to the
+//! next). A MIR is read with `lite_sql`, nested at most [`MAX_DEPTH`] deep; every other record has the JSON form
+//! `SEAM.md` gives it: an object of the Java record's components by name, in declaration order, a nested record the
+//! same way, a Java enum by its `name()`. Every refusal is a [`Refusal`]: Java's class and message.
 
 use crate::catalog_model::{CatalogColumn, CatalogType, Conversion};
 use crate::dialect::SqlDialect;
 use crate::duckdb::DuckDb;
+use crate::h2::H2;
 use crate::host_ops;
 use crate::refusal::Refusal;
 use crate::statement::{Bind, Binding, Digits, Region, RenderedStatement, TypeHole, TypeSpelling};
@@ -20,11 +21,12 @@ use lite_json::{Node, Num, Obj, parse, parse_with_depth, to_compact};
 use lite_sql::{MAX_DEPTH, SqlDdl, SqlDml, SqlQuery, ValueKind, read_ddl, read_dml, read_query, read_type};
 
 /// The dialects the seam opens, by the name a spec gives (Java's simple class name).
-pub const DIALECTS: &[&str] = &["DuckDb"];
+pub const DIALECTS: &[&str] = &["DuckDb", "H2", "H2Modern"];
 
 /// Every op the seam answers (`SEAM.md`, "Ops").
 pub const OPS: &[&str] = &[
     "facts",
+    "forServer",
     "query.render",
     "query.renderInline",
     "query.renderStatement",
@@ -89,6 +91,8 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
             d.engine_scan_order = engine_scan_order;
             Box::new(d)
         }
+        "H2" => Box::new(H2::new()),
+        "H2Modern" => Box::new(H2::modern()),
         other => {
             return Err(Refusal::illegal_argument(format!(
                 "unknown dialect '{other}': Rust answers {}",
@@ -103,8 +107,22 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
 }
 
 fn answer(d: &dyn SqlDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
+    // DuckDB's own tables and stored-read rule, which only the JVM's DuckDb asks for
+    if op.starts_with("duckdb.") && d.dialect_name() != "DuckDb" {
+        return Err(Refusal::illegal_argument(format!("'{op}' is DuckDb's op, not {}'s", d.dialect_name())));
+    }
     Ok(match op {
         "facts" => facts(d),
+        // the dialect a session of this server version is spelled in, by its name: the JVM builds its own shim of it
+        // (no Java code chooses a dialect by its class)
+        "forServer" => {
+            let version = string(a, "version")?;
+            let chosen = match d.for_server(version) {
+                Some(other) => other.dialect_name(),
+                None => d.dialect_name(),
+            };
+            text(chosen.to_owned())
+        }
         "duckdb.tables" => duckdb_tables(),
         // the process's StableScanOrder firings, every dialect's (Java's `StableScanOrder.firings()` adds them)
         "scanOrderFirings" => number(crate::scan_order::firings() as i64),
@@ -175,6 +193,10 @@ fn facts(d: &dyn SqlDialect) -> Node {
         Ok(limit) => limit.map_or(Node::Null, |n| number(i64::from(n))),
         Err(r) => refused_json(&r),
     };
+    let server_versions = match d.server_versions() {
+        Ok(versions) => versions.map_or(Node::Null, texts),
+        Err(r) => refused_json(&r),
+    };
     object(vec![
         ("temporaryTables", Node::Bool(d.temporary_tables())),
         ("loadsRowsInBulk", Node::Bool(d.loads_rows_in_bulk())),
@@ -182,7 +204,7 @@ fn facts(d: &dyn SqlDialect) -> Node {
         ("inProcess", Node::Bool(d.in_process())),
         ("dropsStagedTablesWithTheirTransaction", Node::Bool(d.drops_staged_tables_with_their_transaction())),
         ("needsStaticPivot", Node::Bool(d.needs_static_pivot())),
-        ("serverVersions", d.server_versions().map_or(Node::Null, texts)),
+        ("serverVersions", server_versions),
         ("inMemoryPath", d.in_memory_path().map_or(Node::Null, Node::Str)),
         ("scriptAbort", d.script_abort().map_or(Node::Null, Node::Str)),
         ("sessionSetup", texts(d.session_setup())),
@@ -503,5 +525,7 @@ fn index_of(n: &Node) -> Result<usize, Refusal> {
     }
 }
 
+#[cfg(test)]
+mod h2_tests;
 #[cfg(test)]
 mod tests;

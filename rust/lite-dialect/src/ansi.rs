@@ -18,8 +18,8 @@ use crate::writer::SqlWriter;
 use lite_sql::{
     BigDecimal, Bound, Column, ColumnKind, ColumnType, DateFmt, DateFmtPart, DatePart, Frame, JavaNumber, JoinKind,
     JsonArrayAggKey, Lambda, NameQuoting, NullOrder, Origin, OutputCol, ParamKind, Projection, Reducer, Scalar,
-    SortKey, SqlAgg, SqlDdl, SqlDml, SqlExpr, SqlFn, SqlQuery, SqlSelect, SqlSource, SqlType, StructField, TypeFact,
-    ValueKind, When,
+    SortKey, SqlAgg, SqlDdl, SqlDml, SqlExpr, SqlFn, SqlQuery, SqlSelect, SqlSource, SqlType, StructField,
+    StructLitField, TypeFact, ValueKind, When,
 };
 
 // ==================================================================
@@ -212,11 +212,11 @@ pub fn append_qualify<D: AnsiSqlRenderer>(
 }
 
 /// A column reference, qualified by its source's alias when it has one.
-pub fn column_ref<D: AnsiSqlRenderer>(d: &D, c: &Column) -> String {
-    match &c.table {
-        None => d.column_name(c),
-        Some(t) => format!("{}.{}", d.alias_ident(t), d.column_name(c)),
-    }
+pub fn column_ref<D: AnsiSqlRenderer>(d: &D, c: &Column) -> Result<String, Refusal> {
+    Ok(match &c.table {
+        None => d.column_name(c)?,
+        Some(t) => format!("{}.{}", d.alias_ident(t), d.column_name(c)?),
+    })
 }
 
 pub fn projection<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, p: &Projection) -> Result<(), Refusal> {
@@ -232,7 +232,7 @@ pub fn projection<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, p: &Projection) 
         w.append(" AS ").append(&a);
         return Ok(());
     }
-    if let Some(label) = d.implicit_label(p) {
+    if let Some(label) = d.implicit_label(p)? {
         w.append(" AS ").append(&label);
     }
     Ok(())
@@ -297,11 +297,11 @@ pub fn per_key_name<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, stem: &str) ->
 }
 
 /// The label an alias-less projection spells: a stored read keeps its column's own label.
-pub fn implicit_label<D: AnsiSqlRenderer>(d: &D, p: &Projection) -> Option<String> {
-    match &p.expr {
-        SqlExpr::StoredRead { column, .. } => Some(d.column_name(column)),
+pub fn implicit_label<D: AnsiSqlRenderer>(d: &D, p: &Projection) -> Result<Option<String>, Refusal> {
+    Ok(match &p.expr {
+        SqlExpr::StoredRead { column, .. } => Some(d.column_name(column)?),
         _ => None,
-    }
+    })
 }
 
 /// The scalar slot types a typed NULL spells.
@@ -566,7 +566,7 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
             return d.per_key_name(w, &c.name);
         }
         SqlExpr::Column(c) => {
-            let text = d.column_ref(c);
+            let text = d.column_ref(c)?;
             w.append(&text);
         }
         SqlExpr::StoredRead { column, stored, .. } => return d.stored_read(w, column, stored),
@@ -724,6 +724,24 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
         SqlExpr::Reducer(r) => return d.reducer(w, r),
     }
     Ok(())
+}
+
+/// Variant navigation: a backend without JSON support refuses it.
+pub fn variant_get<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
+    let _ = (d, w, args);
+    Err(Refusal::capability("variant navigation reached a dialect without JSON support"))
+}
+
+/// A struct literal: a backend without struct support refuses it.
+pub fn struct_lit<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, fields: &[StructLitField]) -> Result<(), Refusal> {
+    let _ = (d, w, fields);
+    Err(Refusal::capability("a struct literal reached a dialect without struct support"))
+}
+
+/// A struct's field read: a backend without struct support refuses it.
+pub fn struct_get<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, source: &SqlExpr, field: &str) -> Result<(), Refusal> {
+    let _ = (d, w, source, field);
+    Err(Refusal::capability("a struct extraction reached a dialect without struct support"))
 }
 
 /// Collection membership: a backend data-model capability.
@@ -1800,7 +1818,7 @@ pub fn standard_merge<D: AnsiSqlRenderer>(d: &D, dml: &SqlDml) -> Result<SqlWrit
                 output_cols_text(outputs)
             )));
         };
-        Ok(d.column_ref(&column_of(Some(source_alias), oc)))
+        d.column_ref(&column_of(Some(source_alias), oc))
     };
     let mut w = SqlWriter::new();
     let head = format!("MERGE INTO {} AS {target} USING (", ddl_qualified(d, schema.as_deref(), table, *quoting));

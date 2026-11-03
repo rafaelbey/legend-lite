@@ -1,66 +1,242 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! The DuckDB dialect held to Java's own answers: every DuckDB statement of the golden dump (`LITE_MIR_DUMP`, JSON
-//! lines of `{dialect, fresh, op, kind, mir, answer}`), rendered by a fresh `DuckDb` and compared with what the JVM's
-//! fresh `DuckDb` answered -- the SQL text exactly, a refusal by its class and message, and (for now) a statement's
-//! binds and regions by whether they are empty.
+//! The Rust dialects held to Java's own answers: every statement the golden oracles hold for a dialect (`LITE_ORACLES`,
+//! the oracle files separated by whitespace, as Bazel's `$(rootpaths)` writes them: JSON lines of `{dialect, config?,
+//! fresh, op, kind, mir, answer}`), answered by a fresh Rust dialect of that name and compared with what the JVM's
+//! fresh dialect answered -- the SQL text exactly, a statement's binds and regions as Java's record text, a refusal by
+//! its class and message. An input both oracles hold (the same op, configuration and MirJson) is one statement, so a
+//! dialect's count is of its distinct inputs.
 //!
-//! The test asserts that at least the floor (`tests/duckdb-floor.txt`, or the file `DUCKDB_FLOOR` names) of the
-//! statements are identical (all of them, since every pass is ported). It prints the counts by op and by MIR kind, the
-//! first mismatches, and each mismatch's likely cause: the pass whose signature its first difference carries, else the
-//! first pass, in the order the passes run, whose trigger the statement holds (`rust/lite-dialect/PARITY.md`). With
-//! `LITE_DIALECT_MISMATCHES` set, every mismatch is written to the file it names.
+//! One test per dialect asserts that at least its floor (`tests/<dialect>-floor.txt`, or the file of that name among
+//! `LITE_DIALECT_FLOORS`) of its statements are identical. Each prints the counts by op and by MIR kind, the first
+//! mismatches, and each mismatch's likely cause: the pass whose signature its first difference carries, else the first
+//! pass, in the order the dialect runs its passes, whose trigger the statement holds (`rust/lite-dialect/PARITY.md`).
+//! With `LITE_DIALECT_MISMATCHES` naming a directory, each dialect writes its every mismatch to `<dialect>.txt` there.
 //!
-//! A second test holds the typing rules (`lite_dialect::typing`, Java's `SqlTyping`) to the facts Java stored on every
-//! node of every statement of the dump. A third holds the seam (`lite_dialect::dispatch`, `SEAM.md`) to the renderer:
-//! every DuckDB render op of the dump answered through it exactly as a direct call answers it.
+//! A typing test holds the typing rules (`lite_dialect::typing`, Java's `SqlTyping`) to the facts Java stored on every
+//! node of every distinct statement of the oracles. A seam test per dialect holds the seam (`lite_dialect::dispatch`,
+//! `SEAM.md`) to the renderer: every op of the dialect's statements answered through it exactly as a direct call
+//! answers it.
 
 use lite_dialect::rewriter::{Rw, SqlRewriter, rewrite};
-use lite_dialect::seam::{read_statement, statement_json};
+use lite_dialect::seam::{open, read_statement, statement_json};
 use lite_dialect::statement::list_text;
-use lite_dialect::{DuckDb, Refusal, RenderedStatement, SqlDialect, dispatch};
+use lite_dialect::{Refusal, RenderedStatement, SqlDialect, dispatch};
 use lite_json::{Node, Obj, parse_with_depth, to_compact};
 use lite_sql::{
     AggFn, ColumnKind, ColumnType, JoinKind, MAX_DEPTH, Origin, Projection, Scalar, SqlDml, SqlExpr, SqlFn, SqlQuery,
     SqlSelect, SqlSource, SqlType, TypeFact, read_ddl, read_dml, read_query,
 };
-use std::collections::BTreeMap;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write as _;
+use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader};
 
 const SHOWN: usize = 30;
 
+// ==================================================================
+// The dialects
+// ==================================================================
+
 #[test]
-#[ignore = "reads the JVM's MirJson dump named by LITE_MIR_DUMP"]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
 fn duckdb_renders_as_java_does() {
-    let path = std::env::var("LITE_MIR_DUMP")
-        .expect("LITE_MIR_DUMP is unset: it names the JVM's MirJson dump (JSON lines) this test reads");
-    let floor = floor();
-    // the renderer recurses with the tree, which nests thousands deep (LITE_DIALECT_STACK_MB measures how deep)
+    renders_as_java_does("DuckDb");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn h2_renders_as_java_does() {
+    renders_as_java_does("H2");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn h2modern_renders_as_java_does() {
+    renders_as_java_does("H2Modern");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_duckdbs_renderer_does() {
+    the_seam_answers_as_the_renderer_does("DuckDb");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_h2s_renderer_does() {
+    the_seam_answers_as_the_renderer_does("H2");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_h2moderns_renderer_does() {
+    the_seam_answers_as_the_renderer_does("H2Modern");
+}
+
+/// The spec the JVM's shim of `dialect` sends (`SEAM.md`), with a configured dialect's configuration's fields.
+fn spec(dialect: &str, config: Option<&Obj>) -> String {
+    let mut spec = Obj::new();
+    spec.insert("dialect", Node::Str(dialect.to_owned()));
+    spec.insert("server", Node::Null);
+    if dialect == "DuckDb" {
+        spec.insert("engineScanOrder", Node::Bool(false));
+    }
+    if let Some(config) = config {
+        for (k, v) in config.iter() {
+            spec.insert(k, v.clone());
+        }
+    }
+    to_compact(&Node::Obj(spec))
+}
+
+/// A fresh dialect, made as the seam makes it.
+fn fresh(dialect: &str, config: Option<&Obj>) -> Box<dyn SqlDialect> {
+    open(&spec(dialect, config)).unwrap_or_else(|r| panic!("the seam does not open {dialect}: {r}"))
+}
+
+// ==================================================================
+// The oracles
+// ==================================================================
+
+/// The oracle files `LITE_ORACLES` names.
+fn oracles() -> Vec<String> {
+    let paths = std::env::var("LITE_ORACLES")
+        .expect("LITE_ORACLES is unset: it names the JVM's oracle files (JSON lines), separated by whitespace");
+    let paths: Vec<String> = paths.split_whitespace().map(str::to_owned).collect();
+    assert!(!paths.is_empty(), "LITE_ORACLES names no file");
+    paths
+}
+
+/// The test thread's stack: the renderer recurses with the tree, which nests thousands deep (`LITE_DIALECT_STACK_MB`
+/// measures how deep).
+fn on_a_big_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
     let stack_mb: usize = std::env::var("LITE_DIALECT_STACK_MB").ok().and_then(|v| v.parse().ok()).unwrap_or(256);
-    let run = std::thread::Builder::new().stack_size(stack_mb << 20).spawn(move || compare_all(&path)).unwrap();
-    let tally = run.join().unwrap();
-    let report = tally.report();
+    std::thread::Builder::new().stack_size(stack_mb << 20).spawn(f).unwrap().join().unwrap()
+}
+
+/// One distinct oracle line: where it was first read, and the line.
+struct Entry {
+    at: String,
+    line: String,
+}
+
+/// Each oracle line `keep` takes (by its text), in order: where it was read, and the line. Answers each oracle file's
+/// count of lines taken.
+fn each_line(keep: &dyn Fn(&str) -> bool, each: &mut dyn FnMut(String, String)) -> BTreeMap<String, usize> {
+    let mut read = BTreeMap::new();
+    for path in oracles() {
+        let file = std::fs::File::open(&path).unwrap_or_else(|e| panic!("cannot open {path}: {e}"));
+        let name = path.rsplit(['/', '\\']).next().unwrap_or(&path).to_owned();
+        for (i, line) in BufReader::new(file).lines().enumerate() {
+            let line = line.unwrap_or_else(|e| panic!("{path}:{}: {e}", i + 1));
+            if keep(&line) {
+                *read.entry(name.clone()).or_default() += 1;
+                each(format!("{name}:{}", i + 1), line);
+            }
+        }
+    }
+    read
+}
+
+/// Each oracle line of `dialect`, once per distinct input (its op, its configuration and its MirJson, read from the
+/// line's text); a repeated input's answer must be the first's.
+fn distinct(dialect: &str) -> (Vec<Entry>, BTreeMap<String, usize>) {
+    let mut seen: HashMap<u128, u128> = HashMap::new();
+    let mut entries = Vec::new();
+    let read = each_line(&of_dialect(dialect), &mut |at, line| {
+        let k = input_key(&line);
+        let answer = hash(&[raw_answer(&line)]);
+        match seen.get(&k) {
+            Some(first) => assert_eq!(*first, answer, "{at}: an input with two answers"),
+            None => {
+                seen.insert(k, answer);
+                entries.push(Entry { at, line });
+            }
+        }
+    });
+    (entries, read)
+}
+
+/// The text of a line's MirJson, exactly as Java wrote it (between `"mir":` and `,"answer":`).
+fn raw_mir(line: &str) -> &str {
+    line.find(",\"mir\":")
+        .and_then(|start| line.rfind(",\"answer\":").map(|end| &line[start + 7..end]))
+        .unwrap_or_else(|| panic!("a line without a mir and an answer: {}", &line[..line.len().min(200)]))
+}
+
+fn raw_answer(line: &str) -> &str {
+    &line[line.rfind(",\"answer\":").expect("a line with an answer")..]
+}
+
+/// 128 bits of the texts: two hashes, seeded apart.
+fn hash(parts: &[&str]) -> u128 {
+    let mut a = DefaultHasher::new();
+    let mut b = DefaultHasher::new();
+    0xA5u8.hash(&mut b);
+    for p in parts {
+        p.hash(&mut a);
+        p.hash(&mut b);
+    }
+    (u128::from(a.finish()) << 64) | u128::from(b.finish())
+}
+
+/// A dialect's input: its op, its configuration (the first oracle's lines have none: null) and its MirJson, each the
+/// text Java wrote (`{"dialect":..,"config":..,"fresh":..,"op":..,"kind":..,"mir":..,"answer":..}`).
+fn input_key(line: &str) -> u128 {
+    let field = |name: &str, end: &str| {
+        let key = format!(",\"{name}\":");
+        let start = line.find(&key)? + key.len();
+        Some(&line[start..start + line[start..].find(end)?])
+    };
+    let op =
+        field("op", ",\"kind\":").unwrap_or_else(|| panic!("a line without an op: {}", &line[..line.len().min(200)]));
+    let config = field("config", ",\"fresh\":").unwrap_or("null");
+    hash(&[op, config, raw_mir(line)])
+}
+
+/// The dialect's lines: the dialect is the first field.
+fn of_dialect(dialect: &str) -> impl Fn(&str) -> bool {
+    let prefix = format!("{{\"dialect\":\"{dialect}\",");
+    move |line: &str| line.starts_with(&prefix)
+}
+
+// ==================================================================
+// The differential
+// ==================================================================
+
+fn renders_as_java_does(dialect: &'static str) {
+    let floor = floor(dialect);
+    let tally = on_a_big_stack(move || compare_all(dialect));
+    let report = tally.report(dialect);
     eprintln!("{report}");
-    if let Ok(out) = std::env::var("LITE_DIALECT_MISMATCHES") {
+    if let Ok(dir) = std::env::var("LITE_DIALECT_MISMATCHES") {
+        let out = format!("{dir}/{dialect}.txt");
         std::fs::write(&out, tally.mismatches.iter().map(|m| m.full.as_str()).collect::<Vec<_>>().join("\n"))
             .unwrap_or_else(|e| panic!("cannot write {out}: {e}"));
     }
-    assert!(tally.statements > 0, "the dump holds no DuckDb statement");
+    assert!(tally.statements > 0, "the oracles hold no {dialect} statement");
     assert!(
         tally.identical >= floor,
-        "{} of {} DuckDb statements render as Java's, below the floor of {floor}",
+        "{} of {} {dialect} statements render as Java's, below the floor of {floor}",
         tally.identical,
         tally.statements
     );
 }
 
-/// The floor: `DUCKDB_FLOOR` names its file (Bazel), else the crate's `tests/duckdb-floor.txt` (cargo).
-fn floor() -> usize {
-    let path = std::env::var("DUCKDB_FLOOR").unwrap_or_else(|_| {
-        format!("{}/tests/duckdb-floor.txt", option_env!("CARGO_MANIFEST_DIR").unwrap_or("rust/lite-dialect"))
-    });
+/// The dialect's floor: its file among `LITE_DIALECT_FLOORS` (Bazel), else the crate's `tests/<dialect>-floor.txt`.
+fn floor(dialect: &str) -> usize {
+    let file = format!("{}-floor.txt", dialect.to_ascii_lowercase());
+    let path = match std::env::var("LITE_DIALECT_FLOORS") {
+        Ok(paths) => paths
+            .split_whitespace()
+            .find(|p| p.rsplit(['/', '\\']).next() == Some(file.as_str()))
+            .unwrap_or_else(|| panic!("LITE_DIALECT_FLOORS names no {file}"))
+            .to_owned(),
+        Err(_) => format!("{}/tests/{file}", option_env!("CARGO_MANIFEST_DIR").unwrap_or("rust/lite-dialect")),
+    };
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read the floor {path}: {e}"));
     text.lines()
         .map(str::trim)
@@ -71,14 +247,17 @@ fn floor() -> usize {
 
 #[derive(Default)]
 struct Tally {
+    /// lines read, by oracle file
+    read: BTreeMap<String, usize>,
     statements: usize,
     identical: usize,
-    /// binds and regions written exactly as Java's record text, of the statements whose SQL is identical
-    exact_binds: usize,
+    /// the identical statements that bind or have a region (their binds and regions Java's record text)
     statements_with_binds: usize,
     /// (op or kind) -> [identical, different, refused wrongly, accepted wrongly]
     by_op: BTreeMap<String, [usize; 4]>,
     by_kind: BTreeMap<String, [usize; 4]>,
+    /// Java's refusals, by class
+    refusals: BTreeMap<String, usize>,
     /// cause -> count
     causes: BTreeMap<&'static str, usize>,
     /// cause -> the first examples' short diffs
@@ -105,19 +284,22 @@ const REFUSED_WRONGLY: usize = 2;
 const ACCEPTED_WRONGLY: usize = 3;
 
 impl Tally {
-    fn report(&self) -> String {
+    fn report(&self, dialect: &str) -> String {
         let mut out = String::new();
+        let read: Vec<String> = self.read.iter().map(|(f, n)| format!("{n} of {f}")).collect();
         let _ = writeln!(
             out,
-            "DuckDb: {} statements, {} identical, {} not (SQL compared exactly; binds/regions by emptiness)",
+            "{dialect}: {} distinct statements (lines read: {}), {} identical, {} not (the SQL, the binds and the \
+             regions compared exactly)",
             self.statements,
+            read.join(", "),
             self.identical,
             self.statements - self.identical
         );
         let _ = writeln!(
             out,
-            "binds and regions as Java's record text: {} of the {} identical statements that bind or have a region",
-            self.exact_binds, self.statements_with_binds
+            "of the identical statements, {} bind a parameter or have a region; Java refused {:?}",
+            self.statements_with_binds, self.refusals
         );
         let table = |out: &mut String, title: &str, rows: &BTreeMap<String, [usize; 4]>| {
             let _ =
@@ -153,49 +335,40 @@ impl Tally {
     }
 }
 
-fn compare_all(path: &str) -> Tally {
-    let file = std::fs::File::open(path).unwrap_or_else(|e| panic!("cannot open {path}: {e}"));
-    let mut tally = Tally::default();
-    for (i, line) in BufReader::new(file).lines().enumerate() {
-        let line = line.unwrap_or_else(|e| panic!("{path}:{}: {e}", i + 1));
-        // the dialect is the first field: skip the others' lines unparsed
-        if !line.starts_with("{\"dialect\":\"DuckDb\"") {
-            continue;
-        }
-        compare(i + 1, &line, &mut tally);
+fn compare_all(dialect: &'static str) -> Tally {
+    let (entries, read) = distinct(dialect);
+    let mut tally = Tally { read, ..Tally::default() };
+    for e in entries {
+        compare(dialect, &e, &mut tally);
     }
     tally
 }
 
-fn compare(at: usize, line: &str, tally: &mut Tally) {
-    let doc = parse_with_depth(line, MAX_DEPTH).unwrap_or_else(|e| panic!("line {at}: unparsable: {e}"));
+fn compare(dialect: &str, e: &Entry, tally: &mut Tally) {
+    let doc = parse_with_depth(&e.line, MAX_DEPTH).unwrap();
     let doc = doc.as_obj().unwrap();
+    let at = &e.at;
     let op = doc.str("op").unwrap().to_owned();
     let kind = doc.str("kind").unwrap().to_owned();
-    let mir = doc.obj("mir").unwrap_or_else(|e| panic!("line {at}: {e}"));
-    let java = java_answer(doc.obj("answer").unwrap_or_else(|e| panic!("line {at}: {e}")));
-    let (rust, query) = render(&op, mir).unwrap_or_else(|e| panic!("line {at}: {op} {kind}: unreadable MIR: {e}"));
+    let config = doc.obj_or_null("config").unwrap();
+    let mir = doc.get("mir").unwrap_or_else(|| panic!("{at}: no mir"));
+    let java = java_answer(doc.obj("answer").unwrap_or_else(|e| panic!("{at}: {e}")));
+    if let Answer::Throws { class, .. } = &java {
+        *tally.refusals.entry(class.rsplit('.').next().unwrap_or(class).to_owned()).or_default() += 1;
+    }
+    let d = fresh(dialect, config);
+    let (rust, query) =
+        answer(d.as_ref(), &op, mir).unwrap_or_else(|e| panic!("{at}: {op} {kind}: unreadable MIR: {e}"));
     tally.statements += 1;
     let outcome = match (&java, &rust) {
-        (Answer::Throws { .. }, Answer::Throws { .. }) | (Answer::Text(_), Answer::Text(_)) => {
+        (Answer::Throws { .. }, Answer::Throws { .. })
+        | (Answer::Text(_), Answer::Text(_))
+        | (Answer::Statement { .. }, Answer::Statement { .. }) => {
             if java == rust {
                 IDENTICAL
             } else {
                 DIFFERENT
             }
-        }
-        (
-            Answer::Statement { sql: js, binds: jb, regions: jr },
-            Answer::Statement { sql: rs, binds: rb, regions: rr },
-        ) => {
-            let same = js == rs && (jb == "[]") == (rb == "[]") && (jr == "[]") == (rr == "[]");
-            if same && (jb != "[]" || jr != "[]") {
-                tally.statements_with_binds += 1;
-                if jb == rb && jr == rr {
-                    tally.exact_binds += 1;
-                }
-            }
-            if same { IDENTICAL } else { DIFFERENT }
         }
         (_, Answer::Throws { .. }) => REFUSED_WRONGLY,
         (Answer::Throws { .. }, _) => ACCEPTED_WRONGLY,
@@ -205,16 +378,21 @@ fn compare(at: usize, line: &str, tally: &mut Tally) {
     tally.by_kind.entry(kind.clone()).or_default()[outcome] += 1;
     if outcome == IDENTICAL {
         tally.identical += 1;
+        if let Answer::Statement { binds, regions, .. } = &java
+            && (binds != "[]" || regions != "[]")
+        {
+            tally.statements_with_binds += 1;
+        }
         return;
     }
-    let cause = cause(query.as_ref(), &java, &rust);
+    let cause = cause(dialect, query.as_ref(), &java, &rust);
     *tally.causes.entry(cause).or_default() += 1;
-    let short = format!("line {at} {op} {kind} [{cause}]: {}", difference(&java, &rust, 100));
+    let short = format!("{at} {op} {kind} [{cause}]: {}", difference(&java, &rust, 100));
     let examples = tally.examples.entry(cause).or_default();
     if examples.len() < 2 {
         examples.push(short.clone());
     }
-    let full = format!("line {at} {op} {kind} [{cause}]\n  java: {java:?}\n  rust: {rust:?}");
+    let full = format!("{at} {op} {kind} [{cause}]\n  java: {java:?}\n  rust: {rust:?}");
     tally.mismatches.push(Mismatch { short, full });
 }
 
@@ -237,9 +415,13 @@ fn java_answer(a: &Obj) -> Answer {
 }
 
 /// Rust's answer for the op, and the query the passes would have seen (a DML statement's own, or its expressions in
-/// a select; none for DDL).
-fn render(op: &str, mir: &Obj) -> Result<(Answer, Option<SqlQuery>), lite_sql::Error> {
-    let d = DuckDb::new();
+/// a select; none for DDL and for text).
+fn answer(d: &dyn SqlDialect, op: &str, mir: &Node) -> Result<(Answer, Option<SqlQuery>), lite_sql::Error> {
+    if op == "fromEngineText" {
+        let statement = mir.as_str().map_err(|e| lite_sql::Error(format!("{op}'s input: {e}")))?;
+        return Ok((text(d.from_engine_text(statement)), None));
+    }
+    let mir = mir.as_obj()?;
     Ok(match op {
         "query.render" => {
             let q = read_query(mir)?;
@@ -344,9 +526,9 @@ fn around(s: &str, at: usize, width: usize) -> String {
 }
 
 /// The likely cause of a mismatch: the pass whose signature the difference carries (the refusal Rust wrote in its
-/// stead, or the text at the first difference), else the first pass, in the order the passes run, whose
+/// stead, or the text at the first difference), else the first pass, in the order the dialect runs its passes, whose
 /// trigger the statement holds.
-fn cause(q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &'static str {
+fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &'static str {
     let mut t = Triggers::default();
     if let Some(q) = q {
         t.root(q);
@@ -367,50 +549,70 @@ fn cause(q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &'static str {
     let at = first_difference(&j, &r);
     let (before, java_rest, rust_rest) = (&j[..at], &j[at..], &r[at..]);
     let recent = &before[before.len().saturating_sub(300)..];
-    // SubstringClamp: a SUBSTRING start clamped to 1, a literal start replaced
-    if java_rest.starts_with("greatest(")
-        || (recent.contains("substr(") && rust_rest.starts_with(|c: char| c.is_ascii_digit() || c == '-'))
-    {
-        return if t.substring {
-            "SubstringClamp"
-        } else if t.float_canon {
-            "FloatCanonText.Expansion, then SubstringClamp over the expansion's SUBSTRINGs"
-        } else {
-            "SubstringClamp (no SUBSTRING in the input)"
-        };
-    }
-    if rust_rest.starts_with("QUANTILE_")
-        || java_rest.starts_with("list_extract(list_")
-        || java_rest.starts_with("-(list_extract")
-    {
-        return "QuantileOrder";
-    }
-    // a PIVOT's argument still qualified
-    if before.contains("(PIVOT ") && rust_rest.split([' ', ')', ',', '(']).next().is_some_and(|tok| tok.contains('.')) {
-        return "UnqualifyPivotArgs";
-    }
-    if (rust_rest.starts_with('*') || rust_rest.contains(".*"))
-        && java_rest[..java_rest.len().min(300)].contains(" AS JSON)")
-    {
-        return "VariantEgress";
-    }
-    if java_rest.starts_with("CAST(") && t.stored_reads {
-        return "StoredReads";
-    }
-    let order: [(bool, &'static str); 12] = [
-        (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
-        (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
-        (t.carrier, "CarrierStrategies"),
-        (t.quantile, "QuantileOrder"),
-        (t.pivot, "UnqualifyPivotArgs"),
-        (t.fold, "FoldToListReduce"),
-        (t.checked_defects, "CheckedDefectsToLists"),
-        (t.substring, "SubstringClamp"),
-        (t.constant_key, "ConstantKeysAsExpressions"),
-        (t.outer_join_subquery, "OuterJoinSubqueryFilters"),
-        (t.variant_egress, "VariantEgress"),
-        (t.stored_reads, "StoredReads"),
-    ];
+    let order: Vec<(bool, &'static str)> = if dialect == "DuckDb" {
+        // SubstringClamp: a SUBSTRING start clamped to 1, a literal start replaced
+        if java_rest.starts_with("greatest(")
+            || (recent.contains("substr(") && rust_rest.starts_with(|c: char| c.is_ascii_digit() || c == '-'))
+        {
+            return if t.substring {
+                "SubstringClamp"
+            } else if t.float_canon {
+                "FloatCanonText.Expansion, then SubstringClamp over the expansion's SUBSTRINGs"
+            } else {
+                "SubstringClamp (no SUBSTRING in the input)"
+            };
+        }
+        if rust_rest.starts_with("QUANTILE_")
+            || java_rest.starts_with("list_extract(list_")
+            || java_rest.starts_with("-(list_extract")
+        {
+            return "QuantileOrder";
+        }
+        // a PIVOT's argument still qualified
+        if before.contains("(PIVOT ")
+            && rust_rest.split([' ', ')', ',', '(']).next().is_some_and(|tok| tok.contains('.'))
+        {
+            return "UnqualifyPivotArgs";
+        }
+        if (rust_rest.starts_with('*') || rust_rest.contains(".*"))
+            && java_rest[..java_rest.len().min(300)].contains(" AS JSON)")
+        {
+            return "VariantEgress";
+        }
+        if java_rest.starts_with("CAST(") && t.stored_reads {
+            return "StoredReads";
+        }
+        vec![
+            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
+            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (t.carrier, "CarrierStrategies"),
+            (t.quantile, "QuantileOrder"),
+            (t.pivot, "UnqualifyPivotArgs"),
+            (t.fold, "FoldToListReduce"),
+            (t.checked_defects, "CheckedDefectsToLists"),
+            (t.substring, "SubstringClamp"),
+            (t.constant_key, "ConstantKeysAsExpressions"),
+            (t.outer_join_subquery, "OuterJoinSubqueryFilters"),
+            (t.variant_egress, "VariantEgress"),
+            (t.stored_reads, "StoredReads"),
+        ]
+    } else {
+        // the H2 family's passes (H2.passes()): a cast to DOUBLE over AVG, a reference re-spelled by its source
+        if java_rest.starts_with("CAST(AVG(") || rust_rest.starts_with("CAST(AVG(") {
+            return "AggregatesDeliverDouble";
+        }
+        if recent.ends_with('.') && (java_rest.starts_with('"') != rust_rest.starts_with('"')) {
+            return "SourceSpelling";
+        }
+        vec![
+            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
+            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (t.carrier || t.pivot, "CarrierStrategies"),
+            (t.lateral, "ConstantLateralsAsRows or LateralExplodeToUnion"),
+            (t.avg, "AggregatesDeliverDouble"),
+            (t.stored_reads, "StoredReads"),
+        ]
+    };
     if let Some((_, name)) = order.iter().find(|(hit, _)| *hit) {
         return name;
     }
@@ -435,6 +637,8 @@ struct Triggers {
     outer_join_subquery: bool,
     variant_egress: bool,
     stored_reads: bool,
+    lateral: bool,
+    avg: bool,
 }
 
 impl Triggers {
@@ -507,6 +711,7 @@ impl SqlRewriter for Triggers {
             SqlSource::Join { kind: JoinKind::Left, on: Some(on), .. } if holds_scalar_subquery(on) => {
                 self.outer_join_subquery = true;
             }
+            SqlSource::Join { kind: JoinKind::LeftLateral | JoinKind::CrossLateral, .. } => self.lateral = true,
             SqlSource::Table { stored_types, .. }
                 if stored_types.iter().any(|(_, t)| {
                     matches!(t, ColumnType::Plain { kind: ColumnKind::Other | ColumnKind::Distinct })
@@ -530,6 +735,7 @@ impl SqlRewriter for Triggers {
             | SqlExpr::CheckedOne { .. }
             | SqlExpr::Call { r#fn: SqlFn::Unnest | SqlFn::ListFilter, .. } => self.carrier = true,
             SqlExpr::Reducer(r) if matches!(r.r#fn, AggFn::QuantileCont | AggFn::QuantileDisc) => self.quantile = true,
+            SqlExpr::Reducer(r) if r.r#fn == AggFn::Avg => self.avg = true,
             SqlExpr::WindowCall { r#fn, .. }
                 if matches!(r#fn.as_ref(), lite_sql::SqlAgg::Reducer(r)
                     if matches!(r.r#fn, AggFn::QuantileCont | AggFn::QuantileDisc)) =>
@@ -549,27 +755,18 @@ impl SqlRewriter for Triggers {
 // The seam held to the renderer it dispatches to
 // ==================================================================
 
-/// The spec the JVM's DuckDB sends (`SEAM.md`).
-const DUCKDB_SPEC: &str = r#"{"dialect":"DuckDb","server":null,"engineScanOrder":false}"#;
-
-/// The seam (`lite_dialect::dispatch`, the path `lite-ffi`'s `lite_dialect` takes) answering every DuckDB render op of
-/// the dump exactly as a fresh `DuckDb` called directly answers it: the same JSON text (the SQL as a JSON string, a
-/// statement in `SEAM.md`'s form), a statement read back from its JSON equal to the direct one (record for record)
-/// and its binds and regions Java's record text, a refusal the same class and message. Each `query.render` line is
-/// also asked for `query.renderInline`.
-#[test]
-#[ignore = "reads the JVM's MirJson dump named by LITE_MIR_DUMP"]
-fn the_seam_answers_as_the_renderer_does() {
-    let path = std::env::var("LITE_MIR_DUMP")
-        .expect("LITE_MIR_DUMP is unset: it names the JVM's MirJson dump (JSON lines) this test reads");
-    let stack_mb: usize = std::env::var("LITE_DIALECT_STACK_MB").ok().and_then(|v| v.parse().ok()).unwrap_or(256);
-    let run = std::thread::Builder::new().stack_size(stack_mb << 20).spawn(move || seam_all(&path)).unwrap();
-    let tally = run.join().unwrap();
+/// The seam (`lite_dialect::dispatch`, the path `lite-ffi`'s `lite_dialect` takes) answering every op of the
+/// dialect's statements exactly as a fresh dialect called directly answers it: the same JSON text (the SQL as a JSON
+/// string, a statement in `SEAM.md`'s form), a statement read back from its JSON equal to the direct one (record for
+/// record) and its binds and regions Java's record text, a refusal the same class and message. Each `query.render`
+/// line is also asked for `query.renderInline`.
+fn the_seam_answers_as_the_renderer_does(dialect: &'static str) {
+    let tally = on_a_big_stack(move || seam_all(dialect));
     let mut report = String::new();
     let _ = writeln!(
         report,
-        "seam: {} DuckDb render ops (and {} inline renders) dispatched, {} answered as the renderer does, {} \
-         statements read back from JSON equal and Java's record text, {} refusals",
+        "seam: {} {dialect} ops (and {} inline renders) dispatched, {} answered as the renderer does, {} statements \
+         read back from JSON equal and Java's record text, {} refusals",
         tally.ops, tally.inline, tally.same, tally.statements, tally.refusals
     );
     for (op, n) in &tally.by_op {
@@ -579,7 +776,7 @@ fn the_seam_answers_as_the_renderer_does() {
         let _ = writeln!(report, "{d}");
     }
     eprintln!("{report}");
-    assert!(tally.ops > 0, "the dump holds no DuckDb statement");
+    assert!(tally.ops > 0, "the oracles hold no {dialect} statement");
     assert!(tally.different.is_empty(), "{} answers differ:\n{report}", tally.different.len());
     assert_eq!(tally.same, tally.ops + tally.inline);
 }
@@ -595,44 +792,45 @@ struct SeamTally {
     different: Vec<String>,
 }
 
-fn seam_all(path: &str) -> SeamTally {
-    let file = std::fs::File::open(path).unwrap_or_else(|e| panic!("cannot open {path}: {e}"));
+fn seam_all(dialect: &str) -> SeamTally {
+    let (entries, _) = distinct(dialect);
     let mut tally = SeamTally::default();
-    for (i, line) in BufReader::new(file).lines().enumerate() {
-        let line = line.unwrap_or_else(|e| panic!("{path}:{}: {e}", i + 1));
-        if !line.starts_with("{\"dialect\":\"DuckDb\"") {
-            continue;
-        }
-        let doc = parse_with_depth(&line, MAX_DEPTH).unwrap_or_else(|e| panic!("line {}: unparsable: {e}", i + 1));
+    for e in entries {
+        let doc = parse_with_depth(&e.line, MAX_DEPTH).unwrap();
         let doc = doc.as_obj().unwrap();
         let op = doc.str("op").unwrap();
-        let mir = doc.obj("mir").unwrap();
+        let config = doc.obj_or_null("config").unwrap();
+        let mir = doc.get("mir").unwrap();
         let java = java_answer(doc.obj("answer").unwrap());
         tally.ops += 1;
         *tally.by_op.entry(op.to_owned()).or_default() += 1;
-        seam_one(i + 1, op, mir, Some(&java), &mut tally);
+        let spec = spec(dialect, config);
+        let raw = raw_mir(&e.line);
+        seam_one(&e.at, &spec, op, (mir, raw), Some(&java), &mut tally);
         if op == "query.render" {
             tally.inline += 1;
-            seam_one(i + 1, "query.renderInline", mir, None, &mut tally);
+            seam_one(&e.at, &spec, "query.renderInline", (mir, raw), None, &mut tally);
         }
     }
     tally
 }
 
-/// One op through the seam and directly; `java` the JVM's answer, to hold a statement's record text to.
-fn seam_one(at: usize, op: &str, mir: &Obj, java: Option<&Answer>, tally: &mut SeamTally) {
-    let key = op.split('.').next().unwrap();
-    let mut args = Obj::new();
-    args.insert(key, Node::Obj(mir.clone()));
-    let seam = dispatch(DUCKDB_SPEC, op, &to_compact(&Node::Obj(args)));
-    let d = DuckDb::new();
+/// One op through the seam and directly, its input the MirJson (read, and as the text Java wrote); `java` the JVM's
+/// answer, to hold a statement's record text to.
+fn seam_one(at: &str, spec: &str, op: &str, input: (&Node, &str), java: Option<&Answer>, tally: &mut SeamTally) {
+    let (mir, raw) = input;
+    let key = if op == "fromEngineText" { "statement" } else { op.split('.').next().unwrap() };
+    let seam = dispatch(spec, op, &format!("{{\"{key}\":{raw}}}"));
+    let d = open(spec).unwrap();
+    let obj = || mir.as_obj().unwrap();
     let direct: Result<Direct, Refusal> = match op {
-        "query.render" => SqlDialect::render(&d, read_query(mir).unwrap()).map(Direct::Text),
-        "query.renderInline" => SqlDialect::render_inline(&d, read_query(mir).unwrap()).map(Direct::Text),
-        "query.renderStatement" => SqlDialect::render_statement(&d, read_query(mir).unwrap()).map(Direct::Statement),
-        "ddl.render" => SqlDialect::render_ddl(&d, &read_ddl(mir).unwrap()).map(Direct::Text),
-        "dml.render" => SqlDialect::render_dml(&d, &read_dml(mir).unwrap()).map(Direct::Text),
-        "dml.renderStatement" => SqlDialect::render_dml_statement(&d, &read_dml(mir).unwrap()).map(Direct::Statement),
+        "query.render" => d.render(read_query(obj()).unwrap()).map(Direct::Text),
+        "query.renderInline" => d.render_inline(read_query(obj()).unwrap()).map(Direct::Text),
+        "query.renderStatement" => d.render_statement(read_query(obj()).unwrap()).map(Direct::Statement),
+        "ddl.render" => d.render_ddl(&read_ddl(obj()).unwrap()).map(Direct::Text),
+        "dml.render" => d.render_dml(&read_dml(obj()).unwrap()).map(Direct::Text),
+        "dml.renderStatement" => d.render_dml_statement(&read_dml(obj()).unwrap()).map(Direct::Statement),
+        "fromEngineText" => d.from_engine_text(mir.as_str().unwrap()).map(Direct::Text),
         other => panic!("unknown op {other}"),
     };
     let differs = match (&seam, &direct) {
@@ -644,8 +842,8 @@ fn seam_one(at: usize, op: &str, mir: &Obj, java: Option<&Answer>, tally: &mut S
             (*json != to_compact(&Node::Str(sql.clone()))).then(|| format!("seam {json}\n    direct {sql:?}"))
         }
         (Ok(json), Ok(Direct::Statement(st))) => {
-            let doc = parse_with_depth(json, MAX_DEPTH).unwrap_or_else(|e| panic!("line {at}: the seam's JSON: {e}"));
-            let back = read_statement(doc.as_obj().unwrap()).unwrap_or_else(|r| panic!("line {at}: {r}"));
+            let doc = parse_with_depth(json, MAX_DEPTH).unwrap_or_else(|e| panic!("{at}: the seam's JSON: {e}"));
+            let back = read_statement(doc.as_obj().unwrap()).unwrap_or_else(|r| panic!("{at}: {r}"));
             let javas = match java {
                 Some(Answer::Statement { sql, binds, regions }) => {
                     *sql == back.sql && *binds == list_text(&back.binds) && *regions == list_text(&back.regions)
@@ -663,7 +861,7 @@ fn seam_one(at: usize, op: &str, mir: &Obj, java: Option<&Answer>, tally: &mut S
     };
     match differs {
         None => tally.same += 1,
-        Some(d) => tally.different.push(format!("line {at} {op}: {d}")),
+        Some(d) => tally.different.push(format!("{at} {op}: {d}")),
     }
 }
 
@@ -678,20 +876,17 @@ enum Direct {
 // ==================================================================
 
 /// Java's `SqlTyping` as `lite_dialect::typing` ports it, held to the facts Java's constructors stored: every node of
-/// every statement of the dump (every dialect's: one tree), its fact recomputed from its children's and compared with
-/// the one MirJson carries; a projection frame's outputs rebuilt from its projections, a union's labels reconciled, a
-/// join's delivered columns, each compared with Java's. A leaf the builder supplies (a column, a lambda, a parameter,
-/// a key cell) has no rule; an array literal or a field read whose children prove no type keeps the one it was given.
+/// every distinct statement of the oracles (every dialect's: one tree), its fact recomputed from its children's and
+/// compared with the one MirJson carries; a projection frame's outputs rebuilt from its projections, a union's labels
+/// reconciled, a join's delivered columns, each compared with Java's. A leaf the builder supplies (a column, a lambda,
+/// a parameter, a key cell) has no rule; an array literal or a field read whose children prove no type keeps the one
+/// it was given.
 #[test]
-#[ignore = "reads the JVM's MirJson dump named by LITE_MIR_DUMP"]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
 fn typing_reproduces_javas_facts() {
-    let path = std::env::var("LITE_MIR_DUMP")
-        .expect("LITE_MIR_DUMP is unset: it names the JVM's MirJson dump (JSON lines) this test reads");
-    let stack_mb: usize = std::env::var("LITE_DIALECT_STACK_MB").ok().and_then(|v| v.parse().ok()).unwrap_or(256);
-    let run = std::thread::Builder::new().stack_size(stack_mb << 20).spawn(move || check_all_facts(&path)).unwrap();
-    let facts = run.join().unwrap();
+    let facts = on_a_big_stack(check_all_facts);
     let mut report = String::new();
-    let _ = writeln!(report, "typing: {} statements, {} facts checked", facts.statements, facts.checked);
+    let _ = writeln!(report, "typing: {} distinct statements, {} facts checked", facts.statements, facts.checked);
     for (kind, [checked, wrong]) in &facts.by_kind {
         let _ = writeln!(report, "  {kind:<28} {checked:>9} checked {wrong:>6} different");
     }
@@ -700,7 +895,7 @@ fn typing_reproduces_javas_facts() {
     }
     eprintln!("{report}");
     let wrong: usize = facts.by_kind.values().map(|v| v[1]).sum();
-    assert!(facts.checked > 0, "the dump holds no statement");
+    assert!(facts.checked > 0, "the oracles hold no statement");
     assert_eq!(wrong, 0, "{wrong} facts differ from Java's");
 }
 
@@ -714,42 +909,53 @@ struct Facts {
 }
 
 impl Facts {
-    fn check<T: PartialEq + std::fmt::Debug>(&mut self, at: usize, kind: &str, computed: T, stored: &T) {
+    fn check<T: PartialEq + std::fmt::Debug>(&mut self, at: &str, kind: &str, computed: T, stored: &T) {
         self.checked += 1;
         let tally = self.by_kind.entry(kind.to_owned()).or_default();
         tally[0] += 1;
         if computed != *stored {
             tally[1] += 1;
             if self.examples.len() < SHOWN {
-                self.examples.push(format!("line {at} {kind}:\n    java: {stored:?}\n    rust: {computed:?}"));
+                self.examples.push(format!("{at} {kind}:\n    java: {stored:?}\n    rust: {computed:?}"));
             }
         }
     }
 }
 
-fn check_all_facts(path: &str) -> Facts {
-    let file = std::fs::File::open(path).unwrap_or_else(|e| panic!("cannot open {path}: {e}"));
+/// The ops whose MirJson is a query or a DML statement (an engine-text op's query too).
+fn holds_a_query(op: &str) -> bool {
+    op.starts_with("query.") || op.starts_with("dml.") || op == "engine.renderAsAliased" || op == "engine.selectList"
+}
+
+fn check_all_facts() -> Facts {
+    let keep = |line: &str| {
+        let op = line.find(",\"op\":\"").map(|at| &line[at + 7..]).and_then(|rest| rest.split('"').next());
+        op.is_some_and(holds_a_query)
+    };
     let mut facts = Facts::default();
-    for (i, line) in BufReader::new(file).lines().enumerate() {
-        let line = line.unwrap_or_else(|e| panic!("{path}:{}: {e}", i + 1));
-        let doc = parse_with_depth(&line, MAX_DEPTH).unwrap_or_else(|e| panic!("line {}: unparsable: {e}", i + 1));
+    // one tree whichever dialect rendered it: distinct by the MirJson alone
+    let mut seen = HashSet::new();
+    each_line(&keep, &mut |at, line| {
+        if !seen.insert(hash(&[raw_mir(&line)])) {
+            return;
+        }
+        let doc = parse_with_depth(&line, MAX_DEPTH).unwrap_or_else(|e| panic!("{at}: unparsable: {e}"));
         let doc = doc.as_obj().unwrap();
-        let op = doc.str("op").unwrap();
         let mir = doc.obj("mir").unwrap();
-        let query = match op {
-            "query.render" | "query.renderStatement" => read_query(mir).ok(),
-            "dml.render" | "dml.renderStatement" => read_dml(mir).ok().and_then(|d| dml_query(&d)),
-            _ => None,
+        let query = if doc.str("op").unwrap().starts_with("dml.") {
+            read_dml(mir).ok().and_then(|d| dml_query(&d))
+        } else {
+            read_query(mir).ok()
         };
         if let Some(q) = query {
             facts.statements += 1;
-            query_facts(i + 1, &q, &mut facts);
+            query_facts(&at, &q, &mut facts);
         }
-    }
+    });
     facts
 }
 
-fn query_facts(at: usize, q: &SqlQuery, f: &mut Facts) {
+fn query_facts(at: &str, q: &SqlQuery, f: &mut Facts) {
     use lite_dialect::typing;
     match q {
         SqlQuery::Select(s) => {
@@ -784,7 +990,7 @@ fn query_facts(at: usize, q: &SqlQuery, f: &mut Facts) {
     }
 }
 
-fn source_facts(at: usize, s: &SqlSource, f: &mut Facts) {
+fn source_facts(at: &str, s: &SqlSource, f: &mut Facts) {
     use lite_dialect::typing;
     match s {
         SqlSource::Subselect { inner, .. } => query_facts(at, inner, f),
@@ -804,7 +1010,7 @@ fn source_facts(at: usize, s: &SqlSource, f: &mut Facts) {
     }
 }
 
-fn expr_facts(at: usize, e: &SqlExpr, f: &mut Facts) {
+fn expr_facts(at: &str, e: &SqlExpr, f: &mut Facts) {
     use lite_dialect::typing::{self, scalar};
     // the subqueries a node holds, and a window function's arguments, which `children` leaves out
     match e {

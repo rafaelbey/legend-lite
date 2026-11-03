@@ -3,11 +3,13 @@
 How the JVM uses a Rust dialect (docs/rust-port/PHASE1.md §3, step 3): one C export, `lite_dialect`, answering one
 method of Java's `SqlDialect` (and its `HostOperations`) per call, JSON in and JSON out. The JVM side is written against
 this file; `src/seam.rs` (`lite_dialect::dispatch`) and `lite-ffi`'s `lite_dialect` implement it, and their tests hold
-every op below (`src/seam/tests.rs`, `lite-ffi/src/lib.rs`, and `tests/duckdb_differential.rs`'s
-`the_seam_answers_as_the_renderer_does` over every DuckDB render of the golden dump).
+every op below (`src/seam/tests.rs`, `src/seam/h2_tests.rs`, `lite-ffi/src/lib.rs`, and
+`tests/dialect_differential.rs`'s `the_seam_answers_as_<dialect>s_renderer_does` over every op of each dialect's inputs
+in the golden oracles).
 
-Only DuckDB is answered by Rust today. Every answer below is DuckDB's: `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s
-implementations and `SqlDialect`'s defaults, exactly as Java answers them.
+Rust answers DuckDB, H2 and H2Modern (docs/rust-port/PHASE1.md §4, steps 3 and 4b). Every answer below is DuckDB's --
+`DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations and `SqlDialect`'s defaults, exactly as Java answers them
+-- unless §3a gives H2's and H2Modern's (`H2.java`'s and `H2Modern.java`'s overrides over the same base).
 
 ## 1. The call
 
@@ -32,23 +34,23 @@ The phase and position fields are always `-`; the message is the rest of the tex
   depth limit (§2) and that headroom are what keep it out of reach.
 - **Panics.** A panic on the dialect's thread, or a thread that cannot start, is answered `ERR\nINTERNAL\n-\n-\n<the
   panic's message>`; nothing unwinds into the caller.
-- **Fresh per call.** The dialect is made from `spec` for each call and dropped after it: DuckDB carries no state from
-  one render to the next. (This supersedes PHASE1.md §3's handle: no dialect state is held between calls.) The JVM
-  may read `facts` once per dialect and cache it.
+- **Fresh per call.** The dialect is made from `spec` for each call and dropped after it: DuckDB and the H2 family carry
+  no state from one render to the next. (This supersedes PHASE1.md §3's handle: no dialect state is held between
+  calls.) The JVM may read `facts` once per dialect and cache it.
 
 ## 2. Arguments
 
 ### `spec`
 
 ```json
-{"dialect": "DuckDb", "server": "<version>" | null, "engineScanOrder": true | false}
+{"dialect": "DuckDb" | "H2" | "H2Modern", "server": "<version>" | null, "engineScanOrder": true | false}
 ```
 
 | field | | |
 |---|---|---|
-| `dialect` | required string | Java's simple class name. Only `DuckDb`; any other is refused. |
-| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it. |
-| `engineScanOrder` | boolean or missing (false) | `Boolean.getBoolean("legend.exec.engineScanOrder")`, which Java's `DuckDb` reads at each render: the engine corpus runner's opt-in to `StableScanOrder`. The JVM passes its property's value. |
+| `dialect` | required string | Java's simple class name: `DuckDb`, `H2` or `H2Modern`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern`). |
+| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern keeps itself. |
+| `engineScanOrder` | boolean or missing (false) | `Boolean.getBoolean("legend.exec.engineScanOrder")`, which Java's `DuckDb` reads at each render: the engine corpus runner's opt-in to `StableScanOrder`. The JVM passes its property's value. Read as a boolean for every dialect; H2 and H2Modern ignore it. |
 
 ### `op` and `args`
 
@@ -77,6 +79,7 @@ Each answer is one JSON value. "string" is a JSON string, `[string]` an array of
 | op | args | answer (DuckDB) |
 |---|---|---|
 | `facts` | `{}` | the facts object (below) |
+| `forServer` | `{"version": string}` | string: the simple name of the dialect a session of that server version is spelled in, `forServer(version)` (this dialect's own name where Java returns `this`); DuckDB's is `"DuckDb"` whatever the version. The JVM builds its own shim of the named dialect (no Java code chooses a dialect by its class) |
 | `query.render` | `{"query": MIR query}` | string: `render(SqlQuery)` |
 | `query.renderInline` | `{"query": MIR query}` | string: `renderInline(SqlQuery)` (one line) |
 | `query.renderStatement` | `{"query": MIR query}` | STATEMENT: `renderStatement(SqlQuery)` |
@@ -102,8 +105,8 @@ Each answer is one JSON value. "string" is a JSON string, `[string]` an array of
 | `host.useDatabase` | `{"name": string}` | `[string]`: `USE "<name>"` |
 | `host.closeDatabase` | `{"name": string}` | `[string]`: `DETACH DATABASE IF EXISTS "<name>"` |
 | `host.statements` | `{"operation": HostOperation}` | `[string]`, in order; empty when the operation has nothing to do |
-| `duckdb.tables` | `{}` | DuckDB's own tables, which the JVM's `com.legend.sql.dialect.DuckDb` still offers by name (`LEXICON`, `CATALOG_TYPES`, `CATALOG_REFUSED`): `{"lexicon": {"quoteChar": string, "reservedWords": [string] (sorted)}, "catalogTypes": {<canonical type>: CatalogType, ...} (Java's order), "catalogRefused": {<canonical type>: <reason>, ...} (Java's order)}` |
-| `duckdb.readsStored` | `{"type": MIR column type}` | boolean: `readsStored(ColumnType)`, the `StoredReads` pass's question (a plain `OTHER` or `DISTINCT` column is read as text) |
+| `duckdb.tables` | `{}` | (DuckDB only) DuckDB's own tables, which the JVM's `com.legend.sql.dialect.DuckDb` still offers by name (`LEXICON`, `CATALOG_TYPES`, `CATALOG_REFUSED`): `{"lexicon": {"quoteChar": string, "reservedWords": [string] (sorted)}, "catalogTypes": {<canonical type>: CatalogType, ...} (Java's order), "catalogRefused": {<canonical type>: <reason>, ...} (Java's order)}` |
+| `duckdb.readsStored` | `{"type": MIR column type}` | (DuckDB only) boolean: `readsStored(ColumnType)`, the `StoredReads` pass's question (a plain `OTHER` or `DISTINCT` column is read as text) |
 | `scanOrderFirings` | `{}` | integer: the statements `StableScanOrder` has changed in this process, every dialect's (Java's `StableScanOrder.firings()`, which adds them to its own; the corpus runner's engine-order register) |
 
 ### `facts`
@@ -117,12 +120,37 @@ Each answer is one JSON value. "string" is a JSON string, `[string]` an array of
  "keysSnapshot": "TRANSACTION", "resultColumnLimit": null}
 ```
 
-- `serverVersions`: `[string]` or null; `inMemoryPath`, `scriptAbort`: string or null; `sessionSetup`: `[string]`.
+- `serverVersions`: `[string]`, null, or, where the dialect refuses it (H2Modern's), `{"refused": ...}` as for
+  `keysSnapshot` below; `inMemoryPath`, `scriptAbort`: string or null; `sessionSetup`: `[string]`.
 - `keysSnapshot`: a `SqlDialect.KeysSnapshot` name (`TRANSACTION`, `REPEATABLE_READ`, `SERIALIZABLE`, `NONE`), or,
   where the dialect refuses it, `{"refused": {"kind": <kind>, "message": <message>}}` (§5's kind and message; the JVM
   throws it when `keysSnapshot()` is called, not when the facts are read).
 - `resultColumnLimit`: an integer, null (no limit, or none known: DuckDB's), or `{"refused": ...}` likewise. Null and
   a refusal are different answers.
+
+### 3a. H2 and H2Modern
+
+H2 and H2Modern answer every op above but `duckdb.tables` and `duckdb.readsStored`; where their answer differs from
+DuckDB's it is:
+
+| op | H2 | H2Modern |
+|---|---|---|
+| `facts` | `{"temporaryTables": true, "loadsRowsInBulk": false, "relational": true, "inProcess": true, "dropsStagedTablesWithTheirTransaction": true, "needsStaticPivot": true, "serverVersions": ["2.1", "2.2"], "inMemoryPath": null, "scriptAbort": null, "sessionSetup": [], "keysSnapshot": "REPEATABLE_READ", "resultColumnLimit": 16384}` | H2's, but `"serverVersions": {"refused": {"kind": "DIALECT_CAPABILITY", "message": "H2Modern: a plan is written for H2's servers [2.1, 2.2], and H2Modern is chosen for any other at run time"}}` |
+| `forServer` | `"H2"` for a version that starts with `2.1` or `2.2` (Java's `startsWith`: `2.10` does), `"H2Modern"` for any other (the empty one too) | `"H2Modern"` |
+| the renders | H2's: every alias and derived label quoted, a physical name as its DDL spelled it, a placeholder cast to its type (`TIMESTAMP(9)` for a date-time) or to a type hole of every kind it may take (`BIGINT`, `NUMERIC` with its digits, `DECFLOAT` with its digits, `DATE`, `TIMESTAMP(9)`), the H2 family's passes (`PARITY.md`) | H2's, and typed-JSON navigation: `(x)."key"`, `(x)[i+1]`, `JSON_OBJECT(...)` for a struct, `CARDINALITY(x)` for a list's length |
+| `physicalName` | the name as written when pre-quoted (`"x"`), else bare when it is `[A-Za-z_][A-Za-z0-9_$]*` and not reserved (the engine's H2 words and `right`), else double-quoted | H2's |
+| `storedName` | delimited when declared quoted, else `physicalName`'s | H2's |
+| `insertColumnName` | delimited when declared quoted, else bare unless needed (`[A-Za-z_][A-Za-z0-9_]*`, not reserved; no `$`) | H2's |
+| `raw`, `fromEngineText` | the engine's H2 text as it is (H2's own) | H2's |
+| `wireTypeName`, `typingWireName`, `deliversOwn`, `script` | the interface's defaults: `WireNames.fold`, the same name, `false`, the statements joined by `;\n` with a `;` last (`;` for none) | H2's |
+| `failingStatement` | the index of the first statement whose stripped text starts the stripped quote after `SQL statement: ` in the message (an empty statement starts every quote), or null when the message has no such marker or no statement starts it | H2's |
+| `catalogType`, `catalogColumnsQuery`, `bareNameReaches`, a converting `copySelectList` | the interface's refusals, naming `H2` (`copySelectList` of no conversion: `"*"`) | the same, naming `H2Modern` |
+| `host.*` | refused: `a project's own database on H2 is not built: only DuckDB makes one so far (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5)`; `host.statements`: `a host's <Operation> on H2 is not built (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5)` | the same, naming `H2Modern` |
+| `duckdb.tables`, `duckdb.readsStored` | refused (`IllegalArgumentException`): `'<op>' is DuckDb's op, not H2's` | the same, naming `H2Modern` |
+
+The refusals H2's Java words with the literal "H2" keep it on H2Modern: `a TYPEOF compared with <TYPE>'s name reached
+H2`, `plan parameter '<name>' has no type and is not typed by its value, and H2 types a parameter when it prepares the
+statement: not bound on H2`, `origin-less column reference reached the case-sensitive H2 renderer: <ref> — ...`.
 
 ### Op refusals
 
@@ -135,6 +163,8 @@ Beyond MirJson's and `lite_json`'s words (§2), each op refuses as Java's method
 - `sessionTable`: `sessionTable's table is a createTable, not <_type>`, `sessionTable's rows are an insertValues, not
   <_type>` (Java's signature takes those records; Rust's statements are enums, so the seam checks the variant).
 - `script`, `failingStatement`: `field 'statements' is an array of strings`.
+- `forServer`: `missing field 'version'`, `field 'version' is null, not a string`.
+- `duckdb.tables`, `duckdb.readsStored` asked of another dialect: `'<op>' is DuckDb's op, not <Dialect>'s`.
 - `catalogType`: `DialectCapability` -- `a DECIMAL column whose catalog gives no precision and scale ('<dataType>')
   cannot be declared`; `a column of DuckDB type '<dataType>' cannot be declared in a Pure Database (<why>)`, `<why>`
   the refused type's recorded reason, `a type this dialect does not read`, or `its catalog names no canonical type`.
@@ -273,8 +303,9 @@ answer cannot hold one, as JSON writes it `\u0000`).
 
 - `CatalogModel.database` (the Database writer over a dialect's `catalogType` and `bareNameReaches`) and
   `RawSqlBoundary`'s ledger (`Recorder`) are not dialect methods and stay Java; the seam answers the methods they call.
-- `forServer` answers "this dialect" as `None` in Rust (Java's `return this`); a dialect that differs by server version
-  would answer another dialect, which the seam takes for the call.
+- `forServer` answers "this dialect" as `None` in Rust (Java's `return this`) and another dialect as that dialect (H2's
+  H2Modern), which the seam takes for the call (a spec's `server`); the `forServer` op answers the chosen dialect's
+  name, and the JVM makes its own shim of it.
 - `WireNames.fold` and `CatalogRules.typeOf` upper-case with Rust's `to_uppercase` where Java uses
   `toUpperCase(Locale.ROOT)`: the same special casing (`ß` is `SS`), each from its own Unicode version. Java's `trim`
   (every character at or below U+0020) is kept as is.

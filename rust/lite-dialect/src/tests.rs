@@ -3,7 +3,7 @@
 
 //! The framework's pieces held to Java's behaviour: the writer and its regions, the records' `toString`, the
 //! refusals' wording, the Java number and text spellings, and a handful of hand-built statements rendered by DuckDB.
-//! The golden dump holds the rest (`tests/duckdb_differential.rs`).
+//! The golden dump holds the rest (`tests/dialect_differential.rs`).
 
 use crate::build::{call, int_lit, string_lit};
 use crate::java::{big_decimal_plain, plain_float, split, strip};

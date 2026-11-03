@@ -6,7 +6,7 @@
 //! embed, `Character.isWhitespace`, and `String.split`'s dropped trailing empties.
 
 use crate::refusal::Refusal;
-use lite_sql::{ColumnType, OutputCol, SqlExpr, SqlType};
+use lite_sql::{ColumnType, OutputCol, SqlExpr, SqlType, TypeFact};
 
 /// `new BigDecimal(text).toPlainString()`, `text` in `BigDecimal`'s grammar (lite-sql keeps a BigDecimal as the
 /// text `BigDecimal.toString` wrote, which may carry an exponent: `1E+3`, `1.5E-7`).
@@ -90,6 +90,17 @@ pub fn sql_type_text(t: &SqlType) -> String {
                 slots.iter().map(|s| format!("Slot[kind={}, type={}]", s.kind, sql_type_text(&s.r#type))).collect();
             format!("Tagged[slots=[{}]]", ss.join(", "))
         }
+    }
+}
+
+/// `TypeFact`'s `toString`: `Typed[type=<type>, nullable=<b>]`, or a constant record's `Bottom[]`, `Raises[]`,
+/// `Unknown[]`.
+pub fn type_fact_text(f: &TypeFact) -> String {
+    match f {
+        TypeFact::Typed { r#type, nullable } => format!("Typed[type={}, nullable={nullable}]", sql_type_text(r#type)),
+        TypeFact::Bottom => "Bottom[]".to_owned(),
+        TypeFact::Raises => "Raises[]".to_owned(),
+        TypeFact::Unknown => "Unknown[]".to_owned(),
     }
 }
 

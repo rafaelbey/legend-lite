@@ -353,7 +353,7 @@ impl DuckDb {
     fn navigated(&self, w: &mut SqlWriter, e: &SqlExpr) -> Result<(), Refusal> {
         match e {
             SqlExpr::Column(c) if stored_variant_column(c) => {
-                let text = ansi::column_ref(self, c);
+                let text = ansi::column_ref(self, c)?;
                 w.append(&text);
                 Ok(())
             }
@@ -1071,14 +1071,14 @@ impl AnsiSqlRenderer for DuckDb {
     }
 
     /// A stored Variant column reference is read as JSON: `CAST(col AS JSON)`.
-    fn column_ref(&self, c: &Column) -> String {
-        let r = ansi::column_ref(self, c);
-        if stored_variant_column(c) { format!("CAST({r} AS JSON)") } else { r }
+    fn column_ref(&self, c: &Column) -> Result<String, Refusal> {
+        let r = ansi::column_ref(self, c)?;
+        Ok(if stored_variant_column(c) { format!("CAST({r} AS JSON)") } else { r })
     }
 
-    fn implicit_label(&self, p: &Projection) -> Option<String> {
+    fn implicit_label(&self, p: &Projection) -> Result<Option<String>, Refusal> {
         match &p.expr {
-            SqlExpr::Column(c) if stored_variant_column(c) => Some(self.alias_ident(&c.name)),
+            SqlExpr::Column(c) if stored_variant_column(c) => Ok(Some(self.alias_ident(&c.name))),
             _ => ansi::implicit_label(self, p),
         }
     }

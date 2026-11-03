@@ -358,7 +358,7 @@ mod tests {
         let _serial = serial();
         assert_eq!(
             dialect(r#"{"dialect":"Oracle"}"#, "facts", "{}"),
-            "ERR\nILLEGAL_ARGUMENT\n-\n-\nunknown dialect 'Oracle': Rust answers DuckDb"
+            "ERR\nILLEGAL_ARGUMENT\n-\n-\nunknown dialect 'Oracle': Rust answers DuckDb, H2, H2Modern"
         );
         let geometry = r#"{"column":{"name":"g","dataType":"GEOMETRY","logicalType":"GEOMETRY","precision":null,"scale":null,"notNull":false}}"#;
         assert_eq!(

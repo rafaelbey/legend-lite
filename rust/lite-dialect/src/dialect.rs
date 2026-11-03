@@ -99,9 +99,10 @@ pub trait SqlDialect {
         None
     }
 
-    /// The server versions this dialect's text is written for; none when it depends on no server's version.
-    fn server_versions(&self) -> Option<Vec<String>> {
-        None
+    /// The server versions this dialect's text is written for; none when it depends on no server's version; refused
+    /// by a dialect no plan is written in (H2Modern's).
+    fn server_versions(&self) -> Result<Option<Vec<String>>, Refusal> {
+        Ok(None)
     }
 
     /// Whether a target loads its declared rows through the database's own bulk loader. Default: no.

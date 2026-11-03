@@ -3,7 +3,7 @@
 
 //! Every op of the seam through [`dispatch`], each answer held to what Java's `SqlDialect` answers for DuckDB
 //! (`DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations, the interface's defaults), and the records' JSON
-//! forms `SEAM.md` gives. The golden dump holds the renders (`tests/duckdb_differential.rs`).
+//! forms `SEAM.md` gives. The golden dump holds the renders (`tests/dialect_differential.rs`).
 
 use super::*;
 use crate::catalog_model::CatalogColumn;
@@ -432,7 +432,7 @@ fn the_seam_refuses_what_it_cannot_read() {
     let r = dispatch(r#"{"dialect":"Oracle"}"#, "facts", "{}").unwrap_err();
     assert_eq!(
         (r.class, r.message.as_str()),
-        (Refusal::ILLEGAL_ARGUMENT, "unknown dialect 'Oracle': Rust answers DuckDb")
+        (Refusal::ILLEGAL_ARGUMENT, "unknown dialect 'Oracle': Rust answers DuckDb, H2, H2Modern")
     );
     assert_eq!(dispatch("[]", "facts", "{}").unwrap_err().message, "a dialect's spec is a JSON object");
     assert_eq!(dispatch("{}", "facts", "{}").unwrap_err().message, "missing field 'dialect'");
