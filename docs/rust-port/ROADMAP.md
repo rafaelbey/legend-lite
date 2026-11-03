@@ -59,6 +59,9 @@ first crates.io dependency (none yet).
 
 ### Phase 1 — the back end
 
+Design, measurements and order: [`PHASE1.md`](PHASE1.md). It adds to the list below: libcompiler's image calls the
+Rust library too (measured to work with `invokeExact`), and DuckDB switches alone first.
+
 `sql/dialect` and its 38 rewrite passes → `lite-sql`. Java's dialect entry points become the shim; Java's
 `sql/dialect` is deleted (the `sql` records stay: the Java Lowerer still builds them). The TeaVM planner targets
 (`wasm/BUILD.bazel:73,214`) and every TeaVM target that compiles core's planning code are deleted. **Keep the

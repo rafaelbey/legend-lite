@@ -48,7 +48,8 @@ give the same answer twice:
 - **Fresh-name counters that outlive a render.** `SQLite`'s `binds` (`__b<n>`, `SQLite.java:1373`), `Snowflake`'s
   `fresh` (`__f<n>`, `Snowflake.java:402`) and `CommonSubexpressions`' `fresh` (`__cse<n>`, `:39`) are instance state
   never reset per render, so the SQL a dialect writes depends on how many statements that dialect object wrote before
-  it. No test pins those names (every suite passes either way).
+  it. Whether a test pins those names is not known: the probe never changed what a test saw (corrected 2026-11-02;
+  PHASE1.md §2 keeps Java's per-dialect state until a reset is decided).
 - **Identity-hash tie-breaks.** `CommonSubexpressions` picks the largest repeated subtree in `IdentityHashMap`
   iteration order (`:93`), so between equal-size candidates the choice follows object addresses (TRIAGE C5).
 

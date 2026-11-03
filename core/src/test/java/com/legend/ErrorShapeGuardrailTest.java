@@ -166,6 +166,12 @@ class ErrorShapeGuardrailTest {
             Map.entry("QuotedSpecParser.java", 1),
             // Typer.java's one catch moved with the overload machinery (2026-09-29, plan W1.6)
             Map.entry("Overloads.java", 1),
+            // 0 -> 1 (2026-11-02, the Rust port's phase 1, docs/rust-port/ROADMAP.md "The shim", reviewed): Lite.guarded,
+            // the shim's one downcall site -- MethodHandle.invokeExact declares Throwable, and a downcall raises none of
+            // its own; a RuntimeException or an Error is rethrown unchanged, anything else wrapped; never a swallow,
+            // never a value. A MethodHandleProxies interface (no catch) cannot be made inside libcompiler's native
+            // image (measured: "no method in" every proxied interface), so the warehouse's invokeExact shape it is.
+            Map.entry("Lite.java", 1),
             Map.entry("ValidateDesugar.java", 2));
 
     /** Broad type ANYWHERE in the catch parameter — multi-catch included
