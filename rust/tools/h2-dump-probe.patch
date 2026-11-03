@@ -1,0 +1,324 @@
+diff --git a/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java b/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
+index f4453b6b7..bc1c110e3 100644
+--- a/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
++++ b/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
+@@ -66,11 +66,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+ 
+     @Override
+     public String render(SqlQuery query) {
++        MirDumpProbe.dump(this, "query.render", query);
+         return write(query).text();
+     }
+ 
+     @Override
+     public RenderedStatement renderStatement(SqlQuery query) {
++        MirDumpProbe.dump(this, "query.renderStatement", query);
+         return write(query).statement();
+     }
+ 
+@@ -1736,6 +1738,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+ 
+     @Override
+     public String render(com.legend.sql.SqlDdl ddl) {
++        MirDumpProbe.dump(this, "ddl.render", ddl);
+         return switch (ddl) {
+             case com.legend.sql.SqlDdl.CreateTable ct -> {
+                 // a TEMPORARY table: the one ANSI spelling every target here accepts
+@@ -1774,6 +1777,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+ 
+     @Override
+     public String render(com.legend.sql.SqlDml dml) {
++        MirDumpProbe.dump(this, "dml.render", dml);
+         return switch (dml) {
+             case com.legend.sql.SqlDml.InsertValues iv -> {
+                 SqlWriter writer = newWriter().append("INSERT INTO ").append(ddlQualified(iv.schema(), iv.table(), iv.quoting()))
+@@ -1803,6 +1807,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+ 
+     @Override
+     public RenderedStatement renderStatement(com.legend.sql.SqlDml dml) {
++        MirDumpProbe.dump(this, "dml.renderStatement", dml);
+         return switch (dml) {
+             // a seed's rows, a copy, a table emptied: setup's statements, which bind no value (their text, as this
+             // dialect renders it)
+diff --git a/core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java b/core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java
+index f995ab0b2..c7b4a48a2 100644
+--- a/core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java
++++ b/core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java
+@@ -378,6 +378,27 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect
+         this.timeZone = timeZone;
+     }
+ 
++    String probeConfig() {
++        return "{\"quoteIdentifiers\":" + quoteIdentifiers + ",\"timeZone\":"
++                + (timeZone == null ? "null" : MirDumpProbe.quote(timeZone)) + "}";
++    }
++
++    EngineStyleH2 probeFresh() {
++        if (getClass() == EngineStyleComposite.class) {
++            if (quoteIdentifiers || timeZone != null) {
++                throw new IllegalStateException("a configured Composite");
++            }
++            return new EngineStyleComposite();
++        }
++        if (getClass() == EngineStyleDB2.class) {
++            return new EngineStyleDB2(quoteIdentifiers, timeZone);
++        }
++        if (getClass() == EngineStyleH2.class) {
++            return new EngineStyleH2(quoteIdentifiers, timeZone);
++        }
++        throw new IllegalStateException("no fresh " + getClass());
++    }
++
+     /** A physical column's spelling: a column the DDL declared QUOTED keeps
+      *  its quotes (the engine's metamodel name carries them: "root"."calendar
+      *  name"); any other goes through {@link #phys}. */
+@@ -418,6 +439,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect
+      *  {@code setup/Ddl} wrote this text). Every other statement is the base's. */
+     @Override
+     public String render(com.legend.sql.SqlDml dml) {
++        MirDumpProbe.dump(this, "dml.render", dml);
+         return switch (dml) {
+             case com.legend.sql.SqlDml.InsertValues iv -> seedRow(iv);
+             case com.legend.sql.SqlDml.InsertFromTable it -> super.render(it);
+@@ -527,6 +549,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect
+ 
+     @Override
+     public String render(SqlQuery query) {
++        MirDumpProbe.dump(this, "query.render", query);
+         SqlQuery planned = planned(query, true);
+         SqlWriter writer = newWriter();
+         query(writer, planned, 0);
+@@ -535,6 +558,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect
+ 
+     @Override
+     public String renderAsAliased(SqlQuery query) {
++        MirDumpProbe.dump(this, "engine.renderAsAliased", query);
+         SqlQuery planned = planned(query, false);
+         SqlWriter writer = newWriter();
+         query(writer, planned, 0);
+@@ -560,6 +584,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect
+ 
+     @Override
+     public @com.legend.base.Nullable String selectList(SqlQuery query) {
++        MirDumpProbe.dump(this, "engine.selectList", query);
+         SqlQuery q = planned(query, true);
+         while (q instanceof com.legend.sql.SqlUnion u) {
+             q = u.branches().get(0);
+@@ -573,6 +598,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect
+     /** {@inheritDoc} The engine aliases a table by its name, lower case, and {@code _0}, quoted. */
+     @Override
+     public String inTempTableSelect(String tempTable) {
++        MirDumpProbe.dump(this, "engine.inTempTableSelect", tempTable);
+         String alias = "\"" + tempTable.toLowerCase(java.util.Locale.ROOT) + "_0\"";
+         return "select " + alias + ".ColumnForStoringInCollection as ColumnForStoringInCollection from " + tempTable
+                 + " as " + alias;
+@@ -934,6 +960,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect
+      * temp-table protocol's falseBlock (processInOperation). */
+     @Override
+     public String collectionSplice(SqlExpr.PlanParam cp) {
++        MirDumpProbe.dump(this, "engine.collectionSplice", cp);
+         // the engine's renderCollection spells each replacement pair with a
+         // TRAILING space ({"'" : "''" }); varPlaceHolderToString does not
+         return "${renderCollection(" + cp.name() + "![] \",\" "
+@@ -1047,6 +1074,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect
+      * t0); call only on the instance that rendered the SQL. */
+     @Override
+     public String renderedAlias(String alias) {
++        MirDumpProbe.dump(this, "engine.renderedAlias", alias);
+         return rename(alias);
+     }
+ 
+@@ -1650,6 +1678,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect
+     /** The engine's H2 text is this text's own language. */
+     @Override
+     public String fromEngineText(String statement) {
++        MirDumpProbe.dump(this, "fromEngineText", statement);
+         return statement;
+     }
+ 
+diff --git a/core/src/main/java/com/legend/sql/dialect/H2.java b/core/src/main/java/com/legend/sql/dialect/H2.java
+index 14460f871..c2faf9c37 100644
+--- a/core/src/main/java/com/legend/sql/dialect/H2.java
++++ b/core/src/main/java/com/legend/sql/dialect/H2.java
+@@ -336,6 +336,7 @@ public class H2 extends AnsiSqlRenderer {
+     /** The engine's H2 text is H2's own. */
+     @Override
+     public String fromEngineText(String statement) {
++        MirDumpProbe.dump(this, "fromEngineText", statement);
+         return statement;
+     }
+ 
+diff --git a/core/src/main/java/com/legend/sql/dialect/MirDumpProbe.java b/core/src/main/java/com/legend/sql/dialect/MirDumpProbe.java
+new file mode 100644
+index 000000000..68f3dc6e8
+--- /dev/null
++++ b/core/src/main/java/com/legend/sql/dialect/MirDumpProbe.java
+@@ -0,0 +1,168 @@
++// Copyright 2026 Legend Contributors
++// SPDX-License-Identifier: Apache-2.0
++
++package com.legend.sql.dialect;
++
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.StandardOpenOption;
++import java.util.Set;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * TEMPORARY (Rust port, phase 1 step 4a -- never committed; rust/tools/h2-dump-probe.patch): every distinct input the
++ * H2 family's dialects (H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite) are asked to render --
++ * queries, statements, and the engine-text entry points -- dumped once per JVM with the answer of a FRESH dialect of
++ * the same class and configuration, in the line format of rust/oracles/mir/mir-dump.jsonl plus a {@code config}.
++ * Reflection, because sql/dialect may not depend on executionplan or json. Written to the test's undeclared outputs,
++ * else java.io.tmpdir (a java_run action's declared scratch directory).
++ */
++final class MirDumpProbe {
++
++    private MirDumpProbe() {
++    }
++
++    private static final Set<String> FAMILY =
++            Set.of("H2", "H2Modern", "EngineStyleH2", "EngineStyleDB2", "EngineStyleComposite");
++    private static final ThreadLocal<Boolean> BUSY = ThreadLocal.withInitial(() -> Boolean.FALSE);
++    private static final Set<String> SEEN = ConcurrentHashMap.newKeySet();
++    private static final ConcurrentHashMap<String, AtomicLong> PER_KIND = new ConcurrentHashMap<>();
++    private static final long STATEMENT_CAP = 400;
++    private static final String TAG = ProcessHandle.current().pid() + "-" + Thread.currentThread().getId();
++
++    /** One input of {@code op}, dumped with a fresh dialect's answer. {@code input} is the Java value. */
++    static void dump(AnsiSqlRenderer dialect, String op, Object input) {
++        String name = dialect.getClass().getSimpleName();
++        if (!FAMILY.contains(name) || BUSY.get()) {
++            return;
++        }
++        BUSY.set(Boolean.TRUE);
++        try {
++            String config = dialect instanceof EngineStyleH2 e ? e.probeConfig() : "null";
++            String mir = mirOf(input);
++            String kind = input instanceof String ? "String" : input.getClass().getSimpleName();
++            boolean statement = op.startsWith("ddl") || op.startsWith("dml");
++            AtomicLong perKind = PER_KIND.computeIfAbsent(name + "/" + config + "/" + kind, k -> new AtomicLong());
++            if (statement && perKind.get() >= STATEMENT_CAP) {
++                return;
++            }
++            if (!SEEN.add(name + '\u0000' + config + '\u0000' + op + '\u0000' + mir)) {
++                return;
++            }
++            if (statement) {
++                perKind.incrementAndGet();
++            }
++            AnsiSqlRenderer fresh = fresh(dialect);
++            String out;
++            try {
++                out = "{\"ok\":" + answerOf(fresh, op, input) + "}";
++            } catch (RuntimeException e) {
++                out = "{\"throws\":" + quote(e.getClass().getName()) + ",\"message\":"
++                        + quote(String.valueOf(e.getMessage())) + "}";
++            }
++            append("{\"dialect\":" + quote(name) + ",\"config\":" + config + ",\"fresh\":true,\"op\":" + quote(op)
++                    + ",\"kind\":" + quote(kind) + ",\"mir\":" + mir + ",\"answer\":" + out + "}\n");
++        } catch (Throwable t) {
++            Throwable cause = t instanceof java.lang.reflect.InvocationTargetException i && i.getCause() != null
++                    ? i.getCause() : t;
++            append("{\"probeError\":" + quote(name + " " + op + ": " + cause) + ",\"input\":"
++                    + quote(String.valueOf(input)) + "}\n");
++        } finally {
++            BUSY.set(Boolean.FALSE);
++        }
++    }
++
++    private static AnsiSqlRenderer fresh(AnsiSqlRenderer d) {
++        if (d instanceof EngineStyleH2 e) {
++            return e.probeFresh();
++        }
++        if (d.getClass() == H2Modern.class) {
++            return new H2Modern();
++        }
++        if (d.getClass() == H2.class) {
++            return new H2();
++        }
++        throw new IllegalStateException("no fresh " + d.getClass());
++    }
++
++    private static String answerOf(AnsiSqlRenderer d, String op, Object input) {
++        return switch (op) {
++            case "query.render" -> quote(d.render((com.legend.sql.SqlQuery) input));
++            case "query.renderStatement" -> statement(d.renderStatement((com.legend.sql.SqlQuery) input));
++            case "ddl.render" -> quote(d.render((com.legend.sql.SqlDdl) input));
++            case "dml.render" -> quote(d.render((com.legend.sql.SqlDml) input));
++            case "dml.renderStatement" -> statement(d.renderStatement((com.legend.sql.SqlDml) input));
++            case "fromEngineText" -> quote(d.fromEngineText((String) input));
++            case "engine.renderAsAliased" -> quote(((EngineStyleH2) d).renderAsAliased((com.legend.sql.SqlQuery) input));
++            case "engine.selectList" -> {
++                String s = ((EngineStyleH2) d).selectList((com.legend.sql.SqlQuery) input);
++                yield s == null ? "null" : quote(s);
++            }
++            case "engine.collectionSplice" ->
++                    quote(((EngineStyleH2) d).collectionSplice((com.legend.sql.SqlExpr.PlanParam) input));
++            case "engine.renderedAlias" -> quote(((EngineStyleH2) d).renderedAlias((String) input));
++            case "engine.inTempTableSelect" -> quote(((EngineStyleH2) d).inTempTableSelect((String) input));
++            default -> throw new IllegalStateException(op);
++        };
++    }
++
++    private static String mirOf(Object input) throws ReflectiveOperationException {
++        if (input instanceof String s) {
++            return quote(s);
++        }
++        Class<?> mir = Class.forName("com.legend.executionplan.MirJson");
++        Class<?> json = Class.forName("com.legend.json.Json");
++        Object tree;
++        if (input instanceof com.legend.sql.SqlQuery q) {
++            tree = mir.getMethod("query", com.legend.sql.SqlQuery.class).invoke(null, q);
++        } else if (input instanceof com.legend.sql.SqlDdl d) {
++            tree = mir.getMethod("ddl", com.legend.sql.SqlDdl.class).invoke(null, d);
++        } else if (input instanceof com.legend.sql.SqlDml d) {
++            tree = mir.getMethod("dml", com.legend.sql.SqlDml.class).invoke(null, d);
++        } else if (input instanceof com.legend.sql.SqlExpr e) {
++            tree = mir.getMethod("expr", com.legend.sql.SqlExpr.class).invoke(null, e);
++        } else {
++            throw new IllegalStateException("no MirJson for " + input.getClass());
++        }
++        return (String) json.getMethod("toCompact", Object.class).invoke(null, tree);
++    }
++
++    private static String statement(RenderedStatement s) {
++        return "{\"sql\":" + quote(s.sql()) + ",\"binds\":" + quote(String.valueOf(s.binds())) + ",\"regions\":"
++                + quote(String.valueOf(s.regions())) + "}";
++    }
++
++    static String quote(String s) {
++        StringBuilder b = new StringBuilder("\"");
++        for (char c : s.toCharArray()) {
++            switch (c) {
++                case '"' -> b.append("\\\"");
++                case '\\' -> b.append("\\\\");
++                case '\n' -> b.append("\\n");
++                case '\r' -> b.append("\\r");
++                case '\t' -> b.append("\\t");
++                default -> {
++                    if (c < 0x20) {
++                        b.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) c));
++                    } else {
++                        b.append(c);
++                    }
++                }
++            }
++        }
++        return b.append('"').toString();
++    }
++
++    private static synchronized void append(String line) {
++        try {
++            String d = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
++            Path dir = Path.of(d != null ? d : System.getProperty("java.io.tmpdir"));
++            Files.writeString(dir.resolve("h2-dump-" + TAG + ".jsonl"), line, StandardCharsets.UTF_8,
++                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
++        } catch (Throwable ignored) {
++            // the probe never fails the run
++        }
++    }
++}

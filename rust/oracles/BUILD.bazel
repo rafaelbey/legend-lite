@@ -17,4 +17,14 @@ zstd_decompress(
     visibility = ["//rust:__subpackages__"],
 )
 
+# The H2 family's renders and engine-text entry points over the whole suite, the corpus lanes included (phase 1 step 4;
+# mir/MANIFEST.tsv): the H2 and engine-style differentials read it.
+zstd_decompress(
+    name = "h2_dump",
+    testonly = True,
+    src = "mir/h2-dump.jsonl.zst",
+    out = "mir/h2-dump.jsonl",
+    visibility = ["//rust:__subpackages__"],
+)
+
 guards_package()

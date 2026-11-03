@@ -108,6 +108,41 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
    MongoDB (and its pipeline) as an implementation of its own. `AnsiSqlRenderer` and the passes are deleted with the
    last.
 
+   **H2 and the engine-style dialects** (`H2`, `H2Modern`; `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`):
+   4a an oracle, 4b H2 and H2Modern, 4c the engine-style three, 4d the switch.
+
+   - **4a, done 2026-11-03: the oracle.** The first dump holds the engine-style dialects thinly (39, 10, 10 entries:
+     DDL and DML only): its probe hooked `AnsiSqlRenderer`'s render, which `EngineStyleH2` overrides, and could keep
+     nothing from the corpus lanes, which run as build actions. A second probe (`rust/tools/h2-dump-probe.patch`, never
+     committed to the sources) rode the whole suite, the lanes' judge passes included (a `java_run` action's
+     `java.io.tmpdir` is its declared scratch directory), and dumped the H2 family's every entry point:
+     `rust/oracles/mir/h2-dump.jsonl.zst`, 24,001 entries, no input with two answers -- H2 21,453 (2,190 of them
+     `fromEngineText`), H2Modern 386, EngineStyleH2 about 2,100 over five configurations (`quoteIdentifiers`, the plan
+     text's time zone: none, GMT, EST, US/Arizona) with every `EngineTextDialect` method, DB2 51, Composite 19. An
+     engine-text dialect is made with arguments, so each line carries its `config`, and the seam's spec must too.
+   - **Four engine-text queries hold a `SqlExpr.Tagged`**, which MirJson refuses by design (a tagged value is resolved
+     before a plan is written) and lite-sql has no variant for; `EngineStyleH2.tagged` writes the value's `comparable`
+     alone. Before 4c switches, either the shim substitutes the comparable before writing MirJson -- exact only if
+     the alias plan, which walks the whole tree, numbers nothing inside the tag or the candidates -- or MirJson and
+     lite-sql carry a tagged form for the dialect seam. Decided on those four inputs, measured.
+   - **What a shim must keep** (an inventory of every use outside the five files): production code only constructs
+     them -- `H2()`, `H2Modern()`, `EngineStyleH2()`, `(boolean)`, `(boolean, String)`, `EngineStyleDB2()`,
+     `(boolean, String)`, `EngineStyleComposite()` -- and calls `SqlDialect` / `EngineTextDialect` methods; no static
+     of theirs is read outside them. Tests type a dialect as `H2` (`TempTableAsTest:80`), so `H2Modern extends H2`
+     stays, and several pin a refusal's text holding the dialect's own simple name (`StoreWritesTest:202`,
+     `TempTableAsTest:121`, `HostOperationsTest:122`, `TranslateTest:76,107`, `SqlWriterTest:84`,
+     `CatalogGridTest:164`). The guards shape the shims: a shim declares `implements SqlDialect, EngineTextDialect`
+     (`DialectOwnerExclusivityTest:194-224` finds dialects by that text); no `instanceof` / `X.class` /
+     `getClass() ==` on a dialect in main code (`noDialectIsDecidedByItsClass`, `CodeShapeGuardrailTest:415`), so
+     `forServer` and the DB2/Composite choice pass a name; `com.legend.ffi` may not name a dialect class
+     (`DialectLeakRatchetTest:58`) nor depend on `EngineTextDialect` (`ArchitectureTest:269`).
+   - **Guards that move at 4d:** `DialectVocabularyTest:101` (15 `AnsiSqlRenderer` dialects -> 10),
+     `ParkedWorkLedgerTest:144` (PARK-18 pins a hook in `EngineStyleH2.java`; with `docs/PARKED_WORK_LEDGER.md`),
+     `TestLaneOrderGuardrailTest:66` (`LateralExplodeToUnion.java` mints RowOrder), and the regenerated
+     `docs/dialect-capability`. The H2 family is the last user of `ConstantLateralsAsRows`, `SourceSpelling`,
+     `LateralExplodeToUnion` and `DuckDbSpellings`, which go with it; `QualifyToSubselect`, `AggregatesDeliverDouble`
+     and `CarrierStrategies` stay for the other dialects.
+
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 
 Switching DuckDB to Rust takes core's dialects out of what TeaVM can compile. Deleting the TeaVM planner would have

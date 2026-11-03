@@ -4,3 +4,10 @@
 # dialect of its class, 138 of them a refusal. Version 1: a statement's binds and regions are Java's record toString
 # (ambiguous where a string holds ", "), its SQL exact; the seam's statement JSON replaces them at the DuckDB switch.
 mir-dump.jsonl.zst	{"dialect","fresh","op","kind","mir","answer"} per line; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement	14993de10df736f7b005ad6e20cbfc06d43e145cc701a42220a8b17b15c0d15a
+# Made 2026-11-03 on worktree-rust-port-phase0 (core as of aa9f05f62) by rust/tools/h2-dump-probe.patch over `bazel test //...`
+# (every test and build action, the corpus lanes' judge passes included): the H2 family (H2, H2Modern, EngineStyleH2,
+# EngineStyleDB2, EngineStyleComposite), deduplicated by (dialect, config, op, MirJson) across every JVM: 24,001
+# entries, no key with two answers. mir-dump.jsonl's line format plus `config` (an engine-text dialect's
+# {"quoteIdentifiers","timeZone"}; null otherwise) and the engine-text entry points. 4 inputs are absent: queries
+# holding SqlExpr.Tagged, which MirJson refuses by design (docs/rust-port/PHASE1.md §4 step 4).
+h2-dump.jsonl.zst	{"dialect","config","fresh","op","kind","mir","answer"} per line; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement, fromEngineText, engine.renderAsAliased, engine.selectList, engine.collectionSplice, engine.renderedAlias, engine.inTempTableSelect (a string op's mir is its input string)	7623053c860a06a1fc0b0bc1c53f64ba31cfffd0dc671c805742001657acc5a6
