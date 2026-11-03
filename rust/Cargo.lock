@@ -9,3 +9,10 @@ version = "0.1.0"
 [[package]]
 name = "lite-javacompat"
 version = "0.1.0"
+
+[[package]]
+name = "lite-json"
+version = "0.1.0"
+dependencies = [
+ "lite-javacompat",
+]

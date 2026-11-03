@@ -1,0 +1,23 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# legend-lite's JSON, ported from json/'s Json.java (src/lib.rs): insertion order, numbers kept as written, Java's
+# escape table and refusals.
+rust_library(
+    name = "lite_json",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    version = "0.1.0",
+    visibility = ["//rust:__subpackages__"],
+    deps = ["//rust/lite-javacompat:lite_javacompat"],
+)
+
+rust_test(
+    name = "lite_json_test",
+    crate = ":lite_json",
+    edition = "2024",
+    visibility = ["//gates:__pkg__"],
+)
+
+guards_package()

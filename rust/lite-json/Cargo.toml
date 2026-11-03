@@ -1,0 +1,11 @@
+[package]
+name = "lite-json"
+version = "0.1.0"
+description = "legend-lite's JSON (json/'s Json.java, ported): insertion order, numbers kept as written"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+lite-javacompat = { path = "../lite-javacompat" }
