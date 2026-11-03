@@ -1,0 +1,2 @@
+java.version	25.0.4+7-LTS
+tzdb.version	2026b
