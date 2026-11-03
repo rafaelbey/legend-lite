@@ -10,6 +10,7 @@ import com.legend.sql.NameQuoting;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlDdl;
+import com.legend.sql.SqlDml;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlQuery;
@@ -32,7 +33,9 @@ import java.util.Map;
  * THE TYPED SQL TREE AS JSON (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3, step 1b): the MIR -- every {@link SqlQuery},
  * {@link SqlSource}, {@link SqlExpr}, {@link SqlAgg}, {@link SqlType}, {@link TypeFact}, {@link DateFmt} and the
  * declared column types a stored read carries -- written as JSON and read back, so a plan read from its JSON is as
- * typed as the one the planner made. Every variant is its own {@code _type}, an enum constant the writer spells and
+ * typed as the one the planner made. The statements a dialect renders beside its queries, {@link SqlDdl} and
+ * {@link SqlDml}, travel the same way ({@link #ddl}, {@link #dml}): the Rust port's back seam hands a dialect every
+ * statement it renders as this JSON (docs/rust-port/ROADMAP.md, "The seams"). Every variant is its own {@code _type}, an enum constant the writer spells and
  * the reader switches over exhaustively; the writer's switches run over the sealed interfaces, so a new MIR variant
  * fails to compile here until it has its tag. Numbers travel losslessly: a long as a JSON integer, a double and a
  * BigDecimal as their own text. An unknown tag is refused by name.
@@ -65,6 +68,10 @@ public final class MirJson {
     enum FmtTag { part, text }
 
     enum ColumnTypeTag { plain, sized, scaled }
+
+    enum DdlTag { createTable, dropTable, createSchema, dropSchema }
+
+    enum DmlTag { insertValues, insertFromTable, deleteAll, createTempTableAs, insertSelect, update, deleteWhere, merge }
 
     // ---------------------------------------------------------------- writing
 
@@ -757,6 +764,131 @@ public final class MirJson {
         return o;
     }
 
+    public static Map<String, Object> ddl(SqlDdl d) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        switch (d) {
+            case SqlDdl.CreateTable t -> {
+                o.put("_type", DdlTag.createTable.name());
+                o.put("schema", t.schema());
+                o.put("table", t.table());
+                o.put("quoting", quoting(t.quoting()));
+                List<Object> columns = new ArrayList<>();
+                for (SqlDdl.Column c : t.columns()) {
+                    Map<String, Object> col = new LinkedHashMap<>();
+                    col.put("name", c.name());
+                    col.put("declaredQuoted", c.declaredQuoted());
+                    col.put("type", columnType(c.type()));
+                    col.put("notNull", c.notNull());
+                    col.put("primaryKey", c.primaryKey());
+                    columns.add(col);
+                }
+                o.put("columns", columns);
+                o.put("temporary", t.temporary());
+            }
+            case SqlDdl.DropTable t -> {
+                o.put("_type", DdlTag.dropTable.name());
+                o.put("schema", t.schema());
+                o.put("table", t.table());
+                o.put("quoting", quoting(t.quoting()));
+            }
+            case SqlDdl.CreateSchema s -> {
+                o.put("_type", DdlTag.createSchema.name());
+                o.put("schema", s.schema());
+                o.put("quoted", s.quoted());
+            }
+            case SqlDdl.DropSchema s -> {
+                o.put("_type", DdlTag.dropSchema.name());
+                o.put("schema", s.schema());
+                o.put("quoted", s.quoted());
+            }
+        }
+        return o;
+    }
+
+    public static Map<String, Object> dml(SqlDml d) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        switch (d) {
+            case SqlDml.InsertValues iv -> {
+                target(o, DmlTag.insertValues, iv.schema(), iv.table(), iv.quoting());
+                o.put("columns", iv.columns());
+                o.put("quotedColumns", List.copyOf(iv.quotedColumns()));
+                List<Object> rows = new ArrayList<>();
+                for (List<SqlExpr> row : iv.rows()) {
+                    rows.add(exprs(row));
+                }
+                o.put("rows", rows);
+            }
+            case SqlDml.InsertFromTable it -> {
+                target(o, DmlTag.insertFromTable, it.schema(), it.table(), it.quoting());
+                o.put("columns", it.columns());
+                o.put("quotedColumns", List.copyOf(it.quotedColumns()));
+                o.put("source", it.source());
+            }
+            case SqlDml.DeleteAll da -> target(o, DmlTag.deleteAll, da.schema(), da.table(), da.quoting());
+            case SqlDml.CreateTempTableAs ct -> {
+                o.put("_type", DmlTag.createTempTableAs.name());
+                o.put("table", ct.table());
+                o.put("query", query(ct.query()));
+                o.put("columns", ct.columns());
+                o.put("staged", ct.staged());
+            }
+            case SqlDml.InsertSelect is -> {
+                target(o, DmlTag.insertSelect, is.schema(), is.table(), is.quoting());
+                o.put("columns", is.columns());
+                o.put("quotedColumns", List.copyOf(is.quotedColumns()));
+                o.put("query", query(is.query()));
+            }
+            case SqlDml.Update u -> {
+                target(o, DmlTag.update, u.schema(), u.table(), u.quoting());
+                o.put("alias", u.alias());
+                o.put("storedTypes", storedTypes(u.storedTypes()));
+                List<Object> assignments = new ArrayList<>();
+                for (SqlDml.Update.Assignment a : u.assignments()) {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("column", a.column());
+                    m.put("quoted", a.quoted());
+                    m.put("value", expr(a.value()));
+                    assignments.add(m);
+                }
+                o.put("assignments", assignments);
+                o.put("where", u.where() == null ? null : expr(u.where()));
+            }
+            case SqlDml.DeleteWhere dw -> {
+                target(o, DmlTag.deleteWhere, dw.schema(), dw.table(), dw.quoting());
+                o.put("alias", dw.alias());
+                o.put("storedTypes", storedTypes(dw.storedTypes()));
+                o.put("where", dw.where() == null ? null : expr(dw.where()));
+            }
+            case SqlDml.Merge m -> {
+                target(o, DmlTag.merge, m.schema(), m.table(), m.quoting());
+                o.put("columns", m.columns());
+                o.put("quotedColumns", List.copyOf(m.quotedColumns()));
+                o.put("keys", m.keys());
+                o.put("query", query(m.query()));
+                o.put("alias", m.alias());
+                o.put("sourceAlias", m.sourceAlias());
+            }
+        }
+        return o;
+    }
+
+    /** A DML statement's tag and the table it writes. */
+    private static void target(Map<String, Object> o, DmlTag tag, @com.legend.base.Nullable String schema, String table,
+            NameQuoting quoting) {
+        o.put("_type", tag.name());
+        o.put("schema", schema);
+        o.put("table", table);
+        o.put("quoting", quoting(quoting));
+    }
+
+    private static Map<String, Object> storedTypes(Map<String, SqlDdl.ColumnType> types) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map.Entry<String, SqlDdl.ColumnType> e : types.entrySet()) {
+            out.put(e.getKey(), columnType(e.getValue()));
+        }
+        return out;
+    }
+
     // ---------------------------------------------------------------- reading
 
     private static <E extends Enum<E>> E named(Class<E> family, String name, String what) {
@@ -1129,5 +1261,85 @@ public final class MirJson {
             case sized -> new SqlDdl.ColumnType.Sized(o.getString("kind"), o.getInt("size"));
             case scaled -> new SqlDdl.ColumnType.Scaled(o.getString("kind"), o.getInt("precision"), o.getInt("scale"));
         };
+    }
+
+    public static SqlDdl readDdl(Json.Obj o) {
+        return switch (tagOf(DdlTag.class, o, "DDL statement")) {
+            case createTable -> {
+                List<SqlDdl.Column> columns = new ArrayList<>();
+                for (Json.Node n : o.getArr("columns").items()) {
+                    Json.Obj c = (Json.Obj) n;
+                    columns.add(new SqlDdl.Column(c.getString("name"), c.getBool("declaredQuoted"),
+                            readColumnType(c.getObj("type")), c.getBool("notNull"), c.getBool("primaryKey")));
+                }
+                yield new SqlDdl.CreateTable(o.getStringOr("schema", null), o.getString("table"),
+                        readQuoting(o.getObj("quoting")), columns, o.getBool("temporary"));
+            }
+            case dropTable -> new SqlDdl.DropTable(o.getStringOr("schema", null), o.getString("table"),
+                    readQuoting(o.getObj("quoting")));
+            case createSchema -> new SqlDdl.CreateSchema(o.getString("schema"), o.getBool("quoted"));
+            case dropSchema -> new SqlDdl.DropSchema(o.getString("schema"), o.getBool("quoted"));
+        };
+    }
+
+    public static SqlDml readDml(Json.Obj o) {
+        return switch (tagOf(DmlTag.class, o, "DML statement")) {
+            case insertValues -> {
+                List<List<SqlExpr>> rows = new ArrayList<>();
+                for (Json.Node n : o.getArr("rows").items()) {
+                    rows.add(readExprs((Json.Arr) n));
+                }
+                yield new SqlDml.InsertValues(o.getStringOr("schema", null), o.getString("table"),
+                        readQuoting(o.getObj("quoting")), strings(o.getArr("columns")), quotedColumns(o), rows);
+            }
+            case insertFromTable -> new SqlDml.InsertFromTable(o.getStringOr("schema", null), o.getString("table"),
+                    readQuoting(o.getObj("quoting")), strings(o.getArr("columns")), quotedColumns(o),
+                    o.getString("source"));
+            case deleteAll -> new SqlDml.DeleteAll(o.getStringOr("schema", null), o.getString("table"),
+                    readQuoting(o.getObj("quoting")));
+            case createTempTableAs -> new SqlDml.CreateTempTableAs(o.getString("table"), readQuery(o.getObj("query")),
+                    strings(o.getArr("columns")), o.getBool("staged"));
+            case insertSelect -> new SqlDml.InsertSelect(o.getStringOr("schema", null), o.getString("table"),
+                    readQuoting(o.getObj("quoting")), strings(o.getArr("columns")), quotedColumns(o),
+                    readQuery(o.getObj("query")));
+            case update -> {
+                List<SqlDml.Update.Assignment> assignments = new ArrayList<>();
+                for (Json.Node n : o.getArr("assignments").items()) {
+                    Json.Obj a = (Json.Obj) n;
+                    assignments.add(new SqlDml.Update.Assignment(a.getString("column"), a.getBool("quoted"),
+                            readExpr(a.getObj("value"))));
+                }
+                Json.Obj where = objOrNull(o, "where");
+                yield new SqlDml.Update(o.getStringOr("schema", null), o.getString("table"),
+                        readQuoting(o.getObj("quoting")), o.getString("alias"),
+                        readStoredTypes(o.getObj("storedTypes")), assignments, where == null ? null : readExpr(where));
+            }
+            case deleteWhere -> {
+                Json.Obj where = objOrNull(o, "where");
+                yield new SqlDml.DeleteWhere(o.getStringOr("schema", null), o.getString("table"),
+                        readQuoting(o.getObj("quoting")), o.getString("alias"),
+                        readStoredTypes(o.getObj("storedTypes")), where == null ? null : readExpr(where));
+            }
+            case merge -> new SqlDml.Merge(o.getStringOr("schema", null), o.getString("table"),
+                    readQuoting(o.getObj("quoting")), strings(o.getArr("columns")), quotedColumns(o),
+                    strings(o.getArr("keys")), readQuery(o.getObj("query")), o.getString("alias"),
+                    o.getString("sourceAlias"));
+        };
+    }
+
+    private static java.util.Set<String> quotedColumns(Json.Obj o) {
+        return new java.util.LinkedHashSet<>(strings(o.getArr("quotedColumns")));
+    }
+
+    private static NameQuoting readQuoting(Json.Obj q) {
+        return new NameQuoting(q.getBool("schema"), q.getBool("table"));
+    }
+
+    private static Map<String, SqlDdl.ColumnType> readStoredTypes(Json.Obj o) {
+        Map<String, SqlDdl.ColumnType> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Json.Node> e : o.fields().entrySet()) {
+            out.put(e.getKey(), readColumnType((Json.Obj) e.getValue()));
+        }
+        return out;
     }
 }
