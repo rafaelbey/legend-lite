@@ -113,3 +113,6 @@ ide	base door lexer model parser
 test	base compiler driver error exec execution_plan json judge model planner protocol result sql values
 saved_queries	base json
 server_lib	base cache compiler compiler_element_type database driver error exec execution_plan json lowering model parser plan planner protocol pure_v1 result saved_queries setup sql_dialect
+# 2026-11-02 (docs/rust-port/ROADMAP.md, phase 0 step 6): `ffi`, the JVM's shim over the Rust compiler library
+# (java.lang.foreign over //rust/lite-ffi), base only; the phases of the port move core's entry points onto it.
+ffi	base

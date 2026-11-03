@@ -21,6 +21,9 @@ Thumbs.db
 runs/
 core/javac.*.args
 
+# cargo's build tree under rust/ (the edit loop; Bazel builds the crates itself, and .bazelignore skips it)
+/rust/target/
+
 # Python bytecode caches: build artifacts, and they bake an absolute path into git.
 __pycache__/
 *.pyc

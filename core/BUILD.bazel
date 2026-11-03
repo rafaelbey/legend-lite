@@ -87,6 +87,10 @@ legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error
 legend_java_library(name = "diagnostics", srcs = glob(["src/main/java/com/legend/diagnostics/*.java"]), deps = ["//base"], visibility = ["//parser-equivalence:__pkg__"])
 legend_java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = ["//base"])
 legend_java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = ["//base"])
+
+# THE RUST SHIM (docs/rust-port/ROADMAP.md, phase 0 step 6): the JVM's calls into the Rust compiler library
+# (//rust/lite-ffi) through java.lang.foreign; each phase of the port moves core's entry points onto it.
+legend_java_library(name = "ffi", srcs = glob(["src/main/java/com/legend/ffi/*.java"]), deps = ["//base"])
 # legend-engine's query store's rules (/api/pure/v1/query) over a records interface
 # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B5): the one implementation legend-lite's server, Python's native library
 # and the page's module answer with, the storage each host's own (a directory, or the page's records handed in).
@@ -465,6 +469,8 @@ legend_java_library(
         ["src/test/java/**/*.java"],
         exclude = [
             "src/test/java/com/legend/server/PostgresArmTest.java",
+            # LiteTest is :ffi_test's alone: the Rust library in its runfiles, and native access
+            "src/test/java/com/legend/ffi/LiteTest.java",
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
             "src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java",
@@ -795,6 +801,24 @@ junit_test(
 # ConnectionResolver and the product's own driver set (:drivers), against the Postgres 16 that
 # gate 7P starts (@embedded_postgres, //testing EmbeddedPostgres). Light: one class, and the cases it shares with
 # core's tests (:test_cases).
+junit_test(
+    name = "ffi_test",
+    memory_mb = 512,
+    size = "small",
+    srcs = ["src/test/java/com/legend/ffi/LiteTest.java"],
+    data = ["//rust/lite-ffi:lite_ffi"],
+    # the target's outputs as a list: on Windows the import library comes with the DLL
+    env = {"LEGEND_FFI_LIBRARY": "$(rlocationpaths //rust/lite-ffi:lite_ffi)"},
+    jvm_flags = ["--enable-native-access=ALL-UNNAMED"],
+    select = ["--select-class=com.legend.ffi.LiteTest"],
+    deps = [
+        ":ffi",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
 junit_test(
     name = "postgres_arm_test",
     memory_mb = 768,

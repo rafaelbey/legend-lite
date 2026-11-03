@@ -621,3 +621,17 @@ pip.parse(
     requirements_lock = "//tools/python:requirements_lock.txt",
 )
 use_repo(pip, "pypi")
+
+# RUST (docs/rust-port/ROADMAP.md, phase 0 step 5): the port of the compiler, crates under rust/. One toolchain, the
+# version rules_rust 0.75.0 ships as its default (its known checksums); rust/rust-toolchain.toml pins cargo's edit loop
+# to the same compiler. No crate from crates.io yet: crate_universe comes with the first one.
+bazel_dep(name = "rules_rust", version = "0.75.0")
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2024",
+    versions = ["1.99.1"],
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")

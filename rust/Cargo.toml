@@ -1,0 +1,20 @@
+# The Rust port's Cargo workspace (docs/rust-port/ROADMAP.md, phase 0 step 5). Bazel builds the same crates through
+# rules_rust (each crate's BUILD.bazel) and its targets are the gate; cargo is the edit loop. Both compile with one
+# compiler: rust-toolchain.toml pins the version MODULE.bazel's rust.toolchain names.
+[workspace]
+resolver = "3"
+members = ["lite-ffi"]
+
+[workspace.package]
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+rust-version = "1.99"
+
+# A panic must unwind: every export catches it and answers ERR, and an unwind that reached an extern "C" boundary
+# would abort the host process instead.
+[profile.dev]
+panic = "unwind"
+
+[profile.release]
+panic = "unwind"

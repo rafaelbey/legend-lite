@@ -7,6 +7,8 @@
 #     (it links packages from the lock file itself).
 experiments
 runs
+#   rust/target: cargo's own build tree (rust/'s edit loop); Bazel builds the crates itself (docs/rust-port/ROADMAP.md).
+rust/target
 datacube/node_modules
 query/node_modules
 #   .git: git's own store (a directory in a clone, a file in a worktree); its files churn with every commit in any

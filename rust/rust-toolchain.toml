@@ -1,0 +1,5 @@
+# cargo's compiler for rust/: the version MODULE.bazel's rust.toolchain names, so the edit loop and the gate compile
+# with the same rustc. Change both together.
+[toolchain]
+channel = "1.99.1"
+components = ["clippy", "rustfmt"]

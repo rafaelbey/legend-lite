@@ -1,0 +1,13 @@
+[package]
+name = "lite-ffi"
+version = "0.1.0"
+description = "legend-lite's compiler as a C library: the exports the JVM's shim (com.legend.ffi) calls"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "lite_ffi"
+# cdylib for the hosts, rlib for the crate's own tests
+crate-type = ["cdylib", "rlib"]
