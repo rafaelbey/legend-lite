@@ -12,6 +12,7 @@
 //! `name()`. Every refusal is a [`Refusal`]: Java's class and message.
 
 use crate::catalog_model::{CatalogColumn, CatalogType, Conversion};
+use crate::databricks::Databricks;
 use crate::dialect::{EngineTextDialect, SqlDialect};
 use crate::duckdb::DuckDb;
 use crate::engine_style::{EngineStyle, Profile};
@@ -37,6 +38,7 @@ pub const DIALECTS: &[&str] = &[
     "Postgres",
     "SQLite",
     "Trino",
+    "Databricks",
 ];
 
 /// Every op the seam answers (`SEAM.md`, "Ops").
@@ -118,7 +120,7 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
     let time_zone = spec.str_or_null("timeZone").map_err(json)?;
     let configured = spec.get("quoteIdentifiers").is_some() || spec.get("timeZone").is_some();
     let dialect: Box<dyn SqlDialect> = match name {
-        "DuckDb" | "H2" | "H2Modern" | "Postgres" | "SQLite" | "Trino" if configured => {
+        "DuckDb" | "H2" | "H2Modern" | "Postgres" | "SQLite" | "Trino" | "Databricks" if configured => {
             return Err(Refusal::illegal_argument(format!(
                 "quoteIdentifiers and timeZone configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not \
                  {name}"
@@ -134,6 +136,7 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
         "Postgres" => Box::new(Postgres::new()),
         "SQLite" => Box::new(Sqlite::new()),
         "Trino" => Box::new(Trino::new()),
+        "Databricks" => Box::new(Databricks::new()),
         "EngineStyleComposite" if quote_identifiers == Some(true) || time_zone.is_some() => {
             return Err(Refusal::illegal_argument(
                 "EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers \
@@ -646,3 +649,5 @@ mod sqlite_tests;
 mod tests;
 #[cfg(test)]
 mod trino_tests;
+#[cfg(test)]
+mod databricks_tests;

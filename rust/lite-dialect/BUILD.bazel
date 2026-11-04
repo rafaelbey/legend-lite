@@ -8,11 +8,11 @@ exports_files([
     "src/passes.rs",
 ])
 
-# legend-lite's SQL dialects, ported from core/'s com.legend.sql.dialect (src/lib.rs; docs/rust-port/PHASE1.md steps 3,
-# 4 and 5): the shared renderer (Java's AnsiSqlRenderer as a trait), the writer, the pass pipeline with every pass DuckDB,
-# the H2 family, Postgres and SQLite run, the typing rules its constructors apply (Java's SqlTyping), DuckDB, H2 and
-# H2Modern, the engine-text dialects (EngineStyleH2, EngineStyleDB2, EngineStyleComposite), Postgres and SQLite, rendering
-# a lite_sql statement as the JVM does. It embeds the JDK's time-zone rules (src/java_time.rs includes //rust/oracles/tzdb:tzdb.bin,
+# legend-lite's SQL dialects, ported from core/'s com.legend.sql.dialect (src/lib.rs; docs/rust-port/PHASE1.md steps 3
+# to 6): the shared renderer (Java's AnsiSqlRenderer as a trait), the writer, the pass pipeline with every pass DuckDB,
+# the H2 family, Postgres, SQLite, Trino and Databricks run, the typing rules its constructors apply (Java's SqlTyping),
+# DuckDB, H2 and H2Modern, the engine-text dialects (EngineStyleH2, EngineStyleDB2, EngineStyleComposite), Postgres,
+# SQLite, Trino and Databricks, rendering a lite_sql statement as the JVM does. It embeds the JDK's time-zone rules (src/java_time.rs includes //rust/oracles/tzdb:tzdb.bin,
 # 146 KB).
 rust_library(
     name = "lite_dialect",
@@ -36,10 +36,10 @@ rust_test(
     visibility = ["//gates:__pkg__"],
 )
 
-# every statement of the golden oracles (//rust/oracles:mir_dump, :h2_dump, :dialects_dump, :sqlite_arms and the tagged
-# engine-text query) of each dialect Rust answers -- DuckDb 16,154, H2 21,847, H2Modern 394, EngineStyleH2 2,105,
-# EngineStyleDB2 56, EngineStyleComposite 24, Postgres 11,630, SQLite 2,529 -- rendered by a fresh Rust dialect and held
-# to Java's answer, at least each dialect's floor (tests/<dialect>-floor.txt) identical; every type fact of every statement of the oracles recomputed and held to Java's;
+# every statement of the golden oracles (//rust/oracles:mir_dump, :h2_dump, :dialects_dump, :sqlite_arms, :dialect_arms
+# and the tagged engine-text query) of each dialect Rust answers -- DuckDb 16,154, H2 21,847, H2Modern 394, EngineStyleH2
+# 2,105, EngineStyleDB2 56, EngineStyleComposite 24, Postgres 11,630, SQLite 2,529, Trino 2,630, Databricks 2,631 --
+# rendered by a fresh Rust dialect and held to Java's answer, at least each dialect's floor (tests/<dialect>-floor.txt) identical; every type fact of every statement of the oracles recomputed and held to Java's;
 # and every op of each dialect's statements answered through the seam (SEAM.md) exactly as a direct call answers it;
 # and the engine text's zone shift held to java.time over the JDK's tzdb (//rust/oracles/tzdb: every region's offsets,
 # gaps and overlaps, and Java's own EngineStyleH2 renders), the embedded tzdb.bin held to the generator's output on the
@@ -50,6 +50,7 @@ rust_test(
     srcs = ["tests/dialect_differential.rs"],
     args = ["--ignored"],
     data = [
+        "tests/databricks-floor.txt",
         "tests/duckdb-floor.txt",
         "tests/enginestylecomposite-floor.txt",
         "tests/enginestyledb2-floor.txt",
@@ -81,6 +82,7 @@ rust_test(
             "$(rootpath tests/postgres-floor.txt)",
             "$(rootpath tests/sqlite-floor.txt)",
             "$(rootpath tests/trino-floor.txt)",
+            "$(rootpath tests/databricks-floor.txt)",
         ]),
         "LITE_ORACLES": " ".join([
             "$(rootpath //rust/oracles:mir_dump)",

@@ -5,15 +5,17 @@ method of Java's `SqlDialect` (and its `HostOperations`) per call, JSON in and J
 this file; `src/seam.rs` (`lite_dialect::dispatch`) and `lite-ffi`'s `lite_dialect` implement it, and their tests hold
 every op below (`src/seam/tests.rs`, `src/seam/h2_tests.rs`, `src/seam/engine_tests.rs`, `lite-ffi/src/lib.rs`, and
 `tests/dialect_differential.rs`'s `the_seam_answers_as_<dialect>s_renderer_does` over every op of each dialect's inputs
-in the golden oracles; `src/seam/postgres_tests.rs` for Postgres, `src/seam/sqlite_tests.rs` for SQLite).
+in the golden oracles; `src/seam/postgres_tests.rs` for Postgres, `src/seam/sqlite_tests.rs` for SQLite,
+`src/seam/trino_tests.rs` for Trino, `src/seam/databricks_tests.rs` for Databricks).
 
 Rust answers DuckDB, H2 and H2Modern (docs/rust-port/PHASE1.md §4, steps 3 and 4b), the engine-text dialects
-`EngineStyleH2`, `EngineStyleDB2` and `EngineStyleComposite` (step 4c), Postgres (step 5b) and SQLite (step 5d). Every
-answer below is DuckDB's -- `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations and `SqlDialect`'s defaults,
-exactly as Java answers them -- unless §3a gives H2's and H2Modern's (`H2.java`'s and `H2Modern.java`'s overrides over
-the same base), §3b the engine-text dialects' (theirs over the same base, and Java's `EngineTextDialect`), §3c
-Postgres's (`Postgres.java`'s and `PostgresHostOperations.java`'s) or §3d SQLite's (`SQLite.java`'s, with
-`SqliteRegex.java`, `SqliteDigests.java` and the passes it installs).
+`EngineStyleH2`, `EngineStyleDB2` and `EngineStyleComposite` (step 4c), Postgres (step 5b), SQLite (step 5d), Trino and
+Databricks (step 6b). Every answer below is DuckDB's -- `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations
+and `SqlDialect`'s defaults, exactly as Java answers them -- unless §3a gives H2's and H2Modern's (`H2.java`'s and
+`H2Modern.java`'s overrides over the same base), §3b the engine-text dialects' (theirs over the same base, and Java's
+`EngineTextDialect`), §3c Postgres's (`Postgres.java`'s and `PostgresHostOperations.java`'s), §3d SQLite's
+(`SQLite.java`'s, with `SqliteRegex.java`, `SqliteDigests.java` and the passes it installs), §3e Trino's (`Trino.java`'s,
+with `PivotAsGroupBy.java` and `AsOfAsPick.java`) or §3f Databricks' (`Databricks.java`'s).
 
 ## 1. The call
 
@@ -38,8 +40,8 @@ The phase and position fields are always `-`; the message is the rest of the tex
   depth limit (§2) and that headroom are what keep it out of reach.
 - **Panics.** A panic on the dialect's thread, or a thread that cannot start, is answered `ERR\nINTERNAL\n-\n-\n<the
   panic's message>`; nothing unwinds into the caller.
-- **Fresh per call.** The dialect is made from `spec` for each call and dropped after it: DuckDB, the H2 family and
-  Postgres carry no state from one render to the next, and SQLite's is a statement's own (its markers, its root's labels
+- **Fresh per call.** The dialect is made from `spec` for each call and dropped after it: DuckDB, the H2 family,
+  Postgres, Trino and Databricks carry no state from one render to the next, and SQLite's is a statement's own (its markers, its root's labels
   and selects, and its fresh names `__b<n>`, started over at each outermost render: the user's ruling, 2026-11-03). (This supersedes PHASE1.md §3's handle: no dialect state is held
   between calls.) The JVM may read `facts` once per dialect and cache it. An engine-text dialect's render leaves one
   piece of state on Java's dialect object -- the engine's alias plan of the query, which `renderedAlias` then reads --
@@ -51,21 +53,21 @@ The phase and position fields are always `-`; the message is the rest of the tex
 
 ```json
 {"dialect": "DuckDb" | "H2" | "H2Modern" | "EngineStyleH2" | "EngineStyleDB2" | "EngineStyleComposite" | "Postgres"
-             | "SQLite",
+             | "SQLite" | "Trino" | "Databricks",
  "server": "<version>" | null, "engineScanOrder": true | false,
  "quoteIdentifiers": true | false, "timeZone": "<zone>" | null}
 ```
 
 | field | | |
 |---|---|---|
-| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, `Postgres` or `SQLite`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres, SQLite`). |
-| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects, Postgres and SQLite keep themselves. |
+| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, `Postgres`, `SQLite`, `Trino` or `Databricks`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres, SQLite, Trino, Databricks`). |
+| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects, Postgres, SQLite, Trino and Databricks keep themselves. |
 | `engineScanOrder` | boolean or missing (false) | `Boolean.getBoolean("legend.exec.engineScanOrder")`, which Java's `DuckDb` reads at each render: the engine corpus runner's opt-in to `StableScanOrder`. The JVM passes its property's value. Read as a boolean for every dialect; only DuckDB reads it. |
 | `quoteIdentifiers` | boolean or missing (false) | an engine-text dialect's constructor argument (`new EngineStyleH2(quoteIdentifiers, timeZone)`, `new EngineStyleDB2(...)`; the plan text's connection): every physical identifier double-quoted. |
 | `timeZone` | string, null or missing (null) | the same constructors' second argument, the connection's zone: a DATETIME placeholder written in `GMTtoTZ`, a date-time constant shifted from GMT to the zone (`GMT` itself shifts none; §6). |
 
-`quoteIdentifiers` and `timeZone` configure an engine-text dialect alone: on `DuckDb`, `H2`, `H2Modern`, `Postgres` or
-`SQLite` either field, present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone
+`quoteIdentifiers` and `timeZone` configure an engine-text dialect alone: on `DuckDb`, `H2`, `H2Modern`, `Postgres`,
+`SQLite`, `Trino` or `Databricks` either field, present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone
 configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not <Dialect>`). `EngineStyleComposite` has only
 Java's no-argument constructor: the fields may be absent or their defaults (`false`, `null`); any other value is refused
 (`EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers false, timeZone
@@ -277,6 +279,54 @@ no test calls a method of a SQLite object that is no `SqlDialect` method: the co
 `WireTypeNamesTest`) ask it `render` (of a query, a DDL and a DML statement), `renderInline`, `hostOperations` and
 `typingWireName` alone, and assert refusals naming its simple class name (`SQLite`), so no op beyond §3 is needed.
 
+### 3e. Trino
+
+Trino 483 through its JDBC driver, its memory connector (`Trino.java`, with the passes `PivotAsGroupBy.java` and
+`AsOfAsPick.java`; `src/trino.rs`, `src/trino/`, `src/shared_passes.rs`). Trino answers every op of §3 but `duckdb.*` and
+`engine.*`; where its answer differs from DuckDB's it is:
+
+| op | Trino |
+|---|---|
+| `facts` | `{"temporaryTables": false, "loadsRowsInBulk": false, "relational": true, "inProcess": false, "dropsStagedTablesWithTheirTransaction": false, "needsStaticPivot": true, "serverVersions": null, "inMemoryPath": null, "scriptAbort": null, "sessionSetup": ["SET TIME ZONE 'UTC'"], "keysSnapshot": "NONE", "resultColumnLimit": null}` |
+| `forServer` | `"Trino"` whatever the version |
+| the renders | Trino's (`PARITY.md`): every identifier double-quoted (a valid double-quoted declaration as it is), every integer literal a BIGINT (`BIGINT '1'`), a big integer `DECIMAL '<digits>'`, a decimal past 38 digits `DOUBLE '<digits>'`, a timestamp's `T` a space, `OFFSET` before `LIMIT`; lists as typed `ARRAY(T)` with lambdas (an index lambda over `zip_with` and the positions), structs as typed `ROW`s (a root ROW column cast to JSON), maps as `MAP`, Variants as `JSON`; an explosion one `UNNEST` in FROM (a bare marker's `WITH ORDINALITY`), a list's moments, median and mode as its rows reduced (a correlated subquery), a quantile and a mode from the group's values sorted, banker's ROUND unrolled, the raise `fail(...)` cast to its slot, a NULL or raise in a declared slot cast to it; Trino's passes (the carrier strategies standing aside, a static pivot as a grouped CASE aggregation, an as-of join as a window pick, the star exclusion spelled out, the three explosion-marker passes, the checked defects as lists, the substring clamp, AVG as DOUBLE, QUALIFY by outputs, constant keys typed, the root's numeric types stated) |
+| `ddl.render` | the base's statements with every name quoted, a nullable column saying nothing (an explicit `NULL` is a syntax error), Trino's types (`TIMESTAMP(6)`, `TIMESTAMP(9)`, `TIME(6)`, `BOOLEAN` for a BIT, `DOUBLE` for a FLOAT) |
+| `dml.render`, `dml.renderStatement` | the base's spellings, every name quoted, a cell's integer a BIGINT; the store writes (`InsertSelect`, `Update`, `DeleteWhere`, `Merge`) and a temporary table from a query refused naming Trino |
+| `sessionTable` | refused (`DialectCapability`): `a session's own table reached Trino, which has no temporary tables: <table>` |
+| `physicalName`, `storedName`, `insertColumnName` | every name delimited (`"x"`, a quote doubled), a valid double-quoted declaration (`"date"`) as it is |
+| `raw`, `fromEngineText` | the engine's H2 text refused (`DialectCapability`): `the engine's H2 text reached Trino, which has no translation of it`; any other text as written |
+| `deliversOwn` | `true` for a struct label at the wire `JSON` (a ROW column is delivered as its JSON text), else `false` |
+| `wireTypeName`, `typingWireName`, `script`, `failingStatement`, `catalogColumnsQuery`, `catalogType`, `bareNameReaches`, a converting `copySelectList`, `host.*` | the interface's defaults, the refusals naming `Trino` |
+| `readsStored` | the base's: a plain `OTHER` or `DISTINCT` read as text |
+| `tableName` | the base's: a schema-qualified name each part delimited, else delimited (Trino's `ident` quotes every name) |
+| `duckdb.tables`, `duckdb.readsStored` | refused (`IllegalArgumentException`): `'<op>' is DuckDb's op, not Trino's` |
+
+### 3f. Databricks
+
+A Databricks SQL warehouse through its JDBC driver (`Databricks.java`; `src/databricks.rs`, `src/databricks/`).
+Databricks answers every op of §3 but `duckdb.*` and `engine.*`; where its answer differs from DuckDB's it is:
+
+| op | Databricks |
+|---|---|
+| `facts` | `{"temporaryTables": true, "loadsRowsInBulk": false, "relational": true, "inProcess": false, "dropsStagedTablesWithTheirTransaction": false, "needsStaticPivot": true, "serverVersions": null, "inMemoryPath": null, "scriptAbort": null, "sessionSetup": ["SET TIME ZONE 'UTC'", "SET ANSI_MODE = true"], "keysSnapshot": "NONE", "resultColumnLimit": null}` |
+| `forServer` | `"Databricks"` whatever the version |
+| the renders | Databricks' (`PARITY.md`): every identifier in backticks (a double-quoted declaration its inner name), a string literal's backslash and quote escaped by a backslash, every integer literal a BIGINT (`1L`); lists as typed `ARRAY<T>` with lambdas (an index parameter read 1-based from Spark's 0-based one), structs as `named_struct`, maps as `MAP`, Variants as `VARIANT`; native QUALIFY, PIVOT (a value's column `v__\|__agg`) and `SELECT * EXCEPT`; an as-of join's select a LEFT JOIN picked by its QUALIFY, several unnests side by side one `inline(arrays_zip(...))`, a VALUES unparenthesized (a column of NULLs alone typed), a quantified comparison its truth table, a list's moments DuckDB's own update, an ordered list a sorted `collect_list`, the raise `raise_error(...)` cast to its slot; Databricks' passes (the carrier strategies standing aside, the pivot's arguments unqualified, the checked defects as lists, the substring clamp, AVG as DOUBLE, constant keys typed, the root's numeric types stated) |
+| `ddl.render` | the base's statements with every name in backticks, a nullable column saying nothing, Spark's types (`STRING` for an unbounded VARCHAR, `BOOLEAN` for a BIT; a TIME or a nanosecond timestamp refused) |
+| `dml.render`, `dml.renderStatement` | the base's spellings, every name in backticks, a cell's integer a BIGINT; the store writes and a temporary table from a query refused naming Databricks |
+| `sessionTable` | one statement, a temporary view over the rows: ``CREATE TEMPORARY VIEW <table> AS SELECT CAST(`c0` AS <type>) AS <column>, ... FROM VALUES (<row>), ... AS `t`(`c0`, ...)``, each column cast to its DDL type; with no rows (`rows` null) each column `CAST(NULL AS <type>)` and `WHERE FALSE` last. A table that is not temporary refused (`IllegalArgumentException`: `a session table is temporary: <table>`); a row holding a plan parameter refused (`DialectCapability`: `plan parameters [<binds>] in a session table's rows: a row holds values, and a DDL statement is text`) |
+| `physicalName`, `storedName`, `insertColumnName` | every name in backticks (a backtick doubled); a valid double-quoted declaration its inner name, its doubled quotes single |
+| `raw`, `fromEngineText` | the engine's H2 text refused (`DialectCapability`): `the engine's H2 text reached Databricks, which has no translation of it`; any other text as written |
+| `wireTypeName`, `typingWireName`, `deliversOwn`, `script`, `failingStatement`, `catalogColumnsQuery`, `catalogType`, `bareNameReaches`, a converting `copySelectList`, `host.*` | the interface's defaults, the refusals naming `Databricks` |
+| `readsStored` | the base's: a plain `OTHER` or `DISTINCT` read as text |
+| `tableName` | the base's: a schema-qualified name each part in backticks, else in backticks |
+| `duckdb.tables`, `duckdb.readsStored` | refused (`IllegalArgumentException`): `'<op>' is DuckDb's op, not Databricks's` |
+
+Trino's and Databricks' public statics (`LEXICON`, `CAPS`) are read by no Java code outside their classes (main and test
+sources), and no test calls a method of a Trino or Databricks object that is no `SqlDialect` method: the core tests that
+make one (`TranslateTest`, `StoreWritesTest`, `CatalogGridTest`, `TempTableAsTest`, `WireTypeNamesTest`, and
+`SeedSpellingTest` for Databricks) ask it `render` (of a query, a DDL and a DML statement) and `typingWireName`, as a
+`SqlDialect`; `Databases` constructs each with `new Trino()` and `new Databricks()`. So no op beyond §3 is needed.
+
 ### Op refusals
 
 Beyond MirJson's and `lite_json`'s words (§2), each op refuses as Java's method throws, class and message:
@@ -439,6 +489,9 @@ answer cannot hold one, as JSON writes it `\u0000`).
   `RawSqlBoundary`'s ledger (`Recorder`) are not dialect methods and stay Java; the seam answers the methods they call.
 - SQLite's own: `PARITY.md` (an unterminated named group refused as `java.lang.StackOverflowError` where Java's stack
   overflows, `CommonSubexpressions`' tie order).
+- A `ClassCastException` Java's renderer throws (Trino's and Databricks' list lambda that is no lambda, Databricks' pivot
+  of AVG) crosses as `CLASS_CAST` with Java's message less the JVM's class-loader clause (`(... are in unnamed module of
+  loader 'app')`), which names the loader of the JVM that threw it (`PARITY.md`).
 - `forServer` answers "this dialect" as `None` in Rust (Java's `return this`) and another dialect as that dialect (H2's
   H2Modern), which the seam takes for the call (a spec's `server`); the `forServer` op answers the chosen dialect's
   name, and the JVM makes its own shim of it.

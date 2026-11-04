@@ -464,7 +464,9 @@ impl Trino {
                 t = siblings.get(f.name.as_str()).copied();
             }
             let Some(t) = t else {
-                return Err(Refusal::capability("a struct field of unknown type reached Trino: a ROW's fields are typed"));
+                return Err(Refusal::capability(
+                    "a struct field of unknown type reached Trino: a ROW's fields are typed",
+                ));
             };
             let name = self.ident(&f.name);
             let ty = cast_type_name(self, t)?;

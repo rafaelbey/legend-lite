@@ -1,8 +1,9 @@
-# Dialect parity: DuckDB, H2, H2Modern, the engine-text dialects, Postgres and SQLite (2026-11-03)
+# Dialect parity: DuckDB, H2, H2Modern, the engine-text dialects, Postgres, SQLite, Trino and Databricks (2026-11-04)
 
 Every dialect Rust answers, held to the JVM's own answers on the golden oracles (docs/rust-port/PHASE1.md §4): DuckDB
 (step 3, its renderer and passes), the H2 family's execution dialects, H2 and H2Modern (step 4b), the engine-text
-dialects, EngineStyleH2, EngineStyleDB2 and EngineStyleComposite (step 4c), Postgres (step 5b) and SQLite (step 5d).
+dialects, EngineStyleH2, EngineStyleDB2 and EngineStyleComposite (step 4c), Postgres (step 5b), SQLite (step 5d), Trino
+and Databricks (step 6b).
 Each is ported from
 its Java class, over a walk that keeps Java's identity semantics and a port of the typing rules Java's constructors
 apply. This file measures each on the oracles and says what of Java it does not reproduce exactly.
@@ -13,12 +14,13 @@ points against `oracles/java-compat/extras/char-classes.tsv` by `//rust/lite-jav
 Measured by `tests/dialect_differential.rs` over `//rust/oracles:mir_dump` (`mir/mir-dump.jsonl`),
 `//rust/oracles:h2_dump` (`mir/h2-dump.jsonl`), `//rust/oracles:dialects_dump` (`mir/dialects-dump.jsonl`, the ten Java
 dialects left after the H2 family's switch), `//rust/oracles:sqlite_arms` (`mir/sqlite-arms.jsonl`, the SQLite arms no
-lane reaches, rendered by Java's own SQLite) and `mir/tagged-engine.jsonl` (the one engine-text query holding a tagged
-value, as the shim sends it), an input more than one holds (the same dialect, op, configuration and MirJson; an
+lane reaches, rendered by Java's own SQLite), `//rust/oracles:dialect_arms` (`mir/dialect-arms.jsonl`, the eight dialects
+left to port over inputs that reach every arm each decides, rendered by Java's own dialects) and
+`mir/tagged-engine.jsonl` (the one engine-text query holding a tagged value, as the shim sends it), an input more than one holds (the same dialect, op, configuration and MirJson; an
 engine-text dialect's default configuration and the first dump's none are one) counted once:
 
 - `<dialect>_renders_as_java_does` (`duckdb_`, `h2_`, `h2modern_`, `enginestyleh2_`, `enginestyledb2_`,
-  `enginestylecomposite_`, `postgres_`, `sqlite_`): every distinct input of the dialect, answered by a fresh Rust dialect of that
+  `enginestylecomposite_`, `postgres_`, `sqlite_`, `trino_`, `databricks_`): every distinct input of the dialect, answered by a fresh Rust dialect of that
   name and configuration (made by the seam's `open`, as the JVM's shim makes it) and compared with the fresh JVM
   dialect's answer -- the SQL text exactly, a statement's binds and regions as Java's record text, a refusal by its Java
   class and message, an engine-text op's string (or a select list's null); at least the dialect's floor
@@ -32,7 +34,7 @@ engine-text dialect's default configuration and the first dump's none are one) c
 
 ```
 cd rust
-LITE_ORACLES="<mir-dump.jsonl> <h2-dump.jsonl> $PWD/oracles/mir/tagged-engine.jsonl <dialects-dump.jsonl> <sqlite-arms.jsonl>" \
+LITE_ORACLES="<mir-dump.jsonl> <h2-dump.jsonl> $PWD/oracles/mir/tagged-engine.jsonl <dialects-dump.jsonl> <sqlite-arms.jsonl> <dialect-arms.jsonl>" \
   cargo test --release -p lite-dialect --test dialect_differential -- --ignored --nocapture
 ```
 
@@ -140,8 +142,9 @@ None of these reaches the dump; each is a refusal's wording, an input the corpor
 not run.
 
 - A `ClassCastException`'s message names the classes as `com.legend.sql.SqlExpr$X` without the JVM's module suffix
-  (`... are in unnamed module of loader 'app'`); the walk's pivot-USING cast names `SqlExpr$SqlAgg$Reducer` where
-  Java's is `com.legend.sql.SqlAgg$Reducer`, and a `DeferredTdsString` over a union names `SqlExpr$SqlUnion`.
+  (`... are in unnamed module of loader 'app'`); a reducer cast where it is no `SqlExpr` record is named
+  `SqlExpr$Reducer` (Java's class is `com.legend.sql.SqlAgg$Reducer`), and a `DeferredTdsString` over a union names
+  `SqlExpr$SqlUnion`. (The walk's pivot-USING cast names `com.legend.sql.SqlAgg$Reducer` as Java does, since step 6b.)
 - A message that embeds a whole MIR node (`part()`'s "a date call's first argument is its part, not <node>", the
   walk's "a pass rewrote a stored read's column into <node>") writes the node's simple name, not Java's full record
   `toString`.
@@ -718,11 +721,231 @@ None of these reaches the oracles.
   would.
 - The seam refuses `duckdb.*` and `engine.*` on SQLite: ops no Java method of SQLite answers.
 
+# Trino
+
+Step 6b (docs/rust-port/PHASE1.md §4): Java's `Trino` (`src/trino.rs`; `src/trino/functions.rs` the `call` and
+`listCall` tables and their helpers, `src/trino/aggregates.rs` the hooks of the base, the aggregates and windows, the
+frame intervals and the date format), and the two passes it installs that no earlier dialect ran, in
+`src/shared_passes.rs` where Snowflake and ClickHouse will find them: `PivotAsGroupBy` and `AsOfAsPick`.
+
+## The numbers
+
+**2,630 of 2,630 distinct inputs identical (100 %)**; the floor (`tests/trino-floor.txt`) is 2,630. The oracles hold
+2,650 Trino lines (2,598 of `mir/dialect-arms.jsonl`, 25 of the dialects dump, 27 of the first; 20 repeat an input,
+none with two answers). The SQL, the binds and the regions are compared exactly: 25 statements bind a parameter or
+write a region and carry Java's record text. All 350 of Java's refusals are reproduced, class and message (215
+`DialectCapability`, 134 `IllegalStateException`, one `NullPointerException`: a quantified comparison by
+IS_DISTINCT_FROM, below), and Rust refuses nothing Java rendered. The first measurement was 2,626 of 2,630: four
+`regexp_replace` replacements whose group number Rust's port of `Character.digit` misread, fixed.
+
+| op | identical | different | refused (Java rendered) | accepted (Java refused) |
+|---|---:|---:|---:|---:|
+| `ddl.render` | 47 | 0 | 0 | 0 |
+| `dml.render` | 29 | 0 | 0 | 0 |
+| `dml.renderStatement` | 29 | 0 | 0 | 0 |
+| `fromEngineText` | 4 | 0 | 0 | 0 |
+| `query.render` | 76 | 0 | 0 | 0 |
+| `query.renderStatement` | 2,445 | 0 | 0 | 0 |
+
+By MIR kind every one is identical: `SqlSelect` 2,512, `CreateTable` 38, `InsertValues` 22, `DeleteAll` 8,
+`CreateTempTableAs`, `DeleteWhere` and `Update` 6 each, `DropTable` and `SqlUnion` 5 each, `InsertSelect`, `Merge`,
+`SqlWith` and `String` (the engine text, every one refused) 4 each, `CreateSchema`, `DropSchema` and `InsertFromTable` 2
+each.
+
+The arms oracle reaches every one of the 181 `SqlFn` arms, every `SqlAgg.Fn` of the exhaustive `reducer`, every own
+wall and every pass that changes a query (`CarrierStrategies` changes none where lists are native) -- measured by
+`rust/tools/dialect-arms-coverage.py` (PHASE1.md, 6a). What it cannot hold is unit-tested from the Java
+(`src/trino/tests.rs`): `listCall`'s LIST_REVERSE, RANGE_FN, REPEAT_VALUE and default arms and `bitOp`'s default
+(their one caller passes none of them), a list lambda that is no lambda (Java's `ClassCastException`, dropped from the
+oracle: below), the frame intervals' overflow, a replacement's non-ASCII group digit, the literals past a DECIMAL's
+digits, the identifier rule and the pass list.
+
+The seam answers every op of them as a direct call does: 2,630 ops and 76 inline renders (2,152 statements read back
+from their JSON equal and with Java's record text, 355 refusals).
+
+## What is ported
+
+- **The dialect**: every one of `Trino.java`'s 60 overrides -- the lexicon (Trino's reserved keywords), the scalar,
+  array, map, ROW and DDL type tables, the session (`SET TIME ZONE 'UTC'`), no keys snapshot and no column limit, the
+  static pivot, no temporary table and the session table refused, `fromEngineText` refused, the passes, `OFFSET`
+  before `LIMIT`, the root's ROW columns as their JSON (`rowsAsJson`), the explosion marker as one `UNNEST` (`WITH
+  ORDINALITY` for a bare one, `CROSS JOIN` or `LEFT JOIN ... ON TRUE` for a lateral one, a lateral subquery as `LEFT
+  JOIN LATERAL`), the refused star exclusion, row order, as-of clause and PIVOT, every identifier quoted, the timestamp
+  literal's space, the explicit labels and the typed NULL or raise in a declared slot, the CASE's raise cast to its
+  slot, the Float literal past 38 digits as `Double.toString` (never reached: below), `BIGINT` integer literals, a big
+  decimal as `DOUBLE`, the ordered list aggregate, the typed list of rows and ROW literals, the field read (a field
+  number as a subscript), the lambdas, every list call (an index lambda over `zip_with` and the positions, the moments
+  as rows reduced), the list predicates, membership, the collection reductions, the fold as `reduce`, Pure's splitPart,
+  `struct_insert` as a typed ROW, the JSON Variant (`toVariant`, navigation through a map or an array of JSON, the
+  casts: ISO text to a zoned timestamp, a timestamp's `T`, a JSON member's text, a double's text), the whole `call`
+  table with its helpers (the regular expressions' first match, the replacement's groups, the date parts, truncations,
+  intervals and differences by the floored epoch, the time buckets, the zone's fixed offsets, `strftime` over
+  `format_datetime` and the value's own six digits, Jaro-Winkler as nested `reduce`s), the signed hash, banker's ROUND
+  unrolled, the bit operators, every aggregate (`arbitrary`, `listagg` or `array_join(array_agg)`, `max_by`, the
+  covariance and correlation over DOUBLE, the quantiles and the mode over the group's sorted values and its
+  `histogram`), the windows (an ordered set over the frame, AVG as DOUBLE, a windowed `listagg` ordered by the window
+  or its values), the frame intervals (a week as its days), the JSON constructors, the Joda date format, the JSON kind
+  and TYPEOF names, and `deliversOwn`.
+- **The passes** (`src/shared_passes.rs`): `PivotAsGroupBy` (a static pivot of one ON key as a grouped CASE
+  aggregation, a value's column `v__|__alias`, its slot `CarrierStrategies.generatedSlot`'s) and `AsOfAsPick` (an as-of
+  join as a LEFT JOIN on its condition, picked by `QUALIFY k = MAX(k) OVER (PARTITION BY every left column) OR MAX(k)
+  OVER (...) IS NULL`), the pick's steps one function (`as_of_pick`) that Databricks' own `asOf` shares with its own
+  words. `CarrierStrategies` (identity under Trino's caps), `StarExceptToColumns`, the three `ExplosionMarkers` passes,
+  `CheckedDefectsToLists`, `SubstringClamp`, `AggregatesDeliverDouble` over AVG, `QualifyToSubselect` by outputs,
+  `ConstantKeysAsExpressions()` and `RootNumericTypes` were ported with the dialects before it.
+
+## Identity
+
+- `rowsAsJson`: the select as it came unless a ROW column is cast to its declared ROW and then to JSON; then `new
+  SqlSelect` over the new projections (`build::select`, the outputs recomputed), each cast column `new Projection`
+  (its output normalized). The marker select and the offset's `withLimit(null).withOffset(null)` go through the
+  constructors too.
+- `PivotAsGroupBy`: every source as it came (`Rw::Same`) but a static pivot of one ON key, which becomes a new
+  `Subselect` over `SqlSelect.starOf(source).withProjections(...).withGroupBy(...)`.
+- `AsOfAsPick`: every select as it came but one over an as-of join, `withFrom(new Join(..., LEFT, on))` then
+  `withQualify(pick)`; the window and the pick built through their constructors (`build::window_call`, `build::call`),
+  the extreme window one node twice (Java shares the object; nothing reads it by identity).
+
+## Java's behavior reproduced that looks like a bug
+
+Each is Java's text or refusal as it is, reproduced; none is fixed here.
+
+- A quantified comparison by IS_DISTINCT_FROM (`x IS DISTINCT FROM ANY (subquery)`) is a `NullPointerException`,
+  `quantified comparison must be an infix operator: IS_DISTINCT_FROM` (the base's infix lookup answers no operator; in
+  the arms oracle). Databricks writes its own quantified comparison and refuses it by name.
+- A list call whose lambda is no lambda (`LIST_TRANSFORM` or `LIST_FILTER` over a column, a shape no lowering builds;
+  likewise `LIST_EXISTS` and `LIST_FOR_ALL`) is Java's `ClassCastException` from `(SqlExpr.Lambda) args.get(1)`, not a
+  refusal by name; the arms oracle could not hold its message (below).
+- `floatLiteral`'s fallback past a DECIMAL's 38 digits (`Double.toString`) can never fire: `plainFloat` writes plain
+  digits only for a magnitude from 10^-6 to below 10^15, at most 17 significant digits -- never 39 places. Ported as
+  written; unit-tested on the plain path.
+- `hashSigned` of no argument writes `concat_ws(chr(31), )` (unit-tested).
+
+## What Java does that this does not reproduce exactly
+
+None of these reaches the oracles.
+
+- **A `ClassCastException`'s message.** Java's names the JVM's class loader (`... (com.legend.sql.SqlExpr$Column and
+  com.legend.sql.SqlExpr$Lambda are in unnamed module of loader 'app')`), so the arms oracle dropped those answers
+  (PHASE1.md, 6a: LIST_TRANSFORM without a lambda on Trino and Databricks). Rust refuses with Java's class
+  (`java.lang.ClassCastException`, `CLASS_CAST` at the seam) and Java's message less that clause: `class
+  com.legend.sql.SqlExpr$Column cannot be cast to class com.legend.sql.SqlExpr$Lambda` (`src/trino/tests.rs`).
+- `Character.digit` of a replacement's group digit is its place in its script's run of ten: the JDK's own (`isDigit`'s
+  37 runs in the BMP each a multiple of ten long, read from `char-classes.tsv`, and Unicode assigns each run 0 to 9).
+- The frame unit's `toUpperCase(Locale.ROOT)` is Rust's `to_uppercase`: the same casing, each from its own Unicode
+  version.
+- A lambda of too few parameters (a fold's) is refused in `ArrayList`'s words (`Index 1 out of bounds for length 1`).
+- The seam refuses `duckdb.*` and `engine.*` on Trino: ops no Java method of Trino answers.
+
+# Databricks
+
+Step 6b (docs/rust-port/PHASE1.md §4): Java's `Databricks` (`src/databricks.rs`; `src/databricks/functions.rs` the
+`call` and `listCall` tables and their helpers, `src/databricks/aggregates.rs` the bit operators, the aggregates and
+windows, the frame bounds, the collected lists and the date format). Every pass it installs was ported before it.
+
+## The numbers
+
+**2,631 of 2,631 distinct inputs identical (100 %)**; the floor (`tests/databricks-floor.txt`) is 2,631. The oracles hold
+2,652 Databricks lines (2,597 of `mir/dialect-arms.jsonl`, 26 of the dialects dump, 29 of the first; 21 repeat an
+input, none with two answers). The SQL, the binds and the regions are compared exactly: 25 statements bind a parameter
+or write a region and carry Java's record text. All 359 of Java's refusals are reproduced, class and message (229
+`DialectCapability`, 130 `IllegalStateException`), and Rust refuses nothing Java rendered. **The first measurement was
+already 100 %.**
+
+| op | identical | different | refused (Java rendered) | accepted (Java refused) |
+|---|---:|---:|---:|---:|
+| `ddl.render` | 47 | 0 | 0 | 0 |
+| `dml.render` | 30 | 0 | 0 | 0 |
+| `dml.renderStatement` | 30 | 0 | 0 | 0 |
+| `fromEngineText` | 4 | 0 | 0 | 0 |
+| `query.render` | 76 | 0 | 0 | 0 |
+| `query.renderStatement` | 2,444 | 0 | 0 | 0 |
+
+By MIR kind every one is identical: `SqlSelect` 2,511, `CreateTable` 38, `InsertValues` 24, `DeleteAll` 8,
+`CreateTempTableAs`, `DeleteWhere` and `Update` 6 each, `DropTable` and `SqlUnion` 5 each, `InsertSelect`, `Merge`,
+`SqlWith` and `String` (the engine text, every one refused) 4 each, `CreateSchema`, `DropSchema` and `InsertFromTable` 2
+each.
+
+The arms oracle reaches every `SqlFn` arm, every `SqlAgg.Fn` of the exhaustive `reducer`, every own wall and every pass
+that changes a query (PHASE1.md, 6a). What it cannot hold is unit-tested from the Java (`src/databricks/tests.rs`):
+`listCall`'s unreached arms and `bitOp`'s default, the two answers that are Java's `ClassCastException` (a list lambda
+that is no lambda; a pivot of AVG, below), the session's temporary view (no oracle line asks `sessionTable`), the frame
+intervals and a RANGE offset in its key's type, the index lambda read 1-based, the split's `Pattern.quote`, the string
+literal's escapes and NUL, the identifier rule and the pass list.
+
+The seam answers every op of them as a direct call does: 2,631 ops and 76 inline renders (2,145 statements read back
+from their JSON equal and with Java's record text, 364 refusals).
+
+## What is ported
+
+- **The dialect**: every one of `Databricks.java`'s 58 overrides -- the lexicon (backticks, ANSI mode's reserved
+  words), the scalar (`STRING`, `VARIANT`, `INT`; TIME refused), array, map, STRUCT and DDL type tables, the session
+  (`SET TIME ZONE 'UTC'`, `SET ANSI_MODE = true`), no keys snapshot and no column limit, the static pivot, the session
+  table as a temporary view over its rows, `fromEngineText` refused, the passes, the as-of join's select (`asOf`: the
+  shared pick with Databricks' own refusals), several unnests as one `inline(arrays_zip(...))`, native QUALIFY and
+  `SELECT * EXCEPT`, the refused row order and as-of clause, the unparenthesized VALUES (a column of NULLs alone typed
+  in its first row), the native PIVOT (a value's column named `v__|__agg`, several aggregates' aliases `_|__agg`),
+  every identifier in backticks (a double-quoted declaration its inner name), the string literal's backslash escapes
+  and NUL, the explicit labels, a list of no element type exploded as its declared type and the typed NULL or raise, the
+  CASE's raise cast to its slot, `L` integer literals, the ordered list aggregate as a sorted `collect_list`, the
+  quantified comparison's truth table, `array(...)`, `named_struct` (a composite member's NULL typed), the field read,
+  the lambdas and the 1-based index (`oneBasedIndex`, `substitute`), every list call (the moments as rows reduced, the
+  list's variance and deviation as DuckDB's own update), the list predicates, membership, the collection reductions,
+  `explode`, the fold as `aggregate`, Pure's splitPart over the quoted split, `array_compact`, `struct_insert`, the
+  VARIANT (`to_variant_object`, navigation through a map or an array of VARIANT, `parse_json`, `to_json`, a double's
+  text in lower case), the whole `call` table with its helpers (the regular expressions' first match, the
+  replacement's groups, the trims' standard form, `make_timestamp`, `strftime`'s year unsigned, the date parts,
+  truncations, `timestampadd`, the differences by the floored epoch, the time buckets, `map_concat` keeping a key's last
+  value, the JSON type by `schema_of_variant`, Jaro-Winkler as nested `aggregate`s), `xxhash64`, `bround`, the bit
+  operators, every aggregate (`listagg`, the percentiles `WITHIN GROUP` with the discrete one cast, `max_by`), the
+  windows with their own OVER clause (a ranking window ordered by 1, an INT argument, a RANGE offset in its key's
+  type, the intervals as DAY TO SECOND or YEAR TO MONTH), the JSON constructors, the date format, and the JSON kind
+  and TYPEOF names.
+- **The shared renderer**: the `values_source` hook takes the source's declared outputs too (Java's `SqlSource.Values
+  v`), which Databricks' typed NULL column reads; DuckDB's, H2's, the engine text's, Postgres's, SQLite's and Trino's
+  output unchanged.
+
+## Identity
+
+- `asOf`: Java's static helper, called at render for a select over an as-of join; the pick built as `AsOfAsPick`
+  builds it (`shared_passes::as_of_pick`), the select rendered again.
+- `oneBasedIndex`: a lambda of two parameters becomes `new SqlExpr.Lambda([x, i__0], body)`, its body's every
+  unqualified reference to `i` replaced by `i__0 + 1` (`substitute`: a node rebuilt through `withChildren` only where
+  a child changed, `carrier::map_children`); a lambda of one parameter is itself.
+- The walk's pivot USING: a reducer the passes rewrite into another node (`AggregatesDeliverDouble`'s cast of AVG) is
+  Java's `ClassCastException` from `(SqlAgg.Reducer) rewriteExpr(u.agg())` (below).
+
+## Java's behavior reproduced that looks like a bug
+
+Each is Java's text or refusal as it is, reproduced; none is fixed here.
+
+- A pivot whose aggregate is AVG (a shape lowering builds) is a `ClassCastException`: `AggregatesDeliverDouble` wraps
+  the pivot's reducer in a cast to DOUBLE, which the walk reads back as a reducer (`(SqlAgg.Reducer)
+  rewriteExpr(u.agg())`). Its message names the JVM's class loader, so the arms oracle dropped it (below).
+- A list call whose lambda is no lambda (`LIST_TRANSFORM`, `LIST_FILTER`) is a `ClassCastException`, as on Trino.
+- Several unnests side by side are checked for every clause but HAVING: a FROM-less select of unnests with a HAVING
+  writes `SELECT inline(arrays_zip(...)) AS (...)`, its HAVING dropped.
+- `LIST_EXISTS` and `LIST_FOR_ALL` write a lambda of the element and its index as it is (0-based, unlike `filter` and
+  `transform`'s 1-based reading; Spark's `exists` and `forall` take the element alone, and Trino refuses it by name).
+- A frame interval of a negative count writes each field signed (`INTERVAL '0 -1:00:00' DAY TO SECOND`), Java's
+  `String.format("%02d")` of a negative number (unit-tested).
+
+## What Java does that this does not reproduce exactly
+
+None of these reaches the oracles.
+
+- **A `ClassCastException`'s message**, as Trino's: Java's class and its message less the class-loader clause --
+  `class com.legend.sql.SqlExpr$Column cannot be cast to class com.legend.sql.SqlExpr$Lambda`, and the pivot's `class
+  com.legend.sql.SqlExpr$Cast cannot be cast to class com.legend.sql.SqlAgg$Reducer` (`src/databricks/tests.rs`).
+- `Character.digit` of a replacement's group digit, and the frame unit's `toUpperCase(Locale.ROOT)`, as Trino's.
+- A lambda of too few parameters (a fold's) is refused in `ArrayList`'s words.
+- The seam refuses `duckdb.*` and `engine.*` on Databricks: ops no Java method of Databricks answers.
+
 # Typing
 
-Over the four dumps, every distinct statement (every dialect's, the ten dialects' of the dialects dump and the
-engine-text ops' queries included: one tree, counted once): **4,045,363 facts of 34,069 statements, 0 different.** (The
-SQLite arms oracle is read by the differential alone: its inputs are Java's constructors' own, read back by lite-sql.)
+Over the oracles, every distinct statement (every dialect's, the ten dialects' of the dialects dump, the eight
+dialects' of the arms oracle and the engine-text ops' queries included: one tree, counted once): **4,057,096 facts of
+36,890 statements, 0 different** (4,045,363 of 34,069 before the arms oracle was read, step 6b).
 
 # Tests
 
@@ -821,6 +1044,26 @@ SQLite arms oracle is read by the differential alone: its inputs are Java's cons
   renders and a date's TEXT type hole, the DDL and DML and a session table, the names and `tableName`, the engine text
   refused, the wire names and `deliversOwn`, the interface's defaults and refusals naming SQLite, the host operations
   refused, `readsStored`, and the DuckDB and engine-text ops refused.
+- `src/trino/tests.rs` (7 tests): Trino's hooks where the oracles cannot reach them -- `listCall`'s LIST_REVERSE,
+  RANGE_FN, REPEAT_VALUE and default arms, `bitOp`'s default, a list lambda that is no lambda (Java's
+  `ClassCastException`) and the index lambda over `zip_with`, the frame intervals (a week as its days, the overflow,
+  the refusal), a replacement's groups (`\1` to `$1`, an Arabic-Indic digit, a fullwidth nine raised to 10), the
+  literals (BIGINT, the plain and the extreme Float, a decimal past 38 digits, a big integer, the timestamp's space),
+  the identifier rule and the type names, and the pass list.
+- `src/databricks/tests.rs` (8 tests): Databricks' hooks where the oracles cannot reach them -- `listCall`'s and
+  `bitOp`'s unreached arms, the two `ClassCastException`s (a list lambda that is no lambda, a pivot of AVG) and a
+  native pivot, the session's temporary view (with rows, without, not temporary, a bound parameter), the frame
+  intervals and a RANGE offset in its key's type, a ranking window ordered by 1, the 1-based index, the string
+  literal's escapes and NUL, the identifiers, the quoted split (`Pattern.quote`, a delimiter's `\E`), a non-ASCII
+  group digit, the scalar walls and the pass list.
+- `src/shared_passes/tests.rs` (2 more): `PivotAsGroupBy`'s grouped CASE aggregation, the pivots it leaves as they came,
+  an integer value's column, a value of no text and an aggregate of no argument refused; `AsOfAsPick`'s pick by MAX and
+  by MIN, any other join left as it came, the refusals of no inequality and of a select that filters or windows.
+- `src/seam/trino_tests.rs` (7 tests) and `src/seam/databricks_tests.rs` (5): every op of the seam for Trino and
+  Databricks (§3e and §3f of `SEAM.md`): the facts and `forServer`, the renders (OFFSET before LIMIT, the literals),
+  the DDL and DML, the session table (refused on Trino, a temporary view on Databricks), the names and `tableName`, the
+  engine text refused, the wire names and `deliversOwn`, the interface's defaults and refusals naming each, the host
+  operations refused, `readsStored`, and the DuckDB and engine-text ops refused.
 - `tests/dialect_differential.rs`: the differentials above, one per dialect, the typing test, and the seam's, one per
   dialect: every op of the dialect's inputs (and each `query.render` asked inline, and for an engine-text dialect each
   of its aliases after the render) answered through `dispatch` exactly as a direct call answers it, each statement read
@@ -828,15 +1071,17 @@ SQLite arms oracle is read by the differential alone: its inputs are Java's cons
   (13,011 statements, 10 refusals), H2's 21,847 and 1,813 (14,962 statements, 1,103 refusals), H2Modern's 394 and 17
   (352 statements, 20 refusals), EngineStyleH2's 2,105, 1,638 and 5,104 aliases (7 statements, 26 refusals),
   EngineStyleDB2's 56, 42 and 43 (20 refusals), EngineStyleComposite's 24, 14 and 11 (20 refusals), Postgres's 11,630
-  and 42 (11,523 statements, 14 refusals), SQLite's 2,529 and 46 (2,189 statements, 150 refusals): all the same; and the
+  and 42 (11,523 statements, 14 refusals), SQLite's 2,529 and 46 (2,189 statements, 150 refusals), Trino's 2,630 and 76
+  (2,152 statements, 355 refusals), Databricks' 2,631 and 76 (2,145 statements, 364 refusals): all the same; and the
   zone shift held to java.time (above).
 
 # Stack
 
 The deepest DuckDB statement needs between 1 and 2 MB of stack in a debug build for its parse, read, passes and render
 together, the deepest H2 statement (and the typing walk over both oracles) between 2 and 4 MB, and every one less than 1
-MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The seventeen tests (and the two
-zone tests) run in 54 s under Bazel (`//rust/lite-dialect:dialect_differential_test`, `size = medium`: 300 s; 47 s
-before Postgres's two, 54 s before SQLite's) and 11 s in release; `//rust/lite-sql:mir_round_trip_test` in 68 s. A MIR at MirJson's depth limit (2,045 nested calls) needs between 32 and
+MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The twenty-one tests (and the two
+zone tests) run in 53 s under Bazel (`//rust/lite-dialect:dialect_differential_test`, `size = medium`: 300 s; 47 s
+before Postgres's two, 54 s before SQLite's and before Trino's and Databricks' four with the arms oracle) and 13 s in
+release; `//rust/lite-sql:mir_round_trip_test` in 65 s. A MIR at MirJson's depth limit (2,045 nested calls) needs between 32 and
 64 MB in a debug build and more than 1 MB in release; the seam's C export runs each call on a 256 MB thread (`SEAM.md`
 §1).

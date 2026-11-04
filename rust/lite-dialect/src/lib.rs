@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! legend-lite's SQL dialects, ported from `core/src/main/java/com/legend/sql/dialect` (docs/rust-port/PHASE1.md,
-//! steps 3 to 5): a `lite_sql` statement rendered to SQL exactly as the JVM renders it, held to Java's own answers by
+//! steps 3 to 6): a `lite_sql` statement rendered to SQL exactly as the JVM renders it, held to Java's own answers by
 //! the golden oracles (`tests/dialect_differential.rs`, `PARITY.md`).
 //!
 //! The shape (docs/rust-port/TRIAGE.md D3):
@@ -11,8 +11,8 @@
 //!   body, written once as a free function of [`ansi`], so an override's `super.x(...)` is `ansi::x(self, ...)`; the
 //!   base's `final` helpers are `ansi`'s free functions alone. [`DuckDb`], [`H2`] (H2Modern is its `modern`
 //!   profile), [`EngineStyle`] (legend-engine's own text: `EngineStyleH2`, `EngineStyleDB2` and
-//!   `EngineStyleComposite` are its profiles), [`Postgres`] and [`Sqlite`] (Java's `SQLite`) are structs implementing
-//!   it.
+//!   `EngineStyleComposite` are its profiles), [`Postgres`], [`Sqlite`] (Java's `SQLite`), [`Trino`] and
+//!   [`Databricks`] are structs implementing it.
 //! - [`SqlWriter`] is Java's one place SQL is written: text in order, each bound parameter recorded where its
 //!   placeholder lands, the per-key regions; [`RenderedStatement`] is what it hands back, every record's `Display`
 //!   Java's record `toString`.
@@ -37,6 +37,7 @@ pub mod carrier;
 pub mod catalog;
 pub mod catalog_model;
 pub mod common_subexpressions;
+pub mod databricks;
 pub mod decode_shapes;
 pub mod dialect;
 pub mod duckdb;
@@ -66,6 +67,7 @@ pub mod typing;
 pub mod wire_names;
 pub mod writer;
 
+pub use databricks::Databricks;
 pub use dialect::{EngineTextDialect, KeysSnapshot, SqlDialect};
 pub use duckdb::DuckDb;
 pub use engine_style::EngineStyle;

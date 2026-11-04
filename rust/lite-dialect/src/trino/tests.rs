@@ -136,6 +136,11 @@ fn literals_are_trinos() {
     // a timestamp's first T is its space
     assert_eq!(Trino::new().timestamp_lit("2024-01-02T03:04:05.123"), "TIMESTAMP '2024-01-02 03:04:05.123'");
     assert_eq!(render(&string_lit("it's")), "'it''s'");
+    // the signed hash of no argument hashes an empty concat_ws, as Java writes it
+    assert_eq!(
+        render(&call(SqlFn::Hash, Vec::new())),
+        "from_big_endian_64(xxhash64(to_utf8(coalesce(concat_ws(chr(31), ), ''))))"
+    );
 }
 
 #[test]
@@ -160,7 +165,10 @@ fn identifiers_types_and_names_are_trinos() {
     let row = SqlType::Struct {
         fields: vec![
             StructField { name: "a".into(), r#type: SqlType::Scalar(Scalar::Bigint) },
-            StructField { name: "b".into(), r#type: SqlType::Array { element: Box::new(SqlType::Scalar(Scalar::Date)) } },
+            StructField {
+                name: "b".into(),
+                r#type: SqlType::Array { element: Box::new(SqlType::Scalar(Scalar::Date)) },
+            },
         ],
     };
     assert_eq!(cast_type_name(&d, &row).unwrap(), "ROW(\"a\" BIGINT, \"b\" ARRAY(DATE))");

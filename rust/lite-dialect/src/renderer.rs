@@ -19,8 +19,8 @@ use crate::statement::{RenderedStatement, TypeSpelling};
 use crate::writer::SqlWriter;
 use lite_sql::{
     AggFn, BigDecimal, Bound, Column, ColumnType, Cte, DateFmt, Frame, JoinKind, JsonArrayAggKey, JsonKind, Lambda,
-    NameQuoting, ParamKind, Projection, Reducer, Scalar, SortKey, SqlAgg, SqlDdl, SqlDml, SqlExpr, SqlFn, SqlQuery,
-    SqlSelect, SqlSource, SqlType, StructField, StructLitField, TypeFact, ValueKind, ValueTyping, When,
+    NameQuoting, OutputCol, ParamKind, Projection, Reducer, Scalar, SortKey, SqlAgg, SqlDdl, SqlDml, SqlExpr, SqlFn,
+    SqlQuery, SqlSelect, SqlSource, SqlType, StructField, StructLitField, TypeFact, ValueKind, ValueTyping, When,
 };
 use std::borrow::Cow;
 use std::cell::Cell;
@@ -238,13 +238,16 @@ pub trait AnsiSqlRenderer: Sized {
         ansi::subselect_source(self, w, inner, alias, depth)
     }
 
+    /// A VALUES source (Java's `valuesSource(writer, v)`: its rows, column names, alias and declared outputs).
     fn values_source(
         &self,
         w: &mut SqlWriter,
         rows: &[Vec<SqlExpr>],
         columns: &[String],
         alias: &str,
+        outputs: &[OutputCol],
     ) -> Result<(), Refusal> {
+        let _ = outputs;
         ansi::values_source(self, w, rows, columns, alias)
     }
 

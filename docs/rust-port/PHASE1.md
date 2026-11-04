@@ -379,6 +379,39 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      list of structs is an `IndexOutOfBoundsException` on MariaDb and MySql, as is a window's NTH_VALUE of one argument
      on MongoDb. `DialectArms.java` freezes Java's current answers: rerun it (and the measure) if a dialect's source
      changes before its switch.
+   - **6b, done 2026-11-04: Trino and Databricks in Rust** (`rust/lite-dialect/src/trino.rs`, `src/trino/`,
+     `src/databricks.rs`, `src/databricks/`; `PivotAsGroupBy` and `AsOfAsPick` in `src/shared_passes.rs`, where
+     Snowflake and ClickHouse will find the first; `PARITY.md`, `SEAM.md` §3e and §3f). Every input of the three oracles
+     answers as Java's -- **Trino 2,630 of 2,630** distinct inputs (2,598 arms-oracle lines, 52 of the two dumps; Java's
+     350 refusals by class and message, the quantified IS_DISTINCT_FROM's `NullPointerException` among them) and
+     **Databricks 2,631 of 2,631** (2,597 and 55; 359 refusals), the SQL, binds and regions exact -- and the seam answers
+     every op as a direct call does (2,706 and 2,707 ops with the inline renders). Databricks' first measurement was
+     already 100 %, Trino's 2,626 (four `regexp_replace` group digits, a port slip, fixed). The differential now reads
+     `//rust/oracles:dialect_arms` too: every other dialect stays at its floor, and the typing holds over 36,890
+     statements, 4,057,096 facts, 0 different. Both dialects' every `@Override` is a renderer hook as before; one hook
+     widened -- `values_source` takes the VALUES' declared outputs (Java's `SqlSource.Values v`), which Databricks' typed
+     NULL column reads, the other dialects' output unchanged -- and the walk's pivot-USING cast now words Java's
+     `ClassCastException` as Java does (`com.legend.sql.SqlAgg$Reducer`, less the class-loader clause). The six answers
+     the arms oracle dropped (a list lambda that is no lambda, a Databricks pivot of AVG) are Java's
+     `ClassCastException`, refused in Rust with Java's class (`CLASS_CAST` at the seam) and Java's message less the
+     JVM's class-loader clause, unit-tested. What the oracles cannot reach is unit-tested from the Java
+     (`src/trino/tests.rs` 7, `src/databricks/tests.rs` 8, `src/seam/trino_tests.rs` 7, `src/seam/databricks_tests.rs`
+     5, 2 more in `src/shared_passes/tests.rs`): `listCall`'s and `bitOp`'s unreached arms, the frame intervals,
+     Databricks' session table (a temporary view over its rows: no oracle line asks `sessionTable`). Under Bazel the
+     differential takes 53 s (54 s before) and the round trip 65 s, both `size = medium`.
+
+     For the switch: a `Trino` and a `Databricks` shim (`new Trino()`, `new Databricks()` in `Databases` and five core
+     tests -- `TranslateTest`, `StoreWritesTest`, `CatalogGridTest`, `TempTableAsTest`, `WireTypeNamesTest`, and
+     `SeedSpellingTest` for Databricks -- their simple names in refusal messages) whose every method is one seam call,
+     the facts read once. No public static of either (`LEXICON`, `CAPS`) is read outside its class, no test calls a
+     non-interface method of either, and neither keeps state between renders, so no new op is needed; Databricks'
+     `sessionTable` is the seam's existing op. `AsOfAsPick` goes with `Trino.java`; `PivotAsGroupBy` stays Java for
+     Snowflake and ClickHouse. What reads their sources moves with them: `DialectVocabularyTest`'s floor of
+     `AnsiSqlRenderer` dialects (8 -> 6 after both), the regenerated `docs/dialect-capability`, and
+     `PlatformNamesGuardrailTest`'s count of bare-name arms (Trino's and Databricks' date-part tables among them, a
+     ceiling). The switch's gates are `//pct:pct_trino` (manual, in `//gates:heavy`: a Trino 483 coordinator the test JVM
+     starts from the pinned `@embedded_trino`, no Docker) and `//pct:pct_databricks` (a cloud lane: a real warehouse,
+     its credentials in `LEGENDLITE_PCT_CLOUD_PROPERTIES`).
 
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 

@@ -160,7 +160,8 @@ fn from_micros(x: P<'_>) -> P<'_> {
 /// The floored epoch (in microseconds per unit) of `to` less `from`'s (Java's `epochBoundaries`).
 fn epoch_boundaries<'a>(from: P<'a>, to: P<'a>, per_unit: i64) -> P<'a> {
     pc(move |w| {
-        w.append("(floor(CAST(").piece(&*micros(to.clone()))?.append(&format!(" AS DOUBLE) / {per_unit}) - floor(CAST("));
+        w.append("(floor(CAST(").piece(&*micros(to.clone()))?;
+        w.append(&format!(" AS DOUBLE) / {per_unit}) - floor(CAST("));
         w.piece(&*micros(from.clone()))?.append(&format!(" AS DOUBLE) / {per_unit}))"));
         Ok(())
     })
@@ -359,8 +360,8 @@ impl Trino {
         }))
     }
 
-    /// DuckDB's time_bucket (Java's `timeBucket`): fixed units binned from 1970-01-01 (weeks from the Monday 1969-12-29)
-    /// in microseconds, floored; months and years by the month index since 1970-01.
+    /// DuckDB's time_bucket (Java's `timeBucket`): fixed units binned from 1970-01-01 (weeks from the Monday
+    /// 1969-12-29) in microseconds, floored; months and years by the month index since 1970-01.
     fn time_bucket<'a>(&'a self, a: &'a [SqlExpr]) -> Result<P<'a>, Refusal> {
         let unit = part(arg(a, 0)?)?;
         let t: P<'a> = pc(move |w| {
@@ -816,7 +817,8 @@ impl Trino {
                 Ok(())
             }
             SqlFn::Left => {
-                w.append("substr(").expr(self, a0()?, 0)?.append(", 1, greatest(").expr(self, a1()?, 0)?.append(", 0))");
+                w.append("substr(").expr(self, a0()?, 0)?.append(", 1, greatest(").expr(self, a1()?, 0)?;
+                w.append(", 0))");
                 Ok(())
             }
             SqlFn::Right => {
@@ -828,7 +830,8 @@ impl Trino {
             SqlFn::EndsWith => {
                 w.append("(substr(").expr(self, a0()?, 0)?.append(", greatest(length(").expr(self, a0()?, 0)?;
                 w.append(") - length(").expr(self, a1()?, 0)?.append(") + 1, 1)) = ").expr(self, a1()?, 0)?;
-                w.append(" AND length(").expr(self, a0()?, 0)?.append(") >= length(").expr(self, a1()?, 0)?.append("))");
+                w.append(" AND length(").expr(self, a0()?, 0)?.append(") >= length(").expr(self, a1()?, 0)?;
+                w.append("))");
                 Ok(())
             }
             // array_join skips a NULL element: no string repeated is NULL, not ''

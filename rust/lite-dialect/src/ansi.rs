@@ -359,7 +359,7 @@ pub fn source<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, src: &SqlSource, dep
             w.append("(${").append(var_name).append("}) as ").append(&a);
             Ok(())
         }
-        SqlSource::Values { rows, columns, alias, .. } => d.values_source(w, rows, columns, alias),
+        SqlSource::Values { rows, columns, alias, outputs } => d.values_source(w, rows, columns, alias, outputs),
         SqlSource::RawSql { sql, alias, written_for, .. } => {
             let text = raw(d, sql, Some(written_for))?;
             let a = d.alias_ident(alias);

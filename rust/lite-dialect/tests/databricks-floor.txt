@@ -1,0 +1,5 @@
+# The Databricks differential's floor (tests/dialect_differential.rs): how many of the oracles' 2,631 distinct
+# Databricks statements must render exactly as Java's (55 lines of the two dumps, 2,597 of mir/dialect-arms.jsonl, the
+# arms rendered by Java's own Databricks; 21 lines repeat an input). Measured 2026-11-04 with Databricks and the passes
+# it installs ported (PARITY.md): all of them.
+2631

@@ -1743,6 +1743,7 @@ impl AnsiSqlRenderer for Sqlite {
         rows: &[Vec<SqlExpr>],
         columns: &[String],
         alias: &str,
+        _outputs: &[lite_sql::OutputCol],
     ) -> Result<(), Refusal> {
         w.append("(SELECT ");
         for (i, c) in columns.iter().enumerate() {

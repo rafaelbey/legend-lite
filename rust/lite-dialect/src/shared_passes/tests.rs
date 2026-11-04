@@ -354,7 +354,8 @@ fn a_static_pivot_is_a_grouped_case_aggregation() {
          GROUP BY \"t0\".id\n) AS \"p\""
     );
     // a dynamic pivot (no values) and one of two ON keys are left as they came
-    assert!(matches!(run(&mut PivotAsGroupBy, star_over(pivot(Vec::new(), AggFn::Sum, vec![px.clone()]))), Rw::Same(_)));
+    let dynamic = star_over(pivot(Vec::new(), AggFn::Sum, vec![px.clone()]));
+    assert!(matches!(run(&mut PivotAsGroupBy, dynamic), Rw::Same(_)));
     let mut two = pivot(vec![string_lit("A")], AggFn::Sum, vec![px.clone()]);
     if let SqlSource::Pivot { on, .. } = &mut two {
         on.push(col("t0", "id", t(Scalar::Bigint)));
@@ -371,7 +372,8 @@ fn a_static_pivot_is_a_grouped_case_aggregation() {
         Refusal::capability("a pivot value DateLit reached a dialect without a native pivot, with no column name")
     );
     // an aggregate of no argument (COUNT(*)) has nothing to filter
-    let r = rewrite(&mut PivotAsGroupBy, star_over(pivot(vec![string_lit("A")], AggFn::Count, Vec::new()))).unwrap_err();
+    let count = star_over(pivot(vec![string_lit("A")], AggFn::Count, Vec::new()));
+    let r = rewrite(&mut PivotAsGroupBy, count).unwrap_err();
     assert_eq!(
         r,
         Refusal::capability("a pivot whose aggregate takes no argument reached a dialect without a native pivot")
@@ -381,8 +383,8 @@ fn a_static_pivot_is_a_grouped_case_aggregation() {
 // ---- AsOfAsPick
 
 fn as_of(on: SqlExpr) -> SqlSource {
-    build::join(trades("l"), table("r", vec![out("ts", t(Scalar::Bigint), Origin::Physical)]), JoinKind::AsofLeft, Some(on))
-        .unwrap()
+    let right = table("r", vec![out("ts", t(Scalar::Bigint), Origin::Physical)]);
+    build::join(trades("l"), right, JoinKind::AsofLeft, Some(on)).unwrap()
 }
 
 /// The query as DuckDB writes it (QUALIFY native), no pass run.
@@ -395,12 +397,14 @@ fn written_qualified(q: &SqlQuery) -> String {
 
 #[test]
 fn an_as_of_join_is_a_left_join_picked_by_its_extreme_key() {
-    let ge = build::call(SqlFn::GreaterEqual, vec![col("l", "id", t(Scalar::Bigint)), col("r", "ts", t(Scalar::Bigint))]);
+    let (id, ts) = (col("l", "id", t(Scalar::Bigint)), col("r", "ts", t(Scalar::Bigint)));
+    let ge = build::call(SqlFn::GreaterEqual, vec![id, ts]);
     let s = select_of(vec![proj(col("l", "sym", t(Scalar::Varchar)), "sym")], as_of(ge.clone()));
     let Rw::New(q) = run(&mut AsOfAsPick, query(s)) else { panic!("an as-of join is rewritten") };
     assert_eq!(
         written_qualified(&q),
-        "SELECT l.sym AS sym\nFROM trades AS l\nLEFT OUTER JOIN trades AS r ON l.id >= r.ts\nQUALIFY r.ts = MAX(r.ts) OVER \
+        "SELECT l.sym AS sym\nFROM trades AS l\nLEFT OUTER JOIN trades AS r ON l.id >= r.ts\nQUALIFY r.ts = \
+         MAX(r.ts) OVER \
          (PARTITION BY l.id, l.sym, l.px) OR MAX(r.ts) OVER (PARTITION BY l.id, l.sym, l.px) IS NULL"
     );
     // bounded below: the least right key

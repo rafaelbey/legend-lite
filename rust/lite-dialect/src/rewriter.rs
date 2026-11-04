@@ -203,8 +203,16 @@ pub fn rewrite_source<R: SqlRewriter + ?Sized>(r: &mut R, s: SqlSource) -> Resul
                         ch = true;
                         us.push(PivotUsing { agg, ..u });
                     }
+                    // Java's `(SqlAgg.Reducer) rewriteExpr(u.agg())`: its ClassCastException's message, less the JVM's
+                    // class-loader clause (`(... are in unnamed module of loader 'app')`)
                     other => {
-                        return Err(Refusal::class_cast(crate::java::simple_name(other.get()), "SqlAgg$Reducer"));
+                        return Err(Refusal {
+                            class: Refusal::CLASS_CAST,
+                            message: format!(
+                                "class com.legend.sql.SqlExpr${} cannot be cast to class com.legend.sql.SqlAgg$Reducer",
+                                crate::java::simple_name(other.get())
+                            ),
+                        });
                     }
                 }
             }

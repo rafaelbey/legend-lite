@@ -694,7 +694,8 @@ impl SqlRewriter for PivotAsGroupBy {
                     ));
                 }
                 let first = std::mem::replace(&mut args[0], build::null_lit());
-                args[0] = build::case(vec![build::when(call(SqlFn::Equal, vec![on[0].clone(), v.clone()]), first)], None);
+                let matched = call(SqlFn::Equal, vec![on[0].clone(), v.clone()]);
+                args[0] = build::case(vec![build::when(matched, first)], None);
                 let name = format!("{}__|__{}", pivot_value_text(v)?, u.alias);
                 let slot = generated_slot(outputs, u, &name)?;
                 ps.push(build::projection(
@@ -732,57 +733,74 @@ impl SqlRewriter for AsOfAsPick {
     }
 
     fn select(&mut self, s: SqlSelect) -> Result<Rw<SqlQuery>, Refusal> {
-        let SqlSource::Join { left, right, kind: JoinKind::AsofLeft, on, .. } = &s.from else {
+        if !matches!(s.from, SqlSource::Join { kind: JoinKind::AsofLeft, .. }) {
             return same(s);
-        };
-        let Some((right_key, pick_max)) = as_of_key(&s.from)? else {
-            return Err(Refusal::capability(
-                "an as-of join with no inequality between its sides reached a dialect without an as-of join",
-            ));
-        };
-        if s.r#where.is_some()
-            || !s.group_by.is_empty()
-            || s.having.is_some()
-            || s.qualify.is_some()
-            || s.projections.iter().any(|p| windowed(&p.expr))
-        {
-            return Err(Refusal::capability(
-                "an as-of join under a select that filters, groups or windows reached a dialect without an as-of \
-                 join: its pick is that select's filter",
-            ));
         }
-        let left_alias = source_alias(left)?.to_owned();
-        let left_outputs = source_outputs(left);
-        if left_outputs.is_empty() {
-            return Err(Refusal::capability(
-                "an as-of join whose left side has no alias and columns reached a dialect without an as-of join",
-            ));
-        }
-        let partition: Vec<SqlExpr> =
-            left_outputs.iter().map(|oc| SqlExpr::Column(build::column_of(Some(&left_alias), oc))).collect();
-        let extreme = build::window_call(
-            SqlAgg::Reducer(build::reducer(
-                if pick_max { AggFn::Max } else { AggFn::Min },
-                vec![right_key.clone()],
-                false,
-                Vec::new(),
-            )),
-            partition,
-            Vec::new(),
-            None,
-        );
-        let pick = call(
-            SqlFn::Or,
-            vec![call(SqlFn::Equal, vec![right_key, extreme.clone()]), call(SqlFn::IsNull, vec![extreme])],
-        );
-        let join = build::join(
-            left.as_ref().clone(),
-            right.as_ref().clone(),
-            JoinKind::Left,
-            on.as_deref().cloned(),
-        )?;
-        Ok(Rw::New(query(build::with_qualify(build::with_from(s, join)?, Some(pick))?)))
+        Ok(Rw::New(query(as_of_pick(s, &AS_OF_AS_PICK)?)))
     }
+}
+
+/// The refusals of an as-of join's pick, each in its writer's words: `AsOfAsPick`'s, and Databricks' own `asOf`.
+pub struct AsOfWords {
+    /// the ON holds no inequality between the sides
+    pub no_key: &'static str,
+    /// the select filters, groups or windows of its own
+    pub filtered: &'static str,
+    /// the left side has no columns
+    pub no_left: &'static str,
+}
+
+/// `AsOfAsPick`'s refusals.
+const AS_OF_AS_PICK: AsOfWords = AsOfWords {
+    no_key: "an as-of join with no inequality between its sides reached a dialect without an as-of join",
+    filtered: "an as-of join under a select that filters, groups or windows reached a dialect without an as-of \
+               join: its pick is that select's filter",
+    no_left: "an as-of join whose left side has no alias and columns reached a dialect without an as-of join",
+};
+
+/// `s`, whose FROM is an as-of join, as a LEFT JOIN on the same condition picked by its QUALIFY (Java's
+/// `AsOfAsPick.select` past its guard, and `Databricks.asOf`, the same steps in the same order): the right key and
+/// its direction (`CarrierStrategies.asOfKey`), the select's own clauses checked, every left column a partition key,
+/// the extreme right key's window `MAX(k)` (or `MIN(k)`) and the pick `k = extreme OR extreme IS NULL`.
+pub fn as_of_pick(s: SqlSelect, words: &AsOfWords) -> Result<SqlSelect, Refusal> {
+    let SqlSource::Join { left, right, on, .. } = &s.from else {
+        return Err(Refusal::illegal_state("an as-of pick of a select whose FROM is no join"));
+    };
+    let Some((right_key, pick_max)) = as_of_key(&s.from)? else {
+        return Err(Refusal::capability(words.no_key));
+    };
+    if s.r#where.is_some()
+        || !s.group_by.is_empty()
+        || s.having.is_some()
+        || s.qualify.is_some()
+        || s.projections.iter().any(|p| windowed(&p.expr))
+    {
+        return Err(Refusal::capability(words.filtered));
+    }
+    let left_alias = source_alias(left)?.to_owned();
+    let left_outputs = source_outputs(left);
+    if left_outputs.is_empty() {
+        return Err(Refusal::capability(words.no_left));
+    }
+    let partition: Vec<SqlExpr> =
+        left_outputs.iter().map(|oc| SqlExpr::Column(build::column_of(Some(&left_alias), oc))).collect();
+    let extreme = build::window_call(
+        SqlAgg::Reducer(build::reducer(
+            if pick_max { AggFn::Max } else { AggFn::Min },
+            vec![right_key.clone()],
+            false,
+            Vec::new(),
+        )),
+        partition,
+        Vec::new(),
+        None,
+    );
+    let pick = call(
+        SqlFn::Or,
+        vec![call(SqlFn::Equal, vec![right_key, extreme.clone()]), call(SqlFn::IsNull, vec![extreme])],
+    );
+    let join = build::join(left.as_ref().clone(), right.as_ref().clone(), JoinKind::Left, on.as_deref().cloned())?;
+    build::with_qualify(build::with_from(s, join)?, Some(pick))
 }
 
 #[cfg(test)]

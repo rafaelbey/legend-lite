@@ -151,6 +151,18 @@ fn the_seam_answers_as_trinos_renderer_does() {
     the_seam_answers_as_the_renderer_does("Trino");
 }
 
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn databricks_renders_as_java_does() {
+    renders_as_java_does("Databricks");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_databrickss_renderer_does() {
+    the_seam_answers_as_the_renderer_does("Databricks");
+}
+
 /// An engine-text dialect's default configuration (Java's no-argument constructor), as the H2 dump writes it: an input
 /// the first dump holds with no configuration is the same input.
 const DEFAULT_ENGINE_CONFIG: &str = r#"{"quoteIdentifiers":false,"timeZone":null}"#;
