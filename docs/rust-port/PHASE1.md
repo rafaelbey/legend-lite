@@ -289,7 +289,10 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      (`LEXICON`, `CAPS`) is read outside `SQLite.java`, and no test calls a non-interface method of a SQLite object, so
      no new op is needed; SQLite keeps no state the shim must carry between calls (its per-render state is a call's own;
      a JVM object that rendered a query and then a `CREATE TEMPORARY TABLE ... AS` kept counting `__b<n>` across the two
-     in Java, a fresh seam dialect does not -- no caller or test reads those names). `SqliteRegex` and `SqliteDigests`
+     in Java, a fresh seam dialect does not -- no test of core, pct, spec or parser-equivalence names a `__b<n>`,
+     `__cse<n>` or `__unnest<n>`, grepped; `TempTableAsTest:130` renders one query three times on one object and holds
+     the third to the first, which both keep: each is an outermost render). `SqliteArms.java` freezes Java's current
+     answers: rerun it if `SQLite.java` changes before the switch. `SqliteRegex` and `SqliteDigests`
      go with `SQLite.java`; `ExplosionMarkers` and `CommonSubexpressions` stay Java for Snowflake, BigQuery, MariaDB,
      ClickHouse and Trino, so `CodeShapeGuardrailTest:278`'s `ExplosionMarkers.next` pin does not move. What reads
      `SQLite.java`'s source moves with it: `DialectVocabularyTest`'s floor of `AnsiSqlRenderer` dialects (9 -> 8; its

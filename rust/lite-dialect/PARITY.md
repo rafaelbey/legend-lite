@@ -693,7 +693,8 @@ Each is Java's text or refusal as it is, reproduced; none is fixed here.
   written.
 - An interval RANGE frame's offset is written as Java's double text of its days (`3.0 PRECEDING`, `1.5 FOLLOWING`).
 - Through one dialect object, a `CREATE TEMPORARY TABLE ... AS` after a query render keeps counting the query's fresh
-  names (`tempTableAs` starts none over); the seam makes a dialect per call, so no answer shows it.
+  names (`tempTableAs` starts none over); the seam makes a dialect per call, so no answer through it shows that, and no
+  test of core, pct, spec or parser-equivalence names a `__b<n>`, `__cse<n>` or `__unnest<n>` (grepped).
 
 ## What Java does that this does not reproduce exactly
 
