@@ -512,6 +512,53 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      (names, the construction census unchanged: the shim keeps `new Snowflake()`), and the regenerated
      `docs/dialect-capability`. The switch's gates are `//pct:pct_snowflake` and `//pct:pct_channel_b_snowflake`
      (cloud lanes: a real account, its credentials in `LEGENDLITE_PCT_CLOUD_PROPERTIES`).
+   - **6f, done 2026-11-04: MariaDB and MySQL in Rust** (`rust/lite-dialect/src/mariadb.rs`, `src/mariadb/`;
+     `PARITY.md`, `SEAM.md` §3j and §3k). One struct, `MariaDb`, its `mysql` profile MySQL's: `MySql.java` overrides 28
+     methods, 19 of them MariaDb's own extension points (`compact`, `arrayAgg`, `indexPath`, `groupRef`, `product`,
+     `jsonTable`, both `jsonText`s, `jsonMember`, `booleanColumn`, `jsonIsBinary`, `correlatesDerived`,
+     `windowQuantilesNative`, `groupedModesCounted`, `jsonAsText`, `twoRows`, `yearOf`, `format`, `regexpReplace`), each
+     a branch in the one method that is Java's hook (as are `passes`, `stringLit`, `hugeIntLiteral`, `sessionSetup` and
+     `windowCall`; its `scalarTypeName`, `formatText`, `reducer` and `call` delegate every arm). Every input of the
+     three oracles answers as Java's -- **MariaDb 2,634 of 2,634** distinct inputs (2,599 arms-oracle lines, 56 of the
+     two dumps; Java's 394 refusals by class and message, the IndexOutOfBoundsException of a collection's CORR,
+     COVAR_SAMP and COVAR_POP over a list of structs and the quantified IS_DISTINCT_FROM's `NullPointerException` among
+     them) and **MySql 2,634 of 2,634** (383 refusals), the SQL, binds and regions exact; the first measurement of each
+     was already 100 %. The seam answers every op as a direct call does (2,710 ops of each with the inline renders).
+     Every other dialect stays at its floor; the typing holds unchanged (36,890 statements, 4,057,096 facts, 0
+     different). The arms oracle dropped no MariaDb or MySql answer (no `ClassCastException`: MariaDb refuses a lambda
+     that is no lambda by name). The two passes no other dialect installs are ported with their family
+     (`src/mariadb/passes_family.rs`): `WindowAggregatesAsCorrelated` (a windowed GROUP_CONCAT as a correlated subquery
+     over the numbered rows of its frame) and MySQL's `WindowsComputedBelow` (a window inside an expression computed in
+     a select below). Java's per-render state -- `laterals`, `asText`, `roots`, `rootSelects`, `modeCounts` -- is the
+     dialect object's, pushed and popped within each `render` and `renderStatement`, so a fresh dialect per call is
+     exact; the two identity maps (`rootSelects`, `asText`) are addresses of the nodes being written (`PARITY.md`,
+     "Identity and state": a node a pass shared between the root and elsewhere would differ, and no pass shares one).
+     Unit-tested from the Java where the oracles cannot reach (`src/mariadb/tests.rs` 21, `src/seam/mariadb_tests.rs`
+     5): `bitOp`'s, `lists`' and `maps`' defaults, the cast type names no cast reaches, the non-finite Float wall,
+     MySQL's seven answers behind MariaDB's `!correlatesDerived()` walls, every family hook of both, the facts and wire
+     names, a root select's delivered values, a MODE and a ranked quantile no count reached,
+     `ConstantKeysAsExpressions()` naming Postgres (as Java's), the RANGE frame's days, printf both ways, the
+     replacements' group references, the two passes, and every seam op of both. Under Bazel the differential takes 57 s
+     (57 s before) and the round trip 68 s (cached, its inputs unchanged), both `size = medium`.
+
+     For the switch: a `MariaDb` and a `MySql` shim whose every method is one seam call, the facts read once, as H2's
+     and H2Modern's -- `MariaDb` non-final with a protected constructor taking the dialect's name, and `final class
+     MySql extends MariaDb` kept (the owner guard, `DialectOwnerExclusivityTest` over `DatabaseOwners`, lets a dialect's
+     file name its parent's database: `MySql.java` names MariaDB). `new MariaDb()` and `new MySql()` in `Databases` and
+     five core tests (`TranslateTest`, `StoreWritesTest`, `CatalogGridTest`, `TempTableAsTest`, `WireTypeNamesTest`),
+     their simple names in refusal messages; no test holds a `MySql` as a `MariaDb` (all as `SqlDialect`). No public
+     static of either is read outside the two classes (`LEXICON` by MySql's constructor alone, `CAPS` by none), no test
+     calls a non-interface method of either, `exec.MariaDbConnector` (and `MySqlConnector`) read no dialect member, and
+     neither keeps state between renders, so no new op is needed. When both switch, `WindowAggregatesAsCorrelated`,
+     `WindowsComputedBelow`, `StarExceptToColumns`, `QualifyToSubselect` and the base's `starsAsSourceColumns` have no
+     Java user left; `SubstringClamp`, `ConstantKeysAsExpressions` and the `ExplosionMarkers` passes keep Snowflake
+     until it switches, and `CarrierStrategies` keeps MongoDB (and Snowflake). What reads their sources moves with them:
+     `DialectVocabularyTest`'s floors (concrete dialects and function tables, two each), `PlatformNamesGuardrailTest`'s
+     `BARE_NAME_ARMS_MAX` (a ceiling), the dialect-name patterns of `DialectLeakRatchetTest` and `DialectBoundaryTest`
+     (names; the shims keep `new MariaDb()` and `new MySql()`), `CapabilityMatrix` and the regenerated
+     `docs/dialect-capability`. The switch's gates are `//pct:pct_mariadb`, `//pct:pct_mysql`,
+     `//pct:pct_channel_b_mariadb` and `//pct:pct_channel_b_mysql` (manual, in `//gates:heavy`: a MariaDB 11.4 and a
+     MySQL 8.4 server the test JVM starts from the pinned `@embedded_mariadb` and `@embedded_mysql`, no Docker).
 
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 

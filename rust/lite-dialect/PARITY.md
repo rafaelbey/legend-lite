@@ -1,10 +1,10 @@
 # Dialect parity: DuckDB, H2, H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse,
-# BigQuery and Snowflake (2026-11-04)
+# BigQuery, Snowflake, MariaDB and MySQL (2026-11-04)
 
 Every dialect Rust answers, held to the JVM's own answers on the golden oracles (docs/rust-port/PHASE1.md §4): DuckDB
 (step 3, its renderer and passes), the H2 family's execution dialects, H2 and H2Modern (step 4b), the engine-text
 dialects, EngineStyleH2, EngineStyleDB2 and EngineStyleComposite (step 4c), Postgres (step 5b), SQLite (step 5d), Trino
-and Databricks (step 6b), ClickHouse and BigQuery (step 6c), Snowflake (step 6e).
+and Databricks (step 6b), ClickHouse and BigQuery (step 6c), Snowflake (step 6e), MariaDB and MySQL (step 6f).
 Each is ported from
 its Java class, over a walk that keeps Java's identity semantics and a port of the typing rules Java's constructors
 apply. This file measures each on the oracles and says what of Java it does not reproduce exactly.
@@ -22,7 +22,7 @@ engine-text dialect's default configuration and the first dump's none are one) c
 
 - `<dialect>_renders_as_java_does` (`duckdb_`, `h2_`, `h2modern_`, `enginestyleh2_`, `enginestyledb2_`,
   `enginestylecomposite_`, `postgres_`, `sqlite_`, `trino_`, `databricks_`, `clickhouse_`, `bigquery_`,
-  `snowflake_`): every
+  `snowflake_`, `mariadb_`, `mysql_`): every
   distinct input of the dialect, answered by a fresh Rust dialect of that
   name and configuration (made by the seam's `open`, as the JVM's shim makes it) and compared with the fresh JVM
   dialect's answer -- the SQL text exactly, a statement's binds and regions as Java's record text, a refusal by its Java
@@ -1333,12 +1333,164 @@ None of these reaches the oracles.
   character folds to its letters); its `trim` is Java's (every character at or below U+0020).
 - The seam refuses `duckdb.*` and `engine.*` on Snowflake: ops no Java method of Snowflake answers.
 
+# MariaDB and MySQL
+
+Step 6f (docs/rust-port/PHASE1.md §4): Java's `MariaDb` and `MySql` (`extends MariaDb`) as one struct, `MariaDb`, its
+`mysql` profile MySQL's (`src/mariadb.rs`: the family's hooks, the statement's root and its selects, the markers, the
+lateral rows, the selects and sources, the literals and type names, the renderer's hooks; `src/mariadb/functions.rs`:
+the `call` table and its helpers, printf both ways, the regular expressions, the lists, the maps and the temporal
+helpers; `src/mariadb/json.rs`: how a list, a struct, a map and a Variant hold a value as JSON text, the list
+operations over `JSON_TABLE`, the casts and texts of a value, a double's text laid out as DuckDB's, the folds and walks
+as recursive CTEs; `src/mariadb/aggregates.rs`: the base's hooks, the aggregates and windows, the DDL and the wire),
+and the two passes only this family installs, `WindowAggregatesAsCorrelated` (both) and `WindowsComputedBelow`
+(MySQL), in `src/mariadb/passes_family.rs`.
+
+## The numbers
+
+**MariaDb 2,634 of 2,634 and MySql 2,634 of 2,634 distinct inputs identical (100 %)**; the floors
+(`tests/mariadb-floor.txt`, `tests/mysql-floor.txt`) are 2,634 each. The oracles hold 2,655 lines of each (2,599 of
+`mir/dialect-arms.jsonl`, 27 of the dialects dump, 29 of the first; 21 repeat an input, none with two answers). The
+SQL, the binds and the regions are compared exactly: 24 statements of each bind a parameter or write a region and
+carry Java's record text. All of Java's refusals are reproduced, class and message -- MariaDb's 394 (265
+`DialectCapability`, 125 `IllegalStateException`, 3 `IndexOutOfBoundsException`, one `NullPointerException`), MySql's
+383 (252, 127, 3 and one) -- and Rust refuses nothing Java rendered. **The first measurement of each was already
+100 %.**
+
+| op | MariaDb identical | MySql identical | different | refused (Java rendered) | accepted (Java refused) |
+|---|---:|---:|---:|---:|---:|
+| `ddl.render` | 48 | 48 | 0 | 0 | 0 |
+| `dml.render` | 30 | 30 | 0 | 0 | 0 |
+| `dml.renderStatement` | 30 | 30 | 0 | 0 | 0 |
+| `fromEngineText` | 4 | 4 | 0 | 0 | 0 |
+| `query.render` | 76 | 76 | 0 | 0 | 0 |
+| `query.renderStatement` | 2,446 | 2,446 | 0 | 0 | 0 |
+
+By MIR kind every one is identical, the same for both: `SqlSelect` 2,513, `CreateTable` 39, `InsertValues` 24,
+`DeleteAll` 8, `CreateTempTableAs`, `DeleteWhere` and `Update` 6 each, `DropTable` and `SqlUnion` 5 each,
+`InsertSelect`, `Merge`, `SqlWith` and `String` (the engine text, every one refused) 4 each, `CreateSchema`,
+`DropSchema` and `InsertFromTable` 2 each.
+
+The arms oracle reaches every one of the 181 `SqlFn` arms, every `SqlAgg.Fn` of the exhaustive `reducer`, 59 of
+MariaDb's 61 own walls and 53 of MySql's 62, and every pass that changes a query (PHASE1.md, 6a). What it cannot hold
+is unit-tested from the Java (`src/mariadb/tests.rs`, 21): `bitOp`'s, `lists`' and `maps`' defaults (their one caller
+passes none); the cast type names no cast reaches (`scalarTypeName`'s JSON, TEMPORAL_TEXT, TIME and the DECIMAL_TEXT
+wall, `structTypeName`'s wall: MariaDB spells each of its own casts in `castTo`); the non-finite Float wall (a
+`FloatLit` holds no NaN); MySQL's seven answers where MariaDB's walls stand behind `!correlatesDerived()` (a fold, a
+list reduction, an edit distance and a Jaro-Winkler similarity that read a row, a lateral join to no derived table, a
+lateral subquery of no declared column and one whose projections do not match its outputs); every family hook of both
+profiles; the literals; the facts, the wire names and the pass lists; a root select's delivered values beside a
+nested one's, MySQL's JSON as its text, and the stacks empty after a render; a MODE and a ranked quantile no count
+reached; the frame offsets in days; printf both ways; the replacements' group references; and the two passes, shape
+by shape. The arms that stay unreached are dead in Java: `extract`'s second switch (YEAR returns first through
+`yearOf`, and the nine labels the first switch names) and `scalarOfText`'s BOOLEAN, VARCHAR, TEMPORAL_TEXT and
+DECIMAL_TEXT (each answered before that switch).
+
+The seam answers every op of them as a direct call does: 2,634 ops and 76 inline renders of each (MariaDb's 2,108
+statements read back from their JSON equal and with Java's record text, 400 refusals; MySql's 2,119 and 389), and
+`src/seam/mariadb_tests.rs` (5) holds every op of both to the Java.
+
+## What is ported
+
+- **The dialect**: every one of `MariaDb.java`'s 63 overrides and `MySql.java`'s 28 -- the lexicon (MySql's the
+  same), the scalar (`SIGNED`, `DECIMAL(38,0)`, `DATETIME(6)`, `TIME(6)`, `CHAR`; DECIMAL_TEXT refused), list and map
+  (`LONGTEXT`) and DDL type tables (`LONGTEXT`, `LONGBLOB`, `DECIMAL(p,s)`; a nanosecond date-time refused), the
+  session statements of each, the REPEATABLE READ snapshot, 4,096 result columns, the static pivot, `fromEngineText`
+  refused, a Float's literal spelling the dialect's own (its print form expanded), the passes (MySQL's with
+  `WindowsComputedBelow` last), the refused star exclusion, as-of clause and PIVOT, every identifier double-quoted (a
+  valid double-quoted declaration as it is), `render` and `renderStatement` keeping the statement's labels and its
+  root's selects, a union's ordered or limited branch parenthesized, an ordered derived table given the largest LIMIT,
+  the selects (a marker's reads over its positions, a MODE counted -- and on MySQL a whole partition's quantile ranked
+  -- in a select over its source, the markers in scope and the stars over them spelled, a root select's values
+  delivered as its labels say, MySQL's JSON root values as their text, an OFFSET given the largest LIMIT), the sources
+  (a marker over `JSON_TABLE` of its longest list, a lateral one joined `CROSS JOIN` or `LEFT JOIN ... ON TRUE`, any
+  other lateral derived table on MariaDB its rows as JSON read back by `JSON_TABLE`, on MySQL LATERAL), the VALUES as a
+  union of one-row selects, both string literals (MariaDB's backslash runs spelled around `CHAR(92 USING utf8mb4)`,
+  MySQL's quote and backslash each its own character), the DATETIME(6) literal, the Float literal's exponent, MySQL's
+  HUGEINT literal a DECIMAL, the explicit labels, the NULL placement as a key of its own, the CASE raising in its own
+  type, every list operation over `JSON_TABLE` (the JSON element typed, lambda bodies reading a struct parameter's
+  fields), membership, the collection reductions, Pure's splitPart, the JSON Variant and every cast through it, the
+  whole `call` table with its helpers (the composite equalities by compact JSON, the raise kept in `@legend_raise`, the
+  NULL-skipping GREATEST, LEAST and CONCAT, DuckDB's roundings, printf through SFORMAT on MariaDB and written out on
+  MySQL, the PCRE patterns, the first-match replace through a lazy prefix on MariaDB and ICU's occurrence on MySQL, the
+  maps as JSON objects, the date parts, truncations, intervals, differences, time buckets and formats, the edit
+  distance and Jaro-Winkler as recursive walks), the hash of a value's JSON text, banker's ROUND over a DECIMAL, the
+  bit operators read back signed, every aggregate (GROUP_CONCAT, the JSON array of a group in MySQL's GROUP_CONCAT form
+  where ordered, the grouped quantiles over the sorted values, the JSON or counted MODE, argMax and argMin, the moments
+  by their sums), the windows (the native PERCENTILE_CONT and the ranked one, the moments and pairs from window sums, a
+  RANGE frame over a date's days), the JSON constructors, the type holes, the JSON kind and TYPEOF names,
+  `wireTypeName` and `deliversOwn`.
+- **The passes** (`src/mariadb/passes_family.rs`): `WindowAggregatesAsCorrelated` -- a windowed GROUP_CONCAT (the
+  aggregates the dialect names: STRING_AGG) as the aggregate of the numbered rows in the row's frame, a correlated
+  scalar subquery over the FROM read numbered under its own alias (each call's partition values, arguments, position
+  and, for a RANGE frame, rank), its helper columns `__wa<n>c<k>...` numbered per statement -- and MySQL's
+  `WindowsComputedBelow`: each window call inside a larger expression computed in a select below (`__wb<n>w<k>`), the
+  expression and the ORDER BY written over its column. No other dialect installs either. `CarrierStrategies` (under
+  MariaDB's caps: lists not native, FULL OUTER emulated), `StarExceptToColumns`, `SubstringClamp`, the three
+  explosion-marker passes, `QualifyToSubselect(true)` and `ConstantKeysAsExpressions()` were ported with the dialects
+  before them, and the base's `starsAsSourceColumns` with ClickHouse and BigQuery (step 6c).
+
+## Identity and state
+
+- Java's per-render state is the dialect object's own: `roots` and `rootSelects` (pushed by `render` and
+  `renderStatement` -- and so by `renderInline` -- with the query's outputs before the passes and an empty map, popped
+  after), `laterals` (each select's markers in scope, innermost last; a column's read looks from the innermost out, as
+  Java's `ArrayDeque` iterates), `modeCounts` (each select's counted MODEs and ranked quantiles) and `asText` --
+  `RefCell` stacks and a list, pushed and popped where Java's are, so nothing outlives a render and a dialect made per
+  call is exact.
+- `rootSelects` and `asText` are identity maps in Java (`IdentityHashMap`). Here a root select is its address in the
+  statement being written: the first `query` call of a render records the addresses of the root's selects (the root, a
+  union's branches, a WITH's body, as Java's `selectsOf`), stable while the statement is borrowed, and `select` asks
+  for its own. A select Java's `put` makes a root in another's stead is one by being made from one: a marker's reads
+  (`over`) carry the mark while they are written, a counted MODE's select its source select's -- and a select whose
+  stars over a marker are spelled (a new object, so never a root in Java) is delivered as it is. A root value written
+  as its text is the projection's own node in the select about to be written, forgotten once that select is written
+  (Java's `remove` on the first write; a value Java never wrote stays in its set and matches no other node).
+- `modeCounts` is keyed by Java's record equality: a grouped MODE by its reducer, a windowed one by its window's
+  function, partition, order and frame (its type fact is its function's). The insertion-ordered maps are Java's
+  (`LinkedHashMap`: a key met again keeps its place, its value replaced), `delivered`'s moved names among them.
+- The passes number their helper columns per statement (`rewriteRoot` sets the count to 0), as Java's `next`.
+
+## Java's behavior reproduced that looks like a bug
+
+Each is Java's text or refusal as it is, reproduced; none is fixed here.
+
+- A collection's CORR, COVAR_SAMP or COVAR_POP over a list of structs is an `IndexOutOfBoundsException`, `Index 1 out
+  of bounds for length 1`: the list's reduction is one reducer over the element alone, and `moments` reads its second
+  argument (3 lines of each in the arms oracle).
+- A quantified comparison by IS_DISTINCT_FROM is a `NullPointerException`, `quantified comparison must be an infix
+  operator: IS_DISTINCT_FROM` (the base's infix lookup answers no operator; in the arms oracle).
+- `passes()` installs `new ConstantKeysAsExpressions()`, Postgres's: a NULL ORDER BY key or an untyped constant key
+  is refused as `... reached Postgres, ...` (unit-tested).
+- `fromEngineText` and `typeofName` name MariaDB on MySQL too (their texts are literals, not `product()`).
+- `modesCounted` asks the select's FROM for its alias before its own check: a MODE over a join is
+  `IllegalStateException`, `a nested join has no single alias — resolve per side`, where `a MODE over a Join reached
+  MariaDB` was meant (in the arms oracle).
+- `delivered` drops its casts when no changed projection has an output name (it answers the select as it came), and
+  its new projection takes the output name as its alias.
+- A MODE or a whole partition's ranked quantile written outside the projections, HAVING and QUALIFY (an ORDER BY's)
+  was never counted: `IllegalStateException`, `a MODE reached MariaDB's writer uncounted: modesCounted did not run`
+  (unit-tested).
+
+## What Java does that this does not reproduce exactly
+
+None of these reaches the oracles.
+
+- **A node a pass shares.** The identity of a root select and of a root value is its address (above): Java would take
+  one object a pass placed both at the root and elsewhere for a root at both places. No pass of this dialect shares a
+  root select or a root value that way (each rebuilds what it moves), and no oracle line holds one.
+- The frame unit's and a sized DDL kind's `toUpperCase(Locale.ROOT)` are Rust's `to_uppercase`, as Trino's and
+  BigQuery's.
+- A regexp_replace option that is a lone surrogate is named in its refusal as U+FFFD (a Rust string holds no lone
+  surrogate); every other option character as Java's.
+- The seam refuses `duckdb.*` and `engine.*` on MariaDb and MySql: ops no Java method of either answers.
+
 # Typing
 
 Over the oracles, every distinct statement (every dialect's, the ten dialects' of the dialects dump, the eight
 dialects' of the arms oracle and the engine-text ops' queries included: one tree, counted once): **4,057,096 facts of
 36,890 statements, 0 different** (4,045,363 of 34,069 before the arms oracle was read, step 6b; the same with
-ClickHouse and BigQuery ported, step 6c, and with Snowflake, step 6e: the oracles are unchanged).
+ClickHouse and BigQuery ported, step 6c, with Snowflake, step 6e, and with MariaDB and MySQL, step 6f: the oracles are
+unchanged).
 
 # Tests
 
@@ -1496,6 +1648,24 @@ ClickHouse and BigQuery ported, step 6c, and with Snowflake, step 6e: the oracle
   DML, the session table (the default's two statements), the names, `raw` and the engine text refused, the wire
   names and `deliversOwn`, the interface's defaults and refusals naming Snowflake, the host operations refused,
   `readsStored`, and the DuckDB and engine-text ops refused.
+- `src/mariadb/tests.rs` (21 tests): MariaDB's and MySQL's hooks where the oracles cannot reach them -- `bitOp`'s,
+  `lists`' and `maps`' defaults, the cast type names no cast reaches and the STRUCT wall, a Float literal's exponent
+  and the non-finite wall, MySQL's seven answers behind MariaDB's `!correlatesDerived()` walls (a fold, a reduction, an
+  edit distance and a similarity reading a row; a lateral join to a table, a lateral subquery of no declared column and
+  one whose projections miss its outputs), every family hook of both profiles, the literals and identifiers, the facts,
+  the wire names and the type holes, the pass lists, a root select's labels delivered (a Float a DOUBLE, MySQL's list
+  as text) where a nested select's are not and the stacks empty after a render, a MODE and a ranked quantile no count
+  reached, `ConstantKeysAsExpressions` naming Postgres, the RANGE frame's day offsets, `extract` and `dateTrunc`'s
+  refused parts and MySQL's YEAR cast, printf both ways, the replacements' group references (PCRE's shifted, ICU's
+  `$n`), and the two passes: `WindowAggregatesAsCorrelated` over a ROWS frame and an ordered window's default RANGE
+  frame, the shapes it leaves as they came, its helper columns deduplicated and numbered per statement;
+  `WindowsComputedBelow` computing a window inside an expression below, its ORDER BY substituted, a bare window left.
+- `src/seam/mariadb_tests.rs` (5 tests): every op of the seam for MariaDb and MySql (§3j and §3k of `SEAM.md`): the
+  facts (each one's session statements), `forServer` and a configured spec refused, the renders (the quote each way, an
+  OFFSET's largest LIMIT), the DDL (its types, a nanosecond date-time refused) and DML, the session table, the names,
+  `raw` and the engine text refused (naming MariaDB on both), the wire names and `deliversOwn`, the interface's
+  defaults and refusals naming each dialect, the host operations refused, `readsStored`, and the DuckDB and engine-text
+  ops refused.
 - `tests/dialect_differential.rs`: the differentials above, one per dialect, the typing test, and the seam's, one per
   dialect: every op of the dialect's inputs (and each `query.render` asked inline, and for an engine-text dialect each
   of its aliases after the render) answered through `dispatch` exactly as a direct call answers it, each statement read
@@ -1506,7 +1676,8 @@ ClickHouse and BigQuery ported, step 6c, and with Snowflake, step 6e: the oracle
   and 42 (11,523 statements, 14 refusals), SQLite's 2,529 and 46 (2,189 statements, 150 refusals), Trino's 2,630 and 76
   (2,152 statements, 355 refusals), Databricks' 2,631 and 76 (2,145 statements, 364 refusals), ClickHouse's 2,643 and 86
   (2,099 statements, 430 refusals), BigQuery's 2,643 and 83 (2,063 statements, 450 refusals), Snowflake's 2,645 and 88
-  (2,127 statements, 379 refusals): all the same; and the zone shift held to java.time (above).
+  (2,127 statements, 379 refusals), MariaDb's 2,634 and 76 (2,108 statements, 400 refusals), MySql's 2,634 and 76 (2,119
+  statements, 389 refusals): all the same; and the zone shift held to java.time (above).
 
 # Stack
 

@@ -7,18 +7,21 @@ every op below (`src/seam/tests.rs`, `src/seam/h2_tests.rs`, `src/seam/engine_te
 `tests/dialect_differential.rs`'s `the_seam_answers_as_<dialect>s_renderer_does` over every op of each dialect's inputs
 in the golden oracles; `src/seam/postgres_tests.rs` for Postgres, `src/seam/sqlite_tests.rs` for SQLite,
 `src/seam/trino_tests.rs` for Trino, `src/seam/databricks_tests.rs` for Databricks, `src/seam/clickhouse_tests.rs` for
-ClickHouse, `src/seam/bigquery_tests.rs` for BigQuery, `src/seam/snowflake_tests.rs` for Snowflake).
+ClickHouse, `src/seam/bigquery_tests.rs` for BigQuery, `src/seam/snowflake_tests.rs` for Snowflake,
+`src/seam/mariadb_tests.rs` for MariaDb and MySql).
 
 Rust answers DuckDB, H2 and H2Modern (docs/rust-port/PHASE1.md §4, steps 3 and 4b), the engine-text dialects
 `EngineStyleH2`, `EngineStyleDB2` and `EngineStyleComposite` (step 4c), Postgres (step 5b), SQLite (step 5d), Trino and
-Databricks (step 6b), ClickHouse and BigQuery (step 6c), Snowflake (step 6e). Every answer below is DuckDB's -- `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations
+Databricks (step 6b), ClickHouse and BigQuery (step 6c), Snowflake (step 6e), MariaDB and MySQL (step 6f). Every answer below is DuckDB's -- `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations
 and `SqlDialect`'s defaults, exactly as Java answers them -- unless §3a gives H2's and H2Modern's (`H2.java`'s and
 `H2Modern.java`'s overrides over the same base), §3b the engine-text dialects' (theirs over the same base, and Java's
 `EngineTextDialect`), §3c Postgres's (`Postgres.java`'s and `PostgresHostOperations.java`'s), §3d SQLite's
 (`SQLite.java`'s, with `SqliteRegex.java`, `SqliteDigests.java` and the passes it installs), §3e Trino's (`Trino.java`'s,
 with `PivotAsGroupBy.java` and `AsOfAsPick.java`), §3f Databricks' (`Databricks.java`'s), §3g ClickHouse's
 (`ClickHouse.java`'s, with `OuterJoinResidualsAsMatches.java`), §3h BigQuery's (`BigQuery.java`'s, with
-`FoldsAsRecursiveCtes.java`) or §3i Snowflake's (`Snowflake.java`'s, its own nested `PivotAsGroupBy` among them).
+`FoldsAsRecursiveCtes.java`), §3i Snowflake's (`Snowflake.java`'s, its own nested `PivotAsGroupBy` among them), §3j
+MariaDb's (`MariaDb.java`'s, with `WindowAggregatesAsCorrelated.java`) or §3k MySql's (`MySql.java`'s over MariaDb's,
+with `WindowsComputedBelow.java`).
 
 ## 1. The call
 
@@ -49,7 +52,8 @@ The phase and position fields are always `-`; the message is the rest of the tex
   user's ruling, 2026-11-03), as ClickHouse's (its query nesting and the root's correlated-subquery flag),
   BigQuery's (the markers in scope, the statement's labels, each select's counted MODEs) and Snowflake's (the
   statement's labels, the lambdas and FLATTENs in scope, its fresh names `__f<n>`, `__s<n>`, ..., started over at each
-  outermost query render) are. (This supersedes
+  outermost query render) and MariaDB's and MySQL's (the statement's labels and root selects, the markers and counted
+  MODEs in scope, the root values written as their text) are. (This supersedes
   PHASE1.md §3's handle: no dialect state is held
   between calls.) The JVM may read `facts` once per dialect and cache it. An engine-text dialect's render leaves one
   piece of state on Java's dialect object -- the engine's alias plan of the query, which `renderedAlias` then reads --
@@ -61,21 +65,21 @@ The phase and position fields are always `-`; the message is the rest of the tex
 
 ```json
 {"dialect": "DuckDb" | "H2" | "H2Modern" | "EngineStyleH2" | "EngineStyleDB2" | "EngineStyleComposite" | "Postgres"
-             | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery" | "Snowflake",
+             | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery" | "Snowflake" | "MariaDb" | "MySql",
  "server": "<version>" | null, "engineScanOrder": true | false,
  "quoteIdentifiers": true | false, "timeZone": "<zone>" | null}
 ```
 
 | field | | |
 |---|---|---|
-| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, `Postgres`, `SQLite`, `Trino`, `Databricks`, `ClickHouse`, `BigQuery` or `Snowflake`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake`). |
-| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery and Snowflake keep themselves. |
+| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, `Postgres`, `SQLite`, `Trino`, `Databricks`, `ClickHouse`, `BigQuery`, `Snowflake`, `MariaDb` or `MySql`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDb, MySql`). |
+| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDb and MySql keep themselves. |
 | `engineScanOrder` | boolean or missing (false) | `Boolean.getBoolean("legend.exec.engineScanOrder")`, which Java's `DuckDb` reads at each render: the engine corpus runner's opt-in to `StableScanOrder`. The JVM passes its property's value. Read as a boolean for every dialect; only DuckDB reads it. |
 | `quoteIdentifiers` | boolean or missing (false) | an engine-text dialect's constructor argument (`new EngineStyleH2(quoteIdentifiers, timeZone)`, `new EngineStyleDB2(...)`; the plan text's connection): every physical identifier double-quoted. |
 | `timeZone` | string, null or missing (null) | the same constructors' second argument, the connection's zone: a DATETIME placeholder written in `GMTtoTZ`, a date-time constant shifted from GMT to the zone (`GMT` itself shifts none; §6). |
 
 `quoteIdentifiers` and `timeZone` configure an engine-text dialect alone: on `DuckDb`, `H2`, `H2Modern`, `Postgres`,
-`SQLite`, `Trino`, `Databricks`, `ClickHouse`, `BigQuery` or `Snowflake` either field, present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone
+`SQLite`, `Trino`, `Databricks`, `ClickHouse`, `BigQuery`, `Snowflake`, `MariaDb` or `MySql` either field, present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone
 configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not <Dialect>`). `EngineStyleComposite` has only
 Java's no-argument constructor: the fields may be absent or their defaults (`false`, `null`); any other value is refused
 (`EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers false, timeZone
@@ -420,6 +424,52 @@ DML statement), `wireTypeName`, `typingWireName` and `hostOperations`, as a `Sql
 `new Snowflake()`. So no op beyond §3 is needed. Its one counter that outlives a render, `fresh`, is started over by
 each outermost query render (the user's ruling, 2026-11-03), which a dialect made per call reproduces; a DML render does
 not start it over in Java (§6).
+
+### 3j. MariaDb
+
+MariaDB through MariaDB Connector/J (`MariaDb.java`, with `WindowAggregatesAsCorrelated.java`; `src/mariadb.rs`,
+`src/mariadb/`). MariaDb answers every op of §3 but `duckdb.*` and `engine.*`; where its answer differs from DuckDB's
+it is:
+
+| op | MariaDb |
+|---|---|
+| `facts` | `{"temporaryTables": true, "loadsRowsInBulk": false, "relational": true, "inProcess": false, "dropsStagedTablesWithTheirTransaction": false, "needsStaticPivot": true, "serverVersions": null, "inMemoryPath": null, "scriptAbort": null, "sessionSetup": ["SET SESSION optimizer_switch = 'condition_pushdown_for_derived=off'", "SET SESSION sql_mode = 'ANSI_QUOTES,PIPES_AS_CONCAT,NO_BACKSLASH_ESCAPES,STRICT_ALL_TABLES,NO_ENGINE_SUBSTITUTION'", "SET SESSION time_zone = '+00:00'", "SET NAMES utf8mb4 COLLATE utf8mb4_bin", "SET SESSION group_concat_max_len = 1073741824", "SET SESSION max_recursive_iterations = 100000000", "SET SESSION div_precision_increment = 30"], "keysSnapshot": "REPEATABLE_READ", "resultColumnLimit": 4096}` |
+| `forServer` | `"MariaDb"` whatever the version |
+| the renders | MariaDB's (`PARITY.md`): every identifier double-quoted under the session's ANSI_QUOTES (a valid double-quoted declaration as it is), a quote doubled in a string literal (a text with an odd run of backslashes before a quote spelled around `CHAR(92 USING utf8mb4)`), a date-time `CAST('...' AS DATETIME(6))`, a Float literal a DOUBLE by its exponent (`1.5E0`; NaN and the infinities refused), NULLs placed by a key of their own (`(x IS NULL), x`), a union's ordered or limited branch parenthesized, an ordered derived table and an OFFSET given the largest LIMIT, a VALUES a union of one-row selects; lists, structs, maps and Variants as JSON text, each list operation a correlated subquery over `JSON_TABLE`, a fold, a list reduction, an edit distance and a Jaro-Winkler similarity a recursive CTE over values that read no row (one that reads a row refused), an explosion over its marker's positions (`JSON_TABLE(... FOR ORDINALITY)`), any other lateral derived table its rows as JSON read back by `JSON_TABLE`, a MODE counted in a select over its source, a root select's values delivered as its labels say, error() kept in `@legend_raise` and failed by a two-row subquery, printf through SFORMAT, a Float's text DuckDB's; MariaDB's passes (the carrier strategies, star exclusions spelled out, the substring clamp, the three explosion-marker passes, QUALIFY as a wrapping subselect, a windowed GROUP_CONCAT as a correlated subquery, constant keys typed), a Float's literal spelling its own and its print form expanded |
+| `ddl.render` | the base's statements with every name quoted, MariaDB's types (`INT`, `BOOLEAN` for a BIT, `DOUBLE`, `DATETIME(6)`, `TIME(6)`, `LONGTEXT` for JSON, VARCHAR, OTHER, DISTINCT, ARRAY and OBJECT, `VARCHAR(n)` or `LONGBLOB` for a binary, `DECIMAL(p,s)`; a nanosecond date-time refused) |
+| `dml.render`, `dml.renderStatement` | the base's spellings, every name quoted; the store writes and a temporary table from a query refused naming MariaDb |
+| `sessionTable` | the interface's default: the `Create Temporary Table` and its INSERT |
+| `physicalName`, `storedName`, `insertColumnName` | every name double-quoted (a quote doubled), a valid double-quoted declaration as it is |
+| `raw`, `fromEngineText` | the engine's H2 text refused (`DialectCapability`): `the engine's H2 text reached MariaDB, which has no translation of it`; any other text as written |
+| `wireTypeName`, `typingWireName` | `LONGTEXT`, `MEDIUMTEXT`, `TEXT`, `TINYTEXT`, `CHAR` and `UUID` `VARCHAR`, `DATETIME` `TIMESTAMP`, any other its own name, each through `WireNames.fold`, the same for both; null the empty string |
+| `deliversOwn` | `true` at the wire `NULL`; for a BOOLEAN label at `INTEGER`, `BIGINT` or `TINYINT`; for an integer label at a `DECIMAL(...,0)` or `BIGINT UNSIGNED`; for a DECIMAL label at a `DECIMAL(...)` of its scale; for a list, struct, map or Variant label at `JSON` or `VARCHAR`; else `false` |
+| `script`, `failingStatement`, `catalogColumnsQuery`, `catalogType`, `bareNameReaches`, a converting `copySelectList`, `host.*` | the interface's defaults, the refusals naming `MariaDb` |
+| `readsStored` | the base's: a plain `OTHER` or `DISTINCT` read as text |
+| `tableName` | the base's: a schema-qualified name each part double-quoted, else double-quoted |
+| `duckdb.tables`, `duckdb.readsStored` | refused (`IllegalArgumentException`): `'<op>' is DuckDb's op, not MariaDb's` |
+
+### 3k. MySql
+
+MySQL through MariaDB Connector/J (`MySql.java`, `extends MariaDb`, with `WindowsComputedBelow.java`; the same struct,
+its `mysql` profile). MySql answers every op as §3j's MariaDb, its name `MySql` wherever MariaDb's refusals name the
+dialect (`getClass().getSimpleName()`) and `MySQL` wherever they name the database (`product()`), except:
+
+| op | MySql |
+|---|---|
+| `facts` | MariaDb's, but `"sessionSetup": ["SET SESSION sql_mode = 'ANSI_QUOTES,PIPES_AS_CONCAT,NO_BACKSLASH_ESCAPES,STRICT_ALL_TABLES,NO_ENGINE_SUBSTITUTION,NO_UNSIGNED_SUBTRACTION'", "SET SESSION time_zone = '+00:00'", "SET NAMES utf8mb4 COLLATE utf8mb4_bin", "SET SESSION group_concat_max_len = 1073741824", "SET SESSION cte_max_recursion_depth = 100000000", "SET SESSION div_precision_increment = 30"]` |
+| `forServer` | `"MySql"` whatever the version |
+| the renders | MariaDB's with MySQL's hooks (`PARITY.md`): a quote and a backslash in a string literal each its own character (`CONCAT('', 'it', CHAR(39 USING utf8mb4), 's')`), a HUGEINT literal `CAST(... AS DECIMAL(38,0))`, a JSON value normalized by its CAST to JSON, an ordered or distinct JSON array GROUP_CONCAT's, a negative JSON index `$[last-n]`, a JSON scalar read by `JSON_EXTRACT` unquoted, a table function's argument bound first in a LATERAL derived table, a raise's two rows a UNION's, a year cast to SIGNED, a JSON value's text without its spaces, printf written out piece by piece, ICU's `$n` group references and REGEXP_REPLACE's occurrence, a JSON_TABLE boolean an INT, a root list, struct, map or Variant delivered as its text, a grouped MODE counted, a whole partition's quantile read from each row's rank (an ordered or framed one refused), a fold, reduction or walk that reads a row allowed, LATERAL; MySQL's passes (MariaDB's, then each window call inside an expression computed in a select below) |
+| `raw`, `fromEngineText` | as MariaDb's: the refusal names MariaDB (Java's literal text) |
+
+MariaDb's and MySql's public statics (`LEXICON`, `CAPS`) are read by no Java code outside their classes (main and test
+sources, grepped; `MySql`'s constructor reads `MariaDb.LEXICON`), and no test calls a method of either object that is
+no `SqlDialect` method: the core tests that make one (`TranslateTest`, `StoreWritesTest`, `CatalogGridTest`,
+`TempTableAsTest`, `WireTypeNamesTest`) ask it `render` (of a query and a DML statement), `wireTypeName` and
+`typingWireName`, as a `SqlDialect`, and no test holds a `MySql` as a `MariaDb`; `Databases` constructs each with `new
+MariaDb()` and `new MySql()`. So no op beyond §3 is needed. Neither keeps state between renders: the statement's labels
+and root selects, the markers and counted MODEs in scope and the root values written as text are pushed and popped
+within each render, which a dialect made per call reproduces. `exec.MariaDbConnector` (MySQL's connector extends it)
+reads no dialect member: it reads a failed session's held raise back by its own two statements.
 
 ### Op refusals
 
