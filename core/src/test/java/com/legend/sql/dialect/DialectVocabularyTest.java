@@ -104,7 +104,9 @@ class DialectVocabularyTest {
         // SQLite, Snowflake and Trino remain
         // 10 -> 9 on 2026-11-03 (the Postgres switch; rust/RETIRED_TESTS.md): Postgres is the Rust library's too
         // 9 -> 8 the same day (the SQLite switch): SQLite is the Rust library's too
-        assertTrue(dialects >= 8, "the dialect package's concrete dialects were not found: " + dialects);
+        // 8 -> 4 on 2026-11-04 (the switch of Trino, Databricks, ClickHouse and BigQuery; rust/RETIRED_TESTS.md):
+        // Snowflake, MariaDb, MySql and MongoDb remain
+        assertTrue(dialects >= 4, "the dialect package's concrete dialects were not found: " + dialects);
         assertTrue(wrong.isEmpty(), "a dialect that does not decide its whole vocabulary itself: " + wrong);
     }
 
@@ -189,7 +191,9 @@ class DialectVocabularyTest {
                 wrong.addAll(oneExpressionArms(name + "." + v.method() + "()", decider, v.sw()));
             }
         }
-        assertTrue(tables >= 15, "the dialects' function tables were not found: " + tables);
+        // 15 -> 8 on 2026-11-04 (rust/RETIRED_TESTS.md): twelve dialects' tables are the Rust library's; the four Java
+        // dialects left have two each
+        assertTrue(tables >= 8, "the dialects' function tables were not found: " + tables);
         assertTrue(wrong.isEmpty(), "a function table that is not one switch of one-expression arms: " + wrong);
     }
 

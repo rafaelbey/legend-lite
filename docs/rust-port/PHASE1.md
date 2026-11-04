@@ -457,6 +457,18 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      ClickHouse 25.8 server the test JVM starts from the pinned `@embedded_clickhouse`, no Docker) and
      `//pct:pct_bigquery` and `//pct:pct_channel_b_bigquery` (cloud lanes: a real account, its credentials in
      `LEGENDLITE_PCT_CLOUD_PROPERTIES`).
+   - **6d, done 2026-11-04: Trino, Databricks, ClickHouse and BigQuery switch.** The four are shims over the Rust
+     library (their names and constructors; every method one seam call; no new op, as 6b and 6c measured). Deleted with
+     them, every Java class of the dialect package no main source named any more: `AggregatesDeliverDouble`,
+     `AsOfAsPick`, `CommonSubexpressions`, `FoldsAsRecursiveCtes`, `OuterJoinResidualsAsMatches` and `UnqualifyPivotArgs`
+     (their last users these four), and `CatalogRules`, `FoldToListReduce`, `InformationSchemaCatalog`,
+     `OuterJoinSubqueryFilters`, `QuantileOrder`, `VariantEgress` and `WholePartitionOrderedSets` (dead since the DuckDB,
+     H2, Postgres and SQLite switches; their tests only name them in comments). `StableScanOrder` stays: the corpus
+     runner reads its firings. Guards moved (`rust/RETIRED_TESTS.md`): `DialectVocabularyTest`'s floors (dialects 8 ->
+     4, function tables 15 -> 8) and the RowOrder mint list (`UnqualifyPivotArgs.java` out); `docs/dialect-capability`
+     regenerated. `bazel test //...` against rust/BASELINE.tsv: 518 pass, the same 2 skipped, every baseline target at
+     its baseline status. The heavy and cloud lanes (`pct_trino`, `pct_clickhouse`, `pct_databricks`, `pct_bigquery`
+     and their channel B) are manual and were not run here.
 
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 

@@ -66,8 +66,9 @@ class TestLaneOrderGuardrailTest {
                 // LateralExplodeToUnion.java left 2026-11-03 (docs/rust-port/PHASE1.md §4 step 4; rust/RETIRED_TESTS.md):
                 // H2 and the engine text, its last users, are the Rust library's, which keys the explode's legs
                 // (rust/lite-dialect/src/h2_passes.rs)
-                "com/legend/sql/dialect/StableScanOrder.java",
-                "com/legend/sql/dialect/UnqualifyPivotArgs.java")),
+                // UnqualifyPivotArgs.java left 2026-11-04 (rust/RETIRED_TESTS.md): DuckDB and Databricks, its users, are
+                // the Rust library's (rust/lite-dialect/src/passes.rs re-spells the key as Java did)
+                "com/legend/sql/dialect/StableScanOrder.java")),
                 filesMatching(ROW_ORDER_MINT),
                 "SqlExpr.RowOrder is minted outside its owners: a product path is adding a"
                 + " scan order the query did not ask for (user ruling 2026-09-20) — the"
