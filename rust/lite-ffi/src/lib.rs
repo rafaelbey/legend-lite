@@ -360,7 +360,7 @@ mod tests {
             dialect(r#"{"dialect":"Oracle"}"#, "facts", "{}"),
             "ERR\nILLEGAL_ARGUMENT\n-\n-\nunknown dialect 'Oracle': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, \
              EngineStyleDB2, EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, \
-             Snowflake"
+             Snowflake, MariaDb, MySql"
         );
         let geometry = r#"{"column":{"name":"g","dataType":"GEOMETRY","logicalType":"GEOMETRY","precision":null,"scale":null,"notNull":false}}"#;
         assert_eq!(

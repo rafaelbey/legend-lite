@@ -12,13 +12,15 @@
 //!   base's `final` helpers are `ansi`'s free functions alone. [`DuckDb`], [`H2`] (H2Modern is its `modern`
 //!   profile), [`EngineStyle`] (legend-engine's own text: `EngineStyleH2`, `EngineStyleDB2` and
 //!   `EngineStyleComposite` are its profiles), [`Postgres`], [`Sqlite`] (Java's `SQLite`), [`Trino`], [`Databricks`],
-//!   [`ClickHouse`], [`BigQuery`] and [`Snowflake`] are structs implementing it.
+//!   [`ClickHouse`], [`BigQuery`], [`Snowflake`] and [`MariaDb`] (MySQL's is its `mysql` profile) are structs
+//!   implementing it.
 //! - [`SqlWriter`] is Java's one place SQL is written: text in order, each bound parameter recorded where its
 //!   placeholder lands, the per-key regions; [`RenderedStatement`] is what it hands back, every record's `Display`
 //!   Java's record `toString`.
 //! - Every Java `throw` is a [`Refusal`]: the class Java threw and its exact message.
 //! - The MIR passes ([`rewriter`], [`passes`], [`carrier`], [`scan_order`], [`h2_passes`], [`shared_passes`],
-//!   [`explosion_markers`], [`common_subexpressions`]) run at render entry in
+//!   [`explosion_markers`], [`common_subexpressions`], and a dialect's own module where only it installs one) run at
+//!   render entry in
 //!   Java's order, each its Java class ported; a node they build carries the type fact Java's constructor computes
 //!   ([`build`] over [`typing`], Java's `SqlTyping`).
 //! - [`SqlDialect`] is Java's interface: every method, its defaults Java's, so [`DuckDb`] overrides what `DuckDb.java`
@@ -53,6 +55,7 @@ pub mod host_ops;
 pub mod java;
 pub mod java_time;
 pub mod json;
+pub mod mariadb;
 pub mod passes;
 pub mod pieces;
 pub mod postgres;
@@ -78,6 +81,7 @@ pub use dialect::{EngineTextDialect, KeysSnapshot, SqlDialect};
 pub use duckdb::DuckDb;
 pub use engine_style::EngineStyle;
 pub use h2::H2;
+pub use mariadb::MariaDb;
 pub use postgres::Postgres;
 pub use refusal::Refusal;
 pub use snowflake::Snowflake;

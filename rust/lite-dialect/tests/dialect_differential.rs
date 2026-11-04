@@ -199,6 +199,30 @@ fn the_seam_answers_as_snowflakes_renderer_does() {
     the_seam_answers_as_the_renderer_does("Snowflake");
 }
 
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn mariadb_renders_as_java_does() {
+    renders_as_java_does("MariaDb");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_mariadbs_renderer_does() {
+    the_seam_answers_as_the_renderer_does("MariaDb");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn mysql_renders_as_java_does() {
+    renders_as_java_does("MySql");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_mysqls_renderer_does() {
+    the_seam_answers_as_the_renderer_does("MySql");
+}
+
 /// An engine-text dialect's default configuration (Java's no-argument constructor), as the H2 dump writes it: an input
 /// the first dump holds with no configuration is the same input.
 const DEFAULT_ENGINE_CONFIG: &str = r#"{"quoteIdentifiers":false,"timeZone":null}"#;
@@ -868,6 +892,20 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             (t.lateral, "ExplosionMarkers"),
             (t.constant_key, "ConstantKeysAsExpressions"),
         ]
+    } else if dialect == "MariaDb" || dialect == "MySql" {
+        // MariaDB's passes (MariaDb.passes()), in their order; MySQL's adds WindowsComputedBelow last
+        vec![
+            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
+            (t.carrier || t.pivot || t.as_of, "CarrierStrategies"),
+            (t.star_except, "StarExceptToColumns"),
+            (t.substring, "SubstringClamp"),
+            (t.lateral, "ExplosionMarkers"),
+            (t.qualify, "QualifyToSubselect (by outputs)"),
+            (t.window_aggregate, "WindowAggregatesAsCorrelated"),
+            (t.constant_key, "ConstantKeysAsExpressions"),
+            (dialect == "MySql" && t.window, "WindowsComputedBelow"),
+            (t.stored_reads, "StoredReads"),
+        ]
     } else if dialect.starts_with("EngineStyle") {
         // the engine text's passes (EngineStyleH2.passes()): the carrier strategies, the lateral explode
         vec![
@@ -925,6 +963,10 @@ struct Triggers {
     qualify: bool,
     as_of: bool,
     outer_join: bool,
+    /// a window call (MySQL's WindowsComputedBelow)
+    window: bool,
+    /// a windowed STRING_AGG (MariaDB's WindowAggregatesAsCorrelated)
+    window_aggregate: bool,
 }
 
 impl Triggers {
@@ -1047,6 +1089,12 @@ impl SqlRewriter for Triggers {
                 if matches!(r.r#fn, AggFn::Median | AggFn::Mode | AggFn::QuantileCont | AggFn::QuantileDisc))
         {
             self.ordered_set_window = true;
+        }
+        if let SqlExpr::WindowCall { r#fn, .. } = &e {
+            self.window = true;
+            if matches!(r#fn.as_ref(), lite_sql::SqlAgg::Reducer(r) if r.r#fn == AggFn::StringAgg) {
+                self.window_aggregate = true;
+            }
         }
         let _ = TypeFact::Unknown;
         Ok(Rw::Same(e))

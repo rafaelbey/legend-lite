@@ -6,7 +6,8 @@
 //! answer, its refusals -- and the JVM's side is written against it.
 //!
 //! A dialect is made fresh for each call from its spec (DuckDB, the H2 family, Postgres, Trino and Databricks carry no
-//! state from one render to the next; SQLite's, ClickHouse's, BigQuery's and Snowflake's is a statement's own; an
+//! state from one render to the next; SQLite's, ClickHouse's, BigQuery's, Snowflake's, MariaDB's and MySQL's is a
+//! statement's own; an
 //! engine-text dialect's alias plan is rebuilt by the op that reads it). A MIR is read with
 //! `lite_sql`, nested at most [`MAX_DEPTH`] deep; every other record has the JSON form `SEAM.md` gives it: an object of
 //! the Java record's components by name, in declaration order, a nested record the same way, a Java enum by its
@@ -20,6 +21,7 @@ use crate::dialect::{EngineTextDialect, SqlDialect};
 use crate::duckdb::DuckDb;
 use crate::engine_style::{EngineStyle, Profile};
 use crate::h2::H2;
+use crate::mariadb::MariaDb;
 use crate::host_ops;
 use crate::postgres::Postgres;
 use crate::sqlite::Sqlite;
@@ -46,6 +48,8 @@ pub const DIALECTS: &[&str] = &[
     "ClickHouse",
     "BigQuery",
     "Snowflake",
+    "MariaDb",
+    "MySql",
 ];
 
 /// Every op the seam answers (`SEAM.md`, "Ops").
@@ -129,6 +133,8 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
     let dialect: Box<dyn SqlDialect> = match name {
         "DuckDb" | "H2" | "H2Modern" | "Postgres" | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery"
         | "Snowflake"
+        | "MariaDb"
+        | "MySql"
             if configured =>
         {
             return Err(Refusal::illegal_argument(format!(
@@ -150,6 +156,8 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
         "ClickHouse" => Box::new(ClickHouse::new()),
         "BigQuery" => Box::new(BigQuery::new()),
         "Snowflake" => Box::new(Snowflake::new()),
+        "MariaDb" => Box::new(MariaDb::new()),
+        "MySql" => Box::new(MariaDb::mysql()),
         "EngineStyleComposite" if quote_identifiers == Some(true) || time_zone.is_some() => {
             return Err(Refusal::illegal_argument(
                 "EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers \
@@ -670,3 +678,5 @@ mod clickhouse_tests;
 mod bigquery_tests;
 #[cfg(test)]
 mod snowflake_tests;
+#[cfg(test)]
+mod mariadb_tests;

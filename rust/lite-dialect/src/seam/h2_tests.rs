@@ -255,7 +255,7 @@ fn the_seam_opens_the_h2_family_and_names_every_dialect_it_answers() {
     assert_eq!(
         r.message,
         "unknown dialect 'Oracle': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, \
-         EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake"
+         EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDb, MySql"
     );
     // the engine's scan order is DuckDB's switch: read as a boolean, ignored by H2
     assert_eq!(dispatch(r#"{"dialect":"H2","engineScanOrder":true}"#, "facts", "{}").unwrap(), ok(H2, "facts", "{}"));
