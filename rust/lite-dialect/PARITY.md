@@ -1,10 +1,11 @@
 # Dialect parity: DuckDB, H2, H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse,
-# BigQuery, Snowflake, MariaDB and MySQL (2026-11-04)
+# BigQuery, Snowflake, MariaDB, MySQL and MongoDB (2026-11-04)
 
 Every dialect Rust answers, held to the JVM's own answers on the golden oracles (docs/rust-port/PHASE1.md §4): DuckDB
 (step 3, its renderer and passes), the H2 family's execution dialects, H2 and H2Modern (step 4b), the engine-text
 dialects, EngineStyleH2, EngineStyleDB2 and EngineStyleComposite (step 4c), Postgres (step 5b), SQLite (step 5d), Trino
-and Databricks (step 6b), ClickHouse and BigQuery (step 6c), Snowflake (step 6e), MariaDB and MySQL (step 6f).
+and Databricks (step 6b), ClickHouse and BigQuery (step 6c), Snowflake (step 6e), MariaDB and MySQL (step 6f), MongoDB
+(step 6g: its aggregation pipeline and JSON writer).
 Each is ported from
 its Java class, over a walk that keeps Java's identity semantics and a port of the typing rules Java's constructors
 apply. This file measures each on the oracles and says what of Java it does not reproduce exactly.
@@ -22,7 +23,7 @@ engine-text dialect's default configuration and the first dump's none are one) c
 
 - `<dialect>_renders_as_java_does` (`duckdb_`, `h2_`, `h2modern_`, `enginestyleh2_`, `enginestyledb2_`,
   `enginestylecomposite_`, `postgres_`, `sqlite_`, `trino_`, `databricks_`, `clickhouse_`, `bigquery_`,
-  `snowflake_`, `mariadb_`, `mysql_`): every
+  `snowflake_`, `mariadb_`, `mysql_`, `mongodb_`): every
   distinct input of the dialect, answered by a fresh Rust dialect of that
   name and configuration (made by the seam's `open`, as the JVM's shim makes it) and compared with the fresh JVM
   dialect's answer -- the SQL text exactly, a statement's binds and regions as Java's record text, a refusal by its Java
@@ -1484,13 +1485,151 @@ None of these reaches the oracles.
   surrogate); every other option character as Java's.
 - The seam refuses `duckdb.*` and `engine.*` on MariaDb and MySql: ops no Java method of either answers.
 
+# MongoDB
+
+Step 6g (docs/rust-port/PHASE1.md §4): Java's `MongoDb` with its pipeline writer `MongoDbPipeline` and its JSON writer
+`MongoJson` -- the one target whose text is no SQL but an `aggregate` command, a pipeline in MongoDB's Extended JSON
+(docs/MONGODB_PLAN_2026_10_16.md). `src/mongodb.rs` is the dialect (its hooks, the expression writer, a column
+reference's spelling in each pipeline scope, the per-key column, the parameter's marker document, the DDL and DML
+commands, the facts); `src/mongodb/pipeline.rs` the stages (a select's sources, `$lookup` subqueries and joins, the
+`$group` and its markers, the `$setWindowFields` stages, the sort carries, the `$replaceWith` projection, `$unwind`);
+`src/mongodb/functions.rs` the `call` table and its helpers; `src/mongodb/aggregates.rs` the accumulators, the pushed
+route reduced at the read, the window outputs; `src/mongodb/texts.rs` the casts and the long compositions (a number's
+text as Pure spells it, a value's JSON text by its kind at run time, the string distances, printf, a date's text);
+`src/mongodb/json.rs` `MongoJson`; `src/mongodb/java_text.rs` the records' `toString` that the lowering-bug refusals
+embed (an as-of join's match, a pivot value that is no literal, a list operator's argument that is no lambda).
+
+## The numbers
+
+**MongoDb 2,606 of 2,606 distinct inputs identical (100 %)**; the floor (`tests/mongodb-floor.txt`) is 2,606. The
+oracles hold 2,613 lines (2,598 of `mir/dialect-arms.jsonl`, 8 of the dialects dump, 7 of the first; 7 repeat an input,
+none with two answers). The text, the binds and the regions are compared exactly: 29 statements bind a parameter (the
+marker document `{"$legendParam": "?"}`, a per-key region's key cell among them) or write a region and carry Java's
+record text. All of Java's 408 refusals are reproduced, class and message (274 `DialectCapability`, 133
+`IllegalStateException`, one `IndexOutOfBoundsException`), and Rust refuses nothing Java rendered. **The first
+measurement was already 100 %.**
+
+| op | identical | different | refused (Java rendered) | accepted (Java refused) |
+|---|---:|---:|---:|---:|
+| `ddl.render` | 43 | 0 | 0 | 0 |
+| `dml.render` | 22 | 0 | 0 | 0 |
+| `dml.renderStatement` | 22 | 0 | 0 | 0 |
+| `fromEngineText` | 4 | 0 | 0 | 0 |
+| `query.render` | 67 | 0 | 0 | 0 |
+| `query.renderStatement` | 2,448 | 0 | 0 | 0 |
+
+By MIR kind every one is identical: `SqlSelect` 2,506, `CreateTable` 36, `InsertValues` 18, `DeleteAll` 8, `SqlUnion`
+5, `CreateTempTableAs`, `DeleteWhere`, `SqlWith`, `String` (the engine text, every one refused) and `Update` 4 each,
+`DropTable` 3, `CreateSchema`, `DropSchema`, `InsertFromTable`, `InsertSelect` and `Merge` 2 each.
+
+The arms oracle reaches 179 of the 181 `SqlFn` arms, 79 of the 80 `SqlAgg.Fn` labels, 74 of MongoDb's 80 own walls and
+148 of its 158 pattern labels (PHASE1.md, 6a). What it cannot hold is unit-tested from the Java (`src/mongodb/tests.rs`,
+16): FLOAT_CANON and FLOAT_PRINT (expanded before every pass: the base's portable compositions, written here), the
+`Tagged` and `TaggedList` arms having no MirJson (no lite_sql variant); `reduceArray`'s COUNT (`arrayReduction` answers
+`$size` first); `scalarTypeName`'s BOOLEAN, TIMESTAMPTZ, JSON and DECIMAL_TEXT (`variantAwareCast` takes each first);
+`structTypeName`'s wall; `ddlType`'s 21 labels and its walls (its `render(SqlDdl)` writes no column type); the
+nested-query wall (the pipeline writes every query itself) and the flat-join wall (`join` refuses a joined right side
+first); the helpers' defaults their one caller never passes (`bitOp`'s, `listCall`'s, `jsonText`'s, `accumulator`'s,
+`emptyInput`'s); the window over a grouped aggregate the arms oracle dropped (below); the JSON writer's variable names,
+field keys, strings, one-argument operators and BSON dates; the insert's values; the records' text; and the per-render
+state. The pattern labels that stay unreached are dead in Java: `timeBucket`'s month-count default (only YEAR, QUARTER
+and MONTH reach it), `strftime`'s composed-part default (only a composed part reaches it) and the pipeline's two
+subquery defaults (its marker list holds subqueries alone).
+
+The seam answers every op of them as a direct call does: 2,606 ops and 67 inline renders (2,102 statements read back
+from their JSON equal and with Java's record text, 416 refusals), and `src/seam/mongodb_tests.rs` (5) holds every op to
+the Java.
+
+## What is ported
+
+- **The dialect**: every one of `MongoDb.java`'s 50 overrides -- the lexicon (no quoting: every name a JSON string),
+  `CarrierStrategies` alone among its passes (lists native, so it changes no query: `PHASE1.md`, 6a), a stored
+  objectId (a plain `OTHER`) read as `{"$toString": ...}`, `fromEngineText` refused, the whole expression writer (a
+  string literal `$literal`, the numbers `$numberLong`, `$numberDouble` and `$numberDecimal`, a date or date-time a
+  BSON `$date` to the millisecond, a plan parameter the marker document, a key cell the marker in its region, a column
+  reference by its scope: an aggregate's, subquery's or window's marker its registered read, a group key `_id`, a lambda
+  parameter its variable, a lookup's outer alias its `let` variable, its flat alias the bare field, a per-key column
+  `"$alias._pk<n>_name"`), the struct and the JSON object as documents, a CASE as `$switch`, a fold as `$reduce`, every
+  cast (`$convert` to the BSON type, a decimal rounded to its scale, a zoned date-time parsed from its padded text, a
+  Variant the value itself or its JSON text written at run time, a date's text, a number's text as Pure spells it, a
+  boolean's text read by its word), membership (a list parameter bound whole), the collection reductions, every arm of
+  `call` (the null guard of D7 over `$let`-bound operands, the literal operands of raising operators read through the
+  row, the regular expressions, the string distances as folds, printf, the date parts, truncations, intervals,
+  differences, buckets and formats, the list operators over BSON arrays and their index lambdas, the maps as
+  documents, the raise a conversion that cannot succeed), every aggregate (the native accumulators, SUM's count of
+  values beside it, the pushed route sorted by its keys' null flags, made distinct, reduced at the read), the type
+  names, the JSON kind and TYPEOF names, the DDL commands (`create`, `drop`) and the DML (`insert` of literal values,
+  `delete` of every document), the store writes refused, the facts (not relational, no temporary tables, no keys
+  snapshot, no column limit).
+- **The pipeline**: the command over its base collection (or the database), a union's `$unionWith` branches, the
+  select clause by clause (its sources wrapped under their aliases, its subqueries as `$lookup`s into marker fields,
+  the WHERE as `$match`, the `$group` with its accumulators and SQL's one row over no input, the HAVING, the
+  `$setWindowFields` stages grouped by window and need, the QUALIFY, the sort carries and their null flags, the
+  `$replaceWith` projection with its stars merged and its per-key run, DISTINCT as a `$group` by the whole row, the
+  `$sort`, `$skip` and `$limit`), the scan with each declared column `$ifNull`'d, the literal rows as `$documents`, a
+  subselect wrapped by `$replaceWith`, a static pivot as two groups and a projection, the joins as `$lookup` and
+  `$unwind` (a right join looked up from the right, a full join's unmatched right rows appended, an as-of join's
+  nearest row by its match's right column), the exploded lists `$unwind`'d or zipped.
+- **The JSON writer** (`MongoJson`): a JSON string's escapes, a field name's refusal (empty, `$`-led, holding a dot or
+  a NUL), a path, a `$let` variable (each UTF-16 unit an ASCII letter or digit kept, any other `_`), the operators
+  over arguments and pieces, the null guard, a BSON date literal from an ISO text (its fraction to three digits, finer
+  digits refused unless zeros, `Z` added unless an offset ends it -- read as Java's `matches` reads it: no line
+  terminator before it).
+
+## Identity and state
+
+- Java's per-render state is the dialect object's own: `scopes` (each pipeline level -- the lookup's variable aliases,
+  the flat alias, the reads its stages registered, the select's sole alias) and `lambdaVariables`, two `RefCell`
+  stacks, reset by every query render as Java's `query` resets them, a lookup's level popped and a lambda's variables
+  unbound even when what they wrap is refused (Java's `finally`). So nothing outlives a render, and a dialect made per
+  call is exact; a DDL or DML render reads neither.
+- Java's `SqlWriter.Piece` is a closure handed the dialect when it is written (`Pc`). A read a stage registers (an
+  aggregate's, a subquery's, a window's) owns what it writes -- the reducer, the window's argument -- so it outlives the
+  stage that made it, as Java's lambda does, and is written where the clause reads its marker, its parameters bound
+  there.
+- Java's `e == p.expr()` (a projection kept when the walk handed its expression back) is the walk's `None`
+  (`carrier::map_children`'s identity rule): a projection is rebuilt, its output name kept as its alias, exactly where
+  Java rebuilds it. The group's aggregates, the window calls and a pivot column are found by Java's record equality
+  (`indexOf`).
+
+## Java's behavior reproduced that looks like a bug
+
+Each is Java's text or refusal as it is, reproduced; none is fixed here.
+
+- A source of no fields writes invalid JSON: `{"$project": {"_id": 0"t0": {}}}`, the `_id` exclusion's comma written
+  only before a field (4 lines of the arms oracle; unit-tested).
+- A window NTH_VALUE of one argument is an `IndexOutOfBoundsException`, `Index 1 out of bounds for length 1`: the
+  window's `$push` is written, then its nth argument read (in the arms oracle).
+- `render(SqlDml)` and `renderStatement(SqlDml)` refuse a store write in two wordings: the first MongoDb's own (`an
+  insert of a query's rows reached MongoDb: a store write is not shaped on MongoDb`), the second the base's hook,
+  which MongoDb does not override (`an INSERT of a query's rows on MongoDb: no spelling measured on its database ...`)
+  (both in the arms oracle).
+- A group field's and a per-key column's name are written between quotes unescaped (`"__agg0_pk"`, `"$alias._pk"`):
+  `MongoJson.key` refuses a `$`, a dot and a NUL, not a quote or a backslash, so a name holding one would write
+  invalid JSON (no oracle line holds one).
+
+## What Java does that this does not reproduce exactly
+
+None of these reaches the oracles.
+
+- **A window over a grouped aggregate** (`SUM(SUM(n)) OVER ()` in a grouped select, a shape lowering does build) is
+  Java's `ClassCastException`: the group's rewrite replaces the window's reducer by its marker column, which no window
+  function is. Its message names the JVM's class loader, so the arms oracle dropped it; it is refused here with Java's
+  class (`CLASS_CAST` at the seam) and Java's message less the class-loader clause, `class
+  com.legend.sql.SqlExpr$Column cannot be cast to class com.legend.sql.SqlAgg`, as the earlier ports' (unit-tested).
+- The records' text a lowering-bug refusal embeds is written component for component as Java's record `toString`; a
+  table's stored types (a Java `Map`) inside a subquery's records are written in their stored order, where Java's map
+  writes its own (no oracle line holds a subquery in such a refusal).
+- The frame unit's `toUpperCase(Locale.ROOT)` is Rust's `to_uppercase`, as Trino's.
+- The seam refuses `duckdb.*` and `engine.*` on MongoDb: ops no Java method of it answers.
+
 # Typing
 
 Over the oracles, every distinct statement (every dialect's, the ten dialects' of the dialects dump, the eight
 dialects' of the arms oracle and the engine-text ops' queries included: one tree, counted once): **4,057,096 facts of
 36,890 statements, 0 different** (4,045,363 of 34,069 before the arms oracle was read, step 6b; the same with
-ClickHouse and BigQuery ported, step 6c, with Snowflake, step 6e, and with MariaDB and MySQL, step 6f: the oracles are
-unchanged).
+ClickHouse and BigQuery ported, step 6c, with Snowflake, step 6e, with MariaDB and MySQL, step 6f, and with MongoDB,
+step 6g: the oracles are unchanged).
 
 # Tests
 
@@ -1666,6 +1805,20 @@ unchanged).
   `raw` and the engine text refused (naming MariaDB on both), the wire names and `deliversOwn`, the interface's
   defaults and refusals naming each dialect, the host operations refused, `readsStored`, and the DuckDB and engine-text
   ops refused.
+- `src/mongodb/tests.rs` (16 tests): MongoDB's hooks from its Java where the oracles cannot reach -- `bitOp`'s,
+  `listCall`'s, `jsonText`'s, `accumulator`'s and `emptyInput`'s defaults and a group field's name refused, every
+  scalar type name (BOOLEAN read by its word in the cast), `structTypeName`'s wall, `ddlType`'s every column type and
+  wall with a TIME column's table created whole, the nested-query and flat-join walls, `reduceArray`'s COUNT, the Float
+  forms as the base's compositions, the window over a grouped aggregate (Java's `ClassCastException`), the NTH_VALUE of
+  one argument, the source of no fields, the insert's values and refusals, BSON dates, variable names, keys, strings
+  and one-argument operators, the records' text, a marker with no read and an empty scope, a dialect reused after a
+  refusal inside a lookup answering as a fresh one, the facts and the pass list, the stored objectId's read.
+- `src/seam/mongodb_tests.rs` (5 tests): every op of the seam for MongoDb (§3l of `SEAM.md`): the facts, `forServer`
+  and a configured spec refused, the renders (the aggregate command, a plan parameter's marker document and its bind, a
+  statement with a bind refused as text), the DDL and DML commands, a schema refused, the session table (a temporary
+  one refused), the names, `raw` and the engine text refused, the wire names and `deliversOwn`, the interface's
+  defaults and refusals naming MongoDb, the host operations refused, `readsStored`, and the DuckDB and engine-text ops
+  refused.
 - `tests/dialect_differential.rs`: the differentials above, one per dialect, the typing test, and the seam's, one per
   dialect: every op of the dialect's inputs (and each `query.render` asked inline, and for an engine-text dialect each
   of its aliases after the render) answered through `dispatch` exactly as a direct call answers it, each statement read
@@ -1677,16 +1830,16 @@ unchanged).
   (2,152 statements, 355 refusals), Databricks' 2,631 and 76 (2,145 statements, 364 refusals), ClickHouse's 2,643 and 86
   (2,099 statements, 430 refusals), BigQuery's 2,643 and 83 (2,063 statements, 450 refusals), Snowflake's 2,645 and 88
   (2,127 statements, 379 refusals), MariaDb's 2,634 and 76 (2,108 statements, 400 refusals), MySql's 2,634 and 76 (2,119
-  statements, 389 refusals): all the same; and the zone shift held to java.time (above).
+  statements, 389 refusals), MongoDb's 2,606 and 67 (2,102 statements, 416 refusals): all the same; and the zone shift held to java.time (above).
 
 # Stack
 
 The deepest DuckDB statement needs between 1 and 2 MB of stack in a debug build for its parse, read, passes and render
 together, the deepest H2 statement (and the typing walk over both oracles) between 2 and 4 MB, and every one less than 1
-MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The twenty-seven tests (and the two
+MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The thirty-three tests (and the two
 zone tests) run in 57 s under Bazel (`//rust/lite-dialect:dialect_differential_test`, `size = medium`: 300 s; 47 s
 before Postgres's two, 54 s before SQLite's and before Trino's and Databricks' four with the arms oracle, 53 s before
-ClickHouse's and BigQuery's four, 57 s before Snowflake's two) and 15 s in release; `//rust/lite-sql:mir_round_trip_test`
-in 70 s. A MIR at MirJson's depth limit (2,045 nested calls) needs between 32 and
+ClickHouse's and BigQuery's four, 57 s before Snowflake's two, before MariaDB's and MySQL's four and before MongoDB's
+two) and 15 s in release; `//rust/lite-sql:mir_round_trip_test` in 70 s (cached: its inputs unchanged). A MIR at MirJson's depth limit (2,045 nested calls) needs between 32 and
 64 MB in a debug build and more than 1 MB in release; the seam's C export runs each call on a 256 MB thread (`SEAM.md`
 §1).

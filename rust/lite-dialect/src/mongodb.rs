@@ -6,11 +6,11 @@
 //! pipeline in MongoDB's Extended JSON -- rather than SQL. It is a renderer like every target, overriding the writing
 //! of a query ([`pipeline`], Java's `MongoDbPipeline`: the stages) and of an expression (MongoDB's aggregation
 //! operators), keeping the base's compositions that are pure IR (the checked narrowing, the compaction). Every function
-//! ([`functions`]) and every aggregate ([`aggregates`]) is a spelling, an emulation over MongoDB's operators, or a
+//! (`functions`) and every aggregate (`aggregates`) is a spelling, an emulation over MongoDB's operators, or a
 //! refusal by name; a comparison is three-valued through a null guard ([`json::guarded`]); a plan parameter is a marker
 //! document the connector replaces in place (`{"$legendParam": "?"}`), bound by its place among the markers; a raise is
 //! a conversion that cannot succeed, its message between the platform's U+001F sentinels. [`json`] is Java's
-//! `MongoJson`, [`texts`] the long compositions (a number's and a value's JSON text, the string distances, printf, the
+//! `MongoJson`, `texts` the long compositions (a number's and a value's JSON text, the string distances, printf, the
 //! date formats), [`java_text`] the records' `toString` the lowering-bug refusals embed.
 //!
 //! Java's per-render state -- `scopes` (each level of the pipeline: the lookup's variable aliases, the flat alias, the
@@ -70,14 +70,6 @@ pub fn text<'a>(s: impl Into<String>) -> Pc<'a> {
 pub fn of(e: &SqlExpr) -> Pc<'_> {
     pc(move |d, w| {
         w.expr(d, e, 0)?;
-        Ok(())
-    })
-}
-
-/// A piece writing an owned `e`.
-pub fn of_owned(e: SqlExpr) -> Pc<'static> {
-    pc(move |d, w| {
-        w.expr(d, &e, 0)?;
         Ok(())
     })
 }

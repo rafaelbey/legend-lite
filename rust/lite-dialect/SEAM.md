@@ -8,11 +8,12 @@ every op below (`src/seam/tests.rs`, `src/seam/h2_tests.rs`, `src/seam/engine_te
 in the golden oracles; `src/seam/postgres_tests.rs` for Postgres, `src/seam/sqlite_tests.rs` for SQLite,
 `src/seam/trino_tests.rs` for Trino, `src/seam/databricks_tests.rs` for Databricks, `src/seam/clickhouse_tests.rs` for
 ClickHouse, `src/seam/bigquery_tests.rs` for BigQuery, `src/seam/snowflake_tests.rs` for Snowflake,
-`src/seam/mariadb_tests.rs` for MariaDb and MySql).
+`src/seam/mariadb_tests.rs` for MariaDb and MySql, `src/seam/mongodb_tests.rs` for MongoDb).
 
 Rust answers DuckDB, H2 and H2Modern (docs/rust-port/PHASE1.md §4, steps 3 and 4b), the engine-text dialects
 `EngineStyleH2`, `EngineStyleDB2` and `EngineStyleComposite` (step 4c), Postgres (step 5b), SQLite (step 5d), Trino and
-Databricks (step 6b), ClickHouse and BigQuery (step 6c), Snowflake (step 6e), MariaDB and MySQL (step 6f). Every answer below is DuckDB's -- `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations
+Databricks (step 6b), ClickHouse and BigQuery (step 6c), Snowflake (step 6e), MariaDB and MySQL (step 6f), MongoDB (step
+6g). Every answer below is DuckDB's -- `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations
 and `SqlDialect`'s defaults, exactly as Java answers them -- unless §3a gives H2's and H2Modern's (`H2.java`'s and
 `H2Modern.java`'s overrides over the same base), §3b the engine-text dialects' (theirs over the same base, and Java's
 `EngineTextDialect`), §3c Postgres's (`Postgres.java`'s and `PostgresHostOperations.java`'s), §3d SQLite's
@@ -20,8 +21,8 @@ and `SqlDialect`'s defaults, exactly as Java answers them -- unless §3a gives H
 with `PivotAsGroupBy.java` and `AsOfAsPick.java`), §3f Databricks' (`Databricks.java`'s), §3g ClickHouse's
 (`ClickHouse.java`'s, with `OuterJoinResidualsAsMatches.java`), §3h BigQuery's (`BigQuery.java`'s, with
 `FoldsAsRecursiveCtes.java`), §3i Snowflake's (`Snowflake.java`'s, its own nested `PivotAsGroupBy` among them), §3j
-MariaDb's (`MariaDb.java`'s, with `WindowAggregatesAsCorrelated.java`) or §3k MySql's (`MySql.java`'s over MariaDb's,
-with `WindowsComputedBelow.java`).
+MariaDb's (`MariaDb.java`'s, with `WindowAggregatesAsCorrelated.java`), §3k MySql's (`MySql.java`'s over MariaDb's,
+with `WindowsComputedBelow.java`) or §3l MongoDb's (`MongoDb.java`'s, with `MongoDbPipeline.java` and `MongoJson.java`).
 
 ## 1. The call
 
@@ -65,21 +66,22 @@ The phase and position fields are always `-`; the message is the rest of the tex
 
 ```json
 {"dialect": "DuckDb" | "H2" | "H2Modern" | "EngineStyleH2" | "EngineStyleDB2" | "EngineStyleComposite" | "Postgres"
-             | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery" | "Snowflake" | "MariaDb" | "MySql",
+             | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery" | "Snowflake" | "MariaDb" | "MySql"
+             | "MongoDb",
  "server": "<version>" | null, "engineScanOrder": true | false,
  "quoteIdentifiers": true | false, "timeZone": "<zone>" | null}
 ```
 
 | field | | |
 |---|---|---|
-| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, `Postgres`, `SQLite`, `Trino`, `Databricks`, `ClickHouse`, `BigQuery`, `Snowflake`, `MariaDb` or `MySql`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDb, MySql`). |
-| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDb and MySql keep themselves. |
+| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, `Postgres`, `SQLite`, `Trino`, `Databricks`, `ClickHouse`, `BigQuery`, `Snowflake`, `MariaDb`, `MySql` or `MongoDb`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDb, MySql, MongoDb`). |
+| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDb, MySql and MongoDb keep themselves. |
 | `engineScanOrder` | boolean or missing (false) | `Boolean.getBoolean("legend.exec.engineScanOrder")`, which Java's `DuckDb` reads at each render: the engine corpus runner's opt-in to `StableScanOrder`. The JVM passes its property's value. Read as a boolean for every dialect; only DuckDB reads it. |
 | `quoteIdentifiers` | boolean or missing (false) | an engine-text dialect's constructor argument (`new EngineStyleH2(quoteIdentifiers, timeZone)`, `new EngineStyleDB2(...)`; the plan text's connection): every physical identifier double-quoted. |
 | `timeZone` | string, null or missing (null) | the same constructors' second argument, the connection's zone: a DATETIME placeholder written in `GMTtoTZ`, a date-time constant shifted from GMT to the zone (`GMT` itself shifts none; §6). |
 
 `quoteIdentifiers` and `timeZone` configure an engine-text dialect alone: on `DuckDb`, `H2`, `H2Modern`, `Postgres`,
-`SQLite`, `Trino`, `Databricks`, `ClickHouse`, `BigQuery`, `Snowflake`, `MariaDb` or `MySql` either field, present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone
+`SQLite`, `Trino`, `Databricks`, `ClickHouse`, `BigQuery`, `Snowflake`, `MariaDb`, `MySql` or `MongoDb` either field, present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone
 configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not <Dialect>`). `EngineStyleComposite` has only
 Java's no-argument constructor: the fields may be absent or their defaults (`false`, `null`); any other value is refused
 (`EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers false, timeZone
@@ -471,6 +473,42 @@ and root selects, the markers and counted MODEs in scope and the root values wri
 within each render, which a dialect made per call reproduces. `exec.MariaDbConnector` (MySQL's connector extends it)
 reads no dialect member: it reads a failed session's held raise back by its own two statements.
 
+### 3l. MongoDb
+
+MongoDB through its own connector, which runs the command text as an `aggregate` (`MongoDb.java`, with
+`MongoDbPipeline.java` and `MongoJson.java`; `src/mongodb.rs`, `src/mongodb/`). MongoDb answers every op of §3 but
+`duckdb.*` and `engine.*`; where its answer differs from DuckDB's it is:
+
+| op | MongoDb |
+|---|---|
+| `facts` | `{"temporaryTables": false, "loadsRowsInBulk": false, "relational": false, "inProcess": false, "dropsStagedTablesWithTheirTransaction": false, "needsStaticPivot": false, "serverVersions": null, "inMemoryPath": null, "scriptAbort": null, "sessionSetup": [], "keysSnapshot": "NONE", "resultColumnLimit": null}` |
+| `forServer` | `"MongoDb"` whatever the version |
+| the renders | MongoDB's (`PARITY.md`): an `aggregate` command in Extended JSON, `{"aggregate": "<collection>" \| 1, "pipeline": [...], "cursor": {}}`, its stages written by the pipeline (the scan `$project`, `$documents`, `$lookup` and `$unwind`, `$match`, `$group`, `$setWindowFields`, `$addFields`, `$replaceWith`, `$unionWith`, `$sort`, `$skip`, `$limit`, `$unset`); its expressions MongoDB's operators, a comparison three-valued through a `$let` null guard, a raise a conversion that cannot succeed. A plan parameter is the marker document `{"$legendParam": "?"}`, bound by its place among the markers as `?` is (a key cell likewise, in its region): `renderStatement`'s binds are the base's records, the placeholder MongoDB's own. `renderInline` writes the same text (a pipeline has no lines). Its one pass, `CarrierStrategies`, changes no query (lists are native) |
+| `ddl.render` | a table is a collection: `{"create": "<name>"}` (no column is declared, so no column type is spelled) and `{"drop": "<name>"}`; a temporary table, a schema-qualified name (a schema neither empty nor `default`, or a dotted table) and a schema refused (`DialectCapability`) |
+| `dml.render` | rows in: `{"insert": "<name>", "documents": [{...}]}`, each cell a literal value (a cast's literal itself; any other cell refused, naming its record); rows out: `{"delete": "<name>", "deletes": [{"q": {}, "limit": 0}]}`; a copy from a table, the store writes and a temporary table from a query refused |
+| `dml.renderStatement` | the base's: an insert, a copy or a delete-all its `dml.render` text with no binds; a temporary table from a query and the store writes the base's hooks' refusals naming MongoDb (worded unlike `dml.render`'s, as Java's) |
+| `sessionTable` | the interface's default: the table, then its rows -- a temporary table refused (MongoDB has no temporary collection; `temporaryTables` is false, so no caller asks) |
+| `physicalName`, `storedName`, `insertColumnName` | the name as it is: no quoting, no reserved words (a collection's or a field's name is a JSON string) |
+| `raw`, `fromEngineText` | the engine's H2 text refused (`DialectCapability`): `the engine's H2 text reached MongoDb, which runs no SQL text`; any other text as written |
+| `wireTypeName`, `typingWireName`, `deliversOwn` | the interface's defaults (`WireNames.fold`; no carrier convention of its own) |
+| `script`, `failingStatement`, `catalogColumnsQuery`, `catalogType`, `bareNameReaches`, a converting `copySelectList`, `host.*` | the interface's defaults, the refusals naming `MongoDb` |
+| `readsStored` | a plain `OTHER` (a stored objectId, read as its hex text) alone; `DISTINCT` not |
+| `tableName` | the base's, every part as it is: `Sales.Orders` |
+| `duckdb.tables`, `duckdb.readsStored` | refused (`IllegalArgumentException`): `'<op>' is DuckDb's op, not MongoDb's` |
+
+MongoDb's public statics (`LEXICON`, `CAPS`) and package-private ones (`AGGREGATE_MARKER`, `SUBQUERY_MARKER`,
+`WINDOW_MARKER`, `JSON_DEPTH`, the `GroupField` record, `windowOutput`, `accumulator`, `emptyInput` and the scope
+methods) are read by no Java code outside `MongoDb.java`, `MongoDbPipeline.java` and `MongoJson.java` (main and test
+sources, grepped); no test calls a method of a MongoDb object that is no `SqlDialect` method: `MongoDbPlanTest` makes
+one as a `SqlDialect` and asks it `render` of a query, `MongoDbDialectTest` plans through the compiler, and
+`CodeShapeGuardrailTest` names `MongoDbPipeline.written` (the stage counter) in its allowlist of mutable fields, a
+membership list (stale, not failing, once the class is gone); no test names `MongoJson`. `Databases` constructs it with
+`new MongoDb()`. The connector
+(`core/src/main/mongodb/.../MongoDbStatements.java`, `MongoDbConnector.java`) runs the command text and replaces the
+marker documents in order (its own `$legendParam` constant), reading no dialect class. So no op beyond §3 is needed. Nothing outlives a render: the
+pipeline's scopes and the lambda variables are reset by each query render (Java's `reset()` at `query`), and a DDL or
+DML render reads neither, which a dialect made per call reproduces.
+
 ### Op refusals
 
 Beyond MirJson's and `lite_json`'s words (§2), each op refuses as Java's method throws, class and message:
@@ -634,7 +672,7 @@ answer cannot hold one, as JSON writes it `\u0000`).
 - SQLite's own: `PARITY.md` (an unterminated named group refused as `java.lang.StackOverflowError` where Java's stack
   overflows, `CommonSubexpressions`' tie order).
 - A `ClassCastException` Java's renderer throws (Trino's, Databricks', ClickHouse's and Snowflake's list lambda that is
-  no lambda, Databricks' pivot of AVG) crosses as `CLASS_CAST` with Java's message less the JVM's class-loader clause (`(... are in unnamed module of
+  no lambda, Databricks' pivot of AVG, MongoDB's window over a grouped aggregate) crosses as `CLASS_CAST` with Java's message less the JVM's class-loader clause (`(... are in unnamed module of
   loader 'app')`), which names the loader of the JVM that threw it (`PARITY.md`).
 - `forServer` answers "this dialect" as `None` in Rust (Java's `return this`) and another dialect as that dialect (H2's
   H2Modern), which the seam takes for the call (a spec's `server`); the `forServer` op answers the chosen dialect's

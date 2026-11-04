@@ -559,6 +559,68 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      `docs/dialect-capability`. The switch's gates are `//pct:pct_mariadb`, `//pct:pct_mysql`,
      `//pct:pct_channel_b_mariadb` and `//pct:pct_channel_b_mysql` (manual, in `//gates:heavy`: a MariaDB 11.4 and a
      MySQL 8.4 server the test JVM starts from the pinned `@embedded_mariadb` and `@embedded_mysql`, no Docker).
+   - **6g, done 2026-11-04: MongoDB in Rust, the last dialect** (`rust/lite-dialect/src/mongodb.rs`, `src/mongodb/`;
+     `PARITY.md`, `SEAM.md` §3l). Java's `MongoDb` with its two helpers ported as its own modules: `MongoDbPipeline`
+     (`src/mongodb/pipeline.rs`: the command, a select's stages, the `$lookup` subqueries and joins, the `$group` and
+     its markers, the `$setWindowFields` stages, the sort carries, the `$replaceWith` projection) and `MongoJson`
+     (`src/mongodb/json.rs`), beside the `call` table (`functions.rs`), the accumulators and window outputs
+     (`aggregates.rs`), the casts and long texts (`texts.rs`) and the records' `toString` the lowering-bug refusals
+     embed (`java_text.rs`). Every one of `MongoDb.java`'s 50 overrides is a renderer hook (its `expr` the whole
+     expression writer) or a `SqlDialect` method. Every input of the three oracles answers as Java's -- **MongoDb
+     2,606 of 2,606** distinct inputs (2,598 arms-oracle lines, 15 of the two dumps; Java's 408 refusals by class and
+     message, the NTH_VALUE of one argument's `IndexOutOfBoundsException` among them), the text, binds (the marker
+     document `{"$legendParam": "?"}`, through the writer's existing `bind_as`/`bind_key_as`: no other dialect's output
+     changed) and regions exact; **the first measurement was already 100 %**. The seam answers every op as a direct
+     call does (2,673 ops with the inline renders). Every other dialect stays at its floor; the typing holds unchanged
+     (36,890 statements, 4,057,096 facts, 0 different). Java's per-render state -- `scopes` (each pipeline level's
+     variable aliases, flat alias, registered reads and sole alias) and `lambdaVariables` -- is the dialect object's
+     (`RefCell` stacks), reset by every query render as Java's `query` resets them, a lookup's level and a lambda's
+     variables popped even when what they wrap is refused (Java's `finally`), so nothing outlives a render and a
+     fresh dialect per call is exact (a DDL or DML render reads neither). Java's `SqlWriter.Piece` is a closure handed
+     the dialect when written; a read a stage registers owns what it writes. Java's own oddities reproduced: a source of
+     no fields writes `{"_id": 0"t0": {}}` (no comma; 4 oracle lines), and `render(SqlDml)` and `renderStatement(SqlDml)`
+     word a store write's refusal differently. The answer the arms oracle dropped -- a window over a grouped SUM, Java's
+     `ClassCastException` -- is refused with Java's class (`CLASS_CAST`) and its message less the class-loader clause,
+     as the earlier ports'. Unit-tested from the Java where the oracles cannot reach (`src/mongodb/tests.rs` 16,
+     `src/seam/mongodb_tests.rs` 5): the helpers' defaults, the cast type names `variantAwareCast` takes first,
+     `ddlType` (no DDL writes a column type), `structTypeName`, the nested-query and flat-join walls, `reduceArray`'s
+     COUNT, the Float forms, the dropped `ClassCastException`, the JSON writer's names, keys and BSON dates, the
+     insert's values, the records' text, a dialect reused after a refusal inside a lookup, the facts and the pass list,
+     and every seam op. Under Bazel the differential takes 57 s (57 s before) and the round trip 70 s (cached, its
+     inputs unchanged), both `size = medium`; `bazel test //rust/... //tools/guards/...` green, the lanes query empty.
+
+     For the switch: a `MongoDb` shim (`final class MongoDb implements SqlDialect` through `RustDialects`, `new
+     MongoDb()` in `Databases` and in `MongoDbPlanTest`, its simple name in refusal messages) whose every method is
+     one seam call, the facts read once. No static of `MongoDb`, `MongoDbPipeline` or `MongoJson` is read outside the
+     three files, no test calls a non-interface method (`MongoDbPlanTest` asks `render` of a query as a `SqlDialect`,
+     `MongoDbDialectTest` plans through the compiler), and the connector (`core/src/main/mongodb`) runs the command
+     text, its own `$legendParam` constant replacing the markers in order, reading no dialect class -- so no new op is
+     needed. What reads the three sources moves with them: `CodeShapeGuardrailTest`'s mutable-field allowlist entry
+     `MongoDbPipeline.written` (a membership list: stale, not failing; no guard names `MongoJson`), the dialect-name
+     patterns of `DialectLeakRatchetTest` and `DialectBoundaryTest` (names; the shim keeps `new MongoDb()`),
+     `DialectVocabularyTest`'s floors, `CapabilityMatrix` and the regenerated `docs/dialect-capability`. The switch's
+     gates are `//core:mongodb_plan_test` and `//pct:pct_mongodb` (its five suites; manual, in `//gates:heavy`: the
+     embedded MongoDB 8.0 the test JVM starts from `@embedded_mongodb`, no Docker).
+
+     **When Snowflake, MariaDb, MySql and MongoDb have all switched** (measured over every main Java source by simple name, comments
+     dropped, to a fixed point): the Java implementation of the dialect
+     package has no main user left -- `AnsiSqlRenderer`, `SqlWriter`, `CarrierStrategies`, `PivotAsGroupBy`,
+     `CheckedDefectsToLists`, `ConstantKeysAsExpressions`, `RootNumericTypes`, `SubstringClamp`, `ExplosionMarkers`,
+     `StarExceptToColumns`, `Stars`, `QualifyToSubselect`, `WindowAggregatesAsCorrelated`, `WindowsComputedBelow`,
+     `StoredReads`, `FloatCanonText`, `FloatPrintText` and `StableScanOrder` (with `MongoDbPipeline` and `MongoJson`)
+     -- and are deleted. `StableScanOrder` keeps two test readers: the corpus runner (`spec/.../MinimalCorpusTest`, the
+     corpus lanes) reads its `firings()` -- the Java pass's count plus the seam's `scanOrderFirings` through
+     `RustDialects` -- which must outlive the class (the runner reading `RustDialects`' count directly), and
+     `TestLaneOrderGuardrailTest` reads its file by path. `SqlWriter`'s test readers (`SqlWriterTest`, `CapabilityMatrix`, `DialectVocabularyTest`,
+     `CodeShapeGuardrailTest`) and `StoredReadsTest` go with it. What stays, each with a main reader outside the
+     implementation: `SqlDialect` (the planner, the driver, setup, the server, testdatagen, the shims), `RenderedStatement`
+     (`planner/PlanMaker`, `ffi/RustDialect`), `DialectCapability` (`server/PureV1Api`, `driver/DatabaseJudge`,
+     `judge/VerdictBatch`, `ffi/RustDialect`), `HostOperations` and `HostOperation` (`setup/ProjectData`, the ffi and
+     wasm boundaries), `DdlSpelling` (`setup/Ddl`), `RawSqlBoundary` (`ExecuteOptions`), `EngineTextDialect` (the
+     driver, testdatagen), `CatalogModel` and `CatalogType` (the shims, `ffi/RustDialect`, the wasm boundary),
+     `WireNames` (`SqlDialect`'s default `wireTypeName`), `Lexicon` (the DuckDb shim, `RustDialects`,
+     `ffi/RustDialectProvider`), `TaggedComparables` (the EngineStyleH2 shim's Tagged substitution before MirJson),
+     `RustDialects` and the sixteen shims.
 
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 

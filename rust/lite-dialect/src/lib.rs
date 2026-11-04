@@ -12,7 +12,8 @@
 //!   base's `final` helpers are `ansi`'s free functions alone. [`DuckDb`], [`H2`] (H2Modern is its `modern`
 //!   profile), [`EngineStyle`] (legend-engine's own text: `EngineStyleH2`, `EngineStyleDB2` and
 //!   `EngineStyleComposite` are its profiles), [`Postgres`], [`Sqlite`] (Java's `SQLite`), [`Trino`], [`Databricks`],
-//!   [`ClickHouse`], [`BigQuery`], [`Snowflake`] and [`MariaDb`] (MySQL's is its `mysql` profile) are structs
+//!   [`ClickHouse`], [`BigQuery`], [`Snowflake`], [`MariaDb`] (MySQL's is its `mysql` profile) and [`MongoDb`] (whose
+//!   text is an aggregation pipeline: [`mongodb::pipeline`] and [`mongodb::json`] are its own machinery) are structs
 //!   implementing it.
 //! - [`SqlWriter`] is Java's one place SQL is written: text in order, each bound parameter recorded where its
 //!   placeholder lands, the per-key regions; [`RenderedStatement`] is what it hands back, every record's `Display`
