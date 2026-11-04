@@ -1,0 +1,15 @@
+# CI, locally (README.md): the gate lanes of .github/workflows/gates-run.yml run on this machine -- macOS natively,
+# Linux in a container of CI's runner image -- by the scripts here, checked by shellcheck as CI's own sourced script is
+# (//tools/guards:ci_scripts_test).
+load("//tools/guards:defs.bzl", "guards_package")
+
+filegroup(
+    name = "scripts",
+    srcs = [
+        "ci.sh",
+        "lanes.sh",
+    ],
+    visibility = ["//tools/guards:__pkg__"],
+)
+
+guards_package()

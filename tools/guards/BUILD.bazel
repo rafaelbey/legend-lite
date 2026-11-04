@@ -246,8 +246,15 @@ native_test(
     name = "ci_scripts_test",
     size = "small",
     src = ":shellcheck",
-    args = ["$(rootpaths //tools/ci:scripts)"],
-    data = ["//tools/ci:scripts"],
+    # and the scripts that run the same lanes locally (//tools/ci-local, 2026-11-04)
+    args = [
+        "$(rootpaths //tools/ci:scripts)",
+        "$(rootpaths //tools/ci-local:scripts)",
+    ],
+    data = [
+        "//tools/ci:scripts",
+        "//tools/ci-local:scripts",
+    ],
     target_compatible_with = _SHELLCHECK_PLATFORMS,
 )
 

@@ -1,0 +1,45 @@
+# CI, locally
+
+The gate lanes of `.github/workflows/gates-run.yml`, run on this machine instead of a CI run: the same steps per lane,
+in the same order, with the same flags (`tools/ci/lane-flags.sh`, sourced as CI sources it).
+
+```
+tools/ci-local/ci.sh macos [lane...]          # natively
+tools/ci-local/ci.sh linux-arm64 [lane...]    # CI's linux-arm job (ubuntu-24.04-arm), natively on Apple silicon
+tools/ci-local/ci.sh linux-amd64 [lane...]    # CI's linux job (ubuntu-latest), under Docker Desktop's emulation
+```
+
+No lane given runs every lane CI runs on that platform (CI's linux-arm job runs the warehouse alone; name lanes to run
+more). The lanes: `product core checks corpus_duckdb corpus_h2 pct_duckdb pct_h2 pct_postgres pct_channel_b
+parser_equivalence stress warehouse datacube ui sdlc`. Each lane's log, the failing tests' logs and `summary.tsv` go to
+`$OUT` (default `~/.cache/legend-lite-ci/<platform>/<time>`); the script exits non-zero when a lane fails.
+
+- **Linux** runs in a container of CI's runner (`Dockerfile`: Ubuntu 24.04, the host prerequisites gates-run.yml
+  installs, the pinned bazelisk, a non-root user). The checkout is mounted read-only at its own path, with the
+  repository a worktree belongs to; each platform's Bazel caches persist in a Docker volume
+  (`legend-lite-ci-cache-<platform>`). Docker Desktop's VM memory bounds the lanes: `LOW_MEMORY=true` runs one test at
+  a time (`--config=ci-small`, as CI's 7 GB macOS runner does).
+- **Not emulated**: Windows (no Windows host here), and BuildBuddy -- a local `--disk_cache` (via `EXTRA_FLAGS`) stands
+  in for the remote cache; test results are never cached (`--config=ci`).
+- Bazel writes no convenience symlinks (`--symlink_prefix=/`): the logs are copied out through `bazel info`.
+
+## Known environmental failures (not the branch's)
+
+- **The warehouse's GraalVM native image segfaults under Docker Desktop** (its handler prints `Segfault detected,
+  aborting process`; the server exits 99 before listening). It fails `//warehouse:tests_native`,
+  `//warehouse:postgres_live_native` and `//datacube:python_engine_test` (which starts that server) on Linux in the
+  container. Measured 2026-11-04 on `cf73e6ef7`, before the Rust port, in the same image: `tests_native` and
+  `python_engine_test` fail the same way there (`postgres_live_native` judges the same binary, `:server_native`), so
+  read them on CI's hosted runners (or on Linux hardware), not here. The compiler library (`//native:compiler`) runs
+  in the container.
+
+Leave them out with `SKIP_TESTS`, so a lane's later steps still run (the warehouse lane's `bazel run` check comes after
+its tests) and its status speaks for the rest:
+
+```
+SKIP_TESTS='//warehouse:tests_native //warehouse:postgres_live_native //datacube:python_engine_test' \
+  tools/ci-local/ci.sh linux-arm64 warehouse datacube
+```
+
+Each is subtracted from the lane as a negative target pattern (`bazel test -- //gates:<lane> -<test>`); the lane's log
+says how many tests ran. CI never skips them.
