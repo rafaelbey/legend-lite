@@ -262,6 +262,42 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      start their names over at each outermost query render (their `roots` stack empty). The same full run as 5c held
      every baseline target, so the change is invisible to the suite, and their Rust ports reproduce Java exactly; the
      golden dumps, made on fresh dialects, hold as they are.
+   - **5d, done 2026-11-03: SQLite in Rust** (`rust/lite-dialect/src/sqlite.rs`, `src/sqlite/` -- the dialect,
+     `SqliteRegex`, `SqliteDigests` -- and, shared for the dialects still to come, `src/explosion_markers.rs` and
+     `src/common_subexpressions.rs`; `rust/lite-dialect/PARITY.md`, `SEAM.md` §3d). Every SQLite input of the oracles
+     answers as Java's -- **2,529 of 2,529** distinct inputs, the SQL, binds and regions exact and all 140 of Java's
+     refusals by class and message, **the first measurement already 100 %** -- and the seam answers every op as a direct
+     call does (2,529 ops, 46 inline renders); every other dialect stays at its floor. The dumps hold 2,158 distinct
+     SQLite inputs, which reach 138 of the 181 `SqlFn` arms and never the regular expressions' find path, the maps or a
+     firing `CommonSubexpressions`, so `rust/oracles/mir/SqliteArms.java` builds 371 more with Java's constructors,
+     writes each as MirJson, reads it back and renders it on a fresh `new SQLite()` on core's built jars
+     (`mir/sqlite-arms.jsonl.zst`, `//rust/oracles:sqlite_arms`, its MANIFEST row): every `SqlFn` arm is held now, and
+     each is Java's own answer, not a hand-derived text (367 of 367 identical at the first Rust measurement). Two
+     identity questions were settled by Java's answers: SQLite's root selects are Java's `IdentityHashMap`, but its last
+     pass, `CommonSubexpressions`, hands every equal select one object, so a root select met again inside another branch
+     is delivered there too -- Rust keeps them by content; and `CommonSubexpressions`' own identity over its pooled tree
+     is equality (a hash-consed DAG in Rust). The per-render state (`laterals`, `rowLaterals`, `roots`, `rootSelects`,
+     `binds`) lives in `RefCell`s for one call; `__b<n>`, `__cse<n>` and `__unnest<n>` start at 0 per render, as the
+     ruling above made Java's. Not exact, none reached by an oracle (`PARITY.md`): `CommonSubexpressions`' tie between
+     two largest repeated nodes (Java's identity-hash order, which varies between JVM runs; Rust's first met), an
+     unterminated named group in a regular expression (Java overflows its stack; Rust refuses as
+     `java.lang.StackOverflowError`), and `Character.isLetterOrDigit` / `isDigit` past ASCII. Under Bazel the differential
+     takes 54 s and the round trip 68 s (both unchanged, `size = medium`).
+
+     For the switch (5e): a `SQLite` shim (`new SQLite()` in `Databases` and seven core tests, its simple name in their
+     refusal assertions) whose every method is one seam call, the facts read once. No public static of SQLite's
+     (`LEXICON`, `CAPS`) is read outside `SQLite.java`, and no test calls a non-interface method of a SQLite object, so
+     no new op is needed; SQLite keeps no state the shim must carry between calls (its per-render state is a call's own;
+     a JVM object that rendered a query and then a `CREATE TEMPORARY TABLE ... AS` kept counting `__b<n>` across the two
+     in Java, a fresh seam dialect does not -- no caller or test reads those names). `SqliteRegex` and `SqliteDigests`
+     go with `SQLite.java`; `ExplosionMarkers` and `CommonSubexpressions` stay Java for Snowflake, BigQuery, MariaDB,
+     ClickHouse and Trino, so `CodeShapeGuardrailTest:278`'s `ExplosionMarkers.next` pin does not move. What reads
+     `SQLite.java`'s source moves with it: `DialectVocabularyTest`'s floor of `AnsiSqlRenderer` dialects (9 -> 8; its
+     switch finder names `SQLite.calls`, line 282) and the regenerated `docs/dialect-capability` (`CapabilityMatrix`,
+     which loses SQLite's column as it lost DuckDB's); the name censuses (`DialectLeakRatchetTest:59`,
+     `DialectBoundaryTest:185`) hold as long as the shim keeps the name `SQLite` and its constructions stay where they
+     are. The switch's gates are the SQLite lanes: `//core:core_tests_integration_sqlite`, `//pct:pct_sqlite` and PCT
+     channel B on SQLite.
 
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 

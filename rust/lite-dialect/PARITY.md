@@ -1,19 +1,21 @@
-# Dialect parity: DuckDB, H2, H2Modern, the engine-text dialects and Postgres (2026-11-03)
+# Dialect parity: DuckDB, H2, H2Modern, the engine-text dialects, Postgres and SQLite (2026-11-03)
 
 Every dialect Rust answers, held to the JVM's own answers on the golden oracles (docs/rust-port/PHASE1.md §4): DuckDB
 (step 3, its renderer and passes), the H2 family's execution dialects, H2 and H2Modern (step 4b), the engine-text
-dialects, EngineStyleH2, EngineStyleDB2 and EngineStyleComposite (step 4c), and Postgres (step 5b). Each is ported from
+dialects, EngineStyleH2, EngineStyleDB2 and EngineStyleComposite (step 4c), Postgres (step 5b) and SQLite (step 5d).
+Each is ported from
 its Java class, over a walk that keeps Java's identity semantics and a port of the typing rules Java's constructors
 apply. This file measures each on the oracles and says what of Java it does not reproduce exactly.
 
 Measured by `tests/dialect_differential.rs` over `//rust/oracles:mir_dump` (`mir/mir-dump.jsonl`),
 `//rust/oracles:h2_dump` (`mir/h2-dump.jsonl`), `//rust/oracles:dialects_dump` (`mir/dialects-dump.jsonl`, the ten Java
-dialects left after the H2 family's switch) and `mir/tagged-engine.jsonl` (the one engine-text query holding a tagged
+dialects left after the H2 family's switch), `//rust/oracles:sqlite_arms` (`mir/sqlite-arms.jsonl`, the SQLite arms no
+lane reaches, rendered by Java's own SQLite) and `mir/tagged-engine.jsonl` (the one engine-text query holding a tagged
 value, as the shim sends it), an input more than one holds (the same dialect, op, configuration and MirJson; an
 engine-text dialect's default configuration and the first dump's none are one) counted once:
 
 - `<dialect>_renders_as_java_does` (`duckdb_`, `h2_`, `h2modern_`, `enginestyleh2_`, `enginestyledb2_`,
-  `enginestylecomposite_`, `postgres_`): every distinct input of the dialect, answered by a fresh Rust dialect of that
+  `enginestylecomposite_`, `postgres_`, `sqlite_`): every distinct input of the dialect, answered by a fresh Rust dialect of that
   name and configuration (made by the seam's `open`, as the JVM's shim makes it) and compared with the fresh JVM
   dialect's answer -- the SQL text exactly, a statement's binds and regions as Java's record text, a refusal by its Java
   class and message, an engine-text op's string (or a select list's null); at least the dialect's floor
@@ -27,7 +29,7 @@ engine-text dialect's default configuration and the first dump's none are one) c
 
 ```
 cd rust
-LITE_ORACLES="<mir-dump.jsonl> <h2-dump.jsonl> oracles/mir/tagged-engine.jsonl <dialects-dump.jsonl>" \
+LITE_ORACLES="<mir-dump.jsonl> <h2-dump.jsonl> $PWD/oracles/mir/tagged-engine.jsonl <dialects-dump.jsonl> <sqlite-arms.jsonl>" \
   cargo test --release -p lite-dialect --test dialect_differential -- --ignored --nocapture
 ```
 
@@ -573,10 +575,155 @@ None of these reaches the oracles.
   1`; a `List.of` of two words it `Index: 1 Size: 1`).
 - The seam refuses `duckdb.*` and `engine.*` on Postgres: ops no Java method of Postgres answers.
 
+# SQLite
+
+Step 5d (docs/rust-port/PHASE1.md §4): Java's `SQLite`, `SqliteRegex` and `SqliteDigests` (`src/sqlite.rs`,
+`src/sqlite/`), and the two passes `SQLite.passes()` installs that no earlier dialect ran, in shared modules where
+ClickHouse, MariaDB, Snowflake, Trino and BigQuery will find them: `ExplosionMarkers` (`src/explosion_markers.rs`) and
+`CommonSubexpressions` (`src/common_subexpressions.rs`).
+
+## The numbers
+
+**2,529 of 2,529 distinct inputs identical (100 %)**; the floor (`tests/sqlite-floor.txt`) is 2,529. The oracles hold
+4,162 SQLite lines of the two dumps (2,081 each; an input both hold is one: 2,158 distinct, none with two answers) and
+371 of `mir/sqlite-arms.jsonl` (below). The SQL, the binds and the regions are compared exactly: 44 statements bind a
+parameter or write a region and carry Java's record text. All 140 of Java's refusals are reproduced, class and message
+(137 `DialectCapability`, 3 `IllegalStateException`), and Rust refuses nothing Java rendered. **The first measurement
+was already 100 %**: 2,158 of 2,158 over the dumps, then every arm.
+
+| op | identical | different | refused (Java rendered) | accepted (Java refused) |
+|---|---:|---:|---:|---:|
+| `ddl.render` | 95 | 0 | 0 | 0 |
+| `dml.render` | 79 | 0 | 0 | 0 |
+| `dml.renderStatement` | 78 | 0 | 0 | 0 |
+| `query.render` | 46 | 0 | 0 | 0 |
+| `query.renderStatement` | 2,231 | 0 | 0 | 0 |
+
+By MIR kind every one is identical: `SqlSelect` 2,262, `InsertValues` 121, `DropTable` 46, `CreateTable` 45,
+`CreateTempTableAs` 18, `SqlUnion` 12, `InsertSelect` 10, `CreateSchema` 3, `SqlWith` 3, `DeleteWhere`, `Merge` and
+`Update` 2 each, `DeleteAll`, `DropSchema` and `InsertFromTable` 1 each.
+
+**The arms the lanes do not reach, rendered by Java itself.** The dumps reach 138 of the 181 `SqlFn` arms on SQLite and
+never the regular expressions' find path (only full matches), the maps, most casts, a quantified comparison, a VALUES
+of no rows or a firing `CommonSubexpressions`. Rather than hold those to hand-derived texts, `rust/oracles/mir/
+SqliteArms.java` builds 371 inputs with Java's own constructors, writes each as MirJson, reads it back and renders it
+on a fresh `new SQLite()` (the tree the JVM's shim will send), on core's built jars and the build's JDK (25.0.4, its
+command in its header): the other 43 `SqlFn` arms (with them all 181 are held; `FLOAT_CANON`'s input is expanded before
+its arm, as on Postgres), `regexp_extract` with and without a group, `regexp_extract_all`, `regexp_replace` plain and
+global with group references, the maps, the casts from twelve types to thirteen, `fromVariant`, the root's delivered
+values (decimal, Float, big integer; a sort key moved to its expression; a union's and a WITH's), ANY and ALL, the
+explosion markers' shapes (a CASE over three lists, a NULL list, an unqualified read, LEFT JOIN ON TRUE, a carried
+list inlined, a star unwrapped, nested `__unnest<n>`), the lateral subqueries read as JSON rows, the windowed moments,
+the interval RANGE frames and their refusals, the date-time formats, and `CommonSubexpressions` firing (`__cse0`
+nested to `__cse2`, within a lambda, a raise left in place), 47 of them a refusal. `lite-sql` reads every one back to
+Java's bytes (`//rust/lite-sql:mir_round_trip_test`). The first Rust measurement of them was 367 of 367.
+
+The seam answers every op of them as a direct call does: 2,529 ops and 46 inline renders (2,189 statements read back
+from their JSON equal and with Java's record text, 150 refusals).
+
+## What is ported
+
+- **The dialect** (`src/sqlite.rs`: the structure, the lexical hooks, the JSON helpers, the lists' building blocks, the
+  Variant and the casts, the DDL and DML, its `SqlDialect`; `src/sqlite/functions.rs`: `calls`, `lists`, `maps`, the
+  regular-expression, string and temporal helpers; `src/sqlite/aggregates.rs`: the signed hash, banker's ROUND, the bit
+  operators, every reducer and the windows): every one of `SQLite.java`'s overrides -- the lexicon, the session's
+  `PRAGMA case_sensitive_like`, the keys snapshot and the 2,000-column limit, `fromEngineText` refused, the scalar types
+  as storage classes, the strftime format, the passes and `bindsFloatText`, the union's wrapped branches, the marker
+  select over `json_each` positions (`__u<depth>`), the root's delivered values, the stars spelled over a marker, the
+  lateral subqueries as JSON rows, the VALUES named by a select (`column<n>`), the NUL as `char(0)`, the ISO date and
+  date-time texts, the REAL Float literal (`9e999` past the range, NaN refused), the JSON-held lists, structs, maps and
+  Variants, the quantified comparison counted in three-valued logic, every `SqlFn` (the regular expressions as
+  automaton walks, base64, Levenshtein and Jaro-Winkler as recursive walks, the digests in SQL), the large repeated
+  operand bound once (`__b<n>`), every aggregate (the statistics extension's sample moments, the population ones from
+  them, covariance and correlation from their sums, the quantiles over a sorted JSON array), the windows (a windowed
+  moment as its sums, an interval RANGE frame over a date key's Julian day), the JSON constructors, the TEXT type
+  holes, the schema-qualified table as one delimited name, the DDL and DML, `tempTableAs`, `jsonKindName`,
+  `typeofName`, `wireTypeName` and `deliversOwn`.
+- **`SqliteRegex`** (`src/sqlite/regex.rs`): the RE2 subset's parser (the leading flags, classes and their escapes,
+  groups capturing or not, named groups, alternation, the repetitions and their lazy forms, the anchors, every refusal
+  by name), the Thompson NFA (Java's state numbers, edge order and predicate order), each closure ascending (Java's
+  `BitSet`), and the two walks, `matches` and `find`, their SQL text Java's.
+- **`SqliteDigests`** (`src/sqlite/digests.rs`): MD5, SHA-1 and SHA-256 as SQLite's own SQL.
+- **The passes**: `ExplosionMarkers`' predicates (`explodedRead`, `nullList`, `nullOverNullList`, `isMarker`,
+  `isUnnest`, `markerColumn`) and its three passes, and `CommonSubexpressions`. `CarrierStrategies` ran under SQLite's
+  caps (Postgres's: no native lists, correlated explosion, the JSON carrier, FULL OUTER native) unchanged, and
+  `FloatCanonText.Expansion`'s binding form (`__fc<n>`, SQLite's `bindsFloatText`) first ran on a dialect here, as
+  ported with DuckDB.
+
+## Identity and state
+
+- **The statement's state.** Java's SQLite keeps five pieces of state on the dialect object while it writes (`laterals`,
+  `rowLaterals`, `roots`, `rootSelects`, `binds`); Rust keeps them in `RefCell`s and `Cell`s, pushed and popped around
+  the same calls, a guard popping them on a refusal (Java's `finally`). The fresh names (`__b<n>`) start over at each
+  outermost query render (the user's ruling, 2026-11-03; Java's `binds[0] = 0` when `roots` is empty); `tempTableAs`
+  pushes the root but starts no names over, as Java's. A name is taken when its piece is made (`over`), so nested binds
+  number in Java's writing order.
+- **The root selects.** Java keys `rootSelects` by identity (an `IdentityHashMap` of the written root, a union's
+  branches, a WITH's body). Its last pass, `CommonSubexpressions`, hands every select equal to one already rewritten
+  that one's rewrite -- the same object -- so over the written tree Java's identity is structural equality, and Rust
+  keeps the root selects by content. Measured by Java (`mir/sqlite-arms.jsonl`): a root select met again inside another
+  branch's subquery is delivered there too; a pointer identity would have missed it.
+- **`ExplosionMarkers`**: `StarOverExplosionUnwrapped` and `LateralUnnestAsMarker` answer `Same` on every source they do
+  not rewrite, `SelectListUnnestAsLateral` on every select; a rewrite goes through `build::join` (the delivered columns),
+  `build::select` (the outputs from the projections) and `build::projection` (an attached output normalized). Its
+  `__unnest<n>` is counted by the pass object, made fresh for each render. Java's `carried` (a `LinkedHashMap`) keeps a
+  repeated name's last list in place.
+- **`CommonSubexpressions`**: Java first makes every equal subtree one object (`canonical`), then counts each node's
+  uses, sizes, movability and names, and replaces a node, by identity. Rust counts the uses over the expression's
+  hash-consed DAG (a node per distinct subtree: its own fields and its children's nodes), replaces every subtree equal
+  to the bound one, and binds a lambda equal to one already bound with that one's answer -- Java's identity over the
+  pooled tree. Java's selects are rewritten once per content (`rewritten`, a `HashMap` by `equals`): an equal select met
+  again is handed the first one's rewrite, `Rw::New` (another object than its input, so its parent is rebuilt). A
+  projection whose expression is too small to repeat a 40-node subtree (its written size under 80) is skipped before
+  the DAG is built: nothing in it could be bound.
+
+## Java's behavior reproduced that looks like a bug
+
+Each is Java's text or refusal as it is, reproduced; none is fixed here.
+
+- A root select with an explosion marker or a lateral subquery in scope is respelled (`starsSpelled`, a new select)
+  before its identity is looked up, so its values are never delivered as its labels say: a decimal column is not
+  written at its scale, a Float not cast to REAL, a big integer not raised past 64 bits (`mir/sqlite-arms.jsonl` holds
+  one). For the same reason `rootSelects.put(over, TRUE)`, the marker select's own registration, has no effect.
+- `regexp_replace` reads any Unicode digit after a backslash as a group number (`Character.isDigit`): `\٣` is group
+  1587, refused as "no group 1587".
+- `structGet`'s declared-field search takes the last field of a name, but never runs on a struct that holds the field:
+  a field read of a typed struct is typed by its first field when it is built (`SqlTyping.structGetType`).
+- `windowCall` refuses "a windowed MODE" after the ordered sets' check, which MODE meets first: that message is never
+  written.
+- An interval RANGE frame's offset is written as Java's double text of its days (`3.0 PRECEDING`, `1.5 FOLLOWING`).
+- Through one dialect object, a `CREATE TEMPORARY TABLE ... AS` after a query render keeps counting the query's fresh
+  names (`tempTableAs` starts none over); the seam makes a dialect per call, so no answer shows it.
+
+## What Java does that this does not reproduce exactly
+
+None of these reaches the oracles.
+
+- **`CommonSubexpressions`' tie.** Of two repeated nodes of the same largest size, Java binds the first its
+  `IdentityHashMap` iterates -- identity-hash order, which differs from run to run of the JVM; Rust binds the first met
+  in a pre-order walk. (The arms oracle holds no tie, so its Java answers are stable.)
+- `CommonSubexpressions`' `canonical` rebuilds a parent whose child was re-pooled, through `withChildren` (its fact
+  recomputed); Rust keeps the tree as it came, whose facts are the recomputed ones wherever the typing holds (0
+  different over the oracles).
+- An unterminated named group (`(?P<n`, `(?<n`): Java reads the name to `indexOf('>') + 1`, the pattern's start, and
+  parses the pattern again inside the group until its stack overflows (`StackOverflowError`, an `Error`); Rust refuses
+  it as `java.lang.StackOverflowError` after 64 nested readings, an `INTERNAL` refusal at the seam.
+- `Character.isLetterOrDigit` (an escape `\X`: a letter or digit is refused) and `Character.isDigit` (a replacement's
+  group reference) are exact on ASCII; past it Rust's `Alphabetic` and `Numeric` classes stand for Java's letter and
+  decimal digit (they take the letter-numbers, the other numbers and the alphabetic marks too).
+- The pattern is read by UTF-16 units, as Java's; a refusal naming a lone surrogate unit (a flag, an escape) writes
+  U+FFFD where Java writes the unit.
+- `ddlType`'s `toUpperCase(Locale.ROOT)` is Rust's `to_uppercase`: the same casing, each from its own Unicode version.
+- A non-finite Float literal: Java's `FloatLit` cannot hold one (its constructor types it through
+  `BigDecimal.valueOf`); a MirJson `NaN` read in Rust is refused and an infinity written `9e999`, as `floatLiteral`
+  would.
+- The seam refuses `duckdb.*` and `engine.*` on SQLite: ops no Java method of SQLite answers.
+
 # Typing
 
-Over the four oracles, every distinct statement (every dialect's, the ten dialects' of the dialects dump and the
-engine-text ops' queries included: one tree, counted once): **4,045,363 facts of 34,069 statements, 0 different.**
+Over the four dumps, every distinct statement (every dialect's, the ten dialects' of the dialects dump and the
+engine-text ops' queries included: one tree, counted once): **4,045,363 facts of 34,069 statements, 0 different.** (The
+SQLite arms oracle is read by the differential alone: its inputs are Java's constructors' own, read back by lite-sql.)
 
 # Tests
 
@@ -658,6 +805,23 @@ engine-text ops' queries included: one tree, counted once): **4,045,363 facts of
   `forServer`, the renders and a finer date-time's type hole, the DDL, the DML and a session table, the names and the
   engine text, the interface's answers and refusals naming Postgres, the catalog decisions, the host operations (a
   query counted, everything else refused by name), and `readsStored` and `tableName` for every dialect.
+- `src/sqlite/tests.rs` (6 tests), `src/sqlite/functions.rs` (1), `src/sqlite/regex.rs` (6) and `src/sqlite/digests.rs`
+  (1): SQLite's hooks where the oracles cannot reach them -- a non-finite Float literal (no Java FloatLit holds one), the
+  state of one dialect object (the fresh names started over at each query render, a DML render counting on, the state
+  popped on a refusal), a root select known by its content, the pass list, the DDL's storage classes, a lambda's struct
+  parameter read as JSON; printf's conversions as Java's regular expression finds them; the regular expressions' tables
+  (a literal, a search's any-prefix state, classes and case folds, bounded and lazy repetitions, the multi-line anchors,
+  a find's tracked groups) and every refusal by name, `Integer.parseInt`'s and the unterminated named group's among
+  them; the digests' constants and padding.
+- `src/explosion_markers/tests.rs` (5 tests), `src/common_subexpressions/tests.rs` (9): the markers' predicates and
+  exploded reads, each pass's rewrite and every case it leaves as it came (`Rw::Same`), `__unnest<n>` counted by the
+  pass object; a repeated 40-node subtree bound once, the largest first then within it, a lambda's body within itself
+  and never above it, a raise, a fresh value and an aggregate's projection left in place, the walks' and subqueries'
+  weights, a bind of its own shape movable, equal selects sharing one rewrite, and Rust's tie order.
+- `src/seam/sqlite_tests.rs` (7 tests): every op of the seam for SQLite (§3d of `SEAM.md`): the facts and `forServer`, the
+  renders and a date's TEXT type hole, the DDL and DML and a session table, the names and `tableName`, the engine text
+  refused, the wire names and `deliversOwn`, the interface's defaults and refusals naming SQLite, the host operations
+  refused, `readsStored`, and the DuckDB and engine-text ops refused.
 - `tests/dialect_differential.rs`: the differentials above, one per dialect, the typing test, and the seam's, one per
   dialect: every op of the dialect's inputs (and each `query.render` asked inline, and for an engine-text dialect each
   of its aliases after the render) answered through `dispatch` exactly as a direct call answers it, each statement read
@@ -665,14 +829,15 @@ engine-text ops' queries included: one tree, counted once): **4,045,363 facts of
   (13,011 statements, 10 refusals), H2's 21,847 and 1,813 (14,962 statements, 1,103 refusals), H2Modern's 394 and 17
   (352 statements, 20 refusals), EngineStyleH2's 2,105, 1,638 and 5,104 aliases (7 statements, 26 refusals),
   EngineStyleDB2's 56, 42 and 43 (20 refusals), EngineStyleComposite's 24, 14 and 11 (20 refusals), Postgres's 11,630
-  and 42 (11,523 statements, 14 refusals): all the same; and the zone shift held to java.time (above).
+  and 42 (11,523 statements, 14 refusals), SQLite's 2,529 and 46 (2,189 statements, 150 refusals): all the same; and the
+  zone shift held to java.time (above).
 
 # Stack
 
 The deepest DuckDB statement needs between 1 and 2 MB of stack in a debug build for its parse, read, passes and render
 together, the deepest H2 statement (and the typing walk over both oracles) between 2 and 4 MB, and every one less than 1
-MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The fifteen tests (and the two
+MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The seventeen tests (and the two
 zone tests) run in 54 s under Bazel (`//rust/lite-dialect:dialect_differential_test`, `size = medium`: 300 s; 47 s
-before Postgres's two) and 10.6 s in release. A MIR at MirJson's depth limit (2,045 nested calls) needs between 32 and
+before Postgres's two, 54 s before SQLite's) and 11 s in release; `//rust/lite-sql:mir_round_trip_test` in 68 s. A MIR at MirJson's depth limit (2,045 nested calls) needs between 32 and
 64 MB in a debug build and more than 1 MB in release; the seam's C export runs each call on a 256 MB thread (`SEAM.md`
 §1).

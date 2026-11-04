@@ -5,14 +5,15 @@ method of Java's `SqlDialect` (and its `HostOperations`) per call, JSON in and J
 this file; `src/seam.rs` (`lite_dialect::dispatch`) and `lite-ffi`'s `lite_dialect` implement it, and their tests hold
 every op below (`src/seam/tests.rs`, `src/seam/h2_tests.rs`, `src/seam/engine_tests.rs`, `lite-ffi/src/lib.rs`, and
 `tests/dialect_differential.rs`'s `the_seam_answers_as_<dialect>s_renderer_does` over every op of each dialect's inputs
-in the golden oracles; `src/seam/postgres_tests.rs` for Postgres).
+in the golden oracles; `src/seam/postgres_tests.rs` for Postgres, `src/seam/sqlite_tests.rs` for SQLite).
 
 Rust answers DuckDB, H2 and H2Modern (docs/rust-port/PHASE1.md §4, steps 3 and 4b), the engine-text dialects
-`EngineStyleH2`, `EngineStyleDB2` and `EngineStyleComposite` (step 4c), and Postgres (step 5b). Every answer below is
-DuckDB's -- `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations and `SqlDialect`'s defaults, exactly as Java
-answers them -- unless §3a gives H2's and H2Modern's (`H2.java`'s and `H2Modern.java`'s overrides over the same base),
-§3b the engine-text dialects' (theirs over the same base, and Java's `EngineTextDialect`) or §3c Postgres's
-(`Postgres.java`'s and `PostgresHostOperations.java`'s).
+`EngineStyleH2`, `EngineStyleDB2` and `EngineStyleComposite` (step 4c), Postgres (step 5b) and SQLite (step 5d). Every
+answer below is DuckDB's -- `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations and `SqlDialect`'s defaults,
+exactly as Java answers them -- unless §3a gives H2's and H2Modern's (`H2.java`'s and `H2Modern.java`'s overrides over
+the same base), §3b the engine-text dialects' (theirs over the same base, and Java's `EngineTextDialect`), §3c
+Postgres's (`Postgres.java`'s and `PostgresHostOperations.java`'s) or §3d SQLite's (`SQLite.java`'s, with
+`SqliteRegex.java`, `SqliteDigests.java` and the passes it installs).
 
 ## 1. The call
 
@@ -38,7 +39,8 @@ The phase and position fields are always `-`; the message is the rest of the tex
 - **Panics.** A panic on the dialect's thread, or a thread that cannot start, is answered `ERR\nINTERNAL\n-\n-\n<the
   panic's message>`; nothing unwinds into the caller.
 - **Fresh per call.** The dialect is made from `spec` for each call and dropped after it: DuckDB, the H2 family and
-  Postgres carry no state from one render to the next. (This supersedes PHASE1.md §3's handle: no dialect state is held
+  Postgres carry no state from one render to the next, and SQLite's is a statement's own (its markers, its root's labels
+  and selects, and its fresh names `__b<n>`, started over at each outermost render: the user's ruling, 2026-11-03). (This supersedes PHASE1.md §3's handle: no dialect state is held
   between calls.) The JVM may read `facts` once per dialect and cache it. An engine-text dialect's render leaves one
   piece of state on Java's dialect object -- the engine's alias plan of the query, which `renderedAlias` then reads --
   and the seam rebuilds it from the query the caller says it rendered (`engine.renderedAlias`'s `rendered`, §3b).
@@ -48,21 +50,22 @@ The phase and position fields are always `-`; the message is the rest of the tex
 ### `spec`
 
 ```json
-{"dialect": "DuckDb" | "H2" | "H2Modern" | "EngineStyleH2" | "EngineStyleDB2" | "EngineStyleComposite" | "Postgres",
+{"dialect": "DuckDb" | "H2" | "H2Modern" | "EngineStyleH2" | "EngineStyleDB2" | "EngineStyleComposite" | "Postgres"
+             | "SQLite",
  "server": "<version>" | null, "engineScanOrder": true | false,
  "quoteIdentifiers": true | false, "timeZone": "<zone>" | null}
 ```
 
 | field | | |
 |---|---|---|
-| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite` or `Postgres`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres`). |
-| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects and Postgres keep themselves. |
+| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, `Postgres` or `SQLite`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres, SQLite`). |
+| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects, Postgres and SQLite keep themselves. |
 | `engineScanOrder` | boolean or missing (false) | `Boolean.getBoolean("legend.exec.engineScanOrder")`, which Java's `DuckDb` reads at each render: the engine corpus runner's opt-in to `StableScanOrder`. The JVM passes its property's value. Read as a boolean for every dialect; only DuckDB reads it. |
 | `quoteIdentifiers` | boolean or missing (false) | an engine-text dialect's constructor argument (`new EngineStyleH2(quoteIdentifiers, timeZone)`, `new EngineStyleDB2(...)`; the plan text's connection): every physical identifier double-quoted. |
 | `timeZone` | string, null or missing (null) | the same constructors' second argument, the connection's zone: a DATETIME placeholder written in `GMTtoTZ`, a date-time constant shifted from GMT to the zone (`GMT` itself shifts none; §6). |
 
-`quoteIdentifiers` and `timeZone` configure an engine-text dialect alone: on `DuckDb`, `H2`, `H2Modern` or `Postgres`
-either field, present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone
+`quoteIdentifiers` and `timeZone` configure an engine-text dialect alone: on `DuckDb`, `H2`, `H2Modern`, `Postgres` or
+`SQLite` either field, present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone
 configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not <Dialect>`). `EngineStyleComposite` has only
 Java's no-argument constructor: the fields may be absent or their defaults (`false`, `null`); any other value is refused
 (`EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers false, timeZone
@@ -246,6 +249,34 @@ Postgres's public statics (`LEXICON`, `CAPS`, `CATALOG_TYPES`, `CATALOG_RULES`) 
 `Postgres.java` (main and test sources), so no op offers them; the two protected methods core's same-package tests ask
 of a Postgres object are `readsStored` and `tableName` above.
 
+### 3d. SQLite
+
+SQLite 3.47 through the xerial driver (`SQLite.java`, `SqliteRegex.java`, `SqliteDigests.java`; `src/sqlite.rs`,
+`src/sqlite/`). SQLite answers every op of §3 but `duckdb.*` and `engine.*`; where its answer differs from DuckDB's it
+is:
+
+| op | SQLite |
+|---|---|
+| `facts` | `{"temporaryTables": true, "loadsRowsInBulk": false, "relational": true, "inProcess": true, "dropsStagedTablesWithTheirTransaction": false, "needsStaticPivot": true, "serverVersions": null, "inMemoryPath": null, "scriptAbort": null, "sessionSetup": ["PRAGMA case_sensitive_like = ON"], "keysSnapshot": "TRANSACTION", "resultColumnLimit": 2000}` |
+| `forServer` | `"SQLite"` whatever the version |
+| the renders | SQLite's (`PARITY.md`): every value as its storage class holds it (a boolean 1 or 0, a date and a date-time their ISO text, a decimal a REAL and a root decimal its text at its scale, a big integer raised past 64 bits), lists, structs, maps and Variants as JSON text, each list operation a correlated subquery over `json_each`, a fold a correlated `WITH RECURSIVE`, an explosion a marker over `json_each` positions, a lateral subquery as JSON rows, a literal regular expression as its automaton's walk, the digests in SQL, a large repeated operand bound once (`__b<n>`) and a large repeated subexpression written once (`__cse<n>`); a date or date-time placeholder's type hole `TEXT`; SQLite's passes (the portable carrier strategies with FULL OUTER native, the star exclusion spelled out, the substring clamp, whole-partition ordered sets correlated, the three explosion-marker passes, QUALIFY by outputs, constant keys typed, common subexpressions) |
+| `ddl.render` | a schema's table one delimited name (`"S.Trades"`), its columns by storage class (`INTEGER`, `REAL`, `TEXT`, a binary `BLOB`), the keys joined by `,`; a schema's creation and drop `SELECT 1;` |
+| `dml.render`, `dml.renderStatement` | the base's spellings, a schema's table named as the DDL names it; the store writes (`InsertSelect`, `Update`, `DeleteWhere`, `Merge`) refused naming SQLite; a temporary table from a query in the standard spelling, its query a root |
+| `physicalName`, `storedName`, `insertColumnName` | the base's identifier rule over SQLite's reserved words (`key`, `order`, ... delimited) |
+| `raw`, `fromEngineText` | the engine's H2 text refused (`DialectCapability`): `the engine's H2 text reached SQLite, which has no translation of it`; any other text as written |
+| `wireTypeName` | `WireNames.fold` of the driver's name, `FLOAT` read as `DOUBLE` and `NUMERIC` (a NULL first value's) as `NULL`; `typingWireName` the same |
+| `deliversOwn` | `true` at the wire `NULL`; at `INTEGER` for a BOOLEAN or HUGEINT label; at `VARCHAR` for a DATE, TIMESTAMP, TIMESTAMPTZ, JSON, list, struct, map or decimal label; else `false` |
+| `script`, `scriptAbort`, `failingStatement`, `catalogColumnsQuery`, `catalogType`, `bareNameReaches`, a converting `copySelectList`, `host.*` | the interface's defaults, the refusals naming `SQLite` |
+| `readsStored` | the base's: a plain `OTHER` or `DISTINCT` read as text |
+| `tableName` | a name with a schema (a `.` past its first character) one delimited name, whatever the quoting; else the base's |
+| `duckdb.tables`, `duckdb.readsStored` | refused (`IllegalArgumentException`): `'<op>' is DuckDb's op, not SQLite's` |
+
+SQLite's public statics (`LEXICON`, `CAPS`) are read by no Java code outside `SQLite.java` (main and test sources), and
+no test calls a method of a SQLite object that is no `SqlDialect` method: the core tests that make one
+(`TempTableAsTest`, `SchemaDdlTextTest`, `TranslateTest`, `StoreWritesTest`, `CatalogGridTest`, `HostOperationsTest`,
+`WireTypeNamesTest`) ask it `render` (of a query, a DDL and a DML statement), `renderInline`, `hostOperations` and
+`typingWireName` alone, and assert refusals naming its simple class name (`SQLite`), so no op beyond §3 is needed.
+
 ### Op refusals
 
 Beyond MirJson's and `lite_json`'s words (§2), each op refuses as Java's method throws, class and message:
@@ -406,6 +437,9 @@ answer cannot hold one, as JSON writes it `\u0000`).
 
 - `CatalogModel.database` (the Database writer over a dialect's `catalogType` and `bareNameReaches`) and
   `RawSqlBoundary`'s ledger (`Recorder`) are not dialect methods and stay Java; the seam answers the methods they call.
+- SQLite's own: `PARITY.md` (the regular expressions' `Character.isLetterOrDigit` and `isDigit` past ASCII, an
+  unterminated named group refused as `java.lang.StackOverflowError` where Java's stack overflows, `CommonSubexpressions`'
+  tie order).
 - `forServer` answers "this dialect" as `None` in Rust (Java's `return this`) and another dialect as that dialect (H2's
   H2Modern), which the seam takes for the call (a spec's `server`); the `forServer` op answers the chosen dialect's
   name, and the JVM makes its own shim of it.
