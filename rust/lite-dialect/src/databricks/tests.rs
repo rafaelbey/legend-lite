@@ -296,6 +296,27 @@ fn literals_identifiers_and_the_quoted_split_are_databricks() {
 }
 
 #[test]
+fn several_unnests_are_one_inline_arrays_zip_and_a_having_is_dropped() {
+    let unnest = |v: i64, alias: &str| {
+        let xs = build::array_lit(vec![int_lit(v)]);
+        build::projection(call(SqlFn::Unnest, vec![xs]), Some(alias.into()), None).unwrap()
+    };
+    let s = || build::select_of(vec![unnest(1, "a"), unnest(2, "b")], SqlSource::Dual, Vec::new()).unwrap();
+    let written = |s: SqlSelect| SqlDialect::render(&Databricks::new(), build::query(s));
+    assert_eq!(written(s()).unwrap(), "SELECT inline(arrays_zip(array(1L), array(2L))) AS (`a`, `b`)");
+    // Java checks every clause but HAVING: a HAVING is dropped, a WHERE refused
+    let mut having = s();
+    having.having = Some(build::bool_lit(false));
+    assert_eq!(written(having).unwrap(), "SELECT inline(arrays_zip(array(1L), array(2L))) AS (`a`, `b`)");
+    let mut filtered = s();
+    filtered.r#where = Some(build::bool_lit(false));
+    assert_eq!(
+        written(filtered).unwrap_err(),
+        Refusal::capability("several unnests beside other columns or clauses reached Databricks")
+    );
+}
+
+#[test]
 fn the_passes_are_javas_in_order() {
     let names: Vec<&str> = Databricks::new().passes().iter().map(|p| p.name()).collect();
     assert_eq!(

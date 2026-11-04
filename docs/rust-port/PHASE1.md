@@ -395,7 +395,7 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      the arms oracle dropped (a list lambda that is no lambda, a Databricks pivot of AVG) are Java's
      `ClassCastException`, refused in Rust with Java's class (`CLASS_CAST` at the seam) and Java's message less the
      JVM's class-loader clause, unit-tested. What the oracles cannot reach is unit-tested from the Java
-     (`src/trino/tests.rs` 7, `src/databricks/tests.rs` 8, `src/seam/trino_tests.rs` 7, `src/seam/databricks_tests.rs`
+     (`src/trino/tests.rs` 7, `src/databricks/tests.rs` 9, `src/seam/trino_tests.rs` 7, `src/seam/databricks_tests.rs`
      5, 2 more in `src/shared_passes/tests.rs`): `listCall`'s and `bitOp`'s unreached arms, the frame intervals,
      Databricks' session table (a temporary view over its rows: no oracle line asks `sessionTable`). Under Bazel the
      differential takes 53 s (54 s before) and the round trip 65 s, both `size = medium`.

@@ -924,7 +924,7 @@ Each is Java's text or refusal as it is, reproduced; none is fixed here.
   rewriteExpr(u.agg())`). Its message names the JVM's class loader, so the arms oracle dropped it (below).
 - A list call whose lambda is no lambda (`LIST_TRANSFORM`, `LIST_FILTER`) is a `ClassCastException`, as on Trino.
 - Several unnests side by side are checked for every clause but HAVING: a FROM-less select of unnests with a HAVING
-  writes `SELECT inline(arrays_zip(...)) AS (...)`, its HAVING dropped.
+  writes `SELECT inline(arrays_zip(...)) AS (...)`, its HAVING dropped (unit-tested).
 - `LIST_EXISTS` and `LIST_FOR_ALL` write a lambda of the element and its index as it is (0-based, unlike `filter` and
   `transform`'s 1-based reading; Spark's `exists` and `forall` take the element alone, and Trino refuses it by name).
 - A frame interval of a negative count writes each field signed (`INTERVAL '0 -1:00:00' DAY TO SECOND`), Java's
@@ -1050,9 +1050,10 @@ dialects' of the arms oracle and the engine-text ops' queries included: one tree
   the refusal), a replacement's groups (`\1` to `$1`, an Arabic-Indic digit, a fullwidth nine raised to 10), the
   literals (BIGINT, the plain and the extreme Float, a decimal past 38 digits, a big integer, the timestamp's space),
   the identifier rule and the type names, and the pass list.
-- `src/databricks/tests.rs` (8 tests): Databricks' hooks where the oracles cannot reach them -- `listCall`'s and
+- `src/databricks/tests.rs` (9 tests): Databricks' hooks where the oracles cannot reach them -- `listCall`'s and
   `bitOp`'s unreached arms, the two `ClassCastException`s (a list lambda that is no lambda, a pivot of AVG) and a
-  native pivot, the session's temporary view (with rows, without, not temporary, a bound parameter), the frame
+  native pivot, several unnests as one `inline(arrays_zip(...))` (a HAVING dropped, a WHERE refused), the session's
+  temporary view (with rows, without, not temporary, a bound parameter), the frame
   intervals and a RANGE offset in its key's type, a ranking window ordered by 1, the 1-based index, the string
   literal's escapes and NUL, the identifiers, the quoted split (`Pattern.quote`, a delimiter's `\E`), a non-ASCII
   group digit, the scalar walls and the pass list.
