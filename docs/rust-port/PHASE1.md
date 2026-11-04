@@ -639,6 +639,17 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      517 pass, the same 2 skipped, every baseline target at its baseline status but the retired docs diff test. The
      manual heavy and cloud lanes of Snowflake, MariaDB, MySQL and MongoDB were not run here.
 
+   **The heavy lanes, run on the last switch (2026-11-04).** Of `//gates:heavy`'s dialect lanes, those that start their
+   own server on macOS pass against their committed floors: PCT and channel B on Trino (all ten), SQLite (nine of ten),
+   Postgres's channel B (five) and H2's channel B relation. ClickHouse's, MariaDB's, MySQL's and MongoDB's are
+   incompatible with macOS (their embedded servers are Linux's) and the cloud lanes (Snowflake, Databricks, BigQuery)
+   need credentials: CI's to run. Two failed, and both fail identically on rust-port's base (`cf73e6ef7`, before any
+   dialect moved) and, for the first, on the last commit SQLite rendered in Java (`9967415c2`) -- upstream defects,
+   not the port's: `//pct:pct_channel_b_sqlite_essential` (332 < its pin of 333: the mixed-types `removeDuplicates`
+   statement passes SQLite's 1 MB cap, `SQLITE_TOOBIG`) and `//spec:corpus_warehouse_verdict` (two tests lost --
+   `testSpecialUnion_m2m2r`, `testParametrizedEnumFilter` -- "the setup has rows for a bulk loader, and the session's
+   database has none"). Neither pin is touched here.
+
    **Phase 1's dialects are done** (2026-11-04): all sixteen render in Rust, each held to Java's every answer over the
    golden oracles (the first dump, the H2 family's, the remaining ten's, SQLite's and the eight dialects' every-arm
    oracles, the tagged engine-text query), and the full suite answered as the baseline did after each switch.
