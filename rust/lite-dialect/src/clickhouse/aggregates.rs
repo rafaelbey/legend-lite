@@ -60,7 +60,8 @@ fn descending(key: &str, t: Option<&SqlType>) -> Result<String, Refusal> {
 
 /// `Math.multiplyExact`'s overflow: Java's `ArithmeticException`.
 fn multiply_exact(a: i64, b: i64) -> Result<i64, Refusal> {
-    a.checked_mul(b).ok_or_else(|| Refusal { class: "java.lang.ArithmeticException", message: "long overflow".to_owned() })
+    a.checked_mul(b)
+        .ok_or_else(|| Refusal { class: "java.lang.ArithmeticException", message: "long overflow".to_owned() })
 }
 
 /// A unit's fixed length in milliseconds (Java's `unitMillis`; `UNIT_MILLIS`, a plural unit its singular).
@@ -85,8 +86,12 @@ fn unit_millis(unit: &str) -> Result<i64, Refusal> {
 /// An interval bound as its milliseconds (Java's `millis`): a `Long` offset.
 fn millis(b: &Bound) -> Result<Bound, Refusal> {
     Ok(match b {
-        Bound::IntervalPreceding { n, unit } => Bound::Preceding { n: JavaNumber::Long(multiply_exact(*n, unit_millis(unit)?)?) },
-        Bound::IntervalFollowing { n, unit } => Bound::Following { n: JavaNumber::Long(multiply_exact(*n, unit_millis(unit)?)?) },
+        Bound::IntervalPreceding { n, unit } => {
+            Bound::Preceding { n: JavaNumber::Long(multiply_exact(*n, unit_millis(unit)?)?) }
+        }
+        Bound::IntervalFollowing { n, unit } => {
+            Bound::Following { n: JavaNumber::Long(multiply_exact(*n, unit_millis(unit)?)?) }
+        }
         other => other.clone(),
     })
 }
@@ -710,7 +715,12 @@ impl ClickHouse {
         } else {
             let keys = order_keys
                 .iter()
-                .map(|k| Key { key: self.ex(&k.expr, 0), ascending: !k.desc, nulls_first: false, r#type: type_of(&k.expr) })
+                .map(|k| Key {
+                    key: self.ex(&k.expr, 0),
+                    ascending: !k.desc,
+                    nulls_first: false,
+                    r#type: type_of(&k.expr),
+                })
                 .collect();
             self.collected(self.json(value), keys, None)
         };

@@ -233,7 +233,7 @@ pub fn with_children(e: &SqlExpr, cs: Vec<SqlExpr>) -> Result<SqlExpr, Refusal> 
 }
 
 /// `SqlExpr.StructGet.of(source, field)`: a literal struct's field is that field's value.
-fn struct_get_of(source: SqlExpr, field: &str) -> SqlExpr {
+pub(crate) fn struct_get_of(source: SqlExpr, field: &str) -> SqlExpr {
     if let SqlExpr::StructLit { fields, .. } = &source
         && let Some(f) = fields.iter().find(|f| f.name == field)
     {

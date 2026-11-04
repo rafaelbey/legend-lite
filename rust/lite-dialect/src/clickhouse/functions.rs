@@ -5,13 +5,17 @@
 //! reductions, the several-unnests select, `struct_insert`, the variant hooks and the temporal arms, with the helpers
 //! their arms name (ClickHouse.java, "Lists" to "Hooks of the base").
 
-use super::{ClickHouse, P, is_raise, is_scalar, lambda_arg, list_element, output_name, pc, stripped_scale, text, type_of};
+use super::{
+    ClickHouse, P, is_raise, is_scalar, lambda_arg, list_element, output_name, pc, stripped_scale, text, type_of,
+};
 use crate::ansi::{self, cast_type_name, part};
 use crate::build;
 use crate::refusal::{Refusal, arg};
 use crate::renderer::AnsiSqlRenderer;
 use crate::writer::SqlWriter;
-use lite_sql::{AggFn, DateFmt, DatePart, Scalar, SqlExpr, SqlFn, SqlSelect, SqlSource, SqlType, StructField, TypeFact};
+use lite_sql::{
+    AggFn, DateFmt, DatePart, Scalar, SqlExpr, SqlFn, SqlSelect, SqlSource, SqlType, StructField, TypeFact,
+};
 
 /// The list functions that answer NULL for a NULL list (DuckDB's), each over its first argument (Java's
 /// `NULL_STRICT_LISTS`).
@@ -1101,7 +1105,9 @@ impl ClickHouse {
                 w.append(") = 'String', 'VARCHAR', JSONType(").expr(self, x, 0)?;
                 w.append(") = 'Bool', 'BOOLEAN', JSONType(").expr(self, x, 0)?;
                 w.append(") IN ('Int64', 'UInt64'), 'BIGINT', JSONType(").expr(self, x, 0)?;
-                w.append(") = 'Array', 'ARRAY', JSONType(").expr(self, x, 0)?.append(") = 'Object', 'OBJECT', 'DOUBLE')");
+                w.append(") = 'Array', 'ARRAY', JSONType(")
+                    .expr(self, x, 0)?
+                    .append(") = 'Object', 'OBJECT', 'DOUBLE')");
                 Ok(())
             }
             SqlFn::JsonArrayLength => self.wrap(w, "JSONLength(", a0()?, ")"),
@@ -1182,7 +1188,12 @@ impl ClickHouse {
     }
 
     /// Whether `date` moved by `n` of `unit` leaves ClickHouse's dates (Java's `outsideDates`).
-    pub(super) fn outside_dates<'a>(&'a self, unit: DatePart, date: &'a SqlExpr, n: &'a SqlExpr) -> Result<P<'a>, Refusal> {
+    pub(super) fn outside_dates<'a>(
+        &'a self,
+        unit: DatePart,
+        date: &'a SqlExpr,
+        n: &'a SqlExpr,
+    ) -> Result<P<'a>, Refusal> {
         let micros: i64 = match unit {
             DatePart::Year | DatePart::Month => 0,
             DatePart::Week => 604_800_000_000,

@@ -394,7 +394,7 @@ impl Trino {
                         match declared {
                             None => a.append("ARRAY[]"),
                             Some(d) => {
-                                let t = self.array_type_name(&cast_type_name(self, d)?);
+                                let t = self.array_type_name(&cast_type_name(self, d)?)?;
                                 a.append(&format!("CAST(ARRAY[] AS {t})"))
                             }
                         };
@@ -406,7 +406,7 @@ impl Trino {
                     // a list of no element type (Pure's []) as the explosion's declared one: its rows' fields read
                     pc(move |a| {
                         a.append("CAST(").expr(self, xs, 0)?;
-                        let t = self.array_type_name(&cast_type_name(self, d)?);
+                        let t = self.array_type_name(&cast_type_name(self, d)?)?;
                         a.append(&format!(" AS {t})"));
                         Ok(())
                     })
@@ -668,8 +668,8 @@ impl AnsiSqlRenderer for Trino {
         self.delimited(name)
     }
 
-    fn array_type_name(&self, element: &str) -> String {
-        format!("ARRAY({element})")
+    fn array_type_name(&self, element: &str) -> Result<String, Refusal> {
+        Ok(format!("ARRAY({element})"))
     }
 
     fn map_type_name(&self, key: &str, value: &str) -> String {

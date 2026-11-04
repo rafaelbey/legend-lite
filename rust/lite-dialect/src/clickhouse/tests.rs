@@ -50,7 +50,10 @@ fn list_call(f: SqlFn, args: &[SqlExpr]) -> Result<String, Refusal> {
 
 /// `SELECT <e> AS "v"`, rendered as a root statement.
 fn select_of(e: SqlExpr) -> SqlQuery {
-    build::query(build::select_of(vec![Projection { expr: e, alias: Some("v".into()), out: None }], SqlSource::Dual, vec![]).unwrap())
+    build::query(
+        build::select_of(vec![Projection { expr: e, alias: Some("v".into()), out: None }], SqlSource::Dual, vec![])
+            .unwrap(),
+    )
 }
 
 #[test]
@@ -209,7 +212,7 @@ fn identifiers_and_types_answer_as_java() {
         d.struct_type_name(&st).unwrap(),
         r#"Tuple("a" Nullable(Int64), "b" Variant(Tuple("c" Nullable(String))))"#
     );
-    assert_eq!(d.array_type_name("Nullable(Int64)"), "Array(Nullable(Int64))");
+    assert_eq!(d.array_type_name("Nullable(Int64)").unwrap(), "Array(Nullable(Int64))");
 }
 
 #[test]
@@ -220,10 +223,7 @@ fn the_root_carries_its_settings_and_the_correlated_flag_is_the_roots_own() {
     assert_eq!(AnsiSqlRenderer::render(&d, q.clone()).unwrap(), plain);
     // a subquery written inline carries none; a second render on the same object starts its flag over
     assert_eq!(AnsiSqlRenderer::render(&d, q.clone()).unwrap(), plain);
-    assert_eq!(
-        ansi::render_inline(&d, q).unwrap(),
-        format!("SELECT toInt64(1) AS \"v\" {SETTINGS}{UNCORRELATED}")
-    );
+    assert_eq!(ansi::render_inline(&d, q).unwrap(), format!("SELECT toInt64(1) AS \"v\" {SETTINGS}{UNCORRELATED}"));
     assert_eq!(d.nesting.get(), 0);
 }
 
@@ -278,7 +278,12 @@ fn the_passes_are_javas_in_javas_order() {
 #[test]
 fn a_residual_outer_join_is_its_matches_numbered_per_render() {
     // t0 LEFT JOIN t1 ON t0.a < t1.b: the matches of each distinct t0.a, joined null-safe
-    let out = |name: &str| OutputCol { name: name.into(), r#type: SqlType::Scalar(Scalar::Bigint), nullable: true, origin: Origin::Physical };
+    let out = |name: &str| OutputCol {
+        name: name.into(),
+        r#type: SqlType::Scalar(Scalar::Bigint),
+        nullable: true,
+        origin: Origin::Physical,
+    };
     let table = |alias: &str, c: &str| SqlSource::Table {
         name: format!("T_{alias}"),
         alias: alias.into(),
@@ -304,12 +309,8 @@ fn a_residual_outer_join_is_its_matches_numbered_per_render() {
     let nested = build::join(table("t1", "b"), table("t2", "c"), JoinKind::Inner, Some(build::bool_lit(true))).unwrap();
     let outer = build::join(table("t0", "a"), nested, JoinKind::Inner, Some(build::bool_lit(true))).unwrap();
     let q = build::query(
-        build::select_of(
-            vec![build::projection(string_lit("x"), Some("x".into()), None).unwrap()],
-            outer,
-            vec![],
-        )
-        .unwrap(),
+        build::select_of(vec![build::projection(string_lit("x"), Some("x".into()), None).unwrap()], outer, vec![])
+            .unwrap(),
     );
     let r = AnsiSqlRenderer::render(&d, q).unwrap_err();
     assert_eq!(

@@ -1894,9 +1894,9 @@ impl AnsiSqlRenderer for Sqlite {
         Ok(if s.contains('.') || s.contains('E') || s.contains('e') { s } else { format!("{s}.0") })
     }
 
-    fn array_type_name(&self, element: &str) -> String {
+    fn array_type_name(&self, element: &str) -> Result<String, Refusal> {
         let _ = element;
-        "TEXT".to_owned()
+        Ok("TEXT".to_owned())
     }
 
     fn map_type_name(&self, key: &str, value: &str) -> String {

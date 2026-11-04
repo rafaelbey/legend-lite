@@ -144,7 +144,7 @@ fn the_ddl_spells_sqlites_storage_classes() {
         d.struct_type_name(&[]).unwrap_err(),
         Refusal::capability("a STRUCT type reached a dialect without struct support")
     );
-    assert_eq!(d.array_type_name("INTEGER"), "TEXT");
+    assert_eq!(d.array_type_name("INTEGER").unwrap(), "TEXT");
     assert_eq!(d.map_type_name("TEXT", "INTEGER"), "TEXT");
     assert_eq!(d.lit("a\0b"), "('a' || char(0) || 'b')");
     assert_eq!(d.lit("it's"), "'it''s'");

@@ -529,8 +529,9 @@ pub trait AnsiSqlRenderer: Sized {
     /// A scalar type's name: each dialect decides every scalar, a name or a refusal.
     fn scalar_type_name(&self, s: Scalar) -> Result<String, Refusal>;
 
-    fn array_type_name(&self, element: &str) -> String {
-        format!("{element}[]")
+    /// A list type's name (a dialect may refuse one its arrays cannot hold: BigQuery's list of lists).
+    fn array_type_name(&self, element: &str) -> Result<String, Refusal> {
+        Ok(format!("{element}[]"))
     }
 
     fn map_type_name(&self, key: &str, value: &str) -> String {

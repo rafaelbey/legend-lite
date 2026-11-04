@@ -6,12 +6,14 @@
 //! answer, its refusals -- and the JVM's side is written against it.
 //!
 //! A dialect is made fresh for each call from its spec (DuckDB, the H2 family, Postgres, Trino and Databricks carry no
-//! state from one render to the next, SQLite's is a statement's own; an engine-text dialect's alias plan is rebuilt by the op that reads it). A MIR is read with
+//! state from one render to the next; SQLite's, ClickHouse's and BigQuery's is a statement's own; an engine-text
+//! dialect's alias plan is rebuilt by the op that reads it). A MIR is read with
 //! `lite_sql`, nested at most [`MAX_DEPTH`] deep; every other record has the JSON form `SEAM.md` gives it: an object of
 //! the Java record's components by name, in declaration order, a nested record the same way, a Java enum by its
 //! `name()`. Every refusal is a [`Refusal`]: Java's class and message.
 
 use crate::catalog_model::{CatalogColumn, CatalogType, Conversion};
+use crate::bigquery::BigQuery;
 use crate::clickhouse::ClickHouse;
 use crate::databricks::Databricks;
 use crate::dialect::{EngineTextDialect, SqlDialect};
@@ -41,6 +43,7 @@ pub const DIALECTS: &[&str] = &[
     "Trino",
     "Databricks",
     "ClickHouse",
+    "BigQuery",
 ];
 
 /// Every op the seam answers (`SEAM.md`, "Ops").
@@ -122,7 +125,9 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
     let time_zone = spec.str_or_null("timeZone").map_err(json)?;
     let configured = spec.get("quoteIdentifiers").is_some() || spec.get("timeZone").is_some();
     let dialect: Box<dyn SqlDialect> = match name {
-        "DuckDb" | "H2" | "H2Modern" | "Postgres" | "SQLite" | "Trino" | "Databricks" | "ClickHouse" if configured => {
+        "DuckDb" | "H2" | "H2Modern" | "Postgres" | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery"
+            if configured =>
+        {
             return Err(Refusal::illegal_argument(format!(
                 "quoteIdentifiers and timeZone configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not \
                  {name}"
@@ -140,6 +145,7 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
         "Trino" => Box::new(Trino::new()),
         "Databricks" => Box::new(Databricks::new()),
         "ClickHouse" => Box::new(ClickHouse::new()),
+        "BigQuery" => Box::new(BigQuery::new()),
         "EngineStyleComposite" if quote_identifiers == Some(true) || time_zone.is_some() => {
             return Err(Refusal::illegal_argument(
                 "EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers \
@@ -656,3 +662,5 @@ mod trino_tests;
 mod databricks_tests;
 #[cfg(test)]
 mod clickhouse_tests;
+#[cfg(test)]
+mod bigquery_tests;

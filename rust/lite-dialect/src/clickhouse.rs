@@ -376,10 +376,9 @@ fn in_range(iso: &str) -> Result<&str, Refusal> {
         return Err(Refusal::illegal_state(format!("a date literal with no year reached ClickHouse: {iso}")));
     }
     let group = &iso[..start + digits];
-    let year: i32 = group.parse().map_err(|_| Refusal {
-        class: Refusal::NUMBER_FORMAT,
-        message: format!("For input string: \"{group}\""),
-    })?;
+    let year: i32 = group
+        .parse()
+        .map_err(|_| Refusal { class: Refusal::NUMBER_FORMAT, message: format!("For input string: \"{group}\"") })?;
     if !(1900..=2299).contains(&year) {
         return Err(Refusal::capability(format!(
             "the date {iso} reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)"
@@ -476,7 +475,7 @@ impl ClickHouse {
             return match list_element(xs) {
                 None => text(EMPTY_UNTYPED),
                 Some(element) => pc(move |w| {
-                    let t = self.array_type_name(&cast_type_name(self, element)?);
+                    let t = self.array_type_name(&cast_type_name(self, element)?)?;
                     w.append(&format!("CAST([] AS {t})"));
                     Ok(())
                 }),
@@ -507,7 +506,7 @@ impl ClickHouse {
             && let Some(t) = t
             && !matches!(t, SqlType::Array { .. })
         {
-            let empty = format!("CAST([] AS {})", self.array_type_name(&cast_type_name(self, t)?));
+            let empty = format!("CAST([] AS {})", self.array_type_name(&cast_type_name(self, t)?)?);
             return Ok(text(empty));
         }
         Ok(self.list(xs))
@@ -723,7 +722,9 @@ impl ClickHouse {
         let mut candidates = Vec::new();
         for c in conjuncts(on) {
             if let SqlExpr::Call {
-                r#fn: SqlFn::Less | SqlFn::LessEqual | SqlFn::Greater | SqlFn::GreaterEqual, args, ..
+                r#fn: SqlFn::Less | SqlFn::LessEqual | SqlFn::Greater | SqlFn::GreaterEqual,
+                args,
+                ..
             } = c
             {
                 let a = tables_read(arg(args, 0)?)?;
@@ -772,9 +773,10 @@ impl ClickHouse {
             if reads_only(c, &inner)? { local.push(c.clone()) } else { correlated.push(c) }
         }
         // its own columns only
-        let columns = s.projections.iter().all(|p| {
-            matches!(&p.expr, SqlExpr::Column(c) if c.table.as_ref().is_none_or(|t| inner.contains(t)))
-        });
+        let columns = s
+            .projections
+            .iter()
+            .all(|p| matches!(&p.expr, SqlExpr::Column(c) if c.table.as_ref().is_none_or(|t| inner.contains(t))));
         if correlated.is_empty() || !columns {
             return Ok(false);
         }
@@ -966,9 +968,8 @@ impl AnsiSqlRenderer for ClickHouse {
             && matches!(kind, JoinKind::Inner | JoinKind::Left)
         {
             let keys = conjuncts(on);
-            let all_keys = keys.iter().all(|c| {
-                matches!(c, SqlExpr::Call { r#fn: SqlFn::NullSafeEqual | SqlFn::Equal, .. })
-            });
+            let all_keys =
+                keys.iter().all(|c| matches!(c, SqlExpr::Call { r#fn: SqlFn::NullSafeEqual | SqlFn::Equal, .. }));
             if all_keys && keys.iter().any(|c| matches!(c, SqlExpr::Call { r#fn: SqlFn::NullSafeEqual, .. })) {
                 self.source(w, left, depth)?;
                 self.nl(w, depth);
@@ -1154,8 +1155,8 @@ impl AnsiSqlRenderer for ClickHouse {
         format!("toInt128('{}')", crate::java::big_decimal_plain(v.as_str()))
     }
 
-    fn array_type_name(&self, element: &str) -> String {
-        format!("Array({element})")
+    fn array_type_name(&self, element: &str) -> Result<String, Refusal> {
+        Ok(format!("Array({element})"))
     }
 
     /// A map's key is never nullable.
@@ -1195,7 +1196,7 @@ impl AnsiSqlRenderer for ClickHouse {
                 || (matches!(p.expr, SqlExpr::NullLit { .. }) && !matches!(out.r#type, SqlType::Array { .. })))
         {
             if unnest_of_untyped_empty(&p.expr) && !matches!(out.r#type, SqlType::Array { .. }) {
-                let t = self.array_type_name(&cast_type_name(self, &out.r#type)?);
+                let t = self.array_type_name(&cast_type_name(self, &out.r#type)?)?;
                 w.append(&format!("arrayJoin(CAST([] AS {t}))"));
             } else {
                 w.append("CAST(").expr(self, &p.expr, 0)?.append(" AS ");
@@ -1241,7 +1242,7 @@ impl AnsiSqlRenderer for ClickHouse {
             // the empty list whose element type is known is that type's empty array
             SqlExpr::ArrayLit { elements, .. } if elements.is_empty() && list_element(e).is_some() => {
                 let element = list_element(e).expect("an element type");
-                let t = self.array_type_name(&cast_type_name(self, element)?);
+                let t = self.array_type_name(&cast_type_name(self, element)?)?;
                 w.append(&format!("CAST([] AS {t})"));
                 Ok(())
             }

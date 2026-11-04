@@ -32,6 +32,7 @@
 //! in a debug build).
 
 pub mod ansi;
+pub mod bigquery;
 pub mod build;
 pub mod carrier;
 pub mod catalog;
@@ -68,6 +69,7 @@ pub mod typing;
 pub mod wire_names;
 pub mod writer;
 
+pub use bigquery::BigQuery;
 pub use clickhouse::ClickHouse;
 pub use databricks::Databricks;
 pub use dialect::{EngineTextDialect, KeysSnapshot, SqlDialect};

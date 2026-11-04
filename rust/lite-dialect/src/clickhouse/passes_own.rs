@@ -153,7 +153,10 @@ fn tables_read(e: &SqlExpr, out: &mut Vec<String>) {
 fn has_subquery(e: &SqlExpr) -> bool {
     matches!(
         e,
-        SqlExpr::ScalarSubquery { .. } | SqlExpr::Exists { .. } | SqlExpr::InSubquery { .. } | SqlExpr::Quantified { .. }
+        SqlExpr::ScalarSubquery { .. }
+            | SqlExpr::Exists { .. }
+            | SqlExpr::InSubquery { .. }
+            | SqlExpr::Quantified { .. }
     ) || children(e).iter().any(|c| has_subquery(c))
 }
 
@@ -298,8 +301,19 @@ impl SqlRewriter for OuterJoinResidualsAsMatches {
         {
             return Ok(Rw::Same(build::query(s)));
         }
-        let SqlSelect { projections, distinct, from, r#where, group_by, having, qualify, order_by, limit, offset, outputs } =
-            s;
+        let SqlSelect {
+            projections,
+            distinct,
+            from,
+            r#where,
+            group_by,
+            having,
+            qualify,
+            order_by,
+            limit,
+            offset,
+            outputs,
+        } = s;
         match self.joins(from)? {
             Rw::Same(from) => Ok(Rw::Same(build::query(SqlSelect {
                 projections,

@@ -105,6 +105,38 @@ pub fn stored_read<D: AnsiSqlRenderer>(
     )))
 }
 
+/// Java's `starsAsSourceColumns`: `s`'s projections with each star over `alias` spelled as the source's own columns
+/// (`outputs`; an empty projection list is a star), for a dialect that puts helper columns beside a source under its
+/// alias (a counted MODE's counts, a quantile's ranks: MariaDB's, MySQL's and BigQuery's). A star with exceptions over
+/// that source is refused, naming `product`.
+pub fn stars_as_source_columns(
+    s: &SqlSelect,
+    outputs: &[OutputCol],
+    alias: &str,
+    product: &str,
+) -> Result<Vec<Projection>, Refusal> {
+    let star = [Projection { expr: SqlExpr::Star { table: None, r#type: TypeFact::Unknown }, alias: None, out: None }];
+    let projections: &[Projection] = if s.projections.is_empty() { &star } else { &s.projections };
+    let mut spelled = Vec::with_capacity(projections.len());
+    for p in projections {
+        match &p.expr {
+            SqlExpr::Star { table, .. } if table.as_deref().is_none_or(|t| t == alias) => {
+                for oc in outputs {
+                    let read = SqlExpr::Column(column_of(Some(alias), oc));
+                    spelled.push(crate::build::projection(read, Some(oc.name.clone()), Some(oc.clone()))?);
+                }
+            }
+            SqlExpr::StarExcept { table, .. } if table.as_deref().is_none_or(|t| t == alias) => {
+                return Err(Refusal::capability(format!(
+                    "a star with exceptions over a source with helper columns beside it reached {product}"
+                )));
+            }
+            _ => spelled.push(p.clone()),
+        }
+    }
+    Ok(spelled)
+}
+
 /// A type Pure cannot name: a Pure String, read as text on every dialect.
 pub fn reads_as_text(t: &ColumnType) -> bool {
     matches!(t, ColumnType::Plain { kind: ColumnKind::Other | ColumnKind::Distinct })
@@ -1307,7 +1339,7 @@ pub fn cast_type_name<D: AnsiSqlRenderer>(d: &D, t: &SqlType) -> Result<String, 
     match t {
         SqlType::Scalar(s) => d.scalar_type_name(*s),
         SqlType::Decimal { precision, scale } => Ok(format!("DECIMAL({precision}, {scale})")),
-        SqlType::Array { element } => Ok(d.array_type_name(&cast_type_name(d, element)?)),
+        SqlType::Array { element } => d.array_type_name(&cast_type_name(d, element)?),
         SqlType::Map { key, value } => {
             let k = cast_type_name(d, key)?;
             let v = cast_type_name(d, value)?;

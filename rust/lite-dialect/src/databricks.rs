@@ -724,8 +724,8 @@ impl AnsiSqlRenderer for Databricks {
         Ok(quoted(value))
     }
 
-    fn array_type_name(&self, element: &str) -> String {
-        format!("ARRAY<{element}>")
+    fn array_type_name(&self, element: &str) -> Result<String, Refusal> {
+        Ok(format!("ARRAY<{element}>"))
     }
 
     fn map_type_name(&self, key: &str, value: &str) -> String {
@@ -764,7 +764,7 @@ impl AnsiSqlRenderer for Databricks {
             && list_element(&args[0]).is_none()
         {
             w.append("explode(CAST(").piece(&*self.list(&args[0]))?.append(" AS ");
-            let t = self.array_type_name(&cast_type_name(self, &out.r#type)?);
+            let t = self.array_type_name(&cast_type_name(self, &out.r#type)?)?;
             w.append(&t).append("))");
             return self.label(w, p);
         }
