@@ -212,6 +212,12 @@ impl Parser<'_> {
     }
 
     /// RFC 8259 §6: `[ "-" ] ( "0" / digit1-9 *DIGIT ) [ "." 1*DIGIT ] [ ("e"/"E") [ "+"/"-" ] 1*DIGIT ]`.
+    ///
+    /// Not reproduced: past the first digit Java's lexer takes any decimal digit unit (`Character.isDigit`), so `1٣`
+    /// is 13 (`Long.parseLong`, `BigInteger` past a long), `0٣` refused for its leading zero, and a fraction or an
+    /// exponent holding one `Double.parseDouble`'s `NumberFormatException` (`For input string: "1.٣"`, no position);
+    /// this reads ASCII digits, so each is refused at that digit (measured on the build JDK, 2026-11-03). No JSON
+    /// writer of the platform writes one.
     fn number(&mut self) -> Result<Num, Error> {
         let start = self.pos;
         if self.peek() == Some(b'-') {

@@ -6,6 +6,9 @@ dialects, EngineStyleH2, EngineStyleDB2 and EngineStyleComposite (step 4c), Post
 Each is ported from
 its Java class, over a walk that keeps Java's identity semantics and a port of the typing rules Java's constructors
 apply. This file measures each on the oracles and says what of Java it does not reproduce exactly.
+A `Character` predicate a dialect's Java calls (`isDigit`, `isLetterOrDigit`, `isWhitespace`) is the build JDK's own
+class of the UTF-16 unit Java's `charAt` gives it (`lite_javacompat::character`, walked over all 1,114,112 code
+points against `oracles/java-compat/extras/char-classes.tsv` by `//rust/lite-javacompat:char_classes_test`).
 
 Measured by `tests/dialect_differential.rs` over `//rust/oracles:mir_dump` (`mir/mir-dump.jsonl`),
 `//rust/oracles:h2_dump` (`mir/h2-dump.jsonl`), `//rust/oracles:dialects_dump` (`mir/dialects-dump.jsonl`, the ten Java
@@ -155,7 +158,6 @@ not run.
 - `StableScanOrder`'s firing count is per pass object (Java's is a static `AtomicLong`), and `ScanOrder`'s one-argument
   `stabilize(q)` overload (no frames) is the two-argument one over an empty set; the dump never sets the flag, so the
   pass is held by its unit tests alone.
-- `DuckDb.structGet`'s positional-field test is ASCII digits; Java's `Character.isDigit` takes every Unicode digit.
 - `ddlIdentifier`'s `toUpperCase(Locale.ROOT)` is Rust's `to_uppercase`: the same special casing, but each from its own
   Unicode version.
 - `sourceUrl`'s `Path.of(URI.create(url))` is a hand-written POSIX reading (the path's escapes decoded, repeated and
@@ -569,7 +571,6 @@ None of these reaches the oracles.
 - `physicalName`'s, `bareNameReaches`' and `fromEngineText`'s `toLowerCase(Locale.ROOT)` and the frame unit's
   `toUpperCase(Locale.ROOT)` are Rust's `to_lowercase` and `to_uppercase`: the same casing, each from its own Unicode
   version.
-- `timestampLit` counts a fraction's digits with `Character.isDigit` (any Unicode digit); Rust counts ASCII digits.
 - A lambda read as `(SqlExpr.Lambda) x` that is none is refused as a `ClassCastException` naming the simple classes
   (DuckDB's note above), and a lambda of too few parameters in `ArrayList`'s words (`Index 1 out of bounds for length
   1`; a `List.of` of two words it `Index: 1 Size: 1`).
@@ -685,8 +686,8 @@ Each is Java's text or refusal as it is, reproduced; none is fixed here.
   before its identity is looked up, so its values are never delivered as its labels say: a decimal column is not
   written at its scale, a Float not cast to REAL, a big integer not raised past 64 bits (`mir/sqlite-arms.jsonl` holds
   one). For the same reason `rootSelects.put(over, TRUE)`, the marker select's own registration, has no effect.
-- `regexp_replace` reads any Unicode digit after a backslash as a group number (`Character.isDigit`): `\٣` is group
-  1587, refused as "no group 1587".
+- `regexp_replace` reads any decimal digit unit after a backslash as a group number (`Character.isDigit`, its unit
+  less `'0'`): `\٣` is group 1587, refused as "no group 1587".
 - `structGet`'s declared-field search takes the last field of a name, but never runs on a struct that holds the field:
   a field read of a typed struct is typed by its first field when it is built (`SqlTyping.structGetType`).
 - `windowCall` refuses "a windowed MODE" after the ordered sets' check, which MODE meets first: that message is never
@@ -709,9 +710,6 @@ None of these reaches the oracles.
 - An unterminated named group (`(?P<n`, `(?<n`): Java reads the name to `indexOf('>') + 1`, the pattern's start, and
   parses the pattern again inside the group until its stack overflows (`StackOverflowError`, an `Error`); Rust refuses
   it as `java.lang.StackOverflowError` after 64 nested readings, an `INTERNAL` refusal at the seam.
-- `Character.isLetterOrDigit` (an escape `\X`: a letter or digit is refused) and `Character.isDigit` (a replacement's
-  group reference) are exact on ASCII; past it Rust's `Alphabetic` and `Numeric` classes stand for Java's letter and
-  decimal digit (they take the letter-numbers, the other numbers and the alphabetic marks too).
 - The pattern is read by UTF-16 units, as Java's; a refusal naming a lone surrogate unit (a flag, an escape) writes
   U+FFFD where Java writes the unit.
 - `ddlType`'s `toUpperCase(Locale.ROOT)` is Rust's `to_uppercase`: the same casing, each from its own Unicode version.
@@ -806,7 +804,7 @@ SQLite arms oracle is read by the differential alone: its inputs are Java's cons
   `forServer`, the renders and a finer date-time's type hole, the DDL, the DML and a session table, the names and the
   engine text, the interface's answers and refusals naming Postgres, the catalog decisions, the host operations (a
   query counted, everything else refused by name), and `readsStored` and `tableName` for every dialect.
-- `src/sqlite/tests.rs` (6 tests), `src/sqlite/functions.rs` (1), `src/sqlite/regex.rs` (6) and `src/sqlite/digests.rs`
+- `src/sqlite/tests.rs` (7 tests), `src/sqlite/functions.rs` (1), `src/sqlite/regex.rs` (6) and `src/sqlite/digests.rs`
   (1): SQLite's hooks where the oracles cannot reach them -- a non-finite Float literal (no Java FloatLit holds one), the
   state of one dialect object (the fresh names started over at each query render, a DML render counting on, the state
   popped on a refusal), a root select known by its content, the pass list, the DDL's storage classes, a lambda's struct

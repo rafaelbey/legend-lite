@@ -687,16 +687,9 @@ fn parse_int(s: &str) -> Result<i32, Refusal> {
         .map_err(|_| Refusal { class: Refusal::NUMBER_FORMAT, message: format!("For input string: \"{s}\"") })
 }
 
-/// Java's `Character.isLetterOrDigit(char)` of one UTF-16 unit: a letter (Lu, Ll, Lt, Lm, Lo) or a decimal digit
-/// (Nd); a surrogate is neither. ASCII is exact; past it Rust's `Alphabetic` and `Numeric` classes stand for Java's
-/// letter and digit (they take the letter-numbers, the other numbers and the alphabetic marks too, each from its own
-/// Unicode version: `PARITY.md`).
+/// Java's `Character.isLetterOrDigit(char)` of one UTF-16 unit, as the build JDK answers it.
 fn is_letter_or_digit(u: u16) -> bool {
-    match char::from_u32(u32::from(u)) {
-        Some(c) if c.is_ascii() => c.is_ascii_alphanumeric(),
-        Some(c) => c.is_alphabetic() || c.is_numeric(),
-        None => false,
-    }
+    lite_javacompat::character::is_letter_or_digit(u)
 }
 
 /// Whether `input` matches `pattern` -- the whole text (`full`), or anywhere in it (a search: a leading state reads
@@ -847,5 +840,12 @@ mod tests {
         assert!(is_letter_or_digit(0x00E9)); // e acute
         assert!(is_letter_or_digit(0x0663)); // Arabic-Indic three
         assert!(!is_letter_or_digit(0xD800));
+        // a letter-number and another number are neither letter nor decimal digit to Java (Rust's Alphabetic and
+        // Numeric classes would take both)
+        assert!(!is_letter_or_digit(0x2163)); // Roman numeral four
+        assert!(!is_letter_or_digit(0x00B2)); // superscript two
+        // so an escape of either is a literal character, of a letter a refusal
+        assert!(matches(input(), "\\\u{2163}", true).is_ok());
+        assert!(matches(input(), "\\\u{00E9}", true).is_err());
     }
 }

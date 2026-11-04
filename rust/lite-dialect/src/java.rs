@@ -194,22 +194,10 @@ pub fn expr_text(e: &SqlExpr) -> String {
     }
 }
 
-/// Java's `Character.isWhitespace` (a space separator but the no-break ones, a line or paragraph separator, or one of
-/// the ASCII controls `\t \n \u000B \f \r` and `\u001C`-`\u001F`).
+/// Java's `Character.isWhitespace`, as the build JDK answers it (`lite_javacompat::character`). No code point past the
+/// BMP is whitespace, so a `char` answers as each of its UTF-16 units does under Java's `charAt`.
 pub fn is_java_whitespace(c: char) -> bool {
-    matches!(
-        c,
-        '\t'..='\r'
-            | '\u{1C}'..='\u{1F}'
-            | ' '
-            | '\u{1680}'
-            | '\u{2000}'..='\u{2006}'
-            | '\u{2008}'..='\u{200A}'
-            | '\u{2028}'
-            | '\u{2029}'
-            | '\u{205F}'
-            | '\u{3000}'
-    )
+    lite_javacompat::character::is_whitespace(c)
 }
 
 /// Java's `String.strip()`: `Character.isWhitespace` trimmed from both ends.

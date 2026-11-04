@@ -29,4 +29,16 @@ rust_test(
     deps = [":lite_javacompat"],
 )
 
+# every code point's nine Character answers of the build JDK (tests/char_classes.rs), and the packed runs
+# src/character/runs.rs embeds held to them
+rust_test(
+    name = "char_classes_test",
+    srcs = ["tests/char_classes.rs"],
+    data = ["//rust/oracles:java-compat/extras/char-classes.tsv"],
+    edition = "2024",
+    env = {"JAVA_COMPAT_CHAR_CLASSES": "$(rootpath //rust/oracles:java-compat/extras/char-classes.tsv)"},
+    visibility = ["//gates:__pkg__"],
+    deps = [":lite_javacompat"],
+)
+
 guards_package()

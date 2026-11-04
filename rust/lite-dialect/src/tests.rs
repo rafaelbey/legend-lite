@@ -300,6 +300,17 @@ fn identifiers_quote_only_when_necessary() {
 }
 
 #[test]
+fn a_positional_field_is_one_of_digits_of_any_script() {
+    // DuckDB's struct_extract: Java's `field.chars().allMatch(Character::isDigit)`
+    let st = crate::build::derived(Some("t"), "s");
+    let get = |field: &str| render(crate::build::struct_get(st.clone(), field));
+    assert_eq!(get("2"), "struct_extract(t.s, 2)");
+    assert_eq!(get("٢"), "struct_extract(t.s, ٢)");
+    assert_eq!(get("²"), "struct_extract(t.s, '²')");
+    assert_eq!(get("a1"), "struct_extract(t.s, 'a1')");
+}
+
+#[test]
 fn literals_are_spelled_as_java_spells_them() {
     assert_eq!(render(string_lit("it's")), "'it''s'");
     assert_eq!(render(string_lit("a\0b'\0")), "('a' || chr(0) || 'b''' || chr(0) || '')");

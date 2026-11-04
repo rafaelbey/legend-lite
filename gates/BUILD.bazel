@@ -40,6 +40,7 @@ test_suite(
         # Java's spellings in Rust, held to the JDK's frozen answers
         "//rust/lite-javacompat:lite_javacompat_test",
         "//rust/lite-javacompat:double_to_string_test",
+        "//rust/lite-javacompat:char_classes_test",
         "//rust/lite-json:lite_json_test",
         "//rust/lite-sql:lite_sql_test",
         "//rust/lite-sql:mir_round_trip_test",

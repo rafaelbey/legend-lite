@@ -279,9 +279,12 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      is equality (a hash-consed DAG in Rust). The per-render state (`laterals`, `rowLaterals`, `roots`, `rootSelects`,
      `binds`) lives in `RefCell`s for one call; `__b<n>`, `__cse<n>` and `__unnest<n>` start at 0 per render, as the
      ruling above made Java's. Not exact, none reached by an oracle (`PARITY.md`): `CommonSubexpressions`' tie between
-     two largest repeated nodes (Java's identity-hash order, which varies between JVM runs; Rust's first met), an
-     unterminated named group in a regular expression (Java overflows its stack; Rust refuses as
-     `java.lang.StackOverflowError`), and `Character.isLetterOrDigit` / `isDigit` past ASCII. Under Bazel the differential
+     two largest repeated nodes (Java's identity-hash order, which varies between JVM runs; Rust's first met), and
+     an unterminated named group in a regular expression (Java overflows its stack; Rust refuses as
+     `java.lang.StackOverflowError`). `Character.isLetterOrDigit` and `isDigit` (and, across the dialects, `isDigit` in
+     DuckDB's `structGet` and Postgres's `timestampLit`, `isWhitespace` in the JSON and raw-SQL readers) are the build
+     JDK's own classes per UTF-16 unit, `lite_javacompat::character`, walked over every code point against
+     `char-classes.tsv` (`//rust/lite-javacompat:char_classes_test`). Under Bazel the differential
      takes 54 s and the round trip 68 s (both unchanged, `size = medium`).
 
      For the switch (5e): a `SQLite` shim (`new SQLite()` in `Databases` and seven core tests, its simple name in their

@@ -437,9 +437,8 @@ answer cannot hold one, as JSON writes it `\u0000`).
 
 - `CatalogModel.database` (the Database writer over a dialect's `catalogType` and `bareNameReaches`) and
   `RawSqlBoundary`'s ledger (`Recorder`) are not dialect methods and stay Java; the seam answers the methods they call.
-- SQLite's own: `PARITY.md` (the regular expressions' `Character.isLetterOrDigit` and `isDigit` past ASCII, an
-  unterminated named group refused as `java.lang.StackOverflowError` where Java's stack overflows, `CommonSubexpressions`'
-  tie order).
+- SQLite's own: `PARITY.md` (an unterminated named group refused as `java.lang.StackOverflowError` where Java's stack
+  overflows, `CommonSubexpressions`' tie order).
 - `forServer` answers "this dialect" as `None` in Rust (Java's `return this`) and another dialect as that dialect (H2's
   H2Modern), which the seam takes for the call (a spec's `server`); the `forServer` op answers the chosen dialect's
   name, and the JVM makes its own shim of it.

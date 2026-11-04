@@ -1064,7 +1064,9 @@ impl AnsiSqlRenderer for DuckDb {
     /// A positional field (list_zip's unnamed structs) is its 1-based index, never a quoted name.
     fn struct_get(&self, w: &mut SqlWriter, source: &SqlExpr, field: &str, _type: &TypeFact) -> Result<(), Refusal> {
         w.append("struct_extract(").expr(self, source, 0)?.append(", ");
-        let f = if field.chars().all(|c| c.is_ascii_digit()) { field.to_owned() } else { self.string_lit(field)? };
+        // Java's `field.chars().allMatch(Character::isDigit)`: every UTF-16 unit a digit of any script
+        let positional = field.encode_utf16().all(lite_javacompat::character::is_digit);
+        let f = if positional { field.to_owned() } else { self.string_lit(field)? };
         w.append(&f).append(")");
         Ok(())
     }

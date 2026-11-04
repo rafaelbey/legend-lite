@@ -14,6 +14,7 @@ use crate::build;
 use crate::refusal::{Refusal, arg};
 use crate::renderer::AnsiSqlRenderer;
 use crate::writer::SqlWriter;
+use lite_javacompat::character;
 use lite_sql::{AggFn, DateFmt, DateFmtPart, DatePart, Lambda, Scalar, SqlExpr, SqlFn, SqlType, TypeFact};
 use std::borrow::Cow;
 
@@ -124,11 +125,6 @@ fn conversions(f: &str) -> Vec<char> {
         }
     }
     out
-}
-
-/// Java's `Character.isDigit(char)`: ASCII exactly, past it Rust's numeric class (`PARITY.md`).
-fn java_is_digit(c: char) -> bool {
-    if c.is_ascii() { c.is_ascii_digit() } else { c.is_numeric() }
 }
 
 impl Sqlite {
@@ -817,31 +813,33 @@ impl Sqlite {
         }
         let mut parts = Vec::new();
         let mut groups: Vec<i32> = Vec::new();
-        let mut text_run = String::new();
-        let chars: Vec<char> = replacement.chars().collect();
+        // read by UTF-16 unit, as Java's `replacement.charAt(i)`: a digit is one Character.isDigit takes, any script's
+        let units: Vec<u16> = replacement.encode_utf16().collect();
+        let backslash = u16::from(b'\\');
+        let mut text_run: Vec<u16> = Vec::new();
         let mut i = 0;
-        while i < chars.len() {
-            let ch = chars[i];
-            if ch == '\\' && i + 1 < chars.len() && java_is_digit(chars[i + 1]) {
+        while i < units.len() {
+            let ch = units[i];
+            if ch == backslash && i + 1 < units.len() && character::is_digit(units[i + 1]) {
                 if !text_run.is_empty() {
-                    parts.push(Part::Text(std::mem::take(&mut text_run)));
+                    parts.push(Part::Text(String::from_utf16_lossy(&std::mem::take(&mut text_run))));
                 }
                 i += 1;
-                let k = chars[i] as i32 - '0' as i32;
+                let k = i32::from(units[i]) - i32::from(b'0');
                 parts.push(Part::Group(k));
                 if k > 0 && !groups.contains(&k) {
                     groups.push(k);
                 }
-            } else if ch == '\\' && i + 1 < chars.len() {
+            } else if ch == backslash && i + 1 < units.len() {
                 i += 1;
-                text_run.push(chars[i]);
+                text_run.push(units[i]);
             } else {
                 text_run.push(ch);
             }
             i += 1;
         }
         if !text_run.is_empty() {
-            parts.push(Part::Text(text_run));
+            parts.push(Part::Text(String::from_utf16_lossy(&text_run)));
         }
         let repl = |f: &str, off: &str| -> String {
             let mut pieces = Vec::new();

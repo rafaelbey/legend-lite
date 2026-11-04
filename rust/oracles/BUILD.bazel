@@ -5,6 +5,9 @@ load(":zstd.bzl", "zstd_decompress")
 exports_files(
     [
         "java-compat/double-tostring.tsv",
+        # Java's Character predicates over every code point (JavaCompatExtras.java): lite-javacompat's character
+        # module is held to it
+        "java-compat/extras/char-classes.tsv",
         # the engine-text query holding a tagged value, as the shim sends it (mir/MANIFEST.tsv): the dialects'
         # differential reads it
         "mir/tagged-engine.jsonl",

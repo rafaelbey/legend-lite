@@ -155,6 +155,27 @@ fn the_ddl_spells_sqlites_storage_classes() {
 }
 
 #[test]
+fn a_replacements_group_reference_is_a_backslash_and_a_java_digit_unit() {
+    let replace = |replacement: &str| {
+        let e = build::call(SqlFn::RegexpReplace, vec![s(), build::string_lit("a(b)"), build::string_lit(replacement)]);
+        let mut w = SqlWriter::new();
+        Sqlite::new().expr(&mut w, &e, 0).map(|_| w.into_text().unwrap())
+    };
+    // a digit is a group number; any script's, its unit less '0' (U+0661 is group 1585, past the pattern's: refused)
+    let one = replace("x\\1").unwrap();
+    assert!(one.contains("(__rp.f ->> 2)"), "{one}");
+    assert!(replace("x\\\u{0661}").unwrap_err().message.contains("no group 1585"));
+    // a superscript is no decimal digit: text
+    let superscript = replace("x\\\u{00B9}").unwrap();
+    assert!(superscript.contains("'x¹'") && !superscript.contains("->> 2"), "{superscript}");
+    // a supplementary digit is two units: Java reads the high surrogate after the backslash, no digit, so text
+    let bold = replace("\\\u{1D7CF}").unwrap();
+    assert!(bold.contains("'\u{1D7CF}'") && !bold.contains("->> 2"), "{bold}");
+    // a group past the pattern's is refused by name
+    assert!(replace("\\\u{0663}").unwrap_err().message.contains("no group 1587"));
+}
+
+#[test]
 fn a_lambdas_struct_parameter_is_read_as_json() {
     let st = SqlType::Struct {
         fields: vec![lite_sql::StructField { name: "a".into(), r#type: SqlType::Scalar(Scalar::Bigint) }],

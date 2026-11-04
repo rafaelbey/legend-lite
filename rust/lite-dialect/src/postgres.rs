@@ -2317,10 +2317,15 @@ impl AnsiSqlRenderer for Postgres {
 
     /// Postgres keeps microseconds and ROUNDS finer digits: finer digits are TRUNCATED, as DuckDB's TIMESTAMP does.
     fn timestamp_lit(&self, iso: &str) -> String {
-        if let Some(dot) = iso.rfind('.') {
-            let end = dot + 1 + iso[dot + 1..].bytes().take_while(u8::is_ascii_digit).count();
-            if end - dot - 1 > 6 {
-                return format!("TIMESTAMP '{}{}'", &iso[..dot + 7], &iso[end..]);
+        // by UTF-16 unit, a digit as Java's Character.isDigit says
+        let units: Vec<u16> = iso.encode_utf16().collect();
+        if let Some(dot) = units.iter().rposition(|&u| u == u16::from(b'.')) {
+            let digits = units[dot + 1..].iter().take_while(|&&u| lite_javacompat::character::is_digit(u)).count();
+            let end = dot + 1 + digits;
+            if digits > 6 {
+                let kept = String::from_utf16_lossy(&units[..dot + 7]);
+                let rest = String::from_utf16_lossy(&units[end..]);
+                return format!("TIMESTAMP '{kept}{rest}'");
             }
         }
         format!("TIMESTAMP '{iso}'")
