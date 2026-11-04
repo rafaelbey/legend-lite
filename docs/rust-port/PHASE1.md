@@ -504,9 +504,14 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      own (`PARITY.md`, "not reproduced exactly"). When Snowflake switches, `CheckedDefectsToLists` and
      `RootNumericTypes` have no Java user left, and the package's `PivotAsGroupBy.java` has none already (Snowflake's
      `passes()` names its nested class); `CarrierStrategies`, `SubstringClamp`, `ConstantKeysAsExpressions` and the
-     `ExplosionMarkers` passes stay for MariaDB and MySQL (`CarrierStrategies` for MongoDB too). The switch's gates are
-     `//pct:pct_snowflake` and `//pct:pct_channel_b_snowflake` (cloud lanes: a real account, its credentials in
-     `LEGENDLITE_PCT_CLOUD_PROPERTIES`).
+     `ExplosionMarkers` passes stay for MariaDB and MySQL (`CarrierStrategies` for MongoDB too). What reads its source
+     moves with it: `DialectVocabularyTest`'s floors (concrete dialects 4 -> 3, function tables 8 -> 6, two each),
+     `CodeShapeGuardrailTest`'s mutable-field allowlist entry `Snowflake.fresh` (a membership list: stale, not failing,
+     once the shim has no such field), `PlatformNamesGuardrailTest`'s `BARE_NAME_ARMS_MAX` (Snowflake's date-part
+     table among its count, a ceiling), the dialect-name patterns of `DialectLeakRatchetTest` and `DialectBoundaryTest`
+     (names, the construction census unchanged: the shim keeps `new Snowflake()`), and the regenerated
+     `docs/dialect-capability`. The switch's gates are `//pct:pct_snowflake` and `//pct:pct_channel_b_snowflake`
+     (cloud lanes: a real account, its credentials in `LEGENDLITE_PCT_CLOUD_PROPERTIES`).
 
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 
