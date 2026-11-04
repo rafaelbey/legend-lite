@@ -223,6 +223,18 @@ fn the_seam_answers_as_mysqls_renderer_does() {
     the_seam_answers_as_the_renderer_does("MySql");
 }
 
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn mongodb_renders_as_java_does() {
+    renders_as_java_does("MongoDb");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_mongodbs_renderer_does() {
+    the_seam_answers_as_the_renderer_does("MongoDb");
+}
+
 /// An engine-text dialect's default configuration (Java's no-argument constructor), as the H2 dump writes it: an input
 /// the first dump holds with no configuration is the same input.
 const DEFAULT_ENGINE_CONFIG: &str = r#"{"quoteIdentifiers":false,"timeZone":null}"#;
@@ -904,6 +916,14 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             (t.window_aggregate, "WindowAggregatesAsCorrelated"),
             (t.constant_key, "ConstantKeysAsExpressions"),
             (dialect == "MySql" && t.window, "WindowsComputedBelow"),
+            (t.stored_reads, "StoredReads"),
+        ]
+    } else if dialect == "MongoDb" {
+        // MongoDB's one pass (MongoDb.passes()): the carrier strategies under native lists
+        vec![
+            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
+            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (t.carrier || t.pivot, "CarrierStrategies"),
             (t.stored_reads, "StoredReads"),
         ]
     } else if dialect.starts_with("EngineStyle") {

@@ -10,10 +10,10 @@ exports_files([
 
 # legend-lite's SQL dialects, ported from core/'s com.legend.sql.dialect (src/lib.rs; docs/rust-port/PHASE1.md steps 3
 # to 6): the shared renderer (Java's AnsiSqlRenderer as a trait), the writer, the pass pipeline with every pass DuckDB,
-# the H2 family, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDB and MySQL run, the typing
-# rules its constructors apply (Java's SqlTyping), DuckDB, H2 and H2Modern, the engine-text dialects (EngineStyleH2,
-# EngineStyleDB2, EngineStyleComposite), Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDb
-# and MySql,
+# the H2 family, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDB, MySQL and MongoDB run,
+# the typing rules its constructors apply (Java's SqlTyping), DuckDB, H2 and H2Modern, the engine-text dialects
+# (EngineStyleH2, EngineStyleDB2, EngineStyleComposite), Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery,
+# Snowflake, MariaDb, MySql and MongoDb (its aggregation pipeline and JSON writer),
 # rendering a lite_sql statement as the JVM does. It embeds the JDK's time-zone rules (src/java_time.rs includes
 # //rust/oracles/tzdb:tzdb.bin, 146 KB).
 rust_library(
@@ -41,7 +41,8 @@ rust_test(
 # every statement of the golden oracles (//rust/oracles:mir_dump, :h2_dump, :dialects_dump, :sqlite_arms, :dialect_arms
 # and the tagged engine-text query) of each dialect Rust answers -- DuckDb 16,154, H2 21,847, H2Modern 394, EngineStyleH2
 # 2,105, EngineStyleDB2 56, EngineStyleComposite 24, Postgres 11,630, SQLite 2,529, Trino 2,630, Databricks 2,631,
-# ClickHouse 2,643, BigQuery 2,643, Snowflake 2,645, MariaDb 2,634, MySql 2,634 -- rendered by a fresh Rust dialect and
+# ClickHouse 2,643, BigQuery 2,643, Snowflake 2,645, MariaDb 2,634, MySql 2,634, MongoDb 2,606 -- rendered by a fresh
+# Rust dialect and
 # held to Java's answer, at
 # least each dialect's floor (tests/<dialect>-floor.txt) identical; every type fact of every statement of the oracles
 # recomputed and held to Java's;
@@ -65,6 +66,7 @@ rust_test(
         "tests/h2-floor.txt",
         "tests/h2modern-floor.txt",
         "tests/mariadb-floor.txt",
+        "tests/mongodb-floor.txt",
         "tests/mysql-floor.txt",
         "tests/postgres-floor.txt",
         "tests/snowflake-floor.txt",
@@ -98,6 +100,7 @@ rust_test(
             "$(rootpath tests/snowflake-floor.txt)",
             "$(rootpath tests/mariadb-floor.txt)",
             "$(rootpath tests/mysql-floor.txt)",
+            "$(rootpath tests/mongodb-floor.txt)",
         ]),
         "LITE_ORACLES": " ".join([
             "$(rootpath //rust/oracles:mir_dump)",

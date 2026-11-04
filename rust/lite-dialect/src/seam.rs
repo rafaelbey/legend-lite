@@ -22,6 +22,7 @@ use crate::duckdb::DuckDb;
 use crate::engine_style::{EngineStyle, Profile};
 use crate::h2::H2;
 use crate::mariadb::MariaDb;
+use crate::mongodb::MongoDb;
 use crate::host_ops;
 use crate::postgres::Postgres;
 use crate::sqlite::Sqlite;
@@ -50,6 +51,7 @@ pub const DIALECTS: &[&str] = &[
     "Snowflake",
     "MariaDb",
     "MySql",
+    "MongoDb",
 ];
 
 /// Every op the seam answers (`SEAM.md`, "Ops").
@@ -135,6 +137,7 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
         | "Snowflake"
         | "MariaDb"
         | "MySql"
+        | "MongoDb"
             if configured =>
         {
             return Err(Refusal::illegal_argument(format!(
@@ -158,6 +161,7 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
         "Snowflake" => Box::new(Snowflake::new()),
         "MariaDb" => Box::new(MariaDb::new()),
         "MySql" => Box::new(MariaDb::mysql()),
+        "MongoDb" => Box::new(MongoDb::new()),
         "EngineStyleComposite" if quote_identifiers == Some(true) || time_zone.is_some() => {
             return Err(Refusal::illegal_argument(
                 "EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers \
@@ -680,3 +684,5 @@ mod bigquery_tests;
 mod snowflake_tests;
 #[cfg(test)]
 mod mariadb_tests;
+#[cfg(test)]
+mod mongodb_tests;
