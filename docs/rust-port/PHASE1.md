@@ -621,6 +621,27 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      `WireNames` (`SqlDialect`'s default `wireTypeName`), `Lexicon` (the DuckDb shim, `RustDialects`,
      `ffi/RustDialectProvider`), `TaggedComparables` (the EngineStyleH2 shim's Tagged substitution before MirJson),
      `RustDialects` and the sixteen shims.
+   - **6h, done 2026-11-04: the last switch -- every dialect is the Rust library's.** Snowflake, MariaDb, MySql (still
+     `extends MariaDb`, which the owner guard needs) and MongoDb are shims over the Rust library; no new op. With them the
+     Java renderer goes: `AnsiSqlRenderer`, `SqlWriter`, every remaining pass (`CarrierStrategies`, `PivotAsGroupBy`,
+     `CheckedDefectsToLists`, `ConstantKeysAsExpressions`, `RootNumericTypes`, `SubstringClamp`, `ExplosionMarkers`,
+     `StarExceptToColumns`, `Stars`, `QualifyToSubselect`, `WindowAggregatesAsCorrelated`, `WindowsComputedBelow`,
+     `StoredReads`, `FloatCanonText`, `FloatPrintText`) and MongoDB's `MongoDbPipeline` and `MongoJson`.
+     `StableScanOrder` keeps only `firings()`, the corpus runner's count, read from the seam. `com.legend.sql.dialect` is
+     now the sixteen shims and what the rest of core reads: `SqlDialect`, `EngineTextDialect`, `RustDialects`,
+     `RenderedStatement`, `DialectCapability`, `HostOperations`/`HostOperation`, `DdlSpelling`, `RawSqlBoundary`,
+     `CatalogModel`/`CatalogType`, `WireNames`, `Lexicon`, `TaggedComparables`, `StableScanOrder` -- 32 files, where the
+     phase began with 44,195 lines of Java dialect code. Retired with the Java renderer (`rust/RETIRED_TESTS.md`):
+     `SqlWriterTest`, `StoredReadsTest`, `DialectVocabularyTest`, and the capability matrix's generator
+     (`CapabilityMatrix`, `CapabilityReach`, their targets, `//docs:update_dialect_capability_test`);
+     `docs/dialect-capability/` is restored to its last full generation and marked frozen -- the Rust dialects answer as
+     that Java did. `TestLaneOrderGuardrailTest` follows the pass to Rust. `bazel test //...` against rust/BASELINE.tsv:
+     517 pass, the same 2 skipped, every baseline target at its baseline status but the retired docs diff test. The
+     manual heavy and cloud lanes of Snowflake, MariaDB, MySQL and MongoDB were not run here.
+
+   **Phase 1's dialects are done** (2026-11-04): all sixteen render in Rust, each held to Java's every answer over the
+   golden oracles (the first dump, the H2 family's, the remaining ten's, SQLite's and the eight dialects' every-arm
+   oracles, the tagged engine-text query), and the full suite answered as the baseline did after each switch.
 
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 

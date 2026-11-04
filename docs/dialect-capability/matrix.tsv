@@ -2,6 +2,669 @@
 # `bazel run //docs:update_dialect_capability`, which writes the pages beside it from the same rows.
 # dialect TAB database types TAB vocabulary TAB member TAB decision TAB writes, or why not TAB
 # read through TAB PCT cases (- where no PCT lane runs the dialect)
+H2	H2	call	AND	spelled	an operator (infix)		211
+H2	H2	call	OR	spelled	an operator (infix)		283
+H2	H2	call	NOT	spelled	an operator (notPrefix)		62
+H2	H2	call	EQUAL	emulated	equalArm		264
+H2	H2	call	NOT_EQUAL	spelled	an operator (infix)		16
+H2	H2	call	LESS	spelled	an operator (infix)		125
+H2	H2	call	LESS_EQUAL	spelled	an operator (infix)		125
+H2	H2	call	GREATER	spelled	an operator (infix)		378
+H2	H2	call	GREATER_EQUAL	spelled	an operator (infix)		168
+H2	H2	call	PLUS	spelled	an operator (infix)		108
+H2	H2	call	MINUS	spelled	an operator (infix)		146
+H2	H2	call	TIMES	spelled	an operator (infix)		32
+H2	H2	call	DIVIDE	emulated	divideAsDoubles		30
+H2	H2	call	MOD	emulated	modFloored		23
+H2	H2	call	REM	emulated	modTruncated		14
+H2	H2	call	NEGATE	spelled	an operator (negation)		0
+H2	H2	call	ABS	spelled	abs		65
+H2	H2	call	IS_NULL	spelled	an operator (isNullTest)		522
+H2	H2	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
+H2	H2	call	IN	emulated	inList		6
+H2	H2	call	COALESCE	spelled	coalesce		552
+H2	H2	call	PARSE_INT	emulated	castAs: BIGINT		11
+H2	H2	call	CONCAT	emulated	concatFlat		756
+H2	H2	call	LENGTH	spelled	length		73
+H2	H2	call	UPPER	spelled	upper		2
+H2	H2	call	LOWER	spelled	lower		3
+H2	H2	call	GREATEST	spelled	greatest		52
+H2	H2	call	LEAST	spelled	least		8
+H2	H2	call	CONCAT_JOIN	spelled	concat		0
+H2	H2	call	LIST_FILTER	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	23
+H2	H2	call	LIST_TRANSFORM	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	31
+H2	H2	call	LIST_CONCAT	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	2
+H2	H2	call	LIST_GET	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	69
+H2	H2	call	LIST_POSITION	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	39
+H2	H2	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listExists	8
+H2	H2	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listForAll	3
+H2	H2	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	via AnsiSqlRenderer.structInsert	0
+H2	H2	call	UNNEST	refused	UNNEST reached a dialect without an unnest placement	via AnsiSqlRenderer.unnestProjection	83
+H2	H2	call	LIST_FLATTEN	spelled	flatten		0
+H2	H2	call	JSON_MERGE_PATCH	refused	a JSON merge reached H2, which has no json_merge_patch()		0
+H2	H2	call	SQRT	spelled	sqrt		4
+H2	H2	call	CBRT	spelled	cbrt		3
+H2	H2	call	EXP	spelled	exp		4
+H2	H2	call	LN	spelled	ln		3
+H2	H2	call	LOG10	spelled	log10		2
+H2	H2	call	POW	spelled	power		9
+H2	H2	call	PI	spelled	pi		1
+H2	H2	call	SIN	spelled	sin		3
+H2	H2	call	COS	spelled	cos		3
+H2	H2	call	TAN	spelled	tan		2
+H2	H2	call	ASIN	spelled	asin		4
+H2	H2	call	ACOS	spelled	acos		4
+H2	H2	call	ATAN	spelled	atan		3
+H2	H2	call	ATAN2	spelled	atan2		3
+H2	H2	call	SINH	spelled	sinh		22
+H2	H2	call	COSH	spelled	cosh		24
+H2	H2	call	TANH	spelled	tanh		29
+H2	H2	call	CEILING	emulated	bigintOf: ceil		12
+H2	H2	call	FLOOR	emulated	bigintOf: floor		18
+H2	H2	call	ROUND	emulated	roundHalfEven		22
+H2	H2	call	SIGN	emulated	bigintOf: sign		6
+H2	H2	call	XOR	emulated	xorAsAndOr		8
+H2	H2	call	BIT_AND	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	16
+H2	H2	call	BIT_OR	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	16
+H2	H2	call	BIT_XOR	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	16
+H2	H2	call	BIT_SHIFT_LEFT	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	10
+H2	H2	call	BIT_SHIFT_RIGHT	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	10
+H2	H2	call	BIT_NOT	refused	bitNot reached H2, which has no xor()		15
+H2	H2	call	REGEXP_EXTRACT	emulated	regexpExtractArm		45
+H2	H2	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all		13
+H2	H2	call	REGEXP_REPLACE	spelled	regexp_replace		8
+H2	H2	call	REGEXP_FULL_MATCH	emulated	regexpFullMatch		49
+H2	H2	call	MAP_FROM_LISTS	spelled	map		3
+H2	H2	call	MAP_FROM_ENTRIES	spelled	map_from_entries		13
+H2	H2	call	MAP_EMPTY	refused	an empty map reached H2, which has no map type		8
+H2	H2	call	MAP_EXTRACT	spelled	map_extract		2
+H2	H2	call	MAP_KEYS	spelled	map_keys		4
+H2	H2	call	MAP_VALUES	spelled	map_values		4
+H2	H2	call	MAP_CONCAT	spelled	map_concat		9
+H2	H2	call	SUBSTRING	spelled	substr		140
+H2	H2	call	STRPOS	spelled	LOCATE		287
+H2	H2	call	STARTS_WITH	emulated	(LEFT(…, CHAR_LENGTH(…)) = …)		60
+H2	H2	call	ENDS_WITH	emulated	(RIGHT(…, CHAR_LENGTH(…)) = …)		60
+H2	H2	call	MATCHES	spelled	regexp_like		16
+H2	H2	call	LEFT	spelled	left		6
+H2	H2	call	RIGHT	spelled	right		6
+H2	H2	call	LPAD	emulated	padWithSpace: lpad		16
+H2	H2	call	RPAD	emulated	padWithSpace: rpad		45
+H2	H2	call	TRIM	spelled	trim		2
+H2	H2	call	LTRIM	spelled	ltrim		3
+H2	H2	call	RTRIM	spelled	rtrim		60
+H2	H2	call	REPLACE	spelled	replace		313
+H2	H2	call	SPLIT	spelled	string_split		2
+H2	H2	call	SPLIT_PART	emulated	splitPartArm		19
+H2	H2	call	TRANSLATE	emulated	translate		0
+H2	H2	call	PURE_SPLIT_PART	emulated	splitPartCall		9
+H2	H2	call	REVERSE_STRING	spelled	reverse		2
+H2	H2	call	ASCII_CODE	spelled	ascii		10
+H2	H2	call	CHR	spelled	chr		9
+H2	H2	call	UC_FIRST	emulated	firstCharCased: upper		5
+H2	H2	call	LC_FIRST	emulated	firstCharCased: lower		5
+H2	H2	call	ENCODE_BASE64	refused	encodeBase64 reached H2, which has no to_base64()		3
+H2	H2	call	LEVENSHTEIN	spelled	levenshtein		2
+H2	H2	call	GUID	emulated	CAST(uuid() AS VARCHAR)		2
+H2	H2	call	FORMAT	emulated	formatArm		42
+H2	H2	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spelling	via AnsiSqlRenderer.hashSigned	5
+H2	H2	call	MD5	emulated	digest: MD5		1
+H2	H2	call	SHA1	emulated	digest: SHA-1		1
+H2	H2	call	SHA256	emulated	digest: SHA-256		1
+H2	H2	call	RANDOM	spelled	RAND		0
+H2	H2	call	EXTRACT	emulated	datePart, part: extract(… FROM …)		24
+H2	H2	call	TODAY	spelled	current_date		0
+H2	H2	call	NOW	spelled	now		0
+H2	H2	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
+H2	H2	call	MAKE_DATE	spelled	make_date		2
+H2	H2	call	MAKE_TIMESTAMP	refused	a date-time constructor reached H2, which has no make_timestamp()		10
+H2	H2	call	DATE_TRUNC	emulated	dateTruncDateGrained		0
+H2	H2	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)		93
+H2	H2	call	DATE_DIFF	emulated	dateDiffArm		53
+H2	H2	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()		109
+H2	H2	call	TIMEZONE	spelled	timezone		6
+H2	H2	call	DATE_AT_TIME	spelled	an operator (+)		0
+H2	H2	call	EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+H2	H2	call	FROM_EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+H2	H2	call	ADD_INTERVAL_TEMPORAL	emulated	dateUnit, part: dateadd(…, …, …)		0
+H2	H2	call	EPOCH_SECONDS	emulated	EXTRACT(EPOCH FROM …)		0
+H2	H2	call	EPOCH_MS	emulated	CAST(EXTRACT(EPOCH FROM …) * 1000 AS BIGINT)		24
+H2	H2	call	FROM_EPOCH_SECONDS	spelled	to_timestamp		0
+H2	H2	call	FROM_EPOCH_MS	refused	a date from epoch milliseconds reached H2, which has no epoch_ms()		0
+H2	H2	call	DAYNAME	spelled	dayname		0
+H2	H2	call	MONTHNAME	spelled	monthname		0
+H2	H2	call	COT	spelled	cot		2
+H2	H2	call	RADIANS	spelled	radians		1
+H2	H2	call	DEGREES	spelled	degrees		1
+H2	H2	call	INT_DIVIDE	emulated	CAST(… / … AS BIGINT)		40
+H2	H2	call	REPEAT_STR	spelled	repeat		4
+H2	H2	call	JARO_WINKLER	spelled	jaro_winkler_similarity		2
+H2	H2	call	DECODE_BASE64	refused	decodeBase64 reached H2, which has no from_base64()		4
+H2	H2	call	CURRENT_USER_FN	spelled	current_user		2
+H2	H2	call	LIST_LENGTH	spelled	len		27
+H2	H2	call	LIST_ZIP	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
+H2	H2	call	LIST_DISTINCT	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
+H2	H2	call	LIST_APPEND	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	8
+H2	H2	call	LIST_SUM	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
+H2	H2	call	LIST_MIN	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	58
+H2	H2	call	LIST_MAX	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	58
+H2	H2	call	LIST_AVG	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	3
+H2	H2	call	LIST_MEDIAN	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	6
+H2	H2	call	LIST_MODE	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	6
+H2	H2	call	LIST_SORT	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	13
+H2	H2	call	LIST_SORT_DESC	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	5
+H2	H2	call	LIST_TAIL	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	1
+H2	H2	call	LIST_INIT	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
+H2	H2	call	RANGE_FN	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	33
+H2	H2	call	LIST_PRODUCT	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
+H2	H2	call	LIST_REDUCE	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	6
+H2	H2	call	LIST_SLICE	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	13
+H2	H2	call	REPEAT_VALUE	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
+H2	H2	call	LIST_BOOL_AND	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
+H2	H2	call	LIST_BOOL_OR	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
+H2	H2	call	IS_DISTINCT_FROM	emulated	distinctFrom		0
+H2	H2	call	ALL_DISTINCT	refused	collection isDistinct reached a dialect without a list encoding	via AnsiSqlRenderer.allDistinct	0
+H2	H2	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom		3
+H2	H2	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom		10
+H2	H2	call	STRFTIME	spelled	formatdatetime		193
+H2	H2	call	STRPTIME	spelled	parsedatetime		0
+H2	H2	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
+H2	H2	call	LIST_REVERSE	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	4
+H2	H2	call	TYPEOF	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	0
+H2	H2	call	ROUND_HALF_UP	spelled	ROUND		1
+H2	H2	call	ERROR	emulated	errorArm		70
+H2	H2	call	FLOOR_RAW	spelled	floor		55
+H2	H2	call	TO_VARIANT	emulated	variantConstruct		8
+H2	H2	call	BOOL_TO_TEXT	emulated	CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END		2
+H2	H2	call	FLOAT_CANON	emulated	floatCanonByText		0
+H2	H2	call	FLOAT_PRINT	emulated	floatPrintByText		0
+H2	H2	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	2
+H2	H2	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantGet	14
+H2	H2	call	JSON_TYPE	spelled	json_type		1
+H2	H2	call	JSON_ARRAY_LENGTH	spelled	json_array_length		0
+H2	H2	call	JSON_PRETTY	spelled	json_pretty		0
+H2	H2	reducer	SUM	emulated	h2Aggregate: SUM		212
+H2	H2	reducer	COUNT	emulated	h2Aggregate: COUNT		14
+H2	H2	reducer	AVG	emulated	h2Aggregate: AVG		10
+H2	H2	reducer	MIN	emulated	h2Aggregate: MIN		11
+H2	H2	reducer	MAX	emulated	h2Aggregate: MAX		11
+H2	H2	reducer	ANY_VALUE	emulated	by its operands: composed / …ANY_VALUE		0
+H2	H2	reducer	STDDEV_SAMP	emulated	h2Aggregate: STDDEV_SAMP		2
+H2	H2	reducer	STDDEV_POP	emulated	h2Aggregate: STDDEV_POP		5
+H2	H2	reducer	VAR_SAMP	emulated	h2Aggregate: VAR_SAMP		2
+H2	H2	reducer	VAR_POP	emulated	h2Aggregate: VAR_POP		2
+H2	H2	reducer	MEDIAN	emulated	h2Aggregate: MEDIAN		6
+H2	H2	reducer	MODE	emulated	h2Aggregate: MODE		6
+H2	H2	reducer	STRING_AGG	emulated	h2Aggregate: STRING_AGG		506
+H2	H2	reducer	LIST	emulated	by its operands: composed / …LIST		1
+H2	H2	reducer	QUANTILE_CONT	emulated	by its operands: …PERCENTILE_CONT / …QUANTILE_CONT		1
+H2	H2	reducer	QUANTILE_DISC	emulated	by its operands: …PERCENTILE_DISC / …QUANTILE_DISC		1
+H2	H2	reducer	CORR	emulated	h2Aggregate: CORR		4
+H2	H2	reducer	COVAR_SAMP	emulated	h2Aggregate: COVAR_SAMP		5
+H2	H2	reducer	COVAR_POP	emulated	h2Aggregate: COVAR_POP		4
+H2	H2	reducer	ARG_MAX	emulated	h2Aggregate: ARG_MAX		1
+H2	H2	reducer	ARG_MIN	emulated	h2Aggregate: ARG_MIN		1
+H2	H2	reducer	WAVG	not_here	lowering marker reached the renderer		0
+H2	H2	reducer	HASH_LIST	not_here	lowering marker reached the renderer		0
+H2	H2	reducer	BOOL_AND	emulated	h2Aggregate: BOOL_AND		0
+H2	H2	reducer	BOOL_OR	emulated	h2Aggregate: BOOL_OR		0
+H2	H2	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		0
+H2	H2	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
+H2	H2	reducer	VARIANCE	emulated	h2Aggregate: VARIANCE		0
+H2	H2	reducer	STDDEV	emulated	h2Aggregate: STDDEV		0
+H2	H2	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
+H2	H2	reducer	RANK	not_here	is a window function: windowCall writes it		0
+H2	H2	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
+H2	H2	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it		0
+H2	H2	reducer	CUME_DIST	not_here	is a window function: windowCall writes it		0
+H2	H2	reducer	NTILE	not_here	is a window function: windowCall writes it		0
+H2	H2	reducer	LAG	not_here	is a window function: windowCall writes it		0
+H2	H2	reducer	LEAD	not_here	is a window function: windowCall writes it		0
+H2	H2	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
+H2	H2	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
+H2	H2	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
+H2Modern	-	call	AND	spelled	an operator (infix)	as H2	-
+H2Modern	-	call	OR	spelled	an operator (infix)	as H2	-
+H2Modern	-	call	NOT	spelled	an operator (notPrefix)	as H2	-
+H2Modern	-	call	EQUAL	emulated	equalArm	as H2	-
+H2Modern	-	call	NOT_EQUAL	spelled	an operator (infix)	as H2	-
+H2Modern	-	call	LESS	spelled	an operator (infix)	as H2	-
+H2Modern	-	call	LESS_EQUAL	spelled	an operator (infix)	as H2	-
+H2Modern	-	call	GREATER	spelled	an operator (infix)	as H2	-
+H2Modern	-	call	GREATER_EQUAL	spelled	an operator (infix)	as H2	-
+H2Modern	-	call	PLUS	spelled	an operator (infix)	as H2	-
+H2Modern	-	call	MINUS	spelled	an operator (infix)	as H2	-
+H2Modern	-	call	TIMES	spelled	an operator (infix)	as H2	-
+H2Modern	-	call	DIVIDE	emulated	divideAsDoubles	as H2	-
+H2Modern	-	call	MOD	emulated	modFloored	as H2	-
+H2Modern	-	call	REM	emulated	modTruncated	as H2	-
+H2Modern	-	call	NEGATE	spelled	an operator (negation)	as H2	-
+H2Modern	-	call	ABS	spelled	abs	as H2	-
+H2Modern	-	call	IS_NULL	spelled	an operator (isNullTest)	as H2	-
+H2Modern	-	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)	as H2	-
+H2Modern	-	call	IN	emulated	inList	as H2	-
+H2Modern	-	call	COALESCE	spelled	coalesce	as H2	-
+H2Modern	-	call	PARSE_INT	emulated	castAs: BIGINT	as H2	-
+H2Modern	-	call	CONCAT	emulated	concatFlat	as H2	-
+H2Modern	-	call	LENGTH	spelled	length	as H2	-
+H2Modern	-	call	UPPER	spelled	upper	as H2	-
+H2Modern	-	call	LOWER	spelled	lower	as H2	-
+H2Modern	-	call	GREATEST	spelled	greatest	as H2	-
+H2Modern	-	call	LEAST	spelled	least	as H2	-
+H2Modern	-	call	CONCAT_JOIN	spelled	concat	as H2	-
+H2Modern	-	call	LIST_FILTER	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_TRANSFORM	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_CONCAT	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_GET	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_POSITION	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	as H2, via AnsiSqlRenderer.listExists	-
+H2Modern	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	as H2, via AnsiSqlRenderer.listForAll	-
+H2Modern	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	as H2, via AnsiSqlRenderer.structInsert	-
+H2Modern	-	call	UNNEST	refused	UNNEST reached a dialect without an unnest placement	as H2, via AnsiSqlRenderer.unnestProjection	-
+H2Modern	-	call	LIST_FLATTEN	spelled	flatten	as H2	-
+H2Modern	-	call	JSON_MERGE_PATCH	refused	a JSON merge reached H2, which has no json_merge_patch()	as H2	-
+H2Modern	-	call	SQRT	spelled	sqrt	as H2	-
+H2Modern	-	call	CBRT	spelled	cbrt	as H2	-
+H2Modern	-	call	EXP	spelled	exp	as H2	-
+H2Modern	-	call	LN	spelled	ln	as H2	-
+H2Modern	-	call	LOG10	spelled	log10	as H2	-
+H2Modern	-	call	POW	spelled	power	as H2	-
+H2Modern	-	call	PI	spelled	pi	as H2	-
+H2Modern	-	call	SIN	spelled	sin	as H2	-
+H2Modern	-	call	COS	spelled	cos	as H2	-
+H2Modern	-	call	TAN	spelled	tan	as H2	-
+H2Modern	-	call	ASIN	spelled	asin	as H2	-
+H2Modern	-	call	ACOS	spelled	acos	as H2	-
+H2Modern	-	call	ATAN	spelled	atan	as H2	-
+H2Modern	-	call	ATAN2	spelled	atan2	as H2	-
+H2Modern	-	call	SINH	spelled	sinh	as H2	-
+H2Modern	-	call	COSH	spelled	cosh	as H2	-
+H2Modern	-	call	TANH	spelled	tanh	as H2	-
+H2Modern	-	call	CEILING	emulated	bigintOf: ceil	as H2	-
+H2Modern	-	call	FLOOR	emulated	bigintOf: floor	as H2	-
+H2Modern	-	call	ROUND	emulated	roundHalfEven	as H2	-
+H2Modern	-	call	SIGN	emulated	bigintOf: sign	as H2	-
+H2Modern	-	call	XOR	emulated	xorAsAndOr	as H2	-
+H2Modern	-	call	BIT_AND	refused	reached a dialect without bit-op support	as H2, via AnsiSqlRenderer.bitOp	-
+H2Modern	-	call	BIT_OR	refused	reached a dialect without bit-op support	as H2, via AnsiSqlRenderer.bitOp	-
+H2Modern	-	call	BIT_XOR	refused	reached a dialect without bit-op support	as H2, via AnsiSqlRenderer.bitOp	-
+H2Modern	-	call	BIT_SHIFT_LEFT	refused	reached a dialect without bit-op support	as H2, via AnsiSqlRenderer.bitOp	-
+H2Modern	-	call	BIT_SHIFT_RIGHT	refused	reached a dialect without bit-op support	as H2, via AnsiSqlRenderer.bitOp	-
+H2Modern	-	call	BIT_NOT	refused	bitNot reached H2, which has no xor()	as H2	-
+H2Modern	-	call	REGEXP_EXTRACT	emulated	regexpExtractArm	as H2	-
+H2Modern	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all	as H2	-
+H2Modern	-	call	REGEXP_REPLACE	spelled	regexp_replace	as H2	-
+H2Modern	-	call	REGEXP_FULL_MATCH	emulated	regexpFullMatch	as H2	-
+H2Modern	-	call	MAP_FROM_LISTS	spelled	map	as H2	-
+H2Modern	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries	as H2	-
+H2Modern	-	call	MAP_EMPTY	refused	an empty map reached H2, which has no map type	as H2	-
+H2Modern	-	call	MAP_EXTRACT	spelled	map_extract	as H2	-
+H2Modern	-	call	MAP_KEYS	spelled	map_keys	as H2	-
+H2Modern	-	call	MAP_VALUES	spelled	map_values	as H2	-
+H2Modern	-	call	MAP_CONCAT	spelled	map_concat	as H2	-
+H2Modern	-	call	SUBSTRING	spelled	substr	as H2	-
+H2Modern	-	call	STRPOS	spelled	LOCATE	as H2	-
+H2Modern	-	call	STARTS_WITH	emulated	(LEFT(…, CHAR_LENGTH(…)) = …)	as H2	-
+H2Modern	-	call	ENDS_WITH	emulated	(RIGHT(…, CHAR_LENGTH(…)) = …)	as H2	-
+H2Modern	-	call	MATCHES	spelled	regexp_like	as H2	-
+H2Modern	-	call	LEFT	spelled	left	as H2	-
+H2Modern	-	call	RIGHT	spelled	right	as H2	-
+H2Modern	-	call	LPAD	emulated	padWithSpace: lpad	as H2	-
+H2Modern	-	call	RPAD	emulated	padWithSpace: rpad	as H2	-
+H2Modern	-	call	TRIM	spelled	trim	as H2	-
+H2Modern	-	call	LTRIM	spelled	ltrim	as H2	-
+H2Modern	-	call	RTRIM	spelled	rtrim	as H2	-
+H2Modern	-	call	REPLACE	spelled	replace	as H2	-
+H2Modern	-	call	SPLIT	spelled	string_split	as H2	-
+H2Modern	-	call	SPLIT_PART	emulated	splitPartArm	as H2	-
+H2Modern	-	call	TRANSLATE	emulated	translate	as H2	-
+H2Modern	-	call	PURE_SPLIT_PART	emulated	splitPartCall	as H2	-
+H2Modern	-	call	REVERSE_STRING	spelled	reverse	as H2	-
+H2Modern	-	call	ASCII_CODE	spelled	ascii	as H2	-
+H2Modern	-	call	CHR	spelled	chr	as H2	-
+H2Modern	-	call	UC_FIRST	emulated	firstCharCased: upper	as H2	-
+H2Modern	-	call	LC_FIRST	emulated	firstCharCased: lower	as H2	-
+H2Modern	-	call	ENCODE_BASE64	refused	encodeBase64 reached H2, which has no to_base64()	as H2	-
+H2Modern	-	call	LEVENSHTEIN	spelled	levenshtein	as H2	-
+H2Modern	-	call	GUID	emulated	CAST(uuid() AS VARCHAR)	as H2	-
+H2Modern	-	call	FORMAT	emulated	formatArm	as H2	-
+H2Modern	-	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spelling	as H2, via AnsiSqlRenderer.hashSigned	-
+H2Modern	-	call	MD5	emulated	digest: MD5	as H2	-
+H2Modern	-	call	SHA1	emulated	digest: SHA-1	as H2	-
+H2Modern	-	call	SHA256	emulated	digest: SHA-256	as H2	-
+H2Modern	-	call	RANDOM	spelled	RAND	as H2	-
+H2Modern	-	call	EXTRACT	emulated	datePart, part: extract(… FROM …)	as H2	-
+H2Modern	-	call	TODAY	spelled	current_date	as H2	-
+H2Modern	-	call	NOW	spelled	now	as H2	-
+H2Modern	-	call	DATE_TRUNC_DAY	emulated	castAs: DATE	as H2	-
+H2Modern	-	call	MAKE_DATE	spelled	make_date	as H2	-
+H2Modern	-	call	MAKE_TIMESTAMP	refused	a date-time constructor reached H2, which has no make_timestamp()	as H2	-
+H2Modern	-	call	DATE_TRUNC	emulated	dateTruncDateGrained	as H2	-
+H2Modern	-	call	ADD_INTERVAL	emulated	dateUnit, part: dateadd(…, …, …)	as H2	-
+H2Modern	-	call	DATE_DIFF	emulated	dateDiffArm	as H2	-
+H2Modern	-	call	TIME_BUCKET	refused	a time bucket reached H2, which has no time_bucket()	as H2	-
+H2Modern	-	call	TIMEZONE	spelled	timezone	as H2	-
+H2Modern	-	call	DATE_AT_TIME	spelled	an operator (+)	as H2	-
+H2Modern	-	call	EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as H2	-
+H2Modern	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as H2	-
+H2Modern	-	call	ADD_INTERVAL_TEMPORAL	emulated	dateUnit, part: dateadd(…, …, …)	as H2	-
+H2Modern	-	call	EPOCH_SECONDS	emulated	EXTRACT(EPOCH FROM …)	as H2	-
+H2Modern	-	call	EPOCH_MS	emulated	CAST(EXTRACT(EPOCH FROM …) * 1000 AS BIGINT)	as H2	-
+H2Modern	-	call	FROM_EPOCH_SECONDS	spelled	to_timestamp	as H2	-
+H2Modern	-	call	FROM_EPOCH_MS	refused	a date from epoch milliseconds reached H2, which has no epoch_ms()	as H2	-
+H2Modern	-	call	DAYNAME	spelled	dayname	as H2	-
+H2Modern	-	call	MONTHNAME	spelled	monthname	as H2	-
+H2Modern	-	call	COT	spelled	cot	as H2	-
+H2Modern	-	call	RADIANS	spelled	radians	as H2	-
+H2Modern	-	call	DEGREES	spelled	degrees	as H2	-
+H2Modern	-	call	INT_DIVIDE	emulated	CAST(… / … AS BIGINT)	as H2	-
+H2Modern	-	call	REPEAT_STR	spelled	repeat	as H2	-
+H2Modern	-	call	JARO_WINKLER	spelled	jaro_winkler_similarity	as H2	-
+H2Modern	-	call	DECODE_BASE64	refused	decodeBase64 reached H2, which has no from_base64()	as H2	-
+H2Modern	-	call	CURRENT_USER_FN	spelled	current_user	as H2	-
+H2Modern	-	call	LIST_LENGTH	emulated	listLength		-
+H2Modern	-	call	LIST_ZIP	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_DISTINCT	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_APPEND	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_SUM	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_MIN	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_MAX	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_AVG	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_MEDIAN	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_MODE	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_SORT	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_SORT_DESC	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_TAIL	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_INIT	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	RANGE_FN	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_PRODUCT	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_REDUCE	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_SLICE	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	REPEAT_VALUE	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_BOOL_AND	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	LIST_BOOL_OR	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	IS_DISTINCT_FROM	emulated	distinctFrom	as H2	-
+H2Modern	-	call	ALL_DISTINCT	refused	collection isDistinct reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.allDistinct	-
+H2Modern	-	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom	as H2	-
+H2Modern	-	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom	as H2	-
+H2Modern	-	call	STRFTIME	spelled	formatdatetime	as H2	-
+H2Modern	-	call	STRPTIME	spelled	parsedatetime	as H2	-
+H2Modern	-	call	PARSE_DATE	emulated	castAs: TIMESTAMP	as H2	-
+H2Modern	-	call	LIST_REVERSE	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	TYPEOF	refused	reached a dialect without a list encoding	as H2, via AnsiSqlRenderer.listCall	-
+H2Modern	-	call	ROUND_HALF_UP	spelled	ROUND	as H2	-
+H2Modern	-	call	ERROR	emulated	errorArm	as H2	-
+H2Modern	-	call	FLOOR_RAW	spelled	floor	as H2	-
+H2Modern	-	call	TO_VARIANT	emulated	variantConstruct	as H2	-
+H2Modern	-	call	BOOL_TO_TEXT	emulated	CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END	as H2	-
+H2Modern	-	call	FLOAT_CANON	emulated	floatCanonByText	as H2	-
+H2Modern	-	call	FLOAT_PRINT	emulated	floatPrintByText	as H2	-
+H2Modern	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as H2, via AnsiSqlRenderer.variantElements	-
+H2Modern	-	call	VARIANT_GET	emulated	variantGet	as H2	-
+H2Modern	-	call	JSON_TYPE	spelled	json_type	as H2	-
+H2Modern	-	call	JSON_ARRAY_LENGTH	spelled	json_array_length	as H2	-
+H2Modern	-	call	JSON_PRETTY	spelled	json_pretty	as H2	-
+H2Modern	-	reducer	SUM	emulated	h2Aggregate: SUM	as H2	-
+H2Modern	-	reducer	COUNT	emulated	h2Aggregate: COUNT	as H2	-
+H2Modern	-	reducer	AVG	emulated	h2Aggregate: AVG	as H2	-
+H2Modern	-	reducer	MIN	emulated	h2Aggregate: MIN	as H2	-
+H2Modern	-	reducer	MAX	emulated	h2Aggregate: MAX	as H2	-
+H2Modern	-	reducer	ANY_VALUE	emulated	by its operands: composed / …ANY_VALUE	as H2	-
+H2Modern	-	reducer	STDDEV_SAMP	emulated	h2Aggregate: STDDEV_SAMP	as H2	-
+H2Modern	-	reducer	STDDEV_POP	emulated	h2Aggregate: STDDEV_POP	as H2	-
+H2Modern	-	reducer	VAR_SAMP	emulated	h2Aggregate: VAR_SAMP	as H2	-
+H2Modern	-	reducer	VAR_POP	emulated	h2Aggregate: VAR_POP	as H2	-
+H2Modern	-	reducer	MEDIAN	emulated	h2Aggregate: MEDIAN	as H2	-
+H2Modern	-	reducer	MODE	emulated	h2Aggregate: MODE	as H2	-
+H2Modern	-	reducer	STRING_AGG	emulated	h2Aggregate: STRING_AGG	as H2	-
+H2Modern	-	reducer	LIST	emulated	by its operands: composed / …LIST	as H2	-
+H2Modern	-	reducer	QUANTILE_CONT	emulated	by its operands: …PERCENTILE_CONT / …QUANTILE_CONT	as H2	-
+H2Modern	-	reducer	QUANTILE_DISC	emulated	by its operands: …PERCENTILE_DISC / …QUANTILE_DISC	as H2	-
+H2Modern	-	reducer	CORR	emulated	h2Aggregate: CORR	as H2	-
+H2Modern	-	reducer	COVAR_SAMP	emulated	h2Aggregate: COVAR_SAMP	as H2	-
+H2Modern	-	reducer	COVAR_POP	emulated	h2Aggregate: COVAR_POP	as H2	-
+H2Modern	-	reducer	ARG_MAX	emulated	h2Aggregate: ARG_MAX	as H2	-
+H2Modern	-	reducer	ARG_MIN	emulated	h2Aggregate: ARG_MIN	as H2	-
+H2Modern	-	reducer	WAVG	not_here	lowering marker reached the renderer	as H2	-
+H2Modern	-	reducer	HASH_LIST	not_here	lowering marker reached the renderer	as H2	-
+H2Modern	-	reducer	BOOL_AND	emulated	h2Aggregate: BOOL_AND	as H2	-
+H2Modern	-	reducer	BOOL_OR	emulated	h2Aggregate: BOOL_OR	as H2	-
+H2Modern	-	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer	as H2	-
+H2Modern	-	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer	as H2	-
+H2Modern	-	reducer	VARIANCE	emulated	h2Aggregate: VARIANCE	as H2	-
+H2Modern	-	reducer	STDDEV	emulated	h2Aggregate: STDDEV	as H2	-
+H2Modern	-	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it	as H2	-
+H2Modern	-	reducer	RANK	not_here	is a window function: windowCall writes it	as H2	-
+H2Modern	-	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it	as H2	-
+H2Modern	-	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it	as H2	-
+H2Modern	-	reducer	CUME_DIST	not_here	is a window function: windowCall writes it	as H2	-
+H2Modern	-	reducer	NTILE	not_here	is a window function: windowCall writes it	as H2	-
+H2Modern	-	reducer	LAG	not_here	is a window function: windowCall writes it	as H2	-
+H2Modern	-	reducer	LEAD	not_here	is a window function: windowCall writes it	as H2	-
+H2Modern	-	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it	as H2	-
+H2Modern	-	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it	as H2	-
+H2Modern	-	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it	as H2	-
+Postgres	Postgres	call	AND	spelled	an operator (infix)		211
+Postgres	Postgres	call	OR	spelled	an operator (infix)		283
+Postgres	Postgres	call	NOT	spelled	an operator (notPrefix)		68
+Postgres	Postgres	call	EQUAL	spelled	an operator (infix)		264
+Postgres	Postgres	call	NOT_EQUAL	spelled	an operator (infix)		16
+Postgres	Postgres	call	LESS	spelled	an operator (infix)		125
+Postgres	Postgres	call	LESS_EQUAL	spelled	an operator (infix)		125
+Postgres	Postgres	call	GREATER	spelled	an operator (infix)		378
+Postgres	Postgres	call	GREATER_EQUAL	spelled	an operator (infix)		168
+Postgres	Postgres	call	PLUS	spelled	an operator (infix)		108
+Postgres	Postgres	call	MINUS	spelled	an operator (infix)		146
+Postgres	Postgres	call	TIMES	spelled	an operator (infix)		32
+Postgres	Postgres	call	DIVIDE	emulated	(CAST(… AS DOUBLE PRECISION) / CAST(… AS DOUBLE PRECISION))		30
+Postgres	Postgres	call	MOD	emulated	modArm		23
+Postgres	Postgres	call	REM	emulated	modArm		14
+Postgres	Postgres	call	NEGATE	spelled	an operator (negation)		0
+Postgres	Postgres	call	ABS	spelled	abs		65
+Postgres	Postgres	call	IS_NULL	spelled	an operator (isNullTest)		522
+Postgres	Postgres	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
+Postgres	Postgres	call	IN	emulated	inList		6
+Postgres	Postgres	call	COALESCE	emulated	coalesceArm		552
+Postgres	Postgres	call	PARSE_INT	emulated	castAs: BIGINT		11
+Postgres	Postgres	call	CONCAT	emulated	concatFlat		756
+Postgres	Postgres	call	LENGTH	emulated	by its operands: length(…) / length(CAST(… AS VARCHAR))		73
+Postgres	Postgres	call	UPPER	spelled	upper		2
+Postgres	Postgres	call	LOWER	spelled	lower		3
+Postgres	Postgres	call	GREATEST	spelled	greatest		52
+Postgres	Postgres	call	LEAST	spelled	least		8
+Postgres	Postgres	call	CONCAT_JOIN	spelled	concat		0
+Postgres	Postgres	call	LIST_FILTER	emulated	composed in a block	via Postgres.listCall	23
+Postgres	Postgres	call	LIST_TRANSFORM	emulated	listTransform		31
+Postgres	Postgres	call	LIST_CONCAT	emulated	listConcat		2
+Postgres	Postgres	call	LIST_GET	emulated	composed in a block	via Postgres.listCall	69
+Postgres	Postgres	call	LIST_POSITION	spelled	array_position	via Postgres.listCall	39
+Postgres	Postgres	call	LIST_EXISTS	emulated	listExists		8
+Postgres	Postgres	call	LIST_FOR_ALL	emulated	listForAll		3
+Postgres	Postgres	call	STRUCT_INSERT	emulated	structInsert		0
+Postgres	Postgres	call	UNNEST	emulated	unnestProjection		83
+Postgres	Postgres	call	LIST_FLATTEN	refused	collections over the jsonb carrier are leg P4 reached Postgres:		0
+Postgres	Postgres	call	JSON_MERGE_PATCH	refused	variant over jsonb is leg P4 reached Postgres:		0
+Postgres	Postgres	call	SQRT	emulated	sqrt(CAST(… AS DOUBLE PRECISION))		4
+Postgres	Postgres	call	CBRT	spelled	cbrt		3
+Postgres	Postgres	call	EXP	emulated	exp(CAST(… AS DOUBLE PRECISION))		4
+Postgres	Postgres	call	LN	emulated	ln(CAST(… AS DOUBLE PRECISION))		3
+Postgres	Postgres	call	LOG10	emulated	log10(CAST(… AS DOUBLE PRECISION))		2
+Postgres	Postgres	call	POW	emulated	power(CAST(… AS DOUBLE PRECISION), CAST(… AS DOUBLE PRECISION))		9
+Postgres	Postgres	call	PI	spelled	pi		1
+Postgres	Postgres	call	SIN	spelled	sin		3
+Postgres	Postgres	call	COS	spelled	cos		3
+Postgres	Postgres	call	TAN	spelled	tan		2
+Postgres	Postgres	call	ASIN	emulated	acos		4
+Postgres	Postgres	call	ACOS	emulated	acos		4
+Postgres	Postgres	call	ATAN	spelled	atan		3
+Postgres	Postgres	call	ATAN2	spelled	atan2		3
+Postgres	Postgres	call	SINH	spelled	sinh		22
+Postgres	Postgres	call	COSH	spelled	cosh		24
+Postgres	Postgres	call	TANH	spelled	tanh		29
+Postgres	Postgres	call	CEILING	emulated	bigintOf: ceil		12
+Postgres	Postgres	call	FLOOR	emulated	bigintOf: floor		18
+Postgres	Postgres	call	ROUND	emulated	roundHalfEven		22
+Postgres	Postgres	call	SIGN	emulated	bigintOf: sign		6
+Postgres	Postgres	call	XOR	emulated	xorAsAndOr		8
+Postgres	Postgres	call	BIT_AND	emulated	(… & CAST(… AS BIGINT))	via Postgres.bitOp	16
+Postgres	Postgres	call	BIT_OR	emulated	(… | CAST(… AS BIGINT))	via Postgres.bitOp	16
+Postgres	Postgres	call	BIT_XOR	emulated	(… # CAST(… AS BIGINT))	via Postgres.bitOp	16
+Postgres	Postgres	call	BIT_SHIFT_LEFT	emulated	(… << CAST(… AS INTEGER))	via Postgres.bitOp	10
+Postgres	Postgres	call	BIT_SHIFT_RIGHT	emulated	(… >> CAST(… AS INTEGER))	via Postgres.bitOp	10
+Postgres	Postgres	call	BIT_NOT	emulated	(~ CAST(… AS BIGINT))		15
+Postgres	Postgres	call	REGEXP_EXTRACT	emulated	regexpExtract		45
+Postgres	Postgres	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
+Postgres	Postgres	call	REGEXP_REPLACE	emulated	regexpReplace		8
+Postgres	Postgres	call	REGEXP_FULL_MATCH	emulated	pattern: (… ~ …^(?:)$)		49
+Postgres	Postgres	call	MAP_FROM_LISTS	emulated	composed in a block	via Postgres.maps	3
+Postgres	Postgres	call	MAP_FROM_ENTRIES	emulated	composed in a block	via Postgres.maps	13
+Postgres	Postgres	call	MAP_EMPTY	emulated	CAST(ARRAY[] AS JSONB[])	via Postgres.maps	8
+Postgres	Postgres	call	MAP_EXTRACT	emulated	composed in a block	via Postgres.maps	2
+Postgres	Postgres	call	MAP_KEYS	emulated	composed in a block	via Postgres.maps	4
+Postgres	Postgres	call	MAP_VALUES	emulated	composed in a block	via Postgres.maps	4
+Postgres	Postgres	call	MAP_CONCAT	emulated	composed in a block	via Postgres.maps	9
+Postgres	Postgres	call	SUBSTRING	spelled	substr		140
+Postgres	Postgres	call	STRPOS	spelled	strpos		287
+Postgres	Postgres	call	STARTS_WITH	spelled	starts_with		60
+Postgres	Postgres	call	ENDS_WITH	emulated	(right(…, length(…)) = …)		60
+Postgres	Postgres	call	MATCHES	emulated	pattern: (… ~ …)		16
+Postgres	Postgres	call	LEFT	spelled	left		6
+Postgres	Postgres	call	RIGHT	spelled	right		6
+Postgres	Postgres	call	LPAD	emulated	padWithSpaceToInteger: lpad		16
+Postgres	Postgres	call	RPAD	emulated	padWithSpaceToInteger: rpad		45
+Postgres	Postgres	call	TRIM	spelled	trim		2
+Postgres	Postgres	call	LTRIM	spelled	ltrim		3
+Postgres	Postgres	call	RTRIM	spelled	rtrim		60
+Postgres	Postgres	call	REPLACE	spelled	replace		313
+Postgres	Postgres	call	SPLIT	emulated	split		2
+Postgres	Postgres	call	SPLIT_PART	spelled	split_part		19
+Postgres	Postgres	call	TRANSLATE	spelled	translate		0
+Postgres	Postgres	call	PURE_SPLIT_PART	emulated	splitPartCall		9
+Postgres	Postgres	call	REVERSE_STRING	spelled	reverse		2
+Postgres	Postgres	call	ASCII_CODE	spelled	ascii		10
+Postgres	Postgres	call	CHR	emulated	chr(CAST(… AS INTEGER))		9
+Postgres	Postgres	call	UC_FIRST	emulated	firstCharCased: upper		5
+Postgres	Postgres	call	LC_FIRST	emulated	firstCharCased: lower		5
+Postgres	Postgres	call	ENCODE_BASE64	emulated	replace(encode(convert_to(…, 'UTF8'), 'base64'), chr(10), '')		3
+Postgres	Postgres	call	LEVENSHTEIN	emulated	levenshtein		2
+Postgres	Postgres	call	GUID	emulated	CAST(gen_random_uuid() AS VARCHAR)		2
+Postgres	Postgres	call	FORMAT	emulated	format		42
+Postgres	Postgres	call	HASH	emulated	hashSigned		5
+Postgres	Postgres	call	MD5	spelled	md5		1
+Postgres	Postgres	call	SHA1	emulated	encode(digest(convert_to(…, 'UTF8'), 'sha1'), 'hex')		1
+Postgres	Postgres	call	SHA256	emulated	encode(sha256(convert_to(…, 'UTF8')), 'hex')		1
+Postgres	Postgres	call	RANDOM	spelled	random		0
+Postgres	Postgres	call	EXTRACT	emulated	extractArm		24
+Postgres	Postgres	call	TODAY	spelled	current_date		0
+Postgres	Postgres	call	NOW	emulated	(now() AT TIME ZONE 'UTC')		0
+Postgres	Postgres	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
+Postgres	Postgres	call	MAKE_DATE	emulated	make_date(, CAST(… AS INTEGER))		2
+Postgres	Postgres	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
+Postgres	Postgres	call	DATE_TRUNC	emulated	dateTrunc		0
+Postgres	Postgres	call	ADD_INTERVAL	emulated	intervalUnit, part: … + … * INTERVAL '1 …'		93
+Postgres	Postgres	call	DATE_DIFF	emulated	dateDiff		53
+Postgres	Postgres	call	TIME_BUCKET	emulated	timeBucket		109
+Postgres	Postgres	call	TIMEZONE	spelled	timezone		6
+Postgres	Postgres	call	DATE_AT_TIME	spelled	an operator (+)		0
+Postgres	Postgres	call	EPOCH_NS	refused	a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Postgres	Postgres	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Postgres	Postgres	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: … + … * INTERVAL '1 …'		0
+Postgres	Postgres	call	EPOCH_SECONDS	emulated	CAST(extract(epoch FROM …) AS DOUBLE PRECISION)		0
+Postgres	Postgres	call	EPOCH_MS	emulated	CAST(trunc(extract(epoch FROM …) * 1000) AS BIGINT)		24
+Postgres	Postgres	call	FROM_EPOCH_SECONDS	emulated	…TIMESTAMP '1970-01-01 00:00:00' + … * INTERVAL '1 second'		0
+Postgres	Postgres	call	FROM_EPOCH_MS	emulated	…TIMESTAMP '1970-01-01 00:00:00' + CAST(… AS BIGINT) * INTERVAL '1 millisecond'		0
+Postgres	Postgres	call	DAYNAME	emulated	naive: to_char(…, 'FMDay')		0
+Postgres	Postgres	call	MONTHNAME	emulated	naive: to_char(…, 'FMMonth')		0
+Postgres	Postgres	call	COT	spelled	cot		2
+Postgres	Postgres	call	RADIANS	spelled	radians		1
+Postgres	Postgres	call	DEGREES	spelled	degrees		1
+Postgres	Postgres	call	INT_DIVIDE	emulated	CAST(div(…, …) AS BIGINT)		40
+Postgres	Postgres	call	REPEAT_STR	spelled	repeat		4
+Postgres	Postgres	call	JARO_WINKLER	emulated	jaroWinkler		2
+Postgres	Postgres	call	DECODE_BASE64	emulated	convert_from(decode(…, 'base64'), 'UTF8')		4
+Postgres	Postgres	call	CURRENT_USER_FN	spelled	current_user		2
+Postgres	Postgres	call	LIST_LENGTH	emulated	listOf: cardinality(…)		27
+Postgres	Postgres	call	LIST_ZIP	refused	collections over the jsonb carrier are leg P4 reached Postgres:		0
+Postgres	Postgres	call	LIST_DISTINCT	emulated	unnest: (CASE WHEN … IS NULL THEN NULL ELSE ARRAY(SELECT FROM … WITH ORDINALITY AS __...	via Postgres.listCall	0
+Postgres	Postgres	call	LIST_APPEND	emulated	encode: array_append(…, …)	via Postgres.listCall	8
+Postgres	Postgres	call	LIST_SUM	emulated	overReduce: …sum()	via Postgres.listCall	0
+Postgres	Postgres	call	LIST_MIN	emulated	overReduce: …bool_and(min()	via Postgres.listCall	58
+Postgres	Postgres	call	LIST_MAX	emulated	overReduce: …bool_or(max()	via Postgres.listCall	58
+Postgres	Postgres	call	LIST_AVG	emulated	overReduce: …CAST(avg() AS DOUBLE PRECISION)	via Postgres.listCall	3
+Postgres	Postgres	call	LIST_MEDIAN	emulated	overReduce: …percentile_cont(0.5) WITHIN GROUP (ORDER BY )	via Postgres.listCall	6
+Postgres	Postgres	call	LIST_MODE	emulated	overReduce: …mode() WITHIN GROUP (ORDER BY )	via Postgres.listCall	6
+Postgres	Postgres	call	LIST_SORT	emulated	overElements, held, sortKey: …__o	via Postgres.listCall	13
+Postgres	Postgres	call	LIST_SORT_DESC	emulated	overElements, held, sortKey: …__o DESC	via Postgres.listCall	5
+Postgres	Postgres	call	LIST_TAIL	emulated	(…)[2:]	via Postgres.listCall	1
+Postgres	Postgres	call	LIST_INIT	emulated	(…)[:cardinality(…) - 1]	via Postgres.listCall	0
+Postgres	Postgres	call	RANGE_FN	emulated	range		33
+Postgres	Postgres	call	LIST_PRODUCT	refused	collections over the jsonb carrier are leg P4 reached Postgres:		0
+Postgres	Postgres	call	LIST_REDUCE	emulated	listReduce		6
+Postgres	Postgres	call	LIST_SLICE	emulated	(…)[…:…]	via Postgres.listCall	13
+Postgres	Postgres	call	REPEAT_VALUE	emulated	array_fill(…, ARRAY[CAST(… AS INTEGER)])		0
+Postgres	Postgres	call	LIST_BOOL_AND	emulated	overReduce: …bool_and()	via Postgres.listCall	0
+Postgres	Postgres	call	LIST_BOOL_OR	emulated	overReduce: …bool_or()	via Postgres.listCall	0
+Postgres	Postgres	call	IS_DISTINCT_FROM	emulated	distinctFrom		7
+Postgres	Postgres	call	ALL_DISTINCT	emulated	allDistinct		0
+Postgres	Postgres	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom		3
+Postgres	Postgres	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom		10
+Postgres	Postgres	call	STRFTIME	emulated	strftime		193
+Postgres	Postgres	call	STRPTIME	refused	to_timestamp(text, fmt) is lenient and zone-bound; not yet probed against the reference reached Postgres:		0
+Postgres	Postgres	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
+Postgres	Postgres	call	LIST_REVERSE	emulated	overElements, held: …__o__o DESC	via Postgres.listCall	4
+Postgres	Postgres	call	TYPEOF	refused	collections over the jsonb carrier are leg P4 reached Postgres:		0
+Postgres	Postgres	call	ROUND_HALF_UP	emulated	roundHalfUp		1
+Postgres	Postgres	call	ERROR	emulated	raise		70
+Postgres	Postgres	call	FLOOR_RAW	spelled	floor		55
+Postgres	Postgres	call	TO_VARIANT	emulated	variantConstruct		8
+Postgres	Postgres	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
+Postgres	Postgres	call	FLOAT_CANON	emulated	floatCanonByText		0
+Postgres	Postgres	call	FLOAT_PRINT	emulated	floatPrintByText		0
+Postgres	Postgres	call	VARIANT_ELEMENTS	emulated	by its operands: composed / composed		2
+Postgres	Postgres	call	VARIANT_GET	emulated	variantGet		14
+Postgres	Postgres	call	JSON_TYPE	emulated	jsonType		1
+Postgres	Postgres	call	JSON_ARRAY_LENGTH	spelled	jsonb_array_length		0
+Postgres	Postgres	call	JSON_PRETTY	spelled	jsonb_pretty		0
+Postgres	Postgres	reducer	SUM	spelled	SUM		212
+Postgres	Postgres	reducer	COUNT	spelled	COUNT		14
+Postgres	Postgres	reducer	AVG	spelled	AVG		10
+Postgres	Postgres	reducer	MIN	emulated	extreme: MIN, bool_and,  ASC		11
+Postgres	Postgres	reducer	MAX	emulated	extreme: MAX, bool_or,  DESC		11
+Postgres	Postgres	reducer	ANY_VALUE	spelled	ANY_VALUE		0
+Postgres	Postgres	reducer	STDDEV_SAMP	spelled	STDDEV_SAMP		2
+Postgres	Postgres	reducer	STDDEV_POP	spelled	STDDEV_POP		5
+Postgres	Postgres	reducer	VAR_SAMP	spelled	VAR_SAMP		2
+Postgres	Postgres	reducer	VAR_POP	spelled	VAR_POP		2
+Postgres	Postgres	reducer	MEDIAN	emulated	median		6
+Postgres	Postgres	reducer	MODE	emulated	mode		6
+Postgres	Postgres	reducer	STRING_AGG	spelled	STRING_AGG		506
+Postgres	Postgres	reducer	LIST	emulated	listOfValues		1
+Postgres	Postgres	reducer	QUANTILE_CONT	emulated	percentile: percentile_cont		1
+Postgres	Postgres	reducer	QUANTILE_DISC	emulated	percentile: percentile_disc		1
+Postgres	Postgres	reducer	CORR	spelled	CORR		4
+Postgres	Postgres	reducer	COVAR_SAMP	spelled	COVAR_SAMP		5
+Postgres	Postgres	reducer	COVAR_POP	spelled	COVAR_POP		4
+Postgres	Postgres	reducer	ARG_MAX	emulated	argExtreme:  DESC		1
+Postgres	Postgres	reducer	ARG_MIN	emulated	argExtreme:  ASC		1
+Postgres	Postgres	reducer	WAVG	not_here	lowering marker reached the renderer		0
+Postgres	Postgres	reducer	HASH_LIST	not_here	lowering marker reached the renderer		0
+Postgres	Postgres	reducer	BOOL_AND	spelled	BOOL_AND		0
+Postgres	Postgres	reducer	BOOL_OR	spelled	BOOL_OR		0
+Postgres	Postgres	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		0
+Postgres	Postgres	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
+Postgres	Postgres	reducer	VARIANCE	spelled	VARIANCE		0
+Postgres	Postgres	reducer	STDDEV	spelled	STDDEV		0
+Postgres	Postgres	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
+Postgres	Postgres	reducer	RANK	not_here	is a window function: windowCall writes it		0
+Postgres	Postgres	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
+Postgres	Postgres	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it		0
+Postgres	Postgres	reducer	CUME_DIST	not_here	is a window function: windowCall writes it		0
+Postgres	Postgres	reducer	NTILE	not_here	is a window function: windowCall writes it		0
+Postgres	Postgres	reducer	LAG	not_here	is a window function: windowCall writes it		0
+Postgres	Postgres	reducer	LEAD	not_here	is a window function: windowCall writes it		0
+Postgres	Postgres	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
+Postgres	Postgres	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
+Postgres	Postgres	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
 Snowflake	Snowflake	call	AND	spelled	an operator (infix)		204
 Snowflake	Snowflake	call	OR	spelled	an operator (infix)		262
 Snowflake	Snowflake	call	NOT	spelled	an operator (notPrefix)		61
@@ -223,6 +886,1332 @@ Snowflake	Snowflake	reducer	LEAD	not_here	is a window function: windowCall write
 Snowflake	Snowflake	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
 Snowflake	Snowflake	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
 Snowflake	Snowflake	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
+Trino	Trino	call	AND	spelled	an operator (infix)		204
+Trino	Trino	call	OR	spelled	an operator (infix)		270
+Trino	Trino	call	NOT	spelled	an operator (notPrefix)		61
+Trino	Trino	call	EQUAL	emulated	by its operands: composed / composed		250
+Trino	Trino	call	NOT_EQUAL	emulated	by its operands: composed / composed		16
+Trino	Trino	call	LESS	spelled	an operator (infix)		125
+Trino	Trino	call	LESS_EQUAL	spelled	an operator (infix)		125
+Trino	Trino	call	GREATER	spelled	an operator (infix)		378
+Trino	Trino	call	GREATER_EQUAL	spelled	an operator (infix)		168
+Trino	Trino	call	PLUS	spelled	an operator (infix)		105
+Trino	Trino	call	MINUS	spelled	an operator (infix)		146
+Trino	Trino	call	TIMES	spelled	an operator (infix)		32
+Trino	Trino	call	DIVIDE	emulated	divideAsDoubles		30
+Trino	Trino	call	MOD	emulated	divisor: MOD(MOD(…, …) + …, …)		23
+Trino	Trino	call	REM	emulated	divisor: MOD(…, …)		14
+Trino	Trino	call	NEGATE	spelled	an operator (negation)		0
+Trino	Trino	call	ABS	spelled	abs		65
+Trino	Trino	call	IS_NULL	spelled	an operator (isNullTest)		519
+Trino	Trino	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
+Trino	Trino	call	IN	emulated	inList		6
+Trino	Trino	call	COALESCE	emulated	by its operands: coalesce(, json_parse(…)…) / …coalesce		552
+Trino	Trino	call	PARSE_INT	emulated	castAs: BIGINT		11
+Trino	Trino	call	CONCAT	emulated	flattenConcat: concat_ws('', , )		755
+Trino	Trino	call	LENGTH	spelled	length		73
+Trino	Trino	call	UPPER	spelled	upper		2
+Trino	Trino	call	LOWER	spelled	lower		3
+Trino	Trino	call	GREATEST	spelled	greatest		52
+Trino	Trino	call	LEAST	spelled	least		8
+Trino	Trino	call	CONCAT_JOIN	emulated	concat_ws('', , )		0
+Trino	Trino	call	LIST_FILTER	emulated	by its operands: transform(filter(zip(…, zip_with(…, …, …)), "__z" -> "__z"[2]), "__z" -> "__z... / filter(…, …)	via Trino.listCall	42
+Trino	Trino	call	LIST_TRANSFORM	emulated	by its operands: zip_with(…, …, …) / transform(…, …)	via Trino.listCall	36
+Trino	Trino	call	LIST_CONCAT	emulated	composed in a block	via Trino.listCall	5
+Trino	Trino	call	LIST_GET	emulated	list: (CASE WHEN … = 0 THEN NULL ELSE element_at(…, …) END)	via Trino.listCall	72
+Trino	Trino	call	LIST_POSITION	emulated	list: (CASE WHEN array_position(…, …) = 0 THEN NULL ELSE array_position(…, …) END)	via Trino.listCall	53
+Trino	Trino	call	LIST_EXISTS	emulated	listExists		8
+Trino	Trino	call	LIST_FOR_ALL	emulated	listForAll		3
+Trino	Trino	call	STRUCT_INSERT	emulated	structInsert		0
+Trino	Trino	call	UNNEST	emulated	unnestProjection		160
+Trino	Trino	call	LIST_FLATTEN	spelled	flatten		0
+Trino	Trino	call	JSON_MERGE_PATCH	refused	Trino has no JSON merge patch reached Trino:		0
+Trino	Trino	call	SQRT	spelled	sqrt		4
+Trino	Trino	call	CBRT	spelled	cbrt		3
+Trino	Trino	call	EXP	spelled	exp		4
+Trino	Trino	call	LN	spelled	ln		3
+Trino	Trino	call	LOG10	spelled	log10		2
+Trino	Trino	call	POW	spelled	power		9
+Trino	Trino	call	PI	spelled	pi		1
+Trino	Trino	call	SIN	spelled	sin		3
+Trino	Trino	call	COS	spelled	cos		3
+Trino	Trino	call	TAN	spelled	tan		2
+Trino	Trino	call	ASIN	spelled	asin		4
+Trino	Trino	call	ACOS	spelled	acos		4
+Trino	Trino	call	ATAN	spelled	atan		3
+Trino	Trino	call	ATAN2	spelled	atan2		3
+Trino	Trino	call	SINH	spelled	sinh		22
+Trino	Trino	call	COSH	spelled	cosh		24
+Trino	Trino	call	TANH	spelled	tanh		29
+Trino	Trino	call	CEILING	emulated	bigintOf: ceil		12
+Trino	Trino	call	FLOOR	emulated	bigintOf: floor		18
+Trino	Trino	call	ROUND	emulated	roundHalfEven		22
+Trino	Trino	call	SIGN	emulated	bigintOf: sign		6
+Trino	Trino	call	XOR	emulated	xorAsAndOr		8
+Trino	Trino	call	BIT_AND	spelled	bitwise_and	via Trino.bitOp	16
+Trino	Trino	call	BIT_OR	spelled	bitwise_or	via Trino.bitOp	16
+Trino	Trino	call	BIT_XOR	spelled	bitwise_xor	via Trino.bitOp	16
+Trino	Trino	call	BIT_SHIFT_LEFT	spelled	bitwise_left_shift	via Trino.bitOp	10
+Trino	Trino	call	BIT_SHIFT_RIGHT	spelled	bitwise_right_shift_arithmetic	via Trino.bitOp	10
+Trino	Trino	call	BIT_NOT	emulated	bitwise_not(CAST(… AS BIGINT))		15
+Trino	Trino	call	REGEXP_EXTRACT	emulated	group: regexp_extract(…, …, …)		45
+Trino	Trino	call	REGEXP_EXTRACT_ALL	emulated	group: regexp_extract_all(…, …, …)		13
+Trino	Trino	call	REGEXP_REPLACE	emulated	regexpReplace		8
+Trino	Trino	call	REGEXP_FULL_MATCH	emulated	anchored: regexp_like(…, …)		49
+Trino	Trino	call	MAP_FROM_LISTS	spelled	map		3
+Trino	Trino	call	MAP_FROM_ENTRIES	spelled	map_from_entries		13
+Trino	Trino	call	MAP_EMPTY	spelled	MAP		8
+Trino	Trino	call	MAP_EXTRACT	emulated	(CASE WHEN contains(map_keys(…), …) THEN ARRAY[element_at(…, …)] ELSE ARRAY[]...		2
+Trino	Trino	call	MAP_KEYS	spelled	map_keys		4
+Trino	Trino	call	MAP_VALUES	spelled	map_values		4
+Trino	Trino	call	MAP_CONCAT	spelled	map_concat		9
+Trino	Trino	call	SUBSTRING	spelled	substr		140
+Trino	Trino	call	STRPOS	spelled	strpos		287
+Trino	Trino	call	STARTS_WITH	spelled	starts_with		60
+Trino	Trino	call	ENDS_WITH	emulated	(substr(…, greatest(length(…) - length(…) + 1, 1)) = … AND length(…) >= lengt...		60
+Trino	Trino	call	MATCHES	spelled	regexp_like		16
+Trino	Trino	call	LEFT	emulated	substr(…, 1, greatest(…, 0))		6
+Trino	Trino	call	RIGHT	emulated	(CASE WHEN … <= 0 THEN '' ELSE substr(…, greatest(length(…) - … + 1, 1)) END)		6
+Trino	Trino	call	LPAD	emulated	padWithSpace: lpad		16
+Trino	Trino	call	RPAD	emulated	padWithSpace: rpad		45
+Trino	Trino	call	TRIM	emulated	trim		2
+Trino	Trino	call	LTRIM	emulated	trim		3
+Trino	Trino	call	RTRIM	emulated	trim		60
+Trino	Trino	call	REPLACE	spelled	replace		313
+Trino	Trino	call	SPLIT	spelled	split		2
+Trino	Trino	call	SPLIT_PART	emulated	coalesce(split_part(…), '')		19
+Trino	Trino	call	TRANSLATE	spelled	translate		0
+Trino	Trino	call	PURE_SPLIT_PART	emulated	splitPartCall		9
+Trino	Trino	call	REVERSE_STRING	spelled	reverse		2
+Trino	Trino	call	ASCII_CODE	emulated	(CASE WHEN length(…) = 0 THEN 0 ELSE codepoint(CAST(substr(…, 1, 1) AS VARCHA...		10
+Trino	Trino	call	CHR	spelled	chr		9
+Trino	Trino	call	UC_FIRST	emulated	firstCharCased: upper		5
+Trino	Trino	call	LC_FIRST	emulated	firstCharCased: lower		5
+Trino	Trino	call	ENCODE_BASE64	emulated	to_base64(to_utf8(…))		3
+Trino	Trino	call	LEVENSHTEIN	spelled	levenshtein_distance		2
+Trino	Trino	call	GUID	emulated	CAST(uuid() AS VARCHAR)		2
+Trino	Trino	call	FORMAT	spelled	format		42
+Trino	Trino	call	HASH	emulated	hashSigned		5
+Trino	Trino	call	MD5	emulated	lower(to_hex(md5(to_utf8(…))))		1
+Trino	Trino	call	SHA1	emulated	lower(to_hex(sha1(to_utf8(…))))		1
+Trino	Trino	call	SHA256	emulated	lower(to_hex(sha256(to_utf8(…))))		1
+Trino	Trino	call	RANDOM	spelled	random		0
+Trino	Trino	call	EXTRACT	emulated	extract		24
+Trino	Trino	call	TODAY	spelled	current_date		0
+Trino	Trino	call	NOW	emulated	CAST(current_timestamp AS TIMESTAMP(6))		0
+Trino	Trino	call	DATE_TRUNC_DAY	emulated	CAST(… AS DATE)		4
+Trino	Trino	call	MAKE_DATE	emulated	date_add('day', … - 1, date_add('month', … - 1, date_add('year', … - 1970, DA...		2
+Trino	Trino	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
+Trino	Trino	call	DATE_TRUNC	emulated	dateTrunc		0
+Trino	Trino	call	ADD_INTERVAL	emulated	addInterval		93
+Trino	Trino	call	DATE_DIFF	emulated	dateDiff		53
+Trino	Trino	call	TIME_BUCKET	emulated	timeBucket		109
+Trino	Trino	call	TIMEZONE	emulated	timezone		6
+Trino	Trino	call	DATE_AT_TIME	emulated	CAST(CAST(… AS VARCHAR) || ' ' || CAST(… AS VARCHAR) AS TIMESTAMP(6))		0
+Trino	Trino	call	EPOCH_NS	refused	a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Trino	Trino	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Trino	Trino	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval		0
+Trino	Trino	call	EPOCH_SECONDS	emulated	to_unixtime(with_timezone(…, 'UTC'))		0
+Trino	Trino	call	EPOCH_MS	emulated	CAST(truncate(to_unixtime(with_timezone(…, 'UTC')) * 1000) AS BIGINT)		24
+Trino	Trino	call	FROM_EPOCH_SECONDS	emulated	CAST(from_unixtime(…, 'UTC') AS TIMESTAMP(6))		0
+Trino	Trino	call	FROM_EPOCH_MS	emulated	CAST(from_unixtime(CAST(… AS DOUBLE) / 1000, 'UTC') AS TIMESTAMP(6))		0
+Trino	Trino	call	DAYNAME	emulated	format_datetime(…, 'EEEE')		0
+Trino	Trino	call	MONTHNAME	emulated	format_datetime(…, 'MMMM')		0
+Trino	Trino	call	COT	emulated	(1 / tan(…))		2
+Trino	Trino	call	RADIANS	spelled	radians		1
+Trino	Trino	call	DEGREES	spelled	degrees		1
+Trino	Trino	call	INT_DIVIDE	emulated	divisor: (… / …)		40
+Trino	Trino	call	REPEAT_STR	emulated	(CASE WHEN … IS NULL THEN NULL ELSE array_join(repeat(…, greatest(…, 0)), '')...		4
+Trino	Trino	call	JARO_WINKLER	emulated	jaroWinkler		2
+Trino	Trino	call	DECODE_BASE64	emulated	from_utf8(from_base64(…))		4
+Trino	Trino	call	CURRENT_USER_FN	spelled	current_user		2
+Trino	Trino	call	LIST_LENGTH	emulated	list: cardinality(…)		52
+Trino	Trino	call	LIST_ZIP	emulated	composed in a block	via Trino.listCall	0
+Trino	Trino	call	LIST_DISTINCT	emulated	present: array_distinct(…)	via Trino.listCall	0
+Trino	Trino	call	LIST_APPEND	emulated	list: concat(…, ARRAY[…])	via Trino.listCall	8
+Trino	Trino	call	LIST_SUM	emulated	overRows	via Trino.listCall	3
+Trino	Trino	call	LIST_MIN	emulated	present: array_min(…)	via Trino.listCall	58
+Trino	Trino	call	LIST_MAX	emulated	present: array_max(…)	via Trino.listCall	58
+Trino	Trino	call	LIST_AVG	emulated	overRows: CAST(… AS DOUBLE)	via Trino.listCall	3
+Trino	Trino	call	LIST_MEDIAN	emulated	overRows	via Trino.listCall	6
+Trino	Trino	call	LIST_MODE	emulated	overRows	via Trino.listCall	6
+Trino	Trino	call	LIST_SORT	emulated	list: array_sort(…)	via Trino.listCall	13
+Trino	Trino	call	LIST_SORT_DESC	emulated	present, list: concat(reverse(array_sort(…)), filter(…, "__x" -> "__x" IS NULL))	via Trino.listCall	5
+Trino	Trino	call	LIST_TAIL	emulated	list: slice(…, 2, greatest(cardinality(…) - 1, 0))	via Trino.listCall	1
+Trino	Trino	call	LIST_INIT	emulated	list: slice(…, 1, greatest(cardinality(…) - 1, 0))	via Trino.listCall	0
+Trino	Trino	call	RANGE_FN	emulated	rangeOf		33
+Trino	Trino	call	LIST_PRODUCT	emulated	list: reduce(…, CAST(1 AS DOUBLE), ("__a", "__x") -> "__a" * coalesce("__x", 1), "_...	via Trino.listCall	0
+Trino	Trino	call	LIST_REDUCE	emulated	list: reduce(slice(…, 2, greatest(cardinality(…) - 1, 0)), element_at(…, 1), …, "__...	via Trino.listCall	6
+Trino	Trino	call	LIST_SLICE	emulated	list: slice(…, greatest(…, 1), greatest(… - greatest(…, 1) + 1, 0))	via Trino.listCall	13
+Trino	Trino	call	REPEAT_VALUE	emulated	repeat(…, greatest(…, 0))		0
+Trino	Trino	call	LIST_BOOL_AND	emulated	overRows	via Trino.listCall	0
+Trino	Trino	call	LIST_BOOL_OR	emulated	overRows	via Trino.listCall	0
+Trino	Trino	call	IS_DISTINCT_FROM	emulated	distinctFrom		0
+Trino	Trino	call	ALL_DISTINCT	emulated	allDistinct		0
+Trino	Trino	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom		3
+Trino	Trino	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom		10
+Trino	Trino	call	STRFTIME	emulated	strftime		193
+Trino	Trino	call	STRPTIME	emulated	strptime		0
+Trino	Trino	call	PARSE_DATE	emulated	CAST(… AS TIMESTAMP(6))		4
+Trino	Trino	call	LIST_REVERSE	spelled	reverse		4
+Trino	Trino	call	TYPEOF	spelled	typeof	via Trino.listCall	0
+Trino	Trino	call	ROUND_HALF_UP	emulated	roundHalfUp		1
+Trino	Trino	call	ERROR	emulated	error		70
+Trino	Trino	call	FLOOR_RAW	spelled	floor		55
+Trino	Trino	call	TO_VARIANT	emulated	variantConstruct		8
+Trino	Trino	call	BOOL_TO_TEXT	emulated	CAST(… AS VARCHAR)		2
+Trino	Trino	call	FLOAT_CANON	emulated	floatCanonByText		0
+Trino	Trino	call	FLOAT_PRINT	emulated	floatPrintByText		0
+Trino	Trino	call	VARIANT_ELEMENTS	emulated	variantElements		4
+Trino	Trino	call	VARIANT_GET	emulated	variantGet		15
+Trino	Trino	call	JSON_TYPE	emulated	jsonType		1
+Trino	Trino	call	JSON_ARRAY_LENGTH	spelled	json_array_length		0
+Trino	Trino	call	JSON_PRETTY	refused	Trino has no JSON pretty-printer reached Trino:		0
+Trino	Trino	reducer	SUM	spelled	SUM (unordered)		212
+Trino	Trino	reducer	COUNT	spelled	COUNT (unordered)		14
+Trino	Trino	reducer	AVG	spelled	AVG (unordered)		10
+Trino	Trino	reducer	MIN	spelled	MIN (unordered)		11
+Trino	Trino	reducer	MAX	spelled	MAX (unordered)		11
+Trino	Trino	reducer	ANY_VALUE	spelled	arbitrary		0
+Trino	Trino	reducer	STDDEV_SAMP	spelled	STDDEV_SAMP (unordered)		2
+Trino	Trino	reducer	STDDEV_POP	spelled	STDDEV_POP (unordered)		5
+Trino	Trino	reducer	VAR_SAMP	spelled	VAR_SAMP (unordered)		2
+Trino	Trino	reducer	VAR_POP	spelled	VAR_POP (unordered)		2
+Trino	Trino	reducer	MEDIAN	emulated	quantile, collected		6
+Trino	Trino	reducer	MODE	emulated	mode, counted		6
+Trino	Trino	reducer	STRING_AGG	emulated	listagg		506
+Trino	Trino	reducer	LIST	emulated	arrayAgg		1
+Trino	Trino	reducer	QUANTILE_CONT	emulated	quantile, collected		1
+Trino	Trino	reducer	QUANTILE_DISC	emulated	quantile, collected		1
+Trino	Trino	reducer	CORR	emulated	covariance		4
+Trino	Trino	reducer	COVAR_SAMP	emulated	covariance		5
+Trino	Trino	reducer	COVAR_POP	emulated	covariance		4
+Trino	Trino	reducer	ARG_MAX	emulated	byExtreme: max_by		1
+Trino	Trino	reducer	ARG_MIN	emulated	byExtreme: min_by		1
+Trino	Trino	reducer	WAVG	not_here	lowering marker reached the renderer		0
+Trino	Trino	reducer	HASH_LIST	not_here	lowering marker reached the renderer		0
+Trino	Trino	reducer	BOOL_AND	spelled	BOOL_AND (unordered)		0
+Trino	Trino	reducer	BOOL_OR	spelled	BOOL_OR (unordered)		0
+Trino	Trino	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		0
+Trino	Trino	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
+Trino	Trino	reducer	VARIANCE	spelled	VARIANCE (unordered)		0
+Trino	Trino	reducer	STDDEV	spelled	STDDEV (unordered)		0
+Trino	Trino	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
+Trino	Trino	reducer	RANK	not_here	is a window function: windowCall writes it		0
+Trino	Trino	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
+Trino	Trino	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it		0
+Trino	Trino	reducer	CUME_DIST	not_here	is a window function: windowCall writes it		0
+Trino	Trino	reducer	NTILE	not_here	is a window function: windowCall writes it		0
+Trino	Trino	reducer	LAG	not_here	is a window function: windowCall writes it		0
+Trino	Trino	reducer	LEAD	not_here	is a window function: windowCall writes it		0
+Trino	Trino	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
+Trino	Trino	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
+Trino	Trino	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
+BigQuery	BigQuery	call	AND	spelled	an operator (infix)		211
+BigQuery	BigQuery	call	OR	spelled	an operator (infix)		283
+BigQuery	BigQuery	call	NOT	spelled	an operator (notPrefix)		61
+BigQuery	BigQuery	call	EQUAL	emulated	equalArm		264
+BigQuery	BigQuery	call	NOT_EQUAL	emulated	equalArm		16
+BigQuery	BigQuery	call	LESS	spelled	an operator (infix)		140
+BigQuery	BigQuery	call	LESS_EQUAL	spelled	an operator (infix)		125
+BigQuery	BigQuery	call	GREATER	spelled	an operator (infix)		378
+BigQuery	BigQuery	call	GREATER_EQUAL	spelled	an operator (infix)		168
+BigQuery	BigQuery	call	PLUS	spelled	an operator (infix)		117
+BigQuery	BigQuery	call	MINUS	spelled	an operator (infix)		146
+BigQuery	BigQuery	call	TIMES	spelled	an operator (infix)		32
+BigQuery	BigQuery	call	DIVIDE	emulated	IEEE_DIVIDE(CAST(… AS FLOAT64), CAST(… AS FLOAT64))		30
+BigQuery	BigQuery	call	MOD	emulated	remainder		23
+BigQuery	BigQuery	call	REM	emulated	remainder		14
+BigQuery	BigQuery	call	NEGATE	emulated	-(…)		0
+BigQuery	BigQuery	call	ABS	spelled	ABS		65
+BigQuery	BigQuery	call	IS_NULL	spelled	an operator (isNullTest)		522
+BigQuery	BigQuery	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
+BigQuery	BigQuery	call	IN	emulated	in		6
+BigQuery	BigQuery	call	COALESCE	emulated	coalesceArm		552
+BigQuery	BigQuery	call	PARSE_INT	emulated	CAST(… AS INT64)		11
+BigQuery	BigQuery	call	CONCAT	emulated	flattenConcat, asText: CONCAT(, IFNULL(…, ''))		756
+BigQuery	BigQuery	call	LENGTH	emulated	asText: LENGTH(…)		73
+BigQuery	BigQuery	call	UPPER	spelled	UPPER		2
+BigQuery	BigQuery	call	LOWER	spelled	LOWER		3
+BigQuery	BigQuery	call	GREATEST	emulated	nullSkipping: …GREATEST		52
+BigQuery	BigQuery	call	LEAST	emulated	nullSkipping: …LEAST		8
+BigQuery	BigQuery	call	CONCAT_JOIN	emulated	asText: CONCAT(, IFNULL(…, ''))		0
+BigQuery	BigQuery	call	LIST_FILTER	emulated	listFilter		23
+BigQuery	BigQuery	call	LIST_TRANSFORM	emulated	listTransform		31
+BigQuery	BigQuery	call	LIST_CONCAT	emulated	emptyList, listElement: ARRAY_CONCAT(, IFNULL(…, ))		2
+BigQuery	BigQuery	call	LIST_GET	emulated	listGet		79
+BigQuery	BigQuery	call	LIST_POSITION	emulated	param, elements: (SELECT MIN(__o) + 1 FROM …__e__o WHERE __e IS NOT DISTINCT FROM …)		39
+BigQuery	BigQuery	call	LIST_EXISTS	emulated	listExists		8
+BigQuery	BigQuery	call	LIST_FOR_ALL	emulated	listForAll		3
+BigQuery	BigQuery	call	STRUCT_INSERT	emulated	structInsert		0
+BigQuery	BigQuery	call	UNNEST	refused	an unnest in a select list reached BigQuery, which has no set-returning projection (an explode is placed in FROM by the carrier strategies)	via BigQuery.unnestProjection	83
+BigQuery	BigQuery	call	LIST_FLATTEN	refused	a list of lists reached BigQuery, whose arrays hold no array (measured: "nested arrays are not supported")		0
+BigQuery	BigQuery	call	JSON_MERGE_PATCH	refused	BigQuery has no JSON merge patch reached BigQuery:		0
+BigQuery	BigQuery	call	SQRT	emulated	SQRT(CAST(… AS FLOAT64))		4
+BigQuery	BigQuery	call	CBRT	spelled	CBRT		3
+BigQuery	BigQuery	call	EXP	emulated	EXP(CAST(… AS FLOAT64))		4
+BigQuery	BigQuery	call	LN	emulated	LN(CAST(… AS FLOAT64))		3
+BigQuery	BigQuery	call	LOG10	emulated	LOG10(CAST(… AS FLOAT64))		2
+BigQuery	BigQuery	call	POW	emulated	POW(CAST(… AS FLOAT64), CAST(… AS FLOAT64))		9
+BigQuery	BigQuery	call	PI	emulated	ACOS(-1)		1
+BigQuery	BigQuery	call	SIN	spelled	SIN		3
+BigQuery	BigQuery	call	COS	spelled	COS		3
+BigQuery	BigQuery	call	TAN	spelled	TAN		2
+BigQuery	BigQuery	call	ASIN	spelled	ASIN		4
+BigQuery	BigQuery	call	ACOS	spelled	ACOS		4
+BigQuery	BigQuery	call	ATAN	spelled	ATAN		3
+BigQuery	BigQuery	call	ATAN2	spelled	ATAN2		3
+BigQuery	BigQuery	call	SINH	spelled	SINH		22
+BigQuery	BigQuery	call	COSH	spelled	COSH		24
+BigQuery	BigQuery	call	TANH	spelled	TANH		29
+BigQuery	BigQuery	call	CEILING	emulated	CAST(CEIL(…) AS INT64)		12
+BigQuery	BigQuery	call	FLOOR	emulated	CAST(FLOOR(…) AS INT64)		18
+BigQuery	BigQuery	call	ROUND	emulated	roundHalfEven		22
+BigQuery	BigQuery	call	SIGN	emulated	CAST(SIGN(…) AS INT64)		6
+BigQuery	BigQuery	call	XOR	emulated	xorAsAndOr		8
+BigQuery	BigQuery	call	BIT_AND	spelled	an operator (&)	via BigQuery.bitOp	16
+BigQuery	BigQuery	call	BIT_OR	spelled	an operator (|)	via BigQuery.bitOp	16
+BigQuery	BigQuery	call	BIT_XOR	spelled	an operator (^)	via BigQuery.bitOp	16
+BigQuery	BigQuery	call	BIT_SHIFT_LEFT	spelled	an operator (<<)	via BigQuery.bitOp	10
+BigQuery	BigQuery	call	BIT_SHIFT_RIGHT	emulated	(CASE WHEN … < 0 THEN ~((~…) >> …) ELSE … >> … END)	via BigQuery.bitOp	10
+BigQuery	BigQuery	call	BIT_NOT	emulated	(~ CAST(… AS INT64))		15
+BigQuery	BigQuery	call	REGEXP_EXTRACT	emulated	regexpExtract		45
+BigQuery	BigQuery	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
+BigQuery	BigQuery	call	REGEXP_REPLACE	emulated	regexpReplace		8
+BigQuery	BigQuery	call	REGEXP_FULL_MATCH	emulated	anchored: REGEXP_CONTAINS(…, …)		49
+BigQuery	BigQuery	call	MAP_FROM_LISTS	emulated	composed in a block	via BigQuery.maps	3
+BigQuery	BigQuery	call	MAP_FROM_ENTRIES	emulated	composed in a block	via BigQuery.maps	13
+BigQuery	BigQuery	call	MAP_EMPTY	emulated	composed in a block	via BigQuery.maps	8
+BigQuery	BigQuery	call	MAP_EXTRACT	emulated	unlessNull: …ARRAY(SELECT . FROM UNNEST(…) AS WITH OFFSET AS WHERE . = … ORDER BY )	via BigQuery.maps	2
+BigQuery	BigQuery	call	MAP_KEYS	emulated	unlessNull: …ARRAY(SELECT . FROM UNNEST(…) AS WITH OFFSET AS ORDER BY )	via BigQuery.maps	4
+BigQuery	BigQuery	call	MAP_VALUES	emulated	unlessNull: …ARRAY(SELECT . FROM UNNEST(…) AS WITH OFFSET AS ORDER BY )	via BigQuery.maps	4
+BigQuery	BigQuery	call	MAP_CONCAT	emulated	composed in a block	via BigQuery.maps	9
+BigQuery	BigQuery	call	SUBSTRING	spelled	SUBSTR		140
+BigQuery	BigQuery	call	STRPOS	spelled	STRPOS		287
+BigQuery	BigQuery	call	STARTS_WITH	spelled	STARTS_WITH		60
+BigQuery	BigQuery	call	ENDS_WITH	spelled	ENDS_WITH		60
+BigQuery	BigQuery	call	MATCHES	spelled	REGEXP_CONTAINS		16
+BigQuery	BigQuery	call	LEFT	emulated	leftRight		6
+BigQuery	BigQuery	call	RIGHT	emulated	leftRight		6
+BigQuery	BigQuery	call	LPAD	emulated	padWithSpace: lpad		16
+BigQuery	BigQuery	call	RPAD	emulated	padWithSpace: rpad		45
+BigQuery	BigQuery	call	TRIM	spelled	TRIM		2
+BigQuery	BigQuery	call	LTRIM	spelled	LTRIM		3
+BigQuery	BigQuery	call	RTRIM	spelled	RTRIM		60
+BigQuery	BigQuery	call	REPLACE	spelled	REPLACE		313
+BigQuery	BigQuery	call	SPLIT	spelled	SPLIT		2
+BigQuery	BigQuery	call	SPLIT_PART	emulated	splitPart		19
+BigQuery	BigQuery	call	TRANSLATE	spelled	TRANSLATE		0
+BigQuery	BigQuery	call	PURE_SPLIT_PART	emulated	splitPartCall		9
+BigQuery	BigQuery	call	REVERSE_STRING	spelled	REVERSE		2
+BigQuery	BigQuery	call	ASCII_CODE	spelled	ASCII		10
+BigQuery	BigQuery	call	CHR	spelled	CHR		9
+BigQuery	BigQuery	call	UC_FIRST	emulated	firstCharCased: upper		5
+BigQuery	BigQuery	call	LC_FIRST	emulated	firstCharCased: lower		5
+BigQuery	BigQuery	call	ENCODE_BASE64	emulated	asText: TO_BASE64(CAST(… AS BYTES))		3
+BigQuery	BigQuery	call	LEVENSHTEIN	spelled	EDIT_DISTANCE		2
+BigQuery	BigQuery	call	GUID	spelled	GENERATE_UUID		2
+BigQuery	BigQuery	call	FORMAT	emulated	format		42
+BigQuery	BigQuery	call	HASH	emulated	hashSigned		5
+BigQuery	BigQuery	call	MD5	emulated	asText: TO_HEX(MD5(…))		1
+BigQuery	BigQuery	call	SHA1	emulated	asText: TO_HEX(SHA1(…))		1
+BigQuery	BigQuery	call	SHA256	emulated	asText: TO_HEX(SHA256(…))		1
+BigQuery	BigQuery	call	RANDOM	spelled	RAND		0
+BigQuery	BigQuery	call	EXTRACT	emulated	extract		24
+BigQuery	BigQuery	call	TODAY	spelled	CURRENT_DATE		0
+BigQuery	BigQuery	call	NOW	emulated	typeOf: CURRENT_TIMESTAMP()CURRENT_DATETIME()		0
+BigQuery	BigQuery	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
+BigQuery	BigQuery	call	MAKE_DATE	emulated	DATE(, CAST(… AS INT64))		2
+BigQuery	BigQuery	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
+BigQuery	BigQuery	call	DATE_TRUNC	emulated	dateTrunc		0
+BigQuery	BigQuery	call	ADD_INTERVAL	emulated	intervalUnit, part: (… + INTERVAL CAST(… AS INT64) …)		93
+BigQuery	BigQuery	call	DATE_DIFF	emulated	dateDiff		53
+BigQuery	BigQuery	call	TIME_BUCKET	emulated	timeBucket		109
+BigQuery	BigQuery	call	TIMEZONE	emulated	by its operands: DATETIME(…, …) / TIMESTAMP(CAST(… AS DATETIME), …)		6
+BigQuery	BigQuery	call	DATE_AT_TIME	spelled	DATETIME		0
+BigQuery	BigQuery	call	EPOCH_NS	refused	a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+BigQuery	BigQuery	call	FROM_EPOCH_NS	refused	a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+BigQuery	BigQuery	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: (… + INTERVAL CAST(… AS INT64) …)		0
+BigQuery	BigQuery	call	EPOCH_SECONDS	emulated	instant: (CAST(UNIX_MICROS(…) AS FLOAT64) / 1000000)		0
+BigQuery	BigQuery	call	EPOCH_MS	emulated	instant: DIV(UNIX_MICROS(…), 1000)		24
+BigQuery	BigQuery	call	FROM_EPOCH_SECONDS	emulated	naiveUnlessZoned: …TIMESTAMP_MICROS(CAST(… * 1000000 AS INT64))		0
+BigQuery	BigQuery	call	FROM_EPOCH_MS	emulated	naiveUnlessZoned: …TIMESTAMP_MILLIS(CAST(… AS INT64))		0
+BigQuery	BigQuery	call	DAYNAME	emulated	FORMAT_DATETIME('%A', CAST(… AS DATETIME))		0
+BigQuery	BigQuery	call	MONTHNAME	emulated	FORMAT_DATETIME('%B', CAST(… AS DATETIME))		0
+BigQuery	BigQuery	call	COT	spelled	COT		2
+BigQuery	BigQuery	call	RADIANS	emulated	(CAST(… AS FLOAT64) * (ACOS(-1) / 180))		1
+BigQuery	BigQuery	call	DEGREES	emulated	(CAST(… AS FLOAT64) * (180 / ACOS(-1)))		1
+BigQuery	BigQuery	call	INT_DIVIDE	emulated	intDivide		40
+BigQuery	BigQuery	call	REPEAT_STR	spelled	REPEAT		4
+BigQuery	BigQuery	call	JARO_WINKLER	refused	BigQuery has no Jaro-Winkler similarity reached BigQuery:		2
+BigQuery	BigQuery	call	DECODE_BASE64	emulated	CAST(FROM_BASE64(…) AS STRING)		4
+BigQuery	BigQuery	call	CURRENT_USER_FN	spelled	SESSION_USER		2
+BigQuery	BigQuery	call	LIST_LENGTH	spelled	ARRAY_LENGTH		36
+BigQuery	BigQuery	call	LIST_ZIP	refused	list_zip names its struct fields by position, unmeasured reached BigQuery:		0
+BigQuery	BigQuery	call	LIST_DISTINCT	emulated	unlessNull, param, elements: …ARRAY(SELECT __e FROM …__e__o WHERE __e IS NOT NULL GROUP BY __e ORDER BY MI...		0
+BigQuery	BigQuery	call	LIST_APPEND	emulated	listAppend		8
+BigQuery	BigQuery	call	LIST_SUM	emulated	overRows		0
+BigQuery	BigQuery	call	LIST_MIN	emulated	overRows		58
+BigQuery	BigQuery	call	LIST_MAX	emulated	overRows		58
+BigQuery	BigQuery	call	LIST_AVG	emulated	overRows		3
+BigQuery	BigQuery	call	LIST_MEDIAN	emulated	overRows		6
+BigQuery	BigQuery	call	LIST_MODE	emulated	overRows		6
+BigQuery	BigQuery	call	LIST_SORT	emulated	listSort		13
+BigQuery	BigQuery	call	LIST_SORT_DESC	emulated	listSort		5
+BigQuery	BigQuery	call	LIST_TAIL	emulated	overElements, param: …__e__o__e__o > 0		1
+BigQuery	BigQuery	call	LIST_INIT	emulated	overElements, param: …__e__o__e__o < ARRAY_LENGTH(…) - 1		0
+BigQuery	BigQuery	call	RANGE_FN	emulated	range		33
+BigQuery	BigQuery	call	LIST_PRODUCT	refused	BigQuery has no product aggregate and no fold reached BigQuery:		0
+BigQuery	BigQuery	call	LIST_REDUCE	refused	a reduce that reads its row is a fold: BigQuery has no lambdas (a closed one is hoisted to a top-level recursive expression) reached BigQ...		0
+BigQuery	BigQuery	call	LIST_SLICE	emulated	overElements, param, sliceEnd: …__e__o__e__o + 1 >= … AND __o + 1 <= …		13
+BigQuery	BigQuery	call	REPEAT_VALUE	emulated	repeatValue		0
+BigQuery	BigQuery	call	LIST_BOOL_AND	emulated	overRows		0
+BigQuery	BigQuery	call	LIST_BOOL_OR	emulated	overRows		0
+BigQuery	BigQuery	call	IS_DISTINCT_FROM	emulated	nullSafeArm		0
+BigQuery	BigQuery	call	ALL_DISTINCT	emulated	allDistinct		0
+BigQuery	BigQuery	call	NULL_SAFE_EQUAL	emulated	nullSafeArm		3
+BigQuery	BigQuery	call	NULL_SAFE_NOT_EQUAL	emulated	nullSafeArm		10
+BigQuery	BigQuery	call	STRFTIME	emulated	strftimeArm		193
+BigQuery	BigQuery	call	STRPTIME	emulated	strptime		0
+BigQuery	BigQuery	call	PARSE_DATE	emulated	DATETIME(CAST(… AS TIMESTAMP))		4
+BigQuery	BigQuery	call	LIST_REVERSE	spelled	ARRAY_REVERSE		4
+BigQuery	BigQuery	call	TYPEOF	refused	its type names are BigQuery's reached BigQuery:		0
+BigQuery	BigQuery	call	ROUND_HALF_UP	emulated	roundHalfUp		1
+BigQuery	BigQuery	call	ERROR	emulated	raiseEnvelope: ERROR		70
+BigQuery	BigQuery	call	FLOOR_RAW	spelled	FLOOR		55
+BigQuery	BigQuery	call	TO_VARIANT	emulated	variantConstruct		8
+BigQuery	BigQuery	call	BOOL_TO_TEXT	emulated	CAST(… AS STRING)		2
+BigQuery	BigQuery	call	FLOAT_CANON	emulated	floatCanonByText		0
+BigQuery	BigQuery	call	FLOAT_PRINT	emulated	floatPrintByText		0
+BigQuery	BigQuery	call	VARIANT_ELEMENTS	emulated	variantElements		2
+BigQuery	BigQuery	call	VARIANT_GET	emulated	variantGet		14
+BigQuery	BigQuery	call	JSON_TYPE	emulated	jsonType		1
+BigQuery	BigQuery	call	JSON_ARRAY_LENGTH	emulated	ARRAY_LENGTH(JSON_QUERY_ARRAY(…))		0
+BigQuery	BigQuery	call	JSON_PRETTY	refused	BigQuery has no JSON pretty-printer reached BigQuery:		0
+BigQuery	BigQuery	reducer	SUM	spelled	SUM (unordered)		212
+BigQuery	BigQuery	reducer	COUNT	spelled	COUNT (unordered)		14
+BigQuery	BigQuery	reducer	AVG	spelled	AVG (unordered)		10
+BigQuery	BigQuery	reducer	MIN	spelled	MIN (unordered)		11
+BigQuery	BigQuery	reducer	MAX	spelled	MAX (unordered)		11
+BigQuery	BigQuery	reducer	ANY_VALUE	spelled	ANY_VALUE (unordered)		0
+BigQuery	BigQuery	reducer	STDDEV_SAMP	spelled	STDDEV_SAMP (unordered)		2
+BigQuery	BigQuery	reducer	STDDEV_POP	spelled	STDDEV_POP (unordered)		5
+BigQuery	BigQuery	reducer	VAR_SAMP	spelled	VAR_SAMP (unordered)		2
+BigQuery	BigQuery	reducer	VAR_POP	spelled	VAR_POP (unordered)		2
+BigQuery	BigQuery	reducer	MEDIAN	emulated	median		6
+BigQuery	BigQuery	reducer	MODE	emulated	modeArm		6
+BigQuery	BigQuery	reducer	STRING_AGG	emulated	orderedAggregate: STRING_AGG		506
+BigQuery	BigQuery	reducer	LIST	emulated	arrayAgg		1
+BigQuery	BigQuery	reducer	QUANTILE_CONT	emulated	percentile		1
+BigQuery	BigQuery	reducer	QUANTILE_DISC	emulated	percentile		1
+BigQuery	BigQuery	reducer	CORR	spelled	CORR (unordered)		4
+BigQuery	BigQuery	reducer	COVAR_SAMP	spelled	COVAR_SAMP (unordered)		5
+BigQuery	BigQuery	reducer	COVAR_POP	spelled	COVAR_POP (unordered)		4
+BigQuery	BigQuery	reducer	ARG_MAX	emulated	byExtreme: MAX_BY		1
+BigQuery	BigQuery	reducer	ARG_MIN	emulated	byExtreme: MIN_BY		1
+BigQuery	BigQuery	reducer	WAVG	not_here	lowering marker reached the renderer		0
+BigQuery	BigQuery	reducer	HASH_LIST	not_here	lowering marker reached the renderer		0
+BigQuery	BigQuery	reducer	BOOL_AND	emulated	aggregateArgs: …LOGICAL_AND(…)		0
+BigQuery	BigQuery	reducer	BOOL_OR	emulated	aggregateArgs: …LOGICAL_OR(…)		0
+BigQuery	BigQuery	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		0
+BigQuery	BigQuery	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
+BigQuery	BigQuery	reducer	VARIANCE	spelled	VARIANCE (unordered)		0
+BigQuery	BigQuery	reducer	STDDEV	spelled	STDDEV (unordered)		0
+BigQuery	BigQuery	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
+BigQuery	BigQuery	reducer	RANK	not_here	is a window function: windowCall writes it		0
+BigQuery	BigQuery	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
+BigQuery	BigQuery	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it		0
+BigQuery	BigQuery	reducer	CUME_DIST	not_here	is a window function: windowCall writes it		0
+BigQuery	BigQuery	reducer	NTILE	not_here	is a window function: windowCall writes it		0
+BigQuery	BigQuery	reducer	LAG	not_here	is a window function: windowCall writes it		0
+BigQuery	BigQuery	reducer	LEAD	not_here	is a window function: windowCall writes it		0
+BigQuery	BigQuery	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
+BigQuery	BigQuery	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
+BigQuery	BigQuery	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
+Databricks	Databricks	call	AND	spelled	an operator (infix)		204
+Databricks	Databricks	call	OR	spelled	an operator (infix)		262
+Databricks	Databricks	call	NOT	spelled	an operator (notPrefix)		61
+Databricks	Databricks	call	EQUAL	spelled	an operator (infix)		242
+Databricks	Databricks	call	NOT_EQUAL	spelled	an operator (infix)		16
+Databricks	Databricks	call	LESS	spelled	an operator (infix)		125
+Databricks	Databricks	call	LESS_EQUAL	spelled	an operator (infix)		125
+Databricks	Databricks	call	GREATER	spelled	an operator (infix)		378
+Databricks	Databricks	call	GREATER_EQUAL	spelled	an operator (infix)		168
+Databricks	Databricks	call	PLUS	spelled	an operator (infix)		105
+Databricks	Databricks	call	MINUS	spelled	an operator (infix)		146
+Databricks	Databricks	call	TIMES	spelled	an operator (infix)		32
+Databricks	Databricks	call	DIVIDE	emulated	divideAsDoubles		30
+Databricks	Databricks	call	MOD	emulated	modFloored		23
+Databricks	Databricks	call	REM	emulated	modTruncated		14
+Databricks	Databricks	call	NEGATE	spelled	an operator (negation)		0
+Databricks	Databricks	call	ABS	spelled	abs		65
+Databricks	Databricks	call	IS_NULL	spelled	an operator (isNullTest)		519
+Databricks	Databricks	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
+Databricks	Databricks	call	IN	emulated	inList		6
+Databricks	Databricks	call	COALESCE	spelled	coalesce		552
+Databricks	Databricks	call	PARSE_INT	emulated	castAs: BIGINT		11
+Databricks	Databricks	call	CONCAT	emulated	flattenConcat: concat_ws('', , )		755
+Databricks	Databricks	call	LENGTH	spelled	length		73
+Databricks	Databricks	call	UPPER	spelled	upper		2
+Databricks	Databricks	call	LOWER	spelled	lower		3
+Databricks	Databricks	call	GREATEST	spelled	greatest		52
+Databricks	Databricks	call	LEAST	spelled	least		8
+Databricks	Databricks	call	CONCAT_JOIN	emulated	concat_ws('', , )		0
+Databricks	Databricks	call	LIST_FILTER	emulated	list, oneBasedIndex: filter(…, …)	via Databricks.listCall	42
+Databricks	Databricks	call	LIST_TRANSFORM	emulated	list, oneBasedIndex: transform(…, …)	via Databricks.listCall	36
+Databricks	Databricks	call	LIST_CONCAT	emulated	list: concat(, coalesce(…, array()))	via Databricks.listCall	5
+Databricks	Databricks	call	LIST_GET	emulated	list: (CASE WHEN … = 0 THEN NULL ELSE try_element_at(…, CAST(… AS INT)) END)	via Databricks.listCall	72
+Databricks	Databricks	call	LIST_POSITION	emulated	list: nullif(array_position(…, …), 0)	via Databricks.listCall	53
+Databricks	Databricks	call	LIST_EXISTS	emulated	listExists		8
+Databricks	Databricks	call	LIST_FOR_ALL	emulated	listForAll		3
+Databricks	Databricks	call	STRUCT_INSERT	emulated	structInsert		0
+Databricks	Databricks	call	UNNEST	emulated	unnestProjection		160
+Databricks	Databricks	call	LIST_FLATTEN	spelled	flatten		0
+Databricks	Databricks	call	JSON_MERGE_PATCH	refused	Databricks has no JSON merge patch reached Databricks:		0
+Databricks	Databricks	call	SQRT	spelled	sqrt		4
+Databricks	Databricks	call	CBRT	spelled	cbrt		3
+Databricks	Databricks	call	EXP	spelled	exp		4
+Databricks	Databricks	call	LN	spelled	ln		3
+Databricks	Databricks	call	LOG10	spelled	log10		2
+Databricks	Databricks	call	POW	spelled	power		9
+Databricks	Databricks	call	PI	spelled	pi		1
+Databricks	Databricks	call	SIN	spelled	sin		3
+Databricks	Databricks	call	COS	spelled	cos		3
+Databricks	Databricks	call	TAN	spelled	tan		2
+Databricks	Databricks	call	ASIN	spelled	asin		4
+Databricks	Databricks	call	ACOS	spelled	acos		4
+Databricks	Databricks	call	ATAN	spelled	atan		3
+Databricks	Databricks	call	ATAN2	spelled	atan2		3
+Databricks	Databricks	call	SINH	spelled	sinh		22
+Databricks	Databricks	call	COSH	spelled	cosh		24
+Databricks	Databricks	call	TANH	spelled	tanh		29
+Databricks	Databricks	call	CEILING	emulated	bigintOf: ceil		12
+Databricks	Databricks	call	FLOOR	emulated	bigintOf: floor		18
+Databricks	Databricks	call	ROUND	emulated	roundHalfEven		22
+Databricks	Databricks	call	SIGN	emulated	bigintOf: sign		6
+Databricks	Databricks	call	XOR	emulated	xorAsAndOr		8
+Databricks	Databricks	call	BIT_AND	emulated	(… & CAST(… AS BIGINT))	via Databricks.bitOp	16
+Databricks	Databricks	call	BIT_OR	emulated	(… | CAST(… AS BIGINT))	via Databricks.bitOp	16
+Databricks	Databricks	call	BIT_XOR	emulated	(… ^ CAST(… AS BIGINT))	via Databricks.bitOp	16
+Databricks	Databricks	call	BIT_SHIFT_LEFT	emulated	shiftleft(…, CAST(… AS INT))	via Databricks.bitOp	10
+Databricks	Databricks	call	BIT_SHIFT_RIGHT	emulated	shiftright(…, CAST(… AS INT))	via Databricks.bitOp	10
+Databricks	Databricks	call	BIT_NOT	emulated	(~ CAST(… AS BIGINT))		15
+Databricks	Databricks	call	REGEXP_EXTRACT	emulated	group: regexp_extract(…, …, …)		45
+Databricks	Databricks	call	REGEXP_EXTRACT_ALL	emulated	group: regexp_extract_all(…, …, …)		13
+Databricks	Databricks	call	REGEXP_REPLACE	emulated	regexpReplace		8
+Databricks	Databricks	call	REGEXP_FULL_MATCH	emulated	anchored: regexp_like(…, …)		49
+Databricks	Databricks	call	MAP_FROM_LISTS	spelled	map_from_arrays		3
+Databricks	Databricks	call	MAP_FROM_ENTRIES	spelled	map_from_entries		13
+Databricks	Databricks	call	MAP_EMPTY	spelled	map		8
+Databricks	Databricks	call	MAP_EXTRACT	emulated	(CASE WHEN map_contains_key(…, …) THEN array(element_at(…, …)) ELSE array() END)		2
+Databricks	Databricks	call	MAP_KEYS	spelled	map_keys		4
+Databricks	Databricks	call	MAP_VALUES	spelled	map_values		4
+Databricks	Databricks	call	MAP_CONCAT	emulated	mapConcat		9
+Databricks	Databricks	call	SUBSTRING	spelled	substr		140
+Databricks	Databricks	call	STRPOS	spelled	instr		287
+Databricks	Databricks	call	STARTS_WITH	spelled	startswith		60
+Databricks	Databricks	call	ENDS_WITH	spelled	endswith		60
+Databricks	Databricks	call	MATCHES	spelled	regexp_like		16
+Databricks	Databricks	call	LEFT	spelled	left		6
+Databricks	Databricks	call	RIGHT	spelled	right		6
+Databricks	Databricks	call	LPAD	emulated	padWithSpace: lpad		16
+Databricks	Databricks	call	RPAD	emulated	padWithSpace: rpad		45
+Databricks	Databricks	call	TRIM	emulated	trim		2
+Databricks	Databricks	call	LTRIM	emulated	trim		3
+Databricks	Databricks	call	RTRIM	emulated	trim		60
+Databricks	Databricks	call	REPLACE	spelled	replace		313
+Databricks	Databricks	call	SPLIT	emulated	split		2
+Databricks	Databricks	call	SPLIT_PART	spelled	split_part		19
+Databricks	Databricks	call	TRANSLATE	spelled	translate		0
+Databricks	Databricks	call	PURE_SPLIT_PART	emulated	splitPartCall		9
+Databricks	Databricks	call	REVERSE_STRING	spelled	reverse		2
+Databricks	Databricks	call	ASCII_CODE	spelled	ascii		10
+Databricks	Databricks	call	CHR	spelled	chr		9
+Databricks	Databricks	call	UC_FIRST	emulated	firstCharCased: upper		5
+Databricks	Databricks	call	LC_FIRST	emulated	firstCharCased: lower		5
+Databricks	Databricks	call	ENCODE_BASE64	emulated	replace(replace(base64(CAST(… AS BINARY)), chr(13), ''), chr(10), '')		3
+Databricks	Databricks	call	LEVENSHTEIN	spelled	levenshtein		2
+Databricks	Databricks	call	GUID	spelled	uuid		2
+Databricks	Databricks	call	FORMAT	emulated	format_string(, CAST(… AS DOUBLE)…)		42
+Databricks	Databricks	call	HASH	emulated	hashSigned		5
+Databricks	Databricks	call	MD5	spelled	md5		1
+Databricks	Databricks	call	SHA1	spelled	sha1		1
+Databricks	Databricks	call	SHA256	emulated	sha2(…, 256)		1
+Databricks	Databricks	call	RANDOM	spelled	rand		0
+Databricks	Databricks	call	EXTRACT	emulated	extract		24
+Databricks	Databricks	call	TODAY	spelled	current_date		0
+Databricks	Databricks	call	NOW	spelled	current_timestamp		0
+Databricks	Databricks	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
+Databricks	Databricks	call	MAKE_DATE	spelled	make_date		2
+Databricks	Databricks	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
+Databricks	Databricks	call	DATE_TRUNC	emulated	dateTruncDateGrained		0
+Databricks	Databricks	call	ADD_INTERVAL	emulated	intervalUnit, part: timestampadd(…, …, …)		93
+Databricks	Databricks	call	DATE_DIFF	emulated	dateDiff		53
+Databricks	Databricks	call	TIME_BUCKET	emulated	timeBucket		109
+Databricks	Databricks	call	TIMEZONE	spelled	from_utc_timestamp		6
+Databricks	Databricks	call	DATE_AT_TIME	refused	a time of day: Databricks has no TIME type		0
+Databricks	Databricks	call	EPOCH_NS	refused	a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Databricks	Databricks	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+Databricks	Databricks	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: timestampadd(…, …, …)		0
+Databricks	Databricks	call	EPOCH_SECONDS	emulated	(CAST(unix_micros(…) AS DOUBLE) / 1000000)		0
+Databricks	Databricks	call	EPOCH_MS	emulated	(unix_micros(…) div 1000)		24
+Databricks	Databricks	call	FROM_EPOCH_SECONDS	spelled	timestamp_seconds		0
+Databricks	Databricks	call	FROM_EPOCH_MS	emulated	timestamp_millis(CAST(… AS BIGINT))		0
+Databricks	Databricks	call	DAYNAME	emulated	date_format(…, 'EEEE')		0
+Databricks	Databricks	call	MONTHNAME	emulated	date_format(…, 'MMMM')		0
+Databricks	Databricks	call	COT	spelled	cot		2
+Databricks	Databricks	call	RADIANS	spelled	radians		1
+Databricks	Databricks	call	DEGREES	spelled	degrees		1
+Databricks	Databricks	call	INT_DIVIDE	spelled	div		40
+Databricks	Databricks	call	REPEAT_STR	spelled	repeat		4
+Databricks	Databricks	call	JARO_WINKLER	emulated	jaroWinkler		2
+Databricks	Databricks	call	DECODE_BASE64	emulated	CAST(unbase64(…) AS STRING)		4
+Databricks	Databricks	call	CURRENT_USER_FN	spelled	current_user		2
+Databricks	Databricks	call	LIST_LENGTH	emulated	list: array_size(…)		52
+Databricks	Databricks	call	LIST_ZIP	refused	list_zip reached Databricks: arrays_zip names its fields	via Databricks.listCall	0
+Databricks	Databricks	call	LIST_DISTINCT	emulated	list, param: array_distinct(filter(…, __x -> __x IS NOT NULL))	via Databricks.listCall	0
+Databricks	Databricks	call	LIST_APPEND	emulated	list: array_append(…, …)	via Databricks.listCall	8
+Databricks	Databricks	call	LIST_SUM	emulated	overRows	via Databricks.listCall	3
+Databricks	Databricks	call	LIST_MIN	emulated	list: array_min(…)	via Databricks.listCall	58
+Databricks	Databricks	call	LIST_MAX	emulated	list: array_max(…)	via Databricks.listCall	58
+Databricks	Databricks	call	LIST_AVG	emulated	overRows: CAST(… AS DOUBLE)	via Databricks.listCall	3
+Databricks	Databricks	call	LIST_MEDIAN	emulated	overRows	via Databricks.listCall	6
+Databricks	Databricks	call	LIST_MODE	emulated	overRows	via Databricks.listCall	6
+Databricks	Databricks	call	LIST_SORT	emulated	list: array_sort(…)	via Databricks.listCall	13
+Databricks	Databricks	call	LIST_SORT_DESC	emulated	list: sort_array(…, false)	via Databricks.listCall	5
+Databricks	Databricks	call	LIST_TAIL	emulated	list: filter(…, (`__x`, `__i`) -> `__i` > 0)	via Databricks.listCall	1
+Databricks	Databricks	call	LIST_INIT	emulated	list: filter(…, (`__x`, `__i`) -> `__i` < array_size(…) - 1)	via Databricks.listCall	0
+Databricks	Databricks	call	RANGE_FN	emulated	rangeFn		33
+Databricks	Databricks	call	LIST_PRODUCT	emulated	list: aggregate(…, CAST(1 AS DOUBLE), (`__a`, `__x`) -> `__a` * coalesce(`__x`, 1))	via Databricks.listCall	0
+Databricks	Databricks	call	LIST_REDUCE	emulated	list: aggregate(filter(…, (`__x`, `__i`) -> `__i` > 0), element_at(…, 1), …)	via Databricks.listCall	6
+Databricks	Databricks	call	LIST_SLICE	emulated	list: filter(…, (`__x`, `__i`) -> `__i` + 1 >= … AND `__i` + 1 <= …)	via Databricks.listCall	13
+Databricks	Databricks	call	REPEAT_VALUE	emulated	array_repeat(…, CAST(… AS INT))		0
+Databricks	Databricks	call	LIST_BOOL_AND	emulated	overRows	via Databricks.listCall	0
+Databricks	Databricks	call	LIST_BOOL_OR	emulated	overRows	via Databricks.listCall	0
+Databricks	Databricks	call	IS_DISTINCT_FROM	emulated	distinctFrom		0
+Databricks	Databricks	call	ALL_DISTINCT	emulated	allDistinct		0
+Databricks	Databricks	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom		3
+Databricks	Databricks	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom		10
+Databricks	Databricks	call	STRFTIME	emulated	strftime		193
+Databricks	Databricks	call	STRPTIME	emulated	strptime		0
+Databricks	Databricks	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
+Databricks	Databricks	call	LIST_REVERSE	spelled	reverse		4
+Databricks	Databricks	call	TYPEOF	spelled	typeof	via Databricks.listCall	0
+Databricks	Databricks	call	ROUND_HALF_UP	spelled	ROUND		1
+Databricks	Databricks	call	ERROR	emulated	raiseEnvelope: raise_error		70
+Databricks	Databricks	call	FLOOR_RAW	emulated	(CASE WHEN abs(…) >= 4503599627370496 THEN … ELSE CAST(floor(…) AS DOUBLE) END)		55
+Databricks	Databricks	call	TO_VARIANT	emulated	variantConstruct		8
+Databricks	Databricks	call	BOOL_TO_TEXT	emulated	CAST(… AS STRING)		2
+Databricks	Databricks	call	FLOAT_CANON	emulated	floatCanonByText		0
+Databricks	Databricks	call	FLOAT_PRINT	emulated	floatPrintByText		0
+Databricks	Databricks	call	VARIANT_ELEMENTS	emulated	variantElements		4
+Databricks	Databricks	call	VARIANT_GET	emulated	variantGet		15
+Databricks	Databricks	call	JSON_TYPE	emulated	jsonType		1
+Databricks	Databricks	call	JSON_ARRAY_LENGTH	emulated	array_size(try_cast(… AS ARRAY<VARIANT>))		0
+Databricks	Databricks	call	JSON_PRETTY	refused	Databricks has no JSON pretty-printer reached Databricks:		0
+Databricks	Databricks	reducer	SUM	spelled	SUM (unordered)		212
+Databricks	Databricks	reducer	COUNT	spelled	COUNT (unordered)		14
+Databricks	Databricks	reducer	AVG	spelled	AVG (unordered)		10
+Databricks	Databricks	reducer	MIN	spelled	MIN (unordered)		7
+Databricks	Databricks	reducer	MAX	spelled	MAX (unordered)		7
+Databricks	Databricks	reducer	ANY_VALUE	spelled	ANY_VALUE (unordered)		0
+Databricks	Databricks	reducer	STDDEV_SAMP	spelled	STDDEV_SAMP (unordered)		2
+Databricks	Databricks	reducer	STDDEV_POP	spelled	STDDEV_POP (unordered)		5
+Databricks	Databricks	reducer	VAR_SAMP	spelled	VAR_SAMP (unordered)		2
+Databricks	Databricks	reducer	VAR_POP	spelled	VAR_POP (unordered)		2
+Databricks	Databricks	reducer	MEDIAN	spelled	median		6
+Databricks	Databricks	reducer	MODE	spelled	mode		6
+Databricks	Databricks	reducer	STRING_AGG	emulated	listagg		506
+Databricks	Databricks	reducer	LIST	emulated	arrayAgg		1
+Databricks	Databricks	reducer	QUANTILE_CONT	emulated	percentile: percentile_cont		1
+Databricks	Databricks	reducer	QUANTILE_DISC	emulated	percentile: percentile_disc		1
+Databricks	Databricks	reducer	CORR	spelled	CORR (unordered)		4
+Databricks	Databricks	reducer	COVAR_SAMP	spelled	COVAR_SAMP (unordered)		5
+Databricks	Databricks	reducer	COVAR_POP	spelled	COVAR_POP (unordered)		4
+Databricks	Databricks	reducer	ARG_MAX	emulated	byExtreme: max_by		1
+Databricks	Databricks	reducer	ARG_MIN	emulated	byExtreme: min_by		1
+Databricks	Databricks	reducer	WAVG	not_here	lowering marker reached the renderer		0
+Databricks	Databricks	reducer	HASH_LIST	not_here	lowering marker reached the renderer		0
+Databricks	Databricks	reducer	BOOL_AND	spelled	BOOL_AND (unordered)		0
+Databricks	Databricks	reducer	BOOL_OR	spelled	BOOL_OR (unordered)		0
+Databricks	Databricks	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		0
+Databricks	Databricks	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
+Databricks	Databricks	reducer	VARIANCE	spelled	VARIANCE (unordered)		0
+Databricks	Databricks	reducer	STDDEV	spelled	STDDEV (unordered)		0
+Databricks	Databricks	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
+Databricks	Databricks	reducer	RANK	not_here	is a window function: windowCall writes it		0
+Databricks	Databricks	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
+Databricks	Databricks	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it		0
+Databricks	Databricks	reducer	CUME_DIST	not_here	is a window function: windowCall writes it		0
+Databricks	Databricks	reducer	NTILE	not_here	is a window function: windowCall writes it		0
+Databricks	Databricks	reducer	LAG	not_here	is a window function: windowCall writes it		0
+Databricks	Databricks	reducer	LEAD	not_here	is a window function: windowCall writes it		0
+Databricks	Databricks	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
+Databricks	Databricks	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
+Databricks	Databricks	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
+DuckDb	DuckDB	call	AND	spelled	an operator (infix)		204
+DuckDb	DuckDB	call	OR	spelled	an operator (infix)		262
+DuckDb	DuckDB	call	NOT	spelled	an operator (notPrefix)		61
+DuckDb	DuckDB	call	EQUAL	spelled	an operator (infix)		242
+DuckDb	DuckDB	call	NOT_EQUAL	spelled	an operator (infix)		16
+DuckDb	DuckDB	call	LESS	spelled	an operator (infix)		125
+DuckDb	DuckDB	call	LESS_EQUAL	spelled	an operator (infix)		125
+DuckDb	DuckDB	call	GREATER	spelled	an operator (infix)		378
+DuckDb	DuckDB	call	GREATER_EQUAL	spelled	an operator (infix)		168
+DuckDb	DuckDB	call	PLUS	spelled	an operator (infix)		106
+DuckDb	DuckDB	call	MINUS	spelled	an operator (infix)		147
+DuckDb	DuckDB	call	TIMES	spelled	an operator (infix)		34
+DuckDb	DuckDB	call	DIVIDE	emulated	divideAsDoubles		30
+DuckDb	DuckDB	call	MOD	emulated	modFloored		23
+DuckDb	DuckDB	call	REM	emulated	modTruncated		14
+DuckDb	DuckDB	call	NEGATE	spelled	an operator (negation)		1
+DuckDb	DuckDB	call	ABS	spelled	abs		65
+DuckDb	DuckDB	call	IS_NULL	spelled	an operator (isNullTest)		519
+DuckDb	DuckDB	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
+DuckDb	DuckDB	call	IN	emulated	inList		6
+DuckDb	DuckDB	call	COALESCE	spelled	coalesce		561
+DuckDb	DuckDB	call	PARSE_INT	emulated	castAs: BIGINT		11
+DuckDb	DuckDB	call	CONCAT	emulated	concatFlat		755
+DuckDb	DuckDB	call	LENGTH	emulated	lengthArm		73
+DuckDb	DuckDB	call	UPPER	spelled	upper		2
+DuckDb	DuckDB	call	LOWER	spelled	lower		3
+DuckDb	DuckDB	call	GREATEST	spelled	greatest		53
+DuckDb	DuckDB	call	LEAST	spelled	least		8
+DuckDb	DuckDB	call	CONCAT_JOIN	spelled	concat		0
+DuckDb	DuckDB	call	LIST_FILTER	spelled	list_filter	via DuckDb.listCall	42
+DuckDb	DuckDB	call	LIST_TRANSFORM	spelled	list_transform	via DuckDb.listCall	37
+DuckDb	DuckDB	call	LIST_CONCAT	spelled	list_concat	via DuckDb.listCall	5
+DuckDb	DuckDB	call	LIST_GET	spelled	list_extract	via DuckDb.listCall	75
+DuckDb	DuckDB	call	LIST_POSITION	spelled	list_position	via DuckDb.listCall	53
+DuckDb	DuckDB	call	LIST_EXISTS	emulated	listExists		8
+DuckDb	DuckDB	call	LIST_FOR_ALL	emulated	listForAll		3
+DuckDb	DuckDB	call	STRUCT_INSERT	emulated	structInsert		0
+DuckDb	DuckDB	call	UNNEST	emulated	unnestProjection		160
+DuckDb	DuckDB	call	LIST_FLATTEN	spelled	flatten		0
+DuckDb	DuckDB	call	JSON_MERGE_PATCH	emulated	jsonMergePatch		0
+DuckDb	DuckDB	call	SQRT	spelled	sqrt		4
+DuckDb	DuckDB	call	CBRT	spelled	cbrt		3
+DuckDb	DuckDB	call	EXP	spelled	exp		4
+DuckDb	DuckDB	call	LN	spelled	ln		3
+DuckDb	DuckDB	call	LOG10	spelled	log10		2
+DuckDb	DuckDB	call	POW	spelled	power		9
+DuckDb	DuckDB	call	PI	spelled	pi		1
+DuckDb	DuckDB	call	SIN	spelled	sin		3
+DuckDb	DuckDB	call	COS	spelled	cos		3
+DuckDb	DuckDB	call	TAN	spelled	tan		2
+DuckDb	DuckDB	call	ASIN	emulated	domainGuarded: asin		4
+DuckDb	DuckDB	call	ACOS	emulated	domainGuarded: acos		4
+DuckDb	DuckDB	call	ATAN	spelled	atan		3
+DuckDb	DuckDB	call	ATAN2	spelled	atan2		3
+DuckDb	DuckDB	call	SINH	spelled	sinh		22
+DuckDb	DuckDB	call	COSH	spelled	cosh		24
+DuckDb	DuckDB	call	TANH	spelled	tanh		29
+DuckDb	DuckDB	call	CEILING	emulated	bigintOf: ceil		14
+DuckDb	DuckDB	call	FLOOR	emulated	bigintOf: floor		19
+DuckDb	DuckDB	call	ROUND	emulated	roundHalfEven		22
+DuckDb	DuckDB	call	SIGN	emulated	bigintOf: sign		6
+DuckDb	DuckDB	call	XOR	emulated	xorAsAndOr		8
+DuckDb	DuckDB	call	BIT_AND	spelled	an operator (&)	via DuckDb.bitOp	16
+DuckDb	DuckDB	call	BIT_OR	spelled	an operator (|)	via DuckDb.bitOp	16
+DuckDb	DuckDB	call	BIT_XOR	spelled	xor	via DuckDb.bitOp	16
+DuckDb	DuckDB	call	BIT_SHIFT_LEFT	spelled	an operator (<<)	via DuckDb.bitOp	10
+DuckDb	DuckDB	call	BIT_SHIFT_RIGHT	spelled	an operator (>>)	via DuckDb.bitOp	10
+DuckDb	DuckDB	call	BIT_NOT	emulated	bitNot		15
+DuckDb	DuckDB	call	REGEXP_EXTRACT	spelled	regexp_extract		45
+DuckDb	DuckDB	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all		13
+DuckDb	DuckDB	call	REGEXP_REPLACE	spelled	regexp_replace		8
+DuckDb	DuckDB	call	REGEXP_FULL_MATCH	spelled	regexp_full_match		49
+DuckDb	DuckDB	call	MAP_FROM_LISTS	spelled	map		3
+DuckDb	DuckDB	call	MAP_FROM_ENTRIES	spelled	map_from_entries		13
+DuckDb	DuckDB	call	MAP_EMPTY	emulated	mapEmpty		8
+DuckDb	DuckDB	call	MAP_EXTRACT	spelled	map_extract		2
+DuckDb	DuckDB	call	MAP_KEYS	spelled	map_keys		4
+DuckDb	DuckDB	call	MAP_VALUES	spelled	map_values		4
+DuckDb	DuckDB	call	MAP_CONCAT	spelled	map_concat		9
+DuckDb	DuckDB	call	SUBSTRING	spelled	substr		140
+DuckDb	DuckDB	call	STRPOS	spelled	strpos		287
+DuckDb	DuckDB	call	STARTS_WITH	spelled	starts_with		60
+DuckDb	DuckDB	call	ENDS_WITH	spelled	ends_with		60
+DuckDb	DuckDB	call	MATCHES	spelled	regexp_matches		16
+DuckDb	DuckDB	call	LEFT	spelled	left		6
+DuckDb	DuckDB	call	RIGHT	spelled	right		6
+DuckDb	DuckDB	call	LPAD	emulated	padWithSpaceToInteger: lpad		16
+DuckDb	DuckDB	call	RPAD	emulated	padWithSpaceToInteger: rpad		45
+DuckDb	DuckDB	call	TRIM	spelled	trim		2
+DuckDb	DuckDB	call	LTRIM	spelled	ltrim		3
+DuckDb	DuckDB	call	RTRIM	spelled	rtrim		60
+DuckDb	DuckDB	call	REPLACE	spelled	replace		313
+DuckDb	DuckDB	call	SPLIT	spelled	string_split		2
+DuckDb	DuckDB	call	SPLIT_PART	spelled	split_part		19
+DuckDb	DuckDB	call	TRANSLATE	spelled	translate		0
+DuckDb	DuckDB	call	PURE_SPLIT_PART	emulated	splitPartCall		9
+DuckDb	DuckDB	call	REVERSE_STRING	spelled	reverse		2
+DuckDb	DuckDB	call	ASCII_CODE	spelled	ascii		10
+DuckDb	DuckDB	call	CHR	emulated	chr(CAST(… AS INTEGER))		9
+DuckDb	DuckDB	call	UC_FIRST	emulated	firstCharCased: upper		5
+DuckDb	DuckDB	call	LC_FIRST	emulated	firstCharCased: lower		5
+DuckDb	DuckDB	call	ENCODE_BASE64	emulated	encodeBase64		3
+DuckDb	DuckDB	call	LEVENSHTEIN	spelled	levenshtein		2
+DuckDb	DuckDB	call	GUID	emulated	CAST(uuid() AS VARCHAR)		2
+DuckDb	DuckDB	call	FORMAT	spelled	printf		42
+DuckDb	DuckDB	call	HASH	emulated	hashSigned		5
+DuckDb	DuckDB	call	MD5	spelled	md5		1
+DuckDb	DuckDB	call	SHA1	spelled	sha1		1
+DuckDb	DuckDB	call	SHA256	spelled	sha256		1
+DuckDb	DuckDB	call	RANDOM	spelled	random		0
+DuckDb	DuckDB	call	EXTRACT	emulated	stringLit, datePart, part: date_part(…, …)		24
+DuckDb	DuckDB	call	TODAY	spelled	current_date		0
+DuckDb	DuckDB	call	NOW	emulated	CAST(now() AS TIMESTAMP)		0
+DuckDb	DuckDB	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
+DuckDb	DuckDB	call	MAKE_DATE	spelled	make_date		2
+DuckDb	DuckDB	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
+DuckDb	DuckDB	call	DATE_TRUNC	emulated	dateTruncArm		0
+DuckDb	DuckDB	call	ADD_INTERVAL	emulated	intervalFunction, part: … + …(…)		93
+DuckDb	DuckDB	call	DATE_DIFF	emulated	stringLit, datePart, part: date_diff(…, …)		53
+DuckDb	DuckDB	call	TIME_BUCKET	emulated	timeBucket		109
+DuckDb	DuckDB	call	TIMEZONE	spelled	timezone		6
+DuckDb	DuckDB	call	DATE_AT_TIME	spelled	an operator (+)		0
+DuckDb	DuckDB	call	EPOCH_NS	spelled	epoch_ns		0
+DuckDb	DuckDB	call	FROM_EPOCH_NS	spelled	make_timestamp_ns		0
+DuckDb	DuckDB	call	ADD_INTERVAL_TEMPORAL	emulated	intervalFunction, part: … + …(…)		0
+DuckDb	DuckDB	call	EPOCH_SECONDS	spelled	epoch		0
+DuckDb	DuckDB	call	EPOCH_MS	spelled	epoch_ms		24
+DuckDb	DuckDB	call	FROM_EPOCH_SECONDS	spelled	to_timestamp		0
+DuckDb	DuckDB	call	FROM_EPOCH_MS	emulated	fromEpochMs		0
+DuckDb	DuckDB	call	DAYNAME	spelled	dayname		0
+DuckDb	DuckDB	call	MONTHNAME	spelled	monthname		0
+DuckDb	DuckDB	call	COT	spelled	cot		2
+DuckDb	DuckDB	call	RADIANS	spelled	radians		1
+DuckDb	DuckDB	call	DEGREES	spelled	degrees		1
+DuckDb	DuckDB	call	INT_DIVIDE	emulated	intDivide		40
+DuckDb	DuckDB	call	REPEAT_STR	spelled	repeat		4
+DuckDb	DuckDB	call	JARO_WINKLER	spelled	jaro_winkler_similarity		2
+DuckDb	DuckDB	call	DECODE_BASE64	emulated	decodeBase64		4
+DuckDb	DuckDB	call	CURRENT_USER_FN	spelled	current_user		2
+DuckDb	DuckDB	call	LIST_LENGTH	spelled	len		52
+DuckDb	DuckDB	call	LIST_ZIP	spelled	list_zip	via DuckDb.listCall	0
+DuckDb	DuckDB	call	LIST_DISTINCT	spelled	list_distinct	via DuckDb.listCall	0
+DuckDb	DuckDB	call	LIST_APPEND	spelled	list_append	via DuckDb.listCall	8
+DuckDb	DuckDB	call	LIST_SUM	spelled	list_sum	via DuckDb.listCall	3
+DuckDb	DuckDB	call	LIST_MIN	spelled	list_min	via DuckDb.listCall	58
+DuckDb	DuckDB	call	LIST_MAX	spelled	list_max	via DuckDb.listCall	58
+DuckDb	DuckDB	call	LIST_AVG	spelled	list_avg	via DuckDb.listCall	3
+DuckDb	DuckDB	call	LIST_MEDIAN	spelled	list_median	via DuckDb.listCall	6
+DuckDb	DuckDB	call	LIST_MODE	emulated	list_aggregate(…, 'mode')	via DuckDb.listCall	6
+DuckDb	DuckDB	call	LIST_SORT	spelled	list_sort	via DuckDb.listCall	15
+DuckDb	DuckDB	call	LIST_SORT_DESC	spelled	list_reverse_sort	via DuckDb.listCall	5
+DuckDb	DuckDB	call	LIST_TAIL	emulated	…[2:]	via DuckDb.listCall	1
+DuckDb	DuckDB	call	LIST_INIT	emulated	…[:-2]	via DuckDb.listCall	0
+DuckDb	DuckDB	call	RANGE_FN	spelled	range	via DuckDb.listCall	33
+DuckDb	DuckDB	call	LIST_PRODUCT	emulated	list_aggregate(…, 'product')	via DuckDb.listCall	0
+DuckDb	DuckDB	call	LIST_REDUCE	spelled	list_reduce	via DuckDb.listCall	17
+DuckDb	DuckDB	call	LIST_SLICE	spelled	array_slice	via DuckDb.listCall	13
+DuckDb	DuckDB	call	REPEAT_VALUE	emulated	list_transform(range(…), _i -> …)	via DuckDb.listCall	0
+DuckDb	DuckDB	call	LIST_BOOL_AND	emulated	list_aggregate(…, 'bool_and')	via DuckDb.listCall	0
+DuckDb	DuckDB	call	LIST_BOOL_OR	emulated	list_aggregate(…, 'bool_or')	via DuckDb.listCall	0
+DuckDb	DuckDB	call	IS_DISTINCT_FROM	emulated	distinctFrom		0
+DuckDb	DuckDB	call	ALL_DISTINCT	emulated	allDistinct		0
+DuckDb	DuckDB	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom		3
+DuckDb	DuckDB	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom		10
+DuckDb	DuckDB	call	STRFTIME	emulated	strftime		193
+DuckDb	DuckDB	call	STRPTIME	spelled	strptime		0
+DuckDb	DuckDB	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
+DuckDb	DuckDB	call	LIST_REVERSE	spelled	list_reverse	via DuckDb.listCall	4
+DuckDb	DuckDB	call	TYPEOF	spelled	typeof	via DuckDb.listCall	0
+DuckDb	DuckDB	call	ROUND_HALF_UP	spelled	ROUND		1
+DuckDb	DuckDB	call	ERROR	emulated	raiseEnvelope: error		70
+DuckDb	DuckDB	call	FLOOR_RAW	spelled	floor		55
+DuckDb	DuckDB	call	TO_VARIANT	emulated	variantConstruct		8
+DuckDb	DuckDB	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
+DuckDb	DuckDB	call	FLOAT_CANON	emulated	floatCanonByText		0
+DuckDb	DuckDB	call	FLOAT_PRINT	emulated	floatPrintByText		0
+DuckDb	DuckDB	call	VARIANT_ELEMENTS	emulated	variantElements		4
+DuckDb	DuckDB	call	VARIANT_GET	emulated	variantGet		15
+DuckDb	DuckDB	call	JSON_TYPE	spelled	json_type		1
+DuckDb	DuckDB	call	JSON_ARRAY_LENGTH	spelled	json_array_length		0
+DuckDb	DuckDB	call	JSON_PRETTY	spelled	json_pretty		0
+DuckDb	DuckDB	reducer	SUM	spelled	SUM		212
+DuckDb	DuckDB	reducer	COUNT	spelled	COUNT		16
+DuckDb	DuckDB	reducer	AVG	spelled	AVG		10
+DuckDb	DuckDB	reducer	MIN	spelled	MIN		7
+DuckDb	DuckDB	reducer	MAX	spelled	MAX		7
+DuckDb	DuckDB	reducer	ANY_VALUE	spelled	ANY_VALUE		0
+DuckDb	DuckDB	reducer	STDDEV_SAMP	spelled	STDDEV_SAMP		2
+DuckDb	DuckDB	reducer	STDDEV_POP	spelled	STDDEV_POP		5
+DuckDb	DuckDB	reducer	VAR_SAMP	spelled	VAR_SAMP		2
+DuckDb	DuckDB	reducer	VAR_POP	spelled	VAR_POP		2
+DuckDb	DuckDB	reducer	MEDIAN	spelled	MEDIAN		6
+DuckDb	DuckDB	reducer	MODE	spelled	MODE		6
+DuckDb	DuckDB	reducer	STRING_AGG	spelled	STRING_AGG		506
+DuckDb	DuckDB	reducer	LIST	spelled	LIST		3
+DuckDb	DuckDB	reducer	QUANTILE_CONT	spelled	QUANTILE_CONT		0
+DuckDb	DuckDB	reducer	QUANTILE_DISC	spelled	QUANTILE_DISC		0
+DuckDb	DuckDB	reducer	CORR	spelled	CORR		4
+DuckDb	DuckDB	reducer	COVAR_SAMP	spelled	COVAR_SAMP		5
+DuckDb	DuckDB	reducer	COVAR_POP	spelled	COVAR_POP		4
+DuckDb	DuckDB	reducer	ARG_MAX	spelled	ARG_MAX		1
+DuckDb	DuckDB	reducer	ARG_MIN	spelled	ARG_MIN		1
+DuckDb	DuckDB	reducer	WAVG	not_here	lowering marker reached the renderer		0
+DuckDb	DuckDB	reducer	HASH_LIST	not_here	lowering marker reached the renderer		0
+DuckDb	DuckDB	reducer	BOOL_AND	spelled	BOOL_AND		0
+DuckDb	DuckDB	reducer	BOOL_OR	spelled	BOOL_OR		0
+DuckDb	DuckDB	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		0
+DuckDb	DuckDB	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
+DuckDb	DuckDB	reducer	VARIANCE	spelled	VARIANCE		0
+DuckDb	DuckDB	reducer	STDDEV	spelled	STDDEV		0
+DuckDb	DuckDB	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
+DuckDb	DuckDB	reducer	RANK	not_here	is a window function: windowCall writes it		0
+DuckDb	DuckDB	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
+DuckDb	DuckDB	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it		0
+DuckDb	DuckDB	reducer	CUME_DIST	not_here	is a window function: windowCall writes it		0
+DuckDb	DuckDB	reducer	NTILE	not_here	is a window function: windowCall writes it		0
+DuckDb	DuckDB	reducer	LAG	not_here	is a window function: windowCall writes it		0
+DuckDb	DuckDB	reducer	LEAD	not_here	is a window function: windowCall writes it		0
+DuckDb	DuckDB	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
+DuckDb	DuckDB	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
+DuckDb	DuckDB	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
+ClickHouse	ClickHouse	call	AND	spelled	an operator (infix)		204
+ClickHouse	ClickHouse	call	OR	spelled	an operator (infix)		262
+ClickHouse	ClickHouse	call	NOT	spelled	an operator (notPrefix)		61
+ClickHouse	ClickHouse	call	EQUAL	emulated	equalArm		246
+ClickHouse	ClickHouse	call	NOT_EQUAL	emulated	equalArm		16
+ClickHouse	ClickHouse	call	LESS	spelled	an operator (infix)		125
+ClickHouse	ClickHouse	call	LESS_EQUAL	spelled	an operator (infix)		125
+ClickHouse	ClickHouse	call	GREATER	spelled	an operator (infix)		378
+ClickHouse	ClickHouse	call	GREATER_EQUAL	spelled	an operator (infix)		168
+ClickHouse	ClickHouse	call	PLUS	spelled	an operator (infix)		105
+ClickHouse	ClickHouse	call	MINUS	spelled	an operator (infix)		146
+ClickHouse	ClickHouse	call	TIMES	spelled	an operator (infix)		32
+ClickHouse	ClickHouse	call	DIVIDE	emulated	divideAsDoubles		30
+ClickHouse	ClickHouse	call	MOD	emulated	modulo, operand: (CASE WHEN … = 0 THEN NULL ELSE ((…, …) + …, …) END)		23
+ClickHouse	ClickHouse	call	REM	emulated	modulo, operand: (CASE WHEN … = 0 THEN NULL ELSE (…, …) END)		14
+ClickHouse	ClickHouse	call	NEGATE	spelled	an operator (negation)		0
+ClickHouse	ClickHouse	call	ABS	emulated	by its operands: accurateCast(abs(…), 'Int64') / abs(…)		65
+ClickHouse	ClickHouse	call	IS_NULL	spelled	an operator (isNullTest)		519
+ClickHouse	ClickHouse	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
+ClickHouse	ClickHouse	call	IN	emulated	inList		6
+ClickHouse	ClickHouse	call	COALESCE	spelled	coalesce		552
+ClickHouse	ClickHouse	call	PARSE_INT	emulated	castAs: BIGINT		11
+ClickHouse	ClickHouse	call	CONCAT	emulated	flattenConcat: concat(, )		755
+ClickHouse	ClickHouse	call	LENGTH	emulated	toInt64(lengthUTF8(…))		73
+ClickHouse	ClickHouse	call	UPPER	spelled	upperUTF8		2
+ClickHouse	ClickHouse	call	LOWER	spelled	lowerUTF8		3
+ClickHouse	ClickHouse	call	GREATEST	emulated	unified: greatest(, )		52
+ClickHouse	ClickHouse	call	LEAST	emulated	unified: least(, )		8
+ClickHouse	ClickHouse	call	CONCAT_JOIN	spelled	concat		0
+ClickHouse	ClickHouse	call	LIST_FILTER	emulated	lambdaArrays: arrayFilter(…, …)	via ClickHouse.listCall	42
+ClickHouse	ClickHouse	call	LIST_TRANSFORM	emulated	lambdaArrays: arrayMap(…, …)	via ClickHouse.listCall	36
+ClickHouse	ClickHouse	call	LIST_CONCAT	emulated	list: arrayConcat(, …)	via ClickHouse.listCall	5
+ClickHouse	ClickHouse	call	LIST_GET	emulated	by its operands: arrayElement(…, …) / (CASE WHEN … = 0 OR abs(…) > length(…) THEN NULL ELSE arrayElement(…, …) END)	via ClickHouse.listCall	72
+ClickHouse	ClickHouse	call	LIST_POSITION	emulated	list: nullIf(toInt64(indexOf(…, …)), 0)	via ClickHouse.listCall	53
+ClickHouse	ClickHouse	call	LIST_EXISTS	emulated	listExists		8
+ClickHouse	ClickHouse	call	LIST_FOR_ALL	emulated	listForAll		3
+ClickHouse	ClickHouse	call	STRUCT_INSERT	emulated	structInsert		0
+ClickHouse	ClickHouse	call	UNNEST	emulated	unnestProjection		160
+ClickHouse	ClickHouse	call	LIST_FLATTEN	spelled	arrayFlatten		0
+ClickHouse	ClickHouse	call	JSON_MERGE_PATCH	refused	ClickHouse has no JSON merge patch reached ClickHouse:		0
+ClickHouse	ClickHouse	call	SQRT	spelled	sqrt		4
+ClickHouse	ClickHouse	call	CBRT	spelled	cbrt		3
+ClickHouse	ClickHouse	call	EXP	emulated	pow(e(), toFloat64(…))		4
+ClickHouse	ClickHouse	call	LN	emulated	(log2(toFloat64(…)) / log2(e()))		3
+ClickHouse	ClickHouse	call	LOG10	spelled	log10		2
+ClickHouse	ClickHouse	call	POW	spelled	pow		9
+ClickHouse	ClickHouse	call	PI	spelled	pi		1
+ClickHouse	ClickHouse	call	SIN	spelled	sin		3
+ClickHouse	ClickHouse	call	COS	spelled	cos		3
+ClickHouse	ClickHouse	call	TAN	spelled	tan		2
+ClickHouse	ClickHouse	call	ASIN	spelled	asin		4
+ClickHouse	ClickHouse	call	ACOS	spelled	acos		4
+ClickHouse	ClickHouse	call	ATAN	spelled	atan		3
+ClickHouse	ClickHouse	call	ATAN2	spelled	atan2		3
+ClickHouse	ClickHouse	call	SINH	spelled	sinh		22
+ClickHouse	ClickHouse	call	COSH	spelled	cosh		24
+ClickHouse	ClickHouse	call	TANH	emulated	(1 - 2 / (pow(e(), 2 * toFloat64(…)) + 1))		29
+ClickHouse	ClickHouse	call	CEILING	emulated	bigintOf: ceil		12
+ClickHouse	ClickHouse	call	FLOOR	emulated	bigintOf: floor		18
+ClickHouse	ClickHouse	call	ROUND	emulated	roundHalfEven		22
+ClickHouse	ClickHouse	call	SIGN	emulated	bigintOf: sign		6
+ClickHouse	ClickHouse	call	XOR	emulated	xorAsAndOr		8
+ClickHouse	ClickHouse	call	BIT_AND	spelled	bitAnd	via ClickHouse.bitOp	16
+ClickHouse	ClickHouse	call	BIT_OR	spelled	bitOr	via ClickHouse.bitOp	16
+ClickHouse	ClickHouse	call	BIT_XOR	spelled	bitXor	via ClickHouse.bitOp	16
+ClickHouse	ClickHouse	call	BIT_SHIFT_LEFT	spelled	bitShiftLeft	via ClickHouse.bitOp	10
+ClickHouse	ClickHouse	call	BIT_SHIFT_RIGHT	spelled	bitShiftRight	via ClickHouse.bitOp	10
+ClickHouse	ClickHouse	call	BIT_NOT	emulated	bitNot(toInt64(…))		15
+ClickHouse	ClickHouse	call	REGEXP_EXTRACT	emulated	regexpExtractArm		45
+ClickHouse	ClickHouse	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
+ClickHouse	ClickHouse	call	REGEXP_REPLACE	emulated	regexpReplace		8
+ClickHouse	ClickHouse	call	REGEXP_FULL_MATCH	emulated	anchored: match(…, …)		49
+ClickHouse	ClickHouse	call	MAP_FROM_LISTS	spelled	mapFromArrays		3
+ClickHouse	ClickHouse	call	MAP_FROM_ENTRIES	emulated	mapFromArrays(arrayMap("__e" -> tupleElement("__e", 1), …), arrayMap("__e" ->...		13
+ClickHouse	ClickHouse	call	MAP_EMPTY	spelled	map		8
+ClickHouse	ClickHouse	call	MAP_EXTRACT	emulated	if(mapContains(…, …), […[…]], [])		2
+ClickHouse	ClickHouse	call	MAP_KEYS	spelled	mapKeys		4
+ClickHouse	ClickHouse	call	MAP_VALUES	spelled	mapValues		4
+ClickHouse	ClickHouse	call	MAP_CONCAT	spelled	mapUpdate		9
+ClickHouse	ClickHouse	call	SUBSTRING	spelled	substringUTF8		140
+ClickHouse	ClickHouse	call	STRPOS	emulated	toInt64(positionUTF8(…))		287
+ClickHouse	ClickHouse	call	STARTS_WITH	spelled	startsWith		60
+ClickHouse	ClickHouse	call	ENDS_WITH	spelled	endsWith		60
+ClickHouse	ClickHouse	call	MATCHES	spelled	match		16
+ClickHouse	ClickHouse	call	LEFT	spelled	leftUTF8		6
+ClickHouse	ClickHouse	call	RIGHT	spelled	rightUTF8		6
+ClickHouse	ClickHouse	call	LPAD	emulated	padWithSpace: lpad		16
+ClickHouse	ClickHouse	call	RPAD	emulated	padWithSpace: rpad		45
+ClickHouse	ClickHouse	call	TRIM	emulated	trimArm		2
+ClickHouse	ClickHouse	call	LTRIM	emulated	trimArm		3
+ClickHouse	ClickHouse	call	RTRIM	emulated	trimArm		60
+ClickHouse	ClickHouse	call	REPLACE	spelled	replaceAll		313
+ClickHouse	ClickHouse	call	SPLIT	emulated	if(isNull(…), [], splitByString(…, ifNull(…, '')))		2
+ClickHouse	ClickHouse	call	SPLIT_PART	emulated	if(isNull(…), NULL, coalesce(arrayElement(splitByString(…, ifNull(…, '')), …)...		19
+ClickHouse	ClickHouse	call	TRANSLATE	spelled	translateUTF8		0
+ClickHouse	ClickHouse	call	PURE_SPLIT_PART	emulated	splitPartCall		9
+ClickHouse	ClickHouse	call	REVERSE_STRING	spelled	reverseUTF8		2
+ClickHouse	ClickHouse	call	ASCII_CODE	emulated	toInt64(ascii(…))		10
+ClickHouse	ClickHouse	call	CHR	spelled	char		9
+ClickHouse	ClickHouse	call	UC_FIRST	emulated	concat(upperUTF8(substringUTF8(…, 1, 1)), substringUTF8(…, 2))		5
+ClickHouse	ClickHouse	call	LC_FIRST	emulated	concat(lowerUTF8(substringUTF8(…, 1, 1)), substringUTF8(…, 2))		5
+ClickHouse	ClickHouse	call	ENCODE_BASE64	spelled	base64Encode		3
+ClickHouse	ClickHouse	call	LEVENSHTEIN	emulated	toInt64(editDistanceUTF8(…))		2
+ClickHouse	ClickHouse	call	GUID	emulated	toString(generateUUIDv4())		2
+ClickHouse	ClickHouse	call	FORMAT	emulated	formatCall		42
+ClickHouse	ClickHouse	call	HASH	emulated	hashSigned		5
+ClickHouse	ClickHouse	call	MD5	emulated	lower(hex(MD5(…)))		1
+ClickHouse	ClickHouse	call	SHA1	emulated	lower(hex(SHA1(…)))		1
+ClickHouse	ClickHouse	call	SHA256	emulated	lower(hex(SHA256(…)))		1
+ClickHouse	ClickHouse	call	RANDOM	spelled	randCanonical		0
+ClickHouse	ClickHouse	call	EXTRACT	emulated	extract	via ClickHouse.temporal	24
+ClickHouse	ClickHouse	call	TODAY	refused	today() reached ClickHouse, which has no bare current_date		0
+ClickHouse	ClickHouse	call	NOW	emulated	now64(6, 'UTC')	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	DATE_TRUNC_DAY	spelled	toDate32	via ClickHouse.temporal	4
+ClickHouse	ClickHouse	call	MAKE_DATE	spelled	makeDate32	via ClickHouse.temporal	2
+ClickHouse	ClickHouse	call	MAKE_TIMESTAMP	emulated	composed in a block	via ClickHouse.temporal	10
+ClickHouse	ClickHouse	call	DATE_TRUNC	emulated	composed in a block	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	ADD_INTERVAL	emulated	composed in a block	via ClickHouse.temporal	93
+ClickHouse	ClickHouse	call	DATE_DIFF	emulated	composed in a block	via ClickHouse.temporal	53
+ClickHouse	ClickHouse	call	TIME_BUCKET	emulated	timeBucket	via ClickHouse.temporal	109
+ClickHouse	ClickHouse	call	TIMEZONE	emulated	addSeconds(toDateTime64(…, 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(...	via ClickHouse.temporal	6
+ClickHouse	ClickHouse	call	DATE_AT_TIME	refused	a time of day: ClickHouse's Time type is experimental	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	EPOCH_NS	refused	a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	FROM_EPOCH_NS	refused	a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	ADD_INTERVAL_TEMPORAL	emulated	composed in a block	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	EPOCH_SECONDS	emulated	(toFloat64(toUnixTimestamp64Micro(toDateTime64(…, 6, 'UTC'))) / 1000000)	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	EPOCH_MS	emulated	toUnixTimestamp64Milli(toDateTime64(…, 6, 'UTC'))	via ClickHouse.temporal	24
+ClickHouse	ClickHouse	call	FROM_EPOCH_SECONDS	emulated	fromUnixTimestamp64Micro(toInt64(… * 1000000), 'UTC')	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	FROM_EPOCH_MS	emulated	fromUnixTimestamp64Milli(toInt64(…), 'UTC')	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	DAYNAME	emulated	dateName('weekday', …)	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	MONTHNAME	emulated	dateName('month', …)	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	COT	emulated	(1 / tan(…))		2
+ClickHouse	ClickHouse	call	RADIANS	spelled	radians		1
+ClickHouse	ClickHouse	call	DEGREES	spelled	degrees		1
+ClickHouse	ClickHouse	call	INT_DIVIDE	emulated	(CASE WHEN … = 0 THEN NULL ELSE intDivOrZero(…, …) END)		40
+ClickHouse	ClickHouse	call	REPEAT_STR	emulated	repeat(…, toUInt64(greatest(…, 0)))		4
+ClickHouse	ClickHouse	call	JARO_WINKLER	spelled	jaroWinklerSimilarity		2
+ClickHouse	ClickHouse	call	DECODE_BASE64	spelled	base64Decode		4
+ClickHouse	ClickHouse	call	CURRENT_USER_FN	spelled	currentUser		2
+ClickHouse	ClickHouse	call	LIST_LENGTH	emulated	list: toInt64(length(…))		52
+ClickHouse	ClickHouse	call	LIST_ZIP	emulated	composed in a block	via ClickHouse.listCall	0
+ClickHouse	ClickHouse	call	LIST_DISTINCT	emulated	present: arrayDistinct(…)	via ClickHouse.listCall	0
+ClickHouse	ClickHouse	call	LIST_APPEND	emulated	list: arrayPushBack(…, …)	via ClickHouse.listCall	8
+ClickHouse	ClickHouse	call	LIST_SUM	emulated	reduced: …sum	via ClickHouse.listCall	3
+ClickHouse	ClickHouse	call	LIST_MIN	emulated	reduced: …min	via ClickHouse.listCall	58
+ClickHouse	ClickHouse	call	LIST_MAX	emulated	reduced: …max	via ClickHouse.listCall	58
+ClickHouse	ClickHouse	call	LIST_AVG	emulated	reduced: CAST(…avg AS Nullable(Float64))	via ClickHouse.listCall	3
+ClickHouse	ClickHouse	call	LIST_MEDIAN	emulated	reduced: …quantileExactInclusive(0.5)	via ClickHouse.listCall	6
+ClickHouse	ClickHouse	call	LIST_MODE	emulated	modeOf, present	via ClickHouse.listCall	6
+ClickHouse	ClickHouse	call	LIST_SORT	emulated	list: arraySort(…)	via ClickHouse.listCall	13
+ClickHouse	ClickHouse	call	LIST_SORT_DESC	emulated	list: arrayReverseSort(…)	via ClickHouse.listCall	5
+ClickHouse	ClickHouse	call	LIST_TAIL	emulated	list: arraySlice(…, 2)	via ClickHouse.listCall	1
+ClickHouse	ClickHouse	call	LIST_INIT	emulated	list: arrayPopBack(…)	via ClickHouse.listCall	0
+ClickHouse	ClickHouse	call	RANGE_FN	emulated	rangeFn		33
+ClickHouse	ClickHouse	call	LIST_PRODUCT	emulated	list: arrayProduct(arrayMap("__x" -> coalesce("__x", 1), …))	via ClickHouse.listCall	0
+ClickHouse	ClickHouse	call	LIST_REDUCE	emulated	composed in a block	via ClickHouse.listCall	6
+ClickHouse	ClickHouse	call	LIST_SLICE	emulated	list: arraySlice(…, greatest(…, 1), greatest(… - greatest(…, 1) + 1, 0))	via ClickHouse.listCall	13
+ClickHouse	ClickHouse	call	REPEAT_VALUE	emulated	arrayWithConstant(toUInt64(greatest(…, 0)), …)		0
+ClickHouse	ClickHouse	call	LIST_BOOL_AND	emulated	present: if(empty(…), NULL, arrayAll("__x" -> "__x", …))	via ClickHouse.listCall	0
+ClickHouse	ClickHouse	call	LIST_BOOL_OR	emulated	present: if(empty(…), NULL, arrayExists("__x" -> "__x", …))	via ClickHouse.listCall	0
+ClickHouse	ClickHouse	call	IS_DISTINCT_FROM	emulated	NOT coalesce(… = …, isNull(…) AND isNull(…))		0
+ClickHouse	ClickHouse	call	ALL_DISTINCT	emulated	allDistinct		0
+ClickHouse	ClickHouse	call	NULL_SAFE_EQUAL	emulated	coalesce(… = …, isNull(…) AND isNull(…))		3
+ClickHouse	ClickHouse	call	NULL_SAFE_NOT_EQUAL	emulated	NOT coalesce(… = …, isNull(…) AND isNull(…))		10
+ClickHouse	ClickHouse	call	STRFTIME	emulated	composed in a block	via ClickHouse.temporal	193
+ClickHouse	ClickHouse	call	STRPTIME	emulated	composed in a block	via ClickHouse.temporal	0
+ClickHouse	ClickHouse	call	PARSE_DATE	emulated	parseDateTime64BestEffort(…, 6, 'UTC')	via ClickHouse.temporal	4
+ClickHouse	ClickHouse	call	LIST_REVERSE	spelled	arrayReverse		4
+ClickHouse	ClickHouse	call	TYPEOF	emulated	replaceRegexpOne(toTypeName(…), '^Nullable\((.*)\)$', '\1')	via ClickHouse.listCall	0
+ClickHouse	ClickHouse	call	ROUND_HALF_UP	emulated	roundHalfUp		1
+ClickHouse	ClickHouse	call	ERROR	emulated	error		70
+ClickHouse	ClickHouse	call	FLOOR_RAW	spelled	floor		55
+ClickHouse	ClickHouse	call	TO_VARIANT	emulated	variantConstruct		8
+ClickHouse	ClickHouse	call	BOOL_TO_TEXT	spelled	toString		2
+ClickHouse	ClickHouse	call	FLOAT_CANON	emulated	floatCanonByText		0
+ClickHouse	ClickHouse	call	FLOAT_PRINT	emulated	floatPrintByText		0
+ClickHouse	ClickHouse	call	VARIANT_ELEMENTS	emulated	variantElements		4
+ClickHouse	ClickHouse	call	VARIANT_GET	emulated	variantGet		15
+ClickHouse	ClickHouse	call	JSON_TYPE	emulated	multiIf(isNull(…), NULL, JSONType(…) = 'Null', 'NULL', JSONType(…) = 'String'...		1
+ClickHouse	ClickHouse	call	JSON_ARRAY_LENGTH	spelled	JSONLength		0
+ClickHouse	ClickHouse	call	JSON_PRETTY	refused	ClickHouse has no JSON pretty-printer reached ClickHouse:		0
+ClickHouse	ClickHouse	reducer	SUM	emulated	ov: sumOrNull		212
+ClickHouse	ClickHouse	reducer	COUNT	emulated	count		14
+ClickHouse	ClickHouse	reducer	AVG	emulated	ov: avgOrNull		10
+ClickHouse	ClickHouse	reducer	MIN	emulated	ov: minOrNull		7
+ClickHouse	ClickHouse	reducer	MAX	emulated	ov: maxOrNull		7
+ClickHouse	ClickHouse	reducer	ANY_VALUE	emulated	ov: anyOrNull		0
+ClickHouse	ClickHouse	reducer	STDDEV_SAMP	emulated	sampled: stddevSampStableOrNull		2
+ClickHouse	ClickHouse	reducer	STDDEV_POP	emulated	ov: stddevPopStableOrNull		5
+ClickHouse	ClickHouse	reducer	VAR_SAMP	emulated	sampled: varSampStableOrNull		2
+ClickHouse	ClickHouse	reducer	VAR_POP	emulated	ov: varPopStableOrNull		2
+ClickHouse	ClickHouse	reducer	MEDIAN	emulated	ov: quantileExactInclusiveOrNull(0.5)(toFloat64(, ))		6
+ClickHouse	ClickHouse	reducer	MODE	emulated	modeOf, ov: …groupArray(…)		6
+ClickHouse	ClickHouse	reducer	STRING_AGG	emulated	stringAgg		506
+ClickHouse	ClickHouse	reducer	LIST	emulated	listOfValues		1
+ClickHouse	ClickHouse	reducer	QUANTILE_CONT	emulated	quantileCont		1
+ClickHouse	ClickHouse	reducer	QUANTILE_DISC	emulated	quantileDisc		1
+ClickHouse	ClickHouse	reducer	CORR	emulated	ov: corrOrNull(toFloat64(, ), toFloat64(, ))		4
+ClickHouse	ClickHouse	reducer	COVAR_SAMP	emulated	covarSamp		5
+ClickHouse	ClickHouse	reducer	COVAR_POP	emulated	ov: covarPopStableOrNull		4
+ClickHouse	ClickHouse	reducer	ARG_MAX	emulated	argExtreme: argMax		1
+ClickHouse	ClickHouse	reducer	ARG_MIN	emulated	argExtreme: argMin		1
+ClickHouse	ClickHouse	reducer	WAVG	not_here	lowering marker reached the renderer		0
+ClickHouse	ClickHouse	reducer	HASH_LIST	not_here	lowering marker reached the renderer		0
+ClickHouse	ClickHouse	reducer	BOOL_AND	emulated	ov: minOrNull		0
+ClickHouse	ClickHouse	reducer	BOOL_OR	emulated	ov: maxOrNull		0
+ClickHouse	ClickHouse	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		0
+ClickHouse	ClickHouse	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
+ClickHouse	ClickHouse	reducer	VARIANCE	emulated	sampled: varSampStableOrNull		0
+ClickHouse	ClickHouse	reducer	STDDEV	emulated	sampled: stddevSampStableOrNull		0
+ClickHouse	ClickHouse	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
+ClickHouse	ClickHouse	reducer	RANK	not_here	is a window function: windowCall writes it		0
+ClickHouse	ClickHouse	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
+ClickHouse	ClickHouse	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it		0
+ClickHouse	ClickHouse	reducer	CUME_DIST	not_here	is a window function: windowCall writes it		0
+ClickHouse	ClickHouse	reducer	NTILE	not_here	is a window function: windowCall writes it		0
+ClickHouse	ClickHouse	reducer	LAG	not_here	is a window function: windowCall writes it		0
+ClickHouse	ClickHouse	reducer	LEAD	not_here	is a window function: windowCall writes it		0
+ClickHouse	ClickHouse	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
+ClickHouse	ClickHouse	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
+ClickHouse	ClickHouse	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
+SQLite	SQLite	call	AND	spelled	an operator (infix)		211
+SQLite	SQLite	call	OR	spelled	an operator (infix)		283
+SQLite	SQLite	call	NOT	spelled	an operator (notPrefix)		68
+SQLite	SQLite	call	EQUAL	emulated	equalArm		264
+SQLite	SQLite	call	NOT_EQUAL	emulated	equalArm		16
+SQLite	SQLite	call	LESS	spelled	an operator (infix)		125
+SQLite	SQLite	call	LESS_EQUAL	spelled	an operator (infix)		125
+SQLite	SQLite	call	GREATER	spelled	an operator (infix)		378
+SQLite	SQLite	call	GREATER_EQUAL	spelled	an operator (infix)		168
+SQLite	SQLite	call	PLUS	spelled	an operator (infix)		108
+SQLite	SQLite	call	MINUS	spelled	an operator (infix)		146
+SQLite	SQLite	call	TIMES	spelled	an operator (infix)		32
+SQLite	SQLite	call	DIVIDE	emulated	(CAST(… AS REAL) / CAST(… AS REAL))		30
+SQLite	SQLite	call	MOD	emulated	remainder		23
+SQLite	SQLite	call	REM	emulated	remainder		14
+SQLite	SQLite	call	NEGATE	emulated	-(…)		0
+SQLite	SQLite	call	ABS	spelled	abs		65
+SQLite	SQLite	call	IS_NULL	spelled	an operator (isNullTest)		522
+SQLite	SQLite	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
+SQLite	SQLite	call	IN	emulated	in		6
+SQLite	SQLite	call	COALESCE	emulated	by its operands: composed / …coalesce		552
+SQLite	SQLite	call	PARSE_INT	emulated	parseInt		11
+SQLite	SQLite	call	CONCAT	emulated	flattenConcat, asText: concat(, …)		756
+SQLite	SQLite	call	LENGTH	emulated	asText: length(…)		73
+SQLite	SQLite	call	UPPER	spelled	upper		2
+SQLite	SQLite	call	LOWER	spelled	lower		3
+SQLite	SQLite	call	GREATEST	emulated	nullSkipping: …max		52
+SQLite	SQLite	call	LEAST	emulated	nullSkipping: …min		8
+SQLite	SQLite	call	CONCAT_JOIN	emulated	asText: concat(, …)		0
+SQLite	SQLite	call	LIST_FILTER	emulated	composed in a block	via SQLite.lists	23
+SQLite	SQLite	call	LIST_TRANSFORM	emulated	composed in a block	via SQLite.lists	31
+SQLite	SQLite	call	LIST_CONCAT	emulated	concatLists	via SQLite.lists	2
+SQLite	SQLite	call	LIST_GET	emulated	elementAt: (CASE WHEN … = 0 THEN NULL ELSE …CASE WHEN … < 0 THEN '#' || … ELSE … - 1 END...	via SQLite.lists	69
+SQLite	SQLite	call	LIST_POSITION	emulated	elements: (SELECT min() + 1 FROM …__e__o WHERE IS …)	via SQLite.lists	39
+SQLite	SQLite	call	LIST_EXISTS	emulated	listExists		8
+SQLite	SQLite	call	LIST_FOR_ALL	emulated	listForAll		3
+SQLite	SQLite	call	STRUCT_INSERT	emulated	structInsert		0
+SQLite	SQLite	call	UNNEST	refused	an unnest in a select list reached SQLite, which has no set-returning projection (an explode is placed in FROM as a json_each)	via SQLite.unnestProjection	83
+SQLite	SQLite	call	LIST_FLATTEN	emulated	composed in a block	via SQLite.lists	0
+SQLite	SQLite	call	JSON_MERGE_PATCH	spelled	json_patch		0
+SQLite	SQLite	call	SQRT	spelled	sqrt		4
+SQLite	SQLite	call	CBRT	emulated	(CASE WHEN … < 0 THEN -pow(-(…), 1.0 / 3) ELSE pow(…, 1.0 / 3) END)		3
+SQLite	SQLite	call	EXP	spelled	exp		4
+SQLite	SQLite	call	LN	spelled	ln		3
+SQLite	SQLite	call	LOG10	spelled	log10		2
+SQLite	SQLite	call	POW	spelled	pow		9
+SQLite	SQLite	call	PI	spelled	pi		1
+SQLite	SQLite	call	SIN	spelled	sin		3
+SQLite	SQLite	call	COS	spelled	cos		3
+SQLite	SQLite	call	TAN	spelled	tan		2
+SQLite	SQLite	call	ASIN	emulated	domainGuarded: asin		4
+SQLite	SQLite	call	ACOS	emulated	domainGuarded: acos		4
+SQLite	SQLite	call	ATAN	spelled	atan		3
+SQLite	SQLite	call	ATAN2	spelled	atan2		3
+SQLite	SQLite	call	SINH	spelled	sinh		22
+SQLite	SQLite	call	COSH	spelled	cosh		24
+SQLite	SQLite	call	TANH	spelled	tanh		29
+SQLite	SQLite	call	CEILING	emulated	bigintOf: ceil		12
+SQLite	SQLite	call	FLOOR	emulated	bigintOf: floor		18
+SQLite	SQLite	call	ROUND	emulated	roundHalfEven		22
+SQLite	SQLite	call	SIGN	emulated	bigintOf: sign		6
+SQLite	SQLite	call	XOR	emulated	xorAsAndOr		8
+SQLite	SQLite	call	BIT_AND	spelled	an operator (&)	via SQLite.bitOp	16
+SQLite	SQLite	call	BIT_OR	spelled	an operator (|)	via SQLite.bitOp	16
+SQLite	SQLite	call	BIT_XOR	emulated	((… | …) - (… & …))	via SQLite.bitOp	16
+SQLite	SQLite	call	BIT_SHIFT_LEFT	spelled	an operator (<<)	via SQLite.bitOp	10
+SQLite	SQLite	call	BIT_SHIFT_RIGHT	spelled	an operator (>>)	via SQLite.bitOp	10
+SQLite	SQLite	call	BIT_NOT	emulated	(~ …)		15
+SQLite	SQLite	call	REGEXP_EXTRACT	emulated	regexpExtract		45
+SQLite	SQLite	call	REGEXP_EXTRACT_ALL	emulated	regexpExtractAll		13
+SQLite	SQLite	call	REGEXP_REPLACE	emulated	regexpReplace		8
+SQLite	SQLite	call	REGEXP_FULL_MATCH	emulated	matchesArm		49
+SQLite	SQLite	call	MAP_FROM_LISTS	emulated	composed in a block	via SQLite.maps	3
+SQLite	SQLite	call	MAP_FROM_ENTRIES	emulated	composed in a block	via SQLite.maps	13
+SQLite	SQLite	call	MAP_EMPTY	spelled	json_object	via SQLite.maps	8
+SQLite	SQLite	call	MAP_EXTRACT	emulated	jsonOf, elementRead: (CASE WHEN … IS NULL THEN NULL ELSE coalesce((SELECT json_array(…) FROM json_...	via SQLite.maps	2
+SQLite	SQLite	call	MAP_KEYS	emulated	unlessNull: …(SELECT json_group_array(key ORDER BY id) FROM json_each(…))	via SQLite.maps	4
+SQLite	SQLite	call	MAP_VALUES	emulated	unlessNull, jsonOf, elementRead: …(SELECT json_group_array(… ORDER BY id) FROM json_each(…))	via SQLite.maps	4
+SQLite	SQLite	call	MAP_CONCAT	emulated	jsonOf, elementRead, for: (SELECT json_group_object(__m.__k, …__m.__v ORDER BY __m.__s, __m.__i) FROM (...	via SQLite.maps	9
+SQLite	SQLite	call	SUBSTRING	spelled	substr		140
+SQLite	SQLite	call	STRPOS	spelled	instr		287
+SQLite	SQLite	call	STARTS_WITH	emulated	(substr(…, 1, length(…)) = …)		60
+SQLite	SQLite	call	ENDS_WITH	emulated	(substr(…, length(…) - length(…) + 1) = …)		60
+SQLite	SQLite	call	MATCHES	emulated	matchesArm		16
+SQLite	SQLite	call	LEFT	emulated	leftRight		6
+SQLite	SQLite	call	RIGHT	emulated	leftRight		6
+SQLite	SQLite	call	LPAD	emulated	pad		16
+SQLite	SQLite	call	RPAD	emulated	pad		45
+SQLite	SQLite	call	TRIM	spelled	trim		2
+SQLite	SQLite	call	LTRIM	spelled	ltrim		3
+SQLite	SQLite	call	RTRIM	spelled	rtrim		60
+SQLite	SQLite	call	REPLACE	spelled	replace		313
+SQLite	SQLite	call	SPLIT	emulated	split		2
+SQLite	SQLite	call	SPLIT_PART	emulated	split: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(json_extract(…, CAS...		19
+SQLite	SQLite	call	TRANSLATE	refused	SQLite has no translate function reached SQLite:		0
+SQLite	SQLite	call	PURE_SPLIT_PART	emulated	splitPartCall		9
+SQLite	SQLite	call	REVERSE_STRING	spelled	reverse		2
+SQLite	SQLite	call	ASCII_CODE	emulated	(CASE WHEN … IS NULL THEN NULL ELSE coalesce(unicode(…), 0) END)		10
+SQLite	SQLite	call	CHR	spelled	char		9
+SQLite	SQLite	call	UC_FIRST	emulated	firstCharCased: upper		5
+SQLite	SQLite	call	LC_FIRST	emulated	firstCharCased: lower		5
+SQLite	SQLite	call	ENCODE_BASE64	emulated	base64Encoded		3
+SQLite	SQLite	call	LEVENSHTEIN	emulated	levenshtein		2
+SQLite	SQLite	call	GUID	emulated	lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(r...		2
+SQLite	SQLite	call	FORMAT	emulated	format		42
+SQLite	SQLite	call	HASH	emulated	hashSigned		5
+SQLite	SQLite	call	MD5	emulated	md5		1
+SQLite	SQLite	call	SHA1	emulated	sha1		1
+SQLite	SQLite	call	SHA256	emulated	sha256		1
+SQLite	SQLite	call	RANDOM	emulated	((random() & 9007199254740991) / 9007199254740992.0)		0
+SQLite	SQLite	call	EXTRACT	emulated	extract		24
+SQLite	SQLite	call	TODAY	emulated	date('now')		0
+SQLite	SQLite	call	NOW	emulated	strftime('%Y-%m-%d %H:%M:%f', 'now')		0
+SQLite	SQLite	call	DATE_TRUNC_DAY	spelled	date		4
+SQLite	SQLite	call	MAKE_DATE	emulated	printf('%04d-%02d-%02d', …)		2
+SQLite	SQLite	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
+SQLite	SQLite	call	DATE_TRUNC	emulated	dateTrunc		0
+SQLite	SQLite	call	ADD_INTERVAL	emulated	addInterval, raise: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		93
+SQLite	SQLite	call	DATE_DIFF	emulated	dateDiff		53
+SQLite	SQLite	call	TIME_BUCKET	emulated	timeBucket		109
+SQLite	SQLite	call	TIMEZONE	emulated	timezone		6
+SQLite	SQLite	call	DATE_AT_TIME	emulated	… || ' ' || …		0
+SQLite	SQLite	call	EPOCH_NS	refused	a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+SQLite	SQLite	call	FROM_EPOCH_NS	refused	a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
+SQLite	SQLite	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		0
+SQLite	SQLite	call	EPOCH_SECONDS	emulated	micros: (… / 1000000.0)		0
+SQLite	SQLite	call	EPOCH_MS	emulated	micros: (… / 1000)		24
+SQLite	SQLite	call	FROM_EPOCH_SECONDS	emulated	datetime(…, 'unixepoch')		0
+SQLite	SQLite	call	FROM_EPOCH_MS	emulated	strftime('%Y-%m-%d %H:%M:%f', … / 1000.0, 'unixepoch')		0
+SQLite	SQLite	call	DAYNAME	emulated	dayName		0
+SQLite	SQLite	call	MONTHNAME	emulated	monthName		0
+SQLite	SQLite	call	COT	spelled	cot		2
+SQLite	SQLite	call	RADIANS	spelled	radians		1
+SQLite	SQLite	call	DEGREES	spelled	degrees		1
+SQLite	SQLite	call	INT_DIVIDE	emulated	intDivide		40
+SQLite	SQLite	call	REPEAT_STR	emulated	replace(hex(zeroblob(max(…, 0))), '00', …)		4
+SQLite	SQLite	call	JARO_WINKLER	emulated	jaroWinkler		2
+SQLite	SQLite	call	DECODE_BASE64	emulated	base64Decoded		4
+SQLite	SQLite	call	CURRENT_USER_FN	refused	SQLite has no users reached SQLite:		2
+SQLite	SQLite	call	LIST_LENGTH	spelled	json_array_length		27
+SQLite	SQLite	call	LIST_ZIP	emulated	zip	via SQLite.lists	0
+SQLite	SQLite	call	LIST_DISTINCT	emulated	unlessNull, jsonOf, listElement, elements: …(SELECT json_group_array(… ORDER BY ) FROM (SELECT , min() AS FROM …__e__o W...	via SQLite.lists	0
+SQLite	SQLite	call	LIST_APPEND	emulated	json: json_insert(coalesce(…, json_array()), '$[#]', …)	via SQLite.lists	8
+SQLite	SQLite	call	LIST_SUM	emulated	overRows	via SQLite.lists	0
+SQLite	SQLite	call	LIST_MIN	emulated	overRows	via SQLite.lists	58
+SQLite	SQLite	call	LIST_MAX	emulated	overRows	via SQLite.lists	58
+SQLite	SQLite	call	LIST_AVG	emulated	overRows	via SQLite.lists	3
+SQLite	SQLite	call	LIST_MEDIAN	emulated	overRows	via SQLite.lists	6
+SQLite	SQLite	call	LIST_MODE	emulated	overRows	via SQLite.lists	6
+SQLite	SQLite	call	LIST_SORT	emulated	composed in a block	via SQLite.lists	13
+SQLite	SQLite	call	LIST_SORT_DESC	emulated	composed in a block	via SQLite.lists	5
+SQLite	SQLite	call	LIST_TAIL	emulated	overElements, jsonOf, listElement: …__e__o… > 0	via SQLite.lists	1
+SQLite	SQLite	call	LIST_INIT	emulated	overElements, jsonOf, listElement: …__e__o… < json_array_length(…) - 1	via SQLite.lists	0
+SQLite	SQLite	call	RANGE_FN	emulated	range	via SQLite.lists	33
+SQLite	SQLite	call	LIST_PRODUCT	emulated	(WITH RECURSIVE __p(__i, __v) AS (SELECT 0, 1 UNION ALL SELECT __p.__i + 1, _...	via SQLite.lists	0
+SQLite	SQLite	call	LIST_REDUCE	emulated	listReduce	via SQLite.lists	6
+SQLite	SQLite	call	LIST_SLICE	emulated	overElements, jsonOf, listElement, sliceEnd: …__e__o… + 1 >= … AND + 1 <= …	via SQLite.lists	13
+SQLite	SQLite	call	REPEAT_VALUE	emulated	json: (WITH RECURSIVE __g(__n) AS (SELECT 1 UNION ALL SELECT __n + 1 FROM __g WHERE...	via SQLite.lists	0
+SQLite	SQLite	call	LIST_BOOL_AND	emulated	overRows	via SQLite.lists	0
+SQLite	SQLite	call	LIST_BOOL_OR	emulated	overRows	via SQLite.lists	0
+SQLite	SQLite	call	IS_DISTINCT_FROM	emulated	distinctFrom		7
+SQLite	SQLite	call	ALL_DISTINCT	emulated	allDistinct		0
+SQLite	SQLite	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom		3
+SQLite	SQLite	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom		10
+SQLite	SQLite	call	STRFTIME	emulated	strftimeArm		193
+SQLite	SQLite	call	STRPTIME	refused	SQLite parses ISO text only reached SQLite:		0
+SQLite	SQLite	call	PARSE_DATE	emulated	parsedDate		4
+SQLite	SQLite	call	LIST_REVERSE	emulated	unlessNull, jsonOf, listElement, elements: …(SELECT json_group_array(… ORDER BY DESC) FROM …__e__o)	via SQLite.lists	4
+SQLite	SQLite	call	TYPEOF	refused	its type names are SQLite's storage classes reached SQLite:	via SQLite.lists	0
+SQLite	SQLite	call	ROUND_HALF_UP	emulated	roundHalfUp		1
+SQLite	SQLite	call	ERROR	emulated	raise		70
+SQLite	SQLite	call	FLOOR_RAW	spelled	floor		55
+SQLite	SQLite	call	TO_VARIANT	emulated	variantConstruct		8
+SQLite	SQLite	call	BOOL_TO_TEXT	emulated	textOf		2
+SQLite	SQLite	call	FLOAT_CANON	emulated	floatCanonByText		0
+SQLite	SQLite	call	FLOAT_PRINT	emulated	floatPrintByText		0
+SQLite	SQLite	call	VARIANT_ELEMENTS	emulated	variantElements		2
+SQLite	SQLite	call	VARIANT_GET	emulated	variantGet		14
+SQLite	SQLite	call	JSON_TYPE	emulated	(CASE json_type(…) WHEN 'null' THEN 'NULL' WHEN 'text' THEN 'VARCHAR' WHEN 't...		1
+SQLite	SQLite	call	JSON_ARRAY_LENGTH	spelled	json_array_length		0
+SQLite	SQLite	call	JSON_PRETTY	spelled	json_pretty		0
+SQLite	SQLite	reducer	SUM	spelled	SUM		212
+SQLite	SQLite	reducer	COUNT	spelled	COUNT		14
+SQLite	SQLite	reducer	AVG	spelled	AVG		10
+SQLite	SQLite	reducer	MIN	spelled	MIN		11
+SQLite	SQLite	reducer	MAX	spelled	MAX		11
+SQLite	SQLite	reducer	ANY_VALUE	emulated	aggregateArgs: min(…)		0
+SQLite	SQLite	reducer	STDDEV_SAMP	emulated	aggregateArgs: stdev(…)		2
+SQLite	SQLite	reducer	STDDEV_POP	emulated	populationVariance: sqrt(…)		5
+SQLite	SQLite	reducer	VAR_SAMP	emulated	aggregateArgs: variance(…)		2
+SQLite	SQLite	reducer	VAR_POP	emulated	populationVariance		2
+SQLite	SQLite	reducer	MEDIAN	emulated	median		6
+SQLite	SQLite	reducer	MODE	emulated	json: (SELECT __m.value FROM json_each(json_group_array(…)) AS __m WHERE __m.value ...		6
+SQLite	SQLite	reducer	STRING_AGG	emulated	groupConcat		506
+SQLite	SQLite	reducer	LIST	emulated	listOfValues		1
+SQLite	SQLite	reducer	QUANTILE_CONT	emulated	percentile		1
+SQLite	SQLite	reducer	QUANTILE_DISC	emulated	percentile		1
+SQLite	SQLite	reducer	CORR	emulated	moments		4
+SQLite	SQLite	reducer	COVAR_SAMP	emulated	moments		5
+SQLite	SQLite	reducer	COVAR_POP	emulated	moments		4
+SQLite	SQLite	reducer	ARG_MAX	emulated	argExtreme:  DESC		1
+SQLite	SQLite	reducer	ARG_MIN	emulated	argExtreme:  ASC		1
+SQLite	SQLite	reducer	WAVG	not_here	lowering marker reached the renderer		0
+SQLite	SQLite	reducer	HASH_LIST	not_here	lowering marker reached the renderer		0
+SQLite	SQLite	reducer	BOOL_AND	emulated	aggregateArgs: min(…)		0
+SQLite	SQLite	reducer	BOOL_OR	emulated	aggregateArgs: max(…)		0
+SQLite	SQLite	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		0
+SQLite	SQLite	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		0
+SQLite	SQLite	reducer	VARIANCE	emulated	aggregateArgs: variance(…)		0
+SQLite	SQLite	reducer	STDDEV	emulated	aggregateArgs: stdev(…)		0
+SQLite	SQLite	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		0
+SQLite	SQLite	reducer	RANK	not_here	is a window function: windowCall writes it		0
+SQLite	SQLite	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		0
+SQLite	SQLite	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it		0
+SQLite	SQLite	reducer	CUME_DIST	not_here	is a window function: windowCall writes it		0
+SQLite	SQLite	reducer	NTILE	not_here	is a window function: windowCall writes it		0
+SQLite	SQLite	reducer	LAG	not_here	is a window function: windowCall writes it		0
+SQLite	SQLite	reducer	LEAD	not_here	is a window function: windowCall writes it		0
+SQLite	SQLite	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
+SQLite	SQLite	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
+SQLite	SQLite	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
 MariaDb	MariaDB	call	AND	spelled	an operator (infix)		211
 MariaDb	MariaDB	call	OR	spelled	an operator (infix)		243
 MariaDb	MariaDB	call	NOT	spelled	an operator (notPrefix)		22
@@ -886,3 +2875,666 @@ MongoDb	MongoDB	reducer	LEAD	not_here	is a window function: windowCall writes it
 MongoDb	MongoDB	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		0
 MongoDb	MongoDB	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		0
 MongoDb	MongoDB	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		0
+EngineStyleH2	-	call	AND	spelled	an operator (infix)		-
+EngineStyleH2	-	call	OR	spelled	an operator (infix)		-
+EngineStyleH2	-	call	NOT	spelled	an operator (notPrefix)		-
+EngineStyleH2	-	call	EQUAL	spelled	an operator (infix)		-
+EngineStyleH2	-	call	NOT_EQUAL	spelled	an operator (infix)		-
+EngineStyleH2	-	call	LESS	spelled	an operator (infix)		-
+EngineStyleH2	-	call	LESS_EQUAL	spelled	an operator (infix)		-
+EngineStyleH2	-	call	GREATER	emulated	greater		-
+EngineStyleH2	-	call	GREATER_EQUAL	spelled	an operator (infix)		-
+EngineStyleH2	-	call	PLUS	spelled	an operator (infix)		-
+EngineStyleH2	-	call	MINUS	spelled	an operator (infix)		-
+EngineStyleH2	-	call	TIMES	spelled	an operator (infix)		-
+EngineStyleH2	-	call	DIVIDE	emulated	divideAsDoubles		-
+EngineStyleH2	-	call	MOD	emulated	modFloored		-
+EngineStyleH2	-	call	REM	emulated	modTruncated		-
+EngineStyleH2	-	call	NEGATE	spelled	an operator (negation)		-
+EngineStyleH2	-	call	ABS	spelled	abs		-
+EngineStyleH2	-	call	IS_NULL	spelled	an operator (isNullTest)		-
+EngineStyleH2	-	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		-
+EngineStyleH2	-	call	IN	emulated	inList		-
+EngineStyleH2	-	call	COALESCE	emulated	coalesceArm		-
+EngineStyleH2	-	call	PARSE_INT	emulated	cast(… as integer)		-
+EngineStyleH2	-	call	CONCAT	emulated	concatArm		-
+EngineStyleH2	-	call	LENGTH	spelled	char_length		-
+EngineStyleH2	-	call	UPPER	spelled	upper		-
+EngineStyleH2	-	call	LOWER	spelled	lower		-
+EngineStyleH2	-	call	GREATEST	spelled	greatest		-
+EngineStyleH2	-	call	LEAST	spelled	least		-
+EngineStyleH2	-	call	CONCAT_JOIN	spelled	concat		-
+EngineStyleH2	-	call	LIST_FILTER	emulated	listCall		-
+EngineStyleH2	-	call	LIST_TRANSFORM	emulated	listCall		-
+EngineStyleH2	-	call	LIST_CONCAT	emulated	listCall		-
+EngineStyleH2	-	call	LIST_GET	emulated	listCall		-
+EngineStyleH2	-	call	LIST_POSITION	emulated	listCall		-
+EngineStyleH2	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listExists	-
+EngineStyleH2	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	via AnsiSqlRenderer.listForAll	-
+EngineStyleH2	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	via AnsiSqlRenderer.structInsert	-
+EngineStyleH2	-	call	UNNEST	refused	UNNEST reached a dialect without an unnest placement	via AnsiSqlRenderer.unnestProjection	-
+EngineStyleH2	-	call	LIST_FLATTEN	spelled	flatten		-
+EngineStyleH2	-	call	JSON_MERGE_PATCH	emulated	jsonMergePatch		-
+EngineStyleH2	-	call	SQRT	spelled	sqrt		-
+EngineStyleH2	-	call	CBRT	emulated	power(…, 1.0/3)		-
+EngineStyleH2	-	call	EXP	spelled	exp		-
+EngineStyleH2	-	call	LN	spelled	ln		-
+EngineStyleH2	-	call	LOG10	spelled	log10		-
+EngineStyleH2	-	call	POW	spelled	power		-
+EngineStyleH2	-	call	PI	spelled	pi		-
+EngineStyleH2	-	call	SIN	spelled	sin		-
+EngineStyleH2	-	call	COS	spelled	cos		-
+EngineStyleH2	-	call	TAN	spelled	tan		-
+EngineStyleH2	-	call	ASIN	spelled	asin		-
+EngineStyleH2	-	call	ACOS	spelled	acos		-
+EngineStyleH2	-	call	ATAN	spelled	atan		-
+EngineStyleH2	-	call	ATAN2	spelled	atan2		-
+EngineStyleH2	-	call	SINH	spelled	sinh		-
+EngineStyleH2	-	call	COSH	spelled	cosh		-
+EngineStyleH2	-	call	TANH	spelled	tanh		-
+EngineStyleH2	-	call	CEILING	emulated	bigintOf: ceil		-
+EngineStyleH2	-	call	FLOOR	emulated	bigintOf: floor		-
+EngineStyleH2	-	call	ROUND	emulated	roundHalfEven		-
+EngineStyleH2	-	call	SIGN	emulated	bigintOf: sign		-
+EngineStyleH2	-	call	XOR	emulated	xorAsAndOr		-
+EngineStyleH2	-	call	BIT_AND	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	-
+EngineStyleH2	-	call	BIT_OR	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	-
+EngineStyleH2	-	call	BIT_XOR	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	-
+EngineStyleH2	-	call	BIT_SHIFT_LEFT	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	-
+EngineStyleH2	-	call	BIT_SHIFT_RIGHT	refused	reached a dialect without bit-op support	via AnsiSqlRenderer.bitOp	-
+EngineStyleH2	-	call	BIT_NOT	emulated	bitNot		-
+EngineStyleH2	-	call	REGEXP_EXTRACT	spelled	regexp_extract		-
+EngineStyleH2	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all		-
+EngineStyleH2	-	call	REGEXP_REPLACE	spelled	regexp_replace		-
+EngineStyleH2	-	call	REGEXP_FULL_MATCH	spelled	regexp_full_match		-
+EngineStyleH2	-	call	MAP_FROM_LISTS	spelled	map		-
+EngineStyleH2	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries		-
+EngineStyleH2	-	call	MAP_EMPTY	emulated	mapEmpty		-
+EngineStyleH2	-	call	MAP_EXTRACT	spelled	map_extract		-
+EngineStyleH2	-	call	MAP_KEYS	spelled	map_keys		-
+EngineStyleH2	-	call	MAP_VALUES	spelled	map_values		-
+EngineStyleH2	-	call	MAP_CONCAT	spelled	map_concat		-
+EngineStyleH2	-	call	SUBSTRING	spelled	substring		-
+EngineStyleH2	-	call	STRPOS	spelled	locate		-
+EngineStyleH2	-	call	STARTS_WITH	spelled	starts_with		-
+EngineStyleH2	-	call	ENDS_WITH	spelled	ends_with		-
+EngineStyleH2	-	call	MATCHES	spelled	regexp_matches		-
+EngineStyleH2	-	call	LEFT	spelled	left		-
+EngineStyleH2	-	call	RIGHT	spelled	right		-
+EngineStyleH2	-	call	LPAD	emulated	padCall: legend_h2_extension_lpad		-
+EngineStyleH2	-	call	RPAD	emulated	padCall: legend_h2_extension_rpad		-
+EngineStyleH2	-	call	TRIM	emulated	by its operands: trim(both from …) / …trim		-
+EngineStyleH2	-	call	LTRIM	emulated	regexp_replace(…, '^[ ]+', '')		-
+EngineStyleH2	-	call	RTRIM	emulated	regexp_replace(…, '[ ]+$', '')		-
+EngineStyleH2	-	call	REPLACE	spelled	replace		-
+EngineStyleH2	-	call	SPLIT	spelled	string_split		-
+EngineStyleH2	-	call	SPLIT_PART	spelled	legend_h2_extension_split_part		-
+EngineStyleH2	-	call	TRANSLATE	refused	translate reached the engine text: legend-engine has no translate dynaFunction to spell		-
+EngineStyleH2	-	call	PURE_SPLIT_PART	emulated	splitPartCall		-
+EngineStyleH2	-	call	REVERSE_STRING	spelled	legend_h2_extension_reverse_string		-
+EngineStyleH2	-	call	ASCII_CODE	spelled	ascii		-
+EngineStyleH2	-	call	CHR	spelled	char		-
+EngineStyleH2	-	call	UC_FIRST	emulated	firstCharCased: upper		-
+EngineStyleH2	-	call	LC_FIRST	emulated	firstCharCased: lower		-
+EngineStyleH2	-	call	ENCODE_BASE64	emulated	encodeBase64		-
+EngineStyleH2	-	call	LEVENSHTEIN	spelled	levenshtein		-
+EngineStyleH2	-	call	GUID	emulated	CAST(uuid() AS VARCHAR)		-
+EngineStyleH2	-	call	FORMAT	spelled	printf		-
+EngineStyleH2	-	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spelling	via AnsiSqlRenderer.hashSigned	-
+EngineStyleH2	-	call	MD5	emulated	digest: MD5		-
+EngineStyleH2	-	call	SHA1	emulated	digest: SHA-1		-
+EngineStyleH2	-	call	SHA256	emulated	digest: SHA-256		-
+EngineStyleH2	-	call	RANDOM	spelled	rand		-
+EngineStyleH2	-	call	EXTRACT	emulated	extractArm		-
+EngineStyleH2	-	call	TODAY	emulated	cast(now() as date)		-
+EngineStyleH2	-	call	NOW	spelled	now		-
+EngineStyleH2	-	call	DATE_TRUNC_DAY	emulated	cast(truncate(…) as date)		-
+EngineStyleH2	-	call	MAKE_DATE	spelled	make_date		-
+EngineStyleH2	-	call	MAKE_TIMESTAMP	emulated	makeTimestamp		-
+EngineStyleH2	-	call	DATE_TRUNC	emulated	dateTrunc		-
+EngineStyleH2	-	call	ADD_INTERVAL	emulated	dbUnitOf, part: dateadd(…, …, …)		-
+EngineStyleH2	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)		-
+EngineStyleH2	-	call	TIME_BUCKET	emulated	timeBucket		-
+EngineStyleH2	-	call	TIMEZONE	spelled	timezone		-
+EngineStyleH2	-	call	DATE_AT_TIME	refused	a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one		-
+EngineStyleH2	-	call	EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		-
+EngineStyleH2	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		-
+EngineStyleH2	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)		-
+EngineStyleH2	-	call	EPOCH_SECONDS	spelled	epoch		-
+EngineStyleH2	-	call	EPOCH_MS	spelled	epoch_ms		-
+EngineStyleH2	-	call	FROM_EPOCH_SECONDS	spelled	to_timestamp		-
+EngineStyleH2	-	call	FROM_EPOCH_MS	emulated	fromEpochMs		-
+EngineStyleH2	-	call	DAYNAME	spelled	dayname		-
+EngineStyleH2	-	call	MONTHNAME	spelled	monthname		-
+EngineStyleH2	-	call	COT	spelled	cot		-
+EngineStyleH2	-	call	RADIANS	spelled	radians		-
+EngineStyleH2	-	call	DEGREES	spelled	degrees		-
+EngineStyleH2	-	call	INT_DIVIDE	emulated	intDivide		-
+EngineStyleH2	-	call	REPEAT_STR	spelled	repeat		-
+EngineStyleH2	-	call	JARO_WINKLER	spelled	jaro_winkler_similarity		-
+EngineStyleH2	-	call	DECODE_BASE64	emulated	decodeBase64		-
+EngineStyleH2	-	call	CURRENT_USER_FN	spelled	current_user		-
+EngineStyleH2	-	call	LIST_LENGTH	spelled	len		-
+EngineStyleH2	-	call	LIST_ZIP	emulated	listCall		-
+EngineStyleH2	-	call	LIST_DISTINCT	emulated	listCall		-
+EngineStyleH2	-	call	LIST_APPEND	emulated	listCall		-
+EngineStyleH2	-	call	LIST_SUM	emulated	composed	via EngineStyleH2.listCall	-
+EngineStyleH2	-	call	LIST_MIN	emulated	listCall		-
+EngineStyleH2	-	call	LIST_MAX	emulated	listCall		-
+EngineStyleH2	-	call	LIST_AVG	emulated	listCall		-
+EngineStyleH2	-	call	LIST_MEDIAN	emulated	listCall		-
+EngineStyleH2	-	call	LIST_MODE	emulated	listCall		-
+EngineStyleH2	-	call	LIST_SORT	emulated	listCall		-
+EngineStyleH2	-	call	LIST_SORT_DESC	emulated	listCall		-
+EngineStyleH2	-	call	LIST_TAIL	emulated	listCall		-
+EngineStyleH2	-	call	LIST_INIT	emulated	listCall		-
+EngineStyleH2	-	call	RANGE_FN	emulated	listCall		-
+EngineStyleH2	-	call	LIST_PRODUCT	emulated	composed	via EngineStyleH2.listCall	-
+EngineStyleH2	-	call	LIST_REDUCE	emulated	listCall		-
+EngineStyleH2	-	call	LIST_SLICE	emulated	listCall		-
+EngineStyleH2	-	call	REPEAT_VALUE	emulated	listCall		-
+EngineStyleH2	-	call	LIST_BOOL_AND	emulated	composed	via EngineStyleH2.listCall	-
+EngineStyleH2	-	call	LIST_BOOL_OR	emulated	composed	via EngineStyleH2.listCall	-
+EngineStyleH2	-	call	IS_DISTINCT_FROM	emulated	distinctFrom		-
+EngineStyleH2	-	call	ALL_DISTINCT	refused	collection isDistinct reached a dialect without a list encoding	via AnsiSqlRenderer.allDistinct	-
+EngineStyleH2	-	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom		-
+EngineStyleH2	-	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom		-
+EngineStyleH2	-	call	STRFTIME	emulated	strftimeArm		-
+EngineStyleH2	-	call	STRPTIME	emulated	strptimeArm		-
+EngineStyleH2	-	call	PARSE_DATE	emulated	cast(parsedatetime(…, 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][....		-
+EngineStyleH2	-	call	LIST_REVERSE	emulated	listCall		-
+EngineStyleH2	-	call	TYPEOF	emulated	listCall		-
+EngineStyleH2	-	call	ROUND_HALF_UP	spelled	ROUND		-
+EngineStyleH2	-	call	ERROR	emulated	raiseEnvelope: error		-
+EngineStyleH2	-	call	FLOOR_RAW	spelled	floor		-
+EngineStyleH2	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSON support	via AnsiSqlRenderer.variantConstruct	-
+EngineStyleH2	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)		-
+EngineStyleH2	-	call	FLOAT_CANON	emulated	floatCanonByText		-
+EngineStyleH2	-	call	FLOAT_PRINT	emulated	floatPrintByText		-
+EngineStyleH2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	-
+EngineStyleH2	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantGet	-
+EngineStyleH2	-	call	JSON_TYPE	spelled	json_type		-
+EngineStyleH2	-	call	JSON_ARRAY_LENGTH	spelled	json_array_length		-
+EngineStyleH2	-	call	JSON_PRETTY	spelled	json_pretty		-
+EngineStyleH2	-	reducer	SUM	spelled	sum		-
+EngineStyleH2	-	reducer	COUNT	spelled	count		-
+EngineStyleH2	-	reducer	AVG	spelled	avg		-
+EngineStyleH2	-	reducer	MIN	spelled	min		-
+EngineStyleH2	-	reducer	MAX	spelled	max		-
+EngineStyleH2	-	reducer	ANY_VALUE	emulated	by its operands: composed / …any_value		-
+EngineStyleH2	-	reducer	STDDEV_SAMP	spelled	stddev_samp		-
+EngineStyleH2	-	reducer	STDDEV_POP	spelled	stddev_pop		-
+EngineStyleH2	-	reducer	VAR_SAMP	spelled	var_samp		-
+EngineStyleH2	-	reducer	VAR_POP	spelled	var_pop		-
+EngineStyleH2	-	reducer	MEDIAN	spelled	median		-
+EngineStyleH2	-	reducer	MODE	spelled	mode		-
+EngineStyleH2	-	reducer	STRING_AGG	emulated	by its operands: …listagg / composed		-
+EngineStyleH2	-	reducer	LIST	spelled	list		-
+EngineStyleH2	-	reducer	QUANTILE_CONT	emulated	by its operands: …percentile_cont / …quantile_cont		-
+EngineStyleH2	-	reducer	QUANTILE_DISC	emulated	by its operands: …percentile_disc / …quantile_disc		-
+EngineStyleH2	-	reducer	CORR	spelled	corr		-
+EngineStyleH2	-	reducer	COVAR_SAMP	spelled	covar_samp		-
+EngineStyleH2	-	reducer	COVAR_POP	spelled	covar_pop		-
+EngineStyleH2	-	reducer	ARG_MAX	spelled	arg_max		-
+EngineStyleH2	-	reducer	ARG_MIN	spelled	arg_min		-
+EngineStyleH2	-	reducer	WAVG	not_here	lowering marker reached the renderer		-
+EngineStyleH2	-	reducer	HASH_LIST	not_here	lowering marker reached the renderer		-
+EngineStyleH2	-	reducer	BOOL_AND	spelled	bool_and		-
+EngineStyleH2	-	reducer	BOOL_OR	spelled	bool_or		-
+EngineStyleH2	-	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer		-
+EngineStyleH2	-	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer		-
+EngineStyleH2	-	reducer	VARIANCE	spelled	variance		-
+EngineStyleH2	-	reducer	STDDEV	spelled	stddev		-
+EngineStyleH2	-	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it		-
+EngineStyleH2	-	reducer	RANK	not_here	is a window function: windowCall writes it		-
+EngineStyleH2	-	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it		-
+EngineStyleH2	-	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it		-
+EngineStyleH2	-	reducer	CUME_DIST	not_here	is a window function: windowCall writes it		-
+EngineStyleH2	-	reducer	NTILE	not_here	is a window function: windowCall writes it		-
+EngineStyleH2	-	reducer	LAG	not_here	is a window function: windowCall writes it		-
+EngineStyleH2	-	reducer	LEAD	not_here	is a window function: windowCall writes it		-
+EngineStyleH2	-	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it		-
+EngineStyleH2	-	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it		-
+EngineStyleH2	-	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it		-
+EngineStyleDB2	-	call	AND	spelled	an operator (infix)	as EngineStyleH2	-
+EngineStyleDB2	-	call	OR	spelled	an operator (infix)	as EngineStyleH2	-
+EngineStyleDB2	-	call	NOT	spelled	an operator (notPrefix)	as EngineStyleH2	-
+EngineStyleDB2	-	call	EQUAL	spelled	an operator (infix)	as EngineStyleH2	-
+EngineStyleDB2	-	call	NOT_EQUAL	spelled	an operator (infix)	as EngineStyleH2	-
+EngineStyleDB2	-	call	LESS	spelled	an operator (infix)	as EngineStyleH2	-
+EngineStyleDB2	-	call	LESS_EQUAL	spelled	an operator (infix)	as EngineStyleH2	-
+EngineStyleDB2	-	call	GREATER	emulated	greater	as EngineStyleH2	-
+EngineStyleDB2	-	call	GREATER_EQUAL	spelled	an operator (infix)	as EngineStyleH2	-
+EngineStyleDB2	-	call	PLUS	spelled	an operator (infix)	as EngineStyleH2	-
+EngineStyleDB2	-	call	MINUS	spelled	an operator (infix)	as EngineStyleH2	-
+EngineStyleDB2	-	call	TIMES	spelled	an operator (infix)	as EngineStyleH2	-
+EngineStyleDB2	-	call	DIVIDE	emulated	divideAsDoubles	as EngineStyleH2	-
+EngineStyleDB2	-	call	MOD	emulated	modFloored	as EngineStyleH2	-
+EngineStyleDB2	-	call	REM	emulated	modTruncated	as EngineStyleH2	-
+EngineStyleDB2	-	call	NEGATE	spelled	an operator (negation)	as EngineStyleH2	-
+EngineStyleDB2	-	call	ABS	spelled	abs	as EngineStyleH2	-
+EngineStyleDB2	-	call	IS_NULL	spelled	an operator (isNullTest)	as EngineStyleH2	-
+EngineStyleDB2	-	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)	as EngineStyleH2	-
+EngineStyleDB2	-	call	IN	emulated	inList	as EngineStyleH2	-
+EngineStyleDB2	-	call	COALESCE	emulated	coalesceArm	as EngineStyleH2	-
+EngineStyleDB2	-	call	PARSE_INT	emulated	cast(… as integer)	as EngineStyleH2	-
+EngineStyleDB2	-	call	CONCAT	emulated	flattenConcat: ( concat )		-
+EngineStyleDB2	-	call	LENGTH	emulated	CHARACTER_LENGTH(…,CODEUNITS32)		-
+EngineStyleDB2	-	call	UPPER	spelled	upper	as EngineStyleH2	-
+EngineStyleDB2	-	call	LOWER	spelled	lower	as EngineStyleH2	-
+EngineStyleDB2	-	call	GREATEST	spelled	greatest	as EngineStyleH2	-
+EngineStyleDB2	-	call	LEAST	spelled	least	as EngineStyleH2	-
+EngineStyleDB2	-	call	CONCAT_JOIN	spelled	concat		-
+EngineStyleDB2	-	call	LIST_FILTER	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_TRANSFORM	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_CONCAT	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_GET	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_POSITION	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	as EngineStyleH2, via AnsiSqlRenderer.listExists	-
+EngineStyleDB2	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	as EngineStyleH2, via AnsiSqlRenderer.listForAll	-
+EngineStyleDB2	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	as EngineStyleH2, via AnsiSqlRenderer.structInsert	-
+EngineStyleDB2	-	call	UNNEST	refused	UNNEST reached a dialect without an unnest placement	as EngineStyleH2, via AnsiSqlRenderer.unnestProjection	-
+EngineStyleDB2	-	call	LIST_FLATTEN	spelled	flatten	as EngineStyleH2	-
+EngineStyleDB2	-	call	JSON_MERGE_PATCH	emulated	jsonMergePatch	as EngineStyleH2	-
+EngineStyleDB2	-	call	SQRT	spelled	sqrt	as EngineStyleH2	-
+EngineStyleDB2	-	call	CBRT	spelled	cbrt		-
+EngineStyleDB2	-	call	EXP	spelled	exp	as EngineStyleH2	-
+EngineStyleDB2	-	call	LN	spelled	ln	as EngineStyleH2	-
+EngineStyleDB2	-	call	LOG10	spelled	log10	as EngineStyleH2	-
+EngineStyleDB2	-	call	POW	spelled	power	as EngineStyleH2	-
+EngineStyleDB2	-	call	PI	spelled	pi	as EngineStyleH2	-
+EngineStyleDB2	-	call	SIN	spelled	sin	as EngineStyleH2	-
+EngineStyleDB2	-	call	COS	spelled	cos	as EngineStyleH2	-
+EngineStyleDB2	-	call	TAN	spelled	tan	as EngineStyleH2	-
+EngineStyleDB2	-	call	ASIN	spelled	asin	as EngineStyleH2	-
+EngineStyleDB2	-	call	ACOS	spelled	acos	as EngineStyleH2	-
+EngineStyleDB2	-	call	ATAN	spelled	atan	as EngineStyleH2	-
+EngineStyleDB2	-	call	ATAN2	spelled	atan2	as EngineStyleH2	-
+EngineStyleDB2	-	call	SINH	spelled	sinh	as EngineStyleH2	-
+EngineStyleDB2	-	call	COSH	spelled	cosh	as EngineStyleH2	-
+EngineStyleDB2	-	call	TANH	spelled	tanh	as EngineStyleH2	-
+EngineStyleDB2	-	call	CEILING	emulated	bigintOf: ceil	as EngineStyleH2	-
+EngineStyleDB2	-	call	FLOOR	emulated	bigintOf: floor	as EngineStyleH2	-
+EngineStyleDB2	-	call	ROUND	emulated	roundHalfEven	as EngineStyleH2	-
+EngineStyleDB2	-	call	SIGN	emulated	bigintOf: sign	as EngineStyleH2	-
+EngineStyleDB2	-	call	XOR	emulated	xorAsAndOr	as EngineStyleH2	-
+EngineStyleDB2	-	call	BIT_AND	refused	reached a dialect without bit-op support	as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
+EngineStyleDB2	-	call	BIT_OR	refused	reached a dialect without bit-op support	as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
+EngineStyleDB2	-	call	BIT_XOR	refused	reached a dialect without bit-op support	as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
+EngineStyleDB2	-	call	BIT_SHIFT_LEFT	refused	reached a dialect without bit-op support	as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
+EngineStyleDB2	-	call	BIT_SHIFT_RIGHT	refused	reached a dialect without bit-op support	as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
+EngineStyleDB2	-	call	BIT_NOT	emulated	bitNot	as EngineStyleH2	-
+EngineStyleDB2	-	call	REGEXP_EXTRACT	spelled	regexp_extract	as EngineStyleH2	-
+EngineStyleDB2	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all	as EngineStyleH2	-
+EngineStyleDB2	-	call	REGEXP_REPLACE	spelled	regexp_replace	as EngineStyleH2	-
+EngineStyleDB2	-	call	REGEXP_FULL_MATCH	spelled	regexp_full_match	as EngineStyleH2	-
+EngineStyleDB2	-	call	MAP_FROM_LISTS	spelled	map	as EngineStyleH2	-
+EngineStyleDB2	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries	as EngineStyleH2	-
+EngineStyleDB2	-	call	MAP_EMPTY	emulated	mapEmpty	as EngineStyleH2	-
+EngineStyleDB2	-	call	MAP_EXTRACT	spelled	map_extract	as EngineStyleH2	-
+EngineStyleDB2	-	call	MAP_KEYS	spelled	map_keys	as EngineStyleH2	-
+EngineStyleDB2	-	call	MAP_VALUES	spelled	map_values	as EngineStyleH2	-
+EngineStyleDB2	-	call	MAP_CONCAT	spelled	map_concat	as EngineStyleH2	-
+EngineStyleDB2	-	call	SUBSTRING	spelled	substr		-
+EngineStyleDB2	-	call	STRPOS	spelled	position		-
+EngineStyleDB2	-	call	STARTS_WITH	spelled	starts_with	as EngineStyleH2	-
+EngineStyleDB2	-	call	ENDS_WITH	spelled	ends_with	as EngineStyleH2	-
+EngineStyleDB2	-	call	MATCHES	spelled	regexp_matches	as EngineStyleH2	-
+EngineStyleDB2	-	call	LEFT	emulated	trim(left(…, …))		-
+EngineStyleDB2	-	call	RIGHT	emulated	trim(right(…, …))		-
+EngineStyleDB2	-	call	LPAD	spelled	lpad		-
+EngineStyleDB2	-	call	RPAD	spelled	rpad		-
+EngineStyleDB2	-	call	TRIM	emulated	by its operands: trim(both from …) / …trim	as EngineStyleH2	-
+EngineStyleDB2	-	call	LTRIM	spelled	ltrim		-
+EngineStyleDB2	-	call	RTRIM	spelled	rtrim		-
+EngineStyleDB2	-	call	REPLACE	spelled	replace	as EngineStyleH2	-
+EngineStyleDB2	-	call	SPLIT	spelled	string_split	as EngineStyleH2	-
+EngineStyleDB2	-	call	SPLIT_PART	spelled	legend_h2_extension_split_part	as EngineStyleH2	-
+EngineStyleDB2	-	call	TRANSLATE	refused	translate reached the engine text: legend-engine has no translate dynaFunction to spell	as EngineStyleH2	-
+EngineStyleDB2	-	call	PURE_SPLIT_PART	emulated	splitPartCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	REVERSE_STRING	spelled	reverse		-
+EngineStyleDB2	-	call	ASCII_CODE	spelled	ascii	as EngineStyleH2	-
+EngineStyleDB2	-	call	CHR	spelled	char	as EngineStyleH2	-
+EngineStyleDB2	-	call	UC_FIRST	emulated	firstCharCased: upper	as EngineStyleH2	-
+EngineStyleDB2	-	call	LC_FIRST	emulated	firstCharCased: lower	as EngineStyleH2	-
+EngineStyleDB2	-	call	ENCODE_BASE64	emulated	encodeBase64	as EngineStyleH2	-
+EngineStyleDB2	-	call	LEVENSHTEIN	spelled	levenshtein	as EngineStyleH2	-
+EngineStyleDB2	-	call	GUID	emulated	CAST(uuid() AS VARCHAR)	as EngineStyleH2	-
+EngineStyleDB2	-	call	FORMAT	spelled	printf	as EngineStyleH2	-
+EngineStyleDB2	-	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spelling	as EngineStyleH2, via AnsiSqlRenderer.hashSigned	-
+EngineStyleDB2	-	call	MD5	emulated	digest: MD5	as EngineStyleH2	-
+EngineStyleDB2	-	call	SHA1	emulated	digest: SHA-1	as EngineStyleH2	-
+EngineStyleDB2	-	call	SHA256	emulated	digest: SHA-256	as EngineStyleH2	-
+EngineStyleDB2	-	call	RANDOM	spelled	rand	as EngineStyleH2	-
+EngineStyleDB2	-	call	EXTRACT	emulated	extract		-
+EngineStyleDB2	-	call	TODAY	emulated	date(current date)		-
+EngineStyleDB2	-	call	NOW	spelled	now	as EngineStyleH2	-
+EngineStyleDB2	-	call	DATE_TRUNC_DAY	emulated	cast(truncate(…) as date)	as EngineStyleH2	-
+EngineStyleDB2	-	call	MAKE_DATE	spelled	make_date	as EngineStyleH2	-
+EngineStyleDB2	-	call	MAKE_TIMESTAMP	emulated	makeTimestamp	as EngineStyleH2	-
+EngineStyleDB2	-	call	DATE_TRUNC	emulated	dateTrunc		-
+EngineStyleDB2	-	call	ADD_INTERVAL	emulated	addInterval		-
+EngineStyleDB2	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)	as EngineStyleH2	-
+EngineStyleDB2	-	call	TIME_BUCKET	emulated	timeBucket	as EngineStyleH2	-
+EngineStyleDB2	-	call	TIMEZONE	spelled	timezone	as EngineStyleH2	-
+EngineStyleDB2	-	call	DATE_AT_TIME	refused	a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one	as EngineStyleH2	-
+EngineStyleDB2	-	call	EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleH2	-
+EngineStyleDB2	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleH2	-
+EngineStyleDB2	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)	as EngineStyleH2	-
+EngineStyleDB2	-	call	EPOCH_SECONDS	spelled	epoch	as EngineStyleH2	-
+EngineStyleDB2	-	call	EPOCH_MS	spelled	epoch_ms	as EngineStyleH2	-
+EngineStyleDB2	-	call	FROM_EPOCH_SECONDS	spelled	to_timestamp	as EngineStyleH2	-
+EngineStyleDB2	-	call	FROM_EPOCH_MS	emulated	fromEpochMs	as EngineStyleH2	-
+EngineStyleDB2	-	call	DAYNAME	spelled	dayname	as EngineStyleH2	-
+EngineStyleDB2	-	call	MONTHNAME	spelled	monthname	as EngineStyleH2	-
+EngineStyleDB2	-	call	COT	spelled	cot	as EngineStyleH2	-
+EngineStyleDB2	-	call	RADIANS	spelled	radians	as EngineStyleH2	-
+EngineStyleDB2	-	call	DEGREES	spelled	degrees	as EngineStyleH2	-
+EngineStyleDB2	-	call	INT_DIVIDE	emulated	intDivide	as EngineStyleH2	-
+EngineStyleDB2	-	call	REPEAT_STR	spelled	repeat	as EngineStyleH2	-
+EngineStyleDB2	-	call	JARO_WINKLER	spelled	jaro_winkler_similarity	as EngineStyleH2	-
+EngineStyleDB2	-	call	DECODE_BASE64	emulated	decodeBase64	as EngineStyleH2	-
+EngineStyleDB2	-	call	CURRENT_USER_FN	spelled	current_user	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_LENGTH	spelled	len	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_ZIP	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_DISTINCT	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_APPEND	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_SUM	emulated	composed	as EngineStyleH2, via EngineStyleH2.listCall	-
+EngineStyleDB2	-	call	LIST_MIN	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_MAX	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_AVG	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_MEDIAN	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_MODE	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_SORT	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_SORT_DESC	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_TAIL	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_INIT	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	RANGE_FN	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_PRODUCT	emulated	composed	as EngineStyleH2, via EngineStyleH2.listCall	-
+EngineStyleDB2	-	call	LIST_REDUCE	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_SLICE	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	REPEAT_VALUE	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_BOOL_AND	emulated	composed	as EngineStyleH2, via EngineStyleH2.listCall	-
+EngineStyleDB2	-	call	LIST_BOOL_OR	emulated	composed	as EngineStyleH2, via EngineStyleH2.listCall	-
+EngineStyleDB2	-	call	IS_DISTINCT_FROM	emulated	distinctFrom	as EngineStyleH2	-
+EngineStyleDB2	-	call	ALL_DISTINCT	refused	collection isDistinct reached a dialect without a list encoding	as EngineStyleH2, via AnsiSqlRenderer.allDistinct	-
+EngineStyleDB2	-	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom	as EngineStyleH2	-
+EngineStyleDB2	-	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom	as EngineStyleH2	-
+EngineStyleDB2	-	call	STRFTIME	emulated	strftimeArm	as EngineStyleH2	-
+EngineStyleDB2	-	call	STRPTIME	emulated	strptime		-
+EngineStyleDB2	-	call	PARSE_DATE	emulated	cast(parsedatetime(…, 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][....	as EngineStyleH2	-
+EngineStyleDB2	-	call	LIST_REVERSE	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	TYPEOF	emulated	listCall	as EngineStyleH2	-
+EngineStyleDB2	-	call	ROUND_HALF_UP	spelled	ROUND	as EngineStyleH2	-
+EngineStyleDB2	-	call	ERROR	emulated	raiseEnvelope: error	as EngineStyleH2	-
+EngineStyleDB2	-	call	FLOOR_RAW	spelled	floor	as EngineStyleH2	-
+EngineStyleDB2	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantConstruct	-
+EngineStyleDB2	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)	as EngineStyleH2	-
+EngineStyleDB2	-	call	FLOAT_CANON	emulated	floatCanonByText	as EngineStyleH2	-
+EngineStyleDB2	-	call	FLOAT_PRINT	emulated	floatPrintByText	as EngineStyleH2	-
+EngineStyleDB2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
+EngineStyleDB2	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantGet	-
+EngineStyleDB2	-	call	JSON_TYPE	spelled	json_type	as EngineStyleH2	-
+EngineStyleDB2	-	call	JSON_ARRAY_LENGTH	spelled	json_array_length	as EngineStyleH2	-
+EngineStyleDB2	-	call	JSON_PRETTY	spelled	json_pretty	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	SUM	spelled	sum	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	COUNT	spelled	count	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	AVG	spelled	avg	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	MIN	spelled	min	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	MAX	spelled	max	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	ANY_VALUE	emulated	by its operands: composed / …any_value	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	STDDEV_SAMP	spelled	stddev_samp	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	STDDEV_POP	spelled	stddev_pop	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	VAR_SAMP	spelled	var_samp	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	VAR_POP	spelled	var_pop	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	MEDIAN	spelled	median	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	MODE	spelled	mode	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	STRING_AGG	emulated	by its operands: …listagg / composed	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	LIST	spelled	list	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	QUANTILE_CONT	emulated	by its operands: …percentile_cont / …quantile_cont	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	QUANTILE_DISC	emulated	by its operands: …percentile_disc / …quantile_disc	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	CORR	spelled	corr	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	COVAR_SAMP	spelled	covar_samp	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	COVAR_POP	spelled	covar_pop	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	ARG_MAX	spelled	arg_max	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	ARG_MIN	spelled	arg_min	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	WAVG	not_here	lowering marker reached the renderer	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	HASH_LIST	not_here	lowering marker reached the renderer	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	BOOL_AND	spelled	bool_and	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	BOOL_OR	spelled	bool_or	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	VARIANCE	spelled	variance	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	STDDEV	spelled	stddev	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	RANK	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	CUME_DIST	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	NTILE	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	LAG	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	LEAD	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
+EngineStyleDB2	-	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it	as EngineStyleH2	-
+EngineStyleComposite	-	call	AND	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	OR	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	NOT	spelled	an operator (notPrefix)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	EQUAL	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	NOT_EQUAL	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LESS	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LESS_EQUAL	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	GREATER	emulated	greater	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	GREATER_EQUAL	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	PLUS	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	MINUS	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	TIMES	spelled	an operator (infix)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	DIVIDE	emulated	divideAsDoubles	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	MOD	emulated	modFloored	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	REM	emulated	modTruncated	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	NEGATE	spelled	an operator (negation)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ABS	spelled	abs	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	IS_NULL	spelled	an operator (isNullTest)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	IN	emulated	inList	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	COALESCE	emulated	coalesceArm	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	PARSE_INT	emulated	cast(… as integer)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	CONCAT	emulated	flattenConcat: ( concat )	as EngineStyleDB2	-
+EngineStyleComposite	-	call	LENGTH	spelled	char_length		-
+EngineStyleComposite	-	call	UPPER	spelled	upper	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LOWER	spelled	lower	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	GREATEST	spelled	greatest	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LEAST	spelled	least	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	CONCAT_JOIN	spelled	concat	as EngineStyleDB2	-
+EngineStyleComposite	-	call	LIST_FILTER	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_TRANSFORM	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_CONCAT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_GET	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_POSITION	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_EXISTS	refused	collection exists reached a dialect without a list-predicate encoding	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listExists	-
+EngineStyleComposite	-	call	LIST_FOR_ALL	refused	collection forAll reached a dialect without a list-predicate encoding	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listForAll	-
+EngineStyleComposite	-	call	STRUCT_INSERT	refused	struct_insert reached a dialect without struct support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.structInsert	-
+EngineStyleComposite	-	call	UNNEST	refused	UNNEST reached a dialect without an unnest placement	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.unnestProjection	-
+EngineStyleComposite	-	call	LIST_FLATTEN	spelled	flatten	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	JSON_MERGE_PATCH	emulated	jsonMergePatch	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	SQRT	spelled	sqrt	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	CBRT	spelled	cbrt	as EngineStyleDB2	-
+EngineStyleComposite	-	call	EXP	spelled	exp	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LN	spelled	ln	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LOG10	spelled	log10	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	POW	spelled	power	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	PI	spelled	pi	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	SIN	spelled	sin	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	COS	spelled	cos	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	TAN	spelled	tan	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ASIN	spelled	asin	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ACOS	spelled	acos	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ATAN	spelled	atan	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ATAN2	spelled	atan2	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	SINH	spelled	sinh	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	COSH	spelled	cosh	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	TANH	spelled	tanh	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	CEILING	emulated	bigintOf: ceil	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	FLOOR	emulated	bigintOf: floor	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ROUND	emulated	roundHalfEven	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	SIGN	emulated	bigintOf: sign	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	XOR	emulated	xorAsAndOr	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	BIT_AND	refused	reached a dialect without bit-op support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
+EngineStyleComposite	-	call	BIT_OR	refused	reached a dialect without bit-op support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
+EngineStyleComposite	-	call	BIT_XOR	refused	reached a dialect without bit-op support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
+EngineStyleComposite	-	call	BIT_SHIFT_LEFT	refused	reached a dialect without bit-op support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
+EngineStyleComposite	-	call	BIT_SHIFT_RIGHT	refused	reached a dialect without bit-op support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.bitOp	-
+EngineStyleComposite	-	call	BIT_NOT	emulated	bitNot	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	REGEXP_EXTRACT	spelled	regexp_extract	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	REGEXP_EXTRACT_ALL	spelled	regexp_extract_all	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	REGEXP_REPLACE	spelled	regexp_replace	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	REGEXP_FULL_MATCH	spelled	regexp_full_match	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	MAP_FROM_LISTS	spelled	map	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	MAP_FROM_ENTRIES	spelled	map_from_entries	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	MAP_EMPTY	emulated	mapEmpty	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	MAP_EXTRACT	spelled	map_extract	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	MAP_KEYS	spelled	map_keys	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	MAP_VALUES	spelled	map_values	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	MAP_CONCAT	spelled	map_concat	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	SUBSTRING	spelled	substring		-
+EngineStyleComposite	-	call	STRPOS	spelled	position	as EngineStyleDB2	-
+EngineStyleComposite	-	call	STARTS_WITH	spelled	starts_with	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ENDS_WITH	spelled	ends_with	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	MATCHES	spelled	regexp_matches	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LEFT	emulated	trim(left(…, …))	as EngineStyleDB2	-
+EngineStyleComposite	-	call	RIGHT	emulated	trim(right(…, …))	as EngineStyleDB2	-
+EngineStyleComposite	-	call	LPAD	spelled	lpad	as EngineStyleDB2	-
+EngineStyleComposite	-	call	RPAD	spelled	rpad	as EngineStyleDB2	-
+EngineStyleComposite	-	call	TRIM	emulated	by its operands: trim(both from …) / …trim	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LTRIM	spelled	ltrim	as EngineStyleDB2	-
+EngineStyleComposite	-	call	RTRIM	spelled	rtrim	as EngineStyleDB2	-
+EngineStyleComposite	-	call	REPLACE	spelled	replace	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	SPLIT	spelled	string_split	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	SPLIT_PART	spelled	legend_h2_extension_split_part	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	TRANSLATE	refused	translate reached the engine text: legend-engine has no translate dynaFunction to spell	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	PURE_SPLIT_PART	emulated	splitPartCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	REVERSE_STRING	spelled	reverse	as EngineStyleDB2	-
+EngineStyleComposite	-	call	ASCII_CODE	spelled	ascii	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	CHR	spelled	char	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	UC_FIRST	emulated	firstCharCased: upper	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LC_FIRST	emulated	firstCharCased: lower	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ENCODE_BASE64	emulated	encodeBase64	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LEVENSHTEIN	spelled	levenshtein	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	GUID	emulated	CAST(uuid() AS VARCHAR)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	FORMAT	spelled	printf	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	HASH	refused	signed 64-bit hashCode reached a dialect without a spelling	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.hashSigned	-
+EngineStyleComposite	-	call	MD5	emulated	digest: MD5	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	SHA1	emulated	digest: SHA-1	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	SHA256	emulated	digest: SHA-256	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	RANDOM	spelled	rand	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	EXTRACT	emulated	extract	as EngineStyleDB2	-
+EngineStyleComposite	-	call	TODAY	emulated	date(current date)	as EngineStyleDB2	-
+EngineStyleComposite	-	call	NOW	spelled	now	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	DATE_TRUNC_DAY	emulated	cast(truncate(…) as date)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	MAKE_DATE	spelled	make_date	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	MAKE_TIMESTAMP	emulated	makeTimestamp	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	DATE_TRUNC	emulated	dateTrunc	as EngineStyleDB2	-
+EngineStyleComposite	-	call	ADD_INTERVAL	emulated	addInterval	as EngineStyleDB2	-
+EngineStyleComposite	-	call	DATE_DIFF	emulated	enginePart, part: datediff(…, …, …)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	TIME_BUCKET	emulated	timeBucket	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	TIMEZONE	spelled	timezone	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	DATE_AT_TIME	refused	a time of day: legend-engine's relational lowering refuses StrictTime, so its text has no spelling for one	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	FROM_EPOCH_NS	refused	a nanosecond epoch: legend-engine's H2 text keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ADD_INTERVAL_TEMPORAL	emulated	dbUnitOf, part: dateadd(…, …, …)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	EPOCH_SECONDS	spelled	epoch	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	EPOCH_MS	spelled	epoch_ms	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	FROM_EPOCH_SECONDS	spelled	to_timestamp	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	FROM_EPOCH_MS	emulated	fromEpochMs	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	DAYNAME	spelled	dayname	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	MONTHNAME	spelled	monthname	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	COT	spelled	cot	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	RADIANS	spelled	radians	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	DEGREES	spelled	degrees	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	INT_DIVIDE	emulated	intDivide	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	REPEAT_STR	spelled	repeat	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	JARO_WINKLER	spelled	jaro_winkler_similarity	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	DECODE_BASE64	emulated	decodeBase64	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	CURRENT_USER_FN	spelled	current_user	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_LENGTH	spelled	len	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_ZIP	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_DISTINCT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_APPEND	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_SUM	emulated	composed	as EngineStyleDB2, as EngineStyleH2, via EngineStyleH2.listCall	-
+EngineStyleComposite	-	call	LIST_MIN	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_MAX	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_AVG	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_MEDIAN	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_MODE	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_SORT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_SORT_DESC	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_TAIL	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_INIT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	RANGE_FN	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_PRODUCT	emulated	composed	as EngineStyleDB2, as EngineStyleH2, via EngineStyleH2.listCall	-
+EngineStyleComposite	-	call	LIST_REDUCE	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_SLICE	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	REPEAT_VALUE	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_BOOL_AND	emulated	composed	as EngineStyleDB2, as EngineStyleH2, via EngineStyleH2.listCall	-
+EngineStyleComposite	-	call	LIST_BOOL_OR	emulated	composed	as EngineStyleDB2, as EngineStyleH2, via EngineStyleH2.listCall	-
+EngineStyleComposite	-	call	IS_DISTINCT_FROM	emulated	distinctFrom	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ALL_DISTINCT	refused	collection isDistinct reached a dialect without a list encoding	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.allDistinct	-
+EngineStyleComposite	-	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	STRFTIME	emulated	strftimeArm	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	STRPTIME	emulated	strptime	as EngineStyleDB2	-
+EngineStyleComposite	-	call	PARSE_DATE	emulated	cast(parsedatetime(…, 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][....	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	LIST_REVERSE	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	TYPEOF	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ROUND_HALF_UP	spelled	ROUND	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ERROR	emulated	raiseEnvelope: error	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	FLOOR_RAW	spelled	floor	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantConstruct	-
+EngineStyleComposite	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	FLOAT_CANON	emulated	floatCanonByText	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	FLOAT_PRINT	emulated	floatPrintByText	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
+EngineStyleComposite	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet	-
+EngineStyleComposite	-	call	JSON_TYPE	spelled	json_type	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	JSON_ARRAY_LENGTH	spelled	json_array_length	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	JSON_PRETTY	spelled	json_pretty	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	SUM	spelled	sum	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	COUNT	spelled	count	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	AVG	spelled	avg	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	MIN	spelled	min	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	MAX	spelled	max	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	ANY_VALUE	emulated	by its operands: composed / …any_value	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	STDDEV_SAMP	spelled	stddev_samp	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	STDDEV_POP	spelled	stddev_pop	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	VAR_SAMP	spelled	var_samp	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	VAR_POP	spelled	var_pop	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	MEDIAN	spelled	median	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	MODE	spelled	mode	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	STRING_AGG	emulated	by its operands: …listagg / composed	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	LIST	spelled	list	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	QUANTILE_CONT	emulated	by its operands: …percentile_cont / …quantile_cont	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	QUANTILE_DISC	emulated	by its operands: …percentile_disc / …quantile_disc	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	CORR	spelled	corr	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	COVAR_SAMP	spelled	covar_samp	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	COVAR_POP	spelled	covar_pop	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	ARG_MAX	spelled	arg_max	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	ARG_MIN	spelled	arg_min	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	WAVG	not_here	lowering marker reached the renderer	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	HASH_LIST	not_here	lowering marker reached the renderer	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	BOOL_AND	spelled	bool_and	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	BOOL_OR	spelled	bool_or	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	IS_DISTINCT_MARK	not_here	lowering marker reached the renderer	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	UNIQUE_VALUE_ONLY	not_here	lowering marker reached the renderer	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	VARIANCE	spelled	variance	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	STDDEV	spelled	stddev	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	ROW_NUMBER	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	RANK	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	DENSE_RANK	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	PERCENT_RANK	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	CUME_DIST	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	NTILE	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	LAG	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	LEAD	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	FIRST_VALUE	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	LAST_VALUE	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	reducer	NTH_VALUE	not_here	is a window function: windowCall writes it	as EngineStyleDB2, as EngineStyleH2	-

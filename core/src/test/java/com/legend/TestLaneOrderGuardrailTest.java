@@ -62,13 +62,14 @@ class TestLaneOrderGuardrailTest {
                 // 2026-10-18, the plan path program's step 1b (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): MirJson.readExpr rebuilds a RowOrder the planner wrote into the plan's typed
                 // tree (read back exactly); it adds no scan order of its own
                 "com/legend/executionplan/MirJson.java",
-                "com/legend/sql/ScanOrder.java",
                 // LateralExplodeToUnion.java left 2026-11-03 (docs/rust-port/PHASE1.md §4 step 4; rust/RETIRED_TESTS.md):
                 // H2 and the engine text, its last users, are the Rust library's, which keys the explode's legs
                 // (rust/lite-dialect/src/h2_passes.rs)
                 // UnqualifyPivotArgs.java left 2026-11-04 (rust/RETIRED_TESTS.md): DuckDB and Databricks, its users, are
                 // the Rust library's (rust/lite-dialect/src/passes.rs re-spells the key as Java did)
-                "com/legend/sql/dialect/StableScanOrder.java")),
+                // StableScanOrder.java left 2026-11-04 (the last switch; rust/RETIRED_TESTS.md): the pass is the Rust
+                // library's (rust/lite-dialect/src/scan_order.rs); the Java class keeps only its count
+                "com/legend/sql/ScanOrder.java")),
                 filesMatching(ROW_ORDER_MINT),
                 "SqlExpr.RowOrder is minted outside its owners: a product path is adding a"
                 + " scan order the query did not ask for (user ruling 2026-09-20) — the"
@@ -104,8 +105,9 @@ class TestLaneOrderGuardrailTest {
                 // 2026-10-18 (the plan path program's step 6, both judges on plans): the judges' canon-ordered side,
                 // the assert's own wrap over a plan -- a judge's path, no product render
                 "com/legend/driver/JudgePlans.java",
-                "com/legend/lowering/CanonicalRenderSql.java",
-                "com/legend/sql/dialect/StableScanOrder.java")),
+                // StableScanOrder.java left 2026-11-04 (the last switch; rust/RETIRED_TESTS.md): the test-lane pass is
+                // the Rust library's (rust/lite-dialect/src/scan_order.rs stabilizes there)
+                "com/legend/lowering/CanonicalRenderSql.java")),
                 filesMatching(STABILIZE),
                 "ScanOrder.stabilize is applied from a new site: the assert canon wrap and the"
                 + " test-lane pass are the only two — a product render path must not order");

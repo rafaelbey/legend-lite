@@ -1814,47 +1814,9 @@ write_source_files(
     visibility = ["//:__pkg__"],
 )
 
-# THE CAPABILITY MATRIX (the dialect program's Phase 1b, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md): what every
-# concrete dialect does with every function and aggregate, read from the dialects' own sources (CapabilityMatrix),
-# with the PCT reach measured into docs/dialect-capability/reach.tsv (:capability_reach). Its files are fixed (the
-# matrix as data, matrix.tsv, and three pages made from it) and its dialects are read from the source directory, so a
-# new dialect adds no line here. //docs:update_dialect_capability writes them into docs/dialect-capability/ and
-# diff-tests the data (no test reads Markdown: G17).
-_DIALECT_SOURCES = glob(["src/main/java/com/legend/sql/dialect/*.java"])
-
-java_run(
-    name = "capability_matrix",
-    testonly = True,
-    srcs = _DIALECT_SOURCES + ["//docs:dialect-capability/reach.tsv"],
-    outs = ["dialect-capability/matrix.tsv"] + ["dialect-capability/%s.md" % f for f in [
-        "README",
-        "functions",
-        "aggregates",
-    ]],
-    arguments = [
-        "{OUT_DIR}",
-        "$(location //docs:dialect-capability/reach.tsv)",
-        "{DIALECTS}",
-    ],
-    main_class = "com.legend.sql.dialect.CapabilityMatrix",
-    mnemonic = "Generate",
-    roots = {"src/main/java/com/legend/sql/dialect/SqlDialect.java": "{DIALECTS}"},
-    visibility = ["//docs:__pkg__"],
-    deps = [":core_tests_lib"],
-)
-
-# The matrix's reach, measured over the PCT lanes' recorded cases (a measurement, not a build step; the recipe is in
-# docs/dialect-capability/README.md):
-#   bazel run //core:capability_reach -- docs/dialect-capability/reach.tsv <pct-cases.tsv>...
-legend_java_binary(
-    name = "capability_reach",
-    testonly = True,
-    jvm_flags = ["-Duser.timezone=GMT"],
-    main_class = "com.legend.sql.dialect.CapabilityReach",
-    tags = ["manual"],
-    # it only lowers and rewrites: no database driver (the comment at :drivers)
-    runtime_deps = [":core_tests_lib"],
-)
+# THE CAPABILITY MATRIX's generator (CapabilityMatrix, CapabilityReach) read the Java dialects' own sources; since
+# 2026-11-04 every dialect is the Rust library's (docs/rust-port/PHASE1.md §4 step 6h), so it is retired and
+# docs/dialect-capability/ is frozen at its last full generation, which the Rust dialects still answer exactly.
 
 # NOT a generated file: native-membership.tsv is hand-owned (membership is OURS). This writes a DRAFT from
 # Pure.java's constants over it for a person to finish (git diff shows what moved); NativeSignatureGeneratorTest is

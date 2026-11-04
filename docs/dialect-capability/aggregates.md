@@ -5,10 +5,163 @@
 
 What each dialect does with each aggregate of the SQL IR. The legend, the method and the summary are in [README.md](README.md).
 
+- [H2](#h2)
+- [H2Modern](#h2modern)
+- [Postgres](#postgres)
 - [Snowflake](#snowflake)
+- [Trino](#trino)
+- [BigQuery](#bigquery)
+- [Databricks](#databricks)
+- [DuckDb](#duckdb)
+- [ClickHouse](#clickhouse)
+- [SQLite](#sqlite)
 - [MariaDb](#mariadb)
 - [MySql](#mysql)
 - [MongoDb](#mongodb)
+- [EngineStyleH2](#enginestyleh2)
+- [EngineStyleDB2](#enginestyledb2)
+- [EngineStyleComposite](#enginestylecomposite)
+
+## H2
+
+Database types planned with it: H2.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | emulated | `h2Aggregate: SUM` |  | 212 |
+| `COUNT` | emulated | `h2Aggregate: COUNT` |  | 14 |
+| `AVG` | emulated | `h2Aggregate: AVG` |  | 10 |
+| `MIN` | emulated | `h2Aggregate: MIN` |  | 11 |
+| `MAX` | emulated | `h2Aggregate: MAX` |  | 11 |
+| `ANY_VALUE` | emulated | `by its operands: composed / …ANY_VALUE` |  | 0 |
+| `STDDEV_SAMP` | emulated | `h2Aggregate: STDDEV_SAMP` |  | 2 |
+| `STDDEV_POP` | emulated | `h2Aggregate: STDDEV_POP` |  | 5 |
+| `VAR_SAMP` | emulated | `h2Aggregate: VAR_SAMP` |  | 2 |
+| `VAR_POP` | emulated | `h2Aggregate: VAR_POP` |  | 2 |
+| `MEDIAN` | emulated | `h2Aggregate: MEDIAN` |  | 6 |
+| `MODE` | emulated | `h2Aggregate: MODE` |  | 6 |
+| `STRING_AGG` | emulated | `h2Aggregate: STRING_AGG` |  | 506 |
+| `LIST` | emulated | `by its operands: composed / …LIST` |  | 1 |
+| `QUANTILE_CONT` | emulated | `by its operands: …PERCENTILE_CONT / …QUANTILE_CONT` |  | 1 |
+| `QUANTILE_DISC` | emulated | `by its operands: …PERCENTILE_DISC / …QUANTILE_DISC` |  | 1 |
+| `CORR` | emulated | `h2Aggregate: CORR` |  | 4 |
+| `COVAR_SAMP` | emulated | `h2Aggregate: COVAR_SAMP` |  | 5 |
+| `COVAR_POP` | emulated | `h2Aggregate: COVAR_POP` |  | 4 |
+| `ARG_MAX` | emulated | `h2Aggregate: ARG_MAX` |  | 1 |
+| `ARG_MIN` | emulated | `h2Aggregate: ARG_MIN` |  | 1 |
+| `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `BOOL_AND` | emulated | `h2Aggregate: BOOL_AND` |  | 0 |
+| `BOOL_OR` | emulated | `h2Aggregate: BOOL_OR` |  | 0 |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `VARIANCE` | emulated | `h2Aggregate: VARIANCE` |  | 0 |
+| `STDDEV` | emulated | `h2Aggregate: STDDEV` |  | 0 |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTILE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAG` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LEAD` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+
+## H2Modern
+
+Database types planned with it: no database type's own (it extends `H2`). No PCT lane runs it, so its arms have no measured reach.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | emulated | `h2Aggregate: SUM` | `as H2` | — |
+| `COUNT` | emulated | `h2Aggregate: COUNT` | `as H2` | — |
+| `AVG` | emulated | `h2Aggregate: AVG` | `as H2` | — |
+| `MIN` | emulated | `h2Aggregate: MIN` | `as H2` | — |
+| `MAX` | emulated | `h2Aggregate: MAX` | `as H2` | — |
+| `ANY_VALUE` | emulated | `by its operands: composed / …ANY_VALUE` | `as H2` | — |
+| `STDDEV_SAMP` | emulated | `h2Aggregate: STDDEV_SAMP` | `as H2` | — |
+| `STDDEV_POP` | emulated | `h2Aggregate: STDDEV_POP` | `as H2` | — |
+| `VAR_SAMP` | emulated | `h2Aggregate: VAR_SAMP` | `as H2` | — |
+| `VAR_POP` | emulated | `h2Aggregate: VAR_POP` | `as H2` | — |
+| `MEDIAN` | emulated | `h2Aggregate: MEDIAN` | `as H2` | — |
+| `MODE` | emulated | `h2Aggregate: MODE` | `as H2` | — |
+| `STRING_AGG` | emulated | `h2Aggregate: STRING_AGG` | `as H2` | — |
+| `LIST` | emulated | `by its operands: composed / …LIST` | `as H2` | — |
+| `QUANTILE_CONT` | emulated | `by its operands: …PERCENTILE_CONT / …QUANTILE_CONT` | `as H2` | — |
+| `QUANTILE_DISC` | emulated | `by its operands: …PERCENTILE_DISC / …QUANTILE_DISC` | `as H2` | — |
+| `CORR` | emulated | `h2Aggregate: CORR` | `as H2` | — |
+| `COVAR_SAMP` | emulated | `h2Aggregate: COVAR_SAMP` | `as H2` | — |
+| `COVAR_POP` | emulated | `h2Aggregate: COVAR_POP` | `as H2` | — |
+| `ARG_MAX` | emulated | `h2Aggregate: ARG_MAX` | `as H2` | — |
+| `ARG_MIN` | emulated | `h2Aggregate: ARG_MIN` | `as H2` | — |
+| `WAVG` | not_here | `lowering marker reached the renderer` | `as H2` | — |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` | `as H2` | — |
+| `BOOL_AND` | emulated | `h2Aggregate: BOOL_AND` | `as H2` | — |
+| `BOOL_OR` | emulated | `h2Aggregate: BOOL_OR` | `as H2` | — |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` | `as H2` | — |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` | `as H2` | — |
+| `VARIANCE` | emulated | `h2Aggregate: VARIANCE` | `as H2` | — |
+| `STDDEV` | emulated | `h2Aggregate: STDDEV` | `as H2` | — |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
+| `RANK` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
+| `NTILE` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
+| `LAG` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
+| `LEAD` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
+
+## Postgres
+
+Database types planned with it: Postgres.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | spelled | `SUM` |  | 212 |
+| `COUNT` | spelled | `COUNT` |  | 14 |
+| `AVG` | spelled | `AVG` |  | 10 |
+| `MIN` | emulated | `extreme: MIN, bool_and,  ASC` |  | 11 |
+| `MAX` | emulated | `extreme: MAX, bool_or,  DESC` |  | 11 |
+| `ANY_VALUE` | spelled | `ANY_VALUE` |  | 0 |
+| `STDDEV_SAMP` | spelled | `STDDEV_SAMP` |  | 2 |
+| `STDDEV_POP` | spelled | `STDDEV_POP` |  | 5 |
+| `VAR_SAMP` | spelled | `VAR_SAMP` |  | 2 |
+| `VAR_POP` | spelled | `VAR_POP` |  | 2 |
+| `MEDIAN` | emulated | `median` |  | 6 |
+| `MODE` | emulated | `mode` |  | 6 |
+| `STRING_AGG` | spelled | `STRING_AGG` |  | 506 |
+| `LIST` | emulated | `listOfValues` |  | 1 |
+| `QUANTILE_CONT` | emulated | `percentile: percentile_cont` |  | 1 |
+| `QUANTILE_DISC` | emulated | `percentile: percentile_disc` |  | 1 |
+| `CORR` | spelled | `CORR` |  | 4 |
+| `COVAR_SAMP` | spelled | `COVAR_SAMP` |  | 5 |
+| `COVAR_POP` | spelled | `COVAR_POP` |  | 4 |
+| `ARG_MAX` | emulated | `argExtreme:  DESC` |  | 1 |
+| `ARG_MIN` | emulated | `argExtreme:  ASC` |  | 1 |
+| `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `BOOL_AND` | spelled | `BOOL_AND` |  | 0 |
+| `BOOL_OR` | spelled | `BOOL_OR` |  | 0 |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `VARIANCE` | spelled | `VARIANCE` |  | 0 |
+| `STDDEV` | spelled | `STDDEV` |  | 0 |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTILE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAG` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LEAD` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
 
 ## Snowflake
 
@@ -45,6 +198,288 @@ Database types planned with it: Snowflake.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | spelled | `VARIANCE (unordered)` |  | 0 |
 | `STDDEV` | spelled | `STDDEV (unordered)` |  | 0 |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTILE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAG` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LEAD` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+
+## Trino
+
+Database types planned with it: Trino.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | spelled | `SUM (unordered)` |  | 212 |
+| `COUNT` | spelled | `COUNT (unordered)` |  | 14 |
+| `AVG` | spelled | `AVG (unordered)` |  | 10 |
+| `MIN` | spelled | `MIN (unordered)` |  | 11 |
+| `MAX` | spelled | `MAX (unordered)` |  | 11 |
+| `ANY_VALUE` | spelled | `arbitrary` |  | 0 |
+| `STDDEV_SAMP` | spelled | `STDDEV_SAMP (unordered)` |  | 2 |
+| `STDDEV_POP` | spelled | `STDDEV_POP (unordered)` |  | 5 |
+| `VAR_SAMP` | spelled | `VAR_SAMP (unordered)` |  | 2 |
+| `VAR_POP` | spelled | `VAR_POP (unordered)` |  | 2 |
+| `MEDIAN` | emulated | `quantile, collected` |  | 6 |
+| `MODE` | emulated | `mode, counted` |  | 6 |
+| `STRING_AGG` | emulated | `listagg` |  | 506 |
+| `LIST` | emulated | `arrayAgg` |  | 1 |
+| `QUANTILE_CONT` | emulated | `quantile, collected` |  | 1 |
+| `QUANTILE_DISC` | emulated | `quantile, collected` |  | 1 |
+| `CORR` | emulated | `covariance` |  | 4 |
+| `COVAR_SAMP` | emulated | `covariance` |  | 5 |
+| `COVAR_POP` | emulated | `covariance` |  | 4 |
+| `ARG_MAX` | emulated | `byExtreme: max_by` |  | 1 |
+| `ARG_MIN` | emulated | `byExtreme: min_by` |  | 1 |
+| `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `BOOL_AND` | spelled | `BOOL_AND (unordered)` |  | 0 |
+| `BOOL_OR` | spelled | `BOOL_OR (unordered)` |  | 0 |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `VARIANCE` | spelled | `VARIANCE (unordered)` |  | 0 |
+| `STDDEV` | spelled | `STDDEV (unordered)` |  | 0 |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTILE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAG` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LEAD` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+
+## BigQuery
+
+Database types planned with it: BigQuery.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | spelled | `SUM (unordered)` |  | 212 |
+| `COUNT` | spelled | `COUNT (unordered)` |  | 14 |
+| `AVG` | spelled | `AVG (unordered)` |  | 10 |
+| `MIN` | spelled | `MIN (unordered)` |  | 11 |
+| `MAX` | spelled | `MAX (unordered)` |  | 11 |
+| `ANY_VALUE` | spelled | `ANY_VALUE (unordered)` |  | 0 |
+| `STDDEV_SAMP` | spelled | `STDDEV_SAMP (unordered)` |  | 2 |
+| `STDDEV_POP` | spelled | `STDDEV_POP (unordered)` |  | 5 |
+| `VAR_SAMP` | spelled | `VAR_SAMP (unordered)` |  | 2 |
+| `VAR_POP` | spelled | `VAR_POP (unordered)` |  | 2 |
+| `MEDIAN` | emulated | `median` |  | 6 |
+| `MODE` | emulated | `modeArm` |  | 6 |
+| `STRING_AGG` | emulated | `orderedAggregate: STRING_AGG` |  | 506 |
+| `LIST` | emulated | `arrayAgg` |  | 1 |
+| `QUANTILE_CONT` | emulated | `percentile` |  | 1 |
+| `QUANTILE_DISC` | emulated | `percentile` |  | 1 |
+| `CORR` | spelled | `CORR (unordered)` |  | 4 |
+| `COVAR_SAMP` | spelled | `COVAR_SAMP (unordered)` |  | 5 |
+| `COVAR_POP` | spelled | `COVAR_POP (unordered)` |  | 4 |
+| `ARG_MAX` | emulated | `byExtreme: MAX_BY` |  | 1 |
+| `ARG_MIN` | emulated | `byExtreme: MIN_BY` |  | 1 |
+| `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `BOOL_AND` | emulated | `aggregateArgs: …LOGICAL_AND(…)` |  | 0 |
+| `BOOL_OR` | emulated | `aggregateArgs: …LOGICAL_OR(…)` |  | 0 |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `VARIANCE` | spelled | `VARIANCE (unordered)` |  | 0 |
+| `STDDEV` | spelled | `STDDEV (unordered)` |  | 0 |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTILE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAG` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LEAD` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+
+## Databricks
+
+Database types planned with it: Databricks.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | spelled | `SUM (unordered)` |  | 212 |
+| `COUNT` | spelled | `COUNT (unordered)` |  | 14 |
+| `AVG` | spelled | `AVG (unordered)` |  | 10 |
+| `MIN` | spelled | `MIN (unordered)` |  | 7 |
+| `MAX` | spelled | `MAX (unordered)` |  | 7 |
+| `ANY_VALUE` | spelled | `ANY_VALUE (unordered)` |  | 0 |
+| `STDDEV_SAMP` | spelled | `STDDEV_SAMP (unordered)` |  | 2 |
+| `STDDEV_POP` | spelled | `STDDEV_POP (unordered)` |  | 5 |
+| `VAR_SAMP` | spelled | `VAR_SAMP (unordered)` |  | 2 |
+| `VAR_POP` | spelled | `VAR_POP (unordered)` |  | 2 |
+| `MEDIAN` | spelled | `median` |  | 6 |
+| `MODE` | spelled | `mode` |  | 6 |
+| `STRING_AGG` | emulated | `listagg` |  | 506 |
+| `LIST` | emulated | `arrayAgg` |  | 1 |
+| `QUANTILE_CONT` | emulated | `percentile: percentile_cont` |  | 1 |
+| `QUANTILE_DISC` | emulated | `percentile: percentile_disc` |  | 1 |
+| `CORR` | spelled | `CORR (unordered)` |  | 4 |
+| `COVAR_SAMP` | spelled | `COVAR_SAMP (unordered)` |  | 5 |
+| `COVAR_POP` | spelled | `COVAR_POP (unordered)` |  | 4 |
+| `ARG_MAX` | emulated | `byExtreme: max_by` |  | 1 |
+| `ARG_MIN` | emulated | `byExtreme: min_by` |  | 1 |
+| `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `BOOL_AND` | spelled | `BOOL_AND (unordered)` |  | 0 |
+| `BOOL_OR` | spelled | `BOOL_OR (unordered)` |  | 0 |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `VARIANCE` | spelled | `VARIANCE (unordered)` |  | 0 |
+| `STDDEV` | spelled | `STDDEV (unordered)` |  | 0 |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTILE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAG` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LEAD` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+
+## DuckDb
+
+Database types planned with it: DuckDB.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | spelled | `SUM` |  | 212 |
+| `COUNT` | spelled | `COUNT` |  | 16 |
+| `AVG` | spelled | `AVG` |  | 10 |
+| `MIN` | spelled | `MIN` |  | 7 |
+| `MAX` | spelled | `MAX` |  | 7 |
+| `ANY_VALUE` | spelled | `ANY_VALUE` |  | 0 |
+| `STDDEV_SAMP` | spelled | `STDDEV_SAMP` |  | 2 |
+| `STDDEV_POP` | spelled | `STDDEV_POP` |  | 5 |
+| `VAR_SAMP` | spelled | `VAR_SAMP` |  | 2 |
+| `VAR_POP` | spelled | `VAR_POP` |  | 2 |
+| `MEDIAN` | spelled | `MEDIAN` |  | 6 |
+| `MODE` | spelled | `MODE` |  | 6 |
+| `STRING_AGG` | spelled | `STRING_AGG` |  | 506 |
+| `LIST` | spelled | `LIST` |  | 3 |
+| `QUANTILE_CONT` | spelled | `QUANTILE_CONT` |  | 0 |
+| `QUANTILE_DISC` | spelled | `QUANTILE_DISC` |  | 0 |
+| `CORR` | spelled | `CORR` |  | 4 |
+| `COVAR_SAMP` | spelled | `COVAR_SAMP` |  | 5 |
+| `COVAR_POP` | spelled | `COVAR_POP` |  | 4 |
+| `ARG_MAX` | spelled | `ARG_MAX` |  | 1 |
+| `ARG_MIN` | spelled | `ARG_MIN` |  | 1 |
+| `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `BOOL_AND` | spelled | `BOOL_AND` |  | 0 |
+| `BOOL_OR` | spelled | `BOOL_OR` |  | 0 |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `VARIANCE` | spelled | `VARIANCE` |  | 0 |
+| `STDDEV` | spelled | `STDDEV` |  | 0 |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTILE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAG` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LEAD` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+
+## ClickHouse
+
+Database types planned with it: ClickHouse.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | emulated | `ov: sumOrNull` |  | 212 |
+| `COUNT` | emulated | `count` |  | 14 |
+| `AVG` | emulated | `ov: avgOrNull` |  | 10 |
+| `MIN` | emulated | `ov: minOrNull` |  | 7 |
+| `MAX` | emulated | `ov: maxOrNull` |  | 7 |
+| `ANY_VALUE` | emulated | `ov: anyOrNull` |  | 0 |
+| `STDDEV_SAMP` | emulated | `sampled: stddevSampStableOrNull` |  | 2 |
+| `STDDEV_POP` | emulated | `ov: stddevPopStableOrNull` |  | 5 |
+| `VAR_SAMP` | emulated | `sampled: varSampStableOrNull` |  | 2 |
+| `VAR_POP` | emulated | `ov: varPopStableOrNull` |  | 2 |
+| `MEDIAN` | emulated | `ov: quantileExactInclusiveOrNull(0.5)(toFloat64(, ))` |  | 6 |
+| `MODE` | emulated | `modeOf, ov: …groupArray(…)` |  | 6 |
+| `STRING_AGG` | emulated | `stringAgg` |  | 506 |
+| `LIST` | emulated | `listOfValues` |  | 1 |
+| `QUANTILE_CONT` | emulated | `quantileCont` |  | 1 |
+| `QUANTILE_DISC` | emulated | `quantileDisc` |  | 1 |
+| `CORR` | emulated | `ov: corrOrNull(toFloat64(, ), toFloat64(, ))` |  | 4 |
+| `COVAR_SAMP` | emulated | `covarSamp` |  | 5 |
+| `COVAR_POP` | emulated | `ov: covarPopStableOrNull` |  | 4 |
+| `ARG_MAX` | emulated | `argExtreme: argMax` |  | 1 |
+| `ARG_MIN` | emulated | `argExtreme: argMin` |  | 1 |
+| `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `BOOL_AND` | emulated | `ov: minOrNull` |  | 0 |
+| `BOOL_OR` | emulated | `ov: maxOrNull` |  | 0 |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `VARIANCE` | emulated | `sampled: varSampStableOrNull` |  | 0 |
+| `STDDEV` | emulated | `sampled: stddevSampStableOrNull` |  | 0 |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTILE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAG` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LEAD` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+
+## SQLite
+
+Database types planned with it: SQLite.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | spelled | `SUM` |  | 212 |
+| `COUNT` | spelled | `COUNT` |  | 14 |
+| `AVG` | spelled | `AVG` |  | 10 |
+| `MIN` | spelled | `MIN` |  | 11 |
+| `MAX` | spelled | `MAX` |  | 11 |
+| `ANY_VALUE` | emulated | `aggregateArgs: min(…)` |  | 0 |
+| `STDDEV_SAMP` | emulated | `aggregateArgs: stdev(…)` |  | 2 |
+| `STDDEV_POP` | emulated | `populationVariance: sqrt(…)` |  | 5 |
+| `VAR_SAMP` | emulated | `aggregateArgs: variance(…)` |  | 2 |
+| `VAR_POP` | emulated | `populationVariance` |  | 2 |
+| `MEDIAN` | emulated | `median` |  | 6 |
+| `MODE` | emulated | `json: (SELECT __m.value FROM json_each(json_group_array(…)) AS __m WHERE __m.value ...` |  | 6 |
+| `STRING_AGG` | emulated | `groupConcat` |  | 506 |
+| `LIST` | emulated | `listOfValues` |  | 1 |
+| `QUANTILE_CONT` | emulated | `percentile` |  | 1 |
+| `QUANTILE_DISC` | emulated | `percentile` |  | 1 |
+| `CORR` | emulated | `moments` |  | 4 |
+| `COVAR_SAMP` | emulated | `moments` |  | 5 |
+| `COVAR_POP` | emulated | `moments` |  | 4 |
+| `ARG_MAX` | emulated | `argExtreme:  DESC` |  | 1 |
+| `ARG_MIN` | emulated | `argExtreme:  ASC` |  | 1 |
+| `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `BOOL_AND` | emulated | `aggregateArgs: min(…)` |  | 0 |
+| `BOOL_OR` | emulated | `aggregateArgs: max(…)` |  | 0 |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
+| `VARIANCE` | emulated | `aggregateArgs: variance(…)` |  | 0 |
+| `STDDEV` | emulated | `aggregateArgs: stdev(…)` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
@@ -197,3 +632,144 @@ Database types planned with it: MongoDB.
 | `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
+
+## EngineStyleH2
+
+Database types planned with it: no database type's own (it extends `AnsiSqlRenderer`). No PCT lane runs it, so its arms have no measured reach.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | spelled | `sum` |  | — |
+| `COUNT` | spelled | `count` |  | — |
+| `AVG` | spelled | `avg` |  | — |
+| `MIN` | spelled | `min` |  | — |
+| `MAX` | spelled | `max` |  | — |
+| `ANY_VALUE` | emulated | `by its operands: composed / …any_value` |  | — |
+| `STDDEV_SAMP` | spelled | `stddev_samp` |  | — |
+| `STDDEV_POP` | spelled | `stddev_pop` |  | — |
+| `VAR_SAMP` | spelled | `var_samp` |  | — |
+| `VAR_POP` | spelled | `var_pop` |  | — |
+| `MEDIAN` | spelled | `median` |  | — |
+| `MODE` | spelled | `mode` |  | — |
+| `STRING_AGG` | emulated | `by its operands: …listagg / composed` |  | — |
+| `LIST` | spelled | `list` |  | — |
+| `QUANTILE_CONT` | emulated | `by its operands: …percentile_cont / …quantile_cont` |  | — |
+| `QUANTILE_DISC` | emulated | `by its operands: …percentile_disc / …quantile_disc` |  | — |
+| `CORR` | spelled | `corr` |  | — |
+| `COVAR_SAMP` | spelled | `covar_samp` |  | — |
+| `COVAR_POP` | spelled | `covar_pop` |  | — |
+| `ARG_MAX` | spelled | `arg_max` |  | — |
+| `ARG_MIN` | spelled | `arg_min` |  | — |
+| `WAVG` | not_here | `lowering marker reached the renderer` |  | — |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | — |
+| `BOOL_AND` | spelled | `bool_and` |  | — |
+| `BOOL_OR` | spelled | `bool_or` |  | — |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | — |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | — |
+| `VARIANCE` | spelled | `variance` |  | — |
+| `STDDEV` | spelled | `stddev` |  | — |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | — |
+| `RANK` | not_here | `is a window function: windowCall writes it` |  | — |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | — |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | — |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | — |
+| `NTILE` | not_here | `is a window function: windowCall writes it` |  | — |
+| `LAG` | not_here | `is a window function: windowCall writes it` |  | — |
+| `LEAD` | not_here | `is a window function: windowCall writes it` |  | — |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | — |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | — |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | — |
+
+## EngineStyleDB2
+
+Database types planned with it: no database type's own (it extends `EngineStyleH2`). No PCT lane runs it, so its arms have no measured reach.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | spelled | `sum` | `as EngineStyleH2` | — |
+| `COUNT` | spelled | `count` | `as EngineStyleH2` | — |
+| `AVG` | spelled | `avg` | `as EngineStyleH2` | — |
+| `MIN` | spelled | `min` | `as EngineStyleH2` | — |
+| `MAX` | spelled | `max` | `as EngineStyleH2` | — |
+| `ANY_VALUE` | emulated | `by its operands: composed / …any_value` | `as EngineStyleH2` | — |
+| `STDDEV_SAMP` | spelled | `stddev_samp` | `as EngineStyleH2` | — |
+| `STDDEV_POP` | spelled | `stddev_pop` | `as EngineStyleH2` | — |
+| `VAR_SAMP` | spelled | `var_samp` | `as EngineStyleH2` | — |
+| `VAR_POP` | spelled | `var_pop` | `as EngineStyleH2` | — |
+| `MEDIAN` | spelled | `median` | `as EngineStyleH2` | — |
+| `MODE` | spelled | `mode` | `as EngineStyleH2` | — |
+| `STRING_AGG` | emulated | `by its operands: …listagg / composed` | `as EngineStyleH2` | — |
+| `LIST` | spelled | `list` | `as EngineStyleH2` | — |
+| `QUANTILE_CONT` | emulated | `by its operands: …percentile_cont / …quantile_cont` | `as EngineStyleH2` | — |
+| `QUANTILE_DISC` | emulated | `by its operands: …percentile_disc / …quantile_disc` | `as EngineStyleH2` | — |
+| `CORR` | spelled | `corr` | `as EngineStyleH2` | — |
+| `COVAR_SAMP` | spelled | `covar_samp` | `as EngineStyleH2` | — |
+| `COVAR_POP` | spelled | `covar_pop` | `as EngineStyleH2` | — |
+| `ARG_MAX` | spelled | `arg_max` | `as EngineStyleH2` | — |
+| `ARG_MIN` | spelled | `arg_min` | `as EngineStyleH2` | — |
+| `WAVG` | not_here | `lowering marker reached the renderer` | `as EngineStyleH2` | — |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` | `as EngineStyleH2` | — |
+| `BOOL_AND` | spelled | `bool_and` | `as EngineStyleH2` | — |
+| `BOOL_OR` | spelled | `bool_or` | `as EngineStyleH2` | — |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` | `as EngineStyleH2` | — |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` | `as EngineStyleH2` | — |
+| `VARIANCE` | spelled | `variance` | `as EngineStyleH2` | — |
+| `STDDEV` | spelled | `stddev` | `as EngineStyleH2` | — |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
+| `RANK` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
+| `NTILE` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
+| `LAG` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
+| `LEAD` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` | `as EngineStyleH2` | — |
+
+## EngineStyleComposite
+
+Database types planned with it: no database type's own (it extends `EngineStyleDB2`). No PCT lane runs it, so its arms have no measured reach.
+
+| aggregate | decision | writes, or why not | read through | PCT cases |
+|---|---|---|---|---:|
+| `SUM` | spelled | `sum` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `COUNT` | spelled | `count` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `AVG` | spelled | `avg` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `MIN` | spelled | `min` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `MAX` | spelled | `max` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `ANY_VALUE` | emulated | `by its operands: composed / …any_value` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `STDDEV_SAMP` | spelled | `stddev_samp` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `STDDEV_POP` | spelled | `stddev_pop` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `VAR_SAMP` | spelled | `var_samp` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `VAR_POP` | spelled | `var_pop` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `MEDIAN` | spelled | `median` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `MODE` | spelled | `mode` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `STRING_AGG` | emulated | `by its operands: …listagg / composed` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `LIST` | spelled | `list` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `QUANTILE_CONT` | emulated | `by its operands: …percentile_cont / …quantile_cont` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `QUANTILE_DISC` | emulated | `by its operands: …percentile_disc / …quantile_disc` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `CORR` | spelled | `corr` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `COVAR_SAMP` | spelled | `covar_samp` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `COVAR_POP` | spelled | `covar_pop` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `ARG_MAX` | spelled | `arg_max` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `ARG_MIN` | spelled | `arg_min` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `WAVG` | not_here | `lowering marker reached the renderer` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `HASH_LIST` | not_here | `lowering marker reached the renderer` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `BOOL_AND` | spelled | `bool_and` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `BOOL_OR` | spelled | `bool_or` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `VARIANCE` | spelled | `variance` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `STDDEV` | spelled | `stddev` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `RANK` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `CUME_DIST` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `NTILE` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `LAG` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `LEAD` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` | `as EngineStyleDB2, as EngineStyleH2` | — |

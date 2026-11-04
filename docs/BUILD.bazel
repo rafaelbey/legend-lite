@@ -29,39 +29,8 @@ write_source_files(
     visibility = ["//visibility:public"],
 )
 
-# THE CAPABILITY MATRIX (//core:capability_matrix): what every dialect does with every function and aggregate,
-# generated from the dialects' own sources. Its measured reach (reach.tsv, //core:capability_reach) is its input.
-exports_files(
-    ["dialect-capability/reach.tsv"],
-    visibility = ["//core:__pkg__"],
-)
-
-# The matrix as data: every row of its pages, diff-tested (a dialect's table moved and the matrix was not
-# regenerated). Writing it writes the pages too.
-write_source_files(
-    name = "update_dialect_capability",
-    testonly = True,
-    additional_update_targets = [":update_dialect_capability_pages"],
-    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe capability matrix is generated from the dialects' own tables -- a dialect's table moved: regenerate with bazel run //docs:update_dialect_capability, and read the diff",
-    files = {"dialect-capability/matrix.tsv": "//core:dialect-capability/matrix.tsv"},
-    visibility = ["//visibility:public"],
-)
-
-# The matrix's pages, made from the same rows as matrix.tsv and written with it. No diff test of their own: prose is
-# never a test input (G17, //tools/guards:markdown_inputs_test), and the data's test covers every row they hold.
-write_source_files(
-    name = "update_dialect_capability_pages",
-    testonly = True,
-    diff_test = False,
-    files = {
-        "dialect-capability/%s.md" % f: "//core:dialect-capability/%s.md" % f
-        for f in [
-            "README",
-            "functions",
-            "aggregates",
-        ]
-    },
-)
+# THE CAPABILITY MATRIX (docs/dialect-capability/) is frozen since 2026-11-04: its generator read the Java dialects'
+# sources, and every dialect is the Rust library's (docs/rust-port/PHASE1.md §4 step 6h).
 
 # NOT a generated file: the own-corpus protocol ledger's reasons are written by a
 # person. This writes a DRAFT (current diffs, surviving reasons kept, new rows
