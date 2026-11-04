@@ -496,12 +496,14 @@ pub trait AnsiSqlRenderer: Sized {
         if value { "TRUE" } else { "FALSE" }.to_owned()
     }
 
-    fn date_lit(&self, iso: &str) -> String {
-        format!("DATE '{iso}'")
+    /// A date literal (a dialect may refuse one its dates cannot hold: ClickHouse's years past 1900 to 2299).
+    fn date_lit(&self, iso: &str) -> Result<String, Refusal> {
+        Ok(format!("DATE '{iso}'"))
     }
 
-    fn timestamp_lit(&self, iso: &str) -> String {
-        format!("TIMESTAMP '{iso}'")
+    /// A date-time literal (a dialect may refuse one its dates cannot hold: ClickHouse's).
+    fn timestamp_lit(&self, iso: &str) -> Result<String, Refusal> {
+        Ok(format!("TIMESTAMP '{iso}'"))
     }
 
     fn time_lit(&self, iso: &str) -> Result<String, Refusal> {

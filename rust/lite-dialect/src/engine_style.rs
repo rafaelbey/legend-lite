@@ -2863,14 +2863,14 @@ impl AnsiSqlRenderer for EngineStyle {
     }
 
     /// The engine's H2-new date spelling, no space: `DATE'2005-10-10'`.
-    fn date_lit(&self, iso: &str) -> String {
-        format!("DATE'{iso}'")
+    fn date_lit(&self, iso: &str) -> Result<String, Refusal> {
+        Ok(format!("DATE'{iso}'"))
     }
 
     /// `TIMESTAMP'...'`, its date-time separator a space; under a connection's zone other than GMT, the constant
     /// shifted from GMT to that zone (engine adjustDate) by the JDK's rules (`java_time`), unshifted where Java's
     /// `DateTimeException` is caught.
-    fn timestamp_lit(&self, iso: &str) -> String {
+    fn timestamp_lit(&self, iso: &str) -> Result<String, Refusal> {
         let mut iso = iso.to_owned();
         if let Some(at) = byte_of_unit(&iso, 10)
             && iso[at..].starts_with('T')
@@ -2884,7 +2884,7 @@ impl AnsiSqlRenderer for EngineStyle {
         {
             iso = shifted;
         }
-        format!("TIMESTAMP'{iso}'")
+        Ok(format!("TIMESTAMP'{iso}'"))
     }
 
     fn time_lit(&self, iso: &str) -> Result<String, Refusal> {

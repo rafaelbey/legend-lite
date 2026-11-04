@@ -1,0 +1,5 @@
+# The ClickHouse differential's floor (tests/dialect_differential.rs): how many of the oracles' 2,643 distinct ClickHouse
+# statements must render exactly as Java's (2,598 lines of mir/dialect-arms.jsonl, the arms rendered by Java's own
+# ClickHouse; 37 of the dialects dump and 37 of the first; 29 lines repeat an input). Measured 2026-11-04 with ClickHouse
+# and the passes it installs ported (PARITY.md): all of them.
+2643

@@ -324,19 +324,19 @@ fn literals_and_references_are_the_engines() {
     assert_eq!(expr(&d, &crate::build::star(None)), "*");
     assert_eq!(expr(&d, &crate::build::row_order(None)), "rowid");
     assert_eq!(expr(&d, &crate::build::row_order(Some("t0".into()))), "\"t0\".rowid");
-    assert_eq!(d.date_lit("2005-10-10"), "DATE'2005-10-10'");
+    assert_eq!(d.date_lit("2005-10-10").unwrap(), "DATE'2005-10-10'");
     assert_eq!(d.time_lit("10:00:00").unwrap_err().class, Refusal::DIALECT_CAPABILITY);
-    assert_eq!(d.timestamp_lit("2019-04-08T18:00:00"), "TIMESTAMP'2019-04-08 18:00:00'");
+    assert_eq!(d.timestamp_lit("2019-04-08T18:00:00").unwrap(), "TIMESTAMP'2019-04-08 18:00:00'");
     // a connection's zone shifts a date-time constant from GMT (adjustDate); GMT itself shifts none
-    assert_eq!(in_zone("EST").timestamp_lit("2019-04-08T18:00:00"), "TIMESTAMP'2019-04-08 13:00:00'");
-    assert_eq!(in_zone("GMT").timestamp_lit("2019-04-08T18:00:00"), "TIMESTAMP'2019-04-08 18:00:00'");
-    assert_eq!(in_zone("UTC").timestamp_lit("2019-04-08T18:00:00.000"), "TIMESTAMP'2019-04-08 18:00.000'");
-    assert_eq!(in_zone("Mars/Base").timestamp_lit("2019-04-08T18:00:00"), "TIMESTAMP'2019-04-08 18:00:00'");
-    assert_eq!(in_zone("EST").timestamp_lit("2019-04-08"), "TIMESTAMP'2019-04-08'");
+    assert_eq!(in_zone("EST").timestamp_lit("2019-04-08T18:00:00").unwrap(), "TIMESTAMP'2019-04-08 13:00:00'");
+    assert_eq!(in_zone("GMT").timestamp_lit("2019-04-08T18:00:00").unwrap(), "TIMESTAMP'2019-04-08 18:00:00'");
+    assert_eq!(in_zone("UTC").timestamp_lit("2019-04-08T18:00:00.000").unwrap(), "TIMESTAMP'2019-04-08 18:00.000'");
+    assert_eq!(in_zone("Mars/Base").timestamp_lit("2019-04-08T18:00:00").unwrap(), "TIMESTAMP'2019-04-08 18:00:00'");
+    assert_eq!(in_zone("EST").timestamp_lit("2019-04-08").unwrap(), "TIMESTAMP'2019-04-08'");
     // (Java's: only position 10's T is a space, and a text that is no date-time is left unshifted)
-    assert_eq!(in_zone("EST").timestamp_lit("+10000-01-01T00:00:00"), "TIMESTAMP'+10000-01-01T00:00:00'");
+    assert_eq!(in_zone("EST").timestamp_lit("+10000-01-01T00:00:00").unwrap(), "TIMESTAMP'+10000-01-01T00:00:00'");
     // every region by the JDK's rules: New York in daylight time
-    assert_eq!(in_zone("America/New_York").timestamp_lit("2019-04-08T18:00:00"), "TIMESTAMP'2019-04-08 14:00:00'");
+    assert_eq!(in_zone("America/New_York").timestamp_lit("2019-04-08T18:00:00").unwrap(), "TIMESTAMP'2019-04-08 14:00:00'");
     // a projected date constant is a plain string; a scalar-map column unaliased; a pre-quoted alias quoted once
     let q = query(select(
         vec![

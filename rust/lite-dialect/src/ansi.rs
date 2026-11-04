@@ -638,11 +638,11 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
             w.append("NULL");
         }
         SqlExpr::DateLit { iso, .. } => {
-            let text = d.date_lit(iso);
+            let text = d.date_lit(iso)?;
             w.append(&text);
         }
         SqlExpr::TimestampLit { iso, .. } => {
-            let text = d.timestamp_lit(iso);
+            let text = d.timestamp_lit(iso)?;
             w.append(&text);
         }
         SqlExpr::TimeLit { iso, .. } => {

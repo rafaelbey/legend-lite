@@ -172,12 +172,12 @@ fn literals_postgres_cannot_hold_are_refused_and_finer_digits_cut() {
         Err(capability("a string holding NUL reached Postgres, whose text type cannot hold it"))
     );
     // finer digits than a microsecond truncated (PostgresDialectTest: the 9999-12-31 sentinel)
-    assert_eq!(d.timestamp_lit("9999-12-31T23:59:59.999999999"), "TIMESTAMP '9999-12-31T23:59:59.999999'");
-    assert_eq!(d.timestamp_lit("2024-01-02T03:04:05.123456789+01:00"), "TIMESTAMP '2024-01-02T03:04:05.123456+01:00'");
-    assert_eq!(d.timestamp_lit("2024-01-02T03:04:05.123"), "TIMESTAMP '2024-01-02T03:04:05.123'");
-    assert_eq!(d.timestamp_lit("2024-01-02"), "TIMESTAMP '2024-01-02'");
+    assert_eq!(d.timestamp_lit("9999-12-31T23:59:59.999999999").unwrap(), "TIMESTAMP '9999-12-31T23:59:59.999999'");
+    assert_eq!(d.timestamp_lit("2024-01-02T03:04:05.123456789+01:00").unwrap(), "TIMESTAMP '2024-01-02T03:04:05.123456+01:00'");
+    assert_eq!(d.timestamp_lit("2024-01-02T03:04:05.123").unwrap(), "TIMESTAMP '2024-01-02T03:04:05.123'");
+    assert_eq!(d.timestamp_lit("2024-01-02").unwrap(), "TIMESTAMP '2024-01-02'");
     // a fraction's digits are Character.isDigit's, any script's, counted by UTF-16 unit
-    assert_eq!(d.timestamp_lit("2024-01-02T03:04:05.١٢٣٤٥٦٧Z"), "TIMESTAMP '2024-01-02T03:04:05.١٢٣٤٥٦Z'");
+    assert_eq!(d.timestamp_lit("2024-01-02T03:04:05.١٢٣٤٥٦٧Z").unwrap(), "TIMESTAMP '2024-01-02T03:04:05.١٢٣٤٥٦Z'");
     assert_eq!(
         d.hole_type(ValueKind::DateTimeNanos),
         Ok(TypeSpelling { name: "TIMESTAMP".into(), digits: Digits::None, fraction: Some(6) })

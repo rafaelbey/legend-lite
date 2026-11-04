@@ -1868,13 +1868,13 @@ impl AnsiSqlRenderer for Sqlite {
     }
 
     /// A date is its ISO text.
-    fn date_lit(&self, iso: &str) -> String {
-        format!("'{iso}'")
+    fn date_lit(&self, iso: &str) -> Result<String, Refusal> {
+        Ok(format!("'{iso}'"))
     }
 
     /// A date-time is its ISO text with a space, its fraction as written.
-    fn timestamp_lit(&self, iso: &str) -> String {
-        format!("'{}'", iso.replace('T', " "))
+    fn timestamp_lit(&self, iso: &str) -> Result<String, Refusal> {
+        Ok(format!("'{}'", iso.replace('T', " ")))
     }
 
     /// A time of day is its text.

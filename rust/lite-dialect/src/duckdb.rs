@@ -527,17 +527,17 @@ impl AnsiSqlRenderer for DuckDb {
     }
 
     /// A literal with nonzero sub-microsecond digits binds as `TIMESTAMP_NS` (DuckDB's bare TIMESTAMP truncates).
-    fn timestamp_lit(&self, iso: &str) -> String {
+    fn timestamp_lit(&self, iso: &str) -> Result<String, Refusal> {
         if let Some(dot) = iso.rfind('.')
             && iso.len() - dot - 1 > 6
             && let Some(rest) = iso.get(dot + 7..)
         {
             let sub_micro = &rest[..rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len())];
             if !sub_micro.is_empty() && !sub_micro.bytes().all(|b| b == b'0') {
-                return format!("TIMESTAMP_NS '{iso}'");
+                return Ok(format!("TIMESTAMP_NS '{iso}'"));
             }
         }
-        format!("TIMESTAMP '{iso}'")
+        Ok(format!("TIMESTAMP '{iso}'"))
     }
 
     /// DuckDB DDL: a store FLOAT is DOUBLE, a BIT column is BOOLEAN.

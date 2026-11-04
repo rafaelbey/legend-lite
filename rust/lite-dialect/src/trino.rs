@@ -692,8 +692,8 @@ impl AnsiSqlRenderer for Trino {
     }
 
     /// A timestamp literal keeps its digits; its date and time are apart by a space (a `T` is refused).
-    fn timestamp_lit(&self, iso: &str) -> String {
-        format!("TIMESTAMP '{}'", iso.replacen('T', " ", 1))
+    fn timestamp_lit(&self, iso: &str) -> Result<String, Refusal> {
+        Ok(format!("TIMESTAMP '{}'", iso.replacen('T', " ", 1)))
     }
 
     /// Alias-less projections label EXPLICITLY from the declared output: Trino labels an expression `_colN`.

@@ -315,10 +315,10 @@ fn literals_are_spelled_as_java_spells_them() {
     assert_eq!(render(string_lit("it's")), "'it''s'");
     assert_eq!(render(string_lit("a\0b'\0")), "('a' || chr(0) || 'b''' || chr(0) || '')");
     let d = DuckDb::new();
-    assert_eq!(d.timestamp_lit("2024-01-01T00:00:00.123456789"), "TIMESTAMP_NS '2024-01-01T00:00:00.123456789'");
-    assert_eq!(d.timestamp_lit("9999-12-31T23:59:59.999999000"), "TIMESTAMP '9999-12-31T23:59:59.999999000'");
+    assert_eq!(d.timestamp_lit("2024-01-01T00:00:00.123456789").unwrap(), "TIMESTAMP_NS '2024-01-01T00:00:00.123456789'");
+    assert_eq!(d.timestamp_lit("9999-12-31T23:59:59.999999000").unwrap(), "TIMESTAMP '9999-12-31T23:59:59.999999000'");
     assert_eq!(
-        d.timestamp_lit("2024-01-01T00:00:00.123456789+0000"),
+        d.timestamp_lit("2024-01-01T00:00:00.123456789+0000").unwrap(),
         "TIMESTAMP_NS '2024-01-01T00:00:00.123456789+0000'"
     );
     let decimal = |text: &str, r#type: TypeFact| SqlExpr::DecimalLit {

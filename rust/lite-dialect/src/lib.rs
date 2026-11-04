@@ -36,6 +36,7 @@ pub mod build;
 pub mod carrier;
 pub mod catalog;
 pub mod catalog_model;
+pub mod clickhouse;
 pub mod common_subexpressions;
 pub mod databricks;
 pub mod decode_shapes;
@@ -67,6 +68,7 @@ pub mod typing;
 pub mod wire_names;
 pub mod writer;
 
+pub use clickhouse::ClickHouse;
 pub use databricks::Databricks;
 pub use dialect::{EngineTextDialect, KeysSnapshot, SqlDialect};
 pub use duckdb::DuckDb;

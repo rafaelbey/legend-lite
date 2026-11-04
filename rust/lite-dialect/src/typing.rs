@@ -1158,7 +1158,7 @@ pub fn big_decimal_precision(v: &BigDecimal) -> usize {
 }
 
 /// A BigDecimal's text read as its sign, its unscaled digits (no leading zero but a lone `0`) and its scale.
-fn unscaled(text: &str) -> (bool, String, i64) {
+pub(crate) fn unscaled(text: &str) -> (bool, String, i64) {
     let (negative, unsigned) = match text.as_bytes().first() {
         Some(b'-') => (true, &text[1..]),
         Some(b'+') => (false, &text[1..]),

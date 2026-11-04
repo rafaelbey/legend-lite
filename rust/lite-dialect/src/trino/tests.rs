@@ -134,7 +134,7 @@ fn literals_are_trinos() {
     let huge = lite_sql::BigDecimal::parse("99999999999999999999").unwrap();
     assert_eq!(render(&crate::build::decimal_lit(huge)), "DECIMAL '99999999999999999999'");
     // a timestamp's first T is its space
-    assert_eq!(Trino::new().timestamp_lit("2024-01-02T03:04:05.123"), "TIMESTAMP '2024-01-02 03:04:05.123'");
+    assert_eq!(Trino::new().timestamp_lit("2024-01-02T03:04:05.123").unwrap(), "TIMESTAMP '2024-01-02 03:04:05.123'");
     assert_eq!(render(&string_lit("it's")), "'it''s'");
     // the signed hash of no argument hashes an empty concat_ws, as Java writes it
     assert_eq!(

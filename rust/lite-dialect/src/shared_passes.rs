@@ -66,7 +66,7 @@ impl SqlRewriter for ExprHook<'_> {
 }
 
 /// `e` walked with `hook`: Java's `new SqlRewriter() { expr(x) ... }.rewriteExpr(e)`.
-fn walk(e: SqlExpr, hook: &mut dyn FnMut(SqlExpr) -> Result<Rw<SqlExpr>, Refusal>) -> Result<SqlExpr, Refusal> {
+pub(crate) fn walk(e: SqlExpr, hook: &mut dyn FnMut(SqlExpr) -> Result<Rw<SqlExpr>, Refusal>) -> Result<SqlExpr, Refusal> {
     Ok(rewrite_expr(&mut ExprHook(hook), e)?.into_inner())
 }
 

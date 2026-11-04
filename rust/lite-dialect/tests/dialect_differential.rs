@@ -163,6 +163,18 @@ fn the_seam_answers_as_databrickss_renderer_does() {
     the_seam_answers_as_the_renderer_does("Databricks");
 }
 
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn clickhouse_renders_as_java_does() {
+    renders_as_java_does("ClickHouse");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_clickhouses_renderer_does() {
+    the_seam_answers_as_the_renderer_does("ClickHouse");
+}
+
 /// An engine-text dialect's default configuration (Java's no-argument constructor), as the H2 dump writes it: an input
 /// the first dump holds with no configuration is the same input.
 const DEFAULT_ENGINE_CONFIG: &str = r#"{"quoteIdentifiers":false,"timeZone":null}"#;
@@ -792,6 +804,22 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             (t.avg, "AggregatesDeliverDouble"),
             (t.constant_key, "ConstantKeysAsExpressions"),
         ]
+    } else if dialect == "ClickHouse" {
+        // ClickHouse's passes (ClickHouse.passes()), in their order
+        if java_rest.starts_with("CAST(") && rust_rest.starts_with("CAST(") && recent.ends_with("SELECT ") {
+            return "RootNumericTypes";
+        }
+        vec![
+            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
+            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (t.pivot, "PivotAsGroupBy"),
+            (t.outer_join, "OuterJoinResidualsAsMatches"),
+            (t.lateral, "ExplosionMarkers, then ArrayJoinColumnsNamed"),
+            (t.checked_defects, "CheckedDefectsToLists"),
+            (t.substring, "SubstringClamp"),
+            (t.avg, "AggregatesDeliverDouble"),
+            (t.constant_key, "ConstantKeysAsExpressions"),
+        ]
     } else if dialect.starts_with("EngineStyle") {
         // the engine text's passes (EngineStyleH2.passes()): the carrier strategies, the lateral explode
         vec![
@@ -848,6 +876,7 @@ struct Triggers {
     string_count: bool,
     qualify: bool,
     as_of: bool,
+    outer_join: bool,
 }
 
 impl Triggers {
@@ -924,6 +953,7 @@ impl SqlRewriter for Triggers {
             SqlSource::Join { kind: JoinKind::Left, on: Some(on), .. } if holds_scalar_subquery(on) => {
                 self.outer_join_subquery = true;
             }
+            SqlSource::Join { kind: JoinKind::Left, on: Some(_), .. } => self.outer_join = true,
             SqlSource::Join { kind: JoinKind::LeftLateral | JoinKind::CrossLateral, .. } => self.lateral = true,
             SqlSource::Table { stored_types, .. }
                 if stored_types.iter().any(|(_, t)| {

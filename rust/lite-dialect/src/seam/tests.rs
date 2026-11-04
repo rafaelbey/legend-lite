@@ -441,7 +441,7 @@ fn the_seam_refuses_what_it_cannot_read() {
         (
             Refusal::ILLEGAL_ARGUMENT,
             "unknown dialect 'Oracle': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, \
-             EngineStyleComposite, Postgres, SQLite, Trino, Databricks"
+             EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse"
         )
     );
     assert_eq!(dispatch("[]", "facts", "{}").unwrap_err().message, "a dialect's spec is a JSON object");
