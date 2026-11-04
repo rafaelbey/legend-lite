@@ -666,7 +666,7 @@ py_wheel(
     # ONE PACKAGE, TWO THINGS (the user, 2026-10-15; legend_lite/_extra.py): the wheel alone is the compiler, which needs
     # only Python's standard library; its `datacube` extra is DataCube with everything it needs -- duckdb and pyarrow (the
     # frames), and V8 by mini-racer, which runs DataCube's own code, whose rules Python asks and never copies (mini-racer's
-    # Linux wheels are manylinux_2_27, so DataCube needs glibc 2.27 where the compiler alone needs 2.17)
+    # Linux wheels are manylinux_2_27, so DataCube needs glibc 2.27 where the compiler alone needs 2.25)
     extra_requires = {
         "datacube": [
             "duckdb>=1.5.5",
@@ -685,10 +685,12 @@ py_wheel(
     },
     license = "Apache-2.0",
     platform = select({
-        # glibc 2.17: the newest the library names, measured on CI's Linux runners (throwaway run 37867411489, both
-        # architectures); //python:wheel_test holds the tag to what the library needs
-        "//tools/platforms:linux_aarch64": "manylinux_2_17_aarch64",
-        "//tools/platforms:linux_x86_64": "manylinux_2_17_x86_64",
+        # glibc 2.25: the newest either library names -- libcompiler's is 2.17 (CI's Linux runners, throwaway run
+        # 37867411489), the Rust library's 2.25 (Rust's standard library names getrandom's version; measured by
+        # tools/ci-local's Linux run, the user's ruling 2026-11-04); //python:wheel_test holds the tag to the most any
+        # library needs
+        "//tools/platforms:linux_aarch64": "manylinux_2_25_aarch64",
+        "//tools/platforms:linux_x86_64": "manylinux_2_25_x86_64",
         "//tools/platforms:macos_arm64": "macosx_14_0_arm64",
         "//tools/platforms:macos_x86_64": "macosx_14_0_x86_64",
         "//tools/platforms:windows_x86_64": "win_amd64",

@@ -76,7 +76,7 @@ Windows on x86-64). One package, two things: the wheel alone is **the compiler**
 V8, which runs DataCube's own code (its rules, a chart's among them, are asked of it, never copied into Python). Without
 the extra, `show`, `Page`, `Frames` and the engine each say, in one sentence, to install it.
 `bazel build //python:wheel`, then `pip install 'bazel-bin/python/legend_lite-0.1.0-<platform>.whl[datacube,pandas]'`
-(`[polars]` for polars). On Linux DataCube needs glibc 2.27 (mini-racer's wheels), where the compiler alone needs 2.17.
+(`[polars]` for polars). On Linux DataCube needs glibc 2.27 (mini-racer's wheels), where the compiler alone needs 2.25.
 Or take it from CI without building: each run's `legend-lite-wheel-<platform>` download (macOS, Linux, Linux ARM,
 Windows), kept once the warehouse lane that tests it is green. The wheel carries the compiler's library and DataCube's
 page; `//python:wheel_test` installs it into a fresh environment, offline, and runs `show()` and a query from it alone.

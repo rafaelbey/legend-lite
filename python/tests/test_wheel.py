@@ -164,10 +164,10 @@ def macos_minimum(data: bytes) -> tuple[int, int]:
     raise AssertionError('the library names no minimum macOS (no LC_BUILD_VERSION)')
 
 
-# what a manylinux_2_17 library may link and name (PEP 599's manylinux2014 policy, which PEP 600's manylinux_2_17
-# keeps): the system's own libraries, never one a machine may lack (libz, libssl, ...), and symbol versions no newer
-# than these
-MANYLINUX_VERSIONS = {'GLIBC': (2, 17), 'CXXABI': (1, 3, 7), 'GLIBCXX': (3, 4, 19), 'GCC': (4, 8, 0)}
+# what a manylinux library may link and name (PEP 599's manylinux2014 policy): the system's own libraries, never one a
+# machine may lack (libz, libssl, ...), and the C++ and GCC runtime versions no newer than these. glibc's is the tag's
+# own (2026-11-04: manylinux_2_25, the Rust library's floor), held in the test below
+MANYLINUX_VERSIONS = {'CXXABI': (1, 3, 7), 'GLIBCXX': (3, 4, 19), 'GCC': (4, 8, 0)}
 MANYLINUX_LIBRARIES = {
     'libgcc_s.so.1', 'libstdc++.so.6', 'libm.so.6', 'libdl.so.2', 'librt.so.1', 'libc.so.6', 'libnsl.so.1',
     'libutil.so.1', 'libpthread.so.0', 'libresolv.so.2', 'libX11.so.6', 'libXext.so.6', 'libXrender.so.1',
@@ -281,35 +281,37 @@ class Label(unittest.TestCase):
         self.assertEqual(sorted('libcompiler' if 'libcompiler' in n else 'lite_ffi' if 'lite_ffi' in n else n
                                 for n in libraries), ['libcompiler', 'lite_ffi'], f'_native/ holds {sorted(libraries)}')
         self.assertRegex(tag, r'^py3-none-')
+        floors = {}
         for library, data in libraries.items():
-            # the tag IS libcompiler's measurement; another library may need no more than it says
-            exact = 'libcompiler' in library
             with self.subTest(library=library):
-                self.check_platform(tag, library, data, exact)
+                floors[library] = self.check_platform(tag, library, data)
+        # the tag IS the measurement: the most any library needs (a minimum macOS, a glibc), neither more nor less --
+        # a library needing a different floor says to change the tag on purpose (the user, 2026-11-04: the Linux tag is
+        # the Rust library's glibc 2.25, Rust's standard library naming getrandom's version, where libcompiler names 2.17)
+        measured = [f for f in floors.values() if f is not None]
+        if measured:
+            m = re.search(r'_(\d+)_(\d+)_\w+$', tag)
+            self.assertEqual(max(measured), (int(m.group(1)), int(m.group(2))), f'the tag {tag} against {floors}')
 
-    def check_platform(self, tag: str, library: str, data: bytes, exact: bool):
+    def check_platform(self, tag: str, library: str, data: bytes):
+        """The library held to the tag's platform; its floor (a minimum macOS, a glibc) where the tag names one."""
         if m := re.search(r'macosx_(\d+)_(\d+)_(\w+)$', tag):
             minimum, said = macos_minimum(data), (int(m.group(1)), int(m.group(2)))
-            if exact:
-                self.assertEqual(minimum, said, f'{library}: its minimum macOS against the tag {tag}')
-            else:
-                self.assertLessEqual(minimum, said, f'{library}: its minimum macOS against the tag {tag}')
+            self.assertLessEqual(minimum, said, f'{library}: its minimum macOS against the tag {tag}')
             self.assertEqual(struct.unpack_from('<i', data, 4)[0], MACHO_CPU[m.group(3)], f'{library}: its CPU')
+            return minimum
         elif m := re.search(r'manylinux_(\d+)_(\d+)_(\w+)$', tag):
             versions = elf_versions(data)
             needed = max(versions['GLIBC'])[:2]
             linked = elf_linked(data)
             print(f'{library} needs glibc {needed[0]}.{needed[1]}; the tag says {m.group(1)}.{m.group(2)}; '
                   f'it links {sorted(linked)}; it names {sorted((f, max(v)) for f, v in versions.items())}')
-            # the tag IS the measurement: a library needing more, or less, says to change the tag on purpose
-            if exact:
-                self.assertEqual(needed, (int(m.group(1)), int(m.group(2))), f'{library} against the tag {tag}')
-            else:
-                self.assertLessEqual(needed, (int(m.group(1)), int(m.group(2))), f'{library} against the tag {tag}')
+            self.assertLessEqual(needed, (int(m.group(1)), int(m.group(2))), f'{library} against the tag {tag}')
             self.assertLessEqual(linked, MANYLINUX_LIBRARIES, f'{library} links what a manylinux machine may lack')
             for family, newest in MANYLINUX_VERSIONS.items():
                 self.assertLessEqual(max(versions.get(family, [()])), newest, f'{library}: its {family} versions')
             self.assertEqual(struct.unpack_from('<H', data, 0x12)[0], ELF_MACHINE[m.group(3)], f'{library}: its CPU')
+            return needed
         elif m := re.search(r'win_(\w+)$', tag):
             machine, characteristics, linked = pe_imports(data)
             print(f'{library} imports {sorted(linked)}')
@@ -318,6 +320,7 @@ class Label(unittest.TestCase):
             foreign = sorted(n for n in linked if n.lower() not in WINDOWS_LIBRARIES
                              and not n.lower().startswith(WINDOWS_API_SETS))
             self.assertEqual(foreign, [], f'{library} imports what a Windows machine may lack')
+            return None
         else:
             self.fail(f'no platform this test reads: {tag}')
 
