@@ -1,0 +1,5 @@
+# The Snowflake differential's floor (tests/dialect_differential.rs): how many of the oracles' 2,645 distinct Snowflake
+# statements must render exactly as Java's (2,598 lines of mir/dialect-arms.jsonl, the arms rendered by Java's own
+# Snowflake; 39 of the dialects dump and 38 of the first; 30 lines repeat an input). Measured 2026-11-04 with Snowflake and
+# its own copy of PivotAsGroupBy ported (PARITY.md): all of them.
+2645

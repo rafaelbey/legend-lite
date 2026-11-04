@@ -25,6 +25,7 @@ use crate::postgres::Postgres;
 use crate::sqlite::Sqlite;
 use crate::trino::Trino;
 use crate::refusal::Refusal;
+use crate::snowflake::Snowflake;
 use crate::renderer::PlanParam;
 use crate::statement::{Bind, Binding, Digits, Region, RenderedStatement, TypeHole, TypeSpelling};
 use lite_json::{Node, Num, Obj, parse, parse_with_depth, to_compact};
@@ -44,6 +45,7 @@ pub const DIALECTS: &[&str] = &[
     "Databricks",
     "ClickHouse",
     "BigQuery",
+    "Snowflake",
 ];
 
 /// Every op the seam answers (`SEAM.md`, "Ops").
@@ -126,6 +128,7 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
     let configured = spec.get("quoteIdentifiers").is_some() || spec.get("timeZone").is_some();
     let dialect: Box<dyn SqlDialect> = match name {
         "DuckDb" | "H2" | "H2Modern" | "Postgres" | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery"
+        | "Snowflake"
             if configured =>
         {
             return Err(Refusal::illegal_argument(format!(
@@ -146,6 +149,7 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
         "Databricks" => Box::new(Databricks::new()),
         "ClickHouse" => Box::new(ClickHouse::new()),
         "BigQuery" => Box::new(BigQuery::new()),
+        "Snowflake" => Box::new(Snowflake::new()),
         "EngineStyleComposite" if quote_identifiers == Some(true) || time_zone.is_some() => {
             return Err(Refusal::illegal_argument(
                 "EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers \

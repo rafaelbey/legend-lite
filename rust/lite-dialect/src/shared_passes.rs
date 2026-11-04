@@ -647,17 +647,31 @@ impl SqlRewriter for RootNumericTypes {
 #[derive(Debug, Default)]
 pub struct PivotAsGroupBy;
 
+/// The words of a copy of the pass (Java's `PivotAsGroupBy`, and `Snowflake.PivotAsGroupBy`, Snowflake's own copy):
+/// the refusal of an aggregate that takes no argument -- none: the pivot is left as it came, for its writer to refuse
+/// -- and what follows a value's class in the refusal of a value with no column name.
+pub struct PivotWords {
+    pub no_argument: Option<&'static str>,
+    pub unnamed_value: &'static str,
+}
+
+/// The shared pass's words.
+const PIVOT_WORDS: PivotWords = PivotWords {
+    no_argument: Some("a pivot whose aggregate takes no argument reached a dialect without a native pivot"),
+    unnamed_value: " reached a dialect without a native pivot, with no column name",
+};
+
 /// A pivot value as the platform names its column (Java's `pivotValueText`): a string bare, an integer and a boolean
 /// as their text; any other value refused, naming its class.
-fn pivot_value_text(v: &SqlExpr) -> Result<String, Refusal> {
+fn pivot_value_text(v: &SqlExpr, words: &PivotWords) -> Result<String, Refusal> {
     match v {
         SqlExpr::StringLit { value, .. } => Ok(value.clone()),
         SqlExpr::IntLit { value, .. } => Ok(value.to_string()),
         SqlExpr::BoolLit { value, .. } => Ok(value.to_string()),
-        other => Err(Refusal::capability(format!(
-            "a pivot value {} reached a dialect without a native pivot, with no column name",
-            crate::java::simple_name(other)
-        ))),
+        other => {
+            let class = crate::java::simple_name(other);
+            Err(Refusal::capability(format!("a pivot value {class}{}", words.unnamed_value)))
+        }
     }
 }
 
@@ -667,47 +681,53 @@ impl SqlRewriter for PivotAsGroupBy {
     }
 
     fn source(&mut self, s: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
-        // a dynamic pivot a cast names pivots on the named values (`Pivot.values()`: `in`'s, else the named ones)
-        let SqlSource::Pivot { source, on, r#in, named, usings, alias, outputs } = &s else {
-            return Ok(Rw::Same(s));
-        };
-        let values = if r#in.is_empty() { named } else { r#in };
-        if values.is_empty() || on.len() != 1 {
-            return Ok(Rw::Same(s));
-        }
-        let mut ps = Vec::new();
-        let mut group = Vec::new();
-        for oc in outputs {
-            if !oc.name.contains("__|__") {
-                let g = SqlExpr::Column(build::column_of(Some(source_alias(source)?), oc));
-                group.push(g.clone());
-                ps.push(build::projection(g, Some(oc.name.clone()), Some(oc.clone()))?);
-            }
-        }
-        for v in values {
-            for u in usings {
-                let agg = &u.agg;
-                let mut args = agg.args.clone();
-                if args.is_empty() {
-                    return Err(Refusal::capability(
-                        "a pivot whose aggregate takes no argument reached a dialect without a native pivot",
-                    ));
-                }
-                let first = std::mem::replace(&mut args[0], build::null_lit());
-                let matched = call(SqlFn::Equal, vec![on[0].clone(), v.clone()]);
-                args[0] = build::case(vec![build::when(matched, first)], None);
-                let name = format!("{}__|__{}", pivot_value_text(v)?, u.alias);
-                let slot = generated_slot(outputs, u, &name)?;
-                ps.push(build::projection(
-                    SqlExpr::Reducer(build::reducer(agg.r#fn, args, agg.distinct, agg.order_by.clone())),
-                    Some(name),
-                    Some(slot),
-                )?);
-            }
-        }
-        let sel = build::with_group_by(build::with_projections(build::star_of(source.as_ref().clone())?, ps)?, group)?;
-        Ok(Rw::New(build::subselect(query(sel), alias, None)))
+        pivot_as_group_by(s, &PIVOT_WORDS)
     }
+}
+
+/// The pass's rewrite of one source, in `words` (the shared pass's, or a dialect's own copy's).
+pub fn pivot_as_group_by(s: SqlSource, words: &PivotWords) -> Result<Rw<SqlSource>, Refusal> {
+    // a dynamic pivot a cast names pivots on the named values (`Pivot.values()`: `in`'s, else the named ones)
+    let SqlSource::Pivot { source, on, r#in, named, usings, alias, outputs } = &s else {
+        return Ok(Rw::Same(s));
+    };
+    let values = if r#in.is_empty() { named } else { r#in };
+    if values.is_empty() || on.len() != 1 {
+        return Ok(Rw::Same(s));
+    }
+    let mut ps = Vec::new();
+    let mut group = Vec::new();
+    for oc in outputs {
+        if !oc.name.contains("__|__") {
+            let g = SqlExpr::Column(build::column_of(Some(source_alias(source)?), oc));
+            group.push(g.clone());
+            ps.push(build::projection(g, Some(oc.name.clone()), Some(oc.clone()))?);
+        }
+    }
+    for v in values {
+        for u in usings {
+            let agg = &u.agg;
+            let mut args = agg.args.clone();
+            if args.is_empty() {
+                return match words.no_argument {
+                    Some(refusal) => Err(Refusal::capability(refusal)),
+                    None => Ok(Rw::Same(s)),
+                };
+            }
+            let first = std::mem::replace(&mut args[0], build::null_lit());
+            let matched = call(SqlFn::Equal, vec![on[0].clone(), v.clone()]);
+            args[0] = build::case(vec![build::when(matched, first)], None);
+            let name = format!("{}__|__{}", pivot_value_text(v, words)?, u.alias);
+            let slot = generated_slot(outputs, u, &name)?;
+            ps.push(build::projection(
+                SqlExpr::Reducer(build::reducer(agg.r#fn, args, agg.distinct, agg.order_by.clone())),
+                Some(name),
+                Some(slot),
+            )?);
+        }
+    }
+    let sel = build::with_group_by(build::with_projections(build::star_of(source.as_ref().clone())?, ps)?, group)?;
+    Ok(Rw::New(build::subselect(query(sel), alias, None)))
 }
 
 // ==================================================================

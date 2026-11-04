@@ -187,6 +187,18 @@ fn the_seam_answers_as_bigquerys_renderer_does() {
     the_seam_answers_as_the_renderer_does("BigQuery");
 }
 
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn snowflake_renders_as_java_does() {
+    renders_as_java_does("Snowflake");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_snowflakes_renderer_does() {
+    the_seam_answers_as_the_renderer_does("Snowflake");
+}
+
 /// An engine-text dialect's default configuration (Java's no-argument constructor), as the H2 dump writes it: an input
 /// the first dump holds with no configuration is the same input.
 const DEFAULT_ENGINE_CONFIG: &str = r#"{"quoteIdentifiers":false,"timeZone":null}"#;
@@ -842,6 +854,18 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             (t.substring, "SubstringClamp"),
             (t.lateral, "ExplosionMarkers"),
             (t.avg, "AggregatesDeliverDouble"),
+            (t.constant_key, "ConstantKeysAsExpressions"),
+        ]
+    } else if dialect == "Snowflake" {
+        // Snowflake's passes (Snowflake.passes()), in their order
+        if java_rest.starts_with("CAST(") && rust_rest.starts_with("CAST(") && recent.ends_with("SELECT ") {
+            return "RootNumericTypes";
+        }
+        vec![
+            (t.pivot, "Snowflake.PivotAsGroupBy"),
+            (t.checked_defects, "CheckedDefectsToLists"),
+            (t.substring, "SubstringClamp"),
+            (t.lateral, "ExplosionMarkers"),
             (t.constant_key, "ConstantKeysAsExpressions"),
         ]
     } else if dialect.starts_with("EngineStyle") {

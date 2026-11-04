@@ -1,0 +1,4 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+//! Snowflake's unit tests.

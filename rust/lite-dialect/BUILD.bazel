@@ -62,6 +62,7 @@ rust_test(
         "tests/h2-floor.txt",
         "tests/h2modern-floor.txt",
         "tests/postgres-floor.txt",
+        "tests/snowflake-floor.txt",
         "tests/sqlite-floor.txt",
         "tests/trino-floor.txt",
         "//rust/oracles:dialect_arms",
@@ -89,6 +90,7 @@ rust_test(
             "$(rootpath tests/databricks-floor.txt)",
             "$(rootpath tests/clickhouse-floor.txt)",
             "$(rootpath tests/bigquery-floor.txt)",
+            "$(rootpath tests/snowflake-floor.txt)",
         ]),
         "LITE_ORACLES": " ".join([
             "$(rootpath //rust/oracles:mir_dump)",
