@@ -1057,7 +1057,7 @@ Each is Java's text or refusal as it is, reproduced; none is fixed here.
   has no single alias — resolve per side` (unit-tested).
 - `aliasesOf` asks a FROM-less select for its alias: an EXISTS, a one-column IN or a quantified comparison over a
   FROM-less subquery, and a lateral filter over one, is `IllegalStateException`: `a Dual (FROM-less) source has no alias
-  — caller bug`.
+  — caller bug` (unit-tested: an EXISTS of `SELECT 1`).
 
 ## What Java does that this does not reproduce exactly
 
@@ -1148,7 +1148,8 @@ from their JSON equal and with Java's record text, 450 refusals).
   another hoisted first. `CarrierStrategies` (under BigQuery's caps: lists not native, it rewrites), `SubstringClamp`,
   the three explosion-marker passes, `AggregatesDeliverDouble` over AVG, `ConstantKeysAsExpressions()` and
   `CommonSubexpressions` were ported with the dialects before it, as the bound expansions of a Float's text and print
-  forms (`binds_float_text`, `binds_float_print`: BigQuery is the first Rust dialect to bind the print form).
+  forms (`binds_float_text`, `binds_float_print`: BigQuery is the first Rust dialect to bind the print form,
+  its `__fp<n>` derived tables held by 4 oracle lines).
 - **The shared renderer**: `ansi::stars_as_source_columns` (Java's `starsAsSourceColumns`, which MariaDB and MySQL use
   too).
 

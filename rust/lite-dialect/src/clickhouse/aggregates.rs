@@ -35,7 +35,7 @@ pub(super) struct Win<'a> {
 }
 
 /// A key in descending order as a key arraySort orders ascending (Java's `descending`).
-fn descending(key: &str, t: Option<&SqlType>) -> Result<String, Refusal> {
+pub(super) fn descending(key: &str, t: Option<&SqlType>) -> Result<String, Refusal> {
     Ok(match t {
         Some(SqlType::Scalar(Scalar::Bigint | Scalar::Integer | Scalar::Double | Scalar::Hugeint))
         | Some(SqlType::Decimal { .. }) => format!("-{key}"),
@@ -865,9 +865,4 @@ pub(super) fn wire_type_name(driver_type_name: Option<&str>) -> String {
         "Nothing" => "NULL",
         other => other,
     }))
-}
-
-#[cfg(test)]
-pub(super) fn descending_for_tests(key: &str, t: Option<&SqlType>) -> Result<String, Refusal> {
-    descending(key, t)
 }

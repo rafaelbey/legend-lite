@@ -9,7 +9,7 @@
 //! per-render SETTINGS state, the wire names and the pass list. The oracles hold the rest
 //! (`tests/dialect_differential.rs`, `mir/dialect-arms.jsonl`).
 
-use super::aggregates::{descending_for_tests, joda_text, wire_type_name};
+use super::aggregates::{descending, joda_text, wire_type_name};
 use super::*;
 use crate::SqlDialect;
 use crate::build::{call, float_lit, int_lit, null_lit, string_lit};
@@ -130,9 +130,9 @@ fn the_helpers_walls_no_caller_reaches_answer_as_java() {
         "'o''clock 'h"
     );
     // a descending key of a type arraySort cannot negate
-    let r = descending_for_tests("k", Some(&SqlType::Scalar(Scalar::Json))).unwrap_err();
+    let r = descending("k", Some(&SqlType::Scalar(Scalar::Json))).unwrap_err();
     assert_eq!(r.message, "a descending sort key of JSON reached ClickHouse");
-    let r = descending_for_tests("k", None).unwrap_err();
+    let r = descending("k", None).unwrap_err();
     assert_eq!(r.message, "a descending sort key of no type reached ClickHouse");
 }
 

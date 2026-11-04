@@ -8,7 +8,7 @@
 //! literals and identifiers, the frame offsets' overflow, the parameter types, the wire names and the pass list. The
 //! oracles hold the rest (`tests/dialect_differential.rs`, `mir/dialect-arms.jsonl`).
 
-use super::functions::{conversions_for_tests, only_group, shift_groups};
+use super::functions::{conversions, only_group, shift_groups};
 use super::*;
 use crate::SqlDialect;
 use crate::build::{call, int_lit, null_lit, string_lit};
@@ -140,8 +140,8 @@ fn the_regular_expression_rewrites_answer_as_java() {
     let r = shift_groups("\\\u{0661}").unwrap_err();
     assert_eq!(r.message, "a first-match regexp_replace referring to group 1585 reached BigQuery (RE2 refers to nine)");
     // FORMAT's conversions: flags, a width, a precision; %% none; a directive with no conversion skipped
-    assert_eq!(conversions_for_tests("%-05.2f %s %% %d %.x %"), vec!['f', 's', '%', 'd']);
-    assert_eq!(conversions_for_tests("%.s"), Vec::<char>::new());
+    assert_eq!(conversions("%-05.2f %s %% %d %.x %"), vec!['f', 's', '%', 'd']);
+    assert_eq!(conversions("%.s"), Vec::<char>::new());
 }
 
 #[test]

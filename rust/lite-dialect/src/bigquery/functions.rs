@@ -143,7 +143,7 @@ pub(super) fn shift_groups(r: &str) -> Result<String, Refusal> {
 
 /// The conversions of a FORMAT template, each `%` directive's last character, in order (Java's
 /// `%[-+ #0]*[0-9]*(?:\.[0-9]+)?([a-zA-Z%])` found again and again).
-fn conversions(format: &str) -> Vec<char> {
+pub(super) fn conversions(format: &str) -> Vec<char> {
     let cs: Vec<char> = format.chars().collect();
     let mut out = Vec::new();
     let mut i = 0;
@@ -1756,9 +1756,4 @@ fn floor_div(
     w.append("(DIV(").piece(a)?.append(", ").piece(b)?.append(") - IF(MOD(").piece(a)?.append(", ").piece(b)?;
     w.append(") < 0, 1, 0))");
     Ok(())
-}
-
-#[cfg(test)]
-pub(super) fn conversions_for_tests(format: &str) -> Vec<char> {
-    conversions(format)
 }
