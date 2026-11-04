@@ -1,10 +1,10 @@
-# Dialect parity: DuckDB, H2, H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse and
-# BigQuery (2026-11-04)
+# Dialect parity: DuckDB, H2, H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse,
+# BigQuery and Snowflake (2026-11-04)
 
 Every dialect Rust answers, held to the JVM's own answers on the golden oracles (docs/rust-port/PHASE1.md §4): DuckDB
 (step 3, its renderer and passes), the H2 family's execution dialects, H2 and H2Modern (step 4b), the engine-text
 dialects, EngineStyleH2, EngineStyleDB2 and EngineStyleComposite (step 4c), Postgres (step 5b), SQLite (step 5d), Trino
-and Databricks (step 6b), ClickHouse and BigQuery (step 6c).
+and Databricks (step 6b), ClickHouse and BigQuery (step 6c), Snowflake (step 6e).
 Each is ported from
 its Java class, over a walk that keeps Java's identity semantics and a port of the typing rules Java's constructors
 apply. This file measures each on the oracles and says what of Java it does not reproduce exactly.
@@ -21,7 +21,8 @@ left to port over inputs that reach every arm each decides, rendered by Java's o
 engine-text dialect's default configuration and the first dump's none are one) counted once:
 
 - `<dialect>_renders_as_java_does` (`duckdb_`, `h2_`, `h2modern_`, `enginestyleh2_`, `enginestyledb2_`,
-  `enginestylecomposite_`, `postgres_`, `sqlite_`, `trino_`, `databricks_`, `clickhouse_`, `bigquery_`): every
+  `enginestylecomposite_`, `postgres_`, `sqlite_`, `trino_`, `databricks_`, `clickhouse_`, `bigquery_`,
+  `snowflake_`): every
   distinct input of the dialect, answered by a fresh Rust dialect of that
   name and configuration (made by the seam's `open`, as the JVM's shim makes it) and compared with the fresh JVM
   dialect's answer -- the SQL text exactly, a statement's binds and regions as Java's record text, a refusal by its Java
@@ -1188,12 +1189,156 @@ None of these reaches the oracles.
 - The frame unit's `toUpperCase(Locale.ROOT)` is Rust's `to_uppercase`, as Trino's.
 - The seam refuses `duckdb.*` and `engine.*` on BigQuery: ops no Java method of BigQuery answers.
 
+# Snowflake
+
+Step 6e (docs/rust-port/PHASE1.md §4): Java's `Snowflake` (`src/snowflake.rs`: the lambda scopes, the lateral FLATTENs,
+the selects and sources, the literals and type names, the hooks; `src/snowflake/functions.rs`: the `call` table and
+`list`, the collection reductions, the fold, the maps, the variant reads and casts, error(), printf, the regular
+expressions and the temporal helpers; `src/snowflake/texts.rs`: a Float's shortest digits and its three texts,
+Jaro-Winkler; `src/snowflake/aggregates.rs`: banker's ROUND, the bit operators, the aggregates and windows), and the
+pass only Snowflake installs, its own nested `PivotAsGroupBy` (`src/snowflake.rs`, over the shared rewrite).
+
+## The numbers
+
+**2,645 of 2,645 distinct inputs identical (100 %)**; the floor (`tests/snowflake-floor.txt`) is 2,645. The oracles
+hold 2,675 Snowflake lines (2,598 of `mir/dialect-arms.jsonl`, 39 of the dialects dump, 38 of the first; 30 repeat an
+input, none with two answers). The SQL, the binds and the regions are compared exactly: 24 statements bind a parameter
+or write a region and carry Java's record text. All 374 of Java's refusals are reproduced, class and message (258
+`DialectCapability`, 115 `IllegalStateException`, one `NullPointerException`: a quantified comparison by
+IS_DISTINCT_FROM, below), and Rust refuses nothing Java rendered. The first measurement was 2,644 of 2,645: printf's
+`%f` piece one closing parenthesis short, a port slip, fixed.
+
+| op | identical | different | refused (Java rendered) | accepted (Java refused) |
+|---|---:|---:|---:|---:|
+| `ddl.render` | 48 | 0 | 0 | 0 |
+| `dml.render` | 30 | 0 | 0 | 0 |
+| `dml.renderStatement` | 30 | 0 | 0 | 0 |
+| `fromEngineText` | 4 | 0 | 0 | 0 |
+| `query.render` | 88 | 0 | 0 | 0 |
+| `query.renderStatement` | 2,445 | 0 | 0 | 0 |
+
+By MIR kind every one is identical: `SqlSelect` 2,523, `CreateTable` 39, `InsertValues` 24, `DeleteAll` 8,
+`CreateTempTableAs`, `DeleteWhere` and `Update` 6 each, `DropTable`, `SqlUnion` and `SqlWith` 5 each, `InsertSelect`,
+`Merge` and `String` (the engine text, every one refused) 4 each, `CreateSchema`, `DropSchema` and `InsertFromTable` 2
+each.
+
+The arms oracle reaches every one of the 181 `SqlFn` arms, every `SqlAgg.Fn` of the exhaustive `reducer` and
+`reduceCollection`, 64 of the 65 own walls and every pass that changes a query (PHASE1.md, 6a: `CarrierStrategies`
+changes none where lists are native). What it cannot hold is unit-tested from the Java (`src/snowflake/tests.rs`):
+`list`'s and `bitOp`'s defaults (their one caller passes none), `dateTrunc`'s parts that `unit` refuses before its own
+wall (that wall is dead: the oracle holds the three parts' `unit` refusals), a list lambda that is no lambda (Java's
+`ClassCastException`, dropped from the oracle: below), the index lambda over the positions, a captured name carried
+through a REDUCE and an enclosing parameter refused, Snowflake's own `PivotAsGroupBy`, the fresh names' counter, printf
+(`format`'s own default is dead: its pattern admits s, d and f alone), the regular expressions' readers, the literals,
+identifiers and types, a raise in a tagged slot, the wire names and the pass list.
+
+The seam answers every op of them as a direct call does: 2,645 ops and 88 inline renders (2,127 statements read back
+from their JSON equal and with Java's record text, 379 refusals).
+
+## What is ported
+
+- **The dialect**: every one of `Snowflake.java`'s 68 overrides -- the lexicon, the scalar (`NUMBER(38,0)` for HUGEINT,
+  `TIMESTAMP_NTZ` and `TIMESTAMP_LTZ`, `VARIANT`; DECIMAL_TEXT refused), list (`ARRAY`), map and struct (`OBJECT`, a
+  struct's fields spelled first) and DDL type tables, the session's one `ALTER SESSION`, no keys snapshot and no column
+  limit, the static pivot, `fromEngineText` refused, a Float's three texts spelled here (no expansion runs), the passes,
+  native QUALIFY, the refused row order, the as-of join written whole by `source` (the base's clause an
+  `IllegalStateException`) and the PIVOT refused naming its columns, `render` and `renderStatement` keeping the
+  statement's labels and starting the fresh names over at the outermost one, the selects (`LIMIT NULL OFFSET n`, a
+  marker select over a FLATTEN of its positions under a fresh `__u<n>`, the markers' FLATTENs in scope for their column
+  reads, a star over them spelled out, the root's NULL over the NULL list typed as its label), the sources (a lateral
+  marker as `CROSS JOIN LATERAL FLATTEN(INPUT => ...)`, `OUTER => TRUE` for a LEFT one, a marker in FROM as
+  `TABLE(FLATTEN(...))`, an as-of join's one inequality its `MATCH_CONDITION`, any other LEFT lateral refused), VALUES
+  of constants only (else a UNION ALL of selects), every identifier and CTE name quoted, the string literal's backslash
+  and NUL, the timestamp's six digits, a decimal or Float literal whose trailing zeros carry its scale spelled with its
+  type, the explicit labels, the raise in a declared slot (a projection's, a CASE branch's), the lambda scopes (an
+  element lambda typed, an index lambda over the positions, a captured name carried through a REDUCE's OBJECT state, any
+  other enclosing read refused), a column read as a lambda parameter, a field of a struct parameter or an exploded
+  element, every list call and reduction over REDUCE and the `ARRAY_*` functions (the moments by Welford's update, the
+  median, the mode and the quantile over the sorted elements, a list of structs sorted field by field), membership, the
+  fold, Pure's splitPart, the OBJECT literal and its field read and insert, the VARIANT (`TO_VARIANT`, `GET`, `$.*`,
+  every cast through `PARSE_JSON`, `TO_JSON`, `AS_ARRAY`, `AS_OBJECT`), the whole `call` table with its helpers (the
+  NULL- ignoring concat, the NaN of an out-of-domain ACOS, the roundings in binary over a FLOAT, printf unrolled, the
+  regular expressions as POSIX reads them, the maps by REDUCE, JSON_TYPE in DuckDB's names, the date parts, truncations,
+  intervals, differences, time slices and TO_CHAR formats), Jaro-Winkler as three REDUCEs, a Float's shortest digits by
+  its exact decimal, `HASH`, the bit operators, every aggregate (a Float aggregate over DOUBLE arguments, LISTAGG
+  guarded, the percentiles WITHIN GROUP, `ARRAY_AGG` keeping a NULL, `MAX_BY`), the windows (a frame only with an ORDER
+  BY, a ranking window ordered by NULL, FIRST/LAST/NTH_VALUE under a cumulative frame unrolled, an ordered string
+  aggregate its ordered ARRAY_AGG joined, a windowed continuous quantile over the partition's sorted values, the zero
+  interval of a RANGE frame of peers over a temporal key), the JSON constructors, the date format, the type holes, the
+  JSON kind and TYPEOF names, `wireTypeName`, `typingWireName` and `deliversOwn`.
+- **The pass**: `Snowflake.PivotAsGroupBy`, Snowflake's own copy of `PivotAsGroupBy` (its nested class shadows the
+  package's in `passes()`): a pivot whose aggregate takes no argument is left as it came, for the writer to refuse, and
+  a value with no column name is refused in Snowflake's words. `shared_passes::pivot_as_group_by` is the one rewrite,
+  over each copy's words (`PivotWords`); the package pass's answers are unchanged. `CarrierStrategies`, the explosion
+  markers, `CheckedDefectsToLists`, `SubstringClamp`, `ConstantKeysAsExpressions()` and `RootNumericTypes` were ported
+  with the dialects before it.
+- **The shared helpers**: `crate::pieces` (`P`, `pc`, `text`, `Ex::ex`), the piece helpers six dialects had copied,
+  moved to one module before Snowflake would have copied them a seventh time (no output changed: the differential over
+  every oracle).
+
+## Identity and state
+
+- Java's per-render state is the dialect object's own: `roots` (pushed by `render` and `renderStatement` with the
+  query's outputs before the passes, popped after), `scopes` (each lambda being written: its parameters and the names it
+  writes in their stead), `laterals` (each select's FLATTENs in scope, innermost last) -- `RefCell` stacks pushed and
+  popped where Java's `ArrayDeque`s are, iterated innermost first as Java's are -- and `fresh` (a `Cell`, set to 0 by
+  the outermost query render, as Java's since the user's ruling). What a scope or a FLATTEN holds is cloned out before
+  it is written, so no borrow outlives a write.
+- A lambda scope's substitutions (Java's `Map<String, SqlWriter.Piece>`) are data, `Sub`: fixed text, or a list's
+  element at a position, its list written where the name is read -- in the scopes of that read, as Java's piece is (a
+  list reading an enclosing lambda's parameter is refused there, as Java's).
+- The insertion-ordered collections are Java's: the captured names (`LinkedHashSet`), a scope's substitutions and a
+  select's FLATTENs and their columns (`LinkedHashMap`: a key met again keeps its place, its value replaced).
+- Java's `reduceCollection(writer, rc)` reads the node's own type (`typeOf(rc)`), which the base's hook does not pass:
+  Snowflake's expression walk passes it from the node, and the hook (which no caller reaches) recomputes it as the
+  node's constructor did.
+- A window aggregate's own order compared with the window's (`r.orderBy().equals(win.orderBy())`) is Java's record
+  equality.
+
+## Java's behavior reproduced that looks like a bug
+
+Each is Java's text or refusal as it is, reproduced; none is fixed here.
+
+- A quantified comparison by IS_DISTINCT_FROM is a `NullPointerException`, `quantified comparison must be an infix
+  operator: IS_DISTINCT_FROM` (the base's infix lookup answers no operator; in the arms oracle).
+- A list call whose lambda is no lambda (`LIST_TRANSFORM`, `LIST_FILTER`, `LIST_EXISTS`, `LIST_FOR_ALL` over a value, a
+  shape no lowering builds) is Java's `ClassCastException`, not a refusal by name; the arms oracle could not hold its
+  message (below).
+- printf's check reads a stray `%` only in the text after the last directive, and counts every `%` against the
+  arguments: a directive other than `%s`, `%d` and `%f` before a real one (`%e %s`) is written as text where the count
+  balances, and the argument it would have read is dropped (the arms oracle holds one, `'|%e|'`).
+- `structTypeName` spells each field's type before answering `OBJECT`, which names none of them: a struct holding a
+  field Snowflake cannot cast (DECIMAL_TEXT) is refused (unit-tested).
+- A struct field read of no type of its own takes the type of the source struct's LAST field of that name.
+- `dateTrunc` reads `unit(part)` before its switch: NANOSECOND, DAY_OF_YEAR and ISO_DAY_OF_WEEK are refused as `a <part>
+  unit has no Snowflake spelling`, never by `dateTrunc`'s own wall (in the arms oracle).
+- The package's `PivotAsGroupBy` is unused: `passes()` names `PivotAsGroupBy`, which is Snowflake's own nested class;
+  a pivot of an aggregate of no argument reaches the writer, whose refusal speaks of a dynamic pivot or several keys
+  (`... emulates a static one; this one has 1 pivot columns`).
+
+## What Java does that this does not reproduce exactly
+
+None of these reaches the oracles.
+
+- **A `ClassCastException`'s message**, as Trino's, Databricks' and ClickHouse's: Java's class (`CLASS_CAST` at the
+  seam) and its message less the JVM's class-loader clause, `class com.legend.sql.SqlExpr$IntLit cannot be cast to
+  class com.legend.sql.SqlExpr$Lambda` (`src/snowflake/tests.rs`).
+- **The fresh names of a DML render through the seam.** Java's `fresh` is started over only by a query's render
+  (`render(SqlQuery)`, `renderStatement(SqlQuery)`), so a DML render on an object that rendered before counts on from
+  that render's last name; the seam makes a dialect for each call, so a DML render's names start at 0. Only a row's cell
+  whose spelling names a lambda's parameter or state (a Float's text, a list call with a lambda, a map) holds one, and
+  the name is the lambda's own: the SQL means the same. One Rust dialect object counts on as Java's
+  (`the_outermost_render_starts_the_fresh_names_over`).
+- `isNumber`'s `equalsIgnoreCase("NUMBER")` is ASCII case-insensitivity, which is Java's on that word (no other
+  character folds to its letters); its `trim` is Java's (every character at or below U+0020).
+- The seam refuses `duckdb.*` and `engine.*` on Snowflake: ops no Java method of Snowflake answers.
+
 # Typing
 
 Over the oracles, every distinct statement (every dialect's, the ten dialects' of the dialects dump, the eight
 dialects' of the arms oracle and the engine-text ops' queries included: one tree, counted once): **4,057,096 facts of
 36,890 statements, 0 different** (4,045,363 of 34,069 before the arms oracle was read, step 6b; the same with
-ClickHouse and BigQuery ported, step 6c: the oracles are unchanged).
+ClickHouse and BigQuery ported, step 6c, and with Snowflake, step 6e: the oracles are unchanged).
 
 # Tests
 
@@ -1334,6 +1479,23 @@ ClickHouse and BigQuery ported, step 6c: the oracles are unchanged).
   refused when not temporary), the names and `tableName`, the engine text refused, the wire names and `deliversOwn`, the
   interface's defaults and refusals naming each, the host operations refused, `readsStored`, and the DuckDB and
   engine-text ops refused.
+- `src/snowflake/tests.rs` (12 tests): Snowflake's hooks where the oracles cannot reach them -- `list`'s and `bitOp`'s
+  defaults, a list lambda that is no lambda (Java's `ClassCastException`, for all four list calls), the index lambda
+  over the positions and a lambda of three parameters refused, a captured name carried through a REDUCE and an
+  enclosing lambda's parameter refused, `dateTrunc`'s three parts refused by `unit`, Snowflake's own
+  `PivotAsGroupBy` (an aggregate of no argument left for the writer, an unnamed value in Snowflake's words), the
+  fresh names started over by each outermost query render (`render`, `renderStatement`, `renderInline`) and counted
+  on by a DML render, printf (a zero-padded width, a precision, `%%`, a blank-padded width, the stray directive
+  refused or taken as text, `Integer.parseInt`'s overflow), the regular expressions (flags as parameters, a
+  non-capturing group, a lazy quantifier and a lookaround refused, the text before a match or a group, the
+  replacement's options), the literals and identifiers (the trailing-zero scales, the escapes and NUL, the six
+  digits, a quote-bearing name), the type holes, the DDL types, a struct's fields spelled first, the date format, a
+  raise in each slot (a tagged one refused), the wire names, `deliversOwn`, the facts and the pass list.
+- `src/seam/snowflake_tests.rs` (5 tests): every op of the seam for Snowflake (§3i of `SEAM.md`): the facts (its
+  session statement), `forServer` and a configured spec refused, the renders (`LIMIT NULL OFFSET n`), the DDL and
+  DML, the session table (the default's two statements), the names, `raw` and the engine text refused, the wire
+  names and `deliversOwn`, the interface's defaults and refusals naming Snowflake, the host operations refused,
+  `readsStored`, and the DuckDB and engine-text ops refused.
 - `tests/dialect_differential.rs`: the differentials above, one per dialect, the typing test, and the seam's, one per
   dialect: every op of the dialect's inputs (and each `query.render` asked inline, and for an engine-text dialect each
   of its aliases after the render) answered through `dispatch` exactly as a direct call answers it, each statement read
@@ -1343,16 +1505,17 @@ ClickHouse and BigQuery ported, step 6c: the oracles are unchanged).
   EngineStyleDB2's 56, 42 and 43 (20 refusals), EngineStyleComposite's 24, 14 and 11 (20 refusals), Postgres's 11,630
   and 42 (11,523 statements, 14 refusals), SQLite's 2,529 and 46 (2,189 statements, 150 refusals), Trino's 2,630 and 76
   (2,152 statements, 355 refusals), Databricks' 2,631 and 76 (2,145 statements, 364 refusals), ClickHouse's 2,643 and 86
-  (2,099 statements, 430 refusals), BigQuery's 2,643 and 83 (2,063 statements, 450 refusals): all the same; and the
-  zone shift held to java.time (above).
+  (2,099 statements, 430 refusals), BigQuery's 2,643 and 83 (2,063 statements, 450 refusals), Snowflake's 2,645 and 88
+  (2,127 statements, 379 refusals): all the same; and the zone shift held to java.time (above).
 
 # Stack
 
 The deepest DuckDB statement needs between 1 and 2 MB of stack in a debug build for its parse, read, passes and render
 together, the deepest H2 statement (and the typing walk over both oracles) between 2 and 4 MB, and every one less than 1
-MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The twenty-five tests (and the two
+MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The twenty-seven tests (and the two
 zone tests) run in 57 s under Bazel (`//rust/lite-dialect:dialect_differential_test`, `size = medium`: 300 s; 47 s
 before Postgres's two, 54 s before SQLite's and before Trino's and Databricks' four with the arms oracle, 53 s before
-ClickHouse's and BigQuery's four) and 15 s in release; `//rust/lite-sql:mir_round_trip_test` in 70 s. A MIR at MirJson's depth limit (2,045 nested calls) needs between 32 and
+ClickHouse's and BigQuery's four, 57 s before Snowflake's two) and 15 s in release; `//rust/lite-sql:mir_round_trip_test`
+in 70 s. A MIR at MirJson's depth limit (2,045 nested calls) needs between 32 and
 64 MB in a debug build and more than 1 MB in release; the seam's C export runs each call on a 256 MB thread (`SEAM.md`
 §1).

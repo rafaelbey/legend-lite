@@ -469,6 +469,44 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      regenerated. `bazel test //...` against rust/BASELINE.tsv: 518 pass, the same 2 skipped, every baseline target at
      its baseline status. The heavy and cloud lanes (`pct_trino`, `pct_clickhouse`, `pct_databricks`, `pct_bigquery`
      and their channel B) are manual and were not run here.
+   - **6e, done 2026-11-04: Snowflake in Rust** (`rust/lite-dialect/src/snowflake.rs`, `src/snowflake/`; `PARITY.md`,
+     `SEAM.md` §3i). First the piece helpers six dialects had copied (`P`, `pc`, `text`, `ex`) moved to one module,
+     `src/pieces.rs`: no output changed, every dialect at its floor over every oracle. Every input of the three oracles
+     answers as Java's -- **Snowflake 2,645 of 2,645** distinct inputs (2,598 arms-oracle lines, 77 of the two dumps;
+     Java's 374 refusals by class and message, the quantified IS_DISTINCT_FROM's `NullPointerException` among them), the
+     SQL, binds and regions exact -- and the seam answers every op as a direct call does (2,733 ops with the inline
+     renders). The first measurement was 2,644 (printf's `%f` piece a parenthesis short, fixed). Every other dialect
+     stays at its floor; the typing holds unchanged (36,890 statements, 4,057,096 facts, 0 different). Java's per-render
+     state -- `roots`, the lambda `scopes`, the lateral FLATTENs in scope and the `fresh` counter -- is the dialect
+     object's (`RefCell` stacks and a `Cell`), the counter started over by each outermost query render as Java's is, so
+     a fresh dialect per call is exact for every query; a lambda scope's substitutions are data written where a name is
+     read, in that read's scopes, as Java's pieces are. Two finds while porting: `Snowflake.passes()` installs
+     Snowflake's own nested `PivotAsGroupBy` (it shadows the package's class: an aggregate of no argument left for the
+     writer, an unnamed value refused in Snowflake's words), ported as `Snowflake.PivotAsGroupBy` over the shared
+     rewrite (`shared_passes::pivot_as_group_by` and its words; the package pass unchanged); and the base's
+     `reduceCollection` hook passes no node type where Snowflake reads `typeOf(rc)`, so Snowflake's expression walk
+     passes it (no hook widened). Unit-tested from the Java where the oracles cannot reach (`src/snowflake/tests.rs` 12,
+     `src/seam/snowflake_tests.rs` 5): `list`'s and `bitOp`'s defaults, a list lambda that is no lambda (Java's
+     `ClassCastException`, refused with Java's class and its message less the class-loader clause, as Trino's),
+     `dateTrunc`'s three parts refused by `unit` before its own (dead) wall, the nested pivot pass, the fresh names,
+     printf (`format`'s default is dead: its pattern admits s, d, f), the regular expressions, the literals, a raise in
+     a tagged slot, the wire names, the facts and the pass list. Under Bazel the differential takes 57 s (57 s before)
+     and the round trip 70 s (cached, its inputs unchanged), both `size = medium`.
+
+     For the switch: a `Snowflake` shim (`new Snowflake()` in `Databases`; core's tests construct it --
+     `SnowflakeDialectTest`, `TranslateTest`, `StoreWritesTest`, `CatalogGridTest`, `TempTableAsTest`,
+     `WireTypeNamesTest`, `HostOperationsTest` -- its simple name in refusal messages) whose every method is one seam
+     call, the facts read once. No public or package-private static (`LEXICON`, `CAPS`, the nested `PivotAsGroupBy`)
+     is read outside the class, no test calls a non-interface method (they ask `render`, `wireTypeName`,
+     `typingWireName` and `hostOperations`), so no new op is needed. Its one state between renders, `fresh`, needs none
+     either: Java starts it over at each outermost query render; a DML render does not start it over in Java, where the
+     seam's dialect per call starts at 0 -- only a DML row's cell that spells a lambda names one, the name the lambda's
+     own (`PARITY.md`, "not reproduced exactly"). When Snowflake switches, `CheckedDefectsToLists` and
+     `RootNumericTypes` have no Java user left, and the package's `PivotAsGroupBy.java` has none already (Snowflake's
+     `passes()` names its nested class); `CarrierStrategies`, `SubstringClamp`, `ConstantKeysAsExpressions` and the
+     `ExplosionMarkers` passes stay for MariaDB and MySQL (`CarrierStrategies` for MongoDB too). The switch's gates are
+     `//pct:pct_snowflake` and `//pct:pct_channel_b_snowflake` (cloud lanes: a real account, its credentials in
+     `LEGENDLITE_PCT_CLOUD_PROPERTIES`).
 
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 

@@ -7,18 +7,18 @@ every op below (`src/seam/tests.rs`, `src/seam/h2_tests.rs`, `src/seam/engine_te
 `tests/dialect_differential.rs`'s `the_seam_answers_as_<dialect>s_renderer_does` over every op of each dialect's inputs
 in the golden oracles; `src/seam/postgres_tests.rs` for Postgres, `src/seam/sqlite_tests.rs` for SQLite,
 `src/seam/trino_tests.rs` for Trino, `src/seam/databricks_tests.rs` for Databricks, `src/seam/clickhouse_tests.rs` for
-ClickHouse, `src/seam/bigquery_tests.rs` for BigQuery).
+ClickHouse, `src/seam/bigquery_tests.rs` for BigQuery, `src/seam/snowflake_tests.rs` for Snowflake).
 
 Rust answers DuckDB, H2 and H2Modern (docs/rust-port/PHASE1.md §4, steps 3 and 4b), the engine-text dialects
 `EngineStyleH2`, `EngineStyleDB2` and `EngineStyleComposite` (step 4c), Postgres (step 5b), SQLite (step 5d), Trino and
-Databricks (step 6b), ClickHouse and BigQuery (step 6c). Every answer below is DuckDB's -- `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations
+Databricks (step 6b), ClickHouse and BigQuery (step 6c), Snowflake (step 6e). Every answer below is DuckDB's -- `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations
 and `SqlDialect`'s defaults, exactly as Java answers them -- unless §3a gives H2's and H2Modern's (`H2.java`'s and
 `H2Modern.java`'s overrides over the same base), §3b the engine-text dialects' (theirs over the same base, and Java's
 `EngineTextDialect`), §3c Postgres's (`Postgres.java`'s and `PostgresHostOperations.java`'s), §3d SQLite's
 (`SQLite.java`'s, with `SqliteRegex.java`, `SqliteDigests.java` and the passes it installs), §3e Trino's (`Trino.java`'s,
 with `PivotAsGroupBy.java` and `AsOfAsPick.java`), §3f Databricks' (`Databricks.java`'s), §3g ClickHouse's
-(`ClickHouse.java`'s, with `OuterJoinResidualsAsMatches.java`) or §3h BigQuery's (`BigQuery.java`'s, with
-`FoldsAsRecursiveCtes.java`).
+(`ClickHouse.java`'s, with `OuterJoinResidualsAsMatches.java`), §3h BigQuery's (`BigQuery.java`'s, with
+`FoldsAsRecursiveCtes.java`) or §3i Snowflake's (`Snowflake.java`'s, its own nested `PivotAsGroupBy` among them).
 
 ## 1. The call
 
@@ -46,8 +46,10 @@ The phase and position fields are always `-`; the message is the rest of the tex
 - **Fresh per call.** The dialect is made from `spec` for each call and dropped after it: DuckDB, the H2 family,
   Postgres, Trino and Databricks carry no state from one render to the next, and SQLite's is a statement's own (its
   markers, its root's labels and selects, and its fresh names `__b<n>`, started over at each outermost render: the
-  user's ruling, 2026-11-03), as ClickHouse's (its query nesting and the root's correlated-subquery flag) and
-  BigQuery's (the markers in scope, the statement's labels, each select's counted MODEs) are. (This supersedes
+  user's ruling, 2026-11-03), as ClickHouse's (its query nesting and the root's correlated-subquery flag),
+  BigQuery's (the markers in scope, the statement's labels, each select's counted MODEs) and Snowflake's (the
+  statement's labels, the lambdas and FLATTENs in scope, its fresh names `__f<n>`, `__s<n>`, ..., started over at each
+  outermost query render) are. (This supersedes
   PHASE1.md §3's handle: no dialect state is held
   between calls.) The JVM may read `facts` once per dialect and cache it. An engine-text dialect's render leaves one
   piece of state on Java's dialect object -- the engine's alias plan of the query, which `renderedAlias` then reads --
@@ -59,21 +61,21 @@ The phase and position fields are always `-`; the message is the rest of the tex
 
 ```json
 {"dialect": "DuckDb" | "H2" | "H2Modern" | "EngineStyleH2" | "EngineStyleDB2" | "EngineStyleComposite" | "Postgres"
-             | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery",
+             | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery" | "Snowflake",
  "server": "<version>" | null, "engineScanOrder": true | false,
  "quoteIdentifiers": true | false, "timeZone": "<zone>" | null}
 ```
 
 | field | | |
 |---|---|---|
-| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, `Postgres`, `SQLite`, `Trino`, `Databricks`, `ClickHouse` or `BigQuery`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery`). |
-| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse and BigQuery keep themselves. |
+| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, `Postgres`, `SQLite`, `Trino`, `Databricks`, `ClickHouse`, `BigQuery` or `Snowflake`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake`). |
+| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery and Snowflake keep themselves. |
 | `engineScanOrder` | boolean or missing (false) | `Boolean.getBoolean("legend.exec.engineScanOrder")`, which Java's `DuckDb` reads at each render: the engine corpus runner's opt-in to `StableScanOrder`. The JVM passes its property's value. Read as a boolean for every dialect; only DuckDB reads it. |
 | `quoteIdentifiers` | boolean or missing (false) | an engine-text dialect's constructor argument (`new EngineStyleH2(quoteIdentifiers, timeZone)`, `new EngineStyleDB2(...)`; the plan text's connection): every physical identifier double-quoted. |
 | `timeZone` | string, null or missing (null) | the same constructors' second argument, the connection's zone: a DATETIME placeholder written in `GMTtoTZ`, a date-time constant shifted from GMT to the zone (`GMT` itself shifts none; §6). |
 
 `quoteIdentifiers` and `timeZone` configure an engine-text dialect alone: on `DuckDb`, `H2`, `H2Modern`, `Postgres`,
-`SQLite`, `Trino`, `Databricks`, `ClickHouse` or `BigQuery` either field, present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone
+`SQLite`, `Trino`, `Databricks`, `ClickHouse`, `BigQuery` or `Snowflake` either field, present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone
 configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not <Dialect>`). `EngineStyleComposite` has only
 Java's no-argument constructor: the fields may be absent or their defaults (`false`, `null`); any other value is refused
 (`EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers false, timeZone
@@ -387,6 +389,38 @@ make one (`ClickHouseDialectTest`, `BigQueryDialectTest`, `TranslateTest`, `Stor
 `render` (of a query, a DDL and a DML statement), `typingWireName` and `hostOperations`, as a `SqlDialect`;
 `Databases` constructs each with `new ClickHouse()` and `new BigQuery()`. So no op beyond §3 is needed.
 
+### 3i. Snowflake
+
+Snowflake through its JDBC driver (`Snowflake.java`, its own nested `PivotAsGroupBy` among its passes;
+`src/snowflake.rs`, `src/snowflake/`). Snowflake answers every op of §3 but `duckdb.*` and `engine.*`; where its answer
+differs from DuckDB's it is:
+
+| op | Snowflake |
+|---|---|
+| `facts` | `{"temporaryTables": true, "loadsRowsInBulk": false, "relational": true, "inProcess": false, "dropsStagedTablesWithTheirTransaction": false, "needsStaticPivot": true, "serverVersions": null, "inMemoryPath": null, "scriptAbort": null, "sessionSetup": ["ALTER SESSION SET TIMEZONE = 'UTC', WEEK_START = 1, WEEK_OF_YEAR_POLICY = 1, TIMESTAMP_TYPE_MAPPING = 'TIMESTAMP_NTZ', QUOTED_IDENTIFIERS_IGNORE_CASE = FALSE, MULTI_STATEMENT_COUNT = 0, JSON_INDENT = 0, STRICT_JSON_OUTPUT = TRUE"], "keysSnapshot": "NONE", "resultColumnLimit": null}` |
+| `forServer` | `"Snowflake"` whatever the version |
+| the renders | Snowflake's (`PARITY.md`): every identifier and CTE name double-quoted (a valid double-quoted declaration as it is), a string literal's backslash escaped and its quote doubled (a NUL as `chr(0)`), a decimal or Float literal whose trailing zeros carry its scale spelled with its type (`CAST(1.0 AS NUMBER(2,1))`), NaN and the infinities as FLOAT text, a date-time's six fraction digits, `LIMIT NULL OFFSET n`; lists as semi-structured `ARRAY`s of VARIANT elements, each cast to its type where it is read, structs and maps as `OBJECT`s, Variants as `VARIANT`; lambdas of one parameter (an index lambda over the positions, a captured name carried through a REDUCE's OBJECT state, any other read of an enclosing lambda's name refused); an explosion a `FLATTEN` over its marker's positions read at its `INDEX` (`CROSS JOIN LATERAL FLATTEN(...)`, `OUTER => TRUE` for a LEFT one), an as-of join's inequality its `MATCH_CONDITION`, a VALUES of constants only (else a UNION ALL of selects), error() a sentinel-wrapped message cast to its slot's type, a Float's text, literal spelling and print form from its shortest digits computed in SQL, Jaro-Winkler as three REDUCEs; Snowflake's passes (the carrier strategies standing aside, its own static pivot as a grouped CASE aggregation, the checked defects as lists, the substring clamp, the three explosion-marker passes, constant keys typed, the root's numeric types stated) |
+| `ddl.render` | the base's statements with every name quoted, Snowflake's types (`BOOLEAN` for a BIT, `TIMESTAMP_NTZ` and `TIMESTAMP_NTZ(9)`, `VARIANT` for JSON, `ARRAY`, `OBJECT`; `OTHER` and `DISTINCT` refused) |
+| `dml.render`, `dml.renderStatement` | the base's spellings, every name quoted; the store writes and a temporary table from a query refused naming Snowflake |
+| `sessionTable` | the interface's default: the `Create Temporary Table` and its INSERT |
+| `physicalName`, `storedName`, `insertColumnName` | every name double-quoted (a quote doubled), a valid double-quoted declaration as it is |
+| `raw`, `fromEngineText` | the engine's H2 text refused (`DialectCapability`): `the engine's H2 text reached Snowflake, which has no translation of it`; any other text as written |
+| `wireTypeName`, `typingWireName` | the driver's `NUMBER` (trimmed, in any case) `"DECIMAL"` at the wire and null for typing (its scale, not its name, says integer or decimal); any other name through `WireNames.fold`, the same for both; null the empty string |
+| `deliversOwn` | `true` for a BIGINT or INTEGER label at a wire `DECIMAL(...,0)`, and for a struct or map label at the wire `OBJECT`; else `false` |
+| `script`, `failingStatement`, `catalogColumnsQuery`, `catalogType`, `bareNameReaches`, a converting `copySelectList`, `host.*` | the interface's defaults, the refusals naming `Snowflake` |
+| `readsStored` | the base's: a plain `OTHER` or `DISTINCT` read as text |
+| `tableName` | the base's: a schema-qualified name each part double-quoted, else double-quoted |
+| `duckdb.tables`, `duckdb.readsStored` | refused (`IllegalArgumentException`): `'<op>' is DuckDb's op, not Snowflake's` |
+
+Snowflake's public statics (`LEXICON`, `CAPS`) and its package-private nested `PivotAsGroupBy` are read by no Java code
+outside its class (main and test sources, grepped), and no test calls a method of a Snowflake object that is no
+`SqlDialect` method: the core tests that make one (`SnowflakeDialectTest`, `TranslateTest`, `StoreWritesTest`,
+`CatalogGridTest`, `TempTableAsTest`, `WireTypeNamesTest`, `HostOperationsTest`) ask it `render` (of a query, a DDL and a
+DML statement), `wireTypeName`, `typingWireName` and `hostOperations`, as a `SqlDialect`; `Databases` constructs it with
+`new Snowflake()`. So no op beyond §3 is needed. Its one counter that outlives a render, `fresh`, is started over by
+each outermost query render (the user's ruling, 2026-11-03), which a dialect made per call reproduces; a DML render does
+not start it over in Java (§6).
+
 ### Op refusals
 
 Beyond MirJson's and `lite_json`'s words (§2), each op refuses as Java's method throws, class and message:
@@ -549,8 +583,8 @@ answer cannot hold one, as JSON writes it `\u0000`).
   `RawSqlBoundary`'s ledger (`Recorder`) are not dialect methods and stay Java; the seam answers the methods they call.
 - SQLite's own: `PARITY.md` (an unterminated named group refused as `java.lang.StackOverflowError` where Java's stack
   overflows, `CommonSubexpressions`' tie order).
-- A `ClassCastException` Java's renderer throws (Trino's and Databricks' list lambda that is no lambda, Databricks' pivot
-  of AVG) crosses as `CLASS_CAST` with Java's message less the JVM's class-loader clause (`(... are in unnamed module of
+- A `ClassCastException` Java's renderer throws (Trino's, Databricks', ClickHouse's and Snowflake's list lambda that is
+  no lambda, Databricks' pivot of AVG) crosses as `CLASS_CAST` with Java's message less the JVM's class-loader clause (`(... are in unnamed module of
   loader 'app')`), which names the loader of the JVM that threw it (`PARITY.md`).
 - `forServer` answers "this dialect" as `None` in Rust (Java's `return this`) and another dialect as that dialect (H2's
   H2Modern), which the seam takes for the call (a spec's `server`); the `forServer` op answers the chosen dialect's
@@ -568,4 +602,8 @@ answer cannot hold one, as JSON writes it `\u0000`).
   does not know leaves the constant unshifted, as Java's caught `DateTimeException` does. The JVM's own tzdb is the
   JDK's: a JVM of another tzdb version would shift by its own rules, and the data is regenerated with the build's JDK
   (`rust/oracles/tzdb/BUILD.bazel` says how).
+- Snowflake's fresh names in a DML render: Java's `fresh` is started over only by a query's render, so a DML render
+  on a Java object that rendered before counts on from there; the seam's dialect, made per call, starts at 0. The
+  name is a lambda's own (a row's cell spelling a lambda: a Float's text, a list call, a map), so the SQL means the
+  same (`PARITY.md`).
 - The renders' own differences from Java, none of which the golden dump reaches, are `PARITY.md`'s.
