@@ -58,6 +58,8 @@ rust_test(
         "tests/h2modern-floor.txt",
         "tests/postgres-floor.txt",
         "tests/sqlite-floor.txt",
+        "tests/trino-floor.txt",
+        "//rust/oracles:dialect_arms",
         "//rust/oracles:dialects_dump",
         "//rust/oracles:h2_dump",
         "//rust/oracles:mir/tagged-engine.jsonl",
@@ -78,6 +80,7 @@ rust_test(
             "$(rootpath tests/enginestylecomposite-floor.txt)",
             "$(rootpath tests/postgres-floor.txt)",
             "$(rootpath tests/sqlite-floor.txt)",
+            "$(rootpath tests/trino-floor.txt)",
         ]),
         "LITE_ORACLES": " ".join([
             "$(rootpath //rust/oracles:mir_dump)",
@@ -85,6 +88,7 @@ rust_test(
             "$(rootpath //rust/oracles:mir/tagged-engine.jsonl)",
             "$(rootpath //rust/oracles:dialects_dump)",
             "$(rootpath //rust/oracles:sqlite_arms)",
+            "$(rootpath //rust/oracles:dialect_arms)",
         ]),
         "LITE_TZDB_GENERATED": "$(rootpath //rust/oracles/tzdb:out/tzdb.bin)",
         "LITE_ZONE_ORACLES": " ".join([

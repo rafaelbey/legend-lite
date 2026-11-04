@@ -14,21 +14,24 @@
 //! - [`QualifyToSubselect`]: QUALIFY as a wrapping select -- the plain form, and the by-outputs form Postgres, MariaDB,
 //!   SQLite and Trino install;
 //! - [`RootNumericTypes`]: a root column typed DECIMAL(p,s) or HUGEINT cast to its type (Postgres, Databricks,
-//!   ClickHouse, Snowflake, Trino).
+//!   ClickHouse, Snowflake, Trino);
+//! - [`PivotAsGroupBy`]: a static pivot as a grouped CASE aggregation, for a dialect with lists and no PIVOT (Trino,
+//!   Snowflake, ClickHouse);
+//! - [`AsOfAsPick`]: an as-of join as a LEFT JOIN whose rows a QUALIFY picks (Trino).
 //!
 //! `ConstantKeysAsExpressions` (both forms) and `SubstringClamp` are [`crate::passes`]', `CarrierStrategies`
 //! [`crate::carrier`]'s. Each pass rebuilds through [`crate::build`] (Java's constructors) and answers [`Rw::Same`]
 //! exactly where Java hands back its input.
 
 use crate::build::{self, call, derived, query};
-use crate::carrier::{copy_with_alias, remap_alias, with_children};
+use crate::carrier::{as_of_key, copy_with_alias, generated_slot, remap_alias, with_children};
 use crate::passes::Stars;
 use crate::refusal::Refusal;
 use crate::rewriter::{Rw, SqlRewriter, rewrite_expr};
-use crate::typing::{children, source_alias};
+use crate::typing::{children, source_alias, source_outputs};
 use lite_sql::{
-    AggFn, Origin, Projection, Reducer, Scalar, SortKey, SqlAgg, SqlExpr, SqlFn, SqlQuery, SqlSelect, SqlSource,
-    SqlType,
+    AggFn, JoinKind, Origin, Projection, Reducer, Scalar, SortKey, SqlAgg, SqlExpr, SqlFn, SqlQuery, SqlSelect,
+    SqlSource, SqlType,
 };
 use std::collections::HashMap;
 
@@ -629,6 +632,156 @@ impl SqlRewriter for RootNumericTypes {
                 build::prepend(w.ctes, body, w.recursive)
             }
         }
+    }
+}
+
+// ==================================================================
+// PivotAsGroupBy
+// ==================================================================
+
+/// A static pivot as a grouped CASE aggregation (Java's `PivotAsGroupBy`): every column of the pivot's output that is
+/// not a pivoted one is a group key, and each value and aggregate `AGG(CASE WHEN on = v THEN arg END) AS
+/// "v__|__alias"` -- the portable form `CarrierStrategies` writes for a database without lists, here for one with
+/// lists and no PIVOT, where that pass stands aside. A dynamic pivot (no values), or one of several ON keys, is left
+/// as it came.
+#[derive(Debug, Default)]
+pub struct PivotAsGroupBy;
+
+/// A pivot value as the platform names its column (Java's `pivotValueText`): a string bare, an integer and a boolean
+/// as their text; any other value refused, naming its class.
+fn pivot_value_text(v: &SqlExpr) -> Result<String, Refusal> {
+    match v {
+        SqlExpr::StringLit { value, .. } => Ok(value.clone()),
+        SqlExpr::IntLit { value, .. } => Ok(value.to_string()),
+        SqlExpr::BoolLit { value, .. } => Ok(value.to_string()),
+        other => Err(Refusal::capability(format!(
+            "a pivot value {} reached a dialect without a native pivot, with no column name",
+            crate::java::simple_name(other)
+        ))),
+    }
+}
+
+impl SqlRewriter for PivotAsGroupBy {
+    fn name(&self) -> &'static str {
+        "PivotAsGroupBy"
+    }
+
+    fn source(&mut self, s: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
+        // a dynamic pivot a cast names pivots on the named values (`Pivot.values()`: `in`'s, else the named ones)
+        let SqlSource::Pivot { source, on, r#in, named, usings, alias, outputs } = &s else {
+            return Ok(Rw::Same(s));
+        };
+        let values = if r#in.is_empty() { named } else { r#in };
+        if values.is_empty() || on.len() != 1 {
+            return Ok(Rw::Same(s));
+        }
+        let mut ps = Vec::new();
+        let mut group = Vec::new();
+        for oc in outputs {
+            if !oc.name.contains("__|__") {
+                let g = SqlExpr::Column(build::column_of(Some(source_alias(source)?), oc));
+                group.push(g.clone());
+                ps.push(build::projection(g, Some(oc.name.clone()), Some(oc.clone()))?);
+            }
+        }
+        for v in values {
+            for u in usings {
+                let agg = &u.agg;
+                let mut args = agg.args.clone();
+                if args.is_empty() {
+                    return Err(Refusal::capability(
+                        "a pivot whose aggregate takes no argument reached a dialect without a native pivot",
+                    ));
+                }
+                let first = std::mem::replace(&mut args[0], build::null_lit());
+                args[0] = build::case(vec![build::when(call(SqlFn::Equal, vec![on[0].clone(), v.clone()]), first)], None);
+                let name = format!("{}__|__{}", pivot_value_text(v)?, u.alias);
+                let slot = generated_slot(outputs, u, &name)?;
+                ps.push(build::projection(
+                    SqlExpr::Reducer(build::reducer(agg.r#fn, args, agg.distinct, agg.order_by.clone())),
+                    Some(name),
+                    Some(slot),
+                )?);
+            }
+        }
+        let sel = build::with_group_by(build::with_projections(build::star_of(source.as_ref().clone())?, ps)?, group)?;
+        Ok(Rw::New(build::subselect(query(sel), alias, None)))
+    }
+}
+
+// ==================================================================
+// AsOfAsPick
+// ==================================================================
+
+/// An as-of join for a dialect with none of its own (Java's `AsOfAsPick`): a select whose FROM is an as-of join, as a
+/// LEFT JOIN on the same condition, each left row keeping its matches whose right key is the extreme one -- `QUALIFY
+/// k = MAX(k) OVER (PARTITION BY every left column) OR MAX(k) OVER (...) IS NULL`, the second arm keeping a left row
+/// with no match -- a QUALIFY, which `QualifyToSubselect` writes as a filter over a wrapping select. Only under a
+/// select that filters, groups and windows nothing of its own.
+#[derive(Debug, Default)]
+pub struct AsOfAsPick;
+
+/// Whether `e` holds a window call (Java's `windowed`).
+fn windowed(e: &SqlExpr) -> bool {
+    matches!(e, SqlExpr::WindowCall { .. }) || children(e).iter().any(|k| windowed(k))
+}
+
+impl SqlRewriter for AsOfAsPick {
+    fn name(&self) -> &'static str {
+        "AsOfAsPick"
+    }
+
+    fn select(&mut self, s: SqlSelect) -> Result<Rw<SqlQuery>, Refusal> {
+        let SqlSource::Join { left, right, kind: JoinKind::AsofLeft, on, .. } = &s.from else {
+            return same(s);
+        };
+        let Some((right_key, pick_max)) = as_of_key(&s.from)? else {
+            return Err(Refusal::capability(
+                "an as-of join with no inequality between its sides reached a dialect without an as-of join",
+            ));
+        };
+        if s.r#where.is_some()
+            || !s.group_by.is_empty()
+            || s.having.is_some()
+            || s.qualify.is_some()
+            || s.projections.iter().any(|p| windowed(&p.expr))
+        {
+            return Err(Refusal::capability(
+                "an as-of join under a select that filters, groups or windows reached a dialect without an as-of \
+                 join: its pick is that select's filter",
+            ));
+        }
+        let left_alias = source_alias(left)?.to_owned();
+        let left_outputs = source_outputs(left);
+        if left_outputs.is_empty() {
+            return Err(Refusal::capability(
+                "an as-of join whose left side has no alias and columns reached a dialect without an as-of join",
+            ));
+        }
+        let partition: Vec<SqlExpr> =
+            left_outputs.iter().map(|oc| SqlExpr::Column(build::column_of(Some(&left_alias), oc))).collect();
+        let extreme = build::window_call(
+            SqlAgg::Reducer(build::reducer(
+                if pick_max { AggFn::Max } else { AggFn::Min },
+                vec![right_key.clone()],
+                false,
+                Vec::new(),
+            )),
+            partition,
+            Vec::new(),
+            None,
+        );
+        let pick = call(
+            SqlFn::Or,
+            vec![call(SqlFn::Equal, vec![right_key, extreme.clone()]), call(SqlFn::IsNull, vec![extreme])],
+        );
+        let join = build::join(
+            left.as_ref().clone(),
+            right.as_ref().clone(),
+            JoinKind::Left,
+            on.as_deref().cloned(),
+        )?;
+        Ok(Rw::New(query(build::with_qualify(build::with_from(s, join)?, Some(pick))?)))
     }
 }
 

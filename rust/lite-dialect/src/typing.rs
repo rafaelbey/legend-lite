@@ -1152,6 +1152,11 @@ fn decimal_text_type(text: &str) -> TypeFact {
     typed(SqlType::Decimal { precision: precision.max(1) as i32, scale: 0 })
 }
 
+/// `BigDecimal.precision()`: the digits of its unscaled value (a zero has one).
+pub fn big_decimal_precision(v: &BigDecimal) -> usize {
+    unscaled(v.as_str()).1.len()
+}
+
 /// A BigDecimal's text read as its sign, its unscaled digits (no leading zero but a lone `0`) and its scale.
 fn unscaled(text: &str) -> (bool, String, i64) {
     let (negative, unsigned) = match text.as_bytes().first() {

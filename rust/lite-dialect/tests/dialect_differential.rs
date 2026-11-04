@@ -139,6 +139,18 @@ fn the_seam_answers_as_sqlites_renderer_does() {
     the_seam_answers_as_the_renderer_does("SQLite");
 }
 
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn trino_renders_as_java_does() {
+    renders_as_java_does("Trino");
+}
+
+#[test]
+#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
+fn the_seam_answers_as_trinos_renderer_does() {
+    the_seam_answers_as_the_renderer_does("Trino");
+}
+
 /// An engine-text dialect's default configuration (Java's no-argument constructor), as the H2 dump writes it: an input
 /// the first dump holds with no configuration is the same input.
 const DEFAULT_ENGINE_CONFIG: &str = r#"{"quoteIdentifiers":false,"timeZone":null}"#;
@@ -736,6 +748,38 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             (t.constant_key, "ConstantKeysAsExpressions"),
             (t.stored_reads, "StoredReads"),
         ]
+    } else if dialect == "Trino" {
+        // Trino's passes (Trino.passes()), in their order
+        if java_rest.starts_with("CAST(") && rust_rest.starts_with("CAST(") && recent.ends_with("SELECT ") {
+            return "RootNumericTypes";
+        }
+        vec![
+            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
+            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (t.pivot, "PivotAsGroupBy"),
+            (t.as_of, "AsOfAsPick"),
+            (t.star_except, "StarExceptToColumns"),
+            (t.lateral, "ExplosionMarkers"),
+            (t.checked_defects, "CheckedDefectsToLists"),
+            (t.substring, "SubstringClamp"),
+            (t.avg, "AggregatesDeliverDouble"),
+            (t.qualify, "QualifyToSubselect (by outputs)"),
+            (t.constant_key, "ConstantKeysAsExpressions"),
+        ]
+    } else if dialect == "Databricks" {
+        // Databricks' passes (Databricks.passes()), in their order
+        if java_rest.starts_with("CAST(") && rust_rest.starts_with("CAST(") && recent.ends_with("SELECT ") {
+            return "RootNumericTypes";
+        }
+        vec![
+            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
+            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (t.pivot, "UnqualifyPivotArgs"),
+            (t.checked_defects, "CheckedDefectsToLists"),
+            (t.substring, "SubstringClamp"),
+            (t.avg, "AggregatesDeliverDouble"),
+            (t.constant_key, "ConstantKeysAsExpressions"),
+        ]
     } else if dialect.starts_with("EngineStyle") {
         // the engine text's passes (EngineStyleH2.passes()): the carrier strategies, the lateral explode
         vec![
@@ -791,6 +835,7 @@ struct Triggers {
     ordered_set_window: bool,
     string_count: bool,
     qualify: bool,
+    as_of: bool,
 }
 
 impl Triggers {
@@ -863,6 +908,7 @@ impl SqlRewriter for Triggers {
     fn source(&mut self, s: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
         match &s {
             SqlSource::Pivot { .. } => self.pivot = true,
+            SqlSource::Join { kind: JoinKind::AsofLeft, .. } => self.as_of = true,
             SqlSource::Join { kind: JoinKind::Left, on: Some(on), .. } if holds_scalar_subquery(on) => {
                 self.outer_join_subquery = true;
             }

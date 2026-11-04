@@ -19,6 +19,7 @@ use crate::h2::H2;
 use crate::host_ops;
 use crate::postgres::Postgres;
 use crate::sqlite::Sqlite;
+use crate::trino::Trino;
 use crate::refusal::Refusal;
 use crate::renderer::PlanParam;
 use crate::statement::{Bind, Binding, Digits, Region, RenderedStatement, TypeHole, TypeSpelling};
@@ -26,8 +27,17 @@ use lite_json::{Node, Num, Obj, parse, parse_with_depth, to_compact};
 use lite_sql::{MAX_DEPTH, SqlDdl, SqlDml, SqlQuery, ValueKind, read_ddl, read_dml, read_expr, read_query, read_type};
 
 /// The dialects the seam opens, by the name a spec gives (Java's simple class name).
-pub const DIALECTS: &[&str] =
-    &["DuckDb", "H2", "H2Modern", "EngineStyleH2", "EngineStyleDB2", "EngineStyleComposite", "Postgres", "SQLite"];
+pub const DIALECTS: &[&str] = &[
+    "DuckDb",
+    "H2",
+    "H2Modern",
+    "EngineStyleH2",
+    "EngineStyleDB2",
+    "EngineStyleComposite",
+    "Postgres",
+    "SQLite",
+    "Trino",
+];
 
 /// Every op the seam answers (`SEAM.md`, "Ops").
 pub const OPS: &[&str] = &[
@@ -108,7 +118,7 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
     let time_zone = spec.str_or_null("timeZone").map_err(json)?;
     let configured = spec.get("quoteIdentifiers").is_some() || spec.get("timeZone").is_some();
     let dialect: Box<dyn SqlDialect> = match name {
-        "DuckDb" | "H2" | "H2Modern" | "Postgres" | "SQLite" if configured => {
+        "DuckDb" | "H2" | "H2Modern" | "Postgres" | "SQLite" | "Trino" if configured => {
             return Err(Refusal::illegal_argument(format!(
                 "quoteIdentifiers and timeZone configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not \
                  {name}"
@@ -123,6 +133,7 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
         "H2Modern" => Box::new(H2::modern()),
         "Postgres" => Box::new(Postgres::new()),
         "SQLite" => Box::new(Sqlite::new()),
+        "Trino" => Box::new(Trino::new()),
         "EngineStyleComposite" if quote_identifiers == Some(true) || time_zone.is_some() => {
             return Err(Refusal::illegal_argument(
                 "EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers \
@@ -633,3 +644,5 @@ mod postgres_tests;
 mod sqlite_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod trino_tests;

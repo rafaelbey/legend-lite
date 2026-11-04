@@ -382,6 +382,11 @@ pub fn with_where(s: SqlSelect, r#where: Option<SqlExpr>) -> Result<SqlSelect, R
     select(SqlSelect { r#where, ..s })
 }
 
+/// `s.withQualify(q)`.
+pub fn with_qualify(s: SqlSelect, qualify: Option<SqlExpr>) -> Result<SqlSelect, Refusal> {
+    select(SqlSelect { qualify, ..s })
+}
+
 /// `s.withGroupBy(keys)`.
 pub fn with_group_by(s: SqlSelect, group_by: Vec<SqlExpr>) -> Result<SqlSelect, Refusal> {
     select(SqlSelect { group_by, ..s })

@@ -1,0 +1,5 @@
+# The Trino differential's floor (tests/dialect_differential.rs): how many of the oracles' 2,630 distinct Trino
+# statements must render exactly as Java's (52 lines of the two dumps, 2,598 of mir/dialect-arms.jsonl, the arms
+# rendered by Java's own Trino; 20 lines repeat an input). Measured 2026-11-04 with Trino and the passes it installs
+# ported (PARITY.md): all of them.
+2630

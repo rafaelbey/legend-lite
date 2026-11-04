@@ -310,3 +310,127 @@ fn a_root_columns_numeric_type_is_stated() {
     assert_eq!(text.matches("AS DECIMAL(9, 1)").count(), 2, "{text}");
     let _ = string_lit("unused");
 }
+
+// ---- PivotAsGroupBy
+
+/// `trades` pivoted on `sym` over `values`, one USING `agg(px) AS s`; its outputs the group key `id` and each value's
+/// column.
+fn pivot(values: Vec<SqlExpr>, agg: AggFn, args: Vec<SqlExpr>) -> SqlSource {
+    let px = SqlType::Decimal { precision: 18, scale: 6 };
+    let mut outputs = vec![out("id", t(Scalar::Bigint), Origin::Physical)];
+    for v in &values {
+        if let SqlExpr::StringLit { value, .. } = v {
+            outputs.push(out(&format!("{value}__|__s"), px.clone(), Origin::Derived));
+        }
+    }
+    SqlSource::Pivot {
+        source: Box::new(table("t0", vec![out("id", t(Scalar::Bigint), Origin::Physical)])),
+        on: vec![col("t0", "sym", t(Scalar::Varchar))],
+        r#in: values,
+        named: Vec::new(),
+        usings: vec![lite_sql::PivotUsing {
+            agg: build::reducer(agg, args, false, Vec::new()),
+            alias: "s".into(),
+            r#type: Some(px),
+        }],
+        alias: "p".into(),
+        outputs,
+    }
+}
+
+fn star_over(from: SqlSource) -> SqlQuery {
+    query(build::star_of(from).unwrap())
+}
+
+#[test]
+fn a_static_pivot_is_a_grouped_case_aggregation() {
+    let px = col("t0", "px", SqlType::Decimal { precision: 18, scale: 6 });
+    let q = star_over(pivot(vec![string_lit("A"), string_lit("B")], AggFn::Sum, vec![px.clone()]));
+    let Rw::New(q) = run(&mut PivotAsGroupBy, q) else { panic!("a static pivot is rewritten") };
+    assert_eq!(
+        written(&q),
+        "SELECT *\nFROM (\n  SELECT \"t0\".id AS \"id\", SUM(CASE WHEN \"t0\".sym = 'A' THEN \"t0\".px END) AS \
+         \"A__|__s\", SUM(CASE WHEN \"t0\".sym = 'B' THEN \"t0\".px END) AS \"B__|__s\"\n  FROM trades AS \"t0\"\n  \
+         GROUP BY \"t0\".id\n) AS \"p\""
+    );
+    // a dynamic pivot (no values) and one of two ON keys are left as they came
+    assert!(matches!(run(&mut PivotAsGroupBy, star_over(pivot(Vec::new(), AggFn::Sum, vec![px.clone()]))), Rw::Same(_)));
+    let mut two = pivot(vec![string_lit("A")], AggFn::Sum, vec![px.clone()]);
+    if let SqlSource::Pivot { on, .. } = &mut two {
+        on.push(col("t0", "id", t(Scalar::Bigint)));
+    }
+    assert!(matches!(run(&mut PivotAsGroupBy, star_over(two)), Rw::Same(_)));
+    // an integer value names its column by its digits; a value of no literal text is refused, naming its class
+    let q = star_over(pivot(vec![int_lit(7)], AggFn::Sum, vec![px.clone()]));
+    let Rw::New(q) = run(&mut PivotAsGroupBy, q) else { panic!("rewritten") };
+    assert!(written(&q).contains("AS \"7__|__s\""), "{}", written(&q));
+    let date = SqlExpr::DateLit { iso: "2024-01-01".into(), r#type: TypeFact::Unknown };
+    let r = rewrite(&mut PivotAsGroupBy, star_over(pivot(vec![date], AggFn::Sum, vec![px]))).unwrap_err();
+    assert_eq!(
+        r,
+        Refusal::capability("a pivot value DateLit reached a dialect without a native pivot, with no column name")
+    );
+    // an aggregate of no argument (COUNT(*)) has nothing to filter
+    let r = rewrite(&mut PivotAsGroupBy, star_over(pivot(vec![string_lit("A")], AggFn::Count, Vec::new()))).unwrap_err();
+    assert_eq!(
+        r,
+        Refusal::capability("a pivot whose aggregate takes no argument reached a dialect without a native pivot")
+    );
+}
+
+// ---- AsOfAsPick
+
+fn as_of(on: SqlExpr) -> SqlSource {
+    build::join(trades("l"), table("r", vec![out("ts", t(Scalar::Bigint), Origin::Physical)]), JoinKind::AsofLeft, Some(on))
+        .unwrap()
+}
+
+/// The query as DuckDB writes it (QUALIFY native), no pass run.
+fn written_qualified(q: &SqlQuery) -> String {
+    let d = crate::duckdb::DuckDb::new();
+    let mut w = SqlWriter::new();
+    d.query(&mut w, q, 0).unwrap();
+    w.into_text().unwrap()
+}
+
+#[test]
+fn an_as_of_join_is_a_left_join_picked_by_its_extreme_key() {
+    let ge = build::call(SqlFn::GreaterEqual, vec![col("l", "id", t(Scalar::Bigint)), col("r", "ts", t(Scalar::Bigint))]);
+    let s = select_of(vec![proj(col("l", "sym", t(Scalar::Varchar)), "sym")], as_of(ge.clone()));
+    let Rw::New(q) = run(&mut AsOfAsPick, query(s)) else { panic!("an as-of join is rewritten") };
+    assert_eq!(
+        written_qualified(&q),
+        "SELECT l.sym AS sym\nFROM trades AS l\nLEFT OUTER JOIN trades AS r ON l.id >= r.ts\nQUALIFY r.ts = MAX(r.ts) OVER \
+         (PARTITION BY l.id, l.sym, l.px) OR MAX(r.ts) OVER (PARTITION BY l.id, l.sym, l.px) IS NULL"
+    );
+    // bounded below: the least right key
+    let le = build::call(SqlFn::LessEqual, vec![col("l", "id", t(Scalar::Bigint)), col("r", "ts", t(Scalar::Bigint))]);
+    let s = select_of(vec![proj(col("l", "sym", t(Scalar::Varchar)), "sym")], as_of(le));
+    let Rw::New(q) = run(&mut AsOfAsPick, query(s)) else { panic!("rewritten") };
+    assert!(written_qualified(&q).contains("r.ts = MIN(r.ts) OVER"), "{}", written_qualified(&q));
+    // any other join is left as it came
+    let inner = build::join(trades("l"), trades("r"), JoinKind::Inner, Some(ge.clone())).unwrap();
+    let s = select_of(vec![proj(col("l", "sym", t(Scalar::Varchar)), "sym")], inner);
+    assert!(matches!(run(&mut AsOfAsPick, query(s)), Rw::Same(_)));
+    // no inequality between the sides: refused
+    let eq = build::call(SqlFn::Equal, vec![col("l", "id", t(Scalar::Bigint)), col("r", "ts", t(Scalar::Bigint))]);
+    let s = select_of(vec![proj(col("l", "sym", t(Scalar::Varchar)), "sym")], as_of(eq));
+    assert_eq!(
+        rewrite(&mut AsOfAsPick, query(s)).unwrap_err(),
+        Refusal::capability(
+            "an as-of join with no inequality between its sides reached a dialect without an as-of join"
+        )
+    );
+    // the pick is the select's own filter: a select that filters (or windows) is refused
+    let mut s = select_of(vec![proj(col("l", "sym", t(Scalar::Varchar)), "sym")], as_of(ge.clone()));
+    s.r#where = Some(build::bool_lit(true));
+    let r = rewrite(&mut AsOfAsPick, query(s)).unwrap_err();
+    assert_eq!(
+        r.message,
+        "an as-of join under a select that filters, groups or windows reached a dialect without an as-of join: its \
+         pick is that select's filter"
+    );
+    let ranked = window(AggFn::Count, vec![col("l", "id", t(Scalar::Bigint))], Vec::new(), Vec::new());
+    let s = select_of(vec![proj(ranked, "n")], as_of(ge));
+    assert!(rewrite(&mut AsOfAsPick, query(s)).is_err());
+}
