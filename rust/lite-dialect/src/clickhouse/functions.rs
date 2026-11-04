@@ -10,6 +10,7 @@ use super::{
 };
 use crate::ansi::{self, cast_type_name, part};
 use crate::build;
+use crate::pieces::Ex;
 use crate::refusal::{Refusal, arg};
 use crate::renderer::AnsiSqlRenderer;
 use crate::writer::SqlWriter;

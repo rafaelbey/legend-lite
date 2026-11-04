@@ -6,6 +6,7 @@
 
 use super::{P, Trino, is_json, is_text, lambda_arg, pc, rows, text, type_of};
 use crate::ansi::{self, cast_type_name, part};
+use crate::pieces::Ex;
 use crate::refusal::{Refusal, arg};
 use crate::renderer::AnsiSqlRenderer;
 use crate::writer::SqlWriter;

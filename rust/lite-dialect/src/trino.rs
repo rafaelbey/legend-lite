@@ -10,7 +10,7 @@
 //! `src/trino/functions.rs` (`call` and its helpers) and `src/trino/aggregates.rs` (the hooks of the base, the
 //! aggregates and windows, the JSON constructors and the date format).
 //!
-//! Java's `SqlWriter.Piece` is [`P`], a shared closure (as Postgres's): the helpers compose pieces exactly as Java's
+//! Java's `SqlWriter.Piece` is [`P`], the shared closure of [`crate::pieces`] (as Postgres's): the helpers compose pieces exactly as Java's
 //! lambdas do, and what Java evaluates when a piece is made (a type's name, a date part, a string literal) Rust
 //! evaluates then too.
 
@@ -18,6 +18,7 @@ use crate::ansi::{self, cast_type_name};
 use crate::dialect::KeysSnapshot;
 use crate::explosion_markers::{self, is_marker_select, marker_column, null_list, unnest_list};
 use crate::java::simple_name;
+use crate::pieces::{Ex, P, pc, text};
 use crate::refusal::{Refusal, arg};
 use crate::renderer::{AnsiSqlRenderer, AnsiState, Lexicon};
 use crate::rewriter::SqlRewriter;
@@ -31,7 +32,6 @@ use lite_sql::{
 };
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::LazyLock;
 
 mod aggregates;
@@ -149,22 +149,6 @@ pub const CAPS: carrier::Caps =
 // ==================================================================
 // Pieces and the type facts the arms read
 // ==================================================================
-
-/// Java's `SqlWriter.Piece`: SQL that writes itself, shareable among the helpers that write it.
-pub type P<'a> = Rc<dyn Fn(&mut SqlWriter) -> Result<(), Refusal> + 'a>;
-
-fn pc<'a>(f: impl Fn(&mut SqlWriter) -> Result<(), Refusal> + 'a) -> P<'a> {
-    Rc::new(f)
-}
-
-/// A piece of fixed text.
-fn text<'a>(s: impl Into<String>) -> P<'a> {
-    let s = s.into();
-    pc(move |w| {
-        w.append(&s);
-        Ok(())
-    })
-}
 
 /// Java's `typeOf(e)`: the type a node is typed as, or none.
 fn type_of(e: &SqlExpr) -> Option<&SqlType> {
@@ -292,14 +276,6 @@ fn rows_as_json(s: &SqlSelect) -> Result<Cow<'_, SqlSelect>, Refusal> {
 // ==================================================================
 
 impl Trino {
-    /// `e`, written at `prec`, as a piece.
-    fn ex<'a>(&'a self, e: &'a SqlExpr, prec: i32) -> P<'a> {
-        pc(move |w| {
-            w.expr(self, e, prec)?;
-            Ok(())
-        })
-    }
-
     /// `a`'s `i`-th argument, written at `prec`, as a piece: read when written (Java's `w -> w.expr(a.get(i), prec)`).
     fn arg_ex<'a>(&'a self, a: &'a [SqlExpr], i: usize, prec: i32) -> P<'a> {
         pc(move |w| {

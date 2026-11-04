@@ -10,6 +10,7 @@ use super::{P, Sqlite, digests, pc, scalar_is, type_of};
 use crate::ansi;
 use crate::build;
 use crate::java::sql_type_text;
+use crate::pieces::Ex;
 use crate::refusal::{Refusal, arg};
 use crate::renderer::AnsiSqlRenderer;
 use crate::writer::SqlWriter;

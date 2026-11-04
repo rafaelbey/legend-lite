@@ -54,6 +54,7 @@ pub mod java;
 pub mod java_time;
 pub mod json;
 pub mod passes;
+pub mod pieces;
 pub mod postgres;
 pub mod raw_sql;
 pub mod refusal;

@@ -11,12 +11,13 @@
 //! exhaustive match: `src/databricks/functions.rs` (`call` and its helpers) and `src/databricks/aggregates.rs` (the
 //! hooks of the base, the aggregates and windows, the JSON constructors and the date format).
 //!
-//! Java's `SqlWriter.Piece` is [`P`], a shared closure (as Postgres's and Trino's).
+//! Java's `SqlWriter.Piece` is [`P`], the shared closure of [`crate::pieces`] (as Postgres's and Trino's).
 
 use crate::ansi::{self, cast_type_name};
 use crate::dialect::KeysSnapshot;
 use crate::explosion_markers::unnest_list;
 use crate::java::simple_name;
+use crate::pieces::{Ex, P, pc, text};
 use crate::refusal::{Refusal, arg};
 use crate::renderer::{AnsiSqlRenderer, AnsiState, Lexicon};
 use crate::rewriter::SqlRewriter;
@@ -29,7 +30,6 @@ use lite_sql::{
     OutputCol, Projection, Quantifier, Reducer, Scalar, SortKey, SqlAgg, SqlDdl, SqlDml, SqlExpr, SqlFn, SqlQuery,
     SqlSelect, SqlSource, SqlType, StructField, StructLitField, TypeFact, When,
 };
-use std::rc::Rc;
 use std::sync::LazyLock;
 
 mod aggregates;
@@ -180,22 +180,6 @@ const AS_OF: AsOfWords = AsOfWords {
 // Pieces and the type facts the arms read
 // ==================================================================
 
-/// Java's `SqlWriter.Piece`: SQL that writes itself, shareable among the helpers that write it.
-pub type P<'a> = Rc<dyn Fn(&mut SqlWriter) -> Result<(), Refusal> + 'a>;
-
-fn pc<'a>(f: impl Fn(&mut SqlWriter) -> Result<(), Refusal> + 'a) -> P<'a> {
-    Rc::new(f)
-}
-
-/// A piece of fixed text.
-fn text<'a>(s: impl Into<String>) -> P<'a> {
-    let s = s.into();
-    pc(move |w| {
-        w.append(&s);
-        Ok(())
-    })
-}
-
 /// Java's `typeOf(e)`.
 fn type_of(e: &SqlExpr) -> Option<&SqlType> {
     fact_type(e.r#type())
@@ -327,14 +311,6 @@ fn one_based_index(l: &Lambda) -> Result<Option<Lambda>, Refusal> {
 // ==================================================================
 
 impl Databricks {
-    /// `e`, written at `prec`, as a piece.
-    fn ex<'a>(&'a self, e: &'a SqlExpr, prec: i32) -> P<'a> {
-        pc(move |w| {
-            w.expr(self, e, prec)?;
-            Ok(())
-        })
-    }
-
     /// `a`'s `i`-th argument, written at `prec`, as a piece, read when written.
     fn arg_ex<'a>(&'a self, a: &'a [SqlExpr], i: usize, prec: i32) -> P<'a> {
         pc(move |w| {

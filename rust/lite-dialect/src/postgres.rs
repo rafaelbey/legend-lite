@@ -9,15 +9,16 @@
 //! scripts, catalog (`pg_catalog`'s type names), keys snapshot and host operations (`PostgresHostOperations`:
 //! [`crate::host_ops::PostgresHostOperations`]).
 //!
-//! Java's `SqlWriter.Piece` -- SQL that writes itself where a helper writes it, as often as it does -- is [`P`], a
-//! shared closure: the helpers compose pieces exactly as Java's lambdas do, and what Java evaluates when a piece is
-//! made (a type's name, a string literal) is evaluated when Rust makes it.
+//! Java's `SqlWriter.Piece` -- SQL that writes itself where a helper writes it, as often as it does -- is [`P`], the
+//! shared closure of [`crate::pieces`]: the helpers compose pieces exactly as Java's lambdas do, and what Java
+//! evaluates when a piece is made (a type's name, a string literal) is evaluated when Rust makes it.
 
 use crate::ansi::{self, cast_type_name, part};
 use crate::catalog_model::{CatalogColumn, CatalogRules, CatalogType};
 use crate::dialect::KeysSnapshot;
 use crate::host_ops::{HostOperations, PostgresHostOperations};
 use crate::java::{simple_name, sql_type_text, type_fact_text};
+use crate::pieces::{Ex, P, pc, text};
 use crate::refusal::{Refusal, arg, tail};
 use crate::renderer::{AnsiSqlRenderer, AnsiState, Lexicon};
 use crate::rewriter::SqlRewriter;
@@ -29,7 +30,6 @@ use lite_sql::{
     JsonKind, Lambda, NameQuoting, Origin, Projection, Reducer, Scalar, SortKey, SqlAgg, SqlDdl, SqlDml, SqlExpr,
     SqlFn, SqlQuery, SqlType, StructField, StructLitField, TypeFact, ValueKind, When,
 };
-use std::rc::Rc;
 use std::sync::LazyLock;
 
 /// The PostgreSQL dialect: one per render, as Java's `new Postgres()`. It carries no state across renders.
@@ -298,22 +298,6 @@ pub static CATALOG_RULES: LazyLock<CatalogRules> = LazyLock::new(|| CatalogRules
 // ==================================================================
 // Pieces and the type facts the arms read
 // ==================================================================
-
-/// Java's `SqlWriter.Piece`: SQL that writes itself, shareable among the helpers that write it.
-pub type P<'a> = Rc<dyn Fn(&mut SqlWriter) -> Result<(), Refusal> + 'a>;
-
-fn pc<'a>(f: impl Fn(&mut SqlWriter) -> Result<(), Refusal> + 'a) -> P<'a> {
-    Rc::new(f)
-}
-
-/// A piece of fixed text.
-fn text<'a>(s: impl Into<String>) -> P<'a> {
-    let s = s.into();
-    pc(move |w| {
-        w.append(&s);
-        Ok(())
-    })
-}
 
 /// Java's `typeOf(e)`: the type a node is typed as, or none.
 fn type_of(e: &SqlExpr) -> Option<&SqlType> {
@@ -707,14 +691,6 @@ fn parse_int(s: &str) -> Result<i32, Refusal> {
 // ==================================================================
 
 impl Postgres {
-    /// `e`, written at `prec`, as a piece.
-    fn ex<'a>(&'a self, e: &'a SqlExpr, prec: i32) -> P<'a> {
-        pc(move |w| {
-            w.expr(self, e, prec)?;
-            Ok(())
-        })
-    }
-
     /// `a`'s `i`-th argument, written at `prec`, as a piece: read when written (Java's `w -> w.expr(a.get(i), prec)`).
     fn arg_ex<'a>(&'a self, a: &'a [SqlExpr], i: usize, prec: i32) -> P<'a> {
         pc(move |w| {

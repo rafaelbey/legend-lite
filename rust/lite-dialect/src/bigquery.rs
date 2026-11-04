@@ -17,13 +17,14 @@
 //! Java's per-render state -- `laterals` (the explosion markers in scope of each select being written), `roots` (the
 //! labels of the statement being rendered, pushed by `render` and `renderStatement`) and `modeCounts` (each select's
 //! counted MODEs) -- is three [`RefCell`] stacks of the dialect object, pushed and popped where Java pushes and pops
-//! them; nothing outlives a render. Java's `SqlWriter.Piece` is [`P`], a shared closure.
+//! them; nothing outlives a render. Java's `SqlWriter.Piece` is [`P`], the shared closure of [`crate::pieces`].
 
 use crate::ansi::{self, cast_type_name};
 use crate::dialect::KeysSnapshot;
 use crate::explosion_markers::{
     self, exploded_read, is_marker, is_marker_select, marker_column, null_list, null_over_null_list, unnest_list,
 };
+use crate::pieces::{Ex, P, pc, text};
 use crate::refusal::{Refusal, arg};
 use crate::renderer::{AnsiSqlRenderer, AnsiState, Lexicon};
 use crate::rewriter::SqlRewriter;
@@ -37,7 +38,6 @@ use lite_sql::{
     SqlSource, SqlType, StructField, StructLitField, TypeFact, ValueKind, When,
 };
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::LazyLock;
 
 mod aggregates;
@@ -178,22 +178,6 @@ pub const CAPS: carrier::Caps =
 // ==================================================================
 // Pieces and the type facts the arms read
 // ==================================================================
-
-/// Java's `SqlWriter.Piece`: SQL that writes itself, shareable among the helpers that write it.
-pub type P<'a> = Rc<dyn Fn(&mut SqlWriter) -> Result<(), Refusal> + 'a>;
-
-fn pc<'a>(f: impl Fn(&mut SqlWriter) -> Result<(), Refusal> + 'a) -> P<'a> {
-    Rc::new(f)
-}
-
-/// A piece of fixed text.
-fn text<'a>(s: impl Into<String>) -> P<'a> {
-    let s = s.into();
-    pc(move |w| {
-        w.append(&s);
-        Ok(())
-    })
-}
 
 /// Java's `typeOf(e)`.
 fn type_of(e: &SqlExpr) -> Option<&SqlType> {
@@ -393,14 +377,6 @@ fn lambda_body(xs: &SqlExpr, l: &Lambda) -> Result<SqlExpr, Refusal> {
 // ==================================================================
 
 impl BigQuery {
-    /// `e`, written at `prec`, as a piece.
-    fn ex<'a>(&'a self, e: &'a SqlExpr, prec: i32) -> P<'a> {
-        pc(move |w| {
-            w.expr(self, e, prec)?;
-            Ok(())
-        })
-    }
-
     /// A lambda parameter (or an unnest's element or offset) as its references spell it (Java's `param`: a derived
     /// column's reference, its name by `ident`).
     fn param(&self, name: &str) -> String {

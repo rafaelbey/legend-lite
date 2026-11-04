@@ -9,6 +9,7 @@
 use super::{ClickHouse, P, is_scalar, pc, type_of};
 use crate::ansi;
 use crate::build;
+use crate::pieces::Ex;
 use crate::refusal::{Refusal, arg};
 use crate::renderer::AnsiSqlRenderer;
 use crate::writer::SqlWriter;

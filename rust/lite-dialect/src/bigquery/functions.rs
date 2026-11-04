@@ -12,6 +12,7 @@ use super::{
 use crate::ansi::{self, part};
 use crate::build;
 use crate::explosion_markers::null_list;
+use crate::pieces::Ex;
 use crate::refusal::{Refusal, arg};
 use crate::renderer::AnsiSqlRenderer;
 use crate::writer::SqlWriter;

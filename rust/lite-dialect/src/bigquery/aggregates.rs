@@ -7,6 +7,7 @@
 
 use super::{BigQuery, Mode, P, pc, type_of, type_text};
 use crate::ansi;
+use crate::pieces::Ex;
 use crate::refusal::{Refusal, arg};
 use crate::renderer::AnsiSqlRenderer;
 use crate::typing;

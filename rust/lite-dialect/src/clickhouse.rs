@@ -16,11 +16,12 @@
 //!
 //! Java's two per-render counters (`nesting`, `correlatedExists`) are [`Cell`]s of the dialect object, reset exactly
 //! where Java resets them; the seam makes a fresh dialect per call, as the oracles' fresh JVM dialects. Java's
-//! `SqlWriter.Piece` is [`P`], a shared closure (as Databricks').
+//! `SqlWriter.Piece` is [`P`], the shared closure of [`crate::pieces`] (as Databricks').
 
 use crate::ansi::{self, cast_type_name, query_outputs};
 use crate::dialect::KeysSnapshot;
 use crate::explosion_markers::{self, is_marker, marker_column, unnest_list};
+use crate::pieces::{Ex, P, pc, text};
 use crate::refusal::{Refusal, arg};
 use crate::renderer::{AnsiSqlRenderer, AnsiState, Lexicon};
 use crate::rewriter::{Rw, SqlRewriter};
@@ -35,7 +36,6 @@ use lite_sql::{
 };
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
 use std::sync::LazyLock;
 
 mod aggregates;
@@ -93,22 +93,6 @@ const COMPARISONS: &[SqlFn] =
 // ==================================================================
 // Pieces and the type facts the arms read
 // ==================================================================
-
-/// Java's `SqlWriter.Piece`: SQL that writes itself, shareable among the helpers that write it.
-pub type P<'a> = Rc<dyn Fn(&mut SqlWriter) -> Result<(), Refusal> + 'a>;
-
-fn pc<'a>(f: impl Fn(&mut SqlWriter) -> Result<(), Refusal> + 'a) -> P<'a> {
-    Rc::new(f)
-}
-
-/// A piece of fixed text.
-fn text<'a>(s: impl Into<String>) -> P<'a> {
-    let s = s.into();
-    pc(move |w| {
-        w.append(&s);
-        Ok(())
-    })
-}
 
 /// Java's `typeOf(e)`.
 fn type_of(e: &SqlExpr) -> Option<&SqlType> {
@@ -460,14 +444,6 @@ fn needs_unifying(members: &[SqlExpr]) -> bool {
 // ==================================================================
 
 impl ClickHouse {
-    /// `e`, written at `prec`, as a piece.
-    fn ex<'a>(&'a self, e: &'a SqlExpr, prec: i32) -> P<'a> {
-        pc(move |w| {
-            w.expr(self, e, prec)?;
-            Ok(())
-        })
-    }
-
     /// A list argument: the empty collection (a NULL) as the empty array -- of its element's type when known (Java's
     /// `list(xs)`).
     fn list<'a>(&'a self, xs: &'a SqlExpr) -> P<'a> {
