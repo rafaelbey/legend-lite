@@ -56,4 +56,15 @@ zstd_decompress(
     visibility = ["//rust:__subpackages__"],
 )
 
+# The eight Java dialects left to port (Snowflake, BigQuery, Databricks, Trino, ClickHouse, MariaDb, MySql, MongoDb)
+# over inputs that reach every arm each decides, rendered by Java's own dialects (phase 1 step 6a;
+# mir/DialectArms.java, mir/MANIFEST.tsv): for the MIR's round trip and their differentials.
+zstd_decompress(
+    name = "dialect_arms",
+    testonly = True,
+    src = "mir/dialect-arms.jsonl.zst",
+    out = "mir/dialect-arms.jsonl",
+    visibility = ["//rust:__subpackages__"],
+)
+
 guards_package()

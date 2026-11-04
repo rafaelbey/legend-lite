@@ -21,14 +21,16 @@ rust_test(
 )
 
 # every MirJson text the golden oracles hold (//rust/oracles:mir_dump, 28,951 statements, :h2_dump, 24,001 entries, and
-# :dialects_dump, the ten dialects left after the H2 family, 13,918 entries, and :sqlite_arms, 371 SQLite inputs rendered
-# by Java's own SQLite), read into the MIR
+# :dialects_dump, the ten dialects left after the H2 family, 13,918 entries, :sqlite_arms, 371 SQLite inputs rendered
+# by Java's own SQLite, and :dialect_arms, the eight dialects left to port over inputs reaching every arm they decide),
+# read into the MIR
 # and written back to the bytes Java wrote (tests/mir_round_trip.rs; cargo runs it with --ignored and LITE_ORACLES)
 rust_test(
     name = "mir_round_trip_test",
     srcs = ["tests/mir_round_trip.rs"],
     args = ["--ignored"],
     data = [
+        "//rust/oracles:dialect_arms",
         "//rust/oracles:dialects_dump",
         "//rust/oracles:h2_dump",
         "//rust/oracles:mir_dump",
@@ -41,6 +43,7 @@ rust_test(
             "$(rootpath //rust/oracles:h2_dump)",
             "$(rootpath //rust/oracles:dialects_dump)",
             "$(rootpath //rust/oracles:sqlite_arms)",
+            "$(rootpath //rust/oracles:dialect_arms)",
         ]),
     },
     visibility = ["//gates:__pkg__"],

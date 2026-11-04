@@ -311,6 +311,75 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      through a night's sleep, which timed out 80 targets (`//core:ffi_test`, a second's work, among them) and a browser
      wait; those 81 were rerun awake and all pass.
 
+   **The eight left** (step 6: Snowflake, BigQuery, Databricks, Trino, ClickHouse, MariaDb, MySql, MongoDb):
+
+   - **6a, done 2026-11-04: their arms oracle.** No lane runs them, so the whole-suite dump holds 8 to 39 lines of each.
+     `rust/oracles/mir/DialectArms.java` builds 2,599 inputs with Java's constructors (SqliteArms' builders where they
+     fit), writes each as MirJson, reads it back, and renders it on a fresh dialect of each class on core's built jars
+     (JDK 25.0.4+7; its command in its header): `mir/dialect-arms.jsonl.zst` (`//rust/oracles:dialect_arms`, its
+     MANIFEST row), 20,786 lines, about 2,600 per dialect, 3,023 of them refusals, the five render ops and
+     `fromEngineText` (every one a refusal). MirJson refuses 2 inputs, by design (a `Tagged`, a `TaggedList`); 6 answers
+     are no line, a `ClassCastException` whose message names the JVM's class loader -- Java's own defects, a failed cast
+     inside the renderer: LIST_TRANSFORM without a lambda on Snowflake, Databricks, Trino and ClickHouse (a shape no
+     lowering builds), and two shapes lowering does build, a Databricks pivot of AVG (`AggregatesDeliverDouble` wraps
+     the pivot's reducer in a cast) and a MongoDB window over a grouped aggregate: each a defect for the user to rule
+     on, a fix or a refusal by name.
+     lite-sql reads every line's MirJson back to Java's bytes (`mir_round_trip_test` reads the file).
+
+     Measured, not reasoned: `rust/tools/dialect-arms-coverage.py` instruments a copy of the eight dialects' sources
+     (MongoDb with `MongoDbPipeline` and `MongoJson`; every switch's selector, every `DialectCapability` built and
+     every pass's effect recorded per dialect, the lines kept), compiles it before core's jars, reruns the generator
+     with the dump's 224 lines of the eight replayed (each answered as the dump says), and holds the instrumented
+     oracle to the plain one byte for byte. What the two oracles reach together (a label of MySql's is MariaDb's
+     where MySql delegates; MariaDb's methods MySql overrides without `super` are not MySql's):
+
+     | dialect | `SqlFn` (`call`) | `SqlAgg.Fn` (exhaustive) | `SqlAgg.Fn` (others) | own walls | other enum labels | pattern labels | passes changing a query |
+     |---|---|---|---|---|---|---|---|
+     | Snowflake | 181/181 | 80/80 | -- | 64/65 | 168/174 | 42/42 | 9/10 |
+     | BigQuery | 181/181 | 40/40 | -- | 69/70 | 148/150 | 39/39 | 12/12 |
+     | Databricks | 181/181 | 40/40 | 11/11 | 35/35 | 171/176 | 23/23 | 9/10 |
+     | Trino | 181/181 | 40/40 | 8/8 | 33/33 | 156/161 | 21/21 | 15/16 |
+     | ClickHouse | 181/181 | 40/40 | 45/46 | 56/56 | 198/209 | 55/55 | 13/14 |
+     | MariaDb | 181/181 | 40/40 | 6/6 | 59/61 | 229/250 | 28/28 | 11/11 |
+     | MySql | 181/181 | 80/80 | 6/6 | 53/62 | 234/259 | 28/28 | 12/12 |
+     | MongoDb | 179/181 | 79/80 | 23/23 | 74/80 | 153/178 | 148/158 | 3/4 |
+
+     Every arm not reached is dead in Java or refused before it, each read in the source:
+     - `CarrierStrategies` changes no query where `CAPS.nativeLists` holds (Snowflake, Databricks, Trino, ClickHouse,
+       MongoDb): its three hooks return their input (`CarrierStrategies.java:95,354,790`). Their ports need not run it.
+     - A helper's switch whose one caller passes only its labels: `bitOp`'s default on all eight; `listCall` on
+       Databricks, Trino and ClickHouse (LIST_REVERSE, RANGE_FN, REPEAT_VALUE, which `call` spells itself, and default)
+       and MongoDb (default); Snowflake's `list` and `format` defaults (its directive pattern admits s, d, f);
+       BigQuery's and MariaDb's `maps`, MariaDb's `lists`; ClickHouse's `temporal` and inner `reduceCollection`
+       defaults; MongoDb's `timeBucket`, `strftime`, `jsonText`, `accumulator`, `emptyInput` and the pipeline's two
+       subquery defaults.
+     - An earlier check takes it: Snowflake's `dateTrunc` NANOSECOND, DAY_OF_YEAR, ISO_DAY_OF_WEEK and its wall (`unit`
+       refuses them first, :2355); ClickHouse's `outsideDates` QUARTER and the three (ADD_INTERVAL's unit wall, :2052)
+       and `jodaText` SUBSEC_MIN (cut by `formatted`, :2776); MariaDb's `extract` YEAR (`yearOf`, :2720) and nine labels
+       of its second switch (:2734), `scalarOfText` BOOLEAN, VARCHAR, TEMPORAL_TEXT, DECIMAL_TEXT (:1139, :1143);
+       MongoDb's `reduceArray` COUNT (`$size`, :2313) and `scalarTypeName` BOOLEAN, TIMESTAMPTZ, JSON and its wall
+       (`variantAwareCast` takes them first).
+     - No caller: MongoDb's `ddlType` (21 labels, 2 walls: its `render(SqlDdl)` writes no column type), its
+       `structTypeName` and depth-above-0 query walls (its `query` replaces the base's) and the pipeline's flat-join
+       wall (`join`/`oneSource` refuse first); MariaDb's (and MySql's) `scalarTypeName` JSON, TEMPORAL_TEXT, TIME,
+       DECIMAL_TEXT and `structTypeName` wall (no `castTypeName` entry left to MariaDb carries them).
+     - No such value: BigQuery's NULL list of unknown element (a `NullLit` is always bottom) and MariaDb's non-finite
+       float (a `FloatLit` cannot hold one).
+     - MySql: MariaDb's seven walls behind `!correlatesDerived()` (MySql's is true, `MySql.java:365`).
+     - MongoDb: `Tagged`/`TaggedList` (MirJson refuses them) and FLOAT_CANON/FLOAT_PRINT, expanded before every pass,
+       which reach the other dialects' arms only in an `InsertValues` row (a DML row is written with no pass,
+       `AnsiSqlRenderer.java:1778`) -- MongoDb's insert refuses a cell that is no literal.
+
+     Off the ops (their decisions are the seam's facts, not a render's): `wireTypeName`, `typingWireName`,
+     `deliversOwn`, `sessionTable`, `sessionSetup`, `keysSnapshot`, `resultColumnLimit`, `needsStaticPivot`,
+     `temporaryTables` -- 4 labels on BigQuery, 15 on ClickHouse, 8 on MariaDb and MySql, one wall each on Databricks
+     and Trino. Java's oddities the ports must reproduce, as the oracle holds them (each a defect for the user to rule
+     on): MongoDb writes `{"_id": 0"t0": {}}` (no comma) for a source of no fields; a quantified comparison by
+     IS_DISTINCT_FROM is a `NullPointerException` on five dialects; a collection's CORR, COVAR_SAMP or COVAR_POP over a
+     list of structs is an `IndexOutOfBoundsException` on MariaDb and MySql, as is a window's NTH_VALUE of one argument
+     on MongoDb. `DialectArms.java` freezes Java's current answers: rerun it (and the measure) if a dialect's source
+     changes before its switch.
+
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 
 Switching DuckDB to Rust takes core's dialects out of what TeaVM can compile. Deleting the TeaVM planner would have

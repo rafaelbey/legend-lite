@@ -32,3 +32,13 @@ dialects-dump.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.ren
 # largest node) -- each built with Java's constructors, written as MirJson, read back and rendered on a fresh
 # `new SQLite()` (the tree the shim sends); 47 of them a refusal.
 sqlite-arms.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement	35f3ae8ff1c466f43a8052c863994f8be90f7ae01d0edcd1f80e09563761b906
+# Made 2026-11-04 on worktree-rust-port-phase0 (core as of 31bb939f3, JDK 25.0.4+7) by rust/oracles/mir/DialectArms.java
+# on core's built jars (its command in its header): 2,599 inputs reaching the arms of the eight Java dialects left to port
+# -- every SqlFn and SqlAgg.Fn arm of their exhaustive switches, their own walls, type names and casts, literal
+# spellings, DDL and DML, and the shapes their passes rewrite -- each built with Java's constructors, written as MirJson,
+# read back and rendered on a fresh dialect of each class: 20,786 lines (Snowflake 2,598, BigQuery 2,599, Databricks
+# 2,597, Trino 2,598, ClickHouse 2,598, MariaDb 2,599, MySql 2,599, MongoDb 2,598; 32 of them fromEngineText), 3,023 a
+# refusal. MirJson refuses 2 inputs by design (a Tagged, a TaggedList); 6 answers, a ClassCastException naming the JVM's
+# class loader, are no line. What they reach, measured by rust/tools/dialect-arms-coverage.py: docs/rust-port/PHASE1.md
+# step 6a.
+dialect-arms.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement, fromEngineText (its mir the input string)	5c52e7910c27e9bd81c8f1824e1a731c620b6537bb8528b89ae1ac25f6bb90c0
