@@ -10,7 +10,6 @@ What each dialect does with each aggregate of the SQL IR. The legend, the method
 - [BigQuery](#bigquery)
 - [Databricks](#databricks)
 - [ClickHouse](#clickhouse)
-- [SQLite](#sqlite)
 - [MariaDb](#mariadb)
 - [MySql](#mysql)
 - [MongoDb](#mongodb)
@@ -238,53 +237,6 @@ Database types planned with it: ClickHouse.
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `VARIANCE` | emulated | `sampled: varSampStableOrNull` |  | 0 |
 | `STDDEV` | emulated | `sampled: stddevSampStableOrNull` |  | 0 |
-| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `CUME_DIST` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `NTILE` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `LAG` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `LEAD` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
-| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
-
-## SQLite
-
-Database types planned with it: SQLite.
-
-| aggregate | decision | writes, or why not | read through | PCT cases |
-|---|---|---|---|---:|
-| `SUM` | spelled | `SUM` |  | 212 |
-| `COUNT` | spelled | `COUNT` |  | 14 |
-| `AVG` | spelled | `AVG` |  | 10 |
-| `MIN` | spelled | `MIN` |  | 11 |
-| `MAX` | spelled | `MAX` |  | 11 |
-| `ANY_VALUE` | emulated | `aggregateArgs: min(…)` |  | 0 |
-| `STDDEV_SAMP` | emulated | `aggregateArgs: stdev(…)` |  | 2 |
-| `STDDEV_POP` | emulated | `populationVariance: sqrt(…)` |  | 5 |
-| `VAR_SAMP` | emulated | `aggregateArgs: variance(…)` |  | 2 |
-| `VAR_POP` | emulated | `populationVariance` |  | 2 |
-| `MEDIAN` | emulated | `median` |  | 6 |
-| `MODE` | emulated | `json: (SELECT __m.value FROM json_each(json_group_array(…)) AS __m WHERE __m.value ...` |  | 6 |
-| `STRING_AGG` | emulated | `groupConcat` |  | 506 |
-| `LIST` | emulated | `listOfValues` |  | 1 |
-| `QUANTILE_CONT` | emulated | `percentile` |  | 1 |
-| `QUANTILE_DISC` | emulated | `percentile` |  | 1 |
-| `CORR` | emulated | `moments` |  | 4 |
-| `COVAR_SAMP` | emulated | `moments` |  | 5 |
-| `COVAR_POP` | emulated | `moments` |  | 4 |
-| `ARG_MAX` | emulated | `argExtreme:  DESC` |  | 1 |
-| `ARG_MIN` | emulated | `argExtreme:  ASC` |  | 1 |
-| `WAVG` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `HASH_LIST` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `BOOL_AND` | emulated | `aggregateArgs: min(…)` |  | 0 |
-| `BOOL_OR` | emulated | `aggregateArgs: max(…)` |  | 0 |
-| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `VARIANCE` | emulated | `aggregateArgs: variance(…)` |  | 0 |
-| `STDDEV` | emulated | `aggregateArgs: stdev(…)` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |

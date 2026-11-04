@@ -304,6 +304,12 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      `DialectBoundaryTest:185`) hold as long as the shim keeps the name `SQLite` and its constructions stay where they
      are. The switch's gates are the SQLite lanes: `//core:core_tests_integration_sqlite`, `//pct:pct_sqlite` and PCT
      channel B on SQLite.
+   - **5e, done 2026-11-04: SQLite switches.** `SQLite` is a shim over the Rust library (its name and constructor;
+     every method one seam call); `SqliteRegex` and `SqliteDigests` are deleted with it. `DialectVocabularyTest`'s floor
+     moved (9 -> 8; `rust/RETIRED_TESTS.md`) and `docs/dialect-capability` was regenerated. `bazel test //...` against
+     rust/BASELINE.tsv: every baseline target at its baseline status, 518 pass and the same 2 skipped -- the run went
+     through a night's sleep, which timed out 80 targets (`//core:ffi_test`, a second's work, among them) and a browser
+     wait; those 81 were rerun awake and all pass.
 
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 
