@@ -1,9 +1,10 @@
-# Dialect parity: DuckDB, H2, H2Modern, the engine-text dialects, Postgres, SQLite, Trino and Databricks (2026-11-04)
+# Dialect parity: DuckDB, H2, H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse and
+# BigQuery (2026-11-04)
 
 Every dialect Rust answers, held to the JVM's own answers on the golden oracles (docs/rust-port/PHASE1.md §4): DuckDB
 (step 3, its renderer and passes), the H2 family's execution dialects, H2 and H2Modern (step 4b), the engine-text
 dialects, EngineStyleH2, EngineStyleDB2 and EngineStyleComposite (step 4c), Postgres (step 5b), SQLite (step 5d), Trino
-and Databricks (step 6b).
+and Databricks (step 6b), ClickHouse and BigQuery (step 6c).
 Each is ported from
 its Java class, over a walk that keeps Java's identity semantics and a port of the typing rules Java's constructors
 apply. This file measures each on the oracles and says what of Java it does not reproduce exactly.
@@ -20,7 +21,8 @@ left to port over inputs that reach every arm each decides, rendered by Java's o
 engine-text dialect's default configuration and the first dump's none are one) counted once:
 
 - `<dialect>_renders_as_java_does` (`duckdb_`, `h2_`, `h2modern_`, `enginestyleh2_`, `enginestyledb2_`,
-  `enginestylecomposite_`, `postgres_`, `sqlite_`, `trino_`, `databricks_`): every distinct input of the dialect, answered by a fresh Rust dialect of that
+  `enginestylecomposite_`, `postgres_`, `sqlite_`, `trino_`, `databricks_`, `clickhouse_`, `bigquery_`): every
+  distinct input of the dialect, answered by a fresh Rust dialect of that
   name and configuration (made by the seam's `open`, as the JVM's shim makes it) and compared with the fresh JVM
   dialect's answer -- the SQL text exactly, a statement's binds and regions as Java's record text, a refusal by its Java
   class and message, an engine-text op's string (or a select list's null); at least the dialect's floor
@@ -941,11 +943,256 @@ None of these reaches the oracles.
 - A lambda of too few parameters (a fold's) is refused in `ArrayList`'s words.
 - The seam refuses `duckdb.*` and `engine.*` on Databricks: ops no Java method of Databricks answers.
 
+# ClickHouse
+
+Step 6c (docs/rust-port/PHASE1.md §4): Java's `ClickHouse` (`src/clickhouse.rs`; `src/clickhouse/functions.rs` the
+`call` and `listCall` tables, the list reductions, the several-unnests select, the variant hooks and the temporal arms,
+`src/clickhouse/aggregates.rs` the aggregates and windows -- the collected lists, the RANGE frames by epoch milliseconds,
+at the key's edge and fractional -- the bit operators, the JSON constructors, the date formats, the DDL and the wire
+names), and the two passes only ClickHouse installs, in `src/clickhouse/passes_own.rs`: its nested
+`ArrayJoinColumnsNamed` and `OuterJoinResidualsAsMatches`.
+
+## The numbers
+
+**2,643 of 2,643 distinct inputs identical (100 %)**; the floor (`tests/clickhouse-floor.txt`) is 2,643. The oracles
+hold 2,672 ClickHouse lines (2,598 of `mir/dialect-arms.jsonl`, 37 of the dialects dump, 37 of the first; 29 repeat an
+input, none with two answers). The SQL, the binds and the regions are compared exactly: 25 statements bind a parameter or
+write a region and carry Java's record text. All 415 of Java's refusals are reproduced, class and message (291
+`DialectCapability`, 123 `IllegalStateException`, one `NullPointerException`: a quantified comparison by
+IS_DISTINCT_FROM, below), and Rust refuses nothing Java rendered. The first measurement was 2,607 of 2,643: the 36
+ADD_INTERVAL statements, two slips in the date-range guard (a parenthesis, and the raise's message read as the raise
+itself), fixed.
+
+| op | identical | different | refused (Java rendered) | accepted (Java refused) |
+|---|---:|---:|---:|---:|
+| `ddl.render` | 48 | 0 | 0 | 0 |
+| `dml.render` | 30 | 0 | 0 | 0 |
+| `dml.renderStatement` | 30 | 0 | 0 | 0 |
+| `fromEngineText` | 4 | 0 | 0 | 0 |
+| `query.render` | 86 | 0 | 0 | 0 |
+| `query.renderStatement` | 2,445 | 0 | 0 | 0 |
+
+By MIR kind every one is identical: `SqlSelect` 2,522, `CreateTable` 39, `InsertValues` 24, `DeleteAll` 8,
+`CreateTempTableAs`, `DeleteWhere` and `Update` 6 each, `DropTable` and `SqlUnion` 5 each, `InsertSelect`, `Merge`,
+`SqlWith` and `String` (the engine text, every one refused) 4 each, `CreateSchema`, `DropSchema` and `InsertFromTable` 2
+each.
+
+The arms oracle reaches every one of the 181 `SqlFn` arms, every `SqlAgg.Fn` of the exhaustive `reducerIn`, every own
+wall and every pass that changes a query (PHASE1.md, 6a: `CarrierStrategies` changes none where lists are native). What
+it cannot hold is unit-tested from the Java (`src/clickhouse/tests.rs`): `listCall`'s LIST_REVERSE, RANGE_FN,
+REPEAT_VALUE and default arms, `bitOp`'s and `temporal`'s defaults, `outsideDates`' units refused before it and
+`jodaText`'s millisecond field (their one caller passes none of them), a list lambda that is no lambda (Java's
+`ClassCastException`, dropped from the oracle: below), the date range and `Integer.parseInt`'s overflow, the literals,
+the identifier rule, the per-render SETTINGS state, the wire names, the pass list, and `OuterJoinResidualsAsMatches`'
+matches numbered per render and its refusal of a nested right side (below).
+
+The seam answers every op of them as a direct call does: 2,643 ops and 86 inline renders (2,099 statements read back
+from their JSON equal and with Java's record text, 430 refusals).
+
+## What is ported
+
+- **The dialect**: every one of `ClickHouse.java`'s 66 overrides -- the lexicon, the scalar (`Nullable(T)` throughout;
+  TIME refused), array, map (its key never nullable), Tuple (a struct field its `Variant`) and DDL type tables, no
+  session statements, no keys snapshot and no column limit, the static pivot, the session table (the default's two
+  statements, refused when not temporary), `fromEngineText` refused, the passes, the root's SETTINGS clause (its two
+  per-render counters below), the sources (a lateral marker as an `ARRAY JOIN` of its lists, several padded with NULL
+  to the longest; an as-of join's lone inequality keyed by its operands' `cityHash64` times zero; an outer join reading
+  one side re-keyed by `if(cond, 0, 1)`; a lateral filter as a join on its correlated conjuncts, each inner column read
+  as the subquery's output; a null-safe join key as `isNotDistinctFrom`; any other lateral refused), native QUALIFY and
+  `SELECT * EXCEPT`, a VALUES as the `values` table function (a Decimal column widened to its literals' scale), the
+  refused row order and PIVOT, every identifier quoted, the string literal's escapes and NUL, the dates in range, the
+  timestamp's six digits, the Float literal as an exact `Decimal(p, s)`, `toInt128` and `toInt64` literals, the
+  explicit labels and the typed Boolean, NULL or raise in a declared slot, the CASE's raise cast (a list-typed one an
+  `arrayResize`), the correlated subqueries (IN as its three-valued EXISTS, a quantified comparison answered over no
+  rows first, a correlated EXISTS checked null-rejecting, an EXISTS of constants selecting the rows' columns), the
+  ordered list aggregate, the empty typed list, the list literal's Decimal and Float64 unified, the Tuple literal, the
+  field read (a struct field through `variantElement`), the lambdas, every list call, the list predicates, membership,
+  the collection reductions (an interpolated quantile at a level that is no literal), `arrayJoin`, the zipped ARRAY
+  JOIN of several unnests, the fold as `arrayFold`, Pure's splitPart, `struct_insert` as a typed Tuple, the Variant as
+  its JSON text (a list read from a JSON null kept NULL, navigation, every cast), the whole `call` table with its
+  helpers (the raise by a failed cast, the guarded remainders, the regular expressions, printf's conversions, the date
+  parts, truncations, intervals guarded by ClickHouse's years, differences, time buckets and formats), the signed hash,
+  banker's ROUND, the bit operators, every aggregate in its `OrNull` form (the sample statistics NULL under two values,
+  the quantiles and the mode over the group's values, the collected lists sorted by their keys), the windows (`lag` and
+  `lead` in frame, `cume_dist` as counts, a count or a rank an Int64, the RANGE frames), the JSON constructors, the
+  formatDateTime and Joda formats, the JSON kind and TYPEOF names, `wireTypeName` and `deliversOwn`.
+- **The passes** (`src/clickhouse/passes_own.rs`): `ArrayJoinColumnsNamed` (a star over a lateral explosion followed by
+  its exploded columns, each labelled with its own name) and `OuterJoinResidualsAsMatches` (a LEFT join whose condition
+  holds a both-sided conjunct that is no equality, as the left side LEFT-joined null-safely to its matches: each distinct
+  tuple of the left columns the condition reads INNER-joined to the right side; its helper names `__oj<n>` numbered
+  from 0 at each root). `CarrierStrategies`, `PivotAsGroupBy`, the explosion markers, `CheckedDefectsToLists`,
+  `SubstringClamp`, `AggregatesDeliverDouble` over AVG, `ConstantKeysAsExpressions()` and `RootNumericTypes` were
+  ported with the dialects before it.
+- **The shared renderer**: the `date_lit`, `timestamp_lit` and `array_type_name` hooks may refuse (ClickHouse's dates
+  outside 1900 to 2299; BigQuery's list of lists); every other dialect's output unchanged.
+
+## Identity and state
+
+- Java's two per-render counters, `nesting` (how deep the writer is in `query`: the root writes the SETTINGS clause) and
+  `correlatedExists` (whether the root holds a correlated subquery, set by the subqueries it writes), are `Cell`s of the
+  dialect object, reset where Java resets them: the flag at the root's entry, the depth decremented whether or not the
+  query wrote. A subquery written inline is no root; nothing outlives a render.
+- `ArrayJoinColumnsNamed`: every select as it came but one over a lateral marker, rebuilt through `new SqlSelect` (its
+  outputs recomputed), each named column `new Projection` over `Column.derived`; the markers by alias in a
+  `LinkedHashMap`'s order (a repeated alias keeps its place, its last projections).
+- `OuterJoinResidualsAsMatches`: a join rebuilt only where its left side changed or it is matched (`Rw::Same`
+  otherwise); the left columns the condition reads kept once each in their first order (Java's `LinkedHashMap` keyed by
+  the column record), the condition's substitution keyed by expression equality (Java's `HashMap.get`), a node rebuilt
+  through `withChildren` only where a child changed.
+- `TablesRead` and `InnerAsOutput` are the rewriter's whole walk (subqueries included), as Java's `SqlRewriter`
+  subclasses; `conjuncts` flattens ANDs (and, in the pass, groups) as each Java class does.
+
+## Java's behavior reproduced that looks like a bug
+
+Each is Java's text or refusal as it is, reproduced; none is fixed here.
+
+- A quantified comparison by IS_DISTINCT_FROM is a `NullPointerException`, `quantified comparison must be an infix
+  operator: IS_DISTINCT_FROM`, after ClickHouse has written its `(CASE WHEN (SELECT count() ...` (the base's infix
+  lookup answers no operator; in the arms oracle).
+- A list call whose lambda is no lambda (`LIST_TRANSFORM`, `LIST_FILTER`, `LIST_EXISTS`, `LIST_FOR_ALL` over a column, a
+  shape no lowering builds) is Java's `ClassCastException`, not a refusal by name; the arms oracle could not hold its
+  message (below).
+- `OuterJoinResidualsAsMatches` reads `j.right().alias()` before it checks the right side is no join: a select whose FROM
+  joins a nested join on its right is refused, whatever the join's kind, with `IllegalStateException`: `a nested join
+  has no single alias — resolve per side` (unit-tested).
+- `aliasesOf` asks a FROM-less select for its alias: an EXISTS, a one-column IN or a quantified comparison over a
+  FROM-less subquery, and a lateral filter over one, is `IllegalStateException`: `a Dual (FROM-less) source has no alias
+  — caller bug`.
+
+## What Java does that this does not reproduce exactly
+
+None of these reaches the oracles.
+
+- **A `ClassCastException`'s message**, as Trino's and Databricks': Java's class (`CLASS_CAST` at the seam) and its
+  message less the JVM's class-loader clause, `class com.legend.sql.SqlExpr$Column cannot be cast to class
+  com.legend.sql.SqlExpr$Lambda` (`src/clickhouse/tests.rs`).
+- The fractional RANGE frame's refusal names the window function by its record `toString`: exact for a ranking or value
+  function of no argument (`RankingFn[fn=RANK, args=[]]`, the oracle's one); an argument or a reducer is written by its
+  simple name (`Column[...]`, `orderBy=[...]`), where Java writes each record whole.
+- The frame unit's `toUpperCase(Locale.ROOT)` is Rust's `to_uppercase`, as Trino's.
+- The seam refuses `duckdb.*` and `engine.*` on ClickHouse: ops no Java method of ClickHouse answers.
+
+# BigQuery
+
+Step 6c (docs/rust-port/PHASE1.md §4): Java's `BigQuery` (`src/bigquery.rs`; `src/bigquery/functions.rs` the `call`
+table and its helpers, the casts and texts of a value, the maps, the regular expressions and the temporal helpers,
+`src/bigquery/aggregates.rs` the bit operators, the aggregates and windows -- the grouped quantiles, the analytic
+PERCENTILE_* and the descending one, `bqOver` -- the DDL and its types), and the pass only BigQuery installs,
+`FoldsAsRecursiveCtes`, in `src/bigquery/folds.rs`.
+
+## The numbers
+
+**2,643 of 2,643 distinct inputs identical (100 %)**; the floor (`tests/bigquery-floor.txt`) is 2,643. The oracles hold
+2,673 BigQuery lines (2,599 of `mir/dialect-arms.jsonl`, 35 of the dialects dump, 39 of the first; 30 repeat an input,
+none with two answers). The SQL, the binds and the regions are compared exactly: 24 statements bind a parameter or write
+a region and carry Java's record text. All 444 of Java's refusals are reproduced, class and message (310
+`DialectCapability`, 134 `IllegalStateException`), and Rust refuses nothing Java rendered. **The first measurement was
+already 100 %.**
+
+| op | identical | different | refused (Java rendered) | accepted (Java refused) |
+|---|---:|---:|---:|---:|
+| `ddl.render` | 48 | 0 | 0 | 0 |
+| `dml.render` | 31 | 0 | 0 | 0 |
+| `dml.renderStatement` | 31 | 0 | 0 | 0 |
+| `fromEngineText` | 4 | 0 | 0 | 0 |
+| `query.render` | 83 | 0 | 0 | 0 |
+| `query.renderStatement` | 2,446 | 0 | 0 | 0 |
+
+By MIR kind every one is identical: `SqlSelect` 2,520, `CreateTable` 39, `InsertValues` 26, `DeleteAll` 8,
+`CreateTempTableAs`, `DeleteWhere` and `Update` 6 each, `DropTable` and `SqlUnion` 5 each, `InsertSelect`, `Merge`,
+`SqlWith` and `String` (the engine text, every one refused) 4 each, `CreateSchema`, `DropSchema` and `InsertFromTable` 2
+each.
+
+The arms oracle reaches every one of the 181 `SqlFn` arms, every `SqlAgg.Fn` of the exhaustive `reducer`, every own
+wall but one and every pass that changes a query (PHASE1.md, 6a). What it cannot hold is unit-tested from the Java
+(`src/bigquery/tests.rs`): the NULL list of unknown element type (a `NullLit` is always bottom-typed, so no built
+statement holds one; the wall is reached here with an untyped `NullLit` made by hand), `maps`' and `bitOp`'s defaults
+(their one caller passes none), the closed fold hoisted (and the fold that reads its row, and over the NULL list), the
+regular-expression rewrites (`onlyGroup`, `shiftGroups` with a non-ASCII digit, FORMAT's conversions), the literals and
+identifiers, the frame offsets in a key's days and their overflow, the parameter types, the wire names and the pass
+list.
+
+The seam answers every op of them as a direct call does: 2,643 ops and 83 inline renders (2,063 statements read back
+from their JSON equal and with Java's record text, 450 refusals).
+
+## What is ported
+
+- **The dialect**: every one of `BigQuery.java`'s 66 overrides -- the lexicon, the scalar (`INT64`, `FLOAT64`,
+  `BIGNUMERIC`, `DATETIME` and `TIMESTAMP`, `JSON`), array (a list of lists refused), map (its entries,
+  `ARRAY<STRUCT<key, value>>`), STRUCT and DDL type tables, no session statements, no keys snapshot, 10,000 result
+  columns, the static pivot, `fromEngineText` refused, the bound Float text and print forms, the passes, native QUALIFY
+  and `SELECT * EXCEPT`, the refused row order, as-of clause and PIVOT, `render` and `renderStatement` keeping the
+  statement's labels, `UNION DISTINCT` and the parenthesized branches, the selects (a marker's reads over its
+  positions, a FROM-less select with a filter over one row, an OFFSET without a LIMIT the largest one, a MODE counted
+  in a select over its source, the markers in scope and the stars over them spelled, the root's NULL by shape typed as
+  its label), the sources (a marker over `UNNEST(GENERATE_ARRAY(...))`, a lateral one joined `CROSS JOIN` or `LEFT JOIN
+  ... ON TRUE`, any other lateral derived table an unnested array of structs), the VALUES as a typed array of structs,
+  every identifier in backticks with its escapes, the string literal's escapes (`\xHH`, `\x3f`), the DATETIME literal's
+  six digits, the BIGNUMERIC literals, the explicit labels, the raise in a declared slot (a DATETIME's through text),
+  the typed NULL in a composite or decimal slot, the CASE mixing text cast to STRING, the list literal typed (a Float
+  list of exact literals BIGNUMERIC), the STRUCT literal typed when declared, the field read, `struct_insert`, the
+  quantified comparison counted, every list operation over `UNNEST(xs) WITH OFFSET` (lambda bodies with the 1-based
+  index and the JSON element typed), membership, the collection reductions, Pure's splitPart, the JSON Variant
+  (`TO_JSON`, `PARSE_JSON`, the subscripts, the member's text, a Variant as a list or a map, every cast through text,
+  `floatText`), the whole `call` table with its helpers (the composite equalities by JSON text, the NULL-skipping
+  GREATEST and LEAST, the remainders through BIGNUMERIC, DuckDB's roundings, the regular expressions with one group
+  capturing and the first-match replace, printf's `%s` as text, the maps with their key checks, the date parts,
+  truncations, intervals, differences, time buckets and formats), FARM_FINGERPRINT, banker's ROUND over a BIGNUMERIC,
+  the bit operators (an arithmetic right shift), every aggregate (the grouped quantiles over the sorted values, the
+  ordered string and list aggregates, MAX_BY and MIN_BY), the windows (AVG as FLOAT64, the analytic PERCENTILE_*, the
+  descending quantile over the negated values, a RANGE frame over a date's days or a date-time's microseconds), the
+  JSON constructors, the FORMAT_DATETIME codes, the type holes, the GoogleSQL DDL, `DELETE ... WHERE TRUE`, the JSON
+  kind and TYPEOF names, `wireTypeName` and `deliversOwn`.
+- **The pass** (`src/bigquery/folds.rs`): `FoldsAsRecursiveCtes` -- a closed fold (or `list_reduce`) as a recursive
+  CTE `__fold<n>` prepended at the root, read as its last accumulator; over the NULL list its init; a fold inside
+  another hoisted first. `CarrierStrategies` (under BigQuery's caps: lists not native, it rewrites), `SubstringClamp`,
+  the three explosion-marker passes, `AggregatesDeliverDouble` over AVG, `ConstantKeysAsExpressions()` and
+  `CommonSubexpressions` were ported with the dialects before it, as the bound expansions of a Float's text and print
+  forms (`binds_float_text`, `binds_float_print`: BigQuery is the first Rust dialect to bind the print form).
+- **The shared renderer**: `ansi::stars_as_source_columns` (Java's `starsAsSourceColumns`, which MariaDB and MySQL use
+  too).
+
+## Identity and state
+
+- Java's three per-render stacks are `RefCell` stacks of the dialect object: `roots` (pushed by `render` and
+  `renderStatement` with the query's outputs before the passes, popped after), `laterals` (each select's markers in
+  scope, innermost last; a column's read looks from the innermost out, as Java's `ArrayDeque` iterates) and
+  `modeCounts` (each select's counted MODEs). Each is pushed and popped where Java's is, whether or not the select
+  wrote; what a scope holds is cloned out before it is written, so no borrow outlives a write.
+- A counted MODE is found by Java's record equality: a grouped one is its reducer; a windowed one its window's
+  function, partition, order and frame (its type fact is its function's, as the typing differential holds).
+- `FoldsAsRecursiveCtes` keeps the reads it made in an identity set, which its closedness test consults; Rust keeps them
+  by value: a read is `SELECT __acc FROM __fold<n> ORDER BY __i DESC LIMIT 1` over the pass's own CTE name, which no
+  other node of a statement equals.
+- A STRUCT literal's own type (Java's `typeOf(st)`) is recomputed from its fields (`typing::struct_lit_type`), as its
+  constructor computed it.
+
+## Java's behavior reproduced that looks like a bug
+
+Each is Java's text or refusal as it is, reproduced; none is fixed here.
+
+- `modesCounted` asks the select's FROM for its alias before its own check: a MODE over a join is
+  `IllegalStateException`, `a nested join has no single alias — resolve per side` (in the arms oracle), and over a
+  FROM-less select with no filter or grouping `a Dual (FROM-less) source has no alias — caller bug` (unit-tested), where
+  `a MODE over a Join reached BigQuery` was meant.
+- A DISTINCT MODE of one argument is refused as `a mode of 1 arguments reached BigQuery` (in the arms oracle).
+- `rootNulls` reads the statement's labels for every select written at depth 0 -- a subquery written inline (an EXISTS,
+  an IN, a scalar subquery) is one -- so such a subquery with as many columns as the root, one of them NULL by its
+  shape, has that column cast to the root's label of its position.
+
+## What Java does that this does not reproduce exactly
+
+None of these reaches the oracles.
+
+- The frame unit's `toUpperCase(Locale.ROOT)` is Rust's `to_uppercase`, as Trino's.
+- The seam refuses `duckdb.*` and `engine.*` on BigQuery: ops no Java method of BigQuery answers.
+
 # Typing
 
 Over the oracles, every distinct statement (every dialect's, the ten dialects' of the dialects dump, the eight
 dialects' of the arms oracle and the engine-text ops' queries included: one tree, counted once): **4,057,096 facts of
-36,890 statements, 0 different** (4,045,363 of 34,069 before the arms oracle was read, step 6b).
+36,890 statements, 0 different** (4,045,363 of 34,069 before the arms oracle was read, step 6b; the same with
+ClickHouse and BigQuery ported, step 6c: the oracles are unchanged).
 
 # Tests
 
@@ -1065,6 +1312,27 @@ dialects' of the arms oracle and the engine-text ops' queries included: one tree
   the DDL and DML, the session table (refused on Trino, a temporary view on Databricks), the names and `tableName`, the
   engine text refused, the wire names and `deliversOwn`, the interface's defaults and refusals naming each, the host
   operations refused, `readsStored`, and the DuckDB and engine-text ops refused.
+- `src/clickhouse/tests.rs` (10 tests): ClickHouse's hooks where the oracles cannot reach them -- `listCall`'s
+  LIST_REVERSE, RANGE_FN, REPEAT_VALUE and default arms, `bitOp`'s and `temporal`'s defaults, `outsideDates`' units and
+  `jodaText`'s millisecond fields, the descending key of no type, a list lambda that is no lambda (Java's
+  `ClassCastException`, for all four list calls) and the index lambda over `arrayEnumerate`, the literals (the escapes
+  and NUL, the dates in and out of range, `Integer.parseInt`'s overflow, the timestamp's six digits, the exact Decimal,
+  the extreme Float and NaN, a decimal past 76 digits, an Int128), the identifier rule and the type names, the root's
+  SETTINGS (a second render and an inline one), the wire names, the pass list, and `OuterJoinResidualsAsMatches`'
+  matches numbered from 0 at each render and its refusal of a nested right side, and a FROM-less subquery's refused alias.
+- `src/bigquery/tests.rs` (9 tests): BigQuery's hooks where the oracles cannot reach them -- the NULL list of unknown
+  element type and the bottom-typed empty list, `maps`' and `bitOp`'s defaults and the arithmetic right shift,
+  `FoldsAsRecursiveCtes` (a closed fold hoisted, a fold that reads its row left, a fold over the NULL list its init),
+  `onlyGroup`, `shiftGroups` (a non-ASCII digit's number), FORMAT's conversions, the literals and identifiers, a RANGE
+  frame over a date's days with its NULLs moved, an offset over the key refused and its overflow, a ROWS frame's keys,
+  the type holes, the wire names, `deliversOwn`, the column limit, TYPEOF refused, the pass list, a MODE over a FROM-less
+  select (Dual's refusal) and an inline subquery's NULL typed by the root's label.
+- `src/seam/clickhouse_tests.rs` (5 tests) and `src/seam/bigquery_tests.rs` (5): every op of the seam for ClickHouse and
+  BigQuery (§3g and §3h of `SEAM.md`): the facts and `forServer`, the renders (the SETTINGS clause; an OFFSET without a
+  LIMIT), the DDL and DML (a key NOT ENFORCED, a DELETE's WHERE TRUE), the session table (the default's two statements,
+  refused when not temporary), the names and `tableName`, the engine text refused, the wire names and `deliversOwn`, the
+  interface's defaults and refusals naming each, the host operations refused, `readsStored`, and the DuckDB and
+  engine-text ops refused.
 - `tests/dialect_differential.rs`: the differentials above, one per dialect, the typing test, and the seam's, one per
   dialect: every op of the dialect's inputs (and each `query.render` asked inline, and for an engine-text dialect each
   of its aliases after the render) answered through `dispatch` exactly as a direct call answers it, each statement read
@@ -1073,16 +1341,17 @@ dialects' of the arms oracle and the engine-text ops' queries included: one tree
   (352 statements, 20 refusals), EngineStyleH2's 2,105, 1,638 and 5,104 aliases (7 statements, 26 refusals),
   EngineStyleDB2's 56, 42 and 43 (20 refusals), EngineStyleComposite's 24, 14 and 11 (20 refusals), Postgres's 11,630
   and 42 (11,523 statements, 14 refusals), SQLite's 2,529 and 46 (2,189 statements, 150 refusals), Trino's 2,630 and 76
-  (2,152 statements, 355 refusals), Databricks' 2,631 and 76 (2,145 statements, 364 refusals): all the same; and the
+  (2,152 statements, 355 refusals), Databricks' 2,631 and 76 (2,145 statements, 364 refusals), ClickHouse's 2,643 and 86
+  (2,099 statements, 430 refusals), BigQuery's 2,643 and 83 (2,063 statements, 450 refusals): all the same; and the
   zone shift held to java.time (above).
 
 # Stack
 
 The deepest DuckDB statement needs between 1 and 2 MB of stack in a debug build for its parse, read, passes and render
 together, the deepest H2 statement (and the typing walk over both oracles) between 2 and 4 MB, and every one less than 1
-MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The twenty-one tests (and the two
-zone tests) run in 53 s under Bazel (`//rust/lite-dialect:dialect_differential_test`, `size = medium`: 300 s; 47 s
-before Postgres's two, 54 s before SQLite's and before Trino's and Databricks' four with the arms oracle) and 13 s in
-release; `//rust/lite-sql:mir_round_trip_test` in 65 s. A MIR at MirJson's depth limit (2,045 nested calls) needs between 32 and
+MB in release (`LITE_DIALECT_STACK_MB` sets the test thread's; it defaults to 256 MB). The twenty-five tests (and the two
+zone tests) run in 57 s under Bazel (`//rust/lite-dialect:dialect_differential_test`, `size = medium`: 300 s; 47 s
+before Postgres's two, 54 s before SQLite's and before Trino's and Databricks' four with the arms oracle, 53 s before
+ClickHouse's and BigQuery's four) and 15 s in release; `//rust/lite-sql:mir_round_trip_test` in 70 s. A MIR at MirJson's depth limit (2,045 nested calls) needs between 32 and
 64 MB in a debug build and more than 1 MB in release; the seam's C export runs each call on a 256 MB thread (`SEAM.md`
 §1).

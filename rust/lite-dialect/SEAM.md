@@ -6,16 +6,19 @@ this file; `src/seam.rs` (`lite_dialect::dispatch`) and `lite-ffi`'s `lite_diale
 every op below (`src/seam/tests.rs`, `src/seam/h2_tests.rs`, `src/seam/engine_tests.rs`, `lite-ffi/src/lib.rs`, and
 `tests/dialect_differential.rs`'s `the_seam_answers_as_<dialect>s_renderer_does` over every op of each dialect's inputs
 in the golden oracles; `src/seam/postgres_tests.rs` for Postgres, `src/seam/sqlite_tests.rs` for SQLite,
-`src/seam/trino_tests.rs` for Trino, `src/seam/databricks_tests.rs` for Databricks).
+`src/seam/trino_tests.rs` for Trino, `src/seam/databricks_tests.rs` for Databricks, `src/seam/clickhouse_tests.rs` for
+ClickHouse, `src/seam/bigquery_tests.rs` for BigQuery).
 
 Rust answers DuckDB, H2 and H2Modern (docs/rust-port/PHASE1.md §4, steps 3 and 4b), the engine-text dialects
 `EngineStyleH2`, `EngineStyleDB2` and `EngineStyleComposite` (step 4c), Postgres (step 5b), SQLite (step 5d), Trino and
-Databricks (step 6b). Every answer below is DuckDB's -- `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations
+Databricks (step 6b), ClickHouse and BigQuery (step 6c). Every answer below is DuckDB's -- `DuckDb.java`'s overrides, `AnsiSqlRenderer`'s implementations
 and `SqlDialect`'s defaults, exactly as Java answers them -- unless §3a gives H2's and H2Modern's (`H2.java`'s and
 `H2Modern.java`'s overrides over the same base), §3b the engine-text dialects' (theirs over the same base, and Java's
 `EngineTextDialect`), §3c Postgres's (`Postgres.java`'s and `PostgresHostOperations.java`'s), §3d SQLite's
 (`SQLite.java`'s, with `SqliteRegex.java`, `SqliteDigests.java` and the passes it installs), §3e Trino's (`Trino.java`'s,
-with `PivotAsGroupBy.java` and `AsOfAsPick.java`) or §3f Databricks' (`Databricks.java`'s).
+with `PivotAsGroupBy.java` and `AsOfAsPick.java`), §3f Databricks' (`Databricks.java`'s), §3g ClickHouse's
+(`ClickHouse.java`'s, with `OuterJoinResidualsAsMatches.java`) or §3h BigQuery's (`BigQuery.java`'s, with
+`FoldsAsRecursiveCtes.java`).
 
 ## 1. The call
 
@@ -41,8 +44,11 @@ The phase and position fields are always `-`; the message is the rest of the tex
 - **Panics.** A panic on the dialect's thread, or a thread that cannot start, is answered `ERR\nINTERNAL\n-\n-\n<the
   panic's message>`; nothing unwinds into the caller.
 - **Fresh per call.** The dialect is made from `spec` for each call and dropped after it: DuckDB, the H2 family,
-  Postgres, Trino and Databricks carry no state from one render to the next, and SQLite's is a statement's own (its markers, its root's labels
-  and selects, and its fresh names `__b<n>`, started over at each outermost render: the user's ruling, 2026-11-03). (This supersedes PHASE1.md §3's handle: no dialect state is held
+  Postgres, Trino and Databricks carry no state from one render to the next, and SQLite's is a statement's own (its
+  markers, its root's labels and selects, and its fresh names `__b<n>`, started over at each outermost render: the
+  user's ruling, 2026-11-03), as ClickHouse's (its query nesting and the root's correlated-subquery flag) and
+  BigQuery's (the markers in scope, the statement's labels, each select's counted MODEs) are. (This supersedes
+  PHASE1.md §3's handle: no dialect state is held
   between calls.) The JVM may read `facts` once per dialect and cache it. An engine-text dialect's render leaves one
   piece of state on Java's dialect object -- the engine's alias plan of the query, which `renderedAlias` then reads --
   and the seam rebuilds it from the query the caller says it rendered (`engine.renderedAlias`'s `rendered`, §3b).
@@ -53,21 +59,21 @@ The phase and position fields are always `-`; the message is the rest of the tex
 
 ```json
 {"dialect": "DuckDb" | "H2" | "H2Modern" | "EngineStyleH2" | "EngineStyleDB2" | "EngineStyleComposite" | "Postgres"
-             | "SQLite" | "Trino" | "Databricks",
+             | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery",
  "server": "<version>" | null, "engineScanOrder": true | false,
  "quoteIdentifiers": true | false, "timeZone": "<zone>" | null}
 ```
 
 | field | | |
 |---|---|---|
-| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, `Postgres`, `SQLite`, `Trino` or `Databricks`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres, SQLite, Trino, Databricks`). |
-| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects, Postgres, SQLite, Trino and Databricks keep themselves. |
+| `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, `Postgres`, `SQLite`, `Trino`, `Databricks`, `ClickHouse` or `BigQuery`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery`). |
+| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse and BigQuery keep themselves. |
 | `engineScanOrder` | boolean or missing (false) | `Boolean.getBoolean("legend.exec.engineScanOrder")`, which Java's `DuckDb` reads at each render: the engine corpus runner's opt-in to `StableScanOrder`. The JVM passes its property's value. Read as a boolean for every dialect; only DuckDB reads it. |
 | `quoteIdentifiers` | boolean or missing (false) | an engine-text dialect's constructor argument (`new EngineStyleH2(quoteIdentifiers, timeZone)`, `new EngineStyleDB2(...)`; the plan text's connection): every physical identifier double-quoted. |
 | `timeZone` | string, null or missing (null) | the same constructors' second argument, the connection's zone: a DATETIME placeholder written in `GMTtoTZ`, a date-time constant shifted from GMT to the zone (`GMT` itself shifts none; §6). |
 
 `quoteIdentifiers` and `timeZone` configure an engine-text dialect alone: on `DuckDb`, `H2`, `H2Modern`, `Postgres`,
-`SQLite`, `Trino` or `Databricks` either field, present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone
+`SQLite`, `Trino`, `Databricks`, `ClickHouse` or `BigQuery` either field, present even as its default, is refused (`IllegalArgumentException`: `quoteIdentifiers and timeZone
 configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not <Dialect>`). `EngineStyleComposite` has only
 Java's no-argument constructor: the fields may be absent or their defaults (`false`, `null`); any other value is refused
 (`EngineStyleComposite has only its default configuration (Java's one constructor: quoteIdentifiers false, timeZone
@@ -326,6 +332,60 @@ sources), and no test calls a method of a Trino or Databricks object that is no 
 make one (`TranslateTest`, `StoreWritesTest`, `CatalogGridTest`, `TempTableAsTest`, `WireTypeNamesTest`, and
 `SeedSpellingTest` for Databricks) ask it `render` (of a query, a DDL and a DML statement) and `typingWireName`, as a
 `SqlDialect`; `Databases` constructs each with `new Trino()` and `new Databricks()`. So no op beyond §3 is needed.
+
+### 3g. ClickHouse
+
+ClickHouse 25.8, its Memory engine, over HTTP (`ClickHouse.java`, with `OuterJoinResidualsAsMatches.java`;
+`src/clickhouse.rs`, `src/clickhouse/`). ClickHouse answers every op of §3 but `duckdb.*` and `engine.*`; where its
+answer differs from DuckDB's it is:
+
+| op | ClickHouse |
+|---|---|
+| `facts` | `{"temporaryTables": true, "loadsRowsInBulk": false, "relational": true, "inProcess": false, "dropsStagedTablesWithTheirTransaction": false, "needsStaticPivot": true, "serverVersions": null, "inMemoryPath": null, "scriptAbort": null, "sessionSetup": [], "keysSnapshot": "NONE", "resultColumnLimit": null}` |
+| `forServer` | `"ClickHouse"` whatever the version |
+| the renders | ClickHouse's (`PARITY.md`): every root statement closing with its SETTINGS clause (`join_use_nulls = 1`, `union_default_mode = 'DISTINCT'`, `cast_keep_nullable = 1`, `session_timezone = 'UTC'`, `query_plan_merge_expressions = 0` and the correlated subqueries' setting, on exactly where the statement holds a correlated subquery whose filter is null-rejecting); every identifier double-quoted (a valid double-quoted declaration as it is), a string literal's backslash, quote and NUL escaped by a backslash, an integer literal `toInt64(n)`, a Float or Decimal literal an exact `Decimal(p, s)`, a date `toDate32(...)` and a date-time `toDateTime64(..., 6, 'UTC')` (a year outside 1900 to 2299 refused), every cast to a `Nullable(T)`; lists as `Array(T)` with lambdas, never NULL (the empty collection the empty array), structs as `Tuple`s (a struct field its `Variant`), maps as `Map`, Variants as their JSON text; a lateral explosion an `ARRAY JOIN` (its columns named after a star), several unnests one zipped ARRAY JOIN, an as-of join's lone inequality keyed by its operands' hashes, an outer join reading one side re-keyed, a lateral filter a join, a null-safe join key `isNotDistinctFrom`, a correlated IN as its three-valued EXISTS, a quantified comparison answered over no rows first, a VALUES the `values` table function; ClickHouse's passes (the carrier strategies standing aside, a static pivot as a grouped CASE aggregation, an outer join's residual as its matches, the explosion markers, the checked defects as lists, the substring clamp, AVG as DOUBLE, constant keys typed, the root's numeric types stated) |
+| `ddl.render` | the base's statements with every name quoted, ClickHouse's types (`Bool` for a BIT, `DateTime64(9)` for a nanosecond timestamp; a TIME refused) |
+| `dml.render`, `dml.renderStatement` | the base's spellings, every name quoted, a cell's integer `toInt64(n)`; the store writes and a temporary table from a query refused naming ClickHouse |
+| `sessionTable` | the interface's default -- the TEMPORARY table and its INSERT -- for a temporary table; one that is not refused (`IllegalArgumentException`: `a session table is temporary: <table>`) |
+| `physicalName`, `storedName`, `insertColumnName` | every name double-quoted (a quote doubled), a valid double-quoted declaration as it is |
+| `raw`, `fromEngineText` | the engine's H2 text refused (`DialectCapability`): `the engine's H2 text reached ClickHouse, which has no translation of it`; any other text as written |
+| `wireTypeName`, `typingWireName` | ClickHouse's names, the `Nullable(...)` wrappers (Java's `trim` around each) dropped: `Int64`/`UInt32` `BIGINT`, `Int32`/`Int16`/`Int8`/`UInt16`/`UInt8` `INTEGER`, `Int128`/`UInt64` `HUGEINT`, `Float64` `DOUBLE`, `Float32` `FLOAT`, `Date32`/`Date` `DATE`, `DateTime...` `TIMESTAMP`, `Decimal...` `DECIMAL`, `Tuple(...)` `STRUCT`, `Nothing` `NULL`, any other its own name, each through `WireNames.fold`; null the empty string |
+| `deliversOwn` | `true` for a JSON label at the wire `VARCHAR` (a Variant is its JSON text), else `false` |
+| `script`, `failingStatement`, `catalogColumnsQuery`, `catalogType`, `bareNameReaches`, a converting `copySelectList`, `host.*` | the interface's defaults, the refusals naming `ClickHouse` |
+| `readsStored` | the base's: a plain `OTHER` or `DISTINCT` read as text |
+| `tableName` | the base's: a schema-qualified name each part double-quoted, else double-quoted |
+| `duckdb.tables`, `duckdb.readsStored` | refused (`IllegalArgumentException`): `'<op>' is DuckDb's op, not ClickHouse's` |
+
+### 3h. BigQuery
+
+Google BigQuery (GoogleSQL) through Google's JDBC driver (`BigQuery.java`, with `FoldsAsRecursiveCtes.java`;
+`src/bigquery.rs`, `src/bigquery/`). BigQuery answers every op of §3 but `duckdb.*` and `engine.*`; where its answer
+differs from DuckDB's it is:
+
+| op | BigQuery |
+|---|---|
+| `facts` | `{"temporaryTables": true, "loadsRowsInBulk": false, "relational": true, "inProcess": false, "dropsStagedTablesWithTheirTransaction": false, "needsStaticPivot": true, "serverVersions": null, "inMemoryPath": null, "scriptAbort": null, "sessionSetup": [], "keysSnapshot": "NONE", "resultColumnLimit": 10000}` |
+| `forServer` | `"BigQuery"` whatever the version |
+| the renders | BigQuery's (`PARITY.md`): every identifier in backticks (a backtick and a backslash escaped by a backslash; a double-quoted declaration its inner name), a string literal's quote, backslash, control characters and `?` escaped (`\'`, `\\`, `\xHH`, `\x3f`), a Float or Decimal literal `BIGNUMERIC '...'`, a date-time `DATETIME '...'` of six fraction digits, `UNION DISTINCT`, a union's ordered or limited branch parenthesized, an OFFSET without a LIMIT the largest one, a FROM-less select with a filter over one row; lists as `ARRAY<T>`, lambda-less (each list operation a correlated subquery over `UNNEST(xs) AS e WITH OFFSET AS o`), structs as `STRUCT`, maps as `ARRAY<STRUCT<key, value>>`, Variants as `JSON`; an explosion over its marker's positions (`UNNEST(GENERATE_ARRAY(...))`), any other lateral derived table an unnested array of structs, a VALUES an unnested typed array of structs, a MODE counted in a select over its source, a quantified comparison counted in three-valued logic, the grouped quantiles over the sorted values, a Float's text DuckDB's (`floatText`); BigQuery's passes (the carrier strategies, a closed fold as a top-level recursive expression, the substring clamp, the three explosion-marker passes, AVG as DOUBLE, constant keys typed, the common subexpressions written once), a Float's text and print forms bound once |
+| `ddl.render` | GoogleSQL's: `CREATE [TEMP ]TABLE <name> (<column> <type>[ NOT NULL], ..., PRIMARY KEY (<keys>) NOT ENFORCED);`, `DROP TABLE IF EXISTS ...;`, `CREATE SCHEMA IF NOT EXISTS ...;`, `DROP SCHEMA IF EXISTS ... CASCADE;`; its types (`INT64`, `FLOAT64`, `BOOL`, `DATETIME`, `STRING`, `NUMERIC(p, s)` or `BIGNUMERIC(p, s)`; a nanosecond timestamp, `OTHER`, `DISTINCT`, `ARRAY` and `OBJECT` refused) |
+| `dml.render`, `dml.renderStatement` | the base's spellings, every name in backticks, a `DeleteAll` with `WHERE TRUE`; the store writes and a temporary table from a query refused naming BigQuery |
+| `sessionTable` | the interface's default: the `CREATE TEMP TABLE` and its INSERT |
+| `physicalName`, `storedName`, `insertColumnName` | every name in backticks, a backtick and a backslash escaped by a backslash; a valid double-quoted declaration its inner name |
+| `raw`, `fromEngineText` | the engine's H2 text refused (`DialectCapability`): `the engine's H2 text reached BigQuery, which has no translation of it`; any other text as written |
+| `wireTypeName`, `typingWireName` | `INT64` `BIGINT`, `FLOAT64` `DOUBLE`, `DATETIME` `TIMESTAMP`, any other its own name, each through `WireNames.fold`; null the empty string |
+| `deliversOwn` | `true` for a map label at the wire `ARRAY`, and at the wire `BIGNUMERIC` for a HUGEINT, a DOUBLE or a DECIMAL of at most 38 digits each side of the point; else `false` |
+| `script`, `failingStatement`, `catalogColumnsQuery`, `catalogType`, `bareNameReaches`, a converting `copySelectList`, `host.*` | the interface's defaults, the refusals naming `BigQuery` |
+| `readsStored` | the base's: a plain `OTHER` or `DISTINCT` read as text |
+| `tableName` | the base's: a schema-qualified name each part in backticks, else in backticks |
+| `duckdb.tables`, `duckdb.readsStored` | refused (`IllegalArgumentException`): `'<op>' is DuckDb's op, not BigQuery's` |
+
+ClickHouse's and BigQuery's public statics (`LEXICON`, `CAPS`; ClickHouse's package-private `SETTINGS`, `CORRELATED`,
+`UNCORRELATED`; BigQuery's package-private static `onlyGroup`) are read by no Java code outside their classes (main and
+test sources, grepped), and no test calls a method of either object that is no `SqlDialect` method: the core tests that
+make one (`ClickHouseDialectTest`, `BigQueryDialectTest`, `TranslateTest`, `StoreWritesTest`, `CatalogGridTest`,
+`TempTableAsTest`, `WireTypeNamesTest`, `HostOperationsTest` for ClickHouse, `SeedSpellingTest` for BigQuery) ask it
+`render` (of a query, a DDL and a DML statement), `typingWireName` and `hostOperations`, as a `SqlDialect`;
+`Databases` constructs each with `new ClickHouse()` and `new BigQuery()`. So no op beyond §3 is needed.
 
 ### Op refusals
 

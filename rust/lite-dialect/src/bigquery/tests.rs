@@ -264,3 +264,39 @@ fn the_passes_are_javas_in_javas_order() {
     let d = BigQuery::new();
     assert!(d.binds_float_text() && d.binds_float_print());
 }
+
+#[test]
+fn a_mode_asks_its_from_for_an_alias_first_and_a_subquery_reads_the_roots_labels() {
+    // `modesCounted` asks the FROM for its alias before its own check: a FROM-less select is Dual's refusal
+    let x = col("x", typed(SqlType::Scalar(Scalar::Bigint)));
+    let mode = SqlExpr::Reducer(build::reducer(AggFn::Mode, vec![x], false, vec![]));
+    let q = build::query(
+        build::select_of(vec![build::projection(mode, Some("m".into()), None).unwrap()], SqlSource::Dual, vec![])
+            .unwrap(),
+    );
+    let r = AnsiSqlRenderer::render(&BigQuery::new(), q).unwrap_err();
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_STATE, "a Dual (FROM-less) source has no alias — caller bug")
+    );
+    // a subquery written inline is at depth 0 too: its NULL by shape is cast to the root's label of its position
+    let nulls = call(SqlFn::Coalesce, vec![null_lit(), null_lit()]);
+    let inner = build::query(
+        build::select_of(vec![build::projection(nulls, Some("n".into()), None).unwrap()], SqlSource::Dual, vec![])
+            .unwrap(),
+    );
+    let label =
+        OutputCol { name: "v".into(), r#type: SqlType::Scalar(Scalar::Varchar), nullable: true, origin: Origin::Derived };
+    let root = build::query(
+        build::select_of(
+            vec![build::projection(build::scalar_subquery(inner), Some("v".into()), Some(label)).unwrap()],
+            SqlSource::Dual,
+            vec![],
+        )
+        .unwrap(),
+    );
+    assert_eq!(
+        AnsiSqlRenderer::render(&BigQuery::new(), root).unwrap(),
+        "SELECT (SELECT CAST(NULL AS STRING) AS `n`) AS `v`"
+    );
+}

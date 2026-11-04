@@ -412,6 +412,51 @@ is opened (`type`, server version) into a handle that holds its per-dialect stat
      ceiling). The switch's gates are `//pct:pct_trino` (manual, in `//gates:heavy`: a Trino 483 coordinator the test JVM
      starts from the pinned `@embedded_trino`, no Docker) and `//pct:pct_databricks` (a cloud lane: a real warehouse,
      its credentials in `LEGENDLITE_PCT_CLOUD_PROPERTIES`).
+   - **6c, done 2026-11-04: ClickHouse and BigQuery in Rust** (`rust/lite-dialect/src/clickhouse.rs`, `src/clickhouse/`
+     with `ArrayJoinColumnsNamed` and `OuterJoinResidualsAsMatches`; `src/bigquery.rs`, `src/bigquery/` with
+     `FoldsAsRecursiveCtes`; `PARITY.md`, `SEAM.md` §3g and §3h). Every input of the three oracles answers as Java's --
+     **ClickHouse 2,643 of 2,643** distinct inputs (2,598 arms-oracle lines, 74 of the two dumps; Java's 415 refusals by
+     class and message, the quantified IS_DISTINCT_FROM's `NullPointerException` among them) and **BigQuery 2,643 of
+     2,643** (2,599 and 74; 444 refusals), the SQL, binds and regions exact -- and the seam answers every op as a direct
+     call does (2,729 and 2,726 ops with the inline renders). BigQuery's first measurement was already 100 %,
+     ClickHouse's 2,607 (its 36 ADD_INTERVAL statements, two slips in the date-range guard, fixed). Every other dialect
+     stays at its floor; the typing holds unchanged (36,890 statements, 4,057,096 facts, 0 different). The three passes
+     no other dialect installs are ported with their dialects (`OuterJoinResidualsAsMatches` and `FoldsAsRecursiveCtes`
+     have no other user, so they live in their dialect's module); `CarrierStrategies` changes no ClickHouse query
+     (native lists) and rewrites BigQuery's, and BigQuery is the first Rust dialect to bind a Float's print form. Each
+     dialect's per-render state is the dialect object's own -- ClickHouse's query nesting and the root's
+     correlated-subquery flag (`Cell`s), BigQuery's statement labels, markers in scope and counted MODEs (`RefCell`
+     stacks) -- pushed, popped and reset where Java does, so a fresh dialect per call is exact. Three renderer hooks
+     widened to refusals (`date_lit`, `timestamp_lit`: ClickHouse's dates outside 1900 to 2299; `array_type_name`:
+     BigQuery's list of lists), every other dialect's output unchanged, and the base's `starsAsSourceColumns` is
+     ported for MariaDB too. Unit-tested from the Java where the oracles cannot reach (`src/clickhouse/tests.rs` 10,
+     `src/bigquery/tests.rs` 9, `src/seam/clickhouse_tests.rs` 5, `src/seam/bigquery_tests.rs` 5): the helpers'
+     defaults, ClickHouse's `ClassCastException` of a list lambda that is no lambda (refused with Java's class and its
+     message less the class-loader clause, as Trino's), BigQuery's NULL list of unknown element type (made by hand: a
+     built `NullLit` is always bottom), the closed fold hoisted, the regular-expression rewrites, the literals, the
+     frame offsets' overflow and the Java oddities `PARITY.md` lists. Under Bazel the differential takes 57 s (53 s
+     before) and the round trip 70 s, both `size = medium`: no split needed.
+
+     For the switch: a `ClickHouse` and a `BigQuery` shim (`new ClickHouse()`, `new BigQuery()` in `Databases`; core's
+     tests construct them -- `ClickHouseDialectTest`, `BigQueryDialectTest`, `TranslateTest`, `StoreWritesTest`,
+     `CatalogGridTest`, `TempTableAsTest`, `WireTypeNamesTest`, `HostOperationsTest` (ClickHouse, its refusals asserted
+     to contain ` on ClickHouse is not built` by `getClass().getSimpleName()`), `SeedSpellingTest` (BigQuery) -- their
+     simple names in refusal messages) whose every method is one seam call, the facts read once. No public or
+     package-private static of either (`LEXICON`, `CAPS`; ClickHouse's `SETTINGS`, `CORRELATED`, `UNCORRELATED`;
+     BigQuery's `onlyGroup`) is read outside its class, no test calls a non-interface method of either, and neither
+     keeps state between renders, so no new op is needed. When both switch, `OuterJoinResidualsAsMatches` and
+     `FoldsAsRecursiveCtes` (each its one dialect's) and `CommonSubexpressions` (BigQuery was its last Java user) go;
+     with Trino and Databricks switched too, `AggregatesDeliverDouble`, `AsOfAsPick` and `UnqualifyPivotArgs` have no
+     Java user left. `PivotAsGroupBy`, `RootNumericTypes` and `CheckedDefectsToLists` stay for Snowflake;
+     `CarrierStrategies`, `SubstringClamp`, `ConstantKeysAsExpressions` and `ExplosionMarkers` for Snowflake and
+     MariaDB; `StarExceptToColumns`, `QualifyToSubselect` and `starsAsSourceColumns` for MariaDB and MySQL. What reads
+     their sources moves with them: `DialectVocabularyTest`'s floor of `AnsiSqlRenderer` dialects (its switch finder
+     names `ClickHouse.reducerIn`), `CapabilityMatrix` and the regenerated `docs/dialect-capability`, and
+     `PlatformNamesGuardrailTest`'s count of bare-name arms (ClickHouse's date-part table among them, a ceiling). The
+     switch's gates are `//pct:pct_clickhouse` and `//pct:pct_channel_b_clickhouse` (manual, in `//gates:heavy`: a
+     ClickHouse 25.8 server the test JVM starts from the pinned `@embedded_clickhouse`, no Docker) and
+     `//pct:pct_bigquery` and `//pct:pct_channel_b_bigquery` (cloud lanes: a real account, its credentials in
+     `LEGENDLITE_PCT_CLOUD_PROPERTIES`).
 
 ## 5. The browser keeps a frozen planner (decided 2026-11-03)
 

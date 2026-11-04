@@ -318,3 +318,17 @@ fn a_residual_outer_join_is_its_matches_numbered_per_render() {
         (Refusal::ILLEGAL_STATE, "a nested join has no single alias — resolve per side")
     );
 }
+
+#[test]
+fn a_from_less_subquery_has_no_alias_to_check_its_correlation() {
+    // Java's `aliasesOf` asks the subquery's FROM for its alias: a FROM-less one is Dual's IllegalStateException
+    let one = build::query(
+        build::select_of(vec![build::projection(int_lit(1), Some("one".into()), None).unwrap()], SqlSource::Dual, vec![])
+            .unwrap(),
+    );
+    let r = render_result(&build::exists(one)).unwrap_err();
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_STATE, "a Dual (FROM-less) source has no alias — caller bug")
+    );
+}
