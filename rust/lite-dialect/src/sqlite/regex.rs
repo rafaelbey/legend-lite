@@ -136,7 +136,8 @@ impl Rx {
             let Some(close) = self.index_of(')', self.at) else {
                 return Err(self.refused("an unclosed flag group"));
             };
-            for f in self.pattern[self.at + 2..close].to_vec() {
+            for k in self.at + 2..close {
+                let f = self.pattern[k];
                 match char::from_u32(u32::from(f)) {
                     Some('i') => self.flags[CI] = true,
                     Some('m') => self.flags[MULTILINE] = true,
@@ -372,18 +373,17 @@ impl Rx {
             if self.starts_with("[:", self.at) {
                 return Err(self.refused("a POSIX class"));
             }
-            let lo;
-            if self.peek() == unit('\\') {
+            let lo = if self.peek() == unit('\\') {
                 self.next();
                 let esc = self.escape(true)?;
                 if esc.ranges.len() != 1 || esc.ranges[0].0 != esc.ranges[0].1 {
                     ranges.extend(esc.ranges);
                     continue;
                 }
-                lo = esc.ranges[0].0;
+                esc.ranges[0].0
             } else {
-                lo = i32::from(self.next());
-            }
+                i32::from(self.next())
+            };
             let mut hi = lo;
             if self.more()
                 && self.peek() == unit('-')

@@ -187,14 +187,21 @@ static LEXICON: LazyLock<Lexicon> = LazyLock::new(|| Lexicon::new('"', RESERVED)
 pub const CAPS: crate::carrier::Caps =
     crate::carrier::Caps { native_lists: false, correlated_explode: true, json_carrier: true, native_full_outer: true };
 
+/// One select's explosion markers (Java's `LinkedHashMap<String, Map<String, SqlExpr>>`): each marker's alias, then
+/// each exploded column's list, in insertion order.
+type Markers = Vec<(String, Vec<(String, SqlExpr)>)>;
+
+/// One select's lateral subqueries read as JSON rows (Java's `LinkedHashMap<String, List<OutputCol>>`).
+type RowLaterals = Vec<(String, Vec<OutputCol>)>;
+
 /// The SQLite dialect: one per render, as the seam makes it (Java's `new SQLite()`), its state the statement's.
 #[derive(Debug, Default)]
 pub struct Sqlite {
     ansi: AnsiState,
     /// the explosion markers in scope of the select being written: alias, then each exploded column's list
-    laterals: RefCell<Vec<Vec<(String, Vec<(String, SqlExpr)>)>>>,
+    laterals: RefCell<Vec<Markers>>,
     /// the lateral subqueries in scope of the select being written, read as JSON rows: alias, then its columns
-    row_laterals: RefCell<Vec<Vec<(String, Vec<OutputCol>)>>>,
+    row_laterals: RefCell<Vec<RowLaterals>>,
     /// the labels of the statement being rendered, as planned
     roots: RefCell<Vec<Vec<OutputCol>>>,
     /// the statement's root selects once its root is written; none while the root is still to come
@@ -955,7 +962,8 @@ impl Sqlite {
         })
     }
 
-    /// A Variant's value as `to` (Java's `fromVariant`).
+    /// A Variant's value as `to` (Java's `fromVariant`, its name kept).
+    #[allow(clippy::wrong_self_convention)]
     fn from_variant<'a>(&'a self, v: &'a SqlExpr, to: &SqlType) -> Result<P<'a>, Refusal> {
         let member = matches!(v, SqlExpr::Call { r#fn: SqlFn::VariantGet, .. });
         let varchar = SqlType::Scalar(Scalar::Varchar);
@@ -1297,7 +1305,7 @@ fn row_lateral(src: &SqlSource) -> Option<(&SqlQuery, &str)> {
 
 /// The lateral subqueries read as JSON rows, by alias, anywhere in a FROM (Java's `rowLateralsOf`; a repeated alias
 /// replaced in place, as a `LinkedHashMap`).
-fn row_laterals_of(src: &SqlSource, into: &mut Vec<(String, Vec<OutputCol>)>) {
+fn row_laterals_of(src: &SqlSource, into: &mut RowLaterals) {
     if let SqlSource::Join { left, right, .. } = src {
         row_laterals_of(left, into);
         row_laterals_of(right, into);
@@ -1312,7 +1320,7 @@ fn row_laterals_of(src: &SqlSource, into: &mut Vec<(String, Vec<OutputCol>)>) {
 }
 
 /// The markers' exploded columns, by alias, anywhere in a FROM (Java's `lateralsOf`).
-fn laterals_of(src: &SqlSource, into: &mut Vec<(String, Vec<(String, SqlExpr)>)>) -> Result<(), Refusal> {
+fn laterals_of(src: &SqlSource, into: &mut Markers) -> Result<(), Refusal> {
     match src {
         SqlSource::Join { left, right, .. } => {
             laterals_of(left, into)?;

@@ -201,6 +201,11 @@ public final class SqliteArms {
         e(new SqlExpr.FloatLit(1.0E20));
         e(new SqlExpr.FloatLit(-0.0));
         e(new SqlExpr.JsonArray(List.of(c("n"), c("s"), c("b"), c("xs"), new SqlExpr.BoolLit(true))));
+        // a field read of a struct of two fields of one name: the struct proves the first one's type (structGetType)
+        SqlType twice = new SqlType.Struct(List.of(new SqlType.Struct.Field("a", BIGINT),
+                new SqlType.Struct.Field("a", JSON)));
+        e(new SqlExpr.StructGet(SqlExpr.Column.of("t0", "st", twice, true, OutputCol.Origin.DERIVED), "a",
+                new TypeFact.Unknown()));
         // a large operand repeated by its spelling: bound once, the bound names numbered in writing order
         SqlExpr big = call(SqlFn.CONCAT, c("s"), str("a"), c("s"), str("b"), c("s"), str("c"), c("s"), str("d"),
                 c("s"), str("e"), c("s"));
@@ -224,6 +229,8 @@ public final class SqliteArms {
         e(call(SqlFn.REGEXP_REPLACE, c("s"), str("ab"), str(""), str("gi")));
         e(call(SqlFn.REGEXP_REPLACE, c("s"), str("ab"), str("z"), str("ic")));
         e(call(SqlFn.REGEXP_REPLACE, c("s"), str("ab"), str("z"), str("q")));
+        // any Unicode digit after a backslash is a group number (Character.isDigit): ٣ is group 1587
+        e(call(SqlFn.REGEXP_REPLACE, c("s"), str("a(b)"), str("x\\٣")));
         e(call(SqlFn.MATCHES, c("s"), str("^a[^b-d\\s]*\\.$")));
         e(call(SqlFn.MATCHES, c("s"), str("(?ms)^x.y$")));
         e(call(SqlFn.MATCHES, c("s"), str("a"), str("i")));
@@ -331,6 +338,13 @@ public final class SqliteArms {
                 List.of(new SqlSelect.SortKey(c("n"), true, null, null)), 3L, null);
         SqlSelect b = select(t(), p(c("dec"), "v"));
         q(new SqlUnion(List.of(a, b), true, a.outputs()));
+        // a root select met again inside another branch: one object after CommonSubexpressions, delivered there too
+        SqlSelect nested = select(new SqlSource.Subselect(b, "s", null), p(SqlExpr.Column.of("s", b.outputs(), "v"),
+                "v"));
+        q(new SqlUnion(List.of(b, nested), true, b.outputs()));
+        // a root select with a marker in scope is respelled before its values are delivered: they are not
+        q(select(new SqlSource.Join(t(), new SqlSource.Subselect(marker(p(call(SqlFn.UNNEST, c("xs")), "e")), "u",
+                null), SqlSource.Join.Kind.LEFT_LATERAL, new SqlExpr.BoolLit(true)), p(c("dec"), "v"), p(c("d"), "w")));
         // a WITH's body delivered, its CTE not
         q(new SqlWith(List.of(new SqlWith.Cte("w", select(t(), p(c("dec"), "v")), true)),
                 select(new SqlSource.Cte("w", "w0", List.of(oc("v", DEC))), p(SqlExpr.Column.of("w0",

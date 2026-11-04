@@ -25,9 +25,10 @@ tagged-engine.jsonl	h2-dump.jsonl's line format	55f55a0a84bf4be79e5d33181b06a3c0
 # no lane, so their oracle is thin; their Java unit tests remain their gate through the shims.
 dialects-dump.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement	df2719d83b308199e53a25b48779ae78ed2734aa17f08b158120a5ef7e7115c7
 # Made 2026-11-03 on worktree-rust-port-phase0 (core as of 9649a5270, JDK 25.0.4+7) by rust/oracles/mir/SqliteArms.java
-# on core's built jars (its command in its header): 367 inputs the two dumps hold none of -- the 43 SqlFn arms no lane
-# reaches on SQLite, the regular expressions' find path, the maps, the casts' matrix, the root's delivered values, the
-# quantified comparisons, the explosion markers' shapes, the lateral rows, the windowed moments, the date-time formats,
-# CommonSubexpressions firing (no tie for its largest node) -- each built with Java's constructors, written as MirJson,
-# read back and rendered on a fresh `new SQLite()` (the tree the shim sends); 46 of them a refusal.
-sqlite-arms.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement	b33a5ea41ad11111dcbbec79afd351e8490b9b3ee12a7ffbba76545808486a2b
+# on core's built jars (its command in its header): 371 inputs the two dumps hold none of -- the 43 SqlFn arms no lane
+# reaches on SQLite, the regular expressions' find path, the maps, the casts' matrix, the root's delivered values (a root
+# select met again inside another branch delivered there too), the quantified comparisons, the explosion markers'
+# shapes, the lateral rows, the windowed moments, the date-time formats, CommonSubexpressions firing (no tie for its
+# largest node) -- each built with Java's constructors, written as MirJson, read back and rendered on a fresh
+# `new SQLite()` (the tree the shim sends); 47 of them a refusal.
+sqlite-arms.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement	35f3ae8ff1c466f43a8052c863994f8be90f7ae01d0edcd1f80e09563761b906

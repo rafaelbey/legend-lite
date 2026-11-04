@@ -845,8 +845,8 @@ impl Sqlite {
         }
         let repl = |f: &str, off: &str| -> String {
             let mut pieces = Vec::new();
-            for part in &parts {
-                pieces.push(match part {
+            for piece in &parts {
+                pieces.push(match piece {
                     Part::Group(k) => {
                         let at = if *k == 0 {
                             span(0)
@@ -854,7 +854,7 @@ impl Sqlite {
                             let ix = groups.iter().position(|g| g == k).map_or(-1, |i| i as i64);
                             [(2 + 2 * ix).to_string(), (3 + 2 * ix).to_string()]
                         };
-                        part_text("__rp.s", f, &at, off)
+                        part("__rp.s", f, &at, off)
                     }
                     Part::Text(t) => self.lit(t),
                 });
@@ -1851,10 +1851,6 @@ impl Sqlite {
     }
 }
 
-/// `text`'s part (Java's `part`), as the regexp_replace arms name it.
-fn part_text(text: &str, f: &str, at: &[String; 2], from: &str) -> String {
-    part(text, f, at, from)
-}
 
 /// A date-time of the given microseconds since the epoch (Java's `fromMicros`).
 fn from_micros(us: P<'_>) -> P<'_> {

@@ -38,9 +38,8 @@ rust_test(
 
 # every statement of the golden oracles (//rust/oracles:mir_dump, :h2_dump, :dialects_dump, :sqlite_arms and the tagged
 # engine-text query) of each dialect Rust answers -- DuckDb 16,154, H2 21,847, H2Modern 394, EngineStyleH2 2,105,
-# EngineStyleDB2 56, EngineStyleComposite 24, Postgres 11,630, SQLite 2,525 -- rendered by a fresh Rust dialect and held to Java's answer, at least each
-# dialect's floor
-# (tests/<dialect>-floor.txt) identical; every type fact of every statement of the oracles recomputed and held to Java's;
+# EngineStyleDB2 56, EngineStyleComposite 24, Postgres 11,630, SQLite 2,529 -- rendered by a fresh Rust dialect and held
+# to Java's answer, at least each dialect's floor (tests/<dialect>-floor.txt) identical; every type fact of every statement of the oracles recomputed and held to Java's;
 # and every op of each dialect's statements answered through the seam (SEAM.md) exactly as a direct call answers it;
 # and the engine text's zone shift held to java.time over the JDK's tzdb (//rust/oracles/tzdb: every region's offsets,
 # gaps and overlaps, and Java's own EngineStyleH2 renders), the embedded tzdb.bin held to the generator's output on the

@@ -630,4 +630,6 @@ mod h2_tests;
 #[cfg(test)]
 mod postgres_tests;
 #[cfg(test)]
+mod sqlite_tests;
+#[cfg(test)]
 mod tests;
