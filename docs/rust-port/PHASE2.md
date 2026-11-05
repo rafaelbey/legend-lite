@@ -1,8 +1,8 @@
-# Rust port — phase 2: the front end (2026-11-05, draft)
+# Rust port — phase 2: the front end (2026-11-05)
 
 Phase 2 of [`ROADMAP.md`](ROADMAP.md): the lexer (1,418 lines) and the parser (24,884) move to Rust, with the
 protocol emitter, and their Java is deleted. This file holds what was measured before any of it moved, the design
-that follows, and the rulings it needs (§5). **Draft: no code is written until the user rules on §5.**
+that follows, and the user's rulings on it (§5, 2026-11-05).
 
 ## 1. What was measured (2026-11-05)
 
@@ -70,8 +70,8 @@ through these doors.
 | `Lexer`, `TokenStream`, `ElementParser`, `SpecParser`'s body, `MappingProtocolParser`, `DatabaseProtocolParser`, `GqlParser`, `QuotedSpecParser`, the section grammars, `TokenStreamCursor`, `IslandScan`, `EngineQuirks`, ... | move, then deleted |
 | `PreludeGenerator`'s cursor use | retargeted to the element spans Rust answers; held by regenerating the committed module byte for byte |
 | `//parser-equivalence`'s tests of parser internals (`RejectionParityTest` and its pinned `MIN_PINS`, `GenerativeDualParseTest`, `Sectionize`, `SectionParseSentinelTest`, `OwnDialectCensusTest`, `SurfaceCensusTest`, `GrammarCoverageCensusTest`, `Surfaces`, `ViewFilterParityTest`, `OffsetCompositionParityTest`) | **gates, not retirees**: re-expressed over Rust ops (section splitting, the surface census) before step 6, so `:parser_parity` keeps judging the parser it was built for |
-| `ide/ModelIndexer`, `ModelOrchestrator` | §5, ruling 3 |
-| the Postgres-SQL translator (`protocol/sql`, not `iq/`) | §5, ruling 2: proposed for phase 3 |
+| `ide/ModelIndexer`, `ModelOrchestrator` | deleted with the lexer (§5, ruling 3), their tests ledgered |
+| the Postgres-SQL translator (`protocol/sql`, not `iq/`) | stays Java: it moves in phase 3 (§5, ruling 2) |
 
 ## 3. The seam
 
@@ -144,7 +144,7 @@ failures `JsonModelDoorTest` pins. A difference found is a row of `rust/lite-fro
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
 exists, and the committed oracle after.
 
-## 5. Rulings needed
+## 5. Rulings (the user, 2026-11-05: each as recommended)
 
 1. **The seam.** Switch the parser's entry points to Rust in phase 2, over the lossless record codec (§3) --
    recommended: the untouched test suite then judges the Rust parser, and the Java parser is deleted in this phase.

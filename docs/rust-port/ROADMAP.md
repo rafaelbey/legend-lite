@@ -72,16 +72,22 @@ its second render made by Rust, compared with Java's first render on a fresh dia
 
 ### Phase 2 — the front end
 
-The lexer, the parser, the protocol emitter, `json` and the Postgres-SQL→Pure translator → `lite-front`. Java's
-`ElementParser`, `SpecParser` and `PmcdParser` entry points become the shim: Rust emits protocol JSON, Java's
-`ModelReader` reads it into the same records. The 36 lexer token tests are retired.
-**Gates:** parser-equivalence (22,725 elements byte-identical), `ModelReaderParityTest`, `sql-parity` (2,398
-Postgres answers).
+The lexer, the parser and the protocol emitter → `lite-front` ([`PHASE2.md`](PHASE2.md), its rulings of 2026-11-05).
+Java's `PmcdParser` and `SpecParser` entry points become the shim. The engine's protocol JSON cannot carry what lite's
+dialect parses, so the seam is a lossless codec over lite's own records, read back into the same records. The
+Postgres-SQL→Pure translator runs inside the typer and shares its core with SAP IQ and Cypher, so it moves in phase 3.
+The unused `ide/ModelIndexer` and `ModelOrchestrator` go with the lexer; the tests of parser internals are retired.
+**Gates:** `//parser-equivalence:parser_parity` whole (`CorpusSweepTest`: at least 6,471 documents byte-identical to
+legend-engine's) and `:round_trip_proof`, `ModelReaderParityTest`, `ModelComposerParityTest` (31,452 elements) -- the
+"22,725 elements" planned here came from a deleted status document and no test computes it.
 
 ### Phase 3 — the middle
 
 About 130K lines → `lite-core`: normalizer, compiler, builtin, resolver, lowering, plan, planner, the executionplan
-writer, platform, values, lineage, `Compiler` and `TypedQuery`. The node-ID design (D1) and the `Arc` decision (D5)
+writer, platform, values, lineage, `Compiler` and `TypedQuery`, and the Postgres-SQL→Pure translator, moved here
+from phase 2 (2026-11-05) to sit beside the typer it runs inside -- SAP IQ and Cypher still use its core then, so a
+Java copy stays for them until their wave, or the translator waits for that wave too: decided at phase 3. The
+node-ID design (D1) and the `Arc` decision (D5)
 are settled before any code. `Compiler.compileModel`, `query`, `compileErrors` and `TypedQuery.plan` become the shim
 over opaque Rust model handles, answering plan JSON to the Java executor. The Java middle and `ModelReader` are
 deleted, and the ~580–770 test methods that inspect its internal objects are retired. This phase has no Java
