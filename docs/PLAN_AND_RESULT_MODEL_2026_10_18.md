@@ -1,9 +1,11 @@
 # The plan and the result: one model each, rendered at the edge, streamed end to end
 
-**Status: ratified with the user 2026-10-18.** This note governs the plan path program from step 7 on
-(`docs/PLAN_PATH_PROGRAM_2026_10_17.md` §7). It is a design, not a status log: a change to any decision below is a
-decision, recorded here with its date and reason, never an edit in passing. The program's rulings R1 to R11 stand;
-where this note is more specific, it is the specific form of those rulings.
+**Status: ratified with the user 2026-10-18; built.** This note governs the plan path program from step 7 on (the
+program, its rulings R1 to R11 and what became of it: §11). Its steps 7 to 11 were carried out by the result boundary
+program (`docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md`), landed as PR #80 (`7bc0797d`, 2026-10-30), which made the
+result a stream of typed batches with writers at the edge. It is a design, not a status log: a change to any decision
+below is a decision, recorded here with its date and reason, never an edit in passing. The program's rulings R1 to
+R11 stand; where this note is more specific, it is the specific form of those rulings.
 
 The user's framing, which this note writes down: *the in-memory model for the plan and for the result must each be
 correct and have one implementation; every output format is a renderer of that model; the fast path renders no plan,
@@ -41,7 +43,7 @@ the store's declared type), decided at step 1 so that a reader needs no model.
 - **P3. The tree travels only when asked.** The typed SQL tree exists for inspection, for the round-trip gate and
   for the engine-protocol projection. On the wire a plan carries the statement text; the tree is written only by
   the full rendering (§1.3). A serialized plan never carries its statement twice.
-- **P4. JSON stays; no binary format.** Decided 2026-10-17 (the program's §2) and confirmed here against the "SQL
+- **P4. JSON stays; no binary format.** Decided 2026-10-17 (the program's representation decision, §11.1) and confirmed here against the "SQL
   can get very big" concern: a big plan is big because of SQL text, and a binary encoding of text is the text. Gzip
   at the transport layer handles the rare megabyte plan at no cost to the format. Before any other move, the largest
   plans we make are measured (§8); a decision to compress is a decision recorded here with the numbers.
@@ -273,3 +275,129 @@ JSON for the plan (P4). The runner holds no dialect and no model (P2, P6). The p
 Java converts carriers and computes nothing (S4). The three type facts per column (step 1) are the whole instruction
 for every decode. Every deliberate difference from legend-engine is a `docs/SEMANTICS_REGISTER.md` row, and a
 difference that is a defect is fixed, not registered.
+
+## 11. The plan path program (2026-10-17 to 2026-10-30): the rulings this note rests on
+
+The user, 2026-10-17: "is it achievable for everything to always run against plan (in engine mode at least)". The
+plan path program continued the execution-plan boundary (`docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`, whose §8
+program had landed its first three steps: the planner makes lite plans, the runner runs them with no model) and took
+its step 4 to the end: every execution is a plan made by the planner and run by the model-free runner. A runner that
+holds no model cannot compute a value, so moving every caller onto it is the mechanical form of the execution tenet:
+every value the host still computed had nowhere to hide on the plan path and went to the database or was refused by
+name.
+
+### The rulings (the user, 2026-10-17)
+
+| # | ruling | summarized in |
+|---|---|---|
+| R1 | Everything runs against a plan, in engine mode at least: the server's execute, the query service, the test runners, the PCT lanes, the corpus. | §11.6 |
+| R2 | Both judges stay. The host judge (World 1 of the charter's Clause 2c, the verdict channel) and the database judge (both sides composed into one verdict statement) both read the plan's results; they must agree. | §11.5 |
+| R3 | The plan carries every type: the Pure type and multiplicity, the SQL type the database answers with, and the store's declared type -- each present or explicitly absent, never defaulted. | §11.2 |
+| R4 | The lossless text carrier for a non-primitive value is Pure's own literal grammar, spelled by the database and parsed by Pure. JSON is not required anywhere the engine's API does not demand it. | §11.3 |
+| R5 | The lite plan's representation stays JSON (the decision and its reasons: §2). | §11.1 |
+| R6 | Nothing in this program computes a value outside the database. The database executes, the runner carries, the judges judge. | everywhere |
+| R7 | The order: types first, the text carrier second (the audit of 2026-10-17). | §11.6 |
+| R8 | Deletion is mandatory: the legacy executor, the legacy PCT route, the shadow plan and the Java struct-to-instance rebuild all go. A referee overlap -- the old path kept beside the new until the new is proven -- is allowed, and MUST end in deletion. | §11.6 |
+| R9 | The corpus rule and the PCT rule are the same: no roster row and no pin moves unless a verdict genuinely changed, and both judges must agree for a pass to count. | §11.5 |
+| R10 | The engine-compatible plan is as compatible as it can be made: where the engine carries a fact (a column's declared type), ours carries the same fact, read from the plan, never spelled from a table. | §11.2 |
+| R11 | A `let` lives in the database or nowhere (§5): dissolved by the compiler, or a temporary table in the body's workspace; never a value Java holds between statements. | §11.4 |
+
+The ruling text is the program's own; the § references inside it (R5's "§2", R11's "§5") are the program's sections,
+summarized below. Its other standing rules: a guard pin, roster row or allowlist entry moves only with a dated
+justification; a deliberate difference from upstream is a register row, and a "deliberate difference" that is a
+defect is fixed; a plan never references a harness (the plan path serves the product, the PCT and the corpus are its
+judges).
+
+### 11.1 The representation: JSON stays
+
+Measured against a binary encoding, Java serialisation and a textual format of our own: nothing numeric travels as a
+JSON number (a plan's values are the statement's text, typed parameter slots and type spellings, so JSON's weakness
+with Long and Decimal never arises); plans are kilobytes, made once and run once; the writer and its exhaustive reader
+exist (`legend-lite-plan`, an unknown `_type` refused by name); a plan is read in a terminal, pinned in a test and
+diffed, and the planner also runs in the browser, where JSON is the native carrier; the engine's protocol is JSON, so
+the compatibility rendering stays a projection, not a translation. What makes a plan bulletproof is content and a
+gate, not a format: the typed SQL tree in the lite JSON, and the round-trip gate (every plan the tests make, written,
+read back and rendered again, renders the same SQL on every dialect and runs the same).
+
+### 11.2 The types in the plan
+
+Each result column carries three facts, each present or explicitly `absent`: `pure` (the Pure type and multiplicity:
+how a value is decoded and printed), `slot` (the SQL type the database answers with: the bind kind, the hole
+spelling, a Decimal's scale, DATE against TIMESTAMP) and `store` (the column's declared type in its `###Relational`
+store when the value is a store column read through; a computed column says `absent`). The planner asserts the three
+agree and refuses by name when they do not. Measured on legend-engine 4.145.0's recorded answers
+(`core/src/test/resources/upstream-api/e8-groupby-sort.json`, `e9-groupby-sort.json`): the plan's
+`resultColumns[].dataType` is the store's declared type for a column read through (`VARCHAR(32)`) and `""` for a
+computed one, while the TDS builder's `relationalType` is the engine's spelling of the Pure type even for a store
+column (`VARCHAR(1024)`; `pureTypeToDataTypeMap`, `pureToRelational.pure:48-56`). So the engine renderer reads `store`
+for `dataType` and keeps the engine's own Pure-type table for `relationalType`.
+
+A dynamic pivot needs no probe and no identifier hole (corrected at landing, 2026-10-18): the database names its own
+pivot's columns (the distinct values of the ON column, in its order) and each row's values are read by those names
+from the row's own JSON, so the whole answer is one static statement the database writes and the runner does
+nothing.
+
+### 11.3 Non-primitive values
+
+On the text routes of 2026-10, a value whose type is not a primitive (a class instance, a List, a Map, a Pair, `Any`, a
+`Type`) had no written form, and upstream's TDS reader refuses a non-primitive header column. R4's carrier was Pure's
+own literal grammar (`^my::Person(firstName='Fabrice')`, `list([1, 2])`, `pair(1, 'a')`, an element's path), spelled
+by the database and read back with `compileValueSpecification(text).result->reactivate()`. **Superseded by the result
+boundary program** (newer, ruled 2026-10-26 to 2026-10-28): results are typed rows and nothing else; a mixed value is a
+tag plus typed slots; a PCT relation crosses as legend-engine's own adapter reads it and a value as the reference's
+instances; the text path was deleted (`docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` §0, §8 items 9 and 10).
+
+What stays named on every route: the identity tests (`find` and `filter` returning the instance passed in, `eq` on
+instances, `deactivate`, a `new` instance's generic type) compare by reference, which no wire carries. Upstream's
+DuckDB PCT manifests exclude the same tests (`testFindInstance`, `testFilterInstance`, `testEqNonPrimitive`,
+`testAssignNewInstance`, `testConcatenateMixedType`, `testLetChainedWithAnotherFunction`), so they stay pinned by name.
+
+### 11.4 A `let` lives in the database or nowhere
+
+A Pure test body is a sequence: setups, `let`s, asserts. A `let` names a value, and the only question is where that
+value lives between statements. Two answers are allowed: **nowhere** -- the compiler dissolves it, substituting the
+expression where the name is read and the database computing it there (the default; correct for anything
+deterministic, and a clock read is one value per statement on every database); or **in the database** -- the let's
+own plan creates a temporary table in the body's workspace that later plans read (required where a value must be
+computed once, such as `generateGuid`). Never in Java: no value is fetched after one statement and bound into the
+next (legend-engine's allocation node does exactly that; lite does not build one). As built (2026-10-18), every let is
+dissolved by the inliner on both paths; a let over `generateGuid` read more than once cannot be dissolved and is
+refused by name (`refuseUndissolvable`) until materialization is built, which no test has yet demanded. A known trade
+remains: a let over a row set with no total order, read twice, may be two different row sets where Pure's single
+binding was one (CTE sharing is its fix). Plan-time lets (`let plan = executionPlan(...)`, asserting on SQL text)
+bind a value the planner produces and live in the planner.
+
+### 11.5 Both judges on plans
+
+The host judge receives each side as a plan's result, decodes it by the plan's declared result type and compares;
+the database judge composes both sides into one verdict statement, a plan whose one row is the verdict. Every assert
+gets two verdicts from two routes: the gate is `ExecuteOptions.JudgeMode.BOTH` (`AgreementArm`), where the host's
+verdict is of record, the database's must agree, and a disagreement fails the assert naming both; a decline or an
+unjudged outcome is reported and the host decides. The result boundary program kept both judges and ruled the
+database judge is never deleted ("a crown jewel", its R10).
+
+### 11.6 The order, and what never goes through a plan
+
+The order was: types in the plan; printed values (an answer is Pure's value, its text the served API's: the user,
+2026-10-10); the text carrier; dynamic pivots; lets; both judges on plans; the query service (built on this note);
+the test runners; the PCT lanes; the corpus; the deletions. **What never goes through a plan, and should not:**
+compiling a model, the language server, diagrams, tests that assert a compile error, the corpus buckets that exercise
+the engine's own machinery (routing internals, pre-evaluation, protocol transforms, dynamic compilation), and the
+PCT identity tests.
+
+**How it ended.** Steps 1 to 6 landed on 2026-10-17 and 18; step 9 moved the PCT lanes onto the plan route from
+2026-10-18. On 2026-10-28 the step 7 callers were finished (every production route on plans), and steps 8 (the test
+runners emit a sequence of plans per body), 10 (the corpus through plan sequences) and 11 (the deletions) became
+tracks B, C and D of the result boundary program, landed with it as PR #80. Track D deleted the old door
+(`Execution.execute*`, the materialized result, the query service's materialized `execute`); the body driver stayed,
+renamed `BodyDriver`, as the judges' orchestration, sending every statement through its plan, which supersedes step
+11's wording. Step 9's named residue was recorded with an exit each (2026-10-19), and the program does not close
+while one has neither a fix nor the user's ruling: a type value's namesake (S82; a type value carries its path,
+equality compares paths), a heterogeneous class collection (S81; the class riding every JSON-carried instance), a
+Float literal beyond a double (`testBigFloatAbs`), the inverse trigonometric NaN (`testArcSineError`,
+`testArcCosineError`; engine parity, H2 answers NaN), an uncast dynamic pivot's text on a dialect without a
+row-to-JSON form (one render arm per dialect), and a declared server connection opened by the runner with its own
+credentials (every authentication but `NoAuth`, `DefaultH2` and `TestAuth` refused by name; to be resolved the
+engine's way, the connection's authentication resolved through a vault the host configures).
+
+Sources: `docs/PLAN_PATH_PROGRAM_2026_10_17.md`, `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` (git history: docs/HISTORY.md).

@@ -1,17 +1,17 @@
 # MongoDB as a first-class database of legend-lite: the study and the plan (2026-10-16)
 
-**Status: decided and in execution (2026-10-16). The user ruled on every decision of §4 (D1 to D14) and asked for a
-viable v0 (§11); the line's announcement in `docs/IN_FLIGHT.md` is part of v0's first landing.** The ask (the user, 2026-10-16): learn what backends legend-lite supports
+**Status: decided (2026-10-16): the user ruled on every decision of §4 (D1 to D14) and asked for a viable v0. v0 was
+built 2026-10-16 to 2026-10-17 (§11, its as-built record, cut in the 2026-11 docs cleanup); §0 describes the tree
+before v0. Kept as spec input for the port: the decisions, the design, the PCT lane and the risks.** The ask (the user, 2026-10-16): learn what backends legend-lite supports
 today (all SQL), then plan MongoDB as a first-class database, PCT lanes included, built "the pristine way": the way the
 dialect consolidation program (the ninth line, `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md`) lays out the end
 state, so that Mongo is done right the first time rather than consolidated later. That program names MongoDB as out of
 its own scope ("MongoDB, Elasticsearch and SingleStore are new targets, not consolidation", its §0) and the backend
-order already places it next after the corpus-on-every-database work (`docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §2 item 4,
+order already places it next after the corpus-on-every-database work (`docs/backends/cloud.md` §2 item 4,
 §11, §20; `docs/IN_FLIGHT.md`, the eighth line's "Next").
 
-§0 is the answer; §1 the backends today; §2 the dialect program's end state and where Mongo fits; §3 what the tree
-already holds for Mongo; §4 the decisions; §5 the design; §6 the PCT lane; §7 the landings; §8 the asks to the other
-lines; §9 the risks and the measurements that settle them; §10 the sources.
+§0 is the answer; §4 the decisions; §5 the design; §6 the PCT lane; §9 the risks and the measurements that settle
+them; §10 the sources. §1–§3, §7, §8 and §11 were cut in the 2026-11 docs cleanup.
 
 ---
 
@@ -33,7 +33,7 @@ lines; §9 the risks and the measurements that settle them; §10 the sources.
    command with its bound values and carries the one text the database wrote; and a **test backend beside the embedded
    servers** that starts a pinned `mongod` Bazel unpacked, as `EmbeddedClickHouse` starts ClickHouse. That is exactly the
    dialect program's acceptance test (§4 there: "a new database is three classes and one line in each of three
-   registries"), and exactly what `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §11 already says of the non-SQL stores:
+   registries"), and exactly what `docs/backends/cloud.md` §11 already says of the non-SQL stores:
    "beside `SqlDialect`, not inside it: the Lowerer's output (the `SqlQuery` IR) stays the input, and a new target
    translates it into the store's own query language. The executor gains a second chartered seam beside JDBC." The MIR
    does not change (AGENTS.md invariant 3a: "new dialect = one class implementing `render(SqlQuery)`"); the Lowerer does
@@ -65,147 +65,7 @@ lines; §9 the risks and the measurements that settle them; §10 the sources.
 
 ---
 
-## 1. The backends today
-
-| database | dialect class | lines | how its PCT lane runs | lane in `//gates` | notes |
-|---|---|---:|---|---|---|
-| DuckDB | `DuckDb` | 1,027 | in-process, `jdbc:duckdb:` | `pct_duckdb` (per push) | the platform's own engine (`Databases.PLATFORM`), the PCT reference lane; refuses nothing in the capability matrix |
-| H2 | `H2` (+`H2Modern`) | — | in-process, `jdbc:h2:mem:` | `pct_h2` (Relation only) | also the SQL-text replay referee (`Databases.REPLAY_REFEREE`); refuses 48 functions (lists, DuckDB-only functions, D1) |
-| Postgres | `Postgres` | 2,343 | embedded 16, Bazel-unpacked (`@embedded_postgres`) | `pct_postgres` (per push) | refuses root: the unprivileged recipe in a cloud container (`docs/GATES.md`) |
-| SQLite | `SQLite` | 3,156 | in-process, `jdbc:sqlite::memory:` | heavy | regular expressions as a recursive walk in SQL; the 1 MB statement cap pass |
-| MariaDB, MySQL | `MariaDb`, `MySql` | — | embedded 11.4 / 8.4 servers (`tools/mariadb`, `tools/mysql`) | heavy | MySQL a family member of MariaDB (one grouped arm delegates) |
-| Trino | `Trino` | — | embedded 483 coordinator, memory connector | heavy | one JVM child per target |
-| ClickHouse | `ClickHouse` | 2,880 | embedded 25.8 static build (`tools/clickhouse/clickhouse.bzl`) | heavy | the pattern a `mongod` lane copies: a pinned tarball, sha256, one binary kept, Linux x86_64 only |
-| Snowflake, Databricks, BigQuery | one class each | — | a real account (`CloudLane`, credentials from a file outside the repo) | heavy, `external`, `local` | |
-
-Facts the plan stands on, each read in the tree:
-
-- **The plan-side seam** is `SqlDialect` (`sql/dialect/SqlDialect.java`, 198 lines): `render(SqlQuery)` → text,
-  `renderStatement(SqlQuery)` → `RenderedStatement(sql, binds)` (text with one `?` per bound parameter, in placeholder
-  order, and `TypeHole`s where H2 needs a type written at prepare time), plus the SQL-only members: `render(SqlDdl)`,
-  `render(SqlDml)`, `sessionSetup()`, `sessionTable`, `raw`/`fromEngineText` (decision D2), `physicalName`/`storedName`
-  (D8), `catalogType`, `bareNameReaches`, `copySelectList`, `hostOperations`, `script`/`scriptAbort`, and the reads of the
-  driver's answers (`normalize`, `wireTypeName`, `typingWireName`, `deliversOwn`, Phase 4). Every dialect writes
-  through one `SqlWriter` (text in order, each bind at its place; `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §10, E).
-- **The base renderer spells nothing** since Phase 1 (2026-10-13): `AnsiSqlRenderer` is abstract in every vocabulary
-  point (`call`, `reducer`, `scalarTypeName`, `formatText`, `structTypeName`, `passes`); each concrete dialect's `call`
-  is one exhaustive switch over `SqlFn` (206 constants) with one expression per arm, its `reducer` one over
-  `SqlAgg.Fn` (21), and `DialectVocabularyTest` fails a `default`, a block arm or a function handed to the base. The
-  capability matrix (`docs/dialect-capability/`, `//core:capability_matrix`) reads those switches from the source of
-  every class in the package, and `//core:capability_reach` measures which arms the five PCT suites reach on each
-  database. A new class in `sql/dialect/` is read with no BUILD line (the program's §4 acceptance test).
-- **The IR** (`com.legend.sql`, 15 files): `SqlQuery` permits `SqlSelect` and `SqlUnion`; `SqlSource` has `Pivot`,
-  `SourceUrl`, `Table`, `Cte`, `VarSetPlaceholder`, `Dual`, `Subselect`, `Values`, `RawSql`, `Catalog`, `Join` (kinds
-  INNER, LEFT, RIGHT, FULL, CROSS, CROSS_LATERAL, ASOF_LEFT, LEFT_LATERAL); `SqlExpr` has 46 variants, lambdas among
-  them (`Lambda`, `FoldCall`); `SqlWith` carries CTEs with a `recursive` flag. Every dialect runs its own `passes()`
-  (`SqlRewriter`s) at render entry: the carrier strategy first (`CarrierStrategies`, over the dialect's `CAPS`), then
-  its own shapes (`PivotAsGroupBy`, `AsOfAsPick`, `QualifyToSubselect`, `LateralExplodeToUnion`,
-  `FoldsAsRecursiveCtes`, `CommonSubexpressions`, ...). This is the mechanism a Mongo target uses to turn IR shapes it
-  cannot spell directly into ones it can.
-- **The execution side.** The new path: `PlanMaker.plan` renders through `dialect.renderStatement` into an
-  `ExecutionPlan.Sql(statement, slots, target, ...)`, and `exec/PlanRunner` runs it with no model and no dialect:
-  opens a `Sessions.Session` (a `java.sql.Connection`), checks the product name and version (`Sessions.check`,
-  `Sessions.version`), runs the target's session statements, prepares the statement, binds each slot
-  (`setObject`, `setNull`, `createArrayOf`), and carries the one text column the database wrote. The legacy path
-  (`StatementExecutor`, `exec/Executor` with its 24 `ResultSet` sites, `Execution.execute*`) still serves the server, the
-  corpus and PCT channel A (`PctExecuteNative` → `QueryService.execute(model, query, runtime, Connection,
-  ExecuteOptions.TDS_TEXT)`, `PCT_RENDER` until 2026-10-17); the database owner's line is deleting it ("step 4: the callers switch, the old paths
-  deleted", `docs/IN_FLIGHT.md` line 3).
-- **The wire is written by the database**, never assembled in Java: `lowering/WireRender.wrap` composes the CSV or JSON
-  text of the whole result as one SQL value (`Render.csvWire`, `jsonWire`, `jsonWireRows`), and PCT's TDS text the same
-  way (`Render.tdsText`: header from the typed schema, rows newline-prefixed, cells in Pure's print forms). The runner
-  carries a string (Charter C1.2). Parameters never touch text (`EXECUTION_PLAN_BOUNDARY` P3: "JDBC bind parameters for
-  SQL; a command document's values for a future Mongo-like store").
-- **The harness.** `PctBackend.Lane` (an enum, one arm per database: `open()`, `openSystem()`, the storeless runtime's
-  declaration), chosen by `LEGENDLITE_PCT_BACKEND`; `test/StorelessRuntime` declares an empty `###Relational Database`
-  bound to a `RelationalDatabaseConnection` of the lane's type (legend-engine's PCT adapter's shape); five suite
-  classes per lane (`Test_LegendLite_<Db>_<Suite>Functions_PCT`), each expected failure pinned by a stable part of its
-  message, a pinned test that starts passing failing the run; `PctCensusGate`'s per-suite ceilings; channel B
-  (`channelb/ChannelB`, `ChannelBLane`'s PASS floors and wire-bug ceilings per lane); the lanes in `pct/BUILD.bazel`
-  (`pct_<db>_<suite>`, five `junit_test`s and a suite, `manual` and in `//gates:heavy` for every database but DuckDB,
-  H2 and Postgres). A server lane also hosts the platform's **system database** (`exec/SystemDatabase.routeFor`: the
-  metamodel store seeded as session-private temporary tables on a system connection the host configures).
-- **The guards a new database meets** (each moves only with a dated reason, AGENTS.md): `ArchitectureTest
-  .JDBC_AND_DRIVERS` (the driver packages funnelled to the seam; `com.mongodb..` and `org.bson..` join it),
-  `DialectBoundaryTest` (counts dialect constructions, 11 today, and every driver), `DialectLeakRatchetTest` and
-  `DialectOwnerExclusivityTest` (`DatabaseOwners.DATABASES` already lists `MongoDB` as `mongo`: every identifier naming
-  Mongo outside an owner is a counted leak, so Mongo's files must be owners by path or class name),
-  `DialectVocabularyTest`, `CodeShapeGuardrailTest` (250 lines a method), `CarrierPurityRatchetTest`,
-  `JavaEvalLedgerTest` (the named residue), `SqlTextRatchetTest`, `JdbcSurfaceCensusTest`, the capability matrix's
-  diff test in `//:generated`, `PctCensusGate` and `ChannelBLane`.
-- **This container** reaches `fastdl.mongodb.org` (a pinned `mongod` tarball downloads; HTTP 200 measured 2026-10-16)
-  and Maven Central (`org.mongodb:mongodb-driver-sync`; 200), and has a Docker client; GitHub release pages are
-  refused by the proxy (403, `docs/CLOUD_SESSIONS.md`). Bazel is not installed in this session; nothing here was
-  built or run.
-
----
-
-## 2. The dialect program's end state, and where Mongo fits
-
-The program's §4, the target every phase builds toward, restated with Mongo's row filled in:
-
-| layer | the one class per database | Mongo's | registry |
-|---|---|---|---|
-| **query target** (plan side, no driver) | `sql/dialect/<Db>.java`: all of the database's text, its function, type and keyword decisions, its capabilities, reading the driver's names back | `sql/dialect/MongoDb.java`: the aggregation pipeline for every IR shape, the operator for every function and aggregate, `$documents` for literal relations, the wire text as the pipeline's tail, BSON type names, every refusal by name | `Databases.dialect(type)` (today) |
-| **connector** (execution side) | `exec/connect/<Db>Connector.java` (Phase 5, not built): product, URL from a connection spec, driver, private instance, bulk load, driver cells, raise, in-memory declaration | `MongoDbConnector`: a `MongoClient` from a `MongoDBConnection`'s servers and auth; runs an `aggregate` command with its `let` values; carries the text; `insertMany` as the bulk load; the server's version check; the system database as a session-private database | `Connectors.of(type)` (Phase 5; `Sessions`' switches until then) |
-| **test backend** (harness) | `testing/.../<Db>Backend.java` (Phase 6, not built; absorbs `PctBackend.Lane`'s arms): start the server, a fresh workspace, fixture isolation, the referee's reader, the connection block, seeding, pins and ceilings | `MongoDbBackend` over `EmbeddedMongoDb` (`tools/mongodb/mongodb.bzl`): a workspace is a database per package, isolation a database copy (`$out`/`$merge` or re-seed), the connection block a `MongoDBConnection` | `TestBackends.of(type)` (Phase 6; `PctBackend.Lane` until then) |
-
-What Mongo reuses from the program **verbatim**: the exhaustive-switch discipline and its guard; the capability matrix
-and the reach measurement (a Mongo column appears on the next regeneration, and `reach.tsv` gains its lane); the
-carrier-strategy pass over a `CAPS` row (Mongo's lists, structs and maps are native, like DuckDB's); the shared shape
-passes (`PivotAsGroupBy` for a static pivot, `AsOfAsPick` for an as-of join, `QualifyToSubselect`); decision D2 for raw
-text (text written for Mongo runs as written; the engine's H2 text is refused by name); Phase 4's reads
-(`wireTypeName`: BSON type names into the wire vocabulary); Phase 0's guards.
-
-What Mongo **stresses**, each a question the program's remaining phases must answer with a non-SQL member in mind:
-
-1. **`SqlDialect` is the SQL interface.** `render(SqlDdl)`, `render(SqlDml)`, `sessionSetup()` (SQL strings the executor
-   runs), `fromEngineText`, `catalogType`, `copySelectList`, `script` are SQL-only. Two shapes are possible (decision
-   D2 of §4): Mongo implements `SqlDialect` and refuses every SQL-only member by name; or a supertype `QueryTarget`
-   holds what every target has (`renderStatement`, `passes`, the vocabulary switches, the wire reads, `raw`,
-   `sessionSetup`) and `SqlDialect extends QueryTarget` keeps the rest.
-2. **The session is a `java.sql.Connection` by type.** `Sessions.Session.connection()`, `Sessions.Opener`,
-   `PlanSessions.Source`, `PlanRunner.text` (prepare, bind, `executeQuery`, `getString(1)`), `Sessions.check` and
-   `Sessions.version` (JDBC metadata), `QueryService.execute(..., Connection, ...)`, `PctBackend.Lane.open()`. Phase 5 is
-   where this becomes a connector's own (`check`, `version`, `run`), and the sealed session type is the ask of §8.1.
-3. **The statement is SQL by name and by type.** `ExecutionPlan.Sql`, `RenderedStatement.sql`, `ExecutionPlan.Format`,
-   `SetupStep.Statement(String sql)`. The plan's text is the TARGET's language; the record needs to say which
-   (`Language.SQL`, `Language.MONGO_COMMAND`), and the runner dispatches on it (a sealed switch, no default).
-4. **`DatabaseType` is relational.** Every registry, `Target.type()`, `ExecutionPlan.Target.Database`,
-   `StorelessRuntime`, the connection grammar and the owner guard key on it. Decision D4 of §4.
-5. **The legacy executor path.** `Executor`'s `ResultSet` readers type cells from JDBC (24 sites); PCT channel A and the
-   corpus reach the database through it. Mongo should never gain a second reader there: it runs through `PlanRunner`
-   only, which means channel A on Mongo takes the plan path (§6, §8.2).
-
----
-
-## 3. What the tree already holds for Mongo
-
-Legend-engine's MongoDB store, the vocabulary (decision D9: the lexer, parser, protocol and model may carry any
-database's name and decide nothing by it), parsed and composed since the parser drop-in program:
-
-- **The store**: `###MongoDB` `Database qn ( include qn; Collection name ( validationLevel: strict|moderate;
-  validationAction: error|warn; jsonSchema: { ... }; ) Join ... )` (`parser/section/MongoDBSectionGrammar.java`, 277
-  lines; `Protocol.PMongoDatabase` with `PMongoCollection(name, validationLevel, validationAction, PBsonSchema)`;
-  `TailEmitter.mongoDatabase` writes the engine's JSON). `include` and `Join` parse and are dropped, as the engine's
-  walker drops them (the fixture `scripts/parser/fixtures/t2-mongodb.pure` records why). The JSON schema is read into
-  typed BSON schema nodes at parse time, as the engine does ("`bsonType: object` is mandatory").
-- **The mapping**: `*Class[id]: MongoDB { ~filter [db] name  ~mainCollection [db] Coll  ~binding qn }`
-  (`MappingProtocolParser.parseMongoDbClassMapping`, `Protocol.PClassMappingMongoDb`; `MappingFromProtocol.classMapping`
-  returns null for it: "a FOREIGN store class mapping rides the protocol only").
-- **The connection**: `MongoDBConnection { database: name; store: qn; serverURLs: [host:port, ...]; authentication:
-  # UserPassword { username: '...'; password: <vault secret> }#; }` (`ConnectionReader.mongo`, `PMongoDbConnection(databaseName,
-  serverUrls, auth, ...)`, `AuthenticationComposer`, `MongoComposer`); in the model it is a
-  `GenericSectionElementDefinition("Connection", "MongoDBConnection", ...)` carrying only the database name
-  (`FromProtocol.java:426`), so `Compiler.executesOn` refuses a runtime binding it ("connection ... is not defined").
-- **The guards** already know the name: `DatabaseOwners.DATABASES` maps `MongoDB` to the pattern `mongo`;
-  `DialectLeakRatchetTest`'s product pattern lists `mongo|elastic`; `DialectOwnerExclusivityTest`'s allowlist names
-  `PMongoDbConnection`. So a `sql/dialect/MongoDb.java` is an owner of Mongo by its class name with no guard edit, a
-  `core/src/main/mongodb/` source set needs one line in `DatabaseOwners.of` beside `core/src/main/duckdb/`, and
-  anything else naming Mongo is a leak the ratchet counts.
-- **Nothing executes.** No `DatabaseType`, no dialect, no session, no lane, no data seeding. `docs/EXECUTION_PLAN
-  _BOUNDARY_2026_10_05.md` already decided the parameter form for "a future Mongo-like store" (P3: a command document's
-  values, never text), and that legend-engine's Mongo plan nodes need its generated Java, which lite never runs.
+> Cut in the 2026-11 docs cleanup: §1–§3, lite's backends as of 2026-10-16, the dialect program's end state and where Mongo fits, and what the tree then held for Mongo. Full text: `git show de2745351:docs/MONGODB_PLAN_2026_10_16.md`.
 
 ---
 
@@ -836,50 +696,7 @@ the funnel rule sees them, and `DialectBoundaryTest`'s driver census names the d
 
 ---
 
-## 7. The landings
-
-Each lands green on its own (`//gates:local`; every existing lane's whole-statement SQL dump unchanged for a pure move;
-the corpus rosters unchanged; the leak ratchet only shrinking), announced in `IN_FLIGHT` first, with an independent
-review and a `docs/GATES.md` entry, as every line does.
-
-| # | landing | content | judge | size |
-|---|---|---|---|---:|
-| **PR0** | the measurement | no product code: 20 to 30 PCT cases translated to pipelines by hand and run on `mongod` 8.0 in a container (the tarball or Docker), settling the open measurements of §9 (ordered `$push`, `$toString` of doubles and decimals, `$documents` with `let` at the database level, the 16 MB limit's error, the raise envelope, `$dateToString` before year 1, PCRE2 against the PCT regular expressions, the auth block the grammar needs); the answers recorded in this document's §9 | the measurements, each with its command and answer | about a week; a §9 revision |
-| **PR1** | the seam (with the ninth line: Phase 5's landing) | `QueryTarget` above `SqlDialect` (D2); `RenderedStatement.Language` into `ExecutionPlan.Sql`; the sealed session and the connector interface (`check`, `version`, `run`, `bulkLoad`, `raisedMessage`, `openPrivate`); `PlanRunner`'s dispatch on the language; `Connectors.of(type)` replacing `Sessions`' switches; `DatabaseType.MongoDB` with its grammar arm and register row; `MongoDBConnection` read into a `ConnectionDefinition`; the guards' pins with dated reasons (`JDBC_AND_DRIVERS`, `DialectBoundaryTest`, `DatabaseOwners`) | a pure move: all 102 lane targets on the 11 databases pass with the baseline's SQL by digest (the program's §0 proof), `//gates:local` green; Mongo's arms all refuse by name | about 1,000 lines, mostly moved |
-| **PR2** | the server and the lane scaffold | `tools/mongodb/mongodb.bzl`, the module extension, `EmbeddedMongoDb`, the driver jars, `PctBackend.Lane.MONGODB`, the storeless runtime for Mongo, the lanes in `pct/BUILD.bazel` and `//gates:heavy`, the five suite classes with every test pinned (the first measurement: the target refuses everything), channel B's pins | the lane runs end to end and every pin is dated | about 800 lines |
-| **PR3** | the target, scalar half | `MongoDb` with its passes and `CAPS`, `$documents` and `$project`, the 206-arm function table and the 21-arm aggregate table over literal relations, parameters as `let`, the wires (D10), the raise envelope; the Essential and Grammar suites burned down; the capability matrix regenerated with the Mongo column | the Essential and Grammar lanes, both channels; the matrix diff test; every other lane's SQL unchanged | 4,000 to 6,000 lines (Postgres is 2,343, ClickHouse 2,880, SQLite 3,156; a pipeline is more text per shape) |
-| **PR4** | the target, relation half | `$match`, `$group`, `$sort`/`$skip`/`$limit`, `$lookup` joins in every kind, `$unionWith`, `$setWindowFields`, subselects as sub-pipelines, `PivotAsGroupBy` and `AsOfAsPick` applied, the TDS, CSV and JSON wires over relations; the Relation, Standard and Unclassified suites burned down | the three lanes, both channels; the matrix and `reach.tsv` re-measured | about 3,000 lines |
-| **PR5** | the store and the mapping | `###MongoDB` compiled as a store (D6), `#>{db.Collection}#`, the `MongoDB` class mapping over it, `MongoDBConnection` with its authentication, the server's resolver, seeding through the bulk load, the system database on Mongo (or its named refusal), DataCube's catalog through `catalogType` | lite's own Mongo cases (a `lite/*.yaml` set as the SQL lines keep), each judged by the same Pure query over the same rows on DuckDB and on Postgres (the cross-database differential, rows compared); zero FAIL, zero BUG, zero ERROR | about 2,500 lines |
-| **PR6** | the corpus and the engine's cases | the corpus's 77 covering tests on the Mongo lane through the eighth line's harness (a `MongoDbBackend` of Phase 6), then whatever of the corpus reaches a `###MongoDB` store; the engine's own MongoDB store test cases from the pinned tree as test input (its expected pipelines are not the spec; its expected answers are), each passing or refused by name | the rosters, pinned and shrinking | about 1,500 lines |
-| later | the product opens Mongo (the server's driver set, `//core:drivers`), DataCube on a Mongo store, the recursion native's Mongo rule (`$graphLookup`), Elasticsearch as the second non-SQL target over PR1's seam | | |
-
-Total: about 12,000 to 16,000 lines over six landings. PR1 is the only one that touches every database's path, and it
-is a pure move proven by the lane dumps; PR2 to PR6 add Mongo's own files and the Mongo arms of exhaustive switches.
-
----
-
-## 8. The asks to the other lines (to post in `IN_FLIGHT` when the user starts the line)
-
-1. **To the ninth line (the dialect program), for Phase 5 and 6, now.** Design the connector interface with a non-JDBC
-   member: `Connectors.of(type)` answers a `DatabaseConnector` whose session is a sealed type (`Jdbc(Connection)`, and a
-   second variant the Mongo connector defines), and the connector owns `check`, `version`, `run(RenderedStatement,
-   values)`, `bulkLoad`, `raisedMessage`, `openPrivate` and `inMemoryDeclaration`; `RenderedStatement` carries its
-   language; `TestBackend.open()` answers that session, not a `Connection`. `Sessions.jdbcProduct(type)` becomes the
-   JDBC connector's own, so a type with no JDBC product is not a hole in a shared switch. Whether `SqlDialect` splits a
-   `QueryTarget` supertype in Phase 5 (recommended, D2) or Mongo implements `SqlDialect` whole as a first cut is the
-   program's call to make with the user; either way `Databases` keeps one exhaustive switch per fact. This program
-   owns every file under `sql/dialect/`: Mongo's files there are announced in its section and merged between its phases.
-2. **To the fourth line (the database owner), for step 4.** A `TDS_TEXT` output of the plan path (`TypedQuery.Output`,
-   `PlanMaker`), so PCT channel A can run through `PlanRunner` on a lane with no JDBC session; and the order in which
-   the old executor paths go, so Mongo never gains a `ResultSet` reader of its own. The plan's text format and the
-   runner's dispatch on a statement's language are its files (`executionplan/ExecutionPlan`, `exec/PlanRunner`,
-   `exec/PlanSessions`).
-3. **To the eighth line (the corpus on every database).** PR6 waits for its harness (`MinimalCorpus`'s backend behind
-   Phase 6's `TestBackend`): a Mongo backend is one more `openWorkspace()` with no referee, the `OTHER_LANE` shape.
-4. **To the compiler line.** Nothing in `builtin/`: legend-engine's `DynaFn` table has no Mongo column, so D10's split
-   does not reach it; the Mongo natives' meanings are the IR's, decided in the dialect.
-5. **To the Studio and DataCube lines.** Nothing until PR5: then a `MongoDBConnection` in the connection form and a
-   collection in the catalog (D6).
+> Cut in the 2026-11 docs cleanup: §7, the six planned landings, and §8, the asks to the other lines (2026-10-16). Full text: `git show de2745351:docs/MONGODB_PLAN_2026_10_16.md`.
 
 ---
 
@@ -967,12 +784,12 @@ Read in this tree at 59b547a (main, 2026-10-16), each cited above by path:
 - `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (§0 the handoff and the proof method; §2 the verdict; §4 the
   target; §5 the phases, 0 to 4 done; §6 decisions D1 to D11, P1b); `docs/dialect-capability/README.md`;
   `docs/IN_FLIGHT.md` (lines 3, 1183 to 1300 the eighth line, 1301 to 1482 the ninth line, 1689 the rules).
-- `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` (§2 the order, §11 the candidates and the non-SQL stores, §16 channel B,
+- `docs/backends/cloud.md` (§2 the order, §11 the candidates and the non-SQL stores, §16 channel B,
   §19 ClickHouse, §20 the corpus on every database); `docs/CYPHER_PLAN_2026_10_15.md` and
   `docs/CYPHER_STUDY_2026_10_15.md` §0 (the method: a spec, an oracle, a ledger, refusals by name);
   `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` (P3, §10 E); `docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md`;
-  `docs/STORE_TYPES_HOMEWORK_2026_10_02.md`; `docs/SEMANTICS_REGISTER.md` (S43, S48, S63); `docs/GATES.md` (the
-  lanes); `docs/CLOUD_SESSIONS.md`; `docs/PCT_AUDIT.md` §1.
+  `docs/STORE_TYPES_HOMEWORK_2026_10_02.md` (now in `docs/HISTORY.md`); `docs/SEMANTICS_REGISTER.md` (S43, S48, S63); `docs/GATES.md` (the
+  lanes); `docs/CLOUD_SESSIONS.md`; `docs/PCT_AUDIT.md` §1 (now in `docs/HISTORY.md`).
 - Code: `sql/dialect/SqlDialect.java`, `AnsiSqlRenderer.java` (`passes`), `SqlWriter.java`, `RenderedStatement.java`,
   `DialectCapability.java`; `sql/SqlSource.java`, `SqlSelect.java`, `SqlExpr.java`, `SqlFn.java`, `SqlAgg.java`;
   `database/Databases.java`, `Target.java`; `model/ConnectionDefinition.java`; `exec/Sessions.java`, `Executor.java`,
@@ -992,381 +809,35 @@ Read in this tree at 59b547a (main, 2026-10-16), each cited above by path:
 
 ---
 
-## 11. v0: the first viable implementation (started 2026-10-16)
+## Upstream facts found while building
 
-**The ask (the user, 2026-10-16): "write this all down and then execute; don't stop until we have a viable v0
-implemented that works."** v0 is the smallest thing that is real end to end, built to the decisions above, each piece
-in its final place:
+What MongoDB 8.0 (the lane's pinned `mongod`, 8.0.17) and legend-pure answered while v0 was built (§11, cut), kept
+here because §0–§10 do not say it. Each was measured on the lane and named in a differential case or a pin.
 
-1. **The vocabulary**: `DatabaseType.MongoDB` (D4), its grammar arm and register row; `MongoDBConnection` read into a
-   `ConnectionDefinition` with a Mongo specification; a `###MongoDB` database read as a store whose collections are
-   tables, their columns from the declared schema, else `(_id, document: Variant)` (D3, D6).
-2. **The target**, `sql/dialect/MongoDb.java` (D1, D2): an `aggregate` command as Extended JSON for a collection scan
-   and a literal relation (`$documents`), `$match`, `$project`, `$group` with the common aggregates, `$sort`, `$skip`,
-   `$limit`, `$unionWith`, `$lookup` for inner and left equality joins, the wire wraps, parameters as markers (D5);
-   every function and aggregate decided by name, the rest refused with `DialectCapability`.
-3. **The connector**, `core/src/main/mongodb` (D12): opens a `MongoClient` from the connection, runs the command with
-   its bound values, carries the text; the embedded `mongod` for tests (D8, D9) under `tools/mongodb/` and
-   `testing/EmbeddedMongoDb`.
-4. **The seam** (D14's constraints): the runner executes through the session, the session type gains the Mongo
-   variant, nothing is added to the legacy executor.
-5. **The proof**: end-to-end tests on the embedded server (a literal relation, a collection scan with filter,
-   projection, group and sort, a join, the wires, a bound parameter), green in the Bazel build with the guards; then
-   the PCT lane scaffold and the first measurement as far as the session reaches.
+- **`$setWindowFields`.** A ranking operator takes a `sortBy` of exactly one field. A `"current"` bound is the current
+  document alone, not SQL's RANGE peers. A range window needs a numeric field.
+- **Operator pitfalls.** A literal array given to a one-argument operator (`$reverseArray`, `$size`) is read as the
+  argument list. Converting any string to Boolean gives true. `$strLenCP` of null is a server error.
+- **Missing is not null.** `$arrayElemAt` past the end returns nothing (missing), which `$eq` does not treat as null.
+  `$pow` of two integers is an integer. `$addFields` merges a plain document into the field's existing document, so a
+  document value must be wrapped in `$literal`.
+- **No JSON in the pipeline.** MongoDB has no expression that writes a value as JSON and none that parses JSON. A
+  document literal's fields are evaluated as expressions unless wrapped in `$literal`. The server's nesting limit is
+  two hundred levels.
+- **JSON null is BSON null.** A Variant holding JSON null is BSON null; MongoDB has no separate JSON null, so the cell
+  is a null cell where Pure prints `'null'`.
+- **Dates.** `$dateToString` fails for years past 9999; `$dateAdd` takes a bounded month count; there is no microsecond
+  unit; `$convert` to a date rejects a single-digit month or day, which Pure reads.
+- **Text.** There is no regex-replace operator (`$replaceAll` replaces literal text). `$toHashedIndexKey` exposes the
+  database's own hash. In 8.0, `$convert` from text to `binData` reads UTF-8 and back writes base64.
+- **legend-pure's `stringToTDS`** (the PCT's result reader) types an unquoted cell by its text, not by the header, and
+  trims an unquoted cell's spaces; it reads an empty cell as null, so an empty string cannot cross; it builds no Date or
+  Decimal through `map`.
+- **legend-engine and legend-pure conventions.** `timeBucket` uses the engine's origins, 1970-01-01 (1969-12-29 for
+  weeks), with months counted from 1970-01. The PCT runs under the engine's feature flag
+  `CORRECT_SQL_SUBSTRING_INDEXING`. Pure's `mode` answers the smallest of the most frequent values. The PCT relation
+  suite spells a TIMESTAMP cell with three millisecond digits (`T13:12:11.000+0000`); the newer reading in
+  `docs/result-boundary-homework/README.md` §7 (2026-10-29) shows that is the PCT harness's own spelling
+  (`TestTDS.java:209`), not the engine's product, which writes nine digits.
 
-What v0 leaves for the landings of §7: the class mapping and `~binding` (PR5), the corpus (PR6), windows, pivots and
-as-of joins (PR4), the full function table's burn-down (PR3), the metamodel store (D13). The record of what landed, with
-its judges, is kept here as each piece lands.
-
-### 11.1 What landed, 2026-10-17 (branch `claude/upbeat-johnson-l4hogx`)
-
-v0 is real end to end: a model with a `###MongoDB` store and a `MongoDBConnection` is planned by the one compiler into
-an `aggregate` command and run by the plan runner through the MongoDB connector on a real MongoDB 8.0.17, which the
-test JVM starts from the pinned server Bazel unpacked. Every piece is in its final place (§5), none in the legacy
-executor.
-
-**The vocabulary (D3, D4, D6).** `DatabaseType.MongoDB` (`model/ConnectionDefinition`), carried by the engine's own
-`MongoDBConnection` form and never writable in a `RelationalDatabaseConnection` (the grammar's lite types are untouched).
-`model/MongoDeclarations` reads the connection (its one server as a static datasource; a user name with the vault
-reference its password names, `systemproperties:<name>`; a replica-set list, Kerberos-only, API-key, EPK, PSK and GCP
-authentications and an AWS secret refused by name) and the store (each collection a table; its columns the declared
-schema's top-level properties by `bsonType` -- string, long, int, bool, double, a nested object or array as a Variant,
-an objectId as text; `_id` the key where declared; `required` is NOT NULL; a decimal refused by name; nothing inferred
-from documents). `StorelessRuntime.onMongo` writes the storeless runtime in that form; `Databases`, `Sessions`,
-`EngineText` and `PlanJson` take the type (every switch exhaustive; the refusals by name).
-
-**The target (D1, D2, D5, D7, D10, D11).** `sql/dialect/MongoDb` (the dialect class, its whole vocabulary decided:
-the function table, the aggregate table, the scalar names, the date formats, the DDL and DML as commands),
-`MongoDbPipeline` (the stages: scan with `$ifNull` per declared column, `$documents` for literal relations and the
-database-level `aggregate: 1`, `$match` with `$expr`, `$group` with its accumulators read back through markers and the
-one-row-over-no-input union, sort carries with their null flags, `$replaceWith` projections, `$skip`/`$limit`,
-`$unionWith`, `$lookup` with `let` variables for inner, left and cross joins) and `MongoJson` (the text helpers and
-D7's null guard: a `$let` binding each operand once, null when a nullable operand is null). Parameters are
-`{"$legendParam": n}` markers in binding order. A raise is a `$convert` to `int` of the message between the platform's
-U+001F sentinels, concatenated with an empty text that depends on the row: **measured on 8.0.17, the server's
-optimizer folds a constant conversion in a branch not taken and fails the whole pipeline before any row** ("Failed to
-optimize pipeline"), so no raise may be a constant. The JSON wire is written by the pipeline as text (D10): the
-`CAST(json_object(...) AS VARCHAR)` the wire builds becomes a `$concat` of each key's text and each value's text by its
-kind at run time (null, a string escaped and quoted, a date in its format, a number or a boolean by `$toString`; a
-nested document raised by name), since MongoDB has no JSON writer for a value. The capability matrix's MongoDb row
-(regenerated): 171 functions and aggregates decided through MongoDB's operators (the matrix reads each as an emulation,
-every arm composing JSON through a helper), 33 refused by name, 15 lowering markers; no PCT lane reaches it yet.
-
-**The seam (D14's constraints).** `exec/Statements` is what a session does with a plan's text (`check`, `execute`,
-`query` with the slots bound and each row's one text carried); `exec/JdbcStatements` is the runner's JDBC moved whole;
-`Sessions.Session.statements()` answers JDBC's by default; `exec/DatabaseConnector` is the seam a database with no
-JDBC joins through, found by `ServiceLoader` as the bulk loaders are (`exec/Connectors`); `PlanRunner` runs through the
-session's statements and holds the plan and the punctuation alone; `PlanSessions.openShared` asks the connectors first
-for a declared connection (a database its connector opens is the user's: a plan with setup for it is refused).
-`Executor` and `Execution` are untouched: the legacy path refuses MongoDB by name (`Sessions.openingFor`).
-
-**The connector (D12).** `core/src/main/mongodb/com/legend/exec/MongoDbConnector` (a `MongoClient` from the
-connection, the password read from the system property the vault reference names) and `MongoDbStatements` (the markers
-replaced in place by the driver's own encoding of each bound value -- Int64, Double, Decimal128, String, Boolean, a
-date at UTC midnight, a date-time to the millisecond, finer refused; the `aggregate` command through the driver's
-cursor; each row's one field a string or null, anything else refused; a server failure as the platform's `DataError`
-with a raise's text unwrapped). `//core:mongodb_connector` compiles against the driver (5.13.0: sync, core, bson and
-bson-record-codec, `tools/deps/jars_table.bzl`) and rides with `//core:drivers`; core compiles against none of it.
-
-**The server (D8, D9).** `tools/mongodb/` pins MongoDB 8.0.17's Ubuntu 22.04 x86_64 Community tarball by sha256
-(`@embedded_mongodb`, the server binary and its licence kept; SSPL test input in Bazel's cache, never redistributed);
-`testing/EmbeddedMongoDb` starts it on a free loopback port with access control on and makes the user `pct` on the
-database `pct` through the localhost exception (a root administrator first, then the user with its leave).
-
-**The proof.** `//core:mongodb_plan_test` (manual, in `//gates:heavy`; Linux x86_64): six cases on the real server,
-all green -- a filtered, projected, sorted select streamed as JSON rows; an absent field read as null; a parameter
-bound in place; a group counting and sorting; the whole result as the JSON wire and as the CSV wire; a storeless
-expression on the database alone. `MongoDbDialectTest` (in `//core:core_tests`) pins the rendered command's shape,
-the marker, the group stage and a refusal by name. Every guard is green with its pins moved by dated reason:
-`DialectBoundaryTest` (Databases' construction and arm, Sessions' two refusals, the storeless runtime's one, the
-mapping parser's wire discriminator now counted), the leak ledger (Sessions, StorelessRuntime, the end-to-end test),
-`JdbcSurfaceCensusTest` and `JavaEvalLedgerTest` (the seam's four classes and the connector's two), `TenetRatchetTest`
-and `ArchitectureTest` (the driver's packages funnelled as a driver's), `CoreClosureTest` (the four jars),
-`DatabaseOwners` (the connector's source set an owner), `CodeShapeGuardrailTest` (the pipeline's stage counter).
-`//core:core_tests` (27 lanes), `//core:guardrails`, `//core:census`, `//docs:update_dialect_capability_test`,
-`//tools/deps:core_closure_test` and `core_layering_test` pass; `//pct:pct_tests_lib` builds. The differences from
-SQL that v0 kept were `docs/SEMANTICS_REGISTER.md` S72 to S75; the homework's differential (§11.2) showed S72 to S74
-to be defects of the target and they are fixed and gone, and S75 to be the SQL side's (a platform item, kept).
-
-**What v0 leaves, in order.** (1) **The PCT lane**: the harness's channel A hands a `java.sql.Connection` to
-`QueryService.execute` (`PctExecuteNative`), the legacy route; the Mongo lane needs §6's plan route (`TDS_TEXT` as a
-plan output, the bridge through `PlanRunner`), which is the next landing -- so no `PctBackend.Lane.MONGODB` is
-scaffolded that could not run. (2) Joins, unions and the ordered and distinct aggregates are written and rendered but
-not yet measured on the server; windows (`$setWindowFields`), pivots, as-of and lateral joins, subqueries in
-expression position, CTEs, raw text as a source, catalog grids, `DISTINCT` with `ORDER BY`, and a star with exclusions
-are refused by name. (3) The server's resolver (`ConnectionResolver`) and the system database refuse MongoDB by name:
-the product opens no Mongo session yet. (4) The class mapping and `~binding`, the corpus, the metamodel store (D13).
-
-### 11.2 The homework before the PCT lane, 2026-10-17
-
-**The ask (the user, 2026-10-17): "should we do homework before we go down this path and get stuck?" -- "do it; I
-don't think upstream very useful except for spec/syntax."** Five measurements before the lane is built, each with its
-command and its answer; the sixth (what upstream's MongoDB support does) dropped by the user's word. Every answer
-is a fact the lane's design rests on, not a promise.
-
-1. **The shape census of channel A on DuckDB** (`-Dlegend.diagnostics=pct-shapes`; `PctCaseRecorder.recordShape`
-   writes `pct-shapes.tsv` into each suite's outputs; run: `bazel test //pct:pct_duckdb_essential
-   //pct:pct_duckdb_grammar //pct:pct_duckdb_relation //pct:pct_duckdb_standard //pct:pct_duckdb_unclassified
-   --jvmopt=-Dlegend.diagnostics=pct-shapes`, 372 s; read with a 40-line script). 2,655 cases executed: 1,935
-   `Scalar` (73%), 524 `TdsText` (20%: the whole Relation suite but 14, and 64 of Standard), 162 `Collection`
-   (6%), 34 errors before a result (17 `DataError`, 8 `ModelException`, 3 each `ResolutionException` and
-   `TypeInferenceException`, 2 `NumberFormatException`, 1 `NotImplementedException`). The scalar values by Java
-   class: 581 `Boolean`, 292 `String`, 275 `Double`, 237 `Long`, 154 `Integer`, 108 `StrictDate`, 104
-   `DateWithSubsecond`, 54 `DateWithSecond`, 43 null, 43 `BigDecimal`, 16 `LinkedHashMap` (class instances and
-   `Map`s), 8 `BigInteger`, 7 `Year`, 6 `YearMonth`, 3 `ArrayList` (a `List` value), 2 each `DateWithHour` and
-   `DateWithMinute`. The collection values: 39 `String`, 38 `Integer`, 30 `Long`, 35 empty (typed `Nil`,
-   `Integer`, `String`, `Pair`...), 10 mixed `Long|String` (an `Any[*]`), 9 `LinkedHashMap` (class instances,
-   `Pair`s), 1 `Double|Long` (a `Number[*]`). What this says for a lane whose results cross as one text: the
-   text route must carry every primitive with its precision (six date precisions, `BigDecimal`, `BigInteger`),
-   null, class instances, `List`, `Map`, `Pair`, enumeration values (4 `DayOfWeek`), a `Type` (4), and a
-   collection with a declared element type when empty -- the `TDSResult` form carries all of it today for 20% of
-   the cases, and the scalar and collection forms are the `value` relation of the same text (§6's one representation).
-2. **The TDS text as a plan output, and the shadow run.** (a) *The rename* (the user, 2026-10-17: "why would a plan
-   have a reference to a test harness?"): the product code is named for what it is -- `lowering/TdsTextWrap` (was
-   `PctTdsWrap`), `Render.tdsText` (was `pctTds`), `exec/ColumnProbe` (was `PctProbe`), `ExecuteOptions.TDS_TEXT` (was
-   `PCT_RENDER`); the SQL aliases inside the text (`_pct0`, `_pct_line`, the `pctTds` column) are unchanged, so every
-   lane's SQL is byte-identical. (b) *The plan output*: `TypedQuery.Output.TDS_TEXT` and `ExecutionPlan.Format.TDS_TEXT`
-   -- Pure's TDS text as the plan's text, a relation's own columns, a value's the one-column relation `value` (its
-   column optional only when the value is), a pivot refused by name (its columns exist only once the database is
-   asked: the legacy executor's probe); `executionPlan(runtime, output, features)` carries the engine's feature flags
-   to the lowering (`CORRECT_SQL_SUBSTRING_INDEXING`, the PCT's). `PlanMakerTest` judges the form against today's path
-   on DuckDB and H2 for every case it has (a let-bound literal types its column more precisely than a declared
-   parameter -- `Decimal(38,2)` against `Decimal`, `StrictDate` against `Date` -- so those are judged by the plan's own
-   header). (c) *The shadow run* (`-Dlegend.diagnostics=pct-shadow-plan`; `PctShadowPlan` beside `PctExecuteNative`:
-   each case planned to `TDS_TEXT` under the same flags, run by `PlanRunner` on the lane's storeless runtime, compared
-   with the legacy route's result; `pct-shadow-plan.tsv` in each suite's outputs; the run:
-   `bazel test //pct:pct_duckdb_{essential,grammar,relation,standard,unclassified}
-   --jvmopt=-Dlegend.diagnostics=pct-shadow-plan`, about 7 minutes, the suites' own pins untouched). 2,621 cases
-   shadowed (the 34 that error before a result are not). **Agree: 2,121 (81%)** -- 273 relation texts equal whole,
-   1,848 values equal row for row. **Relation texts, 251**: 230 differ in row order alone (no `ORDER BY` in the query;
-   the database's order for the two paths' different SQL shapes), 1 by design (`generateGuid`), 20 refused (the
-   pivots). **Values, 248**: 170 dates -- a Date value through the legacy route prints with the precision the value
-   has (`2015-04-15T13:12:11+0000`; `.338001` after a microsecond adjust), the TDS text with three millisecond digits
-   (`T13:12:11.000+0000`; `.338`) as the engine's TDS writer spells a `TIMESTAMP` column, since a SQL slot carries an
-   instant and not a precision (the first run also had 114 strftime errors over date values carried as text, fixed:
-   `Render.tdsTextCell` prints a text-carried date as its text); 35 empty collections (the text is the header and a
-   newline, the legacy no values: the same to the reader); 27 strings in an `Any[*]` quoted by the TDS cell (`'a'`,
-   which the reader unquotes); 16 class instances and maps (the TDS text has no form for them; the legacy route hands a
-   map, the Pure side an instance). **What this settles for the lane**: one text per case carries 81% as is, the row
-   order and the quoting are the reader's, and the two gaps are named -- a Date value's PRECISION (Pure's value
-   semantics, which the legacy route infers from the instant's zero fraction and the TDS text cannot carry over a
-   `TIMESTAMP` slot: either the lowering spells a date value as Pure's own literal text, with its precision, or the
-   lane pins the date-precision cases as upstream's relational adapters do) and class instances (16 + 9 cases: the
-   graph route). Both are the user's decision before the Mongo lane's channel A is wired; the measurement is recorded,
-   the route is built.
-3. **The differential in miniature** (`MongoDbDifferentialTest`, in `//core:mongodb_plan_test`; the verdicts in
-   `mongodb-differential.tsv` under the test's outputs and on its standard output): 55 storeless cases shaped like the
-   suites', planned to the CSV wire (two to the JSON wire) on DuckDB and on MongoDB, run on both, the texts compared.
-   The first run (40 cases): 23 EQUAL, 1 DIFFERENT, 14 REFUSED, 2 the reference's. What it exposed, and what each
-   became: (a) a `HUGEINT` cast refused -- now a Decimal128 (`scalarTypeName`); (b) `UNNEST` of a collection root
-   refused -- now the list projected whole and exploded after (`$unwind`; several in step through `$zip`); (c) a
-   subquery in expression position refused -- now a `$lookup` under `let` variables into a `__sqN` field, read as
-   the first document's one field (`ScalarSubquery`), its size (`Exists`) or its values (`InSubquery`), the field
-   named as the pipeline's projection stage named it (a bare `COUNT(*)` has one); (d) `DISTINCT` with `ORDER BY`
-   refused -- allowed, the sort carries being functions of the row; (e) an ordered aggregate placing nulls first
-   (S73) -- the pushed values carry each key's null flag; (f) `SUM` over an all-null group answering 0 (S72) -- a
-   count rides beside the sum; (g) an integral double printing as `2` and a big or small one in scientific notation
-   (S74 and the §9 item 4 measurement) -- a number's text is spelled through the platform's portable form over
-   `$toString`'s text. The last run (63 cases, the eight TDS text cases of item 2 included): 59 EQUAL, 2 DIFFERENT, 2 REFUSED (a pivot
-   and a window function, named later landings). The two differences are the DuckDB side's, recorded for the platform and not Mongo's to fix:
-   `(0.1 + 0.2)->toString()` prints `0.3` on DuckDB's plan path (the NUMERIC CHARTER's bare float literal is typed
-   `DECIMAL` by DuckDB, so the sum is exact decimal arithmetic) where Pure and MongoDB print `0.30000000000000004`;
-   and the JSON wire's date-time text is each database's JSON writer's (`2020-01-15 11:20:30` on DuckDB) where Pure
-   and the MongoDb target spell `2020-01-15T11:20:30.000+0000` (S75, recast). A third finding of the same kind, found
-   and removed from the cases: a list of float literals (`[1.5, -2.0]`) is typed `DECIMAL(3,2)` by DuckDB and prints
-   `1.50`; a mixed `Number[*]` list unifies to `DOUBLE` and prints an Integer element as `10.0`. Each is the
-   reference's deviation from Pure's one answer, to be fixed on the SQL side (a literal list's element type, a
-   Float literal's own type) -- a measurement for the DuckDB lane's plan path, outside this line's files.
-4. **The 16 MB bound** (`MongoDbPlanTest.theWholeTextWiresAreBoundedBySixteenMegabytes`): §9 item 3's record --
-   16,777,216 bytes is the wall, the server names it (error 16493), 10 MB passes in about 1.3 s, and the row join
-   is quadratic (`$reduce` over `$concat`). The lane's whole-text results are small (a PCT case's TDS is rows);
-   the product streams.
-5. **Channel B's bodies** (the PCT `.pure` sources under `meta::pure::functions::*::tests`, read for the statement
-   count of each `<<PCT.test>>` function body): 920 of 921 are one statement (`|expr` or a single `let`-free
-   expression); the one with more, `meta::pure::test::surveyor::runPCTTests` (12 statements), is the surveyor's
-   driver, not a case. So channel B on Mongo needs no `Sequence` plan: every case is one statement, one command.
-
-What the homework changes in the plan: §6's channel A route is confirmed as one text per case in Pure's own TDS form
-(item 1: the forms are three, the text is one), built as `Output.TDS_TEXT` and measured by the shadow run (item 2:
-81% carried as is, two named gaps for the user to rule on -- a Date value's precision, class instances); the
-differential stays in `//core:mongodb_plan_test` as the line's standing measurement, grown with each landing (item 3,
-now with TDS text cases); the lane's size estimate is unchanged. The measurements that remain open are §9's items 2,
-6, 7, 11, 12 and 13.
-
-### 11.3 The PCT lane, 2026-10-17: the first measurement
-
-**The ask (the user, 2026-10-17): "Why did you stop? Did we pass all the PCT tests already?"** The lane is built and
-run; the first measurement is pinned, as every other lane's was.
-
-**The lane.** `LEGENDLITE_PCT_BACKEND=mongodb` (`PctBackend.Lane.MONGODB`: the storeless runtime on the embedded
-MongoDB 8.0.17, `StorelessRuntime.onMongo`, the password a system property the connection's vault reference names).
-Channel A runs through the plan path (`PctPlanRoute`, `PctBackend.throughThePlan`): the case's expression and its
-injected model planned by the one compiler to Pure's TDS text (`TypedQuery.Output.TDS_TEXT`, under the PCT's feature
-flag) and run by `PlanRunner` on the session the connector opens; the lane has no JDBC session and touches nothing of
-the legacy executor. ONE representation crosses: a relation as its TDS text, a value as the one-column relation
-`value`, which the adapter (`pct_adapter.pure`) unwraps by the function's own return type -- a Date or a Decimal read
-from the text's lines by Pure's own parsers, since legend-pure's TDS reader builds neither from a cell; the value's
-strings quoted whole, since the reader types an unquoted cell by its text. The adapter's repository declares the
-engine's relation functions (`core_functions_relation`) for the one `map` it uses. The five suites are
-`Test_LegendLite_MongoDB_*Functions_PCT` (`//pct:pct_mongodb_*`, `//pct:pct_mongodb` in `//gates:heavy`).
-
-**The first measurement** (two runs the same day; the second after the fixes the first drove):
-
-| suite | tests | pass | pinned | the pins, by cause |
-|---|---:|---:|---:|---|
-| Essential | 345 | 241 | 104 | 24 value differences (dates printed with three millisecond digits where the value has none, 8; the mixed-Number list unified, the big Float, the error positions and messages -- the platform's own); 15 the reader's cell typing; 11 a List, Map or class instance crossing as text; 8 maps from entries; 8 the empty string (the reader's null); 6 two-parameter lambdas; 4 dates past year 9999 (`$dateToString`); 3 `%f` directives with a precision; the rest named refusals |
-| Grammar | 137 | 113 | 24 | 4 List or instance values as text; 3 `Any`-typed values; 3 the reader's cell typing; 6 value and error differences (the platform's own); the rest named |
-| Relation | 469 | 143 | 326 | 188 window functions (`$setWindowFields`); 67 quantified comparisons (ANY/ALL over a subquery); 27 a Variant's JSON text; 20 pivots (the plan path has no probe); 17 lateral and as-of joins; 7 others (full and right joins, QUALIFY, currentUserId, a lambda, a value) |
-| Standard | 205 | 124 | 81 | 32 window functions; 11 `timeBucket`; 10 value differences; 6 the reader's cell typing; 6 mode; 2 each regex replace, hashCode, generateGuid, weekday names; bit shifts, CORR |
-| Unclassified | 93 | 57 | 36 | 13 ascii and char; 5 base64; 4 string distances; 3 digests; 5 value differences; 2 regex replace; 2 List values; currentUserId |
-| **all** | **1,249** | **678 (54%)** | **571** | |
-
-The DuckDB lane pins 24, 4, 1, 4 and 0 in the same suites: the platform's own. The other lanes' first measurements
-were 40 (Snowflake, Trino) to 83 (BigQuery) own pins over the whole platform; this lane's 572 is of another kind,
-since the target is three days old and its relation half (§7 PR4: windows, quantified subqueries, pivots, lateral and
-as-of joins, the Variant text) is the named refusals that make up 320 of the 326 relation pins. (The counts are the
-lane's as committed: 571 pins after the number text's spelling let `testFormatFloat` pass.) The differential in
-miniature stands at 68 EQUAL of 72 (the two differences the DuckDB side's; two refusals, pivot and window).
-
-**What the first run fixed in the target** (each a measured defect, now a differential case): a literal array handed
-to a one-argument operator was read as an argument list (`$reverseArray`, `$size`); `$concatArrays` answered null for
-a fold's empty accumulator; a string converted to Boolean was true whatever it said; `$strLenCP` of null was the
-server's error; the list slice, the `%s` format and the array and map casts were refused; and a number's text,
-spelled through the portable composition, rendered to 17 KB per cast to text -- a print path that casts a value a
-few hundred times (Pure's print of an `Any`-typed Float through the CSV wire, 2 MB; a `%f` of a mixed list's
-element, 147 MB) ran the driver out of memory, so the target now spells the text once in the pipeline's own
-operators (the MariaDb precedent: one `$regexFind` for the sign, digits and exponent, the point moved as text; about
-a kilobyte per cast; `1.5->toString()` 18 KB, the mixed-list element 79 KB, the `%f` case 6 MB -- the lowering's own
-multiplication, measured and left). **What the harness's own
-reader showed** (legend-pure's `stringToTDS`, the form every lane's relation results cross in): it types an unquoted
-cell by its text, trims an unquoted cell's spaces, reads an empty cell as null, builds no Date or Decimal through
-`map`, and takes no type variable or simple class name in its header -- each now handled in the TDS text or the
-adapter, except the empty string (8 pins: quoted or not, the reader reads nothing).
-
-**Next, in the order the pins say:** `$setWindowFields` (220 pins over two suites), the quantified subquery as a
-`$lookup` (67), the Variant's JSON text (27), a static pivot's grouped form (20), lateral and as-of joins (17); then
-the essential suite's two-parameter lambda, map from entries and `timeBucket`. The date-precision and
-class-instance pins stay the user's decision (§11.2).
-
-### 11.4 The burn-down, 2026-10-17: the relation half shaped, the long tail measured
-
-**The ask (the user, 2026-10-17): "then we want to burn down pct to as close to zero as possible."** In the order
-the first measurement's pins said, each shape landed with its differential cases (the differential in miniature now
-stands at 147 EQUAL of 154 cases), then the five suites re-measured and re-pinned.
-
-**What landed in the target.**
-
-1. **Windows** (`MongoDbPipeline.windows`, `MongoDb.windowOutput`): a `$setWindowFields` stage per distinct (partition,
-   order). MongoDB's ranking operators take a `sortBy` of exactly one element, so an ordered group whose calls rank or
-   range to the current row sorts by ONE computed field holding the keys' document, each key beside its null flag (the
-   SQL engine's null placement, in the first key's direction; keys sorted both ways are refused by name); the other
-   groups sort by a field and a flag per key. A RANGE window bounded by unbounded or the current row -- an unframed
-   ordered aggregate, a cumulative distribution -- ranges over the order's dense rank, computed in a first stage,
-   since `$setWindowFields`' `"current"` is the current document alone where SQL's RANGE reads the row's peers, and
-   its range windows take a numeric field. A RANGE window by offsets sorts by the one key itself, ascending (a
-   descending order's bounds negated and swapped), a null key as the infinity of the key's kind so an offset from a
-   null row reaches its null peers alone and an unbounded side reaches the partition's edge (DuckDB's RANGE over
-   nulls); two fixed-length units count in the finer. Ranking: `$documentNumber`, `$rank`, `$denseRank`; a percent
-   rank, a cumulative distribution and an ntile from a rank or a document number and the partition's count; `$shift`
-   for a lag or lead by the literal the Lowerer passes; `$first`, `$last`, a pushed array for an nth value. The push
-   route (ordered, distinct, median, quantile, mode, the two-column statistics) pushes the frame's values as the group
-   stage does. 202 of the 220 pins passed on the first run; the rest named what was left (above).
-2. **Quantified comparisons** (`Subqueries.apply`): `value op ANY|ALL (subquery)` rewritten to the list predicate
-   over the lookup's rows -- `exists` for ANY, `forAll` for ALL -- whose lambda compares the value with each row; the
-   Lowerer drops the rows' nulls and guards the value, so the two-valued predicates are SQL's. All 67 pass.
-3. **A Variant's JSON text** (`MongoDb.cellText`, `jsonLevel`): MongoDB has no JSON writer, so the text is written by
-   the value's kind at run time -- null, a string escaped and quoted, a date, a number as Pure spells it, a boolean --
-   and an array or a document element by element, keys escaped and quoted, unrolled to six levels of nesting (eleven
-   BSON levels each; the server's limit is two hundred, and a Pair collection's text overflowed at eight levels of
-   fifteen); deeper is refused by a raise. A Variant literal (a TDS cell) is the document it spells, under `$literal`
-   so its fields are not expressions; a computed text parsed as a Variant is refused by name (no JSON parser in a
-   pipeline). A Variant element read as text is the element's own string (DuckDb's `->>`), the JSON path root `$` the
-   value itself. A lambda parameter's field reads as the variable's field (a Pair's `first`).
-4. **Lateral and as-of joins** (`MongoDbPipeline.join`): the lookup's `let` already bound the left row's aliases, so a
-   lateral join's correlated right side is a cross or left join's shape; an as-of join keeps, of the right rows the
-   ON admits, the one nearest the left row's key (`$sort` by the match inequality's right-side column, `$limit: 1`),
-   then pads as a left join. Full and right joins stay refused by name.
-5. **The statistics**: mode (the sorted values' runs counted, the smallest of the most frequent -- Pure's fold), the
-   two-column statistics pushed as pairs (E[xy] - E[x]E[y]; the sample covariance scaled; the correlation over the
-   population deviations), a descending percentile over the value's descending order (the Lowerer's flag; it read
-   ascending before), the list forms' subselect columns qualified by their alias in the Lowerer (`_uz.a`, a target that
-   keeps a subselect's row under its alias reads them there).
-6. **The long tail**: two-parameter lambdas (the list zipped with its 1-based positions, both bound; a null list
-   staying null); a map from entries (`$arrayToObject`); the time zone conversion (UTC the instant itself, a zone the
-   `$dateToParts`/`$dateFromParts` shift, the direction by the value's kind) and the zoned cast (`$convert` to date, a
-   single-digit month or day padded, which Pure reads and `$convert` does not); `format`'s `%d` and `%.Nf` (the Float
-   spelling of the rounded double, its fraction cut or padded, a negative argument's sign kept); `timeBucket` by
-   arithmetic (the engine's origins, 1970-01-01 and 1969-12-29 for weeks; months counted from 1970-01; a literal finer
-   than a millisecond bucketed at the millisecond, the one place a BSON date may cut such digits, since no bucket is
-   finer); `ascii` and `char` by the ASCII table spelled as text (a character or code beyond it raised); bit shifts by
-   Decimal128 arithmetic (exact to 34 digits where a double loses the bits past 2^53); the composed date formats (a
-   weekday's or a month's name by its number, the 12-hour clock and its marker, the minimal fraction) beside
-   `$dateToString`'s codes.
-
-**What landed in the harness** (`pct_adapter.pure`; `PctDisciplineTest`'s pin 500 -> 535, dated): the reader types a
-cell by its text, not by the header -- a Number's `3` read as 3.0, a String's `'0'` as an Integer, a null Number cell
-as the String `null` -- so the value relation's Number cells are read as Pure spells them (an Integer or a Float) and
-its String cells as the quoted text itself, a cell spanning lines read whole (`quotedCells`).
-
-**The second measurement:**
-
-| suite | tests | pass | pinned | the pins, by cause |
-|---|---:|---:|---:|---|
-| Essential | 345 | 280 | 65 | 18 a List, Map or class instance crossing as text (the route's); 14 value differences (dates printed with three millisecond digits where the value has none, the error positions and messages -- the platform's own); 10 `Any`-typed values and user elements by simple name; 10 error positions and messages; 7 dates past year 9999, a month count past `$dateAdd`'s range, the microsecond unit (MongoDB's own); 3 `Pair` without type arguments; 2 the reader's cell typing; a `TypedDeactivate` |
-| Grammar | 137 | 116 | 21 | 5 instances as text; 4 Decimal arithmetic (Decimal128's 34 digits where Pure keeps 16); 3 `Any`-typed values; 2 extended primitives; 2 non-primitive equality; the rest named (a schema-qualified table, a date part, a range) |
-| Relation | 469 | 441 | 28 | 20 pivots (the plan path has no probe); 5 a Variant holding JSON null (BSON null, printed as a null cell where Pure prints `'null'`); full and right joins; currentUserId (the second pass below: 449 and 20) |
-| Standard | 205 | 184 | 21 | 10 value differences (greatest and least over dates and mixed numbers); 4 regex replace; 2 each hashCode, generateGuid; ARG_MAX and ARG_MIN; a percentile's server error |
-| Unclassified | 93 | 74 | 19 | 5 base64; 4 string distances; 4 regex extract and index (values); 3 digests; 2 regex replace; currentUserId |
-| **all** | **1,249** | **1,095 (88%)** | **154** | 82 named refusals or the server's own errors; 417 pins fewer than the first measurement's 571 |
-
-**The second pass, the same day** (the differential at 157 EQUAL of 165 cases): right and full joins (a right join looks the left
-side up from the right; a full join appends, by `$unionWith`, the right rows no left row matched, the left side's
-null columns under `$literal` since `$addFields` merges a plain document into the field's own); `regexpExtract`'s
-group 0 (the whole match); `range(n)` from 0; `maxBy` and `minBy` on the pair route (the value at the greatest or
-least key); a list element past the end as null (`$arrayElemAt` answers nothing, which `$eq` does not read as null);
-a power as a Float (`$pow` of two integers answers an integer); and the **static pivot**: a pivot whose values are
-given has its columns at type time (`PivotChecker`: one per value and aggregate, named bare as the database names
-them, which the headers present quoted and a `cast(@Relation<...>)` names quoted -- `Lowerer.relationCast` finds the
-column under either spelling), so the plan's TDS text carries them without asking the database (`PlanMaker` refuses
-a dynamic pivot alone now), and the target shapes it as two groups and a projection (`MongoDbPipeline.pivot`: by the
-keys and the ON value with each aggregate accumulated, then by the keys with the ON value and the aggregates
-pushed, then each pivot column read as its value's aggregate). The dialect resolves an unqualified column under a
-select's one alias while the row is wrapped (`MongoDb.soleAlias`), as SQL resolves a column over one source.
-After it the lane stands at 1,121 of 1,249 (89%; 128 pinned: Essential 65, Grammar 20, Relation 20, Standard 10, Unclassified 13); the relation suite's pins are the dynamic pivots (14), the Variant holding JSON null (5) and currentUserId.
-
-**The third pass, the same day** (the differential at 165 EQUAL of 173): the regular-expression replace, which MongoDB has no operator for (`$replaceAll` replaces text), as the matches found and the text spliced -- the stretch before each match kept, the replacement put in its place, a `$N` in it the match's Nth capture, the tail kept; the first match alone without the 'g' option (the three-argument form); `generateGuid` as thirty-two random hexadecimal digits (`$rand`, one per step of a reduce) in a uuid's five groups; `hashCode` as the hashed index key (`$toHashedIndexKey`: the database's own hash, as every lane answers its own -- DuckDB's is not Java's either). The adapter reads a Number cell spelled with the Decimal suffix (`2D`) as a Decimal.
-
-**The cross-lane pass, the same day** (the user: "did you look at how other database do all of these failures to see
-if there is inspiration for us here"; the differential at 182 EQUAL of 190): the 128 pins read against the eleven
-other lanes' pin files. 80 pass on every other lane, 13 are pinned on one to four others, one on seven, 34 on all of
-them (the platform's own). Of the 80, what the other targets COMPOSE without a native operator composes here too:
-Postgres and SQLite walk the Levenshtein table in a recursive CTE and Postgres, Databricks, Snowflake and Trino the
-Jaro-Winkler match, so `MongoDb.levenshtein` and `jaroWinkler` are the same walks as folds (`$reduce` over `$range`,
-the row above and the match flags carried by `$let`; the score in doubles in DuckDB's order of operations, 0.88
-bit-equal to DuckDB's); SQLite composes base64 from hex, and MongoDB 8.0 converts text to binary data and back, so
-base64 is `$convert` (to `binData` reading UTF-8, to `string` writing base64; the reverse padded to a multiple of four
-first, since the Pure function takes unpadded text) -- nine pins. The 17 date pins were the plan path's, not
-MongoDB's: the legacy route prints a date with the precision the value has, the TDS writer three millisecond digits
-(the DuckDB shadow had the same 170 differences, §11.2), so a value root's DateTime cell prints a whole second without
-a fraction now (`Render.valueDateTimeText`: the value equal to its second truncation; shared code, every lane's plan
-path), and the day truncation (`datePart`, the day comparisons) is typed DATE in the MIR (`SqlTyping`), as every
-dialect renders it (DuckDb `CAST(x AS DATE)`, MariaDb `DATE()`, ClickHouse `toDate32`), so `datePart` prints
-date-only. What has no shape anywhere stays: the digests (composed on no lane; SQLite walls them, Postgres pins
-SHA1) and `currentUserId` (a native on every SQL lane; a pipeline names no user). The rest of the 80 is the route's
-(a List, Map, Pair or class instance as text; `Any`-typed values; the Decimal suffix; the dynamic pivots) and
-MongoDB's own (the microsecond unit; `testDatePart`'s seven-digit literal). After it the lane stands at 1,145 of
-1,249 (92%; 104 pinned: Essential 58, Grammar 20, Relation 20, Standard 2, Unclassified 4).
-
-**MongoDB's own, measured and named** (the pins that are the target's): a Variant holding JSON null is BSON null, so
-its cell prints as a null cell where Pure prints `'null'` (five relation tests); dates past year 9999 and the
-microsecond unit (`$dateToString`, `$dateAdd`); a dynamic pivot (the plan path has no probe; a static one has its grouped form); the digests and currentUserId (no
-operator; regex replace, hashCode, generateGuid, base64 and the string distances were composed, above); a List, Map or class instance crossing as text (the route's, shared with the DuckDB shadow). The
-class-instance pins stay the user's decision (§11.2); the date-precision pins were the plan path's and are gone.
-
-**The text carrier, 2026-10-18 (the thirteenth line's step 3, `docs/PLAN_PATH_PROGRAM_2026_10_17.md` §4; GATES "step 3,
-the text carrier"):** the route's own refusal -- "a List, Map or class instance crossing as text", the `Any` values,
-the `Pair`s, the user elements -- is gone from this lane: a value that is no primitive crosses as Pure's own literal
-grammar, which the pipeline writes (`$concat` over the document's fields, the same owner as DuckDB's; the
-differential's one case per form EQUAL) and the adapter compiles and reactivates. 29 pins deleted, 9 moved to what
-stays named (the identity tests, as on the DuckDB lane; a user element by its simple name; an instance nested past
-the layout's depth). The lane: 1,249 tests, 75 pinned.
+> Cut in the 2026-11 docs cleanup: §11, v0 as built (2026-10-16 to 2026-10-17: what landed, the homework before the PCT lane, the lane's first measurement and the burn-down); the four differences from SQL it kept (then register rows S72 to S75, ids since reused) were three defects of the target, fixed, and one item of the SQL side; the facts it measured are listed above. Full text: `git show de2745351:docs/MONGODB_PLAN_2026_10_16.md`.

@@ -12,7 +12,9 @@
 > `PctDisciplineTest`) are the mechanical form of this file's rules. A
 > ceiling, pin, or allowlist entry moves ONLY with a dated justification
 > comment naming the task/incident — never as an edit-in-passing to make
-> a build green (docs/FOUNDATIONS_PLAN.md §0.4).
+> a build green (the foundations plan's §0.4; the plan is in git history,
+> docs/HISTORY.md). Where the reason goes: docs/GATES.md, "Recording a moved
+> pin, roster or ratchet".
 >
 > **Execution tenet — an INVARIANT, not an aspiration (eviction program
 > closed 2026-08-18; claim recalibrated by the 2026-08-18 adversarial
@@ -54,8 +56,8 @@
 > cannot reach a connection — grid chains COMPILE to SQL at the exec
 > seam, `GridReads.tryLower`, scheduled for deletion by the
 > relation-typed `fetchDb` leg). The adjudication authority is `docs/TENET_CHARTER.md`
-> (clauses C1-C5) plus `docs/JAVA_EVICTION_PLAN.md` §1's decision rule
-> (query-time values → the DB; build-time model text → typed constants;
+> (clauses C1-C5) plus its decision rule (moved there from the Java eviction
+> plan's §1 in 2026-11; query-time values → the DB; build-time model text → typed constants;
 > engine-exact text → a render TARGET of the one compiler). Consult them
 > before any "may Java compute this?" decision.
 >
@@ -99,13 +101,15 @@
 > tables; no other Pure bodies. Residue is named, never ported.
 >
 > **Authoritative spec:** `core/README.md` — folder layout, per-package
-> contracts, open decisions. This file is the short form.
+> contracts, its own invariants 1–12, its closed decisions. This file is the short form. The
+> invariants the Rust port must keep, from both lists and beyond them (no hash-order dependence;
+> serve exactly legend-engine's `pure/v1` APIs), are gathered in `docs/architecture/README.md` §5.
 >
-> Layer design rationale: `docs/pipeline-architecture.md` (backend, HIR → MIR
-> → SQL) and `docs/frontend-architecture.md` (frontend, text → HIR). **Both
-> were written against the frozen `engine/` tree** — their reasoning governs,
-> their type names do not. Each carries a name-mapping banner. Take names from
-> here and from `core/README.md`.
+> Layer design rationale: `docs/architecture/` — `README.md` (the overview, the
+> invariants the Rust port keeps, the known structural gaps), `frontend.md`
+> (text → typed model), `backend.md` (typed spec → SQL → plan) and `testing.md`
+> (how lite is judged). Written language-neutral for the port; take today's Java
+> names from here and from `core/README.md`.
 
 ## Read this first: ONE tree — the engine module is deleted (2026-08-11)
 
@@ -131,7 +135,7 @@ Recover legacy sources via git history (last present at tag-commit
 `com.legend.Compiler` (the planner, `//core:planner`) owns step ordering through J;
 `com.legend.Execution` (the execution front door) runs a planned query on a
 session (K). The planner's library has no execution dependency — planning never
-touches a database (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md);
+touches a database (C2a, docs/architecture/backend.md §11.1);
 a plan-only consumer depends on `//core:plan_side`. Every step is the same method
 its own unit tests exercise; there is no orchestrator-only code path.
 
@@ -174,7 +178,7 @@ user-visible error carries one of these eight.
 | `Compiler.query(ctx, query)` | names + G, typed once → `TypedQuery` | STRICT |
 | `TypedQuery.plan(runtime)` | G½ → J (also `.lower`, `.resultType`, `.expression`, `.target`) | STRICT — **the production seam** |
 | `Execution.run(...)` | A→K: the query's plan run by the plan's runner, its rows to the caller's sink (a writer at the boundary) | STRICT — **the production seam** |
-| `Execution.runProgram(...)` | a TEST BODY: G½→K statement by statement through the body driver and its judges; the verdicts to a listener, the last statement's answer streamed to the sink the caller hands for its shape (`Execution.Answer`, a writer at the boundary; door 1, 2026-10-29) | STRICT |
+| `Execution.runProgram(...)` | a TEST BODY: compiled whole to one artifact before anything runs (the block compiler, `driver/BodyCompiler`: frames, verdict rows, prepared value statements; docs/architecture/testing.md §4), then G½→K through the body driver and its judges; the verdicts to a listener, the last statement's answer streamed to the sink the caller hands for its shape (`Execution.Answer`, a writer at the boundary; door 1, 2026-10-29) | STRICT |
 
 The old door (`Execution.execute*`, `executeResolved`, the query service's materialized `execute`, a materialized
 `ExecutionResult` as a product answer) was deleted 2026-10-29 (the result boundary program's track D): a product
@@ -348,7 +352,7 @@ The "no `toSql()` / no SQL-encoding `String` field" half has **no test**.
   through to a stringly-typed catch-all.
 - Every defaulting branch is a bug hiding behind a safety net.
 
-### 5. Lazy loading of user packageable elements `[CONVENTION in core]`
+### 5. Lazy loading of user packageable elements `[ENFORCED in part — two guards]`
 
 Cross-project dependencies must not force-load the transitive graph.
 
@@ -364,10 +368,12 @@ Cross-project dependencies must not force-load the transitive graph.
 - Never walk a dependency graph by field access; go through `ModelContext`
   every step.
 
-> **The two automated guards — `NoEagerTypeReferencesTest` and
-> `NoEagerUserClassLoadsTest` — died with the engine module.** Core has
-> **no lazy-loading enforcement at all**. If
-> you break this in core, nothing turns red.
+> **Two guards, rebuilt for core** (`core/src/test/java/com/legend/architecture/`; the engine-era
+> originals died with that module). `NoEagerTypeReferencesTest` walks every compiled class in core's
+> jars and fails if a field outside its allowlist holds a resolved `TypedClass` or `TypedEnum`, directly
+> or nested in a collection, map, optional or array. `NoEagerUserClassLoadsTest` hands query
+> type-checking a fail-fast `ModelContext` that throws on any lookup of a "cold" user element. The rest
+> of this rule (no dependency-graph walk by field access) is still convention.
 
 ### 6. F must not trigger G `[CONVENTION]`
 
@@ -386,8 +392,8 @@ store-only node reaches the Lowerer — those are "resolver bug" walls.
 No `com.legend..` → `com.gs.legend..` dependency, ever. Also: no `util/`
 package anywhere (`ArchitectureTest`, the `..util..` rule).
 
-`ArchitectureTest` is mostly dependency-direction rules (37 tests as of
-2026-09-29, including `staticFieldsAreFinal`); it asserts no sealedness,
+`ArchitectureTest` is mostly dependency-direction rules (51 tests as of
+2026-11-05, including `staticFieldsAreFinal`); it asserts no sealedness,
 record-ness, or exhaustiveness (plan W1.11 adds an exhaustiveness check).
 Line numbers drift: search by rule name. It uses its own
 numbering ("6g", "7a-c") that does **not** map to this list or to
@@ -399,39 +405,43 @@ numbering ("6g", "7a-c") that does **not** map to this list or to
 
 ## Standing documents
 
-**Current work: the build rebuild and the self-contained upgrade bump. Start at
-`docs/build-inventory/program/START_HERE.md`** (the goal, the state, the rules, how to run
-every check, one brief per remaining phase); the plan is `docs/REBUILD_PROGRAM_2026_10_06.md`
-(its §0 says what the whole program is for). `docs/IN_FLIGHT.md` says who is working.
-**The compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`) is parked since 2026-10-04**
-(`docs/IN_FLIGHT.md`): do not follow its §0 checklist unless the user resumes it. Every deliberate difference from legend-pure/legend-engine is
+**Current work: the Rust port, on branch `rust-port`. Start at `docs/rust-port/ROADMAP.md`** (iteration 1
+replaces the whole planning path with Rust; Java keeps the executor, the HTTP shell, the test runners and the
+warehouse, SDLC, depot and query-store modules); its triage is `docs/rust-port/TRIAGE.md`, the phases'
+measurements `docs/rust-port/PHASE0.md` and `PHASE1.md`, the crates `rust/README.md`, and every retired test a
+row of `rust/RETIRED_TESTS.md`. `docs/IN_FLIGHT.md` says who is working. The build rebuild
+(`docs/build-inventory/program/START_HERE.md`) stalled on 2026-10-10; the Java compiler rebuild is superseded
+by the port (its language-neutral target is in `docs/architecture/README.md`). Every deliberate difference from legend-pure/legend-engine is
 a row of `docs/SEMANTICS_REGISTER.md`. Older plans, queues, audits, homework and logs were removed from
 `main` in 2026-11 and are indexed, one line each, in `docs/HISTORY.md` (read any with `git show cf73e6ef7:<path>`):
 a doc cited in code or prose that is not in the tree is there. They are history, not instructions; so is
-ENGINEERING_LOG's queue.
+the engineering log's queue (its standing tenets are now in `docs/TENETS.md`).
 
 The live process layer. None of it is reachable from any always-loaded file
 otherwise, which is how it drifted:
 
 | Doc | What it is |
 |---|---|
-| `docs/build-inventory/program/START_HERE.md` | **Start here**: the build rebuild and the self-contained bump (the plan: `docs/REBUILD_PROGRAM_2026_10_06.md`) |
-| `docs/PLAN_PATH_PROGRAM_2026_10_17.md` | **The plan path program** (the user, 2026-10-17): everything executes through a plan -- the types in the plan, the text carrier, both judges, the callers switched, the legacy executor deleted; its §0 the rulings, §7 the order, §9 the status |
-| `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` | **The plan and the result** (ratified 2026-10-18): one plan record with three renderers, one result model that is a stream with sinks, per-row formatting, the typed session seam, the fast path's invariants; governs the program from step 7 |
+| `docs/rust-port/ROADMAP.md` | **Start here**: the Rust port -- the three seams (the SQL tree, protocol JSON, plan JSON), the phases, what Java remains, the verification every phase |
+| `docs/architecture/README.md` | **The architecture**, language-neutral: the pipeline, the plan as the planner/executor seam, the invariants the port keeps, the known structural gaps; then `frontend.md`, `backend.md`, `testing.md` |
+| `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` | **The plan and the result** (ratified 2026-10-18): one plan record with three renderers, one result model that is a stream with sinks, per-row formatting, the typed session seam, the fast path's invariants; with the plan path program's rulings folded in (everything executes through a plan) |
 | `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` | **The result boundary program** (landed as PR #80, 2026-10-30): the program and the user's rulings (§8); its design is `docs/RESULTS_AND_RENDERERS_2026_10_22.md`; its evidence is `docs/result-boundary-homework/` (the audit, the code maps, the measurements, every probe's source); its open questions are register rows S119–S127; its session brief (`RESULT_BOUNDARY_START_HERE.md`) is in `docs/HISTORY.md` |
 | `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` | **The planner-driver seam program** (planned 2026-10-30, NOT ratified; the user rules on its §6 first): lite's execution model applied to the test body -- planned once as one `Sequence` the database executes, the verdict the database's (or the host judge's, D7), a shape the planner cannot know a step whose rows fill the next statement's regions (the `Keyed` pattern), the driver the runner plus the judges, the four probes retired shape by shape, step C's widenings reverted; its evidence `docs/planner-driver-seam-homework/` (the code measured; upstream read in the pinned sources as spec input, not as a model to copy) |
-| `docs/EXECUTION_PLAN_2026_09_26.md` | The compiler rebuild's plan (rev H4): **parked since 2026-10-04**, reference until the user resumes it |
 | `docs/SEMANTICS_REGISTER.md` | Every deliberate difference from the reference, with evidence |
+| `docs/UPSTREAM_BEHAVIOR.md` | How legend-engine and legend-pure actually behave, source-cited: printing values, cells and decoding, equality, how upstream tests backends |
+| `docs/backends/` | How each database behaves, measured with its version: DuckDB, Postgres, H2, MariaDB, SQLite, the cloud databases; the probes behind it |
+| `docs/DATACUBE_ARCHITECTURE.md` | DataCube's map: its pieces, where state lives, how a cube becomes a query, and its living design docs |
 | `docs/GATES.md` | The gate chain. **Read before claiming anything is green.** |
 | `docs/CLOUD_SESSIONS.md` | Bazel in a Claude Code cloud session: GitHub archives refused (`tools/cloud-distdir.sh`), the disk allowance, root |
-| `docs/ENGINEERING_LOG.md` | Standing tenets (its active queue is history; the plan above replaced it) |
-| `docs/TENETS.md` | Eager-Knowledge / lazy-Work, the north star |
+| `docs/TENETS.md` | Eager-Knowledge / lazy-Work, the north star, and the standing tenets (folded from the engineering log) |
+| `docs/TENET_CHARTER.md` | The execution tenet's clauses and the decision rule for "may Java compute this?" |
 | `docs/WORLD_MAP.md` | Java vs Pure vs input: the three kinds of Pure code, the prelude, compare-not-compute, the decision procedure |
+| `docs/build-inventory/program/START_HERE.md` | The build rebuild and the self-contained bump: stalled 2026-10-10 (the plan: `docs/REBUILD_PROGRAM_2026_10_06.md`) |
 | `docs/HISTORY.md` | Every document removed from `main` (the audits and their index, the corpus burn-down, the Maven-era scoreboards and ledgers, finished plans, homework, handoffs, evidence folders): what each was, what came of it, how to read it from git |
 
 ## Pushing to main
 
-Sessions may push to `main` directly (decision D17 of `docs/BAZEL_FIRST_CLASS_WORKPLAN_2026_10_03.md`, the
+Sessions may push to `main` directly (decision D17 of the Bazel first-class workplan, in `docs/HISTORY.md`, the
 fast loop), on three conditions. `main`'s ruleset (applied with P0-14) blocks direct pushes from everyone
 except the repository owner, and sessions run as the owner, so these conditions are kept by convention, not
 by GitHub:
@@ -450,7 +460,7 @@ by GitHub:
 
 **The build rebuild program lands without PRs** (the user, 2026-10-06): an audit, the local gate, one full CI run on
 the branch, then that exact commit pushed to `main` (`docs/build-inventory/program/START_HERE.md` §4). Whether other
-work keeps rule 2's PR path is open (`docs/build-inventory/program/PHASE_8.md` OD-9).
+work keeps rule 2's PR path is open (the build rebuild's OD-9; its `PHASE_8.md` is in `docs/HISTORY.md`).
 
 **No session pushes to `main` without the user's explicit word, in that session (the user, 2026-10-26, after the
 plan path branch's 170-commit landing went straight to `main` on the strength of the rules above, turned 15 CI lanes

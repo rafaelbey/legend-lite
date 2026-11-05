@@ -8,91 +8,50 @@ Two bodies of work live here and they run differently.
 | the **project graph** | 56 Legend projects that depend on each other | compiled only — no data, no runtimes, no services | `projects/` |
 
 Some of the 56 are also pulled into the corpus and executed; see
-[the boundary](#the-boundary) below.
+[the boundary](#the-boundary) below. The corpus is also legend-lite's own gate 10: see
+[running it through legend-lite](#running-it-through-legend-lite).
 
-## Prerequisites
+> Cut in the 2026-11 docs cleanup: the Maven-era prerequisites (a JDK path, `mvn` builds of core and the engine
+> runner, a machine-specific `cp.txt`), the two Python commands and the measured cost of an engine run (about 0.6 s
+> per service plus about 9 s per JVM, so about an hour at 4,290 testables), 2026-09. Full text:
+> `git show de2745351:docs/RUNNING_THE_CORPUS.md`.
 
-**A JDK 21.** The scripts default to `~/jdk/jdk-21.0.11+10/Contents/Home`; set `JAVA_HOME`
-if yours is elsewhere. Everything shells out to `$JAVA_HOME/bin/java`, so a `java` on `PATH`
-alone is not enough.
+## Building and running it (Bazel)
 
-**Maven, and the runner built once.** `tools/engine-runner` is outside the reactor, so `-pl`
-cannot reach it — use `-f`. Drop `-o` on a cold cache.
+Everything runs through Bazel from the repository root.
 
-```
-mvn -B -pl core install -DskipTests
-mvn -B -f tools/engine-runner/pom.xml compile
-mvn -B -f tools/engine-runner/pom.xml dependency:build-classpath -Dmdep.outputFile=cp.txt
-```
+| what | command |
+| --- | --- |
+| regenerate the generated stress files | `bazel run //core:update_stress_corpus` |
+| the corpus through legend-lite on DuckDB, shared sessions (gate 10) | `bazel test //core:stress_suites` |
+| the same suites on H2, a fresh seeded session per test (the engine's shape) | `bazel test //core:stress_suites_h2` |
+| both (the `stress` lane) | `bazel test //gates:stress` |
+| the corpus's own ratchets: density, executed, stacking, the engine-surface and function inventories (in `//gates:checks`) | `bazel test //scripts/corpus:density_gate //scripts/corpus:executed_gate //scripts/corpus:stacking_gate //scripts/corpus:scoreboard_gate //scripts/corpus:functions_gate` |
+| the cross-engine differential over the corpus (seconds) | `bazel test //core:corpus_differential_test` |
+| one service through legend-lite, a session policy, row dumps | `bazel run //core:stress_tool -- [--backend NAME] [--sessions fresh\|shared] [--only NAME] [--data F.pure,...] [--rows DIR] [--out DIR]` |
+| files or services through legend-engine | `bazel run //tools/engine-runner:testable -- <file.pure>... [--testable=<fqn>]... [--dump=<dir>]` |
 
-That last line writes `tools/engine-runner/cp.txt`, an 80 KB list of absolute jar paths. It
-is **gitignored and machine-specific** — regenerate it on any new machine rather than copying
-it, and regenerate it whenever a dependency changes. Every script reads it, and a stale one
-fails as a missing class rather than as a stale classpath.
-
-**Python 3.12+.** No third-party packages: the scripts use only the standard library.
-
-## The two commands
-
-Everything is driven from the repository root.
-
-```
-python3 scripts/corpus/build.py     # regenerate the corpus from the generators
-python3 scripts/corpus/run.py       # execute it and report
-```
-
-`build.py` is the one that matters. Four files under `stress/` are **generated wholesale**
-and must never be hand-edited, because the next build overwrites them:
-
-- `94-fanout-services.pure` — every generated service and its expectation (134k lines)
-- `93-testdata.pure` — the `###Data` element, i.e. all seeded rows
-- `98-combination-execution.pure` — the combination matrix's services
-- `92-services.pure` — the hand-written battery, rendered
-
-Everything else under `stress/` is hand-written and safe to edit. If you want to change what
-is generated, change the generator in `scripts/corpus/`, not its output.
+Eleven files under `stress/` are **generator outputs** and must never be hand-edited, because the next build
+overwrites them. They are listed once, in `core/stress.bzl`'s `STRESS_GENERATED`: `59`, `60` and `64` from
+`scripts/corpus/dense_build.py`, `92` to `98` from `scripts/corpus/build.py` (two of them `94`), among them
+`94-fanout-services.pure` (every generated service and its expectation) and `93-testdata.pure` (the `###Data`
+element, all seeded rows). `bazel test //:generated` fails when a committed copy differs from what the generators
+write, naming the update command. Everything else under `stress/` is hand-written and safe to edit. If you want to
+change what is generated, change the generator in `scripts/corpus/`, not its output.
 
 `build.py` also runs every consistency check before it writes anything — a class whose
 mapping the runtime cannot resolve, a duplicate set id, a seeded value too wide for its
 column, a service that sorts on an unprojected alias. It prints them all and writes nothing
-if any fires. A clean build ends with `wrote` or `no changes`.
+if any fires.
 
-`run.py` takes about **an hour** at 4290 testables and `build.py` about **10 minutes**. Those
-follow from the measured costs below -- roughly 0.6s per service plus 9s per JVM -- rather
-than from a fresh stopwatch, so treat them as the right order rather than to the minute. It batches the services across several JVMs, because a single
-process stops working somewhere past ~170 testables. Its last line is the summary:
+Gate 10's floors are `MIN_PASS` ratchets inside `StressServiceSuitesTest` (DuckDB) and
+`StressServiceSuitesH2Test` (H2): raised, never lowered.
 
-```
-4661 passed, 28 known-fail (quarantined), 1 not run (hangs), 0 unexpected, 4690 total
-```
-
-**`0 unexpected` is the only acceptable result.** The other numbers are allowed to move.
-
-### Where the time actually goes
-
-Measured on an idle machine, two runs of each, at ~2,290 testables and `BATCH = 40`
-(58 JVMs):
-
-| | | share |
-| --- | --- | --- |
-| per-service execution — 0.61s each | ~23 min at 2294 | 56% |
-| per-JVM fixed — 5.9s parse + 2.8s compile + 3.2s warm-up + start | ~12 min at 58 JVMs | 30% |
-| `build.py`, pure Python, even when it writes nothing | 6.4 min | 15% |
-
-Measured at 2294 testables and `BATCH = 40`. Both terms are linear, so at 4290 testables and
-108 JVMs the run roughly doubles.
-
-Compile is the SMALLEST piece, at about 7% -- which is worth stating because it is the
-obvious guess and it is wrong. Parse is twice compile here, the reverse of the project graph
-(998ms parse, 2334ms compile in a third of the bytes): the corpus is mostly generated service
-text, wide and shallow, and the graph is dense cross-referenced elements.
-
-The 3.2s warm-up is per JVM, not per seed -- a throwaway one-table model takes 3.3s to run a
-single service, which is the whole intercept and no marginal.
-
-So raising `BATCH` only attacks the 12-minute slice, and walks back toward the ~170 point
-where one JVM stopped working. The 0.61s per service is the block worth attacking, and the
-open question is how much of it is re-creating and re-loading the seed for every suite.
+**The engine side.** `scripts/corpus/run.py` runs the whole corpus through legend-engine and adjudicates every
+service against the quarantine (below). It, `scripts/projects/check.py` and `scripts/projects/loadtime.py` still
+read the Maven-era classpath file `tools/engine-runner/cp.txt`, which the Bazel build does not write; until they are
+ported, the engine runs through `//tools/engine-runner:testable` (`tools/engine-runner/README.md`), with the linked
+project files passed first (below).
 
 ## The two generated layers
 
@@ -137,20 +96,16 @@ defect pinned with a probe under `repro/` instead.
 
 ## Running one service
 
-The full suite is too slow for a debugging loop. To run a handful:
+The full suite is too slow for a debugging loop. Through legend-lite, `bazel run //core:stress_tool -- --only NAME`.
+Through legend-engine, name the services to run, with the linked project files ahead of the stress files:
 
-```python
-# scripts/corpus/one.py — or inline; see the pattern in scripts/corpus/run.py
-import os, subprocess, sys
-sys.path.insert(0, "scripts/corpus")
-import model, run as R
-cp = (R.RUNNER / "cp.txt").read_text().strip()
-files = ([str(f) for f in model.linked_files()]
-         + sorted(str(p) for p in R.STRESS.glob("*.pure")))
-subprocess.run([f"{R.JAVA_HOME}/bin/java", "-cp", f"{R.RUNNER}/target/classes:{cp}",
-                "perf.TestableMain", *files, "--testable=stress::PL2_PillarTenorBand"],
-               env=dict(os.environ, JAVA_HOME=R.JAVA_HOME), cwd=R.RUNNER)
 ```
+bazel run //tools/engine-runner:testable -- <linked project .pure files> core/src/test/resources/stress/*.pure \
+  --testable=stress::PL2_PillarTenorBand
+```
+
+(Paths are relative to where you type the command; `scripts/corpus/model.py`'s `linked_files()` lists the linked
+projects' files in order.)
 
 Two things that are easy to get wrong and fail anonymously:
 
@@ -166,11 +121,11 @@ diff the console truncates.
 ## The project graph
 
 ```
-python3 scripts/projects/check.py              # each project alone, then all 56 together
-python3 scripts/projects/check.py core-fx      # just one
-python3 scripts/projects/check.py --graph      # just the whole-graph compile
-python3 scripts/projects/loadtime.py           # parse and compile time by layer and closure
+bazel test //projects:tests      # each project alone with its declared closure, the whole graph, the contract's file checks
 ```
+
+The scripts behind the questions below (`scripts/projects/check.py`, `loadtime.py`) still read the Maven-era
+`tools/engine-runner/cp.txt` (see above).
 
 `check.py` asks two different questions. **Alone**: does a project compile with exactly its
 declared dependency closure — a project needing an undeclared one fails here, which is the
@@ -191,14 +146,14 @@ nothing more — and several recorded findings compile perfectly and fail at exe
 slice of the graph is pulled into the executable corpus:
 
 ```python
-# scripts/corpus/model.py
-LINKED_PROJECTS = ["core-types", "core-tenor", "core-fx", "core-ratings",
-                   "core-instrument", "core-calendar", "core-units", "fee-core"]
+# core/stress.bzl (scripts/corpus/model.py reads it through stress-layout.json)
+LINKED_PROJECTS = ["core-types", "core-tenor", "core-fx", "core-ratings", "core-instrument",
+                   "core-calendar", "core-units", "core-account", "core-geo", "fee-core", "index-core"]
 ```
 
-**Order is load-bearing: dependencies before dependents.** `fee-core` depends on the two
-before it, and `core-types` is in the list only because fee-core needs it — it exports no
-store and no mapping at all.
+**Order is load-bearing: dependencies before dependents.** `fee-core` needs `core-types` and
+`core-tenor` parsed before it, and `core-types` is in the list only because fee-core needs it — it
+exports no store and no mapping at all.
 
 Adding a project to that list is not enough on its own. It also needs:
 
@@ -281,3 +236,33 @@ This is why the oracle refuses an unknown function rather than guessing at it, w
 on an aggregate it does not implement rather than returning null, and why a cross-project
 function had to be reimplemented here from the project's own source. If you add a construct
 the oracle cannot evaluate, teach the oracle — do not relax the assertion.
+
+## Running it through legend-lite
+
+On 2026-09-16 the corpus moved onto main from its own branch, where it was 4,742 services (4,729 with test suites)
+over a 20-domain financial model, seeded by one `###Data` element, every expectation computed by the oracle above,
+and run against legend-engine 4.138 with 0 unexpected and 28 engine defects quarantined (`docs/UPSTREAM_FINDINGS.md`).
+legend-lite runs the same suites through its own product runner (today's `ServiceTestRunner`), following the
+engine's testable rules from its sources:
+
+- **Provisioning.** A suite's `data: [ connections: [ id: ... ] ]` names the runtime's store for that id; a
+  `Reference` names the `###Data` body; `Relational` CSV becomes DDL and inserts typed from the parsed store. Other
+  data kinds are skipped loudly.
+- **Sessions: the engine's way first, the optimization second.** A suite runs on a test runtime whose connection
+  carries the suite's data, loaded when the connection is established, as the engine does; the runner itself runs no
+  SQL. `FRESH_PER_TEST` (a fresh session per test, seeded on establishment, the engine's fresh database per run) is
+  the baseline; `SHARED` (one seeded session per distinct provisioning for read-only tests, a private one for a body
+  with effects) is the measured optimization. Gate 10 runs DuckDB shared and H2 fresh.
+- **Execution.** Parameters bind as `let` variables ahead of the body, then the one production entry runs against
+  the service's runtime.
+- **Judgment.** `EqualToJson` by the engine's own JSON rules (its `JsonNodeComparator`
+  `NULL_MISSING_EQUIVALENT_AND_UNORDERED_ARRAYS`, with exact decimals): null equals missing, arrays are unordered at
+  every level, `1 == 1.0`. Nothing "smarter than the engine" is hidden: DEFAULT tabular serialization,
+  `EqualTo`/`Relation` assertions, multi-execution services and ExternalFormat or ModelStore data are skipped
+  loudly, never faked, and every failure is listed by name. Where the engine is wrong and the oracle right (F6, F50,
+  F51, F54), lite is expected to pass.
+
+Measured on the first full run (2026-09-16): model parse and build 6.3 s, every test's execution 8.5 s, the whole
+test 20.7 s, against about an hour through legend-engine. The cost that matters is the model build, paid once.
+
+Sources: `docs/STRESS_CORPUS_THROUGH_LITE_2026_09_16.md` (git history: docs/HISTORY.md).

@@ -1,17 +1,11 @@
 # Relational Feature & Architecture Map — legend-engine vs legend-lite
 
-**Status: COMPLETE (all 3 waves merged, 2026-07-23).** This document is the full-depth survey of
-every feature area in legend-engine's `core_relational` — the engine's semantic model per
-feature (with source refs), the behavioral contracts its tests pin, the legend-lite
-architecture piece that serves it, its corpus status, and a verdict:
+**Status: the engine-side survey of legend-engine's `core_relational`, kept as spec input for the port.** Written
+2026-07 (all three survey waves merged 2026-07-23). For every feature area it records the engine's semantic model, with
+source refs, and the behavioral contracts the engine's tests pin. Lite's deliberate differences are rows of
+`docs/SEMANTICS_REGISTER.md`.
 
-- **SOUND** — our architecture models the feature the way the engine does; remaining work is incremental.
-- **PATCHWORK** — we pass tests but the architecture grew by special cases; needs a redesign against the engine model.
-- **MISSING** — no architecture piece exists; needs a designed leg.
-- **DEFERRED** — feature model documented, implementation intentionally out of scope for now.
-
-Purpose (user directive 2026-07-04): stop patching/special-casing/shooting in the dark;
-make this map — not the test ledger — the driver of future work.
+> Cut in the 2026-11 docs cleanup: lite's side of the map as of 2026-07: the verdict legend (SOUND/PATCHWORK/MISSING/DEFERRED) and the purpose note of 2026-07-04; each later cut site names what it held. Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 Engine source base (local checkout, all refs relative unless noted):
 `legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/`
@@ -43,45 +37,8 @@ Key architectural facts (established §A/§B of the H2/H3 plan, reconfirmed this
 - Post-processor pipeline: CTE hoisting, pushFiltersDownToJoins, removeUnionOrJoins (Snowflake), replaceAliasName, prependSQLComments.
 - One **milestoning context per query cursor**, rebuilt at explicit-date hops, propagated through same-strategy temporal parents, cleared at non-temporal hops.
 
-### 0.2 legend-lite
 
-Pipeline: `parser → normalizer → compiler/spec (G: Typer/InferenceKernel/checkers) →
-resolver (H: StoreResolver + satellites) → lowering (I: Lowerer/Scalars/Fold) →
-sql + sql/dialect (AnsiSqlRenderer/DuckDb) → exec (Executor) → harness`.
-
-| Layer | Files (core/src/main/java/com/legend/…) | Role |
-|---|---|---|
-| normalizer | MappingNormalizer, RelOpTranslator, ViewRelation, JoinChainEmission, UnionSynthesis, AssociationSynthesis, Pipeline | mapping grammar → synthesized pure function bodies (conform-by-emission) |
-| compiler/spec | Typer, InferenceKernel, JoinChecker, CastChecker, GraphFetchChecker | G: type-check everything incl. synthesized bodies |
-| resolver | StoreResolver (~3.5k), ClassSources, Substitution, AssociationJoins, CorrelatedSubselects, NavMaterializer, Pipelines, TemporalFrame/TemporalContext, GraphEmission, SyntheticHeads, FlattenOps, InnerDemand, ScalarStats | H: class queries → relation-space TypedSpec via β-substitution over binding tables |
-| lowering | Lowerer (~3.5k), Scalars (~3.5k), ListShapes, Fold | I: TypedSpec → SQL IR; fold policy = flat-by-default |
-| sql, sql/dialect | SqlExpr/SqlFn/SqlAgg; AnsiSqlRenderer, DuckDb | renderer wall; SqlType enforced |
-| exec, harness | Executor, TestBody, StatementExecutor | DuckDB execution; corpus harness runs the WHOLE pipeline |
-
-Contract: row equality against engine-blessed expectations; golden SQL advisory.
-Tenet: Java orchestrates, database executes — value evaluation always lowers to SQL.
-
-### 0.3 Corpus status per family (full sweep @ HEAD 15cead69: 1403 pass / 62 fail / 434 err / 639 shape)
-
-| Family | ERR | FAIL | SHAPE | Feature areas implicated |
-|---|---|---|---|---|
-| graphFetch | 100 | 12 | 3 | H4 graph output (biggest missing block) |
-| functions | 75 | 14 | 35 | dyna-functions, projection functions |
-| tests/mapping/union | 36 | 1 | 11 | union architecture (U4 leg) |
-| tds | 32 | 2 | 35 | TDS ops long tail |
-| milestoning | 31 | 2 | 42 | temporal context model |
-| tests/mapping/association | 16 | 0 | 0 | navigation/joins (many are db-pull) |
-| tests/query | 16 | 1 | 1 | views, qualifiers |
-| transform | 16 | 4 | 15 | M2M relational |
-| postprocessor | 13 | 0 | 22 | postprocessor features |
-| classMappingFilterWithInnerJoin | 11 | 0 | 0 | mapping ~filter INNER |
-| executionPlan | 10 | 0 | 100 | plan features (mostly out of scope) |
-| inheritance | 9 | 0 | 0 | subtype mappings |
-| sqlFunction | 9 | 3 | 0 | dyna registry |
-| embedded | 8 | 1 | 3 | embedded/otherwise |
-| modelJoin | 8 | 1 | 0 | model joins |
-| aggregationAware | 6 | 0 | 11 | agg-aware rewrite |
-| (others) | ≤7 each | | | see docs/RELATIONAL_CORPUS.md |
+> Cut in the 2026-11 docs cleanup: §0.2–0.3, lite's pipeline and layers (2026-07) and the corpus status per family at HEAD 15cead69. Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ---
 
@@ -236,124 +193,7 @@ Auto-map `processMap` (L3978): isolate source, PKs if body aggregates, dispatch 
   fns, window family with frames, special modes (import-data-flow FK materialization,
   temp-table-as-driver, CTEs, model joins, cross-store placeholders).
 
-### 2.2 legend-lite side
-
-Our equivalent is split across three layers by design (the engine's one 11k-line file is
-the anti-model):
-
-- **Navigation → joins:** resolver `AssociationJoins` + `NavMaterializer` + `Substitution`.
-  Join identity = NavPath (full path prefix from chain root), whole-op-chain registry,
-  first-demand order — the engine's merge-by-join-name-identity outcome without a merge
-  pass. Demand-gated: un-navigated association ends emit nothing (an advance beyond the
-  engine, which always materializes navigation joins it builds but never builds undemanded
-  ones either — net equivalent leanness).
-- **Isolation/nesting:** lowering `Fold` policy — flat-by-default, per-op fold guards,
-  `starOf(Subselect)` isolation. The engine decides nesting at construction (isolation
-  strategies); we decide at fold time. Equivalent outcomes for the common shapes; our
-  known gaps are exactly the engine's isolation strategies we never modeled:
-  filter-over-to-many hoisting (MoveFilterInOnClause / correlated-subquery choices) is
-  where several stopped legs (size-over-aggregate, derived-leaf inline) died.
-- **Per-op processing:** compiler/spec typed nodes (TypedFilter/Project/GroupBy/…) +
-  Lowerer arms. To-many nav in filter = correlated EXISTS (single form; engine's
-  LEFT-JOIN-to-DISTINCT second form deliberately rejected — DuckDB decorrelates).
-
-**Corpus status:** core shapes green (1403 pass incl. join torture); the residue clusters
-in `functions` (75 err) and `tds` (32 err) long tails, plus isolation-shape gaps above.
-
-### 2.3 Verdict & gaps
-
-**SOUND core, with one structural hole: we never modeled the engine's filter-channel +
-isolation calculus.** What's confirmed sound:
-
-- Join dedup: our NavPath whole-chain registry ≡ engine merge-by-join-name outcome,
-  without the engine's mutable-tree re-search machinery (findNode/validate/alias
-  re-pointing) — our immutable rewrite makes that entire trap class (engine traps 2, 7, 8)
-  structurally impossible. Deliberate, superior divergence; keep.
-- Flat-by-default Fold ≡ prophylactic flatness; isolate-if-not-last, WHERE/HAVING/QUALIFY
-  routing, distinct-source isolation all have equivalents.
-- Position-dependent enum translation, LEFT-navigation default, INNER-mapping-filter wrap,
-  correlated-EXISTS single form: adopted per plan §A.
-
-The hole — the engine carries THREE filter channels (`filteringOperation` /
-`savedFilteringOperation` node-keyed deferred / `extraFilteringOperation`) and a
-strategy chooser (MoveFilterInOnClause | BuildCorrelatedSubQuery | MoveFilterOnTop with
-the INNER-join upgrade rule). We have one channel (fold-into-WHERE) plus per-site
-special cases. Every stopped leg maps to a missing strategy:
-- filter-hoist-below-nav (union t18 filter, chained filtered nav #70) = savedFiltering +
-  MoveFilterInOnClause;
-- size-over-aggregate routing regression = projection-thread BuildCorrelatedSubQuery;
-- derived-leaf inline wrong-value = qualifier shouldIsolate=false accumulation (filters
-  must accumulate to the CALLER's isolation decision, never partially applied in place).
-
-**Sane architecture:** introduce a resolver-level `DeferredFilter` channel (predicate +
-the pipeline node it scopes to — our typed equivalent of savedFilteringOperation keyed by
-NavPath instead of tree-node identity) and ONE strategy chooser at materialization:
-fold-into-ON | correlated-subselect | hoist-on-top with the inner-join upgrade rule.
-This replaces the per-site special cases in CorrelatedSubselects/InnerDemand and is the
-prerequisite for the union push-into-arm leg (§4) and qualifier aggregation (§8).
-Secondary gaps (feature inventory, not architecture): pivot, window frames beyond current
-coverage, variant/semi-structured family, CTE-from-lets, paginated — enumerate against
-the dispatch-table inventory when burning the `functions`/`tds` families.
-
-## 2a. The GENERAL mapping→SQL path (plain class mappings, end to end)
-
-The verdict the rest of the map rests on: for a plain class mapping — column PMs,
-dynafunction PMs, enum PMs, ~filter/~distinct/~groupBy/~primaryKey, association
-navigation, project/filter/sort/take — how does our architecture compare to the engine's,
-end to end?
-
-### 2a.1 The two architectures are genuinely different — ours by design
-
-The engine INTERPRETS the mapping metamodel at query time: processGetAll →
-processRelationalMappingSpecification builds the root, resolves each PM on demand
-(findPropertyMapping → processPropertyMapping per hop), and mutates a SelectWithCursor
-whose tree-node identity survives rewrites only via re-search (findNode/validate + five
-live pointers). We COMPILE the mapping once: MappingNormalizer synthesizes typed pure
-bodies (tableReference → ~filter → map(^Class(...))) that G type-checks like any user
-code (conform-by-emission), ClassSources strips the terminal into a binding table, and
-the resolver β-substitutes bindings into user lambdas over an immutable tree.
-
-**Verdict: our general path is SOUND and structurally superior on four axes** — each an
-engine trap class made unrepresentable:
-1. Mutable-tree identity (engine traps: re-search, __iso/csq semantic prefixes, alias
-   re-pointing, both-direction alias pairs) — impossible: immutable rewrite, NavPath
-   identity, fresh trees.
-2. inFilter leaf dichotomy (~80 engine sites route output by a state flag) — impossible:
-   typed nodes make position structural.
-3. PM-resolution drift (engine resolves per hop with router-supplied vs incoming PM
-   precedence) — resolved ONCE at extraction into bindings; dynafunction PMs inline by
-   β-transitivity instead of a special "rebuild the function over resolved params" arm.
-4. Type/string leakage — strings die at the parser; SqlType + dialect wall (the engine's
-   emission is entangled through the 11k file; our I-layer is a real seam, and §9
-   confirmed our two-registry dialect model matches the engine's own split).
-
-Corpus evidence: 1403 passing including the join-torture and whole-chain-one-SELECT
-families; the residue clusters in the four feature calculi (§15), NOT in the plain path.
-
-### 2a.2 What the general path still owes (all already captured in legs, listed here as
-the general-path view)
-
-- **Identity/distinct discipline** (the one genuinely general gap): engine rules —
-  pk_N injected only when addPk && no groupBy && !distinct; ~distinct forces
-  all-properties materialization; and **navigation INTO a distinct/groupBy class
-  re-materializes the target as a subselect** (never joins the raw table). That
-  re-materialization rule is the same rule as views-as-frames (§5) and modelJoin target
-  materialization (§10) — one shared resolver rule, three consumers (leg 15.0/leg 4).
-- **The filter/isolation calculus** (leg 1) is a GENERAL-path mechanism, not a feature:
-  plain queries hit it whenever a filter crosses a to-many hop or an INNER mapping
-  ~filter composes with navigation. The classMappingFilterWithInnerJoin family (11 err)
-  sits here.
-- **Per-op inventory completeness** (pivot, window frames, paginated, variant/CTE) —
-  feature coverage on top of a sound spine, burned as checklists.
-- **Normalizer risk to keep pinned**: rules the engine applies lazily per query
-  (set-qualified PM selection, extends override elimination, otherwise per-leaf
-  dispatch) must survive INTO binding tables rather than being baked flat at synthesis.
-  Our ObjectValue per-leaf dispatch and per-member ClassSources are the mechanisms;
-  §10's PM-selection rules are their spec.
-
-Net: general mapping/lowering needs no redesign leg of its own. It is the foundation the
-legs build on — which is precisely why the legs are worth doing as calculi rather than
-patches: the spine can carry them.
+> Cut in the 2026-11 docs cleanup: §2.2–2.3, lite's side and verdict for the query-translator core, and §2a, the general mapping→SQL path compared end to end with its verdict (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 2b. Multi-hop navigation: the chain algebra
 
@@ -380,42 +220,7 @@ The engine's fragility is in HOW the invariant is maintained (live-pointer re-se
 wrong-goldens cluster exactly at multi-hop × qualifier × isolation (P:188, ADV:237).
 Even the reference strains at that intersection.
 
-### 2b.2 Our state: right primitives, scattered decision
-
-NavPath whole-chain registry beats the engine's sharing (keep). But "a hop" is served by
-context-dependent mechanisms — AssociationJoins, NavMaterializer ([0..1] correlated),
-CorrelatedSubselects, FlattenOps (below-op splice), SyntheticHeads, tail mappers,
-parent-copy grouped subselect — and the EMISSION decision (flat join | correlated
-subquery | EXISTS | grouped rejoin | splice) is made at multiple sites with local
-heuristics. Every bespoke wall (#70 chained filtered nav, #63 auto-map class-hops,
-size-over-aggregate, navLeafSubquery) landed in the seam BETWEEN two mechanisms, where
-neither owned the decision. The positional rule table exists in the H2/H3 plan; it was
-never promoted to the single authority as features accreted.
-
-### 2b.3 The coherent target (this is Leg 1 + 15.0 seen from the chain's point of view)
-
-Not a new mechanism — a re-organization making the existing ones arms of one decision:
-1. **`Hop` algebra**: one resolver function `hop(frame, pmKind) → frame` with per-kind
-   arms (column read / NavPath join / embedded parent-read / otherwise per-leaf /
-   union OR-route / re-materialized target), each restoring one frame invariant.
-   Existing satellites become the arms' implementations, not competing owners.
-2. **One positional emission table**, consulted at ONE site at materialization
-   (fed by Leg 1's DeferredFilter channel):
-   - projection / sort-key / groupBy-key path → LEFT JOIN via NavPath registry
-   - filter-position to-many (and class isEmpty) → correlated EXISTS
-   - scalar isEmpty → IS NULL
-   - aggregate over a chain → PK-grouped subquery rejoin (parent-copy shape)
-   - ops below a class-flatten hop → splice (FlattenOps arm)
-   - qualifier hop → inline body, filters ACCUMULATE to caller's isolation (never
-     partial application, never LIMIT)
-3. **One target-materialization rule** shared with views/modelJoin/distinct (15.0).
-Pin the seams explicitly: filtered-hop × aggregate, flatten × limit, union-route ×
-chain, qualifier × isolation — one fixture each, because that intersection is where
-both we AND the engine historically break.
-
-Verdict: **PATCHWORK at the seams, sound at the primitives** — and the seams are not a
-fifth leg; they are the chain-side statement of Leg 1 + the shared foundation. Treat
-2b.3's emission table as Leg 1's acceptance criteria.
+> Cut in the 2026-11 docs cleanup: §2b.2–2b.3, lite's multi-hop state and its proposed `Hop` algebra (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 3. Milestoning (temporal)
 
@@ -506,50 +311,7 @@ inspection.
 **Full trap list, invariants, and 15 golden contracts:** archived in the agent report;
 the load-bearing ones are reproduced above.
 
-### 3.2 legend-lite side
-
-Grew by accretion (the user's step-back critique names this area first): root
-`TemporalContext` + chain-keyed spec map + per-audit propagation arms + `nestedFrame`
-bolted on in cycle 71; `TemporalFrame` in the resolver applies from_z/thru_z / in_z/out_z
-predicates at materialization sites. Passing 104/109 milestoning-family tests but there is
-**no single context object flowing with the cursor** — each fix re-derived propagation
-locally. Known-unserved: non-literal dates (variables, row-reads), two-dates-per-chain,
-bitemporal-hybrid, generated-date reads in some positions.
-
-### 3.3 Verdict & gaps
-
-**PATCHWORK — confirmed.** The engine's design is a small, closed calculus: ONE context
-value-object per cursor + an 8-state hop classifier + ~6 predicate builders + 5 injection
-sites. Ours re-derives fragments of that calculus at each fix site (root TemporalContext,
-chain-keyed spec map, per-audit propagation arms, nestedFrame). The specific mismatches:
-
-1. **No processing-state classifier.** The engine's 8-value enum is what makes
-   intermediate-join filtering, allVersions non-filtering, and clear-at-non-temporal-hop
-   DECIDABLE locally. Our propagation arms re-answer "should this hop filter?" ad hoc —
-   that's why each new shape (nested cursors, audit arms) needed a new patch.
-2. **Dates as SQL elements.** Engine context holds Literal|Column|DynaFunction. Our tail
-   (non-literal dates: variables, row-reads `$o.orderDate`, function-call dates, `$this.*Date`)
-   is unserved precisely because our context carries literal dates only. Adopting the
-   engine representation makes the whole non-literal tail ONE resolver
-   (resolveMilestoningDateParams port), not four features.
-3. **Two-dates-per-chain = alias cloning**, not context stacking. The engine never has two
-   contexts; it clones the target alias per distinct rendered date. Our two-dates failures
-   come from trying to thread both dates through one frame.
-4. **Predicate-builder table**: exclusive/inclusive, range (different pair!), snapshot
-   equality + datePart coercion, %latest infinity, union coalesce/isNull, bitemporal AND.
-   We have the common two; the rest are the 42-shape/31-err tail.
-5. **Milestoned equality as its own path** — we treat it as navigate+compare.
-
-**Sane architecture (the milestoning redesign leg):** replace TemporalContext/
-TemporalFrame accretion with a faithful port: `TemporalCtx` record (strategy,
-processingDate/businessDate as TypedSpec-level SQL-able exprs, state enum, range bounds)
-carried on the resolver cursor; `deriveAtHop(ctx, hop)` = the one propagation function
-(port of getMilestoningContextForQualifiedProperty + state transitions);
-`predicateFor(table, ctx)` = the builder table; injection at our 5 equivalent sites
-(root scan, nav target, intermediate join, exists, equality). Port
-testMilestoningContextPropagation as the behavioral spec first
-([[port-engine-tests-as-spec]]). This SUBSUMES task #40 and the milestoning long-tail
-(#32).
+> Cut in the 2026-11 docs cleanup: §3.2–3.3, lite's side and verdict for milestoning, with its redesign leg (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 4. Unions (Operation set implementations)
 
@@ -621,45 +383,7 @@ chained-join + filter isolation (`unionalias_3` wrap); chained union aggregation
 (group by pk_0_0, pk_0_1 + 4-way OR); `~filter` member golden; single-property/self-union;
 union graphFetch root-level + milestoned (wave-2 crossover).
 
-### 4.2 legend-lite side
-
-`UnionSynthesis` (normalizer) emits per-member pipelines merged by lift; resolver
-`Pipelines.widenConcatenateForKeys` + split-key OR join-back (ID_0/ID_1 each NULL
-off-member); per-member ClassSources. The U4 leg stalled twice (cycles 77-78): raw keys
-are lost through re-materialization because the merged lift in UnionSynthesis doesn't
-preserve lifted keys — the fix belongs at synthesis, not at the join sites we probed.
-Union family: 36 err / 11 shape; graphFetch-over-union untouched.
-
-### 4.3 Verdict & gaps
-
-**PATCHWORK — confirmed, and the engine read names our bug exactly.** Our split-key
-OR join-back matches the engine's per-member suffixed model in spirit, but we are missing
-four structural pieces of the engine's discipline:
-
-1. **Raw-column re-exposure through nested materialization** (engine U L222–231 "project
-   the entire raw column list" branch + chained-join column hoist U L790–826). This IS the
-   U4 raw-key-loss bug that stalled cycles 77-78: our UnionSynthesis merged lift doesn't
-   re-expose suffixed keys when arms get wrapped, and the join sites downstream can't see
-   them. The engine solves it at the ARM FACTORY, not at join sites — confirming our probe
-   conclusion that the fix belongs in UnionSynthesis, and now giving the exact contract:
-   when a union is wrapped/materialized, every suffixed pk/fk/milestone column a parent
-   may need is projected through, not just value columns.
-2. **Merge-vs-push decision** (U L828–847 ordered-subset test): we have no equivalent —
-   chained member joins that aren't OR-mergeable must push INSIDE the arms with per-arm
-   NULL-filled intermediate FKs. Our nested-union lowering bug (t18) and N4 agg chains sit
-   exactly here.
-3. **Aggregation PK re-injection** (`addPkForAggregationInUnion`): grouping over a union
-   must group on real per-member `pk_<k>_<i>` columns, never the NULL-filled slots.
-4. **Ordinal discipline**: raw ordinal for suffixes vs deduplicated index for `u_type`;
-   `-1` no-suffix sentinel for single-set sides; null-join PMs flipping FK naming to raw
-   columns.
-
-**Sane architecture (U4 redesign):** make our union emission a faithful arm factory —
-one place (UnionSynthesis/Pipelines) that owns PK-slot synthesis, suffix ordinals,
-NULL-fill, value-column vocabulary alignment, and re-exposure-on-wrap; give the resolver
-the merge-vs-push decision as a named predicate (ordered-subset of alias chains); port
-the V1–V5 goldens as the behavioral spec (per [[port-engine-tests-as-spec]]).
-removeUnionOrJoins: out of scope (optional Snowflake optimization; ship without it).
+> Cut in the 2026-11 docs cleanup: §4.2–4.3, lite's side and verdict for unions, with the U4 redesign (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 5. Views
 
@@ -704,50 +428,16 @@ the getters getGroupBy/getFilter/getDistinct (PSQL:10242–10270) are polymorphi
 - Milestoning applies inside the view body (isFromView flag, PSQL:5631/5658).
 - View identity in tree matching is by object reference ($v.view == elem, PSQL:1550).
 
-### 5.2 legend-lite side
-
-`ViewRelation` (normalizer) emits view bodies as relation pipelines; plain views currently
-substitute column expressions (flatten to physical table), non-plain (filter/distinct/
-groupBy) become row-defining subselects. Cycle-84 probe: making plain views
-identity-carrying converted 2 but regressed 5 view-on-view tests — same-root view-to-view
-joins collapse wrongly. Conclusion already reached: views must be **identity-carrying join
-frames** (named subselects when same-root collapse occurs); the discriminating rule needs
-the engine's model.
-
-### 5.3 Verdict & gaps
-
-**PATCHWORK — and the engine read settles the cycle-84 question with a cleaner rule than
-either of our probes.** The engine has NO plain-view/non-plain-view distinction:
-
-1. **Every view reached as a relation materializes as a named identity-carrying subselect
-   frame** (ViewSelectSQLQuery-as-Table). Our "plain views substitute column expressions"
-   design is wrong at the root — that's why view-on-view and same-root view joins
-   collapse. Column substitution exists in the engine ONLY as an identity resolver
-   (resolving a view column down to its physical column for join/PK matching), never as
-   query emission.
-2. The engine gets this cheaply because **views and class root mappings share one
-   processing path** — a view is just a RelationalMappingSpecification with
-   quoting/pk differences. Our ViewRelation already emits view bodies as relation
-   pipelines; the redesign is to make the resolver treat a view target exactly like a
-   class-source pipeline target (named frame, own alias), deleting the
-   flatten-to-physical-table arm entirely.
-3. Details to honor: no synthetic pks for views + LOUD fail on self-join/graphFetch
-   without declared `View.primaryKey`; INNER ~filter hoisted into the body; ~distinct/
-   ~groupBy suppress pks and force full column materialization; milestoning applies
-   inside the body; per-instance aliases for same-table views.
-
-**Sane architecture:** view = class-source-shaped pipeline, one shared spec-processing
-path (mirroring the engine's polymorphism), always framed. Expected corpus effect:
-the view-on-view family, testViewSimpleFilter shape, and the union-view crossings
-(testViewToViewToUnion) all sit on this one rule.
+> Cut in the 2026-11 docs cleanup: §5.2–5.3, lite's side and verdict for views (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 6a. Views/embedded shared machinery note
 
 The engine builds mainTable/mainRelation/getFilter/getDistinct/getGroupBy/resolvePrimaryKey
 ONCE over the RelationalMappingSpecification + InstanceSetImplementation abstractions —
 views, root mappings, embedded (via setMappingOwner), and unions (member fold) all answer
-through the same resolvers. Our equivalent seams are ClassSources/Pipelines; the survey
-verdicts in §3–§6 should land as shared-resolver work, not per-feature arms.
+through the same resolvers.
+
+> Cut in the 2026-11 docs cleanup: the note's second half, lite's equivalent seams and where the verdicts should land (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 6. Embedded / inline / otherwise mappings
 
@@ -779,25 +469,7 @@ Match order matters: Otherwise before Inline before plain Embedded (PSQL:1641–
 Enum pushdown works through embedded leaves; otherwise+union supported (owner chase
 PSQL:1987).
 
-### 6.2 legend-lite side
-
-Embedded = same-row sub-binding tables in ClassSources (no join, parent-alias reads);
-otherwise = per-leaf dispatch (embedded leaf → column read; fallback → association join),
-canonicalized at extraction. Largely working (8 err / 1 fail / 3 shape, several being
-cross-family db-pull). Inline-embedded delegation is the least-tested corner.
-
-### 6.3 Verdict & gaps
-
-**SOUND, with three named corners.** Our per-leaf dispatch (embedded sub-bindings vs
-fallback join) matches the engine's name-driven model, and our extraction-time
-canonicalization is a legitimate simplification of the engine's flow-flag machinery.
-Corners to close: (1) **inline delegation** — we have no Inline arm; port as
-copy-with-rebind at ClassSources extraction (never share binding objects across set-ids);
-(2) **otherwise deep traversal + temporal re-entry** — verify our fallback join composes
-with the milestoning context (§3 redesign should carry the context through the fallback
-hop); (3) **graphFetch otherwise dispatch** — when H4 lands, the fetch-tree walker must
-use the same per-leaf dispatch (engine needed explicit flags; ours should fall out of the
-shared ObjectValue dispatch if we route graph emission through it — pin it).
+> Cut in the 2026-11 docs cleanup: §6.2–6.3, lite's side and verdict for embedded, inline and otherwise mappings (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 7. GraphFetch (graph output)
 
@@ -838,27 +510,7 @@ isNotNull; inner-join mapping ~filter switches the driver to a subquery (`_gftm`
   adds `@type` + base64 object references encoding PKs.
 - batchSize only from `graphFetch(tree, size)` overloads.
 
-### 7.2 legend-lite side & verdict
-
-**MISSING (H4) — and the survey licenses a deliberate architectural divergence.** The
-engine's per-node temp-table pipeline exists for cross-DB portability and streaming
-batching. Our tenet (Java orchestrates, DATABASE executes) + DuckDB's JSON support make
-the planned single-query snapshot envelope (json_group_array(json_object(...)) with
-correlated subqueries per child) the right shape for us — the engine's own
-GraphFetchLowering confirms graphFetch is source-preserving at the SQL layer with the
-envelope in serialize.
-
-What we must PORT from the engine model regardless of emission strategy:
-1. **Identity semantics**: per-node DISTINCT-by-PK — a to-many child reached through a
-   fanning join must dedup by child PK inside its array; PK required, loud without one.
-2. **Phantom suppression**: AND-of-pk-not-null before a child object materializes.
-3. **The serialization key contract** (qualifier signatures, milestone dates, aliases,
-   null vs []).
-4. **Qualified properties as child computations** (never inlined into the parent row).
-5. Store ~groupBy/~distinct forbidden in graph flow; checked envelope executor-side.
-6. Embedded/otherwise per-leaf dispatch inside trees (§6).
-Out of scope for now: cross-store children, temp-table strategies, batch streaming,
-alloy object references.
+> Cut in the 2026-11 docs cleanup: §7.2, lite's side and verdict for graph fetch (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 8. Qualified/derived properties + auto-map
 
@@ -902,21 +554,7 @@ result; `!alias` names the TDS column; aliasing suppressed in filter position.
 **Trap:** engine `test.ToFix` goldens assert current-but-WRONG behavior (P:136, P:188,
 ADV:237) — never port those as contracts.
 
-### 8.2 legend-lite side & verdict
-
-**Mostly SOUND, gaps named.** Qualifier inlining via Substitution = the transparency
-invariant by construction. The parent-copy grouped subselect (task #77) = the
-addPkForAggregation shape; tail mappers cover deep sub-agg. Gaps:
-1. **Derived-leaf-inline in nav position** (cycle-86 revert) — the engine rule is now
-   explicit: inline the body at the hop, let ISOLATION (not LIMIT-1 subqueries) handle
-   to-many; requires §2's DeferredFilter/strategy chooser first.
-2. **Root-correlated QP arguments folded into join ON** — check our Substitution scope
-   handling against P:240/243 (arg referencing the OUTER row inside the join condition).
-3. **Null-safe equality by nullability** — we have pure!=null semantics work (#62);
-   verify the complex-type nullable-column arm matches ADV:104 vs ADV:111.
-4. **isEmpty existence-subquery CASE shape** for to-1 complex (P:117/125).
-5. Paths: parser-level sugar; verify our normalizer's path handling covers QP-segments
-   with args + `!alias` (TREE family).
+> Cut in the 2026-11 docs cleanup: §8.2, lite's side and verdict for qualified and derived properties (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 9. Dyna-functions & dialect architecture
 
@@ -959,23 +597,7 @@ catalog; these are the correctness-critical ones):
 - adjust/dateDiff unit maps (WEEKS→7·DAYS on DB2); firstDayOf* families are date
   arithmetic, not calendar-table lookups.
 
-### 9.2 legend-lite side & verdict
-
-**SOUND architecture, catalog-completeness gap.** Our builtin/Pure catalog +
-Scalars/SqlFn + AnsiSqlRenderer/DuckDb mirrors the two-registry split (signatures typed
-in Pure.java = inference; Scalars/dialect = rendering), and the wall between them is
-enforced. Verified-equivalent semantics already: 1-based substring (verbatim passthrough
-+ H2 clamp), float division, null-safe filter equality (#62). Actions:
-1. **Audit our catalog against the DynaFunctionRegistry enum** — the `functions` family
-   (75 err/35 shape) is mostly missing names; burn it as a checklist against the agent's
-   catalog table, family by family, not test by test.
-2. mod-vs-rem sign semantics; round/ceiling/floor cast-wrapping in projection; adjust
-   unit map — verify each against goldens when touched.
-3. The H2 advisory backend (#67): the engine's H2 file IS the spec for it (member
-   renderings, offset-fetch limits, FULL OUTER emulation, UDF-based JSON) — plus
-   `assertEqualsH2Compatible` explains dual goldens in the corpus.
-4. Multi-dialect seam: keep per-name whole-template override (our dialect override map
-   should mirror putAll semantics — no partial merges).
+> Cut in the 2026-11 docs cleanup: §9.2, lite's side and verdict for dyna-functions and dialects (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 10. Mapping metamodel: inheritance/extends, includes, merge, multigrain, modelJoins, cross-store, associations
 
@@ -1026,20 +648,7 @@ Provenance note: the core set-impl metamodel classes live UPSTREAM in legend-pur
 matches [[verify-signatures-against-real-legend-pure]] — legend-pure checkout is part of
 the spec base).
 
-### 10.2 legend-lite side & verdict
-
-**Mostly SOUND — these families are largely passing** (inheritance 9 err mostly db-pull;
-extends 2 fail; modelJoin 8 err; multigrain 1 err). Named gaps to close from the read:
-1. **Extends PK matrix** — our extraction inherits parent pipelines; verify the 4×4
-   table's corners (esp. child-PK-loses-to-parent-distinct) with pins.
-2. **Multigrain suppression rule** — check we re-apply grain filters on non-PK joined
-   grains into the ON and suppress on single-column-PK joins; our TemporalFrame-adjacent
-   filter placement should reuse §2's DeferredFilter channel.
-3. **ModelJoin target materialization condition** — ours must subselect the target when
-   it has filter/groupBy/distinct or deep navigation (same rule as §5 views / §2
-   distinct-target re-materialization — one shared rule, three consumers).
-4. **`__SQLNULL__` merge-branch behavior + never-dedup-aliases-by-table-name** — pins.
-5. Cross-store: DEFERRED (placeholder-table model documented for when it matters).
+> Cut in the 2026-11 docs cleanup: §10.2, lite's side and verdict for the mapping metamodel (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 11. AggregationAware + calendar aggregation
 
@@ -1084,18 +693,7 @@ by the relational store:
 - The 27 date-range goldens ([min,max] of included dates per function @ 2022-11-16
   anchor) are the perfect behavioral spec — they pin windows without pinning SQL.
 
-### 11.3 legend-lite side & verdict
-
-**Calendar: SOUND** (G1 burn landed the natives; corpus 0 err / 4 shape). Verify against
-the date-range window table: weekend variants (Sat/Sun endDates), start-of-year
-rollovers, different-endDates alias sharing, and the union splice path.
-**AggregationAware: PARTIAL.** We pass the current 11-shape family via targeted fixes
-(demand-aware milestoned-slot gate) but don't have the matching algorithm as a unit. The
-engine's is small and well-specified (≈250 lines of logic): ProjectPath + canRewrite +
-first-match fold + canAggregate gates. Port it as ONE resolver-side pre-pass (rewrite
-TypedGroupBy's source class → agg-view ClassSource when matched) with the
-positive/negative goldens as spec. Low urgency (6 err), high spec clarity — good
-bounded leg.
+> Cut in the 2026-11 docs cleanup: §11.3, lite's side and verdict for aggregation-aware and calendar aggregation (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 12. Execution plans, TDS & result contract
 
@@ -1134,19 +732,7 @@ Allocation/Constant/FunctionParametersValidation nodes.
 .propertyMapping; traversal through user functions is NOT routed; multi-expression
 lambdas produce multiple SQLs.
 
-### 12.2 legend-lite side & verdict
-
-**Plan MODEL: OUT OF SCOPE by design** — we execute directly (Compiler → SQL → DuckDB);
-no plan-node serialization. The executionPlan family's 100 SHAPE tests are mostly
-plan-string printing — runner-vocabulary work (#43), not architecture.
-**Result CONTRACT: RELEVANT and mostly aligned** — our Executor/TestBody honor row
-equality against engine expectations. Verify against the engine rules: (1) enum
-decode-once discipline (we push into SQL — matches PUSH_DOWN mode; ensure we never also
-decode result-side); (2) TDS column offset ordering; (3) null = empty CSV field vs
-TDSNull padding in outer joins (our TDSNull work already landed); (4) boolean literal
-'true'/'false' rendering in projection position; (5) timezone folding is a DEFERRED
-corner (no tz connections in corpus). In-list temp-table threshold: not needed for
-DuckDB (large IN-lists fine) — documented divergence.
+> Cut in the 2026-11 docs cleanup: §12.2, lite's side and verdict for execution plans and the result contract (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 13. Postprocessors
 
@@ -1185,19 +771,7 @@ ExtractSubQueriesAsCTEs (level-indexed `subquery_cte_<level>_<idx>`, row-identic
 contract). Context-based hooks (FunctionActivator: timestamp casts, FreeMarker→
 table-function param rewrites). removeUnionOrJoins gated Snowflake-or-flag.
 
-### 13.2 legend-lite side & verdict
-
-**Layer: OUT OF SCOPE as architecture** — deliberately. Our leanness is at construction
-(NavPath dedup, Fold flatness, deterministic t0..tN aliases), which subsumes what
-replaceAliasName and CTE-hoist repair after the fact; pushFiltersDownToJoins is a
-row-equality-neutral optimization (DuckDB's optimizer does this), relevant only to golden
-SQL advisory. Named engine ideas worth keeping on file: reserved-alias discipline, the
-ADD-not-move contract if we ever emit an equivalent, temp-table-exempt mapper rule.
-**The corpus family** (13 err / 22 shape) tests the EXTENSION surface (table/schema
-remapping, connection PPs, CTE extraction row-identity). Serving those needs a minimal
-connection-postprocessor hook (a replaceTables-style rewrite applied to our SQL IR before
-rendering) — a small bounded feature, not a pipeline port. Classify as checklist-burn
-tier.
+> Cut in the 2026-11 docs cleanup: §13.2, lite's side and verdict for postprocessors (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ## 14. Tooling features: lineage, testDataGeneration, constraints, mutation, autogeneration, contract
 
@@ -1237,107 +811,8 @@ tier.
   post-processors, dialect node converters). For us: the interface inventory documents
   what a full store integration means; our QueryService/Compiler seam is the equivalent.
 
-### 14.2 legend-lite verdicts
-
-All **DEFERRED with feature models now archived** — matching existing feature-track
-tasks: lineage (#44, 55 shape — start with scanColumns + static scanRelations, no
-pipeline dep), constraints (#45, 31 shape — cheap: pure AST synthesis over our existing
-resolver; good early win), testDataGen (#46, 68 shape — needs live-DB pulls + temp
-tables; LAST), autogen (self-contained; unscheduled), mutation (plan-only; unscheduled).
-Engine port order recommendation adopted: autogen/lineage-static → validation →
-relation-write → testDataGen.
+> Cut in the 2026-11 docs cleanup: §14.2, lite's verdicts for the tooling features (2026-07). Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.
 
 ---
 
-## 15. Synthesis: the coherent-architecture plan
-
-**The core diagnosis, confirmed across every area:** our failures cluster around FOUR
-missing engine calculi, not dozens of missing features. Each stopped burn-down leg
-(cycles 77–86) failed because we implemented at a fix site what the engine implements as
-a small closed system. The redesign program is those four systems plus one shared
-foundation, then feature-checklist burns.
-
-### 15.0 Shared foundation: one spec-processing path (from §5/§6/§10)
-
-The engine answers mainTable/filter/distinct/groupBy/primaryKey/propertyMappings through
-ONE polymorphic resolver over RelationalMappingSpecification + InstanceSetImplementation —
-views, class roots, embedded (via setMappingOwner), unions (member fold), extends
-(super-set walk) all included. Our equivalent: consolidate these answers into
-ClassSources/Pipelines as shared resolvers with the engine's rules (extends PK matrix,
-view no-synthetic-pks, embedded owner-chase). Several legs below assume this.
-
-### Leg 1 — Filter channels + isolation strategies (§2; unlocks legs 2, 4, and the
-qualifier tail)
-
-Introduce the resolver-level `DeferredFilter` channel (predicate + NavPath scope — our
-typed savedFilteringOperation) and ONE strategy chooser at materialization:
-fold-into-ON | correlated-subselect | hoist-on-top, with the engine's two rules:
-(a) projection threads prefer fold-into-ON else correlated; (b) hoist-on-top upgrades to
-correlated whenever an INNER join is present. Qualifier bodies accumulate filters to the
-CALLER's isolation decision (never partially applied — the cycle-86 lesson; and never
-LIMIT-1). Kills: chained filtered nav (#70), union filter hoist, size-over-aggregate
-routing, derived-leaf inline.
-
-### Leg 2 — Milestoning calculus port (§3; subsumes #40, #32)
-
-`TemporalCtx` value object (strategy, dates as SQL-able exprs, 8-state hop classifier,
-range bounds) + `deriveAtHop` (one propagation function) + `predicateFor` (builder table:
-exclusive/inclusive, range pair, snapshot equality, %latest infinity, union
-coalesce/isNull, bitemporal AND) + 5 injection sites + alias-cloning for two-dates.
-resolveMilestoningDateParams port makes the whole non-literal-date tail one resolver.
-Port testMilestoningContextPropagation as spec first. Replaces
-TemporalContext/TemporalFrame accretion.
-
-### Leg 3 — Union arm-factory discipline (§4; subsumes #41, finishes U4/#27)
-
-Make UnionSynthesis/Pipelines a faithful arm factory: PK-slot cross-product synthesis,
-raw/dedup ordinal discipline, NULL-fill, value-vocabulary alignment, and
-**re-exposure-on-wrap** (the U4 raw-key bug). Resolver gets the merge-vs-push predicate
-(ordered-subset of alias chains) with push-into-arm emission; aggregation-over-union
-re-injects real per-member PKs. Port V1–V5 goldens as spec. Fixes t18, N4 chains,
-the 36-err union family.
-
-### Leg 4 — Views as identity-carrying frames (§5)
-
-Delete the plain-view flatten arm; every view reached as a relation becomes a named
-frame processed by the SAME path as a class source (leg 15.0). Column substitution only
-as identity resolution. Honor: no synthetic pks + loud PK requirement, INNER ~filter
-hoist, milestoning-inside-body, per-instance aliases.
-
-### Leg 5 — H4 graph output (§7; biggest corpus block: 100 err graphFetch)
-
-Keep the single-query JSON-envelope design (documented divergence); port the engine's
-identity + serialization contracts: DISTINCT-by-PK per node, pk-not-null phantom
-suppression, key naming (qualifier signatures, milestone dates, aliases), null vs [],
-qualified-properties-as-child-computations, store distinct/groupBy forbidden,
-embedded/otherwise per-leaf dispatch in trees.
-
-### Checklist burns (feature inventory, not architecture)
-
-- functions family (75 err): burn against §9's catalog table family-by-family
-  (per [[batch-slices-target-big-buckets]]).
-- aggregationAware matching engine (§11): one bounded resolver pre-pass, ~250 lines.
-- tds family (32 err): §2 per-op inventory (pivot, window frames, variant, CTE,
-  paginated).
-- postprocessor family (§13): minimal connection-postprocessor hook (replaceTables-style
-  IR rewrite) — small bounded feature; the engine pipeline itself stays out of scope.
-- result-contract checks (§12): enum decode-once, boolean literal rendering, TDSNull
-  padding, offset ordering — verify-with-pins, not new machinery.
-- Engine-trap pins to add opportunistically: extends PK matrix corners, multigrain
-  suppression rule, modelJoin materialization condition, null-safe equality by
-  nullability, calendar weekend/rollover windows.
-
-### Deferred (feature models archived in §14, §7, §10)
-
-Cross-store, temp-table strategies/batching, alloy object references,
-removeUnionOrJoins, mutation, testDataGen (last; needs live-DB pulls), lineage
-(scanColumns first when scheduled), constraints (cheap early win when scheduled),
-autogeneration.
-
-### Ordering rationale
-
-Leg 1 first — it's the enabling mechanism for legs 2–4's emission decisions and directly
-unblocks the most stopped legs. Then 2 and 3 (largest divergent families, both now fully
-specified), 4 (small once 15.0 lands), 5 (biggest missing block, independent of 1–4).
-Checklist burns interleave as gate-cycle filler. The corpus ledger remains the
-VERIFIER; this map is the DRIVER.
+> Cut in the 2026-11 docs cleanup: §15, the synthesis: lite's coherent-architecture plan (shared foundation, legs 1–5, checklist burns, deferrals and their order), 2026-07. Full text: `git show de2745351:docs/RELATIONAL_FEATURE_MAP.md`.

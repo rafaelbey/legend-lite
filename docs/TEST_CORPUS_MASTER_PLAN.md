@@ -60,137 +60,10 @@ asserting a computed value (§5A). Everything in this plan follows from that dis
 
 ---
 
-## 2. The feature census — measured, not asserted
-
-An earlier draft of this plan counted "~190 features" from a hand survey of the
-grammars. **That number is superseded.** legend-lite already carries a machine-derived
-census with a real denominator (`docs/COVERAGE_CENSUS.md`,
-`docs/CONSTRUCT_COVERAGE.md`) plus probes that recompute it.
-
-### Axis A — protocol type roster
-
-`ZFullRosterCensusProbe` harvests every Jackson `_type` from every `@JsonSubTypes` in
-the protocol jars plus the extension registry. `ZPmcdReachabilityProbe` statically walks
-the type graph from `PureModelContextData` to decide what a user can even type.
-
-| Bucket | Tags | Meaning |
-|---|---|---|
-| Full roster | **1,033** | every registered protocol subtype |
-| Covered by both corpuses | 245 | proven exercised |
-| Unreachable from PMCD | 567 | **proven out of scope** — execution-plan nodes, test results, SQL API AST, ES query-DSL request shapes |
-| **Reachable & uncovered** | **221** | **the true worklist** — ~3× the package-heuristic estimate |
-| Reachable classes total | 762 | the scope boundary |
-
-The reachability probe corrected an over-exclusion worth remembering: island **store
-content** is in scope (MongoDB schema/aggregation 46, Deephaven metamodel 41, ES
-index-mapping ~52) because definitions ride inside store elements in PMCD. Only the
-request/query DSLs are out.
-
-### Axis B — grammar keyword roster
-
-`ZKeywordCoverageProbe`: **670 word-shaped token literals across the engine's 73 `.g4`
-grammars**. 567 covered. Of 103 uncovered, 89 are embedded Haskell/Protobuf codegen
-grammars (not Legend text) — leaving **~35 real keywords across 14 groups**.
-
-### Axis C — semantic / execution census
-
-Syntax coverage does not imply behavioural coverage. The core_relational sweep
-(denominator 2,489 tests; 6,741 corpus functions; 4,909 walls):
-
-| Class | Tests | Meaning |
-|---|---|---|
-| PASS | 902 | row-verified against the engine corpus |
-| DIFF | 30 | executes; rows differ — the burn ledger |
-| GAP-vocab | 833 | harness vocabulary, not engine features |
-| GAP-H | 160 | resolver vocabulary — object-space nodes, slots, multi-hop |
-| GAP-M | 131 | mapping constructs — union keys, inheritance dispatch, `~groupBy` PMs, views |
-| GAP-G / GAP-I | 33 / 22 | higher-order lambda typing / lowering vocabulary |
-| **BUG?** | **244** | suspected defects: resolution, multiplicity, SQL emission |
-| DARK | ~146 | parse-walled; never discovered, outside the denominator |
-
-**Name the dark set.** Any coverage percentage that does not state what it could not see
-is lying by omission.
-
-### The consolidated worklist
-
-Deduped across axes A and B. This, not a feature wish-list, is what the corpus must reach:
-
-- **Mapping production arms** — `bindingTransformer` (probe-proven gap),
-  `inlineEmbeddedRelationFunctionPropertyMapping`, `modelJoinPropertyMapping`,
-  `mappingClass`, TabularFunc.
-- **Connection auth** — kerberos, delegatedKerberos, oauth,
-  gcpWorkloadIdentityFederation, TrinoDelegatedKerberosAuth, encryptedPrivateKey,
-  gcpWithAWSIdP, AWS vault credentials (default/static/STSAssumeRole/secretsmanager),
-  vault secrets (environment/properties), service-store security (apiKey/http).
-- **Datasource specs** — Trino, redshift, h2Embedded, GlobalAurora,
-  ExtractSubQueriesAsCTEsPostProcessor, generationFeaturesConfig.
-- **Service** — postValidations, DID, mcpServer, runtimeComponents, deploymentOwnership,
-  userListOwnership, multiExecutionParameters.
-- **Persistence** — snapshot ingest modes (nontemporal/unitemporal/bitemporal), batchId
-  milestoning, dedup strategies (maxVersion/anyVersion), partitioning, cronTrigger,
-  streamingPersister, sourceSpecifiesFromDateTime, deleteIndicator.
-- **Island store content** — MongoDB schema/aggregation, Deephaven metamodel, ES
-  index-mapping property types.
-- **Misc** — DataSpace combined/featuredDiagrams, Diagram hideStereotype/hideTaggedValue,
-  DataQuality field set, RelationalMapper (Database/Schema/TableMappers), relational
-  `Array`/`Other` datatypes, ModelConnection/ModelStringInput, legacyRuntime, m3
-  `byteArray`/`unitInstance`, `EqualToTDS`, `toBytes`.
-
-**Fixture count ≪ tag count.** One rich MongoDB store fixture covers dozens of bsonType
-tags at once. The census estimates **~30–40 fixtures for the 221 tags** plus the ~35
-keywords — a tractable pack.
-
-### Method limits (inherited, restated)
-
-- Keyword presence proves an **arm was touched**, not that every alternative was.
-  Production-level gaps under a covered keyword escape axis B — that is how
-  `bindingTransformer` hid.
-- **Field-shaped arms escape both A and B** (`bindingTransformer` is a field, not a
-  subtype). Only fixtures and grammar round-trip tests catch those.
-- Alias `_type` names read as uncovered when the modern spelling is covered — adjudicate
-  per tag, never assume.
-
-
----
-
-## §2b. Correction — the protocol roster is not a complete feature denominator
-
-§2 treats the 1,033-tag protocol roster as *the* denominator, and §5A sets "the full
-221-tag worklist" as the definition of done. Building L1 showed that is not sound, and the
-plan should be read with this correction.
-
-The roster is built from protocol `_type` discriminators, which exist only on
-**polymorphic** types. A feature modelled as a plain field on its parent has no `_type` and
-therefore cannot appear in the roster at all, however large a feature it is.
-
-`EnumerationMapping` is the worked example. Adding one to the stress corpus — a new
-enumeration, a code-to-value mapping with a many-to-one case, a property mapping rewired
-through it, and the seed changed from labels to source codes — moved the counter by
-exactly **1**, and that 1 was `stringSourceValue`, an incidental nested type inside the
-source-value list. The mapping itself serialises as:
-
-```json
-"enumerationMappings": [{"enumValueMappings": [{"enumValue": "BUY",
-  "sourceValues": [{"_type": "stringSourceValue", "value": "B"}, ...]}], ...}]
-```
-
-No `_type` on the EnumerationMapping, none on the enumValueMapping. `grep -i enum` over the
-roster returns 13 rows and not one of them is the mapping construct.
-
-**Consequences.**
-
-1. Tag coverage understates feature coverage, by an unknown amount. "47 of 1033" is a real
-   and useful number, but it is not "4.5% of Legend's features".
-2. A wave can add genuine capability and move the counter by 0. `census_gate.py --strict`,
-   which fails a change that moved no counter, would reject such a wave. It must not be the
-   only gate.
-3. Anything specified as a plain field — `~primaryKey`, milestoning specifications,
-   mapping filters, `~groupBy` — needs its own coverage check. The roster will not supply
-   one.
-
-The keyword census (§2, 670 grammar keywords) is the better denominator for these, because
-grammar keywords exist whether or not the protocol type is polymorphic. It should be the
-primary axis for L1–L6, with the tag roster secondary.
+> Cut in the 2026-11 docs cleanup: §2 the feature census as measured in 2026-08 (the protocol type roster, the grammar
+> keyword roster, the semantic census and its worklist) and §2b its correction (the keyword census, 670 grammar
+> keywords, is the better denominator than the protocol roster). Full text:
+> `git show de2745351:docs/TEST_CORPUS_MASTER_PLAN.md`.
 
 ---
 
@@ -872,19 +745,8 @@ The first two are the **regression tripwires**.
 
 ---
 
-## 9. Build order
-
-| Wave | Work | Why here |
-|---|---|---|
-| **0** | **Wire the census as a gate** — rerun the three probes, snapshot the covered sets, make "did this wave move coverage" a build check. Take the 221-tag / ~35-keyword worklist as the fixture queue (~30–40 fixtures). | Without it every later wave is unmeasured — which is how the previous corpus reached 10,800 assertion-free cases. |
-| **1** | **L0 on the base corpus** (§5B): realistic seed data for `stress/` with skew, NULLs, orphans, zero-child entities and ties; oracle + metamorphic assertions over the existing 12 services and a wider battery; the generative oracle itself. Then **negative tests**, **empty/boundary for every aggregate**, **data torture**, **`Relation #{}#` assertions**. | Highest defect yield, on a realistic model rather than a synthetic one. B-4 came from an empty collection; B-1 from an error path. The generative oracle is on the critical path for anything past ~200 cases. |
-| **2** | **Service** harness · **Function** scaled out · **ModelStore** data (unlocks M2M end-to-end) · Persistence + DataQuality | Harness coverage 2/6 → 6/6; parameters and serializationFormat close for free. |
-| **3** | **Tier-1 dense scenarios** (S1–S10) · mapping depth · store depth · milestoning matrix · type matrix · the **Relation paradigm** | Where the remaining silent-wrong-answer bugs most likely are. |
-| **4** | **Dependency stress generator** · **performance sweeps + baselines** · volume fixtures with DB-side diffing | Consumes the corpus; needs it to exist first. |
-| **5** | **Dialect matrix** (H2/DuckDB/Postgres) · **cross-engine differential** · concurrency & repeatability | Highest infrastructure cost. |
-
-Waves 1–2 change the corpus from "proves things work" to "finds defects". Wave 4 makes it
-a regression gate. Wave 5 makes it a conformance suite for the rewrite.
+> Cut in the 2026-11 docs cleanup: §9 the build order in waves 0 to 5 (2026-08-12). Full text:
+> `git show de2745351:docs/TEST_CORPUS_MASTER_PLAN.md`.
 
 ---
 
@@ -932,17 +794,10 @@ a regression gate. Wave 5 makes it a conformance suite for the rewrite.
 
 ---
 
-## 12. Current state
+## 12. Defects and performance findings for upstream (2026-08-12)
 
-| Built | Cases | Status |
-|---|---|---|
-| Realistic domain with fan-out, fan-in, self-reference, diamond, orphan | — | done |
-| Discriminating data: boundary ages, NULLs, duplicates, uneven fan-out, expired milestoning versions | — | done |
-| Independent Python oracle | — | done |
-| Mapping `testSuites` + `###Data` + `EqualToJson`, fully in-`.pure` | 23 | passing |
-| Function test (second brace block, flat `=> (JSON)`) | 1 | passing |
-| Mutation testing — 8 injected model defects | 8 | all caught |
-| Quarantine channel | 1 | B-4 |
+> Cut in the 2026-11 docs cleanup: the table of what was built and passing on 2026-08-12. Full text:
+> `git show de2745351:docs/TEST_CORPUS_MASTER_PLAN.md`.
 
 Open defects found and quarantined: **B-1** (graph-fetch parser NPE on `%latest`),
 **B-2** (graph fetch over union → cast exception), **B-3** (property traversal into a
@@ -960,8 +815,8 @@ compiles it again, and the first result is discarded on that branch), **E-2**
 
 ## References
 
-- `docs/COVERAGE_CENSUS.md` — the three-axis parse/protocol census
-- `docs/CONSTRUCT_COVERAGE.md` — the semantic/execution census and burn order
+- `docs/COVERAGE_CENSUS.md` — the three-axis parse/protocol census (history: `docs/HISTORY.md`)
+- `docs/CONSTRUCT_COVERAGE.md` — the semantic/execution census and burn order (history: `docs/HISTORY.md`)
 - `docs/RELATIONAL_FEATURE_MAP.md` — full-depth core_relational feature survey
 - Probes: `ZFullRosterCensusProbe`, `ZKeywordCoverageProbe`, `ZPmcdReachabilityProbe`,
   `PmcdEquivalenceTest`, `CorpusCensusTest`

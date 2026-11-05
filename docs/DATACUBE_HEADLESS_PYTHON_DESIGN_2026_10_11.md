@@ -2,11 +2,12 @@
 
 **Status: agreed by the user, 2026-10-11. Reviewed by the Plan Gen / Exec Split line (yes, with one gap, closed in
 §3: the plan of a query over a held model natively) and by the Compiler Rewrite line (no blocker; the lane in
-`//gates:warehouse`, and the build's shape, §6). Steps 0, 1, 2 and 4 built on branch datacube-headless (§11, §12).**
+`//gates:warehouse`, and the build's shape, §6). Steps 0, 1, 2 and 4 are built (2026-10-11; their as-built notes, §11 to §14, were cut in the 2026-11 docs
+cleanup).**
 The user, on the measurement: "this is so awesome lets do it"; on §10: "yes one one package, v8 for sure, yes do this
 before create*; yes rename would helpful". Builds on `docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md` (the engine in Python, the notebook cube),
-`docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md` (pages built in code) and `docs/DATACUBE_MODEL_DESIGN_2026_10_10.md`
-(§13's model plan; §15.5's Python). Evidence: `docs/datacube-headless-evidence-2026-10-11/`.
+`docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md` (pages built in code; both in git history, docs/HISTORY.md) and `docs/DATACUBE_MODEL_DESIGN_2026_10_10.md`
+(§13's model plan; §15.5's Python). Evidence: `docs/datacube-headless-evidence-2026-10-11/` (in docs/HISTORY.md).
 
 ## 0. In one paragraph
 
@@ -33,7 +34,7 @@ DataCube's meaning, never copied into Python. It is reachable from scripts, CI a
   this design, not before (§6).
 - **No WebAssembly in the Python process.**
 
-## 2. What was measured (`docs/datacube-headless-evidence-2026-10-11/README.md`)
+## 2. What was measured (`docs/datacube-headless-evidence-2026-10-11/README.md`, in docs/HISTORY.md)
 
 - **The query builder.** In V8 and QuickJS it is byte-identical to Node: on the WASM differential's 49 grids, on the
   same grids through the page-document path, and on 15,000 fuzzed builds.
@@ -216,7 +217,7 @@ The measurement becomes a test, `//datacube:headless_test`, run on all three pla
 1. **The lane (§6).**
    - The test helpers made asynchronous; the hooks made supported options; the web layer with its conformance tests;
      the worker's request kinds as one type, with their guard; `lite_plan_text_held`, `lite_relation_type_text_held`
-     and `lite_test_data_sql` natively (entry points in `native/` over `Boundary`'s existing functions). Built: §11.
+     and `lite_test_data_sql` natively (entry points in `native/` over `Boundary`'s existing functions). Built (its record, §11, cut).
    - Reviews: the Compiler Rewrite line for the BUILD diff and the new pinned Python dependency (`mini-racer` in
      `@pypi`); the Plan Gen / Exec Split line for the planner's hooks, the worker contract and the native entry points.
    - Before the push: the lane query (`tests(//...) except tests(//gates:lanes) except tests(//gates:heavy)` empty),
@@ -240,128 +241,10 @@ depends on steps 1-2. Steps 3-4 can follow the model plan's step 3 (dashboards o
    and datacube installs everything datacube needs including v8"): the wheel alone is the compiler and requires
    nothing; the extra is all of DataCube -- duckdb, pyarrow and mini-racer -- and every DataCube module asks for it
    first (`legend_lite/_extra.py`), so DataCube's code can always be asked and its rules are never copied into Python
-   (`docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`).*
+   (`docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md` §16).*
 2. **V8** (`mini-racer`), at its size (+15-22 MB, +51 MB of memory), not QuickJS.
 3. **Before the model plan's Python calls** (§15.5): this design's steps 0-2 first.
 4. **The rename**, `WasmPlanner` to `LitePlanner`, with the Plan Gen / Exec Split line (agreed by it, 2026-10-11).
 
-## 11. Step 1, as built (2026-10-11, on branch datacube-headless)
+> Cut in the 2026-11 docs cleanup: §11 to §14, all 2026-10-11 on branch `datacube-headless` -- step 1 as built (its six commits), steps 2 and 4 as built, every non-screen test run headless (7d973ea9e), and the branch's audit (2 blockers, 9 should-fix, each answered), with two limits said rather than built (a connection given to `Headless` keeps its search path; Python's host answers a query whole, so a superseded query is not cancelled between batches as in the tab). Full text: `git show de2745351:docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md`.
 
-The user, 2026-10-11: "just do everything on the branch first with multiple commits then push". Step 1 is six
-commits; what they settled beyond §3 and §6:
-
-- **1a, the test helpers asynchronous** (6973ef19f). `lite-compiler.ts` and `pure-protocol/test/lite.ts` await each
-  answer; their callers in 18 files were converted by the measurement's codemod, its three flagged spots by hand, and
-  ten return types the type checker refused by hand. Every changed target runs the same number of tests before and after
-  (`docs/datacube-headless-evidence-2026-10-11/step1a/`).
-- **1b, the worker contract** (4d46a0e57). `datacube/src/planner-protocol.ts`: `REQUEST_KINDS` and one union tied to it at
-  compile time, so planner-worker.ts's switch is checked by tsc. `LitePlanner`'s `worker` option, a worker its host makes.
-- **1c, the native entry points** (d5a1f70e1). The three of §3, tested against the corpus differential over a held model.
-- **1d, the host** (ad7719bde). DataCube's side, `datacube/src/headless/`:
-  - The web layer to the standards' own algorithms, not the measurement's approximations. For example, UTF-8 decoding
-    gives one U+FFFD per maximal invalid subpart; capture listeners run first at the target; a passive listener cannot
-    cancel. It is held case for case to Node's built-ins by `headless-web.test.ts`, and to the DOM standard alone where
-    Node 22 departs from it.
-  - URL from whatwg-url, now a dependency of DataCube's.
-  - The planner's worker and the DuckDB connection, over the host's calls.
-
-  Python's side is `legend_lite/_headless.py`. It runs V8 on a loop of legend-lite's own, with WebAssembly deleted
-  before anything loads.
-- **1e, the tests' host** (9c3923ce2). `#test-host`, a package.json "imports" entry with a `headless` condition: in Node,
-  the module in-thread and DuckDB-WASM; in the lane, the host's. The swap is the build's. The fixtures are parsed and
-  printed by the product's planner (`LitePlanner.parse`/`compose`). **The host contract:** Python defines its calls as
-  `legendLiteHost` before a bundle loads, as a browser's globals are there before a page's scripts. A module may plan as
-  it loads.
-- **1f, the lane** (aff16009f). `//datacube:headless_test`, in `//gates:warehouse`:
-  - **53 test files, 985 of 985 tests, about 5 s**, each file in a Headless of its own, plus the host's own checks over
-    the product's bundle.
-  - **Left out, by name in BUILD:** the 4 files that test DataCube's HTTP clients (no fetch here); and 10 files that mix
-    screen tests (jsdom, or Node's own `fileURLToPath`/`node:crypto` as a reference) with non-screen ones. **A follow-up
-    splits those 10** into a screen file and a non-screen file, and the non-screen halves join the lane.
-  - **The stand-ins that judge the tests are held to Node's own in Node's lane:**
-    - `node-assert.ts` against `node:assert/strict`, over 66 x 66 value pairs and every expectation kind;
-    - `node-test.ts` against node:test's run of the same suite.
-
-    Two of the measurement's runner's errors are fixed: an async describe's tests are its own, and `afterEach` runs
-    after a failing test.
-  - **mini-racer 0.14's `setTimeout` throws for a delay of 0.** It waits on `Atomics.waitAsync`, which then answers at
-    once. The host holds each delay to at least a millisecond. To report upstream.
-  - **Made web-standard in four tests:** two describes no longer awaited, and two load-time fixtures moved into `before`
-    hooks, because a script bundle cannot await at load. Three tests that read Node's `Buffer` now use `atob` and
-    `TextDecoder`.
-
-## 12. Steps 2 and 4, as built (2026-10-11, on branch datacube-headless)
-
-- **Step 2, the headless grid** (15099302d).
-  - `datacube/src/headless/grid.ts` holds the bundle's `gridView`, `gridRelation` and `gridSql` (`gridSql` gone
-    2026-10-12: `Grid.to_pandas()` plans `gridRelation`'s Pure in Python and types its rows by the plan,
-    docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15.3a). A page's cube is opened
-    over its source as the compiler types it now (`openCube`, as a page opens a saved cube). It is run by
-    `CubeController.run` on the tab's own pair: `LitePlanner` over the host's worker, `DuckDbEngine` over the host's
-    connection.
-  - Nothing is held between calls: the cube document Python's page keeps is the grid's state.
-  - Python: `Grid.view()` gives a `GridView` (columns, rows, tree, what the cap cut, the query and its SQL,
-    `to_pandas()`); `Grid.relation` gives Pure; `Grid.to_pandas()` gives every row of the relation from the frames'
-    own database, never through V8.
-  - The session's `Headless` is made on first use over its `Frames`' connection, where the frames are.
-  - **What "the finest level" is:** the grid's innermost grouping, as Create a Class makes a class of it
-    (`classLambda`). A grouped grid's relation groups by its innermost group, so a class of it has one row per group;
-    a flat grid's relation is its rows. (A first docstring of `Grid.relation` said "before any grouping"; it was
-    wrong, and the tests say so.)
-  - **A view is what the grid shows:** a grouped grid's first column is `__tree`, its groups' labels, as on screen.
-  - **Values cross exactly:** an integer past 2^53 and a non-finite float are tagged, and each value is typed by its
-    column in Python (a Decimal a `Decimal`, a Float a `float`).
-  - Safe inside a running event loop (a notebook cell's): `//python:headless_test`.
-- **Step 4, packaging** (ede6ce1f9), **ahead of step 3:** it needs nothing of the page engine, and without it the
-  feature cannot be used outside this repository.
-  - The wheel carries the bundle (`legend_lite/_datacube/`) and `_headless.py`.
-  - `pip install legend-lite[datacube]` adds mini-racer.
-  - `//python:wheel_test` views a grid from an offline install of the wheel alone.
-- **Left for later:** step 3, the page engine (the page's orchestration out of the screen, then `page.export`); step 5,
-  the model plan's Python `create_*` (§15.5), which rides on step 2. A grid's view from Python is read-only for now: a
-  grid is changed through the page builder (`grid.filter`, `grid.group`, ...), then viewed.
-
-## 13. Every non-screen test headless (2026-10-11, 7d973ea9e)
-
-The user: "we have to make sure we do the test split for all headless tests to run so we are not coding blind". §11's
-14 left-out files are each split in two, the half that needs more than V8 named for why: `<name>-dom` (the screen,
-jsdom), `<name>-http` (DataCube's HTTP clients over a stubbed fetch), `<name>-node` (Node as the reference). The rest
-keeps its name and runs in the lane.
-
-- **The lane: 67 files, 1,122 tests, every one passing**, the same count Node runs for those files. The 28 split files
-  hold 324 tests in Node, as the 14 did.
-- **Left out by name:** the four `-http` halves (the host has no fetch), `chart-echarts` (ECharts draws on a DOM
-  canvas), and the lane's own three conformance tests. The `-dom` and `-node` halves are left out by what they import,
-  which the roster guard reads.
-- **node:test's mock timers** are in the stand-in now (setTimeout and setInterval), held to Node's own by one scenario.
-  One quirk of Node's own mock is not copied: an interval cleared inside its own callback runs again there.
-- **mini-racer's timer defect** is reported upstream (https://github.com/bpcreech/PyMiniRacer/issues/97). It is not by
-  design (ECMAScript defines both results), not reported before, and not fixed in 0.14.1 or on main. The host's floor
-  goes when the pin moves past the fix; the lane tests every timeout form.
-
-## 14. The branch's audit (2026-10-11): 2 blockers, 9 should-fix, every one answered
-
-- **B1, the configuration.** A headless grid ignored its configuration (its row cap, each column's aggregate, a hidden
-  column), so Python could show other numbers than the tab. It now folds the configuration into its query as the tab's
-  state owner does (`cube-state.ts` `fold`). Its columns are laid out by `shownColumns`, which the tab's repaint calls
-  too: one function, moved out of `app.ts`.
-- **B2, two locks in opposite orders.** `Grid.view` gets the session's engine before it holds the frames still, the order
-  a frame's registering takes them. A test reads a grid while another thread registers frames.
-- **The judges.**
-  - The assertion stand-in's deep equality kept a failed pair as equal (a Set's members sharing an object). It now
-    lets a pair go when its comparison ends, as Node does; the case is in the corpus.
-  - The node:test stand-in is now compared live with Node's own node:test, which runs the same suite in a child Node.
-    That found one more difference, fixed: a suite's `after` hooks run when its `before` fails.
-  - The lane asserts that no test is skipped.
-  - One gap is stated in the stand-in: a promise rejected and never handled fails a file in Node, not here.
-- **The host.**
-  - Its calls run one at a time.
-  - A call past the memory cap breaks the engine, and the session makes another.
-  - A call can take a timeout.
-  - The native library sets up each function on first use, so the start-up check names a missing one instead of
-    legend-lite failing to load.
-- **Two things said rather than built:**
-  - A connection given to `Headless` (the frames') is left as it is, so a file registered meanwhile is not on its search
-    path. No grid registers one.
-  - The host's database answers a query whole (no `send`), so a superseded query is not cancelled between batches as in
-    the tab. `duckdb-cancel`, in the lane, tests `DuckDbEngine` over a connection that has `send`, not this host's.

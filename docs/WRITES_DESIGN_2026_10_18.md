@@ -1,8 +1,9 @@
 # Writes: one write layer, two kinds of graph (design sprint, 2026-10-18)
 
-**Status:** design agreed in conversation with the user on 2026-10-18 (§7 records each call). Legs 1 (the judge) and
-2 (L0 and L1, the store writes) landed on 2026-10-18; leg 3 (the spike) answered on 2026-10-19: the native store is
-the class model over its own tables, contained work (§8).
+**Status:** design agreed in conversation with the user on 2026-10-18 (§7 records each call); built: all seven legs
+landed on the branch by 2026-10-20. Leg 3 (the spike, answered 2026-10-19) decided graph B: the class model over the
+native store's own tables, contained work. §8 keeps what the legs decided (B's layout, write plans); their landing
+records are cut.
 
 **Asked for:** writes for the `#Cypher{...}#` island, designed so that the Postgres `#SQL{...}#` island's DML (and
 GraphQL mutations later) land on the same layer, instead of each front end getting its own.
@@ -13,44 +14,14 @@ GraphQL mutations later) land on the same layer, instead of each front end getti
 - legend-pure 5.99.0 and legend-engine 4.145.0, read as spec.
 
 §1 summarizes them. This builds on two earlier proposals:
-- `docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md`: W4, decisions 2, 5 and 6, questions Q5 and Q6.
+- `docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md` (history: `docs/HISTORY.md`): W4, decisions 2, 5 and 6, questions Q5
+  and Q6.
 - `docs/BI_AND_ETL_PLAN_2026_09_29.md`: F1, a `write` lowered to DML.
 
 ## 1. Where things stand
 
-### Lite has no write path above raw SQL
-
-- **No lowering emits DML.** The MIR's `SqlDml` has four records, all built by Java seed code:
-  - `InsertValues`;
-  - `InsertFromTable`, whose source is a staging table's name;
-  - `DeleteAll`;
-  - `CreateTempTableAs`, the one that already renders a `SqlQuery` inside a statement.
-
-  `SqlDdl` has `CreateTable` (columns with a type, NOT NULL and PRIMARY KEY), `DropTable`, `CreateSchema` and
-  `DropSchema`. Missing: UPDATE, DELETE … WHERE, INSERT … SELECT of a query, MERGE / ON CONFLICT, RETURNING, identity
-  columns, defaults and foreign keys.
-
-  `render(SqlDml)` returns text, and a bound parameter in a DML statement is refused (`AnsiSqlRenderer`:1629).
-- **Pure's `write(rel, accessor): Integer[1]` type-checks but only counts rows** (`Render.writeCount`). A write to a
-  store table throws "TypedWrite to a store destination is not yet implemented". No other write native exists
-  (`mutateAdd` is walled).
-- **The only write channel is raw SQL,** through the effect natives (`executeInDb`, …) and seeding.
-  - Nothing reads an update count.
-  - No production code calls `commit`, `rollback` or `setAutoCommit`.
-  - A statement marked as writing makes the next statement reseed its test data.
-- **The plan side only reads.** `ExecutionPlan.Node` has no DML node, and `PlanRunner` refuses `Sequence`.
-- **Every island refuses writes:**
-  - `#SQL`: "only queries are supported" (`SqlParser`:101).
-  - `#IQ`: "only a SELECT is read".
-  - `#Cypher`: "CREATE is not supported yet", for the first write clause, before anything else is translated.
-- **No mapping is inverted.** A class mapping is a function over rows.
-  - Keys exist as facts: `primaryKeyColumns`, and the `$pk:` and `$fk:` pseudo-bindings.
-  - An association is a predicate; whether it is a foreign-key column or a junction table is implicit in its join
-    chain.
-- **GraphQL parses** (`#GQL{...}#`, mutations included), but the Typer calls it "parse-only surface".
-- **The seam allows writes.** JDBC is allowed in `com.legend.exec`, the root package `com.legend`, server and
-  testdatagen. The charter (C1.1) lets Java manage transactions and submit statements; C2.4 forbids
-  Java-manufactured identities.
+> Cut in the 2026-11 docs cleanup: lite's write machinery as it stood on 2026-10-18 (no lowering emitted DML, the
+> plan side only read, every island refused writes). Full text: `git show de2745351:docs/WRITES_DESIGN_2026_10_18.md`.
 
 ### legend-engine's writes are narrow
 
@@ -71,27 +42,8 @@ GraphQL mutations later) land on the same layer, instead of each front end getti
 Nothing upstream is a design to copy. Its signatures (`write`, `save`) are verified spec that lite keeps where it
 defines the same thing.
 
-### The TCK's write work: 245 refused cases and 33 skipped
-
-- **By first write clause:** CREATE 69, SET 53, MERGE 51, REMOVE 33, DELETE 30, DETACH DELETE 9.
-- **Shape:**
-  - 185 RETURN something after the write, 66 of them node, relationship or path values.
-  - 84 mix writes with UNWIND, WITH or aggregation.
-  - 164 MATCH before writing; only 2 read again after a write.
-  - None uses FOREACH or a CALL subquery that writes.
-- **What the TCK asserts:** 217 assert side-effect counts (+/- nodes, relationships, properties, labels), and 28 assert
-  "no side effects". **The harness checks neither today.** It compares rows only, and the snapped answers record the
-  graph before the query, never after. So the 60 cases that return nothing would pass if lite did nothing.
-- **The 33 skipped cases** each write, then run a control query that reads the graph back. 18 of them are Temporal4,
-  which stores temporal values and lists of them.
-- **The harness's model can't hold most writes:**
-  - The 80 empty-graph cases get no tables.
-  - Many cases write a label, type or property the pre-graph lacks.
-  - Label changes would move a node between classes.
-  - A relationship's storage was chosen from the pre-graph's degrees.
-  - 207 of the 245 share a pre-graph with other cases.
-- **40 write scenarios expect an error** (33 at compile time, 7 at runtime). Lite agrees with Neo4j on them today only
-  because it refuses the clause.
+> Cut in the 2026-11 docs cleanup: the TCK's write cases as counted on 2026-10-18 (245 refused, 33 skipped, by
+> clause and shape). Full text: `git show de2745351:docs/WRITES_DESIGN_2026_10_18.md`.
 
 ## 2. The design in one picture
 
@@ -391,38 +343,9 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
 
 ## 8. Legs
 
-1. **The judge (harness only). Landed 2026-10-18** (`docs/CYPHER_STUDY_2026_10_15.md` §12.94).
-   - `snap.py`: the post-graph and the control queries' answers, recorded in the answers file; the side effects the
-     diff of the two graphs, checked against every TCK table. (Committed, not rolled back: Neo4j checks some writes
-     at commit.)
-   - `CypherParity`: per-case transaction and rollback, the side-effect counts, the post-graph compare, the control
-     queries.
-   - The measured size of each group, of the 276 cases Neo4j marks as writing: 111 inside the pre-graph's schema,
-     127 that need the inferred schema, 26 label changes, 12 graphs the harness cannot model.
-   - The 245 stay REFUSED (the 33 SKIPs now run: 31 REFUSED, 2 BOTH_ERROR), but none can pass vacuously.
-   - **Moved to leg 5:** `CypherGraph`'s A schema from the query's typed writes. The parser refuses a write clause
-     before it builds one, so the inference lands with the clauses.
-   - Found on the way, fixed in the island: `elementId(x)` returned; an absent relationship's identity null; a
-     Variant property no relationship end.
-2. **L0 and L1. Landed 2026-10-18** (GATES' ninety-third landing).
-   - The four `SqlDml` records (`InsertSelect`, `Update`, `DeleteWhere`, `Merge`), spelled by DuckDB, H2 and Postgres
-     in the standard forms measured on each (H2 has no `ON CONFLICT`, so the upsert is `MERGE` on all three); every
-     other dialect refuses each by name. `StoreWritesTest`.
-   - `write` lowered for real; `delete`, `update` and `merge` lite natives (`LITE_SURFACE`), typed by `WriteChecker`
-     against the table's columns by name (S97), lowered by `Lowerer.lowerStoreWrite`.
-   - The execution: `StatementExecutor` runs a store write at the statement's root (never through the effect arms,
-     which reseed), its value the database's update count (`Executor.executeUpdate`); a program that writes runs in
-     one transaction (`Executor.inTransaction`), a caller's open transaction joined. It is `Execution.execute`'s own
-     path, so no separate `executeWrite` entry was needed; `LoweredStatement` was not needed either (a write is the
-     statement's root, lowered on its own).
-   - Tests on DuckDB, H2 and Postgres 16: counts, column subsets, a failing write leaving the table as it was, a failing
-     second write rolling the first back, a caller's transaction joined, a class query's rows, a source whose physical
-     column order differs from its declaration, the checker's refusals. `StoreWritesExecutionTest`,
-     `StoreWritesPostgresTest`.
-   - **Deferred, then landed with leg 7 (2026-10-20):** `renderStatement(SqlDml)` (text plus `?` binds). A write
-     runs as text at execution, as a query does; a bound parameter in a DML statement's text is refused, and its
-     statement form binds it. The lite plan (`TypedQuery.executionPlan`) plans a program that writes (leg 7); the legacy
-     plan (`TypedQuery.plan`) still refuses each write by name.
+> Cut in the 2026-11 docs cleanup: legs 1 (the judge) and 2 (L0 and L1, the store writes) as landed, 2026-10-18.
+> Full text: `git show de2745351:docs/WRITES_DESIGN_2026_10_18.md`.
+
 3. **The spike: the native store as a platform class model** (§4, L2'). It decides B's cost and its legs.
    **Answered 2026-10-19: yes, contained work.**
    - **How:** graph B is the domain realization's own class model, mapping and island, realized over the native
@@ -440,128 +363,13 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
        need JSON-editing functions in every dialect.
    - **Every relationship type is a junction** (or an edge class's bridge) in the views. A foreign key holds one
      end, which writes would outgrow.
-   - **Measured** (`//core:cypher_parity_native_test`, DuckDB, the whole corpus): PASS 3989 against the domain lane's
-     3997 (a first run, 3981, found one view's mistake: a label among others is a marker class holding no node of
-     its own). The rest is the same but for:
-     - two refusals more (a deep pattern now fans out over a junction) and two fewer (a hop the domain graph held
-       in a foreign key reads over a junction);
-     - eight failures and one error from translator gaps over many-to-many associations, which the domain lane's
-       graphs (mostly foreign keys) did not exercise: a pattern comprehension's list over a hop that finds nothing is
-       `[null]`, not `[]`; two optional hops' columns.
+   > Cut in the 2026-11 docs cleanup: the spike's measurement on the TCK corpus and what it left for leg 6
+   > (2026-10-19). Full text: `git show de2745351:docs/WRITES_DESIGN_2026_10_18.md`.
 
-     The native lane has a ledger of its own (`cypher-parity/native-ledger.tsv`).
-   - **What it leaves for B's writes (leg 6):**
-     - staging: the rows in hand materialized once into a session temp table before each write clause, with the
-       ids the clause mints;
-     - the write-schema: the labels, keys and types a query's writes introduce, typed by the translator itself, so
-       the model has their classes and views;
-     - the clauses, each over the staged rows and the narrow tables.
-4. **`#SQL` DML** on L1, judged by Postgres 16. **Landed on the branch 2026-10-20** (GATES' ninety-sixth landing;
-   register row S103).
-   - **The parser:** `INSERT`, `UPDATE` and `DELETE` (`SqlAst.Write`: `Insert`, `Update`, `Delete`) as the statement
-     itself; inside a query, Postgres's syntax error; as a WITH query, refused by name. An INSERT's VALUES is typed by
-     the columns it writes (no text for a column of NULLs alone).
-   - **The translator** (`SqlToPure`, the writes section): an INSERT is `write` of its source's rows, each column by
-     its place (a literal of no type yet typed by its column, as Postgres types it); `ON CONFLICT (key) DO NOTHING` a
-     `write` of the rows no row of the table holds the key of; `DO UPDATE SET c = EXCLUDED.c` L1's `merge` by the key,
-     the key checked against the table's primary key as the store declares it (`Sources.primaryKey`). UPDATE is
-     `update`, DELETE `delete`; `UPDATE … FROM` an EXISTS and a correlated scalar subquery per SET, `DELETE … USING` an
-     EXISTS. A value written into a column of another type is Postgres's error unless both are numbers (the
-     database's assignment cast).
-   - **RETURNING** is a program of statements (`SqlToPure.program`, spliced in by `SpecCompiler` as a Cypher write's
-     is): the rows the statement writes staged (`stage`), the write, then the RETURNING list over the staged rows, each
-     column cast to its declared type (a `numeric(p, s)` cast, new in the translator: rounded to its places, its
-     overflow the database's error). Staging named the session's temporary table's columns on Postgres (`CREATE
-     TEMPORARY TABLE t ("ID", ...) AS ...`): a stored column a store declares bare is read folded, and the staged rows
-     are read by their relation's names. A staged NULL constant is typed by a branch never taken (`if(false, |0,
-     |[])`), so it is `[0..1]`: a NULL of `[0]` raises wherever it is read, and a column of it has no type.
-   - **The judge:** a case of `sql-parity/lite/dml.yaml` carries a `check` query; Postgres's answer to the statement
-     (its count, or its RETURNING rows) and to the check, run in one transaction rolled back after, are snapped
-     (`postgres-answers.jsonl`, keys `lite/dml/<id>` and `lite/dml/<id>#check`); each lane runs both in a transaction
-     it rolls back and judges each. 56 cases: 45 PASS on both lanes, 8 BOTH_ERROR (Postgres's own errors: unknown and
-     repeated columns, too many expressions or columns, text into a number, ON CONFLICT on no unique index), 3 REFUSED
-     (DEFAULT, DEFAULT VALUES, a data-modifying WITH).
-   - **Keyed tables:** the parity schema has no primary key, so ON CONFLICT, RETURNING, `UPDATE … FROM` and
-     `DELETE … USING` over a keyed table run in `SqlWritesExecutionTest` on DuckDB, H2 and Postgres 16 (H2 reaches no
-     outer row from a derived table: a SET's correlated scalar subquery is its error there, so `UPDATE … FROM` is
-     measured on DuckDB and Postgres).
-5. **L2 and Cypher on A:** **Landed on the branch 2026-10-20** (GATES' ninety-fifth landing; register row S102).
-   - **L2, the class writes:** `rows->meta::legend::lite::writeInstances(C, ~key)`, `mergeInstances(C, ~key)`,
-     `deleteInstances(C, ~key)`, `pairs->link(C, ~end, ~key)` and `unlink(...)`, lite natives typed by their
-     signatures. The store resolver rewrites each, in any space, into L1's statement over the class's mapping
-     (`resolver/ClassWrites`): the rows' columns renamed from properties to columns, the key column into the primary
-     key; a merge by the key; a delete where a row names the instance's key; a link or an unlink a merge of the
-     foreign key's table (the class's own row, or the other end's). `ClassWritesExecutionTest` on DuckDB and H2.
-   - **Direct, checked by name:** a mapping is writable when its pipeline is its main table alone (no filter, no
-     distinct, no group-by, no union) and every property a plain column of it; the key the mapping's primary key.
-     An embedded property is written by its sub-properties, the rows' columns named `p.sub` (2026-10-20), each the
-     column the embedded mapping reads it from; the Cypher writer writes a zoned value's instant and offset, and a
-     duration's four slots, so, and removes one by setting each sub-property to none. An
-     association is writable over one foreign key (the association's condition the equality of it and the other
-     table's key); a junction table is refused by name.
-   - **Cypher's writer over a domain model** (`CypherToPure.Writer`, `domain`): a node's class is its label set's;
-     the store's `nodes` and `rels` as the writer reads them are unions over the classes' and edge classes' extents,
-     and a property's rows the classes declaring it (`domainTable`, `propRows`); every write a class write. Ids are
-     the graph's, unique across the classes (minted as on B, S100); an element's identity its class's path and its id.
-     A relationship's edge class is its type's between its ends' classes, the database choosing row by row where
-     several may.
-   - **The resolver, two gaps closed on the way:** a closed class query under a data lambda resolves where it stands
-     (`SubQueryLift.resolveClosedQueries`: a delete's predicate over the instances a clause matched, a merge's rows
-     no node matches), and a relation operator whose rows no class chain feeds resolves as the relation-space
-     wrapper it is.
-   - **The harness:** a write case's model is the schema of the graphs before and after (`CypherGraph.inferWrite`),
-     every relationship type an edge class, plus each property of a literal value the query sets (a branch Neo4j's
-     run never took: an ON MATCH where it created); its tables seeded with the graph before's rows alone.
-   - **Refused by name** (S102): a label set or removed (a node's labels are its class), a property no class declares,
-     a node deleted whose class has an association end, a mapping that is not direct, a junction association.
-   - **Found on the way, fixed for both graphs:** a relation read whole as a value indexed its columns by a scan per
-     column (`ValueCollections.rowMajorCellList`), quadratic in a staged row's columns: `Create4/[2]`'s few hundred
-     CREATE clauses took 427s on the native lane, 21s after (`SqlExpr.Column.lookup`).
-   - **Measured:** see GATES' ninety-fifth landing.
-6. **B and Cypher on B:** the platform schema, then every write clause, label changes included; the 33 control queries
-   run here. **Landed on the branch 2026-10-20** (GATES' ninety-fourth landing).
-   - **The program.** A statement with a clause that updates the graph is a program, spliced in where the island
-     stood (`SpecCompiler.typeQueryBody`, `CypherIslands.statements`): each clause in order, the rows in hand staged
-     before each write clause (`let s = rows->meta::legend::lite::stage()`, a temporary table of the session, dropped
-     when the program has run), the writes L1's `write`, `update` and `delete` over the staged rows and the narrow
-     tables, the elements a later clause reads read back by their ids (`Writer.refreshed`).
-   - **The native store:** a DataSpace marked `<<graph::graph.Native>>` holding the store's database
-     (`CypherToPure.Model.nativeStore`); a write over a graph of a domain model is refused by name (leg 5).
-   - **Ids** are minted by the database: above the store's greatest as the statement started and every id minted
-     since (S100), the row's number and the element's place.
-   - **The clauses.** CREATE (consecutive ones as one); SET and REMOVE of properties, maps and labels (the last row's
-     value where several rows write one property); DELETE and DETACH DELETE of carried elements and of any value
-     naming them (a path, a list's element, a map's entry, by its JSON's identities), Neo4j's DeleteConnectedNode and
-     DeletedEntityAccess raised by the database; MERGE: the pattern matched against the narrow tables, the unmatched
-     rows grouped by their merge key and each group's pattern created once (its first row creating it, ON CREATE over
-     the creating rows, ON MATCH over the others), a named path bound, a null property Neo4j's error (S98, S99).
-   - **The read back:** a node's identity as the views spell it (its label set's class's path and its id), so a
-     merged, created or relabelled element re-anchors; a list written as a property read as its shape.
-   - **The judge:** a case whose query updates the graph runs in a rolled-back transaction even where Neo4j raised;
-     the store's TIMESTAMP and TIME columns read back; a statement ending in an update compared with no columns (S101).
-   - **Refused by name:** a nanosecond value written, `startNode`/`endNode` of a relationship no write created or
-     merged (one a pattern reads, or one carried through a projection), a write to an element carried without
-     identity; on the read side over edge classes (every native relationship is one): a hop from a node an edge
-     class reached past depth two, a type joining several class pairs in an OPTIONAL MATCH.
-   - **Temporal properties** (2026-10-20, GATES' ninety-seventh landing; §5's Cypher): zoned values and durations
-     written as their slots, a list of temporals as its elements' texts under the graph profile's list marks. All 18
-     Temporal4 write cases pass on B, the 12 lists on A; on A a zoned value or a duration is an embedded value
-     class, written since 2026-10-20 (GATES' ninety-ninth landing) through its sub-properties (leg 5's class
-     writes), so all 18 pass there too. Refused by name still: a list of zoned values the database
-     computes (one zone for its elements), of a named zone or a zone the database reads, a list that may hold a null
-     or holds values of several kinds, a list of nanosecond values.
-   - **`startNode` and `endNode`** (2026-10-20, GATES' ninety-eighth landing): of a relationship a write created or
-     merged, the nodes the clause wrote it between, where the rows carry both (a relationship's shape names their
-     identity columns, `RelEnds`). A CREATE's start is the pattern's; a MERGE's is the stored relationship's source,
-     which the database reads row by row (an undirected MERGE matches either direction), so `startNode(r).name`
-     is the column of whichever node that is. Over a domain model, a relationship over an association has no row
-     of the store's relationships to read its source from: refused by name there. Merge5 [11] passes on both
-     graphs (`CypherNativeEndsTest` pins the other directions).
-   - **Found with it:** a MATCH of several patterns whose second hops from a node the first reached through an edge
-     class (a cycle closed by the second, Match3 [18] on B) reads each pattern as rows, joined on the nodes they
-     share, its relationships distinct across them, as patterns sharing no node already were. On A, the harness's
-     model holds the class of a MERGE's free node's label set where Neo4j's run matched and created nothing (its
-     creating branch still compiles; Match8 [2]), as it holds a property of a branch never taken.
+> Cut in the 2026-11 docs cleanup: legs 4 (`#SQL` DML), 5 (L2 and Cypher on graph A) and 6 (graph B and Cypher on
+> it) as landed, 2026-10-20, with what each built and found. Full text:
+> `git show de2745351:docs/WRITES_DESIGN_2026_10_18.md`.
+
 7. **Write plans. Landed on the branch 2026-10-20** (GATES' hundredth landing), in the database owner's files under D10
    (`docs/IN_FLIGHT.md`). A program that writes plans as an `ExecutionPlan` the model-free runner executes, so a write
    runs where a query runs through a plan, every value bound. Before it, `TypedQuery.executionPlan` lowered a body as
@@ -601,21 +409,9 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
      - the last statement is the answer: a query's text in the form the caller asks for, or a write's count, bound
        after its `Update` into the one placeholder of a query of its own (`Lowerer.lowerPlanParam`). Either way the
        database writes the text.
-   - **The server:** `pure/v1/execution/execute` answers a program that writes from its plan
-     (`Execution.executeUpstream`, the query compiled once), on the runner's sessions. Step 4 of the plan program
-     switches every query; writes go first, because the wire path cannot run them at all.
-   - **The judge:**
-     - `WritePlansTest` on DuckDB, H2 and Postgres 16 runs each of L1's writes with its parameters bound, planned and
-       run, against the rows the table holds after. It also covers a failing write leaving the table as it was, a
-       failing second write taking the first back, a caller's transaction joined, a staged program, and the plan read
-       back from its JSON running alike.
-     - `WritePlansH2Test` checks that a write plan never changes the database the runner shares.
-     - `CypherWritePlansTest` runs nine Cypher writes on the native store (CREATE, SET of a property and a label,
-       REMOVE, DETACH DELETE, MERGE that creates and that matches, UNWIND then CREATE, an undirected MERGE) and
-       DeleteConnectedNode. Each is run by its plan and by its execution, and must give the same rows, the same graph
-       after and the same error. A write with no RETURN also runs through upstream's execute path
-       (`Execution.executeUpstream`), answering its empty relation and leaving the graph its plan leaves.
-     - `PureV1ApiTest.e8_execute_aProgramThatWrites_runsFromItsPlan` runs a staged write program through `execute`.
+   > Cut in the 2026-11 docs cleanup: leg 7's server route and the tests that judged it (2026-10-20). Full text:
+   > `git show de2745351:docs/WRITES_DESIGN_2026_10_18.md`.
+
    - **Not yet:** a write whose answer is a count, over `execute` (a scalar's TDS answer is unprobed for reads too).
      Since 2026-10-20 it is refused by name before its plan runs, as a read's scalar is
      (`Execution.executeUpstream`; `WritePlansH2Test.executeRefusesACountAnswerBeforeItsWriteRuns`): before, its write
@@ -624,12 +420,5 @@ A mutation is a `merge` or a `delete` over a class by key, its input object the 
    - GraphQL mutations, once `#GQL{...}#` compiles;
    - Persistence-style ingest modes over `merge`.
 
-**The order since 2026-10-19 (the user: "keep going ... until we have all Cypher and TCK completely working end to
-end"):** 3, then 6 (the TCK's write cases judged on B, which writes through L1 alone), then 5 (A, which needs L2's
-inverse), then 4 (`#SQL` DML), then 7 (write plans). All seven landed on the branch by 2026-10-20.
-
-**Expected end state:**
-- the TCK at 3878 of 3880 (all but the 2 signed years) on B;
-- on A, every write case except the label changes;
-- every write judged on rows, side effects, the post-graph and the control queries;
-- `#SQL` DML running on Postgres, DuckDB and H2.
+> Cut in the 2026-11 docs cleanup: the order the legs ran in and the expected end state (2026-10-19 and 10-20).
+> Full text: `git show de2745351:docs/WRITES_DESIGN_2026_10_18.md`.

@@ -89,8 +89,6 @@ F1 is the one form that uses the index on all three and is right for a value sto
   normalizer), its type list's order, and what it passes on (a null value, an empty list, NaN). The compatibility
   mode's reference (phase 2); the lite runner checks in its own words.
 
-## `sharing/` — when two runs may share an in-memory database (2026-10-08)
-
-`results.md`: the stress corpus with a shared session per test data against a fresh one per test, and how often a
-run changes a shared database in the stress corpus and the relational corpus, counted by `count-probe.patch`
-(applied, measured, reverted). The basis of decision A in the plan's §9.
+> Cut in the 2026-11 docs cleanup: the section on `sharing/`, the in-memory-database sharing probe behind decision A
+> (2026-10-08), whose folder is archived (`docs/HISTORY.md`). Full text:
+> `git show de2745351:docs/execution-plan-boundary-2026-10-05/README.md`.

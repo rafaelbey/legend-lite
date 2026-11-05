@@ -1,7 +1,9 @@
 # DataCube pages: every tile equal, easy layouts, the whole page saved (design, 2026-10-09)
 
-**Status: agreed with the user, 2026-10-09** (§5 records the decisions). `datacube/` is the DataCube + Python line's since 2026-10-09
-(`docs/IN_FLIGHT.md`). Builds on `docs/DATACUBE_DASHBOARDS_DESIGN_2026_09_28.md` (§4 layout, §5 the page model) and
+**Status: agreed with the user, 2026-10-09** (§5 records the decisions); phases 1 to 3 built the same day (their
+as-built notes were cut in the 2026-11 docs cleanup). `datacube/` is the DataCube + Python line's since 2026-10-09
+(`docs/IN_FLIGHT.md`). Builds on `docs/DATACUBE_DASHBOARDS_DESIGN_2026_09_28.md` (§4 layout, §5 the page model; that
+design is in git history, docs/HISTORY.md, and its lasting decisions are in docs/DATACUBE_ARCHITECTURE.md) and
 `docs/BI_AND_ETL_PLAN_2026_09_29.md` §B2 (pages); it does not replace their page model, it brings forward the part of it
 they left for later.
 
@@ -145,7 +147,8 @@ divider is the one exception that follows live, and only its content, at most on
   across into bands, then into columns and stacked parts; tiles no straight cut divides, side by side) -- as built,
   2026-10-09, where this said "laid out as one column": its arrangement is kept rather than lost. The page's layout is
   written as version 2 from then on. **Since 2026-10-17 no older page is read** (the user's ruling,
-  docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.4): a page before version 4 is refused by its version, and the
+  docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.4, in docs/HISTORY.md): a page before version 4 is refused by its
+  version (today only version 6 is read: `page-document.ts` `PAGE_VERSION`), and the
   reading of a v1 grid as bands (`fromCells`) went.
 - Save, Share (the same compressed JSON in the link), Export > Specification and "changed since saved" cover every
   tile.
@@ -172,7 +175,7 @@ divider is the one exception that follows live, and only its content, at most on
    sheet tabs in the page's bar, as a browser's tabs, the page's name in a box before them; stacked tiles made by a
    drop on a tile's middle. Sheets land first (3a), stacked tiles second (3b).
 4. **Python:** a page of several frames and their charts from `ll.show(...)`
-   (`docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`), on the same document.
+   (`docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`, in docs/HISTORY.md), on the same document.
 
 Later, when wanted: a band holding a free grid of small tiles (§3.2); the narrow layout stepping down a column at a time;
 saved layouts as one's own templates; cross-filtering between tiles (the 2026-09-28 design's §5.4); the sheets shown
@@ -212,45 +215,7 @@ with its own title bar and its own board, as now: the page is DataCube's own app
 - The demo's test handles: `window.__dataCube` is the page's first grid (read when asked, so it is never a removed
   one); `window.__dataPage` is new, the page (its views, its document, its layout).
 
-**As built (2026-10-09)**, where the plan above needed a decision:
-
-- **The host's status line and the planner's word stay in the first grid's status bar**, with the planes offered
-  there, not in the page's bar: a readout belongs in the status bar (an earlier ruling: the title bar says what is on
-  screen). The page's bar holds its name, its menu and, for a grid alone, that grid's header. The page decides which
-  grid is first (reading order): when another grid becomes first (the first removed, the page rearranged) the readout
-  moves to it; the other grids have no slot for it.
-- **Every grid is made by the host's maker**, a copy too: Copy of Grid, and the grid a detached chart's Update keeps,
-  are made by the maker of the grid they copy, starting where that grid is now. So the page knows every grid it saves,
-  and the host knows each grid's file (its handle, kept per page and grid when the page is saved or reopened) and the
-  table it was read into -- dropped once no grid on the page reads it.
-- **Opening a saved page is latest-wins**, as opening a source in place is (P2-330): an open overtaken while it waited
-  (a file asked for, a sign-in) lands nothing, and what it read is dropped.
-- **The bar's name** is the page's own once it is saved (or reopened), else its first grid's report title -- what a
-  grid alone was called; the Properties' Report Title still names a page of one grid.
-- **The bar folds** to a lip (the earlier ruling: the folds live in one column at the right): its fold just left of a
-  lone grid's header, whose last control -- the drag zones' way back -- stays at the far right above the zone bar's own
-  fold. The bar is folded while every grid on the page says its "show title bar" setting is off -- for a grid alone,
-  that grid's setting, saved with it as a cube alone's was; folding or showing the bar by hand writes it on every grid,
-  and a grid made while the bar is folded starts with it off, so the grids left later say the same. A tile's header puts
-  the zones' way back last, after the grid's menu, on a cube alone's board too.
-- **A grid's columns panel** starts open for a grid opened alone (in place, or a page of one reopened), folded for one
-  added beside others -- as a source added beside others starts at the row limit (the user, 2026-10-01).
-- **Exports**: each grid's own menu exports its rows with the page's charts where the board puts them (an export holds
-  one table), once there is a chart -- with none, its rows alone, as before; an added grid on a cube alone's board does
-  the same. The page's menu has Export > Page File, the page's document. Each grid's menu has Remove from Page (the
-  one way to remove a grid alone, whose tile has no frame).
-- **Settings** saved on one grid are in effect on every grid on the page.
-- **A detached chart's query edited** (Open in grid, Update) gets a kept grid of its own, so two charts detached from
-  one grid never share an edit.
-- **The download budget** for a grid-only page rises from 352,000 to 368,000 bytes (measured 364,791): every page is
-  a page of its own from the start, so its board loads at startup; the layouts are still fetched when first opened,
-  ECharts when a chart first draws.
-
-Files: `datacube/src/page/page-app.ts` (new), `page/cube-page.ts`, `app.ts` (a grid's changes reported to its page; the
-page's entries out of a compact grid's menus), `page-document.ts` (several cubes written), `layout/band-board.ts` (the
-lone tile shown frameless), `app.css`, `demo/boot.ts`, `demo/index.html` if its host windows move, the demo's browser
-harnesses that open the title bar's menu (`demo/verify-*.mjs`), and their tests: `test/page-app.test.ts` (new) and a
-browser check of a page of two sources saved and reopened, with its first grid removed.
+> Cut in the 2026-11 docs cleanup: phase 2's as-built notes and file list (2026-10-09) -- where the plan needed a decision: the host's readout in the first grid's status bar, every grid made by the host's maker, opening a saved page latest-wins, the bar's name and fold, a grid's columns panel, exports, settings saved on one grid in effect on every grid of the page, a detached chart's kept grid, the download budget. Full text: `git show de2745351:docs/DATACUBE_PAGES_DESIGN_2026_10_09.md`.
 
 ## 5. Decisions (the user, 2026-10-09)
 
@@ -336,40 +301,4 @@ page reopens on its first sheet. A grid's export lays out the charts of its own 
 
 ### 7.5 Where
 
-3a: `datacube/src/page/page-app.ts` (the bar: name box, sheet tabs; an empty sheet), `src/page/cube-page.ts` (sheets: a
-board per sheet, tiles by sheet, Move to Sheet, a drag onto a tab), `src/layout/band-board.ts` (a drag that ends outside
-the board, on a tab), `src/ui/sheet-tabs.ts` (new: the strip), `src/page-document.ts` (version 3), `src/app.ts` (a
-grid's Move to Sheet entry), `src/ui/menu.ts`, `src/app.css`, `demo/boot.ts` (the name box's rename, the changed dot),
-the demo's browser harnesses that read the bar's title, and their tests: `test/sheet-tabs.test.ts` (new),
-`test/page-app.test.ts`, `test/page-document.test.ts`, `test/share-link.test.ts`, and browser checks of a page of two
-sheets -- a chart on one following a grid on the other -- saved, shared and reopened, and a tile dragged onto a tab.
-
-**As built (3a, 2026-10-09)**, where the plan above needed a decision:
-
-- **A tile moved to another sheet** (its menu's Move to Sheet -- a grid's right-click Tile ▸, a chart's right-click menu -- or a
-  drag onto the tab) leaves the sheet shown as it is; the tile goes to the bottom of its new sheet, and the move is
-  said. Create ▸ Sheet in the page's menu adds a sheet as the +'s Sheet does (and Create ▸ Flow as its Flow).
-- **Renaming the page is a change** ("changed since saved"): the page's definition leaves its name out (so a page
-  saved under another name compares equal), so the host compares the name it was saved under as well.
-- **The host's readout** is in the first grid's status bar of the sheet shown, and moves with the sheet shown.
-- **Folding the bar** keeps its rule (folded while every grid on the page says its title bar is hidden), page-wide,
-  across sheets.
-- **The download budget** for a grid-only page rises from 368,000 to 378,000 bytes (measured 375,751; main before it
-  367,729): the tabs, a board per sheet and the name box are on screen from the start.
-- The browser checks that compared a page's `layout` now compare its `sheets` (with `layout` gone they compared
-  nothing to nothing, and passed).
-
-**As built (3b, 2026-10-09)**, where the plan above needed a decision:
-
-- **A stack is made, and added to, by a drop on a tile's middle.** Its tab strip is its header, whose drop zone is the
-  top edge, as any tile's: a drop there divides the place, so the strip is not a target of its own (the plan above
-  named it as one).
-- **A tab pressed brings its tile to the front at once**, as a browser's tab does -- not a change of the page (§5, 7);
-  a tab moved along its strip is (the order is saved). A tile shown by the page (a chart's editing grid, a new tile)
-  is brought to the front of its stack.
-- **The download budget** rises from 378,000 to 381,000 bytes (measured 378,297; sheets before it 375,928).
-
-3b: `src/layout/bands.ts` (the stack node), `src/layout/band-board.ts` (the stack's tab header), `src/page/cube-page.ts`,
-`src/page-document.ts`, `src/app.css`, and `test/bands.test.ts` (the fuzz),
-`test/band-board.test.ts`, and the browser session (`demo/verify-layout.mjs`): a stack made by a drag, a tab dragged
-out, saved and reopened.
+> Cut in the 2026-11 docs cleanup: phase 3's file lists and as-built notes (3a and 3b, 2026-10-09) -- a tile moved to another sheet goes to the bottom of it, renaming the page is a change, a stack's tab strip is no drop target of its own (its top edge divides the place), a tab pressed brings its tile to the front at once, the download budgets. Full text: `git show de2745351:docs/DATACUBE_PAGES_DESIGN_2026_10_09.md`.

@@ -144,57 +144,11 @@ is binding lookup — never a body walk.
   mapping DSL, so its parser/normalizer stays as a desugarer. The win is unified
   *type-checking/execution*, not a smaller front-end.
 
-## Concrete next step (storage = the embodiment)
+> Cut in the 2026-11 docs cleanup: "Concrete next step (storage = the embodiment)" and its Status (the owner-storage
+> mechanism, `FunctionSynthesizer` and `synthFunctions` on parser records, as built for mappings, derived properties,
+> constraints and service queries), superseded by `docs/CLEAN_SHEET_INVERSION.md` (lifted functions as ordinary
+> elements, ownership as a derived index; its §5.4). The thesis above is unchanged. Full text:
+> `git show de2745351:docs/STRUCTURE_VS_BEHAVIOR.md`.
 
-> **⚠️ Superseded by `CLEAN_SHEET_INVERSION.md`.** The owner-storage
-> mechanism below (`FunctionSynthesizer`, `synthFunctions` fields on
-> parser records, the bespoke `ModelBuilder` flatten) put Phase-E output
-> inside Phase-B records and left the clean-sheet form unparseable. The
-> inversion doc replaces it: lifted functions become ordinary elements in
-> a `NormalizedModel`, ownership/invalidation moves to a derived
-> `liftedByOwner` index, and the four hats become FQN bindings on the
-> structural elements. The thesis of this doc (two layers, one function
-> space, bindings not bodies) is unchanged — the storage embodiment is.
-
-Behavior is owned by its structural source (for invalidation + provenance) and
-flattened into the one function index by a **single generic mechanism**:
-
-- `interface FunctionSynthesizer { List<FunctionDefinition> synthFunctions(); }`
-- `MappingDefinition`, `ClassDefinition`, `ServiceDefinition` implement it; the
-  parser leaves the field empty, `ModelNormalizer` (Phase E) populates it.
-- **One** flatten step in `ModelBuilder.from`: after structural ingest,
-  `if (el instanceof FunctionSynthesizer fs) fs.synthFunctions().forEach(this::appendFunction);`
-  Remove the bespoke mapping-only flatten.
-- Each synth function carries a `synthesizedFrom` provenance pointer.
-
-**Why owner-storage (not top-level append):** derived data co-located with its
-source makes the invariant "synth functions ⊆ what their owner currently
-declares" structurally true. Re-normalize a changed owner → fresh
-`synthFunctions` replace the old atomically; delete the owner → its functions
-vanish with it. No FQN-prefix scanning, no `$`-name parsing to recover ownership.
-This serves the element-level incrementality goal in `TENETS.md` /
-`pipeline-architecture.md`.
-
-**Shared-owner wrinkle:** a `Class` is owner to *both* derived-property (E.2)
-and constraint (E.3) functions, so sub-slices must **accumulate** into one
-`synthFunctions` list, not overwrite.
-
-## Status
-
-- **E.1 mappings** — owner-stored on `MappingDefinition.mappingFunctions`, surfaced
-  via `FunctionSynthesizer.synthFunctions()`.
-- **E.2 derived properties** — owner-stored on `ClassDefinition.synthFunctions`
-  (`<owner>$prop$<name>(this, …)`), tagged with `Synthesized(hat="prop")`.
-- **E.3 constraints** — owner-stored on `ClassDefinition.synthFunctions`
-  (`<owner>$constraint$<name>(this):Boolean[1]`), tagged `hat="constraint"`,
-  **accumulating** onto E.2's functions on the shared class owner.
-- **E.4 service queries** — owner-stored on `ServiceDefinition.synthFunctions`
-  (`<svc>$query(<params>):Any[*]`), tagged `hat="query"`. Typed-lambda query
-  params become the function's params; the bare `|body` form is zero-param.
-  Return is `Any[*]` (concrete result type is a Phase-G concern).
-
-All synth functions flatten into the one `findFunction` index through a single
-generic pass in `ModelBuilder.from` over every `FunctionSynthesizer`.
-
-See also: `TENETS.md`, `MAPPING_LEGACY_TO_FUNCTION.md`,
-`MAPPING_UNIFICATION_PLAN.md`, `pipeline-architecture.md`.
+See also: `TENETS.md`, `CLEAN_SHEET_INVERSION.md`, `MAPPING_LEGACY_TO_FUNCTION.md`,
+`MAPPING_UNIFICATION_PLAN.md` (history: `HISTORY.md`), `architecture/frontend.md`.
