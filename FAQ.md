@@ -85,7 +85,7 @@ module. Both halves are hand-written recursive descent in `core/parser/`:
 applications).
 
 Upstream legend-engine uses ANTLR for both. The measured reasons for not
-following it (`docs/PARSER_DROP_IN.md` §0):
+following it (the parser drop-in study's §0, `docs/PARSER_DROP_IN.md` in `docs/HISTORY.md`):
 
 1. **Memory** — 1,281 bytes allocated per source character vs ~39. That is
    3.6 GB to parse 2.8 MB of source, plus ~31 MB retained just to warm the
@@ -358,7 +358,10 @@ If a Pure function doesn't have a SQL translation, the compiler will throw a `Pu
 
 ### Does Legend Lite support Model-to-Model (M2M) transforms?
 
-M2M support is planned. See [docs/MODEL_TO_MODEL.md](docs/MODEL_TO_MODEL.md) for the design document.
+Yes. A model-to-model query executes on the platform's in-process DuckDB, its data inline in the SQL, where
+legend-engine runs it in memory in Java (register row S27 of
+[docs/SEMANTICS_REGISTER.md](docs/SEMANTICS_REGISTER.md)). The original design note
+(`docs/MODEL_TO_MODEL.md`) is in [docs/HISTORY.md](docs/HISTORY.md).
 
 ---
 

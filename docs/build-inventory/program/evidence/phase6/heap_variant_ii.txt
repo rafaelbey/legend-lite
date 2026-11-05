@@ -1,6 +1,0 @@
-judge_database_duckdb      peak before a collection     0 MB, heap committed up to     0 MB, 0 pauses
-judge_database_h2          peak before a collection     0 MB, heap committed up to     0 MB, 0 pauses
-judge_database_warehouse   peak before a collection     0 MB, heap committed up to     0 MB, 0 pauses
-judge_host_duckdb          peak before a collection   534 MB, heap committed up to   564 MB, 214 pauses
-judge_host_h2              peak before a collection   876 MB, heap committed up to  1248 MB, 122 pauses
-judge_host_warehouse       peak before a collection   553 MB, heap committed up to   577 MB, 225 pauses

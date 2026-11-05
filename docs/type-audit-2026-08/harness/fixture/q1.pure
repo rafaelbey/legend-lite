@@ -1,1 +1,0 @@
-model::Person.all()->project(~[firstName:p|$p.firstName, age:p|$p.age])

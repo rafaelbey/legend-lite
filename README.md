@@ -43,7 +43,7 @@ Two things worth knowing before reading the code:
 - **The parser is hand-written recursive descent.** There is no ANTLR in any
   pom. It is a byte-for-byte drop-in candidate for legend-engine's ANTLR
   parser — 22,725/22,725 elements currently emit identical protocol JSON
-  (`docs/PARSER_DROP_IN.md`).
+  (the parser drop-in study, `docs/HISTORY.md`).
 - **Errors carry a phase, not a letter.** `error/LegendCompileException.Phase`
   is `PARSE, RESOLVE, NORMALIZE, MODEL, TYPE, MAPPING, LOWER, EXECUTE`.
 

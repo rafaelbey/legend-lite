@@ -15,8 +15,8 @@
 > a build green (docs/FOUNDATIONS_PLAN.md §0.4).
 >
 > **Execution tenet — an INVARIANT, not an aspiration (eviction program
-> closed 2026-08-18; claim recalibrated by
-> docs/ADVERSARIAL_TENET_AUDIT_2026_08_18.md):** *Java orchestrates, the
+> closed 2026-08-18; claim recalibrated by the 2026-08-18 adversarial
+> tenet audit, now in git history — docs/HISTORY.md):** *Java orchestrates, the
 > DATABASE executes.* The honest, measurable form: NO host interpreter
 > remains; the QUERY COMPILER executes no values; the egress boundary is
 > a small set of irreducible carriage sites plus a NAMED, SHRINKING
@@ -405,9 +405,10 @@ every check, one brief per remaining phase); the plan is `docs/REBUILD_PROGRAM_2
 (its §0 says what the whole program is for). `docs/IN_FLIGHT.md` says who is working.
 **The compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`) is parked since 2026-10-04**
 (`docs/IN_FLIGHT.md`): do not follow its §0 checklist unless the user resumes it. Every deliberate difference from legend-pure/legend-engine is
-a row of `docs/SEMANTICS_REGISTER.md`. Older plans and queues (PROGRAM_MAP,
-ONE_PLATFORM_PLAN, END_TO_END_PLAN, OPEN_REGISTER, ENGINEERING_LOG's queue,
-REAL_PLAN_2026_09_25) are history, not instructions.
+a row of `docs/SEMANTICS_REGISTER.md`. Older plans, queues, audits, homework and logs were removed from
+`main` in 2026-11 and are indexed, one line each, in `docs/HISTORY.md` (read any with `git show cf73e6ef7:<path>`):
+a doc cited in code or prose that is not in the tree is there. They are history, not instructions; so is
+ENGINEERING_LOG's queue.
 
 The live process layer. None of it is reachable from any always-loaded file
 otherwise, which is how it drifted:
@@ -417,7 +418,7 @@ otherwise, which is how it drifted:
 | `docs/build-inventory/program/START_HERE.md` | **Start here**: the build rebuild and the self-contained bump (the plan: `docs/REBUILD_PROGRAM_2026_10_06.md`) |
 | `docs/PLAN_PATH_PROGRAM_2026_10_17.md` | **The plan path program** (the user, 2026-10-17): everything executes through a plan -- the types in the plan, the text carrier, both judges, the callers switched, the legacy executor deleted; its §0 the rulings, §7 the order, §9 the status |
 | `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` | **The plan and the result** (ratified 2026-10-18): one plan record with three renderers, one result model that is a stream with sinks, per-row formatting, the typed session seam, the fast path's invariants; governs the program from step 7 |
-| `docs/RESULT_BOUNDARY_START_HERE.md` | **The result boundary program, start here** (rewritten 2026-10-28 for a session from any account): the whole remaining roadmap in order with a brief per item (stage 1's S1.4 to S1.6; tracks B the body runner, T core's tests as the LEAN twin of PCT and the corpus, C the corpus on plans, D the deletions, L mixed lists, A Arrow, F open findings), the state with every commit, the rules, how to run every check, how to raise the lanes, the traps, the user's rulings verbatim; its evidence is `docs/result-boundary-homework/` (the audit, the code maps, the measurements, every probe's source); the program and its rulings are `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` (§8); its design is `docs/RESULTS_AND_RENDERERS_2026_10_22.md` |
+| `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` | **The result boundary program** (landed as PR #80, 2026-10-30): the program and the user's rulings (§8); its design is `docs/RESULTS_AND_RENDERERS_2026_10_22.md`; its evidence is `docs/result-boundary-homework/` (the audit, the code maps, the measurements, every probe's source); its open questions are register rows S119–S127; its session brief (`RESULT_BOUNDARY_START_HERE.md`) is in `docs/HISTORY.md` |
 | `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` | **The planner-driver seam program** (planned 2026-10-30, NOT ratified; the user rules on its §6 first): lite's execution model applied to the test body -- planned once as one `Sequence` the database executes, the verdict the database's (or the host judge's, D7), a shape the planner cannot know a step whose rows fill the next statement's regions (the `Keyed` pattern), the driver the runner plus the judges, the four probes retired shape by shape, step C's widenings reverted; its evidence `docs/planner-driver-seam-homework/` (the code measured; upstream read in the pinned sources as spec input, not as a model to copy) |
 | `docs/EXECUTION_PLAN_2026_09_26.md` | The compiler rebuild's plan (rev H4): **parked since 2026-10-04**, reference until the user resumes it |
 | `docs/SEMANTICS_REGISTER.md` | Every deliberate difference from the reference, with evidence |
@@ -426,10 +427,7 @@ otherwise, which is how it drifted:
 | `docs/ENGINEERING_LOG.md` | Standing tenets (its active queue is history; the plan above replaced it) |
 | `docs/TENETS.md` | Eager-Knowledge / lazy-Work, the north star |
 | `docs/WORLD_MAP.md` | Java vs Pure vs input: the three kinds of Pure code, the prelude, compare-not-compute, the decision procedure |
-| `docs/AUDITS.md` | Audit index and reading order |
-| `docs/CORPUS_BURNDOWN_HANDOFF.md` | History: the corpus burn-down program (paused; its ledger is Maven-era) |
-| `docs/RELATIONAL_CORPUS.md` | History: the Maven-era corpus scoreboard (not regenerated by the Bazel chain; the roster files are the gate) |
-| `docs/OUTSTANDING.md` | History: the Maven-era non-passing ledger (not regenerated) |
+| `docs/HISTORY.md` | Every document removed from `main` (the audits and their index, the corpus burn-down, the Maven-era scoreboards and ledgers, finished plans, homework, handoffs, evidence folders): what each was, what came of it, how to read it from git |
 
 ## Pushing to main
 

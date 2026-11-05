@@ -1,5 +1,0 @@
-src/ui/filter-editor.ts
-src/ui/column-editor.ts
-src/ui/panel-column.ts
-src/ui/json-fields.ts
-src/ui/form.ts

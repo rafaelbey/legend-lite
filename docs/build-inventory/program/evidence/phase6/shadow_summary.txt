@@ -1,2 +1,0 @@
-one manifest-world pass ((iii) 38, judge_host_duckdb) with LL_SHADOW on: 2475 rows (CANDIDATES 1446, PICK 632, LIFTED 159, RESOLVER-TIER 117, FORM 61)
-CANDIDATES rows with a candidate declared outside closure(core_relational) (27 repositories, decl_repo.json): 0; mixed inside/outside sets: 0; candidate ids with no upstream declaring repository (platform-declared): 568

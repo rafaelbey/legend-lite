@@ -1,4 +1,0 @@
-rd1	rd	SELECT round(CAST(100.5 AS double precision))
-rd2	rd	SELECT round(CAST(100.5 AS numeric))
-rd3	rd	SELECT round(CAST(2.5 AS double precision))
-rd4	rd	SELECT round(100.5)

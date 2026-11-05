@@ -1,5 +1,0 @@
-q1	q	SELECT "name" FROM emp WHERE id=1
-q2	q	SELECT name FROM emp WHERE id=1
-q3	q	SELECT @@sql_mode
-q4	q	SELECT 'a' || 'b'
-q5	q	SELECT 'abc' = 'ABC'

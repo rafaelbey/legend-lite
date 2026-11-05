@@ -1,3 +1,0 @@
-r1	re	SELECT count(*) FROM (SELECT e.id, regexp_matches(e.name, '[0-9]') FROM emp e) t
-r2	re	SELECT count(*) FROM emp
-r3	re	SELECT 'abc123' ~ 'bc1'

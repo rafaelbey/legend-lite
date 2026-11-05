@@ -1,9 +1,0 @@
-{"what":"cold module: load + boot + empty model held","ms":3575}
-{"what":"same module, empty model held again","ms":[1,2,1,1,1],"median":1}
-{"what":"cold module: load + boot + classModel(2) held","ms":3429}
-{"what":"warm module: empty held","kb":0,"ms":[2,1,1],"median":1}
-{"what":"warm module: classModel(1) held","kb":1,"ms":[10,9,9],"median":9}
-{"what":"warm module: classModel(10) held","kb":7,"ms":[129,131,134],"median":131}
-{"what":"warm module: classModel(50) held","kb":36,"ms":[762,763,758],"median":762}
-{"what":"warm module: classModel(200) held","kb":146,"ms":[4154,3975,3921],"median":3975}
-{"what":"warm module: empty, after 200 held","kb":0,"ms":[1,1,2],"median":1}
