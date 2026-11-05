@@ -1653,7 +1653,8 @@ legend_java_binary(
 
 # The front oracle's generator (Rust port phase 2, step 1: docs/rust-port/PHASE2.md §4): the questions the parse tap
 # recorded (bazel test --test_env=LEGEND_PARSE_TAP=1 ...), asked of the Java parser again, its answers written in the
-# lossless record codec. On core_tests_lib's classpath, so the test grammars the tap saw are registered here too:
+# lossless record codec. On core_tests_lib's classpath with the toy section grammar, so the grammar the tap saw
+# registered (SectionGrammarRegistryTest's) is registered here too -- only a ###Toy section answers differently:
 #   bazel run //core:front_oracle -- OUT_DIR TAP_FILE_OR_DIR...
 legend_java_binary(
     name = "front_oracle",
@@ -1661,7 +1662,25 @@ legend_java_binary(
     jvm_flags = ["-Duser.timezone=GMT"],
     main_class = "com.legend.frontoracle.FrontOracle",
     tags = ["manual"],
-    runtime_deps = [":core_tests_lib"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":toy_grammar",
+    ],
+)
+
+# The parse-time receipt (phase 2, step 1): the committed question set through the parser's doors, timed -- the Java
+# parser before the switch, the shim after. A measuring tool for a quiet machine, never a test:
+#   bazel run //core:front_timing -- $PWD/rust/oracles/front/questions.jsonl [PASSES]  (decompressed first)
+legend_java_binary(
+    name = "front_timing",
+    testonly = True,
+    jvm_flags = ["-Duser.timezone=GMT"],
+    main_class = "com.legend.frontoracle.FrontTiming",
+    tags = ["manual"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":toy_grammar",
+    ],
 )
 
 # COMPILE-ONLY LATENCY (the compiler plan's W1.0b under D25): what a user feels per query, no database; the stress

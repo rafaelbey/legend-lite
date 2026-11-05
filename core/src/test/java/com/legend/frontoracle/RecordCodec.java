@@ -28,7 +28,7 @@ import java.util.TreeSet;
  * <p>The form: a record is a JSON object of its components in canonical-constructor order, nulls explicit, with an
  * {@code "@"} type tag first only where the declared type does not already fix the runtime class (a sealed slot, an
  * {@code Object} slot); a list is an array; a map with string keys an object in its iteration order, any other map an
- * array of {@code [key, value]} pairs; an enum is its name; {@code double}, {@code BigDecimal} and {@code BigInteger}
+ * array of {@code [key, value]} pairs, a lone map entry one such pair; an enum is its name; {@code double}, {@code BigDecimal} and {@code BigInteger}
  * are strings in Java's spelling, so no number loses a digit; a string escapes {@code "} and {@code \}, the control
  * characters, and every surrogate as {@code \\uXXXX}, so a lone one survives. Anything else has no rule and throws
  * (AGENTS.md invariant 4): the codec is complete or it fails.
@@ -127,6 +127,13 @@ final class RecordCodec {
                 }
             }
             out.append(stringKeys ? '}' : ']');
+        } else if (o instanceof Map.Entry<?, ?> entry) {
+            containers.add("java.util.Map$Entry");
+            out.append('[');
+            value(out, entry.getKey(), argument(declared, 0));
+            out.append(',');
+            value(out, entry.getValue(), argument(declared, 1));
+            out.append(']');
         } else if (o.getClass().isRecord()) {
             record(out, (Record) o, exact);
         } else {
@@ -280,7 +287,8 @@ final class RecordCodec {
             } else if (c.isPrimitive() || c.isEnum() || c == String.class || c == Boolean.class
                     || Number.class.isAssignableFrom(c) || c == Character.class) {
                 leaves.add(tag(c));
-            } else if (c == List.class || c == Map.class || c == Set.class || c == Optional.class) {
+            } else if (c == List.class || c == Map.class || c == Set.class || c == Optional.class
+                    || c == Map.Entry.class || c == java.util.LinkedHashMap.class) {
                 leaves.add(c.getName());
             } else {
                 open.add(c.getName());

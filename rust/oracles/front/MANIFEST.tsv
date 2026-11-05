@@ -1,0 +1,12 @@
+# file	what	sha256 of the uncompressed output
+# Made 2026-11-05 on worktree-rust-port-phase0 (core as of d453fa556, the parse tap) by `bazel test
+# --test_env=LEGEND_PARSE_TAP=1 //...` (517 pass, the same 2 skipped) and //core:front_oracle over its 141 processes'
+# tap files: 356,916 calls of the parser's four text doors, 71,200 distinct (door, dialect, text) questions over
+# 52,143 texts; every model text then asked at all three dialects, 110,596 questions (docs/rust-port/PHASE2.md §4 step 1).
+# A text's id is the SHA-256 of its UTF-16 units, little-endian (a lone surrogate survives it); every surrogate in the
+# file is a \uXXXX escape. Compressed with `zstd -19 --long=27`: plain decompression reads it.
+questions.jsonl.zst	{"sha","asks":[[door, dialect], ...],"text"} per text, by sha; doors pmcd (PmcdParser.parse), spec (SpecParser.parse), lambda (SpecParser.parseLambda, the engine's dialect), block (SpecParser.parseCodeBlock)	7cf6e55865af96f1c7712c14dfe73a3e1cbf53c23b4f409378340e482777cffc
+# The records the doors can return, by reflection over PmcdParser.Parsed, ValueSpecification and LambdaFunction:
+# 395 records, 39 sealed parents, their components in canonical order with their declared types. The answers reach 390;
+# PAwsDefault is the parser's but no test reaches it, PCNull, POrigin, PSdlc and PSerializer are the JSON readers'.
+schema.json	{"records":{tag:[[component, declared type], ...]},"sealed":{tag:[subtags]},"leaves":[...],"open":[...]}	-

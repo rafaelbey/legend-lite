@@ -11,6 +11,8 @@ exports_files(
         # the engine-text query holding a tagged value, as the shim sends it (mir/MANIFEST.tsv): the dialects'
         # differential reads it
         "mir/tagged-engine.jsonl",
+        # the records the parser's doors can return (front/MANIFEST.tsv): what the front end's codec covers
+        "front/schema.json",
     ],
     visibility = ["//rust:__subpackages__"],
 )
@@ -65,6 +67,19 @@ zstd_decompress(
     src = "mir/dialect-arms.jsonl.zst",
     out = "mir/dialect-arms.jsonl",
     visibility = ["//rust:__subpackages__"],
+)
+
+# Every question the test suite asks the parser's text doors, and every model text at all three dialects (phase 2
+# step 1; front/MANIFEST.tsv): the front end's differentials ask Java and Rust each one.
+zstd_decompress(
+    name = "front_questions",
+    testonly = True,
+    src = "front/questions.jsonl.zst",
+    out = "front/questions.jsonl",
+    visibility = [
+        "//core:__pkg__",
+        "//rust:__subpackages__",
+    ],
 )
 
 guards_package()

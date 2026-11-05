@@ -92,15 +92,26 @@ and place (Java calls the grammar and splices its `POpaqueElement` in order), an
 source. An error answers the Java class to throw (`ParseException`, `IllegalStateException`, ...), its message and its
 line and column, and the shim rethrows exactly that.
 
-**Java is the spec.** The span and error columns are reproduced as Java computes them (UTF-16 units and code points;
-Rust works in UTF-8, so the conversion is Rust's), the `[L:C]` prefix, the eight `IllegalStateException`s, the four
-failures `JsonModelDoorTest` pins. A difference found is a row of `rust/lite-front/PARITY.md`, as in phase 1.
+**Java is the spec.** The span and error columns are reproduced as Java computes them (UTF-16 units and code points),
+the `[L:C]` prefix, the eight `IllegalStateException`s, the four failures `JsonModelDoorTest` pins. A difference found
+is a row of `rust/lite-front/PARITY.md`, as in phase 1.
+
+**`lite-front` works in UTF-16 units** (decided in step 1). Java's lexer and parser index a `String`'s `char`s:
+offsets, `charAt`, `substring`, the span columns, and the lone surrogates `parser/Escapes` makes from `\uXXXX`
+escapes, which a Rust `str` and a UTF-8 C string cannot hold. Rust's front end reads its text as `&[u16]`, so all of
+those are Java's by construction; UTF-8 is only at the edges, and every surrogate crosses them as a JSON `\uXXXX`
+escape (the codec's rule).
+
+**The differential** (decided in step 1). Java's answers over the question set are 3.6 GB of codec JSON (77 MB
+compressed for the recorded questions alone): too large to commit. While the Java parser exists the gate is live: a
+cached Bazel action runs Java's lexer and doors over the committed questions and writes one SHA-256 per token stream
+and per answer; Rust's test computes its own, compares, and holds a floor of matches that only rises, as phase 1's
+dialect floors did; a debug tool prints both answers of a question that differs. The hashes are frozen as committed
+data just before the Java parser is deleted (step 6), and are the gate after it.
 
 **Traps the dump alone will not show, each settled before its step:**
 
-- **Lone surrogates.** `parser/Escapes` makes them from `\uXXXX` escapes; a Java `String` holds one, a Rust `str`
-  and a UTF-8 C string cannot. The codec writes them as JSON `\uXXXX` escapes and Rust's record strings hold UTF-16
-  (or WTF-8) -- decided in step 1, since the dump's bytes depend on it.
+- **Lone surrogates** -- settled above: UTF-16 inside, `\uXXXX` at the edges.
 - **The codec's leaves are found, not assumed.** The schema lists every component type the records use; an unknown
   one throws (invariant 4), never `toString`. Candidates beyond §3's: `double` (spelled by `lite-javacompat`'s
   `Double.toString`), raw JSON (`POpaqueElement`'s protocol JSON), `Optional`.
@@ -124,6 +135,37 @@ failures `JsonModelDoorTest` pins. A difference found is a row of `rust/lite-fro
    `//parser-equivalence` corpus is added at all three dialects. Measured before deciding what is committed: the
    dump's size, the shared nodes, the record types reached against the schema. A pre-deletion receipt of the parse
    time (p50 over the stress corpus, the bootstrap's parse at class load), as phase 1's §4 step 1.
+
+   **Done 2026-11-05.** The parse tap (`com.legend.parser.ParseTap`: the door, the dialect, the text, when
+   `LEGEND_PARSE_TAP` is set) ran over `bazel test //...` -- 517 pass, the same 2 skipped, with
+   `ObservabilityGuardrailTest`'s flag list moved for it (dated) -- and recorded 356,916 calls in 141 processes:
+   71,200 distinct questions over 52,143 texts, all three dialects and all four doors. With every model text asked
+   at every dialect, 110,596 questions: the committed question set, `rust/oracles/front/questions.jsonl.zst` (8.4 MB
+   within zstd's default window; `front/MANIFEST.tsv`). `//core:front_oracle` asks each of Java again and writes its
+   answer in the lossless codec (`com.legend.frontoracle.RecordCodec`, test code by reflection -- the product bans
+   reflection, so the shim's reader is generated from the schema, never reflective). What it measured:
+   - **Errors**: 13,167 questions raise -- 13,163 `ParseException`s, three `IllegalArgumentException`s (one model
+     text, at each dialect) and one `DateTimeException` (a query) -- classes the shim rethrows as they are. The
+     emitter refuses one engine-dialect model the parser accepts (`UnsupportedOperationException`): its own field of
+     the answer, step 5's. Two independent runs (the generator, the timing tool's passes) raised on exactly the same
+     questions: the parser answers as a function of its text.
+   - **The receipt** (`//core:front_timing`, the question set on one warm JVM, the last of 3 passes, load average
+     2.85, the Docker VM's containers running): 3,742 ms for all 110,596 questions. Models, per dialect: p50
+     0.008-0.012 ms, p95 0.13-0.14 ms, p99 0.35-0.37 ms, about 1.2 s each in all; queries (21,838 at lite's dialect):
+     p50 0.001 ms, 50 ms in all. `builtin.Pure`'s first touch (the prelude's parse and build): 70 ms. The shim is
+     measured by the same tool after its switch.
+   - **Coverage**: the schema (`front/schema.json`) holds 395 records under 39 sealed parents; the answers reach 390.
+     `PAwsDefault` is the Connection grammar's (`ConnectionSectionGrammar:2070`) but no test reaches it: a question is
+     written for it before that grammar's step. `PCNull`, `POrigin`, `PSdlc` and `PSerializer` are the JSON readers',
+     never the parser's. The overlay record (`POpaqueElement`) needs the toy grammar registered, as its test has it.
+   - **Leaves**: `boolean`, `int`, `long`, `double`, their boxes, `Number`, `String`, `BigDecimal`, one enum
+     (`TypeExpression.Op`), lists, maps and map entries; two `Object` slots (`PEnumSourceValue.value`,
+     `PRelLiteral.value`), tagged by their runtime class. The maps are `LinkedHashMap`s (insertion order): no hash
+     order to reproduce.
+   - **Shared nodes**: only `Multiplicity.Concrete` and `SourceInfo` values recur within an answer, never a
+     `ValueSpecification` -- so the typer's identity maps see the same nodes after a round trip, and the codec needs
+     no reference ids.
+   - **Size**: 3.6 GB of answers, which decided the differential above.
 2. **`lite-front`'s lexer (2b)**: the tokens, offsets and columns as Java's, by a differential over the dump's texts.
 3. **The expression parser (2c)**: `SpecParser` in Rust, byte parity on the dump's spec entries; then
    `SpecParser.parse`, `parseLambda` and `parseCodeBlock` **switch** -- every query the test suite runs is parsed by
