@@ -40,9 +40,9 @@ parser_equivalence stress warehouse datacube ui sdlc`. Each lane's log, the fail
   assertion failure in any log; `//datacube:jupyterlab_test` timed out waiting for its kernel; the native image
   segfaults as on arm64. Run alone with a long timeout, the two tried (`//core:core_tests_sql`,
   `//rust/lite-sql:mir_round_trip_test`) passed in minutes. For a verdict there, run one test at a time:
-  `LOW_MEMORY=true EXTRA_FLAGS='--test_timeout=14400 ...'`. What is x86-64's own -- the Rust library, the FFI shim
-  (`//core:ffi_test`), the dialect differential, the wheel's tag (`//python:wheel_test`), the Python bindings -- and
-  the checks and product lanes passed four at a time.
+  `LOW_MEMORY=true EXTRA_FLAGS='--test_timeout=14400 ...'`. What is x86-64's own -- the Rust crates' tests but the
+  MIR round trip, the FFI shim (`//core:ffi_test`), the dialect differential, the wheel's tag (`//python:wheel_test`),
+  the Python bindings -- and the checks and product lanes passed four at a time.
 - **Docker Desktop's VM memory, if below CI's 16 GB**: the browser tests crash ("Target crashed") or are killed
   without a word when too many run at once. At 4 CPUs in a 10 GB VM, three datacube tests did (`join_open_test`,
   `timeseries_queries_test`, `verify_flow_test`), and each passed run alone (`--config=ci-small`). Give the VM 16 GB
