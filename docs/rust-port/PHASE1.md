@@ -679,7 +679,8 @@ Linux job's flags, found three defects of the port, each fixed before landing:
 - **The unlisted platform (A25, the product lane).** `//rust/lite-ffi:lite_ffi` failed toolchain resolution for
   `//tools/platforms:unlisted_test`; it now says the platforms a Rust toolchain is registered for. A consequence the
   port makes: core's JVM reaches the library through `//core:ffi`, so on a platform without a Rust toolchain it is
-  skipped with it -- before the port it built anywhere Java runs.
+  skipped with it -- before the port it built anywhere Java runs. The user accepted this (2026-11-05): the Java goes
+  at the end of the port, and the six platforms are already the shipped set; no Rust toolchain is added for others.
 
 Everything else passed but for what this machine cannot judge: the warehouse's GraalVM native image segfaults under
 Docker Desktop (as it does on `cf73e6ef7`, before the port), failing the six tests that start it, and three browser
