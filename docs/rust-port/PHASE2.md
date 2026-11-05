@@ -125,8 +125,8 @@ failures `JsonModelDoorTest` pins. A difference found is a row of `rust/lite-fro
    dump's size, the shared nodes, the record types reached against the schema. A pre-deletion receipt of the parse
    time (p50 over the stress corpus, the bootstrap's parse at class load), as phase 1's §4 step 1.
 2. **`lite-front`'s lexer (2b)**: the tokens, offsets and columns as Java's, by a differential over the dump's texts.
-3. **The expression parser (2c)**: `SpecParser` in Rust, byte parity on the dump's spec entries; then `SpecParser.parse`,
-   `parseLambda` and `parseCodeBlock` **switch** -- every query the test suite runs is parsed by Rust while models are
+3. **The expression parser (2c)**: `SpecParser` in Rust, byte parity on the dump's spec entries; then
+   `SpecParser.parse`, `parseLambda` and `parseCodeBlock` **switch** -- every query the test suite runs is parsed by Rust while models are
    still parsed by Java. The quoted tree (`compileLegendValueSpecification`) folds in Rust, inside the parse, where the
    let-bound constants are in scope (`SpecParser:1309`, `this::constString`); the quoted grammar
    (`compileLegendGrammar`) needs a model parse, so until step 4 Rust resolves its payload text in scope and Java folds
