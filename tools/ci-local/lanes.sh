@@ -34,11 +34,13 @@ fi
 . tools/ci/lane-flags.sh
 # (each optional list spelled ${a[@]+"${a[@]}"}: macOS's bash 3.2 calls an empty array unbound under set -u)
 read -r -a extra <<< "${EXTRA_FLAGS:-}"
-# CPUS (set by ci.sh in the container): the CPUs Bazel may use, said outright rather than left to its detection
-if [ -n "${CPUS:-}" ]; then extra+=("--local_resources=cpu=$CPUS"); fi
-flags+=(--symlink_prefix=/ ${extra[@]+"${extra[@]}"})
+# CPUS (set by ci.sh in the container): the CPUs Bazel may use, said outright rather than left to its detection --
+# a build's and a test's option, which bazel query refuses, so not in qflags
+cpus=()
+if [ -n "${CPUS:-}" ]; then cpus=("--local_resources=cpu=$CPUS"); fi
+flags+=(--symlink_prefix=/ ${extra[@]+"${extra[@]}"} ${cpus[@]+"${cpus[@]}"})
 qflags+=(${extra[@]+"${extra[@]}"})
-tflags+=(--symlink_prefix=/ ${extra[@]+"${extra[@]}"})
+tflags+=(--symlink_prefix=/ ${extra[@]+"${extra[@]}"} ${cpus[@]+"${cpus[@]}"})
 # SKIP_TESTS: tests a lane leaves out here, never on CI -- the ones this machine cannot judge (README.md's environmental
 # failures), so that the lane's later steps still run and its status speaks for the rest. Subtracted as negative
 # target patterns, after the lane's test_suite expands.
