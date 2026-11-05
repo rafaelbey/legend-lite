@@ -236,6 +236,17 @@ value's class, `NUMERIC` for a NULL; cloud.md §12.)
   Levenshtein (§7.1).
 - **Don't port H2's collection-carrier conclusion here.** Different wall, different remedy (§3).
 
+## 11. The plan path on SQLite answers differently (open, 2026-10-16)
+
+When the plan tests first ran on every in-process database (the dialect program's Phase 6, defect 11), SQLite's
+plan path differed from its direct path in 31 cases: a list parameter's plan is refused by name ("binds no array":
+SQLite binds no array parameter); a Decimal parameter answers `2.500000000000000000` in CSV and `"2.50"`, a string,
+in JSON, where the direct path answers `2.50` and `2.5`; a Date or DateTime parameter answers with nine fraction
+digits in JSON. Each case is registered with its exact answer or refusal in
+`core/src/test/resources/plan-maker/differences.tsv` (at most 31 rows, `PlanMakerTest.MAX_DIFFERENCES`); no lane
+runs SQLite's plans.
+
 Sources: `docs/SQLITE_BACKEND.md` (git history: docs/HISTORY.md); the lane's measurements in
 `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §12 (now [cloud.md](cloud.md)); the generated matrix in
-`docs/dialect-capability/`.
+`docs/dialect-capability/`; §11 from `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` §3 (defect 11) and
+`core/src/test/resources/plan-maker/differences.tsv`.

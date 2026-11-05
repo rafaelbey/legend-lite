@@ -305,6 +305,11 @@ second fix the date format's row needed):
 | 1 | a cast of a JSON lambda parameter | the parameter of a JSON array's lambda is typed JSON, so its cast reads JSON (`INT64(j)`) |
 | (the same) | behind the date format, the format's time-zone shift inverted (`18:07+0500` for `08:07-0500`) | timezone() decides instant or naive by its operand's shape, as Snowflake does (`BigQuery.isInstant`): format's shift is timezone(zone, timezone('UTC', t)), whose inner call is typed naive but renders an instant |
 
+**Found later (2026-10-13, the dialect program's defect 10):** BigQuery keeps no order between the branches of a
+`UNION ALL`. An ordered collection of instances, whose literal list lowers to a `UNION ALL` of one-row selects with
+no ordinal and no `ORDER BY`, comes back in either order (`collection::tests::filter::testFilterInstance` answered
+`[i1, i2]` or `[i2, i1]` from run to run on channel B's Grammar suite).
+
 The account: project `legend-integration-testing`, a service-account key; the JDBC driver (Google's
 google-cloud-bigquery-jdbc 1.6.0, the shaded jar) reports the product `Google BigQuery` (`Sessions.jdbcProduct`).
 `core/.../sql/dialect/BigQuery.java` was drafted against the account (its own probes, kept in the dialect's javadoc)
@@ -328,6 +333,9 @@ and burned down on the lanes. What differs from DuckDB, and the dialect's answer
 | `QUALIFY`, `SELECT * EXCEPT`, `PERCENTILE_CONT/DISC` (analytic), `ARRAY_AGG ... ORDER BY`, `STRING_AGG ... ORDER BY`, `IEEE_DIVIDE`, `SAFE_OFFSET` | used as they are |
 
 ## 11. Further backends: candidates
+
+> Since written: Trino (§18), ClickHouse (§19) and MongoDB (`docs/MONGODB_PLAN_2026_10_16.md`) were built; the rest
+> of this section stands as the 2026-10-11 candidate list.
 
 The order for the open ones was decided on 2026-10-11 (SQLite, MariaDB/MySQL, Trino, ClickHouse, MongoDB,
 Elasticsearch, then SingleStore); the rest of this list is not. legend-lite replaces
@@ -389,6 +397,9 @@ limits, each measured:
 - no time zone but UTC (1);
 - the 1,000,000-byte statement cap (1): a mixed list's sort compares each Float by its text canon, and each capture
   group's regular-expression walk is written separately.
+
+(Later: today's generated matrix, `docs/dialect-capability/`, shows MD5, SHA-1, SHA-256 and Jaro-Winkler emulated on
+`SQLite`.)
 
 The driver is xerial `sqlite-jdbc` 3.47.1.0 (`@sqlite_jdbc`, already a dependency; its own build of SQLite 3.47.1, with
 the math functions and the driver's statistics extension). Each executed expression gets a fresh in-memory database
@@ -830,6 +841,12 @@ Channel B then: 333 / 3 / 1, 137 / 0 / 0, 461 / 7 / 0, 202 / 0 / 0, 93 / 0 / 0.
 `testEqualNonPrimitive` now fails as it does on DuckDB ("Assert failed"): it was already counted among the platform's
 pins, and only its pinned message changed.
 
+**Found later, outside PCT (2026-10-13, the dialect program's defect 9):** ClickHouse's `concat` is NULL when any
+argument is NULL (`clickhouse local` 25.8: `concat('a', NULL, 'b')` is `\N`), where the flat concatenation's contract
+skips NULLs (H2, DuckDB, Postgres and SQLite skip them; Trino emulates it), so an operand a left join missed made the
+whole text NULL on ClickHouse only. No PCT lane reached it. Today's dialect writes each argument as
+`coalesce(toString(x), '')` (`ClickHouse.java`, `asText`).
+
 ## 20. The coverage map, and the corpus on every database (2026-10-12)
 
 **The map** (`docs/PRIMITIVE_COVERAGE_2026_10_12.md`, measured, since succeeded by the generated
@@ -906,4 +923,5 @@ slices burn down. Two things it took first:
 > Cut in the 2026-11 docs cleanup: §21, Postgres's own pins burned down (2026-10-12, 109 pins to 43). Its lasting Postgres facts are in [postgres.md](postgres.md); the cause-by-cause table is in `docs/PCT_PIN_WORKAROUNDS_2026_10_12.md`. Full text: `git show de2745351:docs/CLOUD_BACKENDS_PCT_2026_10_11.md`.
 
 Sources: `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` (git history: docs/HISTORY.md); the BC date-time's later fix read in
-the Databricks and Snowflake PCT ledgers.
+the Databricks and Snowflake PCT ledgers; §10's and §19's later findings from
+`docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` §3 (defects 10 and 9) and `ClickHouse.java`.
