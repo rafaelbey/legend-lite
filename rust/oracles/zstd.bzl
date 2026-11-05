@@ -10,6 +10,8 @@ def _zstd_decompress_impl(ctx):
         outputs = [out],
         mnemonic = "ZstdDecompress",
         progress_message = "Decompressing %{input}",
+        # the executable is the toolchain's: named, as --incompatible_auto_exec_groups (Bazel 10) requires
+        toolchain = "@bazel_lib//lib:zstd_toolchain_type",
     )
     return [DefaultInfo(files = depset([out]), runfiles = ctx.runfiles(files = [out]))]
 
