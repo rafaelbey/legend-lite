@@ -34,15 +34,15 @@ parser_equivalence stress warehouse datacube ui sdlc`. Each lane's log, the fail
   (its browser and server sections pass). Measured 2026-11-04 on `cf73e6ef7`, before the Rust port, in the same image:
   `tests_native` and `python_engine_test` fail the same way there, so read these on CI's hosted runners (or on Linux
   hardware), not here. The compiler library (`//native:compiler`) runs in the container.
-- **`linux-amd64` under Rosetta cannot judge the JVM's lanes.** The JVM's JIT writes x86 code that Rosetta must
-  translate again as it runs: on 2026-11-05 (4 CPUs, an empty cache) the core lane took 9.7 hours and 19 of its 64
-  tests timed out (15 of its 29 JUnit suites, the three Cypher parities, the MIR round trip), with no assertion
-  failure in any log;
-  `//datacube:jupyterlab_test` timed out waiting for its kernel; the native image segfaults as on arm64. What it does
-  judge is what is x86-64's own: the Rust library and its tests, the FFI shim (`//core:ffi_test`), the dialect
-  differential, the wheel's tag (`//python:wheel_test`) and the Python bindings, the checks and product lanes (all
-  passed). Run those lanes there (`core warehouse checks product`), and the rest on arm64; CI's x86-64 runners judge
-  the JVM's.
+- **`linux-amd64` under Rosetta is slow, and its tests time out four at a time.** The JVM's JIT writes x86 code that
+  Rosetta must translate again as it runs: on 2026-11-05 (4 CPUs, an empty cache) the core lane took 9.7 hours and 19
+  of its 64 tests timed out (15 of its 29 JUnit suites, the three Cypher parities, the MIR round trip), with no
+  assertion failure in any log; `//datacube:jupyterlab_test` timed out waiting for its kernel; the native image
+  segfaults as on arm64. Run alone with a long timeout, the two tried (`//core:core_tests_sql`,
+  `//rust/lite-sql:mir_round_trip_test`) passed in minutes. For a verdict there, run one test at a time:
+  `LOW_MEMORY=true EXTRA_FLAGS='--test_timeout=14400 ...'`. What is x86-64's own -- the Rust library, the FFI shim
+  (`//core:ffi_test`), the dialect differential, the wheel's tag (`//python:wheel_test`), the Python bindings -- and
+  the checks and product lanes passed four at a time.
 - **Docker Desktop's VM memory, if below CI's 16 GB**: the browser tests crash ("Target crashed") or are killed
   without a word when too many run at once. At 4 CPUs in a 10 GB VM, three datacube tests did (`join_open_test`,
   `timeseries_queries_test`, `verify_flow_test`), and each passed run alone (`--config=ci-small`). Give the VM 16 GB
