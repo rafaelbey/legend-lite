@@ -1,2 +1,0 @@
-import { select } from 'd3-selection'; import { scaleLinear, scaleBand, scaleTime, scaleOrdinal } from 'd3-scale'; import { axisBottom, axisLeft } from 'd3-axis'; import { line, area, stack, pie, arc } from 'd3-shape'; import { brushX } from 'd3-brush'; import { treemap, hierarchy } from 'd3-hierarchy';
-window.x=[select,scaleLinear,scaleBand,scaleTime,scaleOrdinal,axisBottom,axisLeft,line,area,stack,pie,arc,brushX,treemap,hierarchy];

@@ -1,6 +1,0 @@
-{'what': 'first call: boot + empty model held', 'ms': 101}
-{'what': 'empty held again', 'ms': [1, 1, 1, 1, 1]}
-{'what': 'classModel(1) held', 'ms': [0.8, 0.7, 0.7, 0.7, 2.4], 'median': 0.7}
-{'what': 'classModel(10) held', 'ms': [1.9, 1.6, 1.5, 1.6, 1.5], 'median': 1.6}
-{'what': 'classModel(50) held', 'ms': [6.0, 6.0, 12.4, 6.1, 6.0], 'median': 6.0}
-{'what': 'classModel(200) held', 'ms': [30.6, 30.0, 35.4, 27.8, 28.2], 'median': 30.0}

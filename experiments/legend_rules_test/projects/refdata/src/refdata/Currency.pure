@@ -1,5 +1,0 @@
-Class refdata::Currency
-{
-    code: String[1];
-    name: String[1];
-}

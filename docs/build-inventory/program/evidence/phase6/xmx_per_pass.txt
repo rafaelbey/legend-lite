@@ -1,6 +1,0 @@
-judge_host_duckdb ['-Xmx1024m']
-judge_database_duckdb ['-Xmx1024m']
-judge_host_h2 ['-Xmx4096m']
-judge_database_h2 ['-Xmx4096m']
-judge_host_warehouse ['-Xmx1024m']
-judge_database_warehouse ['-Xmx1024m']

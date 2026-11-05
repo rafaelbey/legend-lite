@@ -1,6 +1,0 @@
-K.wkbucket.sqlite	bucket	OK	String:2020-12-28 00:00:00
-K.wkbucket2.sqlite	bucket	OK	String:2021-01-04 00:00:00
-K.wkbucket.duck	bucket	ERR	[SQLITE_ERROR] SQL error or missing database (near "'2021-01-05 10:20:30'": syntax error)
-K.mo.sqlite	bucket	OK	String:2021-04-01 00:00:00
-K.mo.duck	bucket	ERR	[SQLITE_ERROR] SQL error or missing database (near "'2021-05-20 00:00:00'": syntax error)
-K.dayname.sqlite	names	OK	<null>

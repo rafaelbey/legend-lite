@@ -1,2 +1,0 @@
-import { Chart, BarController, LineController, ScatterController, PieController, DoughnutController, BarElement, LineElement, PointElement, ArcElement, CategoryScale, LinearScale, Tooltip, Legend, Title, Filler } from 'chart.js';
-Chart.register(BarController, LineController, ScatterController, PieController, DoughnutController, BarElement, LineElement, PointElement, ArcElement, CategoryScale, LinearScale, Tooltip, Legend, Title, Filler); window.x=Chart;

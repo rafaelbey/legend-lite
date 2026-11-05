@@ -1,9 +1,0 @@
-src/cube.ts
-src/treeview.ts
-src/tree.ts
-src/json-shape.ts
-src/config.ts
-src/persist.ts
-src/history.ts
-src/epoch.ts
-src/settings.ts

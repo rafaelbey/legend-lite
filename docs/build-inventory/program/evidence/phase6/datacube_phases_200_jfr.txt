@@ -1,8 +1,0 @@
-samples in the timed loop: 378 (warm-up compile excluded: 22)
-  parse                79   20.9%
-  resolve              38   10.1%
-  adopt                 0    0.0%
-  index                 7    1.9%
-  normalize           211   55.8%
-  element compile      32    8.5%
-  other                11    2.9%
