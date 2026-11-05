@@ -28,19 +28,23 @@ parser_equivalence stress warehouse datacube ui sdlc`. Each lane's log, the fail
 ## Known environmental failures (not the branch's)
 
 - **The warehouse's GraalVM native image segfaults under Docker Desktop** (its handler prints `Segfault detected,
-  aborting process`; the server exits 99 before listening). It fails `//warehouse:tests_native`,
-  `//warehouse:postgres_live_native` and `//datacube:python_engine_test` (which starts that server) on Linux in the
-  container. Measured 2026-11-04 on `cf73e6ef7`, before the Rust port, in the same image: `tests_native` and
-  `python_engine_test` fail the same way there (`postgres_live_native` judges the same binary, `:server_native`), so
-  read them on CI's hosted runners (or on Linux hardware), not here. The compiler library (`//native:compiler`) runs
-  in the container.
+  aborting process`; the server exits 99 before listening). It fails every test that starts `//warehouse:server_native`
+  on Linux in the container: `//warehouse:tests_native` and `postgres_live_native`, `//datacube:python_engine_test`,
+  `live_snap_test` and `verify_app_test` (the app carries the image), and `//query:verify_test`'s warehouse section
+  (its browser and server sections pass). Measured 2026-11-04 on `cf73e6ef7`, before the Rust port, in the same image:
+  `tests_native` and `python_engine_test` fail the same way there, so read these on CI's hosted runners (or on Linux
+  hardware), not here. The compiler library (`//native:compiler`) runs in the container.
+- **Docker Desktop's VM memory, if below CI's 16 GB**: the browser tests crash ("Target crashed") or are killed
+  without a word when too many run at once. At 4 CPUs in a 10 GB VM, three datacube tests did (`join_open_test`,
+  `timeseries_queries_test`, `verify_flow_test`), and each passed run alone (`--config=ci-small`). Give the VM 16 GB
+  or more, or rerun such a test alone before calling it red.
 
 Leave them out with `SKIP_TESTS`, so a lane's later steps still run (the warehouse lane's `bazel run` check comes after
 its tests) and its status speaks for the rest:
 
 ```
-SKIP_TESTS='//warehouse:tests_native //warehouse:postgres_live_native //datacube:python_engine_test' \
-  tools/ci-local/ci.sh linux-arm64 warehouse datacube
+SKIP_TESTS='//warehouse:tests_native //warehouse:postgres_live_native //datacube:python_engine_test
+  //datacube:live_snap_test //datacube:verify_app_test' tools/ci-local/ci.sh linux-arm64 warehouse datacube
 ```
 
 Each is subtracted from the lane as a negative target pattern (`bazel test -- //gates:<lane> -<test>`); the lane's log
