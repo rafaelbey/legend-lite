@@ -61,7 +61,7 @@ through these doors.
 
 | part | in phase 2 |
 |---|---|
-| `PmcdParser.parse`, `SpecParser.parse`, `parseLambda`, `parseCodeBlock`, `parseDocument`, `parseModel`, `lambdaJson` | **stay** as the shim: one Rust call each, through an interface in `com.legend.spi` (ArchUnit's invariant 7c allows the parser `spi`, not `ffi`) that `ServiceLoader` resolves to a provider in `com.legend.ffi`, as `RustDialects` did |
+| `PmcdParser.parse`, `SpecParser.parse`, `parseLambda`, `parseCodeBlock`, `parseDocument`, `parseModel`, `lambdaJson` | **stay** as the shim: one Rust call each, through an interface in `com.legend.parser` itself that `ServiceLoader` resolves to a provider in `com.legend.ffi` -- as `RustDialects` lives in `sql.dialect` (ArchUnit's invariant 7c forbids the parser `ffi`; `spi` holds string-only types and stays free of `parser` and `protocol`) |
 | `ParseException`, `Dialect`, `PmcdParser.Parsed`/`UnclaimedSection` | **stay** (vocabulary the callers use) |
 | `Protocol` and `protocol.spec` records | **stay** until phase 3: the shim builds them from Rust's answer |
 | `SectionGrammar` SPI, `SectionGrammarRegistry`'s overlay half, `OverlayElementSink` | **stay**: Java calls an overlay grammar on the section text Rust hands back |
@@ -69,6 +69,7 @@ through these doors.
 | `ProtocolEmitter` and its helpers | move (step 5), then deleted |
 | `Lexer`, `TokenStream`, `ElementParser`, `SpecParser`'s body, `MappingProtocolParser`, `DatabaseProtocolParser`, `GqlParser`, `QuotedSpecParser`, the section grammars, `TokenStreamCursor`, `IslandScan`, `EngineQuirks`, ... | move, then deleted |
 | `PreludeGenerator`'s cursor use | retargeted to the element spans Rust answers; held by regenerating the committed module byte for byte |
+| `//parser-equivalence`'s tests of parser internals (`RejectionParityTest` and its pinned `MIN_PINS`, `GenerativeDualParseTest`, `Sectionize`, `SectionParseSentinelTest`, `OwnDialectCensusTest`, `SurfaceCensusTest`, `GrammarCoverageCensusTest`, `Surfaces`, `ViewFilterParityTest`, `OffsetCompositionParityTest`) | **gates, not retirees**: re-expressed over Rust ops (section splitting, the surface census) before step 6, so `:parser_parity` keeps judging the parser it was built for |
 | `ide/ModelIndexer`, `ModelOrchestrator` | §5, ruling 3 |
 | the Postgres-SQL translator (`protocol/sql`, not `iq/`) | §5, ruling 2: proposed for phase 3 |
 
@@ -95,6 +96,27 @@ line and column, and the shim rethrows exactly that.
 Rust works in UTF-8, so the conversion is Rust's), the `[L:C]` prefix, the eight `IllegalStateException`s, the four
 failures `JsonModelDoorTest` pins. A difference found is a row of `rust/lite-front/PARITY.md`, as in phase 1.
 
+**Traps the dump alone will not show, each settled before its step:**
+
+- **Lone surrogates.** `parser/Escapes` makes them from `\uXXXX` escapes; a Java `String` holds one, a Rust `str`
+  and a UTF-8 C string cannot. The codec writes them as JSON `\uXXXX` escapes and Rust's record strings hold UTF-16
+  (or WTF-8) -- decided in step 1, since the dump's bytes depend on it.
+- **The codec's leaves are found, not assumed.** The schema lists every component type the records use; an unknown
+  one throws (invariant 4), never `toString`. Candidates beyond §3's: `double` (spelled by `lite-javacompat`'s
+  `Double.toString`), raw JSON (`POpaqueElement`'s protocol JSON), `Optional`.
+- **The bootstrap parses at class load.** Once the model parser switches (step 4), `builtin/Pure`'s static
+  initialiser parses the platform's prelude through the shim, so a missing library dies as a null-message
+  `ExceptionInInitializerError` (a phase 1 follow-up): fixed before step 4, and phase 1's wiring (`//core:ffi` carried
+  by every target that reaches core) checked for the targets that reach `builtin` without rendering SQL.
+- **Section grammars that hop through JSON.** The Connection, Runtime, FunctionActivator, Diagram and Elementwise
+  grammars call `ProtocolEmitter` themselves; if their records cross a JSON hop today, that hop's normalisation
+  (`grouped`/`infix` dropped, a let value's span replaced) is part of the spec. Checked before step 4.
+- **Recursion depth.** The expression parser backtracks by exception (`SpecParser:2541`) and recurses through nested
+  lambdas; Rust's parse runs on a big-stack thread or behind a depth limit, as phase 1's dialect calls do (TRIAGE A3).
+- **Capturing the dump.** Sandboxed tests cannot append to one shared file: each process writes under
+  `TEST_UNDECLARED_OUTPUTS_DIR`, merged afterwards, deduplicated by the SHA of `(entry, dialect, spans, text)`, each
+  text stored once.
+
 ## 4. Order
 
 1. **The oracle and the receipts (2a).** The codec and its schema. Behind a system property, every Java entry point
@@ -105,19 +127,22 @@ failures `JsonModelDoorTest` pins. A difference found is a row of `rust/lite-fro
 2. **`lite-front`'s lexer (2b)**: the tokens, offsets and columns as Java's, by a differential over the dump's texts.
 3. **The expression parser (2c)**: `SpecParser` in Rust, byte parity on the dump's spec entries; then `SpecParser.parse`,
    `parseLambda` and `parseCodeBlock` **switch** -- every query the test suite runs is parsed by Rust while models are
-   still parsed by Java. `QuotedSpecParser.fold` stays a Java record-to-record pass until step 4 (it re-enters
-   `PmcdParser`), and `lambdaJson` goes through Java's `ProtocolEmitter` until step 5.
+   still parsed by Java. The quoted tree (`compileLegendValueSpecification`) folds in Rust, inside the parse, where the
+   let-bound constants are in scope (`SpecParser:1309`, `this::constString`); the quoted grammar
+   (`compileLegendGrammar`) needs a model parse, so until step 4 Rust resolves its payload text in scope and Java folds
+   it with `PmcdParser`. `lambdaJson` goes through Java's `ProtocolEmitter` until step 5.
 4. **The model parser (2d)**: `PmcdParser` and its section grammars in Rust, section by section to parity; then
-   `PmcdParser.parse` **switches** (the bootstrap included), with overlays called back in Java.
+   `PmcdParser.parse` **switches** (the bootstrap included), with overlays called back in Java, and the quoted
+   grammar folds in Rust.
 5. **The engine JSON (2e)**: `ProtocolEmitter` in Rust; `parseDocument`, `parseModel` and `lambdaJson` switch, gated
    byte for byte by `CorpusSweepTest`'s 6,471 documents and `ModelReaderParityTest`.
-6. **The deletion (2f)**: the Java lexer and parser deleted, `PreludeGenerator` retargeted, the tests of parser
-   internals retired as rows of `rust/RETIRED_TESTS.md`, the guards that name the deleted classes moved with dated
-   comments.
+6. **The deletion (2f)**: `//parser-equivalence`'s internal-using tests re-expressed over Rust ops (§2), then the Java
+   lexer and parser deleted, `PreludeGenerator` retargeted, core's tests of parser internals retired as rows of
+   `rust/RETIRED_TESTS.md`, the guards that name the deleted classes moved with dated comments.
 
-**Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity` and
-`:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser exists, and the
-committed oracle after.
+**Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
+whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
+exists, and the committed oracle after.
 
 ## 5. Rulings needed
 
@@ -126,7 +151,10 @@ committed oracle after.
    The alternative ports the parser and checks it against the oracle only, and switches the product path with phase 3,
    keeping the Java parser alive until then.
 2. **The Postgres-SQL translator moves to phase 3**, beside the typer it runs inside (still iteration 1). In phase 2 it
-   would need either a callback into the Java typer or a Java copy of its core for SAP IQ and Cypher.
+   would need either a callback into the Java typer or a Java copy of its core for SAP IQ and Cypher. Phase 3 defers
+   the second half, it does not dissolve it: when the translator moves, SAP IQ and Cypher still use `SqlToPure`, so
+   either a Java copy of the core stays for them until their wave, or the Postgres translator waits for that wave too.
 3. **`ide/ModelIndexer` and `ModelOrchestrator`** read tokens and have no main caller: delete them with
    `ModelIndexerTest` and `ModelOrchestratorTest` as ledger rows, or port them onto Rust's tokens.
-4. **The roadmap's gates**: replace "22,725 elements" with the live gates of §1.
+4. **The roadmap's gates**: replace "22,725 elements" with the live gates of §1, `//parser-equivalence:parser_parity`
+   named whole.
