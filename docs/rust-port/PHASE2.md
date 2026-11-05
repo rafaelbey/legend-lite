@@ -169,10 +169,10 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
 2. **`lite-front`'s lexer (2b)**: the tokens, offsets and columns as Java's, by a differential over the dump's texts.
 3. **The expression parser (2c)**: `SpecParser` in Rust, byte parity on the dump's spec entries; then
    `SpecParser.parse`, `parseLambda` and `parseCodeBlock` **switch** -- every query the test suite runs is parsed by
-   Rust while models are still parsed by Java. The quoted tree (`compileLegendValueSpecification`) folds in Rust, inside the parse, where the
-   let-bound constants are in scope (`SpecParser:1309`, `this::constString`); the quoted grammar
-   (`compileLegendGrammar`) needs a model parse, so until step 4 Rust resolves its payload text in scope and Java folds
-   it with `PmcdParser`. `lambdaJson` goes through Java's `ProtocolEmitter` until step 5.
+   Rust while models are still parsed by Java. The quoted tree (`compileLegendValueSpecification`) folds in Rust,
+   inside the parse, where the let-bound constants are in scope (`SpecParser:1309`, `this::constString`); the quoted
+   grammar (`compileLegendGrammar`) needs a model parse, so until step 4 Rust resolves its payload text in scope and
+   Java folds it with `PmcdParser`. `lambdaJson` goes through Java's `ProtocolEmitter` until step 5.
 4. **The model parser (2d)**: `PmcdParser` and its section grammars in Rust, section by section to parity; then
    `PmcdParser.parse` **switches** (the bootstrap included), with overlays called back in Java, and the quoted
    grammar folds in Rust.
