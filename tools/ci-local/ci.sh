@@ -42,8 +42,13 @@ out=${OUT:-$HOME/.cache/legend-lite-ci/$target/$stamp}
 mkdir -p "$out"
 volume="legend-lite-ci-cache-${target}"
 
+# CI's Linux runners have 4 CPUs (and 16 GB): as many here, so as many tests run at once -- the VM's every CPU in its
+# smaller memory runs a browser per CPU and crashes them (the datacube lane, measured 2026-11-04)
+cpus=${CPUS:-4}
 docker run --rm --platform "$docker_platform" \
   --user runner \
+  --cpus "$cpus" \
+  -e CPUS="$cpus" \
   -v "$repo:$repo:ro" \
   -v "$checkout:$checkout:ro" \
   -v "$volume:/home/runner/.cache" \

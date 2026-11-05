@@ -2,8 +2,8 @@
 # ONE PLATFORM'S GATES, LOCALLY: the steps .github/workflows/gates-run.yml runs per lane, in order, with its flags
 # (tools/ci/lane-flags.sh, sourced as CI sources it). Run from the checkout's root, natively (macOS) or inside the
 # container (tools/ci-local/ci.sh). Reads PLATFORM (linux, linux-arm, macos), LOW_MEMORY (true: --config=ci-small)
-# and LINUX_ONLY_TESTS (ci-policy) as gates-run.yml's steps do, OUT (where each lane's log and the summary go), and two
-# of its own: EXTRA_FLAGS (Bazel flags added to every command) and SKIP_TESTS (tests left out, below).
+# and LINUX_ONLY_TESTS (ci-policy) as gates-run.yml's steps do, OUT (where each lane's log and the summary go), and
+# three of its own: EXTRA_FLAGS (Bazel flags added to every command), CPUS and SKIP_TESTS (both below).
 # Arguments: the lanes to run (default: every lane CI runs on PLATFORM -- linux-arm runs the warehouse alone).
 #
 # Two differences from CI, both only where outputs go: the checkout may be read-only (the container mounts it so), so
@@ -34,6 +34,8 @@ fi
 . tools/ci/lane-flags.sh
 # (each optional list spelled ${a[@]+"${a[@]}"}: macOS's bash 3.2 calls an empty array unbound under set -u)
 read -r -a extra <<< "${EXTRA_FLAGS:-}"
+# CPUS (set by ci.sh in the container): the CPUs Bazel may use, said outright rather than left to its detection
+if [ -n "${CPUS:-}" ]; then extra+=("--local_resources=cpu=$CPUS"); fi
 flags+=(--symlink_prefix=/ ${extra[@]+"${extra[@]}"})
 qflags+=(${extra[@]+"${extra[@]}"})
 tflags+=(--symlink_prefix=/ ${extra[@]+"${extra[@]}"})

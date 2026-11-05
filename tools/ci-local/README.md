@@ -17,8 +17,10 @@ parser_equivalence stress warehouse datacube ui sdlc`. Each lane's log, the fail
 - **Linux** runs in a container of CI's runner (`Dockerfile`: Ubuntu 24.04, the host prerequisites gates-run.yml
   installs, the pinned bazelisk, a non-root user). The checkout is mounted read-only at its own path, with the
   repository a worktree belongs to; each platform's Bazel caches persist in a Docker volume
-  (`legend-lite-ci-cache-<platform>`). Docker Desktop's VM memory bounds the lanes: `LOW_MEMORY=true` runs one test at
-  a time (`--config=ci-small`, as CI's 7 GB macOS runner does).
+  (`legend-lite-ci-cache-<platform>`). The container gets CI's runner's 4 CPUs (`CPUS`, default 4: Docker's `--cpus`
+  and Bazel's `--local_resources=cpu`), so as many tests run at once as on CI -- given the VM's every CPU in its
+  smaller memory, the datacube lane's browsers crashed ("Target crashed") and passed one at a time (2026-11-04).
+  `LOW_MEMORY=true` runs one test at a time (`--config=ci-small`, as CI's 7 GB macOS runner does).
 - **Not emulated**: Windows (no Windows host here), and BuildBuddy -- a local `--disk_cache` (via `EXTRA_FLAGS`) stands
   in for the remote cache; test results are never cached (`--config=ci`).
 - Bazel writes no convenience symlinks (`--symlink_prefix=/`): the logs are copied out through `bazel info`.
