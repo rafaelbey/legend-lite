@@ -30,10 +30,10 @@ DuckDB itself pins 34. The ClickHouse and Postgres rows were re-measured after t
 ## ClickHouse: its 31 own pins, and a workaround for each
 
 **Outcome (later on 2026-10-12): 27 of the 31 fixed, and 4 kept pinned.** Each fix is in `ClickHouse.java` except two
-connection settings, and is recorded in `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §19.1. The table below is the plan as
+connection settings, and is recorded in `docs/backends/cloud.md` §19.1. The table below is the plan as
 probed. Where the fix took another shape than the probe, its row says so.
 
-What ClickHouse cannot do is in `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §19, measured during the burn-down. Each
+What ClickHouse cannot do is in `docs/backends/cloud.md` §19, measured during the burn-down. Each
 workaround below was **probed on the pinned server binary** (ClickHouse 25.8.2.29, through `clickhouse local`). A
 probe proves the SQL shape works; it does not yet prove the test passes. That is the dialect's work, measured by the
 lane.

@@ -334,3 +334,13 @@ Sources: `docs/DATACUBE_SAVE_SHARE_2026_09_28.md` (step 0) (git history: docs/HI
 | The engine's SQL front end | [`docs/LEGEND_SQL_STUDY_2026_10_11.md`](LEGEND_SQL_STUDY_2026_10_11.md) §1 |
 | The engine routes DataCube calls, with their inputs and outputs | [`datacube/docs/ENGINE_API_CONTRACT.md`](../datacube/docs/ENGINE_API_CONTRACT.md) |
 | Every deliberate difference, with upstream's answer and its source | [`docs/SEMANTICS_REGISTER.md`](SEMANTICS_REGISTER.md) |
+| How each database behaves, measured with its version | [`docs/backends/`](backends/README.md) |
+
+## 7. Smaller facts recorded in the engineering log
+
+- PCT pins 64-bit Pure semantics (`Long.MIN`/`MAX` round-trip): never trade the semantics for golden text.
+- legend-engine's own corpus mappings often map association-shaped properties as class-typed Join property mappings
+  (`employees: @Firm_Person`), not AssociationMappings: route by what the mapping declares.
+- An unbraced `let q = |expr;` lambda swallows the statements that follow it at parse; the corpus spells `{|...}`.
+
+Sources: `docs/ENGINEERING_LOG.md`'s hard-won lessons (Maven era; git history: docs/HISTORY.md).

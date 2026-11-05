@@ -182,3 +182,28 @@ These last three are the warehouse's findings, in `docs/WAREHOUSE_W1_DESIGN_2026
 Sources: `docs/POSTGRES_DIALECT_HOMEWORK_2026_10_01.md` Q3; `docs/WAREHOUSE_W1_DESIGN_2026_09_26.md` (W1a);
 `docs/WAREHOUSE_FFM_HOMEWORK_2026_09_26.md` §1, §3, §5; the files named in the table (git history:
 docs/HISTORY.md).
+
+## 6. Variant on DuckDB
+
+Pure's Variant (a `SEMISTRUCTURED` column) is DuckDB `JSON`, as legend-engine's DuckDB extension stores it
+(`core_relational_duckdb/relational/typeConversion.pure:78-79`; navigation `json_extract`, `duckdbExtension.pure:363`):
+a cast to Variant is `CAST(... AS JSON)`, `toVariant` is `to_json(...)`. It is not DuckDB's own `VARIANT` (probed
+2026-09-27: refused as a table column on 1.4.4, stored by DuckDB-WASM 1.5.4, unreadable by the `->` arrow, and
+`to_json` writes its text form); revisit when both builds store it and `to_json` reads it.
+
+- Native nested columns (STRUCT, LIST, MAP, UNION) are read as Variant with no conversion.
+- An integer key navigates with the JSON arrow (`x -> 1`), never `x[1]`, which is 1-based on a native LIST and gave
+  the previous element.
+- A whole stored Variant column used whole (projected, grouped, compared, sorted, distinct) is read
+  `CAST(col AS JSON)`, never `to_json(col)`: `to_json` of JSON text held in a VARCHAR quotes it, while `CAST AS JSON`
+  parses it and passes DuckDB JSON through untouched.
+- A `to`/`toMany` cast reads the column as it is, except a cast to text, which reads it as JSON first.
+- At the statement root, a star over a source holding a stored Variant column is spelled into its columns
+  (today's `sql/dialect/VariantEgress.java`).
+- Rejected: `to_json` at every scan, a view per table, converting in the cube, a TypeScript JSON serializer.
+
+Reading native nested storage as Variant is an extension of upstream (which never creates a STRUCT, LIST or MAP
+store); it is a proposed register row awaiting the user's ruling.
+
+Sources: `docs/VARIANT_STORAGE_CENSUS_2026_09_27.md` (git history: docs/HISTORY.md);
+`LowerRelationDuckDbTest.wholeVariantReadsAsJsonInEveryStorage` and `...InEveryShape`.

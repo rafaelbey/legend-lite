@@ -1,4 +1,4 @@
-# R0 — The Canonical Form Spec (verdict-in-DB byte channel)
+# R0 — The Canonical Form Spec (the database judge's byte channel)
 
 Charter: docs/STAMP_DISCIPLINE_PROGRAM.md § CANONICAL-RENDER VERDICTS
 LEG. Every row below is traceable to docs/CANONICAL_RENDER_HOMEWORK.md
@@ -7,18 +7,43 @@ pins, or corpus witnesses. This doc is the SPEC the render owner
 implements and the cutover slices cite; changes here are spec changes
 and need a witness.
 
-## 0. The claim
+## 0. The claim, and the judge that uses it
 
 For every value kind IN THE CLAIMED DOMAIN (§4), pure equality holds
 iff the canonical renders are byte-equal:
 
     equal(e, a)  ⟺  render(e) == render(a)
 
-The database computes both renders; the byte compare IS the verdict of
-record. The host lattice (PureAsserts) survives ONLY as the parallel
-referee (ratified dual-verdict design): computed next to every DB
-verdict inside the harness, disagreement = pinned shrink-only census
-row, never a rescue, unreachable from the product path (ArchUnit).
+**Rewritten in the 2026-11 docs cleanup for two-mode judging**
+(`docs/JUDGING_TWO_MODES_2026_09_17.md`; the plan path program's R2,
+`docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` §11.5; the result boundary
+program's R10). These renders are the DATABASE judge's spellings: in
+database mode every assertion is a SQL predicate over the canonical
+spelling of each side, composed into one verdict statement, so the
+database computes both renders and the comparison. The HOST judge is the
+verdict of record: a small comparator that receives both sides already
+carrying their declared kinds and answers the engine's own rules. The two
+must agree: under the agreement gate (`ExecuteOptions.JudgeMode.BOTH`) a
+disagreement fails the assertion naming both, never a rescue, and an
+unjudged or declined database verdict is reported while the host's stands;
+in database mode alone, a shape the canon cannot spell fails as unjudged
+and no host verdict fills in. This replaces the design of 2026-08, in which
+the byte compare was the verdict of record and the host lattice a parallel
+referee; §4b's opening paragraph speaks in those terms and is superseded on
+that point, while its three tiers stand.
+
+Two amendments of 2026-08-22, folded here from the cut Amendments log:
+(1) the canonical Float render of EVERY zero is `0.0`: Pure grants
+`0.0 == -0.0` (witness `parseFloat('-000.000')` on the PCT relational lane),
+so negative zero is in the claimed domain, not in the residue §4 lists it
+in; where print and equality conflict, equality binds the canonical form.
+(2) A render alone is not injective across kinds (String `'8'` against
+Integer `8`). Kinds are told apart by mutually disjoint spellings (a Float
+its Float form, a Decimal its scale-preserving form with its kind mark, an
+Integer bare, temporals prefixed, strings quoted: JUDGING_TWO_MODES §3),
+which supersedes that amendment's "(kindClass, text) pairs" and its "the
+numeric tower is ONE kind class" (an Integer and a Decimal are different
+kinds: §3, amended 2026-09-18).
 
 ## 1. Two channels, never mixed
 
@@ -127,31 +152,7 @@ of three tiers:
 Every decline reason maps to a tier; a decline that fits no tier is a
 bug in the wrap, not a new category.
 
-## 5. Cutover order (R2, per-family hard cutovers)
+> Cut in the 2026-11 docs cleanup: §5 the cutover order (per-family hard cutovers by assert-site counts, 2026-08) and
+> the Amendments log (2026-08-22; its two rules are folded into §0). Full text:
+> `git show de2745351:docs/CANONICAL_FORM_SPEC.md`.
 
-By H5 distribution (assert sites over the corpus universe):
-
-1. assertEquals scalars (~692 literal-expected sites)
-2. assertEquals collections (~376 list-literal sites)
-3. assertEquals grids (toCSV text — 105 sites already spell toCSV)
-4. assertSameElements (402): canonical ORDER BY + render + byte compare
-5. assertSize (185) is already SQL-shaped; assert-predicate (32) is
-   VerdictQueries.predicateVector (landed); small tails last.
-
-Each family cutover DELETES its verdict-affecting host arms in the
-same slice (eval-ledger pins DOWN every commit); PureAsserts moves to
-the referee as the permanent parallel host verdict, disagreement
-census pinned 0 shrink-only.
-
-## Amendments
-
-- **§3 kind qualification (R1a follow-on, 2026-08-22):** the byte
-  compare is over (kindClass, text) pairs — the render alone is not
-  injective across kinds (String "8" vs Integer 8). The numeric tower
-  is ONE kind class.
-- **§2/§4 zeros unify (2026-08-22, witness parseFloat('-000.000') via
-  the PCT relational lane):** pure grants 0.0 == -0.0, so the
-  canonical Float render of EVERY zero is "0.0" — negative zero moved
-  from residue INTO the claimed domain, unified. Same ruling shape as
-  integral Decimal: where print and equality conflict, equality binds
-  the canonical form.

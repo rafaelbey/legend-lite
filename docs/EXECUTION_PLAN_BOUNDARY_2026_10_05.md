@@ -259,7 +259,7 @@ wire and streaming paths. In these the executor never decodes a value, so phase 
      `2c4c57816`), the others the INSERT statement they run today. Step 1's `Target.setup` becomes a list of steps,
      a statement or rows. Upstream's form (`testDataSetupSqls`, text) is written only by the compatibility mode.
    - *Which runs share an in-memory database: decision A (the user, 2026-10-08; measured,
-     `docs/execution-plan-boundary-2026-10-05/sharing/results.md`).* Three rules. (1) Two runs share a database the
+     `docs/execution-plan-boundary-2026-10-05/sharing/results.md`, archived: `docs/HISTORY.md`).* Three rules. (1) Two runs share a database the
      runner opens when their connection and setup statements are the same, as legend-engine keys a local H2
      (`LocalH2DataSourceSpecificationKey`: a checksum of the setup statements); setup runs once, when it opens. The
      setup statements carry every column's type, so two models declaring a table differently get different
@@ -412,6 +412,7 @@ wire and streaming paths. In these the executor never decodes a value, so phase 
      records, `java.sql` and the session opener only; an architecture rule pins that they reach no compiler, lowering,
      SQL tree, dialect, setup or plan-text class, with one call excepted and pinned: `SqlTyping.floatDecimal`, a Float's
      binding, which only its value decides, at run time.
+
    > Cut in the 2026-11 docs cleanup: step 3's slices and its landing record, 2026-10-10 (`a2e879a8e`: the runner,
    > its parameters and sessions, plan format v4, the tests that judged it, the measurement against legend-engine
    > 4.145.0 that found PARK-24 and the user's ruling on it, now in `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` §11.6).
@@ -487,6 +488,7 @@ parameters.
     placement from pure's); `reduce` and a `joinStrings` over a window's partition (lowering gaps, not spellings); and a
     relation-API query's statement structure (the engine's dialect translation aliases `t_0` and lists every column,
     lite's printer follows the TDS goldens' `root`): the compatibility mode's, §8 phase 4.
+
 > Cut in the 2026-11 docs cleanup: the stage-by-stage landing records E-0 to E-4 (the render census that judged each
 > stage, its counts and commits; 2026-10-08 to 10-09). Full text:
 > `git show de2745351:docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`.

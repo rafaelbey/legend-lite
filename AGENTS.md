@@ -415,7 +415,7 @@ by the port (its language-neutral target is in `docs/architecture/README.md`). E
 a row of `docs/SEMANTICS_REGISTER.md`. Older plans, queues, audits, homework and logs were removed from
 `main` in 2026-11 and are indexed, one line each, in `docs/HISTORY.md` (read any with `git show cf73e6ef7:<path>`):
 a doc cited in code or prose that is not in the tree is there. They are history, not instructions; so is
-ENGINEERING_LOG's queue.
+the engineering log's queue (its standing tenets are now in `docs/TENETS.md`).
 
 The live process layer. None of it is reachable from any always-loaded file
 otherwise, which is how it drifted:

@@ -6,11 +6,53 @@
 > host-channel invariant (F1.5), the tenet ratchet's licensed seam (F1.10), and Phase 4's
 > Java residue each cite a clause here. It restores the two charter clauses audit round 1
 > demanded (V0.2 model-space vs data-space, V0.6 the host channel) and round 2 re-demanded
-> (`docs/TENET_AUDIT_2026_08_16.md` §8) — the reason finding A9 was "adjudicable only by
+> (`docs/TENET_AUDIT_2026_08_16.md` §8, history: `docs/HISTORY.md`) — the reason finding A9 was "adjudicable only by
 > hand" is that this document did not exist.
 >
 > A clause is cited by rule ID (C1.3 = clause 1, item 3). Changing a clause is a reviewed
 > design decision, not an edit-in-passing.
+
+## The decision rule — "may Java compute this?" (moved here from `JAVA_EVICTION_PLAN.md` §1, 2026-11)
+
+Moved unchanged in substance from the Java eviction program's charter (§1, sharpened at its leg
+E3 and ratified by the user 2026-08-17; the program closed 2026-08-18). The clauses below apply
+it; this is the test to run first.
+
+**What must reach zero:** any Java code that COMPUTES a value or COMPOSES text that a test
+assertion (or a product consumer) observes as the result of executing a Pure expression —
+evaluation, rendering, row shaping, realization of source data.
+
+- Java that decides **values, rows, types, or cardinality at query time** → the DATABASE, no
+  exceptions (semantic-drift risk; composition breakage — the eviction program's E2 filter bug
+  was exactly this).
+- Java that turns **model text into typed constants at plan-build time** → COMPILATION,
+  permitted — but the carrier into SQL must be TYPED AND LOSSLESS (the defect the program found
+  was a lossy string grid, not the parse). Do not stuff strings into the database just to select
+  them back out: a `data:` literal is model text, not an external source; the database-side read
+  channel is for data that genuinely lives outside the plan (`file:`, remote).
+- Java that formats text **about** plans (metamodel TEXT) → the engine-parity census decides;
+  PERMANENT is a legitimate verdict, not a failure. **Ratified adjudication (2026-08-17, the
+  user: "engine-exact H2 is another lower target"):** engine-exact text is a render TARGET of
+  the one compiler, not a registered second speller. The platform's main lowering is already
+  engine-text-exact by construction, and the hand-written islands catch up to it: DDL golden
+  text is the engine-text flavor of the one DDL generator, and hand-built engine-metamodel
+  trees convert onto the one SQL IR and render through the one renderer's engine-text target.
+  No SQL or DDL is spelled twice anywhere.
+
+**Permanently allowed** (each registered with a written justification; named as of 2026-08, the
+live register is `JavaEvalLedgerTest`):
+
+- **Egress decode** — decoding a carrier the DATABASE produced, by its declared type or carrier
+  contract. No computation.
+- **The literal fold** — a bare String or Boolean literal answered without the database: the
+  engine's own constant execution node, differential-pinned (Clause 4).
+- **The comparison layer** — verification is the harness's job; it consumes two sides and never
+  produces a result.
+- **The test's own canonicalization idiom** (`JsonAssertCanon.sortByKey`) — re-creates a test's
+  canonicalization over a metamodel that never executes through SQL (revisit only if that JSON
+  metamodel re-platforms).
+
+Sources: `docs/JAVA_EVICTION_PLAN.md` §1 and its ratified adjudication of 2026-08-17 (git history: docs/HISTORY.md).
 
 ## Clause 1 — Orchestration: what Java MAY do
 
@@ -115,7 +157,7 @@ invariant is on the PROVENANCE of the value, never on an interpreter arm list: a
 proved a ~6-line dispatch edge reclassified all 47 then-existing arms at once — 18 were
 dual-use (`fold`, `map`, `at`, `size`, `eq`, `in`, `filter`…) and became execution the
 moment a data-space value flowed through them. *(Re-scoped 2026-08-18,
-`ADVERSARIAL_TENET_AUDIT_2026_08_18.md` §5: `HostEval.eval()` no longer exists — the
+`ADVERSARIAL_TENET_AUDIT_2026_08_18.md` §5, history: `docs/HISTORY.md`: `HostEval.eval()` no longer exists — the
 interpreter was DELETED under the oracle-not-runtime principle.)* Today the host channel
 is `GridReads.tryLower` (grid chains COMPILE to SQL; DB values flow only through carriage
 into results, never through computation) and `StoreNav` (compiled-model reads, no DB

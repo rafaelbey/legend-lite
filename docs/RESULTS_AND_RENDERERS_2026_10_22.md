@@ -1,11 +1,14 @@
 # One plan, one result, renderers: where output formatting belongs
 
-**Status: PROPOSED, 2026-10-22. Awaiting the user's ratification. Nothing here is built.** If ratified, it amends
-`docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` §5 (F1 to F4) and needs a new clause in `docs/TENET_CHARTER.md` (§3, D3).
+**Status: RATIFIED (D1 to D5 on 2026-10-26, §5a on 2026-10-23) and BUILT by the result boundary program, landed as
+PR #80 (`7bc0797d`, 2026-10-30).** Proposed 2026-10-22. It amends `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` §5
+(F1 to F4) and calls for a new clause in `docs/TENET_CHARTER.md` (§3, D3; ruled with its two guards 2026-10-26, not
+yet written into the charter).
 The rest of that document stands: the one plan record (P1 to P6), the result as a stream with sinks (S1 to S6), the
 decode by the plan's facts (§4) and the fast path (§6).
 
-**Its execution plan is `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md`** (proposed 2026-10-26, at the user's ask): the
+**Its execution plan is `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md`** (proposed 2026-10-26 at the user's ask, ruled
+the same day): the
 tenets T1 to T8 with their guards, measurement first (M0), six phases each ending in a deletion, the gates, and the
 rulings it needs (its §8: D1 to D5, D3's clause, D7, Arrow, LEAN JSON's numbers, the materialized result).
 

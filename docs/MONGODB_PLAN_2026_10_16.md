@@ -7,7 +7,7 @@ today (all SQL), then plan MongoDB as a first-class database, PCT lanes included
 dialect consolidation program (the ninth line, `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md`) lays out the end
 state, so that Mongo is done right the first time rather than consolidated later. That program names MongoDB as out of
 its own scope ("MongoDB, Elasticsearch and SingleStore are new targets, not consolidation", its §0) and the backend
-order already places it next after the corpus-on-every-database work (`docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §2 item 4,
+order already places it next after the corpus-on-every-database work (`docs/backends/cloud.md` §2 item 4,
 §11, §20; `docs/IN_FLIGHT.md`, the eighth line's "Next").
 
 §0 is the answer; §4 the decisions; §5 the design; §6 the PCT lane; §9 the risks and the measurements that settle
@@ -33,7 +33,7 @@ them; §10 the sources. §1–§3, §7, §8 and §11 were cut in the 2026-11 doc
    command with its bound values and carries the one text the database wrote; and a **test backend beside the embedded
    servers** that starts a pinned `mongod` Bazel unpacked, as `EmbeddedClickHouse` starts ClickHouse. That is exactly the
    dialect program's acceptance test (§4 there: "a new database is three classes and one line in each of three
-   registries"), and exactly what `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §11 already says of the non-SQL stores:
+   registries"), and exactly what `docs/backends/cloud.md` §11 already says of the non-SQL stores:
    "beside `SqlDialect`, not inside it: the Lowerer's output (the `SqlQuery` IR) stays the input, and a new target
    translates it into the store's own query language. The executor gains a second chartered seam beside JDBC." The MIR
    does not change (AGENTS.md invariant 3a: "new dialect = one class implementing `render(SqlQuery)`"); the Lowerer does
@@ -784,7 +784,7 @@ Read in this tree at 59b547a (main, 2026-10-16), each cited above by path:
 - `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md` (§0 the handoff and the proof method; §2 the verdict; §4 the
   target; §5 the phases, 0 to 4 done; §6 decisions D1 to D11, P1b); `docs/dialect-capability/README.md`;
   `docs/IN_FLIGHT.md` (lines 3, 1183 to 1300 the eighth line, 1301 to 1482 the ninth line, 1689 the rules).
-- `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` (§2 the order, §11 the candidates and the non-SQL stores, §16 channel B,
+- `docs/backends/cloud.md` (§2 the order, §11 the candidates and the non-SQL stores, §16 channel B,
   §19 ClickHouse, §20 the corpus on every database); `docs/CYPHER_PLAN_2026_10_15.md` and
   `docs/CYPHER_STUDY_2026_10_15.md` §0 (the method: a spec, an oracle, a ledger, refusals by name);
   `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` (P3, §10 E); `docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md`;

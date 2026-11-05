@@ -13,7 +13,9 @@ It is the execution plan for `docs/RESULTS_AND_RENDERERS_2026_10_22.md` (D1 to D
 steps 7 to 11 (`docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` §11), made one program. Kept here: the plan in plain words
 (§0), the rules with the tests that keep them (§1), the shape (§2), the gates (§6) and the user's rulings (§8). The
 session handoff that tracked the landing (`RESULT_BOUNDARY_START_HERE.md`) is history (`docs/HISTORY.md`); the
-decisions made on the way are `docs/result-boundary-homework/DECISIONS_LOG.md`.
+decisions made on the way are `docs/result-boundary-homework/DECISIONS_LOG.md`, and the 51 writer differences
+classified by upstream's answer are `docs/result-boundary-homework/WRITER_DIFFERENCES_BY_UPSTREAM_2026_10_29.md`
+(register rows S117 to S120). The measurements M1 to M8 that §1 and §6 cite are step 0's, in the cut §4.
 
 ## 0. The plan in plain words
 

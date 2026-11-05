@@ -80,3 +80,23 @@ For any future "lazy or eager?":
 
 We are at the balanced center — eager Knowledge, lazy Work — not at either
 extreme.
+
+## The standing engineering tenets (violations get reverted)
+
+Kept from the engineering log of the Maven era (2026-07), whose queue is history; these five
+still hold.
+
+1. **Java orchestrates, the database executes.** No host interpreter: value evaluation always
+   lowers to SQL. A result handle is a typing surface plus an orchestration handle, never a host
+   object graph. (The adjudication authority is `docs/TENET_CHARTER.md`.)
+2. **One owner per behavior.** A shape is owned by the platform or the harness, never both.
+   Harness compensation for a platform gap is the cardinal sin.
+3. **Loud beats silently-different.** An unsupported shape throws a NAMED error; a wrong-rows
+   pass is worse than an honest ERROR.
+4. **Exact FQN identification**, never `endsWith` matching.
+5. **Features as coherent architecture,** grounded in the real engine's mechanism (read its
+   `.pure` source), not calibrated to corpus pins. The cautionary tale: a `not()`-over-COALESCE
+   fix reproduced every pin but keyed at the wrong layer; the real mechanism was the Pure
+   `[0..1]` overload bodies inlining at the comparison site.
+
+Sources: `docs/ENGINEERING_LOG.md` (git history: docs/HISTORY.md).
