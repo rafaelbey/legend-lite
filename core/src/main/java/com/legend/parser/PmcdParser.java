@@ -164,6 +164,7 @@ public final class PmcdParser {
      * compiler builds from these records through its one door ({@code ModelFromProtocol}).
      */
     public static Parsed parse(String source, Dialect dialect) {
+        ParseTap.record("pmcd", dialect, source);
         List<UnclaimedSection> unclaimed = new ArrayList<>();
         List<DocSection> sections = parseSections(source, dialect, unclaimed);
         List<Protocol.Element> elements = new ArrayList<>();

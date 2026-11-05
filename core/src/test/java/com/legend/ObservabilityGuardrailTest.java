@@ -58,6 +58,10 @@ class ObservabilityGuardrailTest {
             // TEST_UNDECLARED_OUTPUTS_DIR is Bazel's own (the sink's home
             // under a test), not a flag of ours
             "LL_SHADOW", "TEST_UNDECLARED_OUTPUTS_DIR",
+            // the Rust port's PARSE TAP (docs/rust-port/PHASE2.md §4 step 1, 2026-11-05): the parser's text doors
+            // record their questions for the front oracle (com.legend.parser.ParseTap); the parser may not reach a
+            // switchboard (ArchitectureTest invariant 7c), and the flag retires with the Java parser at step 6
+            "LEGEND_PARSE_TAP",
             "LL_TMP_DEBUG", "LL_TMP_SQL", "LL_TOL_COUNT",
             // deployment config for the HTTP server entrypoint (moved in
             // with the engine-module deletion) — not a debug flag

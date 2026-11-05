@@ -296,8 +296,8 @@ public final class SpecParser implements TokenStreamCursor {
 
     /** Lex {@code source} and parse the result as a single expression. */
     public static ValueSpecification parse(String source, Dialect dialect) {
-        return parse(Lexer.tokenize(Objects.requireNonNull(source, "source")),
-                dialect);
+        ParseTap.record("spec", dialect, Objects.requireNonNull(source, "source"));
+        return parse(Lexer.tokenize(source), dialect);
     }
 
     /**
@@ -316,7 +316,8 @@ public final class SpecParser implements TokenStreamCursor {
      *  grammar, so its level: text that is not a lambda becomes a parameterless one spanning
      *  all its tokens, as legend-engine wraps it. */
     public static LambdaFunction parseLambda(String source) {
-        SpecParser parser = new SpecParser(Lexer.tokenize(Objects.requireNonNull(source, "source")),
+        ParseTap.record("lambda", Dialect.LEGEND_ENGINE, Objects.requireNonNull(source, "source"));
+        SpecParser parser = new SpecParser(Lexer.tokenize(source),
                 "", Dialect.LEGEND_ENGINE);
         ValueSpecification v = parser.wholeLine();
         return v instanceof LambdaFunction lf ? lf
@@ -356,6 +357,7 @@ public final class SpecParser implements TokenStreamCursor {
      */
     public static List<ValueSpecification> parseCodeBlock(String source,
             Dialect dialect) {
+        ParseTap.record("block", dialect, source);
         return parseCodeBlock(Lexer.tokenize(source), "", dialect);
     }
 

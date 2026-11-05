@@ -1651,6 +1651,19 @@ legend_java_binary(
     ],
 )
 
+# The front oracle's generator (Rust port phase 2, step 1: docs/rust-port/PHASE2.md §4): the questions the parse tap
+# recorded (bazel test --test_env=LEGEND_PARSE_TAP=1 ...), asked of the Java parser again, its answers written in the
+# lossless record codec. On core_tests_lib's classpath, so the test grammars the tap saw are registered here too:
+#   bazel run //core:front_oracle -- OUT_DIR TAP_FILE_OR_DIR...
+legend_java_binary(
+    name = "front_oracle",
+    testonly = True,
+    jvm_flags = ["-Duser.timezone=GMT"],
+    main_class = "com.legend.frontoracle.FrontOracle",
+    tags = ["manual"],
+    runtime_deps = [":core_tests_lib"],
+)
+
 # COMPILE-ONLY LATENCY (the compiler plan's W1.0b under D25): what a user feels per query, no database; the stress
 # corpus's service tests or a NAME-TAB-QUERY set against a model. A measuring tool for a quiet machine, never a test:
 #   bazel run //core:compile_latency -- --corpus stress [--passes 2] [--out DIR]

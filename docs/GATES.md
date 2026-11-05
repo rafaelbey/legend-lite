@@ -307,6 +307,9 @@ The dated record of moved pins, rosters and ratchets (the rules: "Recording a mo
 Newest first, at most 20 lines. Seeded from the last entries of the cut log; "D<n>" is the decisions log of the
 landing's program.
 
+- 2026-11-05 — `ObservabilityGuardrailTest.ENV_FLAGS` gains `LEGEND_PARSE_TAP`: the Rust port's phase 2 parse tap
+  records the parser's questions for the front oracle; the parser may not reach a switchboard (invariant 7c), and the
+  flag retires with the Java parser. Branch `worktree-rust-port-phase0`.
 - 2026-11-05 — The Rust port's phase 1 (all sixteen dialects render in Rust behind Java shims): the guards that named
   Java `sql/dialect` classes moved with the code (allowlists, size pins, the scan-order owners, `CompileOnlyTest`'s
   TeaVM tier) and seven Java dialect test files retired, each a dated row of `rust/RETIRED_TESTS.md`; `//python:wheel_test`'s glibc
