@@ -307,6 +307,10 @@ The dated record of moved pins, rosters and ratchets (the rules: "Recording a mo
 Newest first, at most 20 lines. Seeded from the last entries of the cut log; "D<n>" is the decisions log of the
 landing's program.
 
+- 2026-11-05 — The Rust port's phase 1 (all sixteen dialects render in Rust behind Java shims): the guards that named
+  Java `sql/dialect` classes moved with the code (allowlists, size pins, the scan-order owners, `CompileOnlyTest`'s
+  TeaVM tier) and seven Java dialect test files retired, each a dated row of `rust/RETIRED_TESTS.md`; `//python:wheel_test`'s glibc
+  ceiling now follows the tag, `manylinux_2_25` (the user's ruling, 2026-11-04). Branch `worktree-rust-port-phase0`.
 - 2026-11-02 — The macOS lane moved from the `macos-14` image to `macos-15` (both arm64): GitHub retired `macos-14`
   on 2026-11-02 and had stopped assigning runners to it. PR #85.
 - 2026-11-01 — The product path's overhead taken out, every output byte-identical; `TenetRatchetTest`'s ceiling 21 → 9,
