@@ -1,6 +1,7 @@
 load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_test")
 load(":shared_library.bzl", "shared_library_file")
 load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/platforms:defs.bzl", "PLATFORMS", "compatible_with")
 
 # legend-lite's compiler as a C library (src/lib.rs; docs/rust-port/ROADMAP.md, "The shim"): what the JVM's shim,
 # //core:ffi, loads -- liblite_ffi.dylib, liblite_ffi.so, lite_ffi.dll.
@@ -11,6 +12,11 @@ rust_shared_library(
     edition = "2024",
     # Cargo.toml's version: what lite_version answers, the same under both builds
     version = "0.1.0",
+    # the platforms a Rust toolchain is registered for (rules_rust's defaults cover //tools/platforms' six): on any
+    # other the library, and everything that loads it -- //core:ffi, so all of core's JVM -- is skipped as
+    # incompatible rather than failing toolchain resolution (A25, //tools/platforms:unlisted_test; found by
+    # tools/ci-local's product lane, 2026-11-04)
+    target_compatible_with = compatible_with(PLATFORMS),
     # public: //core:ffi carries it to every test and binary that reaches core, and every java_run takes it as an
     # input (tools/java_run/defs.bzl), wherever the java_run lives
     visibility = ["//visibility:public"],

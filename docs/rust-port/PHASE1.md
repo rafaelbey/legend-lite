@@ -665,3 +665,22 @@ filegroups of the same names. All 243 tests that reach them pass on the frozen f
 holds the frozen Java module to the live JVM's answers, a differential of its own once DuckDB renders in Rust.
 `//:wasm` therefore registers no action, so `CompileOnlyTest` no longer expects a TeaVM compile or a javac plugin in
 that tier (`rust/RETIRED_TESTS.md`). The Rust wasm32 build replaces both modules later.
+
+## 6. CI, emulated locally (2026-11-04)
+
+The user ruled out a CI run on the branch: `tools/ci-local` runs `gates-run.yml`'s lanes here instead -- macOS
+natively, Linux in a container of CI's runner (its README). The first Linux arm64 run, all fifteen lanes with CI's
+Linux job's flags, found three defects of the port, each fixed before landing:
+
+- **The wheel's glibc floor.** `liblite_ffi.so` names glibc 2.25 (Rust's standard library's weak `getrandom`), past
+  the `manylinux_2_17` tag. The user ruled the tag up to `manylinux_2_25`; `//python:wheel_test` holds it to the most
+  any library in the wheel needs (`rust/RETIRED_TESTS.md`).
+- **Bazel 10's check** (`--config=bazel10`, the product lane): `zstd_decompress` names its toolchain on its action.
+- **The unlisted platform (A25, the product lane).** `//rust/lite-ffi:lite_ffi` failed toolchain resolution for
+  `//tools/platforms:unlisted_test`; it now says the platforms a Rust toolchain is registered for. A consequence the
+  port makes: core's JVM reaches the library through `//core:ffi`, so on a platform without a Rust toolchain it is
+  skipped with it -- before the port it built anywhere Java runs.
+
+Everything else passed but for what this machine cannot judge: the warehouse's GraalVM native image segfaults under
+Docker Desktop (as it does on `cf73e6ef7`, before the port), failing the six tests that start it, and three browser
+tests crashed four at a time in the VM's 10 GB and passed alone.
