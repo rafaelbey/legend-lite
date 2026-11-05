@@ -1,0 +1,11 @@
+[package]
+name = "lite-front"
+version = "0.1.0"
+description = "legend-lite's front end (core/'s com.legend.lexer and com.legend.parser, ported): the lexer"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+lite-javacompat = { path = "../lite-javacompat" }

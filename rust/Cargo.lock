@@ -19,6 +19,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "lite-front"
+version = "0.1.0"
+dependencies = [
+ "lite-javacompat",
+]
+
+[[package]]
 name = "lite-javacompat"
 version = "0.1.0"
 

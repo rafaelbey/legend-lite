@@ -1683,6 +1683,24 @@ legend_java_binary(
     ],
 )
 
+# Java's tokens over the front oracle's every text, hashed (phase 2, step 2: FrontTokens): what lite-front's lexer is
+# held to by //rust/lite-front:front_lexer_differential_test, live while the Java lexer exists
+java_run(
+    name = "front_tokens",
+    testonly = True,
+    srcs = ["//rust/oracles:front_questions"],
+    outs = ["front/tokens.tsv"],
+    arguments = [
+        "$(execpath //rust/oracles:front_questions)",
+        "{OUT}",
+    ],
+    main_class = "com.legend.frontoracle.FrontTokens",
+    memory_mb = 4096,
+    mnemonic = "FrontTokens",
+    visibility = ["//rust/lite-front:__pkg__"],
+    deps = [":core_tests_lib"],
+)
+
 # COMPILE-ONLY LATENCY (the compiler plan's W1.0b under D25): what a user feels per query, no database; the stress
 # corpus's service tests or a NAME-TAB-QUERY set against a model. A measuring tool for a quiet machine, never a test:
 #   bazel run //core:compile_latency -- --corpus stress [--passes 2] [--out DIR]

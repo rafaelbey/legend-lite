@@ -167,6 +167,15 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      no reference ids.
    - **Size**: 3.6 GB of answers, which decided the differential above.
 2. **`lite-front`'s lexer (2b)**: the tokens, offsets and columns as Java's, by a differential over the dump's texts.
+
+   **Done 2026-11-05.** `rust/lite-front` (`lexer.rs`: `TokenType` in Java's order, the normal and island scans, the
+   section headers with their residue, the skipped opaque sections, the line index and the token spans in UTF-16
+   units, `column_of` in code points, `lex_range`; `wire.rs`, JSON whose strings are UTF-16 units; `sha256.rs`).
+   `//core:front_tokens` (a cached `java_run` of `FrontTokens`) writes the SHA-256 of each text's Java token stream in
+   one canonical form; `//rust/lite-front:front_lexer_differential_test` (the core lane) lexes the same texts and
+   compares: all 52,143 texts, 18,529,523 tokens, identical on the first run, and every text's id recomputed from its
+   units. The error column (`column_of`) and the range scan are pinned by unit tests here; the parser's errors and
+   islands hold them to Java from step 3. The Java lexer's own tests stay until step 6.
 3. **The expression parser (2c)**: `SpecParser` in Rust, byte parity on the dump's spec entries; then
    `SpecParser.parse`, `parseLambda` and `parseCodeBlock` **switch** -- every query the test suite runs is parsed by
    Rust while models are still parsed by Java. The quoted tree (`compileLegendValueSpecification`) folds in Rust,

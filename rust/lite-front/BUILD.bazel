@@ -1,0 +1,43 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# legend-lite's front end, ported from core/'s com.legend.lexer and com.legend.parser (src/lib.rs;
+# docs/rust-port/PHASE2.md): over a text's UTF-16 units as Java indexes a String. Step 2: the lexer.
+rust_library(
+    name = "lite_front",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    version = "0.1.0",
+    visibility = ["//rust:__subpackages__"],
+    deps = ["//rust/lite-javacompat:lite_javacompat"],
+)
+
+rust_test(
+    name = "lite_front_test",
+    crate = ":lite_front",
+    edition = "2024",
+    visibility = ["//gates:__pkg__"],
+)
+
+# Every text of the front oracle (//rust/oracles:front_questions) lexed by Rust and held to the Java lexer's token
+# stream for it (//core:front_tokens, the canonical form's SHA-256): all of them identical.
+rust_test(
+    name = "front_lexer_differential_test",
+    size = "medium",
+    srcs = ["tests/front_lexer_differential.rs"],
+    args = ["--ignored"],
+    data = [
+        "//core:front_tokens",
+        "//rust/oracles:front_questions",
+    ],
+    edition = "2024",
+    env = {
+        "LITE_FRONT_QUESTIONS": "$(rootpath //rust/oracles:front_questions)",
+        "LITE_FRONT_TOKENS": "$(rootpath //core:front_tokens)",
+    },
+    visibility = ["//gates:__pkg__"],
+    deps = [":lite_front"],
+)
+
+guards_package()
