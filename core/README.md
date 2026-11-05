@@ -1,36 +1,49 @@
-# `core/` — Legend Lite Compiler (Strangler Fig)
+# `core/` — the Legend Lite compiler and runtime
 
-> **Read this before adding any file under `core/`.**
+> **Read this before adding any file under `core/`.** This is the authoritative spec of core's layout and
+> contracts. Its twelve [strong invariants](#strong-invariants) are cited by number from code: never renumber
+> or remove one.
 
-Clean reimplementation of the Legend Lite compiler pipeline (text → SQL
-→ results). Lives alongside `engine/` during a
-[Strangler Fig](https://martinfowler.com/bliki/StranglerFigApplication.html)
-migration. When `core/` reaches parity with `engine/`, `engine/` deletes.
+`core/` is legend-lite's compiler and the Java runtime around it. It parses Pure, compiles it, plans it to SQL,
+renders the SQL for a database, runs the plan and writes the answer. It also holds the services, runtimes,
+executor, JDBC plumbing and the HTTP server shell (`server/`). Tests run end to end inside this module.
 
-`core/` is **self-sufficient by construction**: it includes everything
-needed to parse, compile, optimize, render, AND execute a Pure query —
-including services, runtimes, executor, JDBC plumbing. Tests run
-end-to-end inside this module.
+It began as a [Strangler Fig](https://martinfowler.com/bliki/StranglerFigApplication.html) rewrite beside the
+old `engine/` module (`com.gs.legend`). That module was deleted on 2026-08-11 (`AGENTS.md`), and `core/` is the
+whole product.
+
+**The Rust port.** On branch `rust-port` the planning path is moving to Rust
+([`docs/rust-port/ROADMAP.md`](../docs/rust-port/ROADMAP.md); the crates are under [`rust/`](../rust/README.md)).
+Iteration 1 replaces the planning path. The executor (`exec`) and the record layer it is walled to, the `server`
+HTTP shell, and the `driver` and `judge` test runners stay Java. Phase 1 (the dialects) is under way: since
+2026-11-03, `DuckDb`, `H2`, `H2Modern` and the three `EngineStyle*` dialects in `sql/dialect/` are Java shims
+over the Rust library, reached through the `RustDialects` SPI that `ffi/` implements. The other ten dialects are
+still Java on `AnsiSqlRenderer` ([`PHASE1.md`](../docs/rust-port/PHASE1.md) §4). This file describes the Java
+tree as it stands. [Which invariants the port keeps](#which-invariants-the-rust-port-keeps) is below. The
+language-neutral design is [`docs/architecture/README.md`](../docs/architecture/README.md).
 
 ## The wall — non-negotiable
 
-**Nothing under `com.legend.*` may import anything under `com.gs.legend.*`**
-(other than JDK + JUnit + JDBC drivers + ArchUnit in tests).
+**Nothing under `com.legend.*` may import anything under `com.gs.legend.*`** (the deleted engine module).
+**Nothing in core, main or test, may import legend-engine's or legend-pure's Java (`org.finos.legend.*`).**
 
 Two layers enforce this:
 
-1. **Maven**: `core/pom.xml` does not declare `legend-lite-engine` as a
-   dependency. Engine classes are not on `core/`'s compile classpath.
-2. **ArchUnit**: `ArchitectureTest` rejects any `com.legend..` →
-   `com.gs.legend..` dependency at CI time. Belt-and-suspenders for if
-   the dep ever gets added by mistake.
+1. **Bazel.** `//core:core` reaches no external jar. It compiles against the JDK alone
+   (`//tools/deps:core_closure_test`, `tools/deps/CoreClosureTest.java`). The database drivers are
+   `//core:drivers`, a runtime choice: exactly DuckDB, H2, Postgres, SQLite and MongoDB's driver. Each core
+   library's direct dependencies are pinned in `tools/deps/core-layers.txt`, and
+   `//tools/deps:core_layering_test` compares that file with Bazel's own answer. The upstream jars are inputs of
+   the tests and tools outside the product (`pct/`, `spec/`, `parser-equivalence/`, `tools/engine-runner/`).
+2. **ArchUnit.** `ArchitectureTest.coreModuleHasNoDependenciesOnEngine` rejects any `com.legend..` →
+   `com.gs.legend..` dependency. Nothing of `com.gs.legend` exists any more; the rule stays as the wall's pin.
+   `ArchitectureTest.upstreamJavaNeverEntersCore` rejects any `org.finos.legend..` import in core's main or test
+   classes.
 
-The wall has no exceptions, no `@Suppress`, no shared utility classes,
-no generated bridges. **If `core/` needs something `engine/` has,
-reimplement it in `core/`.** This is the cost we accept for getting it
-right.
+The wall has no exceptions, no `@Suppress`, no shared utility classes and no generated bridges. **If `core/`
+needs something, reimplement it in `core/`.** This is the cost we accept for getting it right.
 
-## Pipeline (1 entry point, 11 steps)
+## Pipeline
 
 ```
 text                                                            [FRONTEND]
@@ -52,35 +65,47 @@ text                                                            [FRONTEND]
 
 | # | Step | Package | Driver | Output |
 |---|---|---|---|---|
-| 0 | bootstrap | `builtin/` | (static registry) | platform types + native sigs |
+| 0 | bootstrap | `builtin/`, `platform/` | (static registry) | platform types + native sigs (`builtin.Pure`, the generated native signatures; `Prelude`, the platform's Pure declarations from `prelude.pure`) |
 | A | lex | `lexer/` | `Lexer` | `Token` stream |
 | B | parse elements | `parser/`, then `door/` | `PmcdParser` (each `###Pure` element through `ElementParser`, every other section through its grammar), then `door.ModelFromText` | `Protocol.PureModelContextData` records; the door (`model.ModelFromProtocol`, the same one a JSON model goes through) makes them `model.PackageableElement`s (`ClassDefinition`, `MappingDefinition`, …) wrapped in `ParsedModel` |
 | C | parse specs | `parser/` | `SpecParser` | `protocol.spec.ValueSpecification` (`LambdaFunction`, `AppliedFunction`, `Variable`, `CString`, …) |
-| D | resolve names | `compiler/` | `NameResolver.resolve` (`:157`) | (same shapes, FQN-rewritten) |
-| E | normalize model | `normalizer/` | `ModelNormalizer.normalize` (`:98`) — `MappingNormalizer` is sub-slice E.1, not the entry | `PackageableElement` (mappings desugared into `FunctionDefinition`s) |
-| F | compile elements | `compiler/` | `PureModelContext.from` (`:84`) — there is no `ElementCompiler` class | `compiler.element.TypedElement` (`TypedClass`, `TypedMapping`, …) + `ModelContext` |
-| G | compile specs | `compiler/` | `SpecCompiler` | `compiler.spec.TypedSpec` (`TypedFilter`, `TypedProject`, …) + `Dependencies` |
+| D | resolve names | `compiler/` | `NameResolver.resolve` | (same shapes, FQN-rewritten) |
+| E | normalize model | `normalizer/` | `ModelNormalizer.normalize` — `MappingNormalizer` is sub-slice E.1, not the entry | `NormalizedModel` (mappings desugared into `FunctionDefinition`s) |
+| F | compile elements | `compiler/element/` | `PureModelContext.from` — there is no `ElementCompiler` class | `compiler.element.TypedElement` (`TypedNominal` = `TypedClass` \| `TypedEnum`; `TypedFunction`) + `ModelContext` |
+| G | compile specs | `compiler/spec/` | `SpecCompiler` | `compiler.spec.typed.TypedSpec` (`TypedFilter`, `TypedProject`, …) |
 | G½ | inline user calls | `compiler/spec/` | `UserCallInliner` | `TypedSpec` (β-inlined) |
 | H | resolve store | `resolver/` | `StoreResolver` | `TypedSpec` (class queries → relational pipelines) |
 | I | lower | `lowering/` | `Lowerer` | `sql.SqlQuery` IR (dialect-free) |
-| J | render SQL | `sql/dialect/` | `SqlDialect.render` (`:14`); `AnsiSqlRenderer`→`DuckDb`, `Postgres`, `SQLite`, `MariaDb`→`MySql`, `Trino`, `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`; `H2`→`H2Modern`, `EngineStyle*` | SQL string |
+| J | render SQL | `sql/dialect/` | `SqlDialect.render`. Java on `AnsiSqlRenderer`: `Postgres`, `SQLite`, `MariaDb`→`MySql`, `Trino`, `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`, `MongoDb`. Shims over Rust: `DuckDb`, `H2`→`H2Modern`, `EngineStyleH2`→`EngineStyleDB2`→`EngineStyleComposite` | SQL string |
 | K | execute | `exec/`, `result/` | `PlanRunner`, the writers | typed rows to a sink, each cell spelled at the boundary (the old door's `Executor`/`ExecutionResult` deleted 2026-10-27 and 2026-10-29) |
 
-Wired by `com.legend.Compiler.compile(...)`.
+Wired by the root package's doors (`package-info.java`). `Compiler.compileModel` runs A–F once per model.
+`Compiler.query` types a query against the compiled model (G, G½) and returns a `TypedQuery`.
+`TypedQuery.plan(runtime)` gives the SQL in the runtime's dialect; `TypedQuery.executionPlan(runtime)` gives the
+typed execution plan (H–J). `Execution.run` runs a plan on a session (K). `Compiler`, `TypedQuery` and
+`HeldModels` are the plan side (`//core:planner`, which has no execution library); `Execution` and
+`ExecuteOptions` are the execution side (`//core:driver`).
 
 ## Folder layout
 
-Folder = package, 1:1. Single prefix `com.legend.`.
+Folder = package, 1:1. Single prefix `com.legend.`. Each package below is one Bazel library or part of one
+(`tools/deps/core-layers.txt` lists the libraries and their direct dependencies). Counted on 2026-11-04:
+976 `.java` files under `src/main/java`.
 
 ```
 core/src/main/java/com/legend/
 │
-├── Compiler.java                      ← com.legend.Compiler — entry point
-├── package-info.java                  ← module invariants
+├── (the root)                         THE FIVE DOORS, and nothing else since D73: Compiler, TypedQuery, HeldModels
+│                                      (the plan side) and Execution, ExecuteOptions (the execution side); the
+│                                      product's API, the five classes named outside core. Execution.Source (D72):
+│                                      where execution gets the session for the target the compiler decided.
+│                                      package-info.java: the module's pipeline and invariant summary
 │
-├── builtin/                           phase 0: platform types + native function sigs
-│   ├── BuiltinRegistry.java
-│   └── BuiltinClassRegistry.java
+├── builtin/                           phase 0: Pure (the generated native signatures), Prelude (the platform's
+│                                        Pure declarations, src/main/resources/.../builtin/prelude.pure), NativeFn,
+│                                        DynaFn, SystemMetamodel, EngineHandlers
+├── platform/                          the platform's own Pure and its registrations (PlatformPure, Registrations,
+│                                        DeclarationTable, ImplementationTable, WalledBodies)
 │
 ├── lexer/                             A. text → tokens
 │   ├── Lexer.java                           static entry: `tokenize(String) → TokenStream`
@@ -93,78 +118,61 @@ core/src/main/java/com/legend/
 │   ├── ElementParser.java                   the ###Pure elements, each into its record
 │   ├── SpecParser.java                      C driver: tokens → protocol.spec.ValueSpecification
 │   ├── MappingProtocolParser.java, DatabaseProtocolParser.java, …   the other sections' grammars
-│   └── section/                             the registered section grammars (each a section's records)
+│   ├── SectionGrammarRegistry.java          the registered section grammars (spi/SectionGrammar, by ServiceLoader)
+│   └── section/                             the built-in section grammars (each a section's records)
+│
+├── protocol/                          legend-engine's protocol as records (Protocol: PureModelContextData and its
+│   │                                    Element records), the readers (ModelReader) and the emitters/composers
+│   ├── spec/                                the value specifications (engine class names verbatim)
+│   ├── sql/                                 the #SQL{}# island: Postgres SQL → Pure (SqlParser, SqlToPure);
+│   │                                          iq/, the #IQ{}# island's
+│   └── cypher/                              the #Cypher{}# island: Cypher → Pure (CypherParser, CypherToPure)
+├── spi/                               the overlay seam: SectionGrammar, SectionSource, ElementSink
 │
 ├── door/                              B → D. a text's records → the compiler's model (leg 8's last step, 2026-10-21)
 │   └── ModelFromText.java                   PmcdParser's records through model/ModelFromProtocol, the door a JSON
 │                                              model also goes through; the one place the parser and model meet
 │
 ├── model/                             the compiler's parsed model: PackageableElement records, ParsedModel,
-│                                        ImportScope, and ModelFromProtocol (records → model); value specifications
-│                                        are protocol/spec's
+│                                        NormalizedModel, ImportScope, and ModelFromProtocol (records → model);
+│                                        value specifications are protocol/spec's
 │
-├── normalizer/                        E. mapping desugar
-│   └── MappingNormalizer.java               PackageableElement → PackageableElement
-│                                              (MappingDefinition → synth FunctionDefinition)
+├── normalizer/                        E. ModelNormalizer.normalize (entry); MappingNormalizer (sub-slice E.1:
+│                                        mappings → synthesized FunctionDefinitions) and the other sub-slices
 │
-├── compiler/                          F,G. parsed → typed
-│   ├── ElementCompiler.java                 F driver
-│   ├── SpecCompiler.java                    G driver (was TypeChecker in engine)
-│   ├── Dependencies.java                    G secondary output: used FQNs/properties
-│   ├── ModelContext.java                    read-only model view
-│   ├── SymbolTable.java
-│   ├── element/                             F output: compiled elements (Typed* uniform)
-│   │   ├── TypedElement.java                    sealed root
-│   │   ├── TypedClass.java
-│   │   ├── TypedAssociation.java
-│   │   ├── TypedAssociationMapping.java
-│   │   ├── TypedEnum.java
-│   │   ├── TypedProfile.java
-│   │   ├── TypedFunction.java                   (compiled MappingDefinition desugars into this in E)
-│   │   ├── TypedMapping.java                    (slated for removal post-step-E; kept for staging)
-│   │   ├── TypedDatabase.java
-│   │   ├── TypedConnection.java
-│   │   ├── TypedRuntime.java
-│   │   ├── TypedService.java
-│   │   ├── store/                               relational store metamodel
-│   │   │   ├── Table.java
-│   │   │   ├── Column.java
-│   │   │   └── Join.java
-│   │   └── type/                                M3 type system
-│   │       ├── Type.java                            sealed
-│   │       ├── Primitive.java
-│   │       ├── ClassType.java
-│   │       ├── RelationType.java
-│   │       ├── FunctionType.java
-│   │       └── Multiplicity.java
-│   ├── spec/                                G output: typed value specs (symmetric with parser/spec/)
-│   │   ├── TypedSpec.java                       sealed root (engine name verbatim)
-│   │   ├── (relation-shaped variants — flat)
-│   │   │   TypedGetAll, TypedFilter, TypedProject, TypedExtend,
-│   │   │   TypedSort, TypedSlice, TypedGroupBy, TypedDistinct,
-│   │   │   TypedJoin, TypedFlatten, TypedFrom, TypedSerialize, ...
-│   │   └── (scalar-shaped variants — flat)
-│   │       TypedVar, TypedLit, TypedLambda, TypedCall,
-│   │       TypedPropertyAccess, TypedNewInstance,
-│   │       TypedUserCall, TypedIf, TypedLet, TypedCast, ...
-│   └── checker/                             per-native dispatch (G internals)
-│       ├── NativeChecker.java                   sealed
-│       ├── FilterChecker.java
-│       ├── ProjectChecker.java
-│       ├── ExtendChecker.java
-│       ├── SerializeChecker.java
-│       └── ...
+├── compiler/                          D, F, G. parsed → typed
+│   ├── NameResolver.java                    D: simple name → FQN
+│   ├── SymbolTable.java, ModelBuilder.java, …
+│   ├── element/                             F: compiled elements and the model view
+│   │   ├── PureModelContext.java                F driver (`from`); the model registry
+│   │   ├── ModelContext.java                    the read-only model view (findClass, findEnum, findFunction, …)
+│   │   ├── TypedElement.java                    sealed root: TypedNominal | TypedFunction
+│   │   ├── TypedNominal.java                    sealed: TypedClass | TypedEnum
+│   │   ├── TypedClass.java, TypedEnum.java, TypedFunction.java, TypedConstraint.java, TypedParameter.java
+│   │   ├── ClassCompiler.java, FunctionCompiler.java, StoreCompiler.java, …
+│   │   └── type/                                the type system: Type (sealed), ExprType, Multiplicity, PlatformTypes
+│   └── spec/                                G: SpecCompiler (driver), Typer, InferenceKernel, UserCallInliner (G½),
+│       │                                      and the per-native checkers, flat (FilterChecker, ProjectChecker,
+│       │                                      ExtendChecker, GroupByChecker, … 42 *Checker classes)
+│       └── typed/                               G output: TypedSpec (sealed root) and its variants, flat —
+│                                                  TypedGetAll, TypedFilter, TypedProject, TypedExtend, TypedSort,
+│                                                  TypedGroupBy, TypedJoin, TypedFlatten, TypedFrom, TypedSerialize,
+│                                                  TypedVariable, TypedLambda, TypedNativeCall, TypedUserCall,
+│                                                  TypedPropertyAccess, TypedNewInstance, TypedIf, TypedLet,
+│                                                  TypedCast, …; TypedRelationOp and TypedStoreWrite are sealed
+│                                                  families of their own
+├── validation/                        the desugar of meta::relational::validation::validate
 │
-├── resolver/                          H. logical → physical TypedSpec (AS BUILT)
-│   ├── StoreResolver.java                   driver: ten-phase resolveObject +
-│   │                                        post-condition no-escape walk (rule 9)
-│   ├── ClassSource(s).java                  mapping body → binding table
+├── resolver/                          H. logical → physical TypedSpec
+│   ├── StoreResolver.java                   driver: resolveObject + the post-condition no-escape walk
+│   │                                          (invariant 9, StoreEscapees)
+│   ├── ClassSource.java, ClassSources.java  mapping body → binding table
 │   ├── Substitution.java                    β-substitution over bindings
 │   ├── NavMaterializer.java                 navigate targets, recursive SubNav tree
 │   ├── AssociationJoins.java                assoc ends → join material
 │   ├── GraphEmission.java                   graph-fetch tree synthesis
 │   ├── SyntheticHeads.java                  #fN/#dN join identities (JoinIdentity)
-│   ├── TemporalContext/TemporalFrame.java   milestoning context propagation
+│   ├── TemporalContext.java, TemporalFrame.java   milestoning context propagation
 │   └── Pipelines.java                       pipeline surgery helpers
 │
 ├── lowering/                          I. TypedSpec → sql.SqlQuery IR
@@ -174,12 +182,26 @@ core/src/main/java/com/legend/
 │   ├── Aggregates.java + Windows.java       reducers / window functions
 │   └── PureSql.java                         Pure type → SqlType boundary
 │
-├── sql/                               J data + rendering (STANDALONE — zero
-│   ├── SqlQuery/SqlSelect/SqlExpr...        com.legend deps outside itself)
-│   └── dialect/
-│       ├── SqlDialect.java + AnsiSqlRenderer.java
-│       ├── DuckDb.java
-│       └── Sqlite.java
+├── sql/                               I output: the MIR — sealed, data-only records (SqlQuery, SqlSelect, SqlSource,
+│   │                                    SqlExpr, SqlAgg, SqlType, SqlDdl, SqlDml, …); depends on nothing in
+│   │                                    com.legend outside itself (invariant 12)
+│   └── dialect/                         J. SqlDialect (the one entry) + AnsiSqlRenderer (the shared renderer), the
+│                                          16 dialect classes, the rewrite passes, SqlWriter, DialectCapability;
+│                                          RustDialects (the SPI the Rust-backed shims call)
+├── ffi/                               the Rust library from the JVM (java.lang.foreign): Lite, RustDialect,
+│                                        RustDialectProvider (the RustDialects implementation, found by ServiceLoader)
+├── database/                          the plan-side owner of every per-database decision (Databases, Target)
+│
+├── lineage/                           column-level lineage and scanned relations
+├── plan/                              the compile-only plan: QueryPlan (the rendered SQL, the root's typed contract,
+│                                        the execution shape) and PlanText (legend-engine's plan text)
+├── executionplan/                     the execution plan records (ExecutionPlan), their JSON (PlanJson) and the MIR's
+│                                        JSON (MirJson) — the port's seams (docs/rust-port/ROADMAP.md)
+├── planner/                           the plan machinery behind the plan-side doors (step C, D73, 2026-10-30):
+│   ├── PlanMaker.java                       a typed query to its plan; MetamodelSeeds + OpSeeds the system store's
+│   ├── QueryParameters.java                 rows; ProgramFacts; CrossStoreGuard. Part of //core:planner;
+│   └── ...                                  depends on no execution class (ArchitectureTest.plannerIsExecutionFree)
+├── setup/                             a connection's setup as text and rows (Ddl, CsvSeed, RowLoad, ProjectData)
 │
 ├── exec/                              K. a plan + a session → typed rows to a sink (2026-10-29: the old
 │   ├── PlanRunner.java                      executor, Executor.java, and its materialized result are gone)
@@ -190,8 +212,11 @@ core/src/main/java/com/legend/
 │   ├── WireTypes.java                       (the wire TABLE: JDBC's type codes to the SQL vocabulary, a SQL type's
 │   │                                         Pure NAME; the runtime names a type, never holds one, D72)
 │   ├── DatabaseConnector.java + Connectors   (each database's driver facts, its decode facts among them, D72)
-│   └── *Connector.java                      (the twelve; exec depends on NO planning library since D72, 2026-10-30:
-│                                             the wall, ArchitectureTest.execReachesNoPlanning)
+│   └── *Connector.java                      (eleven JDBC connectors here; MongoDB's is in src/main/mongodb. exec
+│                                             depends on NO planning library since D72, 2026-10-30: the wall,
+│                                             ArchitectureTest.execReachesNoPlanning)
+├── result/                            K's edge: ResultSink, Batch, CellText and the writers (CsvWriter,
+│                                        JsonRowsWriter, PureV1Writer, TdsObjectsWriter, ArrowWriter)
 │
 ├── judge/                             the verdict layer (D71, 2026-10-30; out of exec: planning-side work the
 │   ├── PureAsserts.java + Equality.java     runtime must not carry): a test body's assertion judged over typed
@@ -202,56 +227,64 @@ core/src/main/java/com/legend/
 │   │                                        until 2026-10-29)
 │   └── Column.java + Row.java               (a judged side's column in the compiler's Type, and its row; exec's
 │                                            until D72)
-│
-├── planner/                           the plan machinery behind the plan-side doors (step C, D73, 2026-10-30):
-│   ├── PlanMaker.java                       a typed query to its plan; MetamodelSeeds + OpSeeds the system store's
-│   ├── QueryParameters.java                 rows; ProgramFacts; the cross-store guard. Part of //core:planner;
-│   └── ...                                  depends on no execution class (ArchitectureTest.plannerIsExecutionFree)
-│
 ├── driver/                            the execution side's machinery behind the execution doors (step C, D73):
 │   ├── BodyDriver.java + BodyCompiler       a test body as a sequence of plans (BodyDriver has one caller,
 │   ├── HostJudge + DatabaseJudge + ...      Execution.runProgram); the judges' arms and their plans (JudgePlans,
 │   ├── CsvLoad + SeedSqlForms + ...         AssertVerdicts, AgreementArm, SqlTextVerdicts); the seeds and loads;
 │   ├── ColumnProbe + GridProbe + ...        the schema probes (D71: ColumnProbe, GridProbe, DynamicPivot,
 │   └── SystemDatabase.java                  WireProbe); the graph's system database (D72). //core:driver
+├── test/                              the Pure test runner (PureTestRunner, ServiceTestRunner) — product surface
+├── testdatagen/                       meta::relational::testDataGeneration::generateTestData
 │
-└── (the root)                         THE FIVE DOORS, and nothing else since D73: Compiler, TypedQuery, HeldModels
-                                       (the plan side) and Execution, ExecuteOptions (the execution side); the
-                                       product's API, the five classes named outside core. Execution.Source (D72):
-                                       where execution gets the session for the target the compiler decided
+├── server/                            the HTTP shell: LegendHttpServer, PureV1Api (legend-engine's pure/v1),
+│                                        PureLspServer, DiagramService, ModelChanges
+├── queries/                           the saved queries' and saved cubes' rules (SavedQueries, SavedCubes)
+│
+├── ide/                               demand-driven indexing (ModelIndex, ModelOrchestrator) — dormant
+├── probe/                             Shadow, a probe of the platform untangle
+├── cache/                             the one sanctioned cache: ContentStore, keyed by Hash (ArchitectureTest
+│                                        cachesAreFunneledToContentAddressedStore)
+└── values/  error/  diagnostics/      leaves: date/time literals; LegendCompileException and its kinds; the
+                                         -Dlegend.diagnostics switchboard
 ```
+
+Beside `src/main/java`: `src/main/duckdb`, `src/main/postgres` and `src/main/mongodb` hold the classes that ride
+with a driver (DuckDB's appender load and cells, Postgres's cells, MongoDB's connector), so core itself compiles
+against no jar. `src/main/ffi` registers `RustDialectProvider` for `ServiceLoader`. `src/main/resources` holds the
+builtin tables (`prelude.pure`, `native-claims.tsv`, …).
 
 ## Naming conventions
 
 | Convention | Example | Rationale |
 |---|---|---|
-| **Single top prefix** `com.legend.*` | `com.legend.lexer.Lexer` | Distinct from `com.gs.legend.*` (engine); makes the wall unambiguous |
+| **Single top prefix** `com.legend.*` | `com.legend.lexer.Lexer` | Distinct from `com.gs.legend.*` (the deleted engine); makes the wall unambiguous |
 | **Folder = package**, 1:1 | folder `lexer/` ↔ package `com.legend.lexer` | One name per concept |
 | **Noun packages** | `lexer/`, `parser/`, `compiler/`, `resolver/`, `exec/`, `judge/` | Matches engine convention; matches Java idioms |
-| **Element / Spec symmetry, everywhere** | `parser/element/` + `parser/spec/`; `compiler/element/` + `compiler/spec/`; `ElementParser`+`SpecParser`; `ElementCompiler`+`SpecCompiler` | "Element" = packageable element. "Spec" = value specification. Same pair end-to-end, no ad-hoc `Model`/`Query` mixing |
+| **Element / Spec symmetry, everywhere** | `ElementParser` + `SpecParser`; `compiler/element/` + `compiler/spec/`; `TypedElement` + `TypedSpec` (the parser's spec records are `protocol/spec/`; F's driver is `PureModelContext`, there is no `ElementCompiler`) | "Element" = packageable element. "Spec" = value specification. Same pair end-to-end, no ad-hoc `Model`/`Query` mixing |
 | **Pure data records** for every IR node | `record TypedFilter(...)` | No identity, free equality, free serialization |
 | **Sealed roots** for every variant family | `sealed interface TypedSpec permits ...` | Compile-time exhaustiveness on every dispatch site |
-| **Parser records = engine class names verbatim** | `ClassDefinition`, `LambdaFunction`, `AppliedFunction`, `CString` | Maximizes test portability against the engine corpus |
-| **`Typed*` prefix** for everything `compiler/` produces | `TypedClass`, `TypedMapping`, `TypedFilter`, `TypedProject` | One uniform prefix for the typed world. Elements and specs both follow the rule — sealed roots `TypedElement` + `TypedSpec` |
+| **Parser records = engine class names verbatim** | `LambdaFunction`, `AppliedFunction`, `CString` | Maximizes test portability against the engine corpus |
+| **`Typed*` prefix** for everything `compiler/` produces | `TypedClass`, `TypedFunction`, `TypedFilter`, `TypedProject` | One uniform prefix for the typed world. Elements and specs both follow the rule — sealed roots `TypedElement` + `TypedSpec` |
 | **No `FunctionCall(String, args)`** anywhere | each native is its own typed record | Forces enumeration; kills stringly-typed dispatch |
 | **No `default ->`** in any sealed switch | every arm explicit, throw on unsupported | javac enforces variant coverage |
 | **No `util/` package** | helpers live with the code that needs them | `util/` is a code smell; ArchUnit blocks it |
-| **FQN strings, not live refs**, in long-lived fields | `superClassFqn: String`, not `superClass: TypedClass` | Lazy loading; no transitive force-load |
+| **FQN strings, not live refs**, in long-lived fields | `superClassFqns: List<String>`, not `superClass: TypedClass` | Lazy loading; no transitive force-load |
 
 ## Strong invariants
 
 **Enforcement is marked honestly.** `[ENFORCED]` = a test fails if you break
 it. `[CONVENTION]` = the rule is real and expected, but **nothing checks it**.
-Audited 2026-08-06; 4 of 12 are enforced, 1 half, 7 are convention.
+Audited 2026-11-04: 5 of 12 are enforced, 1 half, 6 are convention.
 
-> `ArchitectureTest` is **23 dependency-direction rules and nothing else** — it
-> does not assert sealedness, record-ness, exhaustiveness, or field shape. It
+> `ArchitectureTest` has **52 rules** (2026-11-04), nearly all of them dependency direction. It
+> does not assert sealedness, record-ness or exhaustiveness. It
 > also uses its own numbering ("6g", "7a-c") that does **not** map to this
-> list. Do not merge the two numbering schemes.
+> list. Do not merge the two numbering schemes. Cite its rules by name: line numbers drift.
 
 1. **The wall.** No `com.legend..` → `com.gs.legend..` dependency.
-   `[ENFORCED — ArchitectureTest:50]`
-2. **No `util/` package.** `[ENFORCED — ArchitectureTest:66]`
+   `[ENFORCED — ArchitectureTest.coreModuleHasNoDependenciesOnEngine]`; the upstream half
+   (`org.finos.legend..`) by `ArchitectureTest.upstreamJavaNeverEntersCore`.
+2. **No `util/` package.** `[ENFORCED — ArchitectureTest.coreModuleHasNoUtilPackage]`
 3. **Sealed everywhere a hierarchy exists.** `PackageableElement`,
    `ValueSpecification`, `TypedElement`, `TypedSpec`, `Type`, `SqlQuery`,
    `SqlSource`, `SqlExpr`, `SqlAgg`, `SqlType`, `TypedSide` (the judges' side; `ExecutionResult` until 2026-10-29).
@@ -266,50 +299,84 @@ Audited 2026-08-06; 4 of 12 are enforced, 1 half, 7 are convention.
    guarded-pattern switches need a coverage default (make it THROW), and
    best-effort rewrite walkers may pass unknown nodes through ONLY where a
    downstream loud wall is guaranteed. `[CONVENTION]` — enforced by javac only,
-   and only when a sealed root gains a variant; no test scans for `default ->`.
+   and only when a sealed root gains a variant. No test scans for `default ->` itself;
+   `ErrorShapeGuardrailTest.defaultLiteralFallbacksOnlyShrink` counts only `default -> "<literal>"`
+   fallbacks (shrink-only), which is adjacent, not this rule.
 6. **No `FunctionCall(String, args)` in the MIR.** `[CONVENTION]`
    *Corrected 2026-08-06:* this previously claimed "a grep test asserts no such
    record shape". **No such test exists, and the record does exist** —
-   `model/RelationalOperation.java:189` is the parsed `###Relational` dynaFunc
+   `model/RelationalOperation.FunctionCall` is the parsed `###Relational` dynaFunc
    node. That is legitimate; it is not MIR. The rule applies to `sql/` only.
 7. **`F` (compile elements) MUST NOT trigger `G` (compile specs).** Function
    bodies stay as `ValueSpecification` inside `TypedFunction`, type-checked on
    demand. (Engine violates this in `buildPureFunctions`; we do not carry the
-   violation forward.) `[CONVENTION]` — the analogous behavioural guard,
-   `NoEagerUserClassLoadsTest`, scans `com.gs.legend` only.
+   violation forward.) `[CONVENTION]` — no test checks that F never types a body; `TypedFunction` has
+   no compiled-body field (its javadoc). The adjacent behavioural guard is
+   `architecture/NoEagerUserClassLoadsTest`, in core (rebuilt from the engine-era test): it hands
+   `SpecCompiler.typeQueryBody` a fail-fast `ModelContext` proxy and fails if query typing looks up a
+   user element the query does not reach.
 8. **No mutable sidecar state across passes.** Each step takes input, returns
    output. No `IdentityHashMap<TypedSpec, ?>` threaded across phase
    boundaries; pass-local caches are fine, labelled and confined.
-   `[CONVENTION]` — the nearest live rule is `CodeShapeGuardrailTest`'s
-   zero-non-final-statics, which is adjacent, not the same.
+   `[CONVENTION]` — the nearest live rule is `ArchitectureTest.staticFieldsAreFinal` (with
+   `staticCollectionStateIsImmutableOrRegistered`): every static field is final. It is adjacent, not the same.
 9. **`TypedGetAll` and `TypedUserCall` MUST NOT survive `H` (resolver/).**
-   `[ENFORCED — StoreResolver.assertNoStoreOnlyEscapees:220]`, called per
-   statement at `:177`, pinned by `StoreResolverTest`.
+   `[ENFORCED — StoreResolver.assertNoStoreOnlyEscapees]` (the walk is `resolver/StoreEscapees`),
+   called on every resolved statement, pinned by `StoreResolverTest`.
 10. **No store-only node reaches the lowerer.** `TypedJoinSlot` / store
     navigates hitting `lowering/` are named "resolver bug" walls, not generic
     errors. `[ENFORCED — runtime]`
 11. **`compiler/element/Typed*` reference other elements by FQN string, not
     live ref.** `superClassFqns: List<String>`, not `TypedClass`.
-    `[CONVENTION]` — **`NoEagerTypeReferencesTest` scans `com.gs.legend` only,
-    so core has no lazy-loading enforcement at all.**
+    `[ENFORCED — architecture/NoEagerTypeReferencesTest]`: it walks every class of core's product jars
+    (`:product_jars`, with a floor of 498 classes) and fails on any field that holds a resolved `TypedClass`
+    or `TypedEnum`, directly or inside a collection, map, `Optional`, array or wildcard bound. The only
+    allowlisted fields are the registry's own, `PureModelContext#classCache` and `#enumCache`. (It is
+    rebuilt for core; the engine-era original scanned `com.gs.legend` and was deleted with that module.)
 12. **`sql/` is closed and pure data.** No `toSql()`, no dialect import, no
     `String` field encoding a SQL operation. `[HALF ENFORCED]` — the
-    *dependency* half by `ArchitectureTest:80` and `:215`; the "no `toSql()` /
-    no SQL-encoding String field" half has no test.
+    *dependency* half by `tools/deps/core-layers.txt` (the `sql` library depends on `base` alone;
+    `//tools/deps:core_layering_test`), `ArchitectureTest.sqlLayerIsStandalone` and
+    `sqlLayerIsFullyStandalone` (`com.legend.sql` depends only on itself and the JDK), and
+    `compileSideLayersAreDialectBlind` (no compile-side layer sees `sql.dialect`). The
+    "no `toSql()` / no SQL-encoding String field" half has no test.
+
+### Which invariants the Rust port keeps
+
+The port carries the contracts, not the Java shapes (`docs/rust-port/ROADMAP.md`; the language-neutral list is
+[`docs/architecture/README.md`](../docs/architecture/README.md)).
+
+- **Contracts the port keeps as they are:** 6 (no stringly-typed call in the MIR), 7 (F never triggers G),
+  8 (no sidecar state across passes), 9 and 10 (store-only nodes end at the resolver), 12 (the MIR is closed,
+  pure data; in Rust it is `lite-sql`, and the dialects render it).
+- **Idioms with a Rust equivalent:** 3 (sealed roots: Rust enums are closed), 4 (records: plain data
+  structs and enums), 5 (exhaustiveness: a `match` with no catch-all arm).
+- **A contract whose representation is still open:** 11. No eager transitive load carries over; how Rust
+  holds a reference to another element is the node-ID and `Arc` decisions (D1, D5) that ROADMAP phase 3
+  settles before any code.
+- **Java package layout:** 1 (the wall, as package names) and 2 (no `util/` package). So are the folder
+  layout and the naming conventions above.
+
+The guard tests below name Java classes, so they fail, rather than go vacuous, when a package is deleted. Each
+phase retires or re-expresses the ones that reference its deleted packages, and the Bazel-query guards
+(`CoreClosureTest`, `CoreLayeringTest`, `ArrowClosureTest`) carry over as checks of the crate graph
+(ROADMAP, "The guard tests").
 
 ### The mechanical guards that do exist
 
-| Test | Module | Enforces |
+| Test | Target | Enforces |
 |---|---|---|
-| `ArchitectureTest` | core | 23 dependency-direction rules (the wall, no `util/`, `sql/` standalone, package acyclicity, lexer JDK-only, protocol at the bottom, caches funnelled) |
-| `CodeShapeGuardrailTest` | core | method ≤ 250 lines; file ≤ 3,500; non-final instance fields allowlisted; **zero** non-final statics |
-| `ErrorShapeGuardrailTest` | core | no return/throw in `finally`; broad-catch census; no control flow on exception text |
-| `ObservabilityGuardrailTest` | core | shrink-only ratchets on `System.getenv`, `System.err`, string-dispatch sites |
-| `CarrierPurityRatchetTest` | core | 5 regex pins over `lowering/`+`resolver/`+`plan/` |
-| `TypedSpecChildrenTest`, `SpecChildrenContractsTest` | core | reflective `children()`/`withChildren()` totality |
-| `PlatformTypesDriftTest` | core | `PlatformTypes` FQNs pinned against `builtin/Pure` |
-| NullAway | core | main sources only, `default-compile` — **needs a cold compile** |
-| `NoEagerTypeReferencesTest`, `NoEagerUserClassLoadsTest` | **engine** | lazy loading — **`com.gs.legend` only** |
+| `ArchitectureTest` | `//core:guardrails` | 52 rules, nearly all dependency direction (the wall and the upstream boundary, no `util/`, `sql/` standalone, package acyclicity, lexer JDK-only, protocol at the bottom, exec reaches no planning, the compile side dialect-blind, caches funnelled, static fields final, …) |
+| `CodeShapeGuardrailTest` | `//core:guardrails` | method ≤ 250 lines (the 3,500-line file limit was dropped on 2026-09-29); non-final instance fields allowlisted; shrink-only counts (dead private methods, class names as logic, …) |
+| `ErrorShapeGuardrailTest` | `//core:guardrails` | no return/throw in `finally`; broad catches pinned per file; no control flow on exception text; `default -> "<literal>"` fallbacks only shrink |
+| `ObservabilityGuardrailTest` | `//core:guardrails` | shrink-only ratchets on debug env flags, `System.err` prints, string-dispatch sites |
+| `CarrierPurityRatchetTest` | `//core:guardrails` | 5 regex pins over `lowering/`+`resolver/`+`plan/` (list, array and UNNEST idioms built before the dialect) |
+| `PlatformNamesGuardrailTest` | `//core:guardrails` | a Pure function or class name is spelled only in `PlatformTypes`; literal checks elsewhere only shrink |
+| `NoEagerTypeReferencesTest` | `//core:guardrails` | invariant 11 |
+| `NoEagerUserClassLoadsTest` | `//core:core_tests` (architecture package) | query typing looks up no user element the query does not reach (adjacent to invariant 7) |
+| `TypedSpecChildrenTest`, `SpecChildrenContractsTest` | `//core:core_tests` | reflective `children()`/`withChildren()` totality |
+| `CoreClosureTest`, `CoreLayeringTest` | `//tools/deps:core_closure_test`, `//tools/deps:core_layering_test` | core reaches no jar and the drivers are exactly the named ones; each core library's direct dependencies equal `tools/deps/core-layers.txt` |
+| NullAway | every `legend_java_library` compile (`tools/java/defs.bzl`, `//tools/nullaway`) | a null-discipline finding is a compile error, unless the target opts out and its BUILD file says why |
 
 ## How to add a file under `core/`
 
@@ -317,122 +384,39 @@ Audited 2026-08-06; 4 of 12 are enforced, 1 half, 7 are convention.
 2. Find the package in the layout above. **If your file doesn't fit any listed package, stop and discuss before inventing a new one.**
 3. Records first; classes only for services (`Lexer`, `ElementParser`, `SpecCompiler`, `StoreResolver`, ...) and per-step drivers.
 4. Sealed root for any new variant family.
-5. Run `mvn -pl core test` — `ArchitectureTest` must stay green.
+5. Run `bazel test //core:guardrails //core:core_tests` — `ArchitectureTest` (in `//core:guardrails`) must stay
+   green. A new library also needs its line in `tools/deps/core-layers.txt` (`//tools/deps:core_layering_test`).
 
 ## Testing strategy
 
-- **Unit tests** per step in `core/src/test/java/com/legend/<step>/`.
-- **Pipeline tests** end-to-end through `Compiler.compile(...)`, asserting SQL string output for golden Pure inputs.
-- **Execution tests** end-to-end through `Compiler.execute(...)`, asserting result rows against an in-memory DuckDB.
-- **Parity harness** (lives in a separate test-only Maven module that depends on BOTH `core/` and `engine/`): re-runs the existing engine + PCT suites against both back-ends. As `core/` grows, the V2 column climbs from 0% green toward parity. The harness depends on `core/`; `core/` itself never depends on the harness or on `engine/`.
+- **Unit tests** per package in `core/src/test/java/com/legend/<package>/`, one Bazel target per test package
+  (`//core:core_tests_<package>`); `//core:core_tests` is their suite.
+- **Pipeline tests** end to end through `Compiler.compileModel`, `Compiler.query` and `TypedQuery.plan` /
+  `lower`, asserting SQL for golden Pure inputs.
+- **Execution tests** end to end through `Execution.run`, asserting rows on the in-process databases;
+  `//core:core_tests_lanes` runs the integration tests on SQLite and H2, each held to its lane's floor.
+- **Parity with upstream** runs in its own modules, never in core: `pct/` (legend-engine's PCT suites,
+  `//pct:pct_duckdb`, `//pct:pct_h2`, `//pct:pct_postgres`), `spec/` (the relational corpus, `//spec:corpus_duckdb`,
+  `//spec:corpus_h2`) and `parser-equivalence/` (`//parser-equivalence:parser_parity`). Their upstream jars
+  are test inputs there only. Which lane holds what: [`docs/GATES.md`](../docs/GATES.md); how lite is judged:
+  [`docs/architecture/testing.md`](../docs/architecture/testing.md).
 
-## Open decisions to revisit
+## Closed decisions (cited by number from code)
 
-Things we deferred deliberately. Each entry: **what's deferred**, **why now**, **when to revisit**, **options on the table**.
+The open decisions of the parser build are all closed. Code still cites them by number:
 
-### D-1. Body capture format for derived properties, constraints, function bodies (closed — Phase C)
+- **D-1.** Pure bodies (derived properties, constraints, function and service bodies, M2M property RHS and
+  `~filter`) are parsed eagerly into typed `ValueSpecification`s; no raw-`String` body field remains.
+- **D-2.** Unknown top-level keys in `Runtime`, `RelationalDatabaseConnection` and `Service` bodies are a
+  parse error naming the key. FINOS legend-engine's grammar rejects them too; only lite's old engine module
+  skipped them.
+- **D-3.** Test suites were held as raw text pending a test-suite grammar. A service's suites are now the typed
+  protocol records, and that placeholder is retired (`model/ServiceDefinition`).
+- **D-6.** A view's `~filter` takes all four grammar forms, as a sealed `FilterMapping` (`Direct` |
+  `JoinMediated`) over a sealed `FilterPointer` (`Local` | `Cross`).
+- **D-7.** A bare column identifier in a Database-context expression is rejected with "Missing table or alias
+  for column 'X'", as legend-engine's `RelationalParseTreeWalker` rejects it.
 
-- **What.** `ClassDefinition.DerivedPropertyDefinition.expression`, `ClassDefinition.ConstraintDefinition.expression`, `FunctionDefinition.body`, `ServiceDefinition.functionBody`, and the M2M `ClassMapping.Pure` property RHS + `~filter` hold the parsed body as a typed `ValueSpecification` (`List<ValueSpecification>` for braced bodies).
-- **Resolution.** **Option 2 (eager parse into typed AST) was chosen**, not the tentatively-leaned Option 3. Once `SpecParser` landed (Phase C.1–C.5), `ElementParser` was wired to parse every body eagerly during deep-parse (`SpecParser.parse` / `parseCodeBlock` on the body token slice). Bodies are therefore typed from parse time, and body syntax errors surface during parsing. Because deep-parse is driven per element by `ModelOrchestrator`, this stays demand-driven (only resolved elements parse their bodies) — the lazy-*compilation* requirement (AGENTS.md invariant 5) is unaffected since parsing never force-loads transitive graphs.
-- **Status.** Closed (C.6). No raw-`String` body fields remain. The only adjacent raw-text holdout is `testSuitesSource` (D-3), which is a separate test-suite-grammar concern, not a value-expression body.
-
-### D-2. Strict unknown-key handling in Runtime / Connection / Service (closed parity fix)
-
-- **What.** Unknown top-level keys in `Runtime`/`RelationalDatabaseConnection`/`Service` bodies throw `ParseException` naming the offending key.
-- **What `legend-lite/engine` did.** Silently dropped unknown keys via `skipToSemicolon()` (see `@/Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/parser/PureModelParser.java:2524-2527`) — a leniency that masks malformed Pure source.
-- **What FINOS `legend-engine` does.** Grammar-driven (ANTLR4): unknown keys are syntax errors at the grammar level. The walker calls `validateAndExtractRequiredField`/`validateAndExtractOptionalField` over named contexts (see `@/Users/neema/legend/legend-engine/legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-grammar/src/main/java/org/finos/legend/engine/language/pure/grammar/from/runtime/RuntimeParseTreeWalker.java:99`); the term `skipToSemicolon` appears nowhere in `legend-engine`.
-- **Status.** Closed. `legend-lite/core`'s strictness matches FINOS engine. The risk I flagged earlier ("engine accepts more, we reject") was actually risk of breaking the GS port's loose parses — engine would reject those too. No real engine-parity gap.
-
-### D-6. View filter reference shape (closed parity fix, full grammar coverage)
-
-- **What.** `DatabaseDefinition.ViewDefinition.filter` is a nullable sealed `FilterMapping` with two variants:
-  - `Direct(FilterPointer filter)` &mdash; the simple form (`~filter F` or `~filter [DB] F`)
-  - `JoinMediated(String sourceDb, List<JoinChainElement> joins, FilterPointer filter)` &mdash; the join-mediated form (`~filter [DB1] @J1 > @J2 | [DB2]? F`)
-
-  `FilterPointer` itself is sealed: `Local(name)` for ambient resolution (search enclosing db + includes), `Cross(db, name)` for explicit cross-database lookup. **No nullable fields anywhere in the type.**
-- **What `legend-lite/engine` did.** Encoded just the bare `~filter F` form as a magic `RelationalOperation.Literal.string("~filter:" + name)` (see `@/Users/neema/legend/legend-lite/engine/src/main/java/com/gs/legend/parser/PureModelParser.java:1376`) — missed both the `[DB]` qualifier and the join-mediated form entirely.
-- **What FINOS `legend-engine` does.** Wraps a flat `FilterPointer { String db; String name; }` in a flat `FilterMapping { FilterPointer filter; List<JoinPointer> joins; }`. The four grammar forms are encoded as field combinations: `joins.isEmpty()` distinguishes simple from join-mediated; `db == null` distinguishes ambient from cross-database.
-- **Status.** Closed. `legend-lite/core` supports all four grammar forms with a structurally honest sealed encoding. Two two-variant sealed types (`FilterMapping` and `FilterPointer`) carve the problem along the axes where consumers actually dispatch: "how do we reach the filter" (Direct / JoinMediated) and "where do we look it up" (Local / Cross). Pattern matching at consumer sites is compiler-checked exhaustive.
-- **Why sealed instead of nullable, per design discussion.** Engine's `FilterPointer.db == null` carries semantic meaning ("search enclosing db + includes", not just "absence of value") different from `db != null` ("look only here"). That's a structural difference, not a presence/absence one — the case where sealed types pay for themselves. Pinned by tests `viewFilterDirectLocal`, `viewFilterDirectCross`, `viewFilterJoinMediatedLocalTarget`, `viewFilterJoinMediatedCrossTarget`, `joinMediatedFilterRequiresSourceDbQualifier`, `filterMappingJoinMediatedRejectsEmptyJoins`.
-
-### D-7. Bare identifiers rejected in Database-context expressions (closed parity fix)
-
-- **What.** A bare identifier inside a Database-context expression (Filter / Join / MultiGrainFilter / view filter), e.g. `Filter ActiveFilter(IS_ACTIVE = 1)`, throws a `ParseException` with the message `"Missing table or alias for column 'IS_ACTIVE'"`.
-- **Engine parity.** This matches FINOS `legend-engine`'s behavior exactly. `RelationalParseTreeWalker.generateTableAlias` throws the same `EngineException` message when it encounters a column reference whose surrounding scope didn't supply a table alias.
-- **What B.4a originally did.** Two earlier mistakes, both now closed:
-  1. **Initial port** copied `legend-lite/engine`'s sentinel hack: `ColumnRef(null, "IS_ACTIVE", "IS_ACTIVE")` (table == column). That was a `legend-lite/engine` invention, *not* engine's behavior.
-  2. **First "fix"** introduced a nullable `table` so we could capture `ColumnRef(null, null, "IS_ACTIVE")` and defer resolution to Phase D. That was the right intuition but the wrong layer: engine resolves bare-in-mapping-context at parse time using ScopeInfo and rejects bare-in-database-context outright. We now match that.
-- **Net result.** `ColumnRef.table` is non-nullable. The parser AST never carries implicit-table column refs in either Database or Mapping context (B.4b will resolve mapping-context bare identifiers eagerly using the class mapping's main table, also matching engine).
-- **Pinned by test** `filterRejectsBareIdentifierMatchingEngine`.
-
-### D-3. Service test-suites parsed lazily
-
-- **What.** `ServiceDefinition.testSuitesSource` holds the raw text inside a `testSuites { ... }` (or `testSuites [ ... ]`) block. Engine drops this data entirely; core/ preserves it as a `String` to be parsed once `MappingDefinition.TestSuiteDefinition` lands.
-- **Why now.** Parsing test suites into typed records requires `MappingDefinition.TestSuiteDefinition` shape, which lands with B.4 (`Mapping`). Holding the raw text keeps the data intact without committing to a shape.
-- **When to revisit.** When B.4 lands `MappingDefinition`. The `testSuitesSource` field on `ServiceDefinition` is a forcing function — it's in everyone's face and `null`-checked at every read site.
-- **Options at revisit time.** (a) Replace `testSuitesSource: String` with `testSuites: List<TestSuiteDefinition>` and parse during B.4. (b) Keep the raw-text field and add a side-table `Map<ServiceDefinition, List<TestSuiteDefinition>>` produced by a later pass. **Preferred: (a)**, in one focused commit.
-
-## Status
-
-> **Current state, 2026-08-06.** All phases below are complete. `core/` is the
-> **live implementation** — every production query path runs through it, and
-> `engine/` is frozen (last substantive change 2026-07-18). The Strangler Fig
-> framing in this file's header is therefore near its end: what remains in
-> `engine/` is the HTTP server, LSP, diagram service, JSON writer and result
-> serializers, none of which `core/` has yet. See `AGENTS.md`.
->
-> Live gate numbers: parser equivalence **22,725/22,725** byte-identical;
-> rejection parity **43/43**; PCT **1,109 run / 36 ledgered / 0 skipped**;
-> relational corpus **2,575 run / 2,298 pass**. Regenerate rather than quote —
-> see `docs/GATES.md`.
->
-> The per-phase detail below is kept as the build record.
-
-- [x] Module skeleton + Maven wiring
-- [x] Architecture wall test (`com.legend.* ⇏ com.gs.legend.*`)
-- [x] Phase 0: builtins (`builtin/Pure.java`, the platform prelude)
-- [x] Phase A: lexer (`Lexer` + `TokenStream` + `Token` + `TokenType`; 25 unit tests)
-- [x] Phase B: parser/element + ElementParser **— full feature parity with `legend-lite/engine`**
-  - [x] B.1: scaffolding + `Class` (imports, properties, type params, extends, native, stereotypes, tagged values; 29 unit tests)
-  - [x] B.2: derived properties + constraints + `Association` + `Enum` + `Profile` (42 unit tests; derived-property/constraint bodies captured as raw text at B.2, now parsed into `ValueSpecification` — D-1 closed)
-  - [x] B.3: `function` + `Service` + `Runtime` + `RelationalDatabaseConnection` (60 unit tests, 87 total; strict unknown-key handling — D-2; testSuites raw-text capture — D-3; FunctionDefinition deliberately omits engine's compiler-cache fields)
-  - [x] B.4: `Database` + `Mapping` (170 unit tests total in `ElementParserTest`)
-    - [x] B.4a: `Database` (21 tests, 108 total) — full relational expression sub-AST: ColumnRef, TargetColumnRef, Literal, FunctionCall, Comparison, BooleanOp, IsNull, IsNotNull, Group, ArrayLiteral, JoinNavigation; full view-filter sub-AST: sealed `FilterMapping` (Direct/JoinMediated) and `FilterPointer` (Local/Cross); sliced eagerly because the relational sub-grammar is small and bounded (a distinct sub-language from Pure value expressions, which are parsed by `SpecParser` — D-1 closed); audit-driven cleanups closed all engine-parity gaps: D-2, D-6, D-7.
-    - [x] B.4b: `Mapping` shell + Relational class mappings (19 tests, 127 total) — `MappingDefinition` + sealed `ClassMapping` (permits `Relational`, `Pure`) + sealed `PropertyMapping` (Column / EnumeratedColumn / Join / JoinTerminalColumn / Expression); mapping `~filter` reuses the sealed `FilterMapping` from B.4a; mapping-context bare identifiers resolve eagerly to the class mapping's main table at parse time (engine `ScopeInfo` parity); `extends`, `setId`, `~mainTable`, `~filter`, `~distinct`, `~groupBy`, `~primaryKey`, store substitutions in `include` brackets, multi-class mappings all supported. The syntactic `*` (root marker) is captured as a `root: boolean` field on a single `Relational` variant rather than a separate `RootRelational` subtype, matching lite/engine's surface (no non-root standalone form exists).
-    - [x] B.4c: Association mappings (8 tests) — sealed `AssociationMapping` + `AssociationPropertyMapping` with per-property `[srcSetId, dstSetId]` brackets; reuses existing `PropertyMapping` variants for the body; DB-required guard surfaces missing `[db::DB]` cleanly.
-    - [x] B.4d: Enumeration mappings (10 tests) — `EnumerationMapping` + sealed `SourceValue` (StringValue / IntegerValue / EnumRef); supports optional mapping id, bracketed and unbracketed source lists, mixed string/int/cross-enum sources, trailing comma.
-    - [x] B.4e: Pure (M2M) class mappings (10 tests) — `ClassMapping.Pure` variant whose `~filter` and per-property RHS are parsed into `ValueSpecification` (eagerly during deep-parse once `SpecParser` landed — D-1 closed; the B.4e milestone originally captured them as raw text, like B.3 function bodies); nested commas in `if(...)` calls don't split bindings; mixes cleanly with Relational class mappings.
-    - [x] B.4f: Mapping test suites (4 tests) — `MappingDefinition.testSuitesSource` captures the `testSuites: [...]` block verbatim via `skipBalancedContent` + `reconstructText`; closes D-3 for `MappingDefinition` (Service still uses the same shape from B.3).
-    - [x] B.4g: Property mapping parity fillers (9 tests) — four new `PropertyMapping` variants: `Embedded` (`prop ( subs )`, recursive), `InlineEmbedded` (`prop() Inline[setId]`), `OtherwiseEmbedded` (`prop ( subs ) Otherwise ([setId]: body)`), `LocalProperty` (`+name: Type[mult]: body` with full multiplicity parsing reusing `parseMultiplicity()`); dispatched in `parsePropertyMapping` by `+` prefix or `(` after the property name. **Ahead of lite/engine** here — lite/engine lists these as `GAP` tests and parses-and-discards the data.
-
-### Phase B parity statement
-
-For every element kind that `legend-lite/engine` parses, `legend-lite/core` parses it equivalently or more strictly, and structurally captures the same data (often more — embedded / inline / otherwise / local property mappings yield first-class records in `core/`, where `engine/` discards their detail). The two intentional divergences are:
-
-1. **D-3 deferred parsing.** Test suites (`testSuitesSource`) are captured as raw text pending a test-suite grammar. (Pure value-expression bodies — function bodies, derived properties, constraints, service queries, M2M property RHS / `~filter` — are now parsed eagerly into `ValueSpecification` during deep-parse; D-1 is closed, see Open Decisions.) `engine/` parses test suites eagerly via the FINOS engine grammar.
-2. **D-2 strict unknown-key handling.** `Runtime` / `Connection` / `Service` / `Mapping` bodies reject unknown keys with `ParseException` instead of silently skipping. `engine/` silently drops unknown content (including unknown mapping types like `Operation` and `AggregationAware`).
-
-Constructs that exist in upstream FINOS `legend-engine` but are **not implemented in `legend-lite/engine` either** — `Operation` (union/merge) class mappings, `AggregationAware` class mappings, Relation function class mappings, true non-root embedded `Relational` class mappings (with their own scope, distinct from `PropertyMapping.Embedded`) — are out of scope for parity. They are not regressions and not blockers for Phase C.
-
-### Remaining phases
-
-- [x] Phase C: demand-driven parsing + SpecParser
-  - [x] C.0: `ModelOrchestrator` (199 tests total; 199/199 green) &mdash; demand-driven element parsing built on top of Phase B with zero changes to the existing element parser logic.
-    - **`TokenStream.slice(from, to)`** &mdash; cheap sub-stream that preserves source-offset indices so error reporting still points into the original file (3 tests).
-    - **`ModelIndex` + `ModelIndexer`** &mdash; single-pass shallow scan over the token stream that records every declared FQN's `(kind, [startToken, endToken))` range without parsing element bodies. Handles `native Class`, function `<<stereo>>` and `{tag=...}` decorations before the FQN, `(...)`-bodied Database/Mapping, interleaved imports, and rejects duplicate FQNs (16 tests, including a property-based parity assertion that the shallow FQN set matches the eager parser's element set).
-    - **`ElementParser.parseSingle(TokenStream slice)`** &mdash; refactor that exposes single-element parsing as a public entry point. Used by the orchestrator to deep-parse one element from a sliced token range; the existing `parseModel()` is reformulated as "loop over imports + `parseSingleElement()` calls" for code reuse.
-    - **`ModelOrchestrator`** &mdash; the demand-driven entry point. Constructor lexes + shallow-scans eagerly; `resolve(fqn)` deep-parses a single element from its slice and memoises the result; `resolveAll()` forces every FQN and returns a `ParsedModel` equivalent to the historical eager parse. **Cache is pure memoization on an immutable input** &mdash; the source cannot mutate during the orchestrator's lifetime, so cache entries never need invalidation (10 tests covering cache identity, demand isolation against broken neighbours, unknown-FQN errors, `resolveAll()` ↔ per-FQN equivalence, and import handling).
-    - **`ElementParser.parse(source)` now delegates** to `new ModelOrchestrator(source).resolveAll()`, so every existing element parser test (143) exercises the demand-driven pipeline. No element parser logic changed.
-    - **Architectural payoff.** The 100K stress case in the stress-test benchmarks (`docs/STRESS_TEST_BENCHMARKS.md`, in `docs/HISTORY.md`) shows parse + build at 71% of cold-start (1,496 ms of 2,115 ms) with a 4 GB heap requirement. With this foundation, a query that reaches 50 of those 100K elements pays for the shallow scan (linear in source) plus deep-parse of 50 elements &mdash; not all 100K. Heap footprint shrinks proportionally because only resolved elements are held as full record graphs.
-  - [x] C.1 &ndash; C.5: `SpecParser` &mdash; sealed `ValueSpec` AST + Pure expression grammar (literals, variables, property paths, function calls, operators, lambdas, `let`, code blocks, collections, milestoning). Standalone module taking a `String` (or `TokenStream` slice) and returning a `ValueSpec`. **211 tests in `SpecParserTest`.**
-  - [x] C.6: `SpecParser` wired into element parsing &mdash; all value-expression bodies (`FunctionDefinition.body`, derived properties, constraints, `ServiceDefinition.functionBody`, M2M property RHS + `~filter`) parse eagerly into typed `ValueSpec` during deep-parse, driven per-element by `ModelOrchestrator` &rarr; `ElementParser.parseSingle` (so it is just-in-time per resolved element, implemented inside the element parser rather than as a separate orchestrator step). **Closes D-1.** The one remaining raw-text holdout is `testSuitesSource` (D-3) &mdash; a separate test-suite-grammar concern, not `SpecParser`.
-
-- [x] Phase D: NameResolver — now `compiler/NameResolver` + `model/ImportScope` (imports → FQN over def records). *Renamed and moved out of `parser/` since this line was written.*
-- [x] Phase E: normalize — entry point is `normalizer/ModelNormalizer.normalize`; `MappingNormalizer` is sub-slice E.1 (mappings desugared into `FunctionDefinition`s)
-- [x] Phase F: `PureModelContext.from` + compiler/element (TypedElement family)
-- [x] Phase G: SpecCompiler + compiler/spec (TypedSpec family) + checkers (G½: UserCallInliner)
-- [x] Phase H: StoreResolver + resolver/ (its Maven-era coverage ledger, `docs/RELATIONAL_CORPUS.md`, is in `docs/HISTORY.md`; the roster files are the gate)
-- [x] Phase I: Lowerer + lowering/ + sql/ data records
-- [x] Phase J: `SqlDialect.render(SqlQuery)` + `sql/dialect/` — `AnsiSqlRenderer`→`DuckDb`, `H2`→`H2Modern`, `EngineStyleH2`→`EngineStyleDB2`→`EngineStyleComposite`. (SQLite became a class of its own on 2026-10-11.)
-- [x] Phase K: PlanRunner + exec/ (`exec.Executor` deleted 2026-10-27, the result boundary program's phase 5; the old door 2026-10-29, its track D)
-- [x] Parity harness: PCT (pct module) + RelationalCorpusRunner (engine module, RUN-as-data)
+> Cut in the 2026-11 docs cleanup: the open-decisions log D-1..D-7 (2026-07/08, with paths into the deleted
+> engine module) and the Status / Phase B–C build record (2026-08-06: test counts, Maven wiring,
+> `ModelOrchestrator` delegation). Full text: `git show de2745351:core/README.md`.

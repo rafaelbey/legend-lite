@@ -3,10 +3,10 @@
 **Since 2026-09-29 this is a gated lane** (execution plan W1.1): `bazel test //spec:reference_lane` (manual, about
 8 GB, about 45 s once the reference dump is cached). The reference side is the build output
 `//tools/reference:ref_dump`, legend-pure's compiler run from the pinned `@maven_upstream` jars (4.145.0 / 5.99.0), so
-the jar-versus-pin skew and the source-drift file below are history. `ReferenceLaneTest` types our side, joins in Java
+the jar-versus-pin skew and the source-drift file of the earlier hand-run tooling are history. `ReferenceLaneTest` types our side, joins in Java
 (`ReferenceJoin`, a port of the Python join this folder held), and compares the whole report (coverage, buckets, every disagreement class) to
 `spec/src/test/resources/reference-lane/core_relational.txt`; every class needs a reason in `reasons.tsv` there. The
-text below describes the earlier hand-run tooling. Its join (`join.py`) and its source-drift script were deleted on
+earlier hand-run tooling's join (`join.py`) and its source-drift script were deleted on
 2026-10-18 (the dialect program's D6: no target ran them, and `ReferenceJoin` is the join); git keeps them.
 
 `RefResolutions.java` compiles every module on the classpath with the real Pure compiler (the
@@ -25,57 +25,7 @@ marked the sources whose text differs between the jar's version and our pinned t
 1,218: a position there means nothing), and the docstring names the two spellings that need
 their own rule (operator runs, property reads).
 
-## Running it (no build system, no install)
-
-The engine jar and a JDK are already on this machine (see the session memory
-"upstream-engine-no-install"): the jar at `~/legend/engine-dist/legend-engine-server-4.138.5-shaded.jar`
-(4.138.5 is the newest release that publishes a shaded jar; our pin is 4.145.0, so a few
-declarations differ — the join tolerates that by keying on names, never on line numbers), and
-JetBrains' bundled JDK at `/Applications/WebStorm.app/Contents/jbr/Contents/Home/bin`.
-
-```
-JB="/Applications/WebStorm.app/Contents/jbr/Contents/Home/bin"
-J=~/legend/engine-dist/legend-engine-server-4.138.5-shaded.jar
-"$JB/javac" -proc:none -cp "$J" -d out tools/reference/RefResolutions.java
-"$JB/java" -Xmx12g -Xss16m -cp "$J:out" RefResolutions ref-resolutions.tsv /core_relational/ /platform/ /core_functions_ /core/
-```
-
-Loading and compiling the whole system takes a few minutes and ~10 GB. `loadAndCompileCore()`
-must precede `loadAndCompileSystem()` (the M3 bootstrap creates the Root package the system
-compile walks).
-
-## What the positional join found on 2026-09-26 (receipts: `join-positional-pre-step2.txt`, `source-drift-4.138.5-vs-4.145.0.tsv`)
-
-Functions: the reference typed 11,973 names, we 16,101 (1,480 failed); 11,480 in both; 493 the
-reference typed that we never saw (the 32 walls); 1,319 the reference typed that we FAILED. Calls
-in bodies both typed, outside drifted sources: AGREE 42,589; OVERLOAD 450 (`isEmpty` 283, `average`
-32, `elementToPath` 24, `max` 21, `hasGeneratedMilestoningPropertyStereotype` 34, `min` 18,
-`stdDevSample` 10, `median` 8, `or` 6, `sum` 5, the rest ≤2); PACKAGE 11 (`size` 8 — our TDS
-erasure at typing time, `homework-2026-09-26.md` §1; `divide` 3 — an operator-span artefact);
-SOURCE_DRIFT 52,266; ABSENT 42,174 (what the reference has as calls and we as nodes or rewrites:
-`letFunction` 10,956, `map` 4,490 of which most are the automap rewrite, `new` 4,259, `cast` 2,383,
-`getAll` 1,958, `if` 1,854, `eval` 1,548, `filter` 1,486, `project` 1,264, `extractEnumValue` 1,205,
-`colSpec` 1,162, `plus` 946 from run splitting, `match` 716 …); PROPERTY_AS_CALL 31
-(`connectionByElement`, a qualified property we model as a function — step A4); EXTRA 12,971
-(calls of ours the reference has none for: `toOne` 2,504 and `elementToPath` 1,518 are calls our
-typer INSERTS — a finding for steps 3 and 6; `string::plus` 1,001 run splitting; `isEmpty` 620,
-`equal` 369 …). Every OVERLOAD row is an instance of the reference's match orderings
-(`docs/plan-audit-2026-09-26/reference-matching.md` 7–10); the acceptance test for step 3 is
-OVERLOAD 0 and PACKAGE 0 with the `divide` artefact explained or fixed in the parser's span.
-
-## What the first (name-keyed) join found on 2026-09-25 (superseded; receipts in the study directory, `receipts/reference-differential/`)
-
-Over 10,161 function bodies both compilers type: the reference resolved 66,608 calls to exactly
-the overload we chose; 28 to a function in a different package (`sort` and `distinct` on relations
-and TDS, `size` of a relation, `plus` on strings vs numbers, `contains` on strings vs collections);
-799 to a different overload of the same function — 507 of them `isEmpty`, where the reference
-picks the `[0..1]` overload and we the `[*]` one, and the rest the same shape: the reference
-prefers the overload whose multiplicity and numeric type are closest to the argument's
-(`max(Integer[1..*])` over `max(Integer[*])`, `average(Integer[*])` over `average(Number[*])`,
-`between(DateTime…)` over `between(Date…)`). 104,399 reference calls have no call row on our side:
-property reads, `let`, `new`, `cast`, `if`, `match` and the forms (`map`, `filter`, `project`,
-`groupBy`, …) are typed as nodes, not calls, so the join cannot yet check which declaration a form
-resolved to — that is what binding forms to declarations (plan steps A and B) makes checkable.
+> Cut in the 2026-11 docs cleanup: the hand-run instructions (a WebStorm JDK over the 4.138.5 shaded engine jar) and the receipts of the positional join of 2026-09-26 and of the superseded name-keyed join of 2026-09-25. Full text: `git show de2745351:tools/reference/README.md`.
 
 ## The reference's overload rule (legend-pure `FunctionExpressionMatcher` / `FunctionMatch`, pinned tree)
 
@@ -85,9 +35,9 @@ argument's multiplicity against the parameter's). Candidates are ordered by comp
 right, ALL the type matches first and only then ALL the multiplicity matches; the smallest wins;
 several smallest is a compilation error, "Too many matches", listing them. Our kernel ranks
 differently (it does not prefer the closer multiplicity or the closer numeric type), which is the
-whole of the 799 overload disagreements above. Reproducing this rule — the two match orderings
-included — is task #47, the first thing done before step A (`docs/A1_HOMEWORK_2026_09_25.md`
-has the orderings written out and the change list); the binder's acceptance test is this
+whole of the 799 overload disagreements the name-keyed join of 2026-09-25 found. Reproducing this rule — the two match orderings
+included — is task #47, the first thing done before step A (`docs/A1_HOMEWORK_2026_09_25.md`, now in `docs/HISTORY.md`,
+had the orderings written out and the change list); the binder's acceptance test is this
 differential at zero.
 
 ## The implicit import group (measured once, 2026-09-25)
@@ -98,7 +48,16 @@ reference compiled (2,108 on 2026-09-25), the packages its import group makes vi
 packages appear in every source: the implicit imports the Pure parser adds to each section. Our
 generated `CoreImports.SEQUENCE` is those 29 plus three the newer engine added. So a bare
 name in Pure source (the corpus included) resolves by the section's imports and this group alone;
-the engine's handler surface is a rule for engine input, not for Pure source. The list is in the
-homework note (`docs/A1_HOMEWORK_2026_09_25.md` §1.2). What keeps it true now: `CoreImports.java` is generated from the
+the engine's handler surface is a rule for engine input, not for Pure source. The list was in the
+homework note `docs/A1_HOMEWORK_2026_09_25.md` §1.2 (now in `docs/HISTORY.md`). What keeps it true now: `CoreImports.java` is generated from the
 engine's own list (`//spec:gen_imports`, from `CompileContext.META_IMPORTS`), and `CoreImportsParityTest` holds it
 there.
+
+## Upstream facts found while building
+
+- **Bootstrap order.** legend-pure's runtime must run `loadAndCompileCore()` before `loadAndCompileSystem()`: the M3
+  bootstrap creates the Root package the system compile walks (found running `RefResolutions.java`, 2026-09-25).
+- **The overload rule, by example** (the 2026-09-25 join over 10,161 function bodies): where both fit, the reference
+  picks `isEmpty`'s `[0..1]` overload over its `[*]` one, `max(Integer[1..*])` over `max(Integer[*])`,
+  `average(Integer[*])` over `average(Number[*])`, and `between(DateTime…)` over `between(Date…)`: the overload whose
+  multiplicity and numeric type are closest to the argument's.

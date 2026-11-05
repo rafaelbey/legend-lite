@@ -1,6 +1,11 @@
 # The execution plan as the boundary between planner and executor (2026-10-05)
 
-**Status: DESIGN AGREED by the user 2026-10-05 (§5, §7) — no code yet; §6 homework before code.** Asked by the user 2026-10-05 ("Is TypedQuery our version of
+**Status: DESIGN AGREED by the user 2026-10-05 (§5, §7); BUILT.** Phase 1's query path and the runner (§9) landed
+2026-10-05 to 10-10; the plan path program (`docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` §11) and the result boundary
+program (`docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md`, PR #80, 2026-10-30) moved every caller onto plans. Phase 2
+(legend-engine's own plans run on lite) is not built: today's server has no `executePlan` route. Kept here: the
+question, the upstream plan read from source and from the pinned engine, the design and its decisions (§1-§8), and
+the design of phase 1's steps and of E (§9, §10); their landing records are cut. Asked by the user 2026-10-05 ("Is TypedQuery our version of
 legend-engine Plan? Want to make sure we can execute old legend-engine Plans"). The user moved the rebuild's W6.1
 (staged plan IR) and W6.2 (the runner) to this line (the database-owner line,
 docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md) the same day. The user agreed §5 P1, P2, P4, P5,
@@ -210,11 +215,8 @@ program that writes from its plan; every other query still runs the wire path un
 wire and streaming paths. In these the executor never decodes a value, so phase 1's runner is pure from the start.
 `generatePlan` is NOT changed (its upstream shape waits for the compatibility mode, phase 4).
 
-**Facts it rests on (measured 2026-10-05).** The SQL tree already has typed parameter slots (`SqlExpr.PlanParam`;
-today only the engine-text printer renders them). The server's `execute` binds `parameterValues` by rewriting the
-lambda into `let`s and recompiling per request (`PureV1Api.boundParameters`). A connection's declared test data is
-rendered from the MODEL at execution (`CsvSeed.declaredSteps`), and the server's in-memory database identity is a hash
-read from the model at execution (`ConnectionResolver.storesKey`).
+> Cut in the 2026-11 docs cleanup: the facts phase 1 rested on, measured 2026-10-05 (how the server bound parameters
+> and seeded test data before plans). Full text: `git show de2745351:docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`.
 
 **Steps, each landed on the full chain:**
 1. **The plan records** — a small library `//core:execution_plan` (`com.legend.executionplan`; deps `//base`, `//json`),
@@ -223,32 +225,21 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    the JSON), `Sql` (statement text with bind placeholders, ordered typed slots, result columns, the typed SQL tree as
    metadata, the target connection with its setup statements and in-memory identity), result types. The lite JSON
    format, with round-trip tests. No behaviour change.
-   **Step 1 DONE 2026-10-05:** `com.legend.executionplan.ExecutionPlan` (records) and `PlanJson` (the lite format,
-   `{"format":"legend-lite-plan","version":1,…}`), deps `//base`, `//json`, `:model`, `:sql`. The connection is lite's
-   own `ConnectionDefinition` (database type, 9 specification and 12 authentication records), not upstream's protocol
-   shape — that shape belongs to the compatibility mode (phase 4), and reading upstream connection JSON to phase 2.
-   Every `_type` is an enum constant shared by writer and reader, read by an exhaustive switch, an unknown tag refused
-   by name. The typed SQL tree is held in memory and not written yet (its serializer is a later step). `PlanJsonTest`:
-   every node kind, parameters with enum values, all 10 × 12 specification/authentication pairs read back equal.
+   > Cut in the 2026-11 docs cleanup: step 1 as landed, 2026-10-05 (`ExecutionPlan` and `PlanJson`, the lite format;
+   > the connection is lite's own `ConnectionDefinition`, not upstream's protocol shape, which is the compatibility
+   > mode's; every `_type` an enum constant read by an exhaustive switch, an unknown tag refused by name). Full text:
+   > `git show de2745351:docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`.
+
 2. **The planner makes plans** — `TypedQuery.executionPlan(runtime, output)` (`output`: JSON, CSV, streamed JSON —
    the wire statement the database builds, `lowering.WireRender`). Each dialect renders `PlanParam` as a bind placeholder
    and returns the slots in order; a list slot in the target's array form (`= ANY(?)`, a list parameter, H2's array);
    the target per `Sql` node from `Compiler.executesOn`; setup statements computed at plan time (the in-memory
    identity this step first named is gone: decision A below shares by the target's own content).
-   **Step 2's first piece DONE 2026-10-08 (`847b41df4`; `docs/GATES.md`):** a connection's setup — its `CREATE
-   TABLE`s with each column's type, and its rows — moved from `exec` to the plan-side `//core:setup`, so the planner
-   can write it into the plan and the Studio tab can take the server's exact statements; running the steps stays in
-   `exec` (`SetupRunner`). No behaviour change.
-   **Step 2, landing 1 (2026-10-08): the records and the one parameter list.** `ExecutionPlan`: a parameter's enum
-   values are names; `TextResult` (format CSV, JSON or one JSON object per row; result type a relation's columns or a
-   value's type) replaces `JsonResult`; a target's setup is a list of steps, a statement or rows for the bulk loader
-   with every statement it needs; the identity is gone (decision A). `PlanJson` version 2 (version 1 refused).
-   The audit's fixes are in: the third parameter reader (`PlanAllocations`, the enum template functions) reads
-   `QueryParameters` too, and PARK-15 covers every place the legacy plan picks an enumeration mapping with no place of
-   use.
-   `QueryParameters` reads a query's declared parameters once: the legacy plan's text and walkable forms read it
-   (their two readers deleted, a dead flag with them) and `TypedQuery.parameters()` reads the same declarations for
-   the lite plan. PARK-15 parks the legacy plan's per-parameter enum map (`docs/PARKED_WORK_LEDGER.md`).
+   > Cut in the 2026-11 docs cleanup: step 2's first piece and landing 1 as landed, 2026-10-08 (a connection's setup
+   > moved from `exec` to the plan side, `//core:setup`, so the planner writes it into the plan; `TextResult` in place
+   > of `JsonResult`; one reader of a query's parameters). Full text:
+   > `git show de2745351:docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`.
+
    **Step 2's decisions (the user, 2026-10-07 and 2026-10-08; evidence `docs/execution-plan-boundary-2026-10-05/`):**
    - *One list of a query's parameters.* Today the legacy (legend-engine-shaped) plan builds its own, twice: its text
      form (`StatementExecutor.sequencePlan`) and the form Pure code walks (`planModel`). One planner function reads
@@ -301,8 +292,7 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      (`PlanText.enumMapFnOf` → `enumMappingOf`, and `PlanAllocations.planTemplateFunctions`), and a result column's
      the first declared when its mapping names none (`PlanText.enumMappingIdFor`) — wrong rows when an enum is
      mapped twice; parked as PARK-15 with step 2's landing 1.
-   **Step 2, landing 2: the planner makes lite plans — LANDED 2026-10-09 (`682c6fedf`, run 37988343620; `docs/GATES.md`)
-   (design, 2026-10-09; homework below, evidence `probes/`).**
+   **Step 2, landing 2: the planner makes lite plans (design, 2026-10-09; landed the same day; evidence `probes/`).**
    `TypedQuery.executionPlan(runtime, output)` returns an `ExecutionPlan` whose one `TextResult` node holds the statement
    the database answers with finished text (`lowering.WireRender`: CSV, JSON, one JSON object per row; a graph fetch's
    JSON array), every parameter written as a `?` with its slot, and the target it runs on. Nothing runs it yet (step 3).
@@ -352,87 +342,10 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    - *Per-connection statements ride in the target.* DuckDB and Postgres set `TimeZone='UTC'` on every connection
      (`SqlDialect.sessionSetup`); the target carries them apart from its setup (once per database).
 
-   Slices, each judged by the census (no statement of today's paths changes) and a differential test (the same query's
-   answer through the plan's statement, bound by the test, and through today's path, on DuckDB, H2 and Postgres):
-   (a) the plan for queries without parameters, every output, its target whole (a declared connection or the platform's
-   engine, the server versions, the per-connection statements); (b) scalar parameters; (c) optional; (d) enum value
-   tables; (e) lists.
+   > Cut in the 2026-11 docs cleanup: landing 2's slices (a) to (e) as landed, the independent audit's fixes and the
+   > two callers left to settle before step 4 (2026-10-09). Full text:
+   > `git show de2745351:docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`.
 
-   *Slice (a), landed 2026-10-09.* `TypedQuery.executionPlan(runtime, Output)` (`CSV`, `JSON`, `STREAMED_JSON`)
-   through `PlanMaker`: a relation's, a value's and a graph fetch's text in each form today's paths write
-   (`Execution.executeWire`/`executeStreaming`), a graph's CSV refused by name, a query with parameters refused until
-   (b). The records (lite format version 3): a target is a `Database` (`Declared` connection, or the `Platform`'s
-   engine), its `Servers` (`Every`, or `Versions` — H2's `2.1`, `2.2`, named once, `H2.SERVERS`, which `forServer`
-   reads too; `Databases.servers`), its `session` statements and its setup; a text result's relation columns are a
-   name and a Pure type, no SQL type. The setup is final at plan time: a connection's SQL split and adapted to the
-   database, each table's rows for DuckDB's bulk loader with their staging statements (`RowLoad.staging`, the one
-   owner, which `Executor.load` now reads too) or one INSERT elsewhere (`Databases.loadsRowsInBulk`). A runtime
-   binding different connection definitions is refused when the plan is made. `PlanMakerTest` and
-   `PostgresArmTest.aPlanAnswersAsTodaysPaths`: on DuckDB, H2 and Postgres, every query's plan run step by step on a
-   fresh database answers byte for byte as today's path does (a relation, an empty one, a projection, a graph fetch,
-   a model-data runtime on the platform's engine; every output). Census: no statement of today's paths changes, only
-   the new tests' own are added (`render-census/landing2-result.txt`).
-
-   *Slice (b), landed 2026-10-09.* A query's declared parameters lower to slots (`TypedQuery.lower` with
-   `QueryParameters.Declared.slot()`), each typed as a literal of its declared type is (Integer `BIGINT`, String
-   `VARCHAR`, Boolean, StrictDate `DATE`, DateTime `TIMESTAMP`; a Float's, a Decimal's, a Date's and a Number's unknown:
-   its value decides), and the plan declares them. A dialect writes the placeholder (`AnsiSqlRenderer.placeholder`):
-   bare on DuckDB and Postgres, typed on H2 (`CAST(? AS T)`), which refuses a slot of no one type by name (PARK-19,
-   proposed: `docs/PARKED_WORK_LEDGER.md`; fixed in step 3 by type holes). Optional, enumeration and list parameters stay refused by name until
-   (c)-(e). `PlanMakerTest` and `PostgresArmTest`: a query's plan, run with its values (a Float's and a Decimal's as
-   decimals), answers byte for byte as the same query with each parameter a `let` of its value, on DuckDB, H2 and
-   Postgres and in every output — an integer, a string with a quote, a decimal and a float in a filter, in arithmetic
-   and projected, a date, a boolean, a Date and a Number (DuckDB, Postgres), one parameter written twice, two
-   parameters. Census: no statement of today's paths changes (`render-census/landing2-result.txt`).
-
-   *Slice (c), landed 2026-10-09.* An optional parameter (`x: T[0..1]`) is a slot like any other, its absence bound
-   as a null of its declared type. Its equality is null-safe (`NullSemantics.equalNullArms`: an optional parameter's
-   `==` is `NULL_SAFE_EQUAL`, so `!=` is `NULL_SAFE_NOT_EQUAL`), as legend-engine's plans write it
-   (`optionalVarPlaceHolderOperationSelector`: `col is null` when the value is absent) and as the legacy printer already
-   spelled it by recognising the shape (`is not distinct from`). `PlanMakerTest` and `PostgresArmTest`: with its value,
-   the plan answers as the query with a `let` of it; with none, as the query written `[]` (`$r.NAME == []`, lowered to
-   the engine's null check) — on DuckDB, H2 and Postgres, every output. Found on the way: today's server path, which
-   turns a request's empty value into `let x = [];`, writes `NAME = NULL` and answers no rows where the engine answers
-   the rows whose `NAME` is empty; the plan answers as the engine does, and step 4 retires that path. An enumeration's
-   comparison keeps its enum routing (never null-safe, as the engine's); census: the legacy printer's 31 optional-
-   parameter equalities unchanged, no statement of today's paths changes (`render-census/landing2-result.txt`).
-
-   *Slice (d), landed 2026-10-09.* An enumeration parameter is a slot holding its value's NAME (`VARCHAR`). Compared
-   with a mapped column — the lowering's decode, `CASE WHEN ST = 'A' OR ST = 'X' THEN 'ACTIVE' ... END = ?` — the
-   lite plan reads the stored column through that place's value table (`sql/EnumValueTables`, applied by `PlanMaker`
-   after lowering, beside the legacy plan's own `PlanEnumForm`): `ST IN (SELECT code FROM (VALUES ('A', 'ACTIVE'),
-   ('X', 'ACTIVE'), ('C', 'CLOSED')) AS _enum(code, name) WHERE name = ?)`, the pairs from the decode itself
-   (`DecodeShapes.codesAndNames`), `!=`'s comparison its `NOT IN` beside the null arms the lowering writes. Decoded or
-   tabled, the rows are the same for a present value; tabled, `==`, `in` and `contains` read the stored column and
-   keep its index (`probes/enum-index-results.txt`), and `!=` keeps the decode in the null arms beside its `NOT IN`.
-   `PlanMakerTest` and `PostgresArmTest`: a name stored under two codes, a missing value and an unknown code, compared
-   `==` and `!=` and written as a value of its own, answer as the query with a `let` of the value, on DuckDB, H2 and
-   Postgres, every output. Census: no statement of today's paths changes.
-
-   *Slice (e), landed 2026-10-09.* A list parameter is a slot holding ONE array of its element type
-   (`QueryParameters.Declared.slot`: `BIGINT`, `VARCHAR`, `BOOLEAN`, `DATE`, `TIMESTAMP`, an enumeration's names), and
-   `->in($list)` and `$list->contains(x)` write `x = ANY(?)`, bare on every database (`AnsiSqlRenderer.anyOf`; measured,
-   `probes/ListProbe.java` → `list-results.txt`: each answers as the literal `IN (...)`, the empty list included, and H2
-   reads a cast inside `ANY(...)` as its boolean aggregate); the slot names its element type for the driver's array. An
-   enumeration list compared with a mapped column reads the stored column through the value table, its names filtered
-   by `name = ANY(?)`. A list of decimals, Dates or Numbers is refused by name (PARK-20): DuckDB's driver makes a
-   decimal array of three places (`0.1234` read as `0.123`, the wrong row). `PlanMakerTest` and `PostgresArmTest`: an
-   integer list with `in`, the empty list, `contains`, a string list with a quote, an enumeration list — as the query
-   with a `let` of the list, on DuckDB, H2 and Postgres, every output.
-
-   *The audit's fixes (2026-10-09; an independent audit of the whole landing).* An optional enumeration parameter is
-   refused by name: its absence has three candidate answers — legend-engine's plan text (`0 = 1`), Pure's `[] == []`,
-   today's let path's NULL — and the value table answers as the engine's text reads where the decoded form answers as
-   the let path; none is measured against the engine yet. A class instance and a Byte, LatestDate or StrictTime value
-   are refused by name too (all three PARK-21). A list parameter written where one value goes is refused by name
-   (`AnsiSqlRenderer.oneValue`), and `x = ANY(?)` is parenthesized under an operator that binds tighter (`=` does not
-   chain). The shared test cases are their own test library (`:test_cases`: `PlanCases`, `ReservedNames`), so the
-   Postgres target reads them, not all of core's tests. New cases: a DateTime value, `!in` over a list, a scalar's
-   and a collection's text in every output.
-
-   Before step 4 (switching callers), two consumers of `PureV1Api.boundParameters` besides `execute` to settle:
-   `arrowPlan` (Python's host runs the plan's SQL itself, so it must bind the values: agreed with the DataCube + Python
-   line first), and the `execute` answer's activity, which reports the statement that ran (with its `?`s).
 3. **The runner, in `exec`** — `exec.PlanRunner.run(plan, parameterValues, Sessions.Source, out)`: checks and
    converts parameters (§8), opens or checks each node's session through `Sessions` (running its setup once; shared by
    the target's own content, decision A — `Sessions.Source` no longer takes the model), binds, executes, streams the
@@ -499,45 +412,11 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      records, `java.sql` and the session opener only; an architecture rule pins that they reach no compiler, lowering,
      SQL tree, dialect, setup or plan-text class, with one call excepted and pinned: `SqlTyping.floatDecimal`, a Float's
      binding, which only its value decides, at run time.
-   - *Slices:* (a) the runner and its sessions for plans without parameters — `PlanCases`' hand-written run replaced by
-     `PlanRunner`, every landing-2 case then the runner's test on DuckDB, H2 and Postgres; (b) parameters checked,
-     converted and bound as the plan says; (c) the guard.
-   **Step 3, landed 2026-10-10 as `a2e879a8e`** (run 38070603189; GATES "Execution plan step 3"): `exec.PlanRunner`, `PlanParameters`, `PlanSessions`; the
-   plan's slot bindings and type holes (plan format v4). Every case of `PlanCases` runs through the runner
-   (`PlanCases.run`) and answers byte for byte as today's path on DuckDB, H2 — every case now, PARK-19's included — and
-   Postgres: each scalar type; a Float at both extreme magnitudes; a Number, whole and decimal; a Date holding a date
-   and a date-time; a DateTime to the nanosecond; a list of DateTimes; an optional Float's absence. `PlanRunnerTest`
-   holds the runner's own checks and messages, the type holes filled on H2 and each answering as its literal, and the
-   sessions' rules: a target's database shared and set up once, its setup statements counted, for two runs in turn and
-   for eight started together (that a run waits for a setup in progress, and another target's is not held up meanwhile,
-   is `HandleStoreTest`'s, deterministically, with a failed open forgotten and a waiter opening in its turn); another
-   target's its own, look-alike cells included; a failed setup leaving nothing, a statement's failure on DuckDB and H2
-   and a refusal before any statement; a URL or a user-named database with setup refused, the URL never opened; a
-   platform target; a session of another database or H2 version refused. One shape for a bulk load: a plan's
-   `SetupStep.Rows`, which `RowLoad.staged` writes and the loader takes (`BulkLoad`, `BulkLoads`; `RowLoad.Staging`
-   gone). `ArchitectureTest.theRunnerIsModelFree` pins the runner's classes as above (it fails on a planted reference).
-   The guard (slice c): `ArchitectureTest.execsReachIntoPlanningOnlyShrinks` pins each of the 16 `exec` classes that
-   still reach a planning library with the number of planning classes it reaches (36 in all) — the compiler, the
-   resolver, the lowering, the dialect, the plan side's setup and plan packages, and the builtin, parser, normalizer,
-   platform and database packages — and fails when a class joins or a count grows; one that shrinks is re-pinned lower.
-   §8's measure of 2026-10-05 (20 files) counted source files by what they import, the SQL tree among it; this counts
-   compiled classes by what they depend on, and the SQL tree is not counted, being the plan records' own vocabulary (a
-   plan's `Sql` carries it). Audited twice; then revised with the user: the first round's legend-engine-exact checks
-   were the compatibility mode's, not the lite runner's, and the runner now takes typed values and says what is wrong in
-   its own words; the plan states how each placeholder is bound, which closed PARK-19 and found that a DateTime
-   parameter on landing 2's plans kept fewer digits than its literal (H2's `TIMESTAMP` and DuckDB's driver rounded or
-   cut what the literal keeps, Postgres's driver rounded what its literal writer cuts), now each its literal's. The
-   revision was audited in turn (seven should-fix, three nits, all fixed: among them this design's one exception to
-   "never edit rendered SQL" named in AGENTS.md, the evidence run on both H2 versions, PARK-24). Then measured against
-   the real reference (2026-10-10, `probes/engine-reference/`): the same requests sent to legend-engine 4.145.0 and to
-   lite, and plain expressions run by Pure itself. Where the engine answers, the plan's values are today's; the engine
-   cannot run a parameter projected as a column, a Number parameter or a list of DateTimes, which lite plans run; and
-   today's lite path refuses an absent optional value, which the engine and the plan answer. Lite's printed values
-   differ from Pure's in four places — Float arithmetic in decimal, a whole Float's missing `.0`, a Decimal literal's
-   scale, a DateTime's text — on today's path and a plan alike: PARK-24. The user's ruling (2026-10-10): an answer is
-   Pure's value, its text the served API's; step 3 lands first, the output layer's fix next. The render census
-   (`render-census/step3-result.txt`, items 1-3): no let-path query of today's paths changes; plan statements change as
-   each item says.
+   > Cut in the 2026-11 docs cleanup: step 3's slices and its landing record, 2026-10-10 (`a2e879a8e`: the runner,
+   > its parameters and sessions, plan format v4, the tests that judged it, the measurement against legend-engine
+   > 4.145.0 that found PARK-24 and the user's ruling on it, now in `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` §11.6).
+   > Full text: `git show de2745351:docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`.
+
 4. **Switch the callers, delete what they replace** — `pure/v1/execution/execute`: plan once, run with
    `parameterValues`; `Execution.executeWire` / `executeStreaming` and `QueryService`'s wire and streaming paths: plan +
    run. DELETED (rule 15): `PureV1Api.boundParameters`, `Execution`'s `wireOn` / `streamOn`, and `ConnectionResolver`'s
@@ -575,71 +454,23 @@ their output. `SqlDialect` has three entry points, not one — `render(SqlQuery)
 (AGENTS.md invariant 3 was stale until E-1 restated it) — with 54 callers; E keeps them and adds one entry returning a statement and its ordered
 parameters.
 
-**The stages, each landed alone and each rendering exactly what its parent renders:**
-- **E-0, the judge — DONE 2026-10-08.** The render census (`docs/execution-plan-boundary-2026-10-05/render-census/`):
-  every statement the JVM suites render (core, stress, the four PCT lanes, both relational corpus lanes), compared byte for
-  byte. Baseline on `daa78d0eb`: 5,706,332 renders, 47,904 distinct texts. Three runs on unchanged code agree on all
-  52,085 entries once three things are normalised — a quoted temporary path, the activity comment's random
-  `executionTraceID`, and a lambda's scope id that varies between runs (a product defect in
-  `resolver/FunctionBodyRows.scopeId`, reported to the resolver's owner, who will fix it with this census as judge).
-- **E-1, the writer and a bridge — LANDED 2026-10-08 (`f804dba9a`; `docs/GATES.md`).** `SqlWriter` (text, and `bind` writing `?` and recording the
-  parameter) and `RenderedStatement` (text and parameters in placeholder order); `SqlDialect.renderStatement` beside the
-  three `render`s (the legacy engine-text printer refuses it: its parameters are template variables). The clause layer
-  — `query`, `select`, `source`, `subselectSource`, `valuesSource`, `pivotSource`, `appendQualify`, `nl`, in
-  `AnsiSqlRenderer`, `DuckDb`, `H2` and `EngineStyleH2` — writes into the writer; expressions still arrive as strings
-  through the bridge (`inline`, and `writer.append(expr(...))`), where a parameter is refused as before. AGENTS.md
-  invariant 3 restated. Census: 0 of 52,085 entries differ (`render-census/e1-result.txt`). The census probe became
-  `probe.py` (by signature; E-1 reshaped `render`, so the E-0 patch no longer applied), and records `renderStatement`.
-- **E-2, expressions — LANDED 2026-10-09 with E-3 and E-4 (`46fc131b8`, run 37965399077; `docs/GATES.md`, "E").** `expr`, `call` (with Postgres's `postgresCall`) and `membership` write
-  into the writer in every dialect — `AnsiSqlRenderer`, `DuckDb`, `H2`, `H2Modern`, `Postgres`, `EngineStyleH2`,
-  `EngineStyleDB2`, `EngineStyleComposite`; the clause layer writes its expressions there too (`WHERE`, `GROUP BY`,
-  `HAVING`, `JOIN ... ON`, `QUALIFY`, `VALUES` rows; the legacy printer, which binds nothing, still spells its own
-  `WHERE` and `GROUP BY` as text); subqueries (`EXISTS`, `IN`, scalar, quantified) are written into the same writer. The
-  string forms of `expr`, `call` and `membership` are `final` bridges in the base, so a stale override cannot compile. A
-  plan parameter reaching `expr` is BOUND as one value (`renderStatement` lists it; `render` refuses it); what one value
-  cannot carry yet — a RAW splice, an optional or enum parameter, a collection as IN's whole list — is refused by name,
-  for step 2's landing 2. `SqlWriterTest` runs bound statements on DuckDB: two parameters under AND/NOT, one written
-  twice by XOR (bound twice), one inside an IN subquery. The other composing helpers (CASE, casts, windows, aggregates,
-  list and JSON functions, projections, sort keys), and about 25 arms that paste a sub-expression they built as text
-  (acos's domain guard; Postgres's regexp, date and JSON arms), still build strings through the bridge, where a
-  parameter is refused (tested) — the next stages. **A render method returns the writer it wrote into**, so the code
-  keeps its shape: an arm is one chain (`case SQRT -> writer.append("sqrt(").expr(a.get(0), 0).append(")")`),
-  `C ? A : B` stays a conditional over writers, and a dispatching switch stays a `return switch` EXPRESSION, whose cases javac
-  checks (AGENTS.md invariant 3; measured: deleting `GUID`'s arm from `postgresCall` fails to compile, "the switch
-  expression does not cover all possible input values"). The first conversion had written one statement per piece inside
-  switch STATEMENTS: javac stops checking an enum switch statement's cases, so a new function without a Postgres arm
-  would have written nothing, and two methods grew past the 250-line guard (`call` 219 → 370 lines, `postgresCall` 229 →
-  435). Returning the writer restored both (`call` 229, `postgresCall` 242). Checked by the compiler and the census:
-  every statement rendered before renders identically (`render-census/e2-result.txt`).
-- **E-3, the composing helpers — LANDED 2026-10-09 with E-2 and E-4 (`46fc131b8`).** Every dialect that executes (`AnsiSqlRenderer`,
-  `DuckDb`, `H2`, `H2Modern`, `Postgres`) writes all of a query into the writer: CASE, casts, windows, aggregates, the
-  list, JSON, variant and struct functions, projections, sort keys, and the arms E-2 left pasting text (acos's domain
-  guard; Postgres's regexp, date and JSON arms). Three writer forms do it without text: `function(name, args)` writes
-  `name(a, b)`; `join(items, separator, each)` writes each item by a function (`CAST(x AS INTEGER)` per argument); and a
-  `Piece`, a piece of SQL that writes itself, is what a helper takes or returns where it used to take or return text it
-  did not build (Postgres's `listOf(xs)`, `decode(json, …)`, `naive(ts)`) — written where the helper writes it, as often
-  as it does, its parameters with it (jOOQ's QueryPart). The base's text helpers `fn` and `list` are gone, and so are
-  the string forms of `call` and `membership`, without callers once every override writes (`expr`'s and `inline`'s
-  remain the bridge). A base method changed, so did every override, the legacy engine-text printer's included; that
-  printer's own helpers and its text edits (which now edit a piece it wrote itself: it binds nothing) are the next
-  stage. `SqlWriterTest`: a parameter under acos is bound at both places it is written and runs on DuckDB; a parameter
-  in a DML row (still text) is refused. Census: every statement E-2 renders, E-3 renders identically
-  (`render-census/e3-result.txt`).
-- **E-4, the rest — LANDED 2026-10-09 with E-2 and E-3 (`46fc131b8`); E is complete with it.** Four commits, each judged by the
-  census (`render-census/e4-result.txt`):
-  - *The legacy engine-text printer's helpers write* (`EngineStyleH2`, `EngineStyleDB2`): its pattern recognisers
-    (enum selectors, optional-parameter equality, the date-diff folds, the decode chains) return a `Piece` or nothing,
-    its WHERE and GROUP BY write. Census: 0 of 52,095 entries differ.
-  - *DML's rows write; the bridge goes.* `render(SqlDml)`'s rows were the last text path; a parameter in a row (a row
-    holds values) is refused by name. The `expr` text form, with no caller left, is deleted (`inline`'s went with
-    E-4a). DDL spells
-    only names, types and keywords: text, as any spelling. Census: 0 differ.
-  - *PARK-16, the product half.* DDL and DML spell a table or schema name through `physicalName`, as queries do (and
-    as legend-engine's own H2 DDL does, through `tableToString`); Postgres's two overrides go. A default-schema table
-    `order` and a table in a schema `select` seed and answer a query on DuckDB, H2 and Postgres (`ReservedNamesSeedTest`,
-    `PostgresArmTest`; both failed before: `Drop table if exists order;` is refused). The census: the 27 entries that
-    differ are those tests' new statements; no existing statement changed. The test-data generator's hand-built SQL
-    stays parked (PARK-16, restated: the user, "product now, generator later").
+**What E settled, as landed (E-1 to E-4, 2026-10-08 and 10-09; E is complete):**
+- **A render method returns the writer it wrote into**, so the code keeps its shape: an arm is one chain
+  (`case SQRT -> writer.append("sqrt(").expr(a.get(0), 0).append(")")`), `C ? A : B` stays a conditional over writers,
+  and a dispatching switch stays a `return switch` EXPRESSION, whose cases javac checks (AGENTS.md invariant 3;
+  measured: deleting `GUID`'s arm from `postgresCall` fails to compile, "the switch expression does not cover all
+  possible input values"). The first conversion had written one statement per piece inside switch STATEMENTS: javac
+  stops checking an enum switch statement's cases, so a new function without a Postgres arm would have written
+  nothing.
+- **Three writer forms write without text:** `function(name, args)` writes `name(a, b)`; `join(items, separator,
+  each)` writes each item by a function (`CAST(x AS INTEGER)` per argument); and a `Piece`, a piece of SQL that
+  writes itself, is what a helper takes or returns where it used to take or return text it did not build -- written
+  where the helper writes it, as often as it does, its parameters with it (jOOQ's QueryPart).
+- **A plan parameter reaching an expression is BOUND as one value** (`renderStatement` lists it; `render` refuses
+  it); what one value cannot carry is refused by name.
+- **DML's rows write into the writer** (a parameter in a row is refused by name); **DDL spells only names, types and
+  keywords: text, as any spelling.** DDL and DML spell a table or schema name through `physicalName`, as queries do
+  (and as legend-engine's own H2 DDL does, through `tableToString`).
 - *The legacy printer exact (E-4b; the user: "for backwards compatibility/legacy mode we need to be fully exact,
     implemented cleanly ... a single exact backwards compatibility mode").* Measured against legend-engine 4.145.0
     itself (`legacy-text/`: 14 shapes through its `generatePlan`, and its source): the printer's two text edits
@@ -656,4 +487,6 @@ parameters.
     placement from pure's); `reduce` and a `joinStrings` over a window's partition (lowering gaps, not spellings); and a
     relation-API query's statement structure (the engine's dialect translation aliases `t_0` and lists every column,
     lite's printer follows the TDS goldens' `root`): the compatibility mode's, §8 phase 4.
-- **Then step 2's landing 2**: a parameter is `bind(...)`.
+> Cut in the 2026-11 docs cleanup: the stage-by-stage landing records E-0 to E-4 (the render census that judged each
+> stage, its counts and commits; 2026-10-08 to 10-09). Full text:
+> `git show de2745351:docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`.

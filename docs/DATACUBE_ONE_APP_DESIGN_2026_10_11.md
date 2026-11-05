@@ -1,7 +1,8 @@
 # DataCube: one app, every host (design, 2026-10-11)
 
-Status: **agreed** (the user, 2026-10-11: "agree on all 6 ruling"; §13, §14). Step 1 and step 2a are built (§12). It
-supersedes parts of four agreed designs, each named in §13 with what changes.
+Status: **agreed** (the user, 2026-10-11: "agree on all 6 ruling"; §13, §14). Steps 1 and 2 are built (§12; their
+as-built notes were cut in the 2026-11 docs cleanup), and §15's PlanAndRun with them. It supersedes parts of four
+agreed designs, each named in §13 with what changes. How Python asks DataCube's rules, never copying them, is §16.
 
 ## 0. In one paragraph
 
@@ -402,19 +403,8 @@ Python's in-process services.
      tab's services. `demo/page.ts` goes, and with it the dead `if (models)` branches (both planners always return
      `models`).
 
-   **As built (2026-10-11, branch `datacube/one-app-1a`):**
-   - **1a** (e6d6ec56f): `src/app/services.ts` and `src/services/browser.ts`, and `boot.ts` reads everything through
-     them. The dead `if (models)` branches fell out here. `config.json` is read once as the page starts, not again at
-     each use.
-   - **1b** (1f3fff381): `src/app/sources.ts`.
-   - **1c** (ba2876221): `src/app/datacube-app.ts`, `openDataCube`, taking 1c's and 1d's moves together (the page, its
-     saved pages, share, the start, the planes' menu, the Pure & SQL window, the model actions), since they share their
-     state. The app builds its own windows (their markup and styles were `index.html`'s). The share link's address and
-     the tab's title are browser services. `boot.ts` is the tab's host, 465 lines; it was 2,384.
-   - **1d** (eadd0e854): `demo/page.ts` goes, its checks run on the app (`verify_page_test`: the sample grid and its
-     copy).
-   - **Not in step 1: each model action as a core and a window.** It comes with step 4, when headless is the second
-     caller; a split now would have no caller.
+   > Cut in the 2026-11 docs cleanup: step 1's as-built notes (2026-10-11, branch `datacube/one-app-1a`): 1a to 1d's commits and files, and why each model action's core waits for step 4 (no second caller yet). Full text: `git show de2745351:docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md`.
+
 2. **Python's pages open the app.** Four landings:
    - **2a.** `engine-page.ts` and `engine-cube.ts` go: the app over Python's services, the live page, `ll.show(df)` a
      page of one grid. Python's pages gain every app feature that needs no new service: the Pure & SQL window,
@@ -423,190 +413,7 @@ Python's in-process services.
    - **2c.** The planes on Python: the headless `fetch`; the remote planners called by Python.
    - **2d.** The page store on Python: Open… and Save into a folder.
 
-   **2a as built (2026-10-12, branch `datacube/one-app-2a`):**
-   - **The engine service is §4.5's contract.** `rows(model, runtime, how?)` gives a grid's rows in the host's shape:
-     the tab's a planner over the source's model and DuckDB-WASM, Python's a `RemoteRun` (R4). What only the page's own
-     pair has (the sample's planner, the model writer of a warehouse table, test data, Snap) is the engine service's
-     `local` part, absent on Python. A file and a remote file now open through `rows()`, so 2b gives them to Python by
-     giving the database service's `ingestFile` and `mountRemote`, with no change to the app.
-   - **Not built: the page's compiler as its own service (§4.5, point 3).** Its only reader is a saved query's text,
-     which needs the page's own pair for its test data, so on Python it comes with step 3, its first Python caller (as
-     each model action's core waits for step 4). Until then the parser is `local.planner`'s.
-   - **The data in**: the database service's ways are each optional; Python's gives `frame` (`cube.json`). A frame is a
-     source of the app's (`sources.openedFrame`), reopened from a page like any other. Its answer is a `FrameModel`
-     (model, runtime, source, version), not §4.5's `InferredModel`: a frame has no conversions, no columns left out and
-     no bit columns to say, and its version is what following reads. The grid's columns are typed the same way either
-     way, by the rows' own planner or runner.
-   - **Where the shape is read**: when a grid is made (`GridPlace` and CubeApp's options), and in the three helpers that
-     build a `GridPlace` from `rows()` (`sources.ts`: `rowsPlace`, `typer`, `letGo`). The model actions read only grids
-     that have a planner in the page (step 3 decides Python's).
-   - **The live page (§5)** is a service of its own, `services.live` (`watch`, and `page` when Python serves one: `read`,
-     `report`), beside the page store, since Python in 2a has the other editor but no store yet. The app follows it (a
-     page's version: opened again on the sheet shown; a frame's: its grids query again, or open again over a new model)
-     and reports the page once each change settles, a grid's own changes included, and once as it opens (so
-     `page.read()` has it before anything changes, as before). `services.pages` and `services.queries` are optional: no
-     store, no Save, Save As… or Open…, no New ▸ Blank Page where nothing could be put on it; no Saved queries section.
-   - **Following, one behavior on both of Python's hosts**: a move that fails to be followed (a frame not read, the page
-     not opened) is said in the status line and the title, and tried again at the next move; a success says nothing
-     more of it. Told that Python no longer serves it (the page or the frame closed, the engine gone), the page keeps
-     what it shows, says so, and reports nothing more. Before, the tab stopped at the first failure and the widget
-     kept trying: the widget's way is kept, for both. The status line keeps saying it between errors (an error shows
-     over it, and the next view brings it back), where the widget had a note of its own.
-   - **What a person sees change on Python's pages**: the page's bar, sheets and menu, as in the tab; the title is
-     `<name> – DataCube` (`(not followed: …)` after the name when it applies), not the name alone; a download's address
-     is let go of five seconds after its click, as Python's pages did (the tab's did so at once until now).
-   - **Known, not fixed here**: two notebook widgets on one page share the app windows' element ids (`#pure`, `#sql`) and
-     the harnesses' globals (`window.__dataPage`); each widget reads its own through its element. An app whose start
-     throws before it returns leaves its windows and its leave-the-page listener for the page's life.
-   - **`ll.show(df)` is a page of one grid** (R1): the app's `frame` start, the page named by the frame, followed by the
-     frame's version. Python is unchanged: the same links and widget state.
-   - **The hosts**: `src/services/python-host.ts` (the services, over HTTP or the widget's channel), `demo/engine.ts` (a
-     tab: asks for the versions about once a second while shown) and `demo/widget.ts` (a notebook: told by the widget's
-     state; the app's windows float in the widget's own element, beside the page's). `demo/engine-page.ts` and `demo/engine-cube.ts` are gone. The browser's own things every host has are
-     `src/services/browser-basics.ts`. The status line's look moved into the app (`.dc-app-status`, app.css).
-   - **Budgets** (test/bundle-budget.test.ts): the widget 500 KB to 560 KB, as §10 said (measured 536,970). The
-     engine page 300 KB to 380 KB (measured 366,792). §10's "the engine page's startup holds" did not survive R1: the
-     page itself, its sheets and the app's sources are at startup, where one cube's tab loaded the grid alone. Making
-     the source picker, the examples and the saved pages' windows lazy would trim the tab and the engine page both; it
-     is its own piece, on a measurement. The tab 389 KB to 391 KB (measured 390,035, +1,979).
-   - **Proven**: `python_engine_test` runs every earlier case on the app, plus: the frame as a page of one grid whose
-     Pure & SQL window has the query sent and the SQL Python ran, in a tab and in a notebook widget; a frame closed in
-     Python, its tab keeping its rows and saying it no longer follows. `marimo_test` names the re-run page by its frame.
-     Not covered by a test yet: a stale report's 409 asserted (it is tolerated), a frame's model changing under a page
-     (covered for a frame shown alone), and the live logic in jsdom.
-   - **Build** (Compiler Rewrite's review): the Depot client is declared once, on `:src_base` beside the SDLC client,
-     since only `src/` files import it; the bundles get it through `:src`.
-
-   **2b, first part, as built (2026-10-12, branch `datacube/one-app-2b`): a page's file and the examples.**
-   - **The page's side**: Python's database service gives `ingestFile` and `forgetFile` where Python says it takes files
-     (`services.json`, asked once as the page starts: the `datacube` extra installed, its bundle where it is read). The
-     bytes go as base64 in JSON (`file.json`; a part at a time since, `file-part.json`: "Any size" below), the same
-     call over HTTP and over the widget's channel, which carries text. The app is unchanged: its Files and Examples sections appear because the service is there (§3.4), and the
-     grid's rows come from `rows()` as a frame's do.
-   - **Python's side**: Python writes the file's bytes, once, in the headless engine's folder under a name of its own,
-     and hands DataCube's own code only that path (`src/headless/data-in.ts`). `upload.ts`'s `readFileInto` -- the one
-     implementation of reading a file, which the tab's `ingestFile` calls too -- reads it into a table of its own on
-     the frames' DuckDB and writes its model with legend-lite's writer. The bytes never enter V8; the table is a copy,
-     so the file goes at once. The SQL names the file by its absolute path, never a bare name DuckDB would look for in
-     the process's working directory first. `Frames` keeps each such table and its model beside the frames'
-     (`reading_file`, `keep_file`, `file_table`, `forget_file`): the models `serving()` gives are still the only ones a
-     query may be over (R4).
-   - **The same bytes on both hosts, as the tab always read them** (the user, 2026-10-12: "everything to work as it
-     does today"): `upload.ts`'s `fileBytes` is the one place a file's bytes are made for DuckDB -- Parquet as it is, a
-     text file (CSV, JSON, JSON Lines) decoded as UTF-8 in the page (a byte-order mark taken off, a byte that is not
-     UTF-8 replaced) and written out again, as the tab has always registered it. The tab registers those bytes, and
-     Python is sent those bytes, so both DuckDBs read what the tab's always did: a Latin-1 CSV opens (its letters as the
-     decoding replaced them), a JSON array with a byte-order mark reads as its records' columns (`upload_test`). Reading
-     UTF-16, a gzipped file, or Latin-1 without the replacement would change today's behaviour: follow-ups, if wanted.
-   - **Whose name**: Python chooses the table. It takes the name the page asked for when it is free, else the next free
-     one (`<name>_2`, ...), and the answer says which; the page adopts it. Free means no frame's, no other file's (two
-     tabs or widgets on one Python each get a table of their own), no table or view in any schema of the database, and
-     never `__legend_lite_`, Frames' own. A frame cannot take a file's name either, nor does `show()` choose one. A
-     page drops only a table one of its files was read into, by the name Frames gave it. The drop comes before the model
-     stops being served, so a drop that fails leaves the table served, for the page to let go of again; a file DuckDB
-     cannot read leaves nothing under its name.
-   - **How large**: first measured 2026-10-12: a 192 MB CSV (256 MB as base64) was read in 0.8 s, the process peaking
-     at 1.8 GB, the measuring script's own copies included (64 MB: 0.4 s, 0.75 GB). When the bytes went through V8,
-     64 MB took 4.2 s and 3.5 GB. `file.json` then took a body of up to 256 MB.
-   - **Any size, a part at a time** (the user, 2026-10-12: "do the chunking"):
-     - The page sends the bytes as `upload.ts`'s `fileParts` reads them, in 4 MiB parts (`file-part.json`), each saying
-       where it starts. Python appends each part to one file of its own; a part sent twice or out of order is refused,
-       never written twice. `file.json` then names the upload and reads that file, as before.
-     - No call carries more than one part, so no body limit binds a file, and over a notebook's channel no message is
-       larger than a part. No file is ever one string in the page either: the text decoding streams.
-     - Both hosts take their bytes from `fileParts`. The tab registers them whole (`fileBytes`). The decoding is the
-       tab's own, as a stream: the same bytes as a `File`'s `text()`, a character split between two of the stream's
-       chunks included (`upload_test`).
-     - Measured 2026-10-12 in the pinned Chromium: a 359 MB CSV (9,000,000 rows) was sent and read on Python's page in
-       21 s. The frames are held still while a file is read.
-   - **Where this goes next (proposed to the dialect program, its D5)**: `readFileInto`'s statements -- read a file into
-     a table, the conversions' rewrite -- are SQL a TypeScript app writes for a database that is not only the tab's.
-     They belong in the dialect, as IR it renders (a create-table-as-select, a file-reading source), beside the
-     catalog question that program already moves there; `upload.ts` would then run what the planner wrote, and Python
-     would call the native library directly, with no V8 for a file at all.
-   - **A limit found, not this step's**: a file whose rows hold nested values (a Variant column: the JSON example) is
-     read in Python, but its queries are refused by Python's execute, which plans in the compatibility mode, where
-     Variant's relational spelling is still unprobed ("probe legend-engine, do not guess"). The tab's own planner plans
-     it. That is the plan's to settle (Plan Gen).
-   - **Not in it**: Snap reaches Python with a warehouse it can read ("the shared warehouse from Python", IN_FLIGHT).
-
-   **2b, second part, as built (2026-10-12): a remote file on Python** (the user: httpfs "hermetic in the build";
-   remote schemes only).
-   - **httpfs comes with the wheel, never downloaded**: MODULE.bazel pins DuckDB's httpfs extension (1.5.5, matching the
-     duckdb wheel) per platform by content, gunzipped by the warehouse's Java action and laid out as DuckDB's own
-     extension folder (`legend_lite/_duckdb/v1.5.5/<platform>/`, `//python:wheel_duckdb`). Python points its DuckDB
-     there, with auto-install off and that same folder as the only repository: DataCube's `INSTALL httpfs; LOAD httpfs`
-     finds it installed and loads it, and an extension not there is refused, never fetched. The macOS arm64 wheel is
-     25.0 MB, 5.6 MB of it httpfs. Tests are given the folder as `LEGEND_LITE_DUCKDB_EXTENSIONS`; `wheel_test` proves an
-     installed wheel reads a remote file with its own.
-   - **Remote schemes only**: Python reads a page's remote file from `http(s)`, `s3`, `gs`, `r2` or `hf` URLs (no Azure:
-     the wheel carries no azure extension), and refuses a path, `file://`, a Windows path or any other scheme before any
-     SQL runs: Python's DuckDB can read this machine's files, and the page must not make it (R4's reason). The URL must
-     begin with exactly `<scheme>://`, lower case, and hold no space or control character anywhere: DuckDB matches its
-     remote file systems by that very prefix and reads anything else from this machine, so Python never judges a URL by
-     its own, more forgiving reading of it (the audit's blocker: `HTTP://…` and ` http://…` passed a check on the parsed
-     scheme, and DuckDB read them as local paths).
-   - **When Python reads none, it says why**: without the `datacube` extra; on a DuckDB of the person's own (`Frames`
-     given a connection: the extension settings would change it for good, so they are set only on a database
-     legend-lite made); and when the installed duckdb is not the one the carried httpfs is for (the wheel takes any
-     duckdb 1.5.5 and later, and httpfs is carried for 1.5.5: the refusal names both). A slow remote server holds the
-     page's other queries while it answers, as every query over a remote view does: one connection, its queries one at a
-     time. A file of this machine comes from the page
-     through Files (its bytes), or from Python code. An `http://` URL may still name this machine's or its network's own
-     servers -- a cloud machine's metadata address too -- which Python fetches without the browser's CORS rules: R4
-     forbids this machine's files, not its network. Only the engine's own page, with its token, can ask.
-   - **Each remote file's keys are its own**: one S3 secret per source, named by its view and scoped to its own path
-     (`remote.ts`), so where one DuckDB serves several pages (Python's) one page's keys never replace another's.
-   - **One implementation**: the tab's mount (a view over the file, its model from the catalog) is `upload.ts`'s
-     `mountRemoteView`, which the tab and Python (`remote.json`, `data-in.ts`'s `mount`) both call. Python keeps the
-     view and its model beside the frames' (`reading_file(view=True)`), under a name it chooses as for a file. The
-     Remote section says who reads the file: the page (the server must let it: CORS), or Python.
-   - **Not in it, waiting on a ruling**: Iceberg on Python, which needs DuckDB's `iceberg` and `avro` extensions too, about
-     13-22 MB more per wheel; until then an Iceberg URL is refused by Python's DuckDB, its extension not there.
-   - **Proven**: `headless_test` (Remote) reads a Parquet and a CSV file from a server on this machine, refuses every
-     local form, and offers none without the extensions; `python_engine_test` opens a remote Parquet file through the
-     app's own Remote section on Python's page; `wheel_test` reads one with the installed wheel's own httpfs.
-   - **Proven**: `python_engine_test`, on Python's page, chooses a CSV in the app's own picker and reads its rows (the
-     SQL Python ran reading the file's table), then opens an example the same way, the CSV's table let go of as its grid
-     goes. `headless_test` (Files) covers a file read, served and let go of; two pages asking one name; names held by a
-     frame, another table or a temporary table; names refused; a frame not taking a file's name; a header with quotes,
-     a brace and a line break compiled into its model; a drop that fails; an unreadable file; an engine whose bundle is
-     missing. `engine_test` covers an engine with no headless, which offers no files. Not covered by a test: a file
-     over the widget's channel, `close()` dropping file tables, a body over the limit.
-   - **Build**: the Python test's fixture takes `//python:headless`, and the test carries `:headless_bundle`
-     (`LEGEND_LITE_DATACUBE`), as `//python:headless_test` does. `node_test` takes `platform_env`, a select merged last
-     (Compiler Rewrite's review), which gives the test Windows' `PROCESSOR_ARCHITECTURE` as `//python`'s tests have it.
-
-   **2c's seams, as built (2026-10-12)** (the user: no remote-engine calls in this phase, but the code "pluggable even if
-   we never plug in the others").
-   - Python's engine answers every call the PAGE makes that the compiler answers -- the engine's pure/v1 API: a query's
-     types, a parse, a print, and an execute's plan -- through the one `Planner` it was made with, chosen once (R3);
-     today `NativePlanner`, the native library, on the `local` plane. One on a server is another `Planner`, with no
-     other change to the engine. Python's own calls in its process (a headless grid's view, `Frames.plan`) still plan
-     with the native library: routing them through the same planner is 2c's too.
-   - `services.json` names the plane Python plans on and the planes it offers (today its own), and the page builds its
-     planner menu and its status word from them: no plane is written into the page. A Python host has one plane, its
-     own (2026-10-15: a host plans in process, the program's §1.1; the server planners 2c built are removed), and the
-     page refuses an offer of any other.
-
-   **2d, as built (2026-10-12): Save and Open… on Python** (the user's choice of the two shapes: the page keeps the
-   store's rules, Python keeps the records).
-   - **Python's side** (`python/legend_lite/_home.py`): `home()` is this user's legend-lite folder (Q1: the operating
-     system's per-user data folder, made private to its owner; `home(path)` points this process elsewhere, and wins over
-     `LEGEND_LITE_HOME`, a folder for every process started with it, such as a test's own), and
-     `SavedPages` keeps the page's saved pages in `home()/pages`: the browser's records, one `<id>.json` file each, the
-     page's content kept as its exact JSON text and never read in Python. Four calls (`saved-pages.json`: all, find, put,
-     remove), each record written whole (beside, then moved over), under a lock file several Python processes share;
-     an id that could name another place, or a Windows device, is refused; a file that is not a record is left out,
-     and said, so the others still open.
-   - **The page's side**: `cube-store.ts`'s `HostRecords`, a third backend beside memory and IndexedDB, carries the four
-     calls to the host, and the store's rules are `RuleStore`'s, unchanged. Python's services give `pages` from it; the
-     save window and Open… say where (`in <home>/pages`), and its owner is `this user`, as the browser's is `this
-     browser`. Open… on Python lists Python's pages, the tab's its browser's: one store per place, as Q1 has it.
-   - **Proven**: `engine_test` (the four calls; ids refused; a write whole; the lock holding a second writer off;
-     `home()`), `cube_store_test` (RuleStore over host-kept records, the content's exact numbers kept), and
-     `python_engine_test`: Save As… on Python's page writes a record in the test's own folder, and Open… opens it again
-     over its remote file.
+   > Cut in the 2026-11 docs cleanup: step 2's as-built notes (2026-10-12): 2a (the engine service as §4.5's contract, the live page, following on both of Python's hosts), 2b (a page's file and the examples, in parts, the same bytes on both hosts; remote files with httpfs in the wheel), 2c's seams, and 2d (Save and Open… on Python, `_home.py`), each with its proofs and limits. Full text: `git show de2745351:docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md`.
 
 3. **Python's model home.**
    - The SDLC, Depot and query store in the native library over Python's per-user folders (§6), served by Python.
@@ -850,34 +657,8 @@ Rewrite line, then audited before it lands.
 
 ### 15.9 As built (2026-10-12, on datacube/one-app-2b, in PR #31)
 
-- **The runner**: `runner.ts`'s `PlanAndRun` runs over a host's `PlanAndRunHost` (its planner, `planAndRun`, `stream`).
-  The tab's host is `localHost(planner, engine)`: plan in the page, run on the connection's engine.
-  - `PlanThenRun` is PlanAndRun over it. The tab's grids run through it: local files, a live warehouse, a snap's copy.
-  - `lite-planner.ts`'s `planRequest` and `readPlan` are the one plan request and the one reading of a plan's answer.
-    Every host uses them.
-- **Python's pages**: each grid's rows come from `pythonRunner` (`services/python-host.ts`).
-  - Planning: the page's own `LitePlanner` over `pythonWorker`. Hold and release are kept in the page, and a held kind
-    sends the model's text, so no handle crosses hosts.
-  - One `POST plan-and-run.json` per grid. Python plans against the model it holds for that frame or file
-    (`Frames.held_for`), runs only that SQL (R4; a query's own `sourceUrl('file:...')` accepted: 15.4) and types the rows
-    (`Frames.run`). Both new routes are private, POST-only, and always answered: what one does not answer is logged
-    and said (500), never a dropped call.
-  - The answer is Arrow IPC, the planner's answer in its schema's metadata (`legend.plan`). The page reads it as its
-    planner reads its own. A refusal is JSON: the plan, and why.
-  - Every other planner question goes over `planner.json`, answered by the native library from the planner protocol's
-    table (`legend_lite/_planner.py`, moved out of `_headless.py`).
-  - A page's file table and remote view hold their models while kept (`Frames.keep_file`), as a frame does.
-- **Python's own results** are typed by the plan (15.3a). `Grid.to_pandas()` plans `gridRelation` in Python;
-  the bundle's `gridSql` is gone.
-- **Proof** (`python_engine_test`, 34 checks; `frames_test`; `headless_test`):
-  - every cube case answers the same through PlanAndRun on Python and in the tab, SQL included;
-  - six reader files answer the same on Python's page and in the tab, read by `upload.ts` into each host's DuckDB and
-    planned and run on each: a byte-order mark, CRLF and quoting, Latin-1, dates and booleans, JSON Lines, and a
-    BOM'd JSON array of nested values, its JSON pinned;
-  - a nested-JSON example opens on Python's page;
-  - each typing rule (each Pure type, a SUM past 64 bits, an untyped column refused, pandas' nullable types).
-- **A page's file, a part at a time** (§4.3's "Any size"): `file-part.json`, then `file.json` names the upload; the
-  256 MB body limit is gone.
+> Cut in the 2026-11 docs cleanup: the rest of this as-built record (2026-10-12, PR #31): the runner over each host's `PlanAndRunHost`, Python's one `plan-and-run.json` call per grid (Arrow IPC, the plan in its schema's metadata), Python's results typed by the plan, the proof, a page's file in parts, and the budget. Kept below: the one session rule both hosts now share. Full text: `git show de2745351:docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md`.
+
 - **One session on both hosts** (measured 2026-10-12): left alone, DuckDB-WASM took the browser's zone, and a fixed
   offset of it at that: `Etc/GMT+5` in New York, in October too.
   - So `now()` answered 16:28 in the tab and 21:28 on Python, and `today()` could differ by a date in the evening.
@@ -887,9 +668,6 @@ Rewrite line, then audited before it lands.
       export `sessionSetupOrError`). The stress page does the same.
     - Python: `Frames`, through the native library's `lite_session_setup`.
   - `python_engine_test` now runs its browser in New York: every cube case, and the time now, answer alike.
-- **Budget**: the grid page's gzipped script grew 390,817 -> 391,138 bytes (PlanAndRun and the shared plan
-  reading), and its budget went 391,000 -> 392,000. Gzip-compressed files are 15.7's encoding follow-up, read by
-  neither host today.
 
 ### 15.10 Plan and run where the data is (the user, 2026-10-15)
 
@@ -915,3 +693,50 @@ which is §15 itself stated across all four:
 - **Not settled here, and not in PR #47**: the remote case as a source in DataCube's own app (Query already embeds it:
   `query/src/app/cube.ts`), its dry run on the server's `generatePlan`, how Snap caches a remote result, and whether the
   mode where a remote planner writes SQL for the tab's DuckDB is kept -- a session of its own with the user.
+
+## 16. Python asks DataCube: one rulebook, never a copy (the user, 2026-10-15)
+
+**The rule** (the user, on chart rules found written twice: "one rulebook for sure"). What DataCube decides -- what it
+draws, how it reads and writes a page, its defaults, its names and its vocabularies -- is written once, in DataCube's
+TypeScript, and Python asks it: through the headless bundle (`datacube/src/headless/entry.ts`, run in V8 by
+`python/legend_lite/_headless.py`: the headless design's §3), or from a generated artifact. Python turns its own
+arguments into DataCube's keys and nothing more. Logic is never repeated, and a table of shared cases is a test of the
+asking, never the glue between two copies. Nor is a vocabulary list repeated: DataCube's reader refuses a word it does
+not know, naming the words it takes, and a new page is DataCube's own (headless `pageNew`).
+
+**What makes it possible: one package, two things** (the user, the same day). `pip install legend-lite` is the
+compiler, on Python's standard library alone. `pip install 'legend-lite[datacube]'` is DataCube with everything it
+needs -- duckdb, pyarrow and mini-racer's V8 -- and every DataCube module asks for it first (`legend_lite/_extra.py`
+`require_datacube`), so V8 is always there when DataCube is: there is never a case for a copy "in case V8 is missing"
+(the headless design's §10, ruling 1).
+
+**How each kind of rule is asked.** The twins found on 2026-10-15 were each moved behind a call into DataCube's code
+or a generated artifact (PR neema2/legend-lite#42 and the round after it):
+
+| What Python needed | Where it is asked |
+|---|---|
+| a chart's rules, its reader and its defaults | DataCube's chart reader and builders (`chart-spec.ts`), through headless `gridChart` |
+| reading and writing a page | headless `pageRead` (DataCube's `readPage`, then `pageToJson`): its own version only |
+| a grid's cube over a frame, new or reopened | headless `gridCube` (`cube-document.ts`): a column now gone left out, and said |
+| a layout's edits | `headless/layout.ts` over `layout/bands.ts` (`add`, `remove`, `arrange`, `stackTiles`) |
+| a calculated column, a filter, a grid's edits | the column editor's own steps (`column-draft.ts`), the filter editor's operator table and draft tree (`filter-operators.ts`), and the grid commands (`grid-commands.ts`, `grid-edits.ts`): today's headless `gridColumn`, `gridFilter` and `gridApply` |
+| a class's sample rows | `sample-rows.ts sampleOf`, run on the host's database |
+| a page's, a tile's and a sheet's names | `page-names.ts givenName` (headless `nameGiven`) |
+| type families | a generated artifact: `TypeFacts.java` runs legend-lite's type lattice and writes `python/legend_lite/_type_facts.py` (diff-tested), which `_types.py` alone reads |
+| the planner protocol's request kinds | nothing to copy: a page asks a Python host on legend-engine's own routes (`pure/v1`) and on the host's compute (`plan-and-run.json`, its dry run `plan.json`; §15.10). `_planner.KINDS` and `planner-answer.ts` are each host's binding to the same `Boundary` functions, glue rather than a rule, held alike by the start-up check (`_headless.check_interface`) |
+
+**What Python still holds of its own, named.** `frames._NAME` is Pure's identifier rule, which Python needs as the
+writer of its frames' model: a copy of the compiler's `ModelChanges.isIdentifier`, kept and named so (the user,
+2026-10-16: moving the check into the model writer was weighed and not taken); DataCube's naming dialogs hold a third
+(`model-names.ts isPureName`). What Python still did differently because the screen's side of a rule lived in a DOM
+class (ids, titles, a removal's cascade, a new tile's place) went to the command program
+(`docs/DATACUBE_ONE_API_PLAN_2026_10_21.md`), which now generates Python's command layer from DataCube's command types
+(`python/legend_lite/_commands.py`).
+
+**Rules the asking fixed in DataCube**, each now one rule on the screen and in Python: a column's default aggregate
+(`query.ts defaultAggregate`: `sum` for a numeric column not declared a dimension, `unique` for any other); a grouped
+level keeping every measure under its own name (`groupedMeasures`), a name two of its columns would share refused in
+DataCube's words; a class's sample with a NaN or an infinity refused, naming its column and row, before anything is
+written (its rows go as JSON, which has neither, and a silent `null` would be a default: AGENTS.md invariant 4).
+
+Sources: `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md` (git history: docs/HISTORY.md).

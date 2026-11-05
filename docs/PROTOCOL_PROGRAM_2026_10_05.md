@@ -5,6 +5,12 @@ The user, 2026-10-05: "Yes let's do the protocol program the right way as expert
 and back. Owner: `com.legend.protocol` in core. Branch `protocol` (on the Studio line's `studio-engine`); core work
 announced in `docs/IN_FLIGHT.md` before each landing.
 
+**Status (2026-11 docs cleanup):** legs 1, 2, 4 and 5 (leg 3 folded into 4) were built 2026-10-08 to 2026-10-10,
+legs 6 and 7 on 2026-10-10, and leg 8, the JSON door, on 2026-10-11 and 2026-10-21; legs 6b, 9 and 10 were open when
+§4's record was cut. Since 2026-10-21 the program has built on `studio-program`, not `protocol`. §1's "Today" table
+is the state of 2026-10-05, before the legs. Kept: why (§1), the architecture (§2), the oracles (§3), the upstream
+facts the legs found, and the guards (§5–6).
+
 ## 1. Why
 
 Studio edits text; legend-sdlc, legend-depot and legend-engine speak protocol JSON (entities, PMCD). Opening a real
@@ -91,554 +97,53 @@ not be written back, so it is refused.
 | compose | the engine's `PureGrammarComposer` on the same JSON (exists: `ModelComposerParityTest`, `ComposerParityTest`), now fed `compose(read(J))` | the counts held exactly through the retarget, then up-only |
 | round trip | `emit(parse(compose(read(J)))) == J` (sources stripped) over the corpus and the showcase projects | zero mismatches |
 
-## 4. The legs, in order
+## Upstream facts found while building
 
-1. **Read (the big new piece).** `ProtocolReader` grows from lambdas to models: every `Element` record, every nested
-   record (mappings and their class/property mappings, stores, connections, runtimes, services and their tests, data,
-   data spaces, diagrams, persistence, data quality, external formats, activators, ...). Structured like the emitter it
-   mirrors (one reader per emitter family), so each pair can be read side by side. Proven by `emit(read(J)) == J` over
-   the corpus before anything consumes it.
-2. **Compose over records.** `PureComposer` and every family composer move from `Json.Obj` to records. Rules unchanged;
-   field access changes. The parity counts must hold exactly at every step (a family at a time, the test run each time).
-   The JSON-taking entry points remain only as `compose(read(J))` wrappers for the routes.
-   **Decided 2026-10-08 (the user), before it starts:**
-   - *JSON the reader does not know.* The reader reads every field and older shape legend-engine 4.145.0 reads (its
-     deprecated protocol fields, about 26 across 35 classes, and its two protocol converters, already ported; and the
-     older expression shapes `PureComposer` prints today that have no record and that the emitter never writes --
-     `qualifiedProperty`, `hackedClass`/`hackedUnit`, the `class`/`enum`/`mappingInstance`/`primitiveType` pointers,
-     `unitInstance`, `listInstance`, `aggregateValue`, the `tdsOlap*` shapes, legacy `values` arrays -- each read as
-     the engine reads it, brought up to today's record where the engine brings it up, so `compose(read(J))` loses
-     none of what `compose(J)` prints); where
-     the engine silently ignores an unknown field (its about 24 `@JsonIgnoreProperties(ignoreUnknown = true)` protocol
-     classes: Service, DataSpace, Diagram, the model context, ...), the reader refuses it, naming the field and the
-     element, rather than drop it: nothing a person wrote is lost silently. Proven by the read oracle
-     (`emit(read(J)) == J`, which catches a field read and not written back) and a parity test feeding the same JSON
-     to the engine and to lite; the one difference (refuse where the engine drops) is a `SEMANTICS_REGISTER.md` row.
-     (The other choices were: strict, refusing the engine's older fields too; and the engine exactly, dropping
-     unknown fields where it does.)
-   - *A table reference keeps how it was written.* `#>{db.schema.table}#` and the ordinary call
-     `tableReference(db, 'schema.table')` are one record, told apart today only by whether the table name has a
-     source position, which JSON without positions (Depot entities, a browser's save) does not carry. The record
-     gets a written-form flag beside `propertyCall`, `grouped` and `infix`, set by the parser's island rule and the
-     reader's `classInstance ">"` (through `AppliedFunction.tableReference`), read by the emitter and the printer;
-     the compiler ignores it. The field is agreed with the compiler line first (the record is its W2.3a's). (The other
-     choices were: a separate record for the island, as path literals have; and inferring from positions, wrong
-     without them.)
+What legend-engine 4.145.0 does with protocol JSON and text, found while the legs were built (§4, cut) and stated
+nowhere above. The class names are the engine's; the oracles of §3 checked each. Lite's deliberate differences are
+register rows (S29 to S39, S89, S94, S95 among them).
 
-   **Step 2, the older expression shapes, rule by rule (2026-10-08).** Each older shape is brought to the record that
-   means what legend-engine 4.145.0 makes of it, and the evidence is the engine's own code (paths under
-   `legend-engine-core-language-pure/`, `pp` = `legend-engine-protocol-pure/src/main/java/.../protocol/pure/`). Three
-   kinds:
+- **Unknown and older fields.** The engine reads deprecated protocol fields and has two protocol converters. Its
+  protocol classes marked `@JsonIgnoreProperties(ignoreUnknown = true)` (Service, DataSpace, Diagram, the model
+  context among them) drop an unknown field silently.
+- **Older expression JSON, and what the engine makes of it.** `class`, `enum` and `mappingInstance` `{fullPath}` become an
+  element pointer (`pp/v1/.../deprecated/Class.java`, `PackageableElementPtr.convert`); `primitiveType` reads `name`
+  first (`PrimitiveType.java`) and `unitType` reads `unitType` first (`raw/UnitType.java`); `hackedClass`,
+  `hackedUnit` and `genericTypeInstance` become a type annotation; `var {class}` reads the class as the variable's
+  type (`Variable.java`); an upper bound of 2147483647 means many (`Multiplicity.java`). A `values` list of none is an
+  empty collection, of one the literal, of more a collection (`PrimitiveValueSpecification.customParsePrimitive`), and
+  is dropped on `strictTime` and `byteArray`. `path`, `rootGraphFetchTree` and `listInstance` are chosen by which
+  fields are present (`ClassInstanceWrapper.java`). `qualifiedProperty` compiles as a property access
+  (`ValueSpecificationBuilder` `processProperty`); `aggregateValue` and the `tds*` shapes compile to library calls
+  (`core/pure/tds/tds.pure`, `corefunctions/collectionExtension.pure`); `runtimeInstance` and its kin cannot be printed
+  (`DEPRECATED_PureGrammarComposerCore`).
+- **More reading rules.** `fControl` on a call only logs a warning (`CompileContext.testFunction`); `class` on a
+  property access is read by no compile step; a path literal's empty name is read as no name (`tds.pure`
+  `buildColumnNameOutOfPath`); a `multiplicity` on a single value is discarded; a list left out of the JSON starts
+  empty; older element layouts (supertypes, property and return types written as names, the model's `domain`,
+  `mappings` and `stores` sections) are merged in the engine's order.
+- **Defaults and write-back.** A service without `autoActivateUpdates` defaults to `true`; an older `legacyRuntime`
+  becomes a runtime through `LegacyRuntime.toEngineRuntime`; a column's `nullable` is a primitive, false when left out;
+  `isTestDataFromServiceOutput` is true when left out; a `null` setting is Java null, because Jackson never hands null
+  to a value deserializer. The engine writes a relational operation's list items without `_type`, and cannot print
+  them from its own JSON.
+- **The routes.** `jsonToGrammar/model` prints in the request's `renderStyle`, PRETTY unless asked otherwise, and has
+  no batch form. `compilation/compile` answers OK or the first error only. The compile, `lambdaReturnType`,
+  `lambdaRelationType`, `generatePlan` and `execute` routes take a model as `PureModelContextData`
+  (`{"_type":"data"}`) as well as text, as upstream Studio sends it. A section index's imports apply only to the
+  elements its section lists.
+- **SDLC entities** carry no section index, so a model read from entities has no imports; entity JSON carries fully
+  qualified names and no comments; upstream's SDLC refuses imports at save, and legend-sdlc leaves compiling to the
+  project's build.
+- **Source spans.** Asked for JSON without source information, the engine still keeps spans in five places
+  (`SourceInformation.withoutSpans`). A column spec that is a `let`'s value keeps its own span. A brace-less lambda's
+  end depends on its statement's position: in a sequence's first statement it takes the `;` and the statements after
+  it; in a later statement the `;` is the sequence's.
+- **Smaller rules.** `1 + 2 + 3` compiles like `plus([1, 2, 3])`; a relation column written without a multiplicity is
+  `[0..1]`; a connection's database need not be declared; legend-pure treats a condition naming `$return` as a
+  post-condition.
 
-   | Older JSON | What the engine does with it | Lite reads it as |
-   |---|---|---|
-   | `class`, `enum`, `mappingInstance` `{fullPath}` | its reader turns it into an element pointer (`pp/v1/.../deprecated/Class.java`, `PackageableElementPtr.convert`) | the element pointer |
-   | `primitiveType` `{name` or `fullPath}` | the same, `name` first (`PrimitiveType.java`) | the element pointer; both fields at once is refused |
-   | `unitType` `{unitType` or `fullPath}` | keeps a unit pointer, `unitType` first (`raw/UnitType.java`) | the unit pointer |
-   | `hackedClass` `{fullPath}`, `hackedUnit` `{unitType` or `fullPath}`, `genericTypeInstance` `{fullPath}` | its reader turns each into a type annotation (`HackedClass.java`, `HackedUnit.java`, `GenericTypeInstance.java`) | the `@Type` record |
-   | `var` `{class}` (the type as a name) | read as the variable's type (`Variable.java`, "backward compatibility") | the typed variable; `class` with a type beside it is refused |
-   | a multiplicity upper bound of `2147483647` | "many" (`Multiplicity.java`) | "many" |
-   | a literal with `values: [...]` | none is an empty collection, one is the literal, more a collection (`PrimitiveValueSpecification.customParsePrimitive`) | the same; on `strictTime` and `byteArray`, where the engine drops the list, it is refused |
-   | `path`, `rootGraphFetchTree`, `listInstance` written as their own `_type` | read as the `classInstance` of that kind, chosen by which fields are present, in the engine's order (`ClassInstanceWrapper.java`) | the same order, then the `classInstance` rule |
-   | `qualifiedProperty` | kept, and compiled exactly as a property access with arguments (`ValueSpecificationBuilder` `processProperty`) | the property access |
-   | `aggregateValue`, `tdsAggregateValue`, `tdsColumnInformation`, `tdsSortInformation`, `tdsOlapRank`, `tdsOlapAggregation`, `pair`, `listInstance` (as `classInstance` or their own `_type`), `unitInstance` (its own `_type` only) | kept, and compiled to the object that a library function builds: `agg`, `tds::agg`, `tds::col`, `tds::asc`/`desc`, `tds::func` (both), `pair`, `list`, `newUnit` (each function's body in `core/pure/tds/tds.pure`, `corefunctions/collectionExtension.pure`) | that function's call |
-   | `runtimeInstance`, `executionContextInstance`, `alloySerializationConfig`, `whatever`, `unknownFunc` | kept; the engine's printers cannot write them as Pure (`DEPRECATED_PureGrammarComposerCore`, the Pure `toPure`), and the last two are marked "should not be coming to the system"; no test of the engine's carries one | refused by name: no text means them |
-
-   **Decided 2026-10-08 (the user), refining the decision above:** the second kind is brought up to the call that
-   builds the same object even though the engine keeps it as written (one record per meaning; text round trip holds;
-   the engine reads and compiles the call the same) -- and so is a path literal's empty name, which the engine keeps
-   and its library reads as no name (`tds.pure` `buildColumnNameOutOfPath`). A field the engine keeps and never acts
-   on -- `fControl` on a call (it only logs a warning when the call resolves elsewhere: `CompileContext.testFunction`)
-   and `class` on a property access (no compile step reads it) -- is kept on the record as a written form, ignored by
-   the compiler, and written back. (The other choices were: keep each older shape as its own record, printed as the
-   engine prints it; and read those two fields without keeping them.)
-
-   A `multiplicity` on a single value, which the engine discards, is accepted when it says what the value already is
-   and refused otherwise. Source positions follow the engine where it drops them (the legacy empty string, an empty
-   `values` list). A list the JSON leaves out is the empty list wherever the engine's class starts it empty (nearly
-   every list of every element), and the older layouts of elements (supertypes, a property's type and a function's
-   return type written as names; the model's `domain`, `mappings`, `stores`, ... sections, merged in the engine's
-   order) read as the engine reads them. Each deliberate difference is a `SEMANTICS_REGISTER.md` row (S29 to S34).
-   The engine's printer mis-prints two of these shapes (`olapGroupBy(f)` for an olap rank, which is a different
-   function; spacing in `agg('n',m, a)` and `list([a,b])`); lite prints the call the shape means, also a register
-   row. The oracle (parser-equivalence): every engine test file holding older JSON, read by the engine and written
-   back, against lite's read and emit -- the same JSON for the first kind, the named call for the second, the named
-   refusal for the third; counted, matched up-only.
-
-   **Step 2's outcome (2026-10-08).** `OlderJsonParityTest` over legend-engine's own test JSON (275 files, 119
-   models): 772 elements written as the engine writes them, 332 as the documented upgrade of what it writes (the
-   upgrade coded apart from the reader, two of its rules through the engine's own `HelperModelBuilder.getSignature`
-   and `LegacyRuntime.toEngineRuntime`), 0 mismatched, 89 whole models read with their envelope (`serializer`,
-   `origin`, now records); 19 elements refused by name -- 4 that the engine itself discards (S29), 11 that no record
-   carries (S33), 4 open pending the engine's evidence (S33). Of the whole models, 89 read and 28 are refused (pinned
-   down-only): 17 for the top-level `version` the engine discards (S29), the rest for an element refused above.
-   `OlderShapesReadTest` (core) pins each expression shape against
-   the text it means. The model context now carries `serializer` and `origin` (a model from an SDLC or Depot), and
-   `AppliedFunction`/`AppliedProperty`, the class and association records, the table pointer and the relational
-   association and embedded mappings carry the written details older JSON has (each excluded from equality where it
-   is a record the compiler reads). Found on the way: the engine's own write-back changes a plain integer enum source
-   value into a string (S32).
-
-   **Step 3's outcome (2026-10-09).** Every printer in `core/src/main/java/com/legend/protocol/` prints the records:
-   all 30 `*Composer.java` files (the plan said 31; one fewer exists), with `RelationalOperations`,
-   `ElementFamilies` and `Composing`, moved in 16 commits a family at a time, leaves first, each
-   step run against the parity tests. Every step held the counts exactly: `ModelComposerParityTest` 31,452 elements
-   and 14,383 models matched, 0 mismatched; `ComposerParityTest` 56,988 lambdas; the reader oracles unchanged. JSON
-   now reaches a printer only through four entries, each reading first: `ModelComposer.model` and `element` (the
-   tests, and the routes of leg 3) and `PureComposer.lambda` and `valueSpecification` (the server's grammar route and
-   the tests). One temporary bridge was used on the way (the test-data printer writing a service store's data back to
-   JSON for the service store printer, not yet moved) and removed when that printer moved. Each family's JSON entry
-   was removed once nothing called it, with `Composing`'s JSON helpers and `FunctionNames` (the printer's own second
-   computation of a function's mangled name: a function prints under the declared name the reader keeps). The
-   persistence sub-DSL record is a generic tree (a grammar kind and keyed entries); its printers look entries up by
-   the grammar's keys and choose a printer by the grammar's kind. What a printer refused by name because the engine's
-   printer cannot print it (Elasticsearch `ignore_above` and the like, MongoDB numeric bounds, a data quality
-   persistence strategy, post-deployment actions) has no reader rule, so the reader refuses the same elements.
-
-   One count moved, and why: a list value in a relational operation, such as `in(firmTable.ID, [2,3,4])`. The engine
-   writes a list's items without a `_type`; the old JSON printer looked for one and refused the list. The reader
-   already reads those items, and the record printer prints `[2, 3, 4]`, as the engine prints the same list straight
-   from its grammar. The engine cannot print it from its own JSON (the items read back as maps), so in the parity
-   table it is "upstream cannot, lite prints": 3 to 4 elements and 6 to 8 models (`testInClauseForJoinsAndFilters.pure`'s
-   database, with and without its section index). `ModelComposerRoundTripTest` pins the list form. On older JSON,
-   two prints now follow the engine where the JSON printer did not: a service without `autoActivateUpdates` prints
-   `true` (the engine's default, which the reader keeps), and a service whose execution carries an older
-   `legacyRuntime` prints it as the runtime the engine makes of it (`LegacyRuntime.toEngineRuntime`) instead of being
-   refused.
-
-   **The step's audit (2026-10-09)** found no blocker and no change in what the corpus prints. It found that the
-   JSON printers printed a dozen shapes the reader refused: JSON that the engine writes for none of the corpus, but
-   that it reads, from an older engine or a person. The user chose to fix them on this branch: under decision C the
-   reader reads each, as the engine's code reads it, the writer writes it back, and the printer prints it as the
-   engine's printer does. They are a function test's `doc` and an empty `assertions` list; a data quality tree node's
-   alias and arguments; a data space's `featuredDiagrams` (diagrams titled `''`, S35); `extends` on every kind of
-   class mapping; a MongoDB mapping without `~mainCollection`; a service store path segment's arguments; a generation
-   node without its id (S35); file-generation settings that are decimals (kept as their text, as the engine keeps
-   them) or `null` (Java null in the engine, which Jackson never hands its value deserializer: printed bare,
-   `name: null;`, and written back as `null`); a hosted service's user list, a service test's keys and a column's
-   `nullable` left out (or, for `nullable`, written null: false, the engine's primitive); persistence's optional
-   output targets, test batches, test data, connection and assertions, and its `isTestDataFromServiceOutput` (true
-   when left out; written `null`, not printed and written back as `null`, S37); a CSV table without values; a
-   relational decimal spelled `1.50` or `1e3`. `OlderModelShapesTest` has one case for each, checking the JSON
-   written back exactly for each shape lite keeps, and in today's form for each it brings up. Refused by name still: what the engine reads but
-   cannot compile or print (S36), and what it refuses itself (an object where a generation element's path belongs; a
-   settings list or map holding anything but strings). One case needed care: an operation mapping's `extends`, which
-   the engine's grammar drops and lite's model keeps, is written back only when it came from JSON. The audit's other
-   findings were fixed as well: a section index naming an older function beside a current one of the same name, the
-   model printer's record entry building its index for a model without one, and the WebAssembly export reading each
-   model twice. A second audit, of those fixes, found the `null` setting read as the text `'null'` (corrected, as
-   above, after running the engine's own Jackson on it) and that lite's grammar dropped an aggregation-aware mapping's
-   `extends`, which the engine keeps and also gives its nested set implementations (it parses them against the outer
-   mapping's header): `MappingProtocolParser` now passes it to both. Found on the way: lite's persistence grammar
-   accepts `];` closing a persistence's `tests`, which the engine's does not (a test snippet used it and was
-   corrected); and lite's grammar takes no `doc` on a function test, which the engine's does.
-3. **Folded into leg 4** (2026-10-09, the user): no new class (invariant 5 as revised).
-4. **The four conversions complete, the model route, and the tab on `pure/v1`'s grammar** (invariant 5), in order:
-   1. **The conversions with their options**: text to JSON with source information on or off (no caller strips it
-      afterwards); JSON to text from the JSON's text at one depth limit per kind, in either style.
-   2. **PRETTY for models.** legend-engine's `jsonToGrammar/model` prints in the request's `renderStyle`, PRETTY
-      unless asked; lite's model printer is proven in STANDARD only (`ModelComposerParityTest` runs the engine's
-      printer at its default). The style is passed down through every element printer to every value it prints, as
-      the engine passes its composer context, and the parity test gains a PRETTY pass over the same corpus, exact.
-   3. **`pure/v1/grammar/jsonToGrammar/model`** in `PureV1Api`: a `PureModelContextData` in, its text out,
-      `renderStyle` as the engine reads it, a refusal in the engine's error shape. The engine has no batch form of it
-      (checked, 4.145.0). `PureV1Api`'s grammar routes call the conversions and nothing else.
-   4. **The tab speaks `pure/v1`'s grammar**: `pureV1OrError` exported to the tab (+13 KB, +8 KB gzipped).
-      engine-client's in-tab grammar is the server's own client over the planner: `HttpEngine` over `plannerFetch`, a
-      `fetch` the planner answers, so the requests, answers and refusals are a server's (a parse error is 400
-      `PARSER`, as over the network). The worker and every test's in-process port answer through one function
-      (`planner-answer.ts`), not each its own switch. DataCube's planner (`datacube/`, the DataCube + Python line's, its
-      diffs reviewed by that line) asks the same route. The `Grammar` interface gains `modelText` (the new route),
-      answered by a server and by the tab alike.
-   4b. **The one boundary** (invariant 5): `planner.Wasm` split into `planner.Boundary` (the operations),
-      `planner.Folded` (the encoding) and `planner.TabExports` (the tab's adapter, TeaVM's entry class: the export
-      names the apps call are unchanged); `native/`'s entry points delegate to the boundary through the same encoding
-      (their own copy of it goes). The four grammar twins go from every adapter: `jsonToGrammarModelOrError`,
-      `modelJsonOrError`, `lambdaJsonOrError`, `composeLambdaOrError` from the tab's, and `lite_lambda_json`,
-      `lite_compose`, `lite_model_json` from Python's, whose `parse`, `print_tree` and `model_elements` ask
-      `lite_pure_v1`. Python's `LegendError.kind` for those three becomes the engine's refusal kind (`PARSER`, or
-      the status) where it was a Java class name: the DataCube + Python line's decision, as `python/` and `native/`
-      are theirs (their diffs reviewed by that line). A Bazel change: the boundary's sources and the TeaVM entry
-      class (`wasm/BUILD.bazel`), reviewed by the Bazel program's session.
-   - **Refusal texts that changed** (found by the leg's audit; no test or caller read the old ones): a lambda's JSON
-     that is not an object is refused in one text everywhere, `protocol JSON: a lambda is not a JSON object` (it was
-     `the request body is not a JSON object` on `jsonToGrammar/lambda`, `lambda JSON: not a JSON object` in the tab's
-     and Python's planning calls); and the tab's grammar refusals (DataCube's and the apps' print and parse) are a
-     server's -- a parse error 400 `PARSER`, any other refusal 500 with its exception's simple name before its message
-     (`IllegalArgumentException: ...`) -- where they were the folded `ERR` text.
-   5. The SDLC server's `CoreGrammar.modelJson` calls the text-to-JSON conversion (its edge moved in leg 7, to
-      `//sdlc-server/grammar`).
-5. **Round trip proven** over the corpus and the showcase projects (plan S5), in the JVM and in the tab (the
-   WebAssembly build of the same code, a differential run as `//wasm:differential_test` does for the planner).
-   Design (2026-10-09; scope the user's: the upstream showcase projects included):
-   - **Three inputs, all pinned.** legend-engine's test collection (`@legend_engine_src`, the corpus the parity tests
-     read); lite's own projects (`projects/`, 60); and the upstream Legend showcase projects -- the eight the Legend
-     docs list (`legend.finos.org/docs/showcases/showcase-projects`: logical modeling, the installer demo, relational
-     mapping, service store, external formats, the query demo, GraphQL, the service execution jar), each a GitLab
-     archive pinned by commit and sha256 among `MODULE.bazel`'s pinned downloads (not keyed on the engine release, so
-     not `release.MODULE.bazel`'s; a Bazel change: the Bazel review, and a full CI run). They are SDLC projects in
-     their Pure-file layout (123 `.pure` files, one element each, its section header first; no JSON entities), so each
-     project is read as Studio would open it: every file parsed on its own, the elements gathered into one model with
-     no section index (an SDLC's JSON carries none); files the engine's own parser refuses are counted apart, not
-     tried.
-   - **The round trip, per input, in the JVM** (`RoundTripProofTest`, `//parser-equivalence`): text → JSON → text →
-     JSON, the two JSONs equal (no source information); and the JSON → text → JSON closure, in each style
-     (STANDARD, PRETTY): reading the JSON and printing it, then parsing the print, gives the same records. An input
-     the engine itself refuses is not counted; one lite refuses by name (S36, the printer's named refusals) is
-     counted and listed as such, never as a pass; anything else is a failure, listed. The counts are pinned per input
-     (matched up-only, failed down-only, 0 failed the target), as the other parity tests pin theirs.
-   - **The same answers in the tab.** The JVM writes, as a build action (`java_run`, as `//wasm:jvm_answers`), each
-     input and the tab adapter's own answers to it -- `grammarToJson/model` without source information, then
-     `jsonToGrammar/model` in each style, through `TabExports.pureV1OrError`; a test loads the WebAssembly module,
-     asks the same requests, and compares byte for byte (`//wasm:round_trip_test`). The whole of the three inputs;
-     its time measured before it is placed in a lane (the heavy lane if it does not fit a pushed run's).
-   - **The two parser gaps closed** (found by step 3): lite's grammar takes a function test's `doc` (the engine's
-     does), and refuses `];` after a persistence's tests (the engine's does), each with the engine's own text as its
-     test.
-   - **Done when** the three inputs round-trip with equal records, in both styles, in the JVM and in the tab, every
-     exception named, the counts pinned.
-
-   **Leg 5's outcome (2026-10-09).** In the JVM (`RoundTripProofTest`, its own target
-   `//parser-equivalence:round_trip_proof` beside `parser_parity`): the engine's collection 6,905 matched, 40 refused by
-   name (the engine's own printer cannot print them), 270 where the engine's own print does not read back (counted
-   apart, never as a pass), 0 failed; lite's projects 222 and the showcase projects 131 matched, 0 failed, each
-   file and each project as one model; the counts pinned, the engine's own non-round-trips (270) among them, down
-   only. In the tab (`//wasm:round_trip_test`, in the `parser_equivalence` lane; its JVM half the build action
-   `//parser-equivalence:tab_round_trip`): all 9,423 inputs -- 9,134 of the collection, refusals included, 166 and 123
-   project files -- answered as the JVM answers, in about 26 seconds. One difference from the design's wording: the JVM
-   half writes each answer's SHA-256, not the answer (the answers would be several times the 48 MB of input text); the
-   module's half asks the same requests and compares the digests, so a byte of difference still shows. Found and fixed
-   on the way:
-   - **Text to JSON without source information** kept the named spans the engine leaves out (3,241 corpus sources
-     differed), and the engine keeps spans in five places whatever it is asked (`SourceInformation.withoutSpans`, from
-     the engine's source; `CorpusSweepTest`'s claim 1c, 6,755 of 6,755).
-   - **Where a brace-less lambda ends.** Lite read it by two rules of thumb; the engine's grammar decides it by the
-     statement's position (probed in every position): in a sequence's first statement the lambda takes the `;` and the
-     statements after it, in a later one the `;` is the sequence's (`SpecParser.readBraceLessBlock`).
-   - **The engine's printer drops braces where its own parser then reads the print changed**: a brace-less lambda's
-     body reads on as far as the grammar lets it, so it takes in what follows it -- the rest of a sequence's first
-     statement (`let q = {|1}; ...`), or an arrow, a dot or an operator after it (`{x|...}->cast(@T)`, found by the
-     parity test's statement-shape check); and a lambda whose one statement is a parameterless lambda prints `||...`,
-     the or operator, which does not parse at all (found by the second audit). Lite keeps those braces, closed tight,
-     and only those (the user's decision, `docs/SEMANTICS_REGISTER.md` S38); the parity tests count those prints apart
-     (475 per style for models, 20 lambdas), each checked to differ only by the braces, to read differently in the
-     engine's own parser (or upstream's not to read), and to read back with the statement boundaries of the JSON
-     printed. With the braces kept, 83 sources whose print the engine's dropped braces had broken round-trip: the
-     engine's-own-print count fell from 354 to 271 (and to the 270 above with S39 below).
-   - **Five grammar gaps a print reaches:** a merge mapping's brace-less validation, a service's post-validation
-     assertions separated by commas, a function test's `doc`, persistence's `];` (refused, as the engine refuses it), and
-     a path literal across lines (its spans, by the engine's island rule, probed).
-   - **TeaVM's class library answers two things differently from the JDK** (the tab's round trip found both):
-     `String.isBlank()` counts only `' '` (a ModelStore island refused in the tab), and a double's text can end a digit
-     off (diagram coordinates), and reading one back can land a unit in the last place off (the protocol twin test,
-     `//pure-protocol:twins_test`). Lite now writes blank as `strip().isEmpty()` everywhere, and converts a double's
-     text both ways through `com.legend.json.PortableText` -- `doubleText` (the JDK 19 definition) and `doubleOf`
-     (the nearest double, ties to even), computed exactly, held to the JDK by `PortableTextTest` -- in the parser
-     (through the protocol's `NumberText`, so the parser's dependency surface stays pinned) and the protocol, which
-     reads a JSON number by its own text, never by the JSON library's double; `ArchitectureTest` guards both, the
-     concatenations it cannot see read from the class files' constant pools. The twin test's accepted TeaVM
-     divergences (30 doubles spelled differently, 2 read one unit off; the user, 2026-09-28) are gone: it now holds
-     every double byte for byte. `doubleOf` takes a float literal's `f`/`F` (the engine's grammar writes it; the
-     third audit's blocker) and computes the common case -- digits of at most 53 bits and a power of ten up to 10^22
-     -- with one exact IEEE operation (Clinger's fast path), the rest with big integers: about 2.5 times
-     `BigDecimal.doubleValue`'s cost on result-like values (measured 2026-10-09: 26 against 10 ms per 200,000), paid
-     only where a model or code holds a number. The JSON library's own reader keeps the JDK's conversion (the user,
-     2026-10-09): the protocol does not use it, and on the server it would only slow the data it reads; in the tab, a
-     number read through it by anything but the protocol can still land a unit off, with PARK-23's writer.
-   - **A column spec as a let's value** carried the let's span on its value too, where the engine keeps the value's
-     own (as for a path literal and a graph fetch); found by the own corpus on S38's test text.
-   Counts moved: `own_corpus.matched` (the new test texts); `ComposerParityTest`'s floor by the 20 S38 prints.
-   - **The engine's printer drops a typed column spec's multiplicity** (`~a:Integer[1]` prints `~a:Integer`), so that
-     print reads back without it: lite writes it (the user's decision, `docs/SEMANTICS_REGISTER.md` S39, "so our round
-     trip is exact"); the form is written in five texts of the corpus (legend-pure's `TestColumnBuilders` and
-     `AbstractTestColSpecAnnotations`), whose prints the model parity test counts apart (24 per style).
-   Parked, found here: engine JSON with spans for a path literal across lines is refused by lite's reader, the spans
-   not saying where the literal's lines break (`docs/PARKED_WORK_LEDGER.md` PARK-22, designed with leg 8); and
-   `com.legend.json.Json`'s writer still writes a double the platform's way, which can differ by a digit in the tab
-   (PARK-23: lite's exact writer, `PortableText.doubleText`, measured 85 times the JDK's cost on result-like values and
-   up to 600 on the hardest, too slow for the server's results; the fix is a fast exact spelling, next after leg 5).
-   Revised 2026-10-10: the fix goes into TeaVM's class library, after a conformance test of it against the JVM (the
-   user kept the tab on TeaVM after a GraalVM Web Image spike, `docs/WEB_IMAGE_SPIKE_2026_10_10.md`). Done the same
-   day (`third_party/teavm_classlib`): TeaVM's conversions are the JDK's, so `PortableText` was retired and the protocol
-   and the parser use the JDK's own again, on the server at the JDK's speed.
-6. **One whole-model compile, and the tab's other `pure/v1` twins on the route.** "Compile a whole model" (its
-   elements, then every body in it) is strung together three times today: `PureV1Api.compile`, the tab's
-   `compileOrError` and the SDLC server's `CoreGrammar.compile`. It becomes one function on the compiler's front door
-   (`com.legend.Compiler`), and `compilation/compile` calls it. The boundary's remaining operations that duplicate a
-   `pure/v1` endpoint -- `compile` (C1), and whichever of `planJson` and `relationTypeJson` are true twins of E9 and
-   E5 (checked first: `planJson` answers `{sql, type}`, not the engine's plan) -- go from both adapters (the tab's
-   `compileOrError`, `planJsonOrError`, `relationTypeJsonOrError`; Python's `lite_plan_json`,
-   `lite_relation_type_json`), their callers moved onto the route as in leg 4. The boundary's own operations that
-   are not `pure/v1` endpoints stay.
-   **Decided 2026-10-10 (the user), at the leg's start:** `compile` is not a true twin -- the tab's answers every
-   error, legend-engine's `compilation/compile` its first. So: one implementation that answers every error, and two
-   routes over it on the one dispatcher every host serves (lite's server, the tab's `pureV1OrError`, Python's
-   `lite_pure_v1`): `/api/pure/v1/compilation/compile`, legend-engine's exact answer (OK or the first error), and
-   `/api/lite/v1/compilation/compile`, lite's own (every error; legend-engine has no such route, so a client asks it
-   first and falls back to the engine's). The tab's `compileOrError` and the SDLC server's copy go; Studio asks the lite
-   route in the tab and on a lite server alike. `relationTypeJson` is E5's true twin (the same computation, the same
-   renderer; checked): it goes from both adapters. `planJson` stays (not E9's). Every error means today's: the first
-   element error alone, else every body's -- leg 6 changes no answer.
-   **As built (2026-10-10):** `Compiler.compileErrors(model)` is the one whole-model compile. `PureV1Api.compile`
-   answers its first error; `PureV1Api.compileEveryError`, at `/api/lite/v1/compilation/compile`, answers
-   `{"errors":[{"message":...}, ...]}`, 200 (each error an object, so 6b can add where it is beside the message);
-   `LegendHttpServer` routes `/api/lite/v1/` to the same handler, and the tab and Python reach it through the same
-   dispatcher (`pureV1OrError`, `lite_pure_v1`). engine-client's `HttpEngine.compileErrors` asks the lite route and,
-   once a server has answered it 404 (legend-engine), that server's `compilation/compile`; the tab's `WasmGrammar` is
-   the same client over the planner, so Studio has one path to either. Gone: `Boundary.compile` and
-   `Boundary.relationTypeJson`, the tab's `compileOrError` and `relationTypeJsonOrError`, Python's
-   `lite_relation_type_json`; the tab's, DataCube's and Python's relation type ask E5. The SDLC's `CoreGrammar.compile`
-   calls `compileErrors`. PARK-17 is closed, by the DataCube + Python line's choice: the fold (`planner.Folded`) writes
-   a refusal's kind as the routes name it (`PureV1Api.refusal`: `PARSER`, `COMPILATION`, else `500`, the message then
-   led by the failure's class), so Python's `LegendError.kind` has one rule for every call, and engine-client's
-   `unfold` no longer keeps a list of Java class names. What that changes (the leg's audit): the legend-engine route's
-   answers and the SDLC's list are the same as before, but the tab's old list missed three refusals of the text
-   (`SchemaInvariantException`, `WalledBodyException`, `DialectCapability`), so in the tab those are now refused as
-   the server already refused them (400 `COMPILATION`, in Studio a listed problem, where they were a 500 thrown), and
-   a failure that is not the text's now reads as the server writes it, its class's simple name before the message (the
-   tab wrote the full name; DataCube and Python wrote none).
-   **6b, a follow-up after leg 6 (the user, 2026-10-10):** the lite route collects every ELEMENT error too, through
-   the tolerant build (`Compiler.buildModule`, tested but on no user-facing path today). Homework first: (1) its errors
-   carry the element's `[line:col]` as the strict path's do (Studio places them); (2) a broken element's dependents
-   raise no follow-on errors that bury it; (3) legend-engine's route answers the same first error as before. From the
-   Compiler Rewrite line (2026-10-10): since Phase 3b item 5b a wall or strict error about a function is keyed by the
-   function's id (`my::f_String_1__Integer_1_`), not its name, and the module driver's file-and-line attribution reads
-   the parsed model's side maps by that key (`ParsedModel.keyOf`); `compileAllBodies` skips the boot layer's bodies by
-   id; the wall map's keys and messages are pinned by Phase 3b's tests -- 6b is designed with that line first.
-7. **The SDLC server's rules free of Pure.** SDLC's rules (`//sdlc-server:rules`) depend on all of `//core` today,
-   because the class that answers their two Pure questions (`CoreGrammar`) sits in the same library; nothing stops
-   the rules from calling the compiler directly, and the SDLC server carries the whole engine. The rules keep asking
-   through interfaces -- read a file's text into an entity; check a tree before a review lands or a version is cut
-   -- and depend on no Pure code. A separate adapter library answers them: reading through the text-to-JSON
-   conversion, checking through leg 6's compile in-process, or through an engine's `compilation/compile` over HTTP
-   where a deployment wants it (legend-sdlc leaves compiling to the project's build). The server binary wires them,
-   and the build enforces the split: `//sdlc-server:rules` with no `//core` dependency, a Bazel change reviewed by
-   the Bazel program's session.
-   **As built (2026-10-10):** the adapter is its own package, `//sdlc-server/grammar` (`CoreGrammar`, now
-   `com.legend.sdlc.grammar`), on `//core:plan_side` -- the text-to-JSON conversion and leg 6's `compileErrors`, no
-   database and no driver; the SDLC's server, its page and its test wire it in. `//core` is no longer visible to
-   `//sdlc-server`, and `//core:plan_side` only to `//sdlc-server/grammar` (and `//wasm`), so a rule that reaches for
-   the compiler fails the build (checked: adding either to `:rules` is a visibility error). The server no longer
-   carries execution (no path to `//core:driver` or `:exec`); the page reaches the same compiler code as before.
-   Not built: checking through an engine's `compilation/compile` over HTTP -- no deployment asks for it yet; it is a
-   second `Sdlc.Grammar` beside `CoreGrammar` when one does.
-8. **The server reads models as records.** `PureV1Api.connectionOf` finds a runtime's connection by reading the JSON
-   the parser wrote, where invariant 1 says to read the records; and the compile, plan and execute routes take a model
-   as text only (`modelText`: "the PMCD reader is not built", which it now is), where legend-engine also takes a
-   `PureModelContextData`, as upstream Studio sends. How the compiler takes a model given as records -- straight into
-   its model (the direction ArchitectureTest 7c sets the parser) or through the text printed from them -- is decided
-   at the leg's start, before code.
-   **Decided 2026-10-10 (the user): straight from the records.** A model sent as JSON is read into the typed
-   protocol records (`ModelReader`), and the records go into the compiler's model through the same converters text
-   already goes through -- never printed and parsed again. The design (the files and the overlap agreed with the
-   Compiler Rewrite line before code; its L7 changes how a call's names are recorded, not this path):
-   - **One door from records to the compiler: `ModelFromProtocol`** (in `com.legend.model`, beside `FromProtocol`):
-     a `PureModelContextData` to the compiler's `ParsedModel`. Each element by its kind: the Pure kinds through
-     `FromProtocol` and `MappingFromProtocol` (as the parser calls them today); the section kinds (Service, Runtime,
-     Data Space, Diagram, Text, ...) through their converters, which move out of the parser's section grammars
-     (`toModel`) to the model side, one per section, so the parser and the door call the same function. A section
-     index's imports apply to the elements its section lists, as legend-engine compiles them; without one (an SDLC's
-     entities) a model has no imports. An element kind with no converter is refused by name, never dropped.
-   - **Positions:** a JSON model's errors carry `[line:col]` only when its JSON carries source information (the
-     converters drop positions on purpose, `FromProtocol`'s rule). Agreed with the Compiler Rewrite line: the door
-     fills a fourth per-element map on `ParsedModel`, each element's span, keyed by `ParsedModel.keyOf` (a function's
-     id, otherwise its qualified name) and built and copied as `elementOffsets`, `elementImports` and `elementSources`
-     are (`parseSources`' per-source copy included); never both it and the offsets for one model. `ParsedModel` gets
-     ONE accessor, `position(key)` (`"[line:col]"`, from the source and offset for a text model, from the span for a
-     protocol one), and the three places that decorate an element's error today (`Compiler.compileModel`,
-     `parseSources`, the module path) call it, none of them asking which kind of model it has.
-   - **The routes:** compile (both), `lambdaRelationType`, `lambdaReturnType`, `generatePlan` and `execute` take
-     `{"_type":"data", ...}` as well as `{"_type":"text", ...}` (`Compiler.compileModel(PureModelContextData)`, the
-     same build after the door); a pointer context is still refused by name (not this leg). Python's Arrow route
-     keeps text (its host runs the models it serves, by their text). Execute compiles the model ONCE (it compiled it
-     twice: the route, for the query's target, and the runner again from the text): the route hands the compiled
-     model on -- `Runner.run(ModelContext, ...)`, `Execution.executeWire(ModelContext, ...)` beside the text
-     overload, which compiles and calls it -- the seam the execution plan's step 4 builds on (agreed with the Plan Gen /
-     Exec Split line, which keeps `boundParameters` as it is: step 4 deletes it).
-   - **`connectionOf` reads the records** (the text's by `PmcdParser.parseModel`, a JSON model's as read) and
-     writes the plan's connection from the record through the emitter, never from the parser's JSON.
-   - **The oracle:** every input of the round-trip proof (legend-engine's collection, lite's projects, the
-     showcase projects) compiled from its text and from its JSON (`grammarToJson/model` without source information)
-     gives the same model and the same errors, counted and pinned as leg 5's counts are; each route tested with both
-     contexts.
-   - **Last, the parser returns protocol only** (ArchitectureTest 7c's endgame, its `model..` allowance deleted):
-     the parser's remaining model building moves behind the door, and `ElementParser.parse`'s callers (about 44
-     files: the compiler's boot, `Prelude`, the tests, the corpora, the census) move to it -- mechanical, landed after
-     L7 (both touch `builtin/` and the compiler's callers).
-   **Reordered 2026-10-10 (the user: "dont we need to get to only one parser first?"), after the oracle's first run.**
-   The oracle (`JsonModelDoorTest`) found the compiler's input differing between a text and its JSON for 748 of the
-   engine collection's 7,215 texts (all 123 showcase files the same). The cause is two parsers at the top: element
-   parsing is already shared (`PmcdParser` parses each element through `ElementParser`), but the section walk, the
-   import scoping and the dialect are assembled twice -- the compiler's (`ElementParser.parseModel`, lite's dialect,
-   whose imports leak from one `###` section into the next that has none: lite resolves names the engine refuses)
-   and the protocol's (`PmcdParser`, the engine's rules); then a JSON client's model takes one more hop, records to
-   JSON to records, which loses what JSON has no field for (an operator written infix). So the leg runs:
-   1. **One parser.** The compiler's text goes text → records (one section walk and import scoping, the engine's:
-      imports bound to their section) → the door → compiler. `PmcdParser`'s assembly takes the dialect (engine, lite,
-      platform) and the dialect gates only what is accepted -- constructs, and whether an unknown section is refused
-      (the engine) or recorded and skipped (lite, platform; as the compiler's path does today). The records are the
-      only output: what the compiler parses with no protocol record today -- native function declarations (the
-      platform's), `Primitive` (lite's and the platform's), a foreign section grammar's opaque elements -- gets a
-      lite-only record (never written as engine JSON: the emitter refuses it by name). Records are built without
-      writing their JSON (the compiler's path must not pay for it; the boot's parse time measured before and after,
-      `//core:compile_latency`). `ElementParser.parse(text, dialect)` keeps its signature as the door over the one
-      parser, so its callers do not change in this step; its own top-level assembly is deleted. An element's error
-      position comes from its record's span (the door's map), for text as for JSON. Behaviour changes, judged by the
-      Compiler Rewrite line's census and the reference lane: imports bound to their section (text that relied on the
-      leak no longer resolves), and whatever else the oracle shows.
-   2. **The JSON hop lossless.** Over every corpus, records → JSON → records gives equal records. What the compiler
-      needs survives it (a decimal's written digits from the number's text; a mapping include's store
-      substitutions, a class mapping's `extends`, ...); what JSON cannot carry, the compiler stops depending on (the
-      engine compiles `1 + 2 + 3` and `plus([1, 2, 3])` alike, so lite does too).
-   3. **The door and the routes** (built on branch `leg8-records`). The oracle then holds by construction, its
-      pins at no difference.
-   The parser returning protocol only (7c) stays last, with the callers' move.
-   **As built, step 1 and step 2's first part (landed 2026-10-11, the user: "Land it now"; GATES 2026-10-11).**
-   One parser: `PmcdParser.parse(text, dialect)` is the one section walk and import scoping at every dialect, and
-   `ElementParser.parse(text, dialect)` is the door over it (`ModelFromProtocol.of`, one converter per record kind);
-   its own top-level assembly is deleted. What the compiler parsed with no record has a lite-only one
-   (`PNativeFunction`, `PPrimitive`, `POpaqueElement`, `PAssociationProjection`), which the emitter refuses by name.
-   An element's error position comes from `ParsedModel.position(key)`: its offset in a text model, its span in a JSON
-   one. Behaviour changes, each reviewed by the Compiler Rewrite line: imports are bound to their section (one
-   fixture relied on the leak); the engine's dialect refuses a stray `)`; a non-wildcard import and an unknown
-   top-level keyword say "Unexpected token", the engine's words; a plain string before a declaration names the
-   multi-line literal documentation needs. Step 2 so far: the records mirror the engine's JSON where the compiler's
-   input does not change (a view's groupBy always a list; plain booleans; persistence entries and stub params by key;
-   a flat target's defaults; a bare service query a lambda; spans no JSON carries dropped; a mapping's test suites
-   typed only, the model's raw text deleted), and where it does, at the engine's and lite's dialects, as the engine
-   reads them (the platform dialect keeps legend-pure's meaning): `$x.f()` is `$x.f`; a graph-fetch `prop()` is
-   `prop`; `^Pair`, `^BasicColumnSpecification` and `^TdsOlapRank` are the calls the engine writes. The oracle
-   (`JsonModelDoorTest`): the JSON round trip loses 401 of the engine collection's texts (821 before step 2), none
-   of lite's projects or the showcase. Judged against main's baseline at each change: the six corpus passes
-   identical, the census within its ceilings, the shadow probe and the reference lane unchanged, PCT 17 of 17.
-   **Built next on the user's Mac (2026-10-11 to 2026-10-13), stranded there, then rebased on main and judged again
-   (2026-10-21, on the branch `studio-program`; GATES 2026-10-21).** That session's pushes were refused by its
-   permission check from 2026-10-11; the user pushed its branches on 2026-10-21, and this program now builds on one
-   branch kept up to date with main (the user, 2026-10-21: "build everything on a branch here that is up to date on
-   main"). On it: a relation column without a multiplicity is `[0..1]` (the engine and legend-pure; lite said `[1]`);
-   `CDecimal.written` deleted, the typer deciding a decimal by its value (its rounding past DECIMAL(38) parked as
-   PARK-27); a relation cast read from JSON as the parser reads its text; persistence spans as the JSON has them, a
-   reference body read as parsed, every value specification's equality without its position. And a braced
-   `#TDS{...}#` literal (reported by the Python / DataCube line, 2026-10-13), the engine's own form, which read its
-   braces as the header and a row (a column `{`; with two columns, an IndexOutOfBoundsException in the lowering),
-   through the text door and the JSON door alike: the literal now carries the table between its delimiters in either
-   form, from either door (`TdsLiteral.of`), and the compiler reads no delimiter; a brace-less literal composed back to
-   text is the engine's `#TDS{...}#` (it was `#TDS{#TDS ... #}#`); the lexer ends a braced literal at its `}#`, and one
-   with no `}#` is refused ("unterminated #TDS{ literal"). The rebase moved main's own later makers of a TDS literal
-   (the SQL, IQ and Cypher translators) onto the same rule, and replaced main's brace strip in `TdsChecker` (61ff4872d,
-   2026-10-17) with it. The JSON round trip then lost 149 of the engine collection's texts.
-
-   **The dropped-text rule, decided: rule A (the user, 2026-10-21; `docs/SEMANTICS_REGISTER.md` S89).** Text the
-   engine's grammar accepts and its parser drops is read at the engine's dialect exactly as the engine reads it, so the
-   records and their JSON are the engine's and a JSON hop gives the same records; lite's dialect keeps what was
-   written; written as the engine's JSON, lite's records carry it where the engine's JSON has a field for it as written,
-   and are refused by name (`ProtocolEmitter.placeless`) where it has none -- never dropped silently. (The options put
-   to the user, 2026-10-11 and again 2026-10-21: A, this; B, keep them at every dialect and refuse them at the engine's,
-   so lite would refuse text the engine accepts; C, drop them everywhere.) The constructs, each from the engine's
-   source: a `^X(..)` binding's chain after its first expression (`processRightSide`: `s = 'a' + $v` binds `'a'`), a
-   dotted key after its first name, `+=` (its walker never sets `add`), a function's constraint block (`visitFunction`
-   reads none), an include's several store substitutions, an Operation mapping's `extends`, a generic supertype's type
-   arguments, a service store's description. Written whole from lite's dialect: a chain, `"add":true`, an Operation
-   mapping's `extendsClassMappingId` (as older JSON writes it), a description. Refused by name: a dotted key, several
-   substitutions, a supertype's arguments, and (until 2026-10-21, when the reference checks wrote them by legend-pure's
-   split, below) a function's constraints. A model store's instances are the engine's data walker's, which reads its values whole
-   (`SpecParser.parseInstanceData`).
-
-   **As built, step 2's rest (2026-10-21, on `studio-program`; GATES 2026-10-21).** Rule A, as above. The compiler no
-   longer reads how an operator was spelled: a run is an arithmetic carrier over a literal list of two or more operands
-   (`Typer.markOperatorRun`; since the reference checks, the resolved declaration's, `Typer.withOperatorRun`), so `1 + 2 + 3`, `plus([1, 2, 3])` and `[1, 2, 3]->plus()` are one call, as they are to
-   the engine. Three readings the oracle found, each the engine's: a model store's `-1` is one literal (its data
-   walker's; the emitter's own fold deleted), a path segment `prop()` with no argument is the property at the engine's
-   and lite's dialects (as `$x.f()` is `$x.f`), and a keyExpression's `add` is read. The oracle (`JsonModelDoorTest`)
-   counts rule A apart: where the dialects read a text differently, lite's records written as JSON are refused by name
-   (counted per construct) or read back to the same records and the same compiler input (counted); anything else fails.
-   The engine collection: 7,099 matched, 4 failed (149 before), rule A 102 written whole and 10 refused, pinned exactly;
-   lite's projects 167 of 167, the showcase 123 of 123. No span or order difference is left. **The 4 left, named:** two
-   quoted trees over a let-bound string (`compileLegendValueSpecification($treeString)`), which the parser folds and a
-   JSON model cannot carry -- the fold belongs after the door, in name resolution, so both doors fold (the Compiler
-   Rewrite line's area; not done); and two variables typed `meta::pure::mapping::Result`, which legend-engine's own
-   reader brings up to `Result<Any|1..*>` (its converter; the print measured in `PureV1ApiTest`), so its own JSON hop
-   changes them.
-
-   **As built, step 3 (2026-10-21, on `studio-program`; GATES 2026-10-21).** The routes that take a model --
-   compile (both), `lambdaReturnType`, `lambdaRelationType`, `generatePlan`, `execute` -- take `{"_type":"data", ...}`
-   as well as `{"_type":"text", ...}` (`server/ModelInput`); a pointer context is refused by name. Execute compiles the
-   model once, by the route, and hands it on (`PureV1Api.Runner.run(ModelContext, ...)`,
-   `Execution.executeWire(ModelContext, ...)` beside the text overload): the seam the execution plan's step 4 builds on.
-   `connectionOf` reads the records and writes the plan's connection from its record through the emitter. Python's
-   Arrow route, the host routes and the model-change routes keep text. `PureV1ApiTest` holds each route's answer to a
-   model's JSON equal to its answer to the text.
-
-   **As built, the last step (2026-10-21, on `studio-program`; GATES 2026-10-21): the parser returns protocol only.**
-   `ElementParser` returns an element's record (its `parseSingle` too, for the IDE's slices), the section grammars lose
-   their `toModel`, and the quoted-grammar fold reads its text into records (`PmcdParser`). A text meets the compiler's
-   model in one place, outside the parser: `door.ModelFromText` (`//core:door`) -- `parse(text, dialect)`, the one
-   parser's records through `ModelFromProtocol` (a shape the model cannot represent is the text's `ParseException` at
-   the element), and `element(record)` for the IDE's one element. Its callers moved to it: the compiler, the platform's
-   boot (`Pure`, `Prelude`, `SystemMetamodel`), the IDE, the generators, the tests and the corpora. The set-id rule
-   moved to the records (`protocol.SetIds`, the model's `SetId` delegating), because the mapping grammar needs an
-   aggregation-aware mapping's outer id. One position moved: a shape the model refuses in an element the IDE parses
-   alone is placed at the element's start, as it already was for a whole text. ArchitectureTest 7c's `model..`
-   allowance is deleted: the parser depends on the lexer, the protocol, values, the shared errors and the overlay seam
-   alone. Leg 8's steps are built. Its oracle is not at zero: 4 texts fail (two quoted trees over a let-bound string,
-   whose fold belongs after the door; two variables typed `Result`, which the engine's own reader upgrades), and rule A's
-   texts differ by design (counted, and since 2026-10-21 listed one by one: `json-door-rule-a.tsv`).
-
-   **As built after it, the reference checks (2026-10-21, on `reference-checks`, then `studio-program`; GATES
-   2026-10-21).** With JSON a door into the compiler, what the compiler accepts unchecked is accepted from any author.
-   A probe of 64 broken models through both doors found lite accepting what the engine refuses; each is now refused
-   with the engine's words (legend-pure's where the engine has none), one case each in `ReferenceIntegrityTest`,
-   through the text and, where the engine's grammar reads it, through its JSON: a supertype that is no class (a
-   primitive, a type parameter), a generic's wrong type or multiplicity arity where its arguments are written (a
-   class's multiplicity parameters are now their own list), a profile, stereotype or tag that does not exist (on every
-   annotated element; a profile resolves among profiles, and the prelude declares legend-pure's and every profile the
-   engine ships), a runtime's mapping and stores, a service's and a data space's mapping and runtime, a database's and a
-   mapping's include (its substitutions' stores), an Operation's member set, an association mapping's association, an
-   optional property with a default. Defaults and a function's pre- and post-conditions (a condition naming `$return`
-   is a post-condition, as in legend-pure) are lifted as synthesized functions and typed, as derived properties are;
-   the conditions cross the door and are written as the engine's JSON, over the function's parameters (and `return`).
-   They are typed, not evaluated when a function runs (S94). An operator run is decided by the resolved declaration
-   (`NativeFn.OperatorRun`), never the name it was written with. Two messages that misled are corrected.
-
-   **Then the independent audit (2026-10-21; GATES "the independent audit").** Three reviewers read the branch cold:
-   leg 8's work, the compiler's checks, and the evidence. Where the checks had gone stricter than the references they
-   now follow them: a connection's database need not be declared (the engine gives it an empty one); a bare generic
-   supertype is the engine's (its grammar drops a supertype's arguments); a bare `Result` is the engine's
-   `Result<Any|1..*>` (S95); a substitution names any store; the engine's own profiles are declared; a default's new
-   instances are not checked for their required properties (S90, as legend-pure). Leg 8's: a binding's first
-   expression at the engine's dialect keeps its own `==` (the walker's rule, read as parsed); ModelStore data takes the
-   engine's data grammar alone at its dialect, `+=` at none; the JSON door's refusal keeps its element's position; a
-   model sent as data nests as deep as its own JSON reads; a signed literal keeps its value.
-
-9. **Imports and comments through the round trip** (added 2026-10-10, the user: "add a leg to design/implement
-   imports and comments too so we don't forget"). Today a model's text keeps both only because lite's own SDLC
-   stores the text itself (`docs/STUDIO_DESIGN_2026_10_02.md` S13, S5), and imports are refused at save, as
-   upstream's SDLC refuses them (S20, v0). Protocol JSON -- what a real legend-sdlc stores, Depot serves and the
-   engine reads -- has a place for neither: an entity carries fully qualified names and no comments, and printing it
-   back gives text with neither. Designed at the leg's start, before code, with the Compiler Rewrite line (name
-   resolution is its area):
-   - **Imports:** saving text that uses imports as entity JSON needs names resolved on the records, with legend-engine's
-     own rules, so the engine compiles the JSON as lite compiled the text -- the function-resolution fix recorded in
-     `docs/function-resolution/README.md` (steps 0 to 5), then S20's v1, the import refusal lifted. And the way back:
-     whether text printed from JSON gets imports again (and which), or stays fully qualified.
-   - **Comments:** whether they survive a save to a real legend-sdlc (somewhere beside the entities) or are dropped
-     there with the author told before saving; and, for editing in forms, a parser that keeps comments and layout as
-     data, so a form edits the text and never reprints it (design §3 piece d).
-   - **Done when:** a file with imports and comments saves and reopens on lite's stack unchanged and on a real
-     legend-sdlc as the design says, each proven by a test.
-
-10. **Compile the element kinds lite carries by name** (added 2026-10-21, the user: "we have to do 11 eventually, can
-   put it on roadmap for later"; PARK-38 and PARK-39). The door carries diagrams, texts, generation specifications,
-   file generations, schema sets and bindings, service stores, data-quality validations, the Deephaven, Elasticsearch
-   and MongoDB elements and relational mappers by name, and a function activator's fields as text; no phase opens
-   them, so a diagram of a missing class or an activator of a missing function compiles. And a merge Operation, an
-   Operation of a function lite does not model, and a ServiceStore's or MongoDB's class mapping compile as no mapping
-   at all. **Done when:** each kind's references are resolved and refused as the engine's extension refuses them (its
-   words), a case each in `ReferenceIntegrityTest`, and each skipped class mapping is carried and checked or refused at
-   compile by name. After leg 9.
-
-Then the Studio plan's B2 to B4 (real legend-sdlc, Depot and engine) build on it: entities JSON read and printed in the
-tab, text parsed and emitted on save.
+> Cut in the 2026-11 docs cleanup: §4, the legs in order (1 to 10) with their as-built notes, 2026-10-05 to 2026-10-21, Java-specific; the upstream facts they found are listed above. Full text: `git show de2745351:docs/PROTOCOL_PROGRAM_2026_10_05.md`.
 
 ## 5. Guards and process
 

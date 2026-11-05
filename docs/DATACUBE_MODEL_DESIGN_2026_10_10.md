@@ -1,11 +1,12 @@
 # DataCube and the Pure model: shape data, make classes, relate them, build dashboards on them (2026-10-10)
 
-A design for the user's agreement. Revision 3: **two modes** (the user, 2026-10-10: "datacube should not run models/
-modelled queries it should CREATE models ... then there really is another mode of making nice dashboards FROM those
-models"). Revision 2's "every source a class" and "one way of working" are withdrawn (§12). It replaces what DataCube has
+Agreed with the user (2026-10-10: §13's "let's do it", §14). Revision 3: **two modes** (the user, 2026-10-10:
+"datacube should not run models/modelled queries it should CREATE models ... then there really is another mode of
+making nice dashboards FROM those models"). Revision 2's "every source a class" and "one way of working" are withdrawn (§12). It replaces what DataCube has
 or planned for filters across tiles: page filters and a chart's clicks reaching grids by **column name** (batch 1 of
 docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md: built on its branch, not landed), and the dashboards design's **links**
-(docs/DATACUBE_DASHBOARDS_DESIGN_2026_09_28.md §5.3, a format of DataCube's own).
+(docs/DATACUBE_DASHBOARDS_DESIGN_2026_09_28.md §5.3, a format of DataCube's own; that design is in git history,
+docs/HISTORY.md, and its lasting decisions in docs/DATACUBE_ARCHITECTURE.md).
 
 ## 0. In one paragraph
 
@@ -38,7 +39,7 @@ and nothing is published without a released one (§7).
   joins at all but if you need to join 3 tables to create the Trades class that's relational".
 - "we can write class/mapping (or mapping function)/store out as real pure at the end so people can really do their
   visual modeling/ETL in Datacube and get the classes + the MAPPINGS as real artifacts".
-- docs/MODEL_HOME_2026_09_28.md: sources point to models, never copy them; a saved cube pins its model version, with an
+- docs/MODEL_HOME_2026_09_28.md (in git history: docs/HISTORY.md): sources point to models, never copy them; a saved cube pins its model version, with an
   easy upgrade; upstream's APIs and shapes exactly.
 
 ## 2. What exists (read 2026-10-10)
@@ -188,7 +189,7 @@ of one class whose name and type match another's -- are offered to confirm, neve
 
 Related classes are read in one place: the tab's DuckDB, Python's DuckDB, or one warehouse. A relationship that would
 need two is refused in words, with what would make it work ("Orders is read live from the warehouse and Customers is a
-file in this tab: materialize Customers into the warehouse, or snap Orders"). docs/XSTORE_LEG.md is the path to more.
+file in this tab: materialize Customers into the warehouse, or snap Orders"). docs/XSTORE_LEG.md (in git history: docs/HISTORY.md) is the path to more.
 
 ## 5. Dashboards: pages on the model
 
@@ -316,7 +317,7 @@ The tab's module and Python's native library are adapters: each export a one-lin
   `Execution.executeWire(ModelContext, ...)`, agreed with the Plan Gen / Exec Split line).
 - **A released version, kept compiled on a server** -- for dashboards published on a server (§7) -- keyed by the
   version (project and version, immutable), as upstream's engine keeps a compiled model per release pointer and as
-  docs/MODEL_HOME_2026_09_28.md D-F says: with step 6, and only on a measurement.
+  docs/MODEL_HOME_2026_09_28.md D-F (in docs/HISTORY.md) says: with step 6, and only on a measurement.
 - **Compile less, before compiling less often**: a tile over one class need not compile two hundred. The tenet
   (docs/TENETS.md: total knowledge, demand-driven work) asks for what a query reaches to be typed and resolved, not
   every class's mapping. Where a class's 15-19 ms goes is the Compiler Rewrite line's to measure (§11); if it is eager
@@ -340,67 +341,11 @@ The tab's module and Python's native library are adapters: each export a one-lin
 
 ## 11. Measured, and proven
 
-- **The model proven** (§2): `//datacube:model_join_test`.
-- **A dashboard's model as it grows** (datacube/test/model-scale.measure.ts, `bazel test //datacube:model_scale_measure
-  --test_output=all`, manual, in //gates:heavy), before compile-once, each plan compiling the whole model, ms:
-
-  | classes | model text | table read | class read | class, one end walked |
-  |---|---|---|---|---|
-  | 1 | 1 KB | 43 | 54 | -- |
-  | 10 | 7 KB | 44 | 163 | 163 |
-  | 50 | 36 KB | 54 | 721 | 727 |
-  | 200 | 146 KB | 78 | 3,812 | 3,925 |
-
-  **After compile-once** (2026-10-10, the tab's module under node; each compile on a module already warm, the median of
-  three model texts a line apart; each plan the median of seven over the model held), ms:
-
-  | classes | compile, once | table read | class read | class, one end walked |
-  |---|---|---|---|---|
-  | 1 | 9 | 5 | 7 | -- |
-  | 10 | 125 | 5 | 6 | 7 |
-  | 50 | 664 | 5 | 6 | 7 |
-  | 200 | 3,937 | 9 | 12 | 14 |
-
-  A plan no longer grows with the model: it is the query's alone. The compile is paid once per model text -- when the
-  page opens and when its model is edited -- and grows with the classes, 4 s at 200; where its time goes (parse, resolve,
-  normalize, element compile) the Compiler Rewrite line measures after its L7.
-
-  **The boot or the page** (2026-10-11, `docs/datacube-model-homework-2026-10-11/boot-split/`): the page. On a warm
-  module an empty model is held in 1 ms, so the boot layer is not in the clock. The same Java through Python's native
-  library (GraalVM) holds the 200-class page in 30 ms, against the module's 3,975 ms. So the 4 s comes from how the
-  module (TeaVM) runs this compile, about 130x, not from the compile's own work (the JVM: about 13 ms, e56d802c4). Four
-  functions take 85% of a profiled hold; naming them needs an unobfuscated build, the owners' step (the Compiler Rewrite
-  and Plan Gen / Exec Split lines). **Named the same day by the Compiler Rewrite line**
-  (docs/build-inventory/program/TEAVM_UNMODIFIABLE_DESIGN_2026_10_11.md, on its branch): TeaVM 0.15.0's unmodifiable set
-  and map scan the whole collection on every lookup, and the compiler's name resolution asks them for every candidate
-  package of every name. With upstream's fix (TeaVM 0.16.0) ported, measured on this harness: the boot 3,618 to 299 ms,
-  a 200-class page 4,239 to 73 ms. The user ruled for the port (2026-10-11), and it landed as 39218e803; the TeaVM bump
-  stays its own landing.
-
-  **After the port** (2026-10-11, 39218e803, `//datacube:model_scale_measure` on its module, measured as above), ms:
-
-  | classes | compile, once | table read | class read | class, one end walked |
-  |---|---|---|---|---|
-  | 1 | 47 | 1 | 3 | -- |
-  | 10 | 31 | 2 | 2 | 3 |
-  | 50 | 69 | 1 | 3 | 5 |
-  | 200 | 321 | 2 | 9 | 12 |
-
-  A 200-class page compiles in a third of a second, not 4 s: about 12x. (The boot-split harness's 73 ms holds one text
-  once; this table's compile is the median of three texts, so the two are not the same clock.)
+> Cut in the 2026-11 docs cleanup: the measurements of 2026-10-10 and 2026-10-11 (`//datacube:model_scale_measure`, a dashboard's model at 1 to 200 classes, before compile-once, after it, and after the port of TeaVM's unmodifiable-collection fix): a plan no longer grows with the model, and a 200-class page compiles in about a third of a second, not 4 s. The model itself is proven by `//datacube:model_join_test` (§2). Full text: `git show de2745351:docs/DATACUBE_MODEL_DESIGN_2026_10_10.md`.
 
 ## 12. Withdrawn from revision 2
 
-- **Every source a class, made silently** (revision 2's §3.1, step M1): sources stay relations (§3.1); a class is made on
-  purpose (§3.3). Revision 2's writer (a table's class beside its Database) becomes Create a Class…'s writer in core
-  (§10), its rules kept: upstream's names made total, each property typed by the compiler's reading of the relation.
-- **One way of working** (revision 2's §3.8 and decision 8): two modes, for two jobs -- shaping data, and analysing it
-  on a model (with the model, between them, a layer of its own: §4). What revision 2 warned of (every filter with two
-  meanings) does not arise: filters across tiles exist in one mode only.
-- **The model kept in the page's document** (revision 3's §6): the model home instead (§6); a page carries its model
-  only as a bundle, when it travels.
-- **Columns of a source read back under the source's names**: there is no class of a source to read back; a class made
-  from a grid has its own properties, named and editable.
+> Cut in the 2026-11 docs cleanup: what revision 3 withdrew from revision 2 (2026-10-10): every source a class made silently, one way of working, the model kept in the page's document, a source's columns read back under its names (§3.1, §3.3, §6 say what replaced each). Full text: `git show de2745351:docs/DATACUBE_MODEL_DESIGN_2026_10_10.md`.
 
 ## 13. The plan (agreed 2026-10-10: "let's do it")
 
@@ -724,35 +669,7 @@ one class (§13): relationships, a filter through an end, and the column chooser
 
 ### 16.4 As built (2026-10-19, `claude/datacube-model-dashboards`)
 
-- **The class source** (cube-document.ts `ClassSource`; class-source.ts): read strictly; a grid over a class shows the
-  class's to-one properties of a type a column has, its own then its supertypes', each named when left out; its query
-  `Class.all()->project(~[...])`. Opened in the tab (app/sources.ts `openedClass`): the project's files at the pin, the
-  host's compiler through the class's mapping and runtime, one row asked for at open so a table not open here is said.
-  Offered from a grid made a class: **Add a Grid over Trade** (its menu). The page's model keeps its pin (`revision`,
-  page-model.ts `pin`, from each model action's save; Python's too).
-- **Page filters** (page-filters.ts, ui/page-filter-bar.ts, page/page-app.ts): the page document's `filters` (version 5),
-  set and taken off by the page commands `setPageFilter` and `removePageFilter` (the screen's bar, a chart's click, and
-  headless `pageFilter` for Python all build them). A filter reaches a grid as a **lens** (runner.ts `QueryLens`,
-  cube.ts `setLens`): every query the grid runs -- its levels, typing, pivot values, charts', exports' -- has the
-  class's `getAll` filtered first, and the grid's own state, undo and saved cube never hold it. Each grid it reaches
-  says so in its status bar (`Page: region = EMEA`); the bar says how many grids each filter reaches and which it
-  cannot (a property their class lacks). A chart's click on a class's grid on its properties is a page filter from that
-  chart (dashed in the bar), its own grid left whole; the same mark again takes it off; a removed chart takes its
-  click's filter with it.
-- **Audited** by a reviewer that wrote none of it: a filter id given twice after a reopen (now: a page's filters'
-  ids are taken), a class grid opened before its file's grid (now: a class's cube opens last, and one whose rows are
-  not here is left out and said, never the whole page refused), the page replaced while a class grid was added, a
-  mark's calculated-column part (now: the page takes the properties' part, the grid the rest), two quick clicks, Open in
-  Grid's grid (now re-lensed with its grid), the bar's failed fetch, a lens matching nothing (now refused), defaults.
-- **What judges it**: unit (page-filters, page-commands, page-document, cube-document, create-class); planned in the
-  tab on DuckDB (class-source: a class the writer made, read back, filtered; a controller given the lens); jsdom
-  (page-app: filters set, undone, redone, refused, saved and reopened; a chart's click through ECharts); the browser
-  (verify-class: Add a Grid over Trade, a filter from the bar, saved and reopened filtered).
-- **Not built here**: the source picker's Classes section (the menu entry is the way in); Python's pages over classes
-  -- `page.grid(page.cls('Trade'))`, `page.filter` -- since Python's pages are frame-only end to end (load, read,
-  serving); headless `pageFilter` is ready for it (step 3b); "Add a Grid over" is offered only where the page plans and
-  runs its own SQL (the tab), so a Python-served page never gets a class grid it cannot follow. Re-pinning open class
-  grids when the page re-pins (step 5).
+> Cut in the 2026-11 docs cleanup: step 3's as-built record (2026-10-19): the class source as built, page filters reaching a grid as a lens on every query it runs (runner.ts `QueryLens`), the audit's fixes (a class's cube opens last, after the grids whose files it reads), what judged it, and what it left unbuilt. Full text: `git show de2745351:docs/DATACUBE_MODEL_DESIGN_2026_10_10.md`.
 
 ## 17. Step 4, combining in prep, as it will be built (2026-10-20)
 
@@ -954,49 +871,7 @@ about a prep UI like it, "but maybe more Alteryx like".
 
 ### 17.8 As built (2026-10-20, `claude/datacube-model-prep`)
 
-- **Core**: `CatalogModel.database` of several tables (one Database declaring each table as its own model would, the
-  default schema's first; a table given twice refused), and `Boundary.tableModel` given `tables` (each package's
-  Database, one connection, one runtime binding them all). Callers: `TableModels.tablesModel` (lite-planner.ts) and
-  Python's `compiler.table_model` with `tables`.
-- **The join, as data**: join-how.ts (its saved form and reader, all a cube document needs: every page reads a join),
-  cube-document.ts `JoinSource` (inputs by value, a join able to be an input). What it becomes is join.ts
-  (`joinRelation`, `joinSummary`, `summaryWords`, `suggestedKeys`), fetched with the first join.
-- **The compiler judges names and types**: join.ts writes every name as given -- a column an input lacks, a prefixed
-  name that is taken, a column kept twice, an append's column of two types are the compiler's refusals, in its words
-  (the user, 2026-10-20: no second copy of a compiler rule in TypeScript). join-how.ts checks the document's shape only.
-- **The opener** (join-open.ts, no DOM): a join's leaves each a table of the host's database (the host says which
-  kinds: the tab's files and remote files, Python's frames too), one model of them, each input its cube's rows at
-  their finest level (openCube, so an input that drifted is said), the join typed; and the dialog's questions answered
-  (`summaryCounts`).
-- **In the tab**: Join… on a grid's menu where it reads tables of the tab's database; the window (ui/join-dialog.ts)
-  says what the join will do before it is applied; Apply adds the grid with `addGrid` (page.addGrid, near the grid
-  joined). A grid's place says the tables it reads (`GridPlace.tables`); a table a join reads is held while it reads it.
-  A saved join reopens alone (a sample rebuilt, a file open on the page or read beside it taken, else asked for); a
-  saved page opens its joins after its plain grids, so each file is asked for once. Join…'s flow and a join's opening
-  are one chunk fetched with the first join (app/join-app.ts).
-- **Headless**: `joinCube` (the join's grid's cube document for `addGrid`, with its model, runtime and relation) and
-  `joinQuestions` (what it will do, counts and words), over the host's tables with its own writer and planner.
-- **Audited** by a reviewer that wrote none of it: a saved page whose join no longer opens (now: the join left out
-  and said, the page's other grids opened); a `!=` row pairing an empty key with every row (now: both sides need a
-  value); a reopened join reading any file given (now: its hash checked and a different file said; no handle kept
-  under the page's name tried); the window's grid switched while an earlier one's columns were still coming (now: the
-  last chosen wins, each grid's planner held until its questions are answered and let go when the window closes);
-  one file asked for twice when only joins read it (now: a file read for a join is shared by the joins reading it,
-  dropped when the last lets go unmade); Cancel during Join (now: the window is busy from the first); a right or full
-  join's words; counts and a prefix defaulted (now refused or asked for); an as-of condition of several statements.
-- **What judges it**: unit (join, the Join window in jsdom, the window's inputs); planned on DuckDB through the tab's module (join-open:
-  each form's rows, a grouped input, a join inside an input, drift, the compiler's refusals); the browser (verify-join:
-  two files joined, the words before Apply, a second join keeping my rows with no match, a refusal in the window,
-  saved, reloaded and reopened with each file asked for once); Python (the several-table writer; headless joinCube and
-  joinQuestions over two frames, the rows planned and run by Python, the cube added by pageApply); core
-  (CatalogModelTest). The startup budgets raised with their note (bundle-budget.test.ts, +4.7 KB gzipped).
-- **Not built here** (§17.7, unchanged): Python's `page.join` (step 4b: a page Python serves needs one model of several
-  frames from its engine, engine.py, the SQL plan's ground -- headless `joinCube` is ready for it); live links and the
-  flow view; Create a Class of a joined grid (not offered: its writer takes a source read from one table); a remote
-  input's keys asked on reopen; the engine planner's booleans in a join;
-  lateral beyond Expand; text comparisons as rows; warehouse tables read live; a joined file's handle kept; choose,
-  rename and remove duplicates as relation steps (choose is the shown columns already; rename is a column's display
-  name and Create a Class's names; remove duplicates is left for the next step).
+> Cut in the 2026-11 docs cleanup: step 4's as-built record (2026-10-20): core's several-table model, the join as data (join-how.ts, cube-document.ts `JoinSource`, join.ts), the compiler judging names and types, the opener (join-open.ts), the tab's Join…, headless `joinCube` and `joinQuestions`, the audit's fixes, what judged it and what it left unbuilt. Full text: `git show de2745351:docs/DATACUBE_MODEL_DESIGN_2026_10_10.md`.
 
 ## 18. A grid is a query, not a table (step 4c, agreed 2026-10-20)
 
@@ -1028,63 +903,7 @@ The user's words, 2026-10-20:
 
 ### 18.2 What assumes a table today (the sweep, 2026-10-20)
 
-Two read-only sweeps, DataCube with the engine client and Python, their findings checked against the code. Lines
-are at `b108cbd69`.
-
-1. **The base query is never saved. This is the root.**
-   - `cube-document.ts` `SavedQuery` (~192) omits `source`, and `writeCube` (~229) drops it.
-   - Reopen rebuilds the base from the leaf: `rebuilt(saved, m.source, ...)` in each opener of `app/sources.ts`; a join
-     from its leaves' relations (`join-open.ts`). A base other than a leaf's accessor (a filtered one, a join input's
-     own) would reopen as the bare leaf. Latent today: nothing edits a base yet.
-   - Python never holds a base:
-     - `page.py _cube_spec` (~535) sends `frames[cube.source.name].accessor` with every headless call.
-     - `_reopened`, `_current` and `_frame_cube` rebuild a saved cube over one frame.
-     - `_read_page` (~1353) refuses a cube whose source is not a frame, so a page with a join or class grid cannot be
-       read, saved or shown from Python.
-2. **What a grid reads is answered from its source kind, or from one field.**
-   - The tab:
-     - `GridPlace.file` is one file. It feeds `filesNow`, `filesHeld` and `keepHandles`, so a page of only join grids
-       keeps no file handles and gives no warning on leaving.
-     - `frameOf` (`app/sources.ts` ~1107) and `live-follow.ts` refresh only grids whose source is a frame.
-     - The Live/Snapped pill comes from `heldCopy` and `snapTarget`, set per kind: a join of two tab files says
-       "Live — this plane has no store in this tab to snap into".
-     - The header's source tag reads the accessor's path (`app.ts` ~3915).
-     - Page filters reach only grids whose source is a class (`page-filters.ts` ~151).
-   - Python:
-     - `Grid.frame` (`page.py` ~205), and `Grid.update(frame)`, assume one frame.
-     - `Page.load` and `Page.read` find a saved page's frames by each cube's source name.
-     - `_frames()`, `_update` and `engine.py page_versions` track one frame per cube, so a join over Live frames is
-       not re-queried when one of them changes.
-3. **Snap copies a table.**
-   - The tab:
-     - `SnapTable` is one table under the warehouse table's own name (`engine-client/src/snap.ts` ~97), read through
-       that table's model and runtime, with the catalog's conversions.
-     - A snap target is made only for a warehouse table's grid (`app/sources.ts` `snapOf`, `hostSnap`). The pull is
-       already the base query (`cube.ts` ~685).
-     - **A bug today:** every grid one maker makes (a Copy of Grid, a chart's Open in Grid) shares its snap target.
-       Snap both, and both copies land in one table (`replace: true`); take one Live, and `discard` drops the table
-       the other still reads.
-   - Python:
-     - `_WarehouseTable` (`engine.py` ~335) holds one copy per table (`holders`, `frozen`, `snap_runtime`).
-     - A second grid's snap gets the first grid's copy without a pull of its own (`_warehouse_snap` ~936).
-     - `refused_runtime` lets any grid read a copy another grid holds.
-     - The conversions are per column of the table, not of the query.
-4. **Create a Class, a Data Space, an Association.**
-   - `storeTableOf(base)` (`query.ts` ~390) is a fine leaf detector, but it gates all three:
-     `app/datacube-app.ts` ~1043, `model-actions.ts` ~60 and `headless/grid.ts` ~427.
-   - The sample is filed under that one table's name, and `where.from` is the accessor's Database.
-   - The page model keeps one table per cube: `page-model.ts` `tables` and `keepTable`, and `page-document.ts` reads
-     one string per cube.
-   - The menu hides them on a join's grid (`app/datacube-app.ts` ~225), and Python's data space leaves such grids
-     out without a word (`page.py create_data_space`, `_NotATable`).
-5. **Python routes a warehouse plan by one table's model.**
-   - `engine.py` routes plan-and-run (~472, `_warehouse_table_of` ~1009), the dry run (`_plan`) and
-     `_warehouse_plan_and_run` to a warehouse only when the model text is exactly one table's model, so a join of
-     warehouse tables has nowhere to run.
-   - pure/v1 `execute` (`_execute`, ~1150) admits only one frame's model text, not what `model_for` admits.
-
-Unsure, to settle while building: a warehouse grid's Create a Class sample is planned with the warehouse runtime and
-run on the tab's DuckDB (`app/datacube-app.ts` `rowsOf`, ~112).
+> Cut in the 2026-11 docs cleanup: the sweep of 2026-10-20 (at `b108cbd69`) of what assumed a table -- the base query never saved, what a grid reads answered by its source kind, Snap copying a table, Create a Class gated on one table, Python routing a warehouse plan by one table's model -- which §18.3 answers. Full text: `git show de2745351:docs/DATACUBE_MODEL_DESIGN_2026_10_10.md`.
 
 ### 18.3 The design
 
@@ -1185,15 +1004,7 @@ Read from legend-engine's `MappingTestRunner` and `TestAssertionEvaluator` (read
 
 ### 18.6 Order, each audited
 
-1. `leavesOf`, and every check of what a grid reads asking it.
-2. Snap by query, in the tab and in Python.
-3. Python pages over any base.
-4. A class, a data space, an association of any base.
-5. Core's mapping-test runner.
-6. Samples through the query; Create a Class writes the mapping test and runs it.
-7. An audit by a reviewer that wrote none of it, and the full suite.
-
-On `claude/datacube-query-base`, stacked on `claude/datacube-model-prep`.
+> Cut in the 2026-11 docs cleanup: the build order of step 4c and its branches (2026-10-20): leaves, Snap by query, Python pages over any base, a class of any base, core's mapping-test runner, samples through the query, an audit. Full text: `git show de2745351:docs/DATACUBE_MODEL_DESIGN_2026_10_10.md`.
 
 ### 18.7 What judges it
 

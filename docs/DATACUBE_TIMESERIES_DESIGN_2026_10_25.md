@@ -1,7 +1,7 @@
 # DataCube's timeseries viewer: many series from many grids, every figure the database's (design, 2026-10-25)
 
-**Status: agreed with the user, 2026-10-25** (§2.1); being built on the branch. `datacube/` is the DataCube + Python line's (`docs/IN_FLIGHT.md`); this work is on the session branch
-`claude/timeseries-viewer-datacube-tsm0nb`. It builds on the charts design (`docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md`:
+**Status: agreed with the user, 2026-10-25** (§2.1). Built: §8's phase 1, and §11's phases 1 to 6 (Phase 5 but for the
+brush; §11 says what is not built). `datacube/` is the DataCube + Python line's (`docs/IN_FLIGHT.md`). It builds on the charts design (`docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md`:
 "the database computes, the chart draws"; the presets as calculated columns, §3.2) and the pages design
 (`docs/DATACUBE_PAGES_DESIGN_2026_10_09.md`: every tile equal, bands, sheets).
 
@@ -148,7 +148,7 @@ sharpe_ratio; correlation (corr), beta, cov; bollinger_bands, rsi; log, exp, sqr
 window is full (the ramp). Annualizing is by the tile's frequency: 252 days, 52 weeks, 12 months, 4 quarters; a tile
 of no frequency ("As the rows are") by what its dates' spacing says, worked out by the database -- gs-quant's own rule
 (`_get_annualization_factor`'s buckets: daily 252, weekly 52, monthly 12, quarterly 4, yearly 1; the owner's decision 2,
-docs/TIMESERIES_REVIEW_2026_10_25.md §5).
+docs/TIMESERIES_REVIEW_2026_10_25.md §5, now in git history: docs/HISTORY.md).
 
 **Where it differs from gs-quant, said in the catalog**: `volatility`'s window defaults to 22 (gs-quant: the whole
 series); `sharpe_ratio` takes a risk-free rate of zero and the arithmetic mean of simple returns (gs-quant: excess
@@ -438,7 +438,7 @@ not of the column a statistic is over (its returns' or its drawdowns', a period 
 period are `pairPeriod`'s (a correlation or a covariance of the pairs whose dates are in it; `slopePeriod` over it),
 and each pair function, benchmark-relative statistic, lead-lag, product, vol swap, Dickey-Fuller and half-life has
 its `...Period` form; `append` and `prepend` splice series aligned by the caller (`union`'s way). Every function of the
-catalog is the library's (docs/PURE_LIBRARY_SPIKE_2026_10_27.md, "What stays DataCube's": the tile's shaping alone
+catalog is the library's (§5.8, "What stays DataCube's": the tile's shaping alone
 stays). So are the tile's tables and views since the focused Pure audit (2026-10-28: what the tile's TypeScript still
 wrote as maths, moved, each held to today's numbers): the periods a year of a tile of no frequency (`periodsPerYear`,
 gs-quant's annualization factor), compare's rebase and % change (`index`, `percentChange` and their `...From`, a
@@ -502,7 +502,7 @@ empty arm); `UserFunctionIntegrationTest$RelationGeneric` (columns by name, a me
 ### 5.7 The library's conventions (the user, 2026-10-27: "yes take all your suggestions")
 
 A spike wrote one function of each family of the tile's functions as a Pure function over any table and held it to
-today's writer (docs/PURE_LIBRARY_SPIKE_2026_10_27.md): every family says itself so, and three primitives were missing.
+today's writer (§5.8): every family says itself so, and three primitives were missing.
 They are built, each a register row: `meta::legend::lite::without` (S113: a relation less the named columns, typed as
 the select of the rest; upstream has no column drop); hygiene (S112: each expansion renames the columns its body makes
 and its declared return does not name, to names none of the call's tables has); and the declared return held to each
@@ -563,6 +563,52 @@ every function"), each held to today's numbers by `timeseries-queries.test.ts`:
 - **The tile writes calls.** `timeseries-query.ts`'s writer turns a tile's expression into the library's calls
   (`mean(x, 20)` the count's window with ramp 20, `mean(x, 0)` the expanding one, `mean(x, 3m)` the calendar
   function), and the planners and hosts carry the library as they do today (§5.6).
+
+### 5.8 The spike that proved the library (2026-10-27)
+
+Before the primitive that drops a function's working columns was built, one function of each family of the tile's
+functions was written as a Pure function generic over any table (S112) and held to the numbers today's writer
+(`timeseries-query.ts`) gives for the same expression, over the prices of `timeseries-queries.test.ts`, on DuckDB,
+through lite's planner (`datacube/test/pure-library-spike.test.ts`, `//datacube:pure_library_spike_test`). Every family
+the tile's ~100 functions fall into says itself as a Pure function, and every one matched the writer on every date (to
+1e-9 relative):
+
+| Family | Its functions | The representative |
+|---|---|---|
+| One window, ramped | mean, sum, min, max, std, var, range, count | `datacube::ts::mean` |
+| A row of a lag | returns, diff, lag, annualize, prices; row arithmetic (log, exp, sqrt, abs, power, floor, ceil, not, filter, compare, if, date parts) | `datacube::ts::*Returns` |
+| Multi-step windows | zscores, drawdown, max_drawdown, sharpe, winsorize, vol_swap, smooth_spikes, product, geometrically_aggregate, volatility | `spike::zscores` |
+| Several outputs | bollinger_bands, keltner, donchian, ohlc | `spike::bollinger` (lower, upper, width) |
+| A base over the whole line | index, rebase, change, percent_change, first, last | `spike::index` |
+| Two columns of an aligned table | correlation, beta, cov, alpha, r_squared, hedge_ratio, residual, tracking_error, information_ratio, up/down capture, excess_returns, union, append, prepend, interpolate, lead_lag; atr, stochastic, keltner; obv, vwap, total_return | `spike::correlation` |
+| Two tables of different columns, aligned | a tile's sources aligned on their dates (intersect; step, time, nan and zero fill by windows) | `spike::pairOf`, generic over two schemas |
+| A self-join over each window | percentiles, percentile, median, rolling percentile | `spike::percentiles` (join, group, join back) |
+| A calendar period | any window of `3m`; returns, lag over a tenor | `spike::meanOver` (self-join on `adjust` dates), `spike::lagBack` (as-of join) |
+| A group by the line | the statistics, drawdowns, calendar, histogram, seasonality and curve tables | `spike::maxDrawdownOf` |
+| A partition by a column of its own | consecutive, shading runs, a decomposition's cycle places | `spike::consecutive`, over a library call |
+| The deepest closed forms | exponential_moving_average, exponential_std/volatility, macd, rsi, smoothed_moving_average | `spike::ema`: fifteen steps |
+
+What else it showed:
+
+- **A word told as a parameter** (`'simple'`, `'log'`) is compared when the call is expanded, so a call keeps one
+  branch and its SQL carries no other -- the ground of §5.7's enumerations. The SQL a library function plans to is of
+  the writer's size (the exponential average: 5,682 characters, the writer's 6,733). A body of several statements
+  (`let`) ends each statement after the first with `;`, the last too (legend's grammar).
+- **Three primitives were missing**, each built the same day as a register row: `without` (S113), hygienic working
+  names and the declared return held to each call (S112) -- §5.7. Many series and frames were design choices, settled as
+  §5.7's long table and window as a value. Not missing: self-joins, as-of joins, group-bys, functions over two tables,
+  partitions by a function's own columns, a library function over another's answer, static words.
+- **What stays DataCube's** is the tile's shaping, not gs-quant's functions: a source's periods at the tile's frequency
+  (a week's last observation), its split into lines, the view's anchor and window, a candle's period bucketing, which
+  queries a tile asks (`tileAsks`), the align of several series (each on its own dates, then joined by the tile's
+  `align`) and the compare view's rebase. Every function of the catalog was then converted (2026-10-27, §5.6).
+- **Two typer findings, for the library's review and the port's typer** (found converting, 2026-10-27): an `if` whose
+  branches are relations of different columns is not refused by the typer -- it reached DataCube's plan reader as
+  "column ... appears with conflicting types" (a smoothed average's `if($w <= 1, ...)`); and the static fold that takes a
+  branch when a call is expanded evaluates `==` but not `<` or `<=` over literals, so the library branches on `==` alone
+  (`smoothedMean`, `ewmaSpan`).
+
+Sources: `docs/PURE_LIBRARY_SPIKE_2026_10_27.md` (git history: docs/HISTORY.md).
 
 ## 6. The viewer
 
@@ -635,7 +681,8 @@ every function"), each held to today's numbers by `timeseries-queries.test.ts`:
 1. **The tile** -- everything in §3 to §7: sources from any number of grids; series of one source and combinations
    across sources, on the tab and on a page Python serves; the viewer whole; the page commands, the rebase, a removed
    grid; Python; an example page over a markets sample (daily prices and volumes of ten instruments with a currency
-   among them, and a yield curve's tenors: two grids). Each step a commit, held by its tests (§9). **Built** (§10).
+   among them, and a yield curve's tenors: two grids). Each step a commit, held by its tests (§9). **Built** (its record,
+   §10, cut in the 2026-11 docs cleanup).
 2. **Sources elsewhere**: a combination offering the grid's Snap when a source is on another store (D3), and reading
    the copy; per-source frozen filters.
 3. **Later**: a join across stores (D3); events read from a grid's column (a calendar of releases) as
@@ -647,9 +694,9 @@ every function"), each held to today's numbers by `timeseries-queries.test.ts`:
 The queries planned and run (§5.4, growing with each function and with §5.2's combinations); the spec's reader, its
 refusals and the expression language's round trip (parse, print, parse); the drawing (`timeseries-option.ts`, in node);
 the viewer's DOM (jsdom, the renderer stood in for); the page commands, the rebase and a removed grid; Python's
-`page.timeseries`; the example pages drawn in Chromium -- and the timeseries gallery (below) the catalog's own test:
+`page.timeseries`; the example pages drawn in Chromium -- and the timeseries gallery (`examples/timeseries-gallery.ts`) the catalog's own test:
 every function on its family's sheet, every series of it planned and answered on the samples
-(`test/examples.test.ts`, `test/timeseries-queries.test.ts`). Since the review (docs/TIMESERIES_REVIEW_2026_10_25.md):
+(`test/examples.test.ts`, `test/timeseries-queries.test.ts`). Since the review (docs/TIMESERIES_REVIEW_2026_10_25.md, in docs/HISTORY.md):
 every change of a tile made on the screen as a person makes it and held to the one-API checks -- told as commands,
 read by the host as Python's keeper reads a write, replayed to the same page (`test/one-api-gestures.test.ts`, 20
 gestures) -- and every kind of change made by the viewer and by Python (`test/one-api-ledger.test.ts`); the drawing
@@ -659,69 +706,7 @@ rendered by real ECharts (`test/timeseries-echarts.test.ts`); both example pages
 
 ## 10. What is built so far (on the branch)
 
-- **The spec** (`timeseries-spec.ts`): the types of §3, the functions' signatures and the saved spec's reader -- what a
-  page reads at its start, and all it needs to. The rest is fetched with the first timeseries tile (budgeted:
-  `test/bundle-budget.test.ts`): the catalog's words, the expression language, the rules against a grid's columns and a
-  first tile of a grid (`timeseries-expr.ts`); the queries (`timeseries-query.ts`, §5); the drawing
-  (`timeseries-option.ts`); the viewer (`ui/timeseries-view.ts`, §6); its renderer (`timeseries-render.ts`, over the
-  charts' own ECharts: `chart-render.ts canvasChart`, one build of it for both).
-- **On the page** (§7): the view kind read and written (`page-document.ts`), its commands (`page-commands.ts`
-  `addTimeseries`, `setTimeseries`), rebased and diffed (`page-rebase.ts`, `page-between.ts`); the board's tile
-  (`page/cube-page.ts`: placed, synced to the page's state, restored, removed, exported as a picture); Create ▸
-  Timeseries; grids read together on the tab (`app/timeseries-together.ts`) and on Python's page (`join.json`
-  `together`). The one-API ledgers hold it: the commands are the screen's and Python's alike (`test/one-api-gestures`:
-  a timeseries added, its range picked, each replayed by the host to the same page).
-- **Python** (`python/legend_lite/page.py`): `page.timeseries`, `sheet.timeseries`, `grid.timeseries`, the
-  `Timeseries` tile's `plot`, `unplot` and `options` -- every word judged by DataCube's code headless.
-- **Samples and an example**: `samples.ts` markets (ten instruments, five years of business days, a crash and a bear
-  market) and rates (a Treasury curve that rises and inverts); the Markets example page (`examples/markets.ts`: four
-  sheets -- performance rebased with a vol pane; drawdowns, volatility, correlation and beta; Bollinger bands, moving
-  averages, RSI and volume; the curve, the 10s2s spread, and a bond fund against its yield across two grids), drawn in
-  Chromium on the demo site.
-- **A series' values in Python** (`Timeseries.frame(series, start=, end=)`): the viewer's own query written headless
-  over Python's tables (`timeseriesQuery`), planned and run by Python's plan-and-run -- a DataFrame indexed by date, a
-  column per line (a split's per value; a band's lower and upper; candles' open, high, low and close); a window kept
-  by the database after every value is computed over every date (`seriesQuery`'s clip), so its first values have their
-  history.
-- **Candles** (`ohlc(open, high, low, close)`, also `candles`): a candle per period -- its four series computed on
-  their sources' own dates (each date's rows taken as a candle's are, `candled`: its first open, highest high, lowest
-  low and last close), then each period of the tile's frequency taking its dates' first open, highest high, lowest low
-  and last close (`candle`), so a weekly candle of daily rows is right, and so is one of a computed series
-  (`ohlc(close / close[SPX], ...)`; its functions run over those dates: a 5 is five of them) -- drawn by ECharts' candlestick (registered with the rarer kinds, `chart-render-kinds.ts`,
-  before the tile's chart is made: an ECharts chart takes the layouts it knows as it is made), never read, unmoved by
-  compare. The series editor's Candles makes one of a close (`candleOf`: the open, high and low beside it, by name).
-- **The timeseries gallery** (`examples/timeseries-gallery.ts`; the user, 2026-10-25: "a real saved page with multiple
-  tabs showing all of these", as the chart gallery is): in the Open window's examples beside Markets -- a sheet per
-  family of the catalog (returns, level, rolling statistics, risk, relationships, technicals, math), each using every
-  function of its family, titled by what it does; a sheet of the ways to read a tile (a line per symbol, a month at a
-  time, a log scale, every line from one start with its statistics, the styles, two grids in one query); and the two
-  grids. 36 tiles, 88 series, each sheet fitting its window. Building it found three defects, each fixed with its test:
-  a level read through a lag (`diff`, `lag`, `prices(returns(...))`) had its statistics name their own lag as the
-  series named its own, and the planner refused the column twice (the statistics now go on writing with the series'
-  own writer, `Built.writer`); `prices` took its returns' unit (a level of 1,139 read as 113,949.58%: it is an index's
-  level now); and a log pane drew a second price, on the right, on a straight scale (a right axis of levels is log too;
-  a ratio's keeps its zero). A small plain number (a covariance of daily returns) is written to three significant
-  places, not as 0.000; a tile half a screen wide tightens its toolbar (a container query on `.dc-ts-host`).
-- **A tile on a sheet not shown asks nothing** (`page/cube-page.ts #drawTimeseries`): its viewer is made, and its grids
-  asked, when its sheet is shown (`showSheet`, a step that leaves one shown, a page reopened) -- the gallery opens
-  asking its first sheet's 10 series, not its 88 (docs/TENETS.md: lazy Work; `test/cube-page-shell.test.ts`). Charts
-  on a sheet not shown still ask at opening, as before.
-- **The review** (docs/TIMESERIES_REVIEW_2026_10_25.md, before the PR): four independent reviewers -- the execution
-  tenet, the one API, the numbers, the repository's rules -- and every blocking and should-fix finding fixed, each
-  pinned by a test (its §6): each operand on its own dates, levels apart from units, periods dated by their last
-  observation and annualized by their dates; snapped grids read from their copies on every path, Python's frame()
-  included; one rule for every change of a tile, on the screen and in Python, every gesture proved so; a removed
-  grid's cube kept while a tile reads it, its undo too; refusals said where they land. A second audit of those fixes
-  (its §7), and its findings fixed the same way (its §8): a range's start the value as of it, `prices` from `initial`, a
-  level below zero compared as a rise and given no returns' figures; one judge of a change for the viewer and Python,
-  the frame's notes the drawing's; the cubes a page holds one rule every tile kind answers; a hidden tile asking
-  nothing until shown.
-- **States, a chart's words** (the user, 2026-10-26; §7): Dynamic, Frozen (each grid's filter kept), Detached -- on
-  the screen and in Python (`Timeseries.state`).
-- **PR #73's design** (the user, 2026-10-26): its state in its header; its right-click a chart's (Create ▸,
-  Properties…, View ▸); its series editor and Settings a window beside it among the page's windows; both themes.
-- **Next**: events from a grid's column; a regression of one series on another; a chart on a sheet not shown asking
-  only when shown, as a timeseries tile does; the follow-ups of docs/TIMESERIES_REVIEW_2026_10_25.md §9.
+> Cut in the 2026-11 docs cleanup: the as-built status of phase 1 on its branch (2026-10-25 to 2026-10-26): the spec, the page commands, Python, the samples and the Markets example, a series' values in Python, candles, the timeseries gallery, a hidden tile asking nothing, the four-reviewer review and its fixes, states, PR #73's design, and a Next list (the review's §9 follow-ups stay open: `docs/TIMESERIES_REVIEW_2026_10_25.md`, in `docs/HISTORY.md`). Full text: `git show de2745351:docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md`.
 
 ## 11. The next phases (the user, 2026-10-26: "lets do all the ones we can in phases")
 
@@ -744,7 +729,7 @@ dated budget notes; every figure still the database's.
   months 12, of weeks 52, of business days 252), where gs-quant first fills business days to calendar days (a
   deliberate difference: no calendar of days the data does not have).
   *Built (2026-10-26).* Two parts merged by one FULL join on their line and period (`merged`: each part read once, so
-  a nesting of them grows linearly -- the Phase 1 review's 1, docs/TIMESERIES_REVIEW_2026_10_25.md §12), a one-line
+  a nesting of them grows linearly -- the Phase 1 review's 1, docs/TIMESERIES_REVIEW_2026_10_25.md §12, in docs/HISTORY.md), a one-line
   part beside a split's under the source's lines; each part's values put onto the dates by its own windows over that
   relation (`fill`: none for nan, 0 for zero; for step and time, its last and next period with a value, and the value
   there), keeping their names, so every function after it reads them as before. `if` is on its flags' dates, `append`
