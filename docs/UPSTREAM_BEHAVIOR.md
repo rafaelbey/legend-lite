@@ -20,7 +20,7 @@ reproduce. It holds facts, not decisions. Where lite deliberately answers differ
 
 More upstream facts read from source, about the engine's JSON and CSV writers, a Float's text in compiled and
 interpreted mode, a date's zone, NaN, an instance's text, a Pair and the Variant column, are in
-[`docs/result-boundary-homework/README.md`](result-boundary-homework/README.md) §7. Other homes are listed in §5.
+[`docs/result-boundary-homework/README.md`](result-boundary-homework/README.md) §7. Other homes are listed in §6.
 
 ---
 
@@ -267,7 +267,60 @@ Sources: `docs/BACKEND_PORTABILITY.md` §7 (git history: docs/HISTORY.md).
 
 ---
 
-## 5. Where other upstream facts live
+## 5. What a client sees: relation types and the DataCube query store
+
+### 5.1 `lambdaRelationType` answers precise primitives
+
+legend-engine 4.145.0's `pure/v1/compilation/lambdaRelationType`, asked on a local engine (2026-09-27), answers
+`{_type: relationType, columns: [{name, genericType: {rawType: {fullPath}, typeVariableValues}, multiplicity}]}`. A
+store column's type is a **precise primitive**, with its size or precision and scale as type-variable values:
+
+| Column or expression | legend-engine's type |
+|---|---|
+| VARCHAR(32) | `meta::pure::precisePrimitives::Varchar` [32] |
+| INTEGER / BIGINT | `precisePrimitives::Int` / `BigInt` |
+| DOUBLE | `precisePrimitives::Double` |
+| DECIMAL(10,2) | `precisePrimitives::Numeric` [10, 2] |
+| DATE | `StrictDate` |
+| TIMESTAMP | `precisePrimitives::Timestamp` |
+| BIT | `precisePrimitives::TinyInt` |
+| SEMISTRUCTURED | `meta::pure::metamodel::variant::Variant` |
+| `sum` of an Int | `Integer` [1] |
+| `average` | `Float` [1] |
+| `sum` of a Numeric (Decimal) column | `Number` [1] |
+| a pivot cell `sum(if(...))` | `Float` [1] |
+
+The computed rows of the table (`sum`, `average`, a pivot cell) are plain primitives, and `sum` over a
+Numeric/Decimal column is typed `Number`, not Decimal. Lite's compiler answers plain primitives throughout (String, Integer, Float, `Decimal(10,2)`,
+DateTime) and `Decimal` for that `sum`; neither difference is a register row yet (both are proposed to the user). The
+BIT case is register row S23: the engine contradicts itself there, and lite reads BIT as Boolean.
+
+Sources: `docs/DATACUBE_TYPED_VALUES_DESIGN_2026_09_27.md` (git history: docs/HISTORY.md).
+
+### 5.2 The DataCube query store (`legend-engine-application-query`)
+
+Read at legend-engine 4.145.0 and legend-studio `c5b2f2c78` (2026-09-28). Upstream stores saved cubes in MongoDB.
+
+- **The record** is `DataCubeQuery {id, name, description, content, owner, createdAt, lastUpdatedAt, lastOpenAt}`;
+  `content` is the cube's `DataCubeSpecification`. The client's twin is `PersistentDataCube`.
+- **Search** is `POST query/dataCube/search` with a `QuerySearchSpecification {searchTermSpecification {searchTerm,
+  exactMatchName, includeOwner}, limit, showCurrentUserQueriesOnly, sortByOption, …}`, where `sortByOption` is
+  `SORT_BY_CREATE`, `SORT_BY_VIEW` or `SORT_BY_UPDATE`. It returns a light projection (`id name owner createdAt
+  lastUpdatedAt lastOpenAt`, no content): the current user's cubes first, then the sort, then the limit (capped). The
+  search term matches the id, the name or the owner.
+- **Reads.** `GET dataCube/batch?queryIds=` takes at most 50 ids. `GET dataCube/{id}` stamps `lastOpenAt`.
+- **Writes.** `POST dataCube`: the client supplies the id, a taken id is refused, and the owner is forced to the
+  current user. `PUT dataCube/{id}`: changing the id is refused; only the owner may update, and an unowned cube is
+  claimed. `DELETE dataCube/{id}`: owner only. The store also has `dataCube/events` and `dataCube/stats`.
+- **Launching a cube** (`legend-application-data-cube`). The route `/:dataCubeId?` fetches a saved cube by id and loads
+  its source. `?sourceData=<url-safe base64 of the raw source JSON>` builds a new cube on that source; it is the launch
+  point other apps use, and it does not carry a whole cube.
+
+Sources: `docs/DATACUBE_SAVE_SHARE_2026_09_28.md` (step 0) (git history: docs/HISTORY.md).
+
+---
+
+## 6. Where other upstream facts live
 
 | Topic | Where |
 |---|---|
@@ -279,4 +332,5 @@ Sources: `docs/BACKEND_PORTABILITY.md` §7 (git history: docs/HISTORY.md).
 | legend-engine and legend-pure defects found by lite | [`docs/UPSTREAM_FINDINGS.md`](UPSTREAM_FINDINGS.md), [`docs/UPSTREAM_DEFECTS.md`](UPSTREAM_DEFECTS.md) |
 | Studio, SDLC and Depot: routes, lifecycle, engine calls, how the engine receives models | [`studio/docs/UPSTREAM_STUDIO_CENSUS.md`](../studio/docs/UPSTREAM_STUDIO_CENSUS.md) |
 | The engine's SQL front end | [`docs/LEGEND_SQL_STUDY_2026_10_11.md`](LEGEND_SQL_STUDY_2026_10_11.md) §1 |
+| The engine routes DataCube calls, with their inputs and outputs | [`datacube/docs/ENGINE_API_CONTRACT.md`](../datacube/docs/ENGINE_API_CONTRACT.md) |
 | Every deliberate difference, with upstream's answer and its source | [`docs/SEMANTICS_REGISTER.md`](SEMANTICS_REGISTER.md) |

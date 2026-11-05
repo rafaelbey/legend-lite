@@ -175,7 +175,7 @@ are Java package rules.
   D72; [`backend.md`](backend.md) §11.1, C2a). A model compiles once and a query is typed once, every question asked
   of that typed query ([`backend.md`](backend.md) §11.2, C2b).
 - **Layering is enforced by the build.** Every stage is its own build target with only the dependencies it should
-  have; a back-edge is a build error, not a test finding (`docs/EXECUTION_PLAN_2026_09_26.md` rule 0b.12; the
+  have; a back-edge is a build error, not a test finding (`docs/EXECUTION_PLAN_2026_09_26.md` rule 0b.12, in git history; the
   2026-09-28 review counts it among what a strong team does).
 - **Names are resolved once.** Every call carries the record of every full name it can mean; no later stage
   re-resolves a spelling ([`frontend.md`](frontend.md) §4.3).
@@ -233,6 +233,11 @@ was not built like a compiler. The gaps a port should not reproduce:
   typer's exception takes a message only.
 - **Mapping semantics as text.** The normalizer emitted untyped, text-shaped Pure that was resolved and typed later;
   the store resolver was a 36,000-line pass keyed by dotted strings and suffixes, with mutable threaded state.
+- **Fallbacks and default arms.** Main code had 513 `default ->` arms, and every stage had a list of silent fallbacks
+  that invariant 4 forbids.
+- **Guards standing in for types.** About 23 of 25 guard classes were regular expressions over source text, holding
+  shapes a type would hold for free; two were green while their invariant was broken. The review's advice: replace a
+  regex pin with a type where one exists, and with a phase verifier where it does not.
 
 What changed since: resolve-once (L7, 2026-10-10) made every call carry its record of full names and put every built
 call through one builder, though the names are still strings ([`frontend.md`](frontend.md) §4.3). For product queries
@@ -252,13 +257,14 @@ matcher under its candidate loop and union-find meta-variables; mapping elaborat
 store resolution as small passes with explicit identities; lowering from one immutable, duplicate-refusing table;
 diagnostics as records in a sink, with a phase verifier; the reference at the same pinned release as a gated lane.
 
-Sources: `docs/plan-audit-2026-09-26/architecture-review-2026-09-28.md` §§1–3, §7, §8 (git history:
+Sources: `docs/plan-audit-2026-09-26/architecture-review-2026-09-28.md` §§1–3, §5, §7, §8 (git history:
 docs/HISTORY.md); `core/src/main/java/com/legend/compiler/spec/TypeInferenceException.java`; `AGENTS.md` (Entry
 points).
 
 ## 7. The compiler's target, and the oracles that judge it
 
-The Java compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`, rev H4, 2026-09-29) was parked on 2026-10-04 and is
+The Java compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`, rev H4, 2026-09-29; now in git history,
+`docs/HISTORY.md`) was parked on 2026-10-04 and is
 superseded by the Rust port. Its Java task list is history; its target and its rules are not.
 
 **The target is parity of observable outcomes** (rule 0b.13, the user's ruling D15). Lite matches legend-pure's

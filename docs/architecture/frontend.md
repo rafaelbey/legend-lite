@@ -5,7 +5,7 @@ pipeline in [`README.md`](README.md) §2. Store resolution (H) and everything af
 [`backend.md`](backend.md), which also holds the mechanics of normalizing a legacy mapping (its §4); this page holds
 the canonical form that normalization produces (§5). This page is language-neutral: it says what each stage owns, what it hands on and which
 upstream rule it reproduces. A Java name appears only as "today's" implementation. It replaces
-`docs/frontend-architecture.md`, whose reasoning (the two compilers, the typed output contract, the frontend
+`docs/frontend-architecture.md` (now in git history, `docs/HISTORY.md`), whose reasoning (the two compilers, the typed output contract, the frontend
 invariants) it keeps.
 
 Upstream sources are cited as the plan audit of 2026-09-26 read them in the pinned trees (legend-pure 5.99.0,
@@ -150,6 +150,48 @@ Sources: `docs/PARSER_COMPLETENESS_PLAN.md` (governing rule, §1, §2, §R3), `d
 docs/HISTORY.md); `docs/rust-port/ROADMAP.md` (the front seam, phase 2 gates), `docs/DIALECT_LEVELS.md`,
 `docs/SEMANTICS_REGISTER.md` S89.
 
+### 3.1 Parser parity with legend-engine
+
+Three parser decisions, closed during the parser build and still cited in the code as D-2, D-6 and D-7
+(`core/README.md`), each settled by matching legend-engine:
+
+- **D-2: an unknown key is an error.** An unknown top-level key in a `Runtime`, `RelationalDatabaseConnection` or
+  `Service` body throws a parse error naming the key; the service and persistence section grammars refuse unknown keys
+  the same way. legend-engine's ANTLR grammar makes an unknown key a syntax error (its runtime walker validates each
+  required and optional field: `RuntimeParseTreeWalker.java:99`, as the decision log cited it). Only lite's deleted
+  `engine/` module skipped unknown keys (it skipped to the next semicolon). Pinned by `ElementParserTest`
+  (`runtimeRejectsUnknownTopLevelKey`, `connectionRejectsUnknownTopLevelKey`, `serviceRejectsUnknownTopLevelKey`,
+  `singleConnectionRuntimeRejectsUnknownKey`).
+- **D-6: a view's `~filter` is a closed type.** Lite models a view's filter as a sealed `FilterMapping`: `Direct`
+  (one `FilterPointer`) for `~filter F` and `~filter [DB] F`; `JoinMediated` (the source database, the join chain, the
+  target `FilterPointer`) for `~filter [DB1] @J1 > @J2 | [DB2] F`, one hop or several. `FilterPointer` is sealed in
+  turn: `Local(name)`, which searches the enclosing database and its includes, or `Cross(db, name)`, which searches only
+  the named database. legend-engine's protocol has the same information in a flat `FilterMapping{filter, joins}` over a
+  `FilterPointer{db, name}` with a nullable `db`; the two encodings are isomorphic, and the sealed one makes a consumer
+  handle both resolution paths. In the join-mediated form the source `[DB1]` and the target `[DB2]` are both required:
+  the grammar's `viewFilterMappingJoin` ends in a database pointer (`RelationalParserGrammar.g4:143`, cited in the
+  test). The model type would hold a local target, but lite's parser refuses `~filter [DB] @J | F`, a leniency that
+  died with the legacy parser; every one of the 36 corpus uses writes the target `[DB]`. Pinned by `ElementParserTest`
+  (`viewFilterDirectLocal`, `viewFilterDirectCross`, `viewFilterJoinMediatedRequiresTargetDbQualifier`,
+  `viewFilterJoinMediatedMultiHop`, `viewFilterJoinMediatedCrossTarget`, `joinMediatedFilterRequiresSourceDbQualifier`,
+  `filterMappingJoinMediatedRejectsEmptyJoins`).
+- **D-7: a bare column in a database expression is refused.** A bare column identifier in a Database-context
+  expression (a `Filter`, a `Join`, a `MultiGrainFilter`, a view filter) throws "Missing table or alias for column
+  'X'" (today's `parser/DatabaseProtocolParser.java:1160`), legend-engine's own words: its grammar accepts the bare
+  identifier and its walker refuses it (`RelationalParseTreeWalker.generateTableAlias`, walker line 993 as cited in
+  lite's parser). Neither implementation has an implicit-table column reference. Under a scope header (a table
+  written before a block of columns, as a class mapping's table is) a bare identifier is a column of that header
+  table, as the engine's scope-info grammar reads it. Pinned by `ElementParserTest.filterRejectsBareIdentifierMatchingEngine`.
+
+Sources: `core/README.md` (closed decisions D-2, D-6, D-7) and its earlier decision log (`git show
+de2745351:core/README.md`); `docs/PARSER_COMPLETENESS_PLAN.md` §R3 (git history: docs/HISTORY.md);
+`core/src/main/java/com/legend/parser/ElementParser.java` (class comment),
+`core/src/main/java/com/legend/parser/DatabaseProtocolParser.java:1133-1160`,
+`core/src/main/java/com/legend/parser/section/ServiceSectionGrammar.java`,
+`core/src/main/java/com/legend/parser/section/PersistenceSectionGrammar.java`,
+`core/src/main/java/com/legend/model/FilterMapping.java`, `core/src/main/java/com/legend/model/FilterPointer.java`,
+`core/src/test/java/com/legend/parser/ElementParserTest.java`.
+
 ## 4. Names: upstream's rules, resolved once
 
 ### 4.1 What upstream does (read from source)
@@ -242,7 +284,7 @@ was identical; none of the render census's 52,530 entries changed.
 
 The record is still a list of full-name strings. The target the plans set is a distinct resolved tree in which every
 call carries declaration handles, a dot access stays `Member(name)` until the typer knows the receiver's type, and
-every binder has an id (`docs/EXECUTION_PLAN_2026_09_26.md` D12, §1); it is not built.
+every binder has an id (`docs/EXECUTION_PLAN_2026_09_26.md` D12, §1, in git history); it is not built.
 
 Sources: `docs/PLAN_AUDIT_2026_09_26.md` §1 rows 6–8 and the core-import paragraph,
 `docs/NAME_RESOLUTION_BUG.md`, `docs/build-inventory/program/L7_RESOLVE_ONCE_DESIGN_2026_10_10.md` §§1–4, §10, §12,
@@ -353,7 +395,7 @@ edit makes a new context and an empty memo. Element compilation never opens a bo
 ### 7.2 Choosing an overload: upstream's matcher
 
 The product is judged against legend-pure, so the matcher's outcomes must be legend-pure's, oddities included
-(`PLAN_AUDIT_2026_09_26.md` §1 rows 1–4; `kernel-reading-2026-09-26.md` has every method):
+(`docs/PLAN_AUDIT_2026_09_26.md` §1 rows 1–4, in git history; `kernel-reading-2026-09-26.md` has every method):
 
 - **The loop.** legend-pure collects every candidate that matches leniently (untyped lambda parameters and empty
   column types match anything), sorted. It loops over them in that order; for each, it binds type and multiplicity

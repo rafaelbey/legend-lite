@@ -1,22 +1,12 @@
 # Every generator: what it is, when it runs, and the bump (2026-10-05)
 
-Status: AGREED SHAPE (the user, 2026-10-05). Section 6 steps 1 to 3 and the small upstream generators are done on
-`build/phase1-generators` (the program's Phase 1, 2026-10-06); see the program's Phase 1 status for what changed from
-this file (ref_imports deleted; offer_queries and catalog_corpus reclassified). 2026-10-08: `//datacube:catalog_rules` and
-`catalog_corpus` deleted with DataCube's TypeScript model writer (DataCube calls the compiler's writer).
+Status: AGREED SHAPE (the user, 2026-10-05); what was built of it is section 6, and the build rebuild that carried it
+stalled after 2026-10-10 (`docs/REBUILD_PROGRAM_2026_10_06.md`). On 2026-10-06 the full design of the rebuild's
+Phases 3 to 5 replaced section 2's "basic split now" for items 5 to 8. The evidence, a dossier per generator (G1 to
+G6, the 57 generators' list), was `docs/build-inventory/generators/` (git history: docs/HISTORY.md).
 
-**Update 2026-10-06:** the program's phases are now in `docs/REBUILD_PROGRAM_2026_10_06.md`. The homework and
-experiments replaced section 2's "basic split now" (option (a)) for items 5 to 8 with the full design: the
-implementation table at boot (Phase 3), the default world from upstream alone (Phase 4), and Pure.java as rows keyed
-by function id (Phase 5). With those, no upstream generator keeps a hand-owned input, and section 6's steps 1 to 3, 5,
-6 and 7 are Phases 1 and 7.
-
-The evidence is in `docs/build-inventory/generators/`:
-- G1 to G5 hold one dossier per generator: what it computes and why, its declared inputs against what its program
-  reads, outputs, consumers, determinism, cost, what reruns it against what should, and who runs it today.
-- G6 covers the machinery: every writer and diff test, `//:update_generated`, `//:generated`, the bump procedure, and
-  every instruction to a human.
-- `programs.txt` is the exact list of the 57 generators, from Bazel's graph at `build/rebuild` HEAD.
+> Cut in the 2026-11 docs cleanup: the status and update notes of 2026-10-06 and 2026-10-08 and the evidence folder's
+> description. Full text: `git show de2745351:docs/GENERATORS.md`.
 
 ## 1. The rules
 
@@ -25,7 +15,7 @@ The evidence is in `docs/build-inventory/generators/`:
      dead.
    - **When it runs:** automatically, or on demand (`manual`).
 2. **Upstream-derived content is generated from the pinned checkouts alone, and only the bump generates it.** This is
-   `docs/COMPILER_DESIGN_2026_09_25.md` tenets 4 and 5: "nothing about upstream is typed by hand", and "everything the
+   the compiler design's tenets 4 and 5 (`docs/architecture/frontend.md` §2; the design itself is in `docs/HISTORY.md`): "nothing about upstream is typed by hand", and "everything the
    platform decides for itself is a registration, in one registry". Our decisions never go into an upstream record
    and are never an upstream generator's input.
 3. **The bump is self-contained.** Every upstream generator and report runs only inside `bazel run //tools/bump`.
@@ -138,27 +128,70 @@ These stay in `//:update_generated` (run by people), with their diff tests in th
 - `//spec:gen_claims` with `core_next` and its writer, if D2 retires native-claims.tsv. Nothing reads that file:
   ClaimRegistryTest names its path and never opens it.
 
-## 6. The work, in order (each proven locally; Windows in the end-of-rebuild PR)
+## 6. The work, in order: what was built
 
-1. **Delete the dead; mark the on-demand tools and reports `manual`.**
-2. **Build outputs:** testonly tags, the PCT adapter's constant jar timestamps, gen_differential's inputs.
-3. **Narrow every generator to what it reads** (sections 2 and 4), and remove self-inputs (committed outputs out of
-   the libraries their generators run on). Includes dropping vocab from keyword_coverage's tool data.
-4. **The split (option (a)):**
-   - CORE_IMPORTS into its own generated file;
-   - Pure.java's membership signatures and overload groups into their own generated class;
-   - DynaFn's resolutions into a hand-owned decisions file, with DynaFn.java generated whole.
+- **Built in the rebuild's Phase 1** (PR #26, `96bf6ae5d`, 2026-10-06): steps 1 to 3 (the dead deleted, the on-demand
+  tools and reports `manual`, the build outputs `testonly`, every generator of ours narrowed to what it reads), and the
+  small upstream generators made upstream-only: the fixtures, the manifest, vocab, CORE_IMPORTS in its own file
+  generated from `CompileContext` alone, the reachability census split into its committed upstream half and an
+  on-demand worklist. `ref_imports` was deleted rather than committed.
+- **Built in Phase 2** (`ff70aef01`): DynaFn and the engine handlers generated whole from upstream, our decisions joined
+  when the classes load.
+- **Step 4's split** for Pure.java was replaced by the full design: Phase 3 (one table decides, by exact function id)
+  landed 2026-10-09; Phase 5 (Pure.java as rows keyed by function id) never started.
+- **Never started:** the rest of step 5 (`native_declarations` widened to every upstream native), step 6, the
+  self-contained bump (Phase 7: there is no `//:update_upstream` and no `upstream.seal`; today's `bazel run //tools/bump`
+  is section 3's "Today" column), and step 7's wiring guard.
 
-   A core change: announced in IN_FLIGHT first, with a heads-up to core's owner.
-5. **The reports in upstream-only form:** native_declarations widened to every upstream native; the reachability
-   census's upstream half separated from the worklist. Determinism proven for all three.
-6. **The self-contained bump:**
-   - add `//:update_upstream`;
-   - remove the upstream records and the measurements from `//:update_generated`, and tag it `manual` (it is a
-     `bazel run` command);
-   - the bump runs regenerate, reports, seal, test, in that order;
-   - add the seal file and its everyday test, which replaces the upstream records' diff tests in the everyday gate.
-7. **Wiring:** a guard that every writer and diff test belongs to a suite and a gate; the stale instructions (G6
-   section 5) fixed.
+D2 was ruled on 2026-10-06: native-claims.tsv, `core_next` and `gen_claims` retire in Phase 5
+(`docs/REBUILD_PROGRAM_2026_10_06.md` §2, decision 5). The measurement group stays set aside.
 
-Decisions still open: D2 (native-claims.tsv), and the measurement group when we return to it.
+> Cut in the 2026-11 docs cleanup: the seven-step work list of 2026-10-05. Full text: `git show de2745351:docs/GENERATORS.md`.
+
+## 7. The default world: what a program without a manifest gets
+
+A user's program (Studio, DataCube, Query, the server) has no manifest. What it boots on is decided by upstream, not
+by a list of ours. Decided on 2026-10-06 by measurement, the way of making it ruled by the user on 2026-10-10; not
+built (the rebuild's Phase 4 never started, so today's `prelude.pure` is still `PreludeGenerator`'s).
+
+The default world is:
+1. **Upstream's own core, whole:** legend-pure `platform*` plus the engine's `core_functions_*`, the modules
+   `PureRuntime.loadAndCompileCore` compiles. Tests are stripped by upstream's own markers only: test stereotypes and
+   `::tests::` packages. `::test::` packages hold upstream's test infrastructure, which ordinary code references, and
+   stay.
+2. **Upstream's own query surface:** every function the engine's core compiler and relational extension register as a
+   handler (`Handlers.java`, `CoreCompilerExtension`, `RelationalCompilerExtension`: 455 functions) and every class
+   those compiler modules instantiate (156).
+3. **Closed** over what those reference: through declarations always, and through bodies. The experiments followed
+   only the bodies of functions whose upstream body runs; following declarations alone changed every corpus lane,
+   since some upstream bodies need functions only a body reaches. The user's ruling of 2026-10-10 (D4-1 (a)) follows
+   every body, so the closure never reads what we implement.
+4. **Built in:** the 87 m3 metamodel declarations upstream has only in `m3.pure`'s bootstrap form, and lite's stub.
+
+The only input of ours is a module-level choice: the core and relational compiler modules count, kept in the bump's
+configuration beside the pins. There is no list of names, no pruning, no Java scan. Per the 2026-10-10 ruling the
+bump's generator runs legend-pure's own compiler from the pinned jars over that module choice, so the world is a
+function of the pins and the module choice alone; the compiled boot form is a build step. Functions the platform owns
+(the implementation table's rows, the language forms, the system metamodel's own upstream-named elements) are filtered
+out of upstream's world at boot; without that filter the boot failed or calls bound to upstream's declarations
+instead of our forms.
+
+**Measured** (seven experiments, each swapping `prelude.pure` on the classpath of an unmodified build; cold starts):
+
+| World | Elements | JVM boot | Browser first answer | Projects' body walls | Corpus, 6 passes | PCT, 2,737 cases |
+|---|---|---|---|---|---|---|
+| the prelude of 2026-10-06 | 641 | 350 ms | 1,500 ms | 146 | baseline | baseline |
+| upstream's core, its query surface, closed through runnable bodies | 929 | 424 ms | 2,088 ms | 0 | identical | identical |
+
+- The 146 walls were one function called 146 times, `meta::pure::functions::lang::orElse`: in upstream's handler
+  table, missing from the hand-made prelude.
+- The cost: +74 ms JVM boot, +590 ms (+39%) to the browser's first answer, +0.33 MB of WebAssembly.
+- Pure.java against upstream: of 837 overloads, 794 match an upstream signature id exactly, none diverge, and the 43
+  others are all legend-lite's own `meta::legend::lite`. Rows keyed by function id can replace Pure.java's signature
+  text one for one.
+- The corpus on its real manifest (experiment 8: the 38 repositories' closure, 655 more files) keeps every roster
+  and register on all six passes; each ledger gains one line (an already-failing test now reaches its assertion and
+  fails there), which needs one register entry with its reason.
+
+Sources: `docs/MANIFEST_WORLD_EXPERIMENTS_2026_10_06.md` §1 to §4 and §6; `docs/REBUILD_PROGRAM_2026_10_06.md` §1 and
+§2, decision 6 (git history: docs/HISTORY.md).

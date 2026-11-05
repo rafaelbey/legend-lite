@@ -101,7 +101,9 @@
 > tables; no other Pure bodies. Residue is named, never ported.
 >
 > **Authoritative spec:** `core/README.md` — folder layout, per-package
-> contracts, open decisions. This file is the short form.
+> contracts, its own invariants 1–12, its closed decisions. This file is the short form. The
+> invariants the Rust port must keep, from both lists and beyond them (no hash-order dependence;
+> serve exactly legend-engine's `pure/v1` APIs), are gathered in `docs/architecture/README.md` §5.
 >
 > Layer design rationale: `docs/architecture/` — `README.md` (the overview, the
 > invariants the Rust port keeps, the known structural gaps), `frontend.md`
@@ -350,7 +352,7 @@ The "no `toSql()` / no SQL-encoding `String` field" half has **no test**.
   through to a stringly-typed catch-all.
 - Every defaulting branch is a bug hiding behind a safety net.
 
-### 5. Lazy loading of user packageable elements `[CONVENTION in core]`
+### 5. Lazy loading of user packageable elements `[ENFORCED in part — two guards]`
 
 Cross-project dependencies must not force-load the transitive graph.
 
@@ -366,10 +368,12 @@ Cross-project dependencies must not force-load the transitive graph.
 - Never walk a dependency graph by field access; go through `ModelContext`
   every step.
 
-> **The two automated guards — `NoEagerTypeReferencesTest` and
-> `NoEagerUserClassLoadsTest` — died with the engine module.** Core has
-> **no lazy-loading enforcement at all**. If
-> you break this in core, nothing turns red.
+> **Two guards, rebuilt for core** (`core/src/test/java/com/legend/architecture/`; the engine-era
+> originals died with that module). `NoEagerTypeReferencesTest` walks every compiled class in core's
+> jars and fails if a field outside its allowlist holds a resolved `TypedClass` or `TypedEnum`, directly
+> or nested in a collection, map, optional or array. `NoEagerUserClassLoadsTest` hands query
+> type-checking a fail-fast `ModelContext` that throws on any lookup of a "cold" user element. The rest
+> of this rule (no dependency-graph walk by field access) is still convention.
 
 ### 6. F must not trigger G `[CONVENTION]`
 
@@ -388,8 +392,8 @@ store-only node reaches the Lowerer — those are "resolver bug" walls.
 No `com.legend..` → `com.gs.legend..` dependency, ever. Also: no `util/`
 package anywhere (`ArchitectureTest`, the `..util..` rule).
 
-`ArchitectureTest` is mostly dependency-direction rules (37 tests as of
-2026-09-29, including `staticFieldsAreFinal`); it asserts no sealedness,
+`ArchitectureTest` is mostly dependency-direction rules (51 tests as of
+2026-11-05, including `staticFieldsAreFinal`); it asserts no sealedness,
 record-ness, or exhaustiveness (plan W1.11 adds an exhaustiveness check).
 Line numbers drift: search by rule name. It uses its own
 numbering ("6g", "7a-c") that does **not** map to this list or to

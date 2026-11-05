@@ -314,7 +314,7 @@ landing's program.
   executor's sites went on 2026-10-27). Branch `claude/product-path-perf` from `efff0406`, PR #85.
 - 2026-10-30 — Step C, the root dissolved (D73): the ledger's `ROOT_CLASSES` is the five doors, `PLANNER_CLASSES` (7)
   and `DRIVER_CLASSES` (26) new; two new rules (`theDriverHasOneCaller`, `plannerIsExecutionFree`); size pins
-  AssertVerdicts 1258 → 1259 and BodyDriver 2313 → 2321 (the import lines the move needs). PR #82; commit not recorded.
+  AssertVerdicts 1258 → 1259 and BodyDriver 2313 → 2321 (the import lines the move needs). PR #82, `caa4bb8c2`.
 - 2026-10-30 — The seam's step B2, the wall (D72): `ArchitectureTest.EXEC_PLANNING_REFERENCES` deleted,
   `execReachesNoPlanning` the rule; GridProbe's size pin 53 → 52; `EXEC_CLASSES` −3, `JUDGE_CLASSES` +2,
   `ROOT_CLASSES` +1. PR #82, `9f44d43c`.
@@ -326,11 +326,11 @@ landing's program.
 - 2026-10-30 — The java.sql revamp, step 3 (D69): the JDBC surface register as a table of classes and their acts; the
   funnel's exemption; the new rule `noJdbcTypeInAPublicSignatureOutsideTheSeam`. `dfbbcfa5`.
 - 2026-10-30 — The java.sql revamp, step 2b (D68): the JDBC census register loses `PureTestRunner`,
-  `ServiceTestRunner` and `TestObserver`. Commit not recorded.
+  `ServiceTestRunner` and `TestObserver`. `d79a9edab`.
 - 2026-10-30 — The java.sql revamp, step 2a (D67): the JDBC census register loses nine files; the Java-evaluation
-  ledger's server list loses `QueryService` and `OutputFormat`. Commit not recorded.
+  ledger's server list loses `QueryService` and `OutputFormat`. `d7103d53e`.
 - 2026-10-29 — The three routings (D65): the JDBC census loses `MariaDbConnector.java`; `DatabaseOwners` gains the
-  new test. Commit not recorded (CI ran at the doors' audit fold, `28b8db79`).
+  new test. `650161e13` (CI ran at the doors' audit fold, `28b8db79`).
 - 2026-10-29 — DuckDB's driver 1.4.4.0 → 1.5.6.0 (D60): `AsOfJoinCheckerTest.testAsOfJoinEmptyRight` asserts the
   spec where it pinned DuckDB's zero rows; the SQLite and H2 lane floors lose their as-of line; register row S126 to
   `outcome`. PR #80, `acaa063b`.

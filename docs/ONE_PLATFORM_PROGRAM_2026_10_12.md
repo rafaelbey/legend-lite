@@ -154,7 +154,7 @@ everywhere (G3), the optional G6 and G7, the upload's SQL in the dialect (G8), o
 sign-in where a store is shared (G10) remain, as do a page's board exported headless (PARK-32) and H, publishing,
 which is the user's to decide. Check `docs/PARKED_WORK_LEDGER.md` for what has moved since.
 
-> Cut in the 2026-11 docs cleanup: §3, where things stood on 2026-10-13; §4, the logic that existed twice (measured 2026-10-12 and 2026-10-13); §5, the phases L and B to H with their designs and as-built notes (2026-10-12 to 2026-10-15). The step ids §6 and §7 name (B2, B4–B7, C1–C5, D, D5, E, F1–F5, G1–G12, H, L, L1) are defined there. The upstream contracts the phases relied on are in `datacube/docs/ENGINE_API_CONTRACT.md`, `docs/DATACUBE_SAVE_SHARE_2026_09_28.md` and `studio/docs/UPSTREAM_STUDIO_CENSUS.md`. Full text: `git show de2745351:docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`.
+> Cut in the 2026-11 docs cleanup: §3, where things stood on 2026-10-13; §4, the logic that existed twice (measured 2026-10-12 and 2026-10-13); §5, the phases L and B to H with their designs and as-built notes (2026-10-12 to 2026-10-15). The step ids §6 and §7 name (B2, B4–B7, C1–C5, D, D5, E, F1–F5, G1–G12, H, L, L1) are defined there. The upstream contracts the phases relied on are in `datacube/docs/ENGINE_API_CONTRACT.md`, `docs/UPSTREAM_BEHAVIOR.md` §5 and `studio/docs/UPSTREAM_STUDIO_CENSUS.md`. Full text: `git show de2745351:docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`.
 
 ## 6. The order: the pull requests
 

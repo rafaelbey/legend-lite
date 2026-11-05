@@ -432,6 +432,20 @@ not carried here: parts of it were reversed later. Today's rules are `docs/INDEX
 Sources: `docs/PHASE_HIJ_LOWERING.md` (Tenet, "The fold policy", "Lowering rules + dispatch"),
 `docs/pipeline-architecture.md` §7 (git history: docs/HISTORY.md).
 
+### 8.5 NULL semantics follow the oracle, use by use
+
+NULL handling in the emitted SQL is decided by legend-engine's emissions, not by a blanket rule. A 2026-09 compiler
+design proposed rendering `[0..1] == [0..1]` as `IS NOT DISTINCT FROM` everywhere and making an empty aggregate yield
+Pure's result. The audit of that design rejected it for parity: the engine emits a bare `=` and a plain `SUM`, and
+`IS NOT DISTINCT FROM` appears in no golden. The oracle decides, so the lowering keeps its per-use rules. In today's
+code those are: the engine's null-safe equality for a user's equality over two optional operands; a plain `=` in a
+mapping's own definition (its join conditions and correlation filters); and the engine's NULL compensation for
+negated predicates (`processNotEqual`, `processNotIn`). These rules live in today's Java `lowering/NullSemantics`.
+
+Sources: `docs/PLAN_AUDIT_2026_09_26.md` §2 ("The lowering design", "Null semantics vs parity", citing
+`Scalars.java:83-130` and `NullSemantics.verbatim`), current code `lowering/NullSemantics.java` (git history:
+docs/HISTORY.md).
+
 ## 9. Collections and carriers
 
 ### 9.1 Semantic nodes, rewritten per dialect
@@ -543,6 +557,20 @@ dialects already render through the Rust port's library is in [README.md](README
 
 Sources: `docs/PHASE_HIJ_LOWERING.md` ("Dialect architecture", 2026-07-05), `docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md`
 (§4, §6, Phase 2, Phase 4) (git history: docs/HISTORY.md).
+
+### 10.3 Capability belongs to the dialect, not to a declaration
+
+Whether a database can run a construct is not a column on a function's declaration. Capability is a property of the
+dialect, and it can depend on shape (the audit's example: on H2, a lateral expansion works only over a literal
+collection). The
+2026-09-26 audit put it on the dialect as a `supports(function | structural node)` question, asked by one walk of the
+SQL IR after lowering and before rendering. That gives a lowering error before any SQL is written, without pretending
+capability is per declaration. As of this writing no such walk exists in `sql/` or `lowering/`: a refusal is still
+thrown at render time, by name, from the dialect's arm (`DialectCapability`). Each dialect records its capabilities
+in its own tables, which generate the capability matrix (§10.2).
+
+Sources: `docs/PLAN_AUDIT_2026_09_26.md` §2 ("The lowering design", "Dialect capability is not a declaration column"),
+current code `sql/dialect/DialectCapability.java` (git history: docs/HISTORY.md).
 
 ## 11. Planning and execution
 
