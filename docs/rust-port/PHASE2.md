@@ -499,6 +499,48 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    lexer and parser deleted, `PreludeGenerator` retargeted, core's tests of parser internals retired as rows of
    `rust/RETIRED_TESTS.md`, the guards that name the deleted classes moved with dated comments.
 
+   **6a done 2026-11-06** (from `1245f88bb`): the two halves that need the Java parser alive, so its answers and the
+   gates' old forms could be compared with the new; no Java parser code deleted (that is 6b).
+   - **The oracle frozen** (`cf9a866ef`). The three live outputs the differentials read at `1245f88bb` are committed
+     under `rust/oracles/front/` -- `tokens.tsv.zst` (1.4 MB), `answers.tsv.zst` (2.3 MB), `engine.tsv.zst` (1.5 MB),
+     `zstd -19 --long=27` -- each with its question-sha column cut (every file is in the questions file's order; 5.2
+     MB against 9.9 with it), the differentials walking questions and answers in lockstep and refusing a line whose
+     door or dialect is not its ask's. `MANIFEST.tsv` names each file's producing target, commit and SHA-256, the live
+     file's SHA-256 before the cut, and the archive of Java's full answers outside git
+     (`~/.local/legend-lite/oracle-archive/front-answers-java.jsonl.zst`, 3,556,378,580 characters, its SHA-256 checked
+     by decompressing it). The live actions stay until 6b; the differentials no longer depend on them. The counts,
+     identical live and frozen, every question identical: the lexer 52,143 texts (18,529,523 tokens); the doors pmcd
+     87,564, spec 22,151, lambda 876, block 5; the engine doors document 29,188 (23,257 JSON, 5,931 errors) and
+     lambdaJson 876 (870, 6). Optimized, the lexer differential ran in 8.5 s (medium, 300 s), the parser's in 24 s
+     (large, 900 s), the engine's in 9 s (medium, 300 s).
+   - **The gates asked of Rust** (`ef981f5b7`, `7fde30fbe`). Four probes on the existing `lite_front` export
+     (`rust/lite-front/src/probes.rs`, each a port of the Java a test called): `sectionHeaders` (`Sectionize`),
+     `elementSites` (`ElementParser.topLevelIndexes` and `at`'s readers: `RejectionParityTest`'s strict surface),
+     `databaseSites` (`ViewFilterParityTest`'s site scan, parse and emit) and `knownSections` (the registry's built-in
+     half: `SurfaceCensusTest`, beside the overlays, which stay Java's). Java reaches them as `RustParsers` methods
+     answered by `RustParserProvider`, and parser-equivalence through `Surfaces` alone: no class names a dialect that
+     did not, no new downcall shape, no guard moved. `SectionParseSentinelTest` and `OffsetCompositionParityTest`
+     named deleted classes in comments only (their code already asked Rust); `GenerativeDualParseTest`,
+     `OwnDialectCensusTest` and `GrammarCoverageCensusTest` reached them only through `Surfaces`' text doors. Beyond
+     §2's list, `ParserEquivalence` and `LegendLiteSectionParser` read `PmcdParser.parseSections` (the Java walk, the
+     source of `CorpusSweepTest`'s seam leg, `QuotedImportParityTest`, `OwnCorpusParityTest` and
+     `ProtocolSeedParityTest`): they read the model door's records now. After it no parser-equivalence source names a
+     class 6b deletes; `parseSections`' last caller is `ParseSpeedBenchmark` (manual). The old and new forms compared
+     over the oracle (`//core:front_shim -- --probes`), all identical: the section headers of 52,143 texts (42,421
+     headers); at each of three dialects the element sites of 29,188 model texts (108,826 to 131,161 sites; 2,024, 619
+     and 504 errors) and their Database sites (7,119; 138 errors); the elements' JSON of the engine-dialect texts
+     (146,668) and each `###Pure` section's code alone in imports, paths and JSON (40,309 sections, 112,963 elements);
+     the known sections (25). `//parser-equivalence:parser_parity` (45 tests), `:round_trip_proof` (2) and
+     `:diagnostics` (1) pass before and after with every report they write byte-identical but one label
+     `RejectionParityTest` spelled with a deleted class's name (its count, 2, unchanged): 422 pins (`MIN_PINS` 420),
+     421 rejected, 0 missed, line agreement 415 (413), column exact 337 (335); the sentinel 2,217 in scope, matched
+     2,216 (2,093), lenient 1 (17), unjustified 0, defects 0; the generator 1,029 both-reject, 0 divergences; the
+     surface census 57 rows, none missing; the sweep 6,755 documents matched, seam 6,746/0. No PARITY row: Rust
+     answered every question as Java.
+   - `bazel test //rust/... //parser-equivalence/... //core:ffi_test //core:core_tests_architecture //tools/guards/...
+     //gates/...` at `ef981f5b7`: 527 targets, 525 pass, the same 2 skipped (802 s). Ledger: `rust/RETIRED_TESTS.md`.
+     What 6b deletes and every reference to it, classified, is an inventory written for it (not committed).
+
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
 exists, and the committed oracle after.
