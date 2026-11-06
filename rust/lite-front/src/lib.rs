@@ -10,11 +10,14 @@
 //! `###Runtime` (`runtime_parser`), `###Service` (`service_parser`) and `###DataSpace` (`dataspace_parser`) -- each held
 //! to Java's every answer that stays in them.
 
+pub mod activator_parser;
 pub mod codec;
 pub mod connection_parser;
 pub mod cursor;
 pub mod database_parser;
 pub mod dataspace_parser;
+pub mod deephaven_parser;
+pub mod diagram_parser;
 pub mod doors;
 pub mod elasticsearch_parser;
 pub mod element_parser;
