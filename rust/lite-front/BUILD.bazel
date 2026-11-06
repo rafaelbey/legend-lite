@@ -33,27 +33,29 @@ rust_test(
 )
 
 # Every text of the front oracle (//rust/oracles:front_questions) lexed by Rust and held to the Java lexer's token
-# stream for it (//core:front_tokens, the canonical form's SHA-256): all of them identical.
+# stream for it (the canonical form's SHA-256, frozen: //rust/oracles:front_tokens, rust/oracles/front/MANIFEST.tsv;
+# //core:front_tokens until 2026-11-06, step 6a): all of them identical.
 rust_test(
     name = "front_lexer_differential_test",
     size = "medium",
     srcs = ["tests/front_lexer_differential.rs"],
     args = ["--ignored"],
     data = [
-        "//core:front_tokens",
         "//rust/oracles:front_questions",
+        "//rust/oracles:front_tokens",
     ],
     edition = "2024",
     env = {
         "LITE_FRONT_QUESTIONS": "$(rootpath //rust/oracles:front_questions)",
-        "LITE_FRONT_TOKENS": "$(rootpath //core:front_tokens)",
+        "LITE_FRONT_TOKENS": "$(rootpath //rust/oracles:front_tokens)",
     },
     visibility = ["//gates:__pkg__"],
     deps = [":lite_front"],
 )
 
-# Every question of the front oracle whose door Rust answers, held to the Java parser's answer for it
-# (//core:front_answers, the canonical form's SHA-256): at least each door's floor (tests/<door>-floor.txt) identical.
+# Every question of the front oracle whose door Rust answers, held to the Java parser's answer for it (the canonical
+# form's SHA-256, frozen: //rust/oracles:front_answers, rust/oracles/front/MANIFEST.tsv; //core:front_answers until
+# 2026-11-06, step 6a): at least each door's floor (tests/<door>-floor.txt) identical.
 # Large (2026-11-05, phase 2 step 4a): the model door parses its 87,564 questions' texts and hashes their answers, about
 # 170 s unoptimized on an idle machine (fastbuild is rustc's opt-level 0; 40 s of it optimized), past medium's 300 s
 # once the remaining section grammars parse too. Since 2026-11-06 every build optimizes the crates (MODULE.bazel's
@@ -68,12 +70,12 @@ rust_test(
         "tests/lambda-floor.txt",
         "tests/pmcd-floor.txt",
         "tests/spec-floor.txt",
-        "//core:front_answers",
+        "//rust/oracles:front_answers",
         "//rust/oracles:front_questions",
     ],
     edition = "2024",
     env = {
-        "LITE_FRONT_ANSWERS": "$(rootpath //core:front_answers)",
+        "LITE_FRONT_ANSWERS": "$(rootpath //rust/oracles:front_answers)",
         "LITE_FRONT_FLOORS": " ".join([
             "$(rootpath tests/block-floor.txt)",
             "$(rootpath tests/lambda-floor.txt)",
@@ -88,8 +90,9 @@ rust_test(
 
 # The front oracle's questions at the two engine-JSON doors (phase 2, step 5): every model text at the engine's dialect
 # (`document`, PmcdParser.parseDocument) and every lambda (`lambdaJson`, SpecParser.lambdaJson), answered by the Rust
-# emitter in both forms -- with source information and without it -- and held to Java's parser and emitter
-# (//core:front_engine_answers, each form's SHA-256): at least each door's floor (tests/<door>-floor.txt) identical.
+# emitter in both forms -- with source information and without it -- and held to Java's parser and emitter (each
+# form's SHA-256, frozen: //rust/oracles:front_engine, rust/oracles/front/MANIFEST.tsv; //core:front_engine_answers
+# until 2026-11-06, step 6a): at least each door's floor (tests/<door>-floor.txt) identical.
 # Medium (2026-11-06): 30,064 questions, about 8 s optimized.
 rust_test(
     name = "front_engine_differential_test",
@@ -99,12 +102,12 @@ rust_test(
     data = [
         "tests/document-floor.txt",
         "tests/lambdaJson-floor.txt",
-        "//core:front_engine_answers",
+        "//rust/oracles:front_engine",
         "//rust/oracles:front_questions",
     ],
     edition = "2024",
     env = {
-        "LITE_FRONT_ENGINE": "$(rootpath //core:front_engine_answers)",
+        "LITE_FRONT_ENGINE": "$(rootpath //rust/oracles:front_engine)",
         "LITE_FRONT_FLOORS": " ".join([
             "$(rootpath tests/document-floor.txt)",
             "$(rootpath tests/lambdaJson-floor.txt)",

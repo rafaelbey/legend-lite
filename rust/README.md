@@ -37,6 +37,11 @@ profile does not.
     strings, format, regex, codecs, time text and zones, hash-map orders and string hash codes.
   - `tab-round-trip.jsonl.zst`: 9,424 sources from the engine corpus and lite's projects, with the JVM's
     text→JSON→text→JSON answers.
+- `oracles/front/`: the front end's oracle (docs/rust-port/PHASE2.md §3): the questions the test suite asks the
+  parser's text doors (`questions.jsonl.zst`), the records' schema, and Java's answers to every question frozen before
+  the Java lexer and parser were deleted -- `tokens.tsv.zst`, `answers.tsv.zst`, `engine.tsv.zst`, one line of hashes
+  per question in the questions file's order, which lite-front's three differentials read. `MANIFEST.tsv` names each
+  one's producing target, commit and SHA-256, and where Java's full answers are archived, outside git.
 - `oracles/java-compat/`: the Java facts `conformance_jvm` does not pin, from `JavaCompatExtras.java` run on the
   build's JDK (25.0.4, tzdata 2026b): every code point's character classes, as runs, and `ZoneId.SHORT_IDS`. And
   `double-tostring.tsv`, the `Double.toString` families of `conformance_jvm` extracted to plain text so a test reads

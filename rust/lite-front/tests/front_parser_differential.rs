@@ -4,13 +4,15 @@
 //! lite-front's doors held to Java's (docs/rust-port/PHASE2.md §3, the differential): every question of the front
 //! oracle (`LITE_FRONT_QUESTIONS`) whose door Rust answers, answered by Rust and written in the canonical form
 //! (`lite_front::doors::answer_form`), that form's SHA-256 compared with the one Java's door gave the same question
-//! (`LITE_FRONT_ANSWERS`, //core:front_answers: a cached action that runs the Java parser, live while it exists).
+//! (`LITE_FRONT_ANSWERS`, rust/oracles/front/answers.tsv: `//core:front_answers`' output frozen before the Java parser
+//! was deleted, step 6a -- one line per ask, in the questions file's order; rust/oracles/front/MANIFEST.tsv).
 //!
 //! One test per door asserts at least its floor (`tests/<door>-floor.txt` among `LITE_FRONT_FLOORS`) of its questions
 //! identical; a floor only rises. Each prints its counts by dialect and kind and its first mismatches; with
 //! `LITE_FRONT_MISMATCHES` naming a directory, each mismatch's Rust form is written there as
-//! `<door>.<dialect>.<sha>.rust.txt`, and `bazel run //core:front_show -- QUESTIONS DIR door:dialect:sha...` writes
-//! Java's beside it.
+//! `<door>.<dialect>.<sha>.rust.txt`. Java's answer to it is in the archive MANIFEST.tsv names (the line whose door,
+//! dialect and sha are the question's); while the Java parser exists,
+//! `bazel run //core:front_show -- QUESTIONS DIR door:dialect:sha...` writes it beside Rust's.
 //!
 //! Java's model answers were given with one overlay grammar registered, the test jar's `ToySectionGrammar`
 //! (core/src/test/java/com/legend/parser/ToySectionGrammar.java); the model door's questions are asked with it
@@ -24,7 +26,7 @@ use lite_front::records::{Element, POpaqueElement, PmcdParserParsed};
 use lite_front::sha256::sha256_utf16le;
 use lite_front::ustr::{ends_with, starts_with, strip, u};
 use lite_front::wire;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -105,14 +107,8 @@ fn floor(door: &str) -> usize {
 }
 
 fn differential(door: &str) {
-    let mut java: HashMap<(String, String, String), (String, String)> = HashMap::new();
-    for line in BufReader::new(File::open(env("LITE_FRONT_ANSWERS")).unwrap()).lines() {
-        let line = line.unwrap();
-        let f: Vec<&str> = line.split('\t').collect();
-        if f[0] == door {
-            java.insert((f[0].to_owned(), f[1].to_owned(), f[2].to_owned()), (f[3].to_owned(), f[4].to_owned()));
-        }
-    }
+    // [door, dialect, the form's sha, A or E] per ask, in the questions file's order: walked in lockstep with it
+    let mut java = BufReader::new(File::open(env("LITE_FRONT_ANSWERS")).unwrap()).lines();
     let dump = std::env::var("LITE_FRONT_MISMATCHES").ok();
     let mut counts: BTreeMap<String, (usize, usize)> = BTreeMap::new();
     let (mut asked, mut matched) = (0usize, 0usize);
@@ -124,14 +120,19 @@ fn differential(door: &str) {
         let text = q.get("text").and_then(wire::Json::as_units).unwrap();
         for a in q.get("asks").and_then(wire::Json::as_array).unwrap() {
             let pair = a.as_array().unwrap();
-            if pair[0].as_string().unwrap() != door {
+            let (ask_door, dialect_name) = (pair[0].as_string().unwrap(), pair[1].as_string().unwrap());
+            let java_line =
+                java.next().unwrap_or_else(|| panic!("Java answered no {ask_door} {dialect_name} {sha}")).unwrap();
+            let f: Vec<&str> = java_line.split('\t').collect();
+            assert!(
+                f.len() == 4 && f[0] == ask_door && f[1] == dialect_name,
+                "the frozen answers are out of step with the questions at {ask_door} {dialect_name} {sha}: {java_line}"
+            );
+            if ask_door != door {
                 continue;
             }
-            let dialect_name = pair[1].as_string().unwrap();
+            let (java_hash, java_kind) = (f[2], f[3]);
             let dialect = Dialect::from_java(&dialect_name).unwrap();
-            let (java_hash, java_kind) = java
-                .get(&(door.to_owned(), dialect_name.clone(), sha.clone()))
-                .unwrap_or_else(|| panic!("Java answered no {door} {dialect_name} {sha}"));
             asked += 1;
             let form = form(door, dialect, text);
             let rust_kind = if form.first() == Some(&u16::from(b'A')) { "A" } else { "E" };
@@ -157,7 +158,7 @@ fn differential(door: &str) {
     for d in differ.iter().take(SHOWN) {
         println!("[front-{door}]   {d}");
     }
-    assert_eq!(asked, java.len(), "Java answered every {door} question of the set, and only those");
+    assert!(java.next().is_none(), "Java answered every question of the set, and only those");
     let floor = floor(door);
     assert!(matched >= floor, "{door}: {matched} identical, below its floor of {floor}");
 }

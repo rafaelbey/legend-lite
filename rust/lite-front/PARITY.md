@@ -2,7 +2,8 @@
 
 `lite-front`'s expression parser (docs/rust-port/PHASE2.md §4 step 3) and its model parser (steps 4a to 4d),
 held to core/'s `com.legend.parser.SpecParser` and `PmcdParser` on the front oracle (`//rust/oracles:front_questions`,
-Java's answers `//core:front_answers`): every question of the four doors, in the canonical form Java's
+Java's answers `//core:front_answers`, frozen since step 6a as `rust/oracles/front/answers.tsv.zst`, its
+`MANIFEST.tsv`): every question of the four doors, in the canonical form Java's
 `FrontAnswers.canonical` writes (the records in the lossless codec, or the error's class, line, column and message),
 compared by SHA-256 in `tests/front_parser_differential.rs`. The lexer under them is held separately
 (`tests/front_lexer_differential.rs`, every text's token stream). The protocol emitter (step 5) is held at the two
@@ -25,7 +26,8 @@ doors whose answer is legend-engine's JSON (`tests/front_engine_differential.rs`
 `java.time.DateTimeException` (a time-zone shift of an impossible date, below).
 
 **The engine-JSON doors** (step 5, 2026-11-06): the protocol emitter (`emitter.rs` and its family, below), held to
-core/'s `ProtocolEmitter` and `SourceInformation.withoutSpans` over Java's parser (`//core:front_engine_answers`):
+core/'s `ProtocolEmitter` and `SourceInformation.withoutSpans` over Java's parser (`//core:front_engine_answers`,
+frozen since step 6a as `rust/oracles/front/engine.tsv.zst`):
 each question's two forms -- with its source information and without it -- as `FrontEngineAnswers.forms` writes
 them, hashed as their UTF-16 units each as it is (a lone surrogate, which the emitter writes raw, as itself).
 

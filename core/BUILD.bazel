@@ -1741,7 +1741,9 @@ legend_java_binary(
 )
 
 # Java's tokens over the front oracle's every text, hashed (phase 2, step 2: FrontTokens): what lite-front's lexer is
-# held to by //rust/lite-front:front_lexer_differential_test, live while the Java lexer exists
+# held to by //rust/lite-front:front_lexer_differential_test. Frozen 2026-11-06 (step 6a) as
+# rust/oracles/front/tokens.tsv.zst, which the differential reads since (its MANIFEST.tsv names this output's sha256);
+# kept, as the next two are, until the Java lexer and parser go (step 6b).
 java_run(
     name = "front_tokens",
     testonly = True,
@@ -1754,13 +1756,12 @@ java_run(
     main_class = "com.legend.frontoracle.FrontTokens",
     memory_mb = 4096,
     mnemonic = "FrontTokens",
-    visibility = ["//rust/lite-front:__pkg__"],
     deps = [":core_tests_lib"],
 )
 
 # Java's answers over the front oracle's every question, hashed (phase 2, steps 3-4: FrontAnswers): what lite-front's
-# doors are held to by //rust/lite-front:front_parser_differential_test, live while the Java parser exists. On the
-# toy section grammar's classpath, as the oracle's generator is.
+# doors are held to by //rust/lite-front:front_parser_differential_test, frozen 2026-11-06 (step 6a) as
+# rust/oracles/front/answers.tsv.zst. On the toy section grammar's classpath, as the oracle's generator is.
 java_run(
     name = "front_answers",
     testonly = True,
@@ -1773,7 +1774,6 @@ java_run(
     main_class = "com.legend.frontoracle.FrontAnswers",
     memory_mb = 8192,
     mnemonic = "FrontAnswers",
-    visibility = ["//rust/lite-front:__pkg__"],
     deps = [
         ":core_tests_lib",
         ":toy_grammar",
@@ -1781,8 +1781,8 @@ java_run(
 )
 
 # Java's engine JSON over the front oracle's model questions at the engine's dialect and its lambdas, hashed with and
-# without source information (phase 2, step 5: FrontEngineAnswers): what the Rust emitter is held to, live while the
-# Java emitter exists.
+# without source information (phase 2, step 5: FrontEngineAnswers): what the Rust emitter is held to, frozen
+# 2026-11-06 (step 6a) as rust/oracles/front/engine.tsv.zst.
 java_run(
     name = "front_engine_answers",
     testonly = True,
@@ -1795,7 +1795,6 @@ java_run(
     main_class = "com.legend.frontoracle.FrontEngineAnswers",
     memory_mb = 8192,
     mnemonic = "FrontEngineAnswers",
-    visibility = ["//rust/lite-front:__pkg__"],
     deps = [
         ":core_tests_lib",
         ":toy_grammar",

@@ -10,3 +10,25 @@ questions.jsonl.zst	{"sha","asks":[[door, dialect], ...],"text"} per text, by sh
 # 395 records, 39 sealed parents, their components in canonical order with their declared types. The answers reach 390;
 # PAwsDefault is the parser's but no test reaches it, PCNull, POrigin, PSdlc and PSerializer are the JSON readers'.
 schema.json	{"records":{tag:[[component, declared type], ...]},"sealed":{tag:[subtags]},"leaves":[...],"open":[...]}	-
+# JAVA'S ANSWERS, FROZEN (2026-11-06, phase 2 step 6a; docs/rust-port/PHASE2.md §3, the differential): the three live
+# outputs the front differentials were held to, as //core's actions wrote them at worktree-rust-port-phase0's 1245f88bb
+# (the outputs //rust/lite-front's three differentials read there: every question identical, at the counts in PHASE2.md
+# §4 step 6a), committed before the Java lexer and parser are deleted (step 6b); the differentials read these since.
+# Each live file's first column is the question's sha (with the door and dialect, its key). It is CUT: every file is
+# in the questions file's order -- a line per text for tokens, a line per [door, dialect] of a text's "asks", in
+# order, for answers; for engine a line per engine ask, `document` for ["pmcd","LEGEND_ENGINE"] and `lambdaJson` for
+# ["lambda",...] -- so a reader walks the two in lockstep, checking each line's door and dialect against its ask. The
+# cut halves the files (9.9 MB compressed with it, 5.2 without). The live file's sha256, before the cut, is in each
+# row's comment, so the cut can be checked against //core's action while it exists. A hash is the SHA-256 of a
+# canonical form written as a Java string's UTF-16 units, little-endian. Compressed with `zstd -19 --long=27`.
+# The full answers the hashes are of -- Java's records in the lossless codec and its engine JSON for every question,
+# 3,556,378,580 characters -- are archived outside git, for a mismatch to be debugged once Java is gone:
+# /Users/cocobey73/.local/legend-lite/oracle-archive/front-answers-java.jsonl.zst (117,487,564 bytes, `zstd -d
+# --long=27`), the SHA-256 of its uncompressed text 3a53d7397ca5989c93d22717db2d6ae2fc5a51a7978d9e363d5040ef81b82d24
+# (answers.jsonl.sha256 beside it; checked 2026-11-06 by decompressing it).
+# tokens: //core:front_tokens (FrontTokens: Java's lexer); live tokens.tsv ef73a34d352891783c9221648b6ab017ed1236afc04db861c1f9eda114031c38
+tokens.tsv.zst	//core:front_tokens at 1245f88bb: [the token stream's canonical form's sha (FrontTokens.canonical), its token count] per text, 52,143 lines	29cd362130390c069446bba9ac90636436edd9d5e370c985728749dded87f0af
+# answers: //core:front_answers (FrontAnswers: Java's four doors, the toy overlay registered); live answers.tsv 612023ef03f53d566b848226a6c4126a55e28eb39c80c84be00962a67e4a1b37
+answers.tsv.zst	//core:front_answers at 1245f88bb: [door, dialect, the answer's canonical form's sha (FrontAnswers.canonical), A or E] per ask, 110,596 lines	90fd97157b25506837cc51d2865ec46e13bf8b27de47bf9dfbc5757a79392435
+# engine: //core:front_engine_answers (FrontEngineAnswers: Java's parser and ProtocolEmitter); live engine.tsv 271c7794729b70cc153badbdf1e850752f3133a69168e52708b22ec6b8f6c84d
+engine.tsv.zst	//core:front_engine_answers at 1245f88bb: [door, the form with source information's sha, the bare form's sha, A or E] per engine ask, 30,064 lines	bdaa4ae9720d326abe936430cf7ad99c2e07240212766e80ca3417a52d48a4b9

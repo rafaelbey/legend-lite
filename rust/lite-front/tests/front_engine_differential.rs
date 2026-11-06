@@ -6,15 +6,17 @@
 //! at the engine's dialect (`PmcdParser.parseDocument`), and `lambdaJson`, a lambda (`SpecParser.lambdaJson`) --
 //! answered by Rust (`lite_front::doors::engine_forms`) in both forms, with its source information and without it,
 //! each form's SHA-256 compared with the one Java gave the same question (`LITE_FRONT_ENGINE`,
-//! //core:front_engine_answers: a cached action that runs Java's parser and emitter, live while they exist).
+//! rust/oracles/front/engine.tsv: `//core:front_engine_answers`' output frozen before the Java parser was deleted,
+//! step 6a -- one line per engine ask, in the questions file's order; rust/oracles/front/MANIFEST.tsv).
 //!
 //! A question is identical when both its forms are. One test per door asserts at least its floor
 //! (`tests/<door>-floor.txt` among `LITE_FRONT_FLOORS`) of its questions identical; a floor only rises. Each prints its
 //! counts by kind and form and its first mismatches; with `LITE_FRONT_MISMATCHES` naming a directory, each mismatch's
-//! Rust forms are written there as `<door>.<sha>.rust.spans.txt` and `<door>.<sha>.rust.bare.txt`, and
+//! Rust forms are written there as `<door>.<sha>.rust.spans.txt` and `<door>.<sha>.rust.bare.txt`. Java's engine JSON
+//! for it is in the archive MANIFEST.tsv names; while the Java parser exists,
 //! `bazel run //core:front_show -- QUESTIONS DIR pmcd:LEGEND_ENGINE:<sha>...` (`lambda:LEGEND_ENGINE:<sha>` for a
-//! lambda) writes Java's beside them as `<door>.<sha>.java.spans.txt` and `.java.bare.txt`. Java's hashes for another
-//! question set: `bazel run //core:front_show -- --engine QUESTIONS OUT`.
+//! lambda) writes Java's beside them as `<door>.<sha>.java.spans.txt` and `.java.bare.txt`, and
+//! `bazel run //core:front_show -- --engine QUESTIONS OUT` Java's hashes for another question set.
 //!
 //! A form is hashed as its UTF-16 units, little-endian, each as it is (`sha256_utf16le`), as Java's
 //! `FrontEngineAnswers.hash` hashes them: a lone surrogate the emitter writes raw hashes as itself.
@@ -22,7 +24,7 @@
 use lite_front::doors::engine_forms;
 use lite_front::sha256::sha256_utf16le;
 use lite_front::wire;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -42,26 +44,21 @@ fn floor(door: &str) -> usize {
     std::fs::read_to_string(&path).unwrap().trim().parse().unwrap()
 }
 
-/// The oracle's door for an engine door: the model door at the engine's dialect, or the lambda door.
-fn asks(door: &str, pair: &[wire::Json]) -> bool {
+/// The engine door an oracle ask is, if any: the model door at the engine's dialect is `document`, the lambda door
+/// `lambdaJson`.
+fn engine_door(pair: &[wire::Json]) -> Option<&'static str> {
     let (oracle_door, dialect) = (pair[0].as_string().unwrap(), pair[1].as_string().unwrap());
-    match door {
-        "document" => oracle_door == "pmcd" && dialect == "LEGEND_ENGINE",
-        "lambdaJson" => oracle_door == "lambda",
-        _ => panic!("no engine door {door}"),
+    match oracle_door.as_str() {
+        "pmcd" if dialect == "LEGEND_ENGINE" => Some("document"),
+        "lambda" => Some("lambdaJson"),
+        _ => None,
     }
 }
 
 fn differential(door: &str) {
-    // (spans form's sha, no-spans form's sha, A or E), by question sha
-    let mut java: HashMap<String, (String, String, String)> = HashMap::new();
-    for line in BufReader::new(File::open(env("LITE_FRONT_ENGINE")).unwrap()).lines() {
-        let line = line.unwrap();
-        let f: Vec<&str> = line.split('\t').collect();
-        if f[0] == door {
-            java.insert(f[1].to_owned(), (f[2].to_owned(), f[3].to_owned(), f[4].to_owned()));
-        }
-    }
+    // [door, the spans form's sha, the bare form's sha, A or E] per engine ask, in the questions file's order: walked
+    // in lockstep with it
+    let mut java = BufReader::new(File::open(env("LITE_FRONT_ENGINE")).unwrap()).lines();
     let dump = std::env::var("LITE_FRONT_MISMATCHES").ok();
     let mut counts: BTreeMap<String, (usize, usize, usize, usize)> = BTreeMap::new();
     let (mut asked, mut matched) = (0usize, 0usize);
@@ -71,35 +68,46 @@ fn differential(door: &str) {
         let q = wire::parse(&line, 64).unwrap();
         let sha = q.get("sha").and_then(wire::Json::as_string).unwrap();
         let text = q.get("text").and_then(wire::Json::as_units).unwrap();
-        let asked_here = q.get("asks").and_then(wire::Json::as_array).unwrap().iter().any(|a| asks(door, a.as_array().unwrap()));
-        if !asked_here {
-            continue;
-        }
-        let (java_spans, java_bare, java_kind) =
-            java.get(&sha).unwrap_or_else(|| panic!("Java answered no {door} {sha}"));
-        asked += 1;
-        let (spans, bare) = engine_forms(door, text);
-        let rust_kind = if spans.first() == Some(&u16::from(b'A')) { "A" } else { "E" };
-        let spans_same = sha256_utf16le(&spans) == *java_spans;
-        let bare_same = sha256_utf16le(&bare) == *java_bare;
-        let c = counts.entry(format!("Java {java_kind}")).or_default();
-        c.0 += 1;
-        c.1 += usize::from(spans_same);
-        c.2 += usize::from(bare_same);
-        if spans_same && bare_same {
-            matched += 1;
-            c.3 += 1;
-        } else {
-            let head: String = String::from_utf16_lossy(&spans[..spans.len().min(160)]);
-            let which = match (spans_same, bare_same) {
-                (false, false) => "both forms",
-                (false, true) => "the spans form",
-                _ => "the bare form",
+        for a in q.get("asks").and_then(wire::Json::as_array).unwrap() {
+            let Some(ask_door) = engine_door(a.as_array().unwrap()) else {
+                continue;
             };
-            differ.push(format!("{sha}: Java {java_kind}, Rust {rust_kind}, {which} differ: {head}"));
-            if let Some(dir) = &dump {
-                std::fs::write(format!("{dir}/{door}.{sha}.rust.spans.txt"), String::from_utf16_lossy(&spans)).unwrap();
-                std::fs::write(format!("{dir}/{door}.{sha}.rust.bare.txt"), String::from_utf16_lossy(&bare)).unwrap();
+            let java_line = java.next().unwrap_or_else(|| panic!("Java answered no {ask_door} {sha}")).unwrap();
+            let f: Vec<&str> = java_line.split('\t').collect();
+            assert!(
+                f.len() == 4 && f[0] == ask_door,
+                "the frozen engine answers are out of step with the questions at {ask_door} {sha}: {java_line}"
+            );
+            if ask_door != door {
+                continue;
+            }
+            let (java_spans, java_bare, java_kind) = (f[1], f[2], f[3]);
+            asked += 1;
+            let (spans, bare) = engine_forms(door, text);
+            let rust_kind = if spans.first() == Some(&u16::from(b'A')) { "A" } else { "E" };
+            let spans_same = sha256_utf16le(&spans) == *java_spans;
+            let bare_same = sha256_utf16le(&bare) == *java_bare;
+            let c = counts.entry(format!("Java {java_kind}")).or_default();
+            c.0 += 1;
+            c.1 += usize::from(spans_same);
+            c.2 += usize::from(bare_same);
+            if spans_same && bare_same {
+                matched += 1;
+                c.3 += 1;
+            } else {
+                let head: String = String::from_utf16_lossy(&spans[..spans.len().min(160)]);
+                let which = match (spans_same, bare_same) {
+                    (false, false) => "both forms",
+                    (false, true) => "the spans form",
+                    _ => "the bare form",
+                };
+                differ.push(format!("{sha}: Java {java_kind}, Rust {rust_kind}, {which} differ: {head}"));
+                if let Some(dir) = &dump {
+                    std::fs::write(format!("{dir}/{door}.{sha}.rust.spans.txt"), String::from_utf16_lossy(&spans))
+                        .unwrap();
+                    std::fs::write(format!("{dir}/{door}.{sha}.rust.bare.txt"), String::from_utf16_lossy(&bare))
+                        .unwrap();
+                }
             }
         }
     }
@@ -110,7 +118,7 @@ fn differential(door: &str) {
     for d in differ.iter().take(SHOWN) {
         println!("[front-{door}]   {d}");
     }
-    assert_eq!(asked, java.len(), "Java answered every {door} question of the set, and only those");
+    assert!(java.next().is_none(), "Java answered every engine question of the set, and only those");
     let floor = floor(door);
     assert!(matched >= floor, "{door}: {matched} identical, below its floor of {floor}");
 }

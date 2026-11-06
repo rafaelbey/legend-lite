@@ -82,4 +82,31 @@ zstd_decompress(
     ],
 )
 
+# Java's answers to those questions, frozen before the Java lexer and parser are deleted (phase 2 step 6a;
+# front/MANIFEST.tsv): each line one question's hashes, in the questions file's order. The front end's three
+# differentials read them: the lexer's token streams, the four parser doors' answers, the engine-JSON doors' two forms.
+zstd_decompress(
+    name = "front_tokens",
+    testonly = True,
+    src = "front/tokens.tsv.zst",
+    out = "front/tokens.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
+zstd_decompress(
+    name = "front_answers",
+    testonly = True,
+    src = "front/answers.tsv.zst",
+    out = "front/answers.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
+zstd_decompress(
+    name = "front_engine",
+    testonly = True,
+    src = "front/engine.tsv.zst",
+    out = "front/engine.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
 guards_package()
