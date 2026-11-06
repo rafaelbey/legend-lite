@@ -13,7 +13,8 @@ write_source_files(
 )
 
 # legend-lite's front end, ported from core/'s com.legend.lexer and com.legend.parser (src/lib.rs;
-# docs/rust-port/PHASE2.md): over a text's UTF-16 units as Java indexes a String. Step 2: the lexer.
+# docs/rust-port/PHASE2.md): over a text's UTF-16 units as Java indexes a String. Step 2: the lexer; step 3: the
+# expression parser.
 rust_library(
     name = "lite_front",
     srcs = glob(["src/**/*.rs"]),

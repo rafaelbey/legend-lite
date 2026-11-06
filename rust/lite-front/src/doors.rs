@@ -71,11 +71,61 @@ impl JavaError {
     pub fn of(class: &str, message: Option<&str>) -> JavaError {
         JavaError { class: class.to_owned(), message: message.map(JStr::from), position: None }
     }
+
+    /// A `ParseException(message, line, column)` (Java's three-argument constructor) over a message's UTF-16 units:
+    /// the `[line:col] ` prefix when `line > 0`, the bare message otherwise.
+    pub fn parse(message: JStr, line: i32, column: i32) -> JavaError {
+        let text = if line > 0 {
+            let mut t: Vec<u16> = format!("[{line}:{column}] ").encode_utf16().collect();
+            t.extend_from_slice(message.units());
+            JStr(t)
+        } else {
+            message
+        };
+        JavaError { class: PARSE_EXCEPTION.to_owned(), message: Some(text), position: Some((line, column)) }
+    }
+
+    /// A `ParseException(message)`, Java's one-argument constructor: no position (line and column 0).
+    pub fn parse_unplaced(message: JStr) -> JavaError {
+        JavaError { class: PARSE_EXCEPTION.to_owned(), message: Some(message), position: Some((0, 0)) }
+    }
+
+    /// Another class's error over a message's UTF-16 units.
+    pub fn java(class: &str, message: JStr) -> JavaError {
+        JavaError { class: class.to_owned(), message: Some(message), position: None }
+    }
+
+    /// Whether this is a `ParseException` (the class Java's `catch (ParseException e)` takes).
+    pub fn is_parse_exception(&self) -> bool {
+        self.class == PARSE_EXCEPTION
+    }
 }
 
 pub type Answer<T> = Result<T, JavaError>;
 
-/// `SpecParser.parse(text, dialect)`: one expression.
+/// The stack a door's parse needs: the parser recurses through every nested expression, as Java's does (whose
+/// answers hold no `StackOverflowError`), and a Rust frame is larger than a JVM's (docs/rust-port/PHASE2.md §3,
+/// "Recursion depth"). The doors parse on the caller's thread -- the shim's runs on its own thread of 256 MiB
+/// (`lite_ffi::DIALECT_STACK_BYTES`) -- and [`answer_form`] on one of this size.
+pub const PARSE_STACK: usize = 512 << 20;
+
+/// `work` on a thread of its own with [`PARSE_STACK`] of stack, joined before this returns; a panic re-raised here.
+pub fn on_parse_stack<T: Send>(work: impl FnOnce() -> T + Send) -> T {
+    std::thread::scope(|scope| {
+        let handle = std::thread::Builder::new()
+            .name("lite-front-parse".to_owned())
+            .stack_size(PARSE_STACK)
+            .spawn_scoped(scope, work)
+            .expect("the parse thread starts");
+        match handle.join() {
+            Ok(v) => v,
+            Err(panic) => std::panic::resume_unwind(panic),
+        }
+    })
+}
+
+/// `SpecParser.parse(text, dialect)`: one expression. On the caller's thread, which needs a big stack
+/// ([`PARSE_STACK`]).
 pub fn spec(text: &[u16], dialect: Dialect) -> Answer<ValueSpecification> {
     spec_parser::parse(text, dialect)
 }
@@ -93,9 +143,9 @@ pub fn block(text: &[u16], dialect: Dialect) -> Answer<Vec<ValueSpecification>> 
 /// An answer in the canonical form Java's `FrontAnswers.canonical` writes: `A` and the codec's JSON (the door's
 /// declared type deciding the tags: a `ValueSpecification` or a list's element is tagged, a `LambdaFunction` is not);
 /// or `E`, the class, the line and column (empty but for a `ParseException`), the message (`null` without one), tab
-/// separated. UTF-16 units, as Java's string.
+/// separated. UTF-16 units, as Java's string. The door parses on a thread of [`PARSE_STACK`].
 pub fn answer_form(door: &str, dialect: Dialect, text: &[u16]) -> Vec<u16> {
-    let written = match door {
+    let written = on_parse_stack(|| match door {
         "spec" => spec(text, dialect).map(|v| codec::write(&v, false)),
         "lambda" => lambda(text).map(|v| codec::write(&v, true)),
         "block" => block(text, dialect).map(|vs| {
@@ -111,7 +161,7 @@ pub fn answer_form(door: &str, dialect: Dialect, text: &[u16]) -> Vec<u16> {
             w.finish()
         }),
         _ => Err(JavaError::of("door not ported", Some(door))),
-    };
+    });
     let mut out: Vec<u16> = Vec::new();
     let put = |s: &str, out: &mut Vec<u16>| out.extend(s.encode_utf16());
     match written {

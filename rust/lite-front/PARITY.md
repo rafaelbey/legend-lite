@@ -1,0 +1,71 @@
+# Front-end parity: the expression parser's doors (2026-11-05)
+
+`lite-front`'s expression parser (docs/rust-port/PHASE2.md §4 step 3), held to core/'s `com.legend.parser.SpecParser`
+on the front oracle (`//rust/oracles:front_questions`, Java's answers `//core:front_answers`): every question of the
+three doors it answers, in the canonical form Java's `FrontAnswers.canonical` writes (the records in the lossless codec,
+or the error's class, line, column and message), compared by SHA-256 in `tests/front_parser_differential.rs`. The lexer
+under it is held separately (`tests/front_lexer_differential.rs`, every text's token stream).
+
+## The numbers
+
+| door (Java) | dialect | answers | errors | identical | different |
+|---|---|---|---|---|---|
+| `spec` (`SpecParser.parse`) | LEGEND_LITE | 21,830 | 8 | 21,838 | 0 |
+| | LEGEND_PLATFORM | 237 | 42 | 279 | 0 |
+| | LEGEND_ENGINE | 33 | 1 | 34 | 0 |
+| `lambda` (`SpecParser.parseLambda`) | LEGEND_ENGINE | 870 | 6 | 876 | 0 |
+| `block` (`SpecParser.parseCodeBlock`) | LEGEND_PLATFORM | 5 | 0 | 5 | 0 |
+
+22,151 + 876 + 5 = 23,032 questions, all identical; the floors (`tests/<door>-floor.txt`) are those counts. The errors
+include the oracle's one `java.time.DateTimeException` (a time-zone shift of an impossible date, below).
+
+The oracle's spec texts reach none of the GraphQL island, the quoted-tree fold, the quoted-grammar fold or a dated
+path segment. Those paths were held to Java on 949 further questions (321 texts: islands of every kind, path literals,
+graph-fetch trees, caret specials, annotations, column specs, operator mixes, number and date edge cases, 300-deep
+nesting, non-BMP error columns), each answered by `//core:front_show` and by Rust: all identical. That set is not
+committed; the model parser's step (4) reaches these paths through function bodies, and its oracle holds them.
+
+## What is ported
+
+| Rust | Java |
+|---|---|
+| `spec_parser.rs` | `SpecParser`, `NumberLiterals`, `IslandScan`, `QuotedSpecParser.fold`/`foldStringConcat`/`parseTree`, `protocol.CaretSpecials`, `TdsLiteral.of`, `AppliedFunction.tableReference`, `IqProfile.named`/`unknown` |
+| `cursor.rs` | `TokenStreamCursor` (the primitives, the identifier and type grammars, `spanOf`, the `'''` layout), `ElementParser.at`/`parseStereotypes`/`parseTaggedValues`/`looksLikeTaggedValueBlock` |
+| `operator_parts.rs` | `OperatorParts`, `EngineQuirks.RELATIONAL_ARITH_MISASSOCIATION` |
+| `gql.rs` | `GqlParser` |
+| `temporal.rs` | `PureDateLiteral.parse` (with the `java.time` arithmetic of its shift), `PureTimeLiteral.parse` |
+| `escapes.rs` | `protocol.Escapes.unescapeJavaLike`, `Protocol.unquotePath` |
+| `jnum.rs`, `jtypes.rs` | `Character.digit`, `Long.parseLong`, `Integer.parseInt`, `Double.parseDouble`, `new BigDecimal(String)`, `BigDecimal.compareTo` |
+| `nodes.rs` | the records' convenience constructors (what each shorter Java constructor fills) |
+
+Java's exceptions are `Err(JavaError)`: a `ParseException` at Java's position (its line, its column in code points,
+the `[line:col] ` prefix), any other class by name and message. The two places Java recovers from a parse error
+(`tryTypedColSpec`, the quoted tree's `parseTree`) recover from a `ParseException` alone, as Java's
+`catch (ParseException e)` does; any other error propagates, as in Java. Each door parses on a 512 MiB stack.
+
+## Java's behaviour reproduced as it is
+
+Each row is Java's answer, kept because the differential holds Java as the spec (invariant 4): none is a fix.
+
+| # | input | Java's answer, reproduced | why it is odd |
+|---|---|---|---|
+| 1 | `1 < 2 + 3 * 4` | `lessThan(1, times[Collection[plus[Collection[2,3]], 4]])` | the engine's arithmetic mis-association after a comparison (`EngineQuirks.RELATIONAL_ARITH_MISASSOCIATION`, decided 2026-08-06) |
+| 2 | any error after a non-ASCII character on its line | the column counts code points; every span column counts UTF-16 units | pinned as a known defect (`Utf16ColumnKnownDefectTest`) |
+| 3 | `%2023-02-29T10:30+0100`, at every dialect | `java.time.DateTimeException: Invalid date 'February 29' as '2023' is not a leap year`, unplaced | the time-zone shift builds a `LocalDateTime` before the components are validated, so an impossible date with a zone escapes as java.time's exception rather than the parser's `invalid date literal` (without a zone: `%2024-02-30` is that `ParseException` at lite's and the platform's dialects, a date at the engine's) |
+| 4 | `#/P/f(99999999999999999999)#`, a bad escape in a dated segment's string | the `ParseException` is placed at the token after the path literal (or the input's end) | `IslandScan` reports through the parser's cursor, already past the literal |
+| 5 | `#/P/f(1 + )#` | the error's position is in the text `|1 +`, not in the source | a dated segment's argument is re-parsed as a fresh `"|" + arg` text |
+| 6 | `@Varchar(99999999999999999999)` | `java.lang.NumberFormatException: For input string: "99999999999999999999"`, unplaced | `parseTypeVariableValues` calls `Long.parseLong` unguarded |
+| 7 | `1e999` at lite's and the platform's dialects | `java.lang.NumberFormatException: Infinite or NaN` | `NumberLiterals.floating` compares against `BigDecimal.valueOf(Infinity)` |
+| 8 | `1.5ed`, `1.5e+d` | `java.lang.NumberFormatException` with no message | the lexer ends a decimal at an empty exponent and `new BigDecimal("1.5e")` fails on an array bound |
+| 9 | a call or stereotype name `'x\u12'::f()` | `java.lang.IllegalArgumentException: Less than 4 hex digits in unicode escape`, unplaced | `Protocol.unquotePath` decodes without a position; so does a `'''` literal's value (`docStringValue`) |
+| 10 | `#>{db::DB.T(}#` | `ParseException` at the island's start, its column in UTF-16 units | built from the span, not from `columnOf` |
+| 11 | `#{Person{firm{->subType(@A){x}}}}#` | `ParseException` with line and column 0 | Java's one-argument constructor |
+| 12 | a model store's instance at the engine's dialect (`parseInstanceData`; no door here) | `requireDataValue`'s refusal placed by the value token's span column (UTF-16 units) | as 10 |
+
+## What Java does that this does not reproduce
+
+`compileLegendGrammar('<payload>')` (either spelling), when its argument folds to a string: Java's
+`QuotedSpecParser.foldGrammar` parses the payload with the model parser (`PmcdParser`), not ported yet (step 4). Rust
+refuses the expression with a `not ported` error (no Java class) rather than guess at the fold. No question of the
+three doors reaches it; a payload that does not fold to a string (a variable bound to no constant) stays the plain
+call, as in Java.

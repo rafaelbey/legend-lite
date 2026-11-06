@@ -2,15 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! legend-lite's front end (core/'s `com.legend.lexer` and `com.legend.parser`, ported: docs/rust-port/PHASE2.md),
-//! over a text's UTF-16 units as Java indexes a `String`. Step 2: the lexer, held to Java's every token stream.
+//! over a text's UTF-16 units as Java indexes a `String`. Step 2: the lexer, held to Java's every token stream; step 3:
+//! the expression parser (`spec_parser`, over the shared cursor `cursor`), held to Java's every answer.
 
 pub mod codec;
+pub mod cursor;
 pub mod doors;
+pub mod escapes;
+pub mod gql;
+pub mod jnum;
 pub mod jtypes;
 pub mod lexer;
+pub mod nodes;
+pub mod operator_parts;
 pub mod records;
 pub mod sha256;
 pub mod spec_parser;
+pub mod temporal;
+pub mod ustr;
 pub mod wire;
 
 use lexer::TokenStream;
