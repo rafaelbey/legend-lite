@@ -37,6 +37,8 @@ test_suite(
         # shim over it
         "//rust/lite-ffi:lite_ffi_test",
         "//core:ffi_test",
+        # a missing Rust library is a clear failure at every call, not a class-initialiser error
+        "//core:ffi_missing_test",
         # Java's spellings in Rust, held to the JDK's frozen answers
         "//rust/lite-javacompat:lite_javacompat_test",
         "//rust/lite-javacompat:double_to_string_test",

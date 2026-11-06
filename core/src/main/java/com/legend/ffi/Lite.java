@@ -73,13 +73,37 @@ public final class Lite {
         return new Lite(SymbolLookup.libraryLookup(path, Arena.global()));
     }
 
-    /** The process's library, found once ({@link #locate}). */
+    /**
+     * The process's library, found once ({@link #locate}). A library that cannot be found or loaded is that failure,
+     * thrown again with its own message at every call -- never the class initialiser's {@code ExceptionInInitializerError}
+     * with no message, and the bare {@code NoClassDefFoundError} of every call after it, which a parse at class load
+     * would otherwise leave as the only words a user sees.
+     */
     public static Lite shared() {
-        return Shared.LITE;
+        if (Shared.FAILURE != null) {
+            throw new IllegalStateException(Shared.FAILURE.getMessage(), Shared.FAILURE);
+        }
+        return java.util.Objects.requireNonNull(Shared.LITE);
     }
 
+    /** The library or the failure to load it, decided once: the initialiser itself never throws. */
     private static final class Shared {
-        static final Lite LITE = load(locate());
+        static final @com.legend.base.Nullable Lite LITE;
+        static final @com.legend.base.Nullable RuntimeException FAILURE;
+
+        static {
+            Lite lite = null;
+            RuntimeException failure = null;
+            try {
+                lite = load(locate());
+            } catch (IllegalStateException | IllegalArgumentException | java.io.UncheckedIOException e) {
+                // not found or no such symbol (locate, downcall); not loadable (SymbolLookup.libraryLookup); the jar's
+                // copy not written out
+                failure = e;
+            }
+            LITE = lite;
+            FAILURE = failure;
+        }
     }
 
     /**

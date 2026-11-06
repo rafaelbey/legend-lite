@@ -527,6 +527,8 @@ legend_java_library(
             "src/test/java/com/legend/server/PostgresArmTest.java",
             # LiteTest is :ffi_test's alone: the Rust library in its runfiles, and native access
             "src/test/java/com/legend/ffi/LiteTest.java",
+            # LiteMissingTest is :ffi_missing_test's alone: its JVM names a library that is not there
+            "src/test/java/com/legend/ffi/LiteMissingTest.java",
             # FrontReaderRoundTripTest is :front_reader_test's alone: the front oracle's questions in its runfiles
             "src/test/java/com/legend/frontoracle/FrontReaderRoundTripTest.java",
             # the codec and its generator are :front_codegen's, below the generated code's own library
@@ -886,6 +888,25 @@ junit_test(
         ":ffi",
         "//json",
         "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# A Rust library that is not there is a clear failure at every call (Lite.shared; docs/rust-port/PHASE2.md §3): its own
+# JVM, the library named where none is.
+junit_test(
+    name = "ffi_missing_test",
+    memory_mb = 512,
+    size = "small",
+    srcs = ["src/test/java/com/legend/ffi/LiteMissingTest.java"],
+    jvm_flags = [
+        "--enable-native-access=ALL-UNNAMED",
+        "-Dlegend.lite.library=/no-such-lite-library/liblite_ffi.so",
+    ],
+    select = ["--select-class=com.legend.ffi.LiteMissingTest"],
+    deps = [
+        ":ffi",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
