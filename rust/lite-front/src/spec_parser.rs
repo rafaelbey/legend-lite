@@ -2710,7 +2710,7 @@ fn fold_string_concat(v: &ValueSpecification, constants: &dyn Fn(&[u16]) -> Opti
 
 /// `CaretSpecials.call`: the call the engine writes for `^Pair`, `^BasicColumnSpecification`, `^TdsOlapRank`, its
 /// keys in their order; a missing required key the `UnsupportedOperationException` message the parser rethrows.
-fn caret_special(ni: &NewInstance) -> Result<Option<AppliedFunction>, JStr> {
+pub(crate) fn caret_special(ni: &NewInstance) -> Result<Option<AppliedFunction>, JStr> {
     let spelled = &ni.class_name;
     let (function, keys, drop_missing): (&str, &[&str], bool) =
         if *spelled == "Pair" || *spelled == "meta::pure::functions::collection::Pair" {

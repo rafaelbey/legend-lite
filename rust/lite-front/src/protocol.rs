@@ -57,9 +57,10 @@ pub fn qualified_name(pkg: &[u16], name: &[u16]) -> Vec<u16> {
     out
 }
 
-/// `PFunction.mangledName`: the wire name, `f_Integer_1__String_MANY__Integer_1_`; `None` where Java's mangle throws
-/// `UnsupportedOperationException` (a type that is neither a name nor a generic, a multiplicity parameter).
-fn mangled_name(f: &PFunction) -> Option<Vec<u16>> {
+/// `PFunction.mangledName`: the wire name, `f_Integer_1__String_MANY__Integer_1_`; else the message of the
+/// `UnsupportedOperationException` Java's mangle throws (a type that is neither a name nor a generic, a multiplicity
+/// parameter), the first in Java's order.
+pub fn mangled_name(f: &PFunction) -> Result<Vec<u16>, String> {
     let mut m = f.name.0.clone();
     m.push(u16::from(b'_'));
     for (i, pd) in f.parameters.iter().enumerate() {
@@ -75,27 +76,27 @@ fn mangled_name(f: &PFunction) -> Option<Vec<u16>> {
     m.push(u16::from(b'_'));
     m.extend(mangle_mult(&f.return_multiplicity)?);
     m.push(u16::from(b'_'));
-    Some(m)
+    Ok(m)
 }
 
-fn mangle_type(t: &TypeExpression) -> Option<Vec<u16>> {
+fn mangle_type(t: &TypeExpression) -> Result<Vec<u16>, String> {
     let full = match t {
         TypeExpression::TypeExpressionNameRef(n) => &n.name.0,
         TypeExpression::TypeExpressionGeneric(g) => &g.name.0,
-        _ => return None,
+        _ => return Err(format!("no mangle rule for parameter type {}", type_expression_simple_name(t))),
     };
-    Some(match last_index_of_str(full, "::") {
+    Ok(match last_index_of_str(full, "::") {
         None => full.clone(),
         Some(i) => full[i + 2..].to_vec(),
     })
 }
 
-fn mangle_mult(m: &Multiplicity) -> Option<Vec<u16>> {
+fn mangle_mult(m: &Multiplicity) -> Result<Vec<u16>, String> {
     let Multiplicity::MultiplicityConcrete(c) = m else {
-        return None;
+        return Err("no mangle rule for a multiplicity parameter".to_owned());
     };
     let lo = c.lower_bound.to_string();
-    Some(u(&match c.upper_bound {
+    Ok(u(&match c.upper_bound {
         None if c.lower_bound == 0 => "MANY".to_owned(),
         None => format!("${lo}_MANY$"),
         Some(up) if up == c.lower_bound => lo,
@@ -103,12 +104,23 @@ fn mangle_mult(m: &Multiplicity) -> Option<Vec<u16>> {
     }))
 }
 
+/// A type expression's Java class's `getSimpleName()`.
+pub fn type_expression_simple_name(t: &TypeExpression) -> &'static str {
+    match t {
+        TypeExpression::TypeExpressionNameRef(_) => "NameRef",
+        TypeExpression::TypeExpressionGeneric(_) => "Generic",
+        TypeExpression::TypeExpressionFunctionType(_) => "FunctionType",
+        TypeExpression::TypeExpressionRelationType(_) => "RelationType",
+        TypeExpression::TypeExpressionSchemaAlgebra(_) => "SchemaAlgebra",
+    }
+}
+
 /// `Protocol.functionPath`: a function's name with its signature; its qualified name where the signature has no
 /// engine name.
 pub fn function_path(f: &PFunction) -> Vec<u16> {
     match mangled_name(f) {
-        None => qualified_name(&f.pkg.0, &f.name.0),
-        Some(name) => qualified_name(&f.pkg.0, &name),
+        Err(_) => qualified_name(&f.pkg.0, &f.name.0),
+        Ok(name) => qualified_name(&f.pkg.0, &name),
     }
 }
 

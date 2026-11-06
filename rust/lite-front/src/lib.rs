@@ -11,10 +11,15 @@
 //! last section grammars -- the function activators (`activator_parser`), `###Diagram` (`diagram_parser`), and the tail
 //! grammars `generation_parser`, `deephaven_parser`, `mongodb_parser`, `data_quality_parser`, `elasticsearch_parser`,
 //! `external_format_parser`, `service_store_parser`, `persistence_parser` and `query_post_processor_parser` -- so that
-//! every section the walk reaches has its grammar, each held to Java's every answer.
+//! every section the walk reaches has its grammar, each held to Java's every answer; step 5: the protocol emitter
+//! (core/'s `com.legend.protocol.ProtocolEmitter` and its family: `emitter`, `tail_emitter`, `mapping_emitter`,
+//! `connection_emitters`, `gql_emitter`) and the doors' span cut (`source_information`), legend-engine's JSON written
+//! from these records, held to Java's every answer at the two engine-JSON doors (`doors::document`,
+//! `doors::lambda_json`).
 
 pub mod activator_parser;
 pub mod codec;
+pub mod connection_emitters;
 pub mod connection_parser;
 pub mod cursor;
 pub mod data_quality_parser;
@@ -25,14 +30,17 @@ pub mod diagram_parser;
 pub mod doors;
 pub mod elasticsearch_parser;
 pub mod element_parser;
+pub mod emitter;
 pub mod escapes;
 pub mod external_format_parser;
 pub mod generation_parser;
 pub mod gql;
+pub mod gql_emitter;
 pub mod jnet;
 pub mod jnum;
 pub mod jtypes;
 pub mod lexer;
+pub mod mapping_emitter;
 pub mod mapping_grammar;
 pub mod mapping_parser;
 pub mod mapping_tests;
@@ -49,7 +57,9 @@ pub mod sections;
 pub mod service_parser;
 pub mod service_store_parser;
 pub mod sha256;
+pub mod source_information;
 pub mod spec_parser;
+pub mod tail_emitter;
 pub mod temporal;
 pub mod ustr;
 pub mod wire;

@@ -33,6 +33,12 @@ impl JStr {
     }
 }
 
+impl AsRef<[u16]> for JStr {
+    fn as_ref(&self) -> &[u16] {
+        &self.0
+    }
+}
+
 impl From<&str> for JStr {
     fn from(s: &str) -> JStr {
         JStr(s.encode_utf16().collect())
