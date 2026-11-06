@@ -114,7 +114,10 @@ class ParserBoundaryArchTest {
             "com/legend/frontoracle/FrontAnswers.java",
             "com/legend/frontoracle/FrontOracle.java",
             "com/legend/frontoracle/FrontReaderRoundTripTest.java",
-            "com/legend/frontoracle/FrontTiming.java");
+            "com/legend/frontoracle/FrontTiming.java",
+            // 2026-11-06, phase 2 step 5's oracle (f00bbc98d): Java's engine JSON asks the oracle's model texts at the
+            // engine's dialect alone, the one the engine's JSON is written at -- that dialect is its subject
+            "com/legend/frontoracle/FrontEngineAnswers.java");
 
     @Test
     void theCompilerLayerNeverTouchesTheParser() throws IOException {

@@ -307,6 +307,9 @@ The dated record of moved pins, rosters and ratchets (the rules: "Recording a mo
 Newest first, at most 20 lines. Seeded from the last entries of the cut log; "D<n>" is the decisions log of the
 landing's program.
 
+- 2026-11-06 — The Rust port's model door switches (phase 2 step 4): `ParserBoundaryArchTest.DIALECT_CLASSES` gains
+  the front oracle's `FrontEngineAnswers` (step 5's oracle, at the engine's dialect); `core`'s `not_layers` gains
+  `core_next_rust_parser` (the claims generator's core carries the parser provider). Branch `worktree-rust-port-phase0`.
 - 2026-11-05 — The Rust port's expression doors switch (phase 2 step 3): `ParserBoundaryArchTest.DIALECT_CLASSES` gains
   `RustParserProvider` and the front oracle's four classes (they pass on or re-ask a caller's dialect);
   `DatabaseOwners`' vocabulary gains the shim's reader (`ffi/FrontRe*`) and `frontoracle/` (they name every record

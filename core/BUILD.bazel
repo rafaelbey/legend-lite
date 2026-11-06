@@ -2142,12 +2142,17 @@ legend_java_library(
         "//base",
         "//json",
     ],
+    # and the Rust library inside the jar, as :ffi carries it: a build action has no runfiles (the model door parses in
+    # Rust since the Rust port's phase 2 step 4, so the bootstrap's prelude parse needs it; 2026-11-06)
     resources = glob(
         ["src/main/resources/**"],
         exclude = ["src/main/resources/com/legend/builtin/prelude.pure"],
-    ),
+    ) + ["//rust/lite-ffi:lite_ffi_jar_resource"],
     visibility = ["//spec:__pkg__"],
-    runtime_deps = [":core_next_prelude"],
+    runtime_deps = [
+        ":core_next_prelude",
+        ":core_next_rust_parser",
+    ],
 )
 
 legend_java_library(
@@ -2156,12 +2161,21 @@ legend_java_library(
     resources = ["//spec:gen_prelude"],
 )
 
+# core_next's Rust parser provider, as :rust_parser carries it for core: the META-INF/services naming
+# com.legend.ffi.RustParserProvider, which core_next's own classes answer (2026-11-06)
+legend_java_library(
+    name = "core_next_rust_parser",
+    resource_strip_prefix = "core/src/main/ffi-parser",
+    resources = glob(["src/main/ffi-parser/META-INF/**"]),
+)
+
 # THE LAYERS OF //core (execution plan rule 0.12; Bazel workplan P2-12): a query of each library's direct deps, made
 # from the libraries above; tools/deps/core-layers.txt is the policy they are held to.
 core_layer_queries(not_layers = {
     "core": "the umbrella every consumer depends on: it exports the layers",
     "core_next": "core as the generators rewrite it, for the claims generator (spec)",
     "core_next_prelude": "core_next's regenerated prelude resource",
+    "core_next_rust_parser": "core_next's Rust parser provider resource (the Rust port's phase 2, 2026-11-06)",
     "core_tests_lib": "the tests' library, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
     "front_codegen": "the front oracle's codec and the generator of the records' Rust and the shim's reader: test code (the Rust port's phase 2, 2026-11-05)",
