@@ -41,6 +41,7 @@ public final class Lite {
     static final FunctionDescriptor FREE = FunctionDescriptor.ofVoid(ADDRESS);
     static final FunctionDescriptor COUNT = FunctionDescriptor.of(JAVA_LONG);
     static final FunctionDescriptor TERNARY = FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS);
+    static final FunctionDescriptor QUATERNARY = FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS, ADDRESS);
 
     /** The library's file under Bazel's runfiles, and its name on this platform. */
     private static final String RUNFILES_DIR = "_main/rust/lite-ffi/";
@@ -51,6 +52,7 @@ public final class Lite {
     private final MethodHandle dialect;
     private final MethodHandle front;
     private final MethodHandle frontModel;
+    private final MethodHandle frontEngine;
     private final MethodHandle version;
     private final MethodHandle echo;
     private final MethodHandle probeRefusal;
@@ -62,7 +64,8 @@ public final class Lite {
         dialect = downcall(library, "lite_dialect", TERNARY);
         front = downcall(library, "lite_front", TERNARY);
         frontModel = downcall(library, "lite_front_model", TERNARY);
-        version = downcall(library, "lite_version", NULLARY);
+        frontEngine = downcall(library, "lite_front_engine", QUATERNARY);
+        version =downcall(library, "lite_version", NULLARY);
         echo = downcall(library, "lite_echo", UNARY);
         probeRefusal = downcall(library, "lite_probe_refusal", REFUSAL_PROBE);
         probePanic = downcall(library, "lite_probe_panic", UNARY);
@@ -196,6 +199,23 @@ public final class Lite {
             MemorySegment o = utf8(arena, overlaysJson);
             MemorySegment t = utf8(arena, textJson);
             return answer(take(guarded(() -> (MemorySegment) frontModel.invokeExact(n, o, t))));
+        }
+    }
+
+    /**
+     * An engine-JSON door answered by the Rust library ({@code lite_front_engine}; docs/rust-port/PHASE2.md §4 step 5):
+     * the door ({@code document} or {@code lambdaJson}), the source-information switch ({@code true} or
+     * {@code false}), the registered overlay grammars as JSON (the document door's), and the text as a JSON string
+     * literal; the answer, {@code A\n<json>}, {@code U\n<json as a JSON string literal>} (a lone surrogate in it),
+     * {@code E\n<the error>} or {@code O\n} (the overlay path), or a refusal thrown as a {@link LiteRefusal}.
+     */
+    public String frontEngine(String door, boolean sourceInformation, String overlaysJson, String textJson) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment d = utf8(arena, door);
+            MemorySegment s = utf8(arena, Boolean.toString(sourceInformation));
+            MemorySegment o = utf8(arena, overlaysJson);
+            MemorySegment t = utf8(arena, textJson);
+            return answer(take(guarded(() -> (MemorySegment) frontEngine.invokeExact(d, s, o, t))));
         }
     }
 

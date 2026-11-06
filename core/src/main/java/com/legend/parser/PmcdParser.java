@@ -134,7 +134,7 @@ public final class PmcdParser {
 
     /** Parse {@code source} into the engine's full PMCD JSON: the records of {@link #parseModel}, emitted. */
     public static String parseDocument(String source) {
-        return ProtocolEmitter.emit(parseModel(source));
+        return parseDocument(source, true);
     }
 
     /**
@@ -142,10 +142,25 @@ public final class PmcdParser {
      * {@code returnSourceInformation} the second argument): {@link #parseDocument}, without any source
      * information when it is off -- every span, the named ones ({@code classSourceInformation}, ...) included, as the
      * engine's parser then records none (its span builder answers null; CorpusSweepTest's claim 1c).
+     *
+     * <p>The Rust library's answer (docs/rust-port/PHASE2.md §4 step 5): its parser and its emitter, in one call --
+     * held to {@code ProtocolEmitter.emit(parseInJava(source, LEGEND_ENGINE).model())}, cut by
+     * {@code SourceInformation.withoutSpans}, on every model text of the front oracle
+     * (//rust/lite-front:front_engine_differential_test). <b>The overlay path</b>: when the walk meets a section of a
+     * registered overlay grammar, Rust answers nothing and this method answers as Java does -- {@link ProtocolEmitter}
+     * over {@link #parse}'s records, which call the overlay grammars, let one's exception win, and splice their opaque
+     * elements in element order, where the emitter refuses the first lite-only one. Rust never makes an opaque element.
+     * At the engine's dialect the walk refuses an unknown section before any overlay grammar is consulted, so no text
+     * takes this path today; it is Java's answer by construction, not a fallback.
      */
     public static String parseDocument(String source, boolean sourceInformation) {
-        String json = parseDocument(source);
-        return sourceInformation ? json : com.legend.protocol.SourceInformation.withoutSpans(json);
+        ParseTap.record("pmcd", LEVEL, Objects.requireNonNull(source, "source"));
+        String json = RustParsers.provider().document(source, sourceInformation, SectionGrammarRegistry.overlays());
+        if (json != null) {
+            return json;
+        }
+        String emitted = ProtocolEmitter.emit(parse(source, LEVEL).model());
+        return sourceInformation ? emitted : com.legend.protocol.SourceInformation.withoutSpans(emitted);
     }
 
     /**

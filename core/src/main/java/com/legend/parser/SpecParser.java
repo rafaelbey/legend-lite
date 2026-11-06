@@ -342,10 +342,15 @@ public final class SpecParser implements TokenStreamCursor {
      * Text to JSON for a lambda (the conversion legend-engine's {@code grammarToJson/lambda} makes, its
      * {@code returnSourceInformation} the second argument): {@link #parseLambda}, emitted, without any source
      * information when it is off -- every span, the named ones included, as the engine's parser then records none.
+     *
+     * <p>The Rust library's answer (docs/rust-port/PHASE2.md §4 step 5): its parser and its emitter, in one call --
+     * held to {@code ProtocolEmitter.emitLambda(parseLambdaInJava(source))}, cut by
+     * {@code SourceInformation.withoutSpans}, on every lambda of the front oracle
+     * (//rust/lite-front:front_engine_differential_test).
      */
     public static String lambdaJson(String source, boolean sourceInformation) {
-        String json = com.legend.protocol.ProtocolEmitter.emitLambda(parseLambda(source));
-        return sourceInformation ? json : com.legend.protocol.SourceInformation.withoutSpans(json);
+        ParseTap.record("lambda", Dialect.LEGEND_ENGINE, Objects.requireNonNull(source, "source"));
+        return RustParsers.provider().lambdaJson(source, sourceInformation);
     }
 
     private ValueSpecification wholeLine() {

@@ -270,6 +270,97 @@ pub unsafe extern "C" fn lite_front_model(
     })
 }
 
+/// The engine-JSON doors (docs/rust-port/PHASE2.md §4 step 5): `door` is `document` (`PmcdParser.parseDocument`, a
+/// model text at the engine's dialect) or `lambdaJson` (`SpecParser.lambdaJson`); `spans` is `true` or `false`, the
+/// doors' `returnSourceInformation`; `overlays` the shim's registered overlay grammars as [`lite_front_model`] takes
+/// them (the document door's; the lambda door reads none); `text` the text as a JSON string literal. The Rust parser
+/// parses and the Rust emitter writes legend-engine's JSON, in one call. Answers:
+/// - `OK\nA\n<json>`: the JSON;
+/// - `OK\nU\n<the JSON as a JSON string literal>` when the JSON holds a lone surrogate, which UTF-8 cannot carry (every
+///   surrogate escaped; the common answer pays nothing for the rare one);
+/// - `OK\nE\n<error>`: the parser's error or the emitter's refusal, as [`lite_front`] writes it;
+/// - `OK\nO\n`: the document's walk met an overlay section -- the overlay path, where Java answers (its emitter over
+///   the records `PmcdParser.parse` splices). At the engine's dialect no walk meets one.
+///
+/// On the calling thread's worker, as [`lite_front`].
+///
+/// # Safety
+/// `door`, `spans`, `overlays` and `text` are null or NUL-terminated strings the caller keeps alive for the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn lite_front_engine(
+    door: *const c_char,
+    spans: *const c_char,
+    overlays: *const c_char,
+    text: *const c_char,
+) -> *mut c_char {
+    respond(|| {
+        let read = || -> Result<(&str, &str, &str, &str), Refusal> {
+            Ok((
+                unsafe { self::text(door, "door") }?,
+                unsafe { self::text(spans, "spans") }?,
+                unsafe { self::text(overlays, "overlays") }?,
+                unsafe { self::text(text, "text") }?,
+            ))
+        };
+        let (door, spans, overlays, text) = match read() {
+            Ok(texts) => texts,
+            Err(r) => return Answer::Err(r),
+        };
+        let spans = match spans {
+            "true" => true,
+            "false" => false,
+            _ => return Answer::Err(Refusal::invalid_argument(format!("spans is {spans}, not true or false"))),
+        };
+        if door != "document" && door != "lambdaJson" {
+            return Answer::Err(Refusal::invalid_argument(format!("no engine door {door}")));
+        }
+        let grammars = match overlay_grammars(overlays) {
+            Some(grammars) => grammars,
+            None => return Answer::Err(Refusal::invalid_argument("the overlays are not a JSON array of [name, lexable]")),
+        };
+        let units = match lite_front::wire::parse(text, 1) {
+            Ok(lite_front::wire::Json::Str(units)) => units,
+            _ => return Answer::Err(Refusal::invalid_argument("the text is not one JSON string")),
+        };
+        let door = door.to_owned();
+        match on_big_stack(move || engine_answer(&door, spans, &grammars, &units)) {
+            Ok(answer) => Answer::Ok(answer),
+            Err(panic) => Answer::Err(Refusal::new("INTERNAL", panic)),
+        }
+    })
+}
+
+/// An engine door's answer as [`lite_front_engine`] folds it: `A\n<json>`, `U\n<json string>`, `E\n<error>` or `O\n`.
+fn engine_answer(door: &str, spans: bool, grammars: &[(Vec<u16>, bool)], text: &[u16]) -> String {
+    let overlays: Vec<lite_front::model_parser::OverlayGrammar<'_>> = grammars
+        .iter()
+        .map(|(name, lexable)| lite_front::model_parser::OverlayGrammar { name, lexable: *lexable })
+        .collect();
+    let answer = match door {
+        "document" => lite_front::doors::document_with_overlays(text, spans, &overlays),
+        _ => Some(lite_front::doors::lambda_json(text, spans)),
+    };
+    match answer {
+        None => "O\n".to_owned(),
+        Some(Ok(json)) => match String::from_utf16(&json) {
+            Ok(utf8) => {
+                let mut out = String::with_capacity(utf8.len() + 2);
+                out.push_str("A\n");
+                out.push_str(&utf8);
+                out
+            }
+            Err(_) => {
+                // a lone surrogate: the JSON as a JSON string literal, each surrogate a \uXXXX escape
+                let mut w = lite_front::codec::Writer::new();
+                w.raw("U\n");
+                w.string(&lite_front::jtypes::JStr(json));
+                w.finish()
+            }
+        },
+        Some(Err(e)) => format!("E\n{}", front_error(&e)),
+    }
+}
+
 /// `[["Toy",false],...]` as the overlay grammars' names and `lexable()`s.
 fn overlay_grammars(json: &str) -> Option<Vec<(Vec<u16>, bool)>> {
     let parsed = lite_front::wire::parse(json, 3).ok()?;
@@ -660,6 +751,39 @@ mod tests {
         assert!(engine.starts_with("OK\nE\n[]\n{"), "{engine}");
         assert!(engine.contains("is not a known section parser"), "{engine}");
         assert!(model("LEGEND_LITE", r#"[["Toy"]]"#).starts_with("ERR\n"));
+    }
+
+    #[test]
+    fn the_engine_doors_answer_json_errors_and_lone_surrogates() {
+        let _serial = serial();
+        let engine = |door: &str, spans: &str, text: &str| {
+            let quoted = format!("\"{}\"", text.replace('\\', "\\\\").replace('\n', "\\n").replace('"', "\\\""));
+            take(unsafe {
+                lite_front_engine(c(door).as_ptr(), c(spans).as_ptr(), c("[]").as_ptr(), c(&quoted).as_ptr())
+            })
+        };
+        assert_eq!(
+            engine("lambdaJson", "false", "x|$x"),
+            "OK\nA\n{\"_type\":\"lambda\",\"body\":[{\"_type\":\"var\",\"name\":\"x\"}],\"parameters\":[{\"_type\":\
+             \"var\",\"name\":\"x\"}]}"
+        );
+        assert!(engine("lambdaJson", "true", "x|$x").contains("\"sourceInformation\":{"));
+        let document = engine("document", "false", "Class a::B {}");
+        assert!(document.starts_with("OK\nA\n{\"_type\":\"data\",\"elements\":[{\"_type\":\"class\""), "{document}");
+        assert!(!document.contains("sourceInformation"), "{document}");
+        // a parse error, as lite_front writes it
+        let error = engine("document", "true", "Class a::B {");
+        assert!(error.starts_with("OK\nE\n{\"class\":\"com.legend.parser.ParseException\""), "{error}");
+        // the emitter's refusal of a model the parser accepts (the oracle's one: a graph-fetch argument it has no
+        // rule for)
+        let refused = engine("document", "false", "function f::g():Any[*]{#{a::B{c(f())}}#}");
+        assert!(refused.starts_with("OK\nE\n{\"class\":\"java.lang.UnsupportedOperationException\""), "{refused}");
+        // a lone surrogate in a string literal: the JSON crosses as a JSON string, its surrogate escaped
+        let surrogate = engine("lambdaJson", "false", "|'a\\uD800b'");
+        assert!(surrogate.starts_with("OK\nU\n\"{\\\"_type\\\":\\\"lambda\\\""), "{surrogate}");
+        assert!(surrogate.contains("a\\ud800b"), "{surrogate}");
+        assert!(engine("document", "maybe", "Class a::B {}").starts_with("ERR\nINVALID_ARGUMENT"));
+        assert!(engine("pmcd", "true", "Class a::B {}").starts_with("ERR\nINVALID_ARGUMENT"));
     }
 
     #[test]

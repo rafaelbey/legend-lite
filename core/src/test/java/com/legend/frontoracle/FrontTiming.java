@@ -26,7 +26,15 @@ import java.util.TreeMap;
  * parser's twins ({@code parseInJava} and its kin) instead, so both receipts can be taken at one load, while the Java
  * parser exists (docs/rust-port/PHASE2.md §4 step 6 deletes it).
  *
- * <pre>bazel run //core:front_timing -- QUESTIONS_JSONL [PASSES] [RAISED_OUT] [--java]</pre>
+ * <p>{@code --engine} (step 5) times the two engine-JSON doors instead, over the oracle's questions at them -- each
+ * model text at the engine's dialect ({@code document}) and each lambda ({@code lambdaJson}), each asked twice, with
+ * its source information ({@code spans}) and without it ({@code bare}): the switched doors
+ * ({@code PmcdParser.parseDocument}, {@code SpecParser.lambdaJson}, the shim), or with {@code --java} Java's parser and
+ * emitter exactly as the doors were before the switch ({@code ProtocolEmitter.emit(parseInJava(text,
+ * LEGEND_ENGINE).model())}, {@code ProtocolEmitter.emitLambda(parseLambdaInJava(text))}, each cut by
+ * {@code SourceInformation.withoutSpans} for the bare form).
+ *
+ * <pre>bazel run //core:front_timing -- QUESTIONS_JSONL [PASSES] [RAISED_OUT] [--java] [--engine]</pre>
  */
 public final class FrontTiming {
 
@@ -38,7 +46,9 @@ public final class FrontTiming {
 
     public static void main(String[] argv) throws Exception {
         boolean java = Arrays.asList(argv).contains("--java");
-        String[] args = Arrays.stream(argv).filter(s -> !s.equals("--java")).toArray(String[]::new);
+        boolean engine = Arrays.asList(argv).contains("--engine");
+        String[] args = Arrays.stream(argv).filter(s -> !s.equals("--java") && !s.equals("--engine"))
+                .toArray(String[]::new);
         double load = ManagementFactory.getOperatingSystemMXBean().getSystemLoadAverage();
         long b0 = System.nanoTime();
         Class.forName("com.legend.builtin.Pure");
@@ -54,8 +64,15 @@ public final class FrontTiming {
                 String sha = ((Json.Str) o.get("sha")).value();
                 for (Json.Node a : ((Json.Arr) o.get("asks")).items()) {
                     List<Json.Node> pair = ((Json.Arr) a).items();
-                    asks.add(new Ask(((Json.Str) pair.get(0)).value(),
-                            Dialect.valueOf(((Json.Str) pair.get(1)).value()), sha, text));
+                    String door = ((Json.Str) pair.get(0)).value();
+                    Dialect dialect = Dialect.valueOf(((Json.Str) pair.get(1)).value());
+                    if (!engine) {
+                        asks.add(new Ask(door, dialect, sha, text));
+                    } else if (door.equals("pmcd") && dialect == Dialect.LEGEND_ENGINE || door.equals("lambda")) {
+                        String engineDoor = door.equals("pmcd") ? "document" : "lambdaJson";
+                        asks.add(new Ask(engineDoor + " spans", dialect, sha, text));
+                        asks.add(new Ask(engineDoor + " bare", dialect, sha, text));
+                    }
                 }
             }
         }
@@ -69,7 +86,9 @@ public final class FrontTiming {
             for (Ask a : asks) {
                 long t0 = System.nanoTime();
                 try {
-                    if (java) {
+                    if (engine) {
+                        engineDoor(a, java);
+                    } else if (java) {
                         switch (a.door()) {
                             case "pmcd" -> PmcdParser.parseInJava(a.text(), a.dialect());
                             case "spec" -> SpecParser.parseInJava(a.text(), a.dialect());
@@ -96,8 +115,10 @@ public final class FrontTiming {
                 }
             }
         }
-        System.out.printf("[front-timing] %s; load average %.2f at start; %d asks, %d passes, %d raised (last pass)%n",
-                java ? "the Java parser" : "the doors (the shim)", load, asks.size(), passes, failed);
+        System.out.printf("[front-timing] %s%s; load average %.2f at start, %.2f at the end; %d asks, %d passes, %d"
+                + " raised (last pass)%n", engine ? "the engine-JSON doors, " : "",
+                java ? "the Java parser" : "the doors (the shim)", load,
+                ManagementFactory.getOperatingSystemMXBean().getSystemLoadAverage(), asks.size(), passes, failed);
         System.out.printf("[front-timing] builtin.Pure first touch (the prelude's parse and build) %.1f ms%n",
                 bootstrap / 1e6);
         long total = 0;
@@ -115,6 +136,21 @@ public final class FrontTiming {
             // second asking is not a function of its text)
             Files.write(Path.of(args[2]), raised, StandardCharsets.UTF_8);
         }
+    }
+
+    /** One engine-JSON door's call: {@code document} or {@code lambdaJson}, its {@code spans} or {@code bare} form;
+     *  through the switched doors, or ({@code java}) as Java's parser and emitter answered it before the switch. */
+    private static String engineDoor(Ask a, boolean java) {
+        boolean spans = a.door().endsWith(" spans");
+        boolean document = a.door().startsWith("document");
+        if (!java) {
+            return document ? PmcdParser.parseDocument(a.text(), spans) : SpecParser.lambdaJson(a.text(), spans);
+        }
+        String json = document
+                ? com.legend.protocol.ProtocolEmitter.emit(PmcdParser.parseInJava(a.text(), Dialect.LEGEND_ENGINE)
+                        .model())
+                : com.legend.protocol.ProtocolEmitter.emitLambda(SpecParser.parseLambdaInJava(a.text()));
+        return spans ? json : com.legend.protocol.SourceInformation.withoutSpans(json);
     }
 
     private static double at(long[] sorted, double q) {

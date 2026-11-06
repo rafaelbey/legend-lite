@@ -16,7 +16,8 @@ import java.util.List;
  * and the text crossing as a JSON string (every surrogate a {@code \\uXXXX} escape, so a lone one survives the UTF-8
  * C string); the answer {@code A} and the records in the lossless codec, read by {@link FrontReader}, or {@code E} and
  * the error Java's parser raises, rethrown as its class with its message, a {@link ParseException} with its line and
- * column. Found by {@code com.legend.parser.RustParsers.provider()} through this library's META-INF/services.
+ * column. The engine-JSON doors ({@code lite_front_engine}, step 5) answer legend-engine's JSON itself, which the Rust
+ * emitter writes. Found by {@code com.legend.parser.RustParsers.provider()} through this library's META-INF/services.
  */
 public final class RustParserProvider implements RustParsers {
 
@@ -36,7 +37,41 @@ public final class RustParserProvider implements RustParsers {
     }
 
     @Override
-    public ModelAnswer model(String text, Dialect dialect, List<Overlay> overlays) {
+    public @com.legend.base.Nullable String document(String text, boolean sourceInformation, List<Overlay> overlays) {
+        return engine("document", sourceInformation, grammars(overlays), text);
+    }
+
+    @Override
+    public String lambdaJson(String text, boolean sourceInformation) {
+        return java.util.Objects.requireNonNull(engine("lambdaJson", sourceInformation, "[]", text),
+                "lite_front_engine answered the overlay path at the lambda door");
+    }
+
+    /**
+     * An engine-JSON door's answer ({@code lite_front_engine}): the JSON -- as UTF-8 text, or, when it holds a lone
+     * surrogate, as a JSON string literal read back here -- or the error thrown, or {@code null} for the overlay path.
+     */
+    private static @com.legend.base.Nullable String engine(String door, boolean sourceInformation, String overlays,
+            String text) {
+        String answer = Lite.shared().frontEngine(door, sourceInformation, overlays, jsonString(text));
+        if (answer.startsWith("A\n")) {
+            return answer.substring(2);
+        }
+        if (answer.startsWith("U\n")) {
+            return ((Json.Str) Json.parse(answer.substring(2))).value();
+        }
+        if (answer.startsWith("E\n")) {
+            throw raised((Json.Obj) Json.parse(answer.substring(2)));
+        }
+        if (answer.equals("O\n")) {
+            return null;
+        }
+        throw new IllegalStateException("lite_front_engine answered neither A, U, E nor O: "
+                + answer.substring(0, Math.min(80, answer.length())));
+    }
+
+    /** The registered overlay grammars as the Rust library takes them: {@code [["Toy",false],...]}. */
+    private static String grammars(List<Overlay> overlays) {
         StringBuilder grammars = new StringBuilder("[");
         for (Overlay o : overlays) {
             if (grammars.length() > 1) {
@@ -44,7 +79,12 @@ public final class RustParserProvider implements RustParsers {
             }
             grammars.append('[').append(jsonString(o.name())).append(',').append(o.lexable()).append(']');
         }
-        String answer = Lite.shared().frontModel(dialect.name(), grammars.append(']').toString(), jsonString(text));
+        return grammars.append(']').toString();
+    }
+
+    @Override
+    public ModelAnswer model(String text, Dialect dialect, List<Overlay> overlays) {
+        String answer = Lite.shared().frontModel(dialect.name(), grammars(overlays), jsonString(text));
         // A\n<sections>\n<records> or E\n<sections>\n<error>: the sections' JSON is one line
         int lineEnd = answer.indexOf('\n', 2);
         if (!(answer.startsWith("A\n") || answer.startsWith("E\n")) || lineEnd < 0) {
@@ -96,6 +136,11 @@ public final class RustParserProvider implements RustParsers {
             case "java.lang.IndexOutOfBoundsException" -> new IndexOutOfBoundsException(message);
             case "java.lang.StringIndexOutOfBoundsException" -> new StringIndexOutOfBoundsException(message);
             case "java.lang.ArithmeticException" -> new ArithmeticException(message);
+            // the emitter's (Objects.requireNonNull, its message null in the one-argument form) and the unchecked
+            // casts' and array bounds' the parser and the emitter reproduce (rust/lite-front/PARITY.md)
+            case "java.lang.NullPointerException" -> new NullPointerException(message);
+            case "java.lang.ClassCastException" -> new ClassCastException(message);
+            case "java.lang.ArrayIndexOutOfBoundsException" -> new ArrayIndexOutOfBoundsException(message);
             case "java.time.DateTimeException" -> new java.time.DateTimeException(message);
             default -> new IllegalStateException("the Rust parser raised a " + cls + ", which the shim has no class"
                     + " for: " + message);

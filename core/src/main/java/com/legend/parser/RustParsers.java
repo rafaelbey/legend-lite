@@ -33,6 +33,18 @@ public interface RustParsers {
      */
     ModelAnswer model(String text, Dialect dialect, List<Overlay> overlays);
 
+    /**
+     * {@link PmcdParser#parseDocument(String, boolean)}'s answer (docs/rust-port/PHASE2.md §4 step 5): the model text
+     * parsed at the engine's dialect and emitted as legend-engine's JSON by Rust, without its source information when
+     * {@code sourceInformation} is off; the parser's error or the emitter's refusal thrown as its class. {@code null}
+     * when the walk met a section of a registered overlay grammar: the overlay path, which {@link PmcdParser} answers
+     * itself (Rust never makes an opaque element).
+     */
+    @com.legend.base.Nullable String document(String text, boolean sourceInformation, List<Overlay> overlays);
+
+    /** {@link SpecParser#lambdaJson(String, boolean)}'s answer: the lambda parsed and emitted by Rust, or the error. */
+    String lambdaJson(String text, boolean sourceInformation);
+
     /** An overlay grammar the registry holds (its ServiceLoader half): its section's name and its {@code lexable()}. */
     record Overlay(String name, boolean lexable) {
     }

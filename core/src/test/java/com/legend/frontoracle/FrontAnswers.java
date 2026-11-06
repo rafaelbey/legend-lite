@@ -27,6 +27,11 @@ import java.util.List;
  * <p>With {@code --shim} first ({@code //core:front_shim}), the same questions asked through the shim's doors
  * ({@link FrontOracle#askShim}: Rust's answers, read back into records, the model door's overlays called and spliced in
  * Java), hashed in the same form: the shim end to end, compared line by line with Java's file.
+ *
+ * <p>With {@code --engine} first (step 5), the rest of the arguments go to {@link FrontEngineAnswers}: the engine-JSON
+ * doors' answers for a question set ({@code --engine QUESTIONS OUT}, Java's; {@code --engine --shim QUESTIONS OUT},
+ * the switched doors'), so {@code //core:front_show} and {@code //core:front_shim} answer any set, not only the
+ * oracle's. The debug mode writes a question's engine forms too, when it is asked at an engine door.
  */
 public final class FrontAnswers {
 
@@ -34,6 +39,10 @@ public final class FrontAnswers {
     }
 
     public static void main(String[] args) throws Exception {
+        if (args.length > 0 && args[0].equals("--engine")) {
+            FrontEngineAnswers.main(java.util.Arrays.copyOfRange(args, 1, args.length));
+            return;
+        }
         if (args.length == 3 && args[0].equals("--shim")) {
             // the shim's reader and the codec recurse through deep records: the whole pass on one deep-stack thread,
             // which keeps one worker of the shim's for every call
@@ -87,7 +96,10 @@ public final class FrontAnswers {
     }
 
     /** The debug mode ({@code //core:front_show}): Java's form for each named question ({@code door:dialect:sha}),
-     *  written to {@code DIR/<door>.<dialect>.<sha>.java.txt} -- beside the Rust form the differential writes. */
+     *  written to {@code DIR/<door>.<dialect>.<sha>.java.txt} -- beside the Rust form the differential writes; and, for
+     *  a question at an engine-JSON door (the model door at the engine's dialect, the lambda door), its two engine
+     *  forms ({@link FrontEngineAnswers#forms}) to {@code DIR/<engine door>.<sha>.java.spans.txt} and
+     *  {@code .java.bare.txt}, beside the engine differential's Rust forms. */
     private static void show(Path questions, Path dir, List<String> args) throws Exception {
         java.util.Set<String> wanted = new java.util.HashSet<>();
         for (String a : args) {
@@ -113,6 +125,15 @@ public final class FrontAnswers {
                                 canonical(answer), StandardCharsets.UTF_8);
                         Files.writeString(dir.resolve(door + "." + dialect + "." + sha + ".text.txt"), text,
                                 StandardCharsets.UTF_8);
+                        String engineDoor = door.equals("pmcd") && dialect.equals("LEGEND_ENGINE") ? "document"
+                                : door.equals("lambda") ? "lambdaJson" : null;
+                        if (engineDoor != null) {
+                            String[] forms = FrontEngineAnswers.forms(answer);
+                            Files.writeString(dir.resolve(engineDoor + "." + sha + ".java.spans.txt"), forms[0],
+                                    StandardCharsets.UTF_8);
+                            Files.writeString(dir.resolve(engineDoor + "." + sha + ".java.bare.txt"), forms[1],
+                                    StandardCharsets.UTF_8);
+                        }
                     }
                 }
             }
