@@ -35,16 +35,11 @@ class DocumentationTest {
         return com.legend.door.ModelFromText.parse(src, Dialect.LEGEND_ENGINE);
     }
 
+    /** The text's one declaration, its record as the model door reads it at the engine's dialect, as legend-engine's
+     *  element JSON (step 6b, 2026-11-06: through the door, where the Java parser's cursor read the declaration at the
+     *  text's first token by its kind's reader, deleted). */
     private static String wire(String src) {
-        var ts = com.legend.lexer.Lexer.tokenize(src);
-        ElementParser p = ElementParser.at(ts, 0, Dialect.LEGEND_ENGINE);
-        Protocol.Element el = switch (ts.type(ts.type(0) == com.legend.lexer.TokenType.DOC_STRING ? 1 : 0)) {
-            case CLASS -> p.parseClassDefinition(false);
-            case ENUM -> p.parseEnumDefinition();
-            case ASSOCIATION -> p.parseAssociationDefinition();
-            case FUNCTION -> p.parseFunctionProtocol();
-            default -> throw new AssertionError("no declaration at the start of: " + src);
-        };
+        Protocol.Element el = PmcdParser.parse(src, Dialect.LEGEND_ENGINE).model().elements().get(0);
         return ProtocolEmitter.emitElement(el);
     }
 

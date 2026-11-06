@@ -2,7 +2,6 @@ package com.legend.normalizer;
 
 import com.legend.model.NormalizedModel;
 import com.legend.compiler.NameResolver;
-import com.legend.parser.ElementParser;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.MappingDefinition;
 import com.legend.model.PackageableElement;

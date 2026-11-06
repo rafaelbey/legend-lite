@@ -559,20 +559,6 @@ final class ElementParserTest {
                 () -> "formatted message should embed [line:col], got: " + e.getMessage());
     }
 
-    // ---------------------------------------------------------------
-    // API surface — text vs token-stream overloads must agree
-    // ---------------------------------------------------------------
-
-    @Test
-    void parseTokenStreamOverloadAndStringOverloadProduceEqualResults() {
-        String src = "import a::b::*; Class Foo { x: Integer[1]; y: String[0..*]; }";
-        var stream = com.legend.lexer.Lexer.tokenize(src);
-        ParsedModel viaStream = com.legend.testing.Platform.model(stream);
-        ParsedModel viaString = com.legend.testing.Platform.model(src);
-        assertEquals(viaString, viaStream,
-                "TokenStream overload must return a ParsedModel record-equal to the String overload");
-    }
-
     // ===============================================================
     // B.2 — derived properties
     // ===============================================================
@@ -742,15 +728,10 @@ final class ElementParserTest {
         // REFUTED by the inline-snippet corpus: the ENGINE parses 1- and 3-end
         // associations and serializes what it read — arity is a COMPILE error.
         // The parser stays total; both forms round the protocol layer.
-        assertEquals(1, ((com.legend.protocol.Protocol.PAssociation) com.legend.testing.Engine.at(
-                com.legend.lexer.Lexer.tokenize("Association A { only: B[1]; }"),
-                0)
-                .parseAssociationDefinition()).properties().size());
-        assertEquals(3, ((com.legend.protocol.Protocol.PAssociation) com.legend.testing.Engine.at(
-                com.legend.lexer.Lexer.tokenize(
-                        "Association A { a: B[1]; b: C[1]; c: D[1]; }"),
-                0)
-                .parseAssociationDefinition()).properties().size());
+        assertEquals(1, ((com.legend.protocol.Protocol.PAssociation) com.legend.testing.Engine.element(
+                "Association A { only: B[1]; }")).properties().size());
+        assertEquals(3, ((com.legend.protocol.Protocol.PAssociation) com.legend.testing.Engine.element(
+                "Association A { a: B[1]; b: C[1]; c: D[1]; }")).properties().size());
     }
 
     // ===============================================================
@@ -778,9 +759,8 @@ final class ElementParserTest {
     void enumEmptyBodyFailsLoudly() {
         // REFUTED by the inline-snippet corpus: the engine parses an EMPTY enum
         // (values: [] on the wire); rejection, if any, is the compiler's.
-        assertTrue(com.legend.testing.Engine.at(
-                com.legend.lexer.Lexer.tokenize("Enum my::S {}"), 0)
-                .parseEnumDefinition().values().isEmpty());
+        assertTrue(((com.legend.protocol.Protocol.PEnumeration) com.legend.testing.Engine.element(
+                "Enum my::S {}")).values().isEmpty());
     }
 
     // ===============================================================
@@ -3498,35 +3478,5 @@ final class ElementParserTest {
         var second = (ClassMapping.Relational) md.classMappings().get(1);
         assertEquals("model::Person", first.className());
         assertEquals("model::Firm", second.className());
-    }
-
-    /**
-     * {@code ElementParser.linesOf} must be {@code String.lines()}.
-     *
-     * <p>It exists only because the file cannot use either of the two
-     * obvious spellings: {@code split("\\n")} is a regex, and this
-     * file's regex-site count is frozen at zero by
-     * {@code DropInSurfaceTextRuleTest}; {@code String.lines()} itself
-     * is absent from TeaVM's class library, and the planner has to
-     * survive an ahead-of-time compile to WebAssembly. A hand-rolled
-     * replacement for a JDK method is only safe if something pins it
-     * to the original, so this compares the two directly over the
-     * shapes that break line splitters.
-     */
-    @Test
-    void linesOfIsStringLines() {
-        String[] cases = {
-            "", "\n", "\r", "\r\n", "a", "a\n", "a\r\n", "a\r",
-            "a\nb", "a\r\nb", "a\rb", "a\n\nb", "a\r\n\r\nb",
-            "a\nb\n", "a\nb\n\n", "\na", "\r\na", "\n\na",
-            "x,y\r\n1,2\r\n3,4\r\n", "x,y\n1,2\n3,4",
-            "trailing spaces  \n  leading", "\u00e9\n\u00fc",
-            "a\n\rb", "a\r\rb", "no terminator at all",
-        };
-        for (String c : cases) {
-            assertEquals(c.lines().toList(), ElementParser.linesOf(c),
-                    () -> "linesOf drifted from String.lines() for "
-                            + java.util.Arrays.toString(c.chars().toArray()));
-        }
     }
 }

@@ -3,8 +3,6 @@ package com.legend.parser;
 import com.legend.protocol.Multiplicity;
 import com.legend.protocol.TypeExpression;
 
-import com.legend.lexer.Lexer;
-import com.legend.lexer.TokenStream;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CBoolean;
@@ -2988,28 +2986,6 @@ final class SpecParserTest {
                 com.legend.testing.Platform.spec("^$x(addr.city = 'NYC')"));
     }
 
-    // ----- slice entry point -------------------------------------------
-
-    @Test
-    void parseFromTokenStreamSlicePreservesSourceOffsets() {
-        // The slice entry point is what ModelOrchestrator will use to
-        // hand the parser a body's token range. Errors raised over a
-        // slice must still point at the ORIGINAL source line/column,
-        // not at offset 0 within the slice. This invariant comes from
-        // TokenStream.slice (C.0); pinning it here documents the
-        // cross-phase contract.
-        // Use a token that's still unsupported in C.2 (operators land
-        // in C.3). '&&' lexes to TokenType.AND, which has no expression
-        // production yet, so the slice MUST error \u2014 and the error must
-        // report the ORIGINAL line 2 of the source, not slice offset 0.
-        String src = "Class my::X { x: String[1]; }\n" + "&&";
-        TokenStream all = Lexer.tokenize(src);
-        TokenStream slice = all.slice(all.count() - 1, all.count());
-        ParseException ex = assertThrows(ParseException.class,
-                () -> com.legend.testing.Platform.spec(slice));
-        assertEquals(2, ex.line(),
-                () -> "error in slice should report ORIGINAL line 2, got: " + ex.getMessage());
-    }
     @Test
     void rowStructTypedLambdaParam() {
         // The PCT fully-annotated form: a shorthand lambda whose parameter

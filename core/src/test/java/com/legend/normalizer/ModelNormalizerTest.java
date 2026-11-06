@@ -5,7 +5,6 @@ import com.legend.protocol.DerivedPropertyDefinition;
 import com.legend.model.NormalizedModel;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.NameResolver;
-import com.legend.parser.ElementParser;
 import com.legend.protocol.Multiplicity;
 import com.legend.protocol.TypeExpression;
 import com.legend.model.ClassDefinition;

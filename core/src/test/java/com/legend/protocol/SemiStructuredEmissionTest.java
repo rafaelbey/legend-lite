@@ -3,10 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.lexer.Lexer;
-import com.legend.lexer.TokenStream;
-import com.legend.lexer.TokenType;
-import com.legend.parser.MappingProtocolParser;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -26,16 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SemiStructuredEmissionTest {
 
     private static String emitMapping(String source) {
-        TokenStream ts = Lexer.tokenize(source);
-        int at = -1;
-        for (int i = 0; i < ts.count(); i++) {
-            if (ts.type(i) == TokenType.MAPPING) {
-                at = i;
-                break;
-            }
-        }
         StringBuilder b = new StringBuilder();
-        MappingEmitter.mapping(b, com.legend.testing.Platform.mapping(ts, at, 1));
+        MappingEmitter.mapping(b, com.legend.testing.Platform.mapping(source));
         return b.toString();
     }
 

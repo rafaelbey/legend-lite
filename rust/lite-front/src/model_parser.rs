@@ -949,6 +949,22 @@ mod tests {
         assert_eq!(platform.unclaimed[0].name, "Toy");
     }
 
+    #[test]
+    fn the_lexer_reads_every_known_section_but_the_raw_one() {
+        // LexerRegistryAgreementTest's agreement (retired with the Java lexer, step 6b, 2026-11-06): whether a
+        // section's content reaches the shared token rules is decided twice -- the lexer's LEXABLE_SECTIONS and the
+        // grammar the walk routes the section to -- and drift is SILENT (a known section the lexer does not list
+        // raw-skips, and every element in it vanishes). The lexer reads every known section but Diagram, whose raw
+        // grammar walks characters (diagram_elements): the content of a color literal is not Pure.
+        let mut lexable: Vec<&str> = crate::lexer::LEXABLE_SECTIONS.to_vec();
+        lexable.sort_unstable();
+        let mut known: Vec<&str> = known_sections().into_iter().filter(|s| *s != "Diagram").collect();
+        known.sort_unstable();
+        assert_eq!(lexable, known);
+        assert!(known_sections().contains(&"Diagram"));
+        assert!(!crate::lexer::LEXABLE_SECTIONS.contains(&"Diagram"));
+    }
+
     // Each text below was asked of Java's parser (//core:front_show); the assertions are its answers.
 
     #[test]

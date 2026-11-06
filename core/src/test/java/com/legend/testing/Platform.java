@@ -6,7 +6,9 @@ package com.legend.testing;
 import com.legend.model.ParsedModel;
 import com.legend.parser.Dialect;
 import com.legend.door.ModelFromText;
+import com.legend.parser.PmcdParser;
 import com.legend.parser.SpecParser;
+import com.legend.protocol.Protocol;
 import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.List;
@@ -31,33 +33,23 @@ public final class Platform {
         return ModelFromText.parse(source, SUITE);
     }
 
-    public static ParsedModel model(com.legend.lexer.TokenStream tokens) {
-        return ModelFromText.parse(tokens.source(), SUITE);
-    }
-
     public static ValueSpecification spec(String source) {
         return SpecParser.parse(source, SUITE);
-    }
-
-    public static ValueSpecification spec(com.legend.lexer.TokenStream tokens) {
-        return SpecParser.parse(tokens, SUITE);
     }
 
     public static List<ValueSpecification> block(String source) {
         return SpecParser.parseCodeBlock(source, SUITE);
     }
 
-    public static List<ValueSpecification> block(
-            com.legend.lexer.TokenStream tokens) {
-        return SpecParser.parseCodeBlock(tokens, SUITE);
-    }
-
-    /** One {@code Mapping} element at {@code tokenIndex} — the protocol
-     *  pin tests' entry. */
-    public static com.legend.protocol.Protocol.PMapping mapping(
-            com.legend.lexer.TokenStream tokens, int tokenIndex,
-            int sectionStartLine) {
-        return com.legend.parser.MappingProtocolParser.parse(tokens,
-                tokenIndex, sectionStartLine, SUITE);
+    /** The first {@code Mapping} element of {@code source}, its record as the model door reads it at this level --
+     *  the protocol pin tests' entry (step 6b, 2026-11-06: through the door, where it parsed at the first
+     *  {@code Mapping} token with the Java parser's mapping grammar, deleted). */
+    public static Protocol.PMapping mapping(String source) {
+        for (Protocol.Element e : PmcdParser.parse(source, SUITE).model().elements()) {
+            if (e instanceof Protocol.PMapping m) {
+                return m;
+            }
+        }
+        throw new AssertionError("no Mapping element in: " + source);
     }
 }

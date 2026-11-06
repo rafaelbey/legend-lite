@@ -1756,3 +1756,63 @@ pub fn lines_of(text: &[u16]) -> Vec<&[u16]> {
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ustr::u;
+
+    // Held here since the Java parser was deleted (step 6b, 2026-11-06): the Java tests of its text helpers, each
+    // case as they had it (rust/RETIRED_TESTS.md).
+
+    #[test]
+    fn a_data_cell_s_colon_is_not_a_path_separator() {
+        // TextSurgeryPinTest.dataCellColonIsNotAPathSeparator, the text-surgery audit's §1.1 #2: indexOf(':') found a
+        // colon anywhere -- a cell containing 10:30 garbled the path, the columns and the rows. A path colon heads the
+        // block as one dotted name.
+        assert_eq!(path_colon_of(&u("a,b\n1,10:30")), None);
+        assert_eq!(path_colon_of(&u("time\n10:30")), None);
+        assert_eq!(path_colon_of(&u("\"x:y\",b\nv,w")), None);
+        assert_eq!(path_colon_of(&u("  default.T:\n a,b\n 1,2")), Some("default.T".len() + 2));
+        assert_eq!(path_colon_of(&u("a,b\n1,2")), None);
+    }
+
+    #[test]
+    fn lines_of_is_string_lines() {
+        // ElementParserTest.linesOfIsStringLines: the hand-rolled split is String.lines() -- a line ends at LF, CRLF
+        // or a lone CR, and a last line needs a character -- over the shapes that break line splitters (the
+        // expected values are Java's String.lines())
+        let cases: &[(&str, &[&str])] = &[
+            ("", &[]),
+            ("\n", &[""]),
+            ("\r", &[""]),
+            ("\r\n", &[""]),
+            ("a", &["a"]),
+            ("a\n", &["a"]),
+            ("a\r\n", &["a"]),
+            ("a\r", &["a"]),
+            ("a\nb", &["a", "b"]),
+            ("a\r\nb", &["a", "b"]),
+            ("a\rb", &["a", "b"]),
+            ("a\n\nb", &["a", "", "b"]),
+            ("a\r\n\r\nb", &["a", "", "b"]),
+            ("a\nb\n", &["a", "b"]),
+            ("a\nb\n\n", &["a", "b", ""]),
+            ("\na", &["", "a"]),
+            ("\r\na", &["", "a"]),
+            ("\n\na", &["", "", "a"]),
+            ("x,y\r\n1,2\r\n3,4\r\n", &["x,y", "1,2", "3,4"]),
+            ("x,y\n1,2\n3,4", &["x,y", "1,2", "3,4"]),
+            ("trailing spaces  \n  leading", &["trailing spaces  ", "  leading"]),
+            ("\u{e9}\n\u{fc}", &["\u{e9}", "\u{fc}"]),
+            ("a\n\rb", &["a", "", "b"]),
+            ("a\r\rb", &["a", "", "b"]),
+            ("no terminator at all", &["no terminator at all"]),
+        ];
+        for (text, lines) in cases {
+            let units = u(text);
+            let got: Vec<String> = lines_of(&units).into_iter().map(String::from_utf16_lossy).collect();
+            assert_eq!(got, *lines, "lines_of({text:?})");
+        }
+    }
+}

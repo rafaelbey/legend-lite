@@ -3,10 +3,10 @@
 
 package com.legend.testing;
 
-import com.legend.lexer.TokenStream;
 import com.legend.parser.Dialect;
 import com.legend.door.ModelFromText;
-import com.legend.parser.ElementParser;
+import com.legend.parser.PmcdParser;
+import com.legend.protocol.Protocol;
 
 /**
  * THE ENGINE-WIRE test regime, named ONCE — the protocol emission pin
@@ -26,8 +26,9 @@ public final class Engine {
         return ModelFromText.parse(source, SUITE);
     }
 
-    /** A parser positioned at {@code tokenIndex}, engine level. */
-    public static ElementParser at(TokenStream tokens, int tokenIndex) {
-        return ElementParser.at(tokens, tokenIndex, SUITE);
+    /** The first element of {@code source}, its record as the model door reads it at the engine level (step 6b,
+     *  2026-11-06: where the Java parser's cursor read it at the first token, deleted). */
+    public static Protocol.Element element(String source) {
+        return PmcdParser.parse(source, SUITE).model().elements().get(0);
     }
 }

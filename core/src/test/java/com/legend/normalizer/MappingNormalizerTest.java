@@ -3,7 +3,6 @@ package com.legend.normalizer;
 import com.legend.compiler.RelationalKinds;
 
 import com.legend.model.NormalizedModel;
-import com.legend.parser.ElementParser;
 import com.legend.protocol.Multiplicity;
 import com.legend.model.ParsedModel;
 import com.legend.protocol.TypeExpression;

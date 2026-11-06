@@ -8,7 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Pins for the text-surgery audit §1.1 wrong-answer fixes — each test IS the
- * audit's counterexample, asserted on the fixed behavior.
+ * audit's counterexample, asserted on the fixed behavior. (#2, a data cell's
+ * colon that is not a path separator, is the parser's, and the parser is
+ * Rust's since 2026-11-06: its counterexamples are pinned in
+ * rust/lite-front/src/element_parser.rs.)
  */
 class TextSurgeryPinTest {
 
@@ -22,18 +25,5 @@ class TextSurgeryPinTest {
                 .classOfWitnessPrefix(pfx, List.of("other::C", "my::A__B")));
         assertEquals(null, com.legend.model.ClassMapping
                 .classOfWitnessPrefix(pfx, List.of("other::C")));
-    }
-
-    @Test
-    void dataCellColonIsNotAPathSeparator() {
-        // §1.1 #2: indexOf(':') found a colon anywhere — a cell containing
-        // 10:30 garbled path, columns and rows. A path colon must head the
-        // block as one dotted name.
-        assertEquals(-1, ElementParser.pathColonOf("a,b\n1,10:30"));
-        assertEquals(-1, ElementParser.pathColonOf("time\n10:30"));
-        assertEquals(-1, ElementParser.pathColonOf("\"x:y\",b\nv,w"));
-        assertEquals("default.T".length() + 2,
-                ElementParser.pathColonOf("  default.T:\n a,b\n 1,2"));
-        assertEquals(-1, ElementParser.pathColonOf("a,b\n1,2"));
     }
 }

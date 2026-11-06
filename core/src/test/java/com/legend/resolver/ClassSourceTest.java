@@ -8,7 +8,6 @@ import com.legend.compiler.spec.typed.TypedNewInstance;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.MappingResolutionException;
 import com.legend.normalizer.ModelNormalizer;
-import com.legend.parser.ElementParser;
 import com.legend.model.NormalizedModel;
 import com.legend.model.MappingDefinition;
 import com.legend.model.PackageableElement;

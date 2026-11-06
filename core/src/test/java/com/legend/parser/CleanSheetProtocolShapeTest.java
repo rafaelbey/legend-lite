@@ -3,8 +3,6 @@
 
 package com.legend.parser;
 
-import com.legend.lexer.Lexer;
-import com.legend.lexer.TokenStream;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.MappingDefinition;
 import com.legend.model.PackageableElement;
@@ -37,19 +35,8 @@ class CleanSheetProtocolShapeTest {
 
     /** Parse the sole Mapping element through the one path there now is. */
     private static PackageableElement mapping(String source) {
-        TokenStream ts = Lexer.tokenize(source);
-        int at = -1;
-        for (int i = 0; i < ts.count(); i++) {
-            if (ts.type(i) == com.legend.lexer.TokenType.MAPPING) {
-                at = i;
-                break;
-            }
-        }
-        if (at < 0) {
-            throw new AssertionError("no Mapping element in: " + source);
-        }
         return com.legend.model.MappingFromProtocol.toMappingElement(
-                com.legend.testing.Platform.mapping(ts, at, 1));
+                com.legend.testing.Platform.mapping(source));
     }
 
     private static com.legend.model.CleanSheetMappingDefinition cleanSheet(String source) {

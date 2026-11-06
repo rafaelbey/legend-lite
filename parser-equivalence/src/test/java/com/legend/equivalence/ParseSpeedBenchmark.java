@@ -88,8 +88,10 @@ public final class ParseSpeedBenchmark {
             long best = Long.MAX_VALUE;
             for (int r = 0; r < reps; r++) {
                 long t0 = System.nanoTime();
+                // the product parse, the model door's records (2026-11-06, step 6b: the Java parser's own section
+                // walk it timed went with that parser; this is the Rust parser through the shim)
                 blackhole += com.legend.parser.PmcdParser
-                        .parseSections(src.text()).size();
+                        .parseModel(src.text()).elements().size();
                 best = Math.min(best, System.nanoTime() - t0);
             }
             coreTotal += best;

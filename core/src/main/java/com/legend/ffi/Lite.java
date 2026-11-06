@@ -174,8 +174,9 @@ public final class Lite {
 
     /**
      * A parser door answered by the Rust library ({@code lite_front}; docs/rust-port/PHASE2.md §3): the door
-     * ({@code spec}, {@code lambda}, {@code block}, {@code pmcd}, or one of the parity harness's probes, step 6a:
-     * {@code sectionHeaders}, {@code elementSites}, {@code databaseSites}, {@code knownSections}), the dialect's Java
+     * ({@code spec}, {@code lambda}, {@code block}, or one of the parity harness's probes, step 6a:
+     * {@code sectionHeaders}, {@code elementSites}, {@code databaseSites}, {@code knownSections}; or the prelude
+     * generator's, step 6b: {@code declarationExtents}), the dialect's Java
      * name, and the text as a JSON string literal; the answer, {@code A\n<records>} (a probe's JSON) or
      * {@code E\n<the error>}, or a refusal thrown as a {@link LiteRefusal}.
      */

@@ -14,11 +14,16 @@ class SectionGrammarRegistryTest {
 
     @Test
     void builtInsRegisterThroughTheRegistry() {
+        // the built-in sections are the parser's own (2026-11-06, the Rust port's phase 2 step 6b: the Rust parser's
+        // known sections, where the registry held a stand-in for each Java grammar; the registry keeps the
+        // ServiceLoader's overlays alone)
+        java.util.List<String> known = RustParsers.provider().knownSections();
         for (String s : new String[]{"Pure", "Mapping", "Relational",
                 "Connection", "Runtime", "Diagram", "Service", "DataSpace",
                 "Persistence"}) {
-            assertTrue(SectionGrammarRegistry.lookup(s).isPresent(), s);
+            assertTrue(known.contains(s), s);
         }
+        assertTrue(!known.contains("NoSuchSection"));
         assertTrue(SectionGrammarRegistry.lookup("NoSuchSection").isEmpty());
     }
 

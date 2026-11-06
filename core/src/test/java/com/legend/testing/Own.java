@@ -48,16 +48,7 @@ public final class Own {
         return SpecParser.parse(source, SUITE);
     }
 
-    public static ValueSpecification spec(com.legend.lexer.TokenStream tokens) {
-        return SpecParser.parse(tokens, SUITE);
-    }
-
     public static List<ValueSpecification> block(String source) {
         return SpecParser.parseCodeBlock(source, SUITE);
-    }
-
-    public static List<ValueSpecification> block(
-            com.legend.lexer.TokenStream tokens) {
-        return SpecParser.parseCodeBlock(tokens, SUITE);
     }
 }
