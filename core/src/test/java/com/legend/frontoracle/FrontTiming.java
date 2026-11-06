@@ -22,9 +22,11 @@ import java.util.TreeMap;
  * THE PARSE-TIME RECEIPT (Rust port phase 2, step 1: docs/rust-port/PHASE2.md §4): the front oracle's question set
  * asked of the parser's doors for several passes on one warm JVM, the last pass timed per door and dialect -- before
  * the switch the Java parser, after it the shim, so the two receipts compare the same calls. Also the bootstrap's
- * first touch of {@code builtin.Pure}, whose initialiser parses the platform's prelude.
+ * first touch of {@code builtin.Pure}, whose initialiser parses the platform's prelude. {@code --java} asks the Java
+ * parser's twins ({@code parseInJava} and its kin) instead, so both receipts can be taken at one load, while the Java
+ * parser exists (docs/rust-port/PHASE2.md §4 step 6 deletes it).
  *
- * <pre>bazel run //core:front_timing -- QUESTIONS_JSONL [PASSES]</pre>
+ * <pre>bazel run //core:front_timing -- QUESTIONS_JSONL [PASSES] [RAISED_OUT] [--java]</pre>
  */
 public final class FrontTiming {
 
@@ -34,7 +36,9 @@ public final class FrontTiming {
     private record Ask(String door, Dialect dialect, String sha, String text) {
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] argv) throws Exception {
+        boolean java = Arrays.asList(argv).contains("--java");
+        String[] args = Arrays.stream(argv).filter(s -> !s.equals("--java")).toArray(String[]::new);
         double load = ManagementFactory.getOperatingSystemMXBean().getSystemLoadAverage();
         long b0 = System.nanoTime();
         Class.forName("com.legend.builtin.Pure");
@@ -65,12 +69,22 @@ public final class FrontTiming {
             for (Ask a : asks) {
                 long t0 = System.nanoTime();
                 try {
-                    switch (a.door()) {
-                        case "pmcd" -> PmcdParser.parse(a.text(), a.dialect());
-                        case "spec" -> SpecParser.parse(a.text(), a.dialect());
-                        case "lambda" -> SpecParser.parseLambda(a.text());
-                        case "block" -> SpecParser.parseCodeBlock(a.text(), a.dialect());
-                        default -> throw new IllegalArgumentException("no door " + a.door());
+                    if (java) {
+                        switch (a.door()) {
+                            case "pmcd" -> PmcdParser.parseInJava(a.text(), a.dialect());
+                            case "spec" -> SpecParser.parseInJava(a.text(), a.dialect());
+                            case "lambda" -> SpecParser.parseLambdaInJava(a.text());
+                            case "block" -> SpecParser.parseCodeBlockInJava(a.text(), a.dialect());
+                            default -> throw new IllegalArgumentException("no door " + a.door());
+                        }
+                    } else {
+                        switch (a.door()) {
+                            case "pmcd" -> PmcdParser.parse(a.text(), a.dialect());
+                            case "spec" -> SpecParser.parse(a.text(), a.dialect());
+                            case "lambda" -> SpecParser.parseLambda(a.text());
+                            case "block" -> SpecParser.parseCodeBlock(a.text(), a.dialect());
+                            default -> throw new IllegalArgumentException("no door " + a.door());
+                        }
                     }
                 } catch (RuntimeException | StackOverflowError e) {
                     failed++;
@@ -82,8 +96,8 @@ public final class FrontTiming {
                 }
             }
         }
-        System.out.printf("[front-timing] load average %.2f at start; %d asks, %d passes, %d raised (last pass)%n",
-                load, asks.size(), passes, failed);
+        System.out.printf("[front-timing] %s; load average %.2f at start; %d asks, %d passes, %d raised (last pass)%n",
+                java ? "the Java parser" : "the doors (the shim)", load, asks.size(), passes, failed);
         System.out.printf("[front-timing] builtin.Pure first touch (the prelude's parse and build) %.1f ms%n",
                 bootstrap / 1e6);
         long total = 0;
