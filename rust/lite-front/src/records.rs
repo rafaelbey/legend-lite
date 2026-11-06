@@ -6226,7 +6226,7 @@ impl Codec for PSdlc {
 pub struct PSection {
     pub import_aware: bool,
     pub parser_name: JStr,
-    pub elements: Vec<JStr>,
+    pub elements: Vec<Option<JStr>>,
     pub imports: Vec<JStr>,
     pub source_information: Option<Box<SourceInfo>>,
 }
@@ -6240,7 +6240,7 @@ impl Codec for PSection {
         w.raw(",\"parserName\":");
         { let v = &self.parser_name; w.string(v); }
         w.raw(",\"elements\":");
-        { let v = &self.elements; { w.raw("["); for (i, x) in v.iter().enumerate() { if i > 0 { w.raw(","); } w.string(x); } w.raw("]"); } }
+        { let v = &self.elements; { w.raw("["); for (i, x) in v.iter().enumerate() { if i > 0 { w.raw(","); } match x { None => w.raw("null"), Some(x) => { w.string(x); } } } w.raw("]"); } }
         w.raw(",\"imports\":");
         { let v = &self.imports; { w.raw("["); for (i, x) in v.iter().enumerate() { if i > 0 { w.raw(","); } w.string(x); } w.raw("]"); } }
         w.raw(",\"sourceInformation\":");

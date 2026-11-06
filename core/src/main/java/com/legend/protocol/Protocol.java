@@ -3305,7 +3305,7 @@ public final class Protocol {
      *  coordinates over {@code "\n###Pure\n" + source} with the
      *  newline-inclusive SECTION_START token (PureGrammarParser.parse). */
     public record PSection(boolean importAware, String parserName,
-                           List<String> elements, List<String> imports,
+                           List<@com.legend.base.Nullable String> elements, List<String> imports,
                            @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
         public PSection {
             // NOT List.copyOf: the BigQuery deployment-config walker

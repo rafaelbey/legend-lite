@@ -121,6 +121,22 @@ legend_java_library(
         "//json",
     ],
 )
+# The parser the Rust library answers (docs/rust-port/PHASE2.md §3): the lossless codec's reader, generated from the
+# records (FrontRecords; _GENERATED below), and its leaves (FrontRead) -- the Rust parser's answer read back into the
+# protocol records the Java parser builds.
+legend_java_library(
+    name = "rust_parser",
+    srcs = glob(["src/main/java/com/legend/ffi/Front*.java"]),
+    deps = [
+        ":ffi",
+        ":parser",
+        ":protocol",
+        ":values",
+        "//base",
+        "//json",
+    ],
+)
+
 # legend-engine's query store's rules (/api/pure/v1/query) over a records interface
 # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B5): the one implementation legend-lite's server, Python's native library
 # and the page's module answer with, the storage each host's own (a directory, or the page's records handed in).
@@ -344,7 +360,7 @@ legend_java_library(
 )
 
 _CORE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door", ":ffi", ":rust_dialect",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door", ":ffi", ":rust_dialect", ":rust_parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":judge", ":probe", ":testdatagen",
     ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":driver", ":ide", ":test", ":server_lib",
@@ -354,7 +370,7 @@ _CORE_TARGETS = [
 # stands on, and none of execution (exec, testdatagen, driver, probe, ide, test, server_lib). A plan-only consumer
 # depends on this, so the build proves it carries no database and no driver.
 _PLAN_SIDE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door", ":ffi", ":rust_dialect",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door", ":ffi", ":rust_dialect", ":rust_parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":result", ":planner", ":pure_v1",
 ]
@@ -505,6 +521,11 @@ legend_java_library(
             "src/test/java/com/legend/server/PostgresArmTest.java",
             # LiteTest is :ffi_test's alone: the Rust library in its runfiles, and native access
             "src/test/java/com/legend/ffi/LiteTest.java",
+            # FrontReaderRoundTripTest is :front_reader_test's alone: the front oracle's questions in its runfiles
+            "src/test/java/com/legend/frontoracle/FrontReaderRoundTripTest.java",
+            # the codec and its generator are :front_codegen's, below the generated code's own library
+            "src/test/java/com/legend/frontoracle/FrontCodegen.java",
+            "src/test/java/com/legend/frontoracle/RecordCodec.java",
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
             "src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java",
@@ -575,6 +596,7 @@ legend_java_library(
     ],
     deps = [
         ":core",
+        ":front_codegen",
         ":test_backends",
         ":test_cases",
         # the Arrow writer's gate frames the stream it checks (ZstdFrame; track A, 2026-10-29)
@@ -1738,6 +1760,31 @@ legend_java_binary(
     ],
 )
 
+# The shim's reader is lossless (phase 2, step 3): every Java answer to the front oracle's questions, written in the
+# codec, read back by the generated reader (FrontReader) and written again, is the same text.
+junit_test(
+    name = "front_reader_test",
+    memory_mb = 4096,
+    size = "large",
+    srcs = ["src/test/java/com/legend/frontoracle/FrontReaderRoundTripTest.java"],
+    data = ["//rust/oracles:front_questions"],
+    jvm_flags = ["-Dfront.questions=$(rlocationpath //rust/oracles:front_questions)"],
+    select = ["--select-class=com.legend.frontoracle.FrontReaderRoundTripTest"],
+    runtime_deps = [":toy_grammar"],
+    deps = [
+        ":core",
+        ":core_tests_lib",
+        ":front_codegen",
+        ":parser",
+        ":protocol",
+        ":rust_parser",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
 # The protocol records in Rust (phase 2, step 3: FrontCodegen): every record the parser's doors return, by reflection,
 # with the lossless codec's writer -- each component Option exactly where its source says @Nullable, so the records'
 # sources are inputs. //rust/lite-front:update_generated writes it to rust/lite-front/src/records.rs.
@@ -1753,6 +1800,7 @@ java_run(
     ],
     outs = ["front/records.rs"],
     arguments = [
+        "rust",
         "{OUT}",
         "{MAIN}",
     ],
@@ -1760,7 +1808,50 @@ java_run(
     mnemonic = "FrontCodegen",
     roots = {"src/main/java/com/legend/Compiler.java": "{MAIN}"},
     visibility = ["//rust/lite-front:__pkg__"],
-    deps = [":core_tests_lib"],
+    deps = [":front_codegen"],
+)
+
+# The same records' reader in Java (FrontCodegen's java mode): the Rust parser's answer read back into the protocol
+# records, generated because the product bans reflection. Committed as src/main/java/com/legend/ffi/FrontRecords.java
+# (_GENERATED below).
+java_run(
+    name = "front_records_java",
+    testonly = True,
+    srcs = glob([
+        "src/main/java/com/legend/protocol/**/*.java",
+        "src/main/java/com/legend/values/*.java",
+    ]) + [
+        "src/main/java/com/legend/Compiler.java",
+        "src/main/java/com/legend/parser/PmcdParser.java",
+    ],
+    outs = ["front/FrontRecords.java"],
+    arguments = [
+        "java",
+        "{OUT}",
+        "{MAIN}",
+    ],
+    main_class = "com.legend.frontoracle.FrontCodegen",
+    mnemonic = "FrontCodegen",
+    roots = {"src/main/java/com/legend/Compiler.java": "{MAIN}"},
+    deps = [":front_codegen"],
+)
+
+# The codec and its generator, alone: on the records and the parser, never on the code they generate (rust_parser's
+# FrontRecords), so a record that changed shape regenerates a reader that no longer compiles instead of being stuck
+# behind it.
+legend_java_library(
+    name = "front_codegen",
+    # test code, as core_tests_lib it came from (reflection is the generator's tool)
+    nullaway = False,
+    testonly = True,
+    srcs = [
+        "src/test/java/com/legend/frontoracle/FrontCodegen.java",
+        "src/test/java/com/legend/frontoracle/RecordCodec.java",
+    ],
+    deps = [
+        ":parser",
+        ":protocol",
+    ],
 )
 
 # COMPILE-ONLY LATENCY (the compiler plan's W1.0b under D25): what a user feels per query, no database; the stress
@@ -1784,6 +1875,7 @@ legend_java_binary(
 # GENERATORS"). `bazel run //core:update_generated` (or //:update_generated)
 # writes them; `bazel test` fails when a committed copy differs, naming the command.
 _GENERATED = {
+    "src/main/java/com/legend/ffi/FrontRecords.java": ":front_records_java",
     "src/main/java/com/legend/builtin/DynaFn.java": "//spec:gen_dynafn",
     "src/main/java/com/legend/builtin/Pure.java": "//spec:gen_natives",
     "src/main/java/com/legend/compiler/CoreImports.java": "//spec:gen_imports",

@@ -1729,6 +1729,9 @@ final class ArchitectureTest {
             // call before resolveQuery; the resolver records; the builder is the one place after the resolver
             .and().resideOutsideOfPackages("com.legend.parser..", "com.legend.protocol..", "com.legend.test..")
             .and().haveNameNotMatching("com\\.legend\\.compiler\\.(spec\\.Calls|NameResolver)(\\$.*)?")
+            // the Rust parser's answer read into the records the Java parser builds -- a protocol reader, generated
+            // (the Rust port's phase 2 shim, docs/rust-port/PHASE2.md §3, 2026-11-05): it builds before resolution
+            .and().doNotHaveFullyQualifiedName("com.legend.ffi.FrontRecords")
             .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
                     com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
                             com.tngtech.archunit.core.domain.properties.HasName.Predicates
@@ -1757,7 +1760,11 @@ final class ArchitectureTest {
                     || pkg.equals("com.legend.protocol") || pkg.startsWith("com.legend.protocol.")
                     // the one builder of calls after the resolver (L7 "resolve once" step 3, 2026-10-10;
                     // callsAreBuiltOnlyByTheBuilder keeps every other constructor call of a call out)
-                    || c.getName().equals("com.legend.compiler.spec.Calls")) {
+                    || c.getName().equals("com.legend.compiler.spec.Calls")
+                    // the Rust parser's answer read into the records the Java parser builds: the parser's output,
+                    // read back, not a program spelled below it (the Rust port's phase 2 shim, generated;
+                    // docs/rust-port/PHASE2.md §3, 2026-11-05)
+                    || c.getName().equals("com.legend.ffi.FrontRecords")) {
                 continue;
             }
             int n = 0;

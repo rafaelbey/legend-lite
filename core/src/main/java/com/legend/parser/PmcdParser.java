@@ -175,7 +175,9 @@ public final class PmcdParser {
         }
         List<Protocol.PSection> pSections = new ArrayList<>();
         for (DocSection s : sections) {
-            List<String> paths = new ArrayList<>();
+            // a DocElement's path is nullable (the BigQuery deployment-config walker registers a null entry), and
+            // the section index lists it as it is
+            List<@com.legend.base.Nullable String> paths = new ArrayList<>();
             for (DocElement e : s.elements()) {
                 // the sectionIndex lists each path ONCE even when a source
                 // declares it twice (TestSectionRoundtrip duplicates); the
