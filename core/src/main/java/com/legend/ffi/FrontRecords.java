@@ -4,4144 +4,4932 @@
 
 package com.legend.ffi;
 
-import com.legend.json.Json;
-
 /**
  * The lossless record codec's reader (docs/rust-port/PHASE2.md §3): the Rust parser's answer read into
- * the protocol records the Java parser builds -- a reader per record, its canonical constructor fed each
- * component as its declared type; a reader per sealed parent, by the record's tag; the leaves through
- * {@link FrontRead}. Generated (FrontCodegen), never reflective.
+ * the protocol records the Java parser builds, streamed -- the answer's text pulled through a
+ * {@link FrontRead.Cursor} in the order the writers write it, no tree of it built. A reader per record,
+ * its canonical constructor fed each component as its declared type, each key in canonical order (a key
+ * missing or out of order refused); a reader per sealed parent, by the record's tag, written first; the
+ * leaves through {@link FrontRead}. Generated (FrontCodegen), never reflective.
  */
 final class FrontRecords {
 
     private FrontRecords() {
     }
 
-    static com.legend.parser.PmcdParser.Parsed readPmcdParserParsed(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.parser.PmcdParser.Parsed(
-                FrontRead.component(o, "PmcdParserParsed.model", c -> readPureModelContextData(c)),
-                FrontRead.component(o, "PmcdParserParsed.unclaimed", c -> FrontRead.list(c, x0 -> readPmcdParserUnclaimedSection(x0))));
-    }
-
-    static com.legend.parser.PmcdParser.UnclaimedSection readPmcdParserUnclaimedSection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.parser.PmcdParser.UnclaimedSection(
-                FrontRead.component(o, "PmcdParserUnclaimedSection.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PmcdParserUnclaimedSection.startOffset", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PmcdParserUnclaimedSection.endOffset", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.protocol.ConstraintDefinition readConstraintDefinition(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.ConstraintDefinition(
-                FrontRead.component(o, "ConstraintDefinition.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "ConstraintDefinition.realization", c -> readRealization(c)),
-                FrontRead.nullableComponent(o, "ConstraintDefinition.message", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "ConstraintDefinition.enforcementLevel", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "ConstraintDefinition.externalId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "ConstraintDefinition.owner", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "ConstraintDefinition.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.DerivedPropertyDefinition readDerivedPropertyDefinition(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.DerivedPropertyDefinition(
-                FrontRead.component(o, "DerivedPropertyDefinition.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "DerivedPropertyDefinition.parameters", c -> FrontRead.list(c, x0 -> readParameterDefinition(x0))),
-                FrontRead.component(o, "DerivedPropertyDefinition.realization", c -> readRealization(c)),
-                FrontRead.component(o, "DerivedPropertyDefinition.type", c -> readTypeExpression(c)),
-                FrontRead.component(o, "DerivedPropertyDefinition.multiplicity", c -> readMultiplicity(c)),
-                FrontRead.component(o, "DerivedPropertyDefinition.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "DerivedPropertyDefinition.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "DerivedPropertyDefinition.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Multiplicity.Concrete readMultiplicityConcrete(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Multiplicity.Concrete(
-                FrontRead.component(o, "MultiplicityConcrete.lowerBound", c -> FrontRead.integer(c)),
-                FrontRead.nullableComponent(o, "MultiplicityConcrete.upperBound", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.protocol.Multiplicity.Parameter readMultiplicityParameter(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Multiplicity.Parameter(
-                FrontRead.component(o, "MultiplicityParameter.name", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.ParameterDefinition readParameterDefinition(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.ParameterDefinition(
-                FrontRead.component(o, "ParameterDefinition.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "ParameterDefinition.type", c -> readTypeExpression(c)),
-                FrontRead.component(o, "ParameterDefinition.multiplicity", c -> readMultiplicity(c)),
-                FrontRead.nullableComponent(o, "ParameterDefinition.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PAggregateSetImplementation readPAggregateSetImplementation(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PAggregateSetImplementation(
-                FrontRead.component(o, "PAggregateSetImplementation.canAggregate", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PAggregateSetImplementation.groupByFunctions", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
-                FrontRead.component(o, "PAggregateSetImplementation.aggregateValues", c -> FrontRead.list(c, x0 -> readPAggregateValue(x0))),
-                FrontRead.component(o, "PAggregateSetImplementation.index", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PAggregateSetImplementation.setImplementation", c -> readPClassMapping(c)));
-    }
-
-    static com.legend.protocol.Protocol.PAggregateValue readPAggregateValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PAggregateValue(
-                FrontRead.component(o, "PAggregateValue.mapFn", c -> readValueSpecification(c)),
-                FrontRead.component(o, "PAggregateValue.aggregateFn", c -> readValueSpecification(c)));
-    }
-
-    static com.legend.protocol.Protocol.PApiKeyAuth readPApiKeyAuth(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PApiKeyAuth(
-                FrontRead.component(o, "PApiKeyAuth.keyName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PApiKeyAuth.location", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PApiKeyAuth.value", c -> readPVaultSecret(c)),
-                FrontRead.nullableComponent(o, "PApiKeyAuth.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PApiToken readPApiToken(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PApiToken(
-                FrontRead.component(o, "PApiToken.apiToken", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PApiToken.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PAssertion.EqualTo readPAssertionEqualTo(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PAssertion.EqualTo(
-                FrontRead.component(o, "PAssertionEqualTo.expected", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PAssertionEqualTo.span", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PAssertion.EqualToJson readPAssertionEqualToJson(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PAssertion.EqualToJson(
-                FrontRead.component(o, "PAssertionEqualToJson.expected", c -> readPTestPayloadExternalFormat(c)),
-                FrontRead.nullableComponent(o, "PAssertionEqualToJson.span", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PAssertion.EqualToRelation readPAssertionEqualToRelation(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PAssertion.EqualToRelation(
-                FrontRead.component(o, "PAssertionEqualToRelation.expected", c -> readPTestPayloadRelationElement(c)),
-                FrontRead.nullableComponent(o, "PAssertionEqualToRelation.span", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PAssociation readPAssociation(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PAssociation(
-                FrontRead.component(o, "PAssociation.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PAssociation.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PAssociation.properties", c -> FrontRead.list(c, x0 -> readPProperty(x0))),
-                FrontRead.component(o, "PAssociation.derivedProperties", c -> FrontRead.list(c, x0 -> readDerivedPropertyDefinition(x0))),
-                FrontRead.component(o, "PAssociation.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PAssociation.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PAssociation.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PAssociation.originalMilestonedProperties", c -> FrontRead.list(c, x0 -> readPProperty(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PAssociationProjection readPAssociationProjection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PAssociationProjection(
-                FrontRead.component(o, "PAssociationProjection.qualifiedName", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PAssociationProjection.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PAthenaSpec readPAthenaSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PAthenaSpec(
-                FrontRead.nullableComponent(o, "PAthenaSpec.athenaEndpoint", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PAthenaSpec.catalog", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PAthenaSpec.database", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PAthenaSpec.outputLocation", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PAthenaSpec.region", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PAthenaSpec.workGroup", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PAthenaSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PAuroraSpec readPAuroraSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PAuroraSpec(
-                FrontRead.nullableComponent(o, "PAuroraSpec.clusterInstanceHostPattern", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PAuroraSpec.host", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PAuroraSpec.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PAuroraSpec.port", c -> FrontRead.longValue(c)),
-                FrontRead.nullableComponent(o, "PAuroraSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PAwsDefault readPAwsDefault(Json.Node n) {
-        FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PAwsDefault();
-    }
-
-    static com.legend.protocol.Protocol.PAwsSecret readPAwsSecret(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PAwsSecret(
-                FrontRead.component(o, "PAwsSecret.secretId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PAwsSecret.versionId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PAwsSecret.versionStage", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PAwsSecret.credsKind", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PAwsSecret.accessKeyId", c -> readPMongoSecret(c)),
-                FrontRead.nullableComponent(o, "PAwsSecret.secretAccessKey", c -> readPMongoSecret(c)),
-                FrontRead.nullableComponent(o, "PAwsSecret.credsSpan", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PAwsStatic readPAwsStatic(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PAwsStatic(
-                FrontRead.component(o, "PAwsStatic.accessKeyId", c -> readPMongoSecret(c)),
-                FrontRead.component(o, "PAwsStatic.secretAccessKey", c -> readPMongoSecret(c)),
-                FrontRead.nullableComponent(o, "PAwsStatic.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PAwsStsRole readPAwsStsRole(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PAwsStsRole(
-                FrontRead.component(o, "PAwsStsRole.roleArn", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PAwsStsRole.roleSessionName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PAwsStsRole.awsCredentials", c -> readPAwsCredentials(c)),
-                FrontRead.nullableComponent(o, "PAwsStsRole.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PBigQuerySpec readPBigQuerySpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PBigQuerySpec(
-                FrontRead.component(o, "PBigQuerySpec.defaultDataset", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PBigQuerySpec.projectId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PBigQuerySpec.proxyHost", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PBigQuerySpec.proxyPort", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PBigQuerySpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PBinding readPBinding(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PBinding(
-                FrontRead.component(o, "PBinding.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PBinding.name", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PBinding.schemaSet", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PBinding.schemaId", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PBinding.contentType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PBinding.modelIncludes", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PBinding.modelExcludes", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PBinding.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PBodyBuildInfo readPBodyBuildInfo(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PBodyBuildInfo(
-                FrontRead.component(o, "PBodyBuildInfo.transform", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PBodyBuildInfo.transformSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PBodyBuildInfo.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PBsonSchema readPBsonSchema(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PBsonSchema(
-                FrontRead.component(o, "PBsonSchema.wireType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PBsonSchema.additionalPropertiesAllowed", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PBsonSchema.properties", c -> FrontRead.list(c, x0 -> FrontRead.entry(x0, k1 -> FrontRead.string(k1), v1 -> readPBsonSchema(v1)))),
-                FrontRead.component(o, "PBsonSchema.required", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PBsonSchema.title", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PBsonSchema.description", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PBsonSchema.minLength", c -> FrontRead.longValue(c)),
-                FrontRead.nullableComponent(o, "PBsonSchema.maxLength", c -> FrontRead.longValue(c)),
-                FrontRead.nullableComponent(o, "PBsonSchema.items", c -> FrontRead.list(c, x0 -> readPBsonSchema(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PBusinessMilestoning readPBusinessMilestoning(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PBusinessMilestoning(
-                FrontRead.component(o, "PBusinessMilestoning.from", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PBusinessMilestoning.thru", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PBusinessMilestoning.thruIsInclusive", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PBusinessMilestoning.infinityDate", c -> readPDateTimeLit(c)),
-                FrontRead.nullableComponent(o, "PBusinessMilestoning.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PBusinessSnapshotMilestoning readPBusinessSnapshotMilestoning(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PBusinessSnapshotMilestoning(
-                FrontRead.component(o, "PBusinessSnapshotMilestoning.snapshotDate", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PBusinessSnapshotMilestoning.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PClass readPClass(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PClass(
-                FrontRead.component(o, "PClass.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PClass.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PClass.typeParams", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PClass.typeVariables", c -> FrontRead.list(c, x0 -> readParameterDefinition(x0))),
-                FrontRead.component(o, "PClass.superTypes", c -> FrontRead.list(c, x0 -> readPSuperType(x0))),
-                FrontRead.component(o, "PClass.properties", c -> FrontRead.list(c, x0 -> readPProperty(x0))),
-                FrontRead.component(o, "PClass.derivedProperties", c -> FrontRead.list(c, x0 -> readDerivedPropertyDefinition(x0))),
-                FrontRead.component(o, "PClass.constraints", c -> FrontRead.list(c, x0 -> readConstraintDefinition(x0))),
-                FrontRead.component(o, "PClass.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PClass.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.component(o, "PClass.isNative", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PClass.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PClass.originalMilestonedProperties", c -> FrontRead.list(c, x0 -> readPProperty(x0))),
-                FrontRead.component(o, "PClass.multiplicityParams", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PClassMappingAggregationAware readPClassMappingAggregationAware(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PClassMappingAggregationAware(
-                FrontRead.component(o, "PClassMappingAggregationAware.className", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PClassMappingAggregationAware.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PClassMappingAggregationAware.aggregateSetImplementations", c -> FrontRead.list(c, x0 -> readPAggregateSetImplementation(x0))),
-                FrontRead.component(o, "PClassMappingAggregationAware.mainSetImplementation", c -> readPClassMapping(c)),
-                FrontRead.component(o, "PClassMappingAggregationAware.aggPropertyMappings", c -> FrontRead.list(c, x0 -> readPPurePropertyMapping(x0))),
-                FrontRead.component(o, "PClassMappingAggregationAware.root", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PClassMappingAggregationAware.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PClassMappingAggregationAware.extendsClassMappingId", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PClassMappingFunction readPClassMappingFunction(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PClassMappingFunction(
-                FrontRead.component(o, "PClassMappingFunction.className", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingFunction.classSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PClassMappingFunction.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingFunction.extendsClassMappingId", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PClassMappingFunction.root", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PClassMappingFunction.kind", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingFunction.function", c -> readPackageableElementPtr(c)),
-                FrontRead.nullableComponent(o, "PClassMappingFunction.bodyLambda", c -> readLambdaFunction(c)),
-                FrontRead.nullableComponent(o, "PClassMappingFunction.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PClassMappingMergeOperation readPClassMappingMergeOperation(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PClassMappingMergeOperation(
-                FrontRead.component(o, "PClassMappingMergeOperation.className", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingMergeOperation.classSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PClassMappingMergeOperation.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PClassMappingMergeOperation.root", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PClassMappingMergeOperation.parameters", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PClassMappingMergeOperation.validationLambda", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PClassMappingMergeOperation.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PClassMappingMergeOperation.extendsClassMappingId", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PClassMappingMongoDb readPClassMappingMongoDb(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PClassMappingMongoDb(
-                FrontRead.component(o, "PClassMappingMongoDb.className", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingMongoDb.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PClassMappingMongoDb.root", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PClassMappingMongoDb.storePath", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingMongoDb.mainCollectionName", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingMongoDb.bindingPath", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingMongoDb.extendsClassMappingId", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PClassMappingOperation readPClassMappingOperation(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PClassMappingOperation(
-                FrontRead.component(o, "PClassMappingOperation.className", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingOperation.classSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PClassMappingOperation.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingOperation.extendsClassMappingId", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PClassMappingOperation.root", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PClassMappingOperation.operation", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PClassMappingOperation.parameters", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PClassMappingOperation.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PClassMappingPure readPClassMappingPure(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PClassMappingPure(
-                FrontRead.component(o, "PClassMappingPure.className", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingPure.classSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PClassMappingPure.extendsClassMappingId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingPure.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PClassMappingPure.root", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PClassMappingPure.srcClass", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingPure.sourceClassSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PClassMappingPure.filter", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
-                FrontRead.component(o, "PClassMappingPure.propertyMappings", c -> FrontRead.list(c, x0 -> readPPurePropertyMapping(x0))),
-                FrontRead.nullableComponent(o, "PClassMappingPure.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PClassMappingRel readPClassMappingRel(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PClassMappingRel(
-                FrontRead.component(o, "PClassMappingRel.className", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingRel.classSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PClassMappingRel.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PClassMappingRel.root", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PClassMappingRel.distinct", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PClassMappingRel.extendsClassMappingId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingRel.filter", c -> readPFilterMapping(c)),
-                FrontRead.component(o, "PClassMappingRel.groupBy", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
-                FrontRead.nullableComponent(o, "PClassMappingRel.mainTable", c -> readPTablePtr(c)),
-                FrontRead.component(o, "PClassMappingRel.primaryKey", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
-                FrontRead.component(o, "PClassMappingRel.propertyMappings", c -> FrontRead.list(c, x0 -> readPPropertyMapping(x0))),
-                FrontRead.nullableComponent(o, "PClassMappingRel.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PClassMappingRelation readPClassMappingRelation(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PClassMappingRelation(
-                FrontRead.component(o, "PClassMappingRelation.className", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingRelation.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingRelation.extendsClassMappingId", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PClassMappingRelation.primaryKey", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PClassMappingRelation.propertyMappings", c -> FrontRead.list(c, x0 -> readPRelationFnPropertyMapping(x0))),
-                FrontRead.nullableComponent(o, "PClassMappingRelation.relationFunction", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassMappingRelation.relationFunctionSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PClassMappingRelation.sourceLambda", c -> readPRelationSrcLambda(c)),
-                FrontRead.component(o, "PClassMappingRelation.root", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PClassMappingRelation.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PClassView readPClassView(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PClassView(
-                FrontRead.component(o, "PClassView.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PClassView.classPath", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PClassView.classSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PClassView.hideProperties", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PClassView.hideStereotypes", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PClassView.hideTaggedValues", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PClassView.x", c -> FrontRead.doubleValue(c)),
-                FrontRead.component(o, "PClassView.y", c -> FrontRead.doubleValue(c)),
-                FrontRead.component(o, "PClassView.width", c -> FrontRead.doubleValue(c)),
-                FrontRead.component(o, "PClassView.height", c -> FrontRead.doubleValue(c)),
-                FrontRead.nullableComponent(o, "PClassView.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PColumnRef readPColumnRef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PColumnRef(
-                FrontRead.component(o, "PColumnRef.column", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PColumnRef.table", c -> readPTablePtr(c)),
-                FrontRead.component(o, "PColumnRef.tableAlias", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PColumnRef.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PConfigProperty readPConfigProperty(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PConfigProperty(
-                FrontRead.component(o, "PConfigProperty.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PConfigProperty.value", c -> readPConfigValue(c)),
-                FrontRead.nullableComponent(o, "PConfigProperty.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PConfigValue.PCBoolean readPConfigValuePCBoolean(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PConfigValue.PCBoolean(
-                FrontRead.component(o, "PConfigValuePCBoolean.value", c -> FrontRead.bool(c)));
-    }
-
-    static com.legend.protocol.Protocol.PConfigValue.PCInteger readPConfigValuePCInteger(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PConfigValue.PCInteger(
-                FrontRead.component(o, "PConfigValuePCInteger.value", c -> FrontRead.longValue(c)));
-    }
-
-    static com.legend.protocol.Protocol.PConfigValue.PCMap readPConfigValuePCMap(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PConfigValue.PCMap(
-                FrontRead.component(o, "PConfigValuePCMap.entries", c -> FrontRead.map(c, v0 -> FrontRead.string(v0))));
-    }
-
-    static com.legend.protocol.Protocol.PConfigValue.PCNull readPConfigValuePCNull(Json.Node n) {
-        FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PConfigValue.PCNull();
-    }
-
-    static com.legend.protocol.Protocol.PConfigValue.PCString readPConfigValuePCString(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PConfigValue.PCString(
-                FrontRead.component(o, "PConfigValuePCString.value", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PConfigValue.PCStrings readPConfigValuePCStrings(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PConfigValue.PCStrings(
-                FrontRead.component(o, "PConfigValuePCStrings.values", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PConnection readPConnection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PConnection(
-                FrontRead.component(o, "PConnection.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PConnection.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PConnection.value", c -> readPConnectionValue(c)),
-                FrontRead.nullableComponent(o, "PConnection.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PConnectionPointer readPConnectionPointer(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PConnectionPointer(
-                FrontRead.component(o, "PConnectionPointer.connection", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PConnectionPointer.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PConnectionStores readPConnectionStores(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PConnectionStores(
-                FrontRead.component(o, "PConnectionStores.connectionPointer", c -> readPConnectionValue(c)),
-                FrontRead.component(o, "PConnectionStores.storePointers", c -> FrontRead.list(c, x0 -> readPStorePointer(x0))),
-                FrontRead.nullableComponent(o, "PConnectionStores.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PCtxParam readPCtxParam(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PCtxParam(
-                FrontRead.component(o, "PCtxParam.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PCtxParam.value", c -> readPCtxParamValue(c)),
-                FrontRead.nullableComponent(o, "PCtxParam.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PCtxParamValue.ConnectionPtr readPCtxParamValueConnectionPtr(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PCtxParamValue.ConnectionPtr(
-                FrontRead.component(o, "PCtxParamValueConnectionPtr.path", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PCtxParamValueConnectionPtr.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PCtxParamValue.ConnectionVal readPCtxParamValueConnectionVal(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PCtxParamValue.ConnectionVal(
-                FrontRead.component(o, "PCtxParamValueConnectionVal.connection", c -> readPConnectionValue(c)));
-    }
-
-    static com.legend.protocol.Protocol.PCtxParamValue.Primitive readPCtxParamValuePrimitive(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PCtxParamValue.Primitive(
-                FrontRead.component(o, "PCtxParamValuePrimitive.spec", c -> readValueSpecification(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataBody readPDataBody(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataBody(
-                FrontRead.nullableComponent(o, "PDataBody.value", c -> readPEmbeddedDataValue(c)),
-                FrontRead.component(o, "PDataBody.resolvers", c -> FrontRead.list(c, x0 -> readPDataResolver(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PDataElement readPDataElement(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataElement(
-                FrontRead.component(o, "PDataElement.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataElement.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataElement.body", c -> readPDataBody(c)),
-                FrontRead.component(o, "PDataElement.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PDataElement.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PDataElement.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataQualityRelationComparison readPDataQualityRelationComparison(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataQualityRelationComparison(
-                FrontRead.component(o, "PDataQualityRelationComparison.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataQualityRelationComparison.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataQualityRelationComparison.source", c -> readValueSpecification(c)),
-                FrontRead.component(o, "PDataQualityRelationComparison.target", c -> readValueSpecification(c)),
-                FrontRead.component(o, "PDataQualityRelationComparison.keys", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PDataQualityRelationComparison.columnsToCompare", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PDataQualityRelationComparison.expectedMatch", c -> FrontRead.doubleValue(c)),
-                FrontRead.component(o, "PDataQualityRelationComparison.strategy", c -> readPReconStrategy(c)),
-                FrontRead.nullableComponent(o, "PDataQualityRelationComparison.testSuites", c -> FrontRead.list(c, x0 -> readPDqTestSuite(x0))),
-                FrontRead.nullableComponent(o, "PDataQualityRelationComparison.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataQualityRelationValidation readPDataQualityRelationValidation(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataQualityRelationValidation(
-                FrontRead.component(o, "PDataQualityRelationValidation.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataQualityRelationValidation.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataQualityRelationValidation.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PDataQualityRelationValidation.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.component(o, "PDataQualityRelationValidation.query", c -> readValueSpecification(c)),
-                FrontRead.component(o, "PDataQualityRelationValidation.validations", c -> FrontRead.list(c, x0 -> readPDqRelationCheck(x0))),
-                FrontRead.nullableComponent(o, "PDataQualityRelationValidation.testSuites", c -> FrontRead.list(c, x0 -> readPDqTestSuite(x0))),
-                FrontRead.nullableComponent(o, "PDataQualityRelationValidation.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataQualityValidation readPDataQualityValidation(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataQualityValidation(
-                FrontRead.component(o, "PDataQualityValidation.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataQualityValidation.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataQualityValidation.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PDataQualityValidation.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.component(o, "PDataQualityValidation.contextKind", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataQualityValidation.contextPath", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataQualityValidation.contextPathSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PDataQualityValidation.contextSecond", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataQualityValidation.contextSecondSpan", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PDataQualityValidation.validationTree", c -> readPDqTreeNode(c)),
-                FrontRead.nullableComponent(o, "PDataQualityValidation.filter", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PDataQualityValidation.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataReference readPDataReference(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataReference(
-                FrontRead.component(o, "PDataReference.dataElement", c -> readPPointer(c)),
-                FrontRead.nullableComponent(o, "PDataReference.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataResolver readPDataResolver(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataResolver(
-                FrontRead.component(o, "PDataResolver.elementPointer", c -> readPElementRef(c)),
-                FrontRead.nullableComponent(o, "PDataResolver.data", c -> readPEmbeddedDataValue(c)),
-                FrontRead.nullableComponent(o, "PDataResolver.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpace readPDataSpace(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpace(
-                FrontRead.component(o, "PDataSpace.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataSpace.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataSpace.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PDataSpace.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PDataSpace.executionContexts", c -> FrontRead.list(c, x0 -> readPDataSpaceContext(x0))),
-                FrontRead.nullableComponent(o, "PDataSpace.defaultExecutionContext", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpace.title", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpace.description", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpace.executables", c -> FrontRead.list(c, x0 -> readPDataSpaceExecutable(x0))),
-                FrontRead.nullableComponent(o, "PDataSpace.diagrams", c -> FrontRead.list(c, x0 -> readPDataSpaceDiagram(x0))),
-                FrontRead.nullableComponent(o, "PDataSpace.supportInfo", c -> readPDataSpaceSupport(c)),
-                FrontRead.nullableComponent(o, "PDataSpace.operationalMetadata", c -> readPDataSpaceOperationalMetadata(c)),
-                FrontRead.nullableComponent(o, "PDataSpace.elements", c -> FrontRead.list(c, x0 -> readPDataSpaceElementRef(x0))),
-                FrontRead.nullableComponent(o, "PDataSpace.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpaceContext readPDataSpaceContext(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpaceContext(
-                FrontRead.component(o, "PDataSpaceContext.name", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceContext.title", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceContext.description", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceContext.mapping", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceContext.mappingSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceContext.mappingProvider", c -> readPDataSpaceMappingProvider(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceContext.defaultRuntime", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceContext.runtimeSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceContext.testData", c -> readPDataSpaceTestData(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceContext.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpaceDiagram readPDataSpaceDiagram(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpaceDiagram(
-                FrontRead.component(o, "PDataSpaceDiagram.title", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceDiagram.description", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataSpaceDiagram.diagram", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceDiagram.diagramSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceDiagram.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpaceElementRef readPDataSpaceElementRef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpaceElementRef(
-                FrontRead.component(o, "PDataSpaceElementRef.path", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataSpaceElementRef.exclude", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceElementRef.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpaceEmail readPDataSpaceEmail(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpaceEmail(
-                FrontRead.component(o, "PDataSpaceEmail.title", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataSpaceEmail.address", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceEmail.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpaceExecutable readPDataSpaceExecutable(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpaceExecutable(
-                FrontRead.nullableComponent(o, "PDataSpaceExecutable.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataSpaceExecutable.title", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceExecutable.description", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceExecutable.executable", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceExecutable.executableSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceExecutable.query", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceExecutable.executionContextKey", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceExecutable.sampleValues", c -> readPRelationElement(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceExecutable.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpaceExpertise readPDataSpaceExpertise(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpaceExpertise(
-                FrontRead.nullableComponent(o, "PDataSpaceExpertise.description", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceExpertise.expertIds", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PDataSpaceExpertise.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpaceLink readPDataSpaceLink(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpaceLink(
-                FrontRead.nullableComponent(o, "PDataSpaceLink.label", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataSpaceLink.url", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceLink.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpaceMappingProvider readPDataSpaceMappingProvider(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpaceMappingProvider(
-                FrontRead.component(o, "PDataSpaceMappingProvider.element", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceMappingProvider.elementSpan", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PDataSpaceMappingProvider.keys", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PDataSpaceMappingProvider.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpaceOperationalMetadata readPDataSpaceOperationalMetadata(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpaceOperationalMetadata(
-                FrontRead.component(o, "PDataSpaceOperationalMetadata.coverageRegions", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PDataSpaceOperationalMetadata.updateFrequency", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceOperationalMetadata.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpaceSupport.PSupportCombined readPDataSpaceSupportPSupportCombined(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpaceSupport.PSupportCombined(
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportCombined.documentationUrl", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportCombined.website", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportCombined.faqUrl", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportCombined.supportUrl", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportCombined.emails", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportCombined.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpaceSupport.PSupportEmail readPDataSpaceSupportPSupportEmail(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpaceSupport.PSupportEmail(
-                FrontRead.component(o, "PDataSpaceSupportPSupportEmail.address", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportEmail.documentationUrl", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportEmail.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpaceSupport.PSupportFull readPDataSpaceSupportPSupportFull(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpaceSupport.PSupportFull(
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportFull.documentation", c -> readPDataSpaceLink(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportFull.website", c -> readPDataSpaceLink(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportFull.faqUrl", c -> readPDataSpaceLink(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportFull.supportUrl", c -> readPDataSpaceLink(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportFull.emails", c -> FrontRead.list(c, x0 -> readPDataSpaceEmail(x0))),
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportFull.expertise", c -> FrontRead.list(c, x0 -> readPDataSpaceExpertise(x0))),
-                FrontRead.nullableComponent(o, "PDataSpaceSupportPSupportFull.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDataSpaceTestData readPDataSpaceTestData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDataSpaceTestData(
-                FrontRead.component(o, "PDataSpaceTestData.kind", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDataSpaceTestData.path", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDataSpaceTestData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDatabase readPDatabase(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDatabase(
-                FrontRead.component(o, "PDatabase.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDatabase.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDatabase.includedStores", c -> FrontRead.list(c, x0 -> readPPointer(x0))),
-                FrontRead.component(o, "PDatabase.includedStoreSpecifications", c -> FrontRead.list(c, x0 -> readPIncludedStoreSpec(x0))),
-                FrontRead.component(o, "PDatabase.schemas", c -> FrontRead.list(c, x0 -> readPDbSchema(x0))),
-                FrontRead.component(o, "PDatabase.joins", c -> FrontRead.list(c, x0 -> readPDbJoin(x0))),
-                FrontRead.component(o, "PDatabase.filters", c -> FrontRead.list(c, x0 -> readPDbFilter(x0))),
-                FrontRead.component(o, "PDatabase.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PDatabase.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PDatabase.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDatabaseMapper readPDatabaseMapper(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDatabaseMapper(
-                FrontRead.component(o, "PDatabaseMapper.databaseName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDatabaseMapper.schemas", c -> FrontRead.list(c, x0 -> readPSchemaPointer(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PDatabricksSpec readPDatabricksSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDatabricksSpec(
-                FrontRead.component(o, "PDatabricksSpec.hostname", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDatabricksSpec.httpPath", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDatabricksSpec.port", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDatabricksSpec.protocol", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDatabricksSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDateTimeLit readPDateTimeLit(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDateTimeLit(
-                FrontRead.component(o, "PDateTimeLit.value", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDateTimeLit.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDbColumn readPDbColumn(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDbColumn(
-                FrontRead.component(o, "PDbColumn.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDbColumn.nullable", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PDbColumn.type", c -> readPDbType(c)),
-                FrontRead.component(o, "PDbColumn.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PDbColumn.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PDbColumn.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDbFilter readPDbFilter(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDbFilter(
-                FrontRead.component(o, "PDbFilter.filterType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDbFilter.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDbFilter.operation", c -> readPRelOp(c)),
-                FrontRead.nullableComponent(o, "PDbFilter.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDbJoin readPDbJoin(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDbJoin(
-                FrontRead.component(o, "PDbJoin.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDbJoin.operation", c -> readPRelOp(c)),
-                FrontRead.nullableComponent(o, "PDbJoin.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDbSchema readPDbSchema(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDbSchema(
-                FrontRead.component(o, "PDbSchema.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDbSchema.tables", c -> FrontRead.list(c, x0 -> readPDbTable(x0))),
-                FrontRead.component(o, "PDbSchema.views", c -> FrontRead.list(c, x0 -> readPDbView(x0))),
-                FrontRead.component(o, "PDbSchema.tabularFunctions", c -> FrontRead.list(c, x0 -> readPDbTable(x0))),
-                FrontRead.component(o, "PDbSchema.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PDbSchema.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PDbSchema.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDbTable readPDbTable(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDbTable(
-                FrontRead.component(o, "PDbTable.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDbTable.columns", c -> FrontRead.list(c, x0 -> readPDbColumn(x0))),
-                FrontRead.component(o, "PDbTable.milestoning", c -> FrontRead.list(c, x0 -> readPMilestoning(x0))),
-                FrontRead.component(o, "PDbTable.primaryKey", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PDbTable.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PDbTable.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PDbTable.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDbType readPDbType(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDbType(
-                FrontRead.component(o, "PDbType.kind", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDbType.size", c -> FrontRead.longValue(c)),
-                FrontRead.nullableComponent(o, "PDbType.precision", c -> FrontRead.longValue(c)),
-                FrontRead.nullableComponent(o, "PDbType.scale", c -> FrontRead.longValue(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDbView readPDbView(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDbView(
-                FrontRead.component(o, "PDbView.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDbView.columnMappings", c -> FrontRead.list(c, x0 -> readPViewColumnMapping(x0))),
-                FrontRead.component(o, "PDbView.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PDbView.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.component(o, "PDbView.distinct", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PDbView.filter", c -> readPViewFilter(c)),
-                FrontRead.component(o, "PDbView.groupBy", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
-                FrontRead.component(o, "PDbView.primaryKey", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PDbView.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDeephavenColumn readPDeephavenColumn(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDeephavenColumn(
-                FrontRead.component(o, "PDeephavenColumn.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDeephavenColumn.kind", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDeephavenColumn.precision", c -> FrontRead.integer(c)),
-                FrontRead.nullableComponent(o, "PDeephavenColumn.scale", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDeephavenConnection readPDeephavenConnection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDeephavenConnection(
-                FrontRead.component(o, "PDeephavenConnection.serverUrl", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDeephavenConnection.psk", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDeephavenConnection.element", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDeephavenConnection.elementSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PDeephavenConnection.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDeephavenDatabase readPDeephavenDatabase(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDeephavenDatabase(
-                FrontRead.component(o, "PDeephavenDatabase.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDeephavenDatabase.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDeephavenDatabase.tables", c -> FrontRead.list(c, x0 -> readPDeephavenDatabasePDeephavenTable(x0))),
-                FrontRead.nullableComponent(o, "PDeephavenDatabase.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDeephavenDatabase.PDeephavenTable readPDeephavenDatabasePDeephavenTable(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDeephavenDatabase.PDeephavenTable(
-                FrontRead.component(o, "PDeephavenDatabasePDeephavenTable.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDeephavenDatabasePDeephavenTable.columns", c -> FrontRead.list(c, x0 -> readPDeephavenColumn(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PDefaultValue readPDefaultValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDefaultValue(
-                FrontRead.nullableComponent(o, "PDefaultValue.value", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PDefaultValue.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDelegatedKerberos readPDelegatedKerberos(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDelegatedKerberos(
-                FrontRead.nullableComponent(o, "PDelegatedKerberos.serverPrincipal", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDelegatedKerberos.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDiagram readPDiagram(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDiagram(
-                FrontRead.component(o, "PDiagram.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDiagram.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDiagram.classViews", c -> FrontRead.list(c, x0 -> readPClassView(x0))),
-                FrontRead.component(o, "PDiagram.propertyViews", c -> FrontRead.list(c, x0 -> readPPropertyView(x0))),
-                FrontRead.component(o, "PDiagram.generalizationViews", c -> FrontRead.list(c, x0 -> readPGeneralizationView(x0))),
-                FrontRead.nullableComponent(o, "PDiagram.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDiagramPoint readPDiagramPoint(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDiagramPoint(
-                FrontRead.component(o, "PDiagramPoint.x", c -> FrontRead.doubleValue(c)),
-                FrontRead.component(o, "PDiagramPoint.y", c -> FrontRead.doubleValue(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDqRelationCheck readPDqRelationCheck(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDqRelationCheck(
-                FrontRead.component(o, "PDqRelationCheck.name", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDqRelationCheck.description", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDqRelationCheck.assertion", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PDqRelationCheck.type", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDqStoreData readPDqStoreData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDqStoreData(
-                FrontRead.component(o, "PDqStoreData.store", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDqStoreData.storeSpan", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PDqStoreData.data", c -> readPEmbeddedDataValue(c)),
-                FrontRead.nullableComponent(o, "PDqStoreData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDqTest readPDqTest(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDqTest(
-                FrontRead.component(o, "PDqTest.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDqTest.assertions", c -> FrontRead.list(c, x0 -> readPTestAssertion(x0))),
-                FrontRead.nullableComponent(o, "PDqTest.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDqTestData readPDqTestData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDqTestData(
-                FrontRead.component(o, "PDqTestData.testData", c -> FrontRead.list(c, x0 -> readPDqStoreData(x0))),
-                FrontRead.nullableComponent(o, "PDqTestData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDqTestSuite readPDqTestSuite(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDqTestSuite(
-                FrontRead.component(o, "PDqTestSuite.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDqTestSuite.testData", c -> readPDqTestData(c)),
-                FrontRead.component(o, "PDqTestSuite.tests", c -> FrontRead.list(c, x0 -> readPDqTest(x0))),
-                FrontRead.nullableComponent(o, "PDqTestSuite.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDqTreeNode readPDqTreeNode(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDqTreeNode(
-                FrontRead.nullableComponent(o, "PDqTreeNode.className", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDqTreeNode.property", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDqTreeNode.constraints", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PDqTreeNode.subTrees", c -> FrontRead.list(c, x0 -> readPDqTreeNode(x0))),
-                FrontRead.nullableComponent(o, "PDqTreeNode.subType", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDqTreeNode.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PDqTreeNode.alias", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDqTreeNode.parameters", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PDuckDBSpec readPDuckDBSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDuckDBSpec(
-                FrontRead.nullableComponent(o, "PDuckDBSpec.path", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PDuckDBSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PDynaFunc readPDynaFunc(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PDynaFunc(
-                FrontRead.component(o, "PDynaFunc.funcName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PDynaFunc.parameters", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
-                FrontRead.nullableComponent(o, "PDynaFunc.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PElasticsearch7Cluster readPElasticsearch7Cluster(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PElasticsearch7Cluster(
-                FrontRead.component(o, "PElasticsearch7Cluster.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PElasticsearch7Cluster.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PElasticsearch7Cluster.indices", c -> FrontRead.list(c, x0 -> readPElasticsearch7ClusterPEsIndex(x0))),
-                FrontRead.nullableComponent(o, "PElasticsearch7Cluster.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PElasticsearch7Cluster.PEsIndex readPElasticsearch7ClusterPEsIndex(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PElasticsearch7Cluster.PEsIndex(
-                FrontRead.component(o, "PElasticsearch7ClusterPEsIndex.indexName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PElasticsearch7ClusterPEsIndex.properties", c -> FrontRead.list(c, x0 -> readPElasticsearch7ClusterPEsProperty(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PElasticsearch7Cluster.PEsProperty readPElasticsearch7ClusterPEsProperty(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PElasticsearch7Cluster.PEsProperty(
-                FrontRead.component(o, "PElasticsearch7ClusterPEsProperty.propertyName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PElasticsearch7ClusterPEsProperty.wireKey", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PElasticsearch7ClusterPEsProperty.protocolType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PElasticsearch7ClusterPEsProperty.esType", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PElasticsearch7ClusterPEsProperty.fields", c -> FrontRead.list(c, x0 -> readPElasticsearch7ClusterPEsProperty(x0))),
-                FrontRead.nullableComponent(o, "PElasticsearch7ClusterPEsProperty.childProperties", c -> FrontRead.list(c, x0 -> readPElasticsearch7ClusterPEsProperty(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PElasticsearchConnection readPElasticsearchConnection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PElasticsearchConnection(
-                FrontRead.component(o, "PElasticsearchConnection.element", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PElasticsearchConnection.elementSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PElasticsearchConnection.url", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PElasticsearchConnection.auth", c -> readPAuthSpecValue(c)),
-                FrontRead.nullableComponent(o, "PElasticsearchConnection.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PElementRef readPElementRef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PElementRef(
-                FrontRead.component(o, "PElementRef.path", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PElementRef.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PElemtWithJoins readPElemtWithJoins(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PElemtWithJoins(
-                FrontRead.component(o, "PElemtWithJoins.joins", c -> FrontRead.list(c, x0 -> readPJoinPtr(x0))),
-                FrontRead.nullableComponent(o, "PElemtWithJoins.relationalElement", c -> readPRelOp(c)),
-                FrontRead.nullableComponent(o, "PElemtWithJoins.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PEmbeddedPropertyMapping readPEmbeddedPropertyMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PEmbeddedPropertyMapping(
-                FrontRead.nullableComponent(o, "PEmbeddedPropertyMapping.ownerClass", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PEmbeddedPropertyMapping.property", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PEmbeddedPropertyMapping.propertySourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PEmbeddedPropertyMapping.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PEmbeddedPropertyMapping.primaryKey", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
-                FrontRead.component(o, "PEmbeddedPropertyMapping.propertyMappings", c -> FrontRead.list(c, x0 -> readPPropertyMapping(x0))),
-                FrontRead.nullableComponent(o, "PEmbeddedPropertyMapping.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PEmbeddedPropertyMapping.embeddedClass", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PEmbeddedRuntime readPEmbeddedRuntime(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PEmbeddedRuntime(
-                FrontRead.component(o, "PEmbeddedRuntime.mappings", c -> FrontRead.list(c, x0 -> readPPointer(x0))),
-                FrontRead.component(o, "PEmbeddedRuntime.connections", c -> FrontRead.list(c, x0 -> readPStoreConnections(x0))),
-                FrontRead.component(o, "PEmbeddedRuntime.connectionStores", c -> FrontRead.list(c, x0 -> readPConnectionStores(x0))),
-                FrontRead.nullableComponent(o, "PEmbeddedRuntime.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PEnumSourceValue readPEnumSourceValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PEnumSourceValue(
-                FrontRead.nullableComponent(o, "PEnumSourceValue.enumeration", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PEnumSourceValue.value", c -> FrontRead.value(c)));
-    }
-
-    static com.legend.protocol.Protocol.PEnumValue readPEnumValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PEnumValue(
-                FrontRead.component(o, "PEnumValue.value", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PEnumValue.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PEnumValue.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PEnumValue.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PEnumValueMapping readPEnumValueMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PEnumValueMapping(
-                FrontRead.component(o, "PEnumValueMapping.enumValue", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PEnumValueMapping.sourceValues", c -> FrontRead.list(c, x0 -> readPEnumSourceValue(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PEnumeration readPEnumeration(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PEnumeration(
-                FrontRead.component(o, "PEnumeration.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PEnumeration.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PEnumeration.values", c -> FrontRead.list(c, x0 -> readPEnumValue(x0))),
-                FrontRead.component(o, "PEnumeration.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PEnumeration.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PEnumeration.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PEnumerationMapping readPEnumerationMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PEnumerationMapping(
-                FrontRead.nullableComponent(o, "PEnumerationMapping.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PEnumerationMapping.enumeration", c -> readPPointer(c)),
-                FrontRead.component(o, "PEnumerationMapping.enumValueMappings", c -> FrontRead.list(c, x0 -> readPEnumValueMapping(x0))),
-                FrontRead.nullableComponent(o, "PEnumerationMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PEpkAuth readPEpkAuth(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PEpkAuth(
-                FrontRead.component(o, "PEpkAuth.userName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PEpkAuth.privateKey", c -> readPVaultSecret(c)),
-                FrontRead.component(o, "PEpkAuth.passphrase", c -> readPVaultSecret(c)),
-                FrontRead.nullableComponent(o, "PEpkAuth.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PEqualToValue readPEqualToValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PEqualToValue(
-                FrontRead.component(o, "PEqualToValue.value", c -> readValueSpecification(c)));
-    }
-
-    static com.legend.protocol.Protocol.PExecutionEnvironment readPExecutionEnvironment(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PExecutionEnvironment(
-                FrontRead.component(o, "PExecutionEnvironment.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PExecutionEnvironment.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PExecutionEnvironment.executions", c -> FrontRead.list(c, x0 -> readPExecutionParameters(x0))),
-                FrontRead.nullableComponent(o, "PExecutionEnvironment.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PExternalFormatData readPExternalFormatData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PExternalFormatData(
-                FrontRead.component(o, "PExternalFormatData.contentType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PExternalFormatData.data", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PExternalFormatData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PExtractSubQueriesAsCtesPostProcessor readPExtractSubQueriesAsCtesPostProcessor(Json.Node n) {
-        FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PExtractSubQueriesAsCtesPostProcessor();
-    }
-
-    static com.legend.protocol.Protocol.PFileGeneration readPFileGeneration(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PFileGeneration(
-                FrontRead.component(o, "PFileGeneration.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PFileGeneration.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PFileGeneration.type", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PFileGeneration.typeSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PFileGeneration.generationOutputPath", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PFileGeneration.scopeElements", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PFileGeneration.configurationProperties", c -> FrontRead.list(c, x0 -> readPConfigProperty(x0))),
-                FrontRead.nullableComponent(o, "PFileGeneration.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PFilterMapping readPFilterMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PFilterMapping(
-                FrontRead.component(o, "PFilterMapping.db", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PFilterMapping.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PFilterMapping.joins", c -> FrontRead.list(c, x0 -> readPJoinPtr(x0))),
-                FrontRead.nullableComponent(o, "PFilterMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PFunction readPFunction(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PFunction(
-                FrontRead.component(o, "PFunction.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PFunction.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PFunction.typeParams", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PFunction.multParams", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PFunction.parameters", c -> FrontRead.list(c, x0 -> readParameterDefinition(x0))),
-                FrontRead.component(o, "PFunction.returnType", c -> readTypeExpression(c)),
-                FrontRead.component(o, "PFunction.returnMultiplicity", c -> readMultiplicity(c)),
-                FrontRead.component(o, "PFunction.body", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
-                FrontRead.component(o, "PFunction.preConstraints", c -> FrontRead.list(c, x0 -> readConstraintDefinition(x0))),
-                FrontRead.component(o, "PFunction.postConstraints", c -> FrontRead.list(c, x0 -> readConstraintDefinition(x0))),
-                FrontRead.component(o, "PFunction.testSuites", c -> FrontRead.list(c, x0 -> readPTestSuite(x0))),
-                FrontRead.component(o, "PFunction.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PFunction.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PFunction.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PFunctionActivator readPFunctionActivator(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PFunctionActivator(
-                FrontRead.component(o, "PFunctionActivator.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PFunctionActivator.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PFunctionActivator.kind", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PFunctionActivator.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PFunctionActivator.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.component(o, "PFunctionActivator.scalars", c -> FrontRead.map(c, v0 -> FrontRead.string(v0))),
-                FrontRead.component(o, "PFunctionActivator.booleans", c -> FrontRead.map(c, v0 -> FrontRead.bool(v0))),
-                FrontRead.component(o, "PFunctionActivator.functionPath", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PFunctionActivator.functionSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PFunctionActivator.ownerId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PFunctionActivator.userListUsers", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PFunctionActivator.activationConnection", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PFunctionActivator.activationConnectionSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PFunctionActivator.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PFunctionAssociationMapping readPFunctionAssociationMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PFunctionAssociationMapping(
-                FrontRead.component(o, "PFunctionAssociationMapping.association", c -> readPPointer(c)),
-                FrontRead.nullableComponent(o, "PFunctionAssociationMapping.function", c -> readPackageableElementPtr(c)),
-                FrontRead.nullableComponent(o, "PFunctionAssociationMapping.bodyLambda", c -> readLambdaFunction(c)),
-                FrontRead.nullableComponent(o, "PFunctionAssociationMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PFunctionTest readPFunctionTest(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PFunctionTest(
-                FrontRead.component(o, "PFunctionTest.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PFunctionTest.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PFunctionTest.parameters", c -> FrontRead.list(c, x0 -> readPTestParam(x0))),
-                FrontRead.nullableComponent(o, "PFunctionTest.assertion", c -> readPAssertion(c)),
-                FrontRead.nullableComponent(o, "PFunctionTest.doc", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PGCPApplicationDefaultCredentials readPGCPApplicationDefaultCredentials(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PGCPApplicationDefaultCredentials(
-                FrontRead.nullableComponent(o, "PGCPApplicationDefaultCredentials.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PGcpWifAuth readPGcpWifAuth(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PGcpWifAuth(
-                FrontRead.nullableComponent(o, "PGcpWifAuth.additionalGcpScopes", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PGcpWifAuth.serviceAccountEmail", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PGcpWifAuth.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PGcpWifIslandAuth readPGcpWifIslandAuth(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PGcpWifIslandAuth(
-                FrontRead.component(o, "PGcpWifIslandAuth.serviceAccountEmail", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PGcpWifIslandAuth.accountId", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PGcpWifIslandAuth.region", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PGcpWifIslandAuth.role", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PGcpWifIslandAuth.awsCredentials", c -> readPAwsCredentials(c)),
-                FrontRead.component(o, "PGcpWifIslandAuth.projectNumber", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PGcpWifIslandAuth.providerId", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PGcpWifIslandAuth.poolId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PGcpWifIslandAuth.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PGeneralizationView readPGeneralizationView(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PGeneralizationView(
-                FrontRead.component(o, "PGeneralizationView.sourceView", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PGeneralizationView.sourceViewSpan", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PGeneralizationView.targetView", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PGeneralizationView.targetViewSpan", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PGeneralizationView.points", c -> FrontRead.list(c, x0 -> readPDiagramPoint(x0))),
-                FrontRead.nullableComponent(o, "PGeneralizationView.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PGenerationFeaturesConfig readPGenerationFeaturesConfig(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PGenerationFeaturesConfig(
-                FrontRead.component(o, "PGenerationFeaturesConfig.enabled", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PGenerationFeaturesConfig.disabled", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PGenerationFeaturesConfig.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PGenerationNode readPGenerationNode(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PGenerationNode(
-                FrontRead.component(o, "PGenerationNode.generationElement", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PGenerationNode.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PGenerationNode.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PGenerationSpecification readPGenerationSpecification(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PGenerationSpecification(
-                FrontRead.component(o, "PGenerationSpecification.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PGenerationSpecification.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PGenerationSpecification.generationNodes", c -> FrontRead.list(c, x0 -> readPGenerationNode(x0))),
-                FrontRead.component(o, "PGenerationSpecification.fileGenerations", c -> FrontRead.list(c, x0 -> readPPointer(x0))),
-                FrontRead.nullableComponent(o, "PGenerationSpecification.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PGlobalAuroraSpec readPGlobalAuroraSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PGlobalAuroraSpec(
-                FrontRead.component(o, "PGlobalAuroraSpec.globalClusterInstanceHostPatterns", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PGlobalAuroraSpec.host", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PGlobalAuroraSpec.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PGlobalAuroraSpec.port", c -> FrontRead.longValue(c)),
-                FrontRead.component(o, "PGlobalAuroraSpec.region", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PGlobalAuroraSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PH2Default readPH2Default(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PH2Default(
-                FrontRead.nullableComponent(o, "PH2Default.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PH2EmbeddedSpec readPH2EmbeddedSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PH2EmbeddedSpec(
-                FrontRead.component(o, "PH2EmbeddedSpec.databaseName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PH2EmbeddedSpec.directory", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PH2EmbeddedSpec.autoServerMode", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PH2EmbeddedSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PH2Local readPH2Local(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PH2Local(
-                FrontRead.nullableComponent(o, "PH2Local.testDataSetupCsv", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PH2Local.testDataSetupSqls", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PH2Local.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PIdentifiedConnection readPIdentifiedConnection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PIdentifiedConnection(
-                FrontRead.component(o, "PIdentifiedConnection.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PIdentifiedConnection.connection", c -> readPConnectionValue(c)),
-                FrontRead.nullableComponent(o, "PIdentifiedConnection.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PIncludedStoreSpec readPIncludedStoreSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PIncludedStoreSpec(
-                FrontRead.component(o, "PIncludedStoreSpec.path", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PIncludedStoreSpec.storeType", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PIncludedStoreSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PInlineEmbeddedPropertyMapping readPInlineEmbeddedPropertyMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PInlineEmbeddedPropertyMapping(
-                FrontRead.nullableComponent(o, "PInlineEmbeddedPropertyMapping.ownerClass", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PInlineEmbeddedPropertyMapping.property", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PInlineEmbeddedPropertyMapping.propertySourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PInlineEmbeddedPropertyMapping.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PInlineEmbeddedPropertyMapping.setImplementationId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PInlineEmbeddedPropertyMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PJoinPtr readPJoinPtr(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PJoinPtr(
-                FrontRead.nullableComponent(o, "PJoinPtr.db", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PJoinPtr.joinType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PJoinPtr.name", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PJoinPtr.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PJsonModelConnection readPJsonModelConnection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PJsonModelConnection(
-                FrontRead.component(o, "PJsonModelConnection.className", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PJsonModelConnection.classSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PJsonModelConnection.element", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PJsonModelConnection.url", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PJsonModelConnection.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PKerberosAuth readPKerberosAuth(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PKerberosAuth(
-                FrontRead.nullableComponent(o, "PKerberosAuth.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PKeyedExecution readPKeyedExecution(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PKeyedExecution(
-                FrontRead.component(o, "PKeyedExecution.keyValue", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PKeyedExecution.mapping", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PKeyedExecution.mappingSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PKeyedExecution.runtime", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PKeyedExecution.runtimeSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PKeyedExecution.embeddedRuntime", c -> readPEmbeddedRuntime(c)),
-                FrontRead.nullableComponent(o, "PKeyedExecution.runtimeComponents", c -> readPRuntimeComponents(c)),
-                FrontRead.nullableComponent(o, "PKeyedExecution.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PLambdaParam readPLambdaParam(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PLambdaParam(
-                FrontRead.component(o, "PLambdaParam.name", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PLambdaParam.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PLegacyInputData readPLegacyInputData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PLegacyInputData(
-                FrontRead.component(o, "PLegacyInputData.relational", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PLegacyInputData.targetPath", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PLegacyInputData.inputType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PLegacyInputData.data", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PLegacyInputData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PLegacyMappingTest readPLegacyMappingTest(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PLegacyMappingTest(
-                FrontRead.component(o, "PLegacyMappingTest.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PLegacyMappingTest.query", c -> readValueSpecification(c)),
-                FrontRead.component(o, "PLegacyMappingTest.inputData", c -> FrontRead.list(c, x0 -> readPLegacyInputData(x0))),
-                FrontRead.component(o, "PLegacyMappingTest.expectedOutput", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PLegacyMappingTest.assertSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PLegacyMappingTest.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PLegacyServiceTest readPLegacyServiceTest(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PLegacyServiceTest(
-                FrontRead.component(o, "PLegacyServiceTest.kind", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PLegacyServiceTest.data", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PLegacyServiceTest.asserts", c -> FrontRead.list(c, x0 -> readPLegacyServiceTestPLegacyAssert(x0))),
-                FrontRead.component(o, "PLegacyServiceTest.keyedTests", c -> FrontRead.list(c, x0 -> readPLegacyServiceTestPKeyedLegacyTest(x0))),
-                FrontRead.nullableComponent(o, "PLegacyServiceTest.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PLegacyServiceTest.PKeyedLegacyTest readPLegacyServiceTestPKeyedLegacyTest(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PLegacyServiceTest.PKeyedLegacyTest(
-                FrontRead.component(o, "PLegacyServiceTestPKeyedLegacyTest.key", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PLegacyServiceTestPKeyedLegacyTest.data", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PLegacyServiceTestPKeyedLegacyTest.asserts", c -> FrontRead.list(c, x0 -> readPLegacyServiceTestPLegacyAssert(x0))),
-                FrontRead.nullableComponent(o, "PLegacyServiceTestPKeyedLegacyTest.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PLegacyServiceTest.PLegacyAssert readPLegacyServiceTestPLegacyAssert(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PLegacyServiceTest.PLegacyAssert(
-                FrontRead.component(o, "PLegacyServiceTestPLegacyAssert.parametersValues", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
-                FrontRead.component(o, "PLegacyServiceTestPLegacyAssert.assertion", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PLegacyServiceTestPLegacyAssert.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PLocalProp readPLocalProp(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PLocalProp(
-                FrontRead.component(o, "PLocalProp.type", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PLocalProp.lowerBound", c -> FrontRead.longValue(c)),
-                FrontRead.nullableComponent(o, "PLocalProp.upperBound", c -> FrontRead.longValue(c)),
-                FrontRead.nullableComponent(o, "PLocalProp.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMapperPostProcessor readPMapperPostProcessor(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMapperPostProcessor(
-                FrontRead.component(o, "PMapperPostProcessor.mappers", c -> FrontRead.list(c, x0 -> readPMapper(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PMapping readPMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMapping(
-                FrontRead.component(o, "PMapping.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMapping.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMapping.associationMappings", c -> FrontRead.list(c, x0 -> readPAssociationMapping(x0))),
-                FrontRead.component(o, "PMapping.classMappings", c -> FrontRead.list(c, x0 -> readPClassMapping(x0))),
-                FrontRead.component(o, "PMapping.enumerationMappings", c -> FrontRead.list(c, x0 -> readPEnumerationMapping(x0))),
-                FrontRead.component(o, "PMapping.includedMappings", c -> FrontRead.list(c, x0 -> readPMappingInclude(x0))),
-                FrontRead.component(o, "PMapping.testSuites", c -> FrontRead.list(c, x0 -> readPMappingTestSuite(x0))),
-                FrontRead.component(o, "PMapping.tests", c -> FrontRead.list(c, x0 -> readPLegacyMappingTest(x0))),
-                FrontRead.nullableComponent(o, "PMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMappingInclude readPMappingInclude(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMappingInclude(
-                FrontRead.nullableComponent(o, "PMappingInclude.includedMapping", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PMappingInclude.includedDataSpace", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PMappingInclude.sourceDatabasePath", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PMappingInclude.targetDatabasePath", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMappingInclude.substitutions", c -> FrontRead.list(c, x0 -> readPStoreSubstitution(x0))),
-                FrontRead.nullableComponent(o, "PMappingInclude.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMappingTest readPMappingTest(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMappingTest(
-                FrontRead.component(o, "PMappingTest.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PMappingTest.doc", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMappingTest.storeTestData", c -> FrontRead.list(c, x0 -> readPStoreTestData(x0))),
-                FrontRead.component(o, "PMappingTest.assertions", c -> FrontRead.list(c, x0 -> readPTestAssertion(x0))),
-                FrontRead.nullableComponent(o, "PMappingTest.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMappingTestSuite readPMappingTestSuite(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMappingTestSuite(
-                FrontRead.component(o, "PMappingTestSuite.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PMappingTestSuite.doc", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMappingTestSuite.func", c -> readValueSpecification(c)),
-                FrontRead.component(o, "PMappingTestSuite.tests", c -> FrontRead.list(c, x0 -> readPMappingTest(x0))),
-                FrontRead.nullableComponent(o, "PMappingTestSuite.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMeasure readPMeasure(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMeasure(
-                FrontRead.component(o, "PMeasure.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMeasure.name", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PMeasure.canonicalUnit", c -> readPUnit(c)),
-                FrontRead.component(o, "PMeasure.nonCanonicalUnits", c -> FrontRead.list(c, x0 -> readPUnit(x0))),
-                FrontRead.nullableComponent(o, "PMeasure.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMemSqlSpec readPMemSqlSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMemSqlSpec(
-                FrontRead.nullableComponent(o, "PMemSqlSpec.databaseName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMemSqlSpec.host", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMemSqlSpec.port", c -> FrontRead.longValue(c)),
-                FrontRead.nullableComponent(o, "PMemSqlSpec.useSsl", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PMemSqlSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMiddleTierUserNamePassword readPMiddleTierUserNamePassword(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMiddleTierUserNamePassword(
-                FrontRead.component(o, "PMiddleTierUserNamePassword.vaultReference", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PMiddleTierUserNamePassword.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PModelChainConnection readPModelChainConnection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PModelChainConnection(
-                FrontRead.nullableComponent(o, "PModelChainConnection.element", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PModelChainConnection.mappings", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PModelChainConnection.mappingsSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PModelChainConnection.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PModelEmbeddedData readPModelEmbeddedData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PModelEmbeddedData(
-                FrontRead.component(o, "PModelEmbeddedData.model", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PModelEmbeddedData.data", c -> readPEmbeddedDataValue(c)),
-                FrontRead.nullableComponent(o, "PModelEmbeddedData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PModelInstanceData readPModelInstanceData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PModelInstanceData(
-                FrontRead.component(o, "PModelInstanceData.model", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PModelInstanceData.instances", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PModelInstanceData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PModelJoinAssociationMapping readPModelJoinAssociationMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PModelJoinAssociationMapping(
-                FrontRead.component(o, "PModelJoinAssociationMapping.association", c -> readPPointer(c)),
-                FrontRead.nullableComponent(o, "PModelJoinAssociationMapping.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PModelJoinAssociationMapping.joinCondition", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PModelJoinAssociationMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PModelStoreData readPModelStoreData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PModelStoreData(
-                FrontRead.component(o, "PModelStoreData.modelData", c -> FrontRead.list(c, x0 -> readPModelData(x0))),
-                FrontRead.nullableComponent(o, "PModelStoreData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMongoAuth readPMongoAuth(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMongoAuth(
-                FrontRead.component(o, "PMongoAuth.username", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMongoAuth.password", c -> readPVaultSecret(c)),
-                FrontRead.nullableComponent(o, "PMongoAuth.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMongoDatabase readPMongoDatabase(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMongoDatabase(
-                FrontRead.component(o, "PMongoDatabase.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMongoDatabase.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMongoDatabase.collections", c -> FrontRead.list(c, x0 -> readPMongoDatabasePMongoCollection(x0))),
-                FrontRead.nullableComponent(o, "PMongoDatabase.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMongoDatabase.PMongoCollection readPMongoDatabasePMongoCollection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMongoDatabase.PMongoCollection(
-                FrontRead.component(o, "PMongoDatabasePMongoCollection.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMongoDatabasePMongoCollection.validationLevel", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMongoDatabasePMongoCollection.validationAction", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMongoDatabasePMongoCollection.schema", c -> readPBsonSchema(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMongoDbConnection readPMongoDbConnection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMongoDbConnection(
-                FrontRead.component(o, "PMongoDbConnection.databaseName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMongoDbConnection.serverUrls", c -> FrontRead.list(c, x0 -> readPMongoServerUrl(x0))),
-                FrontRead.component(o, "PMongoDbConnection.auth", c -> readPAuthSpecValue(c)),
-                FrontRead.nullableComponent(o, "PMongoDbConnection.element", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PMongoDbConnection.elementSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PMongoDbConnection.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMongoSecret readPMongoSecret(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMongoSecret(
-                FrontRead.component(o, "PMongoSecret.kind", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMongoSecret.fieldKey", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMongoSecret.value", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PMongoSecret.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMongoServerUrl readPMongoServerUrl(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMongoServerUrl(
-                FrontRead.component(o, "PMongoServerUrl.baseUrl", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMongoServerUrl.port", c -> FrontRead.longValue(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMultiExecution readPMultiExecution(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMultiExecution(
-                FrontRead.component(o, "PMultiExecution.query", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PMultiExecution.executionKey", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PMultiExecution.executions", c -> FrontRead.list(c, x0 -> readPKeyedExecution(x0))),
-                FrontRead.nullableComponent(o, "PMultiExecution.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PMultiKeyedExecution readPMultiKeyedExecution(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PMultiKeyedExecution(
-                FrontRead.component(o, "PMultiKeyedExecution.masterKey", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PMultiKeyedExecution.singles", c -> FrontRead.list(c, x0 -> readPKeyedExecution(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PNativeFunction readPNativeFunction(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PNativeFunction(
-                FrontRead.component(o, "PNativeFunction.qualifiedName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PNativeFunction.typeParams", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PNativeFunction.multParams", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PNativeFunction.parameters", c -> FrontRead.list(c, x0 -> readParameterDefinition(x0))),
-                FrontRead.component(o, "PNativeFunction.returnType", c -> readTypeExpression(c)),
-                FrontRead.component(o, "PNativeFunction.returnMultiplicity", c -> readMultiplicity(c)),
-                FrontRead.component(o, "PNativeFunction.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PNativeFunction.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PNativeFunction.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.POAuth readPOAuth(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.POAuth(
-                FrontRead.component(o, "POAuth.oauthKey", c -> FrontRead.string(c)),
-                FrontRead.component(o, "POAuth.scopeName", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "POAuth.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.POracleSpec readPOracleSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.POracleSpec(
-                FrontRead.component(o, "POracleSpec.host", c -> FrontRead.string(c)),
-                FrontRead.component(o, "POracleSpec.port", c -> FrontRead.longValue(c)),
-                FrontRead.nullableComponent(o, "POracleSpec.serviceName", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "POracleSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.POrigin readPOrigin(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.POrigin(
-                FrontRead.nullableComponent(o, "POrigin.serializer", c -> readPSerializer(c)),
-                FrontRead.component(o, "POrigin.sdlcInfo", c -> readPSdlc(c)));
-    }
-
-    static com.legend.protocol.Protocol.POtherwiseEmbeddedPropertyMapping readPOtherwiseEmbeddedPropertyMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.POtherwiseEmbeddedPropertyMapping(
-                FrontRead.nullableComponent(o, "POtherwiseEmbeddedPropertyMapping.ownerClass", c -> FrontRead.string(c)),
-                FrontRead.component(o, "POtherwiseEmbeddedPropertyMapping.property", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "POtherwiseEmbeddedPropertyMapping.propertySourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "POtherwiseEmbeddedPropertyMapping.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "POtherwiseEmbeddedPropertyMapping.primaryKey", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
-                FrontRead.component(o, "POtherwiseEmbeddedPropertyMapping.propertyMappings", c -> FrontRead.list(c, x0 -> readPPropertyMapping(x0))),
-                FrontRead.component(o, "POtherwiseEmbeddedPropertyMapping.otherwiseOp", c -> readPRelOp(c)),
-                FrontRead.component(o, "POtherwiseEmbeddedPropertyMapping.otherwiseTarget", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "POtherwiseEmbeddedPropertyMapping.classMappingSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "POtherwiseEmbeddedPropertyMapping.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "POtherwiseEmbeddedPropertyMapping.embeddedClass", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PParameterBuildInfo readPParameterBuildInfo(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PParameterBuildInfo(
-                FrontRead.component(o, "PParameterBuildInfo.serviceParameter", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PParameterBuildInfo.transform", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PParameterBuildInfo.transformSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PParameterBuildInfo.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PParametersBuildInfo readPParametersBuildInfo(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PParametersBuildInfo(
-                FrontRead.component(o, "PParametersBuildInfo.entries", c -> FrontRead.list(c, x0 -> readPParameterBuildInfo(x0))),
-                FrontRead.nullableComponent(o, "PParametersBuildInfo.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPathOffset readPPathOffset(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPathOffset(
-                FrontRead.component(o, "PPathOffset.startType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPathOffset.propertyPath", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PPathOffset.parameters", c -> FrontRead.list(c, x0 -> FrontRead.list(x0, x1 -> readValueSpecification(x1)))));
-    }
-
-    static com.legend.protocol.Protocol.PPersistence readPPersistence(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistence(
-                FrontRead.component(o, "PPersistence.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistence.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistence.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PPersistence.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PPersistence.doc", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistence.triggerKind", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPersistence.service", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPersistence.serviceSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PPersistence.persister", c -> readPPersistenceNode(c)),
-                FrontRead.nullableComponent(o, "PPersistence.notifier", c -> readPPersistenceNotifier(c)),
-                FrontRead.nullableComponent(o, "PPersistence.serviceOutputTargets", c -> FrontRead.list(c, x0 -> readPServiceOutputTarget(x0))),
-                FrontRead.nullableComponent(o, "PPersistence.tests", c -> FrontRead.list(c, x0 -> readPPersistenceTest(x0))),
-                FrontRead.nullableComponent(o, "PPersistence.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPersistenceAssert readPPersistenceAssert(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistenceAssert(
-                FrontRead.component(o, "PPersistenceAssert.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistenceAssert.assertion", c -> readPPersistenceNode(c)),
-                FrontRead.nullableComponent(o, "PPersistenceAssert.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPersistenceContext readPPersistenceContext(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistenceContext(
-                FrontRead.component(o, "PPersistenceContext.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistenceContext.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistenceContext.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PPersistenceContext.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.component(o, "PPersistenceContext.persistence", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPersistenceContext.persistenceSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PPersistenceContext.platform", c -> readPPersistenceNode(c)),
-                FrontRead.component(o, "PPersistenceContext.serviceParameters", c -> FrontRead.list(c, x0 -> readPCtxParam(x0))),
-                FrontRead.nullableComponent(o, "PPersistenceContext.sinkConnection", c -> readPConnectionValue(c)),
-                FrontRead.nullableComponent(o, "PPersistenceContext.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPersistenceEntry.Node readPPersistenceEntryNode(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistenceEntry.Node(
-                FrontRead.component(o, "PPersistenceEntryNode.key", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistenceEntryNode.node", c -> readPPersistenceNode(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPersistenceEntry.NodeList readPPersistenceEntryNodeList(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistenceEntry.NodeList(
-                FrontRead.component(o, "PPersistenceEntryNodeList.key", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistenceEntryNodeList.nodes", c -> FrontRead.list(c, x0 -> readPPersistenceNode(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PPersistenceEntry.PathList readPPersistenceEntryPathList(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistenceEntry.PathList(
-                FrontRead.component(o, "PPersistenceEntryPathList.key", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistenceEntryPathList.specs", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PPersistenceEntry.PathValue readPPersistenceEntryPathValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistenceEntry.PathValue(
-                FrontRead.component(o, "PPersistenceEntryPathValue.key", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistenceEntryPathValue.spec", c -> readValueSpecification(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPersistenceEntry.Pointer readPPersistenceEntryPointer(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistenceEntry.Pointer(
-                FrontRead.component(o, "PPersistenceEntryPointer.key", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistenceEntryPointer.path", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPersistenceEntryPointer.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPersistenceEntry.Scalar readPPersistenceEntryScalar(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistenceEntry.Scalar(
-                FrontRead.component(o, "PPersistenceEntryScalar.key", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistenceEntryScalar.value", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistenceEntryScalar.quoted", c -> FrontRead.bool(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPersistenceEntry.Strings readPPersistenceEntryStrings(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistenceEntry.Strings(
-                FrontRead.component(o, "PPersistenceEntryStrings.key", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPersistenceEntryStrings.values", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PPersistenceNode readPPersistenceNode(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistenceNode(
-                FrontRead.component(o, "PPersistenceNode.kind", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPersistenceNode.headPath", c -> readValueSpecification(c)),
-                FrontRead.component(o, "PPersistenceNode.entries", c -> FrontRead.list(c, x0 -> readPPersistenceEntry(x0))),
-                FrontRead.nullableComponent(o, "PPersistenceNode.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPersistenceNotifier readPPersistenceNotifier(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistenceNotifier(
-                FrontRead.component(o, "PPersistenceNotifier.notifyees", c -> FrontRead.list(c, x0 -> readPPersistenceNode(x0))),
-                FrontRead.nullableComponent(o, "PPersistenceNotifier.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPersistenceTest readPPersistenceTest(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistenceTest(
-                FrontRead.component(o, "PPersistenceTest.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPersistenceTest.testBatches", c -> FrontRead.list(c, x0 -> readPPersistenceTestBatch(x0))),
-                FrontRead.nullableComponent(o, "PPersistenceTest.isTestDataFromServiceOutput", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PPersistenceTest.graphFetchPath", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PPersistenceTest.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPersistenceTestBatch readPPersistenceTestBatch(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPersistenceTestBatch(
-                FrontRead.component(o, "PPersistenceTestBatch.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPersistenceTestBatch.connectionData", c -> readPPersistenceNode(c)),
-                FrontRead.nullableComponent(o, "PPersistenceTestBatch.connectionSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PPersistenceTestBatch.dataSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PPersistenceTestBatch.asserts", c -> FrontRead.list(c, x0 -> readPPersistenceAssert(x0))),
-                FrontRead.nullableComponent(o, "PPersistenceTestBatch.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PPersistenceTestBatch.hasTestData", c -> FrontRead.bool(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPointer readPPointer(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPointer(
-                FrontRead.component(o, "PPointer.type", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPointer.path", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPointer.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPostValidation readPPostValidation(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPostValidation(
-                FrontRead.component(o, "PPostValidation.description", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPostValidation.parameters", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
-                FrontRead.component(o, "PPostValidation.assertions", c -> FrontRead.list(c, x0 -> readPPostValidationAssertion(x0))),
-                FrontRead.nullableComponent(o, "PPostValidation.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPostValidationAssertion readPPostValidationAssertion(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPostValidationAssertion(
-                FrontRead.component(o, "PPostValidationAssertion.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPostValidationAssertion.assertion", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PPostValidationAssertion.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPrimitive readPPrimitive(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPrimitive(
-                FrontRead.component(o, "PPrimitive.qualifiedName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPrimitive.baseTypeName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPrimitive.typeVariables", c -> FrontRead.list(c, x0 -> readParameterDefinition(x0))),
-                FrontRead.nullableComponent(o, "PPrimitive.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PProcessingMilestoning readPProcessingMilestoning(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PProcessingMilestoning(
-                FrontRead.component(o, "PProcessingMilestoning.in", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PProcessingMilestoning.out", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PProcessingMilestoning.outIsInclusive", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PProcessingMilestoning.infinityDate", c -> readPDateTimeLit(c)),
-                FrontRead.nullableComponent(o, "PProcessingMilestoning.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PProcessingSnapshotMilestoning readPProcessingSnapshotMilestoning(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PProcessingSnapshotMilestoning(
-                FrontRead.component(o, "PProcessingSnapshotMilestoning.snapshotDate", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PProcessingSnapshotMilestoning.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PProfile readPProfile(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PProfile(
-                FrontRead.component(o, "PProfile.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PProfile.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PProfile.stereotypes", c -> FrontRead.list(c, x0 -> readPProfileEntry(x0))),
-                FrontRead.component(o, "PProfile.tags", c -> FrontRead.list(c, x0 -> readPProfileEntry(x0))),
-                FrontRead.nullableComponent(o, "PProfile.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PProfileEntry readPProfileEntry(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PProfileEntry(
-                FrontRead.component(o, "PProfileEntry.value", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PProfileEntry.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PProperty readPProperty(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PProperty(
-                FrontRead.component(o, "PProperty.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PProperty.type", c -> readTypeExpression(c)),
-                FrontRead.component(o, "PProperty.multiplicity", c -> readMultiplicity(c)),
-                FrontRead.component(o, "PProperty.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PProperty.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PProperty.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PProperty.defaultValue", c -> readPDefaultValue(c)),
-                FrontRead.nullableComponent(o, "PProperty.aggregation", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPropertyView readPPropertyView(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPropertyView(
-                FrontRead.component(o, "PPropertyView.propertyClass", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPropertyView.propertyName", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPropertyView.propertySpan", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PPropertyView.sourceView", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPropertyView.sourceViewSpan", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PPropertyView.targetView", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPropertyView.targetViewSpan", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PPropertyView.points", c -> FrontRead.list(c, x0 -> readPDiagramPoint(x0))),
-                FrontRead.nullableComponent(o, "PPropertyView.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPskAuth readPPskAuth(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPskAuth(
-                FrontRead.component(o, "PPskAuth.psk", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PPurePropertyMapping readPPurePropertyMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PPurePropertyMapping(
-                FrontRead.nullableComponent(o, "PPurePropertyMapping.ownerClass", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPurePropertyMapping.property", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPurePropertyMapping.propertySourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PPurePropertyMapping.enumMappingId", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PPurePropertyMapping.explodeProperty", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PPurePropertyMapping.localMappingProperty", c -> readPLocalProp(c)),
-                FrontRead.component(o, "PPurePropertyMapping.transform", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
-                FrontRead.nullableComponent(o, "PPurePropertyMapping.source", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPurePropertyMapping.target", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PPurePropertyMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PReconStrategy readPReconStrategy(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PReconStrategy(
-                FrontRead.component(o, "PReconStrategy.kind", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PReconStrategy.sourceHashColumn", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PReconStrategy.targetHashColumn", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PReconStrategy.aggregatedHash", c -> FrontRead.bool(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRedshiftSpec readPRedshiftSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRedshiftSpec(
-                FrontRead.component(o, "PRedshiftSpec.clusterID", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PRedshiftSpec.databaseName", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRedshiftSpec.endpointURL", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PRedshiftSpec.host", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PRedshiftSpec.port", c -> FrontRead.longValue(c)),
-                FrontRead.component(o, "PRedshiftSpec.region", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRedshiftSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelAssocPropertyMapping readPRelAssocPropertyMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelAssocPropertyMapping(
-                FrontRead.component(o, "PRelAssocPropertyMapping.property", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelAssocPropertyMapping.propertySourceInformation", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PRelAssocPropertyMapping.relationalOperation", c -> readPRelOp(c)),
-                FrontRead.nullableComponent(o, "PRelAssocPropertyMapping.source", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelAssocPropertyMapping.target", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelAssocPropertyMapping.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PRelAssocPropertyMapping.ownerClass", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelAssociationMapping readPRelAssociationMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelAssociationMapping(
-                FrontRead.component(o, "PRelAssociationMapping.association", c -> readPPointer(c)),
-                FrontRead.nullableComponent(o, "PRelAssociationMapping.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PRelAssociationMapping.propertyMappings", c -> FrontRead.list(c, x0 -> readPRelAssocPropertyMapping(x0))),
-                FrontRead.component(o, "PRelAssociationMapping.stores", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PRelAssociationMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelLambda readPRelLambda(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelLambda(
-                FrontRead.component(o, "PRelLambda.parameterNames", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PRelLambda.body", c -> readPRelOp(c)),
-                FrontRead.nullableComponent(o, "PRelLambda.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelLiteral readPRelLiteral(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelLiteral(
-                FrontRead.component(o, "PRelLiteral.value", c -> FrontRead.value(c)),
-                FrontRead.nullableComponent(o, "PRelLiteral.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelLiteralList readPRelLiteralList(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelLiteralList(
-                FrontRead.component(o, "PRelLiteralList.values", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
-                FrontRead.nullableComponent(o, "PRelLiteralList.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelPropertyMapping readPRelPropertyMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelPropertyMapping(
-                FrontRead.nullableComponent(o, "PRelPropertyMapping.ownerClass", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelPropertyMapping.bindingTransformer", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PRelPropertyMapping.property", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelPropertyMapping.propertySourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PRelPropertyMapping.enumMappingId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelPropertyMapping.localMappingProperty", c -> readPLocalProp(c)),
-                FrontRead.component(o, "PRelPropertyMapping.relationalOperation", c -> readPRelOp(c)),
-                FrontRead.nullableComponent(o, "PRelPropertyMapping.source", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelPropertyMapping.target", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelPropertyMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelationData readPRelationData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelationData(
-                FrontRead.component(o, "PRelationData.relationElements", c -> FrontRead.list(c, x0 -> readPRelationElement(x0))),
-                FrontRead.nullableComponent(o, "PRelationData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelationElement readPRelationElement(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelationElement(
-                FrontRead.component(o, "PRelationElement.columns", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PRelationElement.paths", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PRelationElement.rows", c -> FrontRead.list(c, x0 -> FrontRead.list(x0, x1 -> FrontRead.string(x1)))),
-                FrontRead.nullableComponent(o, "PRelationElement.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelationFnPropertyMapping readPRelationFnPropertyMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelationFnPropertyMapping(
-                FrontRead.nullableComponent(o, "PRelationFnPropertyMapping.ownerClass", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelationFnPropertyMapping.bindingTransformer", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PRelationFnPropertyMapping.property", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelationFnPropertyMapping.propertySourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PRelationFnPropertyMapping.column", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelationFnPropertyMapping.inlineSetId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelationFnPropertyMapping.nested", c -> FrontRead.list(c, x0 -> readPRelationFnPropertyMapping(x0))),
-                FrontRead.nullableComponent(o, "PRelationFnPropertyMapping.localMappingProperty", c -> readPLocalProp(c)),
-                FrontRead.nullableComponent(o, "PRelationFnPropertyMapping.source", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelationFnPropertyMapping.enumMappingId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelationFnPropertyMapping.expr", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PRelationFnPropertyMapping.exprLambdaSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PRelationFnPropertyMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelationSrcLambda readPRelationSrcLambda(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelationSrcLambda(
-                FrontRead.nullableComponent(o, "PRelationSrcLambda.function", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelationSrcLambda.functionSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PRelationSrcLambda.expr", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PRelationSrcLambda.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelationalCsvData readPRelationalCsvData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelationalCsvData(
-                FrontRead.component(o, "PRelationalCsvData.tables", c -> FrontRead.list(c, x0 -> readPRelationalCsvTable(x0))),
-                FrontRead.nullableComponent(o, "PRelationalCsvData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelationalCsvTable readPRelationalCsvTable(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelationalCsvTable(
-                FrontRead.component(o, "PRelationalCsvTable.schema", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PRelationalCsvTable.table", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelationalCsvTable.values", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelationalCsvTable.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelationalDatabaseConnection readPRelationalDatabaseConnection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelationalDatabaseConnection(
-                FrontRead.component(o, "PRelationalDatabaseConnection.authenticationStrategy", c -> readPAuthStrategy(c)),
-                FrontRead.component(o, "PRelationalDatabaseConnection.databaseType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PRelationalDatabaseConnection.datasourceSpecification", c -> readPDatasourceSpec(c)),
-                FrontRead.nullableComponent(o, "PRelationalDatabaseConnection.element", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelationalDatabaseConnection.elementSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PRelationalDatabaseConnection.localMode", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PRelationalDatabaseConnection.postProcessors", c -> FrontRead.list(c, x0 -> readPPostProcessor(x0))),
-                FrontRead.nullableComponent(o, "PRelationalDatabaseConnection.queryGenerationConfigs", c -> FrontRead.list(c, x0 -> readPGenerationFeaturesConfig(x0))),
-                FrontRead.nullableComponent(o, "PRelationalDatabaseConnection.queryTimeOutInSeconds", c -> FrontRead.longValue(c)),
-                FrontRead.nullableComponent(o, "PRelationalDatabaseConnection.quoteIdentifiers", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PRelationalDatabaseConnection.timeZone", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRelationalDatabaseConnection.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelationalMapper readPRelationalMapper(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelationalMapper(
-                FrontRead.component(o, "PRelationalMapper.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PRelationalMapper.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PRelationalMapper.databaseMappers", c -> FrontRead.list(c, x0 -> readPDatabaseMapper(x0))),
-                FrontRead.component(o, "PRelationalMapper.schemaMappers", c -> FrontRead.list(c, x0 -> readPSchemaMapper2(x0))),
-                FrontRead.component(o, "PRelationalMapper.tableMappers", c -> FrontRead.list(c, x0 -> readPTableMapper2(x0))),
-                FrontRead.nullableComponent(o, "PRelationalMapper.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRelationalMapperPostProcessor readPRelationalMapperPostProcessor(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRelationalMapperPostProcessor(
-                FrontRead.component(o, "PRelationalMapperPostProcessor.relationalMappers", c -> FrontRead.list(c, x0 -> readPPointer(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PRequestBuildInfo readPRequestBuildInfo(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRequestBuildInfo(
-                FrontRead.nullableComponent(o, "PRequestBuildInfo.parameters", c -> readPParametersBuildInfo(c)),
-                FrontRead.nullableComponent(o, "PRequestBuildInfo.body", c -> readPBodyBuildInfo(c)),
-                FrontRead.nullableComponent(o, "PRequestBuildInfo.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRuntime readPRuntime(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRuntime(
-                FrontRead.component(o, "PRuntime.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PRuntime.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PRuntime.single", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PRuntime.mappings", c -> FrontRead.list(c, x0 -> readPPointer(x0))),
-                FrontRead.component(o, "PRuntime.connections", c -> FrontRead.list(c, x0 -> readPStoreConnections(x0))),
-                FrontRead.component(o, "PRuntime.connectionStores", c -> FrontRead.list(c, x0 -> readPConnectionStores(x0))),
-                FrontRead.nullableComponent(o, "PRuntime.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PRuntimeComponents readPRuntimeComponents(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PRuntimeComponents(
-                FrontRead.component(o, "PRuntimeComponents.binding", c -> readPPointer(c)),
-                FrontRead.component(o, "PRuntimeComponents.clazz", c -> readPPointer(c)),
-                FrontRead.component(o, "PRuntimeComponents.runtime", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PRuntimeComponents.runtimeSpan", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSQLiteSpec readPSQLiteSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSQLiteSpec(
-                FrontRead.nullableComponent(o, "PSQLiteSpec.path", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSQLiteSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSchema readPSchema(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSchema(
-                FrontRead.nullableComponent(o, "PSchema.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSchema.location", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSchema.content", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSchema.contentSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PSchema.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSchemaMapper readPSchemaMapper(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSchemaMapper(
-                FrontRead.component(o, "PSchemaMapper.from", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSchemaMapper.to", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSchemaMapper2 readPSchemaMapper2(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSchemaMapper2(
-                FrontRead.component(o, "PSchemaMapper2.from", c -> readPSchemaPointer(c)),
-                FrontRead.component(o, "PSchemaMapper2.to", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSchemaPointer readPSchemaPointer(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSchemaPointer(
-                FrontRead.component(o, "PSchemaPointer.database", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSchemaPointer.schema", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSchemaPointer.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSchemaSet readPSchemaSet(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSchemaSet(
-                FrontRead.component(o, "PSchemaSet.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSchemaSet.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSchemaSet.format", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSchemaSet.schemas", c -> FrontRead.list(c, x0 -> readPSchema(x0))),
-                FrontRead.nullableComponent(o, "PSchemaSet.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSdlc readPSdlc(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSdlc(
-                FrontRead.component(o, "PSdlc.kind", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSdlc.baseVersion", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSdlc.version", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSdlc.packageableElementPointers", c -> FrontRead.list(c, x0 -> readPPointer(x0))),
-                FrontRead.nullableComponent(o, "PSdlc.overrideUrl", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSdlc.project", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSdlc.groupId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSdlc.artifactId", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSdlc.isGroupWorkspace", c -> FrontRead.bool(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSection readPSection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSection(
-                FrontRead.component(o, "PSection.importAware", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PSection.parserName", c -> FrontRead.string(c)),
-                FrontRead.<java.util.List<java.lang.@com.legend.base.Nullable String>>component(o, "PSection.elements", c -> FrontRead.nullableList(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PSection.imports", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PSection.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSectionIndex readPSectionIndex(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSectionIndex(
-                FrontRead.component(o, "PSectionIndex.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSectionIndex.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSectionIndex.sections", c -> FrontRead.list(c, x0 -> readPSection(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PSerializer readPSerializer(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSerializer(
-                FrontRead.nullableComponent(o, "PSerializer.name", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSerializer.version", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PService readPService(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PService(
-                FrontRead.component(o, "PService.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PService.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PService.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "PService.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))),
-                FrontRead.nullableComponent(o, "PService.pattern", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PService.title", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PService.owners", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PService.ownershipKind", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PService.ownershipId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PService.ownershipUsers", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PService.mcpServer", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PService.documentation", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PService.autoActivateUpdates", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PService.execution", c -> readPServiceExecution(c)),
-                FrontRead.nullableComponent(o, "PService.test", c -> readPLegacyServiceTest(c)),
-                FrontRead.nullableComponent(o, "PService.testSuites", c -> FrontRead.list(c, x0 -> readPServiceTestSuite(x0))),
-                FrontRead.nullableComponent(o, "PService.postValidations", c -> FrontRead.list(c, x0 -> readPPostValidation(x0))),
-                FrontRead.nullableComponent(o, "PService.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceMapping readPServiceMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceMapping(
-                FrontRead.component(o, "PServiceMapping.service", c -> readPServicePtr(c)),
-                FrontRead.nullableComponent(o, "PServiceMapping.pathOffset", c -> readPPathOffset(c)),
-                FrontRead.nullableComponent(o, "PServiceMapping.request", c -> readPRequestBuildInfo(c)),
-                FrontRead.nullableComponent(o, "PServiceMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceOutputTarget readPServiceOutputTarget(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceOutputTarget(
-                FrontRead.component(o, "PServiceOutputTarget.serviceOutput", c -> readPPersistenceNode(c)),
-                FrontRead.component(o, "PServiceOutputTarget.persistenceTarget", c -> readPPersistenceNode(c)),
-                FrontRead.nullableComponent(o, "PServiceOutputTarget.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServicePtr readPServicePtr(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServicePtr(
-                FrontRead.component(o, "PServicePtr.serviceStore", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PServicePtr.segments", c -> FrontRead.list(c, x0 -> readPServiceSegment(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PServiceSegment readPServiceSegment(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceSegment(
-                FrontRead.component(o, "PServiceSegment.name", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PServiceSegment.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceStoreClassMapping readPServiceStoreClassMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceStoreClassMapping(
-                FrontRead.component(o, "PServiceStoreClassMapping.className", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PServiceStoreClassMapping.classSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PServiceStoreClassMapping.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PServiceStoreClassMapping.root", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PServiceStoreClassMapping.localProps", c -> FrontRead.list(c, x0 -> readPServiceStoreLocalProp(x0))),
-                FrontRead.component(o, "PServiceStoreClassMapping.services", c -> FrontRead.list(c, x0 -> readPServiceMapping(x0))),
-                FrontRead.nullableComponent(o, "PServiceStoreClassMapping.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PServiceStoreClassMapping.extendsClassMappingId", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceStoreConnection readPServiceStoreConnection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceStoreConnection(
-                FrontRead.component(o, "PServiceStoreConnection.baseUrl", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PServiceStoreConnection.element", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PServiceStoreConnection.elementSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PServiceStoreConnection.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceStoreData readPServiceStoreData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceStoreData(
-                FrontRead.component(o, "PServiceStoreData.stubs", c -> FrontRead.list(c, x0 -> readPServiceStub(x0))),
-                FrontRead.nullableComponent(o, "PServiceStoreData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceStoreDefinition readPServiceStoreDefinition(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceStoreDefinition(
-                FrontRead.component(o, "PServiceStoreDefinition.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PServiceStoreDefinition.name", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PServiceStoreDefinition.description", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PServiceStoreDefinition.elements", c -> FrontRead.list(c, x0 -> readPServiceStoreElement(x0))),
-                FrontRead.nullableComponent(o, "PServiceStoreDefinition.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceStoreLocalProp readPServiceStoreLocalProp(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceStoreLocalProp(
-                FrontRead.component(o, "PServiceStoreLocalProp.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PServiceStoreLocalProp.type", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PServiceStoreLocalProp.lowerBound", c -> FrontRead.integer(c)),
-                FrontRead.nullableComponent(o, "PServiceStoreLocalProp.upperBound", c -> FrontRead.integer(c)),
-                FrontRead.nullableComponent(o, "PServiceStoreLocalProp.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceStub readPServiceStub(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceStub(
-                FrontRead.component(o, "PServiceStub.method", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PServiceStub.url", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PServiceStub.urlPath", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PServiceStub.queryParams", c -> FrontRead.list(c, x0 -> readPStubParam(x0))),
-                FrontRead.nullableComponent(o, "PServiceStub.headerParams", c -> FrontRead.list(c, x0 -> readPStubParam(x0))),
-                FrontRead.nullableComponent(o, "PServiceStub.bodyPatterns", c -> FrontRead.list(c, x0 -> readPStringValuePattern(x0))),
-                FrontRead.nullableComponent(o, "PServiceStub.requestSpan", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PServiceStub.body", c -> readPExternalFormatData(c)),
-                FrontRead.nullableComponent(o, "PServiceStub.responseSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PServiceStub.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceTestSuite readPServiceTestSuite(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceTestSuite(
-                FrontRead.component(o, "PServiceTestSuite.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PServiceTestSuite.doc", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PServiceTestSuite.testData", c -> readPServiceTestSuitePSuiteData(c)),
-                FrontRead.component(o, "PServiceTestSuite.tests", c -> FrontRead.list(c, x0 -> readPServiceTestSuitePSuiteTest(x0))),
-                FrontRead.nullableComponent(o, "PServiceTestSuite.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceTestSuite.PResolverData readPServiceTestSuitePResolverData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceTestSuite.PResolverData(
-                FrontRead.nullableComponent(o, "PServiceTestSuitePResolverData.data", c -> readPEmbeddedDataValue(c)),
-                FrontRead.component(o, "PServiceTestSuitePResolverData.elementPath", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PServiceTestSuitePResolverData.elementSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PServiceTestSuitePResolverData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceTestSuite.PSuiteConnData readPServiceTestSuitePSuiteConnData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceTestSuite.PSuiteConnData(
-                FrontRead.component(o, "PServiceTestSuitePSuiteConnData.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PServiceTestSuitePSuiteConnData.data", c -> readPEmbeddedDataValue(c)),
-                FrontRead.nullableComponent(o, "PServiceTestSuitePSuiteConnData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceTestSuite.PSuiteData readPServiceTestSuitePSuiteData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceTestSuite.PSuiteData(
-                FrontRead.component(o, "PServiceTestSuitePSuiteData.connectionsTestData", c -> FrontRead.list(c, x0 -> readPServiceTestSuitePSuiteConnData(x0))),
-                FrontRead.nullableComponent(o, "PServiceTestSuitePSuiteData.serviceTestData", c -> FrontRead.list(c, x0 -> readPServiceTestSuitePResolverData(x0))),
-                FrontRead.nullableComponent(o, "PServiceTestSuitePSuiteData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceTestSuite.PSuiteParam readPServiceTestSuitePSuiteParam(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceTestSuite.PSuiteParam(
-                FrontRead.component(o, "PServiceTestSuitePSuiteParam.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PServiceTestSuitePSuiteParam.value", c -> readValueSpecification(c)));
-    }
-
-    static com.legend.protocol.Protocol.PServiceTestSuite.PSuiteTest readPServiceTestSuitePSuiteTest(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PServiceTestSuite.PSuiteTest(
-                FrontRead.component(o, "PServiceTestSuitePSuiteTest.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PServiceTestSuitePSuiteTest.doc", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PServiceTestSuitePSuiteTest.serializationFormat", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PServiceTestSuitePSuiteTest.keys", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PServiceTestSuitePSuiteTest.parameters", c -> FrontRead.list(c, x0 -> readPServiceTestSuitePSuiteParam(x0))),
-                FrontRead.component(o, "PServiceTestSuitePSuiteTest.assertions", c -> FrontRead.list(c, x0 -> readPTestAssertion(x0))),
-                FrontRead.nullableComponent(o, "PServiceTestSuitePSuiteTest.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSingleExecution readPSingleExecution(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSingleExecution(
-                FrontRead.component(o, "PSingleExecution.query", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PSingleExecution.mapping", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSingleExecution.mappingSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PSingleExecution.runtime", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSingleExecution.runtimeSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PSingleExecution.embeddedRuntime", c -> readPEmbeddedRuntime(c)),
-                FrontRead.nullableComponent(o, "PSingleExecution.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSnowflakePublic readPSnowflakePublic(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSnowflakePublic(
-                FrontRead.component(o, "PSnowflakePublic.passPhraseVaultReference", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSnowflakePublic.privateKeyVaultReference", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSnowflakePublic.publicUserName", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSnowflakePublic.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSnowflakeSpec readPSnowflakeSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSnowflakeSpec(
-                FrontRead.component(o, "PSnowflakeSpec.accountName", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSnowflakeSpec.accountType", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSnowflakeSpec.cloudType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSnowflakeSpec.databaseName", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSnowflakeSpec.enableQueryTags", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PSnowflakeSpec.nonProxyHosts", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSnowflakeSpec.organization", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSnowflakeSpec.proxyHost", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSnowflakeSpec.proxyPort", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSnowflakeSpec.quotedIdentifiersIgnoreCase", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PSnowflakeSpec.region", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSnowflakeSpec.role", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSnowflakeSpec.tempTableDb", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSnowflakeSpec.tempTableSchema", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSnowflakeSpec.warehouseName", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSnowflakeSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSpannerSpec readPSpannerSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSpannerSpec(
-                FrontRead.component(o, "PSpannerSpec.databaseId", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSpannerSpec.instanceId", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSpannerSpec.projectId", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSpannerSpec.proxyHost", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSpannerSpec.proxyPort", c -> FrontRead.longValue(c)),
-                FrontRead.nullableComponent(o, "PSpannerSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSsParam readPSsParam(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSsParam(
-                FrontRead.component(o, "PSsParam.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSsParam.type", c -> readPSsTypeRef(c)),
-                FrontRead.nullableComponent(o, "PSsParam.allowReserved", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PSsParam.required", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "PSsParam.location", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSsParam.style", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSsParam.styleSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PSsParam.explode", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PSsParam.explodeSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PSsParam.enumeration", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSsParam.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSsService readPSsService(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSsService(
-                FrontRead.component(o, "PSsService.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSsService.path", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSsService.requestBody", c -> readPSsTypeRef(c)),
-                FrontRead.component(o, "PSsService.method", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSsService.parameters", c -> FrontRead.list(c, x0 -> readPSsParam(x0))),
-                FrontRead.component(o, "PSsService.response", c -> readPSsTypeRef(c)),
-                FrontRead.component(o, "PSsService.security", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "PSsService.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSsServiceGroup readPSsServiceGroup(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSsServiceGroup(
-                FrontRead.component(o, "PSsServiceGroup.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSsServiceGroup.path", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSsServiceGroup.elements", c -> FrontRead.list(c, x0 -> readPServiceStoreElement(x0))),
-                FrontRead.nullableComponent(o, "PSsServiceGroup.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSsTypeRef readPSsTypeRef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSsTypeRef(
-                FrontRead.nullableComponent(o, "PSsTypeRef.primitive", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSsTypeRef.complexType", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PSsTypeRef.binding", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PSsTypeRef.list", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PSsTypeRef.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PStaticSpec readPStaticSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PStaticSpec(
-                FrontRead.component(o, "PStaticSpec.databaseName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PStaticSpec.host", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PStaticSpec.port", c -> FrontRead.longValue(c)),
-                FrontRead.nullableComponent(o, "PStaticSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PStereotype readPStereotype(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PStereotype(
-                FrontRead.component(o, "PStereotype.profile", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PStereotype.value", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PStereotype.profileSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PStereotype.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PStoreConnections readPStoreConnections(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PStoreConnections(
-                FrontRead.component(o, "PStoreConnections.store", c -> readPPointer(c)),
-                FrontRead.component(o, "PStoreConnections.storeConnections", c -> FrontRead.list(c, x0 -> readPIdentifiedConnection(x0))),
-                FrontRead.nullableComponent(o, "PStoreConnections.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PStorePointer readPStorePointer(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PStorePointer(
-                FrontRead.component(o, "PStorePointer.path", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PStorePointer.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PStorePointer.type", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PStoreSubstitution readPStoreSubstitution(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PStoreSubstitution(
-                FrontRead.component(o, "PStoreSubstitution.sourceDatabasePath", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PStoreSubstitution.targetDatabasePath", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PStoreTestData readPStoreTestData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PStoreTestData(
-                FrontRead.component(o, "PStoreTestData.store", c -> readPPointer(c)),
-                FrontRead.nullableComponent(o, "PStoreTestData.modelData", c -> FrontRead.list(c, x0 -> readPModelData(x0))),
-                FrontRead.nullableComponent(o, "PStoreTestData.modelStoreSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PStoreTestData.dataElement", c -> readPPointer(c)),
-                FrontRead.nullableComponent(o, "PStoreTestData.relationElements", c -> FrontRead.list(c, x0 -> readPRelationElement(x0))),
-                FrontRead.nullableComponent(o, "PStoreTestData.relationAccessorSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PStoreTestData.embedded", c -> readPEmbeddedDataValue(c)),
-                FrontRead.nullableComponent(o, "PStoreTestData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PStringValuePattern readPStringValuePattern(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PStringValuePattern(
-                FrontRead.component(o, "PStringValuePattern.type", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PStringValuePattern.expectedValue", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PStubParam readPStubParam(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PStubParam(
-                FrontRead.component(o, "PStubParam.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PStubParam.pattern", c -> readPStringValuePattern(c)));
-    }
-
-    static com.legend.protocol.Protocol.PSuperType readPSuperType(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PSuperType(
-                FrontRead.component(o, "PSuperType.type", c -> readTypeExpression(c)),
-                FrontRead.nullableComponent(o, "PSuperType.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTableMapper readPTableMapper(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTableMapper(
-                FrontRead.component(o, "PTableMapper.from", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTableMapper.to", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTableMapper.schemaFrom", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTableMapper.schemaTo", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTableMapper2 readPTableMapper2(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTableMapper2(
-                FrontRead.component(o, "PTableMapper2.from", c -> readPTablePointer2(c)),
-                FrontRead.component(o, "PTableMapper2.to", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTablePointer2 readPTablePointer2(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTablePointer2(
-                FrontRead.component(o, "PTablePointer2.database", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTablePointer2.schema", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTablePointer2.table", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTablePointer2.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTablePtr readPTablePtr(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTablePtr(
-                FrontRead.nullableComponent(o, "PTablePtr.database", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTablePtr.mainTableDb", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTablePtr.schema", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTablePtr.table", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTablePtr.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PTablePtr.writtenType", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTag readPTag(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTag(
-                FrontRead.component(o, "PTag.profile", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTag.value", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTag.profileSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PTag.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTaggedValue readPTaggedValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTaggedValue(
-                FrontRead.component(o, "PTaggedValue.tag", c -> readPTag(c)),
-                FrontRead.component(o, "PTaggedValue.value", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTaggedValue.multiLine", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PTaggedValue.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTestAssertion readPTestAssertion(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTestAssertion(
-                FrontRead.component(o, "PTestAssertion.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTestAssertion.expected", c -> readPAssertionValue(c)),
-                FrontRead.nullableComponent(o, "PTestAssertion.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTestAuth readPTestAuth(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTestAuth(
-                FrontRead.nullableComponent(o, "PTestAuth.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTestData readPTestData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTestData(
-                FrontRead.component(o, "PTestData.storePath", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTestData.storeSpan", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PTestData.data", c -> readPTestPayload(c)),
-                FrontRead.nullableComponent(o, "PTestData.pointerType", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTestData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTestParam readPTestParam(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTestParam(
-                FrontRead.nullableComponent(o, "PTestParam.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTestParam.value", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PTestParam.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTestPayload.CsvTable readPTestPayloadCsvTable(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTestPayload.CsvTable(
-                FrontRead.component(o, "PTestPayloadCsvTable.schema", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTestPayloadCsvTable.table", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTestPayloadCsvTable.values", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTestPayloadCsvTable.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTestPayload.ExternalFormat readPTestPayloadExternalFormat(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTestPayload.ExternalFormat(
-                FrontRead.component(o, "PTestPayloadExternalFormat.contentType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTestPayloadExternalFormat.data", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTestPayloadExternalFormat.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTestPayload.ModelEmbedded readPTestPayloadModelEmbedded(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTestPayload.ModelEmbedded(
-                FrontRead.component(o, "PTestPayloadModelEmbedded.model", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTestPayloadModelEmbedded.data", c -> readPTestPayloadExternalFormat(c)),
-                FrontRead.nullableComponent(o, "PTestPayloadModelEmbedded.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTestPayload.ModelStoreData readPTestPayloadModelStoreData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTestPayload.ModelStoreData(
-                FrontRead.component(o, "PTestPayloadModelStoreData.modelData", c -> FrontRead.list(c, x0 -> readPTestPayloadModelEmbedded(x0))),
-                FrontRead.nullableComponent(o, "PTestPayloadModelStoreData.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTestPayload.Reference readPTestPayloadReference(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTestPayload.Reference(
-                FrontRead.component(o, "PTestPayloadReference.path", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTestPayloadReference.refType", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTestPayloadReference.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTestPayload.RelationElement readPTestPayloadRelationElement(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTestPayload.RelationElement(
-                FrontRead.component(o, "PTestPayloadRelationElement.columns", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PTestPayloadRelationElement.paths", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "PTestPayloadRelationElement.rows", c -> FrontRead.list(c, x0 -> FrontRead.list(x0, x1 -> FrontRead.string(x1)))),
-                FrontRead.nullableComponent(o, "PTestPayloadRelationElement.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTestPayload.RelationElements readPTestPayloadRelationElements(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTestPayload.RelationElements(
-                FrontRead.component(o, "PTestPayloadRelationElements.elements", c -> FrontRead.list(c, x0 -> readPTestPayloadRelationElement(x0))),
-                FrontRead.nullableComponent(o, "PTestPayloadRelationElements.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTestPayload.RelationalCsv readPTestPayloadRelationalCsv(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTestPayload.RelationalCsv(
-                FrontRead.component(o, "PTestPayloadRelationalCsv.tables", c -> FrontRead.list(c, x0 -> readPTestPayloadCsvTable(x0))),
-                FrontRead.nullableComponent(o, "PTestPayloadRelationalCsv.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTestSuite readPTestSuite(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTestSuite(
-                FrontRead.nullableComponent(o, "PTestSuite.id", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTestSuite.sourceInformation", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PTestSuite.testData", c -> FrontRead.list(c, x0 -> readPTestData(x0))),
-                FrontRead.component(o, "PTestSuite.tests", c -> FrontRead.list(c, x0 -> readPFunctionTest(x0))));
-    }
-
-    static com.legend.protocol.Protocol.PText readPText(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PText(
-                FrontRead.component(o, "PText.pkg", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PText.name", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PText.type", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PText.content", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PText.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTrinoKerberosAuth readPTrinoKerberosAuth(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTrinoKerberosAuth(
-                FrontRead.nullableComponent(o, "PTrinoKerberosAuth.kerberosRemoteServiceName", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTrinoKerberosAuth.kerberosUseCanonicalHostname", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PTrinoKerberosAuth.serverPrincipal", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTrinoKerberosAuth.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTrinoSpec readPTrinoSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTrinoSpec(
-                FrontRead.nullableComponent(o, "PTrinoSpec.catalog", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTrinoSpec.clientTags", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTrinoSpec.host", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PTrinoSpec.port", c -> FrontRead.longValue(c)),
-                FrontRead.nullableComponent(o, "PTrinoSpec.schema", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTrinoSpec.sslSpecification", c -> readPTrinoSsl(c)),
-                FrontRead.nullableComponent(o, "PTrinoSpec.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PTrinoSsl readPTrinoSsl(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PTrinoSsl(
-                FrontRead.component(o, "PTrinoSsl.ssl", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PTrinoSsl.trustStorePathVaultReference", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PTrinoSsl.trustStorePasswordVaultReference", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Protocol.PUnit readPUnit(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PUnit(
-                FrontRead.component(o, "PUnit.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PUnit.measureFqn", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PUnit.paramName", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PUnit.body", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "PUnit.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PUserNamePassword readPUserNamePassword(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PUserNamePassword(
-                FrontRead.nullableComponent(o, "PUserNamePassword.baseVaultReference", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PUserNamePassword.userNameVaultReference", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PUserNamePassword.passwordVaultReference", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PUserNamePassword.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PViewColumnMapping readPViewColumnMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PViewColumnMapping(
-                FrontRead.component(o, "PViewColumnMapping.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PViewColumnMapping.operation", c -> readPRelOp(c)),
-                FrontRead.nullableComponent(o, "PViewColumnMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PViewFilter readPViewFilter(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PViewFilter(
-                FrontRead.nullableComponent(o, "PViewFilter.db", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PViewFilter.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PViewFilter.joins", c -> FrontRead.list(c, x0 -> readPJoinPtr(x0))),
-                FrontRead.nullableComponent(o, "PViewFilter.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PXStoreAssociationMapping readPXStoreAssociationMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PXStoreAssociationMapping(
-                FrontRead.component(o, "PXStoreAssociationMapping.association", c -> readPPointer(c)),
-                FrontRead.nullableComponent(o, "PXStoreAssociationMapping.id", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PXStoreAssociationMapping.propertyMappings", c -> FrontRead.list(c, x0 -> readPXStorePropertyMapping(x0))),
-                FrontRead.nullableComponent(o, "PXStoreAssociationMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PXStorePropertyMapping readPXStorePropertyMapping(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PXStorePropertyMapping(
-                FrontRead.component(o, "PXStorePropertyMapping.ownerClass", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PXStorePropertyMapping.property", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PXStorePropertyMapping.propertySourceInformation", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PXStorePropertyMapping.crossExpression", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
-                FrontRead.component(o, "PXStorePropertyMapping.source", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PXStorePropertyMapping.target", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PXStorePropertyMapping.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PXmlModelConnection readPXmlModelConnection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PXmlModelConnection(
-                FrontRead.component(o, "PXmlModelConnection.className", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PXmlModelConnection.classSourceInformation", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "PXmlModelConnection.element", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PXmlModelConnection.url", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PXmlModelConnection.sourceInformation", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.Protocol.PureModelContextData readPureModelContextData(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Protocol.PureModelContextData(
-                FrontRead.component(o, "PureModelContextData.elements", c -> FrontRead.list(c, x0 -> readElement(x0))),
-                FrontRead.nullableComponent(o, "PureModelContextData.serializer", c -> readPSerializer(c)),
-                FrontRead.nullableComponent(o, "PureModelContextData.origin", c -> readPOrigin(c)));
-    }
-
-    static com.legend.protocol.Realization.Inline readRealizationInline(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Realization.Inline(
-                FrontRead.component(o, "RealizationInline.body", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))));
-    }
-
-    static com.legend.protocol.Realization.Ref readRealizationRef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.Realization.Ref(
-                FrontRead.component(o, "RealizationRef.functionFqn", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "RealizationRef.source", c -> readValueSpecification(c)));
-    }
-
-    static com.legend.protocol.SourceInfo readSourceInfo(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.SourceInfo(
-                FrontRead.component(o, "SourceInfo.sourceId", c -> FrontRead.string(c)),
-                FrontRead.component(o, "SourceInfo.startLine", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "SourceInfo.startColumn", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "SourceInfo.endLine", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "SourceInfo.endColumn", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.protocol.TypeExpression.Column readTypeExpressionColumn(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.TypeExpression.Column(
-                FrontRead.component(o, "TypeExpressionColumn.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "TypeExpressionColumn.type", c -> readTypeExpression(c)),
-                FrontRead.component(o, "TypeExpressionColumn.multiplicity", c -> readMultiplicity(c)),
-                FrontRead.nullableComponent(o, "TypeExpressionColumn.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.TypeExpression.FunctionType readTypeExpressionFunctionType(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.TypeExpression.FunctionType(
-                FrontRead.component(o, "TypeExpressionFunctionType.parameters", c -> FrontRead.list(c, x0 -> readTypeExpressionTypedParameter(x0))),
-                FrontRead.component(o, "TypeExpressionFunctionType.result", c -> readTypeExpressionTypedParameter(c)));
-    }
-
-    static com.legend.protocol.TypeExpression.Generic readTypeExpressionGeneric(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.TypeExpression.Generic(
-                FrontRead.component(o, "TypeExpressionGeneric.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "TypeExpressionGeneric.arguments", c -> FrontRead.list(c, x0 -> readTypeExpression(x0))),
-                FrontRead.component(o, "TypeExpressionGeneric.multiplicityArguments", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "TypeExpressionGeneric.typeVariableValues", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
-                FrontRead.nullableComponent(o, "TypeExpressionGeneric.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.TypeExpression.NameRef readTypeExpressionNameRef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.TypeExpression.NameRef(
-                FrontRead.component(o, "TypeExpressionNameRef.name", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "TypeExpressionNameRef.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.TypeExpression.RelationType readTypeExpressionRelationType(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.TypeExpression.RelationType(
-                FrontRead.component(o, "TypeExpressionRelationType.columns", c -> FrontRead.list(c, x0 -> readTypeExpressionColumn(x0))));
-    }
-
-    static com.legend.protocol.TypeExpression.SchemaAlgebra readTypeExpressionSchemaAlgebra(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.TypeExpression.SchemaAlgebra(
-                FrontRead.component(o, "TypeExpressionSchemaAlgebra.left", c -> readTypeExpression(c)),
-                FrontRead.component(o, "TypeExpressionSchemaAlgebra.op", c -> com.legend.protocol.TypeExpression.Op.valueOf(FrontRead.string(c))),
-                FrontRead.component(o, "TypeExpressionSchemaAlgebra.right", c -> readTypeExpression(c)));
-    }
-
-    static com.legend.protocol.TypeExpression.TypedParameter readTypeExpressionTypedParameter(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.TypeExpression.TypedParameter(
-                FrontRead.component(o, "TypeExpressionTypedParameter.type", c -> readTypeExpression(c)),
-                FrontRead.component(o, "TypeExpressionTypedParameter.multiplicity", c -> readMultiplicity(c)));
-    }
-
-    static com.legend.protocol.spec.AppliedFunction readAppliedFunction(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.AppliedFunction(
-                FrontRead.component(o, "AppliedFunction.function", c -> FrontRead.string(c)),
-                FrontRead.component(o, "AppliedFunction.parameters", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
-                FrontRead.component(o, "AppliedFunction.referents", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.nullableComponent(o, "AppliedFunction.pos", c -> readSourceInfo(c)),
-                FrontRead.component(o, "AppliedFunction.propertyCall", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "AppliedFunction.grouped", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "AppliedFunction.infix", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "AppliedFunction.island", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "AppliedFunction.fControl", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "AppliedFunction.ownerClass", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.spec.AppliedProperty readAppliedProperty(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.AppliedProperty(
-                FrontRead.component(o, "AppliedProperty.receiver", c -> readValueSpecification(c)),
-                FrontRead.component(o, "AppliedProperty.property", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "AppliedProperty.pos", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "AppliedProperty.ownerClass", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.spec.CBoolean readCBoolean(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.CBoolean(
-                FrontRead.component(o, "CBoolean.value", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "CBoolean.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.CByteArray readCByteArray(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.CByteArray(
-                FrontRead.component(o, "CByteArray.value", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "CByteArray.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.CDate readCDate(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.CDate(
-                FrontRead.component(o, "CDate.value", c -> readPureDateLiteral(c)),
-                FrontRead.nullableComponent(o, "CDate.written", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "CDate.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.CDecimal readCDecimal(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.CDecimal(
-                FrontRead.component(o, "CDecimal.value", c -> FrontRead.decimal(c)),
-                FrontRead.nullableComponent(o, "CDecimal.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.CFloat readCFloat(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.CFloat(
-                FrontRead.component(o, "CFloat.value", c -> FrontRead.doubleValue(c)),
-                FrontRead.nullableComponent(o, "CFloat.exact", c -> FrontRead.decimal(c)),
-                FrontRead.nullableComponent(o, "CFloat.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.CInteger readCInteger(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.CInteger(
-                FrontRead.component(o, "CInteger.value", c -> FrontRead.number(c)),
-                FrontRead.nullableComponent(o, "CInteger.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.CLatestDate readCLatestDate(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.CLatestDate(
-                FrontRead.nullableComponent(o, "CLatestDate.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.CString readCString(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.CString(
-                FrontRead.component(o, "CString.value", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "CString.pos", c -> readSourceInfo(c)),
-                FrontRead.component(o, "CString.multiLine", c -> FrontRead.bool(c)));
-    }
-
-    static com.legend.protocol.spec.CTime readCTime(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.CTime(
-                FrontRead.nullableComponent(o, "CTime.value", c -> readPureTimeLiteral(c)),
-                FrontRead.nullableComponent(o, "CTime.written", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "CTime.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.ColSpec readColSpec(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.ColSpec(
-                FrontRead.component(o, "ColSpec.name", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "ColSpec.function1", c -> readLambdaFunction(c)),
-                FrontRead.nullableComponent(o, "ColSpec.function2", c -> readLambdaFunction(c)),
-                FrontRead.nullableComponent(o, "ColSpec.alias", c -> FrontRead.string(c)),
-                FrontRead.component(o, "ColSpec.args", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
-                FrontRead.component(o, "ColSpec.qualified", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "ColSpec.pos", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "ColSpec.colType", c -> readTypeExpression(c)),
-                FrontRead.nullableComponent(o, "ColSpec.colTypeMult", c -> readMultiplicity(c)),
-                FrontRead.component(o, "ColSpec.stereotypes", c -> FrontRead.list(c, x0 -> readPStereotype(x0))),
-                FrontRead.component(o, "ColSpec.taggedValues", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0))));
-    }
-
-    static com.legend.protocol.spec.ColSpecArray readColSpecArray(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.ColSpecArray(
-                FrontRead.component(o, "ColSpecArray.colSpecs", c -> FrontRead.list(c, x0 -> readColSpec(x0))),
-                FrontRead.nullableComponent(o, "ColSpecArray.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.EnumValue readEnumValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.EnumValue(
-                FrontRead.component(o, "EnumValue.fullPath", c -> FrontRead.string(c)),
-                FrontRead.component(o, "EnumValue.value", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "EnumValue.enumerationPos", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "EnumValue.pos", c -> readSourceInfo(c)),
-                FrontRead.component(o, "EnumValue.node", c -> FrontRead.bool(c)));
-    }
-
-    static com.legend.protocol.spec.Gql.Argument readGqlArgument(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.Argument(
-                FrontRead.component(o, "GqlArgument.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlArgument.value", c -> readGqlValue(c)));
-    }
-
-    static com.legend.protocol.spec.Gql.BooleanValue readGqlBooleanValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.BooleanValue(
-                FrontRead.component(o, "GqlBooleanValue.value", c -> FrontRead.bool(c)));
-    }
-
-    static com.legend.protocol.spec.Gql.Directive readGqlDirective(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.Directive(
-                FrontRead.component(o, "GqlDirective.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlDirective.arguments", c -> FrontRead.list(c, x0 -> readGqlArgument(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.DirectiveDef readGqlDirectiveDef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.DirectiveDef(
-                FrontRead.component(o, "GqlDirectiveDef.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlDirectiveDef.args", c -> FrontRead.list(c, x0 -> readGqlInputValueDef(x0))),
-                FrontRead.component(o, "GqlDirectiveDef.execLocations", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "GqlDirectiveDef.typeSystemLocations", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.Document readGqlDocument(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.Document(
-                FrontRead.component(o, "GqlDocument.definitions", c -> FrontRead.list(c, x0 -> readGqlDefinition(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.EnumType readGqlEnumType(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.EnumType(
-                FrontRead.component(o, "GqlEnumType.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlEnumType.directives", c -> FrontRead.list(c, x0 -> readGqlDirective(x0))),
-                FrontRead.component(o, "GqlEnumType.values", c -> FrontRead.list(c, x0 -> readGqlEnumValueDef(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.EnumValue readGqlEnumValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.EnumValue(
-                FrontRead.component(o, "GqlEnumValue.value", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.spec.Gql.EnumValueDef readGqlEnumValueDef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.EnumValueDef(
-                FrontRead.component(o, "GqlEnumValueDef.value", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlEnumValueDef.directives", c -> FrontRead.list(c, x0 -> readGqlDirective(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.Field readGqlField(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.Field(
-                FrontRead.nullableComponent(o, "GqlField.alias", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlField.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlField.arguments", c -> FrontRead.list(c, x0 -> readGqlArgument(x0))),
-                FrontRead.component(o, "GqlField.directives", c -> FrontRead.list(c, x0 -> readGqlDirective(x0))),
-                FrontRead.component(o, "GqlField.selectionSet", c -> FrontRead.list(c, x0 -> readGqlSelection(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.FieldDef readGqlFieldDef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.FieldDef(
-                FrontRead.component(o, "GqlFieldDef.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlFieldDef.type", c -> readGqlTypeRef(c)),
-                FrontRead.component(o, "GqlFieldDef.args", c -> FrontRead.list(c, x0 -> readGqlInputValueDef(x0))),
-                FrontRead.component(o, "GqlFieldDef.directives", c -> FrontRead.list(c, x0 -> readGqlDirective(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.FloatValue readGqlFloatValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.FloatValue(
-                FrontRead.component(o, "GqlFloatValue.value", c -> FrontRead.doubleValue(c)));
-    }
-
-    static com.legend.protocol.spec.Gql.Fragment readGqlFragment(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.Fragment(
-                FrontRead.component(o, "GqlFragment.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlFragment.typeCondition", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlFragment.directives", c -> FrontRead.list(c, x0 -> readGqlDirective(x0))),
-                FrontRead.component(o, "GqlFragment.selectionSet", c -> FrontRead.list(c, x0 -> readGqlSelection(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.FragmentSpread readGqlFragmentSpread(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.FragmentSpread(
-                FrontRead.component(o, "GqlFragmentSpread.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlFragmentSpread.directives", c -> FrontRead.list(c, x0 -> readGqlDirective(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.InputObjectType readGqlInputObjectType(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.InputObjectType(
-                FrontRead.component(o, "GqlInputObjectType.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlInputObjectType.directives", c -> FrontRead.list(c, x0 -> readGqlDirective(x0))),
-                FrontRead.component(o, "GqlInputObjectType.fields", c -> FrontRead.list(c, x0 -> readGqlInputValueDef(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.InputValueDef readGqlInputValueDef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.InputValueDef(
-                FrontRead.component(o, "GqlInputValueDef.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlInputValueDef.type", c -> readGqlTypeRef(c)),
-                FrontRead.nullableComponent(o, "GqlInputValueDef.defaultValue", c -> readGqlValue(c)),
-                FrontRead.component(o, "GqlInputValueDef.directives", c -> FrontRead.list(c, x0 -> readGqlDirective(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.IntValue readGqlIntValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.IntValue(
-                FrontRead.component(o, "GqlIntValue.value", c -> FrontRead.longValue(c)));
-    }
-
-    static com.legend.protocol.spec.Gql.InterfaceType readGqlInterfaceType(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.InterfaceType(
-                FrontRead.component(o, "GqlInterfaceType.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlInterfaceType.directives", c -> FrontRead.list(c, x0 -> readGqlDirective(x0))),
-                FrontRead.component(o, "GqlInterfaceType.fields", c -> FrontRead.list(c, x0 -> readGqlFieldDef(x0))),
-                FrontRead.component(o, "GqlInterfaceType.implementsList", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.ListType readGqlListType(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.ListType(
-                FrontRead.component(o, "GqlListType.itemType", c -> readGqlTypeRef(c)),
-                FrontRead.component(o, "GqlListType.nullable", c -> FrontRead.bool(c)));
-    }
-
-    static com.legend.protocol.spec.Gql.ListValue readGqlListValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.ListValue(
-                FrontRead.component(o, "GqlListValue.values", c -> FrontRead.list(c, x0 -> readGqlValue(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.NamedType readGqlNamedType(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.NamedType(
-                FrontRead.component(o, "GqlNamedType.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlNamedType.nullable", c -> FrontRead.bool(c)));
-    }
-
-    static com.legend.protocol.spec.Gql.NullValue readGqlNullValue(Json.Node n) {
-        FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.NullValue();
-    }
-
-    static com.legend.protocol.spec.Gql.ObjectType readGqlObjectType(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.ObjectType(
-                FrontRead.component(o, "GqlObjectType.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlObjectType.fields", c -> FrontRead.list(c, x0 -> readGqlFieldDef(x0))),
-                FrontRead.component(o, "GqlObjectType.implementsList", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.ObjectValue readGqlObjectValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.ObjectValue(
-                FrontRead.component(o, "GqlObjectValue.fields", c -> FrontRead.list(c, x0 -> readGqlArgument(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.Operation readGqlOperation(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.Operation(
-                FrontRead.nullableComponent(o, "GqlOperation.type", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "GqlOperation.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlOperation.variables", c -> FrontRead.list(c, x0 -> readGqlVariableDef(x0))),
-                FrontRead.component(o, "GqlOperation.directives", c -> FrontRead.list(c, x0 -> readGqlDirective(x0))),
-                FrontRead.component(o, "GqlOperation.selectionSet", c -> FrontRead.list(c, x0 -> readGqlSelection(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.RootOp readGqlRootOp(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.RootOp(
-                FrontRead.component(o, "GqlRootOp.operationType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlRootOp.type", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.spec.Gql.ScalarType readGqlScalarType(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.ScalarType(
-                FrontRead.component(o, "GqlScalarType.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlScalarType.directives", c -> FrontRead.list(c, x0 -> readGqlDirective(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.SchemaDef readGqlSchemaDef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.SchemaDef(
-                FrontRead.component(o, "GqlSchemaDef.directives", c -> FrontRead.list(c, x0 -> readGqlDirective(x0))),
-                FrontRead.component(o, "GqlSchemaDef.rootOps", c -> FrontRead.list(c, x0 -> readGqlRootOp(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.StringValue readGqlStringValue(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.StringValue(
-                FrontRead.component(o, "GqlStringValue.value", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.spec.Gql.UnionType readGqlUnionType(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.UnionType(
-                FrontRead.component(o, "GqlUnionType.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlUnionType.directives", c -> FrontRead.list(c, x0 -> readGqlDirective(x0))),
-                FrontRead.component(o, "GqlUnionType.members", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))));
-    }
-
-    static com.legend.protocol.spec.Gql.VariableDef readGqlVariableDef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.VariableDef(
-                FrontRead.component(o, "GqlVariableDef.dollarName", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GqlVariableDef.type", c -> readGqlTypeRef(c)),
-                FrontRead.nullableComponent(o, "GqlVariableDef.defaultValue", c -> readGqlValue(c)));
-    }
-
-    static com.legend.protocol.spec.Gql.VariableRef readGqlVariableRef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Gql.VariableRef(
-                FrontRead.component(o, "GqlVariableRef.name", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.spec.GqlIsland readGqlIsland(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.GqlIsland(
-                FrontRead.component(o, "GqlIsland.document", c -> readGqlDocument(c)),
-                FrontRead.nullableComponent(o, "GqlIsland.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.GraphFetchLiteral readGraphFetchLiteral(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.GraphFetchLiteral(
-                FrontRead.component(o, "GraphFetchLiteral.className", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GraphFetchLiteral.subTrees", c -> FrontRead.list(c, x0 -> readGraphFetchLiteralNode(x0))),
-                FrontRead.component(o, "GraphFetchLiteral.subTypeTrees", c -> FrontRead.list(c, x0 -> readGraphFetchLiteralSubTypeNode(x0))),
-                FrontRead.nullableComponent(o, "GraphFetchLiteral.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.GraphFetchLiteral.Node readGraphFetchLiteralNode(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.GraphFetchLiteral.Node(
-                FrontRead.component(o, "GraphFetchLiteralNode.property", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "GraphFetchLiteralNode.pos", c -> readSourceInfo(c)),
-                FrontRead.component(o, "GraphFetchLiteralNode.parameters", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
-                FrontRead.nullableComponent(o, "GraphFetchLiteralNode.alias", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "GraphFetchLiteralNode.subType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "GraphFetchLiteralNode.subTrees", c -> FrontRead.list(c, x0 -> readGraphFetchLiteralNode(x0))));
-    }
-
-    static com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode readGraphFetchLiteralSubTypeNode(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode(
-                FrontRead.component(o, "GraphFetchLiteralSubTypeNode.subTypeClass", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "GraphFetchLiteralSubTypeNode.pos", c -> readSourceInfo(c)),
-                FrontRead.component(o, "GraphFetchLiteralSubTypeNode.subTrees", c -> FrontRead.list(c, x0 -> readGraphFetchLiteralNode(x0))));
-    }
-
-    static com.legend.protocol.spec.KeyExpression readKeyExpression(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.KeyExpression(
-                FrontRead.component(o, "KeyExpression.value", c -> readValueSpecification(c)),
-                FrontRead.component(o, "KeyExpression.isAdd", c -> FrontRead.bool(c)),
-                FrontRead.component(o, "KeyExpression.isLocal", c -> FrontRead.bool(c)));
-    }
-
-    static com.legend.protocol.spec.LambdaFunction readLambdaFunction(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.LambdaFunction(
-                FrontRead.component(o, "LambdaFunction.parameters", c -> FrontRead.list(c, x0 -> readVariable(x0))),
-                FrontRead.component(o, "LambdaFunction.body", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
-                FrontRead.nullableComponent(o, "LambdaFunction.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.NewInstance readNewInstance(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.NewInstance(
-                FrontRead.component(o, "NewInstance.className", c -> FrontRead.string(c)),
-                FrontRead.component(o, "NewInstance.typeArguments", c -> FrontRead.list(c, x0 -> readTypeExpression(x0))),
-                FrontRead.component(o, "NewInstance.typeMultiplicityArguments", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
-                FrontRead.component(o, "NewInstance.properties", c -> FrontRead.list(c, x0 -> readNewInstanceKeyBinding(x0))));
-    }
-
-    static com.legend.protocol.spec.NewInstance.KeyBinding readNewInstanceKeyBinding(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.NewInstance.KeyBinding(
-                FrontRead.component(o, "NewInstanceKeyBinding.key", c -> FrontRead.string(c)),
-                FrontRead.component(o, "NewInstanceKeyBinding.expression", c -> readKeyExpression(c)));
-    }
-
-    static com.legend.protocol.spec.NewInstanceCast readNewInstanceCast(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.NewInstanceCast(
-                FrontRead.component(o, "NewInstanceCast.className", c -> FrontRead.string(c)),
-                FrontRead.component(o, "NewInstanceCast.typeArguments", c -> FrontRead.list(c, x0 -> readTypeExpression(x0))),
-                FrontRead.component(o, "NewInstanceCast.src", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "NewInstanceCast.targetSetId", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.spec.PackageableElementPtr readPackageableElementPtr(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.PackageableElementPtr(
-                FrontRead.component(o, "PackageableElementPtr.fullPath", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "PackageableElementPtr.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.PathLiteral readPathLiteral(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.PathLiteral(
-                FrontRead.component(o, "PathLiteral.startType", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PathLiteral.segments", c -> FrontRead.list(c, x0 -> readPathLiteralSegment(x0))),
-                FrontRead.component(o, "PathLiteral.desugared", c -> readLambdaFunction(c)),
-                FrontRead.nullableComponent(o, "PathLiteral.alias", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PathLiteral.hasDatedSegment", c -> FrontRead.bool(c)),
-                FrontRead.nullableComponent(o, "PathLiteral.pos", c -> readSourceInfo(c)),
-                FrontRead.component(o, "PathLiteral.literalLength", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PathLiteral.lineStarts", c -> FrontRead.list(c, x0 -> FrontRead.integer(x0))));
-    }
-
-    static com.legend.protocol.spec.PathLiteral.PathArg.CollectionArg readPathLiteralPathArgCollectionArg(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.PathLiteral.PathArg.CollectionArg(
-                FrontRead.component(o, "PathLiteralPathArgCollectionArg.elements", c -> FrontRead.list(c, x0 -> readPathLiteralPathArg(x0))));
-    }
-
-    static com.legend.protocol.spec.PathLiteral.PathArg.DateArg readPathLiteralPathArgDateArg(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.PathLiteral.PathArg.DateArg(
-                FrontRead.component(o, "PathLiteralPathArgDateArg.value", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PathLiteralPathArgDateArg.start", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PathLiteralPathArgDateArg.end", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.protocol.spec.PathLiteral.PathArg.EnumArg readPathLiteralPathArgEnumArg(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.PathLiteral.PathArg.EnumArg(
-                FrontRead.component(o, "PathLiteralPathArgEnumArg.fullPath", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PathLiteralPathArgEnumArg.value", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.spec.PathLiteral.PathArg.IntArg readPathLiteralPathArgIntArg(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.PathLiteral.PathArg.IntArg(
-                FrontRead.component(o, "PathLiteralPathArgIntArg.value", c -> FrontRead.longValue(c)),
-                FrontRead.component(o, "PathLiteralPathArgIntArg.start", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PathLiteralPathArgIntArg.end", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.protocol.spec.PathLiteral.PathArg.Latest readPathLiteralPathArgLatest(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.PathLiteral.PathArg.Latest(
-                FrontRead.component(o, "PathLiteralPathArgLatest.start", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PathLiteralPathArgLatest.end", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.protocol.spec.PathLiteral.PathArg.StrArg readPathLiteralPathArgStrArg(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.PathLiteral.PathArg.StrArg(
-                FrontRead.component(o, "PathLiteralPathArgStrArg.value", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PathLiteralPathArgStrArg.start", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PathLiteralPathArgStrArg.end", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.protocol.spec.PathLiteral.Segment readPathLiteralSegment(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.PathLiteral.Segment(
-                FrontRead.component(o, "PathLiteralSegment.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "PathLiteralSegment.innerStart", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PathLiteralSegment.innerEnd", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PathLiteralSegment.args", c -> FrontRead.list(c, x0 -> readPathLiteralPathArg(x0))),
-                FrontRead.component(o, "PathLiteralSegment.unsupportedArg", c -> FrontRead.bool(c)));
-    }
-
-    static com.legend.protocol.spec.PureCollection readPureCollection(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.PureCollection(
-                FrontRead.component(o, "PureCollection.values", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
-                FrontRead.nullableComponent(o, "PureCollection.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.QuotedGrammarCall readQuotedGrammarCall(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.QuotedGrammarCall(
-                FrontRead.component(o, "QuotedGrammarCall.original", c -> readAppliedFunction(c)),
-                FrontRead.component(o, "QuotedGrammarCall.functions", c -> FrontRead.list(c, x0 -> readLambdaFunction(x0))),
-                FrontRead.nullableComponent(o, "QuotedGrammarCall.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.QuotedTreeCall readQuotedTreeCall(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.QuotedTreeCall(
-                FrontRead.component(o, "QuotedTreeCall.original", c -> readAppliedFunction(c)),
-                FrontRead.component(o, "QuotedTreeCall.tree", c -> readValueSpecification(c)),
-                FrontRead.nullableComponent(o, "QuotedTreeCall.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.SqlIsland readSqlIsland(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.SqlIsland(
-                FrontRead.component(o, "SqlIsland.sql", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "SqlIsland.pos", c -> readSourceInfo(c)),
-                FrontRead.component(o, "SqlIsland.language", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "SqlIsland.profile", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.spec.TdsLiteral readTdsLiteral(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.TdsLiteral(
-                FrontRead.component(o, "TdsLiteral.tdsString", c -> FrontRead.string(c)),
-                FrontRead.component(o, "TdsLiteral.desugared", c -> readAppliedFunction(c)),
-                FrontRead.nullableComponent(o, "TdsLiteral.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.TypeAnnotation.MultiplicityRef readTypeAnnotationMultiplicityRef(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.TypeAnnotation.MultiplicityRef(
-                FrontRead.component(o, "TypeAnnotationMultiplicityRef.multiplicity", c -> readMultiplicity(c)),
-                FrontRead.nullableComponent(o, "TypeAnnotationMultiplicityRef.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.TypeAnnotation.Named readTypeAnnotationNamed(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.TypeAnnotation.Named(
-                FrontRead.component(o, "TypeAnnotationNamed.type", c -> readTypeExpression(c)),
-                FrontRead.nullableComponent(o, "TypeAnnotationNamed.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.TypeAnnotation.RelationShape readTypeAnnotationRelationShape(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.TypeAnnotation.RelationShape(
-                FrontRead.component(o, "TypeAnnotationRelationShape.columns", c -> FrontRead.list(c, x0 -> readTypeAnnotationRelationShapeColumn(x0))),
-                FrontRead.nullableComponent(o, "TypeAnnotationRelationShape.spelledName", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "TypeAnnotationRelationShape.typeSpan", c -> readSourceInfo(c)),
-                FrontRead.nullableComponent(o, "TypeAnnotationRelationShape.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.TypeAnnotation.RelationShape.Column readTypeAnnotationRelationShapeColumn(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.TypeAnnotation.RelationShape.Column(
-                FrontRead.nullableComponent(o, "TypeAnnotationRelationShapeColumn.name", c -> FrontRead.string(c)),
-                FrontRead.component(o, "TypeAnnotationRelationShapeColumn.type", c -> readTypeAnnotation(c)),
-                FrontRead.component(o, "TypeAnnotationRelationShapeColumn.multiplicity", c -> readMultiplicity(c)),
-                FrontRead.nullableComponent(o, "TypeAnnotationRelationShapeColumn.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.protocol.spec.TypeAnnotation.Wildcard readTypeAnnotationWildcard(Json.Node n) {
-        FrontRead.object(n);
-        return new com.legend.protocol.spec.TypeAnnotation.Wildcard();
-    }
-
-    static com.legend.protocol.spec.Variable readVariable(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.protocol.spec.Variable(
-                FrontRead.component(o, "Variable.name", c -> FrontRead.string(c)),
-                FrontRead.nullableComponent(o, "Variable.type", c -> readTypeExpression(c)),
-                FrontRead.nullableComponent(o, "Variable.multiplicity", c -> readMultiplicity(c)),
-                FrontRead.nullableComponent(o, "Variable.pos", c -> readSourceInfo(c)));
-    }
-
-    static com.legend.values.PureDateLiteral.DateWithHour readPureDateLiteralDateWithHour(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.values.PureDateLiteral.DateWithHour(
-                FrontRead.component(o, "PureDateLiteralDateWithHour.year", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithHour.month", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithHour.day", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithHour.hour", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.values.PureDateLiteral.DateWithMinute readPureDateLiteralDateWithMinute(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.values.PureDateLiteral.DateWithMinute(
-                FrontRead.component(o, "PureDateLiteralDateWithMinute.year", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithMinute.month", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithMinute.day", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithMinute.hour", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithMinute.minute", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.values.PureDateLiteral.DateWithSecond readPureDateLiteralDateWithSecond(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.values.PureDateLiteral.DateWithSecond(
-                FrontRead.component(o, "PureDateLiteralDateWithSecond.year", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithSecond.month", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithSecond.day", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithSecond.hour", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithSecond.minute", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithSecond.second", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.values.PureDateLiteral.DateWithSubsecond readPureDateLiteralDateWithSubsecond(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.values.PureDateLiteral.DateWithSubsecond(
-                FrontRead.component(o, "PureDateLiteralDateWithSubsecond.year", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithSubsecond.month", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithSubsecond.day", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithSubsecond.hour", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithSubsecond.minute", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithSubsecond.second", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralDateWithSubsecond.subsecond", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.values.PureDateLiteral.StrictDate readPureDateLiteralStrictDate(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.values.PureDateLiteral.StrictDate(
-                FrontRead.component(o, "PureDateLiteralStrictDate.year", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralStrictDate.month", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralStrictDate.day", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.values.PureDateLiteral.Year readPureDateLiteralYear(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.values.PureDateLiteral.Year(
-                FrontRead.component(o, "PureDateLiteralYear.year", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.values.PureDateLiteral.YearMonth readPureDateLiteralYearMonth(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.values.PureDateLiteral.YearMonth(
-                FrontRead.component(o, "PureDateLiteralYearMonth.year", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureDateLiteralYearMonth.month", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.values.PureTimeLiteral.TimeWithMinute readPureTimeLiteralTimeWithMinute(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.values.PureTimeLiteral.TimeWithMinute(
-                FrontRead.component(o, "PureTimeLiteralTimeWithMinute.hour", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureTimeLiteralTimeWithMinute.minute", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.values.PureTimeLiteral.TimeWithSecond readPureTimeLiteralTimeWithSecond(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.values.PureTimeLiteral.TimeWithSecond(
-                FrontRead.component(o, "PureTimeLiteralTimeWithSecond.hour", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureTimeLiteralTimeWithSecond.minute", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureTimeLiteralTimeWithSecond.second", c -> FrontRead.integer(c)));
-    }
-
-    static com.legend.values.PureTimeLiteral.TimeWithSubsecond readPureTimeLiteralTimeWithSubsecond(Json.Node n) {
-        Json.Obj o = FrontRead.object(n);
-        return new com.legend.values.PureTimeLiteral.TimeWithSubsecond(
-                FrontRead.component(o, "PureTimeLiteralTimeWithSubsecond.hour", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureTimeLiteralTimeWithSubsecond.minute", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureTimeLiteralTimeWithSubsecond.second", c -> FrontRead.integer(c)),
-                FrontRead.component(o, "PureTimeLiteralTimeWithSubsecond.subsecond", c -> FrontRead.string(c)));
-    }
-
-    static com.legend.protocol.Multiplicity readMultiplicity(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.parser.PmcdParser.Parsed readPmcdParserParsed(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PmcdParserParsed", new com.legend.parser.PmcdParser.Parsed(
+                FrontRead.component(r, "PmcdParserParsed.model", tagged ? ",\"model\":" : "\"model\":", c -> readPureModelContextData(c, false)),
+                FrontRead.component(r, "PmcdParserParsed.unclaimed", ",\"unclaimed\":", c -> FrontRead.list(c, x0 -> readPmcdParserUnclaimedSection(x0, false)))));
+    }
+
+    static com.legend.parser.PmcdParser.UnclaimedSection readPmcdParserUnclaimedSection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PmcdParserUnclaimedSection", new com.legend.parser.PmcdParser.UnclaimedSection(
+                FrontRead.component(r, "PmcdParserUnclaimedSection.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PmcdParserUnclaimedSection.startOffset", ",\"startOffset\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PmcdParserUnclaimedSection.endOffset", ",\"endOffset\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.protocol.ConstraintDefinition readConstraintDefinition(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "ConstraintDefinition", new com.legend.protocol.ConstraintDefinition(
+                FrontRead.component(r, "ConstraintDefinition.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "ConstraintDefinition.realization", ",\"realization\":", c -> readRealization(c)),
+                FrontRead.nullableComponent(r, "ConstraintDefinition.message", ",\"message\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "ConstraintDefinition.enforcementLevel", ",\"enforcementLevel\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "ConstraintDefinition.externalId", ",\"externalId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "ConstraintDefinition.owner", ",\"owner\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "ConstraintDefinition.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.DerivedPropertyDefinition readDerivedPropertyDefinition(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "DerivedPropertyDefinition", new com.legend.protocol.DerivedPropertyDefinition(
+                FrontRead.component(r, "DerivedPropertyDefinition.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "DerivedPropertyDefinition.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> readParameterDefinition(x0, false))),
+                FrontRead.component(r, "DerivedPropertyDefinition.realization", ",\"realization\":", c -> readRealization(c)),
+                FrontRead.component(r, "DerivedPropertyDefinition.type", ",\"type\":", c -> readTypeExpression(c)),
+                FrontRead.component(r, "DerivedPropertyDefinition.multiplicity", ",\"multiplicity\":", c -> readMultiplicity(c)),
+                FrontRead.component(r, "DerivedPropertyDefinition.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "DerivedPropertyDefinition.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "DerivedPropertyDefinition.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Multiplicity.Concrete readMultiplicityConcrete(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "MultiplicityConcrete", new com.legend.protocol.Multiplicity.Concrete(
+                FrontRead.component(r, "MultiplicityConcrete.lowerBound", tagged ? ",\"lowerBound\":" : "\"lowerBound\":", c -> FrontRead.integer(c)),
+                FrontRead.nullableComponent(r, "MultiplicityConcrete.upperBound", ",\"upperBound\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.protocol.Multiplicity.Parameter readMultiplicityParameter(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "MultiplicityParameter", new com.legend.protocol.Multiplicity.Parameter(
+                FrontRead.component(r, "MultiplicityParameter.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.ParameterDefinition readParameterDefinition(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "ParameterDefinition", new com.legend.protocol.ParameterDefinition(
+                FrontRead.component(r, "ParameterDefinition.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "ParameterDefinition.type", ",\"type\":", c -> readTypeExpression(c)),
+                FrontRead.component(r, "ParameterDefinition.multiplicity", ",\"multiplicity\":", c -> readMultiplicity(c)),
+                FrontRead.nullableComponent(r, "ParameterDefinition.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PAggregateSetImplementation readPAggregateSetImplementation(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PAggregateSetImplementation", new com.legend.protocol.Protocol.PAggregateSetImplementation(
+                FrontRead.component(r, "PAggregateSetImplementation.canAggregate", tagged ? ",\"canAggregate\":" : "\"canAggregate\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PAggregateSetImplementation.groupByFunctions", ",\"groupByFunctions\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
+                FrontRead.component(r, "PAggregateSetImplementation.aggregateValues", ",\"aggregateValues\":", c -> FrontRead.list(c, x0 -> readPAggregateValue(x0, false))),
+                FrontRead.component(r, "PAggregateSetImplementation.index", ",\"index\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PAggregateSetImplementation.setImplementation", ",\"setImplementation\":", c -> readPClassMapping(c))));
+    }
+
+    static com.legend.protocol.Protocol.PAggregateValue readPAggregateValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PAggregateValue", new com.legend.protocol.Protocol.PAggregateValue(
+                FrontRead.component(r, "PAggregateValue.mapFn", tagged ? ",\"mapFn\":" : "\"mapFn\":", c -> readValueSpecification(c)),
+                FrontRead.component(r, "PAggregateValue.aggregateFn", ",\"aggregateFn\":", c -> readValueSpecification(c))));
+    }
+
+    static com.legend.protocol.Protocol.PApiKeyAuth readPApiKeyAuth(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PApiKeyAuth", new com.legend.protocol.Protocol.PApiKeyAuth(
+                FrontRead.component(r, "PApiKeyAuth.keyName", tagged ? ",\"keyName\":" : "\"keyName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PApiKeyAuth.location", ",\"location\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PApiKeyAuth.value", ",\"value\":", c -> readPVaultSecret(c)),
+                FrontRead.nullableComponent(r, "PApiKeyAuth.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PApiToken readPApiToken(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PApiToken", new com.legend.protocol.Protocol.PApiToken(
+                FrontRead.component(r, "PApiToken.apiToken", tagged ? ",\"apiToken\":" : "\"apiToken\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PApiToken.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PAssertion.EqualTo readPAssertionEqualTo(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PAssertionEqualTo", new com.legend.protocol.Protocol.PAssertion.EqualTo(
+                FrontRead.component(r, "PAssertionEqualTo.expected", tagged ? ",\"expected\":" : "\"expected\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PAssertionEqualTo.span", ",\"span\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PAssertion.EqualToJson readPAssertionEqualToJson(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PAssertionEqualToJson", new com.legend.protocol.Protocol.PAssertion.EqualToJson(
+                FrontRead.component(r, "PAssertionEqualToJson.expected", tagged ? ",\"expected\":" : "\"expected\":", c -> readPTestPayloadExternalFormat(c, false)),
+                FrontRead.nullableComponent(r, "PAssertionEqualToJson.span", ",\"span\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PAssertion.EqualToRelation readPAssertionEqualToRelation(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PAssertionEqualToRelation", new com.legend.protocol.Protocol.PAssertion.EqualToRelation(
+                FrontRead.component(r, "PAssertionEqualToRelation.expected", tagged ? ",\"expected\":" : "\"expected\":", c -> readPTestPayloadRelationElement(c, false)),
+                FrontRead.nullableComponent(r, "PAssertionEqualToRelation.span", ",\"span\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PAssociation readPAssociation(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PAssociation", new com.legend.protocol.Protocol.PAssociation(
+                FrontRead.component(r, "PAssociation.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PAssociation.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PAssociation.properties", ",\"properties\":", c -> FrontRead.list(c, x0 -> readPProperty(x0, false))),
+                FrontRead.component(r, "PAssociation.derivedProperties", ",\"derivedProperties\":", c -> FrontRead.list(c, x0 -> readDerivedPropertyDefinition(x0, false))),
+                FrontRead.component(r, "PAssociation.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PAssociation.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PAssociation.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PAssociation.originalMilestonedProperties", ",\"originalMilestonedProperties\":", c -> FrontRead.list(c, x0 -> readPProperty(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PAssociationProjection readPAssociationProjection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PAssociationProjection", new com.legend.protocol.Protocol.PAssociationProjection(
+                FrontRead.component(r, "PAssociationProjection.qualifiedName", tagged ? ",\"qualifiedName\":" : "\"qualifiedName\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PAssociationProjection.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PAthenaSpec readPAthenaSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PAthenaSpec", new com.legend.protocol.Protocol.PAthenaSpec(
+                FrontRead.nullableComponent(r, "PAthenaSpec.athenaEndpoint", tagged ? ",\"athenaEndpoint\":" : "\"athenaEndpoint\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PAthenaSpec.catalog", ",\"catalog\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PAthenaSpec.database", ",\"database\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PAthenaSpec.outputLocation", ",\"outputLocation\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PAthenaSpec.region", ",\"region\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PAthenaSpec.workGroup", ",\"workGroup\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PAthenaSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PAuroraSpec readPAuroraSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PAuroraSpec", new com.legend.protocol.Protocol.PAuroraSpec(
+                FrontRead.nullableComponent(r, "PAuroraSpec.clusterInstanceHostPattern", tagged ? ",\"clusterInstanceHostPattern\":" : "\"clusterInstanceHostPattern\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PAuroraSpec.host", ",\"host\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PAuroraSpec.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PAuroraSpec.port", ",\"port\":", c -> FrontRead.longValue(c)),
+                FrontRead.nullableComponent(r, "PAuroraSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PAwsDefault readPAwsDefault(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PAwsDefault", new com.legend.protocol.Protocol.PAwsDefault());
+    }
+
+    static com.legend.protocol.Protocol.PAwsSecret readPAwsSecret(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PAwsSecret", new com.legend.protocol.Protocol.PAwsSecret(
+                FrontRead.component(r, "PAwsSecret.secretId", tagged ? ",\"secretId\":" : "\"secretId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PAwsSecret.versionId", ",\"versionId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PAwsSecret.versionStage", ",\"versionStage\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PAwsSecret.credsKind", ",\"credsKind\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PAwsSecret.accessKeyId", ",\"accessKeyId\":", c -> readPMongoSecret(c, false)),
+                FrontRead.nullableComponent(r, "PAwsSecret.secretAccessKey", ",\"secretAccessKey\":", c -> readPMongoSecret(c, false)),
+                FrontRead.nullableComponent(r, "PAwsSecret.credsSpan", ",\"credsSpan\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PAwsStatic readPAwsStatic(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PAwsStatic", new com.legend.protocol.Protocol.PAwsStatic(
+                FrontRead.component(r, "PAwsStatic.accessKeyId", tagged ? ",\"accessKeyId\":" : "\"accessKeyId\":", c -> readPMongoSecret(c, false)),
+                FrontRead.component(r, "PAwsStatic.secretAccessKey", ",\"secretAccessKey\":", c -> readPMongoSecret(c, false)),
+                FrontRead.nullableComponent(r, "PAwsStatic.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PAwsStsRole readPAwsStsRole(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PAwsStsRole", new com.legend.protocol.Protocol.PAwsStsRole(
+                FrontRead.component(r, "PAwsStsRole.roleArn", tagged ? ",\"roleArn\":" : "\"roleArn\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PAwsStsRole.roleSessionName", ",\"roleSessionName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PAwsStsRole.awsCredentials", ",\"awsCredentials\":", c -> readPAwsCredentials(c)),
+                FrontRead.nullableComponent(r, "PAwsStsRole.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PBigQuerySpec readPBigQuerySpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PBigQuerySpec", new com.legend.protocol.Protocol.PBigQuerySpec(
+                FrontRead.component(r, "PBigQuerySpec.defaultDataset", tagged ? ",\"defaultDataset\":" : "\"defaultDataset\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PBigQuerySpec.projectId", ",\"projectId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PBigQuerySpec.proxyHost", ",\"proxyHost\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PBigQuerySpec.proxyPort", ",\"proxyPort\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PBigQuerySpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PBinding readPBinding(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PBinding", new com.legend.protocol.Protocol.PBinding(
+                FrontRead.component(r, "PBinding.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PBinding.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PBinding.schemaSet", ",\"schemaSet\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PBinding.schemaId", ",\"schemaId\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PBinding.contentType", ",\"contentType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PBinding.modelIncludes", ",\"modelIncludes\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PBinding.modelExcludes", ",\"modelExcludes\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PBinding.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PBodyBuildInfo readPBodyBuildInfo(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PBodyBuildInfo", new com.legend.protocol.Protocol.PBodyBuildInfo(
+                FrontRead.component(r, "PBodyBuildInfo.transform", tagged ? ",\"transform\":" : "\"transform\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PBodyBuildInfo.transformSpan", ",\"transformSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PBodyBuildInfo.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PBsonSchema readPBsonSchema(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PBsonSchema", new com.legend.protocol.Protocol.PBsonSchema(
+                FrontRead.component(r, "PBsonSchema.wireType", tagged ? ",\"wireType\":" : "\"wireType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PBsonSchema.additionalPropertiesAllowed", ",\"additionalPropertiesAllowed\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PBsonSchema.properties", ",\"properties\":", c -> FrontRead.list(c, x0 -> FrontRead.entry(x0, k1 -> FrontRead.string(k1), v1 -> readPBsonSchema(v1, false)))),
+                FrontRead.component(r, "PBsonSchema.required", ",\"required\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PBsonSchema.title", ",\"title\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PBsonSchema.description", ",\"description\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PBsonSchema.minLength", ",\"minLength\":", c -> FrontRead.longValue(c)),
+                FrontRead.nullableComponent(r, "PBsonSchema.maxLength", ",\"maxLength\":", c -> FrontRead.longValue(c)),
+                FrontRead.nullableComponent(r, "PBsonSchema.items", ",\"items\":", c -> FrontRead.list(c, x0 -> readPBsonSchema(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PBusinessMilestoning readPBusinessMilestoning(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PBusinessMilestoning", new com.legend.protocol.Protocol.PBusinessMilestoning(
+                FrontRead.component(r, "PBusinessMilestoning.from", tagged ? ",\"from\":" : "\"from\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PBusinessMilestoning.thru", ",\"thru\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PBusinessMilestoning.thruIsInclusive", ",\"thruIsInclusive\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PBusinessMilestoning.infinityDate", ",\"infinityDate\":", c -> readPDateTimeLit(c, false)),
+                FrontRead.nullableComponent(r, "PBusinessMilestoning.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PBusinessSnapshotMilestoning readPBusinessSnapshotMilestoning(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PBusinessSnapshotMilestoning", new com.legend.protocol.Protocol.PBusinessSnapshotMilestoning(
+                FrontRead.component(r, "PBusinessSnapshotMilestoning.snapshotDate", tagged ? ",\"snapshotDate\":" : "\"snapshotDate\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PBusinessSnapshotMilestoning.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PClass readPClass(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PClass", new com.legend.protocol.Protocol.PClass(
+                FrontRead.component(r, "PClass.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PClass.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PClass.typeParams", ",\"typeParams\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PClass.typeVariables", ",\"typeVariables\":", c -> FrontRead.list(c, x0 -> readParameterDefinition(x0, false))),
+                FrontRead.component(r, "PClass.superTypes", ",\"superTypes\":", c -> FrontRead.list(c, x0 -> readPSuperType(x0, false))),
+                FrontRead.component(r, "PClass.properties", ",\"properties\":", c -> FrontRead.list(c, x0 -> readPProperty(x0, false))),
+                FrontRead.component(r, "PClass.derivedProperties", ",\"derivedProperties\":", c -> FrontRead.list(c, x0 -> readDerivedPropertyDefinition(x0, false))),
+                FrontRead.component(r, "PClass.constraints", ",\"constraints\":", c -> FrontRead.list(c, x0 -> readConstraintDefinition(x0, false))),
+                FrontRead.component(r, "PClass.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PClass.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.component(r, "PClass.isNative", ",\"isNative\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PClass.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PClass.originalMilestonedProperties", ",\"originalMilestonedProperties\":", c -> FrontRead.list(c, x0 -> readPProperty(x0, false))),
+                FrontRead.component(r, "PClass.multiplicityParams", ",\"multiplicityParams\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0)))));
+    }
+
+    static com.legend.protocol.Protocol.PClassMappingAggregationAware readPClassMappingAggregationAware(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PClassMappingAggregationAware", new com.legend.protocol.Protocol.PClassMappingAggregationAware(
+                FrontRead.component(r, "PClassMappingAggregationAware.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PClassMappingAggregationAware.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PClassMappingAggregationAware.aggregateSetImplementations", ",\"aggregateSetImplementations\":", c -> FrontRead.list(c, x0 -> readPAggregateSetImplementation(x0, false))),
+                FrontRead.component(r, "PClassMappingAggregationAware.mainSetImplementation", ",\"mainSetImplementation\":", c -> readPClassMapping(c)),
+                FrontRead.component(r, "PClassMappingAggregationAware.aggPropertyMappings", ",\"aggPropertyMappings\":", c -> FrontRead.list(c, x0 -> readPPurePropertyMapping(x0, false))),
+                FrontRead.component(r, "PClassMappingAggregationAware.root", ",\"root\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PClassMappingAggregationAware.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PClassMappingAggregationAware.extendsClassMappingId", ",\"extendsClassMappingId\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PClassMappingFunction readPClassMappingFunction(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PClassMappingFunction", new com.legend.protocol.Protocol.PClassMappingFunction(
+                FrontRead.component(r, "PClassMappingFunction.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingFunction.classSourceInformation", ",\"classSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PClassMappingFunction.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingFunction.extendsClassMappingId", ",\"extendsClassMappingId\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PClassMappingFunction.root", ",\"root\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PClassMappingFunction.kind", ",\"kind\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingFunction.function", ",\"function\":", c -> readPackageableElementPtr(c, false)),
+                FrontRead.nullableComponent(r, "PClassMappingFunction.bodyLambda", ",\"bodyLambda\":", c -> readLambdaFunction(c, false)),
+                FrontRead.nullableComponent(r, "PClassMappingFunction.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PClassMappingMergeOperation readPClassMappingMergeOperation(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PClassMappingMergeOperation", new com.legend.protocol.Protocol.PClassMappingMergeOperation(
+                FrontRead.component(r, "PClassMappingMergeOperation.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingMergeOperation.classSourceInformation", ",\"classSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PClassMappingMergeOperation.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PClassMappingMergeOperation.root", ",\"root\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PClassMappingMergeOperation.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PClassMappingMergeOperation.validationLambda", ",\"validationLambda\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PClassMappingMergeOperation.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PClassMappingMergeOperation.extendsClassMappingId", ",\"extendsClassMappingId\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PClassMappingMongoDb readPClassMappingMongoDb(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PClassMappingMongoDb", new com.legend.protocol.Protocol.PClassMappingMongoDb(
+                FrontRead.component(r, "PClassMappingMongoDb.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingMongoDb.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PClassMappingMongoDb.root", ",\"root\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PClassMappingMongoDb.storePath", ",\"storePath\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingMongoDb.mainCollectionName", ",\"mainCollectionName\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingMongoDb.bindingPath", ",\"bindingPath\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingMongoDb.extendsClassMappingId", ",\"extendsClassMappingId\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PClassMappingOperation readPClassMappingOperation(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PClassMappingOperation", new com.legend.protocol.Protocol.PClassMappingOperation(
+                FrontRead.component(r, "PClassMappingOperation.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingOperation.classSourceInformation", ",\"classSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PClassMappingOperation.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingOperation.extendsClassMappingId", ",\"extendsClassMappingId\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PClassMappingOperation.root", ",\"root\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PClassMappingOperation.operation", ",\"operation\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PClassMappingOperation.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PClassMappingOperation.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PClassMappingPure readPClassMappingPure(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PClassMappingPure", new com.legend.protocol.Protocol.PClassMappingPure(
+                FrontRead.component(r, "PClassMappingPure.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingPure.classSourceInformation", ",\"classSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PClassMappingPure.extendsClassMappingId", ",\"extendsClassMappingId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingPure.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PClassMappingPure.root", ",\"root\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PClassMappingPure.srcClass", ",\"srcClass\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingPure.sourceClassSourceInformation", ",\"sourceClassSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PClassMappingPure.filter", ",\"filter\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
+                FrontRead.component(r, "PClassMappingPure.propertyMappings", ",\"propertyMappings\":", c -> FrontRead.list(c, x0 -> readPPurePropertyMapping(x0, false))),
+                FrontRead.nullableComponent(r, "PClassMappingPure.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PClassMappingRel readPClassMappingRel(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PClassMappingRel", new com.legend.protocol.Protocol.PClassMappingRel(
+                FrontRead.component(r, "PClassMappingRel.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingRel.classSourceInformation", ",\"classSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PClassMappingRel.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PClassMappingRel.root", ",\"root\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PClassMappingRel.distinct", ",\"distinct\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PClassMappingRel.extendsClassMappingId", ",\"extendsClassMappingId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingRel.filter", ",\"filter\":", c -> readPFilterMapping(c, false)),
+                FrontRead.component(r, "PClassMappingRel.groupBy", ",\"groupBy\":", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
+                FrontRead.nullableComponent(r, "PClassMappingRel.mainTable", ",\"mainTable\":", c -> readPTablePtr(c, false)),
+                FrontRead.component(r, "PClassMappingRel.primaryKey", ",\"primaryKey\":", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
+                FrontRead.component(r, "PClassMappingRel.propertyMappings", ",\"propertyMappings\":", c -> FrontRead.list(c, x0 -> readPPropertyMapping(x0))),
+                FrontRead.nullableComponent(r, "PClassMappingRel.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PClassMappingRelation readPClassMappingRelation(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PClassMappingRelation", new com.legend.protocol.Protocol.PClassMappingRelation(
+                FrontRead.component(r, "PClassMappingRelation.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingRelation.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingRelation.extendsClassMappingId", ",\"extendsClassMappingId\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PClassMappingRelation.primaryKey", ",\"primaryKey\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PClassMappingRelation.propertyMappings", ",\"propertyMappings\":", c -> FrontRead.list(c, x0 -> readPRelationFnPropertyMapping(x0, false))),
+                FrontRead.nullableComponent(r, "PClassMappingRelation.relationFunction", ",\"relationFunction\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassMappingRelation.relationFunctionSourceInformation", ",\"relationFunctionSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PClassMappingRelation.sourceLambda", ",\"sourceLambda\":", c -> readPRelationSrcLambda(c, false)),
+                FrontRead.component(r, "PClassMappingRelation.root", ",\"root\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PClassMappingRelation.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PClassView readPClassView(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PClassView", new com.legend.protocol.Protocol.PClassView(
+                FrontRead.component(r, "PClassView.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PClassView.classPath", ",\"classPath\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PClassView.classSpan", ",\"classSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PClassView.hideProperties", ",\"hideProperties\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PClassView.hideStereotypes", ",\"hideStereotypes\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PClassView.hideTaggedValues", ",\"hideTaggedValues\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PClassView.x", ",\"x\":", c -> FrontRead.doubleValue(c)),
+                FrontRead.component(r, "PClassView.y", ",\"y\":", c -> FrontRead.doubleValue(c)),
+                FrontRead.component(r, "PClassView.width", ",\"width\":", c -> FrontRead.doubleValue(c)),
+                FrontRead.component(r, "PClassView.height", ",\"height\":", c -> FrontRead.doubleValue(c)),
+                FrontRead.nullableComponent(r, "PClassView.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PColumnRef readPColumnRef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PColumnRef", new com.legend.protocol.Protocol.PColumnRef(
+                FrontRead.component(r, "PColumnRef.column", tagged ? ",\"column\":" : "\"column\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PColumnRef.table", ",\"table\":", c -> readPTablePtr(c, false)),
+                FrontRead.component(r, "PColumnRef.tableAlias", ",\"tableAlias\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PColumnRef.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PConfigProperty readPConfigProperty(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PConfigProperty", new com.legend.protocol.Protocol.PConfigProperty(
+                FrontRead.component(r, "PConfigProperty.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PConfigProperty.value", ",\"value\":", c -> readPConfigValue(c)),
+                FrontRead.nullableComponent(r, "PConfigProperty.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PConfigValue.PCBoolean readPConfigValuePCBoolean(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PConfigValuePCBoolean", new com.legend.protocol.Protocol.PConfigValue.PCBoolean(
+                FrontRead.component(r, "PConfigValuePCBoolean.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.bool(c))));
+    }
+
+    static com.legend.protocol.Protocol.PConfigValue.PCInteger readPConfigValuePCInteger(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PConfigValuePCInteger", new com.legend.protocol.Protocol.PConfigValue.PCInteger(
+                FrontRead.component(r, "PConfigValuePCInteger.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.longValue(c))));
+    }
+
+    static com.legend.protocol.Protocol.PConfigValue.PCMap readPConfigValuePCMap(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PConfigValuePCMap", new com.legend.protocol.Protocol.PConfigValue.PCMap(
+                FrontRead.component(r, "PConfigValuePCMap.entries", tagged ? ",\"entries\":" : "\"entries\":", c -> FrontRead.map(c, v0 -> FrontRead.string(v0)))));
+    }
+
+    static com.legend.protocol.Protocol.PConfigValue.PCNull readPConfigValuePCNull(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PConfigValuePCNull", new com.legend.protocol.Protocol.PConfigValue.PCNull());
+    }
+
+    static com.legend.protocol.Protocol.PConfigValue.PCString readPConfigValuePCString(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PConfigValuePCString", new com.legend.protocol.Protocol.PConfigValue.PCString(
+                FrontRead.component(r, "PConfigValuePCString.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PConfigValue.PCStrings readPConfigValuePCStrings(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PConfigValuePCStrings", new com.legend.protocol.Protocol.PConfigValue.PCStrings(
+                FrontRead.component(r, "PConfigValuePCStrings.values", tagged ? ",\"values\":" : "\"values\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0)))));
+    }
+
+    static com.legend.protocol.Protocol.PConnection readPConnection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PConnection", new com.legend.protocol.Protocol.PConnection(
+                FrontRead.component(r, "PConnection.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PConnection.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PConnection.value", ",\"value\":", c -> readPConnectionValue(c)),
+                FrontRead.nullableComponent(r, "PConnection.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PConnectionPointer readPConnectionPointer(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PConnectionPointer", new com.legend.protocol.Protocol.PConnectionPointer(
+                FrontRead.component(r, "PConnectionPointer.connection", tagged ? ",\"connection\":" : "\"connection\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PConnectionPointer.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PConnectionStores readPConnectionStores(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PConnectionStores", new com.legend.protocol.Protocol.PConnectionStores(
+                FrontRead.component(r, "PConnectionStores.connectionPointer", tagged ? ",\"connectionPointer\":" : "\"connectionPointer\":", c -> readPConnectionValue(c)),
+                FrontRead.component(r, "PConnectionStores.storePointers", ",\"storePointers\":", c -> FrontRead.list(c, x0 -> readPStorePointer(x0, false))),
+                FrontRead.nullableComponent(r, "PConnectionStores.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PCtxParam readPCtxParam(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PCtxParam", new com.legend.protocol.Protocol.PCtxParam(
+                FrontRead.component(r, "PCtxParam.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PCtxParam.value", ",\"value\":", c -> readPCtxParamValue(c)),
+                FrontRead.nullableComponent(r, "PCtxParam.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PCtxParamValue.ConnectionPtr readPCtxParamValueConnectionPtr(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PCtxParamValueConnectionPtr", new com.legend.protocol.Protocol.PCtxParamValue.ConnectionPtr(
+                FrontRead.component(r, "PCtxParamValueConnectionPtr.path", tagged ? ",\"path\":" : "\"path\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PCtxParamValueConnectionPtr.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PCtxParamValue.ConnectionVal readPCtxParamValueConnectionVal(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PCtxParamValueConnectionVal", new com.legend.protocol.Protocol.PCtxParamValue.ConnectionVal(
+                FrontRead.component(r, "PCtxParamValueConnectionVal.connection", tagged ? ",\"connection\":" : "\"connection\":", c -> readPConnectionValue(c))));
+    }
+
+    static com.legend.protocol.Protocol.PCtxParamValue.Primitive readPCtxParamValuePrimitive(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PCtxParamValuePrimitive", new com.legend.protocol.Protocol.PCtxParamValue.Primitive(
+                FrontRead.component(r, "PCtxParamValuePrimitive.spec", tagged ? ",\"spec\":" : "\"spec\":", c -> readValueSpecification(c))));
+    }
+
+    static com.legend.protocol.Protocol.PDataBody readPDataBody(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataBody", new com.legend.protocol.Protocol.PDataBody(
+                FrontRead.nullableComponent(r, "PDataBody.value", tagged ? ",\"value\":" : "\"value\":", c -> readPEmbeddedDataValue(c)),
+                FrontRead.component(r, "PDataBody.resolvers", ",\"resolvers\":", c -> FrontRead.list(c, x0 -> readPDataResolver(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PDataElement readPDataElement(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataElement", new com.legend.protocol.Protocol.PDataElement(
+                FrontRead.component(r, "PDataElement.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataElement.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataElement.body", ",\"body\":", c -> readPDataBody(c, false)),
+                FrontRead.component(r, "PDataElement.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PDataElement.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PDataElement.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataQualityRelationComparison readPDataQualityRelationComparison(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataQualityRelationComparison", new com.legend.protocol.Protocol.PDataQualityRelationComparison(
+                FrontRead.component(r, "PDataQualityRelationComparison.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataQualityRelationComparison.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataQualityRelationComparison.source", ",\"source\":", c -> readValueSpecification(c)),
+                FrontRead.component(r, "PDataQualityRelationComparison.target", ",\"target\":", c -> readValueSpecification(c)),
+                FrontRead.component(r, "PDataQualityRelationComparison.keys", ",\"keys\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PDataQualityRelationComparison.columnsToCompare", ",\"columnsToCompare\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PDataQualityRelationComparison.expectedMatch", ",\"expectedMatch\":", c -> FrontRead.doubleValue(c)),
+                FrontRead.component(r, "PDataQualityRelationComparison.strategy", ",\"strategy\":", c -> readPReconStrategy(c, false)),
+                FrontRead.nullableComponent(r, "PDataQualityRelationComparison.testSuites", ",\"testSuites\":", c -> FrontRead.list(c, x0 -> readPDqTestSuite(x0, false))),
+                FrontRead.nullableComponent(r, "PDataQualityRelationComparison.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataQualityRelationValidation readPDataQualityRelationValidation(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataQualityRelationValidation", new com.legend.protocol.Protocol.PDataQualityRelationValidation(
+                FrontRead.component(r, "PDataQualityRelationValidation.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataQualityRelationValidation.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataQualityRelationValidation.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PDataQualityRelationValidation.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.component(r, "PDataQualityRelationValidation.query", ",\"query\":", c -> readValueSpecification(c)),
+                FrontRead.component(r, "PDataQualityRelationValidation.validations", ",\"validations\":", c -> FrontRead.list(c, x0 -> readPDqRelationCheck(x0, false))),
+                FrontRead.nullableComponent(r, "PDataQualityRelationValidation.testSuites", ",\"testSuites\":", c -> FrontRead.list(c, x0 -> readPDqTestSuite(x0, false))),
+                FrontRead.nullableComponent(r, "PDataQualityRelationValidation.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataQualityValidation readPDataQualityValidation(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataQualityValidation", new com.legend.protocol.Protocol.PDataQualityValidation(
+                FrontRead.component(r, "PDataQualityValidation.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataQualityValidation.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataQualityValidation.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PDataQualityValidation.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.component(r, "PDataQualityValidation.contextKind", ",\"contextKind\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataQualityValidation.contextPath", ",\"contextPath\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataQualityValidation.contextPathSpan", ",\"contextPathSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PDataQualityValidation.contextSecond", ",\"contextSecond\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataQualityValidation.contextSecondSpan", ",\"contextSecondSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PDataQualityValidation.validationTree", ",\"validationTree\":", c -> readPDqTreeNode(c, false)),
+                FrontRead.nullableComponent(r, "PDataQualityValidation.filter", ",\"filter\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PDataQualityValidation.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataReference readPDataReference(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataReference", new com.legend.protocol.Protocol.PDataReference(
+                FrontRead.component(r, "PDataReference.dataElement", tagged ? ",\"dataElement\":" : "\"dataElement\":", c -> readPPointer(c, false)),
+                FrontRead.nullableComponent(r, "PDataReference.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataResolver readPDataResolver(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataResolver", new com.legend.protocol.Protocol.PDataResolver(
+                FrontRead.component(r, "PDataResolver.elementPointer", tagged ? ",\"elementPointer\":" : "\"elementPointer\":", c -> readPElementRef(c, false)),
+                FrontRead.nullableComponent(r, "PDataResolver.data", ",\"data\":", c -> readPEmbeddedDataValue(c)),
+                FrontRead.nullableComponent(r, "PDataResolver.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpace readPDataSpace(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpace", new com.legend.protocol.Protocol.PDataSpace(
+                FrontRead.component(r, "PDataSpace.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataSpace.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataSpace.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PDataSpace.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PDataSpace.executionContexts", ",\"executionContexts\":", c -> FrontRead.list(c, x0 -> readPDataSpaceContext(x0, false))),
+                FrontRead.nullableComponent(r, "PDataSpace.defaultExecutionContext", ",\"defaultExecutionContext\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpace.title", ",\"title\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpace.description", ",\"description\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpace.executables", ",\"executables\":", c -> FrontRead.list(c, x0 -> readPDataSpaceExecutable(x0, false))),
+                FrontRead.nullableComponent(r, "PDataSpace.diagrams", ",\"diagrams\":", c -> FrontRead.list(c, x0 -> readPDataSpaceDiagram(x0, false))),
+                FrontRead.nullableComponent(r, "PDataSpace.supportInfo", ",\"supportInfo\":", c -> readPDataSpaceSupport(c)),
+                FrontRead.nullableComponent(r, "PDataSpace.operationalMetadata", ",\"operationalMetadata\":", c -> readPDataSpaceOperationalMetadata(c, false)),
+                FrontRead.nullableComponent(r, "PDataSpace.elements", ",\"elements\":", c -> FrontRead.list(c, x0 -> readPDataSpaceElementRef(x0, false))),
+                FrontRead.nullableComponent(r, "PDataSpace.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpaceContext readPDataSpaceContext(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpaceContext", new com.legend.protocol.Protocol.PDataSpaceContext(
+                FrontRead.component(r, "PDataSpaceContext.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceContext.title", ",\"title\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceContext.description", ",\"description\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceContext.mapping", ",\"mapping\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceContext.mappingSpan", ",\"mappingSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PDataSpaceContext.mappingProvider", ",\"mappingProvider\":", c -> readPDataSpaceMappingProvider(c, false)),
+                FrontRead.nullableComponent(r, "PDataSpaceContext.defaultRuntime", ",\"defaultRuntime\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceContext.runtimeSpan", ",\"runtimeSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PDataSpaceContext.testData", ",\"testData\":", c -> readPDataSpaceTestData(c, false)),
+                FrontRead.nullableComponent(r, "PDataSpaceContext.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpaceDiagram readPDataSpaceDiagram(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpaceDiagram", new com.legend.protocol.Protocol.PDataSpaceDiagram(
+                FrontRead.component(r, "PDataSpaceDiagram.title", tagged ? ",\"title\":" : "\"title\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceDiagram.description", ",\"description\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataSpaceDiagram.diagram", ",\"diagram\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceDiagram.diagramSpan", ",\"diagramSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PDataSpaceDiagram.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpaceElementRef readPDataSpaceElementRef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpaceElementRef", new com.legend.protocol.Protocol.PDataSpaceElementRef(
+                FrontRead.component(r, "PDataSpaceElementRef.path", tagged ? ",\"path\":" : "\"path\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataSpaceElementRef.exclude", ",\"exclude\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceElementRef.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpaceEmail readPDataSpaceEmail(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpaceEmail", new com.legend.protocol.Protocol.PDataSpaceEmail(
+                FrontRead.component(r, "PDataSpaceEmail.title", tagged ? ",\"title\":" : "\"title\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataSpaceEmail.address", ",\"address\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceEmail.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpaceExecutable readPDataSpaceExecutable(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpaceExecutable", new com.legend.protocol.Protocol.PDataSpaceExecutable(
+                FrontRead.nullableComponent(r, "PDataSpaceExecutable.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataSpaceExecutable.title", ",\"title\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceExecutable.description", ",\"description\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceExecutable.executable", ",\"executable\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceExecutable.executableSpan", ",\"executableSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PDataSpaceExecutable.query", ",\"query\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceExecutable.executionContextKey", ",\"executionContextKey\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceExecutable.sampleValues", ",\"sampleValues\":", c -> readPRelationElement(c, false)),
+                FrontRead.nullableComponent(r, "PDataSpaceExecutable.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpaceExpertise readPDataSpaceExpertise(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpaceExpertise", new com.legend.protocol.Protocol.PDataSpaceExpertise(
+                FrontRead.nullableComponent(r, "PDataSpaceExpertise.description", tagged ? ",\"description\":" : "\"description\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceExpertise.expertIds", ",\"expertIds\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PDataSpaceExpertise.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpaceLink readPDataSpaceLink(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpaceLink", new com.legend.protocol.Protocol.PDataSpaceLink(
+                FrontRead.nullableComponent(r, "PDataSpaceLink.label", tagged ? ",\"label\":" : "\"label\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataSpaceLink.url", ",\"url\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceLink.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpaceMappingProvider readPDataSpaceMappingProvider(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpaceMappingProvider", new com.legend.protocol.Protocol.PDataSpaceMappingProvider(
+                FrontRead.component(r, "PDataSpaceMappingProvider.element", tagged ? ",\"element\":" : "\"element\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceMappingProvider.elementSpan", ",\"elementSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PDataSpaceMappingProvider.keys", ",\"keys\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PDataSpaceMappingProvider.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpaceOperationalMetadata readPDataSpaceOperationalMetadata(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpaceOperationalMetadata", new com.legend.protocol.Protocol.PDataSpaceOperationalMetadata(
+                FrontRead.component(r, "PDataSpaceOperationalMetadata.coverageRegions", tagged ? ",\"coverageRegions\":" : "\"coverageRegions\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PDataSpaceOperationalMetadata.updateFrequency", ",\"updateFrequency\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceOperationalMetadata.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpaceSupport.PSupportCombined readPDataSpaceSupportPSupportCombined(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpaceSupportPSupportCombined", new com.legend.protocol.Protocol.PDataSpaceSupport.PSupportCombined(
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportCombined.documentationUrl", tagged ? ",\"documentationUrl\":" : "\"documentationUrl\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportCombined.website", ",\"website\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportCombined.faqUrl", ",\"faqUrl\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportCombined.supportUrl", ",\"supportUrl\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportCombined.emails", ",\"emails\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportCombined.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpaceSupport.PSupportEmail readPDataSpaceSupportPSupportEmail(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpaceSupportPSupportEmail", new com.legend.protocol.Protocol.PDataSpaceSupport.PSupportEmail(
+                FrontRead.component(r, "PDataSpaceSupportPSupportEmail.address", tagged ? ",\"address\":" : "\"address\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportEmail.documentationUrl", ",\"documentationUrl\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportEmail.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpaceSupport.PSupportFull readPDataSpaceSupportPSupportFull(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpaceSupportPSupportFull", new com.legend.protocol.Protocol.PDataSpaceSupport.PSupportFull(
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportFull.documentation", tagged ? ",\"documentation\":" : "\"documentation\":", c -> readPDataSpaceLink(c, false)),
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportFull.website", ",\"website\":", c -> readPDataSpaceLink(c, false)),
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportFull.faqUrl", ",\"faqUrl\":", c -> readPDataSpaceLink(c, false)),
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportFull.supportUrl", ",\"supportUrl\":", c -> readPDataSpaceLink(c, false)),
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportFull.emails", ",\"emails\":", c -> FrontRead.list(c, x0 -> readPDataSpaceEmail(x0, false))),
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportFull.expertise", ",\"expertise\":", c -> FrontRead.list(c, x0 -> readPDataSpaceExpertise(x0, false))),
+                FrontRead.nullableComponent(r, "PDataSpaceSupportPSupportFull.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDataSpaceTestData readPDataSpaceTestData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDataSpaceTestData", new com.legend.protocol.Protocol.PDataSpaceTestData(
+                FrontRead.component(r, "PDataSpaceTestData.kind", tagged ? ",\"kind\":" : "\"kind\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDataSpaceTestData.path", ",\"path\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDataSpaceTestData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDatabase readPDatabase(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDatabase", new com.legend.protocol.Protocol.PDatabase(
+                FrontRead.component(r, "PDatabase.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDatabase.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDatabase.includedStores", ",\"includedStores\":", c -> FrontRead.list(c, x0 -> readPPointer(x0, false))),
+                FrontRead.component(r, "PDatabase.includedStoreSpecifications", ",\"includedStoreSpecifications\":", c -> FrontRead.list(c, x0 -> readPIncludedStoreSpec(x0, false))),
+                FrontRead.component(r, "PDatabase.schemas", ",\"schemas\":", c -> FrontRead.list(c, x0 -> readPDbSchema(x0, false))),
+                FrontRead.component(r, "PDatabase.joins", ",\"joins\":", c -> FrontRead.list(c, x0 -> readPDbJoin(x0, false))),
+                FrontRead.component(r, "PDatabase.filters", ",\"filters\":", c -> FrontRead.list(c, x0 -> readPDbFilter(x0, false))),
+                FrontRead.component(r, "PDatabase.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PDatabase.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PDatabase.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDatabaseMapper readPDatabaseMapper(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDatabaseMapper", new com.legend.protocol.Protocol.PDatabaseMapper(
+                FrontRead.component(r, "PDatabaseMapper.databaseName", tagged ? ",\"databaseName\":" : "\"databaseName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDatabaseMapper.schemas", ",\"schemas\":", c -> FrontRead.list(c, x0 -> readPSchemaPointer(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PDatabricksSpec readPDatabricksSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDatabricksSpec", new com.legend.protocol.Protocol.PDatabricksSpec(
+                FrontRead.component(r, "PDatabricksSpec.hostname", tagged ? ",\"hostname\":" : "\"hostname\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDatabricksSpec.httpPath", ",\"httpPath\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDatabricksSpec.port", ",\"port\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDatabricksSpec.protocol", ",\"protocol\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDatabricksSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDateTimeLit readPDateTimeLit(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDateTimeLit", new com.legend.protocol.Protocol.PDateTimeLit(
+                FrontRead.component(r, "PDateTimeLit.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDateTimeLit.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDbColumn readPDbColumn(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDbColumn", new com.legend.protocol.Protocol.PDbColumn(
+                FrontRead.component(r, "PDbColumn.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDbColumn.nullable", ",\"nullable\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PDbColumn.type", ",\"type\":", c -> readPDbType(c, false)),
+                FrontRead.component(r, "PDbColumn.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PDbColumn.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PDbColumn.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDbFilter readPDbFilter(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDbFilter", new com.legend.protocol.Protocol.PDbFilter(
+                FrontRead.component(r, "PDbFilter.filterType", tagged ? ",\"filterType\":" : "\"filterType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDbFilter.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDbFilter.operation", ",\"operation\":", c -> readPRelOp(c)),
+                FrontRead.nullableComponent(r, "PDbFilter.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDbJoin readPDbJoin(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDbJoin", new com.legend.protocol.Protocol.PDbJoin(
+                FrontRead.component(r, "PDbJoin.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDbJoin.operation", ",\"operation\":", c -> readPRelOp(c)),
+                FrontRead.nullableComponent(r, "PDbJoin.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDbSchema readPDbSchema(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDbSchema", new com.legend.protocol.Protocol.PDbSchema(
+                FrontRead.component(r, "PDbSchema.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDbSchema.tables", ",\"tables\":", c -> FrontRead.list(c, x0 -> readPDbTable(x0, false))),
+                FrontRead.component(r, "PDbSchema.views", ",\"views\":", c -> FrontRead.list(c, x0 -> readPDbView(x0, false))),
+                FrontRead.component(r, "PDbSchema.tabularFunctions", ",\"tabularFunctions\":", c -> FrontRead.list(c, x0 -> readPDbTable(x0, false))),
+                FrontRead.component(r, "PDbSchema.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PDbSchema.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PDbSchema.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDbTable readPDbTable(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDbTable", new com.legend.protocol.Protocol.PDbTable(
+                FrontRead.component(r, "PDbTable.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDbTable.columns", ",\"columns\":", c -> FrontRead.list(c, x0 -> readPDbColumn(x0, false))),
+                FrontRead.component(r, "PDbTable.milestoning", ",\"milestoning\":", c -> FrontRead.list(c, x0 -> readPMilestoning(x0))),
+                FrontRead.component(r, "PDbTable.primaryKey", ",\"primaryKey\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PDbTable.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PDbTable.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PDbTable.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDbType readPDbType(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDbType", new com.legend.protocol.Protocol.PDbType(
+                FrontRead.component(r, "PDbType.kind", tagged ? ",\"kind\":" : "\"kind\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDbType.size", ",\"size\":", c -> FrontRead.longValue(c)),
+                FrontRead.nullableComponent(r, "PDbType.precision", ",\"precision\":", c -> FrontRead.longValue(c)),
+                FrontRead.nullableComponent(r, "PDbType.scale", ",\"scale\":", c -> FrontRead.longValue(c))));
+    }
+
+    static com.legend.protocol.Protocol.PDbView readPDbView(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDbView", new com.legend.protocol.Protocol.PDbView(
+                FrontRead.component(r, "PDbView.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDbView.columnMappings", ",\"columnMappings\":", c -> FrontRead.list(c, x0 -> readPViewColumnMapping(x0, false))),
+                FrontRead.component(r, "PDbView.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PDbView.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.component(r, "PDbView.distinct", ",\"distinct\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PDbView.filter", ",\"filter\":", c -> readPViewFilter(c, false)),
+                FrontRead.component(r, "PDbView.groupBy", ",\"groupBy\":", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
+                FrontRead.component(r, "PDbView.primaryKey", ",\"primaryKey\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PDbView.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDeephavenColumn readPDeephavenColumn(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDeephavenColumn", new com.legend.protocol.Protocol.PDeephavenColumn(
+                FrontRead.component(r, "PDeephavenColumn.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDeephavenColumn.kind", ",\"kind\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDeephavenColumn.precision", ",\"precision\":", c -> FrontRead.integer(c)),
+                FrontRead.nullableComponent(r, "PDeephavenColumn.scale", ",\"scale\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.protocol.Protocol.PDeephavenConnection readPDeephavenConnection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDeephavenConnection", new com.legend.protocol.Protocol.PDeephavenConnection(
+                FrontRead.component(r, "PDeephavenConnection.serverUrl", tagged ? ",\"serverUrl\":" : "\"serverUrl\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDeephavenConnection.psk", ",\"psk\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDeephavenConnection.element", ",\"element\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDeephavenConnection.elementSourceInformation", ",\"elementSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PDeephavenConnection.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDeephavenDatabase readPDeephavenDatabase(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDeephavenDatabase", new com.legend.protocol.Protocol.PDeephavenDatabase(
+                FrontRead.component(r, "PDeephavenDatabase.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDeephavenDatabase.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDeephavenDatabase.tables", ",\"tables\":", c -> FrontRead.list(c, x0 -> readPDeephavenDatabasePDeephavenTable(x0, false))),
+                FrontRead.nullableComponent(r, "PDeephavenDatabase.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDeephavenDatabase.PDeephavenTable readPDeephavenDatabasePDeephavenTable(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDeephavenDatabasePDeephavenTable", new com.legend.protocol.Protocol.PDeephavenDatabase.PDeephavenTable(
+                FrontRead.component(r, "PDeephavenDatabasePDeephavenTable.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDeephavenDatabasePDeephavenTable.columns", ",\"columns\":", c -> FrontRead.list(c, x0 -> readPDeephavenColumn(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PDefaultValue readPDefaultValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDefaultValue", new com.legend.protocol.Protocol.PDefaultValue(
+                FrontRead.nullableComponent(r, "PDefaultValue.value", tagged ? ",\"value\":" : "\"value\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PDefaultValue.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDelegatedKerberos readPDelegatedKerberos(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDelegatedKerberos", new com.legend.protocol.Protocol.PDelegatedKerberos(
+                FrontRead.nullableComponent(r, "PDelegatedKerberos.serverPrincipal", tagged ? ",\"serverPrincipal\":" : "\"serverPrincipal\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDelegatedKerberos.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDiagram readPDiagram(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDiagram", new com.legend.protocol.Protocol.PDiagram(
+                FrontRead.component(r, "PDiagram.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDiagram.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDiagram.classViews", ",\"classViews\":", c -> FrontRead.list(c, x0 -> readPClassView(x0, false))),
+                FrontRead.component(r, "PDiagram.propertyViews", ",\"propertyViews\":", c -> FrontRead.list(c, x0 -> readPPropertyView(x0, false))),
+                FrontRead.component(r, "PDiagram.generalizationViews", ",\"generalizationViews\":", c -> FrontRead.list(c, x0 -> readPGeneralizationView(x0, false))),
+                FrontRead.nullableComponent(r, "PDiagram.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDiagramPoint readPDiagramPoint(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDiagramPoint", new com.legend.protocol.Protocol.PDiagramPoint(
+                FrontRead.component(r, "PDiagramPoint.x", tagged ? ",\"x\":" : "\"x\":", c -> FrontRead.doubleValue(c)),
+                FrontRead.component(r, "PDiagramPoint.y", ",\"y\":", c -> FrontRead.doubleValue(c))));
+    }
+
+    static com.legend.protocol.Protocol.PDqRelationCheck readPDqRelationCheck(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDqRelationCheck", new com.legend.protocol.Protocol.PDqRelationCheck(
+                FrontRead.component(r, "PDqRelationCheck.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDqRelationCheck.description", ",\"description\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDqRelationCheck.assertion", ",\"assertion\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PDqRelationCheck.type", ",\"type\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PDqStoreData readPDqStoreData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDqStoreData", new com.legend.protocol.Protocol.PDqStoreData(
+                FrontRead.component(r, "PDqStoreData.store", tagged ? ",\"store\":" : "\"store\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDqStoreData.storeSpan", ",\"storeSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PDqStoreData.data", ",\"data\":", c -> readPEmbeddedDataValue(c)),
+                FrontRead.nullableComponent(r, "PDqStoreData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDqTest readPDqTest(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDqTest", new com.legend.protocol.Protocol.PDqTest(
+                FrontRead.component(r, "PDqTest.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDqTest.assertions", ",\"assertions\":", c -> FrontRead.list(c, x0 -> readPTestAssertion(x0, false))),
+                FrontRead.nullableComponent(r, "PDqTest.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDqTestData readPDqTestData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDqTestData", new com.legend.protocol.Protocol.PDqTestData(
+                FrontRead.component(r, "PDqTestData.testData", tagged ? ",\"testData\":" : "\"testData\":", c -> FrontRead.list(c, x0 -> readPDqStoreData(x0, false))),
+                FrontRead.nullableComponent(r, "PDqTestData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDqTestSuite readPDqTestSuite(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDqTestSuite", new com.legend.protocol.Protocol.PDqTestSuite(
+                FrontRead.component(r, "PDqTestSuite.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDqTestSuite.testData", ",\"testData\":", c -> readPDqTestData(c, false)),
+                FrontRead.component(r, "PDqTestSuite.tests", ",\"tests\":", c -> FrontRead.list(c, x0 -> readPDqTest(x0, false))),
+                FrontRead.nullableComponent(r, "PDqTestSuite.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDqTreeNode readPDqTreeNode(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDqTreeNode", new com.legend.protocol.Protocol.PDqTreeNode(
+                FrontRead.nullableComponent(r, "PDqTreeNode.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDqTreeNode.property", ",\"property\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDqTreeNode.constraints", ",\"constraints\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PDqTreeNode.subTrees", ",\"subTrees\":", c -> FrontRead.list(c, x0 -> readPDqTreeNode(x0, false))),
+                FrontRead.nullableComponent(r, "PDqTreeNode.subType", ",\"subType\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDqTreeNode.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PDqTreeNode.alias", ",\"alias\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDqTreeNode.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0)))));
+    }
+
+    static com.legend.protocol.Protocol.PDuckDBSpec readPDuckDBSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDuckDBSpec", new com.legend.protocol.Protocol.PDuckDBSpec(
+                FrontRead.nullableComponent(r, "PDuckDBSpec.path", tagged ? ",\"path\":" : "\"path\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PDuckDBSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PDynaFunc readPDynaFunc(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PDynaFunc", new com.legend.protocol.Protocol.PDynaFunc(
+                FrontRead.component(r, "PDynaFunc.funcName", tagged ? ",\"funcName\":" : "\"funcName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PDynaFunc.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
+                FrontRead.nullableComponent(r, "PDynaFunc.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PElasticsearch7Cluster readPElasticsearch7Cluster(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PElasticsearch7Cluster", new com.legend.protocol.Protocol.PElasticsearch7Cluster(
+                FrontRead.component(r, "PElasticsearch7Cluster.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PElasticsearch7Cluster.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PElasticsearch7Cluster.indices", ",\"indices\":", c -> FrontRead.list(c, x0 -> readPElasticsearch7ClusterPEsIndex(x0, false))),
+                FrontRead.nullableComponent(r, "PElasticsearch7Cluster.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PElasticsearch7Cluster.PEsIndex readPElasticsearch7ClusterPEsIndex(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PElasticsearch7ClusterPEsIndex", new com.legend.protocol.Protocol.PElasticsearch7Cluster.PEsIndex(
+                FrontRead.component(r, "PElasticsearch7ClusterPEsIndex.indexName", tagged ? ",\"indexName\":" : "\"indexName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PElasticsearch7ClusterPEsIndex.properties", ",\"properties\":", c -> FrontRead.list(c, x0 -> readPElasticsearch7ClusterPEsProperty(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PElasticsearch7Cluster.PEsProperty readPElasticsearch7ClusterPEsProperty(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PElasticsearch7ClusterPEsProperty", new com.legend.protocol.Protocol.PElasticsearch7Cluster.PEsProperty(
+                FrontRead.component(r, "PElasticsearch7ClusterPEsProperty.propertyName", tagged ? ",\"propertyName\":" : "\"propertyName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PElasticsearch7ClusterPEsProperty.wireKey", ",\"wireKey\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PElasticsearch7ClusterPEsProperty.protocolType", ",\"protocolType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PElasticsearch7ClusterPEsProperty.esType", ",\"esType\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PElasticsearch7ClusterPEsProperty.fields", ",\"fields\":", c -> FrontRead.list(c, x0 -> readPElasticsearch7ClusterPEsProperty(x0, false))),
+                FrontRead.nullableComponent(r, "PElasticsearch7ClusterPEsProperty.childProperties", ",\"childProperties\":", c -> FrontRead.list(c, x0 -> readPElasticsearch7ClusterPEsProperty(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PElasticsearchConnection readPElasticsearchConnection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PElasticsearchConnection", new com.legend.protocol.Protocol.PElasticsearchConnection(
+                FrontRead.component(r, "PElasticsearchConnection.element", tagged ? ",\"element\":" : "\"element\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PElasticsearchConnection.elementSourceInformation", ",\"elementSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PElasticsearchConnection.url", ",\"url\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PElasticsearchConnection.auth", ",\"auth\":", c -> readPAuthSpecValue(c)),
+                FrontRead.nullableComponent(r, "PElasticsearchConnection.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PElementRef readPElementRef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PElementRef", new com.legend.protocol.Protocol.PElementRef(
+                FrontRead.component(r, "PElementRef.path", tagged ? ",\"path\":" : "\"path\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PElementRef.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PElemtWithJoins readPElemtWithJoins(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PElemtWithJoins", new com.legend.protocol.Protocol.PElemtWithJoins(
+                FrontRead.component(r, "PElemtWithJoins.joins", tagged ? ",\"joins\":" : "\"joins\":", c -> FrontRead.list(c, x0 -> readPJoinPtr(x0, false))),
+                FrontRead.nullableComponent(r, "PElemtWithJoins.relationalElement", ",\"relationalElement\":", c -> readPRelOp(c)),
+                FrontRead.nullableComponent(r, "PElemtWithJoins.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PEmbeddedPropertyMapping readPEmbeddedPropertyMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PEmbeddedPropertyMapping", new com.legend.protocol.Protocol.PEmbeddedPropertyMapping(
+                FrontRead.nullableComponent(r, "PEmbeddedPropertyMapping.ownerClass", tagged ? ",\"ownerClass\":" : "\"ownerClass\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PEmbeddedPropertyMapping.property", ",\"property\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PEmbeddedPropertyMapping.propertySourceInformation", ",\"propertySourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PEmbeddedPropertyMapping.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PEmbeddedPropertyMapping.primaryKey", ",\"primaryKey\":", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
+                FrontRead.component(r, "PEmbeddedPropertyMapping.propertyMappings", ",\"propertyMappings\":", c -> FrontRead.list(c, x0 -> readPPropertyMapping(x0))),
+                FrontRead.nullableComponent(r, "PEmbeddedPropertyMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PEmbeddedPropertyMapping.embeddedClass", ",\"embeddedClass\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PEmbeddedRuntime readPEmbeddedRuntime(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PEmbeddedRuntime", new com.legend.protocol.Protocol.PEmbeddedRuntime(
+                FrontRead.component(r, "PEmbeddedRuntime.mappings", tagged ? ",\"mappings\":" : "\"mappings\":", c -> FrontRead.list(c, x0 -> readPPointer(x0, false))),
+                FrontRead.component(r, "PEmbeddedRuntime.connections", ",\"connections\":", c -> FrontRead.list(c, x0 -> readPStoreConnections(x0, false))),
+                FrontRead.component(r, "PEmbeddedRuntime.connectionStores", ",\"connectionStores\":", c -> FrontRead.list(c, x0 -> readPConnectionStores(x0, false))),
+                FrontRead.nullableComponent(r, "PEmbeddedRuntime.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PEnumSourceValue readPEnumSourceValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PEnumSourceValue", new com.legend.protocol.Protocol.PEnumSourceValue(
+                FrontRead.nullableComponent(r, "PEnumSourceValue.enumeration", tagged ? ",\"enumeration\":" : "\"enumeration\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PEnumSourceValue.value", ",\"value\":", c -> FrontRead.value(c))));
+    }
+
+    static com.legend.protocol.Protocol.PEnumValue readPEnumValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PEnumValue", new com.legend.protocol.Protocol.PEnumValue(
+                FrontRead.component(r, "PEnumValue.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PEnumValue.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PEnumValue.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PEnumValue.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PEnumValueMapping readPEnumValueMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PEnumValueMapping", new com.legend.protocol.Protocol.PEnumValueMapping(
+                FrontRead.component(r, "PEnumValueMapping.enumValue", tagged ? ",\"enumValue\":" : "\"enumValue\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PEnumValueMapping.sourceValues", ",\"sourceValues\":", c -> FrontRead.list(c, x0 -> readPEnumSourceValue(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PEnumeration readPEnumeration(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PEnumeration", new com.legend.protocol.Protocol.PEnumeration(
+                FrontRead.component(r, "PEnumeration.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PEnumeration.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PEnumeration.values", ",\"values\":", c -> FrontRead.list(c, x0 -> readPEnumValue(x0, false))),
+                FrontRead.component(r, "PEnumeration.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PEnumeration.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PEnumeration.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PEnumerationMapping readPEnumerationMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PEnumerationMapping", new com.legend.protocol.Protocol.PEnumerationMapping(
+                FrontRead.nullableComponent(r, "PEnumerationMapping.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PEnumerationMapping.enumeration", ",\"enumeration\":", c -> readPPointer(c, false)),
+                FrontRead.component(r, "PEnumerationMapping.enumValueMappings", ",\"enumValueMappings\":", c -> FrontRead.list(c, x0 -> readPEnumValueMapping(x0, false))),
+                FrontRead.nullableComponent(r, "PEnumerationMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PEpkAuth readPEpkAuth(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PEpkAuth", new com.legend.protocol.Protocol.PEpkAuth(
+                FrontRead.component(r, "PEpkAuth.userName", tagged ? ",\"userName\":" : "\"userName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PEpkAuth.privateKey", ",\"privateKey\":", c -> readPVaultSecret(c)),
+                FrontRead.component(r, "PEpkAuth.passphrase", ",\"passphrase\":", c -> readPVaultSecret(c)),
+                FrontRead.nullableComponent(r, "PEpkAuth.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PEqualToValue readPEqualToValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PEqualToValue", new com.legend.protocol.Protocol.PEqualToValue(
+                FrontRead.component(r, "PEqualToValue.value", tagged ? ",\"value\":" : "\"value\":", c -> readValueSpecification(c))));
+    }
+
+    static com.legend.protocol.Protocol.PExecutionEnvironment readPExecutionEnvironment(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PExecutionEnvironment", new com.legend.protocol.Protocol.PExecutionEnvironment(
+                FrontRead.component(r, "PExecutionEnvironment.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PExecutionEnvironment.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PExecutionEnvironment.executions", ",\"executions\":", c -> FrontRead.list(c, x0 -> readPExecutionParameters(x0))),
+                FrontRead.nullableComponent(r, "PExecutionEnvironment.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PExternalFormatData readPExternalFormatData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PExternalFormatData", new com.legend.protocol.Protocol.PExternalFormatData(
+                FrontRead.component(r, "PExternalFormatData.contentType", tagged ? ",\"contentType\":" : "\"contentType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PExternalFormatData.data", ",\"data\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PExternalFormatData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PExtractSubQueriesAsCtesPostProcessor readPExtractSubQueriesAsCtesPostProcessor(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PExtractSubQueriesAsCtesPostProcessor", new com.legend.protocol.Protocol.PExtractSubQueriesAsCtesPostProcessor());
+    }
+
+    static com.legend.protocol.Protocol.PFileGeneration readPFileGeneration(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PFileGeneration", new com.legend.protocol.Protocol.PFileGeneration(
+                FrontRead.component(r, "PFileGeneration.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PFileGeneration.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PFileGeneration.type", ",\"type\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PFileGeneration.typeSourceInformation", ",\"typeSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PFileGeneration.generationOutputPath", ",\"generationOutputPath\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PFileGeneration.scopeElements", ",\"scopeElements\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PFileGeneration.configurationProperties", ",\"configurationProperties\":", c -> FrontRead.list(c, x0 -> readPConfigProperty(x0, false))),
+                FrontRead.nullableComponent(r, "PFileGeneration.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PFilterMapping readPFilterMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PFilterMapping", new com.legend.protocol.Protocol.PFilterMapping(
+                FrontRead.component(r, "PFilterMapping.db", tagged ? ",\"db\":" : "\"db\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PFilterMapping.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PFilterMapping.joins", ",\"joins\":", c -> FrontRead.list(c, x0 -> readPJoinPtr(x0, false))),
+                FrontRead.nullableComponent(r, "PFilterMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PFunction readPFunction(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PFunction", new com.legend.protocol.Protocol.PFunction(
+                FrontRead.component(r, "PFunction.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PFunction.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PFunction.typeParams", ",\"typeParams\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PFunction.multParams", ",\"multParams\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PFunction.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> readParameterDefinition(x0, false))),
+                FrontRead.component(r, "PFunction.returnType", ",\"returnType\":", c -> readTypeExpression(c)),
+                FrontRead.component(r, "PFunction.returnMultiplicity", ",\"returnMultiplicity\":", c -> readMultiplicity(c)),
+                FrontRead.component(r, "PFunction.body", ",\"body\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
+                FrontRead.component(r, "PFunction.preConstraints", ",\"preConstraints\":", c -> FrontRead.list(c, x0 -> readConstraintDefinition(x0, false))),
+                FrontRead.component(r, "PFunction.postConstraints", ",\"postConstraints\":", c -> FrontRead.list(c, x0 -> readConstraintDefinition(x0, false))),
+                FrontRead.component(r, "PFunction.testSuites", ",\"testSuites\":", c -> FrontRead.list(c, x0 -> readPTestSuite(x0, false))),
+                FrontRead.component(r, "PFunction.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PFunction.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PFunction.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PFunctionActivator readPFunctionActivator(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PFunctionActivator", new com.legend.protocol.Protocol.PFunctionActivator(
+                FrontRead.component(r, "PFunctionActivator.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PFunctionActivator.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PFunctionActivator.kind", ",\"kind\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PFunctionActivator.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PFunctionActivator.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.component(r, "PFunctionActivator.scalars", ",\"scalars\":", c -> FrontRead.map(c, v0 -> FrontRead.string(v0))),
+                FrontRead.component(r, "PFunctionActivator.booleans", ",\"booleans\":", c -> FrontRead.map(c, v0 -> FrontRead.bool(v0))),
+                FrontRead.component(r, "PFunctionActivator.functionPath", ",\"functionPath\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PFunctionActivator.functionSpan", ",\"functionSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PFunctionActivator.ownerId", ",\"ownerId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PFunctionActivator.userListUsers", ",\"userListUsers\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PFunctionActivator.activationConnection", ",\"activationConnection\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PFunctionActivator.activationConnectionSpan", ",\"activationConnectionSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PFunctionActivator.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PFunctionAssociationMapping readPFunctionAssociationMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PFunctionAssociationMapping", new com.legend.protocol.Protocol.PFunctionAssociationMapping(
+                FrontRead.component(r, "PFunctionAssociationMapping.association", tagged ? ",\"association\":" : "\"association\":", c -> readPPointer(c, false)),
+                FrontRead.nullableComponent(r, "PFunctionAssociationMapping.function", ",\"function\":", c -> readPackageableElementPtr(c, false)),
+                FrontRead.nullableComponent(r, "PFunctionAssociationMapping.bodyLambda", ",\"bodyLambda\":", c -> readLambdaFunction(c, false)),
+                FrontRead.nullableComponent(r, "PFunctionAssociationMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PFunctionTest readPFunctionTest(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PFunctionTest", new com.legend.protocol.Protocol.PFunctionTest(
+                FrontRead.component(r, "PFunctionTest.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PFunctionTest.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PFunctionTest.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> readPTestParam(x0, false))),
+                FrontRead.nullableComponent(r, "PFunctionTest.assertion", ",\"assertion\":", c -> readPAssertion(c)),
+                FrontRead.nullableComponent(r, "PFunctionTest.doc", ",\"doc\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PGCPApplicationDefaultCredentials readPGCPApplicationDefaultCredentials(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PGCPApplicationDefaultCredentials", new com.legend.protocol.Protocol.PGCPApplicationDefaultCredentials(
+                FrontRead.nullableComponent(r, "PGCPApplicationDefaultCredentials.sourceInformation", tagged ? ",\"sourceInformation\":" : "\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PGcpWifAuth readPGcpWifAuth(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PGcpWifAuth", new com.legend.protocol.Protocol.PGcpWifAuth(
+                FrontRead.nullableComponent(r, "PGcpWifAuth.additionalGcpScopes", tagged ? ",\"additionalGcpScopes\":" : "\"additionalGcpScopes\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PGcpWifAuth.serviceAccountEmail", ",\"serviceAccountEmail\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PGcpWifAuth.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PGcpWifIslandAuth readPGcpWifIslandAuth(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PGcpWifIslandAuth", new com.legend.protocol.Protocol.PGcpWifIslandAuth(
+                FrontRead.component(r, "PGcpWifIslandAuth.serviceAccountEmail", tagged ? ",\"serviceAccountEmail\":" : "\"serviceAccountEmail\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PGcpWifIslandAuth.accountId", ",\"accountId\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PGcpWifIslandAuth.region", ",\"region\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PGcpWifIslandAuth.role", ",\"role\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PGcpWifIslandAuth.awsCredentials", ",\"awsCredentials\":", c -> readPAwsCredentials(c)),
+                FrontRead.component(r, "PGcpWifIslandAuth.projectNumber", ",\"projectNumber\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PGcpWifIslandAuth.providerId", ",\"providerId\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PGcpWifIslandAuth.poolId", ",\"poolId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PGcpWifIslandAuth.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PGeneralizationView readPGeneralizationView(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PGeneralizationView", new com.legend.protocol.Protocol.PGeneralizationView(
+                FrontRead.component(r, "PGeneralizationView.sourceView", tagged ? ",\"sourceView\":" : "\"sourceView\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PGeneralizationView.sourceViewSpan", ",\"sourceViewSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PGeneralizationView.targetView", ",\"targetView\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PGeneralizationView.targetViewSpan", ",\"targetViewSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PGeneralizationView.points", ",\"points\":", c -> FrontRead.list(c, x0 -> readPDiagramPoint(x0, false))),
+                FrontRead.nullableComponent(r, "PGeneralizationView.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PGenerationFeaturesConfig readPGenerationFeaturesConfig(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PGenerationFeaturesConfig", new com.legend.protocol.Protocol.PGenerationFeaturesConfig(
+                FrontRead.component(r, "PGenerationFeaturesConfig.enabled", tagged ? ",\"enabled\":" : "\"enabled\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PGenerationFeaturesConfig.disabled", ",\"disabled\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PGenerationFeaturesConfig.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PGenerationNode readPGenerationNode(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PGenerationNode", new com.legend.protocol.Protocol.PGenerationNode(
+                FrontRead.component(r, "PGenerationNode.generationElement", tagged ? ",\"generationElement\":" : "\"generationElement\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PGenerationNode.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PGenerationNode.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PGenerationSpecification readPGenerationSpecification(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PGenerationSpecification", new com.legend.protocol.Protocol.PGenerationSpecification(
+                FrontRead.component(r, "PGenerationSpecification.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PGenerationSpecification.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PGenerationSpecification.generationNodes", ",\"generationNodes\":", c -> FrontRead.list(c, x0 -> readPGenerationNode(x0, false))),
+                FrontRead.component(r, "PGenerationSpecification.fileGenerations", ",\"fileGenerations\":", c -> FrontRead.list(c, x0 -> readPPointer(x0, false))),
+                FrontRead.nullableComponent(r, "PGenerationSpecification.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PGlobalAuroraSpec readPGlobalAuroraSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PGlobalAuroraSpec", new com.legend.protocol.Protocol.PGlobalAuroraSpec(
+                FrontRead.component(r, "PGlobalAuroraSpec.globalClusterInstanceHostPatterns", tagged ? ",\"globalClusterInstanceHostPatterns\":" : "\"globalClusterInstanceHostPatterns\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PGlobalAuroraSpec.host", ",\"host\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PGlobalAuroraSpec.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PGlobalAuroraSpec.port", ",\"port\":", c -> FrontRead.longValue(c)),
+                FrontRead.component(r, "PGlobalAuroraSpec.region", ",\"region\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PGlobalAuroraSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PH2Default readPH2Default(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PH2Default", new com.legend.protocol.Protocol.PH2Default(
+                FrontRead.nullableComponent(r, "PH2Default.sourceInformation", tagged ? ",\"sourceInformation\":" : "\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PH2EmbeddedSpec readPH2EmbeddedSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PH2EmbeddedSpec", new com.legend.protocol.Protocol.PH2EmbeddedSpec(
+                FrontRead.component(r, "PH2EmbeddedSpec.databaseName", tagged ? ",\"databaseName\":" : "\"databaseName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PH2EmbeddedSpec.directory", ",\"directory\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PH2EmbeddedSpec.autoServerMode", ",\"autoServerMode\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PH2EmbeddedSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PH2Local readPH2Local(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PH2Local", new com.legend.protocol.Protocol.PH2Local(
+                FrontRead.nullableComponent(r, "PH2Local.testDataSetupCsv", tagged ? ",\"testDataSetupCsv\":" : "\"testDataSetupCsv\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PH2Local.testDataSetupSqls", ",\"testDataSetupSqls\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PH2Local.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PIdentifiedConnection readPIdentifiedConnection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PIdentifiedConnection", new com.legend.protocol.Protocol.PIdentifiedConnection(
+                FrontRead.component(r, "PIdentifiedConnection.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PIdentifiedConnection.connection", ",\"connection\":", c -> readPConnectionValue(c)),
+                FrontRead.nullableComponent(r, "PIdentifiedConnection.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PIncludedStoreSpec readPIncludedStoreSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PIncludedStoreSpec", new com.legend.protocol.Protocol.PIncludedStoreSpec(
+                FrontRead.component(r, "PIncludedStoreSpec.path", tagged ? ",\"path\":" : "\"path\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PIncludedStoreSpec.storeType", ",\"storeType\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PIncludedStoreSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PInlineEmbeddedPropertyMapping readPInlineEmbeddedPropertyMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PInlineEmbeddedPropertyMapping", new com.legend.protocol.Protocol.PInlineEmbeddedPropertyMapping(
+                FrontRead.nullableComponent(r, "PInlineEmbeddedPropertyMapping.ownerClass", tagged ? ",\"ownerClass\":" : "\"ownerClass\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PInlineEmbeddedPropertyMapping.property", ",\"property\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PInlineEmbeddedPropertyMapping.propertySourceInformation", ",\"propertySourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PInlineEmbeddedPropertyMapping.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PInlineEmbeddedPropertyMapping.setImplementationId", ",\"setImplementationId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PInlineEmbeddedPropertyMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PJoinPtr readPJoinPtr(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PJoinPtr", new com.legend.protocol.Protocol.PJoinPtr(
+                FrontRead.nullableComponent(r, "PJoinPtr.db", tagged ? ",\"db\":" : "\"db\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PJoinPtr.joinType", ",\"joinType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PJoinPtr.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PJoinPtr.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PJsonModelConnection readPJsonModelConnection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PJsonModelConnection", new com.legend.protocol.Protocol.PJsonModelConnection(
+                FrontRead.component(r, "PJsonModelConnection.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PJsonModelConnection.classSourceInformation", ",\"classSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PJsonModelConnection.element", ",\"element\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PJsonModelConnection.url", ",\"url\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PJsonModelConnection.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PKerberosAuth readPKerberosAuth(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PKerberosAuth", new com.legend.protocol.Protocol.PKerberosAuth(
+                FrontRead.nullableComponent(r, "PKerberosAuth.sourceInformation", tagged ? ",\"sourceInformation\":" : "\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PKeyedExecution readPKeyedExecution(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PKeyedExecution", new com.legend.protocol.Protocol.PKeyedExecution(
+                FrontRead.component(r, "PKeyedExecution.keyValue", tagged ? ",\"keyValue\":" : "\"keyValue\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PKeyedExecution.mapping", ",\"mapping\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PKeyedExecution.mappingSpan", ",\"mappingSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PKeyedExecution.runtime", ",\"runtime\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PKeyedExecution.runtimeSpan", ",\"runtimeSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PKeyedExecution.embeddedRuntime", ",\"embeddedRuntime\":", c -> readPEmbeddedRuntime(c, false)),
+                FrontRead.nullableComponent(r, "PKeyedExecution.runtimeComponents", ",\"runtimeComponents\":", c -> readPRuntimeComponents(c, false)),
+                FrontRead.nullableComponent(r, "PKeyedExecution.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PLambdaParam readPLambdaParam(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PLambdaParam", new com.legend.protocol.Protocol.PLambdaParam(
+                FrontRead.component(r, "PLambdaParam.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PLambdaParam.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PLegacyInputData readPLegacyInputData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PLegacyInputData", new com.legend.protocol.Protocol.PLegacyInputData(
+                FrontRead.component(r, "PLegacyInputData.relational", tagged ? ",\"relational\":" : "\"relational\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PLegacyInputData.targetPath", ",\"targetPath\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PLegacyInputData.inputType", ",\"inputType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PLegacyInputData.data", ",\"data\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PLegacyInputData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PLegacyMappingTest readPLegacyMappingTest(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PLegacyMappingTest", new com.legend.protocol.Protocol.PLegacyMappingTest(
+                FrontRead.component(r, "PLegacyMappingTest.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PLegacyMappingTest.query", ",\"query\":", c -> readValueSpecification(c)),
+                FrontRead.component(r, "PLegacyMappingTest.inputData", ",\"inputData\":", c -> FrontRead.list(c, x0 -> readPLegacyInputData(x0, false))),
+                FrontRead.component(r, "PLegacyMappingTest.expectedOutput", ",\"expectedOutput\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PLegacyMappingTest.assertSourceInformation", ",\"assertSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PLegacyMappingTest.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PLegacyServiceTest readPLegacyServiceTest(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PLegacyServiceTest", new com.legend.protocol.Protocol.PLegacyServiceTest(
+                FrontRead.component(r, "PLegacyServiceTest.kind", tagged ? ",\"kind\":" : "\"kind\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PLegacyServiceTest.data", ",\"data\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PLegacyServiceTest.asserts", ",\"asserts\":", c -> FrontRead.list(c, x0 -> readPLegacyServiceTestPLegacyAssert(x0, false))),
+                FrontRead.component(r, "PLegacyServiceTest.keyedTests", ",\"keyedTests\":", c -> FrontRead.list(c, x0 -> readPLegacyServiceTestPKeyedLegacyTest(x0, false))),
+                FrontRead.nullableComponent(r, "PLegacyServiceTest.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PLegacyServiceTest.PKeyedLegacyTest readPLegacyServiceTestPKeyedLegacyTest(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PLegacyServiceTestPKeyedLegacyTest", new com.legend.protocol.Protocol.PLegacyServiceTest.PKeyedLegacyTest(
+                FrontRead.component(r, "PLegacyServiceTestPKeyedLegacyTest.key", tagged ? ",\"key\":" : "\"key\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PLegacyServiceTestPKeyedLegacyTest.data", ",\"data\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PLegacyServiceTestPKeyedLegacyTest.asserts", ",\"asserts\":", c -> FrontRead.list(c, x0 -> readPLegacyServiceTestPLegacyAssert(x0, false))),
+                FrontRead.nullableComponent(r, "PLegacyServiceTestPKeyedLegacyTest.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PLegacyServiceTest.PLegacyAssert readPLegacyServiceTestPLegacyAssert(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PLegacyServiceTestPLegacyAssert", new com.legend.protocol.Protocol.PLegacyServiceTest.PLegacyAssert(
+                FrontRead.component(r, "PLegacyServiceTestPLegacyAssert.parametersValues", tagged ? ",\"parametersValues\":" : "\"parametersValues\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
+                FrontRead.component(r, "PLegacyServiceTestPLegacyAssert.assertion", ",\"assertion\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PLegacyServiceTestPLegacyAssert.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PLocalProp readPLocalProp(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PLocalProp", new com.legend.protocol.Protocol.PLocalProp(
+                FrontRead.component(r, "PLocalProp.type", tagged ? ",\"type\":" : "\"type\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PLocalProp.lowerBound", ",\"lowerBound\":", c -> FrontRead.longValue(c)),
+                FrontRead.nullableComponent(r, "PLocalProp.upperBound", ",\"upperBound\":", c -> FrontRead.longValue(c)),
+                FrontRead.nullableComponent(r, "PLocalProp.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMapperPostProcessor readPMapperPostProcessor(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMapperPostProcessor", new com.legend.protocol.Protocol.PMapperPostProcessor(
+                FrontRead.component(r, "PMapperPostProcessor.mappers", tagged ? ",\"mappers\":" : "\"mappers\":", c -> FrontRead.list(c, x0 -> readPMapper(x0)))));
+    }
+
+    static com.legend.protocol.Protocol.PMapping readPMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMapping", new com.legend.protocol.Protocol.PMapping(
+                FrontRead.component(r, "PMapping.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMapping.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMapping.associationMappings", ",\"associationMappings\":", c -> FrontRead.list(c, x0 -> readPAssociationMapping(x0))),
+                FrontRead.component(r, "PMapping.classMappings", ",\"classMappings\":", c -> FrontRead.list(c, x0 -> readPClassMapping(x0))),
+                FrontRead.component(r, "PMapping.enumerationMappings", ",\"enumerationMappings\":", c -> FrontRead.list(c, x0 -> readPEnumerationMapping(x0, false))),
+                FrontRead.component(r, "PMapping.includedMappings", ",\"includedMappings\":", c -> FrontRead.list(c, x0 -> readPMappingInclude(x0, false))),
+                FrontRead.component(r, "PMapping.testSuites", ",\"testSuites\":", c -> FrontRead.list(c, x0 -> readPMappingTestSuite(x0, false))),
+                FrontRead.component(r, "PMapping.tests", ",\"tests\":", c -> FrontRead.list(c, x0 -> readPLegacyMappingTest(x0, false))),
+                FrontRead.nullableComponent(r, "PMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMappingInclude readPMappingInclude(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMappingInclude", new com.legend.protocol.Protocol.PMappingInclude(
+                FrontRead.nullableComponent(r, "PMappingInclude.includedMapping", tagged ? ",\"includedMapping\":" : "\"includedMapping\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PMappingInclude.includedDataSpace", ",\"includedDataSpace\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PMappingInclude.sourceDatabasePath", ",\"sourceDatabasePath\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PMappingInclude.targetDatabasePath", ",\"targetDatabasePath\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMappingInclude.substitutions", ",\"substitutions\":", c -> FrontRead.list(c, x0 -> readPStoreSubstitution(x0, false))),
+                FrontRead.nullableComponent(r, "PMappingInclude.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMappingTest readPMappingTest(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMappingTest", new com.legend.protocol.Protocol.PMappingTest(
+                FrontRead.component(r, "PMappingTest.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PMappingTest.doc", ",\"doc\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMappingTest.storeTestData", ",\"storeTestData\":", c -> FrontRead.list(c, x0 -> readPStoreTestData(x0, false))),
+                FrontRead.component(r, "PMappingTest.assertions", ",\"assertions\":", c -> FrontRead.list(c, x0 -> readPTestAssertion(x0, false))),
+                FrontRead.nullableComponent(r, "PMappingTest.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMappingTestSuite readPMappingTestSuite(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMappingTestSuite", new com.legend.protocol.Protocol.PMappingTestSuite(
+                FrontRead.component(r, "PMappingTestSuite.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PMappingTestSuite.doc", ",\"doc\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMappingTestSuite.func", ",\"func\":", c -> readValueSpecification(c)),
+                FrontRead.component(r, "PMappingTestSuite.tests", ",\"tests\":", c -> FrontRead.list(c, x0 -> readPMappingTest(x0, false))),
+                FrontRead.nullableComponent(r, "PMappingTestSuite.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMeasure readPMeasure(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMeasure", new com.legend.protocol.Protocol.PMeasure(
+                FrontRead.component(r, "PMeasure.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMeasure.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PMeasure.canonicalUnit", ",\"canonicalUnit\":", c -> readPUnit(c, false)),
+                FrontRead.component(r, "PMeasure.nonCanonicalUnits", ",\"nonCanonicalUnits\":", c -> FrontRead.list(c, x0 -> readPUnit(x0, false))),
+                FrontRead.nullableComponent(r, "PMeasure.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMemSqlSpec readPMemSqlSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMemSqlSpec", new com.legend.protocol.Protocol.PMemSqlSpec(
+                FrontRead.nullableComponent(r, "PMemSqlSpec.databaseName", tagged ? ",\"databaseName\":" : "\"databaseName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMemSqlSpec.host", ",\"host\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMemSqlSpec.port", ",\"port\":", c -> FrontRead.longValue(c)),
+                FrontRead.nullableComponent(r, "PMemSqlSpec.useSsl", ",\"useSsl\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PMemSqlSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMiddleTierUserNamePassword readPMiddleTierUserNamePassword(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMiddleTierUserNamePassword", new com.legend.protocol.Protocol.PMiddleTierUserNamePassword(
+                FrontRead.component(r, "PMiddleTierUserNamePassword.vaultReference", tagged ? ",\"vaultReference\":" : "\"vaultReference\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PMiddleTierUserNamePassword.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PModelChainConnection readPModelChainConnection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PModelChainConnection", new com.legend.protocol.Protocol.PModelChainConnection(
+                FrontRead.nullableComponent(r, "PModelChainConnection.element", tagged ? ",\"element\":" : "\"element\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PModelChainConnection.mappings", ",\"mappings\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PModelChainConnection.mappingsSourceInformation", ",\"mappingsSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PModelChainConnection.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PModelEmbeddedData readPModelEmbeddedData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PModelEmbeddedData", new com.legend.protocol.Protocol.PModelEmbeddedData(
+                FrontRead.component(r, "PModelEmbeddedData.model", tagged ? ",\"model\":" : "\"model\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PModelEmbeddedData.data", ",\"data\":", c -> readPEmbeddedDataValue(c)),
+                FrontRead.nullableComponent(r, "PModelEmbeddedData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PModelInstanceData readPModelInstanceData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PModelInstanceData", new com.legend.protocol.Protocol.PModelInstanceData(
+                FrontRead.component(r, "PModelInstanceData.model", tagged ? ",\"model\":" : "\"model\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PModelInstanceData.instances", ",\"instances\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PModelInstanceData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PModelJoinAssociationMapping readPModelJoinAssociationMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PModelJoinAssociationMapping", new com.legend.protocol.Protocol.PModelJoinAssociationMapping(
+                FrontRead.component(r, "PModelJoinAssociationMapping.association", tagged ? ",\"association\":" : "\"association\":", c -> readPPointer(c, false)),
+                FrontRead.nullableComponent(r, "PModelJoinAssociationMapping.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PModelJoinAssociationMapping.joinCondition", ",\"joinCondition\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PModelJoinAssociationMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PModelStoreData readPModelStoreData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PModelStoreData", new com.legend.protocol.Protocol.PModelStoreData(
+                FrontRead.component(r, "PModelStoreData.modelData", tagged ? ",\"modelData\":" : "\"modelData\":", c -> FrontRead.list(c, x0 -> readPModelData(x0))),
+                FrontRead.nullableComponent(r, "PModelStoreData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMongoAuth readPMongoAuth(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMongoAuth", new com.legend.protocol.Protocol.PMongoAuth(
+                FrontRead.component(r, "PMongoAuth.username", tagged ? ",\"username\":" : "\"username\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMongoAuth.password", ",\"password\":", c -> readPVaultSecret(c)),
+                FrontRead.nullableComponent(r, "PMongoAuth.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMongoDatabase readPMongoDatabase(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMongoDatabase", new com.legend.protocol.Protocol.PMongoDatabase(
+                FrontRead.component(r, "PMongoDatabase.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMongoDatabase.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMongoDatabase.collections", ",\"collections\":", c -> FrontRead.list(c, x0 -> readPMongoDatabasePMongoCollection(x0, false))),
+                FrontRead.nullableComponent(r, "PMongoDatabase.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMongoDatabase.PMongoCollection readPMongoDatabasePMongoCollection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMongoDatabasePMongoCollection", new com.legend.protocol.Protocol.PMongoDatabase.PMongoCollection(
+                FrontRead.component(r, "PMongoDatabasePMongoCollection.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMongoDatabasePMongoCollection.validationLevel", ",\"validationLevel\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMongoDatabasePMongoCollection.validationAction", ",\"validationAction\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMongoDatabasePMongoCollection.schema", ",\"schema\":", c -> readPBsonSchema(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMongoDbConnection readPMongoDbConnection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMongoDbConnection", new com.legend.protocol.Protocol.PMongoDbConnection(
+                FrontRead.component(r, "PMongoDbConnection.databaseName", tagged ? ",\"databaseName\":" : "\"databaseName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMongoDbConnection.serverUrls", ",\"serverUrls\":", c -> FrontRead.list(c, x0 -> readPMongoServerUrl(x0, false))),
+                FrontRead.component(r, "PMongoDbConnection.auth", ",\"auth\":", c -> readPAuthSpecValue(c)),
+                FrontRead.nullableComponent(r, "PMongoDbConnection.element", ",\"element\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PMongoDbConnection.elementSourceInformation", ",\"elementSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PMongoDbConnection.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMongoSecret readPMongoSecret(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMongoSecret", new com.legend.protocol.Protocol.PMongoSecret(
+                FrontRead.component(r, "PMongoSecret.kind", tagged ? ",\"kind\":" : "\"kind\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMongoSecret.fieldKey", ",\"fieldKey\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMongoSecret.value", ",\"value\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PMongoSecret.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMongoServerUrl readPMongoServerUrl(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMongoServerUrl", new com.legend.protocol.Protocol.PMongoServerUrl(
+                FrontRead.component(r, "PMongoServerUrl.baseUrl", tagged ? ",\"baseUrl\":" : "\"baseUrl\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMongoServerUrl.port", ",\"port\":", c -> FrontRead.longValue(c))));
+    }
+
+    static com.legend.protocol.Protocol.PMultiExecution readPMultiExecution(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMultiExecution", new com.legend.protocol.Protocol.PMultiExecution(
+                FrontRead.component(r, "PMultiExecution.query", tagged ? ",\"query\":" : "\"query\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PMultiExecution.executionKey", ",\"executionKey\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PMultiExecution.executions", ",\"executions\":", c -> FrontRead.list(c, x0 -> readPKeyedExecution(x0, false))),
+                FrontRead.nullableComponent(r, "PMultiExecution.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PMultiKeyedExecution readPMultiKeyedExecution(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PMultiKeyedExecution", new com.legend.protocol.Protocol.PMultiKeyedExecution(
+                FrontRead.component(r, "PMultiKeyedExecution.masterKey", tagged ? ",\"masterKey\":" : "\"masterKey\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PMultiKeyedExecution.singles", ",\"singles\":", c -> FrontRead.list(c, x0 -> readPKeyedExecution(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PNativeFunction readPNativeFunction(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PNativeFunction", new com.legend.protocol.Protocol.PNativeFunction(
+                FrontRead.component(r, "PNativeFunction.qualifiedName", tagged ? ",\"qualifiedName\":" : "\"qualifiedName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PNativeFunction.typeParams", ",\"typeParams\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PNativeFunction.multParams", ",\"multParams\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PNativeFunction.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> readParameterDefinition(x0, false))),
+                FrontRead.component(r, "PNativeFunction.returnType", ",\"returnType\":", c -> readTypeExpression(c)),
+                FrontRead.component(r, "PNativeFunction.returnMultiplicity", ",\"returnMultiplicity\":", c -> readMultiplicity(c)),
+                FrontRead.component(r, "PNativeFunction.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PNativeFunction.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PNativeFunction.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.POAuth readPOAuth(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "POAuth", new com.legend.protocol.Protocol.POAuth(
+                FrontRead.component(r, "POAuth.oauthKey", tagged ? ",\"oauthKey\":" : "\"oauthKey\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "POAuth.scopeName", ",\"scopeName\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "POAuth.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.POracleSpec readPOracleSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "POracleSpec", new com.legend.protocol.Protocol.POracleSpec(
+                FrontRead.component(r, "POracleSpec.host", tagged ? ",\"host\":" : "\"host\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "POracleSpec.port", ",\"port\":", c -> FrontRead.longValue(c)),
+                FrontRead.nullableComponent(r, "POracleSpec.serviceName", ",\"serviceName\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "POracleSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.POrigin readPOrigin(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "POrigin", new com.legend.protocol.Protocol.POrigin(
+                FrontRead.nullableComponent(r, "POrigin.serializer", tagged ? ",\"serializer\":" : "\"serializer\":", c -> readPSerializer(c, false)),
+                FrontRead.component(r, "POrigin.sdlcInfo", ",\"sdlcInfo\":", c -> readPSdlc(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.POtherwiseEmbeddedPropertyMapping readPOtherwiseEmbeddedPropertyMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "POtherwiseEmbeddedPropertyMapping", new com.legend.protocol.Protocol.POtherwiseEmbeddedPropertyMapping(
+                FrontRead.nullableComponent(r, "POtherwiseEmbeddedPropertyMapping.ownerClass", tagged ? ",\"ownerClass\":" : "\"ownerClass\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "POtherwiseEmbeddedPropertyMapping.property", ",\"property\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "POtherwiseEmbeddedPropertyMapping.propertySourceInformation", ",\"propertySourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "POtherwiseEmbeddedPropertyMapping.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "POtherwiseEmbeddedPropertyMapping.primaryKey", ",\"primaryKey\":", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
+                FrontRead.component(r, "POtherwiseEmbeddedPropertyMapping.propertyMappings", ",\"propertyMappings\":", c -> FrontRead.list(c, x0 -> readPPropertyMapping(x0))),
+                FrontRead.component(r, "POtherwiseEmbeddedPropertyMapping.otherwiseOp", ",\"otherwiseOp\":", c -> readPRelOp(c)),
+                FrontRead.component(r, "POtherwiseEmbeddedPropertyMapping.otherwiseTarget", ",\"otherwiseTarget\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "POtherwiseEmbeddedPropertyMapping.classMappingSourceInformation", ",\"classMappingSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "POtherwiseEmbeddedPropertyMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "POtherwiseEmbeddedPropertyMapping.embeddedClass", ",\"embeddedClass\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PParameterBuildInfo readPParameterBuildInfo(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PParameterBuildInfo", new com.legend.protocol.Protocol.PParameterBuildInfo(
+                FrontRead.component(r, "PParameterBuildInfo.serviceParameter", tagged ? ",\"serviceParameter\":" : "\"serviceParameter\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PParameterBuildInfo.transform", ",\"transform\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PParameterBuildInfo.transformSpan", ",\"transformSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PParameterBuildInfo.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PParametersBuildInfo readPParametersBuildInfo(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PParametersBuildInfo", new com.legend.protocol.Protocol.PParametersBuildInfo(
+                FrontRead.component(r, "PParametersBuildInfo.entries", tagged ? ",\"entries\":" : "\"entries\":", c -> FrontRead.list(c, x0 -> readPParameterBuildInfo(x0, false))),
+                FrontRead.nullableComponent(r, "PParametersBuildInfo.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PPathOffset readPPathOffset(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPathOffset", new com.legend.protocol.Protocol.PPathOffset(
+                FrontRead.component(r, "PPathOffset.startType", tagged ? ",\"startType\":" : "\"startType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPathOffset.propertyPath", ",\"propertyPath\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PPathOffset.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> FrontRead.list(x0, x1 -> readValueSpecification(x1))))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistence readPPersistence(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistence", new com.legend.protocol.Protocol.PPersistence(
+                FrontRead.component(r, "PPersistence.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistence.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistence.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PPersistence.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PPersistence.doc", ",\"doc\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistence.triggerKind", ",\"triggerKind\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPersistence.service", ",\"service\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPersistence.serviceSpan", ",\"serviceSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PPersistence.persister", ",\"persister\":", c -> readPPersistenceNode(c, false)),
+                FrontRead.nullableComponent(r, "PPersistence.notifier", ",\"notifier\":", c -> readPPersistenceNotifier(c, false)),
+                FrontRead.nullableComponent(r, "PPersistence.serviceOutputTargets", ",\"serviceOutputTargets\":", c -> FrontRead.list(c, x0 -> readPServiceOutputTarget(x0, false))),
+                FrontRead.nullableComponent(r, "PPersistence.tests", ",\"tests\":", c -> FrontRead.list(c, x0 -> readPPersistenceTest(x0, false))),
+                FrontRead.nullableComponent(r, "PPersistence.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistenceAssert readPPersistenceAssert(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistenceAssert", new com.legend.protocol.Protocol.PPersistenceAssert(
+                FrontRead.component(r, "PPersistenceAssert.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistenceAssert.assertion", ",\"assertion\":", c -> readPPersistenceNode(c, false)),
+                FrontRead.nullableComponent(r, "PPersistenceAssert.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistenceContext readPPersistenceContext(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistenceContext", new com.legend.protocol.Protocol.PPersistenceContext(
+                FrontRead.component(r, "PPersistenceContext.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistenceContext.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistenceContext.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PPersistenceContext.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.component(r, "PPersistenceContext.persistence", ",\"persistence\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPersistenceContext.persistenceSpan", ",\"persistenceSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PPersistenceContext.platform", ",\"platform\":", c -> readPPersistenceNode(c, false)),
+                FrontRead.component(r, "PPersistenceContext.serviceParameters", ",\"serviceParameters\":", c -> FrontRead.list(c, x0 -> readPCtxParam(x0, false))),
+                FrontRead.nullableComponent(r, "PPersistenceContext.sinkConnection", ",\"sinkConnection\":", c -> readPConnectionValue(c)),
+                FrontRead.nullableComponent(r, "PPersistenceContext.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistenceEntry.Node readPPersistenceEntryNode(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistenceEntryNode", new com.legend.protocol.Protocol.PPersistenceEntry.Node(
+                FrontRead.component(r, "PPersistenceEntryNode.key", tagged ? ",\"key\":" : "\"key\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistenceEntryNode.node", ",\"node\":", c -> readPPersistenceNode(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistenceEntry.NodeList readPPersistenceEntryNodeList(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistenceEntryNodeList", new com.legend.protocol.Protocol.PPersistenceEntry.NodeList(
+                FrontRead.component(r, "PPersistenceEntryNodeList.key", tagged ? ",\"key\":" : "\"key\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistenceEntryNodeList.nodes", ",\"nodes\":", c -> FrontRead.list(c, x0 -> readPPersistenceNode(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistenceEntry.PathList readPPersistenceEntryPathList(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistenceEntryPathList", new com.legend.protocol.Protocol.PPersistenceEntry.PathList(
+                FrontRead.component(r, "PPersistenceEntryPathList.key", tagged ? ",\"key\":" : "\"key\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistenceEntryPathList.specs", ",\"specs\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0)))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistenceEntry.PathValue readPPersistenceEntryPathValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistenceEntryPathValue", new com.legend.protocol.Protocol.PPersistenceEntry.PathValue(
+                FrontRead.component(r, "PPersistenceEntryPathValue.key", tagged ? ",\"key\":" : "\"key\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistenceEntryPathValue.spec", ",\"spec\":", c -> readValueSpecification(c))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistenceEntry.Pointer readPPersistenceEntryPointer(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistenceEntryPointer", new com.legend.protocol.Protocol.PPersistenceEntry.Pointer(
+                FrontRead.component(r, "PPersistenceEntryPointer.key", tagged ? ",\"key\":" : "\"key\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistenceEntryPointer.path", ",\"path\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPersistenceEntryPointer.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistenceEntry.Scalar readPPersistenceEntryScalar(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistenceEntryScalar", new com.legend.protocol.Protocol.PPersistenceEntry.Scalar(
+                FrontRead.component(r, "PPersistenceEntryScalar.key", tagged ? ",\"key\":" : "\"key\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistenceEntryScalar.value", ",\"value\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistenceEntryScalar.quoted", ",\"quoted\":", c -> FrontRead.bool(c))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistenceEntry.Strings readPPersistenceEntryStrings(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistenceEntryStrings", new com.legend.protocol.Protocol.PPersistenceEntry.Strings(
+                FrontRead.component(r, "PPersistenceEntryStrings.key", tagged ? ",\"key\":" : "\"key\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPersistenceEntryStrings.values", ",\"values\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0)))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistenceNode readPPersistenceNode(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistenceNode", new com.legend.protocol.Protocol.PPersistenceNode(
+                FrontRead.component(r, "PPersistenceNode.kind", tagged ? ",\"kind\":" : "\"kind\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPersistenceNode.headPath", ",\"headPath\":", c -> readValueSpecification(c)),
+                FrontRead.component(r, "PPersistenceNode.entries", ",\"entries\":", c -> FrontRead.list(c, x0 -> readPPersistenceEntry(x0))),
+                FrontRead.nullableComponent(r, "PPersistenceNode.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistenceNotifier readPPersistenceNotifier(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistenceNotifier", new com.legend.protocol.Protocol.PPersistenceNotifier(
+                FrontRead.component(r, "PPersistenceNotifier.notifyees", tagged ? ",\"notifyees\":" : "\"notifyees\":", c -> FrontRead.list(c, x0 -> readPPersistenceNode(x0, false))),
+                FrontRead.nullableComponent(r, "PPersistenceNotifier.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistenceTest readPPersistenceTest(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistenceTest", new com.legend.protocol.Protocol.PPersistenceTest(
+                FrontRead.component(r, "PPersistenceTest.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPersistenceTest.testBatches", ",\"testBatches\":", c -> FrontRead.list(c, x0 -> readPPersistenceTestBatch(x0, false))),
+                FrontRead.nullableComponent(r, "PPersistenceTest.isTestDataFromServiceOutput", ",\"isTestDataFromServiceOutput\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PPersistenceTest.graphFetchPath", ",\"graphFetchPath\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PPersistenceTest.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PPersistenceTestBatch readPPersistenceTestBatch(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPersistenceTestBatch", new com.legend.protocol.Protocol.PPersistenceTestBatch(
+                FrontRead.component(r, "PPersistenceTestBatch.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPersistenceTestBatch.connectionData", ",\"connectionData\":", c -> readPPersistenceNode(c, false)),
+                FrontRead.nullableComponent(r, "PPersistenceTestBatch.connectionSpan", ",\"connectionSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PPersistenceTestBatch.dataSpan", ",\"dataSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PPersistenceTestBatch.asserts", ",\"asserts\":", c -> FrontRead.list(c, x0 -> readPPersistenceAssert(x0, false))),
+                FrontRead.nullableComponent(r, "PPersistenceTestBatch.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PPersistenceTestBatch.hasTestData", ",\"hasTestData\":", c -> FrontRead.bool(c))));
+    }
+
+    static com.legend.protocol.Protocol.PPointer readPPointer(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPointer", new com.legend.protocol.Protocol.PPointer(
+                FrontRead.component(r, "PPointer.type", tagged ? ",\"type\":" : "\"type\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPointer.path", ",\"path\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPointer.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PPostValidation readPPostValidation(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPostValidation", new com.legend.protocol.Protocol.PPostValidation(
+                FrontRead.component(r, "PPostValidation.description", tagged ? ",\"description\":" : "\"description\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPostValidation.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
+                FrontRead.component(r, "PPostValidation.assertions", ",\"assertions\":", c -> FrontRead.list(c, x0 -> readPPostValidationAssertion(x0, false))),
+                FrontRead.nullableComponent(r, "PPostValidation.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PPostValidationAssertion readPPostValidationAssertion(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPostValidationAssertion", new com.legend.protocol.Protocol.PPostValidationAssertion(
+                FrontRead.component(r, "PPostValidationAssertion.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPostValidationAssertion.assertion", ",\"assertion\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PPostValidationAssertion.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PPrimitive readPPrimitive(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPrimitive", new com.legend.protocol.Protocol.PPrimitive(
+                FrontRead.component(r, "PPrimitive.qualifiedName", tagged ? ",\"qualifiedName\":" : "\"qualifiedName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPrimitive.baseTypeName", ",\"baseTypeName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPrimitive.typeVariables", ",\"typeVariables\":", c -> FrontRead.list(c, x0 -> readParameterDefinition(x0, false))),
+                FrontRead.nullableComponent(r, "PPrimitive.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PProcessingMilestoning readPProcessingMilestoning(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PProcessingMilestoning", new com.legend.protocol.Protocol.PProcessingMilestoning(
+                FrontRead.component(r, "PProcessingMilestoning.in", tagged ? ",\"in\":" : "\"in\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PProcessingMilestoning.out", ",\"out\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PProcessingMilestoning.outIsInclusive", ",\"outIsInclusive\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PProcessingMilestoning.infinityDate", ",\"infinityDate\":", c -> readPDateTimeLit(c, false)),
+                FrontRead.nullableComponent(r, "PProcessingMilestoning.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PProcessingSnapshotMilestoning readPProcessingSnapshotMilestoning(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PProcessingSnapshotMilestoning", new com.legend.protocol.Protocol.PProcessingSnapshotMilestoning(
+                FrontRead.component(r, "PProcessingSnapshotMilestoning.snapshotDate", tagged ? ",\"snapshotDate\":" : "\"snapshotDate\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PProcessingSnapshotMilestoning.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PProfile readPProfile(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PProfile", new com.legend.protocol.Protocol.PProfile(
+                FrontRead.component(r, "PProfile.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PProfile.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PProfile.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPProfileEntry(x0, false))),
+                FrontRead.component(r, "PProfile.tags", ",\"tags\":", c -> FrontRead.list(c, x0 -> readPProfileEntry(x0, false))),
+                FrontRead.nullableComponent(r, "PProfile.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PProfileEntry readPProfileEntry(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PProfileEntry", new com.legend.protocol.Protocol.PProfileEntry(
+                FrontRead.component(r, "PProfileEntry.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PProfileEntry.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PProperty readPProperty(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PProperty", new com.legend.protocol.Protocol.PProperty(
+                FrontRead.component(r, "PProperty.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PProperty.type", ",\"type\":", c -> readTypeExpression(c)),
+                FrontRead.component(r, "PProperty.multiplicity", ",\"multiplicity\":", c -> readMultiplicity(c)),
+                FrontRead.component(r, "PProperty.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PProperty.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PProperty.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PProperty.defaultValue", ",\"defaultValue\":", c -> readPDefaultValue(c, false)),
+                FrontRead.nullableComponent(r, "PProperty.aggregation", ",\"aggregation\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PPropertyView readPPropertyView(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPropertyView", new com.legend.protocol.Protocol.PPropertyView(
+                FrontRead.component(r, "PPropertyView.propertyClass", tagged ? ",\"propertyClass\":" : "\"propertyClass\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPropertyView.propertyName", ",\"propertyName\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPropertyView.propertySpan", ",\"propertySpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PPropertyView.sourceView", ",\"sourceView\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPropertyView.sourceViewSpan", ",\"sourceViewSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PPropertyView.targetView", ",\"targetView\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPropertyView.targetViewSpan", ",\"targetViewSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PPropertyView.points", ",\"points\":", c -> FrontRead.list(c, x0 -> readPDiagramPoint(x0, false))),
+                FrontRead.nullableComponent(r, "PPropertyView.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PPskAuth readPPskAuth(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPskAuth", new com.legend.protocol.Protocol.PPskAuth(
+                FrontRead.component(r, "PPskAuth.psk", tagged ? ",\"psk\":" : "\"psk\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PPurePropertyMapping readPPurePropertyMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PPurePropertyMapping", new com.legend.protocol.Protocol.PPurePropertyMapping(
+                FrontRead.nullableComponent(r, "PPurePropertyMapping.ownerClass", tagged ? ",\"ownerClass\":" : "\"ownerClass\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPurePropertyMapping.property", ",\"property\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPurePropertyMapping.propertySourceInformation", ",\"propertySourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PPurePropertyMapping.enumMappingId", ",\"enumMappingId\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PPurePropertyMapping.explodeProperty", ",\"explodeProperty\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PPurePropertyMapping.localMappingProperty", ",\"localMappingProperty\":", c -> readPLocalProp(c, false)),
+                FrontRead.component(r, "PPurePropertyMapping.transform", ",\"transform\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
+                FrontRead.nullableComponent(r, "PPurePropertyMapping.source", ",\"source\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPurePropertyMapping.target", ",\"target\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PPurePropertyMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PReconStrategy readPReconStrategy(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PReconStrategy", new com.legend.protocol.Protocol.PReconStrategy(
+                FrontRead.component(r, "PReconStrategy.kind", tagged ? ",\"kind\":" : "\"kind\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PReconStrategy.sourceHashColumn", ",\"sourceHashColumn\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PReconStrategy.targetHashColumn", ",\"targetHashColumn\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PReconStrategy.aggregatedHash", ",\"aggregatedHash\":", c -> FrontRead.bool(c))));
+    }
+
+    static com.legend.protocol.Protocol.PRedshiftSpec readPRedshiftSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRedshiftSpec", new com.legend.protocol.Protocol.PRedshiftSpec(
+                FrontRead.component(r, "PRedshiftSpec.clusterID", tagged ? ",\"clusterID\":" : "\"clusterID\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PRedshiftSpec.databaseName", ",\"databaseName\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRedshiftSpec.endpointURL", ",\"endpointURL\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PRedshiftSpec.host", ",\"host\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PRedshiftSpec.port", ",\"port\":", c -> FrontRead.longValue(c)),
+                FrontRead.component(r, "PRedshiftSpec.region", ",\"region\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRedshiftSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelAssocPropertyMapping readPRelAssocPropertyMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelAssocPropertyMapping", new com.legend.protocol.Protocol.PRelAssocPropertyMapping(
+                FrontRead.component(r, "PRelAssocPropertyMapping.property", tagged ? ",\"property\":" : "\"property\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelAssocPropertyMapping.propertySourceInformation", ",\"propertySourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PRelAssocPropertyMapping.relationalOperation", ",\"relationalOperation\":", c -> readPRelOp(c)),
+                FrontRead.nullableComponent(r, "PRelAssocPropertyMapping.source", ",\"source\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelAssocPropertyMapping.target", ",\"target\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelAssocPropertyMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PRelAssocPropertyMapping.ownerClass", ",\"ownerClass\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PRelAssociationMapping readPRelAssociationMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelAssociationMapping", new com.legend.protocol.Protocol.PRelAssociationMapping(
+                FrontRead.component(r, "PRelAssociationMapping.association", tagged ? ",\"association\":" : "\"association\":", c -> readPPointer(c, false)),
+                FrontRead.nullableComponent(r, "PRelAssociationMapping.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PRelAssociationMapping.propertyMappings", ",\"propertyMappings\":", c -> FrontRead.list(c, x0 -> readPRelAssocPropertyMapping(x0, false))),
+                FrontRead.component(r, "PRelAssociationMapping.stores", ",\"stores\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PRelAssociationMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelLambda readPRelLambda(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelLambda", new com.legend.protocol.Protocol.PRelLambda(
+                FrontRead.component(r, "PRelLambda.parameterNames", tagged ? ",\"parameterNames\":" : "\"parameterNames\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PRelLambda.body", ",\"body\":", c -> readPRelOp(c)),
+                FrontRead.nullableComponent(r, "PRelLambda.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelLiteral readPRelLiteral(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelLiteral", new com.legend.protocol.Protocol.PRelLiteral(
+                FrontRead.component(r, "PRelLiteral.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.value(c)),
+                FrontRead.nullableComponent(r, "PRelLiteral.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelLiteralList readPRelLiteralList(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelLiteralList", new com.legend.protocol.Protocol.PRelLiteralList(
+                FrontRead.component(r, "PRelLiteralList.values", tagged ? ",\"values\":" : "\"values\":", c -> FrontRead.list(c, x0 -> readPRelOp(x0))),
+                FrontRead.nullableComponent(r, "PRelLiteralList.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelPropertyMapping readPRelPropertyMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelPropertyMapping", new com.legend.protocol.Protocol.PRelPropertyMapping(
+                FrontRead.nullableComponent(r, "PRelPropertyMapping.ownerClass", tagged ? ",\"ownerClass\":" : "\"ownerClass\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelPropertyMapping.bindingTransformer", ",\"bindingTransformer\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PRelPropertyMapping.property", ",\"property\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelPropertyMapping.propertySourceInformation", ",\"propertySourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PRelPropertyMapping.enumMappingId", ",\"enumMappingId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelPropertyMapping.localMappingProperty", ",\"localMappingProperty\":", c -> readPLocalProp(c, false)),
+                FrontRead.component(r, "PRelPropertyMapping.relationalOperation", ",\"relationalOperation\":", c -> readPRelOp(c)),
+                FrontRead.nullableComponent(r, "PRelPropertyMapping.source", ",\"source\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelPropertyMapping.target", ",\"target\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelPropertyMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelationData readPRelationData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelationData", new com.legend.protocol.Protocol.PRelationData(
+                FrontRead.component(r, "PRelationData.relationElements", tagged ? ",\"relationElements\":" : "\"relationElements\":", c -> FrontRead.list(c, x0 -> readPRelationElement(x0, false))),
+                FrontRead.nullableComponent(r, "PRelationData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelationElement readPRelationElement(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelationElement", new com.legend.protocol.Protocol.PRelationElement(
+                FrontRead.component(r, "PRelationElement.columns", tagged ? ",\"columns\":" : "\"columns\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PRelationElement.paths", ",\"paths\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PRelationElement.rows", ",\"rows\":", c -> FrontRead.list(c, x0 -> FrontRead.list(x0, x1 -> FrontRead.string(x1)))),
+                FrontRead.nullableComponent(r, "PRelationElement.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelationFnPropertyMapping readPRelationFnPropertyMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelationFnPropertyMapping", new com.legend.protocol.Protocol.PRelationFnPropertyMapping(
+                FrontRead.nullableComponent(r, "PRelationFnPropertyMapping.ownerClass", tagged ? ",\"ownerClass\":" : "\"ownerClass\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelationFnPropertyMapping.bindingTransformer", ",\"bindingTransformer\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PRelationFnPropertyMapping.property", ",\"property\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelationFnPropertyMapping.propertySourceInformation", ",\"propertySourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PRelationFnPropertyMapping.column", ",\"column\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelationFnPropertyMapping.inlineSetId", ",\"inlineSetId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelationFnPropertyMapping.nested", ",\"nested\":", c -> FrontRead.list(c, x0 -> readPRelationFnPropertyMapping(x0, false))),
+                FrontRead.nullableComponent(r, "PRelationFnPropertyMapping.localMappingProperty", ",\"localMappingProperty\":", c -> readPLocalProp(c, false)),
+                FrontRead.nullableComponent(r, "PRelationFnPropertyMapping.source", ",\"source\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelationFnPropertyMapping.enumMappingId", ",\"enumMappingId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelationFnPropertyMapping.expr", ",\"expr\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PRelationFnPropertyMapping.exprLambdaSourceInformation", ",\"exprLambdaSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PRelationFnPropertyMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelationSrcLambda readPRelationSrcLambda(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelationSrcLambda", new com.legend.protocol.Protocol.PRelationSrcLambda(
+                FrontRead.nullableComponent(r, "PRelationSrcLambda.function", tagged ? ",\"function\":" : "\"function\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelationSrcLambda.functionSourceInformation", ",\"functionSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PRelationSrcLambda.expr", ",\"expr\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PRelationSrcLambda.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelationalCsvData readPRelationalCsvData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelationalCsvData", new com.legend.protocol.Protocol.PRelationalCsvData(
+                FrontRead.component(r, "PRelationalCsvData.tables", tagged ? ",\"tables\":" : "\"tables\":", c -> FrontRead.list(c, x0 -> readPRelationalCsvTable(x0, false))),
+                FrontRead.nullableComponent(r, "PRelationalCsvData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelationalCsvTable readPRelationalCsvTable(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelationalCsvTable", new com.legend.protocol.Protocol.PRelationalCsvTable(
+                FrontRead.component(r, "PRelationalCsvTable.schema", tagged ? ",\"schema\":" : "\"schema\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PRelationalCsvTable.table", ",\"table\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelationalCsvTable.values", ",\"values\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelationalCsvTable.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelationalDatabaseConnection readPRelationalDatabaseConnection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelationalDatabaseConnection", new com.legend.protocol.Protocol.PRelationalDatabaseConnection(
+                FrontRead.component(r, "PRelationalDatabaseConnection.authenticationStrategy", tagged ? ",\"authenticationStrategy\":" : "\"authenticationStrategy\":", c -> readPAuthStrategy(c)),
+                FrontRead.component(r, "PRelationalDatabaseConnection.databaseType", ",\"databaseType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PRelationalDatabaseConnection.datasourceSpecification", ",\"datasourceSpecification\":", c -> readPDatasourceSpec(c)),
+                FrontRead.nullableComponent(r, "PRelationalDatabaseConnection.element", ",\"element\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelationalDatabaseConnection.elementSourceInformation", ",\"elementSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PRelationalDatabaseConnection.localMode", ",\"localMode\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PRelationalDatabaseConnection.postProcessors", ",\"postProcessors\":", c -> FrontRead.list(c, x0 -> readPPostProcessor(x0))),
+                FrontRead.nullableComponent(r, "PRelationalDatabaseConnection.queryGenerationConfigs", ",\"queryGenerationConfigs\":", c -> FrontRead.list(c, x0 -> readPGenerationFeaturesConfig(x0, false))),
+                FrontRead.nullableComponent(r, "PRelationalDatabaseConnection.queryTimeOutInSeconds", ",\"queryTimeOutInSeconds\":", c -> FrontRead.longValue(c)),
+                FrontRead.nullableComponent(r, "PRelationalDatabaseConnection.quoteIdentifiers", ",\"quoteIdentifiers\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PRelationalDatabaseConnection.timeZone", ",\"timeZone\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRelationalDatabaseConnection.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelationalMapper readPRelationalMapper(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelationalMapper", new com.legend.protocol.Protocol.PRelationalMapper(
+                FrontRead.component(r, "PRelationalMapper.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PRelationalMapper.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PRelationalMapper.databaseMappers", ",\"databaseMappers\":", c -> FrontRead.list(c, x0 -> readPDatabaseMapper(x0, false))),
+                FrontRead.component(r, "PRelationalMapper.schemaMappers", ",\"schemaMappers\":", c -> FrontRead.list(c, x0 -> readPSchemaMapper2(x0, false))),
+                FrontRead.component(r, "PRelationalMapper.tableMappers", ",\"tableMappers\":", c -> FrontRead.list(c, x0 -> readPTableMapper2(x0, false))),
+                FrontRead.nullableComponent(r, "PRelationalMapper.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRelationalMapperPostProcessor readPRelationalMapperPostProcessor(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRelationalMapperPostProcessor", new com.legend.protocol.Protocol.PRelationalMapperPostProcessor(
+                FrontRead.component(r, "PRelationalMapperPostProcessor.relationalMappers", tagged ? ",\"relationalMappers\":" : "\"relationalMappers\":", c -> FrontRead.list(c, x0 -> readPPointer(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PRequestBuildInfo readPRequestBuildInfo(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRequestBuildInfo", new com.legend.protocol.Protocol.PRequestBuildInfo(
+                FrontRead.nullableComponent(r, "PRequestBuildInfo.parameters", tagged ? ",\"parameters\":" : "\"parameters\":", c -> readPParametersBuildInfo(c, false)),
+                FrontRead.nullableComponent(r, "PRequestBuildInfo.body", ",\"body\":", c -> readPBodyBuildInfo(c, false)),
+                FrontRead.nullableComponent(r, "PRequestBuildInfo.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRuntime readPRuntime(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRuntime", new com.legend.protocol.Protocol.PRuntime(
+                FrontRead.component(r, "PRuntime.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PRuntime.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PRuntime.single", ",\"single\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PRuntime.mappings", ",\"mappings\":", c -> FrontRead.list(c, x0 -> readPPointer(x0, false))),
+                FrontRead.component(r, "PRuntime.connections", ",\"connections\":", c -> FrontRead.list(c, x0 -> readPStoreConnections(x0, false))),
+                FrontRead.component(r, "PRuntime.connectionStores", ",\"connectionStores\":", c -> FrontRead.list(c, x0 -> readPConnectionStores(x0, false))),
+                FrontRead.nullableComponent(r, "PRuntime.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PRuntimeComponents readPRuntimeComponents(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PRuntimeComponents", new com.legend.protocol.Protocol.PRuntimeComponents(
+                FrontRead.component(r, "PRuntimeComponents.binding", tagged ? ",\"binding\":" : "\"binding\":", c -> readPPointer(c, false)),
+                FrontRead.component(r, "PRuntimeComponents.clazz", ",\"clazz\":", c -> readPPointer(c, false)),
+                FrontRead.component(r, "PRuntimeComponents.runtime", ",\"runtime\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PRuntimeComponents.runtimeSpan", ",\"runtimeSpan\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSQLiteSpec readPSQLiteSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSQLiteSpec", new com.legend.protocol.Protocol.PSQLiteSpec(
+                FrontRead.nullableComponent(r, "PSQLiteSpec.path", tagged ? ",\"path\":" : "\"path\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSQLiteSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSchema readPSchema(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSchema", new com.legend.protocol.Protocol.PSchema(
+                FrontRead.nullableComponent(r, "PSchema.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSchema.location", ",\"location\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSchema.content", ",\"content\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSchema.contentSourceInformation", ",\"contentSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PSchema.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSchemaMapper readPSchemaMapper(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSchemaMapper", new com.legend.protocol.Protocol.PSchemaMapper(
+                FrontRead.component(r, "PSchemaMapper.from", tagged ? ",\"from\":" : "\"from\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSchemaMapper.to", ",\"to\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PSchemaMapper2 readPSchemaMapper2(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSchemaMapper2", new com.legend.protocol.Protocol.PSchemaMapper2(
+                FrontRead.component(r, "PSchemaMapper2.from", tagged ? ",\"from\":" : "\"from\":", c -> readPSchemaPointer(c, false)),
+                FrontRead.component(r, "PSchemaMapper2.to", ",\"to\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PSchemaPointer readPSchemaPointer(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSchemaPointer", new com.legend.protocol.Protocol.PSchemaPointer(
+                FrontRead.component(r, "PSchemaPointer.database", tagged ? ",\"database\":" : "\"database\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSchemaPointer.schema", ",\"schema\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSchemaPointer.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSchemaSet readPSchemaSet(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSchemaSet", new com.legend.protocol.Protocol.PSchemaSet(
+                FrontRead.component(r, "PSchemaSet.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSchemaSet.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSchemaSet.format", ",\"format\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSchemaSet.schemas", ",\"schemas\":", c -> FrontRead.list(c, x0 -> readPSchema(x0, false))),
+                FrontRead.nullableComponent(r, "PSchemaSet.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSdlc readPSdlc(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSdlc", new com.legend.protocol.Protocol.PSdlc(
+                FrontRead.component(r, "PSdlc.kind", tagged ? ",\"kind\":" : "\"kind\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSdlc.baseVersion", ",\"baseVersion\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSdlc.version", ",\"version\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSdlc.packageableElementPointers", ",\"packageableElementPointers\":", c -> FrontRead.list(c, x0 -> readPPointer(x0, false))),
+                FrontRead.nullableComponent(r, "PSdlc.overrideUrl", ",\"overrideUrl\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSdlc.project", ",\"project\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSdlc.groupId", ",\"groupId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSdlc.artifactId", ",\"artifactId\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSdlc.isGroupWorkspace", ",\"isGroupWorkspace\":", c -> FrontRead.bool(c))));
+    }
+
+    static com.legend.protocol.Protocol.PSection readPSection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSection", new com.legend.protocol.Protocol.PSection(
+                FrontRead.component(r, "PSection.importAware", tagged ? ",\"importAware\":" : "\"importAware\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PSection.parserName", ",\"parserName\":", c -> FrontRead.string(c)),
+                FrontRead.<java.util.List<java.lang.@com.legend.base.Nullable String>>component(r, "PSection.elements", ",\"elements\":", c -> FrontRead.nullableList(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PSection.imports", ",\"imports\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PSection.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSectionIndex readPSectionIndex(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSectionIndex", new com.legend.protocol.Protocol.PSectionIndex(
+                FrontRead.component(r, "PSectionIndex.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSectionIndex.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSectionIndex.sections", ",\"sections\":", c -> FrontRead.list(c, x0 -> readPSection(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PSerializer readPSerializer(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSerializer", new com.legend.protocol.Protocol.PSerializer(
+                FrontRead.nullableComponent(r, "PSerializer.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSerializer.version", ",\"version\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PService readPService(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PService", new com.legend.protocol.Protocol.PService(
+                FrontRead.component(r, "PService.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PService.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PService.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "PService.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false))),
+                FrontRead.nullableComponent(r, "PService.pattern", ",\"pattern\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PService.title", ",\"title\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PService.owners", ",\"owners\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PService.ownershipKind", ",\"ownershipKind\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PService.ownershipId", ",\"ownershipId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PService.ownershipUsers", ",\"ownershipUsers\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PService.mcpServer", ",\"mcpServer\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PService.documentation", ",\"documentation\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PService.autoActivateUpdates", ",\"autoActivateUpdates\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PService.execution", ",\"execution\":", c -> readPServiceExecution(c)),
+                FrontRead.nullableComponent(r, "PService.test", ",\"test\":", c -> readPLegacyServiceTest(c, false)),
+                FrontRead.nullableComponent(r, "PService.testSuites", ",\"testSuites\":", c -> FrontRead.list(c, x0 -> readPServiceTestSuite(x0, false))),
+                FrontRead.nullableComponent(r, "PService.postValidations", ",\"postValidations\":", c -> FrontRead.list(c, x0 -> readPPostValidation(x0, false))),
+                FrontRead.nullableComponent(r, "PService.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceMapping readPServiceMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceMapping", new com.legend.protocol.Protocol.PServiceMapping(
+                FrontRead.component(r, "PServiceMapping.service", tagged ? ",\"service\":" : "\"service\":", c -> readPServicePtr(c, false)),
+                FrontRead.nullableComponent(r, "PServiceMapping.pathOffset", ",\"pathOffset\":", c -> readPPathOffset(c, false)),
+                FrontRead.nullableComponent(r, "PServiceMapping.request", ",\"request\":", c -> readPRequestBuildInfo(c, false)),
+                FrontRead.nullableComponent(r, "PServiceMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceOutputTarget readPServiceOutputTarget(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceOutputTarget", new com.legend.protocol.Protocol.PServiceOutputTarget(
+                FrontRead.component(r, "PServiceOutputTarget.serviceOutput", tagged ? ",\"serviceOutput\":" : "\"serviceOutput\":", c -> readPPersistenceNode(c, false)),
+                FrontRead.component(r, "PServiceOutputTarget.persistenceTarget", ",\"persistenceTarget\":", c -> readPPersistenceNode(c, false)),
+                FrontRead.nullableComponent(r, "PServiceOutputTarget.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PServicePtr readPServicePtr(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServicePtr", new com.legend.protocol.Protocol.PServicePtr(
+                FrontRead.component(r, "PServicePtr.serviceStore", tagged ? ",\"serviceStore\":" : "\"serviceStore\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PServicePtr.segments", ",\"segments\":", c -> FrontRead.list(c, x0 -> readPServiceSegment(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceSegment readPServiceSegment(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceSegment", new com.legend.protocol.Protocol.PServiceSegment(
+                FrontRead.component(r, "PServiceSegment.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PServiceSegment.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceStoreClassMapping readPServiceStoreClassMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceStoreClassMapping", new com.legend.protocol.Protocol.PServiceStoreClassMapping(
+                FrontRead.component(r, "PServiceStoreClassMapping.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PServiceStoreClassMapping.classSpan", ",\"classSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PServiceStoreClassMapping.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PServiceStoreClassMapping.root", ",\"root\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PServiceStoreClassMapping.localProps", ",\"localProps\":", c -> FrontRead.list(c, x0 -> readPServiceStoreLocalProp(x0, false))),
+                FrontRead.component(r, "PServiceStoreClassMapping.services", ",\"services\":", c -> FrontRead.list(c, x0 -> readPServiceMapping(x0, false))),
+                FrontRead.nullableComponent(r, "PServiceStoreClassMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PServiceStoreClassMapping.extendsClassMappingId", ",\"extendsClassMappingId\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceStoreConnection readPServiceStoreConnection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceStoreConnection", new com.legend.protocol.Protocol.PServiceStoreConnection(
+                FrontRead.component(r, "PServiceStoreConnection.baseUrl", tagged ? ",\"baseUrl\":" : "\"baseUrl\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PServiceStoreConnection.element", ",\"element\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PServiceStoreConnection.elementSourceInformation", ",\"elementSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PServiceStoreConnection.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceStoreData readPServiceStoreData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceStoreData", new com.legend.protocol.Protocol.PServiceStoreData(
+                FrontRead.component(r, "PServiceStoreData.stubs", tagged ? ",\"stubs\":" : "\"stubs\":", c -> FrontRead.list(c, x0 -> readPServiceStub(x0, false))),
+                FrontRead.nullableComponent(r, "PServiceStoreData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceStoreDefinition readPServiceStoreDefinition(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceStoreDefinition", new com.legend.protocol.Protocol.PServiceStoreDefinition(
+                FrontRead.component(r, "PServiceStoreDefinition.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PServiceStoreDefinition.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PServiceStoreDefinition.description", ",\"description\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PServiceStoreDefinition.elements", ",\"elements\":", c -> FrontRead.list(c, x0 -> readPServiceStoreElement(x0))),
+                FrontRead.nullableComponent(r, "PServiceStoreDefinition.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceStoreLocalProp readPServiceStoreLocalProp(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceStoreLocalProp", new com.legend.protocol.Protocol.PServiceStoreLocalProp(
+                FrontRead.component(r, "PServiceStoreLocalProp.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PServiceStoreLocalProp.type", ",\"type\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PServiceStoreLocalProp.lowerBound", ",\"lowerBound\":", c -> FrontRead.integer(c)),
+                FrontRead.nullableComponent(r, "PServiceStoreLocalProp.upperBound", ",\"upperBound\":", c -> FrontRead.integer(c)),
+                FrontRead.nullableComponent(r, "PServiceStoreLocalProp.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceStub readPServiceStub(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceStub", new com.legend.protocol.Protocol.PServiceStub(
+                FrontRead.component(r, "PServiceStub.method", tagged ? ",\"method\":" : "\"method\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PServiceStub.url", ",\"url\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PServiceStub.urlPath", ",\"urlPath\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PServiceStub.queryParams", ",\"queryParams\":", c -> FrontRead.list(c, x0 -> readPStubParam(x0, false))),
+                FrontRead.nullableComponent(r, "PServiceStub.headerParams", ",\"headerParams\":", c -> FrontRead.list(c, x0 -> readPStubParam(x0, false))),
+                FrontRead.nullableComponent(r, "PServiceStub.bodyPatterns", ",\"bodyPatterns\":", c -> FrontRead.list(c, x0 -> readPStringValuePattern(x0, false))),
+                FrontRead.nullableComponent(r, "PServiceStub.requestSpan", ",\"requestSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PServiceStub.body", ",\"body\":", c -> readPExternalFormatData(c, false)),
+                FrontRead.nullableComponent(r, "PServiceStub.responseSpan", ",\"responseSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PServiceStub.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceTestSuite readPServiceTestSuite(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceTestSuite", new com.legend.protocol.Protocol.PServiceTestSuite(
+                FrontRead.component(r, "PServiceTestSuite.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PServiceTestSuite.doc", ",\"doc\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PServiceTestSuite.testData", ",\"testData\":", c -> readPServiceTestSuitePSuiteData(c, false)),
+                FrontRead.component(r, "PServiceTestSuite.tests", ",\"tests\":", c -> FrontRead.list(c, x0 -> readPServiceTestSuitePSuiteTest(x0, false))),
+                FrontRead.nullableComponent(r, "PServiceTestSuite.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceTestSuite.PResolverData readPServiceTestSuitePResolverData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceTestSuitePResolverData", new com.legend.protocol.Protocol.PServiceTestSuite.PResolverData(
+                FrontRead.nullableComponent(r, "PServiceTestSuitePResolverData.data", tagged ? ",\"data\":" : "\"data\":", c -> readPEmbeddedDataValue(c)),
+                FrontRead.component(r, "PServiceTestSuitePResolverData.elementPath", ",\"elementPath\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PServiceTestSuitePResolverData.elementSourceInformation", ",\"elementSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PServiceTestSuitePResolverData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceTestSuite.PSuiteConnData readPServiceTestSuitePSuiteConnData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceTestSuitePSuiteConnData", new com.legend.protocol.Protocol.PServiceTestSuite.PSuiteConnData(
+                FrontRead.component(r, "PServiceTestSuitePSuiteConnData.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PServiceTestSuitePSuiteConnData.data", ",\"data\":", c -> readPEmbeddedDataValue(c)),
+                FrontRead.nullableComponent(r, "PServiceTestSuitePSuiteConnData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceTestSuite.PSuiteData readPServiceTestSuitePSuiteData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceTestSuitePSuiteData", new com.legend.protocol.Protocol.PServiceTestSuite.PSuiteData(
+                FrontRead.component(r, "PServiceTestSuitePSuiteData.connectionsTestData", tagged ? ",\"connectionsTestData\":" : "\"connectionsTestData\":", c -> FrontRead.list(c, x0 -> readPServiceTestSuitePSuiteConnData(x0, false))),
+                FrontRead.nullableComponent(r, "PServiceTestSuitePSuiteData.serviceTestData", ",\"serviceTestData\":", c -> FrontRead.list(c, x0 -> readPServiceTestSuitePResolverData(x0, false))),
+                FrontRead.nullableComponent(r, "PServiceTestSuitePSuiteData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceTestSuite.PSuiteParam readPServiceTestSuitePSuiteParam(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceTestSuitePSuiteParam", new com.legend.protocol.Protocol.PServiceTestSuite.PSuiteParam(
+                FrontRead.component(r, "PServiceTestSuitePSuiteParam.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PServiceTestSuitePSuiteParam.value", ",\"value\":", c -> readValueSpecification(c))));
+    }
+
+    static com.legend.protocol.Protocol.PServiceTestSuite.PSuiteTest readPServiceTestSuitePSuiteTest(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PServiceTestSuitePSuiteTest", new com.legend.protocol.Protocol.PServiceTestSuite.PSuiteTest(
+                FrontRead.component(r, "PServiceTestSuitePSuiteTest.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PServiceTestSuitePSuiteTest.doc", ",\"doc\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PServiceTestSuitePSuiteTest.serializationFormat", ",\"serializationFormat\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PServiceTestSuitePSuiteTest.keys", ",\"keys\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PServiceTestSuitePSuiteTest.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> readPServiceTestSuitePSuiteParam(x0, false))),
+                FrontRead.component(r, "PServiceTestSuitePSuiteTest.assertions", ",\"assertions\":", c -> FrontRead.list(c, x0 -> readPTestAssertion(x0, false))),
+                FrontRead.nullableComponent(r, "PServiceTestSuitePSuiteTest.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSingleExecution readPSingleExecution(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSingleExecution", new com.legend.protocol.Protocol.PSingleExecution(
+                FrontRead.component(r, "PSingleExecution.query", tagged ? ",\"query\":" : "\"query\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PSingleExecution.mapping", ",\"mapping\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSingleExecution.mappingSpan", ",\"mappingSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PSingleExecution.runtime", ",\"runtime\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSingleExecution.runtimeSpan", ",\"runtimeSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PSingleExecution.embeddedRuntime", ",\"embeddedRuntime\":", c -> readPEmbeddedRuntime(c, false)),
+                FrontRead.nullableComponent(r, "PSingleExecution.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSnowflakePublic readPSnowflakePublic(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSnowflakePublic", new com.legend.protocol.Protocol.PSnowflakePublic(
+                FrontRead.component(r, "PSnowflakePublic.passPhraseVaultReference", tagged ? ",\"passPhraseVaultReference\":" : "\"passPhraseVaultReference\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSnowflakePublic.privateKeyVaultReference", ",\"privateKeyVaultReference\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSnowflakePublic.publicUserName", ",\"publicUserName\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSnowflakePublic.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSnowflakeSpec readPSnowflakeSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSnowflakeSpec", new com.legend.protocol.Protocol.PSnowflakeSpec(
+                FrontRead.component(r, "PSnowflakeSpec.accountName", tagged ? ",\"accountName\":" : "\"accountName\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSnowflakeSpec.accountType", ",\"accountType\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSnowflakeSpec.cloudType", ",\"cloudType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSnowflakeSpec.databaseName", ",\"databaseName\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSnowflakeSpec.enableQueryTags", ",\"enableQueryTags\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PSnowflakeSpec.nonProxyHosts", ",\"nonProxyHosts\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSnowflakeSpec.organization", ",\"organization\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSnowflakeSpec.proxyHost", ",\"proxyHost\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSnowflakeSpec.proxyPort", ",\"proxyPort\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSnowflakeSpec.quotedIdentifiersIgnoreCase", ",\"quotedIdentifiersIgnoreCase\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PSnowflakeSpec.region", ",\"region\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSnowflakeSpec.role", ",\"role\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSnowflakeSpec.tempTableDb", ",\"tempTableDb\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSnowflakeSpec.tempTableSchema", ",\"tempTableSchema\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSnowflakeSpec.warehouseName", ",\"warehouseName\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSnowflakeSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSpannerSpec readPSpannerSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSpannerSpec", new com.legend.protocol.Protocol.PSpannerSpec(
+                FrontRead.component(r, "PSpannerSpec.databaseId", tagged ? ",\"databaseId\":" : "\"databaseId\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSpannerSpec.instanceId", ",\"instanceId\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSpannerSpec.projectId", ",\"projectId\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSpannerSpec.proxyHost", ",\"proxyHost\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSpannerSpec.proxyPort", ",\"proxyPort\":", c -> FrontRead.longValue(c)),
+                FrontRead.nullableComponent(r, "PSpannerSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSsParam readPSsParam(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSsParam", new com.legend.protocol.Protocol.PSsParam(
+                FrontRead.component(r, "PSsParam.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSsParam.type", ",\"type\":", c -> readPSsTypeRef(c, false)),
+                FrontRead.nullableComponent(r, "PSsParam.allowReserved", ",\"allowReserved\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PSsParam.required", ",\"required\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "PSsParam.location", ",\"location\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSsParam.style", ",\"style\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSsParam.styleSpan", ",\"styleSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PSsParam.explode", ",\"explode\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PSsParam.explodeSpan", ",\"explodeSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PSsParam.enumeration", ",\"enumeration\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSsParam.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSsService readPSsService(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSsService", new com.legend.protocol.Protocol.PSsService(
+                FrontRead.component(r, "PSsService.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSsService.path", ",\"path\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSsService.requestBody", ",\"requestBody\":", c -> readPSsTypeRef(c, false)),
+                FrontRead.component(r, "PSsService.method", ",\"method\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSsService.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> readPSsParam(x0, false))),
+                FrontRead.component(r, "PSsService.response", ",\"response\":", c -> readPSsTypeRef(c, false)),
+                FrontRead.component(r, "PSsService.security", ",\"security\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "PSsService.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSsServiceGroup readPSsServiceGroup(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSsServiceGroup", new com.legend.protocol.Protocol.PSsServiceGroup(
+                FrontRead.component(r, "PSsServiceGroup.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSsServiceGroup.path", ",\"path\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSsServiceGroup.elements", ",\"elements\":", c -> FrontRead.list(c, x0 -> readPServiceStoreElement(x0))),
+                FrontRead.nullableComponent(r, "PSsServiceGroup.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSsTypeRef readPSsTypeRef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSsTypeRef", new com.legend.protocol.Protocol.PSsTypeRef(
+                FrontRead.nullableComponent(r, "PSsTypeRef.primitive", tagged ? ",\"primitive\":" : "\"primitive\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSsTypeRef.complexType", ",\"complexType\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PSsTypeRef.binding", ",\"binding\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PSsTypeRef.list", ",\"list\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PSsTypeRef.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PStaticSpec readPStaticSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PStaticSpec", new com.legend.protocol.Protocol.PStaticSpec(
+                FrontRead.component(r, "PStaticSpec.databaseName", tagged ? ",\"databaseName\":" : "\"databaseName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PStaticSpec.host", ",\"host\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PStaticSpec.port", ",\"port\":", c -> FrontRead.longValue(c)),
+                FrontRead.nullableComponent(r, "PStaticSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PStereotype readPStereotype(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PStereotype", new com.legend.protocol.Protocol.PStereotype(
+                FrontRead.component(r, "PStereotype.profile", tagged ? ",\"profile\":" : "\"profile\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PStereotype.value", ",\"value\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PStereotype.profileSourceInformation", ",\"profileSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PStereotype.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PStoreConnections readPStoreConnections(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PStoreConnections", new com.legend.protocol.Protocol.PStoreConnections(
+                FrontRead.component(r, "PStoreConnections.store", tagged ? ",\"store\":" : "\"store\":", c -> readPPointer(c, false)),
+                FrontRead.component(r, "PStoreConnections.storeConnections", ",\"storeConnections\":", c -> FrontRead.list(c, x0 -> readPIdentifiedConnection(x0, false))),
+                FrontRead.nullableComponent(r, "PStoreConnections.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PStorePointer readPStorePointer(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PStorePointer", new com.legend.protocol.Protocol.PStorePointer(
+                FrontRead.component(r, "PStorePointer.path", tagged ? ",\"path\":" : "\"path\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PStorePointer.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PStorePointer.type", ",\"type\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PStoreSubstitution readPStoreSubstitution(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PStoreSubstitution", new com.legend.protocol.Protocol.PStoreSubstitution(
+                FrontRead.component(r, "PStoreSubstitution.sourceDatabasePath", tagged ? ",\"sourceDatabasePath\":" : "\"sourceDatabasePath\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PStoreSubstitution.targetDatabasePath", ",\"targetDatabasePath\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PStoreTestData readPStoreTestData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PStoreTestData", new com.legend.protocol.Protocol.PStoreTestData(
+                FrontRead.component(r, "PStoreTestData.store", tagged ? ",\"store\":" : "\"store\":", c -> readPPointer(c, false)),
+                FrontRead.nullableComponent(r, "PStoreTestData.modelData", ",\"modelData\":", c -> FrontRead.list(c, x0 -> readPModelData(x0))),
+                FrontRead.nullableComponent(r, "PStoreTestData.modelStoreSourceInformation", ",\"modelStoreSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PStoreTestData.dataElement", ",\"dataElement\":", c -> readPPointer(c, false)),
+                FrontRead.nullableComponent(r, "PStoreTestData.relationElements", ",\"relationElements\":", c -> FrontRead.list(c, x0 -> readPRelationElement(x0, false))),
+                FrontRead.nullableComponent(r, "PStoreTestData.relationAccessorSourceInformation", ",\"relationAccessorSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PStoreTestData.embedded", ",\"embedded\":", c -> readPEmbeddedDataValue(c)),
+                FrontRead.nullableComponent(r, "PStoreTestData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PStringValuePattern readPStringValuePattern(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PStringValuePattern", new com.legend.protocol.Protocol.PStringValuePattern(
+                FrontRead.component(r, "PStringValuePattern.type", tagged ? ",\"type\":" : "\"type\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PStringValuePattern.expectedValue", ",\"expectedValue\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PStubParam readPStubParam(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PStubParam", new com.legend.protocol.Protocol.PStubParam(
+                FrontRead.component(r, "PStubParam.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PStubParam.pattern", ",\"pattern\":", c -> readPStringValuePattern(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PSuperType readPSuperType(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PSuperType", new com.legend.protocol.Protocol.PSuperType(
+                FrontRead.component(r, "PSuperType.type", tagged ? ",\"type\":" : "\"type\":", c -> readTypeExpression(c)),
+                FrontRead.nullableComponent(r, "PSuperType.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTableMapper readPTableMapper(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTableMapper", new com.legend.protocol.Protocol.PTableMapper(
+                FrontRead.component(r, "PTableMapper.from", tagged ? ",\"from\":" : "\"from\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTableMapper.to", ",\"to\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTableMapper.schemaFrom", ",\"schemaFrom\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTableMapper.schemaTo", ",\"schemaTo\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PTableMapper2 readPTableMapper2(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTableMapper2", new com.legend.protocol.Protocol.PTableMapper2(
+                FrontRead.component(r, "PTableMapper2.from", tagged ? ",\"from\":" : "\"from\":", c -> readPTablePointer2(c, false)),
+                FrontRead.component(r, "PTableMapper2.to", ",\"to\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PTablePointer2 readPTablePointer2(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTablePointer2", new com.legend.protocol.Protocol.PTablePointer2(
+                FrontRead.component(r, "PTablePointer2.database", tagged ? ",\"database\":" : "\"database\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTablePointer2.schema", ",\"schema\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTablePointer2.table", ",\"table\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTablePointer2.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTablePtr readPTablePtr(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTablePtr", new com.legend.protocol.Protocol.PTablePtr(
+                FrontRead.nullableComponent(r, "PTablePtr.database", tagged ? ",\"database\":" : "\"database\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTablePtr.mainTableDb", ",\"mainTableDb\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTablePtr.schema", ",\"schema\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTablePtr.table", ",\"table\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTablePtr.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PTablePtr.writtenType", ",\"writtenType\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PTag readPTag(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTag", new com.legend.protocol.Protocol.PTag(
+                FrontRead.component(r, "PTag.profile", tagged ? ",\"profile\":" : "\"profile\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTag.value", ",\"value\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTag.profileSourceInformation", ",\"profileSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PTag.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTaggedValue readPTaggedValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTaggedValue", new com.legend.protocol.Protocol.PTaggedValue(
+                FrontRead.component(r, "PTaggedValue.tag", tagged ? ",\"tag\":" : "\"tag\":", c -> readPTag(c, false)),
+                FrontRead.component(r, "PTaggedValue.value", ",\"value\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTaggedValue.multiLine", ",\"multiLine\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PTaggedValue.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTestAssertion readPTestAssertion(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTestAssertion", new com.legend.protocol.Protocol.PTestAssertion(
+                FrontRead.component(r, "PTestAssertion.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTestAssertion.expected", ",\"expected\":", c -> readPAssertionValue(c)),
+                FrontRead.nullableComponent(r, "PTestAssertion.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTestAuth readPTestAuth(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTestAuth", new com.legend.protocol.Protocol.PTestAuth(
+                FrontRead.nullableComponent(r, "PTestAuth.sourceInformation", tagged ? ",\"sourceInformation\":" : "\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTestData readPTestData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTestData", new com.legend.protocol.Protocol.PTestData(
+                FrontRead.component(r, "PTestData.storePath", tagged ? ",\"storePath\":" : "\"storePath\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTestData.storeSpan", ",\"storeSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PTestData.data", ",\"data\":", c -> readPTestPayload(c)),
+                FrontRead.nullableComponent(r, "PTestData.pointerType", ",\"pointerType\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTestData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTestParam readPTestParam(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTestParam", new com.legend.protocol.Protocol.PTestParam(
+                FrontRead.nullableComponent(r, "PTestParam.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTestParam.value", ",\"value\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PTestParam.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTestPayload.CsvTable readPTestPayloadCsvTable(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTestPayloadCsvTable", new com.legend.protocol.Protocol.PTestPayload.CsvTable(
+                FrontRead.component(r, "PTestPayloadCsvTable.schema", tagged ? ",\"schema\":" : "\"schema\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTestPayloadCsvTable.table", ",\"table\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTestPayloadCsvTable.values", ",\"values\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTestPayloadCsvTable.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTestPayload.ExternalFormat readPTestPayloadExternalFormat(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTestPayloadExternalFormat", new com.legend.protocol.Protocol.PTestPayload.ExternalFormat(
+                FrontRead.component(r, "PTestPayloadExternalFormat.contentType", tagged ? ",\"contentType\":" : "\"contentType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTestPayloadExternalFormat.data", ",\"data\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTestPayloadExternalFormat.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTestPayload.ModelEmbedded readPTestPayloadModelEmbedded(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTestPayloadModelEmbedded", new com.legend.protocol.Protocol.PTestPayload.ModelEmbedded(
+                FrontRead.component(r, "PTestPayloadModelEmbedded.model", tagged ? ",\"model\":" : "\"model\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTestPayloadModelEmbedded.data", ",\"data\":", c -> readPTestPayloadExternalFormat(c, false)),
+                FrontRead.nullableComponent(r, "PTestPayloadModelEmbedded.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTestPayload.ModelStoreData readPTestPayloadModelStoreData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTestPayloadModelStoreData", new com.legend.protocol.Protocol.PTestPayload.ModelStoreData(
+                FrontRead.component(r, "PTestPayloadModelStoreData.modelData", tagged ? ",\"modelData\":" : "\"modelData\":", c -> FrontRead.list(c, x0 -> readPTestPayloadModelEmbedded(x0, false))),
+                FrontRead.nullableComponent(r, "PTestPayloadModelStoreData.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTestPayload.Reference readPTestPayloadReference(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTestPayloadReference", new com.legend.protocol.Protocol.PTestPayload.Reference(
+                FrontRead.component(r, "PTestPayloadReference.path", tagged ? ",\"path\":" : "\"path\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTestPayloadReference.refType", ",\"refType\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTestPayloadReference.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTestPayload.RelationElement readPTestPayloadRelationElement(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTestPayloadRelationElement", new com.legend.protocol.Protocol.PTestPayload.RelationElement(
+                FrontRead.component(r, "PTestPayloadRelationElement.columns", tagged ? ",\"columns\":" : "\"columns\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PTestPayloadRelationElement.paths", ",\"paths\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "PTestPayloadRelationElement.rows", ",\"rows\":", c -> FrontRead.list(c, x0 -> FrontRead.list(x0, x1 -> FrontRead.string(x1)))),
+                FrontRead.nullableComponent(r, "PTestPayloadRelationElement.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTestPayload.RelationElements readPTestPayloadRelationElements(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTestPayloadRelationElements", new com.legend.protocol.Protocol.PTestPayload.RelationElements(
+                FrontRead.component(r, "PTestPayloadRelationElements.elements", tagged ? ",\"elements\":" : "\"elements\":", c -> FrontRead.list(c, x0 -> readPTestPayloadRelationElement(x0, false))),
+                FrontRead.nullableComponent(r, "PTestPayloadRelationElements.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTestPayload.RelationalCsv readPTestPayloadRelationalCsv(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTestPayloadRelationalCsv", new com.legend.protocol.Protocol.PTestPayload.RelationalCsv(
+                FrontRead.component(r, "PTestPayloadRelationalCsv.tables", tagged ? ",\"tables\":" : "\"tables\":", c -> FrontRead.list(c, x0 -> readPTestPayloadCsvTable(x0, false))),
+                FrontRead.nullableComponent(r, "PTestPayloadRelationalCsv.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTestSuite readPTestSuite(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTestSuite", new com.legend.protocol.Protocol.PTestSuite(
+                FrontRead.nullableComponent(r, "PTestSuite.id", tagged ? ",\"id\":" : "\"id\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTestSuite.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PTestSuite.testData", ",\"testData\":", c -> FrontRead.list(c, x0 -> readPTestData(x0, false))),
+                FrontRead.component(r, "PTestSuite.tests", ",\"tests\":", c -> FrontRead.list(c, x0 -> readPFunctionTest(x0, false)))));
+    }
+
+    static com.legend.protocol.Protocol.PText readPText(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PText", new com.legend.protocol.Protocol.PText(
+                FrontRead.component(r, "PText.pkg", tagged ? ",\"pkg\":" : "\"pkg\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PText.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PText.type", ",\"type\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PText.content", ",\"content\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PText.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTrinoKerberosAuth readPTrinoKerberosAuth(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTrinoKerberosAuth", new com.legend.protocol.Protocol.PTrinoKerberosAuth(
+                FrontRead.nullableComponent(r, "PTrinoKerberosAuth.kerberosRemoteServiceName", tagged ? ",\"kerberosRemoteServiceName\":" : "\"kerberosRemoteServiceName\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTrinoKerberosAuth.kerberosUseCanonicalHostname", ",\"kerberosUseCanonicalHostname\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PTrinoKerberosAuth.serverPrincipal", ",\"serverPrincipal\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTrinoKerberosAuth.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTrinoSpec readPTrinoSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTrinoSpec", new com.legend.protocol.Protocol.PTrinoSpec(
+                FrontRead.nullableComponent(r, "PTrinoSpec.catalog", tagged ? ",\"catalog\":" : "\"catalog\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTrinoSpec.clientTags", ",\"clientTags\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTrinoSpec.host", ",\"host\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PTrinoSpec.port", ",\"port\":", c -> FrontRead.longValue(c)),
+                FrontRead.nullableComponent(r, "PTrinoSpec.schema", ",\"schema\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTrinoSpec.sslSpecification", ",\"sslSpecification\":", c -> readPTrinoSsl(c, false)),
+                FrontRead.nullableComponent(r, "PTrinoSpec.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PTrinoSsl readPTrinoSsl(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PTrinoSsl", new com.legend.protocol.Protocol.PTrinoSsl(
+                FrontRead.component(r, "PTrinoSsl.ssl", tagged ? ",\"ssl\":" : "\"ssl\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PTrinoSsl.trustStorePathVaultReference", ",\"trustStorePathVaultReference\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PTrinoSsl.trustStorePasswordVaultReference", ",\"trustStorePasswordVaultReference\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Protocol.PUnit readPUnit(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PUnit", new com.legend.protocol.Protocol.PUnit(
+                FrontRead.component(r, "PUnit.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PUnit.measureFqn", ",\"measureFqn\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PUnit.paramName", ",\"paramName\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PUnit.body", ",\"body\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "PUnit.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PUserNamePassword readPUserNamePassword(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PUserNamePassword", new com.legend.protocol.Protocol.PUserNamePassword(
+                FrontRead.nullableComponent(r, "PUserNamePassword.baseVaultReference", tagged ? ",\"baseVaultReference\":" : "\"baseVaultReference\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PUserNamePassword.userNameVaultReference", ",\"userNameVaultReference\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PUserNamePassword.passwordVaultReference", ",\"passwordVaultReference\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PUserNamePassword.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PViewColumnMapping readPViewColumnMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PViewColumnMapping", new com.legend.protocol.Protocol.PViewColumnMapping(
+                FrontRead.component(r, "PViewColumnMapping.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PViewColumnMapping.operation", ",\"operation\":", c -> readPRelOp(c)),
+                FrontRead.nullableComponent(r, "PViewColumnMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PViewFilter readPViewFilter(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PViewFilter", new com.legend.protocol.Protocol.PViewFilter(
+                FrontRead.nullableComponent(r, "PViewFilter.db", tagged ? ",\"db\":" : "\"db\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PViewFilter.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PViewFilter.joins", ",\"joins\":", c -> FrontRead.list(c, x0 -> readPJoinPtr(x0, false))),
+                FrontRead.nullableComponent(r, "PViewFilter.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PXStoreAssociationMapping readPXStoreAssociationMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PXStoreAssociationMapping", new com.legend.protocol.Protocol.PXStoreAssociationMapping(
+                FrontRead.component(r, "PXStoreAssociationMapping.association", tagged ? ",\"association\":" : "\"association\":", c -> readPPointer(c, false)),
+                FrontRead.nullableComponent(r, "PXStoreAssociationMapping.id", ",\"id\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PXStoreAssociationMapping.propertyMappings", ",\"propertyMappings\":", c -> FrontRead.list(c, x0 -> readPXStorePropertyMapping(x0, false))),
+                FrontRead.nullableComponent(r, "PXStoreAssociationMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PXStorePropertyMapping readPXStorePropertyMapping(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PXStorePropertyMapping", new com.legend.protocol.Protocol.PXStorePropertyMapping(
+                FrontRead.component(r, "PXStorePropertyMapping.ownerClass", tagged ? ",\"ownerClass\":" : "\"ownerClass\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PXStorePropertyMapping.property", ",\"property\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PXStorePropertyMapping.propertySourceInformation", ",\"propertySourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PXStorePropertyMapping.crossExpression", ",\"crossExpression\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
+                FrontRead.component(r, "PXStorePropertyMapping.source", ",\"source\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PXStorePropertyMapping.target", ",\"target\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PXStorePropertyMapping.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PXmlModelConnection readPXmlModelConnection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PXmlModelConnection", new com.legend.protocol.Protocol.PXmlModelConnection(
+                FrontRead.component(r, "PXmlModelConnection.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PXmlModelConnection.classSourceInformation", ",\"classSourceInformation\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "PXmlModelConnection.element", ",\"element\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PXmlModelConnection.url", ",\"url\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PXmlModelConnection.sourceInformation", ",\"sourceInformation\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.Protocol.PureModelContextData readPureModelContextData(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PureModelContextData", new com.legend.protocol.Protocol.PureModelContextData(
+                FrontRead.component(r, "PureModelContextData.elements", tagged ? ",\"elements\":" : "\"elements\":", c -> FrontRead.list(c, x0 -> readElement(x0))),
+                FrontRead.nullableComponent(r, "PureModelContextData.serializer", ",\"serializer\":", c -> readPSerializer(c, false)),
+                FrontRead.nullableComponent(r, "PureModelContextData.origin", ",\"origin\":", c -> readPOrigin(c, false))));
+    }
+
+    static com.legend.protocol.Realization.Inline readRealizationInline(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "RealizationInline", new com.legend.protocol.Realization.Inline(
+                FrontRead.component(r, "RealizationInline.body", tagged ? ",\"body\":" : "\"body\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0)))));
+    }
+
+    static com.legend.protocol.Realization.Ref readRealizationRef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "RealizationRef", new com.legend.protocol.Realization.Ref(
+                FrontRead.component(r, "RealizationRef.functionFqn", tagged ? ",\"functionFqn\":" : "\"functionFqn\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "RealizationRef.source", ",\"source\":", c -> readValueSpecification(c))));
+    }
+
+    static com.legend.protocol.SourceInfo readSourceInfo(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "SourceInfo", new com.legend.protocol.SourceInfo(
+                FrontRead.component(r, "SourceInfo.sourceId", tagged ? ",\"sourceId\":" : "\"sourceId\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "SourceInfo.startLine", ",\"startLine\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "SourceInfo.startColumn", ",\"startColumn\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "SourceInfo.endLine", ",\"endLine\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "SourceInfo.endColumn", ",\"endColumn\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.protocol.TypeExpression.Column readTypeExpressionColumn(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "TypeExpressionColumn", new com.legend.protocol.TypeExpression.Column(
+                FrontRead.component(r, "TypeExpressionColumn.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "TypeExpressionColumn.type", ",\"type\":", c -> readTypeExpression(c)),
+                FrontRead.component(r, "TypeExpressionColumn.multiplicity", ",\"multiplicity\":", c -> readMultiplicity(c)),
+                FrontRead.nullableComponent(r, "TypeExpressionColumn.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.TypeExpression.FunctionType readTypeExpressionFunctionType(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "TypeExpressionFunctionType", new com.legend.protocol.TypeExpression.FunctionType(
+                FrontRead.component(r, "TypeExpressionFunctionType.parameters", tagged ? ",\"parameters\":" : "\"parameters\":", c -> FrontRead.list(c, x0 -> readTypeExpressionTypedParameter(x0, false))),
+                FrontRead.component(r, "TypeExpressionFunctionType.result", ",\"result\":", c -> readTypeExpressionTypedParameter(c, false))));
+    }
+
+    static com.legend.protocol.TypeExpression.Generic readTypeExpressionGeneric(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "TypeExpressionGeneric", new com.legend.protocol.TypeExpression.Generic(
+                FrontRead.component(r, "TypeExpressionGeneric.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "TypeExpressionGeneric.arguments", ",\"arguments\":", c -> FrontRead.list(c, x0 -> readTypeExpression(x0))),
+                FrontRead.component(r, "TypeExpressionGeneric.multiplicityArguments", ",\"multiplicityArguments\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "TypeExpressionGeneric.typeVariableValues", ",\"typeVariableValues\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
+                FrontRead.nullableComponent(r, "TypeExpressionGeneric.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.TypeExpression.NameRef readTypeExpressionNameRef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "TypeExpressionNameRef", new com.legend.protocol.TypeExpression.NameRef(
+                FrontRead.component(r, "TypeExpressionNameRef.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "TypeExpressionNameRef.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.TypeExpression.RelationType readTypeExpressionRelationType(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "TypeExpressionRelationType", new com.legend.protocol.TypeExpression.RelationType(
+                FrontRead.component(r, "TypeExpressionRelationType.columns", tagged ? ",\"columns\":" : "\"columns\":", c -> FrontRead.list(c, x0 -> readTypeExpressionColumn(x0, false)))));
+    }
+
+    static com.legend.protocol.TypeExpression.SchemaAlgebra readTypeExpressionSchemaAlgebra(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "TypeExpressionSchemaAlgebra", new com.legend.protocol.TypeExpression.SchemaAlgebra(
+                FrontRead.component(r, "TypeExpressionSchemaAlgebra.left", tagged ? ",\"left\":" : "\"left\":", c -> readTypeExpression(c)),
+                FrontRead.component(r, "TypeExpressionSchemaAlgebra.op", ",\"op\":", c -> com.legend.protocol.TypeExpression.Op.valueOf(FrontRead.string(c))),
+                FrontRead.component(r, "TypeExpressionSchemaAlgebra.right", ",\"right\":", c -> readTypeExpression(c))));
+    }
+
+    static com.legend.protocol.TypeExpression.TypedParameter readTypeExpressionTypedParameter(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "TypeExpressionTypedParameter", new com.legend.protocol.TypeExpression.TypedParameter(
+                FrontRead.component(r, "TypeExpressionTypedParameter.type", tagged ? ",\"type\":" : "\"type\":", c -> readTypeExpression(c)),
+                FrontRead.component(r, "TypeExpressionTypedParameter.multiplicity", ",\"multiplicity\":", c -> readMultiplicity(c))));
+    }
+
+    static com.legend.protocol.spec.AppliedFunction readAppliedFunction(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "AppliedFunction", new com.legend.protocol.spec.AppliedFunction(
+                FrontRead.component(r, "AppliedFunction.function", tagged ? ",\"function\":" : "\"function\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "AppliedFunction.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
+                FrontRead.component(r, "AppliedFunction.referents", ",\"referents\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.nullableComponent(r, "AppliedFunction.pos", ",\"pos\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "AppliedFunction.propertyCall", ",\"propertyCall\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "AppliedFunction.grouped", ",\"grouped\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "AppliedFunction.infix", ",\"infix\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "AppliedFunction.island", ",\"island\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "AppliedFunction.fControl", ",\"fControl\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "AppliedFunction.ownerClass", ",\"ownerClass\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.spec.AppliedProperty readAppliedProperty(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "AppliedProperty", new com.legend.protocol.spec.AppliedProperty(
+                FrontRead.component(r, "AppliedProperty.receiver", tagged ? ",\"receiver\":" : "\"receiver\":", c -> readValueSpecification(c)),
+                FrontRead.component(r, "AppliedProperty.property", ",\"property\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "AppliedProperty.pos", ",\"pos\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "AppliedProperty.ownerClass", ",\"ownerClass\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.spec.CBoolean readCBoolean(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "CBoolean", new com.legend.protocol.spec.CBoolean(
+                FrontRead.component(r, "CBoolean.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "CBoolean.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.CByteArray readCByteArray(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "CByteArray", new com.legend.protocol.spec.CByteArray(
+                FrontRead.component(r, "CByteArray.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "CByteArray.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.CDate readCDate(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "CDate", new com.legend.protocol.spec.CDate(
+                FrontRead.component(r, "CDate.value", tagged ? ",\"value\":" : "\"value\":", c -> readPureDateLiteral(c)),
+                FrontRead.nullableComponent(r, "CDate.written", ",\"written\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "CDate.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.CDecimal readCDecimal(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "CDecimal", new com.legend.protocol.spec.CDecimal(
+                FrontRead.component(r, "CDecimal.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.decimal(c)),
+                FrontRead.nullableComponent(r, "CDecimal.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.CFloat readCFloat(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "CFloat", new com.legend.protocol.spec.CFloat(
+                FrontRead.component(r, "CFloat.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.doubleValue(c)),
+                FrontRead.nullableComponent(r, "CFloat.exact", ",\"exact\":", c -> FrontRead.decimal(c)),
+                FrontRead.nullableComponent(r, "CFloat.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.CInteger readCInteger(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "CInteger", new com.legend.protocol.spec.CInteger(
+                FrontRead.component(r, "CInteger.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.number(c)),
+                FrontRead.nullableComponent(r, "CInteger.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.CLatestDate readCLatestDate(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "CLatestDate", new com.legend.protocol.spec.CLatestDate(
+                FrontRead.nullableComponent(r, "CLatestDate.pos", tagged ? ",\"pos\":" : "\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.CString readCString(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "CString", new com.legend.protocol.spec.CString(
+                FrontRead.component(r, "CString.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "CString.pos", ",\"pos\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "CString.multiLine", ",\"multiLine\":", c -> FrontRead.bool(c))));
+    }
+
+    static com.legend.protocol.spec.CTime readCTime(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "CTime", new com.legend.protocol.spec.CTime(
+                FrontRead.nullableComponent(r, "CTime.value", tagged ? ",\"value\":" : "\"value\":", c -> readPureTimeLiteral(c)),
+                FrontRead.nullableComponent(r, "CTime.written", ",\"written\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "CTime.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.ColSpec readColSpec(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "ColSpec", new com.legend.protocol.spec.ColSpec(
+                FrontRead.component(r, "ColSpec.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "ColSpec.function1", ",\"function1\":", c -> readLambdaFunction(c, false)),
+                FrontRead.nullableComponent(r, "ColSpec.function2", ",\"function2\":", c -> readLambdaFunction(c, false)),
+                FrontRead.nullableComponent(r, "ColSpec.alias", ",\"alias\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "ColSpec.args", ",\"args\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
+                FrontRead.component(r, "ColSpec.qualified", ",\"qualified\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "ColSpec.pos", ",\"pos\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "ColSpec.colType", ",\"colType\":", c -> readTypeExpression(c)),
+                FrontRead.nullableComponent(r, "ColSpec.colTypeMult", ",\"colTypeMult\":", c -> readMultiplicity(c)),
+                FrontRead.component(r, "ColSpec.stereotypes", ",\"stereotypes\":", c -> FrontRead.list(c, x0 -> readPStereotype(x0, false))),
+                FrontRead.component(r, "ColSpec.taggedValues", ",\"taggedValues\":", c -> FrontRead.list(c, x0 -> readPTaggedValue(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.ColSpecArray readColSpecArray(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "ColSpecArray", new com.legend.protocol.spec.ColSpecArray(
+                FrontRead.component(r, "ColSpecArray.colSpecs", tagged ? ",\"colSpecs\":" : "\"colSpecs\":", c -> FrontRead.list(c, x0 -> readColSpec(x0, false))),
+                FrontRead.nullableComponent(r, "ColSpecArray.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.EnumValue readEnumValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "EnumValue", new com.legend.protocol.spec.EnumValue(
+                FrontRead.component(r, "EnumValue.fullPath", tagged ? ",\"fullPath\":" : "\"fullPath\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "EnumValue.value", ",\"value\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "EnumValue.enumerationPos", ",\"enumerationPos\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "EnumValue.pos", ",\"pos\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "EnumValue.node", ",\"node\":", c -> FrontRead.bool(c))));
+    }
+
+    static com.legend.protocol.spec.Gql.Argument readGqlArgument(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlArgument", new com.legend.protocol.spec.Gql.Argument(
+                FrontRead.component(r, "GqlArgument.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlArgument.value", ",\"value\":", c -> readGqlValue(c))));
+    }
+
+    static com.legend.protocol.spec.Gql.BooleanValue readGqlBooleanValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlBooleanValue", new com.legend.protocol.spec.Gql.BooleanValue(
+                FrontRead.component(r, "GqlBooleanValue.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.bool(c))));
+    }
+
+    static com.legend.protocol.spec.Gql.Directive readGqlDirective(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlDirective", new com.legend.protocol.spec.Gql.Directive(
+                FrontRead.component(r, "GqlDirective.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlDirective.arguments", ",\"arguments\":", c -> FrontRead.list(c, x0 -> readGqlArgument(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.Gql.DirectiveDef readGqlDirectiveDef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlDirectiveDef", new com.legend.protocol.spec.Gql.DirectiveDef(
+                FrontRead.component(r, "GqlDirectiveDef.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlDirectiveDef.args", ",\"args\":", c -> FrontRead.list(c, x0 -> readGqlInputValueDef(x0, false))),
+                FrontRead.component(r, "GqlDirectiveDef.execLocations", ",\"execLocations\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "GqlDirectiveDef.typeSystemLocations", ",\"typeSystemLocations\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0)))));
+    }
+
+    static com.legend.protocol.spec.Gql.Document readGqlDocument(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlDocument", new com.legend.protocol.spec.Gql.Document(
+                FrontRead.component(r, "GqlDocument.definitions", tagged ? ",\"definitions\":" : "\"definitions\":", c -> FrontRead.list(c, x0 -> readGqlDefinition(x0)))));
+    }
+
+    static com.legend.protocol.spec.Gql.EnumType readGqlEnumType(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlEnumType", new com.legend.protocol.spec.Gql.EnumType(
+                FrontRead.component(r, "GqlEnumType.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlEnumType.directives", ",\"directives\":", c -> FrontRead.list(c, x0 -> readGqlDirective(x0, false))),
+                FrontRead.component(r, "GqlEnumType.values", ",\"values\":", c -> FrontRead.list(c, x0 -> readGqlEnumValueDef(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.Gql.EnumValue readGqlEnumValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlEnumValue", new com.legend.protocol.spec.Gql.EnumValue(
+                FrontRead.component(r, "GqlEnumValue.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.spec.Gql.EnumValueDef readGqlEnumValueDef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlEnumValueDef", new com.legend.protocol.spec.Gql.EnumValueDef(
+                FrontRead.component(r, "GqlEnumValueDef.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlEnumValueDef.directives", ",\"directives\":", c -> FrontRead.list(c, x0 -> readGqlDirective(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.Gql.Field readGqlField(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlField", new com.legend.protocol.spec.Gql.Field(
+                FrontRead.nullableComponent(r, "GqlField.alias", tagged ? ",\"alias\":" : "\"alias\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlField.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlField.arguments", ",\"arguments\":", c -> FrontRead.list(c, x0 -> readGqlArgument(x0, false))),
+                FrontRead.component(r, "GqlField.directives", ",\"directives\":", c -> FrontRead.list(c, x0 -> readGqlDirective(x0, false))),
+                FrontRead.component(r, "GqlField.selectionSet", ",\"selectionSet\":", c -> FrontRead.list(c, x0 -> readGqlSelection(x0)))));
+    }
+
+    static com.legend.protocol.spec.Gql.FieldDef readGqlFieldDef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlFieldDef", new com.legend.protocol.spec.Gql.FieldDef(
+                FrontRead.component(r, "GqlFieldDef.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlFieldDef.type", ",\"type\":", c -> readGqlTypeRef(c)),
+                FrontRead.component(r, "GqlFieldDef.args", ",\"args\":", c -> FrontRead.list(c, x0 -> readGqlInputValueDef(x0, false))),
+                FrontRead.component(r, "GqlFieldDef.directives", ",\"directives\":", c -> FrontRead.list(c, x0 -> readGqlDirective(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.Gql.FloatValue readGqlFloatValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlFloatValue", new com.legend.protocol.spec.Gql.FloatValue(
+                FrontRead.component(r, "GqlFloatValue.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.doubleValue(c))));
+    }
+
+    static com.legend.protocol.spec.Gql.Fragment readGqlFragment(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlFragment", new com.legend.protocol.spec.Gql.Fragment(
+                FrontRead.component(r, "GqlFragment.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlFragment.typeCondition", ",\"typeCondition\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlFragment.directives", ",\"directives\":", c -> FrontRead.list(c, x0 -> readGqlDirective(x0, false))),
+                FrontRead.component(r, "GqlFragment.selectionSet", ",\"selectionSet\":", c -> FrontRead.list(c, x0 -> readGqlSelection(x0)))));
+    }
+
+    static com.legend.protocol.spec.Gql.FragmentSpread readGqlFragmentSpread(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlFragmentSpread", new com.legend.protocol.spec.Gql.FragmentSpread(
+                FrontRead.component(r, "GqlFragmentSpread.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlFragmentSpread.directives", ",\"directives\":", c -> FrontRead.list(c, x0 -> readGqlDirective(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.Gql.InputObjectType readGqlInputObjectType(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlInputObjectType", new com.legend.protocol.spec.Gql.InputObjectType(
+                FrontRead.component(r, "GqlInputObjectType.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlInputObjectType.directives", ",\"directives\":", c -> FrontRead.list(c, x0 -> readGqlDirective(x0, false))),
+                FrontRead.component(r, "GqlInputObjectType.fields", ",\"fields\":", c -> FrontRead.list(c, x0 -> readGqlInputValueDef(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.Gql.InputValueDef readGqlInputValueDef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlInputValueDef", new com.legend.protocol.spec.Gql.InputValueDef(
+                FrontRead.component(r, "GqlInputValueDef.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlInputValueDef.type", ",\"type\":", c -> readGqlTypeRef(c)),
+                FrontRead.nullableComponent(r, "GqlInputValueDef.defaultValue", ",\"defaultValue\":", c -> readGqlValue(c)),
+                FrontRead.component(r, "GqlInputValueDef.directives", ",\"directives\":", c -> FrontRead.list(c, x0 -> readGqlDirective(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.Gql.IntValue readGqlIntValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlIntValue", new com.legend.protocol.spec.Gql.IntValue(
+                FrontRead.component(r, "GqlIntValue.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.longValue(c))));
+    }
+
+    static com.legend.protocol.spec.Gql.InterfaceType readGqlInterfaceType(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlInterfaceType", new com.legend.protocol.spec.Gql.InterfaceType(
+                FrontRead.component(r, "GqlInterfaceType.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlInterfaceType.directives", ",\"directives\":", c -> FrontRead.list(c, x0 -> readGqlDirective(x0, false))),
+                FrontRead.component(r, "GqlInterfaceType.fields", ",\"fields\":", c -> FrontRead.list(c, x0 -> readGqlFieldDef(x0, false))),
+                FrontRead.component(r, "GqlInterfaceType.implementsList", ",\"implementsList\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0)))));
+    }
+
+    static com.legend.protocol.spec.Gql.ListType readGqlListType(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlListType", new com.legend.protocol.spec.Gql.ListType(
+                FrontRead.component(r, "GqlListType.itemType", tagged ? ",\"itemType\":" : "\"itemType\":", c -> readGqlTypeRef(c)),
+                FrontRead.component(r, "GqlListType.nullable", ",\"nullable\":", c -> FrontRead.bool(c))));
+    }
+
+    static com.legend.protocol.spec.Gql.ListValue readGqlListValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlListValue", new com.legend.protocol.spec.Gql.ListValue(
+                FrontRead.component(r, "GqlListValue.values", tagged ? ",\"values\":" : "\"values\":", c -> FrontRead.list(c, x0 -> readGqlValue(x0)))));
+    }
+
+    static com.legend.protocol.spec.Gql.NamedType readGqlNamedType(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlNamedType", new com.legend.protocol.spec.Gql.NamedType(
+                FrontRead.component(r, "GqlNamedType.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlNamedType.nullable", ",\"nullable\":", c -> FrontRead.bool(c))));
+    }
+
+    static com.legend.protocol.spec.Gql.NullValue readGqlNullValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlNullValue", new com.legend.protocol.spec.Gql.NullValue());
+    }
+
+    static com.legend.protocol.spec.Gql.ObjectType readGqlObjectType(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlObjectType", new com.legend.protocol.spec.Gql.ObjectType(
+                FrontRead.component(r, "GqlObjectType.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlObjectType.fields", ",\"fields\":", c -> FrontRead.list(c, x0 -> readGqlFieldDef(x0, false))),
+                FrontRead.component(r, "GqlObjectType.implementsList", ",\"implementsList\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0)))));
+    }
+
+    static com.legend.protocol.spec.Gql.ObjectValue readGqlObjectValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlObjectValue", new com.legend.protocol.spec.Gql.ObjectValue(
+                FrontRead.component(r, "GqlObjectValue.fields", tagged ? ",\"fields\":" : "\"fields\":", c -> FrontRead.list(c, x0 -> readGqlArgument(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.Gql.Operation readGqlOperation(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlOperation", new com.legend.protocol.spec.Gql.Operation(
+                FrontRead.nullableComponent(r, "GqlOperation.type", tagged ? ",\"type\":" : "\"type\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "GqlOperation.name", ",\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlOperation.variables", ",\"variables\":", c -> FrontRead.list(c, x0 -> readGqlVariableDef(x0, false))),
+                FrontRead.component(r, "GqlOperation.directives", ",\"directives\":", c -> FrontRead.list(c, x0 -> readGqlDirective(x0, false))),
+                FrontRead.component(r, "GqlOperation.selectionSet", ",\"selectionSet\":", c -> FrontRead.list(c, x0 -> readGqlSelection(x0)))));
+    }
+
+    static com.legend.protocol.spec.Gql.RootOp readGqlRootOp(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlRootOp", new com.legend.protocol.spec.Gql.RootOp(
+                FrontRead.component(r, "GqlRootOp.operationType", tagged ? ",\"operationType\":" : "\"operationType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlRootOp.type", ",\"type\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.spec.Gql.ScalarType readGqlScalarType(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlScalarType", new com.legend.protocol.spec.Gql.ScalarType(
+                FrontRead.component(r, "GqlScalarType.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlScalarType.directives", ",\"directives\":", c -> FrontRead.list(c, x0 -> readGqlDirective(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.Gql.SchemaDef readGqlSchemaDef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlSchemaDef", new com.legend.protocol.spec.Gql.SchemaDef(
+                FrontRead.component(r, "GqlSchemaDef.directives", tagged ? ",\"directives\":" : "\"directives\":", c -> FrontRead.list(c, x0 -> readGqlDirective(x0, false))),
+                FrontRead.component(r, "GqlSchemaDef.rootOps", ",\"rootOps\":", c -> FrontRead.list(c, x0 -> readGqlRootOp(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.Gql.StringValue readGqlStringValue(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlStringValue", new com.legend.protocol.spec.Gql.StringValue(
+                FrontRead.component(r, "GqlStringValue.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.spec.Gql.UnionType readGqlUnionType(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlUnionType", new com.legend.protocol.spec.Gql.UnionType(
+                FrontRead.component(r, "GqlUnionType.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlUnionType.directives", ",\"directives\":", c -> FrontRead.list(c, x0 -> readGqlDirective(x0, false))),
+                FrontRead.component(r, "GqlUnionType.members", ",\"members\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0)))));
+    }
+
+    static com.legend.protocol.spec.Gql.VariableDef readGqlVariableDef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlVariableDef", new com.legend.protocol.spec.Gql.VariableDef(
+                FrontRead.component(r, "GqlVariableDef.dollarName", tagged ? ",\"dollarName\":" : "\"dollarName\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GqlVariableDef.type", ",\"type\":", c -> readGqlTypeRef(c)),
+                FrontRead.nullableComponent(r, "GqlVariableDef.defaultValue", ",\"defaultValue\":", c -> readGqlValue(c))));
+    }
+
+    static com.legend.protocol.spec.Gql.VariableRef readGqlVariableRef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlVariableRef", new com.legend.protocol.spec.Gql.VariableRef(
+                FrontRead.component(r, "GqlVariableRef.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.spec.GqlIsland readGqlIsland(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GqlIsland", new com.legend.protocol.spec.GqlIsland(
+                FrontRead.component(r, "GqlIsland.document", tagged ? ",\"document\":" : "\"document\":", c -> readGqlDocument(c, false)),
+                FrontRead.nullableComponent(r, "GqlIsland.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.GraphFetchLiteral readGraphFetchLiteral(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GraphFetchLiteral", new com.legend.protocol.spec.GraphFetchLiteral(
+                FrontRead.component(r, "GraphFetchLiteral.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GraphFetchLiteral.subTrees", ",\"subTrees\":", c -> FrontRead.list(c, x0 -> readGraphFetchLiteralNode(x0, false))),
+                FrontRead.component(r, "GraphFetchLiteral.subTypeTrees", ",\"subTypeTrees\":", c -> FrontRead.list(c, x0 -> readGraphFetchLiteralSubTypeNode(x0, false))),
+                FrontRead.nullableComponent(r, "GraphFetchLiteral.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.GraphFetchLiteral.Node readGraphFetchLiteralNode(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GraphFetchLiteralNode", new com.legend.protocol.spec.GraphFetchLiteral.Node(
+                FrontRead.component(r, "GraphFetchLiteralNode.property", tagged ? ",\"property\":" : "\"property\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "GraphFetchLiteralNode.pos", ",\"pos\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "GraphFetchLiteralNode.parameters", ",\"parameters\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
+                FrontRead.nullableComponent(r, "GraphFetchLiteralNode.alias", ",\"alias\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "GraphFetchLiteralNode.subType", ",\"subType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "GraphFetchLiteralNode.subTrees", ",\"subTrees\":", c -> FrontRead.list(c, x0 -> readGraphFetchLiteralNode(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode readGraphFetchLiteralSubTypeNode(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "GraphFetchLiteralSubTypeNode", new com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode(
+                FrontRead.component(r, "GraphFetchLiteralSubTypeNode.subTypeClass", tagged ? ",\"subTypeClass\":" : "\"subTypeClass\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "GraphFetchLiteralSubTypeNode.pos", ",\"pos\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "GraphFetchLiteralSubTypeNode.subTrees", ",\"subTrees\":", c -> FrontRead.list(c, x0 -> readGraphFetchLiteralNode(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.KeyExpression readKeyExpression(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "KeyExpression", new com.legend.protocol.spec.KeyExpression(
+                FrontRead.component(r, "KeyExpression.value", tagged ? ",\"value\":" : "\"value\":", c -> readValueSpecification(c)),
+                FrontRead.component(r, "KeyExpression.isAdd", ",\"isAdd\":", c -> FrontRead.bool(c)),
+                FrontRead.component(r, "KeyExpression.isLocal", ",\"isLocal\":", c -> FrontRead.bool(c))));
+    }
+
+    static com.legend.protocol.spec.LambdaFunction readLambdaFunction(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "LambdaFunction", new com.legend.protocol.spec.LambdaFunction(
+                FrontRead.component(r, "LambdaFunction.parameters", tagged ? ",\"parameters\":" : "\"parameters\":", c -> FrontRead.list(c, x0 -> readVariable(x0, false))),
+                FrontRead.component(r, "LambdaFunction.body", ",\"body\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
+                FrontRead.nullableComponent(r, "LambdaFunction.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.NewInstance readNewInstance(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "NewInstance", new com.legend.protocol.spec.NewInstance(
+                FrontRead.component(r, "NewInstance.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "NewInstance.typeArguments", ",\"typeArguments\":", c -> FrontRead.list(c, x0 -> readTypeExpression(x0))),
+                FrontRead.component(r, "NewInstance.typeMultiplicityArguments", ",\"typeMultiplicityArguments\":", c -> FrontRead.list(c, x0 -> FrontRead.string(x0))),
+                FrontRead.component(r, "NewInstance.properties", ",\"properties\":", c -> FrontRead.list(c, x0 -> readNewInstanceKeyBinding(x0, false)))));
+    }
+
+    static com.legend.protocol.spec.NewInstance.KeyBinding readNewInstanceKeyBinding(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "NewInstanceKeyBinding", new com.legend.protocol.spec.NewInstance.KeyBinding(
+                FrontRead.component(r, "NewInstanceKeyBinding.key", tagged ? ",\"key\":" : "\"key\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "NewInstanceKeyBinding.expression", ",\"expression\":", c -> readKeyExpression(c, false))));
+    }
+
+    static com.legend.protocol.spec.NewInstanceCast readNewInstanceCast(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "NewInstanceCast", new com.legend.protocol.spec.NewInstanceCast(
+                FrontRead.component(r, "NewInstanceCast.className", tagged ? ",\"className\":" : "\"className\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "NewInstanceCast.typeArguments", ",\"typeArguments\":", c -> FrontRead.list(c, x0 -> readTypeExpression(x0))),
+                FrontRead.component(r, "NewInstanceCast.src", ",\"src\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "NewInstanceCast.targetSetId", ",\"targetSetId\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.spec.PackageableElementPtr readPackageableElementPtr(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PackageableElementPtr", new com.legend.protocol.spec.PackageableElementPtr(
+                FrontRead.component(r, "PackageableElementPtr.fullPath", tagged ? ",\"fullPath\":" : "\"fullPath\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "PackageableElementPtr.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.PathLiteral readPathLiteral(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PathLiteral", new com.legend.protocol.spec.PathLiteral(
+                FrontRead.component(r, "PathLiteral.startType", tagged ? ",\"startType\":" : "\"startType\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PathLiteral.segments", ",\"segments\":", c -> FrontRead.list(c, x0 -> readPathLiteralSegment(x0, false))),
+                FrontRead.component(r, "PathLiteral.desugared", ",\"desugared\":", c -> readLambdaFunction(c, false)),
+                FrontRead.nullableComponent(r, "PathLiteral.alias", ",\"alias\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PathLiteral.hasDatedSegment", ",\"hasDatedSegment\":", c -> FrontRead.bool(c)),
+                FrontRead.nullableComponent(r, "PathLiteral.pos", ",\"pos\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "PathLiteral.literalLength", ",\"literalLength\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PathLiteral.lineStarts", ",\"lineStarts\":", c -> FrontRead.list(c, x0 -> FrontRead.integer(x0)))));
+    }
+
+    static com.legend.protocol.spec.PathLiteral.PathArg.CollectionArg readPathLiteralPathArgCollectionArg(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PathLiteralPathArgCollectionArg", new com.legend.protocol.spec.PathLiteral.PathArg.CollectionArg(
+                FrontRead.component(r, "PathLiteralPathArgCollectionArg.elements", tagged ? ",\"elements\":" : "\"elements\":", c -> FrontRead.list(c, x0 -> readPathLiteralPathArg(x0)))));
+    }
+
+    static com.legend.protocol.spec.PathLiteral.PathArg.DateArg readPathLiteralPathArgDateArg(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PathLiteralPathArgDateArg", new com.legend.protocol.spec.PathLiteral.PathArg.DateArg(
+                FrontRead.component(r, "PathLiteralPathArgDateArg.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PathLiteralPathArgDateArg.start", ",\"start\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PathLiteralPathArgDateArg.end", ",\"end\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.protocol.spec.PathLiteral.PathArg.EnumArg readPathLiteralPathArgEnumArg(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PathLiteralPathArgEnumArg", new com.legend.protocol.spec.PathLiteral.PathArg.EnumArg(
+                FrontRead.component(r, "PathLiteralPathArgEnumArg.fullPath", tagged ? ",\"fullPath\":" : "\"fullPath\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PathLiteralPathArgEnumArg.value", ",\"value\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.spec.PathLiteral.PathArg.IntArg readPathLiteralPathArgIntArg(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PathLiteralPathArgIntArg", new com.legend.protocol.spec.PathLiteral.PathArg.IntArg(
+                FrontRead.component(r, "PathLiteralPathArgIntArg.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.longValue(c)),
+                FrontRead.component(r, "PathLiteralPathArgIntArg.start", ",\"start\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PathLiteralPathArgIntArg.end", ",\"end\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.protocol.spec.PathLiteral.PathArg.Latest readPathLiteralPathArgLatest(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PathLiteralPathArgLatest", new com.legend.protocol.spec.PathLiteral.PathArg.Latest(
+                FrontRead.component(r, "PathLiteralPathArgLatest.start", tagged ? ",\"start\":" : "\"start\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PathLiteralPathArgLatest.end", ",\"end\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.protocol.spec.PathLiteral.PathArg.StrArg readPathLiteralPathArgStrArg(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PathLiteralPathArgStrArg", new com.legend.protocol.spec.PathLiteral.PathArg.StrArg(
+                FrontRead.component(r, "PathLiteralPathArgStrArg.value", tagged ? ",\"value\":" : "\"value\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PathLiteralPathArgStrArg.start", ",\"start\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PathLiteralPathArgStrArg.end", ",\"end\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.protocol.spec.PathLiteral.Segment readPathLiteralSegment(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PathLiteralSegment", new com.legend.protocol.spec.PathLiteral.Segment(
+                FrontRead.component(r, "PathLiteralSegment.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "PathLiteralSegment.innerStart", ",\"innerStart\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PathLiteralSegment.innerEnd", ",\"innerEnd\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PathLiteralSegment.args", ",\"args\":", c -> FrontRead.list(c, x0 -> readPathLiteralPathArg(x0))),
+                FrontRead.component(r, "PathLiteralSegment.unsupportedArg", ",\"unsupportedArg\":", c -> FrontRead.bool(c))));
+    }
+
+    static com.legend.protocol.spec.PureCollection readPureCollection(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PureCollection", new com.legend.protocol.spec.PureCollection(
+                FrontRead.component(r, "PureCollection.values", tagged ? ",\"values\":" : "\"values\":", c -> FrontRead.list(c, x0 -> readValueSpecification(x0))),
+                FrontRead.nullableComponent(r, "PureCollection.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.QuotedGrammarCall readQuotedGrammarCall(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "QuotedGrammarCall", new com.legend.protocol.spec.QuotedGrammarCall(
+                FrontRead.component(r, "QuotedGrammarCall.original", tagged ? ",\"original\":" : "\"original\":", c -> readAppliedFunction(c, false)),
+                FrontRead.component(r, "QuotedGrammarCall.functions", ",\"functions\":", c -> FrontRead.list(c, x0 -> readLambdaFunction(x0, false))),
+                FrontRead.nullableComponent(r, "QuotedGrammarCall.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.QuotedTreeCall readQuotedTreeCall(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "QuotedTreeCall", new com.legend.protocol.spec.QuotedTreeCall(
+                FrontRead.component(r, "QuotedTreeCall.original", tagged ? ",\"original\":" : "\"original\":", c -> readAppliedFunction(c, false)),
+                FrontRead.component(r, "QuotedTreeCall.tree", ",\"tree\":", c -> readValueSpecification(c)),
+                FrontRead.nullableComponent(r, "QuotedTreeCall.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.SqlIsland readSqlIsland(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "SqlIsland", new com.legend.protocol.spec.SqlIsland(
+                FrontRead.component(r, "SqlIsland.sql", tagged ? ",\"sql\":" : "\"sql\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "SqlIsland.pos", ",\"pos\":", c -> readSourceInfo(c, false)),
+                FrontRead.component(r, "SqlIsland.language", ",\"language\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "SqlIsland.profile", ",\"profile\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.spec.TdsLiteral readTdsLiteral(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "TdsLiteral", new com.legend.protocol.spec.TdsLiteral(
+                FrontRead.component(r, "TdsLiteral.tdsString", tagged ? ",\"tdsString\":" : "\"tdsString\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "TdsLiteral.desugared", ",\"desugared\":", c -> readAppliedFunction(c, false)),
+                FrontRead.nullableComponent(r, "TdsLiteral.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.TypeAnnotation.MultiplicityRef readTypeAnnotationMultiplicityRef(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "TypeAnnotationMultiplicityRef", new com.legend.protocol.spec.TypeAnnotation.MultiplicityRef(
+                FrontRead.component(r, "TypeAnnotationMultiplicityRef.multiplicity", tagged ? ",\"multiplicity\":" : "\"multiplicity\":", c -> readMultiplicity(c)),
+                FrontRead.nullableComponent(r, "TypeAnnotationMultiplicityRef.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.TypeAnnotation.Named readTypeAnnotationNamed(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "TypeAnnotationNamed", new com.legend.protocol.spec.TypeAnnotation.Named(
+                FrontRead.component(r, "TypeAnnotationNamed.type", tagged ? ",\"type\":" : "\"type\":", c -> readTypeExpression(c)),
+                FrontRead.nullableComponent(r, "TypeAnnotationNamed.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.TypeAnnotation.RelationShape readTypeAnnotationRelationShape(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "TypeAnnotationRelationShape", new com.legend.protocol.spec.TypeAnnotation.RelationShape(
+                FrontRead.component(r, "TypeAnnotationRelationShape.columns", tagged ? ",\"columns\":" : "\"columns\":", c -> FrontRead.list(c, x0 -> readTypeAnnotationRelationShapeColumn(x0, false))),
+                FrontRead.nullableComponent(r, "TypeAnnotationRelationShape.spelledName", ",\"spelledName\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "TypeAnnotationRelationShape.typeSpan", ",\"typeSpan\":", c -> readSourceInfo(c, false)),
+                FrontRead.nullableComponent(r, "TypeAnnotationRelationShape.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.TypeAnnotation.RelationShape.Column readTypeAnnotationRelationShapeColumn(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "TypeAnnotationRelationShapeColumn", new com.legend.protocol.spec.TypeAnnotation.RelationShape.Column(
+                FrontRead.nullableComponent(r, "TypeAnnotationRelationShapeColumn.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.component(r, "TypeAnnotationRelationShapeColumn.type", ",\"type\":", c -> readTypeAnnotation(c)),
+                FrontRead.component(r, "TypeAnnotationRelationShapeColumn.multiplicity", ",\"multiplicity\":", c -> readMultiplicity(c)),
+                FrontRead.nullableComponent(r, "TypeAnnotationRelationShapeColumn.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.protocol.spec.TypeAnnotation.Wildcard readTypeAnnotationWildcard(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "TypeAnnotationWildcard", new com.legend.protocol.spec.TypeAnnotation.Wildcard());
+    }
+
+    static com.legend.protocol.spec.Variable readVariable(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "Variable", new com.legend.protocol.spec.Variable(
+                FrontRead.component(r, "Variable.name", tagged ? ",\"name\":" : "\"name\":", c -> FrontRead.string(c)),
+                FrontRead.nullableComponent(r, "Variable.type", ",\"type\":", c -> readTypeExpression(c)),
+                FrontRead.nullableComponent(r, "Variable.multiplicity", ",\"multiplicity\":", c -> readMultiplicity(c)),
+                FrontRead.nullableComponent(r, "Variable.pos", ",\"pos\":", c -> readSourceInfo(c, false))));
+    }
+
+    static com.legend.values.PureDateLiteral.DateWithHour readPureDateLiteralDateWithHour(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PureDateLiteralDateWithHour", new com.legend.values.PureDateLiteral.DateWithHour(
+                FrontRead.component(r, "PureDateLiteralDateWithHour.year", tagged ? ",\"year\":" : "\"year\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithHour.month", ",\"month\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithHour.day", ",\"day\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithHour.hour", ",\"hour\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.values.PureDateLiteral.DateWithMinute readPureDateLiteralDateWithMinute(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PureDateLiteralDateWithMinute", new com.legend.values.PureDateLiteral.DateWithMinute(
+                FrontRead.component(r, "PureDateLiteralDateWithMinute.year", tagged ? ",\"year\":" : "\"year\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithMinute.month", ",\"month\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithMinute.day", ",\"day\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithMinute.hour", ",\"hour\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithMinute.minute", ",\"minute\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.values.PureDateLiteral.DateWithSecond readPureDateLiteralDateWithSecond(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PureDateLiteralDateWithSecond", new com.legend.values.PureDateLiteral.DateWithSecond(
+                FrontRead.component(r, "PureDateLiteralDateWithSecond.year", tagged ? ",\"year\":" : "\"year\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithSecond.month", ",\"month\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithSecond.day", ",\"day\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithSecond.hour", ",\"hour\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithSecond.minute", ",\"minute\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithSecond.second", ",\"second\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.values.PureDateLiteral.DateWithSubsecond readPureDateLiteralDateWithSubsecond(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PureDateLiteralDateWithSubsecond", new com.legend.values.PureDateLiteral.DateWithSubsecond(
+                FrontRead.component(r, "PureDateLiteralDateWithSubsecond.year", tagged ? ",\"year\":" : "\"year\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithSubsecond.month", ",\"month\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithSubsecond.day", ",\"day\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithSubsecond.hour", ",\"hour\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithSubsecond.minute", ",\"minute\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithSubsecond.second", ",\"second\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralDateWithSubsecond.subsecond", ",\"subsecond\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.values.PureDateLiteral.StrictDate readPureDateLiteralStrictDate(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PureDateLiteralStrictDate", new com.legend.values.PureDateLiteral.StrictDate(
+                FrontRead.component(r, "PureDateLiteralStrictDate.year", tagged ? ",\"year\":" : "\"year\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralStrictDate.month", ",\"month\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralStrictDate.day", ",\"day\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.values.PureDateLiteral.Year readPureDateLiteralYear(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PureDateLiteralYear", new com.legend.values.PureDateLiteral.Year(
+                FrontRead.component(r, "PureDateLiteralYear.year", tagged ? ",\"year\":" : "\"year\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.values.PureDateLiteral.YearMonth readPureDateLiteralYearMonth(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PureDateLiteralYearMonth", new com.legend.values.PureDateLiteral.YearMonth(
+                FrontRead.component(r, "PureDateLiteralYearMonth.year", tagged ? ",\"year\":" : "\"year\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureDateLiteralYearMonth.month", ",\"month\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.values.PureTimeLiteral.TimeWithMinute readPureTimeLiteralTimeWithMinute(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PureTimeLiteralTimeWithMinute", new com.legend.values.PureTimeLiteral.TimeWithMinute(
+                FrontRead.component(r, "PureTimeLiteralTimeWithMinute.hour", tagged ? ",\"hour\":" : "\"hour\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureTimeLiteralTimeWithMinute.minute", ",\"minute\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.values.PureTimeLiteral.TimeWithSecond readPureTimeLiteralTimeWithSecond(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PureTimeLiteralTimeWithSecond", new com.legend.values.PureTimeLiteral.TimeWithSecond(
+                FrontRead.component(r, "PureTimeLiteralTimeWithSecond.hour", tagged ? ",\"hour\":" : "\"hour\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureTimeLiteralTimeWithSecond.minute", ",\"minute\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureTimeLiteralTimeWithSecond.second", ",\"second\":", c -> FrontRead.integer(c))));
+    }
+
+    static com.legend.values.PureTimeLiteral.TimeWithSubsecond readPureTimeLiteralTimeWithSubsecond(FrontRead.Cursor r, boolean tagged) {
+        if (!tagged) {
+            FrontRead.open(r);
+        }
+        return FrontRead.close(r, "PureTimeLiteralTimeWithSubsecond", new com.legend.values.PureTimeLiteral.TimeWithSubsecond(
+                FrontRead.component(r, "PureTimeLiteralTimeWithSubsecond.hour", tagged ? ",\"hour\":" : "\"hour\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureTimeLiteralTimeWithSubsecond.minute", ",\"minute\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureTimeLiteralTimeWithSubsecond.second", ",\"second\":", c -> FrontRead.integer(c)),
+                FrontRead.component(r, "PureTimeLiteralTimeWithSubsecond.subsecond", ",\"subsecond\":", c -> FrontRead.string(c))));
+    }
+
+    static com.legend.protocol.Multiplicity readMultiplicity(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Multiplicity$Concrete" -> readMultiplicityConcrete(n);
-            case "protocol.Multiplicity$Parameter" -> readMultiplicityParameter(n);
+            case "protocol.Multiplicity$Concrete" -> readMultiplicityConcrete(r, true);
+            case "protocol.Multiplicity$Parameter" -> readMultiplicityParameter(r, true);
             default -> throw new IllegalArgumentException("no protocol.Multiplicity is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.Element readElement(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.Element readElement(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PAssociation" -> readPAssociation(n);
-            case "protocol.Protocol$PAssociationProjection" -> readPAssociationProjection(n);
-            case "protocol.Protocol$PBinding" -> readPBinding(n);
-            case "protocol.Protocol$PClass" -> readPClass(n);
-            case "protocol.Protocol$PConnection" -> readPConnection(n);
-            case "protocol.Protocol$PDataElement" -> readPDataElement(n);
-            case "protocol.Protocol$PDataQualityRelationComparison" -> readPDataQualityRelationComparison(n);
-            case "protocol.Protocol$PDataQualityRelationValidation" -> readPDataQualityRelationValidation(n);
-            case "protocol.Protocol$PDataQualityValidation" -> readPDataQualityValidation(n);
-            case "protocol.Protocol$PDataSpace" -> readPDataSpace(n);
-            case "protocol.Protocol$PDatabase" -> readPDatabase(n);
-            case "protocol.Protocol$PDeephavenDatabase" -> readPDeephavenDatabase(n);
-            case "protocol.Protocol$PDiagram" -> readPDiagram(n);
-            case "protocol.Protocol$PElasticsearch7Cluster" -> readPElasticsearch7Cluster(n);
-            case "protocol.Protocol$PEnumeration" -> readPEnumeration(n);
-            case "protocol.Protocol$PExecutionEnvironment" -> readPExecutionEnvironment(n);
-            case "protocol.Protocol$PFileGeneration" -> readPFileGeneration(n);
-            case "protocol.Protocol$PFunction" -> readPFunction(n);
-            case "protocol.Protocol$PFunctionActivator" -> readPFunctionActivator(n);
-            case "protocol.Protocol$PGenerationSpecification" -> readPGenerationSpecification(n);
-            case "protocol.Protocol$PMapping" -> readPMapping(n);
-            case "protocol.Protocol$PMeasure" -> readPMeasure(n);
-            case "protocol.Protocol$PMongoDatabase" -> readPMongoDatabase(n);
-            case "protocol.Protocol$PNativeFunction" -> readPNativeFunction(n);
-            case "protocol.Protocol$PPersistence" -> readPPersistence(n);
-            case "protocol.Protocol$PPersistenceContext" -> readPPersistenceContext(n);
-            case "protocol.Protocol$PPrimitive" -> readPPrimitive(n);
-            case "protocol.Protocol$PProfile" -> readPProfile(n);
-            case "protocol.Protocol$PRelationalMapper" -> readPRelationalMapper(n);
-            case "protocol.Protocol$PRuntime" -> readPRuntime(n);
-            case "protocol.Protocol$PSchemaSet" -> readPSchemaSet(n);
-            case "protocol.Protocol$PSectionIndex" -> readPSectionIndex(n);
-            case "protocol.Protocol$PService" -> readPService(n);
-            case "protocol.Protocol$PServiceStoreDefinition" -> readPServiceStoreDefinition(n);
-            case "protocol.Protocol$PText" -> readPText(n);
+            case "protocol.Protocol$PAssociation" -> readPAssociation(r, true);
+            case "protocol.Protocol$PAssociationProjection" -> readPAssociationProjection(r, true);
+            case "protocol.Protocol$PBinding" -> readPBinding(r, true);
+            case "protocol.Protocol$PClass" -> readPClass(r, true);
+            case "protocol.Protocol$PConnection" -> readPConnection(r, true);
+            case "protocol.Protocol$PDataElement" -> readPDataElement(r, true);
+            case "protocol.Protocol$PDataQualityRelationComparison" -> readPDataQualityRelationComparison(r, true);
+            case "protocol.Protocol$PDataQualityRelationValidation" -> readPDataQualityRelationValidation(r, true);
+            case "protocol.Protocol$PDataQualityValidation" -> readPDataQualityValidation(r, true);
+            case "protocol.Protocol$PDataSpace" -> readPDataSpace(r, true);
+            case "protocol.Protocol$PDatabase" -> readPDatabase(r, true);
+            case "protocol.Protocol$PDeephavenDatabase" -> readPDeephavenDatabase(r, true);
+            case "protocol.Protocol$PDiagram" -> readPDiagram(r, true);
+            case "protocol.Protocol$PElasticsearch7Cluster" -> readPElasticsearch7Cluster(r, true);
+            case "protocol.Protocol$PEnumeration" -> readPEnumeration(r, true);
+            case "protocol.Protocol$PExecutionEnvironment" -> readPExecutionEnvironment(r, true);
+            case "protocol.Protocol$PFileGeneration" -> readPFileGeneration(r, true);
+            case "protocol.Protocol$PFunction" -> readPFunction(r, true);
+            case "protocol.Protocol$PFunctionActivator" -> readPFunctionActivator(r, true);
+            case "protocol.Protocol$PGenerationSpecification" -> readPGenerationSpecification(r, true);
+            case "protocol.Protocol$PMapping" -> readPMapping(r, true);
+            case "protocol.Protocol$PMeasure" -> readPMeasure(r, true);
+            case "protocol.Protocol$PMongoDatabase" -> readPMongoDatabase(r, true);
+            case "protocol.Protocol$PNativeFunction" -> readPNativeFunction(r, true);
+            case "protocol.Protocol$PPersistence" -> readPPersistence(r, true);
+            case "protocol.Protocol$PPersistenceContext" -> readPPersistenceContext(r, true);
+            case "protocol.Protocol$PPrimitive" -> readPPrimitive(r, true);
+            case "protocol.Protocol$PProfile" -> readPProfile(r, true);
+            case "protocol.Protocol$PRelationalMapper" -> readPRelationalMapper(r, true);
+            case "protocol.Protocol$PRuntime" -> readPRuntime(r, true);
+            case "protocol.Protocol$PSchemaSet" -> readPSchemaSet(r, true);
+            case "protocol.Protocol$PSectionIndex" -> readPSectionIndex(r, true);
+            case "protocol.Protocol$PService" -> readPService(r, true);
+            case "protocol.Protocol$PServiceStoreDefinition" -> readPServiceStoreDefinition(r, true);
+            case "protocol.Protocol$PText" -> readPText(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$Element is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PAssertion readPAssertion(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PAssertion readPAssertion(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PAssertion$EqualTo" -> readPAssertionEqualTo(n);
-            case "protocol.Protocol$PAssertion$EqualToJson" -> readPAssertionEqualToJson(n);
-            case "protocol.Protocol$PAssertion$EqualToRelation" -> readPAssertionEqualToRelation(n);
+            case "protocol.Protocol$PAssertion$EqualTo" -> readPAssertionEqualTo(r, true);
+            case "protocol.Protocol$PAssertion$EqualToJson" -> readPAssertionEqualToJson(r, true);
+            case "protocol.Protocol$PAssertion$EqualToRelation" -> readPAssertionEqualToRelation(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PAssertion is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PAssertionValue readPAssertionValue(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PAssertionValue readPAssertionValue(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PEqualToValue" -> readPEqualToValue(n);
-            case "protocol.Protocol$PExternalFormatData" -> readPExternalFormatData(n);
-            case "protocol.Protocol$PRelationElement" -> readPRelationElement(n);
+            case "protocol.Protocol$PEqualToValue" -> readPEqualToValue(r, true);
+            case "protocol.Protocol$PExternalFormatData" -> readPExternalFormatData(r, true);
+            case "protocol.Protocol$PRelationElement" -> readPRelationElement(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PAssertionValue is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PAssociationMapping readPAssociationMapping(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PAssociationMapping readPAssociationMapping(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PFunctionAssociationMapping" -> readPFunctionAssociationMapping(n);
-            case "protocol.Protocol$PModelJoinAssociationMapping" -> readPModelJoinAssociationMapping(n);
-            case "protocol.Protocol$PRelAssociationMapping" -> readPRelAssociationMapping(n);
-            case "protocol.Protocol$PXStoreAssociationMapping" -> readPXStoreAssociationMapping(n);
+            case "protocol.Protocol$PFunctionAssociationMapping" -> readPFunctionAssociationMapping(r, true);
+            case "protocol.Protocol$PModelJoinAssociationMapping" -> readPModelJoinAssociationMapping(r, true);
+            case "protocol.Protocol$PRelAssociationMapping" -> readPRelAssociationMapping(r, true);
+            case "protocol.Protocol$PXStoreAssociationMapping" -> readPXStoreAssociationMapping(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PAssociationMapping is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PAuthSpecValue readPAuthSpecValue(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PAuthSpecValue readPAuthSpecValue(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PApiKeyAuth" -> readPApiKeyAuth(n);
-            case "protocol.Protocol$PEpkAuth" -> readPEpkAuth(n);
-            case "protocol.Protocol$PGcpWifIslandAuth" -> readPGcpWifIslandAuth(n);
-            case "protocol.Protocol$PKerberosAuth" -> readPKerberosAuth(n);
-            case "protocol.Protocol$PMongoAuth" -> readPMongoAuth(n);
-            case "protocol.Protocol$PPskAuth" -> readPPskAuth(n);
+            case "protocol.Protocol$PApiKeyAuth" -> readPApiKeyAuth(r, true);
+            case "protocol.Protocol$PEpkAuth" -> readPEpkAuth(r, true);
+            case "protocol.Protocol$PGcpWifIslandAuth" -> readPGcpWifIslandAuth(r, true);
+            case "protocol.Protocol$PKerberosAuth" -> readPKerberosAuth(r, true);
+            case "protocol.Protocol$PMongoAuth" -> readPMongoAuth(r, true);
+            case "protocol.Protocol$PPskAuth" -> readPPskAuth(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PAuthSpecValue is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PAuthStrategy readPAuthStrategy(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PAuthStrategy readPAuthStrategy(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PApiToken" -> readPApiToken(n);
-            case "protocol.Protocol$PDelegatedKerberos" -> readPDelegatedKerberos(n);
-            case "protocol.Protocol$PGCPApplicationDefaultCredentials" -> readPGCPApplicationDefaultCredentials(n);
-            case "protocol.Protocol$PGcpWifAuth" -> readPGcpWifAuth(n);
-            case "protocol.Protocol$PH2Default" -> readPH2Default(n);
-            case "protocol.Protocol$PMiddleTierUserNamePassword" -> readPMiddleTierUserNamePassword(n);
-            case "protocol.Protocol$POAuth" -> readPOAuth(n);
-            case "protocol.Protocol$PSnowflakePublic" -> readPSnowflakePublic(n);
-            case "protocol.Protocol$PTestAuth" -> readPTestAuth(n);
-            case "protocol.Protocol$PTrinoKerberosAuth" -> readPTrinoKerberosAuth(n);
-            case "protocol.Protocol$PUserNamePassword" -> readPUserNamePassword(n);
+            case "protocol.Protocol$PApiToken" -> readPApiToken(r, true);
+            case "protocol.Protocol$PDelegatedKerberos" -> readPDelegatedKerberos(r, true);
+            case "protocol.Protocol$PGCPApplicationDefaultCredentials" -> readPGCPApplicationDefaultCredentials(r, true);
+            case "protocol.Protocol$PGcpWifAuth" -> readPGcpWifAuth(r, true);
+            case "protocol.Protocol$PH2Default" -> readPH2Default(r, true);
+            case "protocol.Protocol$PMiddleTierUserNamePassword" -> readPMiddleTierUserNamePassword(r, true);
+            case "protocol.Protocol$POAuth" -> readPOAuth(r, true);
+            case "protocol.Protocol$PSnowflakePublic" -> readPSnowflakePublic(r, true);
+            case "protocol.Protocol$PTestAuth" -> readPTestAuth(r, true);
+            case "protocol.Protocol$PTrinoKerberosAuth" -> readPTrinoKerberosAuth(r, true);
+            case "protocol.Protocol$PUserNamePassword" -> readPUserNamePassword(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PAuthStrategy is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PAwsCredentials readPAwsCredentials(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PAwsCredentials readPAwsCredentials(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PAwsDefault" -> readPAwsDefault(n);
-            case "protocol.Protocol$PAwsStatic" -> readPAwsStatic(n);
-            case "protocol.Protocol$PAwsStsRole" -> readPAwsStsRole(n);
+            case "protocol.Protocol$PAwsDefault" -> readPAwsDefault(r, true);
+            case "protocol.Protocol$PAwsStatic" -> readPAwsStatic(r, true);
+            case "protocol.Protocol$PAwsStsRole" -> readPAwsStsRole(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PAwsCredentials is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PClassMapping readPClassMapping(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PClassMapping readPClassMapping(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PClassMappingAggregationAware" -> readPClassMappingAggregationAware(n);
-            case "protocol.Protocol$PClassMappingFunction" -> readPClassMappingFunction(n);
-            case "protocol.Protocol$PClassMappingMergeOperation" -> readPClassMappingMergeOperation(n);
-            case "protocol.Protocol$PClassMappingMongoDb" -> readPClassMappingMongoDb(n);
-            case "protocol.Protocol$PClassMappingOperation" -> readPClassMappingOperation(n);
-            case "protocol.Protocol$PClassMappingPure" -> readPClassMappingPure(n);
-            case "protocol.Protocol$PClassMappingRel" -> readPClassMappingRel(n);
-            case "protocol.Protocol$PClassMappingRelation" -> readPClassMappingRelation(n);
-            case "protocol.Protocol$PServiceStoreClassMapping" -> readPServiceStoreClassMapping(n);
+            case "protocol.Protocol$PClassMappingAggregationAware" -> readPClassMappingAggregationAware(r, true);
+            case "protocol.Protocol$PClassMappingFunction" -> readPClassMappingFunction(r, true);
+            case "protocol.Protocol$PClassMappingMergeOperation" -> readPClassMappingMergeOperation(r, true);
+            case "protocol.Protocol$PClassMappingMongoDb" -> readPClassMappingMongoDb(r, true);
+            case "protocol.Protocol$PClassMappingOperation" -> readPClassMappingOperation(r, true);
+            case "protocol.Protocol$PClassMappingPure" -> readPClassMappingPure(r, true);
+            case "protocol.Protocol$PClassMappingRel" -> readPClassMappingRel(r, true);
+            case "protocol.Protocol$PClassMappingRelation" -> readPClassMappingRelation(r, true);
+            case "protocol.Protocol$PServiceStoreClassMapping" -> readPServiceStoreClassMapping(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PClassMapping is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PConfigValue readPConfigValue(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PConfigValue readPConfigValue(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PConfigValue$PCBoolean" -> readPConfigValuePCBoolean(n);
-            case "protocol.Protocol$PConfigValue$PCInteger" -> readPConfigValuePCInteger(n);
-            case "protocol.Protocol$PConfigValue$PCMap" -> readPConfigValuePCMap(n);
-            case "protocol.Protocol$PConfigValue$PCNull" -> readPConfigValuePCNull(n);
-            case "protocol.Protocol$PConfigValue$PCString" -> readPConfigValuePCString(n);
-            case "protocol.Protocol$PConfigValue$PCStrings" -> readPConfigValuePCStrings(n);
+            case "protocol.Protocol$PConfigValue$PCBoolean" -> readPConfigValuePCBoolean(r, true);
+            case "protocol.Protocol$PConfigValue$PCInteger" -> readPConfigValuePCInteger(r, true);
+            case "protocol.Protocol$PConfigValue$PCMap" -> readPConfigValuePCMap(r, true);
+            case "protocol.Protocol$PConfigValue$PCNull" -> readPConfigValuePCNull(r, true);
+            case "protocol.Protocol$PConfigValue$PCString" -> readPConfigValuePCString(r, true);
+            case "protocol.Protocol$PConfigValue$PCStrings" -> readPConfigValuePCStrings(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PConfigValue is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PConnectionValue readPConnectionValue(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PConnectionValue readPConnectionValue(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PConnectionPointer" -> readPConnectionPointer(n);
-            case "protocol.Protocol$PDeephavenConnection" -> readPDeephavenConnection(n);
-            case "protocol.Protocol$PElasticsearchConnection" -> readPElasticsearchConnection(n);
-            case "protocol.Protocol$PJsonModelConnection" -> readPJsonModelConnection(n);
-            case "protocol.Protocol$PModelChainConnection" -> readPModelChainConnection(n);
-            case "protocol.Protocol$PMongoDbConnection" -> readPMongoDbConnection(n);
-            case "protocol.Protocol$PRelationalDatabaseConnection" -> readPRelationalDatabaseConnection(n);
-            case "protocol.Protocol$PServiceStoreConnection" -> readPServiceStoreConnection(n);
-            case "protocol.Protocol$PXmlModelConnection" -> readPXmlModelConnection(n);
+            case "protocol.Protocol$PConnectionPointer" -> readPConnectionPointer(r, true);
+            case "protocol.Protocol$PDeephavenConnection" -> readPDeephavenConnection(r, true);
+            case "protocol.Protocol$PElasticsearchConnection" -> readPElasticsearchConnection(r, true);
+            case "protocol.Protocol$PJsonModelConnection" -> readPJsonModelConnection(r, true);
+            case "protocol.Protocol$PModelChainConnection" -> readPModelChainConnection(r, true);
+            case "protocol.Protocol$PMongoDbConnection" -> readPMongoDbConnection(r, true);
+            case "protocol.Protocol$PRelationalDatabaseConnection" -> readPRelationalDatabaseConnection(r, true);
+            case "protocol.Protocol$PServiceStoreConnection" -> readPServiceStoreConnection(r, true);
+            case "protocol.Protocol$PXmlModelConnection" -> readPXmlModelConnection(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PConnectionValue is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PCtxParamValue readPCtxParamValue(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PCtxParamValue readPCtxParamValue(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PCtxParamValue$ConnectionPtr" -> readPCtxParamValueConnectionPtr(n);
-            case "protocol.Protocol$PCtxParamValue$ConnectionVal" -> readPCtxParamValueConnectionVal(n);
-            case "protocol.Protocol$PCtxParamValue$Primitive" -> readPCtxParamValuePrimitive(n);
+            case "protocol.Protocol$PCtxParamValue$ConnectionPtr" -> readPCtxParamValueConnectionPtr(r, true);
+            case "protocol.Protocol$PCtxParamValue$ConnectionVal" -> readPCtxParamValueConnectionVal(r, true);
+            case "protocol.Protocol$PCtxParamValue$Primitive" -> readPCtxParamValuePrimitive(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PCtxParamValue is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PDataSpaceSupport readPDataSpaceSupport(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PDataSpaceSupport readPDataSpaceSupport(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PDataSpaceSupport$PSupportCombined" -> readPDataSpaceSupportPSupportCombined(n);
-            case "protocol.Protocol$PDataSpaceSupport$PSupportEmail" -> readPDataSpaceSupportPSupportEmail(n);
-            case "protocol.Protocol$PDataSpaceSupport$PSupportFull" -> readPDataSpaceSupportPSupportFull(n);
+            case "protocol.Protocol$PDataSpaceSupport$PSupportCombined" -> readPDataSpaceSupportPSupportCombined(r, true);
+            case "protocol.Protocol$PDataSpaceSupport$PSupportEmail" -> readPDataSpaceSupportPSupportEmail(r, true);
+            case "protocol.Protocol$PDataSpaceSupport$PSupportFull" -> readPDataSpaceSupportPSupportFull(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PDataSpaceSupport is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PDatasourceSpec readPDatasourceSpec(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PDatasourceSpec readPDatasourceSpec(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PAthenaSpec" -> readPAthenaSpec(n);
-            case "protocol.Protocol$PAuroraSpec" -> readPAuroraSpec(n);
-            case "protocol.Protocol$PBigQuerySpec" -> readPBigQuerySpec(n);
-            case "protocol.Protocol$PDatabricksSpec" -> readPDatabricksSpec(n);
-            case "protocol.Protocol$PDuckDBSpec" -> readPDuckDBSpec(n);
-            case "protocol.Protocol$PGlobalAuroraSpec" -> readPGlobalAuroraSpec(n);
-            case "protocol.Protocol$PH2EmbeddedSpec" -> readPH2EmbeddedSpec(n);
-            case "protocol.Protocol$PH2Local" -> readPH2Local(n);
-            case "protocol.Protocol$PMemSqlSpec" -> readPMemSqlSpec(n);
-            case "protocol.Protocol$POracleSpec" -> readPOracleSpec(n);
-            case "protocol.Protocol$PRedshiftSpec" -> readPRedshiftSpec(n);
-            case "protocol.Protocol$PSQLiteSpec" -> readPSQLiteSpec(n);
-            case "protocol.Protocol$PSnowflakeSpec" -> readPSnowflakeSpec(n);
-            case "protocol.Protocol$PSpannerSpec" -> readPSpannerSpec(n);
-            case "protocol.Protocol$PStaticSpec" -> readPStaticSpec(n);
-            case "protocol.Protocol$PTrinoSpec" -> readPTrinoSpec(n);
+            case "protocol.Protocol$PAthenaSpec" -> readPAthenaSpec(r, true);
+            case "protocol.Protocol$PAuroraSpec" -> readPAuroraSpec(r, true);
+            case "protocol.Protocol$PBigQuerySpec" -> readPBigQuerySpec(r, true);
+            case "protocol.Protocol$PDatabricksSpec" -> readPDatabricksSpec(r, true);
+            case "protocol.Protocol$PDuckDBSpec" -> readPDuckDBSpec(r, true);
+            case "protocol.Protocol$PGlobalAuroraSpec" -> readPGlobalAuroraSpec(r, true);
+            case "protocol.Protocol$PH2EmbeddedSpec" -> readPH2EmbeddedSpec(r, true);
+            case "protocol.Protocol$PH2Local" -> readPH2Local(r, true);
+            case "protocol.Protocol$PMemSqlSpec" -> readPMemSqlSpec(r, true);
+            case "protocol.Protocol$POracleSpec" -> readPOracleSpec(r, true);
+            case "protocol.Protocol$PRedshiftSpec" -> readPRedshiftSpec(r, true);
+            case "protocol.Protocol$PSQLiteSpec" -> readPSQLiteSpec(r, true);
+            case "protocol.Protocol$PSnowflakeSpec" -> readPSnowflakeSpec(r, true);
+            case "protocol.Protocol$PSpannerSpec" -> readPSpannerSpec(r, true);
+            case "protocol.Protocol$PStaticSpec" -> readPStaticSpec(r, true);
+            case "protocol.Protocol$PTrinoSpec" -> readPTrinoSpec(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PDatasourceSpec is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PEmbeddedDataValue readPEmbeddedDataValue(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PEmbeddedDataValue readPEmbeddedDataValue(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PDataReference" -> readPDataReference(n);
-            case "protocol.Protocol$PExternalFormatData" -> readPExternalFormatData(n);
-            case "protocol.Protocol$PModelStoreData" -> readPModelStoreData(n);
-            case "protocol.Protocol$PRelationData" -> readPRelationData(n);
-            case "protocol.Protocol$PRelationalCsvData" -> readPRelationalCsvData(n);
-            case "protocol.Protocol$PServiceStoreData" -> readPServiceStoreData(n);
+            case "protocol.Protocol$PDataReference" -> readPDataReference(r, true);
+            case "protocol.Protocol$PExternalFormatData" -> readPExternalFormatData(r, true);
+            case "protocol.Protocol$PModelStoreData" -> readPModelStoreData(r, true);
+            case "protocol.Protocol$PRelationData" -> readPRelationData(r, true);
+            case "protocol.Protocol$PRelationalCsvData" -> readPRelationalCsvData(r, true);
+            case "protocol.Protocol$PServiceStoreData" -> readPServiceStoreData(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PEmbeddedDataValue is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PExecutionParameters readPExecutionParameters(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PExecutionParameters readPExecutionParameters(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PKeyedExecution" -> readPKeyedExecution(n);
-            case "protocol.Protocol$PMultiKeyedExecution" -> readPMultiKeyedExecution(n);
+            case "protocol.Protocol$PKeyedExecution" -> readPKeyedExecution(r, true);
+            case "protocol.Protocol$PMultiKeyedExecution" -> readPMultiKeyedExecution(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PExecutionParameters is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PMapper readPMapper(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PMapper readPMapper(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PSchemaMapper" -> readPSchemaMapper(n);
-            case "protocol.Protocol$PTableMapper" -> readPTableMapper(n);
+            case "protocol.Protocol$PSchemaMapper" -> readPSchemaMapper(r, true);
+            case "protocol.Protocol$PTableMapper" -> readPTableMapper(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PMapper is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PMilestoning readPMilestoning(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PMilestoning readPMilestoning(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PBusinessMilestoning" -> readPBusinessMilestoning(n);
-            case "protocol.Protocol$PBusinessSnapshotMilestoning" -> readPBusinessSnapshotMilestoning(n);
-            case "protocol.Protocol$PProcessingMilestoning" -> readPProcessingMilestoning(n);
-            case "protocol.Protocol$PProcessingSnapshotMilestoning" -> readPProcessingSnapshotMilestoning(n);
+            case "protocol.Protocol$PBusinessMilestoning" -> readPBusinessMilestoning(r, true);
+            case "protocol.Protocol$PBusinessSnapshotMilestoning" -> readPBusinessSnapshotMilestoning(r, true);
+            case "protocol.Protocol$PProcessingMilestoning" -> readPProcessingMilestoning(r, true);
+            case "protocol.Protocol$PProcessingSnapshotMilestoning" -> readPProcessingSnapshotMilestoning(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PMilestoning is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PModelData readPModelData(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PModelData readPModelData(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PModelEmbeddedData" -> readPModelEmbeddedData(n);
-            case "protocol.Protocol$PModelInstanceData" -> readPModelInstanceData(n);
+            case "protocol.Protocol$PModelEmbeddedData" -> readPModelEmbeddedData(r, true);
+            case "protocol.Protocol$PModelInstanceData" -> readPModelInstanceData(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PModelData is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PPersistenceEntry readPPersistenceEntry(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PPersistenceEntry readPPersistenceEntry(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PPersistenceEntry$Node" -> readPPersistenceEntryNode(n);
-            case "protocol.Protocol$PPersistenceEntry$NodeList" -> readPPersistenceEntryNodeList(n);
-            case "protocol.Protocol$PPersistenceEntry$PathList" -> readPPersistenceEntryPathList(n);
-            case "protocol.Protocol$PPersistenceEntry$PathValue" -> readPPersistenceEntryPathValue(n);
-            case "protocol.Protocol$PPersistenceEntry$Pointer" -> readPPersistenceEntryPointer(n);
-            case "protocol.Protocol$PPersistenceEntry$Scalar" -> readPPersistenceEntryScalar(n);
-            case "protocol.Protocol$PPersistenceEntry$Strings" -> readPPersistenceEntryStrings(n);
+            case "protocol.Protocol$PPersistenceEntry$Node" -> readPPersistenceEntryNode(r, true);
+            case "protocol.Protocol$PPersistenceEntry$NodeList" -> readPPersistenceEntryNodeList(r, true);
+            case "protocol.Protocol$PPersistenceEntry$PathList" -> readPPersistenceEntryPathList(r, true);
+            case "protocol.Protocol$PPersistenceEntry$PathValue" -> readPPersistenceEntryPathValue(r, true);
+            case "protocol.Protocol$PPersistenceEntry$Pointer" -> readPPersistenceEntryPointer(r, true);
+            case "protocol.Protocol$PPersistenceEntry$Scalar" -> readPPersistenceEntryScalar(r, true);
+            case "protocol.Protocol$PPersistenceEntry$Strings" -> readPPersistenceEntryStrings(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PPersistenceEntry is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PPostProcessor readPPostProcessor(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PPostProcessor readPPostProcessor(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PExtractSubQueriesAsCtesPostProcessor" -> readPExtractSubQueriesAsCtesPostProcessor(n);
-            case "protocol.Protocol$PMapperPostProcessor" -> readPMapperPostProcessor(n);
-            case "protocol.Protocol$PRelationalMapperPostProcessor" -> readPRelationalMapperPostProcessor(n);
+            case "protocol.Protocol$PExtractSubQueriesAsCtesPostProcessor" -> readPExtractSubQueriesAsCtesPostProcessor(r, true);
+            case "protocol.Protocol$PMapperPostProcessor" -> readPMapperPostProcessor(r, true);
+            case "protocol.Protocol$PRelationalMapperPostProcessor" -> readPRelationalMapperPostProcessor(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PPostProcessor is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PPropertyMapping readPPropertyMapping(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PPropertyMapping readPPropertyMapping(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PEmbeddedPropertyMapping" -> readPEmbeddedPropertyMapping(n);
-            case "protocol.Protocol$PInlineEmbeddedPropertyMapping" -> readPInlineEmbeddedPropertyMapping(n);
-            case "protocol.Protocol$POtherwiseEmbeddedPropertyMapping" -> readPOtherwiseEmbeddedPropertyMapping(n);
-            case "protocol.Protocol$PRelPropertyMapping" -> readPRelPropertyMapping(n);
+            case "protocol.Protocol$PEmbeddedPropertyMapping" -> readPEmbeddedPropertyMapping(r, true);
+            case "protocol.Protocol$PInlineEmbeddedPropertyMapping" -> readPInlineEmbeddedPropertyMapping(r, true);
+            case "protocol.Protocol$POtherwiseEmbeddedPropertyMapping" -> readPOtherwiseEmbeddedPropertyMapping(r, true);
+            case "protocol.Protocol$PRelPropertyMapping" -> readPRelPropertyMapping(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PPropertyMapping is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PRelOp readPRelOp(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PRelOp readPRelOp(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PColumnRef" -> readPColumnRef(n);
-            case "protocol.Protocol$PDynaFunc" -> readPDynaFunc(n);
-            case "protocol.Protocol$PElemtWithJoins" -> readPElemtWithJoins(n);
-            case "protocol.Protocol$PLambdaParam" -> readPLambdaParam(n);
-            case "protocol.Protocol$PRelLambda" -> readPRelLambda(n);
-            case "protocol.Protocol$PRelLiteral" -> readPRelLiteral(n);
-            case "protocol.Protocol$PRelLiteralList" -> readPRelLiteralList(n);
+            case "protocol.Protocol$PColumnRef" -> readPColumnRef(r, true);
+            case "protocol.Protocol$PDynaFunc" -> readPDynaFunc(r, true);
+            case "protocol.Protocol$PElemtWithJoins" -> readPElemtWithJoins(r, true);
+            case "protocol.Protocol$PLambdaParam" -> readPLambdaParam(r, true);
+            case "protocol.Protocol$PRelLambda" -> readPRelLambda(r, true);
+            case "protocol.Protocol$PRelLiteral" -> readPRelLiteral(r, true);
+            case "protocol.Protocol$PRelLiteralList" -> readPRelLiteralList(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PRelOp is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PServiceExecution readPServiceExecution(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PServiceExecution readPServiceExecution(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PMultiExecution" -> readPMultiExecution(n);
-            case "protocol.Protocol$PSingleExecution" -> readPSingleExecution(n);
+            case "protocol.Protocol$PMultiExecution" -> readPMultiExecution(r, true);
+            case "protocol.Protocol$PSingleExecution" -> readPSingleExecution(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PServiceExecution is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PServiceStoreElement readPServiceStoreElement(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PServiceStoreElement readPServiceStoreElement(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PSsService" -> readPSsService(n);
-            case "protocol.Protocol$PSsServiceGroup" -> readPSsServiceGroup(n);
+            case "protocol.Protocol$PSsService" -> readPSsService(r, true);
+            case "protocol.Protocol$PSsServiceGroup" -> readPSsServiceGroup(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PServiceStoreElement is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PTestPayload readPTestPayload(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PTestPayload readPTestPayload(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PTestPayload$ExternalFormat" -> readPTestPayloadExternalFormat(n);
-            case "protocol.Protocol$PTestPayload$ModelStoreData" -> readPTestPayloadModelStoreData(n);
-            case "protocol.Protocol$PTestPayload$Reference" -> readPTestPayloadReference(n);
-            case "protocol.Protocol$PTestPayload$RelationElements" -> readPTestPayloadRelationElements(n);
-            case "protocol.Protocol$PTestPayload$RelationalCsv" -> readPTestPayloadRelationalCsv(n);
+            case "protocol.Protocol$PTestPayload$ExternalFormat" -> readPTestPayloadExternalFormat(r, true);
+            case "protocol.Protocol$PTestPayload$ModelStoreData" -> readPTestPayloadModelStoreData(r, true);
+            case "protocol.Protocol$PTestPayload$Reference" -> readPTestPayloadReference(r, true);
+            case "protocol.Protocol$PTestPayload$RelationElements" -> readPTestPayloadRelationElements(r, true);
+            case "protocol.Protocol$PTestPayload$RelationalCsv" -> readPTestPayloadRelationalCsv(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PTestPayload is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Protocol.PVaultSecret readPVaultSecret(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Protocol.PVaultSecret readPVaultSecret(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Protocol$PAwsSecret" -> readPAwsSecret(n);
-            case "protocol.Protocol$PMongoSecret" -> readPMongoSecret(n);
+            case "protocol.Protocol$PAwsSecret" -> readPAwsSecret(r, true);
+            case "protocol.Protocol$PMongoSecret" -> readPMongoSecret(r, true);
             default -> throw new IllegalArgumentException("no protocol.Protocol$PVaultSecret is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.Realization readRealization(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.Realization readRealization(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.Realization$Inline" -> readRealizationInline(n);
-            case "protocol.Realization$Ref" -> readRealizationRef(n);
+            case "protocol.Realization$Inline" -> readRealizationInline(r, true);
+            case "protocol.Realization$Ref" -> readRealizationRef(r, true);
             default -> throw new IllegalArgumentException("no protocol.Realization is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.TypeExpression readTypeExpression(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.TypeExpression readTypeExpression(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.TypeExpression$FunctionType" -> readTypeExpressionFunctionType(n);
-            case "protocol.TypeExpression$Generic" -> readTypeExpressionGeneric(n);
-            case "protocol.TypeExpression$NameRef" -> readTypeExpressionNameRef(n);
-            case "protocol.TypeExpression$RelationType" -> readTypeExpressionRelationType(n);
-            case "protocol.TypeExpression$SchemaAlgebra" -> readTypeExpressionSchemaAlgebra(n);
+            case "protocol.TypeExpression$FunctionType" -> readTypeExpressionFunctionType(r, true);
+            case "protocol.TypeExpression$Generic" -> readTypeExpressionGeneric(r, true);
+            case "protocol.TypeExpression$NameRef" -> readTypeExpressionNameRef(r, true);
+            case "protocol.TypeExpression$RelationType" -> readTypeExpressionRelationType(r, true);
+            case "protocol.TypeExpression$SchemaAlgebra" -> readTypeExpressionSchemaAlgebra(r, true);
             default -> throw new IllegalArgumentException("no protocol.TypeExpression is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.spec.ColumnInstance readColumnInstance(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.spec.ColumnInstance readColumnInstance(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.spec.ColSpec" -> readColSpec(n);
-            case "protocol.spec.ColSpecArray" -> readColSpecArray(n);
+            case "protocol.spec.ColSpec" -> readColSpec(r, true);
+            case "protocol.spec.ColSpecArray" -> readColSpecArray(r, true);
             default -> throw new IllegalArgumentException("no protocol.spec.ColumnInstance is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.spec.Gql.Definition readGqlDefinition(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.spec.Gql.Definition readGqlDefinition(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.spec.Gql$DirectiveDef" -> readGqlDirectiveDef(n);
-            case "protocol.spec.Gql$EnumType" -> readGqlEnumType(n);
-            case "protocol.spec.Gql$Fragment" -> readGqlFragment(n);
-            case "protocol.spec.Gql$InputObjectType" -> readGqlInputObjectType(n);
-            case "protocol.spec.Gql$InterfaceType" -> readGqlInterfaceType(n);
-            case "protocol.spec.Gql$ObjectType" -> readGqlObjectType(n);
-            case "protocol.spec.Gql$Operation" -> readGqlOperation(n);
-            case "protocol.spec.Gql$ScalarType" -> readGqlScalarType(n);
-            case "protocol.spec.Gql$SchemaDef" -> readGqlSchemaDef(n);
-            case "protocol.spec.Gql$UnionType" -> readGqlUnionType(n);
+            case "protocol.spec.Gql$DirectiveDef" -> readGqlDirectiveDef(r, true);
+            case "protocol.spec.Gql$EnumType" -> readGqlEnumType(r, true);
+            case "protocol.spec.Gql$Fragment" -> readGqlFragment(r, true);
+            case "protocol.spec.Gql$InputObjectType" -> readGqlInputObjectType(r, true);
+            case "protocol.spec.Gql$InterfaceType" -> readGqlInterfaceType(r, true);
+            case "protocol.spec.Gql$ObjectType" -> readGqlObjectType(r, true);
+            case "protocol.spec.Gql$Operation" -> readGqlOperation(r, true);
+            case "protocol.spec.Gql$ScalarType" -> readGqlScalarType(r, true);
+            case "protocol.spec.Gql$SchemaDef" -> readGqlSchemaDef(r, true);
+            case "protocol.spec.Gql$UnionType" -> readGqlUnionType(r, true);
             default -> throw new IllegalArgumentException("no protocol.spec.Gql$Definition is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.spec.Gql.Selection readGqlSelection(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.spec.Gql.Selection readGqlSelection(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.spec.Gql$Field" -> readGqlField(n);
-            case "protocol.spec.Gql$FragmentSpread" -> readGqlFragmentSpread(n);
+            case "protocol.spec.Gql$Field" -> readGqlField(r, true);
+            case "protocol.spec.Gql$FragmentSpread" -> readGqlFragmentSpread(r, true);
             default -> throw new IllegalArgumentException("no protocol.spec.Gql$Selection is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.spec.Gql.TypeRef readGqlTypeRef(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.spec.Gql.TypeRef readGqlTypeRef(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.spec.Gql$ListType" -> readGqlListType(n);
-            case "protocol.spec.Gql$NamedType" -> readGqlNamedType(n);
+            case "protocol.spec.Gql$ListType" -> readGqlListType(r, true);
+            case "protocol.spec.Gql$NamedType" -> readGqlNamedType(r, true);
             default -> throw new IllegalArgumentException("no protocol.spec.Gql$TypeRef is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.spec.Gql.Value readGqlValue(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.spec.Gql.Value readGqlValue(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.spec.Gql$BooleanValue" -> readGqlBooleanValue(n);
-            case "protocol.spec.Gql$EnumValue" -> readGqlEnumValue(n);
-            case "protocol.spec.Gql$FloatValue" -> readGqlFloatValue(n);
-            case "protocol.spec.Gql$IntValue" -> readGqlIntValue(n);
-            case "protocol.spec.Gql$ListValue" -> readGqlListValue(n);
-            case "protocol.spec.Gql$NullValue" -> readGqlNullValue(n);
-            case "protocol.spec.Gql$ObjectValue" -> readGqlObjectValue(n);
-            case "protocol.spec.Gql$StringValue" -> readGqlStringValue(n);
-            case "protocol.spec.Gql$VariableRef" -> readGqlVariableRef(n);
+            case "protocol.spec.Gql$BooleanValue" -> readGqlBooleanValue(r, true);
+            case "protocol.spec.Gql$EnumValue" -> readGqlEnumValue(r, true);
+            case "protocol.spec.Gql$FloatValue" -> readGqlFloatValue(r, true);
+            case "protocol.spec.Gql$IntValue" -> readGqlIntValue(r, true);
+            case "protocol.spec.Gql$ListValue" -> readGqlListValue(r, true);
+            case "protocol.spec.Gql$NullValue" -> readGqlNullValue(r, true);
+            case "protocol.spec.Gql$ObjectValue" -> readGqlObjectValue(r, true);
+            case "protocol.spec.Gql$StringValue" -> readGqlStringValue(r, true);
+            case "protocol.spec.Gql$VariableRef" -> readGqlVariableRef(r, true);
             default -> throw new IllegalArgumentException("no protocol.spec.Gql$Value is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.spec.PathLiteral.PathArg readPathLiteralPathArg(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.spec.PathLiteral.PathArg readPathLiteralPathArg(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.spec.PathLiteral$PathArg$CollectionArg" -> readPathLiteralPathArgCollectionArg(n);
-            case "protocol.spec.PathLiteral$PathArg$DateArg" -> readPathLiteralPathArgDateArg(n);
-            case "protocol.spec.PathLiteral$PathArg$EnumArg" -> readPathLiteralPathArgEnumArg(n);
-            case "protocol.spec.PathLiteral$PathArg$IntArg" -> readPathLiteralPathArgIntArg(n);
-            case "protocol.spec.PathLiteral$PathArg$Latest" -> readPathLiteralPathArgLatest(n);
-            case "protocol.spec.PathLiteral$PathArg$StrArg" -> readPathLiteralPathArgStrArg(n);
+            case "protocol.spec.PathLiteral$PathArg$CollectionArg" -> readPathLiteralPathArgCollectionArg(r, true);
+            case "protocol.spec.PathLiteral$PathArg$DateArg" -> readPathLiteralPathArgDateArg(r, true);
+            case "protocol.spec.PathLiteral$PathArg$EnumArg" -> readPathLiteralPathArgEnumArg(r, true);
+            case "protocol.spec.PathLiteral$PathArg$IntArg" -> readPathLiteralPathArgIntArg(r, true);
+            case "protocol.spec.PathLiteral$PathArg$Latest" -> readPathLiteralPathArgLatest(r, true);
+            case "protocol.spec.PathLiteral$PathArg$StrArg" -> readPathLiteralPathArgStrArg(r, true);
             default -> throw new IllegalArgumentException("no protocol.spec.PathLiteral$PathArg is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.spec.TypeAnnotation readTypeAnnotation(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.spec.TypeAnnotation readTypeAnnotation(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.spec.TypeAnnotation$MultiplicityRef" -> readTypeAnnotationMultiplicityRef(n);
-            case "protocol.spec.TypeAnnotation$Named" -> readTypeAnnotationNamed(n);
-            case "protocol.spec.TypeAnnotation$RelationShape" -> readTypeAnnotationRelationShape(n);
-            case "protocol.spec.TypeAnnotation$Wildcard" -> readTypeAnnotationWildcard(n);
+            case "protocol.spec.TypeAnnotation$MultiplicityRef" -> readTypeAnnotationMultiplicityRef(r, true);
+            case "protocol.spec.TypeAnnotation$Named" -> readTypeAnnotationNamed(r, true);
+            case "protocol.spec.TypeAnnotation$RelationShape" -> readTypeAnnotationRelationShape(r, true);
+            case "protocol.spec.TypeAnnotation$Wildcard" -> readTypeAnnotationWildcard(r, true);
             default -> throw new IllegalArgumentException("no protocol.spec.TypeAnnotation is tagged " + tag);
         };
     }
 
-    static com.legend.protocol.spec.ValueSpecification readValueSpecification(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.protocol.spec.ValueSpecification readValueSpecification(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "protocol.spec.AppliedFunction" -> readAppliedFunction(n);
-            case "protocol.spec.AppliedProperty" -> readAppliedProperty(n);
-            case "protocol.spec.CBoolean" -> readCBoolean(n);
-            case "protocol.spec.CByteArray" -> readCByteArray(n);
-            case "protocol.spec.CDate" -> readCDate(n);
-            case "protocol.spec.CDecimal" -> readCDecimal(n);
-            case "protocol.spec.CFloat" -> readCFloat(n);
-            case "protocol.spec.CInteger" -> readCInteger(n);
-            case "protocol.spec.CLatestDate" -> readCLatestDate(n);
-            case "protocol.spec.CString" -> readCString(n);
-            case "protocol.spec.CTime" -> readCTime(n);
-            case "protocol.spec.ColSpec" -> readColSpec(n);
-            case "protocol.spec.ColSpecArray" -> readColSpecArray(n);
-            case "protocol.spec.EnumValue" -> readEnumValue(n);
-            case "protocol.spec.GqlIsland" -> readGqlIsland(n);
-            case "protocol.spec.GraphFetchLiteral" -> readGraphFetchLiteral(n);
-            case "protocol.spec.LambdaFunction" -> readLambdaFunction(n);
-            case "protocol.spec.NewInstance" -> readNewInstance(n);
-            case "protocol.spec.NewInstanceCast" -> readNewInstanceCast(n);
-            case "protocol.spec.PackageableElementPtr" -> readPackageableElementPtr(n);
-            case "protocol.spec.PathLiteral" -> readPathLiteral(n);
-            case "protocol.spec.PureCollection" -> readPureCollection(n);
-            case "protocol.spec.QuotedGrammarCall" -> readQuotedGrammarCall(n);
-            case "protocol.spec.QuotedTreeCall" -> readQuotedTreeCall(n);
-            case "protocol.spec.SqlIsland" -> readSqlIsland(n);
-            case "protocol.spec.TdsLiteral" -> readTdsLiteral(n);
-            case "protocol.spec.TypeAnnotation$MultiplicityRef" -> readTypeAnnotationMultiplicityRef(n);
-            case "protocol.spec.TypeAnnotation$Named" -> readTypeAnnotationNamed(n);
-            case "protocol.spec.TypeAnnotation$RelationShape" -> readTypeAnnotationRelationShape(n);
-            case "protocol.spec.TypeAnnotation$Wildcard" -> readTypeAnnotationWildcard(n);
-            case "protocol.spec.Variable" -> readVariable(n);
+            case "protocol.spec.AppliedFunction" -> readAppliedFunction(r, true);
+            case "protocol.spec.AppliedProperty" -> readAppliedProperty(r, true);
+            case "protocol.spec.CBoolean" -> readCBoolean(r, true);
+            case "protocol.spec.CByteArray" -> readCByteArray(r, true);
+            case "protocol.spec.CDate" -> readCDate(r, true);
+            case "protocol.spec.CDecimal" -> readCDecimal(r, true);
+            case "protocol.spec.CFloat" -> readCFloat(r, true);
+            case "protocol.spec.CInteger" -> readCInteger(r, true);
+            case "protocol.spec.CLatestDate" -> readCLatestDate(r, true);
+            case "protocol.spec.CString" -> readCString(r, true);
+            case "protocol.spec.CTime" -> readCTime(r, true);
+            case "protocol.spec.ColSpec" -> readColSpec(r, true);
+            case "protocol.spec.ColSpecArray" -> readColSpecArray(r, true);
+            case "protocol.spec.EnumValue" -> readEnumValue(r, true);
+            case "protocol.spec.GqlIsland" -> readGqlIsland(r, true);
+            case "protocol.spec.GraphFetchLiteral" -> readGraphFetchLiteral(r, true);
+            case "protocol.spec.LambdaFunction" -> readLambdaFunction(r, true);
+            case "protocol.spec.NewInstance" -> readNewInstance(r, true);
+            case "protocol.spec.NewInstanceCast" -> readNewInstanceCast(r, true);
+            case "protocol.spec.PackageableElementPtr" -> readPackageableElementPtr(r, true);
+            case "protocol.spec.PathLiteral" -> readPathLiteral(r, true);
+            case "protocol.spec.PureCollection" -> readPureCollection(r, true);
+            case "protocol.spec.QuotedGrammarCall" -> readQuotedGrammarCall(r, true);
+            case "protocol.spec.QuotedTreeCall" -> readQuotedTreeCall(r, true);
+            case "protocol.spec.SqlIsland" -> readSqlIsland(r, true);
+            case "protocol.spec.TdsLiteral" -> readTdsLiteral(r, true);
+            case "protocol.spec.TypeAnnotation$MultiplicityRef" -> readTypeAnnotationMultiplicityRef(r, true);
+            case "protocol.spec.TypeAnnotation$Named" -> readTypeAnnotationNamed(r, true);
+            case "protocol.spec.TypeAnnotation$RelationShape" -> readTypeAnnotationRelationShape(r, true);
+            case "protocol.spec.TypeAnnotation$Wildcard" -> readTypeAnnotationWildcard(r, true);
+            case "protocol.spec.Variable" -> readVariable(r, true);
             default -> throw new IllegalArgumentException("no protocol.spec.ValueSpecification is tagged " + tag);
         };
     }
 
-    static com.legend.values.PureDateLiteral readPureDateLiteral(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.values.PureDateLiteral readPureDateLiteral(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "values.PureDateLiteral$DateWithHour" -> readPureDateLiteralDateWithHour(n);
-            case "values.PureDateLiteral$DateWithMinute" -> readPureDateLiteralDateWithMinute(n);
-            case "values.PureDateLiteral$DateWithSecond" -> readPureDateLiteralDateWithSecond(n);
-            case "values.PureDateLiteral$DateWithSubsecond" -> readPureDateLiteralDateWithSubsecond(n);
-            case "values.PureDateLiteral$StrictDate" -> readPureDateLiteralStrictDate(n);
-            case "values.PureDateLiteral$Year" -> readPureDateLiteralYear(n);
-            case "values.PureDateLiteral$YearMonth" -> readPureDateLiteralYearMonth(n);
+            case "values.PureDateLiteral$DateWithHour" -> readPureDateLiteralDateWithHour(r, true);
+            case "values.PureDateLiteral$DateWithMinute" -> readPureDateLiteralDateWithMinute(r, true);
+            case "values.PureDateLiteral$DateWithSecond" -> readPureDateLiteralDateWithSecond(r, true);
+            case "values.PureDateLiteral$DateWithSubsecond" -> readPureDateLiteralDateWithSubsecond(r, true);
+            case "values.PureDateLiteral$StrictDate" -> readPureDateLiteralStrictDate(r, true);
+            case "values.PureDateLiteral$Year" -> readPureDateLiteralYear(r, true);
+            case "values.PureDateLiteral$YearMonth" -> readPureDateLiteralYearMonth(r, true);
             default -> throw new IllegalArgumentException("no values.PureDateLiteral is tagged " + tag);
         };
     }
 
-    static com.legend.values.PureTimeLiteral readPureTimeLiteral(Json.Node n) {
-        String tag = FrontRead.tag(n);
+    static com.legend.values.PureTimeLiteral readPureTimeLiteral(FrontRead.Cursor r) {
+        String tag = FrontRead.tag(r);
         return switch (tag) {
-            case "values.PureTimeLiteral$TimeWithMinute" -> readPureTimeLiteralTimeWithMinute(n);
-            case "values.PureTimeLiteral$TimeWithSecond" -> readPureTimeLiteralTimeWithSecond(n);
-            case "values.PureTimeLiteral$TimeWithSubsecond" -> readPureTimeLiteralTimeWithSubsecond(n);
+            case "values.PureTimeLiteral$TimeWithMinute" -> readPureTimeLiteralTimeWithMinute(r, true);
+            case "values.PureTimeLiteral$TimeWithSecond" -> readPureTimeLiteralTimeWithSecond(r, true);
+            case "values.PureTimeLiteral$TimeWithSubsecond" -> readPureTimeLiteralTimeWithSubsecond(r, true);
             default -> throw new IllegalArgumentException("no values.PureTimeLiteral is tagged " + tag);
         };
     }

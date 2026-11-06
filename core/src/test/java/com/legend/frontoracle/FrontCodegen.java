@@ -143,11 +143,15 @@ public final class FrontCodegen {
     // ------------------------------------------------------------------ the Java reader
 
     /**
-     * The codec's reader in Java (com.legend.ffi.FrontRecords): a method per record calling its canonical constructor
-     * with each component read as its declared type ({@code null} where the codec wrote null, only where the
-     * component is {@code @Nullable}); a method per sealed parent dispatching on the tag over every record beneath it
-     * (the codec tags the record, never a parent); the leaves through {@code FrontRead}. No reflection: the product
-     * bans it (ArchitectureTest.reflectionIsBannedInProduction), so the reader is generated, never reflective.
+     * The codec's reader in Java (com.legend.ffi.FrontRecords), a streaming one: the answer's text pulled through
+     * {@code FrontRead.Cursor} in the order the writers write it, no tree built. A method per record calling its
+     * canonical constructor with each component read as its declared type, in canonical order -- Java evaluates the
+     * arguments left to right, which is the order the codec writes the keys ({@code null} where the codec wrote null,
+     * only where the component is {@code @Nullable}); {@code tagged} when a sealed parent's reader has read the
+     * record's brace and tag, so its first key follows a comma. A method per sealed parent reading the tag, which the
+     * codec writes first, and dispatching on it over every record beneath it (the codec tags the record, never a
+     * parent); the leaves through {@code FrontRead}. No reflection: the product bans it
+     * (ArchitectureTest.reflectionIsBannedInProduction), so the reader is generated, never reflective.
      */
     private String java() throws Exception {
         StringBuilder out = new StringBuilder();
@@ -158,13 +162,13 @@ public final class FrontCodegen {
 
                 package com.legend.ffi;
 
-                import com.legend.json.Json;
-
                 /**
                  * The lossless record codec's reader (docs/rust-port/PHASE2.md §3): the Rust parser's answer read into
-                 * the protocol records the Java parser builds -- a reader per record, its canonical constructor fed each
-                 * component as its declared type; a reader per sealed parent, by the record's tag; the leaves through
-                 * {@link FrontRead}. Generated (FrontCodegen), never reflective.
+                 * the protocol records the Java parser builds, streamed -- the answer's text pulled through a
+                 * {@link FrontRead.Cursor} in the order the writers write it, no tree of it built. A reader per record,
+                 * its canonical constructor fed each component as its declared type, each key in canonical order (a key
+                 * missing or out of order refused); a reader per sealed parent, by the record's tag, written first; the
+                 * leaves through {@link FrontRead}. Generated (FrontCodegen), never reflective.
                  */
                 final class FrontRecords {
 
@@ -180,16 +184,18 @@ public final class FrontCodegen {
                 throw new IllegalStateException(c.getName() + " is not public: the reader cannot build it");
             }
             Map<String, Boolean> nulls = nullability(c);
-            out.append("    static ").append(c.getCanonicalName()).append(" read").append(names.get(c))
-                    .append("(Json.Node n) {\n");
+            String name = names.get(c);
+            out.append("    static ").append(c.getCanonicalName()).append(" read").append(name)
+                    .append("(FrontRead.Cursor r, boolean tagged) {\n");
+            out.append("        if (!tagged) {\n            FrontRead.open(r);\n        }\n");
+            out.append("        return FrontRead.close(r, \"").append(name).append("\", new ")
+                    .append(c.getCanonicalName()).append("(");
             RecordComponent[] comps = c.getRecordComponents();
             if (comps.length == 0) {
-                out.append("        FrontRead.object(n);\n        return new ").append(c.getCanonicalName())
-                        .append("();\n    }\n\n");
+                out.append("));\n    }\n\n");
                 continue;
             }
-            out.append("        Json.Obj o = FrontRead.object(n);\n");
-            out.append("        return new ").append(c.getCanonicalName()).append("(\n");
+            out.append("\n");
             for (int i = 0; i < comps.length; i++) {
                 RecordComponent rc = comps[i];
                 // each component read through FrontRead.component, so a refusal names its record and component
@@ -205,18 +211,24 @@ public final class FrontCodegen {
                             + element.substring(dot + 1) + ">>" + helper;
                 }
                 helper = "FrontRead." + helper;
-                String read = helper + "(o, \"" + names.get(c) + "." + rc.getName() + "\", c -> " + value + ")";
-                out.append("                ").append(read).append(i + 1 < comps.length ? ",\n" : ");\n");
+                // the key as the writers write it: after a comma, but for the first after an untagged brace
+                String key = jsonLiteral(rc.getName()) + ":";
+                String keyRead = i == 0
+                        ? "tagged ? " + javaString("," + key) + " : " + javaString(key)
+                        : javaString("," + key);
+                String read = helper + "(r, \"" + name + "." + rc.getName() + "\", " + keyRead + ", c -> " + value
+                        + ")";
+                out.append("                ").append(read).append(i + 1 < comps.length ? ",\n" : "));\n");
             }
             out.append("    }\n\n");
         }
         for (Class<?> c : sealedTypes) {
             out.append("    static ").append(c.getCanonicalName()).append(" read").append(names.get(c))
-                    .append("(Json.Node n) {\n");
-            out.append("        String tag = FrontRead.tag(n);\n        return switch (tag) {\n");
+                    .append("(FrontRead.Cursor r) {\n");
+            out.append("        String tag = FrontRead.tag(r);\n        return switch (tag) {\n");
             for (Class<?> leaf : leaves(c)) {
                 out.append("            case \"").append(RecordCodec.tag(leaf)).append("\" -> read")
-                        .append(names.get(leaf)).append("(n);\n");
+                        .append(names.get(leaf)).append("(r, true);\n");
             }
             out.append("            default -> throw new IllegalArgumentException(\"no ")
                     .append(RecordCodec.tag(c)).append(" is tagged \" + tag);\n        };\n    }\n\n");
@@ -298,7 +310,11 @@ public final class FrontCodegen {
         if (c == Object.class) {
             return "FrontRead.value(" + n + ")";
         }
-        if (c.isRecord() || c.isSealed()) {
+        if (c.isRecord()) {
+            // a slot declared as the record fixes its class: the codec writes no tag
+            return "read" + names.get(c) + "(" + n + ", false)";
+        }
+        if (c.isSealed()) {
             return "read" + names.get(c) + "(" + n + ")";
         }
         if (c.isEnum()) {
@@ -616,6 +632,16 @@ public final class FrontCodegen {
 
     /** A Rust string literal of {@code s}. */
     private static String rustString(String s) {
+        return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
+    /** A Java string literal of {@code s}, which holds only printable ASCII (a JSON key: a component's name). */
+    private static String javaString(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) < 0x20 || s.charAt(i) > 0x7e) {
+                throw new IllegalStateException("a key the generator does not spell in Java: " + s);
+            }
+        }
         return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 }

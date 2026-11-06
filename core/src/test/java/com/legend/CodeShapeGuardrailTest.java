@@ -54,6 +54,11 @@ class CodeShapeGuardrailTest {
             // with its non-finite tokens moved here from the parity harnesses' test sources): one parse's position,
             // the instance one parse's and never shared
             "NonFiniteJson.at",
+            // a parser cursor (2026-11-06, the Rust port's phase 2: the shim's reader streams the record codec's
+            // JSON through FrontRead.Cursor instead of building its tree, which overflowed
+            // //core:corpus_differential_test's 768 MB): one answer's position and the containers open there, the
+            // instance one read's and never shared
+            "FrontRead.pos", "FrontRead.depth",
             // (Lowerer.relationDepth row DELETED 2026-08-24 — the audit
             // found the counter write-only; the allowlist justification
             // was a rationalization, exactly what this guardrail is for)

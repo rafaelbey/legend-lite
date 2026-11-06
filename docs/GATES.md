@@ -307,6 +307,10 @@ The dated record of moved pins, rosters and ratchets (the rules: "Recording a mo
 Newest first, at most 20 lines. Seeded from the last entries of the cut log; "D<n>" is the decisions log of the
 landing's program.
 
+- 2026-11-06 — `CodeShapeGuardrailTest.MUTABLE_FIELD_ALLOWLIST` gains `FrontRead.pos` and `FrontRead.depth`: the Rust
+  port's shim reads the parser's answer through a pull cursor instead of a `Json` tree (which overflowed
+  `//core:corpus_differential_test`'s 768 MB), and a cursor's position is its state, as `NonFiniteJson.at`'s and
+  `Json.i`'s are. Branch `worktree-rust-port-phase0`.
 - 2026-11-06 — The Rust port's model door switches (phase 2 step 4): `ParserBoundaryArchTest.DIALECT_CLASSES` gains
   the front oracle's `FrontEngineAnswers` (step 5's oracle, at the engine's dialect); `core`'s `not_layers` gains
   `core_next_rust_parser` (the claims generator's core carries the parser provider). Branch `worktree-rust-port-phase0`.
