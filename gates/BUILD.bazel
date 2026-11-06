@@ -52,6 +52,7 @@ test_suite(
         # the front oracle's texts
         "//rust/lite-front:lite_front_test",
         "//rust/lite-front:front_lexer_differential_test",
+        "//rust/lite-front:front_parser_differential_test",
         # the planner on java.base alone (P3-19): seconds
         "//core:planner_on_java_base_test",
         "//core:postgres_arm_test",

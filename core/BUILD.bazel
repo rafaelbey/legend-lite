@@ -1701,6 +1701,68 @@ java_run(
     deps = [":core_tests_lib"],
 )
 
+# Java's answers over the front oracle's every question, hashed (phase 2, steps 3-4: FrontAnswers): what lite-front's
+# doors are held to by //rust/lite-front:front_parser_differential_test, live while the Java parser exists. On the
+# toy section grammar's classpath, as the oracle's generator is.
+java_run(
+    name = "front_answers",
+    testonly = True,
+    srcs = ["//rust/oracles:front_questions"],
+    outs = ["front/answers.tsv"],
+    arguments = [
+        "$(execpath //rust/oracles:front_questions)",
+        "{OUT}",
+    ],
+    main_class = "com.legend.frontoracle.FrontAnswers",
+    memory_mb = 8192,
+    mnemonic = "FrontAnswers",
+    visibility = ["//rust/lite-front:__pkg__"],
+    deps = [
+        ":core_tests_lib",
+        ":toy_grammar",
+    ],
+)
+
+# Java's answer to named questions, in the differential's canonical form (FrontAnswers' debug mode): beside the Rust
+# forms the differential writes under LITE_FRONT_MISMATCHES. A debugging tool, never a test:
+#   bazel run //core:front_show -- $PWD/bazel-bin/rust/oracles/front/questions.jsonl DIR door:dialect:sha...
+legend_java_binary(
+    name = "front_show",
+    testonly = True,
+    jvm_flags = ["-Duser.timezone=GMT"],
+    main_class = "com.legend.frontoracle.FrontAnswers",
+    tags = ["manual"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":toy_grammar",
+    ],
+)
+
+# The protocol records in Rust (phase 2, step 3: FrontCodegen): every record the parser's doors return, by reflection,
+# with the lossless codec's writer -- each component Option exactly where its source says @Nullable, so the records'
+# sources are inputs. //rust/lite-front:update_generated writes it to rust/lite-front/src/records.rs.
+java_run(
+    name = "front_records_rs",
+    testonly = True,
+    srcs = glob([
+        "src/main/java/com/legend/protocol/**/*.java",
+        "src/main/java/com/legend/values/*.java",
+    ]) + [
+        "src/main/java/com/legend/Compiler.java",
+        "src/main/java/com/legend/parser/PmcdParser.java",
+    ],
+    outs = ["front/records.rs"],
+    arguments = [
+        "{OUT}",
+        "{MAIN}",
+    ],
+    main_class = "com.legend.frontoracle.FrontCodegen",
+    mnemonic = "FrontCodegen",
+    roots = {"src/main/java/com/legend/Compiler.java": "{MAIN}"},
+    visibility = ["//rust/lite-front:__pkg__"],
+    deps = [":core_tests_lib"],
+)
+
 # COMPILE-ONLY LATENCY (the compiler plan's W1.0b under D25): what a user feels per query, no database; the stress
 # corpus's service tests or a NAME-TAB-QUERY set against a model. A measuring tool for a quiet machine, never a test:
 #   bazel run //core:compile_latency -- --corpus stress [--passes 2] [--out DIR]

@@ -1,5 +1,16 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
 load("//tools/guards:defs.bzl", "guards_package")
+
+# The protocol records in Rust, generated from the Java records (//core:front_records_rs, FrontCodegen): regenerate with
+# `bazel run //rust/lite-front:update_generated`; its diff test (in //:generated) fails when the records move.
+write_source_files(
+    name = "update_generated",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe protocol records moved -- regenerate: bazel run //rust/lite-front:update_generated",
+    files = {"src/records.rs": "//core:front_records_rs"},
+    visibility = ["//:__pkg__"],
+)
 
 # legend-lite's front end, ported from core/'s com.legend.lexer and com.legend.parser (src/lib.rs;
 # docs/rust-port/PHASE2.md): over a text's UTF-16 units as Java indexes a String. Step 2: the lexer.
@@ -35,6 +46,34 @@ rust_test(
     env = {
         "LITE_FRONT_QUESTIONS": "$(rootpath //rust/oracles:front_questions)",
         "LITE_FRONT_TOKENS": "$(rootpath //core:front_tokens)",
+    },
+    visibility = ["//gates:__pkg__"],
+    deps = [":lite_front"],
+)
+
+# Every question of the front oracle whose door Rust answers, held to the Java parser's answer for it
+# (//core:front_answers, the canonical form's SHA-256): at least each door's floor (tests/<door>-floor.txt) identical.
+rust_test(
+    name = "front_parser_differential_test",
+    size = "medium",
+    srcs = ["tests/front_parser_differential.rs"],
+    args = ["--ignored"],
+    data = [
+        "tests/block-floor.txt",
+        "tests/lambda-floor.txt",
+        "tests/spec-floor.txt",
+        "//core:front_answers",
+        "//rust/oracles:front_questions",
+    ],
+    edition = "2024",
+    env = {
+        "LITE_FRONT_ANSWERS": "$(rootpath //core:front_answers)",
+        "LITE_FRONT_FLOORS": " ".join([
+            "$(rootpath tests/block-floor.txt)",
+            "$(rootpath tests/lambda-floor.txt)",
+            "$(rootpath tests/spec-floor.txt)",
+        ]),
+        "LITE_FRONT_QUESTIONS": "$(rootpath //rust/oracles:front_questions)",
     },
     visibility = ["//gates:__pkg__"],
     deps = [":lite_front"],

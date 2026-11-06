@@ -4,8 +4,13 @@
 //! legend-lite's front end (core/'s `com.legend.lexer` and `com.legend.parser`, ported: docs/rust-port/PHASE2.md),
 //! over a text's UTF-16 units as Java indexes a `String`. Step 2: the lexer, held to Java's every token stream.
 
+pub mod codec;
+pub mod doors;
+pub mod jtypes;
 pub mod lexer;
+pub mod records;
 pub mod sha256;
+pub mod spec_parser;
 pub mod wire;
 
 use lexer::TokenStream;

@@ -45,7 +45,7 @@ public final class FrontOracle {
     private FrontOracle() {
     }
 
-    private record Question(String door, Dialect dialect, String text) {
+    record Question(String door, Dialect dialect, String text) {
     }
 
     public static void main(String[] args) throws Exception {
@@ -194,10 +194,10 @@ public final class FrontOracle {
         System.out.print(report);
     }
 
-    private record Answer(String records, String engine, Throwable engineError, Throwable error) {
+    record Answer(String records, String engine, Throwable engineError, Throwable error) {
     }
 
-    private static Answer ask(Question q, RecordCodec codec) {
+    static Answer ask(Question q, RecordCodec codec) {
         Object value;
         Type declared;
         try {
@@ -240,7 +240,7 @@ public final class FrontOracle {
     }
 
     /** A parse on a thread with a deep stack (TRIAGE A3): the deepest nesting is not this harness's limit. */
-    private static Answer onBigStack(java.util.function.Supplier<Answer> work) throws InterruptedException {
+    static Answer onBigStack(java.util.function.Supplier<Answer> work) throws InterruptedException {
         Answer[] result = new Answer[1];
         RuntimeException[] failed = new RuntimeException[1];
         Thread t = new Thread(null, () -> {
