@@ -451,7 +451,9 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      switched door as Java does.
    - **The shim's pass** (`//core:front_shim -- --engine --shim`, `FrontEngineAnswers --shim`, each form its own call
      through the switched doors, one 1 GiB thread): byte-identical to `engine.tsv`, 30,064 of 30,064 -- equal per door
-     to the differential. `//core:ffi_test`, `core_tests_server` (`PureV1ApiTest`, `ModelChangesTest`),
+     to the differential. The `U` form, which no oracle answer takes, was checked through the switched doors on the
+     probe set (its lone-surrogate strings among them): 529 distinct questions, all identical to Java's.
+     `//core:ffi_test`, `core_tests_server` (`PureV1ApiTest`, `ModelChangesTest`),
      `core_tests_root` (`ModelFromTextTest`), `core_tests_parser`, `core_tests_protocol`, `core_tests_architecture`,
      `census`, `section_grammar_registry_test`, `//rust/lite-front/...`, `//rust/lite-ffi/...`,
      `//parser-equivalence:parser_parity` (45 tests, none skipped: `CorpusSweepTest` 6,755 documents matched, diff 0,
@@ -483,8 +485,9 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
 
    - **Rust itself**, split: the parse 1.32-1.36 s of a form's 29,188 documents, the emit 0.46-0.49 s (659 million
      UTF-16 units of JSON), the cut 0.50-0.52 s (to 319 million). Java's cut costs 1.27-1.36 s (bare less spans), so
-     the bare form is faster in Rust, natively, than in Java; the spans form about as fast (the parse is as fast as
-     Java's, step 4's receipt).
+     the bare form is faster in Rust, natively, than in Java (2.28-2.35 s against 3.05-3.16 s); the spans form is
+     8-12% slower (1.93-2.02 s against 1.78-1.80 s), its p50 the same and its p95 a tenth higher -- the parse,
+     about as fast as Java's in step 4's receipt, is most of it.
    - **The rest is the crossing**: about 1.5 s for the spans form and 1.2 s for the bare one -- the JSON's UTF-16 to
      UTF-8, the C string, and Java's decoding of it into a `String` (0.66 and 0.32 billion characters). It goes when
      phase 3 keeps the records, and the engine JSON's callers, in Rust.
