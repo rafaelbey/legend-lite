@@ -318,6 +318,20 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    are all identical too but 313 of the same exception, each a cold JVM's answer. No mutation made Rust panic.
    `bazel test //rust/lite-front/...`: all four pass; the differential in 226 s, far from the large size's 900 s.
 
+   **The switch** (`62ce37d0f`, 2026-11-06). `PmcdParser.parse` answers from Rust, the platform's bootstrap included
+   (`builtin.Pure`'s prelude): the shim's model door above became `parse`, `parseInRust` is gone, and the Java body
+   stays as `parseInJava`, the oracle's, until step 6. Three calls inside the Java parser now name the Java twins
+   (`QuotedSpecParser`'s model and expression parses, `SpecParser`'s quoted-argument parse), so a Java answer is Java's
+   all the way down; the oracle asks `parseInJava` for Java's answer and `parse` for the shim's. Rebuilt after the
+   switch, `//core:front_answers` and `//core:front_engine_answers` wrote the same bytes as before it: no Java answer
+   had come from Rust. The shim answers all 110,596 questions as Java does. The whole suite at `62ce37d0f` against
+   `rust/BASELINE.tsv` moved three targets:
+   - `//spec:gen_claims`: the claims generator runs on `//core:core_next`, which carried neither the provider's
+     services file nor the library. `a263e4f5f` gives it both, the library inside its jar as `:ffi` carries it,
+     since a build action has no runfiles.
+   - `//core:census`: `FrontEngineAnswers` is now named in `ParserBoundaryArchTest.DIALECT_CLASSES` (`a263e4f5f`).
+   - `//core:corpus_differential_test`: out of memory in the shim's reader, fixed by the next paragraph.
+
    **The reader streams** (2026-11-06). Once the model door switched, `//core:corpus_differential_test` (the 13 MB
    stress corpus in 768 MB) died of `OutOfMemoryError` under `FrontReader.pmcd`: the shim parsed Rust's whole answer --
    about 8 times its text's length, up to 16 -- into a `com.legend.json.Json` tree before the generated readers walked
@@ -336,8 +350,48 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    3.7): 46, 27, 18 and 14 ms, allocating 84, 61, 31 and 26 MB -- the records themselves -- against the tree reader's
    332, 237, 114 and 95 ms and 1,348, 978, 434 and 360 MB. `//core:front_reader_test` reads every Java answer back to
    itself; the shim answers the oracle's 110,596 questions all as Java does. Guard move: `rust/RETIRED_TESTS.md`.
-5. **The engine JSON (2e)**: `ProtocolEmitter` in Rust; `parseDocument`, `parseModel` and `lambdaJson` switch, gated
-   byte for byte by `CorpusSweepTest`'s 6,471 documents and `ModelReaderParityTest`.
+
+   **The receipt after the switch** (2026-11-06). Taken with `//core:front_timing` over the same set, the last of
+   three passes. Its `--java` flag times the Java parser's twins, so the two parsers were timed back to back, twice,
+   at load averages 2.5-4.7.
+   - **Through the shim, the Rust library optimized** (`-Copt-level=3` on the command line; no build sets it today, so
+     the CI-built wheel, the native library and the server jar carry the opt-level-0 library), against Java:
+
+     | | Through the shim | Java parser |
+     |---|---|---|
+     | Model text, per dialect: p50 | 0.031-0.038 ms | 0.008-0.012 ms |
+     | p95 | 0.41-0.45 ms | 0.13-0.14 ms |
+     | p99 | 1.0-1.3 ms | 0.34-0.38 ms |
+     | in all | 3.9-4.3 s | 1.2-1.3 s |
+     | Query at lite's dialect: p50 | 0.010 ms | 0.001 ms |
+     | Whole set | 12.6-12.9 s | 3.7-3.9 s |
+
+     At fastbuild (rustc's opt-level 0, what `bazel test` runs) the model door takes 13.5-15.0 s a dialect, 44 s in
+     all. The same questions raise in each.
+   - **The Rust parser itself is not the difference.** Timed natively (release, no FFI, no JVM, load average 4.8-6.1;
+     a scratch harness over `lite_front::doors`, the last of three passes):
+     - a model text at each dialect: 1.35-1.39 s in all, p50 0.008-0.010 ms, max 137-140 ms (Java's 118-137);
+     - the 21,838 queries: 35 ms (Java's 51).
+   - **The rest is the seam:**
+     - writing the codec, 0.76-1.0 GB of JSON a dialect: 0.7-0.9 s;
+     - reading the text's JSON string: 0.12 s;
+     - the crossing and Java's reader: about 1.7-1.8 s, by difference (the two harnesses ran at different loads).
+
+     That is the cost of the records crossing to Java, and it goes when phase 3 keeps them in Rust.
+   - **`builtin.Pure`'s first touch: about 155 ms in all, against 70 ms with the Java parser** (step 1's receipt,
+     another day; it cannot be taken again, since the initialiser parses through `parse` in both of the tool's
+     modes). Measured in cold JVMs with the optimized library at a fixed path, as Bazel's runfiles give it:
+     - the library's load: 34 ms;
+     - `FrontRecords`' class initialisation: 22 ms;
+     - the first call's worker: 22 ms;
+     - the prelude's parse and build: 79 ms.
+
+     The timing tool itself, under `bazel run`, printed 205-212 ms optimized and 235-586 ms at fastbuild. A
+     self-contained jar adds about 300 ms on macOS: it writes its library out to a new temporary file in every
+     process, and macOS checks a new library at its first load.
+5. **The engine JSON (2e)**: `ProtocolEmitter` in Rust; `parseDocument` and `lambdaJson` switch, gated byte for byte
+   by `CorpusSweepTest`'s 6,471 documents and `ModelReaderParityTest`. Their parse is Rust's already (steps 3 and 4;
+   `parseModel` is `parse`'s model and switched with it): what moves is the emitter.
 
    **The oracle** (2026-11-05). `//core:front_engine_answers` (`FrontEngineAnswers`) asks Java's parser and
    emitter every oracle question at the two doors whose answer is the engine's JSON: `document`, the 29,188 model
