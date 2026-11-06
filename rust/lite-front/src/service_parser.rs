@@ -782,7 +782,7 @@ fn parse_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PServiceTestSuite
 }
 
 /// `MappingProtocolParser.parseEmbeddedValueAt(host)`: one embedded-data value at the host's position.
-fn embedded_value_at<'s>(host: &mut impl Cursor<'s>) -> R<PEmbeddedDataValue> {
+pub(crate) fn embedded_value_at<'s>(host: &mut impl Cursor<'s>) -> R<PEmbeddedDataValue> {
     let (v, end) = {
         let mut p = MappingCursor::at(host.tokens(), host.pos(), host.dialect());
         (p.parse_embedded_value()?, p.pos)
@@ -792,7 +792,7 @@ fn embedded_value_at<'s>(host: &mut impl Cursor<'s>) -> R<PEmbeddedDataValue> {
 }
 
 /// `MappingProtocolParser.parseTestAssertionAt(host)`: `id: <assertion>` at the host's position.
-fn test_assertion_at<'s>(host: &mut impl Cursor<'s>) -> R<PTestAssertion> {
+pub(crate) fn test_assertion_at<'s>(host: &mut impl Cursor<'s>) -> R<PTestAssertion> {
     let (v, end) = {
         let mut p = MappingCursor::at(host.tokens(), host.pos(), host.dialect());
         (p.parse_test_assertion()?, p.pos)
@@ -1376,7 +1376,7 @@ fn parse_query<'s>(c: &mut impl Cursor<'s>, qn: &[u16]) -> R<ValueSpecification>
 }
 
 /// `parseExecutionEnvironment`: `ExecutionEnvironment qn { executions: [ KEY: {...}, KEY: [ sub: {...}, ...], ...]; }`
-/// (HostedService's `ExecutionEnvironment` comes here too, step 4d's).
+/// (`###HostedService`'s `ExecutionEnvironment` too, through `activator_parser`).
 pub fn parse_execution_environment<'s>(c: &mut impl Cursor<'s>) -> R<PExecutionEnvironment> {
     let decl_start = c.pos();
     c.advance()?;
