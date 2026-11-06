@@ -194,6 +194,73 @@ pub fn answer_form(door: &str, dialect: Dialect, text: &[u16]) -> Vec<u16> {
     canonical(written)
 }
 
+/// `PmcdParser.parseDocument(text, sourceInformation)`: a model text at the engine's dialect, its records emitted as
+/// legend-engine's PMCD JSON (`ProtocolEmitter.emit`), cut without its spans when `spans` is off
+/// (`SourceInformation.withoutSpans`): the JSON, or the parser's error, or the emitter's refusal of a model it parsed.
+/// The JSON is a Java string's UTF-16 units (a lone surrogate kept raw, as the emitter writes it). On the caller's
+/// thread, which needs a big stack ([`PARSE_STACK`]).
+pub fn document(text: &[u16], spans: bool) -> Answer<Vec<u16>> {
+    document_with_overlays(text, spans, &[]).expect("no overlay grammar is registered")
+}
+
+/// [`document`] with the shim's registered overlay grammars: `None` when the walk met an overlay section, whose
+/// grammar Java calls -- the overlay path, where Java answers (`ProtocolEmitter.emit` over `PmcdParser.parse`'s
+/// spliced records). At the engine's dialect the walk never meets one (an unknown section is refused there, PARITY
+/// row 17), so no text takes it; it is there by construction.
+pub fn document_with_overlays(text: &[u16], spans: bool, overlays: &[OverlayGrammar<'_>]) -> Option<Answer<Vec<u16>>> {
+    let answer = pmcd(text, Dialect::LegendEngine, overlays);
+    if !answer.overlays.is_empty() {
+        return None;
+    }
+    Some(answer.parsed.and_then(|parsed| {
+        let json = crate::emitter::emit(&parsed.model)?;
+        Ok(if spans { json } else { crate::source_information::without_spans(&json) })
+    }))
+}
+
+/// `SpecParser.lambdaJson(text, sourceInformation)`: a lambda at the engine's dialect (`parseLambda`), emitted as
+/// legend-engine's lambda JSON (`ProtocolEmitter.emitLambda`), cut without its spans when `spans` is off. On the
+/// caller's thread, which needs a big stack ([`PARSE_STACK`]).
+pub fn lambda_json(text: &[u16], spans: bool) -> Answer<Vec<u16>> {
+    let lam = lambda(text)?;
+    let json = crate::emitter::emit_lambda(&lam)?;
+    Ok(if spans { json } else { crate::source_information::without_spans(&json) })
+}
+
+/// An engine door's two canonical forms, as Java's `FrontEngineAnswers.forms` writes them: with its source information
+/// and without it (`A\t<json>`, or the error's form twice). `door` is `document` or `lambdaJson`. On a thread of
+/// [`PARSE_STACK`].
+pub fn engine_forms(door: &str, text: &[u16]) -> (Vec<u16>, Vec<u16>) {
+    let answer = on_parse_stack(|| match door {
+        "document" => document(text, true),
+        "lambdaJson" => lambda_json(text, true),
+        _ => Err(JavaError::of("door not ported", Some(door))),
+    });
+    match answer {
+        Ok(json) => {
+            let bare = crate::source_information::without_spans(&json);
+            (canonical_units(Ok(json)), canonical_units(Ok(bare)))
+        }
+        Err(e) => {
+            let form = canonical_units(Err(e));
+            (form.clone(), form)
+        }
+    }
+}
+
+/// [`canonical`] over an answer of UTF-16 units.
+pub fn canonical_units(written: Answer<Vec<u16>>) -> Vec<u16> {
+    match written {
+        Ok(json) => {
+            let mut out: Vec<u16> = Vec::with_capacity(json.len() + 2);
+            out.extend("A\t".encode_utf16());
+            out.extend_from_slice(&json);
+            out
+        }
+        Err(e) => canonical(Err(e)),
+    }
+}
+
 /// `A\t<json>` or `E\t<class>\t<line>\t<column>\t<message>`.
 fn canonical(written: Answer<String>) -> Vec<u16> {
     let mut out: Vec<u16> = Vec::new();

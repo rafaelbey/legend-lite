@@ -55,6 +55,8 @@ test_suite(
         "//rust/lite-front:lite_front_test",
         "//rust/lite-front:front_lexer_differential_test",
         "//rust/lite-front:front_parser_differential_test",
+        # the protocol emitter in Rust: the engine-JSON doors held to Java's parser and emitter, both forms
+        "//rust/lite-front:front_engine_differential_test",
         # the shim's reader: every Java answer read back by the generated reader is the records written
         "//core:front_reader_test",
         # the planner on java.base alone (P3-19): seconds

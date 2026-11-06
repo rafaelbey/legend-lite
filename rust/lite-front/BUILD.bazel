@@ -86,4 +86,33 @@ rust_test(
     deps = [":lite_front"],
 )
 
+# The front oracle's questions at the two engine-JSON doors (phase 2, step 5): every model text at the engine's dialect
+# (`document`, PmcdParser.parseDocument) and every lambda (`lambdaJson`, SpecParser.lambdaJson), answered by the Rust
+# emitter in both forms -- with source information and without it -- and held to Java's parser and emitter
+# (//core:front_engine_answers, each form's SHA-256): at least each door's floor (tests/<door>-floor.txt) identical.
+# Medium (2026-11-06): 30,064 questions, about 8 s optimized.
+rust_test(
+    name = "front_engine_differential_test",
+    size = "medium",
+    srcs = ["tests/front_engine_differential.rs"],
+    args = ["--ignored"],
+    data = [
+        "tests/document-floor.txt",
+        "tests/lambdaJson-floor.txt",
+        "//core:front_engine_answers",
+        "//rust/oracles:front_questions",
+    ],
+    edition = "2024",
+    env = {
+        "LITE_FRONT_ENGINE": "$(rootpath //core:front_engine_answers)",
+        "LITE_FRONT_FLOORS": " ".join([
+            "$(rootpath tests/document-floor.txt)",
+            "$(rootpath tests/lambdaJson-floor.txt)",
+        ]),
+        "LITE_FRONT_QUESTIONS": "$(rootpath //rust/oracles:front_questions)",
+    },
+    visibility = ["//gates:__pkg__"],
+    deps = [":lite_front"],
+)
+
 guards_package()
