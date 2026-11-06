@@ -307,6 +307,11 @@ The dated record of moved pins, rosters and ratchets (the rules: "Recording a mo
 Newest first, at most 20 lines. Seeded from the last entries of the cut log; "D<n>" is the decisions log of the
 landing's program.
 
+- 2026-11-05 — The Rust port's expression doors switch (phase 2 step 3): `ParserBoundaryArchTest.DIALECT_CLASSES` gains
+  `RustParserProvider` and the front oracle's four classes (they pass on or re-ask a caller's dialect);
+  `DatabaseOwners`' vocabulary gains the shim's reader (`ffi/FrontRe*`) and `frontoracle/` (they name every record
+  as the protocol does); `tools/deps/core-layers.txt` gains `rust_parser`, `core`'s `not_layers` `front_codegen` (test
+  code). Branch `worktree-rust-port-phase0`.
 - 2026-11-05 — `ArchitectureTest.callsAreBuiltOnlyByTheBuilder` and `protocolNodesAreConstructedOnlyByTheParserAndTheNormalizer`
   exempt `com.legend.ffi.FrontRecords`, the generated reader that reads the Rust parser's answer into the records the
   Java parser builds (a protocol reader: it builds before resolution). Invariant 12 is untouched: the reader builds no

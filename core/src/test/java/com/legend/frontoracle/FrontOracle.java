@@ -207,15 +207,15 @@ public final class FrontOracle {
                     declared = PmcdParser.Parsed.class;
                 }
                 case "spec" -> {
-                    value = SpecParser.parse(q.text(), q.dialect());
+                    value = SpecParser.parseInJava(q.text(), q.dialect());
                     declared = ValueSpecification.class;
                 }
                 case "lambda" -> {
-                    value = SpecParser.parseLambda(q.text());
+                    value = SpecParser.parseLambdaInJava(q.text());
                     declared = LambdaFunction.class;
                 }
                 case "block" -> {
-                    value = SpecParser.parseCodeBlock(q.text(), q.dialect());
+                    value = SpecParser.parseCodeBlockInJava(q.text(), q.dialect());
                     declared = List.class;
                 }
                 default -> throw new IllegalArgumentException("no door " + q.door());

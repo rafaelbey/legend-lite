@@ -294,10 +294,17 @@ public final class SpecParser implements TokenStreamCursor {
     // Public entry points
     // -------------------------------------------------------------------
 
-    /** Lex {@code source} and parse the result as a single expression. */
+    /** {@code source} as a single expression: the Rust parser's answer (docs/rust-port/PHASE2.md §4 step 3, held to
+     *  this parser's every answer by //rust/lite-front:front_parser_differential_test), its error this class's. */
     public static ValueSpecification parse(String source, Dialect dialect) {
         ParseTap.record("spec", dialect, Objects.requireNonNull(source, "source"));
-        return parse(Lexer.tokenize(source), dialect);
+        return RustParsers.provider().spec(source, dialect);
+    }
+
+    /** {@link #parse(String, Dialect)} as this Java parser answers it: the front oracle's Java answer
+     *  (//core:front_answers), while this parser exists -- deleted with it (docs/rust-port/PHASE2.md §4 step 6). */
+    public static ValueSpecification parseInJava(String source, Dialect dialect) {
+        return parse(Lexer.tokenize(Objects.requireNonNull(source, "source")), dialect);
     }
 
     /**
@@ -317,7 +324,14 @@ public final class SpecParser implements TokenStreamCursor {
      *  all its tokens, as legend-engine wraps it. */
     public static LambdaFunction parseLambda(String source) {
         ParseTap.record("lambda", Dialect.LEGEND_ENGINE, Objects.requireNonNull(source, "source"));
-        SpecParser parser = new SpecParser(Lexer.tokenize(source),
+        // the Rust parser's answer (docs/rust-port/PHASE2.md §4 step 3)
+        return RustParsers.provider().lambda(source);
+    }
+
+    /** {@link #parseLambda} as this Java parser answers it: the front oracle's Java answer, while this parser
+     *  exists (docs/rust-port/PHASE2.md §4 step 6 deletes it). */
+    public static LambdaFunction parseLambdaInJava(String source) {
+        SpecParser parser = new SpecParser(Lexer.tokenize(Objects.requireNonNull(source, "source")),
                 "", Dialect.LEGEND_ENGINE);
         ValueSpecification v = parser.wholeLine();
         return v instanceof LambdaFunction lf ? lf
@@ -358,6 +372,14 @@ public final class SpecParser implements TokenStreamCursor {
     public static List<ValueSpecification> parseCodeBlock(String source,
             Dialect dialect) {
         ParseTap.record("block", dialect, source);
+        // the Rust parser's answer (docs/rust-port/PHASE2.md §4 step 3)
+        return RustParsers.provider().block(source, dialect);
+    }
+
+    /** {@link #parseCodeBlock(String, Dialect)} as this Java parser answers it: the front oracle's Java answer, while
+     *  this parser exists (docs/rust-port/PHASE2.md §4 step 6 deletes it). */
+    public static List<ValueSpecification> parseCodeBlockInJava(String source,
+            Dialect dialect) {
         return parseCodeBlock(Lexer.tokenize(source), "", dialect);
     }
 

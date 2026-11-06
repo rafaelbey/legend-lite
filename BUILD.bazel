@@ -95,6 +95,7 @@ test_suite(
     tests = [
         "//core:update_generated_tests",
         "//core:update_ladder_tests",
+        "//core:update_front_records_tests",
         "//core:update_stress_corpus_tests",
         "//datacube:update_generated_tests",
         "//engine-client:update_generated_tests",
@@ -127,6 +128,7 @@ write_source_files(
     additional_update_targets = [
         "//core:update_generated",
         "//core:update_ladder",
+        "//core:update_front_records",
         "//core:update_stress_corpus",
         "//datacube:update_generated",
         "//engine-client:update_generated",

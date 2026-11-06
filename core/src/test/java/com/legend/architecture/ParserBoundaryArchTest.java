@@ -104,7 +104,17 @@ class ParserBoundaryArchTest {
             "com/legend/equivalence/PctParseCensusTest.java",
             // Phase 4: channel B parses the PCT M3 sources — the same
             // front-door dialect decision the census names
-            "org/finos/legend/lite/pct/channelb/ChannelB.java");
+            "org/finos/legend/lite/pct/channelb/ChannelB.java",
+            // 2026-11-05, the Rust port's phase 2 (docs/rust-port/PHASE2.md §3): the parser's doors over the Rust
+            // library pass on the dialect their caller names, as the parser's doors take it (parseLambda's engine
+            // dialect is the door's own)
+            "com/legend/ffi/RustParserProvider.java",
+            // and the front oracle (§4 step 1): it asks each recorded question again at the dialect the parse tap
+            // recorded, and every model text at all three -- the dialects are its subject
+            "com/legend/frontoracle/FrontAnswers.java",
+            "com/legend/frontoracle/FrontOracle.java",
+            "com/legend/frontoracle/FrontReaderRoundTripTest.java",
+            "com/legend/frontoracle/FrontTiming.java");
 
     @Test
     void theCompilerLayerNeverTouchesTheParser() throws IOException {

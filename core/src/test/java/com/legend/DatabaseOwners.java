@@ -134,7 +134,12 @@ final class DatabaseOwners {
             MAIN + "model/",
             // 2026-10-16, the dialect program's Phase 6: the vocabulary's own tests, which read and write every
             // database's name and connection as the vocabulary does ({@code protocol/sql/}'s tests excepted, as above)
-            TEST + "lexer/", TEST + "parser/", TEST + "protocol/", TEST + "model/");
+            TEST + "lexer/", TEST + "parser/", TEST + "protocol/", TEST + "model/",
+            // 2026-11-05, the Rust port's phase 2 (docs/rust-port/PHASE2.md §3): the parser's records read back from
+            // the Rust library (FrontRecords, generated from every record, FrontRead, FrontReader), and the front
+            // oracle that asks the parser and writes its every record -- each names every database's records as the
+            // protocol does
+            MAIN + "ffi/FrontRe", TEST + "frontoracle/");
 
     /** The warehouse's sources (D4): a host, whose engine is DuckDB. */
     private static final String WAREHOUSE = "warehouse/src/";

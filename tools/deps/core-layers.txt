@@ -120,3 +120,7 @@ ffi	base
 # (MirJson over :ffi), sql_dialect's RustDialects provider; `database` carries it at run time only (runtime_deps),
 # found through META-INF/services, so no compile edge reaches it.
 rust_dialect	base error execution_plan ffi json sql sql_dialect
+# 2026-11-05 (docs/rust-port/PHASE2.md §3, step 3): `rust_parser`, the parser's text doors the Rust library answers:
+# parser's RustParsers provider and the codec's generated reader (the records read back) over :ffi; `door` carries it
+# at run time only (runtime_deps), found through META-INF/services, so no compile edge reaches it.
+rust_parser	base ffi json parser protocol values

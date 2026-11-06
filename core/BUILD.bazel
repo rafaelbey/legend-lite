@@ -165,7 +165,15 @@ legend_java_library(
 
 # THE TEXT'S DOOR (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 8's last step): a text's records (the parser's) made the
 # compiler's model (ModelFromProtocol) -- the one place the two meet, so the parser depends on no model
-legend_java_library(name = "door", srcs = glob(["src/main/java/com/legend/door/*.java"]), deps = ["//base", ":model", ":parser", ":protocol"])
+legend_java_library(
+    name = "door",
+    srcs = glob(["src/main/java/com/legend/door/*.java"]),
+    deps = ["//base", ":model", ":parser", ":protocol"],
+    # the parser's text doors are the Rust library's (docs/rust-port/PHASE2.md §4 step 3): their provider, found at run
+    # time, as :database carries the dialects'. Here, since the parser cannot (the provider depends on it) and every
+    # text reaches the compiler's model through this door
+    runtime_deps = [":rust_parser"],
+)
 
 # the platform's declarations, generated from the pinned upstream; the four
 # resources (prelude, handler surface, imports, membership) ride here because
@@ -1902,7 +1910,6 @@ legend_java_binary(
 # GENERATORS"). `bazel run //core:update_generated` (or //:update_generated)
 # writes them; `bazel test` fails when a committed copy differs, naming the command.
 _GENERATED = {
-    "src/main/java/com/legend/ffi/FrontRecords.java": ":front_records_java",
     "src/main/java/com/legend/builtin/DynaFn.java": "//spec:gen_dynafn",
     "src/main/java/com/legend/builtin/Pure.java": "//spec:gen_natives",
     "src/main/java/com/legend/compiler/CoreImports.java": "//spec:gen_imports",
@@ -2037,6 +2044,17 @@ java_run(
     ],
 )
 
+# The shim's reader, generated from the records (//core:front_records_java, FrontCodegen; docs/rust-port/PHASE2.md §3):
+# testonly, as its generator is test code (reflection is the generator's tool, banned in the product). Its diff test
+# is in //:generated; `bazel run //:update_generated` rewrites it.
+write_source_files(
+    name = "update_front_records",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe protocol records moved -- regenerate the shim's reader: bazel run //core:update_front_records",
+    files = {"src/main/java/com/legend/ffi/FrontRecords.java": ":front_records_java"},
+    visibility = ["//:__pkg__"],
+)
+
 write_source_files(
     name = "update_ladder",
     testonly = True,
@@ -2107,6 +2125,7 @@ core_layer_queries(not_layers = {
     "core_next_prelude": "core_next's regenerated prelude resource",
     "core_tests_lib": "the tests' library, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
+    "front_codegen": "the front oracle's codec and the generator of the records' Rust and the shim's reader: test code (the Rust port's phase 2, 2026-11-05)",
     "duckdb_load": "the drivers' bulk loader, beside the layers",
     "mongodb_connector": "MongoDB's connector, beside the drivers (docs/MONGODB_PLAN_2026_10_16.md D12)",
     "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
