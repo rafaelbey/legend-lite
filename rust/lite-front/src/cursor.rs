@@ -428,18 +428,10 @@ pub trait Cursor<'s> {
         Ok(())
     }
 
-    /// `parseIdentifier`: a single identifier, a quoted one unquoted and unescaped.
+    /// `parseIdentifier`: a single identifier, a quoted one unquoted and unescaped. A cursor that overrides it (the
+    /// Database grammar's) reaches this one as [`base_parse_identifier`], Java's `TokenStreamCursor.super`.
     fn parse_identifier(&mut self) -> R<Vec<u16>> {
-        if self.peek() == T::INTEGER && self.int_leads_identifier() {
-            return self.fqn_segment_text();
-        }
-        if !is_identifier_token(self.peek()) {
-            return Err(self.error(jcat!("expected identifier, got ", self.peek())));
-        }
-        let name =
-            if self.peek() == T::STRING { self.unquote_and_unescape(self.text())? } else { self.text().to_vec() };
-        self.advance()?;
-        Ok(name)
+        base_parse_identifier(self)
     }
 
     /// THE quoted-name decoder (`unquoteAndUnescape(raw, at)`, this cursor the `at`).
@@ -976,6 +968,134 @@ pub trait Cursor<'s> {
     fn span(&self, from: usize, to: usize) -> Span {
         boxed(self.span_of(from, to))
     }
+
+    // ---------------------------------------------------------------- the store grammars' shared readers
+
+    /// `isCleanSheetBody`: whether the class-mapping body at the cursor is the clean-sheet function form rather than
+    /// the legacy declarative one (a `~directive`, `prop:`, `scope(`, `prop(`, `prop[`, `+local`, or `{}`).
+    fn is_clean_sheet_body(&self) -> bool {
+        if self.peek() == T::BRACE_CLOSE {
+            return false;
+        }
+        if is_legacy_mapping_command(self.peek()) {
+            return false;
+        }
+        if is_identifier_token(self.peek()) && self.peek_at(1) == T::COLON {
+            return false;
+        }
+        if is_identifier_token(self.peek())
+            && crate::ustr::eq(&self.safe_text(), "scope")
+            && self.peek_at(1) == T::PAREN_OPEN
+        {
+            return false;
+        }
+        if is_identifier_token(self.peek()) && self.peek_at(1) == T::PAREN_OPEN {
+            return false;
+        }
+        if is_identifier_token(self.peek()) && self.peek_at(1) == T::BRACKET_OPEN {
+            return false;
+        }
+        self.peek() != T::PLUS
+    }
+
+    /// `parseFunctionDescriptor`: a function pointer's extent -- `fqn`, an optional balanced `(args)`, an optional
+    /// `:Type<...>[m]` signature suffix; `name_end` and `end` exclusive.
+    fn parse_function_descriptor(&mut self) -> R<FunctionDescriptor> {
+        let start = self.pos();
+        self.parse_qualified_name()?;
+        let name_end = self.pos();
+        if self.peek() == T::PAREN_OPEN {
+            let mut parens = 0i64;
+            loop {
+                if self.peek() == T::PAREN_OPEN {
+                    parens += 1;
+                } else if self.peek() == T::PAREN_CLOSE {
+                    parens -= 1;
+                }
+                self.advance()?;
+                if self.at_end() || parens <= 0 {
+                    break;
+                }
+            }
+            if self.match_tok(T::COLON)? {
+                self.parse_qualified_name()?;
+                self.skip_type_args_and_multiplicity()?;
+            }
+        }
+        Ok(FunctionDescriptor { start, name_end, end: self.pos() })
+    }
+
+    /// `skipTypeArgsAndMultiplicity`: `<...>` type arguments and a `[..]` multiplicity, if present.
+    fn skip_type_args_and_multiplicity(&mut self) -> R<()> {
+        if self.peek() == T::LESS_THAN {
+            let mut depth = 0i64;
+            while !self.at_end() {
+                if self.peek() == T::LESS_THAN {
+                    depth += 1;
+                } else if self.peek() == T::GREATER_THAN {
+                    depth -= 1;
+                    if depth == 0 {
+                        self.advance()?;
+                        break;
+                    }
+                }
+                self.advance()?;
+            }
+        }
+        if self.peek() == T::BRACKET_OPEN {
+            while !self.at_end() && self.peek() != T::BRACKET_CLOSE {
+                self.advance()?;
+            }
+            self.match_tok(T::BRACKET_CLOSE)?;
+        }
+        Ok(())
+    }
+
+    /// `validateJoinType`: a join pointer's `(X)` admits exactly `INNER` or `OUTER`, case-sensitive.
+    fn validate_join_type(&self, join_type: &[u16]) -> R<()> {
+        if !crate::ustr::eq(join_type, "INNER") && !crate::ustr::eq(join_type, "OUTER") {
+            return Err(self.error(jcat!("Unsupported join type '", join_type, "'")));
+        }
+        Ok(())
+    }
+}
+
+/// `TokenStreamCursor.parseIdentifier`'s own body (Java's `TokenStreamCursor.super.parseIdentifier()`): a single
+/// identifier, a quoted one unquoted and unescaped.
+pub fn base_parse_identifier<'s, C: Cursor<'s> + ?Sized>(c: &mut C) -> R<Vec<u16>> {
+    if c.peek() == T::INTEGER && c.int_leads_identifier() {
+        return c.fqn_segment_text();
+    }
+    if !is_identifier_token(c.peek()) {
+        return Err(c.error(jcat!("expected identifier, got ", c.peek())));
+    }
+    let name = if c.peek() == T::STRING { c.unquote_and_unescape(c.text())? } else { c.text().to_vec() };
+    c.advance()?;
+    Ok(name)
+}
+
+/// `TokenStreamCursor.FunctionDescriptor`: a function pointer's extent, `name_end` and `end` exclusive.
+#[derive(Clone, Copy, Debug)]
+pub struct FunctionDescriptor {
+    pub start: usize,
+    pub name_end: usize,
+    pub end: usize,
+}
+
+/// `isLegacyMappingCommand`: the `~directive` keywords that open a legacy mapping body.
+pub fn is_legacy_mapping_command(t: TokenType) -> bool {
+    matches!(t, T::MAIN_TABLE_CMD | T::FILTER_CMD | T::DISTINCT_CMD | T::GROUP_BY_CMD | T::PRIMARY_KEY_CMD | T::SRC_CMD)
+}
+
+/// `TokenStreamCursor.stripDoubleQuotes`: a `"..."` spelling's quotes off, no escapes.
+pub fn strip_double_quotes(n: &[u16]) -> Vec<u16> {
+    let q = u16::from(b'"');
+    if n.len() > 1 && n[0] == q && n[n.len() - 1] == q { n[1..n.len() - 1].to_vec() } else { n.to_vec() }
+}
+
+/// `tokens.type(i)` where Java reads it unguarded: past `count` the lexer's zeroed slack, ordinal 0, `STRING`.
+pub fn ty_or_slack(tokens: &TokenStream<'_>, i: usize) -> TokenType {
+    if i < tokens.count() { tokens.ty(i) } else { T::STRING }
 }
 
 fn generic(

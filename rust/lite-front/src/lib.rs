@@ -9,6 +9,7 @@
 
 pub mod codec;
 pub mod cursor;
+pub mod database_parser;
 pub mod doors;
 pub mod element_parser;
 pub mod escapes;

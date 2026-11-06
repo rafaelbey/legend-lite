@@ -16,20 +16,20 @@ compared by SHA-256 in `tests/front_parser_differential.rs`. The lexer under the
 | | LEGEND_ENGINE | 33 | 1 | 34 | 0 |
 | `lambda` (`SpecParser.parseLambda`) | LEGEND_ENGINE | 870 | 6 | 876 | 0 |
 | `block` (`SpecParser.parseCodeBlock`) | LEGEND_PLATFORM | 5 | 0 | 5 | 0 |
-| `pmcd` (`PmcdParser.parse`) | LEGEND_ENGINE | 23,258 | 5,930 | 16,396 | 12,792 |
-| | LEGEND_LITE | 24,823 | 4,365 | 16,375 | 12,813 |
-| | LEGEND_PLATFORM | 26,373 | 2,815 | 16,268 | 12,920 |
+| `pmcd` (`PmcdParser.parse`) | LEGEND_ENGINE | 23,258 | 5,930 | 18,044 | 11,144 |
+| | LEGEND_LITE | 24,823 | 4,365 | 18,024 | 11,164 |
+| | LEGEND_PLATFORM | 26,373 | 2,815 | 17,933 | 11,255 |
 
 22,151 + 876 + 5 = 23,032 expression questions, all identical. The errors include the oracle's one
 `java.time.DateTimeException` (a time-zone shift of an impossible date, below).
 
-The model door: 49,039 of its 87,564 questions identical (the floor, `tests/pmcd-floor.txt`). Every one of the 38,525
+The model door: 54,001 of its 87,564 questions identical (the floor, `tests/pmcd-floor.txt`). Every one of the 33,563
 that differ is a text whose walk reaches a section grammar not ported yet, which Rust answers `not ported` (no Java
-class) where Java's walk would read its first element: by grammar, Relational 19,218, Mapping 10,607, Service 1,916,
-Connection 1,777, Persistence 1,041, DataQualityValidation 699, DataSpace 624, ExternalFormat 511, ServiceStore 438,
-Diagram 411, Runtime 278, QueryPostProcessor 180, Elasticsearch 135, MongoDB 126, FileGeneration 114, HostedService 90,
-Deephaven 90, Snowflake 87, FunctionJar 66, GenerationSpecification 54, MemSql 36, BigQuery 27 (a platform `###Pure`
-section's headerless Mapping, Database, Runtime, Service or connection counts as its grammar's). A text whose error
+class) where Java's walk would read its first element: by grammar, Mapping 22,226, Connection 4,141, Service 1,946,
+Persistence 1,041, DataQualityValidation 699, DataSpace 642, ExternalFormat 592, ServiceStore 438, Diagram 438,
+Runtime 278, QueryPostProcessor 234, Snowflake 141, Elasticsearch 135, MongoDB 126, FileGeneration 114, HostedService
+90, Deephaven 90, FunctionJar 66, GenerationSpecification 54, MemSql 45, BigQuery 27 (a platform `###Pure` section's
+headerless Mapping, Runtime, Service or connection counts as its grammar's). A text whose error
 Java raises before such a section is identical already. The questions were answered with one overlay grammar
 registered (the test jar's `ToySectionGrammar`); the differential plays the shim's part for it (`toy_splice`).
 
@@ -44,10 +44,11 @@ committed; the model door's questions reach these paths through function bodies 
 | Rust | Java |
 |---|---|
 | `spec_parser.rs` | `SpecParser`, `NumberLiterals`, `IslandScan`, `QuotedSpecParser` (`fold`, `foldGrammar`, `foldStringConcat`, `parseTree`), `protocol.CaretSpecials`, `TdsLiteral.of`, `AppliedFunction.tableReference`, `IqProfile.named`/`unknown` |
-| `cursor.rs` | `TokenStreamCursor` (the primitives, the identifier and type grammars, `spanOf`, the `'''` layout, documentation, `parseDecorations`, `once`), `ElementParser.at`/`parseStereotypes`/`parseTaggedValues`/`looksLikeTaggedValueBlock` |
+| `cursor.rs` | `TokenStreamCursor` (the primitives, the identifier and type grammars, `spanOf`, the `'''` layout, documentation, `parseDecorations`, `once`, `isCleanSheetBody`, `parseFunctionDescriptor`, `validateJoinType`, `stripDoubleQuotes`), `ElementParser.at`/`parseStereotypes`/`parseTaggedValues`/`looksLikeTaggedValueBlock` |
 | `model_parser.rs` | `PmcdParser.parse` (the section walk, `requireCleanHeader`, `sectionSpan`, `sectionImports`, the head rules, `strictWalk`, `parseOneAt`, `registered`, `ruleGroup`) |
 | `element_parser.rs` | `ElementParser`'s `###Pure` elements: Class (properties, qualified properties, constraints, type and multiplicity parameters, type variables, projections), Enum, Profile, Association and its projection, Measure, function (its constraints and test block), `native` declarations, `Primitive`, `skipTopLevelNonElement` |
 | `mapping_parser.rs` | `MappingProtocolParser.parseData` and its embedded values (`readIsland`, `parseEmbeddedValue`, `parseRelationElements`, `parseModelEntry`, `parseExternalFormat`, `parseRelationalCsv`), `ServiceStubDataParser` |
+| `database_parser.rs` | `DatabaseProtocolParser` (`###Relational`: `parseDatabase`, `parseBody`, `parseSchema`, `parseTable`, `parseTabularFunction`, `parseDbType`, `parseMilestoning`, `validateMilestoningKeys`, `parseView`; the operation grammar `parseOperation`, `parseComparison`, `parseAtom`, `parseJoinNav`, `parseFunctionArgument`, `looksLikeDbPointer`, `bracketLeadsToAt`, `under`; the Mapping grammar's doors `operationAt`, `scopedOperationAt`) |
 | `sections.rs` | `SectionParse` (`head`, `stringValue`), `SectionImports.parseImport`, `TextSectionGrammar` |
 | `protocol.rs` | `Protocol.splitFqn`, `PFunction.mangledName` / `functionPath`, `Realization.of`, `ConstraintDefinition.mentionsReturn` (over `ValueSpecification.children`) |
 | `lexer.rs` (added) | `TokenStream.slice`, `sectionContentLine`, `lexRange`'s shared line index |
@@ -96,8 +97,7 @@ Each row is Java's answer, kept because the differential holds Java as the spec 
 
 ## What Java does that this does not reproduce
 
-The section grammars not ported yet (step 4's later parts): Mapping (`MappingProtocolParser`), Relational
-(`DatabaseProtocolParser`), Connection, Runtime, Service (and the platform's headerless Service), the function
+The section grammars not ported yet (step 4's later parts): Mapping (`MappingProtocolParser`), Connection, Runtime, Service (and the platform's headerless Service), the function
 activators (Snowflake, MemSql, BigQuery, HostedService, FunctionJar), Diagram, and every tail grammar but Text. Each
 answers `not ported` (no Java class) where the walk reaches it, so its questions differ visibly.
 

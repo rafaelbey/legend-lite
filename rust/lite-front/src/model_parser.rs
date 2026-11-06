@@ -21,6 +21,7 @@
 #![allow(clippy::vec_box)]
 
 use crate::cursor::{ElementCursor, R, is_identifier_token, unquote_path_iae};
+use crate::database_parser::parse_database;
 use crate::doors::{Answer, Dialect, JavaError};
 use crate::jcat;
 use crate::jtypes::JStr;
@@ -788,7 +789,11 @@ fn parse_one_at(
         }
         6 => return Err(not_ported("Runtime")),
         7 => return Err(not_ported("Connection")),
-        8 => return Err(not_ported("Relational")),
+        8 => {
+            let (db, end) = parse_database(ts, site, dialect)?;
+            let path = qualified_name(&db.pkg.0, &db.name.0);
+            return Ok((Some(DocElement { path: Some(JStr(path)), element: Element::PDatabase(Box::new(db)) }), end));
+        }
         9 => return Err(not_ported("Mapping")),
         10 => {
             let (d, end) = parse_data(ts, site, dialect)?;
