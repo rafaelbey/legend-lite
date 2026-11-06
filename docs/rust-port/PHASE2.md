@@ -310,8 +310,8 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    doors' 23,032 still all identical -- the oracle's 110,596 questions all answered as Java answers them. Beyond the
    oracle, the new grammars were held to Java by `//core:front_show` on 1,569 derived texts (each 4d section, and each
    of its elements, alone), 93,997 texts mutated after a 4d section's header, 110,595 mutated anywhere from 4,000 model
-   texts sampled across every grammar, and 462 probes aimed by an `llvm-cov` line census (4,707 + 281,991 + 331,785 +
-   1,386 questions, not committed): all identical but 66 questions whose answer is an `ArrayIndexOutOfBoundsException`
+   texts sampled across every grammar, and 463 probes aimed by an `llvm-cov` line census (4,707 + 281,991 + 331,785 +
+   1,389 questions, not committed): all identical but 66 questions whose answer is an `ArrayIndexOutOfBoundsException`
    (a persistence island open at the stream's end, row 55, and row 29's legacy test), which the bulk run's warm JVM
    answered with no message and a cold JVM answers with Rust's message byte for byte -- Java's one answer here that is
    not a function of its text. 4b's and 4c's sets (920,289 questions), whose mutations had made sections not ported,
