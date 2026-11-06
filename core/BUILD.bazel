@@ -126,7 +126,13 @@ legend_java_library(
 # protocol records the Java parser builds.
 legend_java_library(
     name = "rust_parser",
-    srcs = glob(["src/main/java/com/legend/ffi/Front*.java"]),
+    srcs = glob([
+        "src/main/java/com/legend/ffi/Front*.java",
+        "src/main/java/com/legend/ffi/RustParser*.java",
+    ]),
+    # com.legend.parser.RustParsers' provider, found by ServiceLoader (the parser depends on no ffi code)
+    resources = glob(["src/main/ffi-parser/META-INF/**"]),
+    resource_strip_prefix = "core/src/main/ffi-parser",
     deps = [
         ":ffi",
         ":parser",

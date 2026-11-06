@@ -21,7 +21,10 @@ rust_shared_library(
     # input (tools/java_run/defs.bzl), wherever the java_run lives
     visibility = ["//visibility:public"],
     # lite_dialect: the dialects' seam (rust/lite-dialect/SEAM.md), the lite_dialect export
-    deps = ["//rust/lite-dialect:lite_dialect"],
+    deps = [
+        "//rust/lite-dialect:lite_dialect",
+        "//rust/lite-front:lite_front",
+    ],
 )
 
 # The library as a resource of //core:ffi's jar (2026-11-03): the self-contained server jar (//core:server_deploy.jar)
@@ -44,7 +47,10 @@ rust_test(
     edition = "2024",
     version = "0.1.0",
     visibility = ["//gates:__pkg__"],
-    deps = ["//rust/lite-dialect:lite_dialect"],
+    deps = [
+        "//rust/lite-dialect:lite_dialect",
+        "//rust/lite-front:lite_front",
+    ],
 )
 
 guards_package()

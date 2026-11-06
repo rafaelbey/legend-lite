@@ -138,6 +138,98 @@ pub unsafe extern "C" fn lite_dialect(spec: *const c_char, op: *const c_char, ar
     })
 }
 
+/// One parser door (docs/rust-port/PHASE2.md §3; com.legend.ffi.RustParserProvider): `door` is `spec`, `lambda` or
+/// `block`, `dialect` the Java name of the parse's level, `text` the text as a JSON string literal (every surrogate a
+/// `\uXXXX` escape, so a lone one survives the UTF-8 C string). Answers `OK\nA\n<records>` -- the lossless codec's
+/// JSON of the door's records -- or `OK\nE\n<error>`, the error Java's parser raises as JSON (`class`, `message`, and
+/// a `ParseException`'s `line` and `column`, its message without the `[line:col] ` prefix its constructor writes):
+/// the parser's own answer either way; `ERR` is the call's failure. On the big-stack thread, as a dialect call is.
+///
+/// # Safety
+/// `door`, `dialect` and `text` are null or NUL-terminated strings the caller keeps alive for the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn lite_front(door: *const c_char, dialect: *const c_char, text: *const c_char) -> *mut c_char {
+    respond(|| {
+        let read = || -> Result<(&str, &str, &str), Refusal> {
+            Ok((unsafe { self::text(door, "door") }?, unsafe { self::text(dialect, "dialect") }?, unsafe {
+                self::text(text, "text")
+            }?))
+        };
+        let (door, dialect, text) = match read() {
+            Ok(texts) => texts,
+            Err(r) => return Answer::Err(r),
+        };
+        let Some(dialect) = lite_front::doors::Dialect::from_java(dialect) else {
+            return Answer::Err(Refusal::invalid_argument(format!("no dialect {dialect}")));
+        };
+        let units = match lite_front::wire::parse(text, 1) {
+            Ok(lite_front::wire::Json::Str(units)) => units,
+            _ => return Answer::Err(Refusal::invalid_argument("the text is not one JSON string")),
+        };
+        match on_dialect_thread(|| front_answer(door, dialect, &units)) {
+            Ok(Ok(answer)) => Answer::Ok(answer),
+            Ok(Err(r)) => Answer::Err(r),
+            Err(panic) => Answer::Err(Refusal::new("INTERNAL", panic)),
+        }
+    })
+}
+
+/// A door's answer as `lite_front` folds it: `A\n<records>` or `E\n<error>`.
+fn front_answer(door: &str, dialect: lite_front::doors::Dialect, text: &[u16]) -> Result<String, Refusal> {
+    use lite_front::codec::{self, Codec};
+    let written = match door {
+        "spec" => lite_front::doors::spec(text, dialect).map(|v| codec::write(&v, false)),
+        "lambda" => lite_front::doors::lambda(text).map(|v| codec::write(&v, true)),
+        "block" => lite_front::doors::block(text, dialect).map(|vs| {
+            // a block's elements are tagged, as the door's declared List<ValueSpecification> writes them
+            let mut w = codec::Writer::new();
+            w.raw("[");
+            for (i, v) in vs.iter().enumerate() {
+                if i > 0 {
+                    w.raw(",");
+                }
+                v.write(&mut w, false);
+            }
+            w.raw("]");
+            w.finish()
+        }),
+        _ => return Err(Refusal::invalid_argument(format!("no parser door {door}"))),
+    };
+    Ok(match written {
+        Ok(json) => format!("A\n{json}"),
+        Err(e) => format!("E\n{}", front_error(&e)),
+    })
+}
+
+/// The error Java's parser raises, as JSON for the shim to rethrow: a `ParseException`'s message without the
+/// `[line:col] ` prefix (its constructor writes it again from the line and column).
+fn front_error(e: &lite_front::doors::JavaError) -> String {
+    let mut w = lite_front::codec::Writer::new();
+    w.raw("{\"class\":");
+    w.string(&lite_front::jtypes::JStr::from(e.class.as_str()));
+    w.raw(",\"message\":");
+    match &e.message {
+        None => w.raw("null"),
+        Some(m) => {
+            let mut units = m.units();
+            if let Some((line, column)) = e.position
+                && line > 0
+            {
+                let prefix: Vec<u16> = format!("[{line}:{column}] ").encode_utf16().collect();
+                if units.starts_with(&prefix) {
+                    units = &units[prefix.len()..];
+                }
+            }
+            w.string(&lite_front::jtypes::JStr(units.to_vec()));
+        }
+    }
+    if let Some((line, column)) = e.position {
+        w.raw(&format!(",\"line\":{line},\"column\":{column}"));
+    }
+    w.raw("}");
+    w.finish()
+}
+
 /// A C string the caller owns. Text holding a NUL cannot be one, so such an answer is refused instead.
 fn into_c(text: String) -> *mut c_char {
     let c = CString::new(text).unwrap_or_else(|_| {

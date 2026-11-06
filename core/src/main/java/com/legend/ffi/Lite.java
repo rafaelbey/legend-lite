@@ -49,6 +49,7 @@ public final class Lite {
     private static final String JAR_DIR = "/rust/lite-ffi/jar/";
 
     private final MethodHandle dialect;
+    private final MethodHandle front;
     private final MethodHandle version;
     private final MethodHandle echo;
     private final MethodHandle probeRefusal;
@@ -58,6 +59,7 @@ public final class Lite {
 
     private Lite(SymbolLookup library) {
         dialect = downcall(library, "lite_dialect", TERNARY);
+        front = downcall(library, "lite_front", TERNARY);
         version = downcall(library, "lite_version", NULLARY);
         echo = downcall(library, "lite_echo", UNARY);
         probeRefusal = downcall(library, "lite_probe_refusal", REFUSAL_PROBE);
@@ -138,6 +140,21 @@ public final class Lite {
             MemorySegment o = utf8(arena, op);
             MemorySegment a = utf8(arena, args);
             return answer(take(guarded(() -> (MemorySegment) dialect.invokeExact(s, o, a))));
+        }
+    }
+
+    /**
+     * A parser door answered by the Rust library ({@code lite_front}; docs/rust-port/PHASE2.md §3): the door
+     * ({@code spec}, {@code lambda}, {@code block}, {@code pmcd}), the dialect's Java name, and the text as a JSON
+     * string literal; the answer, {@code A\n<records>} or {@code E\n<the error>}, or a refusal thrown as a
+     * {@link LiteRefusal}.
+     */
+    public String front(String door, String dialectName, String textJson) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment d = utf8(arena, door);
+            MemorySegment n = utf8(arena, dialectName);
+            MemorySegment t = utf8(arena, textJson);
+            return answer(take(guarded(() -> (MemorySegment) front.invokeExact(d, n, t))));
         }
     }
 

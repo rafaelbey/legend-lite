@@ -16,6 +16,7 @@ name = "lite-ffi"
 version = "0.1.0"
 dependencies = [
  "lite-dialect",
+ "lite-front",
 ]
 
 [[package]]
