@@ -429,9 +429,9 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      texts at the engine's dialect and the 876 lambdas, structurally and in their literals: escapes, controls, lone
      surrogates, numbers at their edges), all identical in both forms but 6 `ArrayIndexOutOfBoundsException`s whose
      message the bulk run's warm JVM dropped (rows 29 and 55), each a cold JVM's answer byte for byte; 13,272 more
-     mutating the tail sections, all identical; no panic. 504 probes aimed by an `llvm-cov` census, all identical.
+     mutating the tail sections, all identical; no panic. 530 probes aimed by an `llvm-cov` census, all identical.
      The census: the oracle reaches every `Element` variant an engine-dialect text can make and 91-100% of each
-     module's region lines; the probes reach the refusals the oracle does not (rows 63-80); what neither reaches is
+     module's region lines; the probes reach the refusals the oracle does not (rows 63-81); what neither reaches is
      what only the JSON readers make, what the engine's dialect refuses or drops before the emitter, and the
      `requireNonNull`s on fields the parser always fills. `liteOnly` is among it: the parser refuses a native function,
      a `Primitive`, a projection association and an overlay section at the engine's dialect, so no text reaches it.

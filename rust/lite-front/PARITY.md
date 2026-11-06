@@ -43,7 +43,7 @@ literal's content replaced (escapes, controls, quotes, lone surrogates, non-BMP 
 edge spelling (46,242 of them answer JSON): all identical in both forms but 6 whose answer is an
 `ArrayIndexOutOfBoundsException` (rows 29 and 55), which the bulk run's warm JVM answered with no message and a cold JVM
 answers with Rust's message byte for byte; the tail fork's further 13,272 mutations of texts holding a tail section,
-all identical. No mutation made Rust panic. **Probes**: 504 hand-written questions (424 `document`, 80 `lambdaJson`),
+all identical. No mutation made Rust panic. **Probes**: 530 hand-written questions (450 `document`, 80 `lambdaJson`),
 aimed by an `llvm-cov` line census of the emitter over the oracle, all identical in both forms. **Coverage** (region
 lines of each module; the oracle's / the probes' alone / neither):
 
@@ -284,6 +284,7 @@ emitter refuses, or writes in a way worth naming.
 | 78 | a DataSpace executable with both `query:` and `executable:` | written as a template executable, the `executable` dropped | the emitter picks the shape by the query's presence |
 | 79 | a Redshift specification; a Snowflake specification or `SnowflakePublic` auth synthesized by `mode: local`; a GCP workload identity federation with an AWS IdP | Redshift's without `sourceInformation` (the record holds none); Snowflake's and `snowflakePublic`'s span key dropped when the span is null; `"additionalGcpScopes":[]` always written | each the engine's own wire, probed |
 | 80 | a GraphQL float (`#GQL{query { a(x: 1e400) }}#`, `1.5e10`) and string (`"a\"b"`) | the float spelled by `Double.toString`: `Infinity` as a bare token (not JSON), `1.5E10`; the string's escapes kept as written, so `"a\\\"b"` | the island's values are written from the parsed text without re-encoding |
+| 81 | a path literal's dated segment whose argument is a variable (`#/a::B/c($x)#`) | `ProtocolEmitter has no rule for dated path segment with a non-%latest argument (at c). Add the emit rule — do not drop it.`; a literal, an enum, a collection or `%latest` there is written (`#/a::B/c(1)#`, `c('a')`, `c(a::E.X)`, `c([1, 2])`) | the parser marks the segment and keeps the path; the emitter writes the argument kinds it has spans for |
 
 ## What Java does that this does not reproduce
 
