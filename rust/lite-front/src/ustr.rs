@@ -158,13 +158,13 @@ pub fn strip(h: &[u16]) -> &[u16] {
     &h[s..e]
 }
 
-/// Java's `substring(begin, end)`, its `StringIndexOutOfBoundsException` included.
+/// Java's `substring(begin, end)`, its `StringIndexOutOfBoundsException` included (JDK 25's `Preconditions` wording).
 pub fn substring(h: &[u16], begin: isize, end: isize) -> Result<&[u16], JavaError> {
     let len = h.len() as isize;
     if begin < 0 || begin > end || end > len {
         return Err(JavaError::java(
             "java.lang.StringIndexOutOfBoundsException",
-            jcat!("begin ", begin, ", end ", end, ", length ", len),
+            jcat!("Range [", begin, ", ", end, ") out of bounds for length ", len),
         ));
     }
     Ok(&h[begin as usize..end as usize])
