@@ -47,10 +47,10 @@ own texts mask behind a ServiceStore or Connection section: the legacy `~paramMa
 dataspace includes, `Binding` transformers). **Mutated**: 131,689 texts from Mapping and Relational texts, each truncated
 at random offsets, a token deleted, inserted or swapped with its neighbour (395,067 questions, 363,482 of them errors):
 all identical but where the mutation made a section not ported, or where Java answers an `ArrayIndexOutOfBoundsException`
-(row 29). No mutation made Rust panic. **Probes**: 45 hand-written texts for paths neither reaches (`EqualTo`
+(row 29). No mutation made Rust panic. **Probes**: 50 hand-written texts for paths neither reaches (`EqualTo`
 assertions, the documented members of row 24, quoted scope headers, a ServiceStore multiplicity parameter, empty
-aggregate lambdas, the relational `-` and bracket edges, quoted non-ASCII column types upper-cased): 135 questions,
-all identical.
+aggregate lambdas, the relational `-` and bracket edges, quoted non-ASCII column types upper-cased, both sites of row
+29): 150 questions, all identical.
 
 ## What is ported
 

@@ -249,6 +249,21 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    `//core:front_answers` does. Run with 4b's Relational in progress, it gave 77,033 of 110,596 identical: every one
    of the three expression doors' 23,032 (step 3's switch, checked from the Java side) and 54,001 at the model door.
    Those include the toy-overlay text at all three dialects, spliced at lite's and the platform's.
+
+   **4b done 2026-11-05.** `rust/lite-front`'s `database_parser.rs` (`###Relational`: `DatabaseProtocolParser` whole
+   -- the Database, its includes, schemas, tables, column types, milestoning, tabular functions, views, joins and
+   filters, and the relational operation grammar the Mapping grammar borrows), `mapping_grammar.rs` (`###Mapping`:
+   includes and their store substitutions, every class mapping kind -- relational, Pure, clean-sheet,
+   AggregationAware, Operation and merge, Relation, ServiceStore with `ServiceLegacyMappingParser`'s tail, MongoDB --,
+   the association and enumeration mappings) and `mapping_tests.rs` (test suites and the legacy MappingTests), on the
+   cursors 4a built; `cursor.rs` gains `TokenStreamCursor`'s shared store readers. The model door: 65,486 of its
+   87,564 questions identical (`rust/lite-front/PARITY.md`, rows 24-32); each of the 22,078 others reaches a grammar
+   not ported yet (Connection 8,357, DataSpace 5,919, Service 2,423, Persistence 1,041, Runtime 899, ...). Beyond the
+   oracle, the two grammars were held to Java by `//core:front_show` on 2,928 texts with their unported sections
+   removed, 131,689 mutated texts and 50 probes (8,784 + 395,067 + 150 questions, not committed): all identical but
+   mutations that made a section not ported and one Java nondeterminism -- where Java raises an
+   `ArrayIndexOutOfBoundsException` reading past the token positions (row 29), a warm JVM's HotSpot fast throw drops
+   its message; Rust answers the cold JVM's message, which no oracle question reaches. No mutation made Rust panic.
 5. **The engine JSON (2e)**: `ProtocolEmitter` in Rust; `parseDocument`, `parseModel` and `lambdaJson` switch, gated
    byte for byte by `CorpusSweepTest`'s 6,471 documents and `ModelReaderParityTest`.
 6. **The deletion (2f)**: `//parser-equivalence`'s internal-using tests re-expressed over Rust ops (§2), then the Java
