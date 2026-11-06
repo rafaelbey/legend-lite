@@ -266,6 +266,16 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    its message; Rust answers the cold JVM's message, which no oracle question reaches. No mutation made Rust panic.
 5. **The engine JSON (2e)**: `ProtocolEmitter` in Rust; `parseDocument`, `parseModel` and `lambdaJson` switch, gated
    byte for byte by `CorpusSweepTest`'s 6,471 documents and `ModelReaderParityTest`.
+
+   **The oracle** (2026-11-05). `//core:front_engine_answers` (`FrontEngineAnswers`) asks Java's parser and
+   emitter every oracle question at the two doors whose answer is the engine's JSON: `document`, the 29,188 model
+   texts at the engine's dialect (`PmcdParser.parseDocument`), and `lambdaJson`, the 876 lambdas. It hashes each
+   answer's form twice, with its source information and without it (`SourceInformation.withoutSpans`), in
+   `FrontAnswers`' canonical form; a parse error or an emitter refusal is the answer. The counts:
+   - `document`: 23,257 JSON answers, 5,931 errors;
+   - `lambdaJson`: 870 JSON answers, 6 errors.
+
+   The file is deterministic: a second run in a fresh JVM wrote the same bytes.
 6. **The deletion (2f)**: `//parser-equivalence`'s internal-using tests re-expressed over Rust ops (§2), then the Java
    lexer and parser deleted, `PreludeGenerator` retargeted, core's tests of parser internals retired as rows of
    `rust/RETIRED_TESTS.md`, the guards that name the deleted classes moved with dated comments.

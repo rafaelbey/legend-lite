@@ -1780,6 +1780,28 @@ java_run(
     ],
 )
 
+# Java's engine JSON over the front oracle's model questions at the engine's dialect and its lambdas, hashed with and
+# without source information (phase 2, step 5: FrontEngineAnswers): what the Rust emitter is held to, live while the
+# Java emitter exists.
+java_run(
+    name = "front_engine_answers",
+    testonly = True,
+    srcs = ["//rust/oracles:front_questions"],
+    outs = ["front/engine.tsv"],
+    arguments = [
+        "$(execpath //rust/oracles:front_questions)",
+        "{OUT}",
+    ],
+    main_class = "com.legend.frontoracle.FrontEngineAnswers",
+    memory_mb = 8192,
+    mnemonic = "FrontEngineAnswers",
+    visibility = ["//rust/lite-front:__pkg__"],
+    deps = [
+        ":core_tests_lib",
+        ":toy_grammar",
+    ],
+)
+
 # Java's answer to named questions, in the differential's canonical form (FrontAnswers' debug mode): beside the Rust
 # forms the differential writes under LITE_FRONT_MISMATCHES. A debugging tool, never a test:
 #   bazel run //core:front_show -- $PWD/bazel-bin/rust/oracles/front/questions.jsonl DIR door:dialect:sha...
