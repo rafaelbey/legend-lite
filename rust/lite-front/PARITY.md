@@ -5,7 +5,8 @@ held to core/'s `com.legend.parser.SpecParser` and `PmcdParser` on the front ora
 Java's answers `//core:front_answers`): every question of the four doors, in the canonical form Java's
 `FrontAnswers.canonical` writes (the records in the lossless codec, or the error's class, line, column and message),
 compared by SHA-256 in `tests/front_parser_differential.rs`. The lexer under them is held separately
-(`tests/front_lexer_differential.rs`, every text's token stream).
+(`tests/front_lexer_differential.rs`, every text's token stream). The protocol emitter (step 5) is held at the two
+doors whose answer is legend-engine's JSON (`tests/front_engine_differential.rs`, below).
 
 ## The numbers
 
@@ -22,6 +23,56 @@ compared by SHA-256 in `tests/front_parser_differential.rs`. The lexer under the
 
 22,151 + 876 + 5 = 23,032 expression questions, all identical. The errors include the oracle's one
 `java.time.DateTimeException` (a time-zone shift of an impossible date, below).
+
+**The engine-JSON doors** (step 5, 2026-11-06): the protocol emitter (`emitter.rs` and its family, below), held to
+core/'s `ProtocolEmitter` and `SourceInformation.withoutSpans` over Java's parser (`//core:front_engine_answers`):
+each question's two forms -- with its source information and without it -- as `FrontEngineAnswers.forms` writes
+them, hashed as their UTF-16 units each as it is (a lone surrogate, which the emitter writes raw, as itself).
+
+| door (Java) | answers | errors | identical (both forms) | different |
+|---|---|---|---|---|
+| `document` (`PmcdParser.parseDocument`, a model text at the engine's dialect) | 23,257 | 5,931 | 29,188 | 0 |
+| `lambdaJson` (`SpecParser.lambdaJson`) | 870 | 6 | 876 | 0 |
+
+The floors (`tests/document-floor.txt`, `tests/lambdaJson-floor.txt`) are the whole sets. `document`'s errors are the
+model door's 5,930 at the engine's dialect and the emitter's one refusal of a model the parser accepts (row 63).
+
+Beyond the oracle, none of it committed: **mutations** -- 149,870 questions from 6,000 of the oracle's model texts at
+the engine's dialect and its 876 lambdas, each truncated, a token deleted, inserted or swapped, a line doubled, a string
+literal's content replaced (escapes, controls, quotes, lone surrogates, non-BMP characters) and a number replaced by an
+edge spelling (46,242 of them answer JSON): all identical in both forms but 6 whose answer is an
+`ArrayIndexOutOfBoundsException` (rows 29 and 55), which the bulk run's warm JVM answered with no message and a cold JVM
+answers with Rust's message byte for byte; the tail fork's further 13,272 mutations of texts holding a tail section,
+all identical. No mutation made Rust panic. **Probes**: 504 hand-written questions (424 `document`, 80 `lambdaJson`),
+aimed by an `llvm-cov` line census of the emitter over the oracle, all identical in both forms. **Coverage** (region
+lines of each module; the oracle's / the probes' alone / neither):
+
+| module | lines | the oracle | the probes alone | neither |
+|---|---|---|---|---|
+| `emitter.rs` | 2,718 | 2,511 | 37 | 170 |
+| `tail_emitter.rs` | 1,971 | 1,881 | 27 | 63 |
+| `mapping_emitter.rs` | 1,234 | 1,124 | 17 | 93 |
+| `connection_emitters.rs` | 494 | 457 | 15 | 22 |
+| `gql_emitter.rs` | 264 | 264 | 0 | 0 |
+| `source_information.rs` | 164 | 156 | 0 | 8 |
+
+The oracle reaches every `Element` variant an engine-dialect text can make -- all but the four lite-only ones
+(`PNativeFunction`, `PPrimitive`, `PAssociationProjection`, `POpaqueElement`), whose texts the parser refuses at that
+dialect (`Unsupported syntax`, `Primitive type declarations are not supported`, `projection associations are a
+legend-lite-local form ...`; an overlay section `is not a known section parser`), so `liteOnly` is reached by no text.
+The probes alone reach: a malformed `letFunction` call, a positional cast `^a::B($x)` (`NewInstanceCast`), wildcard
+relation columns, the graph-fetch arguments with no rule (by kind), the let values with no span rule (`CTime`,
+`RelationShape`), a multiplicity parameter in a property, a lambda or a function's signature (its mangle), a
+`DeephavenApp`'s activation configuration, the persistence nodes and assertion entries with no type, the DataQuality
+context and strategy refusals, the AggregationAware local property's null owner, the optional fields of the
+connection specifications the oracle writes one way only. What no text reaches, each because the engine's dialect never
+makes the shape: what only the JSON readers make (`origin`, `serializer`, an `sdlcInfo`, a typed variable reference, a
+written `fControl` or `class`, a table pointer's written type, `PCNull`); what the parser refuses or drops at the
+engine's dialect (type and multiplicity parameters, function types, a multiplicity parameter as a type argument, a
+supertype's type arguments, a function's constraints, the IQ island's profile, a dotted key, `%latest` as a graph-fetch
+argument, the quoted folds); `requireNonNull`s on fields the parser always fills (a deployment configuration's activation
+connection, a unit's parameter, a date's written form, an enum's span); `withoutSpans`' arms for a span key whose value
+is not an object.
 
 The model door: all 87,564 of its questions identical (the floor, `tests/pmcd-floor.txt`; 82,682 after step 4c, 65,486
 after step 4b): every section the walk reaches has its grammar, and no question answers `not ported` any more. The
@@ -127,6 +178,12 @@ no `x`): unit-tested against the JDK's algorithm.
 | `jnum.rs`, `jtypes.rs` | `Character.digit`, `Long.parseLong`, `Integer.parseInt`, `Double.parseDouble` (JDK 25's `FloatingDecimal.readJavaFormatString`, its hexadecimal form included), `new BigDecimal(String)`, `BigDecimal.compareTo`, `String.hashCode` and a `HashMap`'s key-set order, `Base64.getEncoder().encodeToString(s.getBytes(UTF_8))` |
 | `ustr.rs` | `String.trim`, `strip`, `substring` (its JDK 25 refusal, `Range [b, e) out of bounds for length n`), `indexOf`, `lastIndexOf` |
 | `nodes.rs` | the records' convenience constructors (what each shorter Java constructor fills) |
+| `emitter.rs` (step 5) | `ProtocolEmitter` (`emit`, `emitElement`, `emitLambda`, `element` and every element of its own, `valueSpec`, `valueSpecWithSpan`, `appliedFunction`, `newInstance`, `pathLiteral`/`pathValue`/`shifted`/`islandSpan`, `graphFetch` and `gftParam`, `colSpec`, `collection`, `instancesCollection`/`dataInstance`/`dataLeaf`, `genericType`, `multiplicity`, `parseMultArg`, the constraints and qualified properties, `connectionValue`, `runtimeArrays`, `relOp`, `vaultSecret`, `str` as `Json.escapeTo(b, v, true)`, `srcInfo` and `finish`, `require`, `placeless`, `liteOnly`), `Realization.writtenBody`, `PDateTimeLit.wireType`, `PFunction.mangledName`'s refusals (`protocol.rs`) |
+| `tail_emitter.rs` (step 5) | `TailEmitter` |
+| `mapping_emitter.rs` (step 5) | `MappingEmitter`, `PRelOp.sourceInformation` |
+| `connection_emitters.rs` (step 5) | `ConnectionEmitters`, `AuthSpecEmitter` |
+| `gql_emitter.rs` (step 5) | `GqlEmitter` |
+| `source_information.rs` (step 5) | `SourceInformation.withoutSpans` (`keeps`, `keptByTheEngine`, the text cut) |
 
 Java's exceptions are `Err(JavaError)`: a `ParseException` at Java's position (its line, its column in code points,
 the `[line:col] ` prefix), any other class by name and message. The places Java recovers from a parse error
@@ -204,7 +261,37 @@ Each row is Java's answer, kept because the differential holds Java as the spec 
 | 61 | a deployment configuration in an activator section | a `SnowflakeAppDeploymentConfiguration` parsed and dropped (no element, no index entry); a BigQuery, MemSql or HostedService one an element whose index entry is `null` | the engine's walkers register no path for them (`PmcdParser.parseOneAt`) |
 | 62 | a ServiceStore path parameter marked `required = false` | `Path parameters cannot be optional` at the parameter's span start (its column in UTF-16 units) | built from the span, as rows 10, 12 and 13 |
 
+Rows 63 and on are the emitter's (step 5), at the engine-JSON doors: a model or lambda the parser accepts and the
+emitter refuses, or writes in a way worth naming.
+
+| # | input | Java's answer, reproduced | why it is odd |
+|---|---|---|---|
+| 63 | a graph-fetch argument that is not a literal, a dotted enum, a variable or a collection of them (`#{a::B{c(f())}}#`, `c(1.5d)`, `c(a::E)`, `c($x.y)`, `c(%10:10)`, `c({x\|1})`, `c(@Integer)`, `c(~a)`, ...) | `java.lang.UnsupportedOperationException: ProtocolEmitter has no rule for graph-fetch argument AppliedFunction — probe, do not guess.` (the node's simple name: `CDecimal`, `PackageableElementPtr`, `AppliedProperty`, `CTime`, `LambdaFunction`, `Named`, `ColSpec`, ...) | the oracle's one model the parser accepts and the emitter refuses (document `00dc41c7...`) |
+| 64 | a lone surrogate in a string (`'a\uD800b'`), a `\u007F`, a ` ` | written raw in the JSON, not escaped: the answer holds an unpaired UTF-16 unit, so it is not valid UTF-8 | `Json.escapeTo` escapes `"`, `\` and the controls below U+0020 only. The shim carries such an answer as a JSON string (`lite_front_engine`'s `U` form) |
+| 65 | `::`, the root package, as a value (`let p = ::`, `^a::B(package = ::)`) | the JSON literal `null` where the element pointer goes; a key expression bound to it written with no `expression` | the engine's serializer gets a Java null there (`NON_NULL` drops the key) |
+| 66 | a graph-fetch tree (`#{a::B{c}}#`) | each tree node's `_type` written twice (`{"_type":"rootGraphFetchTree","_type":"rootGraphFetchTree",...}`), and kept twice by the no-spans form | the engine's Jackson writes the subtype id and the explicit property; `withoutSpans` cuts the text and never re-parses it |
+| 67 | the no-spans form of an `equalTo`'s `expected`, a function or service test's `parameters[].value`, a legacy service test's `parametersValues[]` values, a persistence context's `serviceParameters[].value.primitiveType` | their spans kept | the engine parses those values with a span context of its own, which records whatever it was asked (`keptByTheEngine`) |
+| 68 | `letFunction(1, 2)`, `letFunction('a')`, `letFunction('a', 1, 2)` written as a call | `ProtocolEmitter has no rule for malformed letFunction (at 2). Add the emit rule — do not drop it.` (the argument count) | the parser accepts a call named `letFunction`; the emitter reads one as a `let` |
+| 69 | a positional cast `^a::B($x)`; a wildcard relation column (`@(a:?)`, `@Relation<(a:?)>`, `@(?:Integer)`); a let bound to a time or a relation shape (`let y = %10:10:10`, `let y = @(a:Integer)`) | `ProtocolEmitter has no rule for value specification NewInstanceCast — add the emit rule, do not drop it.`; `... no rule for wildcard @Relation columns (wire shape unprobed) — probe, do not guess.`; `ProtocolEmitter has no let-value span rule for CTime — probe, do not guess.` (`RelationShape`) | constructs the engine's parser takes and the emitter has no wire shape for |
+| 70 | an undeclared multiplicity parameter: in a property (`p: String[m];`) or a lambda's parameter; in a function's signature (`function a::f(x:String[m]):String[1]`) | `ProtocolEmitter has no rule for a multiplicity PARAMETER — add the emit rule.`; a function's `no mangle rule for a multiplicity parameter`, raised after its body is written (a refusal in the body wins) | the engine's dialect refuses declared type and multiplicity parameters, not a bare name in brackets |
+| 71 | a `DeephavenApp` with `activationConfiguration: a::K;` | `UnsupportedOperationException: activationConfiguration wire for DeephavenApp is unprobed` | only the Snowflake, MemSql and BigQuery activators have a configuration's wire |
+| 72 | an AggregationAware mapping whose Pure `~mainMapping` has a local property (`+loc: String[1]: $src.x`) | `java.lang.NullPointerException` with no message | the main mapping's property mappings are copied onto the aggregation-aware node, and each one's owner class is `requireNonNull`ed; a local property has none |
+| 73 | a persistence node kind, leaf or key the emitter's tables do not name (`persister: Foo {..}`, `zeta: Omega;`, `deduplication: Weird;` in a graph-fetch output, `temporality: Strange;` in a target, `platform: Default #{ x: 1; }#`) | `java.lang.IllegalStateException: unprobed persistence node: persister:Foo`, with ` (graphFetch)` or ` (target)` where it applies | the grammar's walker is generic; the emitter writes only the kinds it was probed for |
+| 74 | a persistence assertion entry that is not a node or a string (`EqualToJson #{ expected: [a, b]; }#`) | `UnsupportedOperationException: TailEmitter has no wire rule for persistence assertion entry 'expected' (Strings) — probe, do not guess.` (`PathValue`, `NodeList`, `PathList`, `Pointer`) | as 73 |
+| 75 | a persistence scalar written unquoted (`x: true;`, `x: 12;`) | the bare JSON literal when it is `true`, `false` or all `Character.isDigit` units; else a string | the emitter tells a literal from a name by its text |
+| 76 | a DataQuality `context: fromMappingAndRuntime(a::M)` or `fromDataSpace(a::DS)` with no second argument; `context: fromSomewhere(a::B)`; `strategy: SHA256` | `java.lang.NullPointerException` with no message; `IllegalStateException: unmapped DataQuality context kind: fromSomewhere`; `IllegalStateException: unmapped comparison strategy: SHA256` | the grammar takes any context call and strategy name; the emitter maps a fixed set |
+| 77 | a ServiceStore primitive type (`response: 'ΑΣ'`) | its `_type` the name through `toLowerCase(Locale.ROOT)`, the full mapping: `ας` (a final sigma), a lone surrogate kept | Java's locale-free full case mapping |
+| 78 | a DataSpace executable with both `query:` and `executable:` | written as a template executable, the `executable` dropped | the emitter picks the shape by the query's presence |
+| 79 | a Redshift specification; a Snowflake specification or `SnowflakePublic` auth synthesized by `mode: local`; a GCP workload identity federation with an AWS IdP | Redshift's without `sourceInformation` (the record holds none); Snowflake's and `snowflakePublic`'s span key dropped when the span is null; `"additionalGcpScopes":[]` always written | each the engine's own wire, probed |
+| 80 | a GraphQL float (`#GQL{query { a(x: 1e400) }}#`, `1.5e10`) and string (`"a\"b"`) | the float spelled by `Double.toString`: `Infinity` as a bare token (not JSON), `1.5E10`; the string's escapes kept as written, so `"a\\\"b"` | the island's values are written from the parsed text without re-encoding |
+
 ## What Java does that this does not reproduce
+
+The emitter's callers over records that are not a text's (step 5): `PmcdParser.DocElement.json()`, the `*Reader` round
+trips (`ModelReader.read(json)` emitted again), `PureV1Api`'s connection export, `ProtocolEmitterTest` -- they stay on
+Java's `ProtocolEmitter` until phase 3. `emitter::emit_element` and the arms only JSON-read records reach (`origin`,
+`serializer`, `sdlcInfo`, a typed variable reference, a written `fControl` or `class`, a table pointer's written type)
+are ported, but no door calls them, and no differential holds them.
 
 The section grammars' SPI feed (`ElementwiseSectionGrammar.parse`, the Connection, Runtime and function-activator
 grammars' own `parse(SectionSource, ElementSink)`, a `SliceCursor` over the re-lexed section emitting protocol JSON, and

@@ -66,7 +66,7 @@ through these doors.
 | `Protocol` and `protocol.spec` records | **stay** until phase 3: the shim builds them from Rust's answer |
 | `SectionGrammar` SPI, `SectionGrammarRegistry`'s overlay half, `OverlayElementSink` | **stay**: Java calls an overlay grammar on the section text Rust hands back |
 | `ModelReader`, the `*Reader`s, `ModelComposer`/`PureComposer` | **stay**: they take JSON or records, downstream of the seam |
-| `ProtocolEmitter` and its helpers | move (step 5), then deleted |
+| `ProtocolEmitter` and its helpers | **move** (step 5): Rust writes the engine JSON at the two text doors, `parseDocument` and `lambdaJson`. **Stay until phase 3** (corrected 2026-11-06, step 5: not deleted with the parser), for their record-sourced callers: `PmcdParser.DocElement.json()`, `PureV1Api`'s connection export, the `*Reader` round trips and their tests (`ModelReaderParityTest` emits `ModelReader.read(json)`), `ProtocolEmitterTest`, `PureComposer`'s `parseMultArg`, `TailEmitter.PERSISTENCE_TYPES`; and the front oracle, which asks Java's emitter over Java's records (`FrontOracle.ask`), so `engine.tsv` stays Java's answer |
 | `Lexer`, `TokenStream`, `ElementParser`, `SpecParser`'s body, `MappingProtocolParser`, `DatabaseProtocolParser`, `GqlParser`, `QuotedSpecParser`, the section grammars, `TokenStreamCursor`, `IslandScan`, `EngineQuirks`, ... | move, then deleted |
 | `PreludeGenerator`'s cursor use | retargeted to the element spans Rust answers; held by regenerating the committed module byte for byte |
 | `//parser-equivalence`'s tests of parser internals (`RejectionParityTest` and its pinned `MIN_PINS`, `GenerativeDualParseTest`, `Sectionize`, `SectionParseSentinelTest`, `OwnDialectCensusTest`, `SurfaceCensusTest`, `GrammarCoverageCensusTest`, `Surfaces`, `ViewFilterParityTest`, `OffsetCompositionParityTest`) | **gates, not retirees**: re-expressed over Rust ops (section splitting, the surface census) before step 6, so `:parser_parity` keeps judging the parser it was built for |
@@ -405,6 +405,89 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    - `lambdaJson`: 870 JSON answers, 6 errors.
 
    The file is deterministic: a second run in a fresh JVM wrote the same bytes.
+
+   **5 done 2026-11-06.** `rust/lite-front`'s protocol emitter, from core/'s `com.legend.protocol`: `emitter.rs`
+   (`ProtocolEmitter`), `tail_emitter.rs` (`TailEmitter`), `mapping_emitter.rs` (`MappingEmitter`),
+   `connection_emitters.rs` (`ConnectionEmitters`, `AuthSpecEmitter`), `gql_emitter.rs` (`GqlEmitter`) and
+   `source_information.rs` (`SourceInformation.withoutSpans`, ported as Java does it: a cut over the text that keeps
+   the spans the engine keeps, never a parse and a rewrite, so the `_type` the engine writes twice stays twice). Rust
+   parses and Rust emits, in one call, from lite-front's own records. The output is a Java string's UTF-16 units:
+   `str` writes what `Json.escapeTo(b, v, true)` writes, every unit but `"`, `\` and the controls raw, a lone
+   surrogate included. Every refusal is Java's -- class, message, Java's order, the first one Java meets --, and
+   `protocol.rs`'s `mangled_name` now carries its message. The two doors, `doors::document` (`parseDocument`) and
+   `doors::lambda_json` (`lambdaJson`), answer the JSON or the error Java raises: the parser's, or the emitter's
+   refusal of a model it parsed.
+   - **The differential** (`//rust/lite-front:front_engine_differential_test`, medium: 14 s in a contended `bazel
+     test`, 8 s alone through cargo, against medium's 300 s): every question of the oracle at both doors, both forms,
+     identical -- `document` 29,188 (23,257 JSON, 5,931 errors, the oracle's one refusal, a graph-fetch argument that
+     is a call, among them) and `lambdaJson` 876 (870 JSON, 6 errors). The floors (`tests/document-floor.txt`,
+     `tests/lambdaJson-floor.txt`) are the whole sets; the earlier doors' floors hold (all 110,596 questions).
+   - **A form's hash.** `FrontEngineAnswers` hashed a form with `getBytes(UTF_16LE)`, which writes a lone surrogate as
+     U+FFFD, where Rust hashes the units it wrote; a lone surrogate and a real U+FFFD hashed alike. It now hashes the
+     units each as it is. No oracle answer holds one, so `engine.tsv` was rebuilt byte for byte the same.
+   - **Beyond the oracle** (none of it committed; rust/lite-front/PARITY.md): 149,870 mutated questions (6,000 model
+     texts at the engine's dialect and the 876 lambdas, structurally and in their literals: escapes, controls, lone
+     surrogates, numbers at their edges), all identical in both forms but 6 `ArrayIndexOutOfBoundsException`s whose
+     message the bulk run's warm JVM dropped (rows 29 and 55), each a cold JVM's answer byte for byte; 13,272 more
+     mutating the tail sections, all identical; no panic. 504 probes aimed by an `llvm-cov` census, all identical.
+     The census: the oracle reaches every `Element` variant an engine-dialect text can make and 91-100% of each
+     module's region lines; the probes reach the refusals the oracle does not (rows 63-80); what neither reaches is
+     what only the JSON readers make, what the engine's dialect refuses or drops before the emitter, and the
+     `requireNonNull`s on fields the parser always fills. `liteOnly` is among it: the parser refuses a native function,
+     a `Primitive`, a projection association and an overlay section at the engine's dialect, so no text reaches it.
+   - **The shim** (`lite-ffi`'s `lite_front_engine(door, spans, overlays, text)`, `Lite.frontEngine`, a four-argument
+     downcall declared in native's `reachability-metadata.json`, `RustParsers.document` / `lambdaJson` and their
+     provider). The JSON crosses as UTF-8 (`A`), or, when it holds a lone surrogate, which UTF-8 cannot carry, as a JSON
+     string Java reads back (`U`): the common answer pays nothing for the rare one. The provider now rethrows a
+     `NullPointerException`, a `ClassCastException` and an `ArrayIndexOutOfBoundsException` as their own classes (the
+     emitter's `requireNonNull`, the parser's rows 28-29, 35, 50 and 55), not as an `IllegalStateException` naming them.
+   - **The switch.** `PmcdParser.parseDocument` (both overloads) and `SpecParser.lambdaJson` answer from Rust. **The
+     overlay path**: when the document's walk meets a section of a registered overlay grammar, Rust answers nothing and
+     `parseDocument` answers as Java does, `ProtocolEmitter` over `PmcdParser.parse`'s records -- which call the overlay
+     grammars, let one's exception win, and splice their opaque elements in order, where the emitter refuses the first
+     lite-only one. Rust never makes an opaque element. At the engine's dialect the walk refuses an unknown section
+     before any overlay grammar is consulted (`'Toy' is not a known section parser`), so no text takes the path today:
+     it is Java's answer by construction, not a fallback, and the toy-overlay text answers that refusal through the
+     switched door as Java does.
+   - **The shim's pass** (`//core:front_shim -- --engine --shim`, `FrontEngineAnswers --shim`, each form its own call
+     through the switched doors, one 1 GiB thread): byte-identical to `engine.tsv`, 30,064 of 30,064 -- equal per door
+     to the differential. `//core:ffi_test`, `core_tests_server` (`PureV1ApiTest`, `ModelChangesTest`),
+     `core_tests_root` (`ModelFromTextTest`), `core_tests_parser`, `core_tests_protocol`, `core_tests_architecture`,
+     `census`, `section_grammar_registry_test`, `//rust/lite-front/...`, `//rust/lite-ffi/...`,
+     `//parser-equivalence:parser_parity` (45 tests, none skipped: `CorpusSweepTest` 6,755 documents matched, diff 0,
+     and so without source information; `ModelReaderParityTest` 37,739 own elements, 38,702 engine, 13,514 documents,
+     205 lambdas, none mismatched) and `:round_trip_proof` (`JsonModelDoorTest` with its four pinned failures,
+     `RoundTripProofTest`): all pass.
+   - **What stays Java**: `ProtocolEmitter` and its helpers, for their record-sourced callers, until phase 3 (§2, the
+     corrected row); the oracle still asks Java's emitter over Java's records, so `engine.tsv` stays Java's answer.
+
+   **The receipt, with the FFI kept apart** (2026-11-06). The oracle's engine questions, each asked twice -- with its
+   spans and without them, as the doors are called --, the last of three passes; the three ways back to back, twice,
+   at load averages 2.2-3.0:
+   - **Java**: `ProtocolEmitter.emit(PmcdParser.parseInJava(text, LEGEND_ENGINE).model())` and
+     `ProtocolEmitter.emitLambda(SpecParser.parseLambdaInJava(text))`, each cut by `withoutSpans` for the bare form
+     (`//core:front_timing --engine --java`);
+   - **the shim**: the switched doors (`--engine`);
+   - **Rust natively**: `doors::document` and `doors::lambda_json`, release, no FFI and no JVM (a scratch harness).
+
+   | | Java | the shim | Rust natively |
+   |---|---|---|---|
+   | `document`, spans: p50 / p95 / max | 0.016 / 0.20-0.21 / 159-166 ms | 0.032 / 0.37 / 351-368 ms | 0.015-0.016 / 0.23 / 192-199 ms |
+   | in all (29,188) | 1.78-1.80 s | 3.46-3.52 s | 1.93-2.02 s |
+   | `document`, bare: p50 / p95 / max | 0.019-0.020 / 0.35-0.36 / 304-306 ms | 0.030-0.031 / 0.38 / 333-341 ms | 0.015 / 0.27-0.28 / 228-240 ms |
+   | in all | 3.05-3.16 s | 3.45-3.51 s | 2.28-2.35 s |
+   | `lambdaJson`, spans: p50 / p95 / max | 0.004 / 0.045 / 0.23 ms | 0.011 / 0.10-0.11 / 0.66-0.69 ms | 0.003-0.004 / 0.057-0.060 / 0.42-0.44 ms |
+   | in all (876) | 9.4-9.7 ms | 23.4-23.9 ms | 11.1-12.1 ms |
+   | `lambdaJson`, bare: p50 / p95 / max | 0.004 / 0.10-0.12 / 0.72-0.87 ms | 0.014 / 0.10-0.11 / 0.66-0.68 ms | 0.003 / 0.077-0.081 / 0.60-0.62 ms |
+   | in all | 19.2-20.1 ms | 24.4-25.1 ms | 14.1-14.4 ms |
+
+   - **Rust itself**, split: the parse 1.32-1.36 s of a form's 29,188 documents, the emit 0.46-0.49 s (659 million
+     UTF-16 units of JSON), the cut 0.50-0.52 s (to 319 million). Java's cut costs 1.27-1.36 s (bare less spans), so
+     the bare form is faster in Rust, natively, than in Java; the spans form about as fast (the parse is as fast as
+     Java's, step 4's receipt).
+   - **The rest is the crossing**: about 1.5 s for the spans form and 1.2 s for the bare one -- the JSON's UTF-16 to
+     UTF-8, the C string, and Java's decoding of it into a `String` (0.66 and 0.32 billion characters). It goes when
+     phase 3 keeps the records, and the engine JSON's callers, in Rust.
 6. **The deletion (2f)**: `//parser-equivalence`'s internal-using tests re-expressed over Rust ops (§2), then the Java
    lexer and parser deleted, `PreludeGenerator` retargeted, core's tests of parser internals retired as rows of
    `rust/RETIRED_TESTS.md`, the guards that name the deleted classes moved with dated comments.
