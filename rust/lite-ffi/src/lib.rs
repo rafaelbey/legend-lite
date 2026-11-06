@@ -19,9 +19,11 @@
 //! refusal's kind folded from the Java class the dialect threw.
 
 use std::any::Any;
+use std::cell::RefCell;
 use std::ffi::{CStr, CString, c_char};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::mpsc::{self, Sender};
 
 /// The answers handed out and not yet given back to [`lite_free`].
 static UNFREED: AtomicI64 = AtomicI64::new(0);
@@ -88,30 +90,67 @@ fn panic_message(payload: &(dyn Any + Send)) -> String {
         .unwrap_or_else(|| "a panic with no message".to_owned())
 }
 
-/// The stack a dialect call runs on: reserved, not committed, so it costs only what the call touches. A MIR nests
-/// thousands deep (the golden dump's deepest statement needs more than 1 MB in a debug build), and the thread the
-/// host calls from may have 1 MB (a JVM thread's default).
+/// The stack a dialect call needs: a MIR nests thousands deep (the golden dump's deepest statement needs more than
+/// 1 MB in a debug build), and the thread the host calls from may have 1 MB (a JVM thread's default).
 pub const DIALECT_STACK_BYTES: usize = 256 << 20;
 
-/// `body` on a thread of its own with [`DIALECT_STACK_BYTES`] of stack, joined before this returns: its answer, or the
-/// message of its panic (or of the thread's failure to start).
-fn on_dialect_thread<T: Send>(body: impl FnOnce() -> T + Send) -> Result<T, String> {
-    on_big_stack("lite-dialect", DIALECT_STACK_BYTES, body)
+/// The stack of a calling thread's worker ([`on_big_stack`]): the deeper of the calls it runs, a dialect's
+/// ([`DIALECT_STACK_BYTES`]) and a parser door's (`lite_front::doors::PARSE_STACK`). Reserved, not committed.
+const WORKER_STACK_BYTES: usize = if DIALECT_STACK_BYTES > lite_front::doors::PARSE_STACK {
+    DIALECT_STACK_BYTES
+} else {
+    lite_front::doors::PARSE_STACK
+};
+
+/// One call for a worker: it runs the body and sends the answer back itself.
+type Job = Box<dyn FnOnce() + Send>;
+
+thread_local! {
+    /// The calling thread's worker, made on its first call: the sender of its jobs, dropped when the calling thread
+    /// ends, which ends the worker.
+    static WORKER: RefCell<Option<Sender<Job>>> = const { RefCell::new(None) };
 }
 
-/// `body` on a thread of its own named `name` with `bytes` of stack (reserved, not committed), joined before this
-/// returns: its answer, or the message of its panic (or of the thread's failure to start). A stack overflow is no
-/// panic -- it aborts the host -- so a call's stack is sized for its deepest input.
-fn on_big_stack<T: Send>(name: &str, bytes: usize, body: impl FnOnce() -> T + Send) -> Result<T, String> {
-    std::thread::scope(|scope| {
-        let thread = std::thread::Builder::new()
-            .name(name.to_owned())
-            .stack_size(bytes)
-            .spawn_scoped(scope, body)
-            .map_err(|e| format!("the {name} thread did not start: {e}"))?;
-        // joined here, so the scope has no unjoined panic to rethrow
-        thread.join().map_err(|payload| panic_message(payload.as_ref()))
-    })
+/// A worker: a thread of [`WORKER_STACK_BYTES`] that runs its jobs in order until their sender is dropped.
+fn worker() -> Result<Sender<Job>, String> {
+    let (jobs, inbox) = mpsc::channel::<Job>();
+    std::thread::Builder::new()
+        .name("lite-worker".to_owned())
+        .stack_size(WORKER_STACK_BYTES)
+        .spawn(move || inbox.into_iter().for_each(|job| job()))
+        .map_err(|e| format!("the lite-worker thread did not start: {e}"))?;
+    Ok(jobs)
+}
+
+/// `body` on the calling thread's worker, a thread of its own with [`WORKER_STACK_BYTES`] of stack, made on the
+/// calling thread's first call and kept for its next ones (a thread per call cost about 35 µs: docs/rust-port/
+/// PHASE2.md, step 3), waited for before this returns: its answer, or the message of its panic (caught there, so the
+/// worker outlives it) or of the worker's failure to start. A stack overflow is no panic -- it aborts the host -- so
+/// the stack is sized for the deepest input. What a call commits of the stack stays committed while its worker lives.
+fn on_big_stack<T: Send + 'static>(body: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
+    let (reply, answer) = mpsc::sync_channel(1);
+    let mut job: Job = Box::new(move || {
+        // the caller waits on this answer, so a failed send has no one to tell
+        let _ = reply.send(catch_unwind(AssertUnwindSafe(body)).map_err(|payload| panic_message(payload.as_ref())));
+    });
+    WORKER.with(|slot| -> Result<(), String> {
+        let mut slot = slot.borrow_mut();
+        // a worker that has ended hands the job back, and a new one takes it
+        loop {
+            let jobs = match slot.take() {
+                Some(jobs) => jobs,
+                None => worker()?,
+            };
+            match jobs.send(job) {
+                Ok(()) => {
+                    *slot = Some(jobs);
+                    return Ok(());
+                }
+                Err(mpsc::SendError(back)) => job = back,
+            }
+        }
+    })?;
+    answer.recv().map_err(|_| "the lite-worker thread ended without an answer".to_owned())?
 }
 
 /// A dialect's refusal at the seam: its kind folded from the Java class it carries (`SEAM.md`, "Refusals"), the class
@@ -122,8 +161,8 @@ fn dialect_refusal(r: &lite_dialect::Refusal) -> Refusal {
 
 /// One op of a dialect (`rust/lite-dialect/SEAM.md`): `spec` names the dialect (`{"dialect":"DuckDb","server":...,
 /// "engineScanOrder":...}`), `op` the method, `args` its arguments as JSON. Answers `OK\n<answer as JSON>`, or
-/// `ERR\n<kind>\n-\n-\n<message>`. Each call runs on a fresh thread with a big stack ([`DIALECT_STACK_BYTES`]), joined
-/// before it returns; a panic there is an `INTERNAL` refusal.
+/// `ERR\n<kind>\n-\n-\n<message>`. Each call runs on the calling thread's worker, a thread with a big stack
+/// ([`on_big_stack`]), waited for before it returns; a panic there is an `INTERNAL` refusal.
 ///
 /// # Safety
 /// `spec`, `op` and `args` are null or NUL-terminated strings the caller keeps alive for the call.
@@ -137,7 +176,8 @@ pub unsafe extern "C" fn lite_dialect(spec: *const c_char, op: *const c_char, ar
             Ok(texts) => texts,
             Err(r) => return Answer::Err(r),
         };
-        match on_dialect_thread(|| lite_dialect::dispatch(spec, op, args)) {
+        let (spec, op, args) = (spec.to_owned(), op.to_owned(), args.to_owned());
+        match on_big_stack(move || lite_dialect::dispatch(&spec, &op, &args)) {
             Ok(Ok(json)) => Answer::Ok(json),
             Ok(Err(r)) => Answer::Err(dialect_refusal(&r)),
             Err(panic) => Answer::Err(Refusal::new("INTERNAL", panic)),
@@ -173,9 +213,10 @@ pub unsafe extern "C" fn lite_front(door: *const c_char, dialect: *const c_char,
             Ok(lite_front::wire::Json::Str(units)) => units,
             _ => return Answer::Err(Refusal::invalid_argument("the text is not one JSON string")),
         };
-        // the parser's own stack (lite_front::doors::PARSE_STACK), the one its differential parses on: the deepest
-        // question it holds to Java parses there
-        match on_big_stack("lite-front", lite_front::doors::PARSE_STACK, || front_answer(door, dialect, &units)) {
+        // at least the parser's own stack (lite_front::doors::PARSE_STACK), the one its differential parses on: the
+        // deepest question it holds to Java parses there
+        let door = door.to_owned();
+        match on_big_stack(move || front_answer(&door, dialect, &units)) {
             Ok(Ok(answer)) => Answer::Ok(answer),
             Ok(Err(r)) => Answer::Err(r),
             Err(panic) => Answer::Err(Refusal::new("INTERNAL", panic)),
@@ -491,14 +532,26 @@ mod tests {
     }
 
     #[test]
-    fn a_panic_on_the_dialects_thread_is_an_answer() {
+    fn a_panic_on_the_worker_is_an_answer() {
         let _serial = serial();
-        assert_eq!(on_dialect_thread(|| 7), Ok(7));
-        assert_eq!(on_dialect_thread(|| -> i32 { panic!("on purpose") }), Err("on purpose".to_owned()));
+        assert_eq!(on_big_stack(|| 7), Ok(7));
+        assert_eq!(on_big_stack(|| -> i32 { panic!("on purpose") }), Err("on purpose".to_owned()));
         assert_eq!(
-            on_dialect_thread(|| -> i32 { std::panic::panic_any(3) }),
+            on_big_stack(|| -> i32 { std::panic::panic_any(3) }),
             Err("a panic with no message".to_owned())
         );
+        // the worker outlived the panics
+        assert_eq!(on_big_stack(|| 8), Ok(8));
+    }
+
+    #[test]
+    fn a_calling_thread_keeps_its_worker() {
+        let _serial = serial();
+        let here = on_big_stack(|| std::thread::current().id()).unwrap();
+        assert_ne!(here, std::thread::current().id(), "the body ran on a worker, not the caller");
+        assert_eq!(on_big_stack(|| std::thread::current().id()), Ok(here), "the next call reuses it");
+        let elsewhere = std::thread::spawn(|| on_big_stack(|| std::thread::current().id()).unwrap()).join().unwrap();
+        assert_ne!(elsewhere, here, "another calling thread has a worker of its own");
     }
 
     #[test]

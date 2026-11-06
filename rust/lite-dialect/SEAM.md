@@ -40,13 +40,16 @@ ERR\n<kind>\n-\n-\n<message>
 
 The phase and position fields are always `-`; the message is the rest of the text and may hold newlines.
 
-- **Thread and stack.** Each call runs on a thread of its own with 256 MB of stack reserved (`DIALECT_STACK_BYTES`;
-  reserved, not committed), joined before `lite_dialect` returns: the calling thread's stack (a JVM thread's 1 MB) is
-  never used for the tree. Measured: a MIR at the depth limit (2,045 nested calls, 4,096 levels) needs between 32 and
-  64 MB in a debug build and more than 1 MB in release. A stack overflow aborts the process (it is not a panic); the
-  depth limit (§2) and that headroom are what keep it out of reach.
-- **Panics.** A panic on the dialect's thread, or a thread that cannot start, is answered `ERR\nINTERNAL\n-\n-\n<the
-  panic's message>`; nothing unwinds into the caller.
+- **Thread and stack.** Each call runs on the calling thread's worker, waited for before `lite_dialect` returns: a
+  thread of its own with at least 256 MB of stack reserved (`DIALECT_STACK_BYTES`; reserved, not committed; the
+  worker's is the parser's 512 MB, since the parser doors share it), made on the calling thread's first call and kept
+  for its next ones, ended when the calling thread ends (2026-11-05: a thread per call cost about 35 µs). The calling
+  thread's stack (a JVM thread's 1 MB) is never used for the tree. Measured: a MIR at the depth limit (2,045 nested
+  calls, 4,096 levels) needs between 32 and 64 MB in a debug build and more than 1 MB in release. A stack overflow
+  aborts the process (it is not a panic); the depth limit (§2) and that headroom are what keep it out of reach. What a
+  deep call commits of the worker's stack stays committed while the worker lives.
+- **Panics.** A panic on the worker, or a worker that cannot start, is answered `ERR\nINTERNAL\n-\n-\n<the panic's
+  message>`; the panic is caught on the worker, so the worker outlives it, and nothing unwinds into the caller.
 - **Fresh per call.** The dialect is made from `spec` for each call and dropped after it: DuckDB, the H2 family,
   Postgres, Trino and Databricks carry no state from one render to the next, and SQLite's is a statement's own (its
   markers, its root's labels and selects, and its fresh names `__b<n>`, started over at each outermost render: the
