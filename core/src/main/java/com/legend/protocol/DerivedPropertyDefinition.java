@@ -7,7 +7,7 @@ import java.util.Objects;
 
 /**
  * A derived (computed) property declaration — a parse product. Body is parsed eagerly
- * by {@code ElementParser} into a sequence of {@link ValueSpecification} statements
+ * by the parser into a sequence of {@link ValueSpecification} statements
  * (the body grammar matches a function body's braced block).
  *
  * <p>Formerly nested in {@code com.legend.model.ClassDefinition}; lifted to the protocol

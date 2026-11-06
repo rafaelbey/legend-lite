@@ -43,8 +43,8 @@ public final class SpanOrigin {
      * THE walker-offset shift for EMBEDDED-island reparses — the
      * engine's composition rule in exactly one place: the line offset
      * applies to every line; the column offset to line 1 only. Identity
-     * when both offsets are zero. (Moved from TokenStreamCursor —
-     * consolidation step 2.)
+     * when both offsets are zero. (Moved from the parser's cursor --
+     * consolidation step 2; the Rust parser's twin is cursor.rs's island_shift.)
      */
     /**
      * CONTENT-ANCHORED island node span: starts the line AFTER the

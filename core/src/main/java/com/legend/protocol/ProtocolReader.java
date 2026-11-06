@@ -291,7 +291,7 @@ public final class ProtocolReader {
 
     /**
      * A float literal: the double the wire carries, and its exact digits only where they do not survive the
-     * double (the parser's rule, NumberLiterals.floating) -- never for JSON the emitter wrote, whose float is a
+     * double (the parser's rule, rust/lite-front's jnum.rs) -- never for JSON the emitter wrote, whose float is a
      * double's own spelling.
      */
     private static ValueSpecification floating(Wire w) {

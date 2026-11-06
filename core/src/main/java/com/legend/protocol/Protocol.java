@@ -1575,7 +1575,7 @@ public final class Protocol {
     }
 
     /** A {@code ###Persistence} Persistence element — top-level keys
-     *  structured, deep sub-DSLs RAW (see PersistenceSectionGrammar). No
+     *  structured, deep sub-DSLs RAW (see rust/lite-front's persistence_parser.rs). No
      *  wire shape claimed; emission walls. */
     public record PPersistence(String pkg, String name,
                                List<PStereotype> stereotypes,

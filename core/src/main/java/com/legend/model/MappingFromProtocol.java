@@ -212,9 +212,9 @@ public final class MappingFromProtocol {
                 classMappings, associations, enums);
     }
 
-    // The WIRE discriminators, not the router FQNs: MappingProtocolParser
+    // The WIRE discriminators, not the router FQNs: the mapping parser
     // has already classified union_/special_union_/inheritance_ into these
-    // (:780-793) and emits NO discriminator for merge_ or any unknown
+    // (rust/lite-front's mapping_grammar.rs) and emits NO discriminator for merge_ or any unknown
     // function. Matching FQNs here instead would have silently dropped
     // every Operation class mapping — it did, for 173 mappings, until the
     // differential said so.

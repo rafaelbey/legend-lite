@@ -45,8 +45,8 @@ public final class ModelFromText {
         }
     }
 
-    /** One element the parser read from a text ({@code ElementParser.parseSingle}: the IDE's slice of one), as the
-     *  compiler's model. */
+    /** One element's record, as the compiler's model: the door for a single element a caller already holds (the
+     *  model door's records are made the compiler's model whole, by {@link #parse}). */
     public static PackageableElement element(Protocol.Element parsed) {
         try {
             return ModelFromProtocol.element(Objects.requireNonNull(parsed, "parsed"));

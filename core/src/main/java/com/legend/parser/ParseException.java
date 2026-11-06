@@ -1,8 +1,10 @@
 package com.legend.parser;
 
 /**
- * Thrown by {@link ElementParser} and related parsers when the token
- * stream doesn't match the expected Pure grammar.
+ * Thrown by the parser's doors ({@link PmcdParser}, {@link SpecParser}) when
+ * a text doesn't match the expected Pure grammar: the Rust library's error,
+ * rethrown as this class with its line and column (Java's parser, which the
+ * library ports, threw it until 2026-11-06).
  *
  * <p>Carries source line/column when known; both default to {@code 0}
  * for errors that occur outside any token (e.g. unexpected EOF on an

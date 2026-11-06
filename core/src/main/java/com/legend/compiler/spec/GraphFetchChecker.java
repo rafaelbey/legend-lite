@@ -256,7 +256,7 @@ final class GraphFetchChecker {
             return inner instanceof GraphFetchLiteral ? inner : v;
         }
         if (v instanceof com.legend.protocol.spec.QuotedTreeCall q) {
-            // the parse-time quote/eval fold (SpecParser via QuotedSpecParser):
+            // the parse-time quote/eval fold (the expression parser's, rust/lite-front):
             // the carrier's pipeline face IS the parsed tree
             return q.tree();
         }

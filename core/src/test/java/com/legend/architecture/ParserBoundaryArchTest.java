@@ -60,7 +60,8 @@ class ParserBoundaryArchTest {
             // class load — the same regime as the system metamodel
             "com/legend/builtin/Prelude.java",
             "com/legend/harness/HarnessSubstitution.java",
-            "com/legend/ide/ModelOrchestrator.java",
+            // (com/legend/ide/ModelOrchestrator.java left 2026-11-06 with the ide package, the Rust port's phase 2
+            // step 6b; PHASE2.md §5 ruling 3)
             "com/legend/testing/Own.java",
             "com/legend/testing/Engine.java",
             "com/legend/testing/Platform.java",
@@ -110,9 +111,10 @@ class ParserBoundaryArchTest {
             // dialect is the door's own)
             "com/legend/ffi/RustParserProvider.java",
             // and the front oracle (§4 step 1): it asks each recorded question again at the dialect the parse tap
-            // recorded, and every model text at all three -- the dialects are its subject
+            // recorded, and every model text at all three -- the dialects are its subject (FrontOracle.java, the
+            // Java answers' generator, left 2026-11-06 with the Java parser, step 6b; FrontAnswers and the reader's
+            // round trip ask the Rust library each question at its dialect since)
             "com/legend/frontoracle/FrontAnswers.java",
-            "com/legend/frontoracle/FrontOracle.java",
             "com/legend/frontoracle/FrontReaderRoundTripTest.java",
             "com/legend/frontoracle/FrontTiming.java",
             // 2026-11-06, phase 2 step 5's oracle (f00bbc98d): Java's engine JSON asks the oracle's model texts at the

@@ -13,9 +13,9 @@
  * {@link com.legend.Compiler} (the planner: {@code compileModel}, then {@code query(...)}, then the
  * {@link com.legend.TypedQuery}'s {@code plan}) drives steps 1&ndash;10; {@link com.legend.Execution} runs step 11:
  * <ol>
- *   <li>{@code lexer/}      — text → tokens</li>
- *   <li>{@code parser/}     — tokens → {@code parser.element.PackageableElement} (ElementParser)</li>
- *   <li>{@code parser/}     — tokens → {@code parser.spec.ValueSpecification} (SpecParser)</li>
+ *   <li>{@code parser/}     — text → tokens → the protocol records ({@code PmcdParser}): the Rust library's lexer
+ *       and model parser behind the doors ({@code rust/lite-front}; the Java lexer and parser deleted 2026-11-06)</li>
+ *   <li>{@code parser/}     — text → {@code protocol.spec.ValueSpecification} ({@code SpecParser}, the same)</li>
  *   <li>{@code compiler/}   — simple name → FQN (NameResolver)</li>
  *   <li>{@code normalizer/} — {@code LegacyMappingDefinition} → binding-table {@code MappingDefinition} + lifted {@code FunctionDefinition}</li>
  *   <li>{@code compiler/}   — {@code PackageableElement} → {@code compiler.element.TypedElement} (ElementCompiler)</li>

@@ -1,6 +1,7 @@
 # THE DIAGNOSTICS BATTERY — parser-equivalence's censuses, sizers and parse-speed
 # benchmark: MEASUREMENTS, not gates, run on the triggers that change their inputs
-# (a pin, the corpus, the parser, the protocol, parser-equivalence itself).
+# (a pin, the corpus, the parser, the protocol, parser-equivalence itself). The lexer and the parser are the Rust
+# library's since 2026-11-06 (docs/rust-port/PHASE2.md §4 step 6b): rust/lite-front replaced core's lexer/ path.
 # `bazel test //parser-equivalence:diagnostics` names every class, so a renamed
 # or deleted diagnostic fails the run instead of silently shrinking the battery.
 name: diagnostics
@@ -12,7 +13,7 @@ on:
       - release.MODULE.bazel
       - parser-equivalence/**
       - core/src/main/java/com/legend/parser/**
-      - core/src/main/java/com/legend/lexer/**
+      - rust/lite-front/**
       - core/src/main/java/com/legend/protocol/**
   pull_request:
     paths:
@@ -20,7 +21,7 @@ on:
       - release.MODULE.bazel
       - parser-equivalence/**
       - core/src/main/java/com/legend/parser/**
-      - core/src/main/java/com/legend/lexer/**
+      - rust/lite-front/**
       - core/src/main/java/com/legend/protocol/**
   workflow_dispatch:
 

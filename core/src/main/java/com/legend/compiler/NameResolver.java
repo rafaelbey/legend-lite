@@ -85,7 +85,7 @@ import java.util.Set;
  * <h2>Pipeline position (AGENTS.md)</h2>
  *
  * <pre>
- * ElementParser / SpecParser  &rarr;  <strong>NameResolver</strong>  &rarr;  PureModelBuilder / TypeChecker
+ * PmcdParser / SpecParser  &rarr;  <strong>NameResolver</strong>  &rarr;  PureModelBuilder / TypeChecker
  * </pre>
  *
  * <h2>Contract</h2>
@@ -113,7 +113,8 @@ import java.util.Set;
  * <h2>Coverage</h2>
  *
  * <p>Covers every element and nested record the current
- * {@link ElementParser} / {@link SpecParser} emits:
+ * parser emits ({@code PmcdParser} / {@code SpecParser}, the Rust library's doors, made the compiler's model by
+ * {@code door.ModelFromText}):
  * Class/Association/Function/NativeFunction/Mapping/Database/Runtime/
  * Service/Connection/Enum/Profile; all
  * {@link PropertyMapping} variants, all

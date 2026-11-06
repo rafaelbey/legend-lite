@@ -14,7 +14,7 @@ import java.util.List;
  * Extracts diagram data (classes, associations, generalisations) from Pure
  * source.
  *
- * <p>Rerouted onto the CORE parser ({@code com.legend.parser.ElementParser})
+ * <p>Rerouted onto the CORE parser (the model door, {@code com.legend.door.ModelFromText})
  * as part of the engine-lite deletion: the parse output enumerates
  * {@link ClassDefinition}/{@link AssociationDefinition} directly, carries the
  * same stereotype/tagged-value/property shapes, and pre-seeds NO builtin
@@ -264,7 +264,7 @@ public final class DiagramService {
 
     /** The platform's documentation profile and tag — the one Pure's own
      *  {@code '''...'''} documentation sugar produces (the parser writes the
-     *  full path, TokenStreamCursor.DOC_PROFILE_PATH) and the one legend-engine's
+     *  full path, the Rust parser's DOC_PROFILE_PATH in cursor.rs) and the one legend-engine's
      *  models use for class documentation. */
     private static final String DOC_PROFILE = "meta::pure::profiles::doc";
     private static final String DOC_TAG = "doc";

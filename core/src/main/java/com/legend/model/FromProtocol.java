@@ -584,7 +584,7 @@ public final class FromProtocol {
     }
 
     private static ServiceDefinition toServiceDefinition(Protocol.PService s) {
-        // pattern is grammar-required on both surfaces (ServiceSectionGrammar);
+        // pattern is grammar-required on both surfaces (the Service grammar, rust/lite-front);
         // a null here can only come from a hand-built protocol record
         String pattern = java.util.Objects.requireNonNull(s.pattern(),
                 "service pattern");

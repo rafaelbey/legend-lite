@@ -1282,7 +1282,7 @@ public final class ProtocolEmitter {
     /** {@code #SQL{ ... }#} — a classInstance of type SQL whose value is
      *  {@code {"sql": content}} (ZTailProbe "sql-island"). */
     /** {@code classInstance} of type GQL — value is the PRE-RENDERED
-     *  GraphQL AST wire (GqlParser; probe gql-wire 2026-08-14). */
+     *  GraphQL AST wire (rust/lite-front's gql.rs; probe gql-wire 2026-08-14). */
     private static void gqlIsland(StringBuilder b,
             com.legend.protocol.spec.GqlIsland gi,
             @com.legend.base.Nullable com.legend.protocol.SourceInfo spanOverride) {

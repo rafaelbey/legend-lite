@@ -130,11 +130,12 @@ final class DatabaseOwners {
 
     /** The vocabulary (D9): the model language's lexer, parser, protocol and model. {@code protocol/sql/}, the SQL a user
      *  writes, is not vocabulary: its owners are the input languages. */
-    private static final List<String> VOCABULARY = List.of(MAIN + "lexer/", MAIN + "parser/", MAIN + "protocol/",
+    // lexer/ (main and test) left 2026-11-06 with the Java lexer and its tests (the Rust port's phase 2 step 6b)
+    private static final List<String> VOCABULARY = List.of(MAIN + "parser/", MAIN + "protocol/",
             MAIN + "model/",
             // 2026-10-16, the dialect program's Phase 6: the vocabulary's own tests, which read and write every
             // database's name and connection as the vocabulary does ({@code protocol/sql/}'s tests excepted, as above)
-            TEST + "lexer/", TEST + "parser/", TEST + "protocol/", TEST + "model/",
+            TEST + "parser/", TEST + "protocol/", TEST + "model/",
             // 2026-11-05, the Rust port's phase 2 (docs/rust-port/PHASE2.md §3): the parser's records read back from
             // the Rust library (FrontRecords, generated from every record, FrontRead, FrontReader), and the front
             // oracle that asks the parser and writes its every record -- each names every database's records as the

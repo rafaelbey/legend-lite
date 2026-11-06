@@ -13,8 +13,9 @@ import java.util.Map;
  * {@link #unescapeString} (F3.1d), and the TWO documented exemptions
  * are server/Json (the strict fail-fast HTTP-boundary reader — a
  * different policy on purpose; its decimal path got the audit-18
- * BigDecimal fix in F3.1a) and MongoDBSectionGrammar (token-level,
- * decodes no escapes, loud on floats — F3.1e, recorded at the site).
+ * BigDecimal fix in F3.1a) and the MongoDB section grammar (token-level,
+ * decodes no escapes, loud on floats — F3.1e; rust/lite-front's
+ * mongodb_parser.rs since 2026-11-06).
  * Integers read as Long, decimals as BigDecimal (audit 18: double
  * rounding made distinct Decimals compare equal). */
 public final class Json {

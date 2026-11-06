@@ -8,7 +8,7 @@ import java.util.Objects;
 /**
  * A class-level constraint (validation rule) — a parse product. The constraint body is
  * a single Pure expression that must evaluate to a {@code Boolean};
- * {@code ElementParser} parses it eagerly into a {@link ValueSpecification}.
+ * the parser parses it eagerly into a {@link ValueSpecification}.
  *
  * <p>Formerly nested in {@code com.legend.model.ClassDefinition}; lifted to the protocol
  * layer because the parser's output types must not depend on the model.

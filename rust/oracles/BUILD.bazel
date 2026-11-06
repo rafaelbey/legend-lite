@@ -98,7 +98,11 @@ zstd_decompress(
     testonly = True,
     src = "front/answers.tsv.zst",
     out = "front/answers.tsv",
-    visibility = ["//rust:__subpackages__"],
+    # and //core:front_shim, the switched doors end to end against them (2026-11-06, step 6b)
+    visibility = [
+        "//core:__pkg__",
+        "//rust:__subpackages__",
+    ],
 )
 
 zstd_decompress(
@@ -106,7 +110,10 @@ zstd_decompress(
     testonly = True,
     src = "front/engine.tsv.zst",
     out = "front/engine.tsv",
-    visibility = ["//rust:__subpackages__"],
+    visibility = [
+        "//core:__pkg__",
+        "//rust:__subpackages__",
+    ],
 )
 
 guards_package()

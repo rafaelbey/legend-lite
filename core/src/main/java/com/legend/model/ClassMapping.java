@@ -26,7 +26,7 @@ import java.util.Objects;
  *   <li>{@link Pure} (B.4e) &mdash; model-to-model (M2M) class mappings
  *       sourced from another Pure class. Property bodies and the
  *       optional {@code ~filter} are Pure value expressions parsed
- *       eagerly by {@code ElementParser} into
+ *       eagerly by the parser into
  *       {@link ValueSpecification} ASTs.</li>
  * </ul>
  *
@@ -281,8 +281,8 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      *
      * <h2>Eager body parsing</h2>
      * Property bindings and the optional {@code ~filter} are Pure value
-     * expressions parsed eagerly at parse time by {@code ElementParser}
-     * (via {@code SpecParser}) and held as {@link ValueSpecification} ASTs.
+     * expressions parsed eagerly at parse time by the model parser (its
+     * expression grammar) and held as {@link ValueSpecification} ASTs.
      * No separate lazy-parse phase.
      *
      * @param className         fully-qualified target class

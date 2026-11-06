@@ -163,7 +163,8 @@ class ErrorShapeGuardrailTest {
             // counted-decline boundary — the F2.3 catch inherited from
             // the deleted ExecCallFinder.sideSqlText, same discipline
             // (every failure lands in the RefereeVerify decline census)
-            Map.entry("QuotedSpecParser.java", 1),
+            // QuotedSpecParser.java (1) left 2026-11-06 with the Java parser (the Rust port's phase 2 step 6b): the
+            // quote/eval fold is the Rust library's (rust/lite-front)
             // Typer.java's one catch moved with the overload machinery (2026-09-29, plan W1.6)
             Map.entry("Overloads.java", 1),
             // 0 -> 1 (2026-11-02, the Rust port's phase 1, docs/rust-port/ROADMAP.md "The shim", reviewed): Lite.guarded,

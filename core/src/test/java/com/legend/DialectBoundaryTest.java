@@ -142,19 +142,14 @@ class DialectBoundaryTest {
     // and the wire census reads Trino's, Snowflake's, ClickHouse's and BigQuery's names too; all of it moves
     // into each dialect with Phase 4
     // (it was "SqlTypeCensus.java", 10)
-    private static final Map<String, Integer> DATABASE_NAME_DECISIONS = Map.of(
-            // the grammar: a specification keyword parses per database, as upstream's (3 -> 2, 2026-10-11,
-            // docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13: the lite database types are a set, no longer SQLite by name)
-            // 2 -> 12 (2026-10-13, the dialect program's Phase 0): not new lines -- the census names every database now,
-            // and the grammar parses ten more specification keywords by name (DuckDB, SQLite, Snowflake, Redshift, Trino,
-            // Athena, Aurora, Oracle, Spanner, Databricks, BigQuery), as upstream's grammar does
-            "ConnectionSectionGrammar.java", 12,
-            // 0 -> 1 (2026-10-13, Phase 0, the same widening): the PMCD reader's connection kinds by their protocol names
-            "PmcdParser.java", 1,
-            // 0 -> 1 (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D4): not a new line -- the class mapping's wire
-            // discriminator "MongoDB" (legend-engine's own, read since the mapping grammar landed) counts since MongoDB
-            // is a declared type; the mapping is carried, decided by nothing (D3: the Relation surface first)
-            "MappingProtocolParser.java", 1);
+    // EMPTY 2026-11-06 (the Rust port's phase 2 step 6b, docs/rust-port/PHASE2.md §4 step 6): its three rows were the
+    // Java parser's, deleted with it -- ConnectionSectionGrammar.java 12 (a specification keyword parsed per database,
+    // as upstream's grammar does: 3 -> 2 on 2026-10-11, 2 -> 12 on 2026-10-13 when the census named every database),
+    // PmcdParser.java 1 (the section walk's activator sections by name, in the walk deleted from the class; re-measured
+    // 0 in the doors left) and MappingProtocolParser.java 1 (the class mapping's wire discriminator "MongoDB", 0 -> 1 on
+    // 2026-10-17). Those names are parsed by the Rust library now (rust/lite-front), which this census of core's Java
+    // does not read; a new Java decision by a database's name is again a failure here.
+    private static final Map<String, Integer> DATABASE_NAME_DECISIONS = Map.of();
 
     /** Lines CONSTRUCTING a dialect outside the dialect package, by file: the one owner per side picks it
      *  (C3, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md; the guard at zero, 2026-10-04). */

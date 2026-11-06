@@ -70,11 +70,12 @@ cache	base
 values	base
 error	base
 diagnostics	base
-lexer	base
+# 2026-11-06 (docs/rust-port/PHASE2.md §4 step 6b): `lexer` deleted, the Java lexer gone with the Java parser -- the
+# Rust library's (rust/lite-front) since phase 2's switches; `parser` no longer reaches it (its doors take text).
 sql	base
 protocol	base json values
 model	base protocol
-parser	base error lexer protocol spi values
+parser	base error protocol spi values
 door	base model parser protocol
 builtin	base door error model parser protocol
 platform	base builtin error model
@@ -109,7 +110,8 @@ pure_v1	arrow_ipc base compiler compiler_element_type database error execution_p
 # 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
 # body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).
 driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan json judge lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect testdatagen validation values
-ide	base door lexer model parser
+# 2026-11-06 (step 6b): `ide` deleted -- ModelIndexer and ModelOrchestrator read the Java lexer's tokens and had no
+# main caller (PHASE2.md §5, ruling 3), and ModelIndex was theirs alone.
 test	base compiler driver error exec execution_plan json judge model planner protocol result sql values
 saved_queries	base json
 server_lib	base cache compiler compiler_element_type database driver error exec execution_plan json lowering model parser plan planner protocol pure_v1 result saved_queries setup sql_dialect

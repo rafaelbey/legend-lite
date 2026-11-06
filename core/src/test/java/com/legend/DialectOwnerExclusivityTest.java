@@ -301,8 +301,10 @@ class DialectOwnerExclusivityTest {
                 "/** like class Stars extends Postgres */ final class Stars { static class In extends DuckDb {} }")
                 .databases());
         assertEquals(Set.of("H2"), DatabaseOwners.of(dialect + "RawSqlBoundary.java", "").databases());
+        // a parser file is the vocabulary's (PmcdParser since 2026-11-06, the Rust port's phase 2 step 6b: the
+        // Connection grammar this named is deleted with the Java parser)
         assertEquals(DatabaseOwners.Kind.VOCABULARY,
-                DatabaseOwners.of("core/src/main/java/com/legend/parser/section/ConnectionSectionGrammar.java", "")
+                DatabaseOwners.of("core/src/main/java/com/legend/parser/PmcdParser.java", "")
                         .kind());
         assertEquals(Set.of("Postgres"),
                 DatabaseOwners.of("core/src/main/java/com/legend/protocol/sql/PostgresDialect.java", "").databases());

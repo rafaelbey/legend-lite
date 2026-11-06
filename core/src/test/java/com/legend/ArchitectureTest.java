@@ -64,11 +64,14 @@ final class ArchitectureTest {
             java.util.Map.entry("cache", "com.legend.cache.ContentStore"),
             java.util.Map.entry("values", "com.legend.values.PureDateLiteral"),
             java.util.Map.entry("error", "com.legend.error.LegendCompileException"),
-            java.util.Map.entry("lexer", "com.legend.lexer.Lexer"),
+            // "lexer" left 2026-11-06 with its library (the Rust port's phase 2 step 6b, docs/rust-port/PHASE2.md §4:
+            // the Java lexer deleted, the Rust library's since the switches)
             java.util.Map.entry("sql", "com.legend.sql.SqlQuery"),
             java.util.Map.entry("protocol", "com.legend.protocol.Protocol"),
             java.util.Map.entry("model", "com.legend.model.ConnectionDefinition"),
-            java.util.Map.entry("parser", "com.legend.parser.ElementParser"),
+            // the parser's representative class: PmcdParser, the model door, since 2026-11-06 (step 6b deleted the
+            // Java element parser it named)
+            java.util.Map.entry("parser", "com.legend.parser.PmcdParser"),
             java.util.Map.entry("door", "com.legend.door.ModelFromText"),
             java.util.Map.entry("builtin", "com.legend.builtin.Pure"),
             java.util.Map.entry("platform", "com.legend.platform.WalledBodies"),
@@ -93,7 +96,8 @@ final class ArchitectureTest {
             java.util.Map.entry("planner", "com.legend.Compiler"),
             java.util.Map.entry("pure_v1", "com.legend.server.PureV1Api"),
             java.util.Map.entry("driver", "com.legend.Execution"),
-            java.util.Map.entry("ide", "com.legend.ide.ModelIndex"),
+            // "ide" left 2026-11-06 with its library (step 6b; PHASE2.md §5 ruling 3: ModelIndexer and ModelOrchestrator
+            // read the Java lexer's tokens, and ModelIndex was theirs alone)
             java.util.Map.entry("test", "com.legend.test.PureTestRunner"),
             java.util.Map.entry("server_lib", "com.legend.server.ConnectionResolver"),
             java.util.Map.entry("duckdb_load", "com.legend.exec.DuckDbAppenderLoad"),
@@ -337,9 +341,9 @@ final class ArchitectureTest {
     void typedHirIsParserFree() {
         noClasses()
             .that().resideInAPackage("com.legend.compiler.spec.typed")
+            // com.legend.lexer.. left the list 2026-11-06 with the package (the Rust port's phase 2 step 6b)
             .should().dependOnClassesThat().resideInAnyPackage(
-                    "com.legend.parser..", "com.legend.lexer..",
-                    "com.legend.normalizer..")
+                    "com.legend.parser..", "com.legend.normalizer..")
             .as("Invariant 6b: the typed HIR never references the frontend")
             .check(CORE_PROD_CLASSES);
     }
@@ -358,9 +362,9 @@ final class ArchitectureTest {
             .that().resideInAnyPackage(
                     "com.legend.resolver", "com.legend.lowering",
                     "com.legend.exec", "com.legend.compiler.spec.typed")
+            // com.legend.lexer.. and com.legend.ide.. left the list 2026-11-06 with their packages (step 6b)
             .should().dependOnClassesThat().resideInAnyPackage(
-                    "com.legend.parser..", "com.legend.lexer..",
-                    "com.legend.normalizer..", "com.legend.ide..")
+                    "com.legend.parser..", "com.legend.normalizer..")
             .as("Invariant 6c: post-normalization phases never see the parser"
               + " — the model lives in com.legend.model")
             .check(CORE_PROD_CLASSES);
@@ -405,30 +409,18 @@ final class ArchitectureTest {
 
     // ================================================================
     // Invariant 7 — the standalone drop-in (PARSER_DROP_IN_PLAN.md).
-    // The extractable parser artifact is {lexer, parser, protocol,
-    // values}: a future legend-parser jar must carry NOTHING else.
-    // These three rules are the wall that keeps it extractable. They
-    // are deliberately allowlists, not blacklists — a new dependency
-    // is a failure until it is argued into the rule.
+    // The extractable parser artifact is {parser, protocol, values}: a
+    // future legend-parser jar must carry NOTHING else. These rules are
+    // the wall that keeps it extractable. They are deliberately
+    // allowlists, not blacklists — a new dependency is a failure until it
+    // is argued into the rule.
     // ================================================================
 
-    /**
-     * <strong>Invariant 7a — the lexer depends on the JDK. Full stop.</strong>
-     * No model, no protocol, no values — a token stream is characters in,
-     * offsets out. (The nullness annotations are compile-time vocabulary,
-     * carried by every layer.)
-     */
-    @Test
-    void lexerDependsOnNothingButTheJdk() {
-        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
-            .that().resideInAPackage("com.legend.lexer..")
-            .should().onlyDependOnClassesThat(
-                    com.tngtech.archunit.core.domain.JavaClass.Predicates
-                            .resideInAnyPackage("com.legend.lexer..", "java..")
-                            .or(NULLNESS_ANNOTATIONS))
-            .as("Invariant 7a: com.legend.lexer depends on the JDK and nothing else")
-            .check(CORE_PROD_CLASSES);
-    }
+    // Invariant 7a -- the lexer depends on the JDK, full stop -- RETIRED 2026-11-06 with the package it judged (the
+    // Rust port's phase 2 step 6b, docs/rust-port/PHASE2.md §4 step 6; rust/RETIRED_TESTS.md): the Java lexer is
+    // deleted, the lexer is the Rust library's (rust/lite-front's lexer.rs, which reads nothing of the crate but the
+    // JDK's character classes, lite-javacompat), and an ArchUnit rule over an empty package fails as an empty should.
+    // The number stays 7a's; it is not reused.
 
     /**
      * <strong>Invariant 7b — protocol is the bottom parse-product layer.</strong>
@@ -459,9 +451,11 @@ final class ArchitectureTest {
 
     /**
      * <strong>Invariant 7c — the parser's dependency surface is pinned.</strong>
-     * Endgame ({@code PARSER_DROP_IN_PLAN.md} §2.1): the parser reads tokens
-     * and produces protocol records — {@code lexer + protocol + values} and
-     * nothing else. {@code model..} left this list 2026-10-21 (the protocol
+     * Endgame ({@code PARSER_DROP_IN_PLAN.md} §2.1): the parser reads text
+     * and produces protocol records — {@code protocol + values} and
+     * nothing else ({@code lexer..} left this list 2026-11-06: the Java lexer
+     * is deleted, the Rust library's lexer reads the text behind the doors,
+     * the Rust port's phase 2 step 6b). {@code model..} left this list 2026-10-21 (the protocol
      * program's leg 8, last step, docs/PROTOCOL_PROGRAM_2026_10_05.md): every
      * element kind is parsed into its record, and a text meets the compiler's
      * model only through {@code door.ModelFromText}, outside the parser.
@@ -474,14 +468,13 @@ final class ArchitectureTest {
             .should().onlyDependOnClassesThat(
                     com.tngtech.archunit.core.domain.JavaClass.Predicates
                             .resideInAnyPackage("com.legend.parser..",
-                                    "com.legend.lexer..",
                                     "com.legend.protocol..",
                                     "com.legend.values",
                                     "com.legend.error",     // ParseException extends the shared error vocabulary (a JDK-only leaf, 6g)
                                     "com.legend.spi",       // the OVERLAY seam (Phase M): SectionGrammarRegistry routes ### sections through it — a stable JDK-only contract, below the parser by design
                                     "java..")
                             .or(NULLNESS_ANNOTATIONS))
-            .as("Invariant 7c: the parser consumes tokens and produces protocol"
+            .as("Invariant 7c: the parser consumes text and produces protocol"
               + " records — nothing above it, ever")
             .check(CORE_PROD_CLASSES);
     }
@@ -579,8 +572,9 @@ final class ArchitectureTest {
     void execIsABackend() {
         noClasses()
             .that().resideInAPackage("com.legend.exec")
+            // com.legend.lexer.. left the list 2026-11-06 with the package (step 6b)
             .should().dependOnClassesThat().resideInAnyPackage(
-                    "com.legend.parser..", "com.legend.lexer..",
+                    "com.legend.parser..",
                     "com.legend.normalizer..", "com.legend.resolver..",
                     "com.legend.lowering..", "com.legend.builtin..")
             .as("Invariant 6d: exec consumes SQL + result shapes, never the"
@@ -592,10 +586,11 @@ final class ArchitectureTest {
     @Test
     void stageFunnelOnlyTheDriverDrivesResolverLoweringExec() {
         noClasses()
+            // com.legend.ide.. left the list 2026-11-06 with the package (step 6b)
             .that().resideInAnyPackage(
                     "com.legend.parser..", "com.legend.normalizer..",
                     "com.legend.compiler..", "com.legend.builtin..",
-                    "com.legend.ide..", "com.legend.sql..")
+                    "com.legend.sql..")
             .should().dependOnClassesThat().resideInAnyPackage(
                     "com.legend.resolver..", "com.legend.lowering..",
                     "com.legend.exec..")
@@ -604,16 +599,9 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
-    @Test
-    void lexerIsPrivateToTheParser() {
-        noClasses()
-            .that().resideOutsideOfPackages(
-                    "com.legend.lexer..", "com.legend.parser..",
-                    "com.legend.ide..")
-            .should().dependOnClassesThat().resideInAPackage("com.legend.lexer..")
-            .as("Invariant 6f: only parser + ide read the token stream")
-            .check(CORE_PROD_CLASSES);
-    }
+    // Invariant 6f -- only parser + ide read the token stream -- RETIRED 2026-11-06 with the Java lexer and the ide
+    // package (the Rust port's phase 2 step 6b; rust/RETIRED_TESTS.md): no Java token stream is left to read; the
+    // parser's doors take text, and the Rust library's tokens never cross the seam.
 
     @Test
     void leavesStayLeaves() {
@@ -1252,17 +1240,19 @@ final class ArchitectureTest {
     @Test
     void parseMachineryIsUsedOnlyWhereSanctioned() {
         noClasses()
+            // com.legend.ide.. left the list 2026-11-06 with the package (step 6b)
             .that().resideOutsideOfPackages(
-                    "com.legend.parser..", "com.legend.ide..",
+                    "com.legend.parser..",
                     "com.legend.builtin", "com.legend",
                     // the server shell receives RAW PURE TEXT over HTTP —
                     // a parse ENTRY like the driver (LSP diagnostics,
                     // diagram extraction, runtime->connection resolution)
                     "com.legend.server..")
+            // the pinned surface is the kept one since 2026-11-06 (the Rust port's phase 2 step 6b): ElementParser and
+            // TokenStreamCursor deleted with the Java parser (MappingGrammarParser and RelationalGrammarParser were
+            // gone before); SpecParser, the expression doors over the Rust parser, stays pinned
             .should().dependOnClassesThat().haveNameMatching(
-                    "com\\.legend\\.parser\\.(ElementParser|SpecParser"
-                    + "|MappingGrammarParser|RelationalGrammarParser"
-                    + "|TokenStreamCursor)(\\$.*)?")
+                    "com\\.legend\\.parser\\.SpecParser(\\$.*)?")
             .as("Invariant 6i: grammar parsers/cursors live and die at parse"
               + " time (builtin's bootstrap parse + the driver are the two"
               + " sanctioned exceptions)")
@@ -1385,7 +1375,7 @@ final class ArchitectureTest {
                 "com.legend.exec.Census.FALLBACK_REASONS",
                 // write-once static-init tables (populated once in <clinit>,
                 // read-only thereafter) — burn-down: wrap immutable
-                "com.legend.lexer.Lexer.KEYWORDS",
+                // (com.legend.lexer.Lexer.KEYWORDS left 2026-11-06 with the Java lexer, step 6b)
                 "com.legend.lowering.Windows.FNS",
                 "com.legend.lowering.Windows.AGGREGATES",
                 "com.legend.lowering.Scalars.RULES",

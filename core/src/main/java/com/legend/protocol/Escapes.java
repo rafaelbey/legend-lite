@@ -10,7 +10,7 @@ package com.legend.protocol;
  * the quote/backslash table, and DROP-BACKSLASH for anything else
  * (including a lone trailing backslash, which commons deletes). ONE
  * owner for BOTH decode sites: the parser's token path
- * ({@code TokenStreamCursor.unescapeBody}) and the wire path's quoted
+ * (rust/lite-front's {@code escapes.rs} since 2026-11-06) and the wire path's quoted
  * FQN segments ({@code Protocol.unquoteSegments}) — the wire's own
  * copy refused octal/{@code \-u} (both fell to drop-backslash), so
  * {@code Class a::'x\101y'} decoded differently in element-name and

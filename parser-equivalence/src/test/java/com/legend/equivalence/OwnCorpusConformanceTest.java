@@ -275,7 +275,9 @@ class OwnCorpusConformanceTest {
                 // routed-navigate witness is a function-form mapping by design
                 Map.entry("LITE-DESIGN-mapping-as-function", 21),
                 Map.entry("LITE-DESIGN-sqlite-backend", 2),
-                Map.entry("PURE-DIALECT-diagram", 1),
+                // PURE-DIALECT-diagram 1 -> row deleted (2026-11-06, the Rust port's phase 2 step 6b): its one row,
+                // lexer/LexerTest#40 (a Diagram with legend-pure's geometry attributes, the lexer's raw-skip fixture),
+                // left with its host, retired with the Java lexer (docs/OWN_CORPUS_DECISIONS.md §10)
                 // 16 -> 17 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S112): UserFunctionIntegrationTest
                 // $RelationGeneric's columns-by-name library (test::mean<T,X,Z,V,O>, ColSpec<X⊆T>: DataCube's
                 // datacube::ts form), a function generic over relations

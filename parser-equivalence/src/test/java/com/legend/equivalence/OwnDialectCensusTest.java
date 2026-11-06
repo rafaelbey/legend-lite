@@ -33,8 +33,10 @@ class OwnDialectCensusTest {
     /** Tests OF the platform parser itself — their snippets exercise
      *  platform dialect BY PURPOSE (they test parseLegendPlatform); the
      *  census excuses rows hosted here. Shrink-only. */
+    // LexerTest.java left 2026-11-06 with the Java lexer and its tests (the Rust port's phase 2 step 6b,
+    // docs/rust-port/PHASE2.md §4 step 6; rust/RETIRED_TESTS.md): its one platform-dialect row went with it
     private static final java.util.Set<String> PLATFORM_TEST_HOSTS =
-            java.util.Set.of("ElementParserTest.java", "LexerTest.java",
+            java.util.Set.of("ElementParserTest.java",
                     "SectionGrammarRegistryTest.java",
                     "TdsLambdaProbeTest.java", "ProbeWireShapes.java",
                     "TypeCheckerTest.java",
@@ -91,7 +93,7 @@ class OwnDialectCensusTest {
             java.util.Map.of(   // measured 2026-08-16
                     "AdversarialParityTest.java", 7,
                     "ElementParserTest.java", 12,
-                    "LexerTest.java", 1,
+                    // LexerTest.java 1 -> deleted (2026-11-06, step 6b: the host retired with the Java lexer)
                     "MessageParityTest.java", 1,
                     "PlatformInliningTest.java", 1,
                     "ProbeWireShapes.java", 1,

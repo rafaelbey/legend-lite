@@ -85,7 +85,6 @@ legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error
 # the diagnostics switchboard (-Dlegend.diagnostics, Bazel workplan P3-13): what lowering, exec and driver may turn on
 # parser-equivalence's corpus machinery reads one switch of it (Corpus.load)
 legend_java_library(name = "diagnostics", srcs = glob(["src/main/java/com/legend/diagnostics/*.java"]), deps = ["//base"], visibility = ["//parser-equivalence:__pkg__"])
-legend_java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = ["//base"])
 legend_java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = ["//base"])
 
 # THE RUST SHIM (docs/rust-port/ROADMAP.md, phase 0 step 6): the JVM's calls into the Rust compiler library
@@ -160,7 +159,7 @@ legend_java_library(
     name = "parser",
     srcs = glob(["src/main/java/com/legend/parser/**/*.java"]),
     visibility = ["//datacube:__pkg__"],
-    deps = ["//base", ":error", ":lexer", ":protocol", ":spi", ":values"],
+    deps = ["//base", ":error", ":protocol", ":spi", ":values"],
 )
 
 # THE TEXT'S DOOR (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 8's last step): a text's records (the parser's) made the
@@ -334,7 +333,6 @@ legend_java_library(
         ":protocol", ":resolver", ":result", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
 )
-legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])
 legend_java_library(
     name = "test",
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
@@ -374,17 +372,17 @@ legend_java_library(
 )
 
 _CORE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door", ":ffi", ":rust_dialect", ":rust_parser",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":sql", ":protocol", ":model", ":parser", ":door", ":ffi", ":rust_dialect", ":rust_parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":judge", ":probe", ":testdatagen",
-    ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":driver", ":ide", ":test", ":server_lib",
+    ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":driver", ":test", ":server_lib",
 ]
 
 # THE PLAN SIDE (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the planner and every library it
-# stands on, and none of execution (exec, testdatagen, driver, probe, ide, test, server_lib). A plan-only consumer
+# stands on, and none of execution (exec, testdatagen, driver, probe, test, server_lib). A plan-only consumer
 # depends on this, so the build proves it carries no database and no driver.
 _PLAN_SIDE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door", ":ffi", ":rust_dialect", ":rust_parser",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":sql", ":protocol", ":model", ":parser", ":door", ":ffi", ":rust_dialect", ":rust_parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":result", ":planner", ":pure_v1",
 ]
@@ -679,11 +677,11 @@ _CORE_TEST_PACKAGES = [
     "compiler",
     "driver",
     "exec",
-    "ide",
+    # ("ide" and "lexer" left 2026-11-06 with their packages, the Rust port's phase 2 step 6b: the Java lexer, and
+    # the ide package that read its tokens, deleted -- docs/rust-port/PHASE2.md §4 step 6; rust/RETIRED_TESTS.md)
     "integration",
     "judge",
     "ladder",
-    "lexer",
     "lineage",
     "lowering",
     "model",
@@ -1708,25 +1706,9 @@ legend_java_binary(
     ],
 )
 
-# The front oracle's generator (Rust port phase 2, step 1: docs/rust-port/PHASE2.md §4): the questions the parse tap
-# recorded (bazel test --test_env=LEGEND_PARSE_TAP=1 ...), asked of the Java parser again, its answers written in the
-# lossless record codec. On core_tests_lib's classpath with the toy section grammar, so the grammar the tap saw
-# registered (SectionGrammarRegistryTest's) is registered here too -- only a ###Toy section answers differently:
-#   bazel run //core:front_oracle -- OUT_DIR TAP_FILE_OR_DIR...
-legend_java_binary(
-    name = "front_oracle",
-    testonly = True,
-    jvm_flags = ["-Duser.timezone=GMT"],
-    main_class = "com.legend.frontoracle.FrontOracle",
-    tags = ["manual"],
-    runtime_deps = [
-        ":core_tests_lib",
-        ":toy_grammar",
-    ],
-)
-
 # The parse-time receipt (phase 2, step 1): the committed question set through the parser's doors, timed -- the Java
-# parser before the switch, the shim after. A measuring tool for a quiet machine, never a test:
+# parser before the switch, the shim after (the Java parser's mode went with it, 2026-11-06, step 6b). A measuring tool
+# for a quiet machine, never a test:
 #   bazel run //core:front_timing -- $PWD/rust/oracles/front/questions.jsonl [PASSES]  (decompressed first)
 legend_java_binary(
     name = "front_timing",
@@ -1740,90 +1722,27 @@ legend_java_binary(
     ],
 )
 
-# Java's tokens over the front oracle's every text, hashed (phase 2, step 2: FrontTokens): what lite-front's lexer is
-# held to by //rust/lite-front:front_lexer_differential_test. Frozen 2026-11-06 (step 6a) as
-# rust/oracles/front/tokens.tsv.zst, which the differential reads since (its MANIFEST.tsv names this output's sha256);
-# kept, as the next two are, until the Java lexer and parser go (step 6b).
-java_run(
-    name = "front_tokens",
-    testonly = True,
-    srcs = ["//rust/oracles:front_questions"],
-    outs = ["front/tokens.tsv"],
-    arguments = [
-        "$(execpath //rust/oracles:front_questions)",
-        "{OUT}",
-    ],
-    main_class = "com.legend.frontoracle.FrontTokens",
-    memory_mb = 4096,
-    mnemonic = "FrontTokens",
-    deps = [":core_tests_lib"],
-)
-
-# Java's answers over the front oracle's every question, hashed (phase 2, steps 3-4: FrontAnswers): what lite-front's
-# doors are held to by //rust/lite-front:front_parser_differential_test, frozen 2026-11-06 (step 6a) as
-# rust/oracles/front/answers.tsv.zst. On the toy section grammar's classpath, as the oracle's generator is.
-java_run(
-    name = "front_answers",
-    testonly = True,
-    srcs = ["//rust/oracles:front_questions"],
-    outs = ["front/answers.tsv"],
-    arguments = [
-        "$(execpath //rust/oracles:front_questions)",
-        "{OUT}",
-    ],
-    main_class = "com.legend.frontoracle.FrontAnswers",
-    memory_mb = 8192,
-    mnemonic = "FrontAnswers",
-    deps = [
-        ":core_tests_lib",
-        ":toy_grammar",
-    ],
-)
-
-# Java's engine JSON over the front oracle's model questions at the engine's dialect and its lambdas, hashed with and
-# without source information (phase 2, step 5: FrontEngineAnswers): what the Rust emitter is held to, frozen
-# 2026-11-06 (step 6a) as rust/oracles/front/engine.tsv.zst.
-java_run(
-    name = "front_engine_answers",
-    testonly = True,
-    srcs = ["//rust/oracles:front_questions"],
-    outs = ["front/engine.tsv"],
-    arguments = [
-        "$(execpath //rust/oracles:front_questions)",
-        "{OUT}",
-    ],
-    main_class = "com.legend.frontoracle.FrontEngineAnswers",
-    memory_mb = 8192,
-    mnemonic = "FrontEngineAnswers",
-    deps = [
-        ":core_tests_lib",
-        ":toy_grammar",
-    ],
-)
-
-# Java's answer to named questions, in the differential's canonical form (FrontAnswers' debug mode): beside the Rust
-# forms the differential writes under LITE_FRONT_MISMATCHES. A debugging tool, never a test:
-#   bazel run //core:front_show -- $PWD/bazel-bin/rust/oracles/front/questions.jsonl DIR door:dialect:sha...
-legend_java_binary(
-    name = "front_show",
-    testonly = True,
-    jvm_flags = ["-Duser.timezone=GMT"],
-    main_class = "com.legend.frontoracle.FrontAnswers",
-    tags = ["manual"],
-    runtime_deps = [
-        ":core_tests_lib",
-        ":toy_grammar",
-    ],
-)
-
 # The shim end to end (phase 2, step 4): the front oracle's every question asked through the shim's doors (Rust's
-# answers read back into records, the model door's overlays called and spliced in Java), hashed as //core:front_answers
-# hashes Java's -- the two files compared line by line show which questions the shim answers as Java does.
-#   bazel run //core:front_shim -- --shim $PWD/bazel-bin/rust/oracles/front/questions.jsonl OUT_TSV
+# answers read back into records, the model door's overlays called and spliced in Java), each answer's form hashed and
+# compared, line for line, with the Java parser's answer frozen before it was deleted (rust/oracles/front/, step 6a);
+# --engine does the same for the engine-JSON doors. A manual tool, never a test (the Rust differentials are the gate);
+# it fails on a difference. Since 2026-11-06 (step 6b) it reads the question set and the frozen files from its
+# runfiles; before, it wrote a file to compare with //core:front_answers', the live Java answers, deleted:
+#   bazel run //core:front_shim [-- --engine]
 legend_java_binary(
     name = "front_shim",
     testonly = True,
-    jvm_flags = ["-Duser.timezone=GMT"],
+    data = [
+        "//rust/oracles:front_answers",
+        "//rust/oracles:front_engine",
+        "//rust/oracles:front_questions",
+    ],
+    jvm_flags = [
+        "-Duser.timezone=GMT",
+        "-Dfront.questions=$(rlocationpath //rust/oracles:front_questions)",
+        "-Dfront.answers=$(rlocationpath //rust/oracles:front_answers)",
+        "-Dfront.engine=$(rlocationpath //rust/oracles:front_engine)",
+    ],
     main_class = "com.legend.frontoracle.FrontAnswers",
     tags = ["manual"],
     runtime_deps = [
@@ -1833,8 +1752,9 @@ legend_java_binary(
     ],
 )
 
-# The shim's reader is lossless (phase 2, step 3): every Java answer to the front oracle's questions, written in the
-# codec, read back by the generated reader (FrontReader) and written again, is the same text.
+# The shim's reader is lossless (phase 2, step 3): every answer to the front oracle's questions, written in the codec,
+# read back by the generated reader (FrontReader) and written again, is the same text -- the Java parser's answers
+# until 2026-11-06, the Rust library's own since (step 6b), the parser it reads in production.
 junit_test(
     name = "front_reader_test",
     memory_mb = 4096,

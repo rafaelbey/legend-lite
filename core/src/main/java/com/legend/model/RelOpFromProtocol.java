@@ -21,7 +21,7 @@ import java.util.List;
  * names, which is exactly where a quiet SQL-semantics bug could hide.
  *
  * <p>That vocabulary is small and fixed — the twelve names below are every
- * operator {@code DatabaseProtocolParser} and {@code OperatorParts} can mint —
+ * operator the relational parser can mint (rust/lite-front's {@code database_parser.rs}) —
  * and anything outside it stays a {@link RelationalOperation.FunctionCall},
  * which is what the legacy parser did with an unrecognised function too.
  *

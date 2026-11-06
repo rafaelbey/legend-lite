@@ -8,68 +8,44 @@ import com.legend.parser.Dialect;
 import com.legend.parser.ParseException;
 import com.legend.parser.PmcdParser;
 import com.legend.parser.SpecParser;
-import com.legend.protocol.SourceInformation;
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 
 /**
- * JAVA'S ENGINE JSON, HASHED (Rust port phase 2, step 5: docs/rust-port/PHASE2.md §4, "The engine JSON"): the front
- * oracle's questions at the two doors whose answer is the engine's JSON, asked of Java's parser and emitter --
- * {@code document}, a model text at the engine's dialect ({@code PmcdParser.parseDocument}), and {@code lambdaJson},
- * a lambda ({@code SpecParser.lambdaJson}) -- each answer's form hashed twice: with its source information, and
- * without it ({@code SourceInformation.withoutSpans}, the doors' {@code returnSourceInformation=false}). What the Rust
- * emitter is held to, question by question, live while the Java emitter exists.
+ * THE ENGINE-JSON DOORS END TO END, AGAINST JAVA'S FROZEN ANSWERS (Rust port phase 2, step 5: docs/rust-port/PHASE2.md
+ * §4, "The engine JSON"; {@code bazel run //core:front_shim -- --engine}): the front oracle's questions at the two
+ * doors whose answer is the engine's JSON -- {@code document}, a model text at the engine's dialect
+ * ({@code PmcdParser.parseDocument}), and {@code lambdaJson}, a lambda ({@code SpecParser.lambdaJson}) -- asked through
+ * the switched doors, each form its own call (with its source information, and without it), each form hashed and the
+ * pair compared, line for line, with the Java parser's and emitter's answer frozen before they were deleted
+ * ({@code rust/oracles/front/engine.tsv.zst}: {@code door, the spans form's sha, the bare form's sha, A or E} per
+ * engine ask, in the questions file's order).
  *
  * <p>The form is {@code A\t<json>}; or {@code E}, the error's class, line, column and message as
  * {@link FrontAnswers#canonical} writes them -- the parser's error, or the emitter's refusal of a model it parsed. A
  * Java string hashed as its UTF-16 units, little-endian, each unit as it is: a lone surrogate the emitter writes raw
- * hashes as itself (2026-11-06, step 5: {@code getBytes(UTF_16LE)} wrote it as U+FFFD, so a lone surrogate and a real
- * U+FFFD hashed alike; no oracle answer holds one, so the file's bytes did not move).
- *
- * <p>With {@code --shim} first (step 5's switch: {@code //core:front_shim}), the same questions asked through the
- * switched doors -- {@code PmcdParser.parseDocument(text, sourceInformation)} and {@code SpecParser.lambdaJson},
- * each form its own call, Rust's parser and emitter and Rust's cut -- and hashed in the same form: the shim end to end,
- * compared line by line with Java's file.
- *
- * <pre>a java_run: FrontEngineAnswers [--shim] QUESTIONS_JSONL OUT_TSV  (door, sha, the spans form's sha, the no-spans
- * form's sha, A or E)</pre>
+ * hashes as itself. Until 2026-11-06 the same class wrote Java's answers ({@code //core:front_engine_answers}, the file
+ * frozen since); that mode went with the Java parser (step 6b).
  */
 public final class FrontEngineAnswers {
 
     private FrontEngineAnswers() {
     }
 
-    public static void main(String[] argv) throws Exception {
-        boolean shim = argv.length == 3 && argv[0].equals("--shim");
-        String[] args = shim ? new String[]{argv[1], argv[2]} : argv;
-        // the parser, the emitter and withoutSpans recurse through the deepest texts: the whole pass on one deep-stack
-        // thread (TRIAGE A3), which keeps one worker of the shim's for every call
-        Exception[] failed = new Exception[1];
-        Thread t = new Thread(null, () -> {
-            try {
-                answerAll(Path.of(args[0]), Path.of(args[1]), shim);
-            } catch (Exception e) {
-                failed[0] = e;
-            }
-        }, "front-engine", 1L << 30);
-        t.start();
-        t.join();
-        if (failed[0] != null) {
-            throw failed[0];
-        }
-    }
-
-    private static void answerAll(Path questions, Path answers, boolean shim) throws Exception {
+    /** Every engine ask of {@code questions} through the switched doors, compared with {@code frozen} in lockstep;
+     *  how many differ. Prints the counts and the first differences. */
+    static long compare(Path questions, Path frozen) throws Exception {
         MessageDigest md = MessageDigest.getInstance("SHA-256");
-        RecordCodec codec = new RecordCodec();
+        long asks = 0;
+        List<String> differ = new ArrayList<>();
         try (BufferedReader in = Files.newBufferedReader(questions, StandardCharsets.UTF_8);
-                BufferedWriter out = Files.newBufferedWriter(answers, StandardCharsets.UTF_8)) {
+                BufferedReader java = Files.newBufferedReader(frozen, StandardCharsets.UTF_8)) {
             for (String line = in.readLine(); line != null; line = in.readLine()) {
                 Json.Obj o = (Json.Obj) Json.parse(line);
                 String sha = ((Json.Str) o.get("sha")).value();
@@ -83,31 +59,33 @@ public final class FrontEngineAnswers {
                     if (engineDoor == null) {
                         continue;
                     }
-                    FrontOracle.Question q = new FrontOracle.Question(door, dialect, text);
-                    String[] forms = shim ? shimForms(engineDoor, text) : forms(FrontOracle.ask(q, codec));
-                    out.append(engineDoor).append('\t').append(sha).append('\t').append(hash(md, forms[0]))
-                            .append('\t').append(hash(md, forms[1])).append('\t').append(forms[0].substring(0, 1))
-                            .append('\n');
+                    String[] forms = shimForms(engineDoor, text);
+                    String mine = engineDoor + "\t" + hash(md, forms[0]) + "\t" + hash(md, forms[1]) + "\t"
+                            + forms[0].substring(0, 1);
+                    String theirs = java.readLine();
+                    if (theirs == null) {
+                        throw new IllegalStateException("the frozen file ends before the question set's engine asks: "
+                                + frozen);
+                    }
+                    if (!theirs.startsWith(engineDoor + "\t")) {
+                        throw new IllegalStateException("the frozen file is out of step with the questions at "
+                                + sha + " (" + engineDoor + "): " + theirs);
+                    }
+                    asks++;
+                    if (!mine.equals(theirs)) {
+                        differ.add(engineDoor + " " + sha);
+                    }
                 }
             }
+            if (java.readLine() != null) {
+                throw new IllegalStateException("the frozen file holds more lines than the question set's engine asks: "
+                        + frozen);
+            }
         }
-    }
-
-    /** The answer's two forms: with its source information, and without it. */
-    static String[] forms(FrontOracle.Answer a) {
-        Throwable e = a.error() != null ? a.error() : a.engineError();
-        if (e != null) {
-            String form = error(e);
-            return new String[]{form, form};
-        }
-        String json = java.util.Objects.requireNonNull(a.engine(), "a parsed answer at an engine door has its JSON");
-        String bare;
-        try {
-            bare = "A\t" + SourceInformation.withoutSpans(json);
-        } catch (RuntimeException | StackOverflowError x) {
-            bare = error(x);
-        }
-        return new String[]{"A\t" + json, bare};
+        System.out.printf("[front-shim] the engine-JSON doors: %d asks, %d identical to Java's frozen answers, %d"
+                + " differ%n", asks, asks - differ.size(), differ.size());
+        differ.stream().limit(20).forEach(d -> System.out.println("[front-shim]   differs: " + d));
+        return differ.size();
     }
 
     /** The two forms through the switched doors: each its own call, as a caller asks for one form. */

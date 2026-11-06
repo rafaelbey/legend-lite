@@ -45,9 +45,9 @@ class CodeShapeGuardrailTest {
     // (W1.6, W4.3, W5.1) removes by design; a line cap only forced reflowing. The METHOD limit stays.
 
     /** Mutable instance fields that are DELIBERATE: hand-rolled parser
-     * cursors (Lexer/ElementParser/SpecParser walk positions and scope
-     * stacks), per-resolution frames, fresh-name counters and one
-     * memo cache. Everything else must be final or become part of an
+     * cursors (the islands' readers' walk positions; the Java lexer's and
+     * parser's left with them, 2026-11-06), per-resolution frames,
+     * fresh-name counters and one memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
             // a parser cursor (2026-10-27, the result boundary program's phase 5: the reader of a database's JSON
@@ -102,11 +102,8 @@ class CodeShapeGuardrailTest {
             // anonymous-subselect nesting cursor (bare DISTINCT-key
             // spelling scope) — same lifecycle as frameDepth
             "EngineStyleH2.anonDistinctDepth",
-            // mapping-section context for AggregationAware span-shift
-            // emulation: set once at parse entry / per ~modelOperation
-            // view — same lifecycle as a parser cursor
-            "MappingProtocolParser.sectionStartLine",
-            "MappingProtocolParser.aggLambdaShift",
+            // (MappingProtocolParser.sectionStartLine and .aggLambdaShift, the mapping section's span-shift context,
+            // left 2026-11-06 with the Java lexer and parser, the Rust port's phase 2 step 6b)
             // JSON writer's field/value alternation cursor — same
             // lifecycle as a parser cursor, scoped to one document write
             "Json.awaitingFieldValue",
@@ -135,15 +132,9 @@ class CodeShapeGuardrailTest {
             // the streamed answer's cardinality sink (JudgePlans.Cardinality, the doors, door 1, 2026-10-29): the rows
             // seen so far on their way to the writer, the same cursor shape, scoped to one answer's stream
             "JudgePlans.rows",
-            // parser cursors + scope state
-            "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
-            "Lexer.ends", "Lexer.count",
-            "ElementParser.pos", 
-            // DatabaseProtocolParser: the same parser-cursor shape
-            "DatabaseProtocolParser.pos",
-            // GqlParser: the raw-text scanner cursor, same family as the
-            // other parser cursors above
-            "GqlParser.pos",
+            // parser cursors + scope state (Lexer.pos/islandDepth/types/starts/ends/count, ElementParser.pos,
+            // DatabaseProtocolParser.pos and GqlParser.pos left 2026-11-06 with the Java lexer and parser, the Rust
+            // port's phase 2 step 6b: the parser cursors below are the islands' readers, which stay Java until phase 3)
             // the #SQL{...}# island's Postgres reader (2026-10-11, docs/LEGEND_SQL_STUDY_2026_10_11.md §3):
             // SqlLexer's scanner cursor and its line/column tracking, SqlParser's token cursor -- the same
             // parser-cursor family, scoped to one parse -- and SqlToPure's fresh-name counter, scoped to one
@@ -181,36 +172,13 @@ class CodeShapeGuardrailTest {
             "PostgresDateTime.fmask", "PostgresDateTime.year", "PostgresDateTime.mon", "PostgresDateTime.mday",
             "PostgresDateTime.yday", "PostgresDateTime.hour", "PostgresDateTime.min", "PostgresDateTime.sec",
             "PostgresDateTime.fsec", "PostgresDateTime.is2digits", "PostgresDateTime.julian",
-            "MappingProtocolParser.pos",
-            // ConnectionSectionGrammar.Cursor / RuntimeSectionGrammar
-            // .SliceCursor: the re-lex feeds' parser cursors — same shape,
-            // scoped to one island/SPI parse
-            "ConnectionSectionGrammar.pos",
-            "RuntimeSectionGrammar.pos",
-            "ServiceSectionGrammar.pos",
-            "DataSpaceSectionGrammar.pos",
-            "PersistenceSectionGrammar.pos",
-            "FunctionActivatorSectionGrammar.pos",
-            // the SHARED SliceCursor (ElementwiseSectionGrammar's SPI feed)
-            "SliceCursor.pos",
-            // DiagramSectionGrammar.Raw: the RAW section's char walker —
-            // a parser cursor (position + its own line/col tracking, since
-            // diagram content never reaches the shared lexer)
-            "DiagramSectionGrammar.i", "DiagramSectionGrammar.line",
-            "DiagramSectionGrammar.col",
-            // parse-surface MODE, set once at construction by the factory that owns
-            // it (at() = the engine-strict drop-in surface) — never flipped mid-parse
-             
-            "SpecParser.pos",
+            // (MappingProtocolParser.pos; the section grammars' cursors -- Connection, Runtime, Service, DataSpace,
+            // Persistence and FunctionActivator's pos, the shared SliceCursor.pos, DiagramSectionGrammar's i, line and
+            // col; SpecParser.pos and its ';'-ownership mark SpecParser.owingStatement -- left 2026-11-06 with the
+            // Java lexer and parser, the Rust port's phase 2 step 6b)
             // the shared minimal JSON reader's walk position — a parser
-            // cursor, same family as Lexer.pos
+            // cursor, the same family as the islands' readers above
             "Json.i",
-            // ';'-ownership context for unbraced lambda code blocks: where the
-            // enclosing sequence's statement that owes the next ';' began (or
-            // -1) -- a cursor-adjacent mark, saved and restored around each
-            // sequence, same lifecycle as pos (replaced boundedDepth, the
-            // protocol program's leg 5, 2026-10-09)
-            "SpecParser.owingStatement",
             // per-resolution frames + counters
             "StoreResolver.freshVarCounter", "StoreResolver.temporal",
             // driver-scoped emission opt-in (builder-style, set once
@@ -281,8 +249,9 @@ class CodeShapeGuardrailTest {
             // (ExplosionMarkers, shared with BigQuery): unique within one statement, the same lifecycle as
             // Lowerer.aliasCounter
             "Snowflake.fresh", "ExplosionMarkers.next",
-            // render mode toggle + import memo
-            "AnsiSqlRenderer.inlineMode", "ModelOrchestrator.cachedImports",
+            // render mode toggle (ModelOrchestrator.cachedImports, the import memo, left 2026-11-06 with the ide
+            // package, step 6b)
+            "AnsiSqlRenderer.inlineMode",
             // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md §5.1): the MongoDb pipeline writer's stage counter -- Stages
             // IS the frame object, one per pipeline level, scoped to one render() as the renderer's cursor is: it
             // puts the comma before every stage but the first
@@ -290,9 +259,8 @@ class CodeShapeGuardrailTest {
             // normalizer emission frame: Pipeline IS the frame object; expr
             // is the accumulating pipeline AST
             "Pipeline.expr",
-            // regex artifact, NOT mutable: implicitly public-static-final
-            // interface constant (interfaces cannot spell 'final' on fields)
-            "TokenStreamCursor.IDENTIFIER_TOKENS",
+            // (TokenStreamCursor.IDENTIFIER_TOKENS, an interface constant, left 2026-11-06 with the Java lexer and
+            // parser, the Rust port's phase 2 step 6b)
             // nested-class cursor: PureDateLiteral's date parser (keys are
             // filename-scoped; the old runner's ExecJson cursor died with
             // it in batch 115)

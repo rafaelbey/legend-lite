@@ -36,14 +36,14 @@ import java.util.Objects;
  * forbids.
  *
  * <p>{@code core/} resolves this by parsing function bodies <strong>at
- * parse time</strong>, eagerly, inside {@code ElementParser}. The result
+ * parse time</strong>, eagerly, inside the model parser. The result
  * is a {@code List<ValueSpecification>} (a sequence of statements), held
  * directly on this record. There is no separate {@code resolvedBody}
  * field, no {@code withResolvedBody(...)} helper, no compiler-stage
  * re-parsing pass; downstream layers read {@link #body()} and just get
- * the AST. Element-level laziness (parse only the elements a query
- * actually touches) is provided by the IDE-layer orchestrator in
- * {@code com.legend.ide}, not the batch compiler.
+ * the AST. (Element-level laziness -- parse only the elements a query
+ * actually touches -- was an IDE-layer orchestrator's, deleted unused
+ * 2026-11-06; it is not the batch compiler's.)
  *
  * @param qualifiedName           fully qualified function name (e.g. {@code "my::utils::greet"})
  * @param typeParameters          declared generic type parameter names (e.g. {@code <T,V>})

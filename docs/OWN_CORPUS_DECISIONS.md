@@ -228,7 +228,11 @@ fn-ref service query (`query: my::funcs::peopleQuery;`).
   `PSQLiteSpec`), so a future engine SQLite extension finds our text
   conformant. The emitter refuses it loudly (no engine wire shape).
 
-## 10. PURE-DIALECT-diagram — 1 row
+## 10. PURE-DIALECT-diagram — 1 row (0 since 2026-11-06)
+
+> The row's host, `lexer/LexerTest.java`, was retired with the Java lexer on 2026-11-06 (the Rust port's phase 2 step
+> 6b; `rust/RETIRED_TESTS.md`), and `OwnCorpusConformanceTest`'s ledger lost the category. The lexer's raw-section skip
+> it proved is the Rust lexer's (`rust/lite-front/src/lexer.rs`), held by the front oracle's differential.
 
 | # | row | construct |
 |---|---|---|

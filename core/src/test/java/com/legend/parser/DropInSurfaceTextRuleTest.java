@@ -17,8 +17,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE TEXT RULE over the drop-in surface {@code {lexer, parser, protocol}}
- * (text-surgery audit 2026-08 + user mandate 2026-08-07): a regex inside a
+ * THE TEXT RULE over the drop-in surface {@code {parser, protocol}}
+ * (text-surgery audit 2026-08 + user mandate 2026-08-07; the lexer left the
+ * surface 2026-11-06 with the Java lexer and parser, the Rust port's phase 2
+ * step 6b -- both are the Rust library's): a regex inside a
  * hand-written recursive-descent parser is a second, undocumented grammar
  * running beside the first — with its own idea of what an identifier is and
  * no token positions. Byte parity is a property of the token parser; every
@@ -70,46 +72,17 @@ class DropInSurfaceTextRuleTest {
      *  walk chars between token-true bounds). What burned was the DEFECT:
      *  flat island scans that a nested #{ }# truncated. New sites still
      *  need a whitelist edit — and this comment's justification. */
-    private static final Map<String, Integer> SOURCE_WHITELIST = Map.of(
-            // 5 island-content reads + 1 OVERLAY handoff: an opaque overlay
-            // section is raw-skipped by the lexer, so its SectionSource text
-            // has no token form to read from — the raw slice IS the SPI
-            // contract (Phase M step 2)
-            // 5 -> 6 (2026-08-09, Diagram RAW grammar): a raw-skipped
-            // section's text has no token form — the SectionSource handoff
-            // to a RawSectionGrammar is the same necessity as the OVERLAY
-            // handoff above.
-            // 6 -> 3 (2026-10-10, the protocol program's leg 8, one parser): the
-            // compiler's own top-level assembly is deleted, and with it the
-            // overlay and raw-section handoffs -- the one parser (PmcdParser)
-            // hands a raw-skipped section's text to its grammar now.
-            "parser/ElementParser.java", 3,
-            // reconstructText itself — MOVED here from ElementParser
-            // (2026-08-09, Runtime migration) so section grammars outside
-            // com.legend.parser can extract island chunks; the one source
-            // read is the same coarse-chunk necessity it always was
-            "parser/TokenStreamCursor.java", 1,
-            // 1: the GQL island — GraphQL is a FOREIGN language
-            // (commas-as-whitespace, $, @, ...), so its content parses from
-            // the raw slice by design, like the URL fix in the ES
-            // connection. The graph-fetch island's padded re-lex is gone
-            // (W0.8, 2026-10-08: lexed in place by TokenStream.lexRange)
-            "parser/SpecParser.java", 1,
-            // The mapping test-suite #{ }# island re-lex no longer reads
-            // the source here (W0.8, 2026-10-08: TokenStream.lexRange
-            // lexes the content in place). +1: aggregate-lambda padded re-lex (engine reparses
-            // the expr text standalone with the tilde-anchor quirk);
-            // +1: Relation-island CSV char walk (a raw sub-format the
-            // engine also parses from chars)
-            // 3 -> 2 (2026-10-10, protocol program leg 8 step 2): the
-            // VERBATIM testSuites slice is gone -- the record keeps the
-            // parsed suites only, as the JSON does, and nothing read the text
-            "parser/MappingProtocolParser.java", 2);
+    // EMPTY 2026-11-06 (the Rust port's phase 2 step 6b): the four files that read raw source chars --
+    // ElementParser (3), TokenStreamCursor (1), MappingProtocolParser (2) and SpecParser's body (1, the GQL island's
+    // raw slice) -- are deleted with the Java parser (each one's reason is in the history of this file); the doors
+    // left in this package read no token stream. A new site still needs a whitelist edit, and this comment's
+    // justification.
+    private static final Map<String, Integer> SOURCE_WHITELIST = Map.of();
 
     @Test
     void regexFamilyIsConfinedToTheFrozenWhitelist() throws IOException {
         Map<String, Integer> found = census(TEXT_SURGERY,
-                "lexer", "parser", "protocol");
+                "parser", "protocol");
         for (Map.Entry<String, Integer> e : found.entrySet()) {
             assertTrue(e.getKey().startsWith("parser/")
                             || e.getKey().startsWith("protocol/"),
@@ -141,7 +114,7 @@ class DropInSurfaceTextRuleTest {
         // the ratchet's other edge: a burned site must LEAVE the whitelist,
         // so the frozen numbers cannot quietly become slack for new sites
         Map<String, Integer> regex = census(TEXT_SURGERY,
-                "lexer", "parser", "protocol");
+                "parser", "protocol");
         for (Map.Entry<String, Integer> e : REGEX_WHITELIST.entrySet()) {
             assertEquals(e.getValue(), regex.getOrDefault(e.getKey(), 0),
                     "whitelist stale for " + e.getKey()

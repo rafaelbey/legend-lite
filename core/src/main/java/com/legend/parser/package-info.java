@@ -1,13 +1,16 @@
 /**
- * Phase B, C &mdash; tokens &rarr; protocol records.
+ * Phases A, B, C &mdash; text &rarr; protocol records, through the doors.
  *
- * <p>Drivers in this package:
+ * <p>The lexer and the parser are the Rust library's ({@code rust/lite-front}): the doors here hand it a text and a
+ * {@link com.legend.parser.Dialect}, and read back its records or its error ({@link com.legend.parser.RustParsers},
+ * found through the SPI seam; docs/rust-port/PHASE2.md). The Java lexer and parser it ports were deleted on
+ * 2026-11-06 (step 6b).
  * <ul>
- *   <li>{@link com.legend.parser.PmcdParser} (B): a text &rarr; its
- *       {@code Protocol.PureModelContextData} (the engine's section walk; each
- *       {@code ###Pure} element through {@link com.legend.parser.ElementParser},
- *       every other section through its grammar).</li>
- *   <li>{@code SpecParser} (C): tokens &rarr;
+ *   <li>{@link com.legend.parser.PmcdParser} (A, B): a text &rarr; its
+ *       {@code Protocol.PureModelContextData} (the engine's section walk, every
+ *       section through its grammar; an overlay's through
+ *       {@link com.legend.parser.SectionGrammarRegistry}, called back here).</li>
+ *   <li>{@code SpecParser} (A, C): a text &rarr;
  *       {@code protocol.spec.ValueSpecification}.</li>
  * </ul>
  *
@@ -25,7 +28,7 @@
  * and {@code com.legend.protocol.spec} (value specifications).
  *
  * <h2>Dependencies</h2>
- * The lexer, the protocol records, values, the shared error vocabulary, the
- * overlay seam ({@code spi}) and the JDK (ArchitectureTest, invariant 7c).
+ * The protocol records, values, the shared error vocabulary, the overlay seam
+ * ({@code spi}) and the JDK (ArchitectureTest, invariant 7c).
  */
 package com.legend.parser;

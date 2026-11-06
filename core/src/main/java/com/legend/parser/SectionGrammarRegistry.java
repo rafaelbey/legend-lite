@@ -8,41 +8,22 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * THE section-routing authority (GRAMMAR_EXTENSIBILITY.md step 1 /
- * PARSER_DROP_IN_PLAN.md Phase 2.5): {@code ###Name} &rarr; the grammar
- * module that owns it. Built-ins register through the SAME registry a
- * third-party overlay will use — the dogfooding rule that keeps the
- * plug-in path honest. An unknown section stops being lexer raw-skip
- * silence and becomes an explicit, reportable "no grammar registered"
- * ({@code PmcdParser.Parsed#unclaimed()}).
+ * THE OVERLAY REGISTRY (GRAMMAR_EXTENSIBILITY.md / PARSER_DROP_IN_PLAN.md Phase M): the {@code ###} sections a
+ * third-party grammar claims through the {@code com.legend.spi.SectionGrammar} SPI, found by {@code ServiceLoader} --
+ * {@code ###Name} &rarr; the grammar that owns it. The built-in sections are the parser's own (the Rust library's,
+ * {@link RustParsers#knownSections}); the model door is told which overlays are registered ({@link #overlays}), hands
+ * back each overlay section it meets, and {@link PmcdParser#parse} calls the grammar this registry holds for it. An
+ * unknown section is never skipped in silence: the engine's and lite's dialects refuse it by name, the platform's
+ * records it ({@code PmcdParser.Parsed#unclaimed()}).
  *
- * <p>Step 2 (the {@code legend-lite-spi} artifact) grows
- * {@link SectionGrammar} a {@code parse(SectionSource, ElementSink)}
- * surface and a {@code ServiceLoader} discovery pass; today the record
- * names the owner and whether the SHARED lexer may tokenize the content
- * (an opaque grammar's content — a Diagram color literal — must never
- * reach the Pure token rules).
+ * <p>Until 2026-11-06 the registry held a built-in half too, a stand-in or a Java grammar for every section the Java
+ * parser read; it went with that parser (docs/rust-port/PHASE2.md §4 step 6), and the Rust parser decides its own
+ * sections. An overlay registered under a built-in section's name is the Rust walk's to route (the engine's own
+ * shadowing rule).
  */
 public final class SectionGrammarRegistry {
 
     private SectionGrammarRegistry() {
-    }
-
-    /** A built-in section: content flows through the main token pipeline,
-     *  so its {@link com.legend.spi.SectionGrammar#parse} surface is never
-     *  invoked — calling it is a wiring bug and throws. */
-    private record BuiltIn(String name) implements com.legend.spi.SectionGrammar {
-        @Override
-        public boolean lexable() {
-            return true;
-        }
-
-        @Override
-        public void parse(com.legend.spi.SectionSource src,
-                com.legend.spi.ElementSink out) {
-            throw new IllegalStateException("built-in section '" + name
-                    + "' parses through the main pipeline, not the SPI");
-        }
     }
 
     /** The ServiceLoader's grammars, loaded once, in order: before {@link #REGISTRY}, whose {@link #build} reads them. */
@@ -54,67 +35,7 @@ public final class SectionGrammarRegistry {
 
     private static Map<String, com.legend.spi.SectionGrammar> build() {
         Map<String, com.legend.spi.SectionGrammar> m = new LinkedHashMap<>();
-        for (String s : new String[]{"Pure", "Mapping", "Relational", "Data"}) {
-            m.put(s, new BuiltIn(s));
-        }
-        // REAL built-in grammars (§2.6): these sections route through the
-        // seam — ElementParser.parseModel dispatches the whole section to
-        // them, and the remaining BuiltIn stubs shrink as each migrates
-        m.put("Connection",
-                com.legend.parser.section.ConnectionSectionGrammar.INSTANCE);
-        m.put("Runtime",
-                com.legend.parser.section.RuntimeSectionGrammar.INSTANCE);
-        m.put("Service",
-                com.legend.parser.section.ServiceSectionGrammar.INSTANCE);
-        m.put("QueryPostProcessor", com.legend.parser.section
-                .QueryPostProcessorSectionGrammar.INSTANCE);
-        m.put("DataSpace",
-                com.legend.parser.section.DataSpaceSectionGrammar.INSTANCE);
-        m.put("Persistence",
-                com.legend.parser.section.PersistenceSectionGrammar.INSTANCE);
-        // the FUNCTION-ACTIVATOR family shares ONE typed grammar class,
-        // each instance registered with its censused activator-kind set
-        m.put("Snowflake",
-                new com.legend.parser.section.FunctionActivatorSectionGrammar(
-                        "Snowflake", java.util.Set.of("SnowflakeApp",
-                                "SnowflakeM2MUdf",
-                                "SnowflakeAppDeploymentConfiguration")));
-        m.put("MemSql",
-                new com.legend.parser.section.FunctionActivatorSectionGrammar(
-                        "MemSql", java.util.Set.of("MemSqlFunction",
-                                "MemSqlFunctionDeploymentConfiguration")));
-        m.put("BigQuery",
-                new com.legend.parser.section.FunctionActivatorSectionGrammar(
-                        "BigQuery", java.util.Set.of("BigQueryFunction",
-                                "BigQueryFunctionDeploymentConfiguration")));
-        m.put("HostedService",
-                new com.legend.parser.section.FunctionActivatorSectionGrammar(
-                        "HostedService", java.util.Set.of("HostedService",
-                                "ExecutionEnvironment",
-                                "HostedServiceDeploymentConfiguration")));
-        m.put("FunctionJar",
-                new com.legend.parser.section.FunctionActivatorSectionGrammar(
-                        "FunctionJar", java.util.Set.of("FunctionJar")));
-        // the TAIL sections each own a dedicated typed grammar
-        for (com.legend.spi.SectionGrammar g : new com.legend.spi.SectionGrammar[]{
-                com.legend.parser.section.TextSectionGrammar.INSTANCE,
-                com.legend.parser.section.GenerationSpecificationSectionGrammar.INSTANCE,
-                com.legend.parser.section.FileGenerationSectionGrammar.INSTANCE,
-                com.legend.parser.section.DeephavenSectionGrammar.INSTANCE,
-                com.legend.parser.section.MongoDBSectionGrammar.INSTANCE,
-                com.legend.parser.section.DataQualityValidationSectionGrammar.INSTANCE,
-                com.legend.parser.section.ElasticsearchSectionGrammar.INSTANCE,
-                com.legend.parser.section.ExternalFormatSectionGrammar.INSTANCE,
-                com.legend.parser.section.ServiceStoreSectionGrammar.INSTANCE}) {
-            m.put(g.name(), g);
-        }
-        // the first RAW built-in: Diagram content never reaches the shared
-        // lexer; the grammar walks characters
-        m.put("Diagram",
-                com.legend.parser.section.DiagramSectionGrammar.INSTANCE);
-        // ServiceLoader overlays — registered LAST so an extension claiming
-        // a built-in name WINS (the engine's own shadowing rule: that is
-        // exactly what lets legend-lite drop into the engine's ###Pure)
+        // in the ServiceLoader's order: a later grammar of the same name wins
         for (com.legend.spi.SectionGrammar g : LOADED) {
             m.put(g.name(), g);
         }
@@ -132,13 +53,8 @@ public final class SectionGrammarRegistry {
         return java.util.List.copyOf(out);
     }
 
-    /** The grammar registered for {@code sectionName}, if any. */
+    /** The overlay grammar registered for {@code sectionName}, if any. */
     public static Optional<com.legend.spi.SectionGrammar> lookup(String sectionName) {
         return Optional.ofNullable(REGISTRY.get(sectionName));
-    }
-
-    /** Every registered section name — for the lexer-agreement guardrail. */
-    public static Map<String, com.legend.spi.SectionGrammar> all() {
-        return java.util.Collections.unmodifiableMap(REGISTRY);
     }
 }

@@ -83,7 +83,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ElementParser} &mdash; sub-slice B.1 covers
+ * Unit tests for the element grammar (the Java {@code ElementParser} until 2026-11-06, the Rust parser's
+ * {@code element_parser.rs} since, through the doors) &mdash; sub-slice B.1 covers
  * imports and {@code Class} declarations.
  *
  * <p>Each test compares full records via record-{@code equals} where

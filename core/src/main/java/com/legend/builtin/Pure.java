@@ -2,9 +2,10 @@
 // BuiltinRegistry.registerSignature calls). Kept verbatim except for:
 //   - package + imports retargeted to core
 //   - NativeFunctionDef -> NativeFunctionDefinition (core's parser record)
-//   - signature(...) routes through ElementParser instead of engine's
-//     hand-rolled PureNativeSignatureParser, eliminating the second parser
-//     and giving us a single parse pipeline for user source AND stdlib.
+//   - signature(...) routes through the model parser (ModelFromText; the Rust
+//     library's since 2026-11-06) instead of engine's hand-rolled
+//     PureNativeSignatureParser, eliminating the second parser and giving us
+//     a single parse pipeline for user source AND stdlib.
 //
 // Naming scheme: <NAME>__<ARG1TYPE>_<ARG1MULT>__<ARG2TYPE>_<ARG2MULT>__...
 // Multiplicity: [1]->1, [N]->N, [*]->MANY, [0..1]->0_1, [1..*]->1_MANY, [N..M]->N_M.
@@ -852,7 +853,7 @@ public final class Pure {
     /**
      * Parse a Pure native signature through {@link ModelFromText} and stash
      * the resulting record. Class-load fails if the signature is malformed
-     * or if {@code ElementParser} refuses any grammar form &mdash; that is
+     * or if the parser refuses any grammar form &mdash; that is
      * the comprehensive parse-coverage guarantee.
      */
     private static NativeFunctionDefinition signature(String pureSignature) {

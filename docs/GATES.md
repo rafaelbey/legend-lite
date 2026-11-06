@@ -307,6 +307,15 @@ The dated record of moved pins, rosters and ratchets (the rules: "Recording a mo
 Newest first, at most 20 lines. Seeded from the last entries of the cut log; "D<n>" is the decisions log of the
 landing's program.
 
+- 2026-11-06 — The Rust port deletes the Java lexer and parser (phase 2 step 6b): `ArchitectureTest` retires 7a
+  (`lexerDependsOnNothingButTheJdk`) and 6f (`lexerIsPrivateToTheParser`), its lists lose `lexer` and `ide`, 6i pins
+  `SpecParser` alone and 7c's surface loses `lexer`; `DialectBoundaryTest.DATABASE_NAME_DECISIONS` empties (the
+  grammars' 12 + 1 + 1 rows, deleted or re-measured 0); the parse tap's flag, `QuotedSpecParser`'s catch, the deleted
+  cursors' allowlist rows, `DropInSurfaceTextRuleTest`'s source re-read rows, `ParserBoundaryArchTest`'s
+  `ModelOrchestrator` and `FrontOracle`, `OwnDialectCensusTest`'s `LexerTest` host leave; `tools/deps/core-layers.txt`
+  loses `lexer` and `ide`. With the retired tests' 46 own-corpus snippets, parser-equivalence's `own_corpus.matched`
+  ratchet goes 3009 -> 2943 (a denominator move; diffs 0) and `OwnCorpusConformanceTest`'s ledger loses
+  `PURE-DIALECT-diagram` (its one row was `LexerTest`'s). Branch `worktree-rust-port-phase0`.
 - 2026-11-06 — `CodeShapeGuardrailTest.MUTABLE_FIELD_ALLOWLIST` gains `FrontRead.pos` and `FrontRead.depth`: the Rust
   port's shim reads the parser's answer through a pull cursor instead of a `Json` tree (which overflowed
   `//core:corpus_differential_test`'s 768 MB), and a cursor's position is its state, as `NonFiniteJson.at`'s and
@@ -354,9 +363,6 @@ landing's program.
   ledger's server list loses `QueryService` and `OutputFormat`. `d7103d53e`.
 - 2026-10-29 — The three routings (D65): the JDBC census loses `MariaDbConnector.java`; `DatabaseOwners` gains the
   new test. `650161e13` (CI ran at the doors' audit fold, `28b8db79`).
-- 2026-10-29 — DuckDB's driver 1.4.4.0 → 1.5.6.0 (D60): `AsOfJoinCheckerTest.testAsOfJoinEmptyRight` asserts the
-  spec where it pinned DuckDB's zero rows; the SQLite and H2 lane floors lose their as-of line; register row S126 to
-  `outcome`. PR #80, `acaa063b`.
 
 > Cut in the 2026-11 docs cleanup: the Maven-era chain and its log (2026-08-02 to 2026-09-22: `tools/allgates.sh`, the
 > root-flag trap, the budget decisions, the batch chain logs, the hand-kept ratchet table, the CI leg, fork policy and

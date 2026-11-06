@@ -1279,7 +1279,7 @@ final class TailEmitter {
      *  key with {@code sourceInformation} merged into sorted position. The
      *  span is written when the record has one: the nodes the engine's JSON
      *  writes without one the grammar makes spanless (leg 8 step 2,
-     *  PersistenceSectionGrammar.wireSpans). */
+     *  rust/lite-front's persistence_parser.rs, the wire spans). */
     private static void persistenceNode(StringBuilder b, String slot,
             Protocol.PPersistenceNode n) {
         persistenceNode(b, slot, n, false, false);
