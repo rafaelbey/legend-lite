@@ -7,8 +7,11 @@
 //! model parser's walk (`model_parser`) and its `###Pure` (`element_parser`), `###Text` (`sections`) and `###Data`
 //! (`mapping_parser`) grammars; step 4b: `###Relational` (`database_parser`) and `###Mapping` (`mapping_grammar`,
 //! `mapping_tests`); step 4c: `###Connection` (`connection_parser`, with `java.net.URI`'s verdict in `jnet`),
-//! `###Runtime` (`runtime_parser`), `###Service` (`service_parser`) and `###DataSpace` (`dataspace_parser`) -- each held
-//! to Java's every answer that stays in them.
+//! `###Runtime` (`runtime_parser`), `###Service` (`service_parser`) and `###DataSpace` (`dataspace_parser`); step 4d: the
+//! last section grammars -- the function activators (`activator_parser`), `###Diagram` (`diagram_parser`), and the tail
+//! grammars `generation_parser`, `deephaven_parser`, `mongodb_parser`, `data_quality_parser`, `elasticsearch_parser`,
+//! `external_format_parser`, `service_store_parser`, `persistence_parser` and `query_post_processor_parser` -- so that
+//! every section the walk reaches has its grammar, each held to Java's every answer.
 
 pub mod activator_parser;
 pub mod codec;

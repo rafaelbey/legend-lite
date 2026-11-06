@@ -10,9 +10,10 @@
 //! unknown section, `###Pure` (`element_parser`), `###Text` (`sections`), `###Data` (`mapping_parser`),
 //! `###Relational` (`database_parser`), `###Mapping` (`mapping_grammar`, `mapping_tests`), `###Connection`
 //! (`connection_parser`), `###Runtime` (`runtime_parser`), `###Service` (`service_parser`, the platform's headerless
-//! `Service` too) and `###DataSpace` (`dataspace_parser`). Every other grammar answers `not ported` (no Java class) where
-//! the walk reaches its first element, one arm of [`parse_one_at`] or [`section_elements`] each: the activator sections,
-//! Diagram, and the tail grammars but Text, Service and DataSpace.
+//! `Service` too) and `###DataSpace` (`dataspace_parser`); the function-activator sections (`activator_parser`), `###Diagram`
+//! (`diagram_parser`, over the raw text the lexer skips) and the other tail grammars (step 4d: GenerationSpecification
+//! and FileGeneration, Deephaven, MongoDB, DataQualityValidation, Elasticsearch, ExternalFormat, ServiceStore,
+//! Persistence, QueryPostProcessor). Every section the walk reaches has its grammar.
 //!
 //! **Overlays.** A section only a registered overlay grammar (`com.legend.spi.SectionGrammar`, found by Java's
 //! `ServiceLoader`) can read is the shim's: Rust cannot call the grammar, so it hands back, beside the records, each
@@ -37,7 +38,7 @@ use crate::records::{
     Element, PSection, PSectionIndex, PmcdParserParsed, PmcdParserUnclaimedSection, PureModelContextData, SourceInfo,
 };
 use crate::runtime_parser::parse_runtime;
-use crate::sections::{TailGrammar, not_ported};
+use crate::sections::TailGrammar;
 use crate::service_parser::parse_element as parse_service_element;
 use crate::ustr::{eq, last_index_of_str, u};
 
@@ -290,8 +291,14 @@ fn parse_sections(
             }
         } else {
             let elements = section_elements(&ts, &name, range, bd.header_start, dialect)?;
-            // (a Diagram section's imports are its raw grammar's: not reached, its elements refuse first)
-            let imports = if listed(IMPORT_AWARE, &bd.name) { section_imports(&ts, range)? } else { Vec::new() };
+            let imports = if name == "Diagram" {
+                // a raw section has no tokens: its own parse carries the imports (`diagramImports`, a second parse)
+                diagram_imports(&ts, range, dialect)?
+            } else if listed(IMPORT_AWARE, &bd.name) {
+                section_imports(&ts, range)?
+            } else {
+                Vec::new()
+            };
             DocSection { parser_name: bd.name.clone(), elements, imports, span, overlay: None }
         };
         out.push(section);
@@ -621,7 +628,7 @@ fn section_elements(
         "Relational" => walk(HeadRule::Relational, None, -1),
         "Mapping" => walk(HeadRule::Mapping, None, header_line),
         "Data" => walk(HeadRule::Data, None, -1),
-        "Diagram" => Err(not_ported("Diagram")),
+        "Diagram" => diagram_elements(ts, r, dialect),
         _ => {
             if let Some(kinds) = activator_kinds(name) {
                 return walk(HeadRule::Activator(kinds), None, -1);
@@ -636,6 +643,44 @@ fn section_elements(
             Ok(rule_group(name, walk(HeadRule::Tail, None, -1)?))
         }
     }
+}
+
+/// `diagramElements`' and `diagramImports`' shared head: the raw grammar over the section's content
+/// (`source.substring(r[0], r[1])`, its `StringIndexOutOfBoundsException` when an empty section's end precedes its
+/// start), its first line counted from the source's newlines.
+fn diagram_parse(ts: &TokenStream<'_>, r: (isize, isize), dialect: Dialect) -> R<crate::diagram_parser::ParsedDiagrams> {
+    let source = ts.source();
+    let nl = u16::from(b'\n');
+    let start_line = 1 + source[..r.0 as usize].iter().filter(|&&c| c == nl).count() as i32;
+    let text = crate::ustr::substring(source, r.0, r.1)?;
+    crate::diagram_parser::parse_raw(text, start_line, dialect)
+}
+
+/// `PmcdParser.diagramElements`: a `###Diagram` section's diagrams, each under its qualified name.
+fn diagram_elements(ts: &TokenStream<'_>, r: (isize, isize), dialect: Dialect) -> R<Vec<DocElement>> {
+    let parsed = diagram_parse(ts, r, dialect)?;
+    Ok(parsed
+        .elements
+        .into_iter()
+        .map(|d| DocElement {
+            path: Some(JStr(qualified_name(&d.pkg.0, &d.name.0))),
+            element: Element::PDiagram(Box::new(d)),
+        })
+        .collect())
+}
+
+/// `PmcdParser.diagramImports`: the raw grammar's imports as the section index lists them (`importPaths`: the wildcard
+/// dropped, each once; not unquoted, as `sectionImports`' are).
+fn diagram_imports(ts: &TokenStream<'_>, r: (isize, isize), dialect: Dialect) -> R<Vec<JStr>> {
+    let parsed = diagram_parse(ts, r, dialect)?;
+    let mut out: Vec<JStr> = Vec::new();
+    for imp in &parsed.imports {
+        let path = JStr(strip_wildcard(imp).to_vec());
+        if !out.contains(&path) {
+            out.push(path);
+        }
+    }
+    Ok(out)
 }
 
 /// `ruleGroup`: the engine's walkers collect by grammar rule where a section owns several element kinds -- schema
@@ -828,7 +873,31 @@ fn parse_one_at(
             let path = qualified_name(&d.pkg.0, &d.name.0);
             return Ok((Some(DocElement { path: Some(JStr(path)), element: Element::PDataElement(Box::new(d)) }), end));
         }
-        11 => return Err(not_ported(section)),
+        11 => {
+            let kinds = activator_kinds(section).expect("an activator section has its kinds");
+            let ae = crate::activator_parser::parse_element(&mut p, section, kinds)?;
+            let end = p.pos;
+            return Ok(match ae {
+                Element::PFunctionActivator(fa) => {
+                    if fa.kind == "SnowflakeAppDeploymentConfiguration" {
+                        // parsed then dropped by the walker: no element, no section entry
+                        (None, end)
+                    } else {
+                        // the config walkers never register a path: the section's element list carries a null
+                        let unnamed = fa.kind == "BigQueryFunctionDeploymentConfiguration"
+                            || fa.kind == "MemSqlFunctionDeploymentConfiguration"
+                            || fa.kind == "HostedServiceDeploymentConfiguration";
+                        let path = (!unnamed).then(|| JStr(qualified_name(&fa.pkg.0, &fa.name.0)));
+                        (Some(DocElement { path, element: Element::PFunctionActivator(fa) }), end)
+                    }
+                }
+                Element::PExecutionEnvironment(ee) => {
+                    let path = Some(JStr(qualified_name(&ee.pkg.0, &ee.name.0)));
+                    (Some(DocElement { path, element: Element::PExecutionEnvironment(ee) }), end)
+                }
+                _ => unreachable!("an activator section's element is an activator or an execution environment"),
+            });
+        }
         12 => {
             let grammar = TailGrammar::of(section).expect("a tail section has its grammar");
             grammar.parse_one(&mut p)?
@@ -873,12 +942,39 @@ mod tests {
         assert_eq!(platform.unclaimed[0].name, "Toy");
     }
 
+    // Each text below was asked of Java's parser (//core:front_show); the assertions are its answers.
+
     #[test]
-    fn a_grammar_not_ported_refuses_where_the_walk_reaches_it() {
-        let refused = parse(&u("Class A {}\n###Persistence\nPersistence p {}\n"), Dialect::LegendLite).unwrap_err();
-        assert_eq!(refused.class, "not ported");
-        let earlier = parse(&u("Class A {\n###Persistence\nPersistence p {}\n"), Dialect::LegendLite).unwrap_err();
-        assert!(earlier.is_parse_exception(), "Java's error before the section is Java's");
+    fn every_section_the_walk_reaches_has_its_grammar() {
+        let text = u("Class A {}\n###Persistence\nPersistence p::P\n{\n}\n");
+        let refused = parse(&text, Dialect::LegendLite).unwrap_err();
+        assert_eq!(refused.message, Some(JStr::from("[3:1] Field 'doc' is required")));
         assert!(parse(&u("###Persistence\n"), Dialect::LegendLite).is_ok(), "an empty section parses");
+    }
+
+    #[test]
+    fn a_diagram_section_is_its_raw_grammar_s() {
+        let text = u("###Diagram\nimport a::b::*;\nimport a::b::*;\nDiagram d::D\n{\n}\n");
+        let parsed = parse(&text, Dialect::LegendEngine).expect("parses");
+        let Element::PSectionIndex(index) = &parsed.model.elements[1] else { panic!("the index is last") };
+        assert_eq!(index.sections[1].imports, vec![JStr::from("a::b")], "the wildcard dropped, each once");
+        assert_eq!(index.sections[1].elements, vec![Some(JStr::from("d::D"))]);
+        // an empty section followed by another: its content ends before it starts, and `substring` refuses
+        let empty = parse(&u("###Diagram\n###Pure\nClass A {}\n"), Dialect::LegendEngine).unwrap_err();
+        assert_eq!(empty.class, "java.lang.StringIndexOutOfBoundsException");
+        assert_eq!(empty.message, Some(JStr::from("Range [11, 10) out of bounds for length 30")));
+    }
+
+    #[test]
+    fn a_deployment_configuration_is_dropped_or_listed_unnamed() {
+        let text = u(concat!(
+            "###Snowflake\nSnowflakeAppDeploymentConfiguration c::C\n{\n  activationConnection: a::C;\n}\n",
+            "###BigQuery\nBigQueryFunctionDeploymentConfiguration c::D\n{\n  activationConnection: a::C;\n}\n"
+        ));
+        let parsed = parse(&text, Dialect::LegendEngine).expect("parses");
+        assert_eq!(parsed.model.elements.len(), 2, "the Snowflake configuration dropped; the BigQuery one and the index");
+        let Element::PSectionIndex(index) = &parsed.model.elements[1] else { panic!("the index is last") };
+        assert!(index.sections[1].elements.is_empty());
+        assert_eq!(index.sections[2].elements, vec![None], "a configuration's walker registers no path");
     }
 }

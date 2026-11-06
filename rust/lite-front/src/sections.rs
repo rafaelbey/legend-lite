@@ -2,17 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The section grammars the model parser routes a `###` section's elements to (core/'s `parser.section`): the shared
-//! helpers (`SectionParse.head`, `stringValue`, `booleanValue`, `specToSemicolon`, `lambdaToSemicolon`;
-//! `SectionImports.parseImport`) and the tail grammars (`ElementwiseSectionGrammar`s: one element at a time from its
-//! keyword, at the walk's `ElementParser`). Ported: `###Text` (`TextSectionGrammar`, here), `###DataSpace`
-//! (`dataspace_parser`), `###Service` (`service_parser`). The others -- GenerationSpecification, FileGeneration,
-//! Deephaven, MongoDB, DataQualityValidation, Elasticsearch, ExternalFormat, ServiceStore, Persistence,
-//! QueryPostProcessor -- are later steps', each one arm of [`TailGrammar`] (docs/rust-port/PHASE2.md §4 step 4). The
-//! grammars' SPI feed (`ElementwiseSectionGrammar.parse`, a `SliceCursor` over the re-lexed section) is the overlay
-//! path's, which the model door never takes: not ported.
+//! helpers (`SectionParse.head`, `stringValue`, `booleanValue`, `rawStringToken`, `lowerFirst`, `specToSemicolon`,
+//! `lambdaToSemicolon`; `SectionImports.parseImport`) and the tail grammars (`ElementwiseSectionGrammar`s: one element
+//! at a time from its keyword, at the walk's `ElementParser`), each one arm of [`TailGrammar`]: `###Text`
+//! (`TextSectionGrammar`, here), `###GenerationSpecification` and `###FileGeneration` (`generation_parser`),
+//! `###Deephaven` (`deephaven_parser`), `###MongoDB` (`mongodb_parser`), `###DataQualityValidation`
+//! (`data_quality_parser`), `###Elasticsearch` (`elasticsearch_parser`), `###ExternalFormat`
+//! (`external_format_parser`), `###ServiceStore` (`service_store_parser`), `###DataSpace` (`dataspace_parser`),
+//! `###Persistence` (`persistence_parser`), `###Service` (`service_parser`) and `###QueryPostProcessor`
+//! (`query_post_processor_parser`). The grammars' SPI feed (`ElementwiseSectionGrammar.parse`, a `SliceCursor` over the
+//! re-lexed section) is the overlay path's, which the model door never takes: not ported, by design.
 
 use crate::cursor::{Cursor, Decorations, ElementCursor, R, once_at, throw_at, unquote_path_iae};
-use crate::doors::JavaError;
 use crate::jcat;
 use crate::jtypes::JStr;
 use crate::lexer::TokenType;
@@ -187,69 +188,97 @@ pub fn parse_import<'s>(c: &mut impl Cursor<'s>) -> R<Vec<u16>> {
     Ok(sb)
 }
 
-/// The tail sections (`PmcdParser.TAIL_SECTIONS`, in Java's order): each an elementwise grammar the strict walk hands
-/// one element at a time.
-pub const TAIL_SECTIONS: &[&str] = &[
-    "Text",
-    "GenerationSpecification",
-    "FileGeneration",
-    "Deephaven",
-    "MongoDB",
-    "DataQualityValidation",
-    "Elasticsearch",
-    "ExternalFormat",
-    "ServiceStore",
-    "DataSpace",
-    "Persistence",
-    "Service",
-    "QueryPostProcessor",
-];
-
 /// An elementwise grammar (`ElementwiseSectionGrammar`): `parseOne` at the declaration keyword, and the qualified
 /// name the section index lists the element under (`qualifiedNameOf`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TailGrammar {
     Text,
+    GenerationSpecification,
+    FileGeneration,
+    Deephaven,
+    MongoDB,
+    DataQualityValidation,
+    Elasticsearch,
+    ExternalFormat,
+    ServiceStore,
     DataSpace,
+    Persistence,
     Service,
-    /// A tail grammar not ported yet: its section's name.
-    NotPorted(&'static str),
+    QueryPostProcessor,
 }
 
 impl TailGrammar {
     /// The grammar registered for a tail section's name.
     pub fn of(section: &str) -> Option<TailGrammar> {
-        let name = TAIL_SECTIONS.iter().copied().find(|s| *s == section)?;
-        Some(match name {
+        Some(match section {
             "Text" => TailGrammar::Text,
+            "GenerationSpecification" => TailGrammar::GenerationSpecification,
+            "FileGeneration" => TailGrammar::FileGeneration,
+            "Deephaven" => TailGrammar::Deephaven,
+            "MongoDB" => TailGrammar::MongoDB,
+            "DataQualityValidation" => TailGrammar::DataQualityValidation,
+            "Elasticsearch" => TailGrammar::Elasticsearch,
+            "ExternalFormat" => TailGrammar::ExternalFormat,
+            "ServiceStore" => TailGrammar::ServiceStore,
             "DataSpace" => TailGrammar::DataSpace,
+            "Persistence" => TailGrammar::Persistence,
             "Service" => TailGrammar::Service,
-            _ => TailGrammar::NotPorted(name),
+            "QueryPostProcessor" => TailGrammar::QueryPostProcessor,
+            _ => return None,
         })
     }
 
     /// `parseOne(c)` and `qualifiedNameOf(e)`.
     pub fn parse_one(self, c: &mut ElementCursor<'_, '_>) -> R<(Element, Vec<u16>)> {
-        match self {
+        let qn = crate::protocol::qualified_name;
+        Ok(match self {
             TailGrammar::Text => {
                 let t = parse_text(c)?;
-                let path = crate::protocol::qualified_name(&t.pkg.0, &t.name.0);
-                Ok((Element::PText(Box::new(t)), path))
+                let path = qn(&t.pkg.0, &t.name.0);
+                (Element::PText(Box::new(t)), path)
+            }
+            TailGrammar::GenerationSpecification => {
+                let g = crate::generation_parser::parse_generation_specification(c)?;
+                let path = qn(&g.pkg.0, &g.name.0);
+                (Element::PGenerationSpecification(Box::new(g)), path)
+            }
+            TailGrammar::FileGeneration => {
+                let f = crate::generation_parser::parse_file_generation(c)?;
+                let path = qn(&f.pkg.0, &f.name.0);
+                (Element::PFileGeneration(Box::new(f)), path)
+            }
+            TailGrammar::Deephaven => crate::deephaven_parser::parse_element(c)?,
+            TailGrammar::MongoDB => {
+                let m = crate::mongodb_parser::parse_database(c)?;
+                let path = qn(&m.pkg.0, &m.name.0);
+                (Element::PMongoDatabase(Box::new(m)), path)
+            }
+            TailGrammar::DataQualityValidation => crate::data_quality_parser::parse_element(c)?,
+            TailGrammar::Elasticsearch => {
+                let e = crate::elasticsearch_parser::parse_cluster(c)?;
+                let path = qn(&e.pkg.0, &e.name.0);
+                (Element::PElasticsearch7Cluster(Box::new(e)), path)
+            }
+            TailGrammar::ExternalFormat => crate::external_format_parser::parse_element(c)?,
+            TailGrammar::ServiceStore => {
+                let s = crate::service_store_parser::parse_service_store(c)?;
+                let path = qn(&s.pkg.0, &s.name.0);
+                (Element::PServiceStoreDefinition(Box::new(s)), path)
             }
             TailGrammar::DataSpace => {
                 let d = crate::dataspace_parser::parse_data_space(c)?;
-                let path = crate::protocol::qualified_name(&d.pkg.0, &d.name.0);
-                Ok((Element::PDataSpace(Box::new(d)), path))
+                let path = qn(&d.pkg.0, &d.name.0);
+                (Element::PDataSpace(Box::new(d)), path)
             }
-            TailGrammar::Service => crate::service_parser::parse_element(c),
-            TailGrammar::NotPorted(section) => Err(not_ported(section)),
-        }
+            TailGrammar::Persistence => crate::persistence_parser::parse_element(c)?,
+            TailGrammar::Service => crate::service_parser::parse_element(c)?,
+            TailGrammar::QueryPostProcessor => {
+                let r = crate::query_post_processor_parser::parse_relational_mapper(c)?;
+                let path = qn(&r.pkg.0, &r.name.0);
+                (Element::PRelationalMapper(Box::new(r)), path)
+            }
+        })
     }
-}
-
-/// The refusal for a section whose grammar is not ported yet: no Java class, so its questions differ visibly.
-pub fn not_ported(section: &str) -> JavaError {
-    JavaError::of("not ported", Some(&format!("{section} section")))
 }
 
 /// `TextSectionGrammar.parseOne`: `Text qn { type: T; content: '...'; }`, `type` optional, each key once (refused
