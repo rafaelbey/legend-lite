@@ -317,6 +317,25 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    not a function of its text. 4b's and 4c's sets (920,289 questions), whose mutations had made sections not ported,
    are all identical too but 313 of the same exception, each a cold JVM's answer. No mutation made Rust panic.
    `bazel test //rust/lite-front/...`: all four pass; the differential in 226 s, far from the large size's 900 s.
+
+   **The reader streams** (2026-11-06). Once the model door switched, `//core:corpus_differential_test` (the 13 MB
+   stress corpus in 768 MB) died of `OutOfMemoryError` under `FrontReader.pmcd`: the shim parsed Rust's whole answer --
+   about 8 times its text's length, up to 16 -- into a `com.legend.json.Json` tree before the generated readers walked
+   it into records. The tree is gone: `FrontRead.Cursor` is a position into the answer's `String`, and the generated
+   readers (`FrontRecords`, FrontCodegen's java mode, `//core:update_front_records`) pull each record's components in
+   the order the writers write them -- canonical order, the same in both: records.rs's 394 writers against the reader's
+   1,642 components, checked key by key, and RecordCodec iterating `getRecordComponents()` -- the `"@"` tag first,
+   exactly where the slot is a sealed parent's. A key missing, out of order or extra, whitespace, or text after the
+   answer is refused, each refusal still an `IllegalArgumentException` naming its `Record.component` path. The leaves
+   read as before (strings as `Json.parse` read the codec's, lone surrogates kept; an `int` past its range still
+   `Math.toIntExact`'s `ArithmeticException`), and the depth limit is the tree's, 1 << 16 containers: a collection
+   nested 32,768 deep is read and one more refused, by both readers. The answer's text is unchanged. The corpus
+   differential passes at its 768 MB: live peak 324 MB, peak 558 MB before a collection, against 460 and 722 MB with
+   Java's parser before the switch. The reader's own cost on the oracle's four largest model answers (69, 49, 23 and
+   20 million characters, `LEGEND_LITE`; each reader in its own warm JVM, the median of passes 4-8, load average
+   3.7): 46, 27, 18 and 14 ms, allocating 84, 61, 31 and 26 MB -- the records themselves -- against the tree reader's
+   332, 237, 114 and 95 ms and 1,348, 978, 434 and 360 MB. `//core:front_reader_test` reads every Java answer back to
+   itself; the shim answers the oracle's 110,596 questions all as Java does. Guard move: `rust/RETIRED_TESTS.md`.
 5. **The engine JSON (2e)**: `ProtocolEmitter` in Rust; `parseDocument`, `parseModel` and `lambdaJson` switch, gated
    byte for byte by `CorpusSweepTest`'s 6,471 documents and `ModelReaderParityTest`.
 
