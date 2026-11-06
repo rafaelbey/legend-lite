@@ -69,7 +69,7 @@ through these doors.
 | `ProtocolEmitter` and its helpers | **move** (step 5): Rust writes the engine JSON at the two text doors, `parseDocument` and `lambdaJson`. **Stay until phase 3** (corrected 2026-11-06, step 5: not deleted with the parser), for their record-sourced callers: `PmcdParser.DocElement.json()`, `PureV1Api`'s connection export, the `*Reader` round trips and their tests (`ModelReaderParityTest` emits `ModelReader.read(json)`), `ProtocolEmitterTest`, `PureComposer`'s `parseMultArg`, `TailEmitter.PERSISTENCE_TYPES`; and the front oracle, which asks Java's emitter over Java's records (`FrontOracle.ask`), so `engine.tsv` stays Java's answer |
 | `Lexer`, `TokenStream`, `ElementParser`, `SpecParser`'s body, `MappingProtocolParser`, `DatabaseProtocolParser`, `GqlParser`, `QuotedSpecParser`, the section grammars, `TokenStreamCursor`, `IslandScan`, `EngineQuirks`, ... | move, then deleted |
 | `PreludeGenerator`'s cursor use | retargeted to the element spans Rust answers; held by regenerating the committed module byte for byte |
-| `//parser-equivalence`'s tests of parser internals (`RejectionParityTest` and its pinned `MIN_PINS`, `GenerativeDualParseTest`, `Sectionize`, `SectionParseSentinelTest`, `OwnDialectCensusTest`, `SurfaceCensusTest`, `GrammarCoverageCensusTest`, `Surfaces`, `ViewFilterParityTest`, `OffsetCompositionParityTest`) | **gates, not retirees**: re-expressed over Rust ops (section splitting, the surface census) before step 6, so `:parser_parity` keeps judging the parser it was built for |
+| `//parser-equivalence`'s tests of parser internals (`RejectionParityTest` and its pinned `MIN_PINS`, `GenerativeDualParseTest`, `Sectionize`, `SectionParseSentinelTest`, `OwnDialectCensusTest`, `SurfaceCensusTest`, `GrammarCoverageCensusTest`, `Surfaces`, `ViewFilterParityTest`, `OffsetCompositionParityTest`) | **gates, not retirees**: re-expressed over Rust ops (section splitting, the surface census) before step 6, so `:parser_parity` keeps judging the parser it was built for (done in step 6a, 2026-11-06: §4) |
 | `ide/ModelIndexer`, `ModelOrchestrator` | deleted with the lexer (§5, ruling 3), their tests ledgered |
 | the Postgres-SQL translator (`protocol/sql`, not `iq/`) | stays Java: it moves in phase 3 (§5, ruling 2) |
 
@@ -538,7 +538,9 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      surface census 57 rows, none missing; the sweep 6,755 documents matched, seam 6,746/0. No PARITY row: Rust
      answered every question as Java.
    - `bazel test //rust/... //parser-equivalence/... //core:ffi_test //core:core_tests_architecture //tools/guards/...
-     //gates/...` at `ef981f5b7`: 527 targets, 525 pass, the same 2 skipped (802 s). Ledger: `rust/RETIRED_TESTS.md`.
+     //gates/...` at `cb7c913d5` (the code of `7fde30fbe`): 527 targets, 525 pass, the same 2 skipped (547 s; 802 s
+     at `ef981f5b7`, the same counts); `cargo test` and `cargo clippy --all-targets -- -D warnings` on lite-front and
+     lite-ffi clean. Ledger: `rust/RETIRED_TESTS.md`.
      What 6b deletes and every reference to it, classified, is an inventory written for it (not committed).
 
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
