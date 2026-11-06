@@ -219,8 +219,11 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    **The shim's cost** (`//core:front_timing`, the same set, the last of 3 passes, load average 4.94): a query at lite's
    dialect p50 0.036 ms through the shim against Java's 0.001 ms (1,144 ms for the 21,838 against 50), a lambda 0.055
    against 0.002 -- about 35 µs a call, most of it a 512 MiB-stack thread spawned per call and the JSON both ways. Small
-   beside a query's compile; a model's parse (step 4's switch) is bigger, so a long-lived big-stack worker in `lite-ffi`
-   in place of a thread per call comes with that switch, measured by the same tool.
+   beside a query's compile. **The worker** (`5e5d7e118`, 2026-11-05): each calling thread now keeps one long-lived
+   big-stack worker in `lite-ffi` (made on its first call, ended with it, a panic caught there so it outlives it), the
+   dialect calls on it too. The same tool, load average 3.65: a query at lite's dialect p50 0.018 ms (752 ms for the
+   21,838), a lambda 0.033 -- half the cost; what remains is the hand-off to the worker and back and the JSON both
+   ways. The trade: what a deep call commits of a worker's stack stays committed while the worker lives.
 4. **The model parser (2d)**: `PmcdParser` and its section grammars in Rust, section by section to parity; then
    `PmcdParser.parse` **switches** (the bootstrap included), with overlays called back in Java, and the quoted
    grammar folds in Rust.
