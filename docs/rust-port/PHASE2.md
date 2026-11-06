@@ -264,6 +264,33 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    mutations that made a section not ported and one Java nondeterminism -- where Java raises an
    `ArrayIndexOutOfBoundsException` reading past the token positions (row 29), a warm JVM's HotSpot fast throw drops
    its message; Rust answers the cold JVM's message, which no oracle question reaches. No mutation made Rust panic.
+
+   **4c done 2026-11-05.** `rust/lite-front`'s `connection_parser.rs` (`###Connection`: `ConnectionSectionGrammar`
+   whole -- the element envelope and the value body a runtime's embedded island shares, every flavor, the sixteen
+   datasource specifications, the eleven auth strategies, the post-processors, the MongoDB, Elasticsearch and Deephaven
+   authentication islands and their vault secrets), `runtime_parser.rs` (`###Runtime`: Runtime and
+   SingleConnectionRuntime, and the embedded runtime body a service carries), `service_parser.rs` (`###Service`:
+   Service and ExecutionEnvironment, the executions, the legacy test block with its signed-literal fold, the keyed and
+   compact test suites, post-validations; the platform's headerless Service) and `dataspace_parser.rs`
+   (`###DataSpace`), on 4a's cursors and 4b's Data and Mapping readers (the suites' data and assertions,
+   `RelationIslands.parseStandaloneRelationAt`). Three Java pieces came with them: the re-lexed island's cursor
+   (`cursor::IslandCursor`, `SpanOrigin.islandShift` on its spans and its errors left in the island's coordinates,
+   row 33), `java.net.URI`'s verdict (`jnet.rs`, JDK 25's `URI.Parser`, the Elasticsearch `clusterDetails` check) and a
+   `HashMap`'s key order (`jtypes::hash_map_order`, which TRIAGE flagged at `ConnectionSectionGrammar`'s mapper keys:
+   only the first unknown key a mapper reports depends on it, row 34). The SPI feed (`parse(SectionSource,
+   ElementSink)`, `SliceCursor`) is the overlay host's and is not ported. The model door: 82,682 of its 87,564
+   questions identical (`rust/lite-front/PARITY.md`, rows 33-44; the floor raised from 65,486); each of the 4,882 others
+   reaches a grammar step 4d ports and answers `not ported` there (by the first such grammar: Persistence 1,302,
+   DataQualityValidation 708, ExternalFormat 646, ServiceStore 504, Diagram 447, QueryPostProcessor 243, Snowflake 204,
+   Elasticsearch 144, MongoDB 135, FileGeneration 120, HostedService 93, Deephaven 90, MemSql 69, FunctionJar 69,
+   GenerationSpecification 57, BigQuery 51). Beyond the oracle, the four grammars were held to Java by
+   `//core:front_show` on 323 texts with their unported sections removed, 171,348 mutated texts and 425 probes (969 +
+   514,044 + 1,275 questions, not committed): all identical. No mutation made Rust panic. The probes reach `PAwsDefault`,
+   step 1's one Connection record no oracle question reaches (a GCP WIF island's `awsCredentials: Default {}`, at every
+   dialect, identical). One Java answer that is not a function of its text sits here too: a service's embedded runtime island open at the stream's end is an
+   `ArrayIndexOutOfBoundsException` (row 35), whose message a warm JVM may drop as row 29's; Rust answers the cold JVM's.
+   `bazel test //rust/lite-front/...`: all four pass; the differential (`size = "large"`, fastbuild) in 201 s against
+   4a's 170 s, far from the large size's 900 s.
 5. **The engine JSON (2e)**: `ProtocolEmitter` in Rust; `parseDocument`, `parseModel` and `lambdaJson` switch, gated
    byte for byte by `CorpusSweepTest`'s 6,471 documents and `ModelReaderParityTest`.
 

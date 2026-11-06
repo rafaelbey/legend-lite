@@ -1,6 +1,6 @@
 # Front-end parity: the parser's doors (2026-11-05)
 
-`lite-front`'s expression parser (docs/rust-port/PHASE2.md §4 step 3) and its model parser so far (steps 4a and 4b),
+`lite-front`'s expression parser (docs/rust-port/PHASE2.md §4 step 3) and its model parser so far (steps 4a to 4c),
 held to core/'s `com.legend.parser.SpecParser` and `PmcdParser` on the front oracle (`//rust/oracles:front_questions`,
 Java's answers `//core:front_answers`): every question of the four doors, in the canonical form Java's
 `FrontAnswers.canonical` writes (the records in the lossless codec, or the error's class, line, column and message),
@@ -16,22 +16,22 @@ compared by SHA-256 in `tests/front_parser_differential.rs`. The lexer under the
 | | LEGEND_ENGINE | 33 | 1 | 34 | 0 |
 | `lambda` (`SpecParser.parseLambda`) | LEGEND_ENGINE | 870 | 6 | 876 | 0 |
 | `block` (`SpecParser.parseCodeBlock`) | LEGEND_PLATFORM | 5 | 0 | 5 | 0 |
-| `pmcd` (`PmcdParser.parse`) | LEGEND_ENGINE | 23,258 | 5,930 | 21,841 | 7,347 |
-| | LEGEND_LITE | 24,823 | 4,365 | 21,830 | 7,358 |
-| | LEGEND_PLATFORM | 26,373 | 2,815 | 21,815 | 7,373 |
+| `pmcd` (`PmcdParser.parse`) | LEGEND_ENGINE | 23,258 | 5,930 | 27,563 | 1,625 |
+| | LEGEND_LITE | 24,823 | 4,365 | 27,560 | 1,628 |
+| | LEGEND_PLATFORM | 26,373 | 2,815 | 27,559 | 1,629 |
 
 22,151 + 876 + 5 = 23,032 expression questions, all identical. The errors include the oracle's one
 `java.time.DateTimeException` (a time-zone shift of an impossible date, below).
 
-The model door: 65,486 of its 87,564 questions identical (the floor, `tests/pmcd-floor.txt`). Every one of the 22,078
-that differ is a text whose walk reaches a section grammar not ported yet, which Rust answers `not ported` (no Java
-class) where Java's walk would read its first element: by grammar, Connection 8,357, DataSpace 5,919, Service 2,423,
-Persistence 1,041, Runtime 899, DataQualityValidation 699, ExternalFormat 610, ServiceStore 498, Diagram 441,
-QueryPostProcessor 234, Snowflake 183, Elasticsearch 135, MongoDB 132, FileGeneration 120, HostedService 93, Deephaven
-90, FunctionJar 69, GenerationSpecification 57, MemSql 48, BigQuery 30 (a platform `###Pure` section's headerless
-Runtime, Service or connection counts as its grammar's). A text whose error Java raises before such a section is
-identical already. The questions were answered with one overlay grammar
-registered (the test jar's `ToySectionGrammar`); the differential plays the shim's part for it (`toy_splice`).
+The model door: 82,682 of its 87,564 questions identical (the floor, `tests/pmcd-floor.txt`; 65,486 after step 4b).
+Every one of the 4,882 that differ is a text whose walk reaches a section grammar not ported yet, which Rust answers
+`not ported` (no Java class) where Java's walk would read its first element: by the first such grammar, Persistence
+1,302, DataQualityValidation 708, ExternalFormat 646, ServiceStore 504, Diagram 447, QueryPostProcessor 243, Snowflake
+204, Elasticsearch 144, MongoDB 135, FileGeneration 120, HostedService 93, Deephaven 90, MemSql 69, FunctionJar 69,
+GenerationSpecification 57, BigQuery 51 -- all step 4d's (a text's Connection, Runtime, Service or DataSpace section
+before such a section now parses, so some of step 4b's counts grew). A text whose error Java raises before such a
+section is identical already. The questions were answered with one overlay grammar registered (the test jar's
+`ToySectionGrammar`); the differential plays the shim's part for it (`toy_splice`).
 
 The oracle's spec texts reach none of the GraphQL island, the quoted-tree fold, the quoted-grammar fold or a dated
 path segment. Those paths were held to Java on 949 further questions (321 texts: islands of every kind, path literals,
@@ -52,26 +52,47 @@ assertions, the documented members of row 24, quoted scope headers, a ServiceSto
 aggregate lambdas, the relational `-` and bracket edges, quoted non-ASCII column types upper-cased, both sites of row
 29): 150 questions, all identical.
 
+The Connection, Runtime, Service and DataSpace grammars (step 4c) were held to Java beyond the oracle the same way, none
+of it committed. **Derived**: the 323 distinct texts left when every section outside Pure, Mapping, Relational, Data,
+Text, Connection, Runtime, Service and DataSpace is removed from the oracle's texts that reach one (969 questions, all
+identical). **Mutated**: 171,348 texts from the 5,986 oracle and derived texts whose sections all are those (each cut
+at random offsets, a token deleted, inserted or swapped, a line doubled for the once-only rules, all after the place
+the first of this step's grammars starts): 514,044 questions, 463,926 of them errors, all identical; no mutation made
+Rust panic. **Probes**: 425 hand-written texts (1,275 questions, all identical; the crate's unit tests pin six of them)
+for what neither reaches: every
+datasource specification and auth strategy with its refusals, the MongoDB, Elasticsearch and Deephaven islands
+(AWS secrets with Default, Static and STSAssumeRole credentials, GCP WIF with an AWS IdP, ApiKey locations, EPK,
+Kerberos and PSK, each refusal inside an island), the mapper keys' hash order (thirteen keys, past a resize),
+`relationalMapper`'s line shift, local mode, a runtime's connection islands on its first line and later ones nested in
+a service's embedded runtime, legacy-test folds at every depth, compact and keyed suites with `toBytes` (a lone
+surrogate among them), post-validations, Multi executions and execution environments, every DataSpace key and
+support-info form, the platform dialect's headerless Service, Runtime and connections, and each row below.
+
 ## What is ported
 
 | Rust | Java |
 |---|---|
 | `spec_parser.rs` | `SpecParser`, `NumberLiterals`, `IslandScan`, `QuotedSpecParser` (`fold`, `foldGrammar`, `foldStringConcat`, `parseTree`), `protocol.CaretSpecials`, `TdsLiteral.of`, `AppliedFunction.tableReference`, `IqProfile.named`/`unknown` |
-| `cursor.rs` | `TokenStreamCursor` (the primitives, the identifier and type grammars, `spanOf`, the `'''` layout, documentation, `parseDecorations`, `once`, `isCleanSheetBody`, `parseFunctionDescriptor`, `validateJoinType`, `stripDoubleQuotes`), `ElementParser.at`/`parseStereotypes`/`parseTaggedValues`/`looksLikeTaggedValueBlock` |
+| `cursor.rs` | `TokenStreamCursor` (the primitives, the identifier and type grammars, `spanOf`, the `'''` layout, documentation, `parseDecorations`, `once`, `isCleanSheetBody`, `parseFunctionDescriptor`, `validateJoinType`, `stripDoubleQuotes`), `ElementParser.at`/`parseStereotypes`/`parseTaggedValues`/`looksLikeTaggedValueBlock`; the island re-lex cursors (`ConnectionSectionGrammar.Cursor`, `RuntimeSectionGrammar.SliceCursorOffset`: `IslandCursor`), `SpanOrigin.islandShift` |
 | `model_parser.rs` | `PmcdParser.parse` (the section walk, `requireCleanHeader`, `sectionSpan`, `sectionImports`, the head rules, `strictWalk`, `parseOneAt`, `registered`, `ruleGroup`) |
 | `element_parser.rs` | `ElementParser`'s `###Pure` elements: Class (properties, qualified properties, constraints, type and multiplicity parameters, type variables, projections), Enum, Profile, Association and its projection, Measure, function (its constraints and test block), `native` declarations, `Primitive`, `skipTopLevelNonElement` |
 | `mapping_parser.rs` | `MappingProtocolParser.parseData` and its embedded values (`readIsland`, `parseEmbeddedValue`, `parseRelationElements`, `parseModelEntry`, `parseExternalFormat`, `parseRelationalCsv`), `ServiceStubDataParser` |
 | `mapping_grammar.rs` | `MappingProtocolParser.parse` (`###Mapping`: `parseMapping`, `bodySection`, `parseMember` and its includes; the class mappings `parseRelationalClassMapping` (`clause`, `parseFilterMapping`, `parsePropertyLine`, `parseScopeBlock`, `parseOpInCtx`), `parsePureClassMapping`, `parseFunctionClassMapping`, `parseAggregationAware` (`parseNested`, `parseAggLambda`), `parseOperationClassMapping`, `parseRelationClassMapping` (`finishRelationClassMapping`, `relationBinding`), `parseServiceStoreClassMapping` (`parseTransformExpr`), `parseMongoDbClassMapping`; the association mappings `parseRelAssociationMapping`, `parseXStoreAssociationMapping`, `parseModelJoin`, `parseFunctionAssociationMapping`; `parseEnumerationMapping`), `ServiceLegacyMappingParser.parseTail`, `MappingOperation.byFunction`, `SetIds.of` |
 | `mapping_tests.rs` | `MappingProtocolParser`'s tests: `parseTestSuite`, `parseMappingTest`, `parseStoreTestData`, `parseTestAssertion`/`assertionValue`, `parseLegacyTest` |
 | `database_parser.rs` | `DatabaseProtocolParser` (`###Relational`: `parseDatabase`, `parseBody`, `parseSchema`, `parseTable`, `parseTabularFunction`, `parseDbType`, `parseMilestoning`, `validateMilestoningKeys`, `parseView`; the operation grammar `parseOperation`, `parseComparison`, `parseAtom`, `parseJoinNav`, `parseFunctionArgument`, `looksLikeDbPointer`, `bracketLeadsToAt`, `under`; the Mapping grammar's doors `operationAt`, `scopedOperationAt`) |
-| `sections.rs` | `SectionParse` (`head`, `stringValue`), `SectionImports.parseImport`, `TextSectionGrammar` |
+| `sections.rs` | `SectionParse` (`head`, `stringValue`, `booleanValue`, `specToSemicolon`, `lambdaToSemicolon`), `SectionImports.parseImport`, `TextSectionGrammar`, the tail grammars' table (`ElementwiseSectionGrammar.parseOne`/`qualifiedNameOf`) |
+| `connection_parser.rs` | `ConnectionSectionGrammar` (`###Connection`: `parseElement`, `parseIslandValue`, `parseValue`; the model, model-chain, relational (`parseDatasourceSpec` and its sixteen specifications, `parseAuthStrategy` and its eleven strategies, `parseMapperPostProcessors`, `parseOneMapper`), ServiceStore, Deephaven, MongoDB and Elasticsearch bodies; `islandKind`, `reLexIsland`, `authSpan`, `parseEsAuthIsland`, `parseUserPasswordBody`, `parseVaultSecret`, `parseAwsCredentials`), `SpanOrigin.overshootEnd`/`anchoredOvershoot` |
+| `runtime_parser.rs` | `RuntimeSectionGrammar` (`###Runtime`: `parseElement`, `parseBodyKeys`, `parseConnections`, `parseEmbeddedConnection`, `parseEmbeddedBody`) |
+| `service_parser.rs` | `ServiceSectionGrammar` (`###Service`: `parseElement`, `parseService`, `parsePostValidation`, `parseLegacyTest`/`parseLegacyBody`, `legacyParamValue`, `foldSignedLiterals` over `ValueSpecification.children`/`withChildren`, `byteArrayParam`, `parseTestSuites`, `parseCompactSuite`, `parseSuiteData`, `parseSuiteTests`, `parseExecution`, `parseKeyedBody`, `parseEmbeddedRuntime`, `parseQuery`, `parseExecutionEnvironment`), `MappingProtocolParser.parseEmbeddedValueAt`/`parseTestAssertionAt`/`parseDefaultAssertionAt`, `AppliedFunction.list` |
+| `dataspace_parser.rs` | `DataSpaceSectionGrammar` (`###DataSpace`: `parseElement`, `parseContexts`, `parseExecutables`, `parseDiagrams`, `parseSupportInfo`, `parseSupportFull`, `parseLink`, `parseEmail`, `parseExpertise`, `parseOperationalMetadata`, `rawToSemicolon`, `rawIsland`), `RelationIslands.parseStandaloneRelationAt` |
+| `jnet.rs` | `new java.net.URI(String)`'s verdict (JDK 25's `URI.Parser`) |
 | `protocol.rs` | `Protocol.splitFqn`, `PFunction.mangledName` / `functionPath`, `Realization.of`, `ConstraintDefinition.mentionsReturn` (over `ValueSpecification.children`) |
 | `lexer.rs` (added) | `TokenStream.slice`, `sectionContentLine`, `lexRange`'s shared line index |
 | `operator_parts.rs` | `OperatorParts`, `EngineQuirks.RELATIONAL_ARITH_MISASSOCIATION` |
 | `gql.rs` | `GqlParser` |
 | `temporal.rs` | `PureDateLiteral.parse` (with the `java.time` arithmetic of its shift), `PureTimeLiteral.parse` |
 | `escapes.rs` | `protocol.Escapes.unescapeJavaLike`, `Protocol.unquotePath` |
-| `jnum.rs`, `jtypes.rs` | `Character.digit`, `Long.parseLong`, `Integer.parseInt`, `Double.parseDouble`, `new BigDecimal(String)`, `BigDecimal.compareTo` |
+| `jnum.rs`, `jtypes.rs` | `Character.digit`, `Long.parseLong`, `Integer.parseInt`, `Double.parseDouble`, `new BigDecimal(String)`, `BigDecimal.compareTo`, `String.hashCode` and a `HashMap`'s key-set order, `Base64.getEncoder().encodeToString(s.getBytes(UTF_8))` |
 | `nodes.rs` | the records' convenience constructors (what each shorter Java constructor fills) |
 
 Java's exceptions are `Err(JavaError)`: a `ParseException` at Java's position (its line, its column in code points,
@@ -119,11 +140,29 @@ Each row is Java's answer, kept because the differential holds Java as the spec 
 | 31 | `EqualTo #{ }#`, an empty island where the assertion's key goes | `assertion key '<EOF>' is unbuilt`, unplaced (line and column 0) | `throwAt` on an empty token stream has no token to place the error at |
 | 32 | an aggregate lambda with no token, whitespace before its `,` (`~groupByFunctions( ,)`) | `java.lang.IndexOutOfBoundsException: Range [s, e) out of bounds for length n`, unplaced (`~groupByFunctions(,)` is `aggregate lambda must be ONE expression`) | `parseAggLambda` appends the source from its first token's start to the previous token's end, an inverted range when the lambda is empty |
 
+| 33 | a refusal inside a re-lexed island -- a runtime's embedded connection, a service's embedded runtime, an authentication island (`# PSK { key: 'k'; }#`) | `[1:7] unknown PSK key: key`: the line and column of the island's own text, line 1 its first; an empty island's refusal unplaced (`unsupported connection flavor: <EOF>`, `Embedded runtime must not be empty`, line and column 0) | the re-lex cursors shift spans (`SpanOrigin.islandShift`) but not errors: `error` is `throwAt` over the island's own stream |
+| 34 | a table or schema mapper with unknown keys (`table { other: 'o'; from: 'a'; bogus: 'c'; to: 'b'; }`) | `unknown table mapper key: bogus`: the first in the order Java's `HashMap` iterates the keys (by hash bucket), not the first written | `parseOneMapper` checks `kv.keySet()` of a `HashMap` after the whole body is read |
+| 35 | a service's embedded runtime island open at the stream's end (`runtime: #{`) | `java.lang.ArrayIndexOutOfBoundsException: Index N out of bounds for length N` (N the token count), unplaced -- a cold JVM's message (as row 29, a warm one may drop it) | `parseEmbeddedRuntime` reads `startLine(embStart)` before it expects the `}#` (the Runtime and Connection grammars' island scans expect it first: a `ParseException` there) |
+| 36 | a Connection, Runtime, Service or DataSpace name whose quoted segment holds `::` (`Runtime 'a::b'`) | package `a`, name `b` | these grammars split `unquotePath(qn)` at its last `::`, where `###Pure` names go through `splitFqn` (row 18) |
+| 37 | a legacy service test's parameter with a negative literal inside it (`[-99999999999999999999]`, `{x\|[-1]}`, `f(-1).p`) | the literal folded -- past a long, the `BigInteger`'s low 64 bits negated (`-7766279631452241919`) -- and each node above it rebuilt by `withChildren`: a lambda's and a property access's span dropped (`pos` null), a column spec's stereotypes and tagged values dropped, a column-spec array's span dropped. A parameter that is the literal alone (`-99999999999999999999`) is `Long.parseLong`'s `java.lang.NumberFormatException` instead | `foldSignedLiterals` negates `ci.value().longValue()` and rebuilds by identity through `ValueSpecification.withChildren`, whose shorter constructors fill those slots empty |
+| 38 | an Elasticsearch connection's `clusterDetails: # URL { ... }#` | the text kept when `new java.net.URI(text)` parses it -- RFC 2396 with Java's deviations (`http://h:99999999999/` parses, its authority taken as registry-based) -- else `URL is not valid` at the island's first content token, its column in UTF-16 units | the verdict is `java.net.URI`'s (`jnet.rs`, JDK 25's `URI.Parser`); the error is built from the token's columns, not `columnOf` |
+| 39 | `'''doc''' Service s::S { ... }` | `unsupported ###Service element: '''doc'''` | `parseService` reads no documentation; DataSpace's element does |
+| 40 | a MemSql spec's `port: '٣٣٠٦'; useSsl: ' tRuE ';` | port 3306, useSsl true | `Long.valueOf` reads any Unicode decimal digit and `Boolean.valueOf` ignores case, each over the stripped string |
+| 41 | a Deephaven or Elasticsearch connection's value span; an authentication island's span; a `relationalMapper`'s pointers | a value's end column the close's plus 4 (Deephaven's the close's own, unshifted inside an island); an auth island's end column its close's plus 3, an empty island's start its `}#`; a relational mapper's pointers moved up a line per line break between the keyword and its `{` | the engine's re-parse offsets (`SpanOrigin.overshootEnd`, `anchoredOvershoot`, the post-processor walker's keyword offset) |
+| 42 | a key twice in a connection body | `Field 'x' should be specified only once`, placed at the cursor (Static, Snowflake, Spanner, Databricks, BigQuery, EmbeddedH2, DuckDB, SQLite, ServiceStore, Deephaven, MongoDB, a mapper post-processor, the auth strategies but SnowflakePublic, TrinoDelegatedKerberos and GCPWorkloadIdentityFederation, an island's keys at the island's cursor), at the `specification` or `auth` keyword (LocalH2, Redshift, Athena, Aurora, GlobalAurora, MemSql, Oracle, Trino and its ssl block, those three), at its kind (a `GenerationFeaturesConfig`), at the first key (Elasticsearch) or at the element (the relational and model connections' own keys) | each site anchors `once` where its engine walker's ctx is |
+| 43 | a PSK island with more after its key (`# PSK { psk: 'k'; anything else }#`) | the key kept, the rest ignored | the engine's `pskAuthentication` rule has no EOF |
+| 44 | a DataSpace executable's `id: 'a' b 3;` | `'a'b3` | the id is its raw token texts glued, a quoted one with its quotes (a digit-led `2Id` lexes as two tokens) |
+
 ## What Java does that this does not reproduce
 
-The section grammars not ported yet (step 4's later parts): Connection, Runtime, Service (and the platform's headerless
-Service), the function activators (Snowflake, MemSql, BigQuery, HostedService, FunctionJar), Diagram, and every tail
-grammar but Text. Each answers `not ported` (no Java class) where the walk reaches it, so its questions differ visibly.
+The section grammars not ported yet (step 4d's): the function activators (Snowflake, MemSql, BigQuery, HostedService,
+FunctionJar), Diagram, and every tail grammar but Text, Service and DataSpace. Each answers `not ported` (no Java
+class) where the walk reaches it, so its questions differ visibly.
+
+The section grammars' SPI feed (`ElementwiseSectionGrammar.parse` and the Connection and Runtime grammars' own
+`parse(SectionSource, ElementSink)`: a `SliceCursor` over the re-lexed section, emitting protocol JSON) is the overlay
+host's, which the model door never takes: every built-in grammar is reached through the walk's `ElementParser`. Not
+ported.
 
 An overlay grammar (a `com.legend.spi.SectionGrammar` Java's `ServiceLoader` finds) is not called by Rust: the door
 answers each overlay section's text and place (`model_parser::OverlaySection`), and the shim calls the grammar and
