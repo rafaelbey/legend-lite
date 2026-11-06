@@ -203,6 +203,24 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    inside the parse, where the let-bound constants are in scope (`SpecParser:1309`, `this::constString`); the quoted
    grammar (`compileLegendGrammar`) needs a model parse, so until step 4 Rust resolves its payload text in scope and
    Java folds it with `PmcdParser`. `lambdaJson` goes through Java's `ProtocolEmitter` until step 5.
+
+   **Done 2026-11-05.** The expression parser in Rust (`spec_parser.rs`, `cursor.rs`, `operator_parts.rs`, `gql.rs`,
+   `temporal.rs`, `escapes.rs`, `jnum.rs`, `nodes.rs`; `fefb4d224`): all 23,032 questions of the three doors identical
+   to Java's -- spec 22,151, lambda 876, block 5, the 57 errors among them -- and 949 more on paths the oracle does not
+   reach, held to `//core:front_show`; twelve Java behaviours reproduced as they are (`rust/lite-front/PARITY.md`). The
+   quoted grammar did not wait for Java: Rust refused it until the model parser came (step 4a folds it). The seam: the
+   records in Rust and their writer generated (`records.rs`, `//core:front_records_rs`), the shim's reader generated
+   (`FrontRecords`, `//core:update_front_records`; lossless on every Java answer, `//core:front_reader_test`), the
+   `lite_front` export, `RustParsers` and its provider (`:door` carries it at run time). **The switch** (`f6e9d36bb`):
+   `SpecParser.parse(String, Dialect)`, `parseLambda` and `parseCodeBlock(String, Dialect)` answer from Rust; the Java
+   bodies stay as `parseInJava`, `parseLambdaInJava`, `parseCodeBlockInJava`, the oracle's, until step 6. The whole
+   suite at `f6e9d36bb` (its own worktree): every `rust/BASELINE.tsv` target at its baseline status but the one retired
+   docs diff test, the 17 new targets passing, `bazel build //...` clean. Guard moves: `rust/RETIRED_TESTS.md`.
+   **The shim's cost** (`//core:front_timing`, the same set, the last of 3 passes, load average 4.94): a query at lite's
+   dialect p50 0.036 ms through the shim against Java's 0.001 ms (1,144 ms for the 21,838 against 50), a lambda 0.055
+   against 0.002 -- about 35 µs a call, most of it a 512 MiB-stack thread spawned per call and the JSON both ways. Small
+   beside a query's compile; a model's parse (step 4's switch) is bigger, so a long-lived big-stack worker in `lite-ffi`
+   in place of a thread per call comes with that switch, measured by the same tool.
 4. **The model parser (2d)**: `PmcdParser` and its section grammars in Rust, section by section to parity; then
    `PmcdParser.parse` **switches** (the bootstrap included), with overlays called back in Java, and the quoted
    grammar folds in Rust.
