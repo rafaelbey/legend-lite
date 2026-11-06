@@ -4,7 +4,8 @@
 //! core/'s `parser.MappingProtocolParser`, the part a `###Data` element reaches (docs/rust-port/PHASE2.md §4 step 4):
 //! `parseData` and the one embedded-data value grammar (`ExternalFormat`, `Reference`, `DataspaceTestData`,
 //! `Relation`, `Relational`, `ModelStore`, `ServiceStore` and its stubs, `ServiceStubDataParser`). The `###Mapping`
-//! grammar itself is the next step's, on this same cursor ([`MappingCursor`], Java's `MappingProtocolParser`).
+//! grammar is on this same cursor ([`MappingCursor`], Java's `MappingProtocolParser`): its elements in
+//! `mapping_grammar`, its tests in `mapping_tests`.
 //!
 //! An island's content (`#{ ... }#`) is lexed again in place, in normal mode (`readIsland`, the lexer's `lex_range`),
 //! and read by a cursor of its own; its offsets and lines stay the document's.
@@ -31,12 +32,15 @@ use std::collections::HashSet;
 
 use TokenType as T;
 
-/// Java's `MappingProtocolParser` as a cursor: a token stream, a position, the dialect it serves. Its spans carry no
-/// source id.
+/// Java's `MappingProtocolParser` as a cursor: a token stream, a position, the dialect it serves, the mapping
+/// section's first content line (-1 unknown: an AggregationAware member then refuses) and the lines the current
+/// `~modelOperation` block's lambdas shift up. Its spans carry no source id.
 pub struct MappingCursor<'t, 's> {
     pub(crate) tokens: &'t TokenStream<'s>,
     pub(crate) pos: usize,
     pub(crate) dialect: Dialect,
+    pub(crate) section_start_line: i64,
+    pub(crate) agg_lambda_shift: i64,
 }
 
 impl<'s> Cursor<'s> for MappingCursor<'_, 's> {
@@ -67,12 +71,12 @@ pub struct IslandBlock<'s> {
 /// `MappingProtocolParser.parseData(ts, tokenIndex, dialect, endOut)`: one `Data` element at `token_index`, and the
 /// token where it ended.
 pub fn parse_data(ts: &TokenStream<'_>, token_index: usize, dialect: Dialect) -> R<(PDataElement, usize)> {
-    let mut p = MappingCursor { tokens: ts, pos: token_index, dialect };
+    let mut p = MappingCursor::at(ts, token_index, dialect);
     let d = p.parse_data_element()?;
     Ok((d, p.pos))
 }
 
-fn span_info(line: usize, column: usize, end_line: i32, end_column: i32) -> SourceInfo {
+pub(crate) fn span_info(line: usize, column: usize, end_line: i32, end_column: i32) -> SourceInfo {
     SourceInfo {
         source_id: JStr::default(),
         start_line: line as i32,
@@ -83,8 +87,9 @@ fn span_info(line: usize, column: usize, end_line: i32, end_column: i32) -> Sour
 }
 
 impl<'t, 's> MappingCursor<'t, 's> {
+    /// `new MappingProtocolParser(tokens, pos, dialect)`: no section start line, no lambda shift.
     pub fn at(tokens: &'t TokenStream<'s>, pos: usize, dialect: Dialect) -> MappingCursor<'t, 's> {
-        MappingCursor { tokens, pos, dialect }
+        MappingCursor { tokens, pos, dialect, section_start_line: -1, agg_lambda_shift: 0 }
     }
 
     /// `expectText(want)`: the token's text is `want`, else `expected 'want' but found '...'`.
@@ -322,7 +327,7 @@ impl<'t, 's> MappingCursor<'t, 's> {
 
     /// `parseModelEntry`: one `path: <value>` of a ModelStore island -- an embedded value, or a `[ ^X(...) ]`
     /// instance collection read as legend-engine's model-data walker reads it (its outer collection unspanned).
-    fn parse_model_entry(&mut self) -> R<PModelData> {
+    pub(crate) fn parse_model_entry(&mut self) -> R<PModelData> {
         let m_s = self.pos;
         let model = unquote_path_iae(&self.parse_qualified_name()?)?;
         self.expect(T::COLON)?;
@@ -390,7 +395,7 @@ impl<'t, 's> MappingCursor<'t, 's> {
 
     /// `parseExternalFormat`: `ExternalFormat #{ contentType: '...'; data: '...'; }#`, its span the keyword through
     /// the `}#`.
-    fn parse_external_format(&mut self) -> R<PExternalFormatData> {
+    pub(crate) fn parse_external_format(&mut self) -> R<PExternalFormatData> {
         let ef_tok = self.pos;
         self.advance()?; // ExternalFormat
         let island = self.read_island()?;
@@ -749,7 +754,7 @@ impl<'t, 's> MappingCursor<'t, 's> {
 }
 
 /// `requireUniqueModelType`: one ModelStore entry per type, a duplicate refused at its own span.
-fn require_unique_model_type(seen: &[PModelData], entry: &PModelData) -> R<()> {
+pub(crate) fn require_unique_model_type(seen: &[PModelData], entry: &PModelData) -> R<()> {
     let (model, span) = match entry {
         PModelData::PModelEmbeddedData(d) => (&d.model, &d.source_information),
         PModelData::PModelInstanceData(d) => (&d.model, &d.source_information),
@@ -772,7 +777,7 @@ fn require_unique_model_type(seen: &[PModelData], entry: &PModelData) -> R<()> {
 }
 
 /// `embeddedSpan`: the span an embedded value gives its entry -- a relation accessor's own end less the walker's 3.
-fn embedded_span(v: &PEmbeddedDataValue) -> SourceInfo {
+pub(crate) fn embedded_span(v: &PEmbeddedDataValue) -> SourceInfo {
     let s = match v {
         PEmbeddedDataValue::PExternalFormatData(e) => &e.source_information,
         PEmbeddedDataValue::PDataReference(r) => &r.source_information,

@@ -7,10 +7,11 @@
 //! index the engine appends (its spans in the engine's buffer coordinates), and the sections no grammar claims.
 //!
 //! Ported (docs/rust-port/PHASE2.md §4 step 4): the walk, the section spans and imports, the dialects' routing of an
-//! unknown section, `###Pure` (`element_parser`), `###Text` (`sections`), `###Data` (`mapping_parser`). Every other
-//! grammar answers `not ported` (no Java class) where the walk reaches its first element, one arm of
-//! [`parse_one_at`] or [`section_elements`] each: Mapping, Relational, Connection, Runtime, Service, the activator
-//! sections, Diagram, and the tail grammars but Text.
+//! unknown section, `###Pure` (`element_parser`), `###Text` (`sections`), `###Data` (`mapping_parser`),
+//! `###Relational` (`database_parser`), `###Mapping` (`mapping_grammar`, `mapping_tests`). Every other grammar answers
+//! `not ported` (no Java class) where the walk reaches its first element, one arm of [`parse_one_at`] or
+//! [`section_elements`] each: Connection, Runtime, Service, the activator sections, Diagram, and the tail grammars but
+//! Text.
 //!
 //! **Overlays.** A section only a registered overlay grammar (`com.legend.spi.SectionGrammar`, found by Java's
 //! `ServiceLoader`) can read is the shim's: Rust cannot call the grammar, so it hands back, beside the records, each
@@ -22,6 +23,7 @@
 
 use crate::cursor::{ElementCursor, R, is_identifier_token, unquote_path_iae};
 use crate::database_parser::parse_database;
+use crate::mapping_grammar::parse_mapping;
 use crate::doors::{Answer, Dialect, JavaError};
 use crate::jcat;
 use crate::jtypes::JStr;
@@ -590,19 +592,20 @@ fn section_elements(
     dialect: Dialect,
 ) -> R<Vec<DocElement>> {
     let imports_ok = IMPORT_AWARE.contains(&name);
-    let walk = |rule: HeadRule<'_>, heads: Option<&mut Vec<TokenType>>| {
-        strict_walk(ts, r, rule, imports_ok, heads, name, dialect)
+    // the aggLambdaShift anchor: the header's line + 1 (the engine sub-parses content from the header's newline)
+    let header_line = ts.line_of(header_start.max(0) as usize) as i64 + 1;
+    let walk = |rule: HeadRule<'_>, heads: Option<&mut Vec<TokenType>>, line: i64| {
+        strict_walk(ts, r, rule, imports_ok, line, heads, name, dialect)
     };
     if !dialect.refuses_platform_dialect() && PLATFORM_OPEN_SECTIONS.contains(&name) {
-        return walk(HeadRule::Platform, None);
+        return walk(HeadRule::Platform, None, if name == "Mapping" { header_line } else { -1 });
     }
-    let _ = header_start; // the Mapping grammar's anchor line: the Mapping step's
     match name {
-        "Pure" => walk(HeadRule::Domain, None),
+        "Pure" => walk(HeadRule::Domain, None, -1),
         "Runtime" => {
             // the engine's runtime walker collects every `Runtime` first, then every `SingleConnectionRuntime`
             let mut heads = Vec::new();
-            let parsed = walk(HeadRule::Runtime, Some(&mut heads))?;
+            let parsed = walk(HeadRule::Runtime, Some(&mut heads), -1)?;
             let (mut first, mut rest) = (Vec::new(), Vec::new());
             for (e, h) in parsed.into_iter().zip(heads) {
                 if h == T::RUNTIME { first.push(e) } else { rest.push(e) }
@@ -610,14 +613,14 @@ fn section_elements(
             first.extend(rest);
             Ok(first)
         }
-        "Connection" => walk(HeadRule::Connection, None),
-        "Relational" => walk(HeadRule::Relational, None),
-        "Mapping" => walk(HeadRule::Mapping, None),
-        "Data" => walk(HeadRule::Data, None),
+        "Connection" => walk(HeadRule::Connection, None, -1),
+        "Relational" => walk(HeadRule::Relational, None, -1),
+        "Mapping" => walk(HeadRule::Mapping, None, header_line),
+        "Data" => walk(HeadRule::Data, None, -1),
         "Diagram" => Err(not_ported("Diagram")),
         _ => {
             if let Some(kinds) = activator_kinds(name) {
-                return walk(HeadRule::Activator(kinds), None);
+                return walk(HeadRule::Activator(kinds), None, -1);
             }
             if TailGrammar::of(name).is_none() {
                 return Err(JavaError::parse(
@@ -626,7 +629,7 @@ fn section_elements(
                     1,
                 ));
             }
-            Ok(rule_group(name, walk(HeadRule::Tail, None)?))
+            Ok(rule_group(name, walk(HeadRule::Tail, None, -1)?))
         }
     }
 }
@@ -656,12 +659,14 @@ fn orphan(ts: &TokenStream<'_>, cursor: usize) -> JavaError {
 
 /// `PmcdParser.strictWalk`: a section's range read in order -- its leading imports (import-aware sections only, each
 /// exactly `import pkg(::pkg)*::*;`), then one element after another, each consuming its own extent; anything else
-/// refused.
+/// refused. `mapping_section_line` is a mapping's anchor line (-1 outside a `###Mapping` section).
+#[allow(clippy::too_many_arguments)]
 fn strict_walk(
     ts: &TokenStream<'_>,
     r: (isize, isize),
     rule: HeadRule<'_>,
     imports_allowed: bool,
+    mapping_section_line: i64,
     mut heads_out: Option<&mut Vec<TokenType>>,
     section: &str,
     dialect: Dialect,
@@ -718,7 +723,7 @@ fn strict_walk(
         if let Some(h) = heads_out.as_deref_mut() {
             h.push(ts.ty(head));
         }
-        let (de, end) = parse_one_at(ts, cursor, kind, section, dialect)?;
+        let (de, end) = parse_one_at(ts, cursor, kind, mapping_section_line, section, dialect)?;
         if let Some(de) = de {
             out.push(de);
         }
@@ -733,6 +738,7 @@ fn parse_one_at(
     ts: &TokenStream<'_>,
     site: usize,
     kind: i32,
+    mapping_section_line: i64,
     section: &str,
     dialect: Dialect,
 ) -> R<(Option<DocElement>, usize)> {
@@ -794,7 +800,17 @@ fn parse_one_at(
             let path = qualified_name(&db.pkg.0, &db.name.0);
             return Ok((Some(DocElement { path: Some(JStr(path)), element: Element::PDatabase(Box::new(db)) }), end));
         }
-        9 => return Err(not_ported("Mapping")),
+        9 => {
+            // a headerless mapping (the platform dialect) anchors to its enclosing ###Mapping header, if any
+            let line = if mapping_section_line >= 0 {
+                mapping_section_line
+            } else {
+                ts.section_content_line("Mapping", ts.start(site))
+            };
+            let (m, end) = parse_mapping(ts, site, line, dialect)?;
+            let path = qualified_name(&m.pkg.0, &m.name.0);
+            return Ok((Some(DocElement { path: Some(JStr(path)), element: Element::PMapping(Box::new(m)) }), end));
+        }
         10 => {
             let (d, end) = parse_data(ts, site, dialect)?;
             let path = qualified_name(&d.pkg.0, &d.name.0);
@@ -847,10 +863,10 @@ mod tests {
 
     #[test]
     fn a_grammar_not_ported_refuses_where_the_walk_reaches_it() {
-        let refused = parse(&u("Class A {}\n###Mapping\nMapping m ()\n"), Dialect::LegendLite).unwrap_err();
+        let refused = parse(&u("Class A {}\n###Runtime\nRuntime r {}\n"), Dialect::LegendLite).unwrap_err();
         assert_eq!(refused.class, "not ported");
-        let earlier = parse(&u("Class A {\n###Mapping\nMapping m ()\n"), Dialect::LegendLite).unwrap_err();
+        let earlier = parse(&u("Class A {\n###Runtime\nRuntime r {}\n"), Dialect::LegendLite).unwrap_err();
         assert!(earlier.is_parse_exception(), "Java's error before the section is Java's");
-        assert!(parse(&u("###Mapping\n"), Dialect::LegendLite).is_ok(), "an empty section parses");
+        assert!(parse(&u("###Runtime\n"), Dialect::LegendLite).is_ok(), "an empty section parses");
     }
 }

@@ -5,7 +5,8 @@
 //! over a text's UTF-16 units as Java indexes a `String`. Step 2: the lexer, held to Java's every token stream; step 3:
 //! the expression parser (`spec_parser`, over the shared cursor `cursor`), held to Java's every answer; step 4a: the
 //! model parser's walk (`model_parser`) and its `###Pure` (`element_parser`), `###Text` (`sections`) and `###Data`
-//! (`mapping_parser`) grammars, held to Java's every answer that stays in them.
+//! (`mapping_parser`) grammars; step 4b: `###Relational` (`database_parser`) and `###Mapping` (`mapping_grammar`,
+//! `mapping_tests`) -- each held to Java's every answer that stays in them.
 
 pub mod codec;
 pub mod cursor;
@@ -17,7 +18,9 @@ pub mod gql;
 pub mod jnum;
 pub mod jtypes;
 pub mod lexer;
+pub mod mapping_grammar;
 pub mod mapping_parser;
+pub mod mapping_tests;
 pub mod model_parser;
 pub mod nodes;
 pub mod operator_parts;
