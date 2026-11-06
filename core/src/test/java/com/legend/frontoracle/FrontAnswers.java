@@ -173,7 +173,10 @@ public final class FrontAnswers {
      * {@code knownSections}), which the tests ask since -- over every text of a question set, each pair of answers
      * compared: every text's section headers; at every dialect a model text is asked at, the strict element sites (a
      * count, or the first error's class and message) and the Database sites (each one's name and JSON, or the first
-     * error); and the known sections against the registry's built-in half. Prints the counts and the first
+     * error); at the engine's dialect, what {@code ParserEquivalence} reads (every element's JSON, in order) and what
+     * {@code LegendLiteSectionParser} reads (each {@code ###Pure} section's code alone: its imports, each element's
+     * path and JSON) -- the Java parser's own section walk, {@code PmcdParser.parseSections}, against the model
+     * door's records; and the known sections against the registry's built-in half. Prints the counts and the first
      * mismatches; {@code bazel run //core:front_shim -- --probes QUESTIONS} fails on any. Retires with the Java parser.
      */
     static final class Probes {
@@ -211,6 +214,19 @@ public final class FrontAnswers {
                                 answer(() -> "A " + rust.elementSites(text, dialect)), count, differ);
                         compare("databaseSites " + dialect.name(), at, javaDatabaseSites(text, dialect),
                                 answer(() -> databases(rust.databaseSites(text, dialect))), count, differ);
+                        if (dialect == Dialect.LEGEND_ENGINE) {
+                            // ParserEquivalence's elements (their JSON, in order), the Java parser's section walk
+                            // against the model door's records they are read from since
+                            compare("sections: elements' JSON", at, javaSections(text, false),
+                                    answer(() -> doorSections(text, false)), count, differ);
+                            // LegendLiteSectionParser's: each ###Pure section's code alone, as the engine hands it
+                            // over, read for its imports and each element's path and JSON
+                            for (String code : pureSectionCodes(text)) {
+                                compare("sections: a ###Pure section's imports, paths and JSON", at,
+                                        javaSections(code, true), answer(() -> doorSections(code, true)), count,
+                                        differ);
+                            }
+                        }
                     }
                 }
             }
@@ -236,14 +252,23 @@ public final class FrontAnswers {
             // what Java answered: an error, or how many headers, sites or Databases
             count.accept(probe + (java.startsWith("E ") ? " | Java errors" : " | Java answers"), same);
             if (!java.startsWith("E ")) {
+                // (a sections answer with paths has its imports first)
                 int n = probe.startsWith("elementSites") ? Integer.parseInt(java.substring(2))
-                        : (int) java.chars().filter(ch -> ch == '\n').count();
+                        : (int) java.chars().filter(ch -> ch == '\n').count() - (probe.contains("imports") ? 1 : 0);
                 for (int i = 0; i < n; i++) {
                     count.accept(probe + " | sites in Java's answers", same);
                 }
             }
             if (!same) {
-                differ.add(probe + " " + at + ": Java " + head(java) + " | Rust " + head(rust));
+                // the first line the two answers differ at
+                String[] j = java.split("\n", -1);
+                String[] r = rust.split("\n", -1);
+                int k = 0;
+                while (k < j.length && k < r.length && j[k].equals(r[k])) {
+                    k++;
+                }
+                differ.add(probe + " " + at + " line " + k + ": Java " + head(k < j.length ? j[k] : "(none)")
+                        + " | Rust " + head(k < r.length ? r[k] : "(none)"));
             }
         }
 
@@ -326,6 +351,68 @@ public final class FrontAnswers {
                 }
                 return b.toString();
             });
+        }
+
+        /** {@code PmcdParser.parseSections}, the Java parser's walk at the engine's dialect, as ParserEquivalence and
+         *  LegendLiteSectionParser read it: each element's JSON, in order; with {@code paths}, the sections' imports
+         *  first and each element's path before its JSON. */
+        private static String javaSections(String text, boolean paths) {
+            return answer(() -> {
+                StringBuilder imports = new StringBuilder("A");
+                StringBuilder elements = new StringBuilder();
+                if (paths) {
+                    imports.append("\nimports");
+                }
+                for (com.legend.parser.PmcdParser.DocSection s : com.legend.parser.PmcdParser.parseSections(text)) {
+                    s.imports().forEach(i -> imports.append(' ').append(i));
+                    for (com.legend.parser.PmcdParser.DocElement e : s.elements()) {
+                        elements.append('\n').append(paths ? e.path() + "\t" : "").append(e.json());
+                    }
+                }
+                return (paths ? imports : new StringBuilder("A")).append(elements).toString();
+            });
+        }
+
+        /** The same read off the model door's records ({@code PmcdParser.parseModel}), as the two read them since: each
+         *  element but the section index; the index's imports, in section order; a path, {@code Protocol.pathOf}. */
+        private static String doorSections(String text, boolean paths) {
+            StringBuilder imports = new StringBuilder("A");
+            StringBuilder elements = new StringBuilder();
+            if (paths) {
+                imports.append("\nimports");
+            }
+            for (com.legend.protocol.Protocol.Element e : com.legend.parser.PmcdParser.parseModel(text).elements()) {
+                if (e instanceof com.legend.protocol.Protocol.PSectionIndex index) {
+                    for (com.legend.protocol.Protocol.PSection s : index.sections()) {
+                        s.imports().forEach(i -> imports.append(' ').append(i));
+                    }
+                } else {
+                    elements.append('\n').append(paths ? com.legend.protocol.Protocol.pathOf(e) + "\t" : "")
+                            .append(com.legend.protocol.ProtocolEmitter.emitElement(e));
+                }
+            }
+            return (paths ? imports : new StringBuilder("A")).append(elements).toString();
+        }
+
+        /** Each {@code ###Pure} section's code alone -- the leading headerless one included -- as the engine's walker
+         *  hands a section to the parser LegendLiteSectionParser stands in for: from its content's start to the next
+         *  header's {@code ###}. */
+        private static List<String> pureSectionCodes(String text) {
+            List<String> codes = new java.util.ArrayList<>();
+            String name = "Pure";
+            int start = 0;
+            for (com.legend.lexer.TokenStream.SectionHeader h
+                    : com.legend.lexer.Lexer.tokenize(text).sectionHeaders()) {
+                if (name.equals("Pure")) {
+                    codes.add(text.substring(start, Math.max(start, h.nameOffset() - 3)));
+                }
+                name = h.name();
+                start = h.contentStartOffset();
+            }
+            if (name.equals("Pure")) {
+                codes.add(text.substring(Math.min(start, text.length())));
+            }
+            return codes;
         }
 
         private static String databases(List<RustParsers.DatabaseSite> sites) {

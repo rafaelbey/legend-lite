@@ -12,8 +12,9 @@ import java.util.List;
 /**
  * The ELEMENT-LEVEL diagnostic of the equivalence harness — POSITIONAL
  * byte comparison of the referee's element list against the elements of
- * legend-lite's production document parser ({@code PmcdParser
- * .parseSections}, the same code {@code parseDocument} runs).
+ * legend-lite's production document parser (the model door's records at
+ * the engine's dialect, {@code PmcdParser.parseModel}, each emitted as
+ * the engine's element JSON: the parse {@code parseDocument} runs).
  *
  * <p>DEMOTED from a gate to a diagnostic (HARNESS_SIMPLIFICATION_PLAN
  * Phase 3): the document byte gate implies element byte equality — the
@@ -73,10 +74,13 @@ public final class ParserEquivalence {
         }
         List<String> ours = new ArrayList<>();
         try {
-            for (com.legend.parser.PmcdParser.DocSection sec
-                    : com.legend.parser.PmcdParser.parseSections(src.text())) {
-                for (com.legend.parser.PmcdParser.DocElement el : sec.elements()) {
-                    ours.add(el.json());
+            // lite's elements in document order -- the records, less the section index the engine appends -- since
+            // 2026-11-06 the model door's (the Rust parser's: docs/rust-port/PHASE2.md §4 step 6a), where they were
+            // the Java parser's own section walk, which goes with it
+            for (com.legend.protocol.Protocol.Element e
+                    : com.legend.parser.PmcdParser.parseModel(src.text()).elements()) {
+                if (!(e instanceof com.legend.protocol.Protocol.PSectionIndex)) {
+                    ours.add(com.legend.protocol.ProtocolEmitter.emitElement(e));
                 }
             }
         } catch (Throwable t) {

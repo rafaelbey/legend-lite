@@ -60,7 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * equal documents imply byte-equal elements — proven empirically at the
  * Phase-2 demotion (joint property zero over the full corpus, commit
  * 89c5907d) and structurally since the ledger feeds from the same
- * {@code parseSections} the document serialises.
+ * records (the model door's, {@code PmcdParser.parseModel}) the document serialises.
  *
  * <p>Row-level attribution does NOT live here: the allowlist TSVs are
  * the system of record and only shrink; this sweep merely enforces them.

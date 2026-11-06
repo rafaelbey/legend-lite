@@ -59,31 +59,45 @@ final class LegendLiteSectionParser {
 
         // ONE lite path (HARNESS_SIMPLIFICATION_PLAN 5a + Phase-1 doctrine):
         // the bridge derives imports AND elements from the PRODUCTION
-        // document parser — the same parseSections that parseDocument
-        // serializes. The old bridge-local site scanner re-implemented
-        // element discovery (and needed a hand-rolled native-declaration
-        // throw because its scanner would SKIP natives silently); the
-        // production parse consumes tokens sequentially, so the strict
-        // surface's own 'Unsupported syntax' refusal fires naturally.
-        List<com.legend.parser.PmcdParser.DocSection> sections =
-                com.legend.parser.PmcdParser.parseSections(section.code);
-        for (com.legend.parser.PmcdParser.DocSection sec : sections) {
-            out.imports.addAll(sec.imports());
-            for (com.legend.parser.PmcdParser.DocElement el : sec.elements()) {
-                try {
-                    JsonNode tree = MAPPER.readTree(el.json());
-                    // 5b DEFERRED BY DECISION: the offset seam stays at the
-                    // JSON boundary until the lexer grows native offsets —
-                    // the formula is bytecode-verified; only its placement
-                    // is impure
-                    shiftSpans(tree, sourceId, lineOffset);
-                    elementConsumer.accept(
-                            MAPPER.treeToValue(tree, PackageableElement.class));
-                    out.elements.add(el.path());
-                } catch (Exception e) {
-                    throw new RuntimeException(
-                            "SPI bridge failed on " + el.path(), e);
+        // document parser — the records parseDocument serializes (the model
+        // door at the engine's dialect, the Rust parser's since 2026-11-06,
+        // docs/rust-port/PHASE2.md §4 step 6a, where they were the Java
+        // parser's own section walk): each section's imports, in section
+        // order, from the section index; each element in order, under its
+        // path (a function's mangled one), duplicates kept. The old
+        // bridge-local site scanner re-implemented element discovery (and
+        // needed a hand-rolled native-declaration throw because its scanner
+        // would SKIP natives silently); the production parse consumes tokens
+        // sequentially, so the strict surface's own 'Unsupported syntax'
+        // refusal fires naturally.
+        List<com.legend.protocol.Protocol.Element> elements =
+                com.legend.parser.PmcdParser.parseModel(section.code).elements();
+        for (com.legend.protocol.Protocol.Element el : elements) {
+            if (el instanceof com.legend.protocol.Protocol.PSectionIndex index) {
+                for (com.legend.protocol.Protocol.PSection sec : index.sections()) {
+                    out.imports.addAll(sec.imports());
                 }
+            }
+        }
+        for (com.legend.protocol.Protocol.Element el : elements) {
+            if (el instanceof com.legend.protocol.Protocol.PSectionIndex) {
+                continue;
+            }
+            String path = com.legend.protocol.Protocol.pathOf(el);
+            try {
+                JsonNode tree = MAPPER.readTree(
+                        com.legend.protocol.ProtocolEmitter.emitElement(el));
+                // 5b DEFERRED BY DECISION: the offset seam stays at the
+                // JSON boundary until the lexer grows native offsets —
+                // the formula is bytecode-verified; only its placement
+                // is impure
+                shiftSpans(tree, sourceId, lineOffset);
+                elementConsumer.accept(
+                        MAPPER.treeToValue(tree, PackageableElement.class));
+                out.elements.add(path);
+            } catch (Exception e) {
+                throw new RuntimeException(
+                        "SPI bridge failed on " + path, e);
             }
         }
         return out;
