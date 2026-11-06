@@ -291,6 +291,32 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    `ArrayIndexOutOfBoundsException` (row 35), whose message a warm JVM may drop as row 29's; Rust answers the cold JVM's.
    `bazel test //rust/lite-front/...`: all four pass; the differential (`size = "large"`, fastbuild) in 201 s against
    4a's 170 s, far from the large size's 900 s.
+
+   **4d done 2026-11-06.** The last section grammars in `rust/lite-front`: the function activators
+   (`activator_parser.rs`: `FunctionActivatorSectionGrammar` for ###Snowflake, ###MemSql, ###BigQuery, ###HostedService
+   and ###FunctionJar -- their deployment configurations, dropped or listed with a null path as the walk has them, and
+   HostedService's ExecutionEnvironment through the Service grammar), ###Diagram (`diagram_parser.rs`: the raw section
+   the lexer skips, walked by characters in UTF-16 columns, its imports the raw grammar's) and the tail grammars
+   (`generation_parser.rs`: GenerationSpecification and FileGeneration; `deephaven_parser.rs`, its app the activator
+   grammar's; `mongodb_parser.rs`, the jsonSchema island walked into Java's JSON values and read back by Java's casts;
+   `data_quality_parser.rs`; `elasticsearch_parser.rs`; `external_format_parser.rs`; `service_store_parser.rs`;
+   `persistence_parser.rs`, the generic node tree sorted by key as its record sorts it, islands re-lexed with their
+   offsets composed, the walker's cardinality tables and wire spans; `query_post_processor_parser.rs`). `not_ported`
+   and `TailGrammar::NotPorted` are gone: every section the walk reaches has its grammar. Two JDK readers came along,
+   each as JDK 25 words it: `Double.parseDouble` (`jnum`, `FloatingDecimal.readJavaFormatString` ported step by step:
+   `multiple points`, the hexadecimal form) and `String.substring`'s refusal (`ustr`, `Range [b, e) out of bounds for
+   length n`, where the crate had JDK 17's wording; no earlier answer had reached it). The model door: all 87,564 of
+   its questions identical (`rust/lite-front/PARITY.md`, rows 45-62; the floor raised from 82,682); the expression
+   doors' 23,032 still all identical -- the oracle's 110,596 questions all answered as Java answers them. Beyond the
+   oracle, the new grammars were held to Java by `//core:front_show` on 1,569 derived texts (each 4d section, and each
+   of its elements, alone), 93,997 texts mutated after a 4d section's header, 110,595 mutated anywhere from 4,000 model
+   texts sampled across every grammar, and 462 probes aimed by an `llvm-cov` line census (4,707 + 281,991 + 331,785 +
+   1,386 questions, not committed): all identical but 66 questions whose answer is an `ArrayIndexOutOfBoundsException`
+   (a persistence island open at the stream's end, row 55, and row 29's legacy test), which the bulk run's warm JVM
+   answered with no message and a cold JVM answers with Rust's message byte for byte -- Java's one answer here that is
+   not a function of its text. 4b's and 4c's sets (920,289 questions), whose mutations had made sections not ported,
+   are all identical too but 313 of the same exception, each a cold JVM's answer. No mutation made Rust panic.
+   `bazel test //rust/lite-front/...`: all four pass; the differential in 226 s, far from the large size's 900 s.
 5. **The engine JSON (2e)**: `ProtocolEmitter` in Rust; `parseDocument`, `parseModel` and `lambdaJson` switch, gated
    byte for byte by `CorpusSweepTest`'s 6,471 documents and `ModelReaderParityTest`.
 

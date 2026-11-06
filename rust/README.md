@@ -16,6 +16,9 @@ names. Change both together.
 - `lite-sql/`: the SQL tree (the MIR) and its JSON, `MirJson`, held to every statement of `oracles/mir/`.
 - `lite-dialect/`: the SQL dialects -- the shared renderer as a trait, the writer, the pass pipeline, DuckDB -- held to
   Java's answers by the differential over `oracles/mir/` (`PARITY.md` measures where it stands).
+- `lite-front/`: the front end -- the lexer, the expression parser and the model parser with every section grammar
+  (core/'s `com.legend.lexer` and `com.legend.parser`), over a text's UTF-16 units, held to Java's every answer by the
+  differentials over `oracles/front/` (`PARITY.md` measures where it stands).
 
 - `BASELINE.tsv`: every test target of `bazel test //...` on the pristine tree (upstream `main` at `cf73e6ef7`,
   2026-11-02, macOS arm64): 508 passed, 2 skipped as incompatible with the platform. A phase lands only when every
