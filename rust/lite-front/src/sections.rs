@@ -68,6 +68,34 @@ pub fn string_value<'s>(c: &mut impl Cursor<'s>) -> R<Vec<u16>> {
     c.unquote_and_unescape(quoted)
 }
 
+/// `SectionParse.rawStringToken`: a STRING's raw text, its quotes included.
+pub fn raw_string_token<'s>(c: &mut impl Cursor<'s>) -> R<Vec<u16>> {
+    let raw = c.slack_text().to_vec();
+    c.expect(T::STRING)?;
+    Ok(raw)
+}
+
+/// `SectionParse.lowerFirst`: the first unit lowered (`Character.toLowerCase(kind.charAt(0))`). Its callers' kinds are
+/// identifier tokens, whose first unit is ASCII (a letter, a digit, `_`, or a quoted name's `'`), where Java's case
+/// mapping is ASCII's.
+pub fn lower_first(kind: &[u16]) -> Vec<u16> {
+    let mut out = kind.to_vec();
+    if let Some(first) = out.first_mut()
+        && (u16::from(b'A')..=u16::from(b'Z')).contains(first)
+    {
+        *first += 32;
+    }
+    out
+}
+
+/// `LinkedHashMap.put`: a new key appended, a known one's value replaced in its first place.
+pub fn linked_put<K: PartialEq, V>(entries: &mut Vec<(K, V)>, key: K, value: V) {
+    match entries.iter_mut().find(|(k, _)| *k == key) {
+        Some(slot) => slot.1 = value,
+        None => entries.push((key, value)),
+    }
+}
+
 /// `SectionParse.booleanValue`: `true` or `false`.
 pub fn boolean_value<'s>(c: &mut impl Cursor<'s>) -> R<bool> {
     if c.peek() == T::TRUE {
