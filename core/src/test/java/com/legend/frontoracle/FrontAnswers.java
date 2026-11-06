@@ -23,6 +23,10 @@ import java.util.List;
  * string hashed as its UTF-16 units (little-endian), so a lone surrogate in an error's message hashes as itself.
  *
  * <pre>a java_run: FrontAnswers QUESTIONS_JSONL OUT_TSV  (door, dialect, sha, the form's sha, A or E)</pre>
+ *
+ * <p>With {@code --shim} first ({@code //core:front_shim}), the same questions asked through the shim's doors
+ * ({@link FrontOracle#askShim}: Rust's answers, read back into records, the model door's overlays called and spliced in
+ * Java), hashed in the same form: the shim end to end, compared line by line with Java's file.
  */
 public final class FrontAnswers {
 
@@ -30,14 +34,38 @@ public final class FrontAnswers {
     }
 
     public static void main(String[] args) throws Exception {
+        if (args.length == 3 && args[0].equals("--shim")) {
+            // the shim's reader and the codec recurse through deep records: the whole pass on one deep-stack thread,
+            // which keeps one worker of the shim's for every call
+            Exception[] failed = new Exception[1];
+            Thread t = new Thread(null, () -> {
+                try {
+                    answerAll(Path.of(args[1]), Path.of(args[2]), true);
+                } catch (Exception e) {
+                    failed[0] = e;
+                }
+            }, "front-shim", 1L << 30);
+            t.start();
+            t.join();
+            if (failed[0] != null) {
+                throw failed[0];
+            }
+            return;
+        }
         if (args.length > 2) {
             show(Path.of(args[0]), Path.of(args[1]), List.of(args).subList(2, args.length));
             return;
         }
+        answerAll(Path.of(args[0]), Path.of(args[1]), false);
+    }
+
+    /** Every question of {@code questions} answered -- by Java's doors, or with {@code shim} the shim's -- and its
+     *  answer's form hashed, a line of {@code answers} each. */
+    private static void answerAll(Path questions, Path answers, boolean shim) throws Exception {
         MessageDigest md = MessageDigest.getInstance("SHA-256");
         RecordCodec codec = new RecordCodec();
-        try (BufferedReader in = Files.newBufferedReader(Path.of(args[0]), StandardCharsets.UTF_8);
-                BufferedWriter out = Files.newBufferedWriter(Path.of(args[1]), StandardCharsets.UTF_8)) {
+        try (BufferedReader in = Files.newBufferedReader(questions, StandardCharsets.UTF_8);
+                BufferedWriter out = Files.newBufferedWriter(answers, StandardCharsets.UTF_8)) {
             for (String line = in.readLine(); line != null; line = in.readLine()) {
                 Json.Obj o = (Json.Obj) Json.parse(line);
                 String sha = ((Json.Str) o.get("sha")).value();
@@ -46,8 +74,9 @@ public final class FrontAnswers {
                     List<Json.Node> pair = ((Json.Arr) a).items();
                     String door = ((Json.Str) pair.get(0)).value();
                     Dialect dialect = Dialect.valueOf(((Json.Str) pair.get(1)).value());
-                    FrontOracle.Answer answer = FrontOracle.onBigStack(
-                            () -> FrontOracle.ask(new FrontOracle.Question(door, dialect, text), codec));
+                    FrontOracle.Question q = new FrontOracle.Question(door, dialect, text);
+                    FrontOracle.Answer answer = shim ? FrontOracle.askShim(q, codec)
+                            : FrontOracle.onBigStack(() -> FrontOracle.ask(q, codec));
                     String form = canonical(answer);
                     String hash = HexFormat.of().formatHex(md.digest(form.getBytes(StandardCharsets.UTF_16LE)));
                     out.append(door).append('\t').append(dialect.name()).append('\t').append(sha).append('\t')

@@ -26,6 +26,36 @@ public interface RustParsers {
     /** {@link SpecParser#parseCodeBlock(String, Dialect)}'s answer. */
     List<ValueSpecification> block(String text, Dialect dialect);
 
+    /**
+     * {@link PmcdParser#parse(String, Dialect)}'s answer before its overlay grammars are called (docs/rust-port/
+     * PHASE2.md, "The model door's overlays"): Rust's records, or the error to raise, and each overlay section the walk
+     * met, whose grammar {@link PmcdParser} calls and whose elements it splices -- Rust never makes an opaque element.
+     */
+    ModelAnswer model(String text, Dialect dialect, List<Overlay> overlays);
+
+    /** An overlay grammar the registry holds (its ServiceLoader half): its section's name and its {@code lexable()}. */
+    record Overlay(String name, boolean lexable) {
+    }
+
+    /**
+     * An overlay section the model door's walk met: its grammar's text {@code text[startOffset, endOffset)} and the
+     * line it starts on; its elements go before the records' {@code model.elements[elementIndex]} (splicing the
+     * sections last-first keeps each index right), their paths, each once, into the section index's
+     * {@code sections[sectionIndex]}, which Rust leaves empty.
+     */
+    record OverlaySection(String name, int startOffset, int endOffset, int startLine, int elementIndex,
+            int sectionIndex) {
+    }
+
+    /**
+     * The model door's answer: the records, or the error the parser raises (not thrown: an overlay grammar called
+     * first may throw its own), and the overlay sections the walk met -- all of them with the records, those before
+     * the error with it.
+     */
+    record ModelAnswer(PmcdParser.@com.legend.base.Nullable Parsed parsed,
+            @com.legend.base.Nullable RuntimeException raised, List<OverlaySection> overlays) {
+    }
+
     /** The provider, found once. */
     static RustParsers provider() {
         return Found.PROVIDER;

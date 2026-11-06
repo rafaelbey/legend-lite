@@ -35,6 +35,38 @@ public final class RustParserProvider implements RustParsers {
         return FrontReader.block(call("block", dialect, text));
     }
 
+    @Override
+    public ModelAnswer model(String text, Dialect dialect, List<Overlay> overlays) {
+        StringBuilder grammars = new StringBuilder("[");
+        for (Overlay o : overlays) {
+            if (grammars.length() > 1) {
+                grammars.append(',');
+            }
+            grammars.append('[').append(jsonString(o.name())).append(',').append(o.lexable()).append(']');
+        }
+        String answer = Lite.shared().frontModel(dialect.name(), grammars.append(']').toString(), jsonString(text));
+        // A\n<sections>\n<records> or E\n<sections>\n<error>: the sections' JSON is one line
+        int lineEnd = answer.indexOf('\n', 2);
+        if (!(answer.startsWith("A\n") || answer.startsWith("E\n")) || lineEnd < 0) {
+            throw new IllegalStateException("lite_front_model answered neither A nor E: "
+                    + answer.substring(0, Math.min(80, answer.length())));
+        }
+        List<OverlaySection> sections = new java.util.ArrayList<>();
+        for (Json.Node s : ((Json.Arr) Json.parse(answer.substring(2, lineEnd))).items()) {
+            List<Json.Node> f = ((Json.Arr) s).items();
+            sections.add(new OverlaySection(((Json.Str) f.get(0)).value(), integer(f.get(1)), integer(f.get(2)),
+                    integer(f.get(3)), integer(f.get(4)), integer(f.get(5))));
+        }
+        String rest = answer.substring(lineEnd + 1);
+        return answer.charAt(0) == 'A'
+                ? new ModelAnswer(FrontReader.pmcd(rest), null, List.copyOf(sections))
+                : new ModelAnswer(null, raised((Json.Obj) Json.parse(rest)), List.copyOf(sections));
+    }
+
+    private static int integer(Json.Node n) {
+        return Math.toIntExact(((Json.Num) n).longValue());
+    }
+
     /** One door's answer: the records' codec JSON, or the error thrown. */
     private static String call(String door, Dialect dialect, String text) {
         String answer = Lite.shared().front(door, dialect.name(), jsonString(text));

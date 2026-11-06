@@ -13,6 +13,7 @@ import com.legend.protocol.SourceInfo;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -192,6 +193,59 @@ public final class PmcdParser {
         }
         elements.add(new Protocol.PSectionIndex("__internal__", "SectionIndex", pSections));
         return new Parsed(new Protocol.PureModelContextData(elements), List.copyOf(unclaimed));
+    }
+
+    /**
+     * {@link #parse} answered by the Rust library (docs/rust-port/PHASE2.md, step 4; {@link #parse} itself until the
+     * switch): Rust's records, each overlay grammar called here on the section Rust names, in section order, and its
+     * elements spliced where Java's walk puts them -- through {@link OverlayElementSink}, the one producer of an opaque
+     * element. An overlay grammar's exception wins over the parser's own error, as in Java's walk, which calls it first.
+     */
+    public static Parsed parseInRust(String source, Dialect dialect) {
+        RustParsers.ModelAnswer answer = RustParsers.provider().model(
+                Objects.requireNonNull(source, "source"), dialect, SectionGrammarRegistry.overlays());
+        List<List<Protocol.Element>> called = new ArrayList<>();
+        for (RustParsers.OverlaySection o : answer.overlays()) {
+            com.legend.spi.SectionGrammar g = SectionGrammarRegistry.lookup(o.name()).orElseThrow(
+                    () -> new IllegalStateException("the Rust parser met an overlay section '" + o.name()
+                            + "' no grammar is registered for"));
+            List<Protocol.Element> opaque = new ArrayList<>();
+            g.parse(new com.legend.spi.SectionSource(o.name(), source.substring(o.startOffset(), o.endOffset()),
+                    o.startOffset(), o.endOffset(), o.startLine()), new OverlayElementSink(o.name(), opaque));
+            called.add(opaque);
+        }
+        RuntimeException raised = answer.raised();
+        if (raised != null) {
+            throw raised;
+        }
+        Parsed parsed = Objects.requireNonNull(answer.parsed(), "the Rust model door answered neither records nor"
+                + " an error");
+        if (called.isEmpty()) {
+            return parsed;
+        }
+        List<Protocol.Element> elements = new ArrayList<>(parsed.model().elements());
+        // the section index is the answer's last element; every overlay's elements go before it
+        Protocol.PSectionIndex index = (Protocol.PSectionIndex) elements.remove(elements.size() - 1);
+        List<Protocol.PSection> sections = new ArrayList<>(index.sections());
+        // last-first, so each section's element index is still the one Rust gave
+        for (int k = called.size() - 1; k >= 0; k--) {
+            RustParsers.OverlaySection o = answer.overlays().get(k);
+            List<Protocol.Element> opaque = called.get(k);
+            Protocol.PSection s = sections.get(o.sectionIndex());
+            List<@com.legend.base.Nullable String> paths = new ArrayList<>(s.elements());
+            for (Protocol.Element e : opaque) {
+                String path = Protocol.pathOf(e);
+                if (!paths.contains(path)) {
+                    paths.add(path);
+                }
+            }
+            sections.set(o.sectionIndex(), new Protocol.PSection(s.importAware(), s.parserName(), paths, s.imports(),
+                    s.sourceInformation()));
+            elements.addAll(o.elementIndex(), opaque);
+        }
+        elements.add(new Protocol.PSectionIndex(index.pkg(), index.name(), sections));
+        return new Parsed(new Protocol.PureModelContextData(elements, parsed.model().serializer(),
+                parsed.model().origin()), parsed.unclaimed());
     }
 
     /** The ordered section list with parsed elements — the assembly

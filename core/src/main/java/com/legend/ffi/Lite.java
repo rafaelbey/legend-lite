@@ -50,6 +50,7 @@ public final class Lite {
 
     private final MethodHandle dialect;
     private final MethodHandle front;
+    private final MethodHandle frontModel;
     private final MethodHandle version;
     private final MethodHandle echo;
     private final MethodHandle probeRefusal;
@@ -60,6 +61,7 @@ public final class Lite {
     private Lite(SymbolLookup library) {
         dialect = downcall(library, "lite_dialect", TERNARY);
         front = downcall(library, "lite_front", TERNARY);
+        frontModel = downcall(library, "lite_front_model", TERNARY);
         version = downcall(library, "lite_version", NULLARY);
         echo = downcall(library, "lite_echo", UNARY);
         probeRefusal = downcall(library, "lite_probe_refusal", REFUSAL_PROBE);
@@ -179,6 +181,21 @@ public final class Lite {
             MemorySegment n = utf8(arena, dialectName);
             MemorySegment t = utf8(arena, textJson);
             return answer(take(guarded(() -> (MemorySegment) front.invokeExact(d, n, t))));
+        }
+    }
+
+    /**
+     * The model door answered by the Rust library ({@code lite_front_model}; docs/rust-port/PHASE2.md, "The model
+     * door's overlays"): the dialect's Java name, the registered overlay grammars as JSON ({@code [["Toy",false]]}),
+     * and the text as a JSON string literal; the answer, {@code A\n<sections>\n<records>} or
+     * {@code E\n<sections>\n<the error>}, or a refusal thrown as a {@link LiteRefusal}.
+     */
+    public String frontModel(String dialectName, String overlaysJson, String textJson) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment n = utf8(arena, dialectName);
+            MemorySegment o = utf8(arena, overlaysJson);
+            MemorySegment t = utf8(arena, textJson);
+            return answer(take(guarded(() -> (MemorySegment) frontModel.invokeExact(n, o, t))));
         }
     }
 

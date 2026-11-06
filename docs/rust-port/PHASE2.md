@@ -238,6 +238,17 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    Service, Connection, Persistence, ... -- each one arm of `parse_one_at` or `section_elements`) and answer
    `not ported` there. The differential test is `size = "large"`: the model door parses and hashes in about 170 s
    unoptimized.
+
+   **The shim's model door** (2026-11-05, ready, not switched). `lite_front_model(dialect, overlays, text)` in
+   `lite-ffi` takes the registered overlays as `[["Toy",false],...]` (`SectionGrammarRegistry.overlays()`, the
+   ServiceLoader half in registration order). It answers `A\n<sections>\n<records>` or `E\n<sections>\n<error>`, each
+   section `[name, start, end, line, element, section]`. `RustParsers.model` and its provider read that answer.
+   `PmcdParser.parseInRust` calls each overlay grammar in section order, lets one's exception win over the parser's
+   error, and splices last-first through `OverlayElementSink`. At the switch it becomes `parse`. `//core:front_shim`
+   (`FrontAnswers --shim`) asks the oracle's every question through the shim and hashes the answers as
+   `//core:front_answers` does. Run with 4b's Relational in progress, it gave 77,033 of 110,596 identical: every one
+   of the three expression doors' 23,032 (step 3's switch, checked from the Java side) and 54,001 at the model door.
+   Those include the toy-overlay text at all three dialects, spliced at lite's and the platform's.
 5. **The engine JSON (2e)**: `ProtocolEmitter` in Rust; `parseDocument`, `parseModel` and `lambdaJson` switch, gated
    byte for byte by `CorpusSweepTest`'s 6,471 documents and `ModelReaderParityTest`.
 6. **The deletion (2f)**: `//parser-equivalence`'s internal-using tests re-expressed over Rust ops (§2), then the Java

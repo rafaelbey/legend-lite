@@ -45,6 +45,10 @@ public final class SectionGrammarRegistry {
         }
     }
 
+    /** The ServiceLoader's grammars, loaded once, in order: before {@link #REGISTRY}, whose {@link #build} reads them. */
+    private static final java.util.List<com.legend.spi.SectionGrammar> LOADED = java.util.ServiceLoader
+            .load(com.legend.spi.SectionGrammar.class).stream().map(java.util.ServiceLoader.Provider::get).toList();
+
     private static final Map<String, com.legend.spi.SectionGrammar> REGISTRY =
             build();
 
@@ -111,11 +115,21 @@ public final class SectionGrammarRegistry {
         // ServiceLoader overlays — registered LAST so an extension claiming
         // a built-in name WINS (the engine's own shadowing rule: that is
         // exactly what lets legend-lite drop into the engine's ###Pure)
-        for (com.legend.spi.SectionGrammar g : java.util.ServiceLoader
-                .load(com.legend.spi.SectionGrammar.class)) {
+        for (com.legend.spi.SectionGrammar g : LOADED) {
             m.put(g.name(), g);
         }
         return m;
+    }
+
+    /** The overlay grammars the ServiceLoader registered, in order (a later one of the same name wins): what the Rust
+     *  model door is told is registered beside its own grammars (docs/rust-port/PHASE2.md, "The model door's
+     *  overlays"). */
+    public static java.util.List<RustParsers.Overlay> overlays() {
+        java.util.List<RustParsers.Overlay> out = new java.util.ArrayList<>();
+        for (com.legend.spi.SectionGrammar g : LOADED) {
+            out.add(new RustParsers.Overlay(g.name(), g.lexable()));
+        }
+        return java.util.List.copyOf(out);
     }
 
     /** The grammar registered for {@code sectionName}, if any. */

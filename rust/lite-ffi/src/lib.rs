@@ -224,6 +224,92 @@ pub unsafe extern "C" fn lite_front(door: *const c_char, dialect: *const c_char,
     })
 }
 
+/// The model door (`PmcdParser.parse`; docs/rust-port/PHASE2.md, "The model door's overlays"): `dialect` the Java
+/// name of the parse's level; `overlays` the shim's registered overlay grammars, in registration order, as JSON
+/// (`[["Toy",false],...]`: each one's section name and `lexable()`); `text` the text as a JSON string literal.
+/// Answers `OK\nA\n<sections>\n<records>` or `OK\nE\n<sections>\n<error>`: the overlay sections the walk met, in
+/// section order, each `[name, start, end, line, element, section]` (`lite_front::model_parser::OverlaySection`: the
+/// grammar's text `text[start, end)` and the line it starts on, then where its elements go -- before the records'
+/// `model.elements[element]`, their paths into the section index's `sections[section]`); then the records in the
+/// codec's form, or the error as [`lite_front`] writes it, which an overlay grammar's own exception pre-empts. On the
+/// calling thread's worker, as [`lite_front`].
+///
+/// # Safety
+/// `dialect`, `overlays` and `text` are null or NUL-terminated strings the caller keeps alive for the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn lite_front_model(
+    dialect: *const c_char,
+    overlays: *const c_char,
+    text: *const c_char,
+) -> *mut c_char {
+    respond(|| {
+        let read = || -> Result<(&str, &str, &str), Refusal> {
+            Ok((unsafe { self::text(dialect, "dialect") }?, unsafe { self::text(overlays, "overlays") }?, unsafe {
+                self::text(text, "text")
+            }?))
+        };
+        let (dialect, overlays, text) = match read() {
+            Ok(texts) => texts,
+            Err(r) => return Answer::Err(r),
+        };
+        let Some(dialect) = lite_front::doors::Dialect::from_java(dialect) else {
+            return Answer::Err(Refusal::invalid_argument(format!("no dialect {dialect}")));
+        };
+        let grammars = match overlay_grammars(overlays) {
+            Some(grammars) => grammars,
+            None => return Answer::Err(Refusal::invalid_argument("the overlays are not a JSON array of [name, lexable]")),
+        };
+        let units = match lite_front::wire::parse(text, 1) {
+            Ok(lite_front::wire::Json::Str(units)) => units,
+            _ => return Answer::Err(Refusal::invalid_argument("the text is not one JSON string")),
+        };
+        match on_big_stack(move || model_answer(dialect, &grammars, &units)) {
+            Ok(answer) => Answer::Ok(answer),
+            Err(panic) => Answer::Err(Refusal::new("INTERNAL", panic)),
+        }
+    })
+}
+
+/// `[["Toy",false],...]` as the overlay grammars' names and `lexable()`s.
+fn overlay_grammars(json: &str) -> Option<Vec<(Vec<u16>, bool)>> {
+    let parsed = lite_front::wire::parse(json, 3).ok()?;
+    parsed
+        .as_array()?
+        .iter()
+        .map(|g| match g.as_array()? {
+            [name, lite_front::wire::Json::Bool(lexable)] => Some((name.as_units()?.to_vec(), *lexable)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The model door's answer as [`lite_front_model`] folds it: `A\n<sections>\n<records>` or `E\n<sections>\n<error>`.
+fn model_answer(dialect: lite_front::doors::Dialect, grammars: &[(Vec<u16>, bool)], text: &[u16]) -> String {
+    use lite_front::codec;
+    let overlays: Vec<lite_front::model_parser::OverlayGrammar<'_>> = grammars
+        .iter()
+        .map(|(name, lexable)| lite_front::model_parser::OverlayGrammar { name, lexable: *lexable })
+        .collect();
+    let answer = lite_front::doors::pmcd(text, dialect, &overlays);
+    let mut w = codec::Writer::new();
+    w.raw("[");
+    for (i, o) in answer.overlays.iter().enumerate() {
+        if i > 0 {
+            w.raw(",");
+        }
+        w.raw("[");
+        w.string(&lite_front::jtypes::JStr(o.name.clone()));
+        w.raw(&format!(",{},{},{},{},{}]", o.start_offset, o.end_offset, o.start_line, o.element_index, o.section_index));
+    }
+    w.raw("]");
+    let sections = w.finish();
+    match answer.parsed {
+        // the door's declared PmcdParser.Parsed fixes the class: no tag
+        Ok(parsed) => format!("A\n{sections}\n{}", codec::write(&parsed, true)),
+        Err(e) => format!("E\n{sections}\n{}", front_error(&e)),
+    }
+}
+
 /// A door's answer as `lite_front` folds it: `A\n<records>` or `E\n<error>`.
 fn front_answer(door: &str, dialect: lite_front::doors::Dialect, text: &[u16]) -> Result<String, Refusal> {
     use lite_front::codec::{self, Codec};
@@ -552,6 +638,28 @@ mod tests {
         assert_eq!(on_big_stack(|| std::thread::current().id()), Ok(here), "the next call reuses it");
         let elsewhere = std::thread::spawn(|| on_big_stack(|| std::thread::current().id()).unwrap()).join().unwrap();
         assert_ne!(elsewhere, here, "another calling thread has a worker of its own");
+    }
+
+    #[test]
+    fn the_model_door_hands_back_its_overlay_sections() {
+        let _serial = serial();
+        let source = "Class my::A { a: String[1]; }\n\n###Toy\nToy my::toys::T1;\n";
+        let (start, end) = (source.find("Toy my").unwrap(), source.len());
+        let text = format!("\"{}\"", source.replace('\n', "\\n"));
+        let model = |dialect: &str, overlays: &str| {
+            take(unsafe { lite_front_model(c(dialect).as_ptr(), c(overlays).as_ptr(), c(&text).as_ptr()) })
+        };
+        let lite = model("LEGEND_LITE", r#"[["Toy",false]]"#);
+        let mut lines = lite.splitn(4, '\n');
+        assert_eq!((lines.next(), lines.next()), (Some("OK"), Some("A")));
+        // the class's records, then the section index; the toy grammar's elements go before element 1
+        assert_eq!(lines.next(), Some(format!("[[\"Toy\",{start},{end},4,1,1]]").as_str()));
+        assert!(lines.next().unwrap().starts_with('{'), "the records follow");
+        // the engine's dialect knows no overlay: the walk refuses the section, having met no overlay before it
+        let engine = model("LEGEND_ENGINE", "[]");
+        assert!(engine.starts_with("OK\nE\n[]\n{"), "{engine}");
+        assert!(engine.contains("is not a known section parser"), "{engine}");
+        assert!(model("LEGEND_LITE", r#"[["Toy"]]"#).starts_with("ERR\n"));
     }
 
     #[test]

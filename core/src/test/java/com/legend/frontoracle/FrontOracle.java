@@ -239,6 +239,40 @@ public final class FrontOracle {
         return new Answer(codec.write(value, declared), engine, engineError, null);
     }
 
+    /**
+     * {@code q} asked through the shim's doors (Rust's answer read back into records; the model door's overlay grammars
+     * called and spliced in Java, {@link PmcdParser#parseInRust}), as {@link #ask} asks Java's: the records and the
+     * error only (the engine JSON is step 5's). On the caller's thread: the parse runs on the shim's worker.
+     */
+    static Answer askShim(Question q, RecordCodec codec) {
+        Object value;
+        Type declared;
+        try {
+            switch (q.door()) {
+                case "pmcd" -> {
+                    value = PmcdParser.parseInRust(q.text(), q.dialect());
+                    declared = PmcdParser.Parsed.class;
+                }
+                case "spec" -> {
+                    value = SpecParser.parse(q.text(), q.dialect());
+                    declared = ValueSpecification.class;
+                }
+                case "lambda" -> {
+                    value = SpecParser.parseLambda(q.text());
+                    declared = LambdaFunction.class;
+                }
+                case "block" -> {
+                    value = SpecParser.parseCodeBlock(q.text(), q.dialect());
+                    declared = List.class;
+                }
+                default -> throw new IllegalArgumentException("no door " + q.door());
+            }
+        } catch (RuntimeException e) {
+            return new Answer(null, null, null, e);
+        }
+        return new Answer(codec.write(value, declared), null, null, null);
+    }
+
     /** A parse on a thread with a deep stack (TRIAGE A3): the deepest nesting is not this harness's limit. */
     static Answer onBigStack(java.util.function.Supplier<Answer> work) throws InterruptedException {
         Answer[] result = new Answer[1];

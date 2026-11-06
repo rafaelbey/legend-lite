@@ -1795,6 +1795,23 @@ legend_java_binary(
     ],
 )
 
+# The shim end to end (phase 2, step 4): the front oracle's every question asked through the shim's doors (Rust's
+# answers read back into records, the model door's overlays called and spliced in Java), hashed as //core:front_answers
+# hashes Java's -- the two files compared line by line show which questions the shim answers as Java does.
+#   bazel run //core:front_shim -- --shim $PWD/bazel-bin/rust/oracles/front/questions.jsonl OUT_TSV
+legend_java_binary(
+    name = "front_shim",
+    testonly = True,
+    jvm_flags = ["-Duser.timezone=GMT"],
+    main_class = "com.legend.frontoracle.FrontAnswers",
+    tags = ["manual"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":rust_parser",
+        ":toy_grammar",
+    ],
+)
+
 # The shim's reader is lossless (phase 2, step 3): every Java answer to the front oracle's questions, written in the
 # codec, read back by the generated reader (FrontReader) and written again, is the same text.
 junit_test(
