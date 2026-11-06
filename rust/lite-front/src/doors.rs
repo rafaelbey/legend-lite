@@ -140,6 +140,12 @@ pub fn block(text: &[u16], dialect: Dialect) -> Answer<Vec<ValueSpecification>> 
     spec_parser::parse_code_block(text, dialect)
 }
 
+/// `PmcdParser.parse(text, dialect)`: a model text's records -- every element in section order, the section index,
+/// the unclaimed sections.
+pub fn pmcd(text: &[u16], dialect: Dialect) -> Answer<crate::records::PmcdParserParsed> {
+    crate::model_parser::parse(text, dialect)
+}
+
 /// An answer in the canonical form Java's `FrontAnswers.canonical` writes: `A` and the codec's JSON (the door's
 /// declared type deciding the tags: a `ValueSpecification` or a list's element is tagged, a `LambdaFunction` is not);
 /// or `E`, the class, the line and column (empty but for a `ParseException`), the message (`null` without one), tab
@@ -160,6 +166,8 @@ pub fn answer_form(door: &str, dialect: Dialect, text: &[u16]) -> Vec<u16> {
             w.raw("]");
             w.finish()
         }),
+        // the door's declared PmcdParser.Parsed fixes the class: no tag
+        "pmcd" => pmcd(text, dialect).map(|v| codec::write(&v, true)),
         _ => Err(JavaError::of("door not ported", Some(door))),
     });
     let mut out: Vec<u16> = Vec::new();

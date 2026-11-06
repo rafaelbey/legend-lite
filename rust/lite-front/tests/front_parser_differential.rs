@@ -110,3 +110,9 @@ fn lambda() {
 fn block() {
     differential("block");
 }
+
+#[test]
+#[ignore = "reads the front oracle and Java's answers named by LITE_FRONT_QUESTIONS and LITE_FRONT_ANSWERS"]
+fn pmcd() {
+    differential("pmcd");
+}

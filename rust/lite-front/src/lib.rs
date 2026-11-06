@@ -13,6 +13,7 @@ pub mod gql;
 pub mod jnum;
 pub mod jtypes;
 pub mod lexer;
+pub mod model_parser;
 pub mod nodes;
 pub mod operator_parts;
 pub mod records;

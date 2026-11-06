@@ -62,6 +62,7 @@ rust_test(
     data = [
         "tests/block-floor.txt",
         "tests/lambda-floor.txt",
+        "tests/pmcd-floor.txt",
         "tests/spec-floor.txt",
         "//core:front_answers",
         "//rust/oracles:front_questions",
@@ -72,6 +73,7 @@ rust_test(
         "LITE_FRONT_FLOORS": " ".join([
             "$(rootpath tests/block-floor.txt)",
             "$(rootpath tests/lambda-floor.txt)",
+            "$(rootpath tests/pmcd-floor.txt)",
             "$(rootpath tests/spec-floor.txt)",
         ]),
         "LITE_FRONT_QUESTIONS": "$(rootpath //rust/oracles:front_questions)",

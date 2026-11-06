@@ -96,12 +96,19 @@ pub const DIALECT_STACK_BYTES: usize = 256 << 20;
 /// `body` on a thread of its own with [`DIALECT_STACK_BYTES`] of stack, joined before this returns: its answer, or the
 /// message of its panic (or of the thread's failure to start).
 fn on_dialect_thread<T: Send>(body: impl FnOnce() -> T + Send) -> Result<T, String> {
+    on_big_stack("lite-dialect", DIALECT_STACK_BYTES, body)
+}
+
+/// `body` on a thread of its own named `name` with `bytes` of stack (reserved, not committed), joined before this
+/// returns: its answer, or the message of its panic (or of the thread's failure to start). A stack overflow is no
+/// panic -- it aborts the host -- so a call's stack is sized for its deepest input.
+fn on_big_stack<T: Send>(name: &str, bytes: usize, body: impl FnOnce() -> T + Send) -> Result<T, String> {
     std::thread::scope(|scope| {
         let thread = std::thread::Builder::new()
-            .name("lite-dialect".to_owned())
-            .stack_size(DIALECT_STACK_BYTES)
+            .name(name.to_owned())
+            .stack_size(bytes)
             .spawn_scoped(scope, body)
-            .map_err(|e| format!("the dialect's thread did not start: {e}"))?;
+            .map_err(|e| format!("the {name} thread did not start: {e}"))?;
         // joined here, so the scope has no unjoined panic to rethrow
         thread.join().map_err(|payload| panic_message(payload.as_ref()))
     })
@@ -143,7 +150,7 @@ pub unsafe extern "C" fn lite_dialect(spec: *const c_char, op: *const c_char, ar
 /// `\uXXXX` escape, so a lone one survives the UTF-8 C string). Answers `OK\nA\n<records>` -- the lossless codec's
 /// JSON of the door's records -- or `OK\nE\n<error>`, the error Java's parser raises as JSON (`class`, `message`, and
 /// a `ParseException`'s `line` and `column`, its message without the `[line:col] ` prefix its constructor writes):
-/// the parser's own answer either way; `ERR` is the call's failure. On the big-stack thread, as a dialect call is.
+/// the parser's own answer either way; `ERR` is the call's failure. On a thread of the parser's own stack size.
 ///
 /// # Safety
 /// `door`, `dialect` and `text` are null or NUL-terminated strings the caller keeps alive for the call.
@@ -166,7 +173,9 @@ pub unsafe extern "C" fn lite_front(door: *const c_char, dialect: *const c_char,
             Ok(lite_front::wire::Json::Str(units)) => units,
             _ => return Answer::Err(Refusal::invalid_argument("the text is not one JSON string")),
         };
-        match on_dialect_thread(|| front_answer(door, dialect, &units)) {
+        // the parser's own stack (lite_front::doors::PARSE_STACK), the one its differential parses on: the deepest
+        // question it holds to Java parses there
+        match on_big_stack("lite-front", lite_front::doors::PARSE_STACK, || front_answer(door, dialect, &units)) {
             Ok(Ok(answer)) => Answer::Ok(answer),
             Ok(Err(r)) => Answer::Err(r),
             Err(panic) => Answer::Err(Refusal::new("INTERNAL", panic)),
