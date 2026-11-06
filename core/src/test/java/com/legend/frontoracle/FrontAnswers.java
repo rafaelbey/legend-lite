@@ -6,6 +6,7 @@ package com.legend.frontoracle;
 import com.legend.json.Json;
 import com.legend.parser.Dialect;
 import com.legend.parser.ParseException;
+import com.legend.parser.RustParsers;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.nio.charset.StandardCharsets;
@@ -32,6 +33,10 @@ import java.util.List;
  * doors' answers for a question set ({@code --engine QUESTIONS OUT}, Java's; {@code --engine --shim QUESTIONS OUT},
  * the switched doors'), so {@code //core:front_show} and {@code //core:front_shim} answer any set, not only the
  * oracle's. The debug mode writes a question's engine forms too, when it is asked at an engine door.
+ *
+ * <p>With {@code --probes QUESTIONS} (step 6a, {@code //core:front_shim}), the parity harness's probes asked both ways
+ * ({@link Probes}): what //parser-equivalence's gate tests asked of the Java parser's internals, against what they ask
+ * the Rust parser since.
  */
 public final class FrontAnswers {
 
@@ -58,6 +63,27 @@ public final class FrontAnswers {
             t.join();
             if (failed[0] != null) {
                 throw failed[0];
+            }
+            return;
+        }
+        if (args.length == 2 && args[0].equals("--probes")) {
+            // Java's parser recurses through deep texts: the whole pass on one deep-stack thread, as --shim's
+            int[] differ = new int[1];
+            Exception[] failed = new Exception[1];
+            Thread t = new Thread(null, () -> {
+                try {
+                    differ[0] = Probes.compare(Path.of(args[1]));
+                } catch (Exception e) {
+                    failed[0] = e;
+                }
+            }, "front-probes", 1L << 30);
+            t.start();
+            t.join();
+            if (failed[0] != null) {
+                throw failed[0];
+            }
+            if (differ[0] > 0) {
+                throw new IllegalStateException(differ[0] + " probe answers differ between the Java and Rust parsers");
             }
             return;
         }
@@ -137,6 +163,177 @@ public final class FrontAnswers {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * THE PARITY HARNESS'S PROBES, BOTH WAYS (docs/rust-port/PHASE2.md §4 step 6a): what //parser-equivalence's gate
+     * tests asked of the Java lexer's and parser's internals -- asked of them as the tests did, and of the Rust
+     * library's probes ({@link RustParsers}' {@code sectionHeaders}, {@code elementSites}, {@code databaseSites},
+     * {@code knownSections}), which the tests ask since -- over every text of a question set, each pair of answers
+     * compared: every text's section headers; at every dialect a model text is asked at, the strict element sites (a
+     * count, or the first error's class and message) and the Database sites (each one's name and JSON, or the first
+     * error); and the known sections against the registry's built-in half. Prints the counts and the first
+     * mismatches; {@code bazel run //core:front_shim -- --probes QUESTIONS} fails on any. Retires with the Java parser.
+     */
+    static final class Probes {
+
+        private static final int SHOWN = 20;
+
+        private Probes() {
+        }
+
+        /** The comparison over {@code questions}: how many answers differ. */
+        static int compare(Path questions) throws java.io.IOException {
+            RustParsers rust = RustParsers.provider();
+            java.util.Map<String, int[]> counts = new java.util.TreeMap<>();
+            List<String> differ = new java.util.ArrayList<>();
+            java.util.function.BiConsumer<String, Boolean> count = (probe, same) -> {
+                int[] c = counts.computeIfAbsent(probe, k -> new int[3]);
+                c[0]++;
+                c[same ? 1 : 2]++;
+            };
+            try (BufferedReader in = Files.newBufferedReader(questions, StandardCharsets.UTF_8)) {
+                for (String line = in.readLine(); line != null; line = in.readLine()) {
+                    Json.Obj o = (Json.Obj) Json.parse(line);
+                    String sha = ((Json.Str) o.get("sha")).value();
+                    String text = ((Json.Str) o.get("text")).value();
+                    compare("sectionHeaders", sha, javaHeaders(text), answer(() -> headers(rust.sectionHeaders(text))),
+                            count, differ);
+                    for (Json.Node a : ((Json.Arr) o.get("asks")).items()) {
+                        List<Json.Node> pair = ((Json.Arr) a).items();
+                        if (!((Json.Str) pair.get(0)).value().equals("pmcd")) {
+                            continue;
+                        }
+                        Dialect dialect = Dialect.valueOf(((Json.Str) pair.get(1)).value());
+                        String at = sha + " " + dialect.name();
+                        compare("elementSites " + dialect.name(), at, javaElementSites(text, dialect),
+                                answer(() -> "A " + rust.elementSites(text, dialect)), count, differ);
+                        compare("databaseSites " + dialect.name(), at, javaDatabaseSites(text, dialect),
+                                answer(() -> databases(rust.databaseSites(text, dialect))), count, differ);
+                    }
+                }
+            }
+            java.util.Set<String> builtIn = new java.util.TreeSet<>(
+                    com.legend.parser.SectionGrammarRegistry.all().keySet());
+            for (RustParsers.Overlay overlay : com.legend.parser.SectionGrammarRegistry.overlays()) {
+                builtIn.remove(overlay.name());
+            }
+            compare("knownSections", "-", String.join(",", builtIn),
+                    String.join(",", new java.util.TreeSet<>(rust.knownSections())), count, differ);
+            for (var e : counts.entrySet()) {
+                System.out.printf(java.util.Locale.ROOT, "[front-probes] %s: %d asked, %d identical, %d differ%n",
+                        e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2]);
+            }
+            differ.stream().limit(SHOWN).forEach(d -> System.out.println("[front-probes]   " + d));
+            return differ.size();
+        }
+
+        private static void compare(String probe, String at, String java, String rust,
+                java.util.function.BiConsumer<String, Boolean> count, List<String> differ) {
+            boolean same = java.equals(rust);
+            count.accept(probe, same);
+            // what Java answered: an error, or how many headers, sites or Databases
+            count.accept(probe + (java.startsWith("E ") ? " | Java errors" : " | Java answers"), same);
+            if (!java.startsWith("E ")) {
+                int n = probe.startsWith("elementSites") ? Integer.parseInt(java.substring(2))
+                        : (int) java.chars().filter(ch -> ch == '\n').count();
+                for (int i = 0; i < n; i++) {
+                    count.accept(probe + " | sites in Java's answers", same);
+                }
+            }
+            if (!same) {
+                differ.add(probe + " " + at + ": Java " + head(java) + " | Rust " + head(rust));
+            }
+        }
+
+        private static String head(String s) {
+            String one = s.replace('\n', '|');
+            return one.length() > 200 ? one.substring(0, 200) + "..." : one;
+        }
+
+        /** An answer, or the error it threw as {@code E <class> <message>}. */
+        private static String answer(java.util.function.Supplier<String> probe) {
+            try {
+                return probe.get();
+            } catch (Throwable t) {
+                return "E " + t.getClass().getName() + " " + t.getMessage();
+            }
+        }
+
+        /** {@code Sectionize.plan}'s: the Java lexer's headers. */
+        private static String javaHeaders(String text) {
+            return answer(() -> {
+                StringBuilder b = new StringBuilder("A");
+                for (com.legend.lexer.TokenStream.SectionHeader h
+                        : com.legend.lexer.Lexer.tokenize(text).sectionHeaders()) {
+                    b.append('\n').append(h.name()).append('@').append(h.contentStartOffset());
+                }
+                return b.toString();
+            });
+        }
+
+        private static String headers(List<RustParsers.SectionHeader> headers) {
+            StringBuilder b = new StringBuilder("A");
+            for (RustParsers.SectionHeader h : headers) {
+                b.append('\n').append(h.name()).append('@').append(h.contentStartOffset());
+            }
+            return b.toString();
+        }
+
+        /** {@code RejectionParityTest.parseLegendEngine}'s second half, as it was: Java's element-at path. */
+        private static String javaElementSites(String text, Dialect dialect) {
+            return answer(() -> {
+                var ts = com.legend.lexer.Lexer.tokenize(text);
+                int parsed = 0;
+                for (com.legend.lexer.TokenType marker : new com.legend.lexer.TokenType[]{
+                        com.legend.lexer.TokenType.CLASS, com.legend.lexer.TokenType.ENUM,
+                        com.legend.lexer.TokenType.PROFILE, com.legend.lexer.TokenType.ASSOCIATION,
+                        com.legend.lexer.TokenType.FUNCTION}) {
+                    for (int i : com.legend.parser.ElementParser.topLevelIndexes(ts, marker)) {
+                        var p = com.legend.parser.ElementParser.at(ts, i, dialect);
+                        switch (marker) {
+                            case CLASS -> p.parseClassDefinition(false);
+                            case ENUM -> p.parseEnumDefinition();
+                            case PROFILE -> p.parseProfileDefinition();
+                            case ASSOCIATION -> p.parseAssociationDefinition();
+                            default -> p.parseFunctionProtocol();
+                        }
+                        parsed++;
+                    }
+                }
+                return "A " + parsed;
+            });
+        }
+
+        /** {@code ViewFilterParityTest}'s site scan, as it was: Java's lexer, Database parser and emitter. */
+        private static String javaDatabaseSites(String text, Dialect dialect) {
+            return answer(() -> {
+                var ts = com.legend.lexer.Lexer.tokenize(text);
+                StringBuilder b = new StringBuilder("A");
+                for (int i = 0; i < ts.count(); i++) {
+                    if (ts.type(i) != com.legend.lexer.TokenType.DATABASE) {
+                        continue;
+                    }
+                    if (i > 0 && ts.type(i - 1) != com.legend.lexer.TokenType.PAREN_CLOSE
+                            && ts.type(i - 1) != com.legend.lexer.TokenType.BRACE_CLOSE
+                            && ts.type(i - 1) != com.legend.lexer.TokenType.SEMI_COLON) {
+                        continue;
+                    }
+                    var db = com.legend.parser.DatabaseProtocolParser.parse(ts, i, dialect);
+                    b.append('\n').append(db.qualifiedName()).append('\t')
+                            .append(com.legend.protocol.ProtocolEmitter.emitElement(db));
+                }
+                return b.toString();
+            });
+        }
+
+        private static String databases(List<RustParsers.DatabaseSite> sites) {
+            StringBuilder b = new StringBuilder("A");
+            for (RustParsers.DatabaseSite s : sites) {
+                b.append('\n').append(s.qualifiedName()).append('\t').append(s.json());
+            }
+            return b.toString();
         }
     }
 

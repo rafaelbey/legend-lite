@@ -28,8 +28,13 @@ class SurfaceCensusTest {
 
         var exts = org.finos.legend.engine.language.pure.grammar.from
                 .extension.PureGrammarParserExtensionLoader.extensions();
-        java.util.Set<String> ourSections = new java.util.TreeSet<>(
-                com.legend.parser.SectionGrammarRegistry.all().keySet());
+        // the sections the parser reads with a grammar of its own -- asked of the Rust parser since 2026-11-06
+        // (docs/rust-port/PHASE2.md §4 step 6a; rust/lite-front/src/probes.rs, known_sections) -- and the overlay
+        // grammars a ServiceLoader registers, Java's: together every section the registry names
+        java.util.Set<String> ourSections = new java.util.TreeSet<>(Surfaces.knownSections());
+        for (var overlay : com.legend.parser.SectionGrammarRegistry.overlays()) {
+            ourSections.add(overlay.name());
+        }
         // core (non-extension) sections our PMCD front end owns directly
         ourSections.addAll(java.util.List.of("Pure", "Mapping", "Connection",
                 "Runtime", "Relational", "Data", "Service", "Diagram",
@@ -167,8 +172,8 @@ class SurfaceCensusTest {
                 + " no longer define — upstream removed them; remove the rows: " + gone);
     }
 
-    /** The flavors ConnectionSectionGrammar dispatches (keep in sync with
-     *  its switch — the census fails loudly when the ENGINE grows one). */
+    /** The flavors the Connection grammar dispatches (rust/lite-front/src/connection_parser.rs; keep in sync with
+     *  its match — the census fails loudly when the ENGINE grows one). */
     private static final java.util.Set<String> OUR_CONNECTION_FLAVORS =
             java.util.Set.of("JsonModelConnection", "XmlModelConnection",
                     "ModelChainConnection", "RelationalDatabaseConnection",

@@ -64,11 +64,12 @@ final class Sectionize {
      */
     static @com.legend.base.Nullable List<Insertion> plan(String text) {
         com.legend.model.ParsedModel pm;
-        java.util.List<com.legend.lexer.TokenStream.SectionHeader> headers;
+        // the lexer's headers, asked of the Rust lexer since 2026-11-06 (docs/rust-port/PHASE2.md §4 step 6a;
+        // rust/lite-front/src/probes.rs, section_headers), where they were the Java lexer's sectionHeaders()
+        java.util.List<com.legend.parser.RustParsers.SectionHeader> headers;
         try {
-            var tokens = com.legend.lexer.Lexer.tokenize(text);
-            headers = tokens.sectionHeaders();
-            pm = Surfaces.platform(tokens);
+            headers = Surfaces.sectionHeaders(text);
+            pm = Surfaces.platform(text);
         } catch (Throwable t) {
             return null;
         }

@@ -24,12 +24,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * ViewFilterParityTest shape).
  *
  * <p>MUTATION-SWEPT 2026-08-12: all six arithmetic/conditional terms of
- * {@code TokenStreamCursor.shiftIsland} were mutated one at a time
+ * the Java parser's island shift (then {@code shiftIsland}, later
+ * {@code SpanOrigin.islandShift}) were mutated one at a time
  * (offset drops + condition flips) and this test went RED on every one
  * — including M04 (the end-column offset drop), the mutation that
  * previously survived the ENTIRE corpus. The single-line-island
  * fixtures are what reach that branch; do not "simplify" them onto
- * multiple lines.
+ * multiple lines. The document door is the Rust parser's and emitter's
+ * since 2026-11-06 (docs/rust-port/PHASE2.md §4 step 5): the shift is
+ * {@code island_shift} in rust/lite-front/src/cursor.rs.
  */
 class OffsetCompositionParityTest {
 
@@ -108,7 +111,7 @@ class OffsetCompositionParityTest {
 
                 Class a::A { x: String[1]; }
                 """);
-        // M04 KILLERS (HONEST_DEBT #3): the shiftIsland END-COLUMN arm
+        // M04 KILLERS (HONEST_DEBT #3): the island shift's END-COLUMN arm
         // fires only when a span ENDS on line 1 of a re-lexed island
         // slice with a nonzero column offset — i.e. SINGLE-LINE islands,
         // which no corpus file contains. The inner connection island

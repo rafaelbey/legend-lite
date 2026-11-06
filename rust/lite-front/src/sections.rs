@@ -207,6 +207,23 @@ pub enum TailGrammar {
     QueryPostProcessor,
 }
 
+/// Every tail section's name: the names [`TailGrammar::of`] maps, in its order.
+pub const TAIL_SECTIONS: &[&str] = &[
+    "Text",
+    "GenerationSpecification",
+    "FileGeneration",
+    "Deephaven",
+    "MongoDB",
+    "DataQualityValidation",
+    "Elasticsearch",
+    "ExternalFormat",
+    "ServiceStore",
+    "DataSpace",
+    "Persistence",
+    "Service",
+    "QueryPostProcessor",
+];
+
 impl TailGrammar {
     /// The grammar registered for a tail section's name.
     pub fn of(section: &str) -> Option<TailGrammar> {
@@ -313,4 +330,39 @@ fn parse_text<'s>(c: &mut impl Cursor<'s>) -> R<PText> {
         content,
         source_information: c.span(h.decl_start, c.pos() - 1),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Each grammar's place in the enum: exhaustive, so a new grammar does not compile here until it is counted.
+    fn ordinal(g: TailGrammar) -> usize {
+        match g {
+            TailGrammar::Text => 0,
+            TailGrammar::GenerationSpecification => 1,
+            TailGrammar::FileGeneration => 2,
+            TailGrammar::Deephaven => 3,
+            TailGrammar::MongoDB => 4,
+            TailGrammar::DataQualityValidation => 5,
+            TailGrammar::Elasticsearch => 6,
+            TailGrammar::ExternalFormat => 7,
+            TailGrammar::ServiceStore => 8,
+            TailGrammar::DataSpace => 9,
+            TailGrammar::Persistence => 10,
+            TailGrammar::Service => 11,
+            TailGrammar::QueryPostProcessor => 12,
+        }
+    }
+
+    #[test]
+    fn every_tail_grammar_is_listed_once_by_its_section_name() {
+        let mut seen = [false; 13];
+        for s in TAIL_SECTIONS {
+            let g = TailGrammar::of(s).unwrap_or_else(|| panic!("{s} has no tail grammar"));
+            assert!(!seen[ordinal(g)], "{s}'s grammar is listed twice");
+            seen[ordinal(g)] = true;
+        }
+        assert!(seen.iter().all(|s| *s), "a tail grammar is not in TAIL_SECTIONS");
+    }
 }

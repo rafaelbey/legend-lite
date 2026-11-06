@@ -1,9 +1,6 @@
 package com.legend.equivalence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.legend.lexer.Lexer;
-import com.legend.lexer.TokenStream;
-import com.legend.lexer.TokenType;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.finos.legend.engine.shared.core.ObjectMapperFactory;
 import org.junit.jupiter.api.Test;
@@ -97,20 +94,13 @@ class ViewFilterParityTest {
         org.junit.jupiter.api.Assertions.assertFalse(expected.isEmpty(),
                 "probe produced no Database — the source is wrong, not the parser");
 
-        TokenStream ts = Lexer.tokenize(src);
+        // every Database token at the stream's start or after ')', '}' or ';', parsed where it stands and emitted:
+        // asked of the Rust parser and emitter since 2026-11-06 (docs/rust-port/PHASE2.md §4 step 6a;
+        // rust/lite-front/src/probes.rs, database_sites), where it was this loop over the Java lexer's tokens and
+        // the Java parser and emitter (rust/RETIRED_TESTS.md)
         int found = 0;
-        for (int i = 0; i < ts.count(); i++) {
-            if (ts.type(i) != TokenType.DATABASE) {
-                continue;
-            }
-            if (i > 0 && ts.type(i - 1) != TokenType.PAREN_CLOSE
-                    && ts.type(i - 1) != TokenType.BRACE_CLOSE
-                    && ts.type(i - 1) != TokenType.SEMI_COLON) {
-                continue;
-            }
-            var db = Surfaces.databaseAt(ts, i);
-            String actual = com.legend.protocol.ProtocolEmitter.emitElement(db);
-            assertEquals(expected.get(db.qualifiedName()), actual,
+        for (var db : Surfaces.engineDatabases(src)) {
+            assertEquals(expected.get(db.qualifiedName()), db.json(),
                     "byte divergence on " + db.qualifiedName());
             found++;
         }

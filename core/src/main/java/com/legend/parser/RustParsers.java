@@ -45,6 +45,39 @@ public interface RustParsers {
     /** {@link SpecParser#lambdaJson(String, boolean)}'s answer: the lambda parsed and emitted by Rust, or the error. */
     String lambdaJson(String text, boolean sourceInformation);
 
+    // THE PARITY HARNESS'S PROBES (docs/rust-port/PHASE2.md §4 step 6a): what //parser-equivalence's gate tests asked
+    // of the Java lexer's and parser's internals, answered by the Rust library (rust/lite-front/src/probes.rs), so the
+    // tests judge the Rust parser through them once the Java one is deleted. No product code calls them.
+
+    /** The lexer's {@code ###Section} headers in {@code text}, in order: each one's name and content offset. */
+    List<SectionHeader> sectionHeaders(String text);
+
+    /**
+     * The strict element sites: every top-level {@code Class}, {@code Enum}, {@code Profile}, {@code Association} and
+     * {@code function} -- the kinds in that order, each kind's sites in token order -- parsed where it stands in the
+     * whole text's tokens, at {@code dialect}, by its kind's reader; how many were parsed, or the first one's error
+     * thrown as its class ({@link ParseException} with its line and column).
+     */
+    int elementSites(String text, Dialect dialect);
+
+    /**
+     * Every {@code Database} at the token stream's start or after a {@code )}, a closing brace or a {@code ;}, in order,
+     * parsed where it stands at {@code dialect} and emitted as legend-engine's element JSON: each one's qualified name
+     * and JSON; or the first error, thrown as its class.
+     */
+    List<DatabaseSite> databaseSites(String text, Dialect dialect);
+
+    /** The sections the model parser reads with a grammar of its own (the registry's built-in half, not overlays). */
+    List<String> knownSections();
+
+    /** A {@code ###Section} header: its name, and the offset (a {@code char} index) its content starts at. */
+    record SectionHeader(String name, int contentStartOffset) {
+    }
+
+    /** A {@code Database} site: the element's qualified name and its legend-engine JSON. */
+    record DatabaseSite(String qualifiedName, String json) {
+    }
+
     /** An overlay grammar the registry holds (its ServiceLoader half): its section's name and its {@code lexable()}. */
     record Overlay(String name, boolean lexable) {
     }

@@ -99,7 +99,7 @@ class RejectionParityTest {
                         if (ourCol == engineCol) {
                             colMatch++;
                         } else if (ourCol == engineCol - 1) {
-                            colOffByOne++;          // TokenStreamCursor 0-base (Phase B)
+                            colOffByOne++;          // a 0-based column (Phase B)
                         }
                     } else {
                         lineDiverges.add(p.id() + " engine " + engineLine + ":" + engineCol
@@ -121,7 +121,7 @@ class RejectionParityTest {
                 .append(String.format(java.util.Locale.ROOT, "error-line agreement  : %d of %d (vs the engine's LIVE position)%n",
                         lineMatch, rejectMatch))
                 .append(String.format(java.util.Locale.ROOT, "  column exact        : %d%n", colMatch))
-                .append(String.format(java.util.Locale.ROOT, "  column engine-1     : %d (TokenStreamCursor 0-base)%n",
+                .append(String.format(java.util.Locale.ROOT, "  column engine-1     : %d (a 0-based column, Phase B)%n",
                         colOffByOne))
                 .append(String.format(java.util.Locale.ROOT, "scraped pin mispaired : %d (adjacency artifact, not parser signal)%n",
                         mispairedPins))
@@ -173,26 +173,15 @@ class RejectionParityTest {
     private static final int MIN_LINE_AGREEMENT = 413;   // ratcheted to measured 2026-08-14 (deep audit #2 §2e: was 40 with 377 slack); 417 -> 413 on 2026-09-10 (upstream boundary batch 1): 4 negative pins left with the SOURCE pin's move to the 4.138.2 tag (MIN_PINS 424 -> 420); 413 of 419 agree — the same 6 divergences as before, a denominator move
 
     /** The STRICT drop-in surface: the full parse plus every element site through the
-     *  same {@code ElementParser.at} path the byte-comparison uses (protocol-only
-     *  constructs like test suites live there). */
+     *  per-element path the byte-comparison used (protocol-only constructs like test
+     *  suites live there): each top-level Class, Enum, Profile, Association and
+     *  function, in that order, parsed where it stands. Asked of the Rust parser since
+     *  2026-11-06 (docs/rust-port/PHASE2.md §4 step 6a; rust/lite-front/src/probes.rs,
+     *  {@code element_sites}), where it was the Java parser's, positioned at each site
+     *  (rust/RETIRED_TESTS.md). */
     private static void parseLegendEngine(String text) {
         Surfaces.engine(text);
-        var ts = com.legend.lexer.Lexer.tokenize(text);
-        for (com.legend.lexer.TokenType marker : new com.legend.lexer.TokenType[]{
-                com.legend.lexer.TokenType.CLASS, com.legend.lexer.TokenType.ENUM,
-                com.legend.lexer.TokenType.PROFILE, com.legend.lexer.TokenType.ASSOCIATION,
-                com.legend.lexer.TokenType.FUNCTION}) {
-            for (int i : com.legend.parser.ElementParser.topLevelIndexes(ts, marker)) {
-                var p = Surfaces.engineAt(ts, i);
-                switch (marker) {
-                    case CLASS -> p.parseClassDefinition(false);
-                    case ENUM -> p.parseEnumDefinition();
-                    case PROFILE -> p.parseProfileDefinition();
-                    case ASSOCIATION -> p.parseAssociationDefinition();
-                    default -> p.parseFunctionProtocol();
-                }
-            }
-        }
+        Surfaces.engineElementSites(text);
     }
 
     /** Bumped deliberately as extraction improves. Lowering it requires saying why. */

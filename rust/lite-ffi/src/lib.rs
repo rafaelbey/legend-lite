@@ -192,6 +192,12 @@ pub unsafe extern "C" fn lite_dialect(spec: *const c_char, op: *const c_char, ar
 /// a `ParseException`'s `line` and `column`, its message without the `[line:col] ` prefix its constructor writes):
 /// the parser's own answer either way; `ERR` is the call's failure. On a thread of the parser's own stack size.
 ///
+/// `door` may instead name one of the parity harness's probes (`lite_front::probes`, docs/rust-port/PHASE2.md §4 step
+/// 6a: what `//parser-equivalence`'s gate tests asked of the Java parser's internals), answered `A\n<json>` or
+/// `E\n<error>` the same way: `sectionHeaders` (`[[name, contentStartOffset], ...]`), `elementSites` (how many
+/// top-level declarations parsed where they stand), `databaseSites` (`[[qualifiedName, the element's JSON], ...]`,
+/// the JSON as a string) and `knownSections` (`[name, ...]`; its text and dialect are not read).
+///
 /// # Safety
 /// `door`, `dialect` and `text` are null or NUL-terminated strings the caller keeps alive for the call.
 #[unsafe(no_mangle)]
@@ -404,7 +410,51 @@ fn model_answer(dialect: lite_front::doors::Dialect, grammars: &[(Vec<u16>, bool
 /// A door's answer as `lite_front` folds it: `A\n<records>` or `E\n<error>`.
 fn front_answer(door: &str, dialect: lite_front::doors::Dialect, text: &[u16]) -> Result<String, Refusal> {
     use lite_front::codec::{self, Codec};
+    use lite_front::jtypes::JStr;
+    use lite_front::probes;
     let written = match door {
+        // the parity harness's probes (lite_front::probes; docs/rust-port/PHASE2.md §4 step 6a): what
+        // //parser-equivalence's gate tests asked of the Java parser's internals
+        "sectionHeaders" => {
+            // [[name, contentStartOffset], ...]
+            let mut w = codec::Writer::new();
+            w.raw("[");
+            for (i, (name, offset)) in probes::section_headers(text).into_iter().enumerate() {
+                w.raw(if i > 0 { ",[" } else { "[" });
+                w.string(&JStr(name));
+                w.raw(&format!(",{offset}]"));
+            }
+            w.raw("]");
+            Ok(w.finish())
+        }
+        "elementSites" => probes::element_sites(text, dialect).map(|parsed| parsed.to_string()),
+        "databaseSites" => probes::database_sites(text, dialect).map(|sites| {
+            // [[qualifiedName, the element's JSON as a string], ...]
+            let mut w = codec::Writer::new();
+            w.raw("[");
+            for (i, (name, json)) in sites.into_iter().enumerate() {
+                w.raw(if i > 0 { ",[" } else { "[" });
+                w.string(&JStr(name));
+                w.raw(",");
+                w.string(&JStr(json));
+                w.raw("]");
+            }
+            w.raw("]");
+            w.finish()
+        }),
+        "knownSections" => {
+            // [name, ...]: the text and the dialect are not read
+            let mut w = codec::Writer::new();
+            w.raw("[");
+            for (i, name) in probes::known_sections().into_iter().enumerate() {
+                if i > 0 {
+                    w.raw(",");
+                }
+                w.string(&JStr::from(name));
+            }
+            w.raw("]");
+            Ok(w.finish())
+        }
         "spec" => lite_front::doors::spec(text, dialect).map(|v| codec::write(&v, false)),
         "lambda" => lite_front::doors::lambda(text).map(|v| codec::write(&v, true)),
         "block" => lite_front::doors::block(text, dialect).map(|vs| {
@@ -784,6 +834,29 @@ mod tests {
         assert!(surrogate.contains("a\\ud800b"), "{surrogate}");
         assert!(engine("document", "maybe", "Class a::B {}").starts_with("ERR\nINVALID_ARGUMENT"));
         assert!(engine("pmcd", "true", "Class a::B {}").starts_with("ERR\nINVALID_ARGUMENT"));
+    }
+
+    #[test]
+    fn the_parity_probes_answer_through_the_front_door() {
+        let _serial = serial();
+        let front = |door: &str, dialect: &str, text: &str| {
+            let quoted = format!("\"{}\"", text.replace('\\', "\\\\").replace('\n', "\\n").replace('"', "\\\""));
+            take(unsafe { lite_front(c(door).as_ptr(), c(dialect).as_ptr(), c(&quoted).as_ptr()) })
+        };
+        assert_eq!(
+            front("sectionHeaders", "LEGEND_ENGINE", "Class a::A {}\n###Relational\nDatabase a::D ()\n"),
+            "OK\nA\n[[\"Relational\",28]]"
+        );
+        assert_eq!(front("sectionHeaders", "LEGEND_ENGINE", "Class a::A {}"), "OK\nA\n[]");
+        assert_eq!(front("elementSites", "LEGEND_ENGINE", "Class a::A {}\nEnum a::E { X }"), "OK\nA\n2");
+        let refused = front("elementSites", "LEGEND_ENGINE", "Class a::A<T> {}");
+        assert!(refused.starts_with("OK\nE\n{\"class\":\"com.legend.parser.ParseException\""), "{refused}");
+        assert_eq!(front("elementSites", "LEGEND_LITE", "Class a::A<T> {}"), "OK\nA\n1");
+        let databases = front("databaseSites", "LEGEND_ENGINE", "###Relational\nDatabase a::D ( )");
+        assert!(databases.starts_with("OK\nA\n[[\"a::D\",\"{\\\"_type\\\":\\\"relational\\\""), "{databases}");
+        let known = front("knownSections", "LEGEND_ENGINE", "");
+        assert!(known.starts_with("OK\nA\n[\"Pure\","), "{known}");
+        assert_eq!(known.matches(',').count(), 24, "{known}");
     }
 
     #[test]

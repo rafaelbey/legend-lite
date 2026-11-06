@@ -107,6 +107,45 @@ public final class RustParserProvider implements RustParsers {
         return Math.toIntExact(((Json.Num) n).longValue());
     }
 
+    // the parity harness's probes (docs/rust-port/PHASE2.md §4 step 6a): lite_front's doors of the same names
+    // (rust/lite-front/src/probes.rs), their answer JSON read here
+
+    @Override
+    public List<SectionHeader> sectionHeaders(String text) {
+        // the lexer's headers do not depend on the dialect: the door is passed one, and does not read it
+        List<SectionHeader> out = new java.util.ArrayList<>();
+        for (Json.Node h : ((Json.Arr) Json.parse(call("sectionHeaders", Dialect.LEGEND_ENGINE, text))).items()) {
+            List<Json.Node> f = ((Json.Arr) h).items();
+            out.add(new SectionHeader(((Json.Str) f.get(0)).value(), integer(f.get(1))));
+        }
+        return List.copyOf(out);
+    }
+
+    @Override
+    public int elementSites(String text, Dialect dialect) {
+        return Integer.parseInt(call("elementSites", dialect, text));
+    }
+
+    @Override
+    public List<DatabaseSite> databaseSites(String text, Dialect dialect) {
+        List<DatabaseSite> out = new java.util.ArrayList<>();
+        for (Json.Node d : ((Json.Arr) Json.parse(call("databaseSites", dialect, text))).items()) {
+            List<Json.Node> f = ((Json.Arr) d).items();
+            out.add(new DatabaseSite(((Json.Str) f.get(0)).value(), ((Json.Str) f.get(1)).value()));
+        }
+        return List.copyOf(out);
+    }
+
+    @Override
+    public List<String> knownSections() {
+        // the sections are the parser's, whatever the dialect and the text: the door is passed both, and reads neither
+        List<String> out = new java.util.ArrayList<>();
+        for (Json.Node s : ((Json.Arr) Json.parse(call("knownSections", Dialect.LEGEND_ENGINE, ""))).items()) {
+            out.add(((Json.Str) s).value());
+        }
+        return List.copyOf(out);
+    }
+
     /** One door's answer: the records' codec JSON, or the error thrown. */
     private static String call(String door, Dialect dialect, String text) {
         String answer = Lite.shared().front(door, dialect.name(), jsonString(text));

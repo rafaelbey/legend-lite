@@ -38,7 +38,7 @@ use crate::records::{
     Element, PSection, PSectionIndex, PmcdParserParsed, PmcdParserUnclaimedSection, PureModelContextData, SourceInfo,
 };
 use crate::runtime_parser::parse_runtime;
-use crate::sections::TailGrammar;
+use crate::sections::{TAIL_SECTIONS, TailGrammar};
 use crate::service_parser::parse_element as parse_service_element;
 use crate::ustr::{eq, last_index_of_str, u};
 
@@ -152,6 +152,13 @@ fn activator_kinds(section: &str) -> Option<&'static [&'static str]> {
 
 fn listed(list: &[&str], name: &[u16]) -> bool {
     list.iter().any(|s| eq(name, s))
+}
+
+/// The sections the walk reads with a grammar of its own at every dialect -- [`BUILT_IN_SECTIONS`], then the tail
+/// grammars' ([`TAIL_SECTIONS`]): `SectionGrammarRegistry`'s built-in half, which every other name's routing
+/// (an overlay's, an unclaimed section, the engine's refusal) is decided against.
+pub fn known_sections() -> Vec<&'static str> {
+    BUILT_IN_SECTIONS.iter().chain(TAIL_SECTIONS).copied().collect()
 }
 
 /// Site kinds (`PmcdParser`'s): 0 Class, 1 Enum, 2 Profile, 3 Association, 4 function, 5 Measure, 6 Runtime, 7

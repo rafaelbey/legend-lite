@@ -15,7 +15,8 @@
 //! (core/'s `com.legend.protocol.ProtocolEmitter` and its family: `emitter`, `tail_emitter`, `mapping_emitter`,
 //! `connection_emitters`, `gql_emitter`) and the doors' span cut (`source_information`), legend-engine's JSON written
 //! from these records, held to Java's every answer at the two engine-JSON doors (`doors::document`,
-//! `doors::lambda_json`).
+//! `doors::lambda_json`); step 6a: `probes`, what `//parser-equivalence`'s gate tests asked of the Java lexer's and
+//! parser's internals (section headers, the strict element sites, the Database sites, the known sections).
 
 pub mod activator_parser;
 pub mod codec;
@@ -49,6 +50,7 @@ pub mod mongodb_parser;
 pub mod nodes;
 pub mod operator_parts;
 pub mod persistence_parser;
+pub mod probes;
 pub mod protocol;
 pub mod query_post_processor_parser;
 pub mod records;

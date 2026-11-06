@@ -1,7 +1,6 @@
 package com.legend.equivalence;
 
 import com.legend.testing.Runfile;
-import com.legend.parser.ElementParser;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Test;
 
@@ -23,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * corpus gate: the 2026-08-04 pull introduced {@code ~src}-style relation mappings and
  * gate 4 collapsed to 2/2567 with nobody watching. This test converts that failure mode
  * into a named, immediate signal: every corpus file containing those sections goes through
- * the DROP-IN surface ({@code ElementParser.parseStrict} — the parser that ships, not the
+ * the DROP-IN surface (the engine-dialect parse, {@code Surfaces.engine} — the parser that ships, not the
  * deliberately broader internal dialect) AND through the reference, and the two verdicts
  * are compared.
  *
@@ -129,7 +128,7 @@ class SectionParseSentinelTest {
         return "UNJUSTIFIED-unclassified";
     }
 
-    /** The lexed sections beyond Pure (Lexer.LEXABLE_SECTIONS minus Pure). */
+    /** The lexed sections beyond Pure that the corpus gates consume (four of the lexer's LEXABLE_SECTIONS). */
     private static final Pattern SENTINEL_SECTIONS =
             Pattern.compile("(?m)^###(Mapping|Relational|Connection|Runtime)\\b");
 
@@ -336,7 +335,7 @@ class SectionParseSentinelTest {
     //     unmasked leniencies that were genuinely OURS were fixed instead
     //     of absorbed: join types validate against engine's exact
     //     {INNER, OUTER} set at EVERY parse site
-    //     (TokenStreamCursor.validateJoinType), and legacy mapping-test
+    //     (the cursor's join-type check, rust/lite-front's validate_join_type), and legacy mapping-test
     //     input formats validate against {JSON, XML} / {SQL, CSV}.
     // 68 -> 69 (2026-08-09, burn-to-zero endgame): one more legend-pure
     // relational-grammar fixture in the SAME extension-less-oracle family
