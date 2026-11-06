@@ -17,7 +17,9 @@
 // The generated records hold their record-typed list elements boxed (`Vec<Box<T>>`), so the readers build that.
 #![allow(clippy::vec_box)]
 
-use crate::cursor::{Cursor, R, is_identifier_token, strip_double_quotes, throw_at, ty_or_slack, unquote_path_iae};
+use crate::cursor::{
+    Cursor, R, is_identifier_token, start_line_checked, strip_double_quotes, throw_at, ty_or_slack, unquote_path_iae,
+};
 use crate::database_parser::{ScopeCtx, operation_at, rel_op_span, scoped_operation_at, with_rel_op_span};
 use crate::doors::{Dialect, JavaError};
 use crate::jcat;
@@ -138,19 +140,6 @@ fn is_open(t: TokenType) -> bool {
 
 fn is_close(t: TokenType) -> bool {
     matches!(t, T::PAREN_CLOSE | T::BRACKET_CLOSE | T::BRACE_CLOSE)
-}
-
-/// `TokenStream.startLine(i)` where Java reads it unguarded: past `count` the positions array's
-/// `ArrayIndexOutOfBoundsException`.
-fn start_line_checked(ts: &TokenStream<'_>, i: usize) -> R<i64> {
-    if i < ts.count() {
-        Ok(ts.start_line(i) as i64)
-    } else {
-        Err(JavaError::java(
-            "java.lang.ArrayIndexOutOfBoundsException",
-            jcat!("Index ", i, " out of bounds for length ", ts.count()),
-        ))
-    }
 }
 
 /// A Relation binding's right-hand side (`MappingProtocolParser.RelationBinding`): a column name, or a row

@@ -8,10 +8,10 @@
 //!
 //! Ported (docs/rust-port/PHASE2.md §4 step 4): the walk, the section spans and imports, the dialects' routing of an
 //! unknown section, `###Pure` (`element_parser`), `###Text` (`sections`), `###Data` (`mapping_parser`),
-//! `###Relational` (`database_parser`), `###Mapping` (`mapping_grammar`, `mapping_tests`). Every other grammar answers
-//! `not ported` (no Java class) where the walk reaches its first element, one arm of [`parse_one_at`] or
-//! [`section_elements`] each: Connection, Runtime, Service, the activator sections, Diagram, and the tail grammars but
-//! Text.
+//! `###Relational` (`database_parser`), `###Mapping` (`mapping_grammar`, `mapping_tests`), `###Connection`
+//! (`connection_parser`) and `###Runtime` (`runtime_parser`). Every other grammar answers `not ported` (no Java class)
+//! where the walk reaches its first element, one arm of [`parse_one_at`] or [`section_elements`] each: Service, the
+//! activator sections, Diagram, and the tail grammars but Text.
 //!
 //! **Overlays.** A section only a registered overlay grammar (`com.legend.spi.SectionGrammar`, found by Java's
 //! `ServiceLoader`) can read is the shim's: Rust cannot call the grammar, so it hands back, beside the records, each
@@ -21,19 +21,21 @@
 // The generated records hold their record-typed list elements boxed (`Vec<Box<T>>`), so the readers build that.
 #![allow(clippy::vec_box)]
 
+use crate::connection_parser::parse_connection;
 use crate::cursor::{ElementCursor, R, is_identifier_token, unquote_path_iae};
 use crate::database_parser::parse_database;
-use crate::mapping_grammar::parse_mapping;
 use crate::doors::{Answer, Dialect, JavaError};
 use crate::jcat;
 use crate::jtypes::JStr;
 use crate::lexer::{SectionHeader, TokenStream, TokenType, tokenize};
+use crate::mapping_grammar::parse_mapping;
 use crate::mapping_parser::parse_data;
 use crate::nodes::boxed;
 use crate::protocol::{function_path, qualified_name};
 use crate::records::{
     Element, PSection, PSectionIndex, PmcdParserParsed, PmcdParserUnclaimedSection, PureModelContextData, SourceInfo,
 };
+use crate::runtime_parser::parse_runtime;
 use crate::sections::{TailGrammar, not_ported};
 use crate::ustr::{eq, last_index_of_str, u};
 
@@ -793,8 +795,16 @@ fn parse_one_at(
             let path = qualified_name(&m.pkg.0, &m.name.0);
             (Element::PMeasure(Box::new(m)), path)
         }
-        6 => return Err(not_ported("Runtime")),
-        7 => return Err(not_ported("Connection")),
+        6 => {
+            let rt = parse_runtime(&mut p)?;
+            let path = qualified_name(&rt.pkg.0, &rt.name.0);
+            (Element::PRuntime(Box::new(rt)), path)
+        }
+        7 => {
+            let cn = parse_connection(&mut p)?;
+            let path = qualified_name(&cn.pkg.0, &cn.name.0);
+            (Element::PConnection(Box::new(cn)), path)
+        }
         8 => {
             let (db, end) = parse_database(ts, site, dialect)?;
             let path = qualified_name(&db.pkg.0, &db.name.0);
@@ -863,10 +873,10 @@ mod tests {
 
     #[test]
     fn a_grammar_not_ported_refuses_where_the_walk_reaches_it() {
-        let refused = parse(&u("Class A {}\n###Runtime\nRuntime r {}\n"), Dialect::LegendLite).unwrap_err();
+        let refused = parse(&u("Class A {}\n###Persistence\nPersistence p {}\n"), Dialect::LegendLite).unwrap_err();
         assert_eq!(refused.class, "not ported");
-        let earlier = parse(&u("Class A {\n###Runtime\nRuntime r {}\n"), Dialect::LegendLite).unwrap_err();
+        let earlier = parse(&u("Class A {\n###Persistence\nPersistence p {}\n"), Dialect::LegendLite).unwrap_err();
         assert!(earlier.is_parse_exception(), "Java's error before the section is Java's");
-        assert!(parse(&u("###Runtime\n"), Dialect::LegendLite).is_ok(), "an empty section parses");
+        assert!(parse(&u("###Persistence\n"), Dialect::LegendLite).is_ok(), "an empty section parses");
     }
 }

@@ -192,7 +192,7 @@ fn plus_one_cols(sp: SourceInfo) -> SourceInfo {
 
 /// `String.toUpperCase(Locale.ROOT)` over UTF-16 units: each code point's full upper-case mapping, a lone surrogate
 /// kept.
-fn to_upper_root(s: &[u16]) -> Vec<u16> {
+pub(crate) fn to_upper_root(s: &[u16]) -> Vec<u16> {
     let mut out = Vec::with_capacity(s.len());
     for r in char::decode_utf16(s.iter().copied()) {
         match r {

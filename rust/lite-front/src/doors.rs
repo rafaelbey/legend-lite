@@ -106,8 +106,9 @@ pub type Answer<T> = Result<T, JavaError>;
 
 /// The stack a door's parse needs: the parser recurses through every nested expression, as Java's does (whose
 /// answers hold no `StackOverflowError`), and a Rust frame is larger than a JVM's (docs/rust-port/PHASE2.md §3,
-/// "Recursion depth"). The doors parse on the caller's thread -- the shim's runs on its own thread of 256 MiB
-/// (`lite_ffi::DIALECT_STACK_BYTES`) -- and [`answer_form`] on one of this size.
+/// "Recursion depth"). The doors parse on the caller's thread -- the shim's calls run on the calling thread's
+/// long-lived worker in `lite-ffi` (since `5e5d7e118`), whose stack is at least this size (`WORKER_STACK_BYTES`, the
+/// deeper of this and the dialect calls' `DIALECT_STACK_BYTES`) -- and [`answer_form`] on one of this size.
 pub const PARSE_STACK: usize = 512 << 20;
 
 /// `work` on a thread of its own with [`PARSE_STACK`] of stack, joined before this returns; a panic re-raised here.

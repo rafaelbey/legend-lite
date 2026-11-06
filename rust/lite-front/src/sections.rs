@@ -2,18 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The section grammars the model parser routes a `###` section's elements to (core/'s `parser.section`): the shared
-//! helpers (`SectionParse.head`, `stringValue`; `SectionImports.parseImport`) and the tail grammars
-//! (`ElementwiseSectionGrammar`s: one element at a time from its keyword). Ported here: `###Text`
-//! (`TextSectionGrammar`). The others -- GenerationSpecification, FileGeneration, Deephaven, MongoDB,
-//! DataQualityValidation, Elasticsearch, ExternalFormat, ServiceStore, DataSpace, Persistence, Service,
-//! QueryPostProcessor -- are later steps', each one arm of [`TailGrammar`] (docs/rust-port/PHASE2.md §4 step 4).
+//! helpers (`SectionParse.head`, `stringValue`, `booleanValue`, `specToSemicolon`, `lambdaToSemicolon`;
+//! `SectionImports.parseImport`) and the tail grammars (`ElementwiseSectionGrammar`s: one element at a time from its
+//! keyword, at the walk's `ElementParser`). Ported: `###Text` (`TextSectionGrammar`, here), `###DataSpace`
+//! (`dataspace_parser`), `###Service` (`service_parser`). The others -- GenerationSpecification, FileGeneration,
+//! Deephaven, MongoDB, DataQualityValidation, Elasticsearch, ExternalFormat, ServiceStore, Persistence,
+//! QueryPostProcessor -- are later steps', each one arm of [`TailGrammar`] (docs/rust-port/PHASE2.md §4 step 4). The
+//! grammars' SPI feed (`ElementwiseSectionGrammar.parse`, a `SliceCursor` over the re-lexed section) is the overlay
+//! path's, which the model door never takes: not ported.
 
-use crate::cursor::{Cursor, Decorations, R, once_at, throw_at, unquote_path_iae};
+use crate::cursor::{Cursor, Decorations, ElementCursor, R, once_at, throw_at, unquote_path_iae};
 use crate::doors::JavaError;
 use crate::jcat;
 use crate::jtypes::JStr;
 use crate::lexer::TokenType;
-use crate::records::{Element, PText};
+use crate::nodes::lambda;
+use crate::records::{Element, PText, ValueSpecification};
+use crate::spec_parser::parse_tokens;
 use crate::ustr::{eq, last_index_of_str};
 use std::collections::HashSet;
 
@@ -47,11 +52,90 @@ pub fn head<'s>(c: &mut impl Cursor<'s>, expected_kind: &str, admits_documentati
     Ok(Head { decl_start, dec, pkg, name })
 }
 
+/// A section element's unquoted qualified name split at its last `::` (`qn.lastIndexOf("::")`, as the Connection,
+/// Runtime, Service and DataSpace grammars split it): the package and the name, `("", qn)` without one.
+pub fn split_last(qn: &[u16]) -> (Vec<u16>, Vec<u16>) {
+    match last_index_of_str(qn, "::") {
+        None => (Vec::new(), qn.to_vec()),
+        Some(cut) => (qn[..cut].to_vec(), qn[cut + 2..].to_vec()),
+    }
+}
+
 /// `SectionParse.stringValue`: a STRING's decoded body, decoded after the cursor moves past it.
 pub fn string_value<'s>(c: &mut impl Cursor<'s>) -> R<Vec<u16>> {
     let quoted = c.slack_text();
     c.expect(T::STRING)?;
     c.unquote_and_unescape(quoted)
+}
+
+/// `SectionParse.booleanValue`: `true` or `false`.
+pub fn boolean_value<'s>(c: &mut impl Cursor<'s>) -> R<bool> {
+    if c.peek() == T::TRUE {
+        c.advance()?;
+        return Ok(true);
+    }
+    if c.peek() == T::FALSE {
+        c.advance()?;
+        return Ok(false);
+    }
+    Err(c.error(jcat!("expected true or false, got ", c.safe_text())))
+}
+
+/// `SectionParse.specToSemicolon`: a value expression riding to the next top-level `;` (every bracket kind counted,
+/// the `;` not consumed), parsed by the expression parser on that slice of the stream (file-absolute spans).
+pub fn spec_to_semicolon<'s>(c: &mut impl Cursor<'s>) -> R<ValueSpecification> {
+    let bs = c.pos();
+    let mut d = 0i64;
+    while !c.at_end() {
+        let tk = c.peek();
+        match tk {
+            T::PAREN_OPEN | T::BRACE_OPEN | T::BRACKET_OPEN => d += 1,
+            T::PAREN_CLOSE | T::BRACE_CLOSE | T::BRACKET_CLOSE => d -= 1,
+            _ => {}
+        }
+        if tk == T::SEMI_COLON && d <= 0 {
+            break;
+        }
+        c.advance()?;
+    }
+    parse_tokens(&c.tokens().slice(bs, c.pos()), c.dialect())
+}
+
+/// `SectionParse.lambdaToSemicolon`: [`spec_to_semicolon`], a bare expression wrapped as a parameterless lambda with
+/// no span (the engine's walkers call `visitLambda` unconditionally).
+pub fn lambda_to_semicolon<'s>(c: &mut impl Cursor<'s>) -> R<ValueSpecification> {
+    Ok(as_lambda(spec_to_semicolon(c)?))
+}
+
+/// A query or an assertion as the wire carries it: a lambda as it is, any other expression wrapped as a parameterless
+/// lambda with no span (`SectionParse.lambdaToSemicolon`'s wrap, `ServiceSectionGrammar.lambda`).
+pub fn as_lambda(v: ValueSpecification) -> ValueSpecification {
+    match v {
+        ValueSpecification::LambdaFunction(_) => v,
+        other => ValueSpecification::LambdaFunction(Box::new(lambda(Vec::new(), vec![other], None))),
+    }
+}
+
+/// The depth-aware island scan every grammar here repeats: past the `#...{` opener at the cursor, then to its own
+/// `}#` (nested `#{`...`}#` pairs counted), not consumed -- the content's first token and the closer's (or the end):
+/// each caller takes the text (`reconstructText`) and expects the `}#` in its own order.
+pub fn scan_island<'s>(c: &mut impl Cursor<'s>) -> R<(usize, usize)> {
+    c.advance()?;
+    let start = c.pos();
+    let mut depth = 0i64;
+    while !c.at_end() {
+        let t = c.peek();
+        if t == T::ISLAND_START {
+            depth += 1;
+        } else if t == T::ISLAND_END {
+            if depth == 0 {
+                break;
+            }
+            depth -= 1;
+        }
+        c.advance()?;
+    }
+    Ok((start, c.pos()))
 }
 
 /// `SectionImports.parseImport`: `import a::b::*;`, a wildcard required.
@@ -106,11 +190,14 @@ impl TailGrammar {
     /// The grammar registered for a tail section's name.
     pub fn of(section: &str) -> Option<TailGrammar> {
         let name = TAIL_SECTIONS.iter().copied().find(|s| *s == section)?;
-        Some(if name == "Text" { TailGrammar::Text } else { TailGrammar::NotPorted(name) })
+        Some(match name {
+            "Text" => TailGrammar::Text,
+            _ => TailGrammar::NotPorted(name),
+        })
     }
 
     /// `parseOne(c)` and `qualifiedNameOf(e)`.
-    pub fn parse_one<'s>(self, c: &mut impl Cursor<'s>) -> R<(Element, Vec<u16>)> {
+    pub fn parse_one(self, c: &mut ElementCursor<'_, '_>) -> R<(Element, Vec<u16>)> {
         match self {
             TailGrammar::Text => {
                 let t = parse_text(c)?;

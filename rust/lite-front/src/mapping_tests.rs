@@ -34,7 +34,7 @@ fn store_pointer(path: &[u16], span: &SourceInfo) -> Box<PPointer> {
 }
 
 /// Java's `String.replace(target, replacement)` over UTF-16 units, left to right.
-fn replace_units(s: &[u16], target: &[u16], replacement: &[u16]) -> Vec<u16> {
+pub(crate) fn replace_units(s: &[u16], target: &[u16], replacement: &[u16]) -> Vec<u16> {
     let mut out = Vec::with_capacity(s.len());
     let mut i = 0;
     while i < s.len() {

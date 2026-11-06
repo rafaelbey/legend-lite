@@ -943,25 +943,16 @@ pub trait Cursor<'s> {
     }
 
     /// `spanOf(fromTok, toTok)`: 1-based, end inclusive; a span ending on a path literal ends on its start line, its
-    /// column the token's start column plus its raw length (the engine's one-token `NAVIGATION_PATH_BLOCK`).
+    /// column the token's start column plus its raw length (the engine's one-token `NAVIGATION_PATH_BLOCK`). A cursor
+    /// over a re-lexed island overrides it ([`IslandCursor`]), reaching this one as [`base_span_of`].
     fn span_of(&self, from: usize, to: usize) -> SourceInfo {
-        let ts = self.tokens();
-        if ts.ty(to) == T::PATH_LITERAL {
-            return SourceInfo {
-                source_id: self.span_source_id(),
-                start_line: ts.start_line(from) as i32,
-                start_column: ts.start_column(from) as i32,
-                end_line: ts.start_line(to) as i32,
-                end_column: (ts.start_column(to) + ts.end(to) - ts.start(to)) as i32 - 1,
-            };
-        }
-        SourceInfo {
-            source_id: self.span_source_id(),
-            start_line: ts.start_line(from) as i32,
-            start_column: ts.start_column(from) as i32,
-            end_line: ts.end_line(to) as i32,
-            end_column: ts.end_column(to) as i32,
-        }
+        base_span_of(self, from, to)
+    }
+
+    /// The offsets of a runtime island's re-lex cursor (Java's `RuntimeSectionGrammar.SliceCursorOffset`, which
+    /// `parseEmbeddedConnection` tests with `instanceof` to compose a nested island's offsets): `None` for any other.
+    fn island_offsets(&self) -> Option<(i32, i32)> {
+        None
     }
 
     /// `spanOf` boxed, as a record's span slot holds it.
@@ -1057,6 +1048,89 @@ pub trait Cursor<'s> {
             return Err(self.error(jcat!("Unsupported join type '", join_type, "'")));
         }
         Ok(())
+    }
+}
+
+/// `TokenStreamCursor.spanOf`'s own body (Java's `TokenStreamCursor.super.spanOf(fromTok, toTok)`).
+pub fn base_span_of<'s, C: Cursor<'s> + ?Sized>(c: &C, from: usize, to: usize) -> SourceInfo {
+    let ts = c.tokens();
+    if ts.ty(to) == T::PATH_LITERAL {
+        return SourceInfo {
+            source_id: c.span_source_id(),
+            start_line: ts.start_line(from) as i32,
+            start_column: ts.start_column(from) as i32,
+            end_line: ts.start_line(to) as i32,
+            end_column: (ts.start_column(to) + ts.end(to) - ts.start(to)) as i32 - 1,
+        };
+    }
+    SourceInfo {
+        source_id: c.span_source_id(),
+        start_line: ts.start_line(from) as i32,
+        start_column: ts.start_column(from) as i32,
+        end_line: ts.end_line(to) as i32,
+        end_column: ts.end_column(to) as i32,
+    }
+}
+
+/// `SpanOrigin.islandShift(span, lineOffset, colOffset)`: the engine's walker-offset rule for an island re-parse --
+/// the line offset on every line, the column offset on line 1 only; the span itself when both are zero.
+pub fn island_shift(sp: SourceInfo, line_offset: i32, col_offset: i32) -> SourceInfo {
+    if line_offset == 0 && col_offset == 0 {
+        return sp;
+    }
+    SourceInfo {
+        source_id: JStr::default(),
+        start_line: sp.start_line + line_offset,
+        start_column: if sp.start_line == 1 { sp.start_column + col_offset } else { sp.start_column },
+        end_line: sp.end_line + line_offset,
+        end_column: if sp.end_line == 1 { sp.end_column + col_offset } else { sp.end_column },
+    }
+}
+
+/// A cursor over an island's content lexed again on its own (`Lexer.tokenize(islandText)`: its lines and columns the
+/// island's, line 1 its first), its spans shifted by the walker offsets ([`island_shift`]) and nothing else -- its
+/// errors stay island-relative, as Java's (the Connection grammar's `Cursor`, the Runtime grammar's
+/// `SliceCursorOffset`; `runtime` marks the latter, which a nested connection island composes its offsets with).
+pub struct IslandCursor<'t, 's> {
+    pub tokens: &'t TokenStream<'s>,
+    pub pos: usize,
+    pub dialect: Dialect,
+    pub line_offset: i32,
+    pub col_offset: i32,
+    pub runtime: bool,
+}
+
+impl<'s> Cursor<'s> for IslandCursor<'_, 's> {
+    fn tokens(&self) -> &TokenStream<'s> {
+        self.tokens
+    }
+    fn pos(&self) -> usize {
+        self.pos
+    }
+    fn set_pos(&mut self, pos: usize) {
+        self.pos = pos;
+    }
+    fn dialect(&self) -> Dialect {
+        self.dialect
+    }
+    fn span_of(&self, from: usize, to: usize) -> SourceInfo {
+        island_shift(base_span_of(self, from, to), self.line_offset, self.col_offset)
+    }
+    fn island_offsets(&self) -> Option<(i32, i32)> {
+        self.runtime.then_some((self.line_offset, self.col_offset))
+    }
+}
+
+/// `TokenStream.startLine(i)` where Java reads it unguarded: past `count` the positions array's
+/// `ArrayIndexOutOfBoundsException`.
+pub fn start_line_checked(ts: &TokenStream<'_>, i: usize) -> R<i64> {
+    if i < ts.count() {
+        Ok(ts.start_line(i) as i64)
+    } else {
+        Err(JavaError::java(
+            "java.lang.ArrayIndexOutOfBoundsException",
+            jcat!("Index ", i, " out of bounds for length ", ts.count()),
+        ))
     }
 }
 

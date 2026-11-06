@@ -352,9 +352,79 @@ impl JValue {
     }
 }
 
+/// Java's `String.hashCode()` over UTF-16 units: `s[0]*31^(n-1) + ... + s[n-1]`, wrapping.
+pub fn string_hash(s: &[u16]) -> i32 {
+    s.iter().fold(0i32, |h, &u| h.wrapping_mul(31).wrapping_add(i32::from(u)))
+}
+
+/// The order a `java.util.HashMap<String, V>`'s key set iterates `keys` (distinct, put in turn): by bucket under the
+/// final table size (16, doubled whenever the size passes three quarters of it), a bucket's keys in insertion order
+/// (`resize` splits a bucket keeping its order) -- as indexes into `keys`. A bucket of eight or more keys is a tree in
+/// Java, whose order this does not model; no grammar's map holds that many.
+pub fn hash_map_order(keys: &[Vec<u16>]) -> Vec<usize> {
+    let mut capacity: usize = 16;
+    while keys.len() > capacity * 3 / 4 {
+        capacity *= 2;
+    }
+    let bucket = |k: &[u16]| {
+        let h = string_hash(k) as u32;
+        ((h ^ (h >> 16)) as usize) & (capacity - 1)
+    };
+    let mut ordered: Vec<(usize, usize)> = keys.iter().enumerate().map(|(i, k)| (bucket(k), i)).collect();
+    ordered.sort();
+    ordered.into_iter().map(|(_, i)| i).collect()
+}
+
+/// `java.util.Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8))`: the string's UTF-8 bytes (a
+/// lone surrogate replaced by `?`, as the encoder does), in the padded standard alphabet.
+pub fn base64_of_utf8(s: &[u16]) -> String {
+    let mut bytes: Vec<u8> = Vec::with_capacity(s.len());
+    for r in char::decode_utf16(s.iter().copied()) {
+        match r {
+            Ok(ch) => {
+                let mut buf = [0u8; 4];
+                bytes.extend_from_slice(ch.encode_utf8(&mut buf).as_bytes());
+            }
+            Err(_) => bytes.push(b'?'),
+        }
+    }
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+        out.push(ALPHABET[(n >> 18) as usize & 63] as char);
+        out.push(ALPHABET[(n >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 { ALPHABET[(n >> 6) as usize & 63] as char } else { '=' });
+        out.push(if chunk.len() > 2 { ALPHABET[n as usize & 63] as char } else { '=' });
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hash_map_and_base64_as_the_jdk_has_them() {
+        let k = |s: &str| s.encode_utf16().collect::<Vec<u16>>();
+        // JDK 25's key sets (2026-11-05): a HashMap put with each list in turn
+        for (put, iterated) in [
+            (
+                &["to", "from", "schemaFrom", "schemaTo", "x", "zz"][..],
+                &["zz", "schemaFrom", "schemaTo", "x", "from", "to"][..],
+            ),
+            (&["from", "to", "bogus", "other"][..], &["bogus", "other", "from", "to"][..]),
+        ] {
+            let keys: Vec<Vec<u16>> = put.iter().map(|s| k(s)).collect();
+            let order: Vec<Vec<u16>> = hash_map_order(&keys).into_iter().map(|i| keys[i].clone()).collect();
+            assert_eq!(order, iterated.iter().map(|s| k(s)).collect::<Vec<_>>());
+        }
+        assert_eq!(base64_of_utf8(&k("hello")), "aGVsbG8=");
+        assert_eq!(base64_of_utf8(&k("")), "");
+        // "h\uD800é": the lone surrogate as '?'
+        assert_eq!(base64_of_utf8(&[u16::from(b'h'), 0xD800, 0xE9]), "aD/DqQ==");
+    }
 
     fn s(x: &str) -> String {
         BigDecimal::parse(x).unwrap().to_java_string()
