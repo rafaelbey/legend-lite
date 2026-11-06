@@ -119,9 +119,14 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
   initialiser parses the platform's prelude through the shim, so a missing library dies as a null-message
   `ExceptionInInitializerError` (a phase 1 follow-up): fixed before step 4, and phase 1's wiring (`//core:ffi` carried
   by every target that reaches core) checked for the targets that reach `builtin` without rendering SQL.
-- **Section grammars that hop through JSON.** The Connection, Runtime, FunctionActivator, Diagram and Elementwise
-  grammars call `ProtocolEmitter` themselves; if their records cross a JSON hop today, that hop's normalisation
-  (`grouped`/`infix` dropped, a let value's span replaced) is part of the spec. Checked before step 4.
+- **Section grammars that hop through JSON** -- settled 2026-11-05, no hop. The Connection, Runtime,
+  FunctionActivator, Diagram and Elementwise grammars call `ProtocolEmitter` only in their SPI `parse(SectionSource,
+  ElementSink)` form, the overlay path; `PmcdParser` takes every built-in grammar's records directly
+  (`parsed.elements()`, PmcdParser:293-323, 758-787), and only an overlay goes through a sink (`OverlayElementSink`,
+  :304). The model path has no JSON normalisation to reproduce.
+- **The class-load trap** -- settled 2026-11-05 (`812ede680`): a missing Rust library is an `IllegalStateException`
+  with its own message at every call of `Lite.shared()`, not an initialiser's message-less error
+  (`//core:ffi_missing_test`).
 - **Recursion depth.** The expression parser backtracks by exception (`SpecParser:2541`) and recurses through nested
   lambdas; Rust's parse runs on a big-stack thread or behind a depth limit, as phase 1's dialect calls do (TRIAGE A3).
 - **Capturing the dump.** Sandboxed tests cannot append to one shared file: each process writes under
