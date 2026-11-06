@@ -163,47 +163,17 @@ public final class PmcdParser {
      * the platform's (lite's own Pure: the prelude, the system metamodel, the test harness) accepts any declaration in
      * its built-in sections, native declarations, and records an unclaimed section where the others refuse it. The
      * compiler builds from these records through its one door ({@code ModelFromProtocol}).
+     *
+     * <p>The Rust parser's answer (docs/rust-port/PHASE2.md §4 step 4, held to {@link #parseInJava}'s every answer by
+     * //rust/lite-front:front_parser_differential_test), its error this package's: each overlay grammar called here
+     * on the section Rust names, in section order, and its elements spliced where Java's walk puts them -- through
+     * {@link OverlayElementSink}, the one producer of an opaque element. An overlay grammar's exception wins over the
+     * parser's own error, as in Java's walk, which calls it first.
      */
     public static Parsed parse(String source, Dialect dialect) {
-        ParseTap.record("pmcd", dialect, source);
-        List<UnclaimedSection> unclaimed = new ArrayList<>();
-        List<DocSection> sections = parseSections(source, dialect, unclaimed);
-        List<Protocol.Element> elements = new ArrayList<>();
-        for (DocSection s : sections) {
-            for (DocElement e : s.elements()) {
-                elements.add(e.element());
-            }
-        }
-        List<Protocol.PSection> pSections = new ArrayList<>();
-        for (DocSection s : sections) {
-            // a DocElement's path is nullable (the BigQuery deployment-config walker registers a null entry), and
-            // the section index lists it as it is
-            List<@com.legend.base.Nullable String> paths = new ArrayList<>();
-            for (DocElement e : s.elements()) {
-                // the sectionIndex lists each path ONCE even when a source
-                // declares it twice (TestSectionRoundtrip duplicates); the
-                // envelope keeps every element
-                if (!paths.contains(e.path())) {
-                    paths.add(e.path());
-                }
-            }
-            pSections.add(new Protocol.PSection(
-                    IMPORT_AWARE.contains(s.parserName()), s.parserName(),
-                    paths, s.imports(), s.span()));
-        }
-        elements.add(new Protocol.PSectionIndex("__internal__", "SectionIndex", pSections));
-        return new Parsed(new Protocol.PureModelContextData(elements), List.copyOf(unclaimed));
-    }
-
-    /**
-     * {@link #parse} answered by the Rust library (docs/rust-port/PHASE2.md, step 4; {@link #parse} itself until the
-     * switch): Rust's records, each overlay grammar called here on the section Rust names, in section order, and its
-     * elements spliced where Java's walk puts them -- through {@link OverlayElementSink}, the one producer of an opaque
-     * element. An overlay grammar's exception wins over the parser's own error, as in Java's walk, which calls it first.
-     */
-    public static Parsed parseInRust(String source, Dialect dialect) {
-        RustParsers.ModelAnswer answer = RustParsers.provider().model(
-                Objects.requireNonNull(source, "source"), dialect, SectionGrammarRegistry.overlays());
+        ParseTap.record("pmcd", dialect, Objects.requireNonNull(source, "source"));
+        RustParsers.ModelAnswer answer = RustParsers.provider().model(source, dialect,
+                SectionGrammarRegistry.overlays());
         List<List<Protocol.Element>> called = new ArrayList<>();
         for (RustParsers.OverlaySection o : answer.overlays()) {
             com.legend.spi.SectionGrammar g = SectionGrammarRegistry.lookup(o.name()).orElseThrow(
@@ -248,8 +218,41 @@ public final class PmcdParser {
                 parsed.model().origin()), parsed.unclaimed());
     }
 
-    /** The ordered section list with parsed elements — the assembly
-     *  {@link #parseDocument} serializes (the engine's dialect). */
+    /** {@link #parse} as this Java parser answers it: the front oracle's Java answer (//core:front_answers), while
+     *  this parser exists -- deleted with it (docs/rust-port/PHASE2.md §4 step 6). */
+    public static Parsed parseInJava(String source, Dialect dialect) {
+        List<UnclaimedSection> unclaimed = new ArrayList<>();
+        List<DocSection> sections = parseSections(source, dialect, unclaimed);
+        List<Protocol.Element> elements = new ArrayList<>();
+        for (DocSection s : sections) {
+            for (DocElement e : s.elements()) {
+                elements.add(e.element());
+            }
+        }
+        List<Protocol.PSection> pSections = new ArrayList<>();
+        for (DocSection s : sections) {
+            // a DocElement's path is nullable (the BigQuery deployment-config walker registers a null entry), and
+            // the section index lists it as it is
+            List<@com.legend.base.Nullable String> paths = new ArrayList<>();
+            for (DocElement e : s.elements()) {
+                // the sectionIndex lists each path ONCE even when a source
+                // declares it twice (TestSectionRoundtrip duplicates); the
+                // envelope keeps every element
+                if (!paths.contains(e.path())) {
+                    paths.add(e.path());
+                }
+            }
+            pSections.add(new Protocol.PSection(
+                    IMPORT_AWARE.contains(s.parserName()), s.parserName(),
+                    paths, s.imports(), s.span()));
+        }
+        elements.add(new Protocol.PSectionIndex("__internal__", "SectionIndex", pSections));
+        return new Parsed(new Protocol.PureModelContextData(elements), List.copyOf(unclaimed));
+    }
+
+    /** The ordered section list with parsed elements, as this Java parser walks it at the engine's dialect
+     *  ({@link #parseInJava}'s assembly): //parser-equivalence's view, deleted with this parser
+     *  (docs/rust-port/PHASE2.md §4 step 6). */
     public static List<DocSection> parseSections(String source) {
         return parseSections(source, LEVEL, new ArrayList<>());
     }

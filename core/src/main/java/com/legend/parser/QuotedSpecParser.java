@@ -93,7 +93,9 @@ public final class QuotedSpecParser {
         // the payload's records (the parser returns protocol only): functions, each as its lambda
         com.legend.protocol.Protocol.PureModelContextData parsed;
         try {
-            parsed = PmcdParser.parse(src, Dialect.LEGEND_ENGINE).model();
+            // the Java twin: this class is reached only from the Java parser's body, whose answer is the front
+            // oracle's and must be Java's throughout (docs/rust-port/PHASE2.md §4 step 4, the switch)
+            parsed = PmcdParser.parseInJava(src, Dialect.LEGEND_ENGINE).model();
         } catch (ParseException notGrammar) {
             return null;
         }
@@ -165,7 +167,8 @@ public final class QuotedSpecParser {
     public static @com.legend.base.Nullable ValueSpecification parseTree(String source,
             Dialect dialect) {
         try {
-            ValueSpecification v = SpecParser.parse(source.trim(), dialect);
+            // the Java twin, as foldGrammar's (reached only from the Java parser's body)
+            ValueSpecification v = SpecParser.parseInJava(source.trim(), dialect);
             return v instanceof com.legend.protocol.spec.GraphFetchLiteral ? v : null;
         } catch (ParseException notATree) {
             // ONLY a parse refusal means "not a tree literal" — any other

@@ -3026,7 +3026,8 @@ public final class SpecParser implements TokenStreamCursor {
                 List<ValueSpecification> args = new ArrayList<>();
                 args.add(body);
                 for (String arg : splitTopLevel(datedArgs)) {
-                    args.add(SpecParser.parse("|" + arg.strip(), dialect())
+                    // the Java twin: this body's answer is the front oracle's, Java's throughout (PHASE2.md §4 step 4)
+                    args.add(SpecParser.parseInJava("|" + arg.strip(), dialect())
                             instanceof LambdaFunction lf && lf.body().size() == 1
                             ? lf.body().get(0)
                             : new Variable(arg.strip()));

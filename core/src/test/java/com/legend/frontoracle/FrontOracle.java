@@ -203,7 +203,7 @@ public final class FrontOracle {
         try {
             switch (q.door()) {
                 case "pmcd" -> {
-                    value = PmcdParser.parse(q.text(), q.dialect());
+                    value = PmcdParser.parseInJava(q.text(), q.dialect());
                     declared = PmcdParser.Parsed.class;
                 }
                 case "spec" -> {
@@ -241,7 +241,7 @@ public final class FrontOracle {
 
     /**
      * {@code q} asked through the shim's doors (Rust's answer read back into records; the model door's overlay grammars
-     * called and spliced in Java, {@link PmcdParser#parseInRust}), as {@link #ask} asks Java's: the records and the
+     * called and spliced in Java, {@link PmcdParser#parse}), as {@link #ask} asks Java's: the records and the
      * error only (the engine JSON is step 5's). On the caller's thread: the parse runs on the shim's worker.
      */
     static Answer askShim(Question q, RecordCodec codec) {
@@ -250,7 +250,7 @@ public final class FrontOracle {
         try {
             switch (q.door()) {
                 case "pmcd" -> {
-                    value = PmcdParser.parseInRust(q.text(), q.dialect());
+                    value = PmcdParser.parse(q.text(), q.dialect());
                     declared = PmcdParser.Parsed.class;
                 }
                 case "spec" -> {
