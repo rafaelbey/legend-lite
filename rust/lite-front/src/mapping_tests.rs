@@ -452,7 +452,7 @@ impl MappingCursor<'_, '_> {
     }
 
     /// `parseTestAssertion`: `id: <assertion value>`.
-    fn parse_test_assertion(&mut self) -> R<PTestAssertion> {
+    pub(crate) fn parse_test_assertion(&mut self) -> R<PTestAssertion> {
         let assert_id = self.parse_identifier()?;
         self.expect(T::COLON)?;
         self.assertion_value(assert_id)

@@ -2099,3 +2099,43 @@ fn parse_gcp_wif_island<'s>(c: &mut impl Cursor<'s>, key_tok: usize) -> R<PAuthS
         source_information: auth_span(c, key_tok, &ip, &ic),
     })))
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::doors::Dialect;
+    use crate::model_parser::parse;
+    use crate::ustr::u;
+
+    fn refusal(text: &str) -> (String, Option<(i32, i32)>) {
+        let e = parse(&u(text), Dialect::LegendLite).unwrap_err();
+        (e.message.expect("a message").lossy(), e.position)
+    }
+
+    #[test]
+    fn an_island_s_refusal_is_placed_in_the_island() {
+        // Java's answers (front_show, 2026-11-05): the re-lexed island's own line and column, not the file's
+        let text = "###Connection\nDeephavenConnection c::D\n{\n  serverUrl: 'http://x' authentication: # PSK { key: \
+                    'k'; }#;\n}\n";
+        assert_eq!(refusal(text), ("[1:7] unknown PSK key: key".to_owned(), Some((1, 7))));
+    }
+
+    #[test]
+    fn a_mapper_s_first_unknown_key_is_the_hash_map_s() {
+        let text = "###Connection\nRelationalDatabaseConnection c::C\n{\n  store: s::DB;\n  type: H2;\n  \
+                    specification: LocalH2 {};\n  auth: DefaultH2;\n  postProcessors: [ mapper { mappers: [ table { \
+                    other: 'o'; from: 'a'; bogus: 'c'; to: 'b'; } ]; } ];\n}\n";
+        assert_eq!(refusal(text).0, "[8:95] unknown table mapper key: bogus");
+    }
+
+    #[test]
+    fn a_cluster_url_is_java_net_uri_s() {
+        let es = |url: &str| {
+            format!(
+                "###Connection\nElasticsearch7ClusterConnection c::E\n{{\n  store: s::ES;\n  clusterDetails: # URL {{ \
+                 {url} }}#;\n  authentication: # Kerberos {{}}#;\n}}\n"
+            )
+        };
+        assert!(parse(&u(&es("http://h:99999999999/")), Dialect::LegendLite).is_ok(), "the registry-based fallback");
+        assert_eq!(refusal(&es("wrong url")), ("[5:26] URL is not valid".to_owned(), Some((5, 26))));
+    }
+}

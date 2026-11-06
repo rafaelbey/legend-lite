@@ -182,6 +182,8 @@ pub const TAIL_SECTIONS: &[&str] = &[
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TailGrammar {
     Text,
+    DataSpace,
+    Service,
     /// A tail grammar not ported yet: its section's name.
     NotPorted(&'static str),
 }
@@ -192,6 +194,8 @@ impl TailGrammar {
         let name = TAIL_SECTIONS.iter().copied().find(|s| *s == section)?;
         Some(match name {
             "Text" => TailGrammar::Text,
+            "DataSpace" => TailGrammar::DataSpace,
+            "Service" => TailGrammar::Service,
             _ => TailGrammar::NotPorted(name),
         })
     }
@@ -204,6 +208,12 @@ impl TailGrammar {
                 let path = crate::protocol::qualified_name(&t.pkg.0, &t.name.0);
                 Ok((Element::PText(Box::new(t)), path))
             }
+            TailGrammar::DataSpace => {
+                let d = crate::dataspace_parser::parse_data_space(c)?;
+                let path = crate::protocol::qualified_name(&d.pkg.0, &d.name.0);
+                Ok((Element::PDataSpace(Box::new(d)), path))
+            }
+            TailGrammar::Service => crate::service_parser::parse_element(c),
             TailGrammar::NotPorted(section) => Err(not_ported(section)),
         }
     }

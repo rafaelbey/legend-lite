@@ -9,9 +9,10 @@
 //! Ported (docs/rust-port/PHASE2.md §4 step 4): the walk, the section spans and imports, the dialects' routing of an
 //! unknown section, `###Pure` (`element_parser`), `###Text` (`sections`), `###Data` (`mapping_parser`),
 //! `###Relational` (`database_parser`), `###Mapping` (`mapping_grammar`, `mapping_tests`), `###Connection`
-//! (`connection_parser`) and `###Runtime` (`runtime_parser`). Every other grammar answers `not ported` (no Java class)
-//! where the walk reaches its first element, one arm of [`parse_one_at`] or [`section_elements`] each: Service, the
-//! activator sections, Diagram, and the tail grammars but Text.
+//! (`connection_parser`), `###Runtime` (`runtime_parser`), `###Service` (`service_parser`, the platform's headerless
+//! `Service` too) and `###DataSpace` (`dataspace_parser`). Every other grammar answers `not ported` (no Java class) where
+//! the walk reaches its first element, one arm of [`parse_one_at`] or [`section_elements`] each: the activator sections,
+//! Diagram, and the tail grammars but Text, Service and DataSpace.
 //!
 //! **Overlays.** A section only a registered overlay grammar (`com.legend.spi.SectionGrammar`, found by Java's
 //! `ServiceLoader`) can read is the shim's: Rust cannot call the grammar, so it hands back, beside the records, each
@@ -37,6 +38,7 @@ use crate::records::{
 };
 use crate::runtime_parser::parse_runtime;
 use crate::sections::{TailGrammar, not_ported};
+use crate::service_parser::parse_element as parse_service_element;
 use crate::ustr::{eq, last_index_of_str, u};
 
 use TokenType as T;
@@ -760,7 +762,7 @@ fn parse_one_at(
             };
             (el, path)
         }
-        HEADERLESS_SERVICE_SITE => return Err(not_ported("Service")),
+        HEADERLESS_SERVICE_SITE => parse_service_element(&mut p)?,
         0 => {
             let c = p.parse_class_definition(false)?;
             let path = qualified_name(&c.pkg.0, &c.name.0);

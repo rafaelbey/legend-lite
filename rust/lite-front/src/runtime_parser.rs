@@ -281,3 +281,28 @@ pub fn parse_embedded_body(
         source_information: content_span,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::doors::Dialect;
+    use crate::model_parser::parse;
+    use crate::records::{Element, PConnectionValue};
+    use crate::ustr::u;
+
+    #[test]
+    fn a_quoted_name_splits_at_its_last_separator_and_an_island_is_re_lexed() {
+        // Java's answers (front_show, 2026-11-05): `'a::b'` is package `a`, name `b`; the island's spans file-absolute
+        let text = "###Runtime\nRuntime 'a::b'\n{\n  mappings: [ m::A ];\n  connections: [ s::DB: [ c1: #{ \
+                    JsonModelConnection { class: m::P; url: 'u'; } }# ], s::E: [] ];\n}\n";
+        let parsed = parse(&u(text), Dialect::LegendLite).expect("parses");
+        let Some(Element::PRuntime(rt)) = parsed.model.elements.first() else { panic!("a runtime") };
+        assert_eq!((rt.pkg.lossy().as_str(), rt.name.lossy().as_str()), ("a", "b"));
+        assert_eq!(rt.connections.len(), 1, "a store group with no connection is dropped");
+        let PConnectionValue::PJsonModelConnection(j) = &rt.connections[0].store_connections[0].connection else {
+            panic!("an embedded connection")
+        };
+        let span = j.class_source_information.as_deref().expect("a span");
+        assert_eq!((span.start_line, span.start_column, span.end_column), (5, 63, 66));
+        assert!(j.element.is_none(), "an embedded model connection names no ModelStore");
+    }
+}

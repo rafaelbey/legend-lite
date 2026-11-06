@@ -6,13 +6,15 @@
 //! the expression parser (`spec_parser`, over the shared cursor `cursor`), held to Java's every answer; step 4a: the
 //! model parser's walk (`model_parser`) and its `###Pure` (`element_parser`), `###Text` (`sections`) and `###Data`
 //! (`mapping_parser`) grammars; step 4b: `###Relational` (`database_parser`) and `###Mapping` (`mapping_grammar`,
-//! `mapping_tests`); step 4c: `###Connection` (`connection_parser`, with `java.net.URI`'s verdict in `jnet`) and
-//! `###Runtime` (`runtime_parser`) -- each held to Java's every answer that stays in them.
+//! `mapping_tests`); step 4c: `###Connection` (`connection_parser`, with `java.net.URI`'s verdict in `jnet`),
+//! `###Runtime` (`runtime_parser`), `###Service` (`service_parser`) and `###DataSpace` (`dataspace_parser`) -- each held
+//! to Java's every answer that stays in them.
 
 pub mod codec;
 pub mod connection_parser;
 pub mod cursor;
 pub mod database_parser;
+pub mod dataspace_parser;
 pub mod doors;
 pub mod element_parser;
 pub mod escapes;
@@ -31,6 +33,7 @@ pub mod protocol;
 pub mod records;
 pub mod runtime_parser;
 pub mod sections;
+pub mod service_parser;
 pub mod sha256;
 pub mod spec_parser;
 pub mod temporal;
