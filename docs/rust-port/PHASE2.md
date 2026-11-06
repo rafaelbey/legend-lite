@@ -354,8 +354,11 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    **The receipt after the switch** (2026-11-06). Taken with `//core:front_timing` over the same set, the last of
    three passes. Its `--java` flag times the Java parser's twins, so the two parsers were timed back to back, twice,
    at load averages 2.5-4.7.
-   - **Through the shim, the Rust library optimized** (`-Copt-level=3` on the command line; no build sets it today, so
-     the CI-built wheel, the native library and the server jar carry the opt-level-0 library), against Java:
+   - **Through the shim, the Rust library optimized** (`-Copt-level=3` on the command line), against Java. No build
+     set it then: Bazel's default build is fastbuild, so the tests, CI's kept wheel, the native library and the server
+     jar all carried the opt-level-0 library. The user ruled (2026-11-06): every build optimizes the Rust crates,
+     fastbuild included (MODULE.bazel's `rust.toolchain` `opt_level`); the parser differential then ran in 34 s
+     against 226 s.
 
      | | Through the shim | Java parser |
      |---|---|---|
@@ -366,8 +369,8 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      | Query at lite's dialect: p50 | 0.010 ms | 0.001 ms |
      | Whole set | 12.6-12.9 s | 3.7-3.9 s |
 
-     At fastbuild (rustc's opt-level 0, what `bazel test` runs) the model door takes 13.5-15.0 s a dialect, 44 s in
-     all. The same questions raise in each.
+     At fastbuild's rustc opt-level 0 (what `bazel test` ran before the ruling) the model door took 13.5-15.0 s a
+     dialect, 44 s in all. The same questions raise in each.
    - **The Rust parser itself is not the difference.** Timed natively (release, no FFI, no JVM, load average 4.8-6.1;
      a scratch harness over `lite_front::doors`, the last of three passes):
      - a model text at each dialect: 1.35-1.39 s in all, p50 0.008-0.010 ms, max 137-140 ms (Java's 118-137);

@@ -6,7 +6,9 @@ references the port is judged against.
 Bazel builds the crates (`rules_rust`, each crate's `BUILD.bazel`) and its targets are the gate:
 `bazel test //rust/... //core:ffi_test`. `rust/` is also a Cargo workspace for the edit loop (`cargo test`,
 `cargo clippy --all-targets -- -D warnings` from here); `rust-toolchain.toml` pins cargo to the compiler `MODULE.bazel`
-names. Change both together.
+names. Change both together. Bazel optimizes the crates in every build, fastbuild included (`MODULE.bazel`'s
+`rust.toolchain` `opt_level`, the user's ruling of 2026-11-06): the tests run the library that ships. Cargo's dev
+profile does not.
 
 - `lite-ffi/`: the compiler as a C library -- the exports `//core:ffi` (`com.legend.ffi.Lite`) calls through
   `java.lang.foreign`, and Python's bindings will once `libcompiler` is Rust. Phase 0: the contract only.

@@ -56,7 +56,8 @@ rust_test(
 # (//core:front_answers, the canonical form's SHA-256): at least each door's floor (tests/<door>-floor.txt) identical.
 # Large (2026-11-05, phase 2 step 4a): the model door parses its 87,564 questions' texts and hashes their answers, about
 # 170 s unoptimized on an idle machine (fastbuild is rustc's opt-level 0; 40 s of it optimized), past medium's 300 s
-# once the remaining section grammars parse too.
+# once the remaining section grammars parse too. Since 2026-11-06 every build optimizes the crates (MODULE.bazel's
+# rust.toolchain opt_level): 34 s with every grammar, still large so a slow runner has room.
 rust_test(
     name = "front_parser_differential_test",
     size = "large",

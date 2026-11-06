@@ -628,8 +628,19 @@ use_repo(pip, "pypi")
 bazel_dep(name = "rules_rust", version = "0.75.0")
 
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+
+# opt_level (the user, 2026-11-06): every build optimizes the Rust crates, fastbuild included. Bazel's default build is
+# fastbuild everywhere -- the tests, CI's kept wheel, the native library, the server jar -- and rules_rust maps it to
+# rustc's opt-level 0, at which the shim's model door ran 3.5 times slower than optimized (docs/rust-port/PHASE2.md
+# §4 step 4, the receipt). So the tests run the library that ships, and it is optimized. dbg stays unoptimized; cargo's
+# edit loop keeps its own profiles (rust/Cargo.toml).
 rust.toolchain(
     edition = "2024",
+    opt_level = {
+        "dbg": "0",
+        "fastbuild": "3",
+        "opt": "3",
+    },
     versions = ["1.99.1"],
 )
 use_repo(rust, "rust_toolchains")
