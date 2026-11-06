@@ -16,10 +16,17 @@
 //!   (`ProtocolEmitter.emitElement`) -- `ViewFilterParityTest`'s byte parity;
 //! - [`known_sections`]: the sections the model parser reads with a grammar of its own -- `SectionGrammarRegistry`'s
 //!   built-in half (`SurfaceCensusTest`).
+//!
+//! And one the prelude's generator asks (step 6b; spec/src/gen's `PreludeGenerator`, a build action that cut each
+//! declaration's verbatim text with the Java lexer and `ElementParser.at`):
+//!
+//! - [`declaration_extents`]: every top-level declaration at its brace depth 0, its kind and its extent -- from its
+//!   first token to where its kind's reader leaves the cursor.
 
 use crate::cursor::ElementCursor;
 use crate::database_parser::parse_database;
-use crate::doors::{Answer, Dialect};
+use crate::doors::{Answer, Dialect, JavaError};
+use crate::jcat;
 use crate::emitter::emit_element;
 use crate::lexer::{TokenStream, TokenType, tokenize};
 use crate::protocol::qualified_name;
@@ -114,6 +121,89 @@ pub fn known_sections() -> Vec<&'static str> {
     crate::model_parser::known_sections()
 }
 
+/// A top-level declaration [`declaration_extents`] found: its head's kind -- `Class`, `Enum`, `Profile`, `function`
+/// or `native function` -- and its extent, `text[start, end)` in UTF-16 units: from its first token (its
+/// documentation literal, when one comes first) to the end of the last token its kind's reader consumed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DeclarationExtent {
+    pub kind: &'static str,
+    pub start: usize,
+    pub end: usize,
+}
+
+/// The prelude generator's cut (spec/src/gen's `PreludeGenerator`: its `functionsIn` brace scan, and its
+/// `declarationText`, which parsed a class, an enumeration or a profile where it starts with `ElementParser.at`): every
+/// declaration in the whole text's tokens, in token order, at brace depth 0 (braces counted, nothing else) and at a
+/// declaration's position -- the stream's first token, or right after a `;` or a `}`, a documentation literal before
+/// its head passing the position on and starting the declaration. Its head:
+///
+/// - `native function`: sliced to its `;` (`native function` with no `;` after it is an `IllegalStateException`), the
+///   scan going on after the `;`;
+/// - `function`: read by `parseFunctionProtocol`, the scan going on at the next token, as the generator's did (inside
+///   the declaration nothing is at depth 0 and a declaration's position);
+/// - `Class`, `Enum`, `Profile`, not followed by `::` (keywords are legal identifiers in Pure): read by
+///   `parseClassDefinition(false)`, `parseEnumDefinition`, `parseProfileDefinition`.
+///
+/// Each read at `dialect` where it stands (`ElementParser.at(tokens, i, dialect)`); the first reader's error is the
+/// answer. On the caller's thread, which needs a big stack (`doors::PARSE_STACK`).
+pub fn declaration_extents(text: &[u16], dialect: Dialect) -> Answer<Vec<DeclarationExtent>> {
+    let ts = tokenize(text);
+    let n = ts.count();
+    let mut out = Vec::new();
+    let mut depth: i64 = 0;
+    let mut k = 0;
+    while k < n {
+        let t = ts.ty(k);
+        if t == T::BRACE_OPEN {
+            depth += 1;
+        } else if t == T::BRACE_CLOSE {
+            depth -= 1;
+        }
+        let decl = if k > 0 && ts.ty(k - 1) == T::DOC_STRING { k - 1 } else { k };
+        let at_start = decl == 0 || matches!(ts.ty(decl - 1), T::SEMI_COLON | T::BRACE_CLOSE);
+        if depth != 0 || !at_start {
+            k += 1;
+            continue;
+        }
+        if t == T::NATIVE && k + 1 < n && ts.ty(k + 1) == T::FUNCTION {
+            let mut semi = k + 1;
+            while semi < n && ts.ty(semi) != T::SEMI_COLON {
+                semi += 1;
+            }
+            if semi >= n {
+                return Err(JavaError::java(
+                    "java.lang.IllegalStateException",
+                    jcat!("a native declaration without ';' at token ", k),
+                ));
+            }
+            out.push(DeclarationExtent { kind: "native function", start: ts.start(decl), end: ts.end(semi) });
+            k = semi + 1;
+            continue;
+        }
+        let path_next = k + 1 < n && ts.ty(k + 1) == T::PATH_SEPARATOR;
+        let kind = match t {
+            T::FUNCTION => "function",
+            T::CLASS if !path_next => "Class",
+            T::ENUM if !path_next => "Enum",
+            T::PROFILE if !path_next => "Profile",
+            _ => {
+                k += 1;
+                continue;
+            }
+        };
+        let mut p = ElementCursor::at(&ts, decl, dialect);
+        match t {
+            T::CLASS => drop(p.parse_class_definition(false)?),
+            T::ENUM => drop(p.parse_enum_definition()?),
+            T::PROFILE => drop(p.parse_profile_definition()?),
+            _ => drop(p.parse_function_protocol()?),
+        }
+        out.push(DeclarationExtent { kind, start: ts.start(decl), end: ts.end(p.pos - 1) });
+        k += 1;
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,6 +259,62 @@ mod tests {
         assert!(String::from_utf16_lossy(&sites[0].1).starts_with("{\"_type\":\"relational\""));
         // a Database word inside a body is no site
         assert!(database_sites(&u("Class a::A { x: Database[1]; }"), Dialect::LegendEngine).unwrap().is_empty());
+    }
+
+    fn extents(text: &str) -> Vec<(&'static str, String)> {
+        let units = u(text);
+        declaration_extents(&units, Dialect::LegendPlatform)
+            .unwrap()
+            .into_iter()
+            .map(|d| (d.kind, String::from_utf16_lossy(&units[d.start..d.end])))
+            .collect()
+    }
+
+    #[test]
+    fn a_declaration_s_extent_runs_from_its_first_token_to_where_its_reader_stops() {
+        let text = "import a::*;\n\
+                    Class <<doc.deprecated>> {doc.doc = 'x'} a::A extends B\n[ c: $this.x > 0 ]\n{ x: Integer[1]; }\n\
+                    '''\nthe doc\n''' Enum a::E { X, Y }\n\
+                    Profile a::P { stereotypes: [s]; tags: [t]; }\n\
+                    native function a::n(x: String[1]): String[1];\n\
+                    function <<test.Test>> a::f(): Integer[1] { 1 }\n{ suite ( t | f() => 1; ) }\n\
+                    '''\ndoc\n''' function a::g(): Integer[1] { let x = {| 2}; $x->eval(); }";
+        assert_eq!(
+            extents(text),
+            vec![
+                ("Class", "Class <<doc.deprecated>> {doc.doc = 'x'} a::A extends B\n[ c: $this.x > 0 ]\n{ x: Integer[1]; }"
+                    .to_owned()),
+                ("Enum", "'''\nthe doc\n''' Enum a::E { X, Y }".to_owned()),
+                ("Profile", "Profile a::P { stereotypes: [s]; tags: [t]; }".to_owned()),
+                ("native function", "native function a::n(x: String[1]): String[1];".to_owned()),
+                ("function", "function <<test.Test>> a::f(): Integer[1] { 1 }\n{ suite ( t | f() => 1; ) }".to_owned()),
+                ("function", "'''\ndoc\n''' function a::g(): Integer[1] { let x = {| 2}; $x->eval(); }".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_head_is_a_declaration_only_at_brace_depth_zero_and_a_declaration_s_position() {
+        // a property named `function` and a profile's `Class` stereotype sit inside braces; `Class` as a type name
+        // follows a `:` -- none is a declaration; `Class::x` after a `;` is a path, not a class
+        let text = "Class a::A { function: String[1]; }\nProfile a::P { stereotypes: [Class]; }\n\
+                    function a::f(c: Class<Any>[1]): Integer[1] { 1 }\nClass::x;";
+        let found: Vec<&str> = extents(text).into_iter().map(|(k, _)| k).collect();
+        assert_eq!(found, vec!["Class", "Profile", "function"]);
+        // a section's header lexes to nothing: a declaration after a block ends' `}` is one, whatever the header
+        assert_eq!(extents("Class a::A {}\n###Pure\nClass a::B {}").len(), 2);
+    }
+
+    #[test]
+    fn a_reader_s_error_and_an_unterminated_native_are_the_answer() {
+        let bad = u("Class a::A { x String[1]; }");
+        let e = declaration_extents(&bad, Dialect::LegendPlatform).unwrap_err();
+        assert!(e.is_parse_exception(), "{e:?}");
+        let open = u("native function a::n(): String[1]");
+        let e = declaration_extents(&open, Dialect::LegendPlatform).unwrap_err();
+        assert_eq!(e.class, "java.lang.IllegalStateException");
+        assert_eq!(e.message.map(|m| String::from_utf16_lossy(m.units())).as_deref(),
+            Some("a native declaration without ';' at token 0"));
     }
 
     #[test]

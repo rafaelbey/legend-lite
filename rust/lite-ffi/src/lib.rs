@@ -196,7 +196,9 @@ pub unsafe extern "C" fn lite_dialect(spec: *const c_char, op: *const c_char, ar
 /// 6a: what `//parser-equivalence`'s gate tests asked of the Java parser's internals), answered `A\n<json>` or
 /// `E\n<error>` the same way: `sectionHeaders` (`[[name, contentStartOffset], ...]`), `elementSites` (how many
 /// top-level declarations parsed where they stand), `databaseSites` (`[[qualifiedName, the element's JSON], ...]`,
-/// the JSON as a string) and `knownSections` (`[name, ...]`; its text and dialect are not read).
+/// the JSON as a string) and `knownSections` (`[name, ...]`; its text and dialect are not read); and the prelude
+/// generator's (step 6b), `declarationExtents` (`[[kind, start, end], ...]`: each top-level declaration's head and its
+/// extent in UTF-16 units).
 ///
 /// # Safety
 /// `door`, `dialect` and `text` are null or NUL-terminated strings the caller keeps alive for the call.
@@ -438,6 +440,18 @@ fn front_answer(door: &str, dialect: lite_front::doors::Dialect, text: &[u16]) -
                 w.raw(",");
                 w.string(&JStr(json));
                 w.raw("]");
+            }
+            w.raw("]");
+            w.finish()
+        }),
+        // the prelude generator's (step 6b): [[kind, start, end], ...]
+        "declarationExtents" => probes::declaration_extents(text, dialect).map(|extents| {
+            let mut w = codec::Writer::new();
+            w.raw("[");
+            for (i, d) in extents.into_iter().enumerate() {
+                w.raw(if i > 0 { ",[" } else { "[" });
+                w.string(&JStr::from(d.kind));
+                w.raw(&format!(",{},{}]", d.start, d.end));
             }
             w.raw("]");
             w.finish()
@@ -854,6 +868,12 @@ mod tests {
         assert_eq!(front("elementSites", "LEGEND_LITE", "Class a::A<T> {}"), "OK\nA\n1");
         let databases = front("databaseSites", "LEGEND_ENGINE", "###Relational\nDatabase a::D ( )");
         assert!(databases.starts_with("OK\nA\n[[\"a::D\",\"{\\\"_type\\\":\\\"relational\\\""), "{databases}");
+        assert_eq!(
+            front("declarationExtents", "LEGEND_PLATFORM", "Enum a::E { X }\nnative function a::n(): String[1];"),
+            "OK\nA\n[[\"Enum\",0,15],[\"native function\",16,50]]"
+        );
+        let unterminated = front("declarationExtents", "LEGEND_PLATFORM", "native function a::n(): String[1]");
+        assert!(unterminated.starts_with("OK\nE\n{\"class\":\"java.lang.IllegalStateException\""), "{unterminated}");
         let known = front("knownSections", "LEGEND_ENGINE", "");
         assert!(known.starts_with("OK\nA\n[\"Pure\","), "{known}");
         assert_eq!(known.matches(',').count(), 24, "{known}");

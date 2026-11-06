@@ -4,12 +4,9 @@
 package com.legend.generators;
 
 import com.legend.Compiler;
-import com.legend.lexer.TokenType;
 import com.legend.protocol.Protocol;
 import com.legend.compiler.CoreImports;
 import com.legend.compiler.NameResolver;
-import com.legend.lexer.Lexer;
-import com.legend.lexer.TokenStream;
 import com.legend.model.ClassDefinition;
 import com.legend.model.EnumDefinition;
 import com.legend.model.ImportScope;
@@ -17,7 +14,8 @@ import com.legend.model.PackageableElement;
 import com.legend.model.ParsedModel;
 import com.legend.parser.Dialect;
 import com.legend.door.ModelFromText;
-import com.legend.parser.ElementParser;
+import com.legend.parser.PmcdParser;
+import com.legend.parser.RustParsers;
 import com.legend.protocol.DerivedPropertyDefinition;
 import com.legend.protocol.ParameterDefinition;
 import com.legend.protocol.TypeExpression;
@@ -837,7 +835,7 @@ public final class PreludeGenerator {
         final Map<String, Integer> offsetOf = new LinkedHashMap<>();
         final Map<String, ImportScope> scopeOf = new LinkedHashMap<>();
         final Set<Path> parsedFiles = new LinkedHashSet<>();
-        final Map<String, TokenStream> tokensOf = new LinkedHashMap<>();
+        final Map<String, List<RustParsers.DeclarationExtent>> extentsOf = new LinkedHashMap<>();
         final Path m3File;
         final Map<String, String> m3Decls;
 
@@ -924,9 +922,9 @@ public final class PreludeGenerator {
                             if (srcName != null && off != null && !declText.containsKey(el.qualifiedName())) {
                                 for (Compiler.ModelSource ms : sources) {
                                     if (ms.name().equals(srcName)) {
-                                        TokenStream ts = tokensOf.computeIfAbsent(srcName,
-                                                k -> Lexer.tokenize(ms.text()));
-                                        declText.put(el.qualifiedName(), declarationText(ts, ms.text(), off,
+                                        List<RustParsers.DeclarationExtent> extents = extentsOf.computeIfAbsent(
+                                                srcName, k -> declarations(ms.text(), k));
+                                        declText.put(el.qualifiedName(), declarationText(extents, ms.text(), off,
                                                 el));
                                         fileOf.put(el.qualifiedName(), srcName);
                                         offsetOf.put(el.qualifiedName(), off);
@@ -1483,32 +1481,18 @@ public final class PreludeGenerator {
                     walls.add(parseWalls.get(0));
                     continue;
                 }
-                TokenStream ts = Lexer.tokenize(text);
-                int depth = 0;
-                for (int k = 0; k < ts.count(); k++) {
-                    if (ts.type(k) == TokenType.BRACE_OPEN) {
-                        depth++;
-                    } else if (ts.type(k) == TokenType.BRACE_CLOSE) {
-                        depth--;
-                    }
-                    // a DECLARATION-position `function`: at brace depth 0 (a
-                    // class's property named `function` sits at depth 1, so
-                    // does a Profile's stereotype list), the first token or
-                    // right after a previous declaration's `;` or `}` (section
-                    // headers lex to nothing; `native function` follows NATIVE,
-                    // the keyword in `<<PCT.function>>` follows a DOT).
-                    if (depth != 0) {
-                        continue;
-                    }
-                    // a DOCUMENTATION literal (5.99.0: `documentation? function
-                    // ...`) occupies declaration position and passes it on;
-                    // the declaration's slice then starts AT the literal, so
-                    // the prelude carries the doc tagged value the parser
-                    // makes of it — verbatim, as everything else here
-                    boolean docBefore = k > 0 && ts.type(k - 1) == TokenType.DOC_STRING;
-                    int declTok = docBefore ? k - 1 : k;
-                    boolean atStart = declTok == 0 || ts.type(declTok - 1) == TokenType.SEMI_COLON
-                            || ts.type(declTok - 1) == TokenType.BRACE_CLOSE;
+                // every DECLARATION-position `function` and `native function`: at brace depth 0 (a class's property
+                // named `function` sits at depth 1, so does a Profile's stereotype list), the first token or right
+                // after a previous declaration's `;` or `}` (section headers lex to nothing; `native function` is
+                // its own head; the keyword in `<<PCT.function>>` follows a DOT). A DOCUMENTATION literal (5.99.0:
+                // `documentation? function ...`) occupies declaration position and passes it on; the declaration's
+                // slice then starts AT the literal, so the prelude carries the doc tagged value the parser makes of
+                // it -- verbatim, as everything else here. The Rust parser's scan and readers answer each one's
+                // extent (RustParsers.declarationExtents, step 6b): the Java lexer and cursor this generator scanned
+                // with until 2026-11-06, ported.
+                for (RustParsers.DeclarationExtent d : declarations(text, f.toString())) {
+                    int start = d.start();
+                    String slice = text.substring(start, d.end());
                     // UPSTREAM NATIVES ARE CARRIED, RESPELLED (upstream boundary
                     // batch 4, program §0 right column): a `native function`
                     // declaration at declaration position is sliced from
@@ -1518,60 +1502,41 @@ public final class PreludeGenerator {
                     // "not implemented", never as "unknown function". Until
                     // 2026-09-10 the `native` token in front of `function` made
                     // the position test fail and every native was dropped.
-                    if (ts.type(k) == TokenType.NATIVE && atStart && k + 1 < ts.count()
-                            && ts.type(k + 1) == TokenType.FUNCTION) {
-                        int semi = k + 1;
-                        while (semi < ts.count() && ts.type(semi) != TokenType.SEMI_COLON) {
-                            semi++;
-                        }
-                        if (semi >= ts.count()) {
-                            throw new IllegalStateException("prelude generator: native declaration"
-                                    + " without ';' at " + f + " token " + k);
-                        }
-                        String slice = text.substring(ts.start(declTok), ts.end(semi));
+                    if (d.kind().equals("native function")) {
                         com.legend.model.ParsedModel one;
                         try {
                             one = ModelFromText.parse(slice, Dialect.LEGEND_PLATFORM);
                         } catch (com.legend.parser.ParseException e) {
                             throw new IllegalStateException("prelude generator: native slice at "
-                                    + f + " token " + k + ": " + e.getMessage(), e);
+                                    + f + " offset " + start + ": " + e.getMessage(), e);
                         }
                         if (one.elements().size() != 1
                                 || !(one.elements().get(0) instanceof com.legend.model.NativeFunctionDefinition nfd)) {
                             throw new IllegalStateException("prelude generator: native slice at " + f
-                                    + " token " + k + " did not parse to one native function");
+                                    + " offset " + start + " did not parse to one native function");
                         }
                         String nfqn = nfd.qualifiedName();
                         if (!nfqn.contains("::tests::")) {
-                            int nstart = ts.start(declTok);
-                            int nsectionStart = Math.max(0, text.lastIndexOf("###Pure", nstart));
+                            int nsectionStart = Math.max(0, text.lastIndexOf("###Pure", start));
                             List<String> nwildcards = new ArrayList<>();
-                            Matcher nim = IMPORT_LINE.matcher(text.substring(nsectionStart, nstart));
+                            Matcher nim = IMPORT_LINE.matcher(text.substring(nsectionStart, start));
                             while (nim.find()) {
                                 nwildcards.add(nim.group(1));
                             }
-                            out.add(new PlatformFunction(nfqn + "#" + nstart, nfqn, f.toString(), nstart,
+                            out.add(new PlatformFunction(nfqn + "#" + start, nfqn, f.toString(), start,
                                     slice, nwildcards, true));
                         }
-                        k = semi;
                         continue;
                     }
-                    if (ts.type(k) != TokenType.FUNCTION || !atStart) {
+                    if (!d.kind().equals("function")) {
                         continue;
                     }
-                    ElementParser p = ElementParser.at(ts, declTok, Dialect.LEGEND_PLATFORM);
-                    Protocol.PFunction fn;
-                    try {
-                        fn = p.parseFunctionProtocol();
-                    } catch (com.legend.parser.ParseException e) {
-                        throw new IllegalStateException("prelude generator: function slice at "
-                                + f + " token " + k + " (" + ts.text(Math.min(k + 1, ts.count() - 1))
-                                + "…): " + e.getMessage(), e);
-                    }
+                    // the function's record, read from its own slice at the same dialect (its reader, its tokens:
+                    // the extent is where that reader stopped), for its stereotypes and its name
+                    Protocol.PFunction fn = functionOf(slice, f, start);
                     boolean test = fn.stereotypes().stream().anyMatch(st ->
                             st.profile().endsWith("test") && !st.profile().endsWith("PCT")
                                     || (st.profile().endsWith("PCT") && st.value().equals("test")));
-                    int start = ts.start(declTok);
                     String fqn = fn.pkg().isEmpty() ? fn.name() : fn.pkg() + "::" + fn.name();
                     // a `tests` package is test SUPPORT (fixture models, helpers
                     // over them — the equality test model's ClassWithoutEquality):
@@ -1585,8 +1550,8 @@ public final class PreludeGenerator {
                     while (im.find()) {
                         wildcards.add(im.group(1));
                     }
-                    out.add(new PlatformFunction(fqn + "#" + start, fqn, f.toString(), start,
-                            text.substring(start, ts.end(p.pos() - 1)), wildcards, false));
+                    out.add(new PlatformFunction(fqn + "#" + start, fqn, f.toString(), start, slice, wildcards,
+                            false));
                 }
             }
         }
@@ -1596,29 +1561,59 @@ public final class PreludeGenerator {
     /**
      * The declaration's VERBATIM text, delimited by THE PARSER (HOMEWORK
      * §9.7): from the element's first token (the parser's own element offset)
-     * to where {@code parseClassDefinition} / {@code parseEnumDefinition}
-     * leaves the cursor. A header tagged-value block, a constraint block, a
-     * brace inside a string literal — the parser that will read the module
-     * decides, never a regex or a brace count.
+     * to where the kind's reader -- {@code parseClassDefinition},
+     * {@code parseEnumDefinition}, {@code parseProfileDefinition} -- leaves
+     * the cursor. A header tagged-value block, a constraint block, a brace
+     * inside a string literal — the parser that will read the module decides,
+     * never a regex or a brace count. The extents are the Rust parser's
+     * ({@link #declarations}); a declaration it does not find starting at the
+     * element's offset, or finds as another kind, is this generator's error.
      */
-    static String declarationText(TokenStream tokens, String source, int offset, PackageableElement kind) {
-        int i = -1;
-        for (int k = 0; k < tokens.count(); k++) {
-            if (tokens.start(k) == offset) {
-                i = k;
-                break;
+    static String declarationText(List<RustParsers.DeclarationExtent> extents, String source, int offset,
+            PackageableElement kind) {
+        String head = switch (kind) {
+            case EnumDefinition e -> "Enum";
+            case com.legend.model.ProfileDefinition pr -> "Profile";
+            default -> "Class";
+        };
+        for (RustParsers.DeclarationExtent d : extents) {
+            if (d.start() == offset) {
+                if (!d.kind().equals(head)) {
+                    throw new IllegalStateException("prelude generator: the declaration at offset " + offset
+                            + " is a " + d.kind() + ", not a " + head);
+                }
+                return source.substring(d.start(), d.end());
             }
         }
-        if (i < 0) {
-            throw new IllegalStateException("prelude generator: no token starts at offset " + offset);
+        throw new IllegalStateException("prelude generator: no declaration starts at offset " + offset);
+    }
+
+    /** Every top-level declaration of {@code text} and its extent, as the Rust parser reads it at the platform's
+     *  dialect ({@link RustParsers#declarationExtents}); its error the generator's, naming {@code name}. */
+    static List<RustParsers.DeclarationExtent> declarations(String text, String name) {
+        try {
+            return RustParsers.provider().declarationExtents(text, Dialect.LEGEND_PLATFORM);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("prelude generator: the declarations of " + name + ": "
+                    + e.getMessage(), e);
         }
-        ElementParser p = ElementParser.at(tokens, i, Dialect.LEGEND_PLATFORM);
-        switch (kind) {
-            case EnumDefinition e -> p.parseEnumDefinition();
-            case com.legend.model.ProfileDefinition pr -> p.parseProfileDefinition();
-            default -> p.parseClassDefinition(false);
+    }
+
+    /** The function a declaration's slice holds, its record as the parser reads it at the platform's dialect. */
+    private static Protocol.PFunction functionOf(String slice, Path f, int start) {
+        List<Protocol.Element> elements;
+        try {
+            elements = PmcdParser.parse(slice, Dialect.LEGEND_PLATFORM).model().elements();
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("prelude generator: function slice at " + f + " offset " + start
+                    + ": " + e.getMessage(), e);
         }
-        return source.substring(tokens.start(i), tokens.end(p.pos() - 1));
+        // the function, then the section index the parser appends
+        if (elements.size() != 2 || !(elements.get(0) instanceof Protocol.PFunction fn)) {
+            throw new IllegalStateException("prelude generator: function slice at " + f + " offset " + start
+                    + " did not parse to one function");
+        }
+        return fn;
     }
 
     /** The spec file's path relative to its checkout root — the module is a

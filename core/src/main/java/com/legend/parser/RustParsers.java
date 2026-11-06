@@ -70,6 +70,22 @@ public interface RustParsers {
     /** The sections the model parser reads with a grammar of its own (the registry's built-in half, not overlays). */
     List<String> knownSections();
 
+    /**
+     * THE PRELUDE GENERATOR'S PROBE (step 6b: spec/src/gen's {@code PreludeGenerator}, a build action, which cut each
+     * declaration's verbatim text with the Java lexer and cursor before they were deleted): every declaration at brace
+     * depth 0 and a declaration's position -- the stream's first token, or right after a {@code ;} or a closing brace,
+     * a documentation literal before its head starting it -- whose head is {@code Class}, {@code Enum},
+     * {@code Profile}, {@code function} or {@code native function}, in token order: its kind and its extent, from its
+     * first token to the end of the last token its kind's reader consumed at {@code dialect} (a native's {@code ;}).
+     * The first reader's error is thrown as its class.
+     */
+    List<DeclarationExtent> declarationExtents(String text, Dialect dialect);
+
+    /** A declaration {@link #declarationExtents} found: its head ({@code Class}, {@code Enum}, {@code Profile},
+     *  {@code function} or {@code native function}) and its text, {@code text.substring(start, end)}. */
+    record DeclarationExtent(String kind, int start, int end) {
+    }
+
     /** A {@code ###Section} header: its name, and the offset (a {@code char} index) its content starts at. */
     record SectionHeader(String name, int contentStartOffset) {
     }

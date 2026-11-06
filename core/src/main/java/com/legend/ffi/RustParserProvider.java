@@ -146,6 +146,16 @@ public final class RustParserProvider implements RustParsers {
         return List.copyOf(out);
     }
 
+    @Override
+    public List<DeclarationExtent> declarationExtents(String text, Dialect dialect) {
+        List<DeclarationExtent> out = new java.util.ArrayList<>();
+        for (Json.Node d : ((Json.Arr) Json.parse(call("declarationExtents", dialect, text))).items()) {
+            List<Json.Node> f = ((Json.Arr) d).items();
+            out.add(new DeclarationExtent(((Json.Str) f.get(0)).value(), integer(f.get(1)), integer(f.get(2))));
+        }
+        return List.copyOf(out);
+    }
+
     /** One door's answer: the records' codec JSON, or the error thrown. */
     private static String call(String door, Dialect dialect, String text) {
         String answer = Lite.shared().front(door, dialect.name(), jsonString(text));
