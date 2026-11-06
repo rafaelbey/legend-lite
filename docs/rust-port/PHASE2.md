@@ -92,6 +92,20 @@ and place (Java calls the grammar and splices its `POpaqueElement` in order), an
 source. An error answers the Java class to throw (`ParseException`, `IllegalStateException`, ...), its message and its
 line and column, and the shim rethrows exactly that.
 
+**The model door's overlays** (settled in step 4a, 2026-11-05). `lite_front::doors::pmcd(text, dialect, overlays)`
+takes the shim's registered overlay grammars (`OverlayGrammar { name, lexable }`: `SectionGrammarRegistry`'s
+ServiceLoader half, names and `lexable()`) and answers a `PmcdAnswer { parsed, overlays }`. `parsed` is the records or
+Java's error; `overlays` lists, in section order, each overlay section the walk met (`OverlaySection { name,
+start_offset, end_offset, start_line, element_index, section_index }`): the grammar's `SectionSource` (the section's
+raw text `text[start_offset, end_offset)`, the line it starts on) and where Java would have spliced its records --
+before `model.elements[element_index]` of the answer as Rust gives it (splicing the sections last-first keeps each
+index right), and their paths, each once, into the section index's `sections[section_index].elements`, which Rust
+leaves empty (the entry is otherwise whole: name, span, `importAware`, no imports). Rust never makes a
+`POpaqueElement` (its one producer is the overlay seam, `ArchitectureTest.opaqueCarrierIsLockedToTheOverlaySeam`):
+the shim calls each grammar and splices its elements as `OverlayElementSink` does. On an error the list holds the overlay sections before it, whose grammars Java would have
+called first: the shim calls them, and an exception of theirs wins over Rust's. The differential plays the shim's part
+for the oracle's one registered overlay, `ToySectionGrammar` (`tests/front_parser_differential.rs`, `toy_splice`).
+
 **Java is the spec.** The span and error columns are reproduced as Java computes them (UTF-16 units and code points),
 the `[L:C]` prefix, the eight `IllegalStateException`s, the four failures `JsonModelDoorTest` pins. A difference found
 is a row of `rust/lite-front/PARITY.md`, as in phase 1.
@@ -190,6 +204,17 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
 4. **The model parser (2d)**: `PmcdParser` and its section grammars in Rust, section by section to parity; then
    `PmcdParser.parse` **switches** (the bootstrap included), with overlays called back in Java, and the quoted
    grammar folds in Rust.
+
+   **4a done 2026-11-05.** `rust/lite-front`'s `model_parser.rs` (the section walk: headers and their residue, the
+   section index and its buffer-coordinate spans, imports, the dialects' routing of an unknown section, unclaimed
+   sections, the overlay sections above), `element_parser.rs` (`###Pure`: Class, Enum, Profile, Association,
+   Measure, function and its test block, `native`, `Primitive`), `sections.rs` (`###Text`, the shared section
+   helpers), `mapping_parser.rs` (`###Data` and the embedded values, ServiceStore stubs), and the quoted grammar's
+   fold. The model door: 49,039 of its 87,564 questions identical, every one whose walk stays in those grammars
+   (`rust/lite-front/PARITY.md`, rows 13-23); the 38,525 others reach a grammar not ported yet (Relational, Mapping,
+   Service, Connection, Persistence, ... -- each one arm of `parse_one_at` or `section_elements`) and answer
+   `not ported` there. The differential test is `size = "large"`: the model door parses and hashes in about 170 s
+   unoptimized.
 5. **The engine JSON (2e)**: `ProtocolEmitter` in Rust; `parseDocument`, `parseModel` and `lambdaJson` switch, gated
    byte for byte by `CorpusSweepTest`'s 6,471 documents and `ModelReaderParityTest`.
 6. **The deletion (2f)**: `//parser-equivalence`'s internal-using tests re-expressed over Rust ops (§2), then the Java

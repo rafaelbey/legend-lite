@@ -11,15 +11,84 @@
 //! `LITE_FRONT_MISMATCHES` naming a directory, each mismatch's Rust form is written there as
 //! `<door>.<dialect>.<sha>.rust.txt`, and `bazel run //core:front_show -- QUESTIONS DIR door:dialect:sha...` writes
 //! Java's beside it.
+//!
+//! Java's model answers were given with one overlay grammar registered, the test jar's `ToySectionGrammar`
+//! (core/src/test/java/com/legend/parser/ToySectionGrammar.java); the model door's questions are asked with it
+//! registered too, its part played here as the shim plays an overlay's ([`toy_splice`]).
 
-use lite_front::doors::{Dialect, answer_form};
+use lite_front::doors::{Answer, Dialect, answer_form, pmcd_answer_form};
+use lite_front::element_parser::lines_of;
+use lite_front::jtypes::JStr;
+use lite_front::model_parser::{OverlayGrammar, PmcdAnswer};
+use lite_front::records::{Element, POpaqueElement, PmcdParserParsed};
 use lite_front::sha256::sha256_utf16le;
+use lite_front::ustr::{ends_with, starts_with, strip, u};
 use lite_front::wire;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 const SHOWN: usize = 25;
+
+/// `ToySectionGrammar.parse`: each line `Toy x::Name;` (stripped) an element `x::Name`, its JSON
+/// `{"_type":"toy","name":"x::Name"}`.
+fn toy(text: &[u16]) -> Vec<(Vec<u16>, Vec<u16>)> {
+    let mut out = Vec::new();
+    for line in lines_of(text) {
+        let t = strip(line);
+        if starts_with(t, "Toy ") && ends_with(t, ";") {
+            let fqn = strip(&t[4..t.len() - 1]).to_vec();
+            let mut json = u("{\"_type\":\"toy\",\"name\":\"");
+            json.extend_from_slice(&fqn);
+            json.extend(u("\"}"));
+            out.push((fqn, json));
+        }
+    }
+    out
+}
+
+/// The shim's part for the toy overlay (Java's `PmcdParser.registered` and `OverlayElementSink`): the grammar called
+/// on each overlay section's text, in section order, before the door's own error is raised; its elements spliced where
+/// the door says, as `POpaqueElement`s with no span, their paths, each once, the section's index entry.
+fn toy_splice(text: &[u16], answer: PmcdAnswer) -> Answer<PmcdParserParsed> {
+    let called: Vec<Vec<(Vec<u16>, Vec<u16>)>> =
+        answer.overlays.iter().map(|o| toy(&text[o.start_offset..o.end_offset])).collect();
+    let mut parsed = answer.parsed?;
+    for (o, elements) in answer.overlays.iter().zip(called).rev() {
+        let Some(Element::PSectionIndex(index)) = parsed.model.elements.last_mut() else {
+            panic!("the section index is the answer's last element");
+        };
+        let paths = &mut index.sections[o.section_index].elements;
+        for (fqn, _) in &elements {
+            let path = Some(JStr(fqn.clone()));
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
+        }
+        for (k, (fqn, json)) in elements.into_iter().enumerate() {
+            parsed.model.elements.insert(
+                o.element_index + k,
+                Element::POpaqueElement(Box::new(POpaqueElement {
+                    qualified_name: JStr(fqn),
+                    section_name: JStr(o.name.clone()),
+                    protocol_json: JStr(json),
+                    source_information: None,
+                })),
+            );
+        }
+    }
+    Ok(parsed)
+}
+
+/// A question's canonical answer, the model door's with the toy overlay registered.
+fn form(door: &str, dialect: Dialect, text: &[u16]) -> Vec<u16> {
+    if door != "pmcd" {
+        return answer_form(door, dialect, text);
+    }
+    let toy_name = u("Toy");
+    let overlays = [OverlayGrammar { name: &toy_name, lexable: false }];
+    pmcd_answer_form(dialect, text, &overlays, &toy_splice)
+}
 
 fn env(name: &str) -> String {
     std::env::var(name).unwrap_or_else(|_| panic!("{name} names the file to read"))
@@ -64,7 +133,7 @@ fn differential(door: &str) {
                 .get(&(door.to_owned(), dialect_name.clone(), sha.clone()))
                 .unwrap_or_else(|| panic!("Java answered no {door} {dialect_name} {sha}"));
             asked += 1;
-            let form = answer_form(door, dialect, text);
+            let form = form(door, dialect, text);
             let rust_kind = if form.first() == Some(&u16::from(b'A')) { "A" } else { "E" };
             let c = counts.entry(format!("{dialect_name} {java_kind}")).or_default();
             c.0 += 1;

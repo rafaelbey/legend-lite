@@ -13,9 +13,8 @@
 //! `ParseException` at Java's position; the two places Java recovers from one (`tryTypedColSpec`, the quoted tree's
 //! `parseTree`) recover from a `ParseException` alone, as Java's `catch (ParseException e)` does.
 //!
-//! One fold is not here: `compileLegendGrammar('...')` folds its payload with the model parser
-//! (`QuotedSpecParser.foldGrammar` re-enters `PmcdParser`), not ported yet -- a payload that folds to a string answers
-//! a `not ported` refusal no Java answer has.
+//! The quoted grammar (`compileLegendGrammar('...')`) folds its payload with the model parser
+//! (`QuotedSpecParser.foldGrammar` re-enters `PmcdParser`, here [`crate::model_parser::parse`]).
 
 // The generated records hold their record-typed list elements boxed (`Vec<Box<T>>`), so the readers build that.
 #![allow(clippy::vec_box)]
@@ -34,13 +33,14 @@ use crate::nodes::{
 use crate::operator_parts::{ArithPart, BoolPart, arithmetic_part, boolean_part};
 use crate::records::{
     AppliedFunction, CBoolean, CDate, CDecimal, CFloat, CInteger, CLatestDate, CString, CTime, ColSpec, ColSpecArray,
-    ColumnInstance, EnumValue, GqlIsland, GraphFetchLiteral, GraphFetchLiteralNode, GraphFetchLiteralSubTypeNode,
-    KeyExpression, LambdaFunction, Multiplicity, NewInstance, NewInstanceCast, NewInstanceKeyBinding, PStereotype,
-    PTaggedValue, PathLiteral, PathLiteralPathArg, PathLiteralPathArgCollectionArg, PathLiteralPathArgDateArg,
-    PathLiteralPathArgEnumArg, PathLiteralPathArgIntArg, PathLiteralPathArgLatest, PathLiteralPathArgStrArg,
-    PathLiteralSegment, QuotedTreeCall, SourceInfo, SqlIsland, TdsLiteral, TypeAnnotation,
-    TypeAnnotationMultiplicityRef, TypeAnnotationNamed, TypeAnnotationRelationShape, TypeAnnotationRelationShapeColumn,
-    TypeAnnotationWildcard, TypeExpression, TypeExpressionGeneric, ValueSpecification, Variable,
+    ColumnInstance, Element, EnumValue, GqlIsland, GraphFetchLiteral, GraphFetchLiteralNode,
+    GraphFetchLiteralSubTypeNode, KeyExpression, LambdaFunction, Multiplicity, NewInstance, NewInstanceCast,
+    NewInstanceKeyBinding, PStereotype, PTaggedValue, PathLiteral, PathLiteralPathArg, PathLiteralPathArgCollectionArg,
+    PathLiteralPathArgDateArg, PathLiteralPathArgEnumArg, PathLiteralPathArgIntArg, PathLiteralPathArgLatest,
+    PathLiteralPathArgStrArg, PathLiteralSegment, QuotedGrammarCall, QuotedTreeCall, SourceInfo, SqlIsland, TdsLiteral,
+    TypeAnnotation, TypeAnnotationMultiplicityRef, TypeAnnotationNamed, TypeAnnotationRelationShape,
+    TypeAnnotationRelationShapeColumn, TypeAnnotationWildcard, TypeExpression, TypeExpressionGeneric,
+    ValueSpecification, Variable,
 };
 use crate::temporal::{TemporalError, parse_date, parse_time};
 use crate::ustr::{
@@ -903,7 +903,9 @@ impl<'t, 's> SpecParser<'t, 's> {
             if let Some(folded) = self.fold_tree(&call)? {
                 return Ok(folded);
             }
-            self.fold_grammar(&call)?;
+            if let Some(folded) = self.fold_grammar(&call)? {
+                return Ok(folded);
+            }
             return Ok(vs_fn(call));
         }
         Ok(ptr(JStr(fqn), self.span(fqn_start, fqn_end)))
@@ -2631,24 +2633,55 @@ impl<'t, 's> SpecParser<'t, 's> {
         }))))
     }
 
-    /// `QuotedSpecParser.foldGrammar`: `compileLegendGrammar('<payload>')` folds with the model parser, which is not
-    /// ported: a payload that folds to a string is refused here rather than guessed.
-    fn fold_grammar(&self, call: &AppliedFunction) -> R<()> {
+    /// `QuotedSpecParser.foldGrammar`: `compileLegendGrammar('<payload>')` (a literal, a `+` chain, or a let-bound
+    /// constant in scope) whose payload parses, at the engine's dialect, as functions only: the two-faced
+    /// `QuotedGrammarCall`, each function as its lambda (its declared parameters, its body). A payload the model
+    /// parser refuses with a `ParseException`, or one declaring anything else, leaves the plain call.
+    fn fold_grammar(&self, call: &AppliedFunction) -> R<Option<ValueSpecification>> {
         if !(call.function == "compileLegendGrammar" || call.function == "meta::legend::compileLegendGrammar")
             || call.parameters.len() != 1
         {
-            return Ok(());
+            return Ok(None);
         }
-        if fold_string_concat(&call.parameters[0], &|n: &[u16]| self.const_string(n)).is_none() {
-            return Ok(());
+        let Some(src) = fold_string_concat(&call.parameters[0], &|n: &[u16]| self.const_string(n)) else {
+            return Ok(None);
+        };
+        let parsed = match crate::model_parser::parse(&src, Dialect::LegendEngine) {
+            Ok(p) => p,
+            Err(e) if e.is_parse_exception() => return Ok(None),
+            Err(e) => return Err(e),
+        };
+        let mut functions = Vec::new();
+        for el in parsed.model.elements {
+            match el {
+                Element::PSectionIndex(_) => continue,
+                Element::PFunction(fd) => {
+                    let fd = *fd;
+                    let parameters = fd
+                        .parameters
+                        .into_iter()
+                        .map(|p| {
+                            Box::new(Variable {
+                                name: p.name,
+                                r#type: Some(p.r#type),
+                                multiplicity: Some(p.multiplicity),
+                                pos: None,
+                            })
+                        })
+                        .collect();
+                    functions.push(Box::new(LambdaFunction { parameters, body: fd.body, pos: None }));
+                }
+                _ => return Ok(None),
+            }
         }
-        Err(JavaError::of(
-            "not ported",
-            Some(
-                "compileLegendGrammar's payload folds with the model parser (QuotedSpecParser.foldGrammar), \
-                 not ported yet (docs/rust-port/PHASE2.md §4 step 4)",
-            ),
-        ))
+        if functions.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(VS::QuotedGrammarCall(Box::new(QuotedGrammarCall {
+            original: Box::new(call.clone()),
+            functions,
+            pos: call.pos.clone(),
+        }))))
     }
 }
 

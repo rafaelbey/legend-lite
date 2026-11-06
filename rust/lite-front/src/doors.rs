@@ -9,7 +9,8 @@
 
 use crate::codec;
 use crate::jtypes::JStr;
-use crate::records::{LambdaFunction, ValueSpecification};
+use crate::model_parser::{OverlayGrammar, PmcdAnswer};
+use crate::records::{LambdaFunction, PmcdParserParsed, ValueSpecification};
 use crate::spec_parser;
 
 /// The parse's level (Java's `parser.Dialect`).
@@ -141,15 +142,34 @@ pub fn block(text: &[u16], dialect: Dialect) -> Answer<Vec<ValueSpecification>> 
 }
 
 /// `PmcdParser.parse(text, dialect)`: a model text's records -- every element in section order, the section index,
-/// the unclaimed sections.
-pub fn pmcd(text: &[u16], dialect: Dialect) -> Answer<crate::records::PmcdParserParsed> {
-    crate::model_parser::parse(text, dialect)
+/// the unclaimed sections -- with the shim's registered overlay grammars: beside the records, each overlay section
+/// the walk met, whose grammar the shim calls and whose elements it splices (`model_parser::OverlaySection`).
+pub fn pmcd(text: &[u16], dialect: Dialect, overlays: &[OverlayGrammar<'_>]) -> PmcdAnswer {
+    crate::model_parser::parse_with_overlays(text, dialect, overlays)
+}
+
+/// The shim's half of an overlay section, as the differential plays it: the text, the door's answer, and the records
+/// with each overlay grammar's elements spliced in (or the error the grammar, or the door, raises first).
+pub type Splice<'a> = &'a (dyn Fn(&[u16], PmcdAnswer) -> Answer<PmcdParserParsed> + Sync);
+
+/// The model door's canonical form (as [`answer_form`]) with overlay grammars registered, their sections spliced by
+/// `splice`. On a thread of [`PARSE_STACK`].
+pub fn pmcd_answer_form(
+    dialect: Dialect,
+    text: &[u16],
+    overlays: &[OverlayGrammar<'_>],
+    splice: Splice<'_>,
+) -> Vec<u16> {
+    // the door's declared PmcdParser.Parsed fixes the class: no tag
+    let written = on_parse_stack(|| splice(text, pmcd(text, dialect, overlays)).map(|v| codec::write(&v, true)));
+    canonical(written)
 }
 
 /// An answer in the canonical form Java's `FrontAnswers.canonical` writes: `A` and the codec's JSON (the door's
 /// declared type deciding the tags: a `ValueSpecification` or a list's element is tagged, a `LambdaFunction` is not);
 /// or `E`, the class, the line and column (empty but for a `ParseException`), the message (`null` without one), tab
-/// separated. UTF-16 units, as Java's string. The door parses on a thread of [`PARSE_STACK`].
+/// separated. UTF-16 units, as Java's string. The door parses on a thread of [`PARSE_STACK`]; the model door with no
+/// overlay grammar registered.
 pub fn answer_form(door: &str, dialect: Dialect, text: &[u16]) -> Vec<u16> {
     let written = on_parse_stack(|| match door {
         "spec" => spec(text, dialect).map(|v| codec::write(&v, false)),
@@ -167,9 +187,14 @@ pub fn answer_form(door: &str, dialect: Dialect, text: &[u16]) -> Vec<u16> {
             w.finish()
         }),
         // the door's declared PmcdParser.Parsed fixes the class: no tag
-        "pmcd" => pmcd(text, dialect).map(|v| codec::write(&v, true)),
+        "pmcd" => pmcd(text, dialect, &[]).parsed.map(|v| codec::write(&v, true)),
         _ => Err(JavaError::of("door not ported", Some(door))),
     });
+    canonical(written)
+}
+
+/// `A\t<json>` or `E\t<class>\t<line>\t<column>\t<message>`.
+fn canonical(written: Answer<String>) -> Vec<u16> {
     let mut out: Vec<u16> = Vec::new();
     let put = |s: &str, out: &mut Vec<u16>| out.extend(s.encode_utf16());
     match written {

@@ -717,6 +717,223 @@ pub trait Cursor<'s> {
         Ok(TypeExpressionTypedParameter { r#type: t, multiplicity })
     }
 
+    // ---------------------------------------------------------------- the element grammars' helpers
+
+    /// `peekText(offset)`: the text `offset` past the cursor, `""` past the end (an empty string matches no keyword).
+    fn peek_text(&self, offset: usize) -> &'s [u16] {
+        let i = self.pos() + offset;
+        if i < self.tokens().count() { self.tokens().text(i) } else { &[] }
+    }
+
+    /// `text()` where Java reads it at the stream's end: the lexer's arrays carry zeroed slack past `count`, so the
+    /// text there is `""` (at the end of an exactly-sized slice it would be Java's `IndexOutOfBounds`, which no caller
+    /// reaches).
+    fn slack_text(&self) -> &'s [u16] {
+        self.peek_text(0)
+    }
+
+    /// `skipBalancedBlock`: one balanced `{...}`, `(...)` or `[...]` block, every bracket kind balanced.
+    fn skip_balanced_block(&mut self) -> R<()> {
+        let mut depth = 0i64;
+        let mut started = false;
+        while !self.at_end() {
+            let t = self.peek();
+            if matches!(t, T::BRACE_OPEN | T::PAREN_OPEN | T::BRACKET_OPEN) {
+                depth += 1;
+                started = true;
+            } else if matches!(t, T::BRACE_CLOSE | T::PAREN_CLOSE | T::BRACKET_CLOSE) {
+                depth -= 1;
+            }
+            self.advance()?;
+            if started && depth == 0 {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
+    /// `consumeStringLiteral(what)`: a STRING's decoded body, decoded before the cursor moves past it.
+    fn consume_string_literal(&mut self, what: &str) -> R<Vec<u16>> {
+        if self.at_end() || self.peek() != T::STRING {
+            self.reject_invalid()?;
+            return Err(self.error(jcat!("expected a string literal for ", what, ", got ", self.peek())));
+        }
+        let v = self.unquote_and_unescape(self.text())?;
+        self.advance()?;
+        Ok(v)
+    }
+
+    /// `reconstructText(startToken, endToken)`: the raw source spanned by tokens `[start, end)`.
+    fn reconstruct_text(&self, start: usize, end: usize) -> Vec<u16> {
+        if start >= end {
+            return Vec::new();
+        }
+        let ts = self.tokens();
+        ts.source()[ts.start(start)..ts.end(end - 1)].to_vec()
+    }
+
+    /// `documentationSpan(tok, raw)`: a documentation literal's span over the whole literal, from its text -- its
+    /// end column the last line's length (the literal's whole length when it has one line).
+    fn documentation_span(&self, tok: usize, raw: &[u16]) -> SourceInfo {
+        let ts = self.tokens();
+        let nl = u16::from(b'\n');
+        let new_lines = raw.iter().filter(|&&c| c == nl).count() as i32;
+        let last_nl = raw.iter().rposition(|&c| c == nl).map_or(-1, |i| i as i32);
+        SourceInfo {
+            source_id: self.span_source_id(),
+            start_line: ts.start_line(tok) as i32,
+            start_column: ts.start_column(tok) as i32,
+            end_line: ts.start_line(tok) as i32 + new_lines,
+            end_column: raw.len() as i32 - last_nl - 1,
+        }
+    }
+
+    /// `parseDocumentation`: a `'''` literal at declaration position, consumed whatever its shape; a plain quoted
+    /// string before a declaration keyword the engine's refusal.
+    fn parse_documentation(&mut self) -> R<Option<Documentation>> {
+        if self.peek() == T::STRING && self.pos() + 1 < self.tokens().count() && is_declaration_head(self.peek_at(1)) {
+            return Err(self.error_str(DOC_MULTI_LINE));
+        }
+        if self.peek() != T::DOC_STRING {
+            return Ok(None);
+        }
+        let tok = self.pos();
+        let raw = self.text();
+        self.advance()?;
+        Ok(Some(Documentation { token: tok, raw: raw.to_vec(), span: self.documentation_span(tok, raw) }))
+    }
+
+    /// `taggedValuesWithDocumentation`: the documentation folded in as the FIRST tagged value (profile
+    /// `meta::pure::profiles::doc`, tag `doc`, its value canonicalized, never unescaped, flagged multi-line); a
+    /// non-block literal refused at its token, an explicit `doc.doc` beside it refused at that tag's span start.
+    fn tagged_values_with_documentation(
+        &self,
+        doc: Option<Documentation>,
+        tagged_values: Vec<Box<PTaggedValue>>,
+    ) -> R<Vec<Box<PTaggedValue>>> {
+        let Some(doc) = doc else {
+            return Ok(tagged_values);
+        };
+        if !is_text_block(&doc.raw) {
+            return Err(throw_at(self.tokens(), doc.token, JStr::from(DOC_MULTI_LINE)));
+        }
+        for tv in &tagged_values {
+            if tv.tag.value == DOC_TAG && (tv.tag.profile == DOC_TAG || tv.tag.profile == DOC_PROFILE_PATH) {
+                let s = tv.source_information.as_deref().expect("a parsed node always carries its span");
+                return Err(JavaError::parse(
+                    JStr::from("Element has both documentation and an explicit doc.doc tagged value. Use one."),
+                    s.start_line,
+                    s.start_column,
+                ));
+            }
+        }
+        let mut out = Vec::with_capacity(tagged_values.len() + 1);
+        out.push(Box::new(PTaggedValue {
+            tag: Box::new(PTag {
+                profile: JStr::from(DOC_PROFILE_PATH),
+                value: JStr::from(DOC_TAG),
+                profile_source_information: boxed(doc.span.clone()),
+                source_information: boxed(doc.span.clone()),
+            }),
+            value: JStr(canonicalize_documentation(&doc.raw)?),
+            multi_line: true,
+            source_information: boxed(doc.span),
+        }));
+        out.extend(tagged_values);
+        Ok(out)
+    }
+
+    /// `parseDecorations`: `<<p::P.v, ...>>` and/or `{p::P.t = 'v', ...}` before a name -- value-only spans, a
+    /// comma required between entries.
+    fn parse_decorations(&mut self) -> R<Decorations> {
+        let mut stereotypes = Vec::new();
+        let mut tagged_values = Vec::new();
+        if self.peek() == T::LESS_THAN {
+            self.advance()?;
+            self.expect(T::LESS_THAN)?;
+            while !self.at_end() && self.peek() != T::GREATER_THAN {
+                let p_s = self.pos();
+                let profile = unquote_path_iae(&self.parse_qualified_name()?)?;
+                let p_span = self.span(p_s, self.pos() - 1);
+                self.expect(T::DOT)?;
+                let v_s = self.pos();
+                let value = self.parse_identifier()?;
+                stereotypes.push(Box::new(PStereotype {
+                    profile: JStr(profile),
+                    value: JStr(value),
+                    profile_source_information: p_span,
+                    source_information: self.span(v_s, v_s),
+                }));
+                if self.peek() != T::GREATER_THAN {
+                    self.expect(T::COMMA)?;
+                }
+            }
+            self.expect(T::GREATER_THAN)?;
+            self.expect(T::GREATER_THAN)?;
+        }
+        if self.peek() == T::BRACE_OPEN {
+            self.advance()?;
+            while !self.at_end() && self.peek() != T::BRACE_CLOSE {
+                let t_s = self.pos();
+                let profile = unquote_path_iae(&self.parse_qualified_name()?)?;
+                let p_span = self.span(t_s, self.pos() - 1);
+                self.expect(T::DOT)?;
+                let v_s = self.pos();
+                let tag_name = self.parse_identifier()?;
+                self.expect(T::EQUAL)?;
+                let (value, multi_line, tv_span) = if self.peek() == T::DOC_STRING {
+                    if self.dialect().refuses_platform_dialect() && !self.text().contains(&u16::from(b'\n')) {
+                        return Err(self.error(jcat!("Unexpected token '", self.text(), "'")));
+                    }
+                    let d_tok = self.pos();
+                    let raw = self.text();
+                    let value = doc_string_value(raw)?;
+                    let multi_line = is_text_block(raw);
+                    self.advance()?;
+                    let d = self.doc_string_span(d_tok);
+                    let s = self.span_of(t_s, t_s);
+                    let span = SourceInfo {
+                        source_id: s.source_id,
+                        start_line: s.start_line,
+                        start_column: s.start_column,
+                        end_line: d.end_line,
+                        end_column: d.end_column,
+                    };
+                    (value, multi_line, span)
+                } else {
+                    let quoted = self.slack_text();
+                    self.expect(T::STRING)?;
+                    (self.unquote_and_unescape(quoted)?, false, self.span_of(t_s, self.pos() - 1))
+                };
+                tagged_values.push(Box::new(PTaggedValue {
+                    tag: Box::new(PTag {
+                        profile: JStr(profile),
+                        value: JStr(tag_name),
+                        profile_source_information: p_span,
+                        source_information: self.span(v_s, v_s),
+                    }),
+                    value: JStr(value),
+                    multi_line,
+                    source_information: boxed(tv_span),
+                }));
+                if self.peek() != T::BRACE_CLOSE {
+                    self.expect(T::COMMA)?;
+                }
+            }
+            self.expect(T::BRACE_CLOSE)?;
+        }
+        Ok(Decorations { stereotypes, tagged_values })
+    }
+
+    /// `withDocumentation(doc, dec)`: the decorations with the documentation folded into their tagged values.
+    fn with_documentation(&self, doc: Option<Documentation>, dec: Decorations) -> R<Decorations> {
+        if doc.is_none() {
+            return Ok(dec);
+        }
+        let tagged_values = self.tagged_values_with_documentation(doc, dec.tagged_values)?;
+        Ok(Decorations { stereotypes: dec.stereotypes, tagged_values })
+    }
+
     // ---------------------------------------------------------------- spans
 
     /// `docStringSpan`: a `'''` token's single-line column arithmetic over its raw length.
@@ -784,9 +1001,9 @@ fn algebra(left: TypeExpression, op: TypeExpressionOp, right: TypeExpression) ->
 /// `ElementParser` positioned at a token, at the caller's dialect (`ElementParser.at`), for the decoration readers
 /// the expression parser borrows. Its spans carry no source id (ElementParser keeps the default).
 pub struct ElementCursor<'t, 's> {
-    tokens: &'t TokenStream<'s>,
-    pos: usize,
-    dialect: Dialect,
+    pub(crate) tokens: &'t TokenStream<'s>,
+    pub(crate) pos: usize,
+    pub(crate) dialect: Dialect,
 }
 
 impl<'s> Cursor<'s> for ElementCursor<'_, 's> {
@@ -956,4 +1173,73 @@ pub fn looks_like_tagged_value_block(tokens: &TokenStream<'_>, brace_pos: usize)
     }
     p += 1;
     p < n && tokens.ty(p) == T::EQUAL
+}
+
+/// `TokenStreamCursor.DOC_PROFILE_PATH` and `DOC_TAG` (`protocol.Documentation`).
+pub const DOC_PROFILE_PATH: &str = "meta::pure::profiles::doc";
+pub const DOC_TAG: &str = "doc";
+
+/// The engine's refusal of documentation that is not a block literal.
+pub const DOC_MULTI_LINE: &str = "Documentation must be written as a multi-line ('''...''') literal";
+
+/// A documentation literal read at declaration position (`TokenStreamCursor.Documentation`): its token, its raw text,
+/// its span over the whole literal.
+#[derive(Clone, Debug)]
+pub struct Documentation {
+    pub token: usize,
+    pub raw: Vec<u16>,
+    pub span: SourceInfo,
+}
+
+/// `TokenStreamCursor.Decorations`.
+#[derive(Clone, Debug, Default)]
+pub struct Decorations {
+    pub stereotypes: Vec<Box<PStereotype>>,
+    pub tagged_values: Vec<Box<PTaggedValue>>,
+}
+
+/// `DECLARATION_HEADS`: the keywords documentation may precede.
+pub fn is_declaration_head(t: TokenType) -> bool {
+    matches!(t, T::CLASS | T::ENUM | T::ASSOCIATION | T::FUNCTION | T::NATIVE | T::PROFILE)
+}
+
+/// `canonicalizeDocumentation`: the text-block layout, no unescape, its leading and trailing blank lines dropped.
+pub fn canonicalize_documentation(raw: &[u16]) -> R<Vec<u16>> {
+    let layout = text_block_layout(raw)?;
+    let nl = u16::from(b'\n');
+    let mut start = 0;
+    while start < layout.len() && layout[start] == nl {
+        start += 1;
+    }
+    let mut end = layout.len();
+    while end > start && layout[end - 1] == nl {
+        end -= 1;
+    }
+    Ok(layout[start..end].to_vec())
+}
+
+/// `Protocol.unquotePath`, its short-unicode-escape failure Java's uncaught `IllegalArgumentException`.
+pub fn unquote_path_iae(path: &[u16]) -> R<Vec<u16>> {
+    unquote_path(path).map_err(|m| JavaError::java("java.lang.IllegalArgumentException", JStr::from(m)))
+}
+
+/// `TokenStreamCursor.once(seen, key, at)`: a key-dispatch loop's once-only rule, refused at the cursor.
+pub fn once<'s>(seen: &mut std::collections::HashSet<Vec<u16>>, key: &[u16], at: &impl Cursor<'s>) -> R<()> {
+    if !seen.insert(key.to_vec()) {
+        return Err(at.error(jcat!("Field '", key, "' should be specified only once")));
+    }
+    Ok(())
+}
+
+/// `TokenStreamCursor.once(seen, key, at, anchorTok)`: refused at the containing block's token.
+pub fn once_at(
+    seen: &mut std::collections::HashSet<Vec<u16>>,
+    key: &[u16],
+    tokens: &TokenStream<'_>,
+    anchor_tok: usize,
+) -> R<()> {
+    if !seen.insert(key.to_vec()) {
+        return Err(throw_at(tokens, anchor_tok, jcat!("Field '", key, "' should be specified only once")));
+    }
+    Ok(())
 }

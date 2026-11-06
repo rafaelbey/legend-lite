@@ -3,20 +3,26 @@
 
 //! legend-lite's front end (core/'s `com.legend.lexer` and `com.legend.parser`, ported: docs/rust-port/PHASE2.md),
 //! over a text's UTF-16 units as Java indexes a `String`. Step 2: the lexer, held to Java's every token stream; step 3:
-//! the expression parser (`spec_parser`, over the shared cursor `cursor`), held to Java's every answer.
+//! the expression parser (`spec_parser`, over the shared cursor `cursor`), held to Java's every answer; step 4a: the
+//! model parser's walk (`model_parser`) and its `###Pure` (`element_parser`), `###Text` (`sections`) and `###Data`
+//! (`mapping_parser`) grammars, held to Java's every answer that stays in them.
 
 pub mod codec;
 pub mod cursor;
 pub mod doors;
+pub mod element_parser;
 pub mod escapes;
 pub mod gql;
 pub mod jnum;
 pub mod jtypes;
 pub mod lexer;
+pub mod mapping_parser;
 pub mod model_parser;
 pub mod nodes;
 pub mod operator_parts;
+pub mod protocol;
 pub mod records;
+pub mod sections;
 pub mod sha256;
 pub mod spec_parser;
 pub mod temporal;

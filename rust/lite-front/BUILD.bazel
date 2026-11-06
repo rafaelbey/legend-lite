@@ -54,9 +54,12 @@ rust_test(
 
 # Every question of the front oracle whose door Rust answers, held to the Java parser's answer for it
 # (//core:front_answers, the canonical form's SHA-256): at least each door's floor (tests/<door>-floor.txt) identical.
+# Large (2026-11-05, phase 2 step 4a): the model door parses its 87,564 questions' texts and hashes their answers, about
+# 170 s unoptimized on an idle machine (fastbuild is rustc's opt-level 0; 40 s of it optimized), past medium's 300 s
+# once the remaining section grammars parse too.
 rust_test(
     name = "front_parser_differential_test",
-    size = "medium",
+    size = "large",
     srcs = ["tests/front_parser_differential.rs"],
     args = ["--ignored"],
     data = [

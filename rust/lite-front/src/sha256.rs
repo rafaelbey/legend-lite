@@ -71,7 +71,10 @@ pub fn hex(digest: &[u8; 32]) -> String {
 
 /// The SHA-256 of a Java string's UTF-16 units, little-endian (`getBytes(UTF_16LE)`): the front oracle's text ids.
 pub fn sha256_utf16le(units: &[u16]) -> String {
-    let bytes: Vec<u8> = units.iter().flat_map(|u| u.to_le_bytes()).collect();
+    let mut bytes: Vec<u8> = vec![0; units.len() * 2];
+    for (pair, u) in bytes.as_chunks_mut::<2>().0.iter_mut().zip(units) {
+        *pair = u.to_le_bytes();
+    }
     hex(&sha256(&bytes))
 }
 

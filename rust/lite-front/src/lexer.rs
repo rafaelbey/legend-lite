@@ -10,6 +10,7 @@
 
 use lite_javacompat::character::{is_digit, is_letter_or_digit, is_whitespace};
 use std::cell::OnceCell;
+use std::rc::Rc;
 
 macro_rules! token_types {
     ($($name:ident),* $(,)?) => {
@@ -193,7 +194,7 @@ pub struct TokenStream<'a> {
     tokens: Vec<Token>,
     pub section_headers: Vec<SectionHeader>,
     pub skipped_sections: Vec<SkippedSection>,
-    line_starts: OnceCell<Vec<usize>>,
+    line_starts: OnceCell<Rc<Vec<usize>>>,
     positions: OnceCell<Vec<[usize; 4]>>,
 }
 
@@ -230,6 +231,11 @@ impl<'a> TokenStream<'a> {
 
     /// Offsets at which each line starts (Java's `lineStarts`): over the whole source, whatever range was lexed.
     fn line_starts(&self) -> &[usize] {
+        self.shared_line_starts()
+    }
+
+    /// The line index, built once and shared by every slice of this stream (Java's slices share the parent's).
+    fn shared_line_starts(&self) -> &Rc<Vec<usize>> {
         self.line_starts.get_or_init(|| {
             let mut ls = vec![0];
             for (i, &c) in self.source.iter().enumerate() {
@@ -237,7 +243,7 @@ impl<'a> TokenStream<'a> {
                     ls.push(i + 1);
                 }
             }
-            ls
+            Rc::new(ls)
         })
     }
 
@@ -306,13 +312,43 @@ impl<'a> TokenStream<'a> {
         self.positions()[i][3]
     }
 
+    /// The tokens `[from, to)` of this stream as a stream of their own (Java's `slice`): a window over the same file,
+    /// its offsets the source's, its section headers and skipped sections the file's, its line index this stream's.
+    pub fn slice(&self, from: usize, to: usize) -> TokenStream<'a> {
+        assert!(from <= to && to <= self.tokens.len(), "slice({from}, {to}) out of bounds for count={}", self.count());
+        let line_starts = OnceCell::new();
+        let _ = line_starts.set(Rc::clone(self.shared_line_starts()));
+        TokenStream {
+            source: self.source,
+            tokens: self.tokens[from..to].to_vec(),
+            section_headers: self.section_headers.clone(),
+            skipped_sections: self.skipped_sections.clone(),
+            line_starts,
+            positions: OnceCell::new(),
+        }
+    }
+
+    /// The 1-based line on which the enclosing `###name` section's content begins, or `-1` when `offset` precedes
+    /// every header of that name (Java's `sectionContentLine`).
+    pub fn section_content_line(&self, name: &str, offset: usize) -> i64 {
+        let mut best: Option<usize> = None;
+        for h in &self.section_headers {
+            if crate::ustr::eq(&h.name, name) && h.name_offset < offset {
+                best = Some(h.content_start_offset);
+            }
+        }
+        best.map_or(-1, |b| self.line_of(b) as i64)
+    }
+
     /// The characters `[from, to)` of this stream's source lexed again in normal mode (Java's `lexRange`): an
-    /// island's content, its offsets the source's own.
+    /// island's content, its offsets the source's own, its line index this stream's, shared.
     pub fn lex_range(&self, from: usize, to: usize) -> Result<TokenStream<'a>, String> {
         if to > self.source.len() || from > to {
             return Err(format!("lexRange({from}, {to}) outside the source"));
         }
-        Ok(tokenize_range(self.source, from, to))
+        let s = tokenize_range(self.source, from, to);
+        let _ = s.line_starts.set(Rc::clone(self.shared_line_starts()));
+        Ok(s)
     }
 }
 
@@ -812,9 +848,7 @@ impl<'a> Lexer<'a> {
             let braced = self.pos + 4 < self.length && self.at(self.pos + 4) == u('{');
             self.pos += 1;
             if braced {
-                while self.pos < self.length
-                    && !self.starts_with(self.pos, "}#")
-                    && !self.at_section_boundary(self.pos)
+                while self.pos < self.length && !self.starts_with(self.pos, "}#") && !self.at_section_boundary(self.pos)
                 {
                     self.pos += 1;
                 }
