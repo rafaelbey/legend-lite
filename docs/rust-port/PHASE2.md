@@ -67,10 +67,10 @@ through these doors.
 | `SectionGrammar` SPI, `SectionGrammarRegistry`'s overlay half, `OverlayElementSink` | **stay**: Java calls an overlay grammar on the section text Rust hands back |
 | `ModelReader`, the `*Reader`s, `ModelComposer`/`PureComposer` | **stay**: they take JSON or records, downstream of the seam |
 | `ProtocolEmitter` and its helpers | **move** (step 5): Rust writes the engine JSON at the two text doors, `parseDocument` and `lambdaJson`. **Stay until phase 3** (corrected 2026-11-06, step 5: not deleted with the parser), for their record-sourced callers: `PmcdParser.DocElement.json()`, `PureV1Api`'s connection export, the `*Reader` round trips and their tests (`ModelReaderParityTest` emits `ModelReader.read(json)`), `ProtocolEmitterTest`, `PureComposer`'s `parseMultArg`, `TailEmitter.PERSISTENCE_TYPES`; and the front oracle, which asks Java's emitter over Java's records (`FrontOracle.ask`), so `engine.tsv` stays Java's answer |
-| `Lexer`, `TokenStream`, `ElementParser`, `SpecParser`'s body, `MappingProtocolParser`, `DatabaseProtocolParser`, `GqlParser`, `QuotedSpecParser`, the section grammars, `TokenStreamCursor`, `IslandScan`, `EngineQuirks`, ... | move, then deleted |
-| `PreludeGenerator`'s cursor use | retargeted to the element spans Rust answers; held by regenerating the committed module byte for byte |
+| `Lexer`, `TokenStream`, `ElementParser`, `SpecParser`'s body, `MappingProtocolParser`, `DatabaseProtocolParser`, `GqlParser`, `QuotedSpecParser`, the section grammars, `TokenStreamCursor`, `IslandScan`, `EngineQuirks`, ... | move, then deleted (deleted 2026-11-06, step 6b: §4) |
+| `PreludeGenerator`'s cursor use | retargeted to the element spans Rust answers; held by regenerating the committed module byte for byte (done in step 6b: a fifth probe, `declarationExtents`, §4) |
 | `//parser-equivalence`'s tests of parser internals (`RejectionParityTest` and its pinned `MIN_PINS`, `GenerativeDualParseTest`, `Sectionize`, `SectionParseSentinelTest`, `OwnDialectCensusTest`, `SurfaceCensusTest`, `GrammarCoverageCensusTest`, `Surfaces`, `ViewFilterParityTest`, `OffsetCompositionParityTest`) | **gates, not retirees**: re-expressed over Rust ops (section splitting, the surface census) before step 6, so `:parser_parity` keeps judging the parser it was built for (done in step 6a, 2026-11-06: §4) |
-| `ide/ModelIndexer`, `ModelOrchestrator` | deleted with the lexer (§5, ruling 3), their tests ledgered |
+| `ide/ModelIndexer`, `ModelOrchestrator` | deleted with the lexer (§5, ruling 3), their tests ledgered (done in step 6b, with `ide/ModelIndex` and `parser/ElementKind`, theirs alone: the whole `com.legend.ide` package) |
 | the Postgres-SQL translator (`protocol/sql`, not `iq/`) | stays Java: it moves in phase 3 (§5, ruling 2) |
 
 ## 3. The seam
@@ -542,6 +542,81 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      at `ef981f5b7`, the same counts); `cargo test` and `cargo clippy --all-targets -- -D warnings` on lite-front and
      lite-ffi clean. Ledger: `rust/RETIRED_TESTS.md`.
      What 6b deletes and every reference to it, classified, is an inventory written for it (not committed).
+
+   **6b done 2026-11-06** (from `2d23acdff`; the code in `851edb93c`, `62051b5ef`, `16ab76514`): the Java lexer and
+   parser deleted, the tests and guards that reached them retired, re-expressed or moved, the prelude generator
+   retargeted. Every row of the inventory 6a wrote was worked; where it misread a test, the test says what it is
+   (below).
+   - **The prelude generator's probe** (`851edb93c`). `spec/src/gen`'s `PreludeGenerator` (the `//spec:gen_prelude`
+     action) cut each declaration's verbatim text with the Java lexer and cursor. A fifth probe beside 6a's four,
+     `declaration_extents` (`rust/lite-front/src/probes.rs`; `lite_front`'s `declarationExtents` door,
+     `RustParsers.declarationExtents`, the same export and shim path): every declaration at brace depth 0 and a
+     declaration's position (the stream's first token, or after `;` or `}`; a documentation literal before its head
+     passing the position on and starting it) whose head is `Class`, `Enum`, `Profile`, `function` or
+     `native function`, its kind and its extent in UTF-16 units, from its first token to the end of the last token
+     its kind's reader consumed (a native's `;`) -- the generator's own brace scan, ported. The generator walks the
+     extents for its platform functions (a function's record read from its own slice through `PmcdParser.parse` at
+     the platform's dialect, for its stereotypes and name) and cuts a class's, an enumeration's or a profile's text
+     from the extent that starts at the element's offset, refusing by name an offset no declaration starts at. The
+     action already parsed through the Rust doors, so it carries the library as `//core` does. Held:
+     `//spec:gen_prelude` writes `prelude.pure` byte for byte (`cmp`; `//core:update_generated_5_test`).
+   - **Deleted** (`16ab76514`), 29,170 lines in all with the tests: `com.legend.lexer` (5 files, 1,418 lines); the
+     parser's machinery, 15 files, 10,459 lines (`ElementParser` 2,481, `MappingProtocolParser` 3,490,
+     `TokenStreamCursor` 1,471, `DatabaseProtocolParser` 1,208, `GqlParser` 720, `ServiceStubDataParser` 218,
+     `OperatorParts` 188, `QuotedSpecParser` 181, `IslandScan` 157, `ServiceLegacyMappingParser` 101, `NumberLiterals`
+     86, `ParseTap` 75, `EngineQuirks` 55, `RelationIslands` 55, `ElementKind` 53); `parser/section/`, 23 files, 9,503
+     lines; `com.legend.ide`, 4 files, 624 lines (ruling 3's two, and `ModelIndex`, theirs alone -- one step past the
+     ruling's text, as `ElementKind` is). Reduced to their Rust calls: `PmcdParser` 1,059 -> 166 lines (the doors, the
+     records, the overlay splice), `SpecParser` 3,673 -> 63 (the four doors), `SectionGrammarRegistry` 144 -> 60 (the
+     ServiceLoader's overlays). `ProtocolEmitter` and its helpers stay (phase 3). The targets `//core:lexer`,
+     `//core:ide`, `core_tests_lexer`, `core_tests_ide`, `front_oracle`, `front_tokens`, `front_answers`,
+     `front_engine_answers` and `front_show` went with them; `native-claims.tsv` regenerated (`QuotedSpecParser` left
+     four `plus` rows). `//core:front_shim` stays, a manual tool that asks every question through the switched doors
+     and compares with the frozen files: the four doors 110,596 of 110,596 asks identical, the engine-JSON doors
+     30,064 of 30,064.
+   - **Retired tests**: 6 classes, 76 tests -- `lexer/LexerTest` (29), `LexRangeTest` (2), `TokenStreamPositionsTest`
+     (5), `parser/LexerRegistryAgreementTest` (1), `ide/ModelIndexerTest` (29), `ModelOrchestratorTest` (10) -- and 4
+     test methods of kept classes: `ElementParserTest.parseTokenStreamOverloadAndStringOverloadProduceEqualResults` and
+     `linesOfIsStringLines`, `SpecParserTest.parseFromTokenStreamSlicePreservesSourceOffsets`,
+     `TextSurgeryPinTest.dataCellColonIsNotAPathSeparator`; and the front oracle's Java side (`FrontOracle`,
+     `FrontTokens`, no tests). Four Rust unit tests hold what three of them held: `path_colon_of`'s five
+     counterexamples, `lines_of`'s 25 cases (`element_parser.rs`) and the lexer/known-sections agreement
+     (`model_parser.rs`). `PlatformSurfaceGuardrailTest`, which the inventory listed to retire, is kept unchanged: it
+     guards which main files name the platform's dialect (`Dialect`, `Pure`, `Prelude`), a subject that survives.
+   - **Re-expressed tests** (`62051b5ef`), 16 sources, every assertion kept: the shared helpers `testing/Platform`,
+     `Own` and `Engine` (the token overloads gone; `Platform.mapping(String)` and `Engine.element(String)` through
+     the model door); `CleanSheetProtocolShapeTest`, `SemiStructuredEmissionTest`, `DocumentationTest` (their element
+     through the door); `ElementParserTest` (two tests through the door), `SpecParserTest`,
+     `SectionGrammarRegistryTest` (the built-ins among `RustParsers.knownSections()`), `TextSurgeryPinTest`; four
+     unused imports (`MappingNormalizerTest`, `ModelNormalizerTest`, `LegacyCleanSheetConvergenceTest`,
+     `ClassSourceTest`); `FrontReaderRoundTripTest` (the Rust library's own codec answers read back, 232 s, where it
+     read Java's); `ParseSpeedBenchmark` (`parseModel`, where it timed the Java walk). And, with the deletion, the
+     front oracle's kept tools (`FrontAnswers`, `FrontEngineAnswers`, `FrontTiming`, their Java modes gone).
+   - **Guard moves** (each dated where it stands, a ledger row, a GATES line): `ArchitectureTest`'s 7a and 6f retired
+     (their numbers not reused), its library map, package lists and 6i's pin re-pointed at what is kept, 7c's surface
+     and the static register shrunk; `ObservabilityGuardrailTest` (`LEGEND_PARSE_TAP`), `ErrorShapeGuardrailTest`
+     (`QuotedSpecParser` 1), `DialectBoundaryTest` (its three name-decision rows: two files deleted, `PmcdParser`
+     re-measured 0), `DialectOwnerExclusivityTest` and `DatabaseOwners`, `DropInSurfaceTextRuleTest` (its source
+     re-read rows), `CodeShapeGuardrailTest`'s allowlist, `ParserBoundaryArchTest.DIALECT_CLASSES`,
+     `tools/deps/core-layers.txt`; and two the inventory did not foresee, both the retired tests' own-corpus snippets
+     leaving: `OwnDialectCensusTest`'s `LexerTest` host and `OwnCorpusConformanceTest`'s `PURE-DIALECT-diagram` row
+     (`LexerTest#40`), and parser-equivalence's `own_corpus.matched` ratchet 3009 -> 2943 -- 46 snippets left with the
+     retired tests (`ModelIndexerTest` 36, `LexerTest` 4, `ModelOrchestratorTest` 3, `LexRangeTest` 1, the two
+     retired methods 1 each), none joined, `REFERENCE_REJECTED` 260 -> 248 (each a deleted host's or a retired test's
+     row), diffs 0 before and after.
+   - **The gates.** `bazel test //core/... //spec/... //rust/... //parser-equivalence/... //tools/... //gates/...`:
+     525 targets (6a's 527 less `core_tests_lexer` and `core_tests_ide`), 520 passed and the same 2 skipped on the
+     first run (733 s); the three that failed passed after: `parser_parity` and `update_ratchets_test` (the two
+     own-corpus moves above) and `//datacube:python_engine_test` (`page.reload: net::ERR_NETWORK_CHANGED`, the
+     machine's network, green on its rerun). `//parser-equivalence:parser_parity` (45 tests, 180 s), `:round_trip_proof`
+     and `:diagnostics` rerun fresh: every report byte-identical to 6a's but the three own-corpus reports, which differ
+     by exactly the retired hosts' rows and the renumbered literal runs -- `RejectionParityTest` 422 pins, line
+     agreement 415, column exact 337; the sentinel 2,217 in scope, matched 2,216, lenient 1, defects 0; the sweep
+     6,755 documents matched, seam 6,746/0; `ModelReaderParityTest`'s and the composer's counts unchanged. No class
+     of the deleted list is named by code outside the Rust provenance comments and history (`git grep`; comments in
+     a few kept tests still cite the classes they once exercised). `cargo test` and `cargo clippy --all-targets -- -D
+     warnings` clean on lite-front and lite-ffi. Ledger: `rust/RETIRED_TESTS.md`; every test source changed since
+     `7fdf4582a` is a row.
 
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser

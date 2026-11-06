@@ -55,7 +55,7 @@ text ─A─▶ tokens ─B,C─▶ protocol records ─door─▶ parsed model 
 
 | Stage | Takes → gives | Owns | Must not |
 |---|---|---|---|
-| A lexer | text → tokens | tokenizing | anything else; it depends on nothing but the language's standard library |
+| A lexer (`rust/lite-front/src/lexer.rs`) | text → tokens | tokenizing | anything else; it depends on nothing but the language's standard library (and, in Rust, the JDK's character classes it reproduces, `lite-javacompat`) |
 | B, C parser | tokens → protocol records: elements and value specifications | syntax | carry type information or make semantic decisions |
 | the door | protocol records → the parsed model (the same door a JSON model takes) | the model's shape (one full name per element) | let upstream's wire shapes into the model |
 | D name resolver | simple names → full names over the parsed model; each call's record of what it can mean | names | consult the compiled model; type anything |
@@ -177,7 +177,8 @@ Three parser decisions, closed during the parser build and still cited in the co
   `filterMappingJoinMediatedRejectsEmptyJoins`).
 - **D-7: a bare column in a database expression is refused.** A bare column identifier in a Database-context
   expression (a `Filter`, a `Join`, a `MultiGrainFilter`, a view filter) throws "Missing table or alias for column
-  'X'" (today's `parser/DatabaseProtocolParser.java:1160`), legend-engine's own words: its grammar accepts the bare
+  'X'" (today's `rust/lite-front/src/database_parser.rs:1326`; the Java `parser/DatabaseProtocolParser.java:1160` until
+  2026-11-06), legend-engine's own words: its grammar accepts the bare
   identifier and its walker refuses it (`RelationalParseTreeWalker.generateTableAlias`, walker line 993 as cited in
   lite's parser). Neither implementation has an implicit-table column reference. Under a scope header (a table
   written before a block of columns, as a class mapping's table is) a bare identifier is a column of that header
@@ -185,10 +186,12 @@ Three parser decisions, closed during the parser build and still cited in the co
 
 Sources: `core/README.md` (closed decisions D-2, D-6, D-7) and its earlier decision log (`git show
 de2745351:core/README.md`); `docs/PARSER_COMPLETENESS_PLAN.md` §R3 (git history: docs/HISTORY.md);
-`core/src/main/java/com/legend/parser/ElementParser.java` (class comment),
-`core/src/main/java/com/legend/parser/DatabaseProtocolParser.java:1133-1160`,
-`core/src/main/java/com/legend/parser/section/ServiceSectionGrammar.java`,
-`core/src/main/java/com/legend/parser/section/PersistenceSectionGrammar.java`,
+the parser, Rust's since the Java one was deleted on 2026-11-06 (docs/rust-port/PHASE2.md §4 step 6):
+`rust/lite-front/src/database_parser.rs:1290-1326` (the scope header and the bare column),
+`rust/lite-front/src/runtime_parser.rs:248` and `rust/lite-front/src/service_parser.rs:205` (an unknown key),
+`rust/lite-front/src/persistence_parser.rs`, `rust/lite-front/src/connection_parser.rs`
+(the Java `ElementParser.java`, `DatabaseProtocolParser.java:1133-1160`, `section/ServiceSectionGrammar.java` and
+`section/PersistenceSectionGrammar.java` they port are in git history);
 `core/src/main/java/com/legend/model/FilterMapping.java`, `core/src/main/java/com/legend/model/FilterPointer.java`,
 `core/src/test/java/com/legend/parser/ElementParserTest.java`.
 

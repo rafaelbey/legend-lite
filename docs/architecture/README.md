@@ -44,9 +44,9 @@ orchestrator-only code path.
 
 | | Stage | In → out | Today's Java |
 |---|---|---|---|
-| A | **Lex** | text → tokens | `lexer/Lexer.tokenize` |
-| B | **Parse elements** | tokens → protocol records (legend-engine's protocol, byte-exact as JSON) → the parsed model, through the same door a JSON model takes | `parser/PmcdParser`, `ElementParser`; `door/ModelFromText` → `model/ModelFromProtocol` |
-| C | **Parse expressions** | tokens → value specifications (expression trees, also protocol records) | `parser/SpecParser` |
+| A | **Lex** | text → tokens | Rust since 2026-11-06: `rust/lite-front/src/lexer.rs` (the Java `lexer/Lexer.tokenize` deleted) |
+| B | **Parse elements** | tokens → protocol records (legend-engine's protocol, byte-exact as JSON) → the parsed model, through the same door a JSON model takes | the door `parser/PmcdParser` over the Rust library's `rust/lite-front/src/model_parser.rs` and its section grammars (the Java `ElementParser` and grammars deleted 2026-11-06); `door/ModelFromText` → `model/ModelFromProtocol` |
+| C | **Parse expressions** | tokens → value specifications (expression trees, also protocol records) | the door `parser/SpecParser` over `rust/lite-front/src/spec_parser.rs` |
 | D | **Resolve names** | simple names → full names; every call records every full name it can mean | `compiler/NameResolver.resolve` |
 | E | **Normalize** | parsed model → normalized model: every executable body becomes an ordinary function; structure only references it | `normalizer/ModelNormalizer.normalize` |
 | F | **Compile elements** | normalized model → typed model (typed elements in a model context); no body is opened | `compiler/element/PureModelContext.from` |

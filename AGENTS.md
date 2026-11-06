@@ -141,9 +141,9 @@ its own unit tests exercise; there is no orchestrator-only code path.
 
 ```
 text                                                             [FRONTEND]
-  A  lexer/            Lexer.tokenize                 text → TokenStream
-  B  parser/           ElementParser.parse            tokens → ParsedModel
-  C  parser/           SpecParser.parse               tokens → ValueSpecification
+  A  rust/lite-front/  lexer.rs  tokenize             text → tokens (UTF-16 units)
+  B  parser/           PmcdParser.parse               text → protocol records → ParsedModel (door/)
+  C  parser/           SpecParser.parse               text → ValueSpecification
   D  compiler/         NameResolver.resolve           simple name → FQN
   E  normalizer/       ModelNormalizer.normalize      ParsedModel → NormalizedModel
   F  compiler/element/ PureModelContext.from          → TypedElement + ModelContext
@@ -158,6 +158,11 @@ text                                                             [FRONTEND]
   K  exec/             PlanRunner.stream              a plan + a session → typed rows to a sink
                        result/                        (the writers spell each cell at the boundary)
 ```
+
+**Steps A–C are the Rust library's** (`rust/lite-front`: `lexer.rs`, `model_parser.rs` and its section grammars,
+`spec_parser.rs`), behind the shim's doors (`PmcdParser`, `SpecParser`, through `RustParsers` and its provider in
+`com.legend.ffi`); the Java lexer and parser were deleted on 2026-11-06 (docs/rust-port/PHASE2.md §4 step 6).
+`door/ModelFromText` makes the records the compiler's `ParsedModel`.
 
 **G½ runs on every execution path** — do not omit it when reasoning about the
 pipeline.
@@ -201,8 +206,8 @@ order.
 
 | Layer | Owns | Forbidden |
 |---|---|---|
-| **Lexer** | text → tokens | anything else; it is JDK-only and stays that way |
-| **ElementParser / SpecParser** | tokens → `model.PackageableElement`, `protocol.spec.ValueSpecification` | type info, semantic decisions |
+| **Lexer** (Rust: `rust/lite-front`'s `lexer.rs`; the Java lexer deleted 2026-11-06) | text → tokens | anything else; it reads nothing but the text and the JDK's character classes (`lite-javacompat`) |
+| **Parser** (Rust: `rust/lite-front`, behind the doors `PmcdParser` / `SpecParser`; the Java parser deleted 2026-11-06) | text → protocol records (`Protocol` elements, `protocol.spec.ValueSpecification`) | type info, semantic decisions |
 | **NameResolver** | simple name → FQN over the parsed model | consulting the compiled model; type checking |
 | **ModelNormalizer** | legacy mapping DSL → synthesized `FunctionDefinition`s | mutating the model; running after the typer |
 | **PureModelContext** (phase F) | definitions → `TypedElement` in a `ModelContext` | type-checking bodies (that is G, on demand) |
@@ -392,12 +397,15 @@ store-only node reaches the Lowerer — those are "resolver bug" walls.
 No `com.legend..` → `com.gs.legend..` dependency, ever. Also: no `util/`
 package anywhere (`ArchitectureTest`, the `..util..` rule).
 
-`ArchitectureTest` is mostly dependency-direction rules (51 tests as of
-2026-11-05, including `staticFieldsAreFinal`); it asserts no sealedness,
+`ArchitectureTest` is mostly dependency-direction rules (49 tests as of
+2026-11-06, including `staticFieldsAreFinal`); it asserts no sealedness,
 record-ness, or exhaustiveness (plan W1.11 adds an exhaustiveness check).
 Line numbers drift: search by rule name. It uses its own
 numbering ("6g", "7a-c") that does **not** map to this list or to
-`core/README.md`'s. Do not merge the numbering schemes.
+`core/README.md`'s. Do not merge the numbering schemes. Its 7a (the lexer
+depends on the JDK alone) and 6f (only the parser reads the token stream)
+retired on 2026-11-06 with the package they judged, the Java lexer
+(docs/rust-port/PHASE2.md §4 step 6b); their numbers are not reused.
 
 > `core/README.md` has its **own** 12-invariant list, also cited by number from
 > code (`TypedElement.java:11`, `Type.java:16` cite "core/README invariant 11").

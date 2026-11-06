@@ -47,8 +47,8 @@ needs something, reimplement it in `core/`.** This is the cost we accept for get
 
 ```
 text                                                            [FRONTEND]
-  ──▶  lexer/        Lexer.tokenize                              text → tokens
-  ──▶  parser/       PmcdParser (ElementParser, SpecParser)      tokens → protocol records
+  ──▶  parser/       PmcdParser, SpecParser (the doors)          text → protocol records
+                     (the Rust library behind them: rust/lite-front's lexer.rs, model_parser.rs, spec_parser.rs)
   ──▶  door/         ModelFromText (→ model/ModelFromProtocol)   records → parsed model
   ──▶  compiler/     NameResolver                                simple → FQN
   ──▶  normalizer/   ModelNormalizer                             Decl → Decl (mappings → fns)
@@ -66,9 +66,9 @@ text                                                            [FRONTEND]
 | # | Step | Package | Driver | Output |
 |---|---|---|---|---|
 | 0 | bootstrap | `builtin/`, `platform/` | (static registry) | platform types + native sigs (`builtin.Pure`, the generated native signatures; `Prelude`, the platform's Pure declarations from `prelude.pure`) |
-| A | lex | `lexer/` | `Lexer` | `Token` stream |
-| B | parse elements | `parser/`, then `door/` | `PmcdParser` (each `###Pure` element through `ElementParser`, every other section through its grammar), then `door.ModelFromText` | `Protocol.PureModelContextData` records; the door (`model.ModelFromProtocol`, the same one a JSON model goes through) makes them `model.PackageableElement`s (`ClassDefinition`, `MappingDefinition`, …) wrapped in `ParsedModel` |
-| C | parse specs | `parser/` | `SpecParser` | `protocol.spec.ValueSpecification` (`LambdaFunction`, `AppliedFunction`, `Variable`, `CString`, …) |
+| A | lex | `rust/lite-front` | `lexer.rs` (behind the doors below; the Java `lexer/` deleted 2026-11-06) | tokens, never crossing the seam |
+| B | parse elements | `parser/`, then `door/` | `PmcdParser` (the Rust library's section walk and grammars, `rust/lite-front`'s `model_parser.rs`; an overlay section's grammar called back in Java), then `door.ModelFromText` | `Protocol.PureModelContextData` records; the door (`model.ModelFromProtocol`, the same one a JSON model goes through) makes them `model.PackageableElement`s (`ClassDefinition`, `MappingDefinition`, …) wrapped in `ParsedModel` |
+| C | parse specs | `parser/` | `SpecParser` (the Rust library's `spec_parser.rs`) | `protocol.spec.ValueSpecification` (`LambdaFunction`, `AppliedFunction`, `Variable`, `CString`, …) |
 | D | resolve names | `compiler/` | `NameResolver.resolve` | (same shapes, FQN-rewritten) |
 | E | normalize model | `normalizer/` | `ModelNormalizer.normalize` — `MappingNormalizer` is sub-slice E.1, not the entry | `NormalizedModel` (mappings desugared into `FunctionDefinition`s) |
 | F | compile elements | `compiler/element/` | `PureModelContext.from` — there is no `ElementCompiler` class | `compiler.element.TypedElement` (`TypedNominal` = `TypedClass` \| `TypedEnum`; `TypedFunction`) + `ModelContext` |
@@ -107,19 +107,14 @@ core/src/main/java/com/legend/
 ├── platform/                          the platform's own Pure and its registrations (PlatformPure, Registrations,
 │                                        DeclarationTable, ImplementationTable, WalledBodies)
 │
-├── lexer/                             A. text → tokens
-│   ├── Lexer.java                           static entry: `tokenize(String) → TokenStream`
-│   ├── TokenStream.java                     immutable result; int[] internals + Token materialization API
-│   ├── Token.java                           materialized record (TokenType, text, start, end)
-│   └── TokenType.java
-│
-├── parser/                            B,C. tokens → protocol records, and no compiler model (ArchitectureTest 7c)
-│   ├── PmcdParser.java                      B driver: a text → its Protocol.PureModelContextData (the engine's section walk)
-│   ├── ElementParser.java                   the ###Pure elements, each into its record
-│   ├── SpecParser.java                      C driver: tokens → protocol.spec.ValueSpecification
-│   ├── MappingProtocolParser.java, DatabaseProtocolParser.java, …   the other sections' grammars
-│   ├── SectionGrammarRegistry.java          the registered section grammars (spi/SectionGrammar, by ServiceLoader)
-│   └── section/                             the built-in section grammars (each a section's records)
+├── parser/                            A,B,C. text → protocol records through the doors, and no compiler model
+│   │                                    (ArchitectureTest 7c); the lexer and parser are the Rust library's
+│   │                                    (rust/lite-front), the Java ones deleted 2026-11-06
+│   ├── PmcdParser.java                      B door: a text → its Protocol.PureModelContextData (the engine's section walk)
+│   ├── SpecParser.java                      C door: a text → protocol.spec.ValueSpecification
+│   ├── RustParsers.java                     the doors' Rust provider, found by ServiceLoader (ffi/RustParserProvider)
+│   ├── SectionGrammarRegistry.java          the overlay grammars (spi/SectionGrammar, by ServiceLoader), called back
+│   └── Dialect.java, ParseException.java, OverlayElementSink.java
 │
 ├── protocol/                          legend-engine's protocol as records (Protocol: PureModelContextData and its
 │   │                                    Element records), the readers (ModelReader) and the emitters/composers
@@ -240,7 +235,6 @@ core/src/main/java/com/legend/
 │                                        PureLspServer, DiagramService, ModelChanges
 ├── queries/                           the saved queries' and saved cubes' rules (SavedQueries, SavedCubes)
 │
-├── ide/                               demand-driven indexing (ModelIndex, ModelOrchestrator) — dormant
 ├── probe/                             Shadow, a probe of the platform untangle
 ├── cache/                             the one sanctioned cache: ContentStore, keyed by Hash (ArchitectureTest
 │                                        cachesAreFunneledToContentAddressedStore)
@@ -257,10 +251,10 @@ builtin tables (`prelude.pure`, `native-claims.tsv`, …).
 
 | Convention | Example | Rationale |
 |---|---|---|
-| **Single top prefix** `com.legend.*` | `com.legend.lexer.Lexer` | Distinct from `com.gs.legend.*` (the deleted engine); makes the wall unambiguous |
-| **Folder = package**, 1:1 | folder `lexer/` ↔ package `com.legend.lexer` | One name per concept |
-| **Noun packages** | `lexer/`, `parser/`, `compiler/`, `resolver/`, `exec/`, `judge/` | Matches engine convention; matches Java idioms |
-| **Element / Spec symmetry, everywhere** | `ElementParser` + `SpecParser`; `compiler/element/` + `compiler/spec/`; `TypedElement` + `TypedSpec` (the parser's spec records are `protocol/spec/`; F's driver is `PureModelContext`, there is no `ElementCompiler`) | "Element" = packageable element. "Spec" = value specification. Same pair end-to-end, no ad-hoc `Model`/`Query` mixing |
+| **Single top prefix** `com.legend.*` | `com.legend.parser.PmcdParser` | Distinct from `com.gs.legend.*` (the deleted engine); makes the wall unambiguous |
+| **Folder = package**, 1:1 | folder `parser/` ↔ package `com.legend.parser` | One name per concept |
+| **Noun packages** | `parser/`, `compiler/`, `resolver/`, `exec/`, `judge/` | Matches engine convention; matches Java idioms |
+| **Element / Spec symmetry, everywhere** | `compiler/element/` + `compiler/spec/`; `TypedElement` + `TypedSpec` (the parser's spec records are `protocol/spec/`; F's driver is `PureModelContext`, there is no `ElementCompiler`; the Rust parser keeps the pair as `element_parser.rs` + `spec_parser.rs`) | "Element" = packageable element. "Spec" = value specification. Same pair end-to-end, no ad-hoc `Model`/`Query` mixing |
 | **Pure data records** for every IR node | `record TypedFilter(...)` | No identity, free equality, free serialization |
 | **Sealed roots** for every variant family | `sealed interface TypedSpec permits ...` | Compile-time exhaustiveness on every dispatch site |
 | **Parser records = engine class names verbatim** | `LambdaFunction`, `AppliedFunction`, `CString` | Maximizes test portability against the engine corpus |
@@ -366,7 +360,7 @@ phase retires or re-expresses the ones that reference its deleted packages, and 
 
 | Test | Target | Enforces |
 |---|---|---|
-| `ArchitectureTest` | `//core:guardrails` | 52 rules, nearly all dependency direction (the wall and the upstream boundary, no `util/`, `sql/` standalone, package acyclicity, lexer JDK-only, protocol at the bottom, exec reaches no planning, the compile side dialect-blind, caches funnelled, static fields final, …) |
+| `ArchitectureTest` | `//core:guardrails` | 49 rules, nearly all dependency direction (the wall and the upstream boundary, no `util/`, `sql/` standalone, package acyclicity, protocol at the bottom, exec reaches no planning, the compile side dialect-blind, caches funnelled, static fields final, …; "lexer JDK-only" retired with the Java lexer, 2026-11-06) |
 | `CodeShapeGuardrailTest` | `//core:guardrails` | method ≤ 250 lines (the 3,500-line file limit was dropped on 2026-09-29); non-final instance fields allowlisted; shrink-only counts (dead private methods, class names as logic, …) |
 | `ErrorShapeGuardrailTest` | `//core:guardrails` | no return/throw in `finally`; broad catches pinned per file; no control flow on exception text; `default -> "<literal>"` fallbacks only shrink |
 | `ObservabilityGuardrailTest` | `//core:guardrails` | shrink-only ratchets on debug env flags, `System.err` prints, string-dispatch sites |
@@ -382,7 +376,7 @@ phase retires or re-expresses the ones that reference its deleted packages, and 
 
 1. Read this README.
 2. Find the package in the layout above. **If your file doesn't fit any listed package, stop and discuss before inventing a new one.**
-3. Records first; classes only for services (`Lexer`, `ElementParser`, `SpecCompiler`, `StoreResolver`, ...) and per-step drivers.
+3. Records first; classes only for services (`SpecCompiler`, `StoreResolver`, ...) and per-step drivers.
 4. Sealed root for any new variant family.
 5. Run `bazel test //core:guardrails //core:core_tests` — `ArchitectureTest` (in `//core:guardrails`) must stay
    green. A new library also needs its line in `tools/deps/core-layers.txt` (`//tools/deps:core_layering_test`).

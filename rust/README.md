@@ -19,9 +19,12 @@ profile does not.
 - `lite-dialect/`: the SQL dialects -- the shared renderer as a trait, the writer, the pass pipeline, DuckDB -- held to
   Java's answers by the differential over `oracles/mir/` (`PARITY.md` measures where it stands).
 - `lite-front/`: the front end -- the lexer, the expression parser and the model parser with every section grammar
-  (core/'s `com.legend.lexer` and `com.legend.parser`), and the protocol emitter that writes legend-engine's JSON from
-  their records (core/'s `ProtocolEmitter` and its family), over a text's UTF-16 units, held to Java's every answer by
-  the differentials over `oracles/front/` (`PARITY.md` measures where it stands).
+  (ported from core/'s `com.legend.lexer` and `com.legend.parser`, which were deleted on 2026-11-06 once every text
+  door answered from here: docs/rust-port/PHASE2.md §4 step 6), and the protocol emitter that writes legend-engine's
+  JSON from their records (core/'s `ProtocolEmitter` and its family, which stay Java until phase 3 for their
+  record-sourced callers), over a text's UTF-16 units, held to Java's every answer -- frozen in `oracles/front/` before
+  the Java was deleted -- by the three differentials (`PARITY.md` measures where it stands). `src/probes.rs` answers
+  what `//parser-equivalence`'s gates and the prelude generator asked of the Java parser's internals.
 
 - `BASELINE.tsv`: every test target of `bazel test //...` on the pristine tree (upstream `main` at `cf73e6ef7`,
   2026-11-02, macOS arm64): 508 passed, 2 skipped as incompatible with the platform. A phase lands only when every
