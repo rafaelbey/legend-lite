@@ -392,6 +392,10 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      The timing tool itself, under `bazel run`, printed 205-212 ms optimized and 235-586 ms at fastbuild. A
      self-contained jar adds about 300 ms on macOS: it writes its library out to a new temporary file in every
      process, and macOS checks a new library at its first load.
+   - **`//core:seam_benchmark_small_heap`** (manual, so not in `rust/BASELINE.tsv`) fails at the switch's head and
+     the same way before it (`dcc10a5ba`, 2026-11-06): H2 runs out of memory in its 256 MB heap at step 5 ("csv
+     whole text in one value"), and step 6 then finds the database closed. The failure predates the switch and the
+     streaming reader.
 5. **The engine JSON (2e)**: `ProtocolEmitter` in Rust; `parseDocument` and `lambdaJson` switch, gated byte for byte
    by `CorpusSweepTest`'s 6,471 documents and `ModelReaderParityTest`. Their parse is Rust's already (steps 3 and 4;
    `parseModel` is `parse`'s model and switched with it): what moves is the emitter.
