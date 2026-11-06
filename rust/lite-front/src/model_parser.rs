@@ -61,7 +61,7 @@ pub struct OverlaySection {
 
 /// The model door's answer: the records (or Java's error), and the overlay sections the walk met -- all of them on
 /// success; on an error, those before it, whose grammars Java would have called (and whose own exception would win)
-/// before the error was raised.
+/// before the error was raised -- their name, text range and line, their indexes unset (nothing is spliced).
 #[derive(Debug)]
 pub struct PmcdAnswer {
     pub parsed: Answer<PmcdParserParsed>,

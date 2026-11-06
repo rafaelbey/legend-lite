@@ -728,9 +728,7 @@ impl<'s> ElementCursor<'_, 's> {
             if self.peek() != T::BRACKET_CLOSE {
                 target.push(Box::new(self.parse_profile_entry()?));
                 while self.match_tok(T::COMMA)? {
-                    let entry = self.parse_profile_entry()?;
-                    let target = if to_stereotypes { &mut stereotypes } else { &mut tags };
-                    target.push(Box::new(entry));
+                    target.push(Box::new(self.parse_profile_entry()?));
                 }
             }
             self.expect(T::BRACKET_CLOSE)?;

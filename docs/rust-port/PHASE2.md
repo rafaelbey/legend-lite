@@ -102,8 +102,10 @@ before `model.elements[element_index]` of the answer as Rust gives it (splicing 
 index right), and their paths, each once, into the section index's `sections[section_index].elements`, which Rust
 leaves empty (the entry is otherwise whole: name, span, `importAware`, no imports). Rust never makes a
 `POpaqueElement` (its one producer is the overlay seam, `ArchitectureTest.opaqueCarrierIsLockedToTheOverlaySeam`):
-the shim calls each grammar and splices its elements as `OverlayElementSink` does. On an error the list holds the overlay sections before it, whose grammars Java would have
-called first: the shim calls them, and an exception of theirs wins over Rust's. The differential plays the shim's part
+the shim calls each grammar and splices its elements as `OverlayElementSink` does. On an error the list holds the
+overlay sections before it, whose grammars Java would have called first: the shim calls them (only their name, text
+range and line are meaningful then; nothing is spliced), and an exception of theirs wins over Rust's. The differential
+plays the shim's part
 for the oracle's one registered overlay, `ToySectionGrammar` (`tests/front_parser_differential.rs`, `toy_splice`).
 
 **Java is the spec.** The span and error columns are reproduced as Java computes them (UTF-16 units and code points),
