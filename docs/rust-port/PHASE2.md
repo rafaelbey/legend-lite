@@ -746,6 +746,52 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      6,755 documents matched, seam 6,746/0; own corpus 2,943, `diffs=0`. `cargo test --workspace`, `cargo clippy --all-targets
      -- -D warnings`, `cargo fmt --check` clean. 1,530,080 door answers over mutated oracle texts: no panic, no raw answer.
 
+   **Rulings 15 and 16 done 2026-11-09** (from `dcea220f0`, the rulings of §6; commit `91de44e54`). Every input was asked of
+   legend-engine's own parser on the parser-equivalence class path (`PureGrammarParser`, 4.145.0; 513 further inputs, not
+   committed, each answered beside Rust at every door at the engine's dialect).
+   - **How.** `doors::Dialect`'s inner levels of `LEGEND_ENGINE` are now the quoted reading (`LegendEngine`), the one every door
+     reads a text at (`LegendEngineDoor`, `LegendEngineModel` until today, the expression doors now among them), the one an
+     engine-JSON door re-reads at (`LegendEngineJson`), and `LegendEngineSyntax`. A refusal of the engine's walk, raised as the
+     parser reads, is followed by a second reading of the same section at that last level (`JavaError::syntax_first`, on the
+     error path alone), which reads what the walk refuses and passes islands and mapping element bodies by; a later error it
+     meets is the answer unless it is one the engine raises while walking (`Field '...'`, `Unknown ...`, a section catch-all's).
+     A mapping element's body does the same inside itself first. No new `java.*` answer; `NumberFormatException` has no Rust
+     site left, and its arm has left `RustParserProvider.raised`.
+   - **Ruling 11, corrected (row 8).** `1.ed`, `1.e+d`, `1.ef` and their kin at every dialect, at the letter: register S153
+     updated. `1.e+` with nothing after its sign is at the sign at the engine's dialect, as the engine refuses it. The huge
+     exponent stays limited to lite's and the platform's dialects.
+   - **The rows** (the engine's words differ, its token and column are lite's, except where said):
+
+     | row | input | doors | the engine | lite now | register |
+     |---|---|---|---|---|---|
+     | 74 | `EqualToJson #{ expected: ['a']; }#`, `[a, b]`, `[]`, `#/a::B/c#`, `[#/a::B/c#]`, `[{x: 1;}]` | `document` | at the value's first token | `Unexpected token '['` and kin there | S165 |
+     | 74 | `database: a::D;`, `binding: a::B;`, any other key, a key after a good `expected` | `document` | at the key | `Unexpected token 'database'` there | S165 |
+     | 74 | `EqualToJson { expected: ['a']; }` | `document` | at the `{` | `Unexpected token '{'` there | S165 |
+     | 63 | `#{a::B{c(f())}}#` and every other argument | `spec`, `block` at the engine's | as the other doors | the row's refusal at its place | S164 |
+     | 81 | `c(a::E.X)`, `c(1,)`, `c(,1)`, `c(1,,2)`, `c(%10:10)`, `c([a::E.X])`, `c([1,])`, `c([,1])`, `c(E.)`, `c(1.)`, `c(%x)`, the arguments of S163 | all six, at the engine's | where its grammar stops | `this argument of a dated path segment ...` there | S167 |
+     | 73 | `Default #{ }#`, `Foo #{ }#`, `AwsGlue #{ }#`, any one-character island | `pmcd`, `document` at the engine's | section catch-all | `... must not have a one-character body` at the section's start | S168 |
+     | 73 | `AwsGlue #{ dataProcessingUnits: 1; }#`, `foo: 10;`, a string or word value, a key after a good one, `dataProcessingUnits: 10` with no `;` | `pmcd`, `document` at the engine's | its cloud grammar over the text less two characters | `Unexpected token ...` where it stops | S168 |
+     | 69 | `^a::B($x, $y)` | all, at the engine's | at the first `$` | the row's refusal there | S159 |
+     | 69 | `^a::B(1, 2)` | all, at the engine's | past the group | the same; `[1:12]` at `spec`, `[2:1]` at `lambda`, the `}` in a function | S159 |
+     | 69 | `^a::B(1, $x)`, `^a::B(1,)`, `^a::B('a'+'b', 1)`, `^a::B('a'+'b')` | all (the last at the JSON doors) | at the stop | the same | S159 |
+     | 69 | `^a::B(1)(x=1)` | all | accepts | `trailing tokens ...` at the second `(`; stricter, no code change | S166 |
+
+   - **Row 63 and a later syntax error** (ruling 16 (c)), at every door it is refused: a syntax error later in the same function,
+     section, expression or text comes first; the refusal stays first against a later section, the rest of its own island,
+     another mapping element's body, `Field '...'`-worded walk errors. The new refusals of rows 81 and 73 keep the same order.
+     Where the engine's phase cannot be told from lite's words, a later error of the walk that lite words as a plain parse
+     error comes first; PARITY row 63 says so.
+   - **The difference lists.** `deliberate-differences.tsv` 7 -> 9 asks: `1680d307` at `pmcd`/`LEGEND_ENGINE` and `document`, an
+     `AwsGlue` island with its `;` left off, now the engine's `[34:0]`. No floor lowered. `//core:front_shim`: the four doors
+     110,590 identical and 6 listed of 110,596, the engine-JSON doors 30,061 and 3 of 30,064. `FROZEN_MODULE_DIFFERS` is
+     unchanged. No test source changed; nothing of lite's own relied on an input now refused.
+   - **The gates.** `bazel test //core/... //spec/... //rust/... //parser-equivalence/... //tools/... //gates/...`: 525 targets, 523
+     pass and the same 2 skipped; `//wasm/...` built and its 5 tests pass. `//parser-equivalence:parser_parity`: 422 pins, 421
+     rejected, 0 missed, line agreement 415, column exact 337 (none moved); the sentinel 2,217 in scope, matched 2,216; the
+     sweep 6,755 documents matched, seam 6,746/0; own corpus 2,943, `diffs=0`. `cargo test --workspace`, `cargo clippy
+     --all-targets -- -D warnings`, `cargo fmt --check` clean. 153,008 mutated oracle texts through every door: no panic, no
+     raw answer.
+
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
 exists, and the committed oracle after.

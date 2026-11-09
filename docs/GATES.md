@@ -307,6 +307,9 @@ The dated record of moved pins, rosters and ratchets (the rules: "Recording a mo
 Newest first, at most 20 lines. Seeded from the last entries of the cut log; "D<n>" is the decisions log of the
 landing's program.
 
+- 2026-11-09 — `rust/oracles/front/deliberate-differences.tsv` 7 -> 9 asks (`1680d307` at `pmcd`/`LEGEND_ENGINE` and `document`,
+  row 73: an `AwsGlue` island with its `;` left off, now at the engine's own place, ruling 16); no floor lowered, no other
+  list or pin moved (docs/rust-port/PHASE2.md §6, rulings 15 and 16). Commit `91de44e54`. Branch `worktree-rust-port-phase0`.
 - 2026-11-09 — `rust/oracles/front/deliberate-differences.tsv` 5 -> 7 asks (`00dc41c7` at `pmcd`/`LEGEND_ENGINE`, ruling 13;
   `672e812e` at `spec`/`LEGEND_ENGINE`, ruling 11, from `raw-left-for-user.tsv`, deleted with its readers); the front
   differentials fail on any `java.*` answer over the frozen questions, which stay Java's; no floor lowered
@@ -377,8 +380,6 @@ landing's program.
   funnel's exemption; the new rule `noJdbcTypeInAPublicSignatureOutsideTheSeam`. `dfbbcfa5`.
 - 2026-10-30 — The java.sql revamp, step 2b (D68): the JDBC census register loses `PureTestRunner`,
   `ServiceTestRunner` and `TestObserver`. `d79a9edab`.
-- 2026-10-30 — The java.sql revamp, step 2a (D67): the JDBC census register loses nine files; the Java-evaluation
-  ledger's server list loses `QueryService` and `OutputFormat`. `d7103d53e`.
 
 > Cut in the 2026-11 docs cleanup: the Maven-era chain and its log (2026-08-02 to 2026-09-22: `tools/allgates.sh`, the
 > root-flag trap, the budget decisions, the batch chain logs, the hand-kept ratchet table, the CI leg, fork policy and
