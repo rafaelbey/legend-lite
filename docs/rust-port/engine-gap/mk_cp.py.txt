@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+# The class path parser-equivalence's tests run with (engine's parsers), every jar an absolute path; lists which
+# extension grammars it has.
+import os, re, zipfile, sys
+WT = "/Users/cocobey73/Projects/legend-lite/.claude/worktrees/rust-port-phase0"
+ROOT = "/Users/cocobey73/.local/graalvm/bazel-root/f070f5519c087d81641c074960507b6e"
+out = os.path.dirname(os.path.abspath(__file__))
+lst = os.path.realpath(WT + "/bazel-bin/parser-equivalence/engine_jars_exec.jars")
+execroot = ROOT + "/execroot/_main"
+jars = []
+for l in open(lst):
+    l = l.strip()
+    if not l:
+        continue
+    p = os.path.join(execroot, l)
+    if not os.path.exists(p):
+        p2 = os.path.join(ROOT, l)
+        p = p2 if os.path.exists(p2) else p
+    jars.append(p)
+missing = [j for j in jars if not os.path.exists(j)]
+print(len(jars), "jars;", len(missing), "missing")
+for m in missing[:10]:
+    print("MISSING", m)
+open(out + "/engine.cp", "w").write(":".join(jars))
+wanted = ["mongodb", "persistence", "servicestore", "dataquality", "diagram", "elasticsearch", "deephaven", "externalformat", "hostedservice", "snowflake", "bigquery", "memsql", "dataspace", "text", "generation"]
+for w in wanted:
+    hits = [os.path.basename(j) for j in jars if w in j.lower() and "grammar" in j.lower()]
+    print(w, "->", hits[:6])
+ext = []
+for j in jars:
+    if not j.endswith(".jar") or not os.path.exists(j):
+        continue
+    try:
+        z = zipfile.ZipFile(j)
+    except Exception:
+        continue
+    n = "META-INF/services/org.finos.legend.engine.language.pure.grammar.from.extension.PureGrammarParserExtension"
+    if n in z.namelist():
+        ext.append((os.path.basename(j), [x for x in z.read(n).decode().split("\n") if x and not x.startswith("#")]))
+print(len(ext), "jars declare PureGrammarParserExtension")
+for j, cs in ext:
+    print(" ", j, [c.rsplit(".", 1)[1] for c in cs])

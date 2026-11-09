@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+# Probe source (ruling 17, docs/rust-port/ENGINE_GAP_2026_11_09.md): the corpus set and the harness set as cases, and the
+# SHA-256s the document records. Run after `gen`.
+import json, hashlib, collections, os
+S = "/private/tmp/claude-501/-Users-cocobey73-Projects/2feda7e8-66d0-45e8-a3e5-454aab85befc/scratchpad"
+G = S + "/gap"
+
+# ---- the frozen corpus: every text of questions.jsonl, a case per kind of door it was asked at
+n = collections.Counter()
+with open(G + "/corpus.jsonl", "w", encoding="ascii") as out:
+    for line in open(G + "/questions.jsonl", encoding="utf-8"):
+        q = json.loads(line)
+        doors = {a[0] for a in q["asks"]}
+        kinds = []
+        if "pmcd" in doors:
+            kinds.append("model")
+        if "spec" in doors or "block" in doors:
+            kinds.append("spec")
+        if "lambda" in doors:
+            kinds.append("lambda")
+        n["texts"] += 1
+        for k in kinds:
+            n[k] += 1
+            out.write(json.dumps({"id": "c" + q["sha"][:16] + "." + k, "set": "corpus", "kind": k, "text": q["text"]}) + "\n")
+print(dict(n))
+
+# ---- the harness set: the differences the last agents listed as unchanged
+C = []
+def add(name, kind, text):
+    C.append({"id": "h." + name, "set": "harness", "kind": kind, "text": text})
+def fn_body(expr):
+    return "function a::f():Any[*]\n{\n  " + expr + "\n}\n"
+
+add("cast.spec", "spec", "^a::B($x)")
+add("cast.lambda", "lambda", "|^a::B($x)")
+add("cast.fn", "model", fn_body("^a::B($x)"))
+
+perd = "###Persistence\nPersistence a::P\n{\n  doc: 'd';\n  trigger: Manual;\n  service: a::S;\n"
+batch_ok = "  persister: Batch { sink: Relational { database: a::D; } targetShape: Flat { targetName: 'n'; modelClass: a::C; } ingestMode: AppendOnly { auditing: None; filterDuplicates: false; } }\n"
+def assertion(body):
+    head = perd + batch_ok + "  tests:\n  [\n    t1:\n    {\n      testBatches:\n      [\n        b1:\n        {\n          data:\n          {\n            connection:\n            {\n              ExternalFormat\n              #{\n                contentType: 'a';\n                data: 'd';\n              }#\n            }\n          }\n          asserts:\n          [\n            a1:\n              EqualToJson"
+    tail = "\n          ]\n        }\n      ]\n      isTestDataFromServiceOutput: false;\n    }\n  ]\n}\n"
+    return head + " #{ " + body + " }#" + tail
+for n_, b in [("strs", "expected: ['a'];"), ("idents", "expected: [a, b];"), ("empty", "expected: [];"), ("path", "expected: #/a::B/c#;"), ("paths", "expected: [#/a::B/c#];"), ("nodes", "expected: [{x: 1;}];"), ("database", "database: a::D;"), ("binding", "binding: a::B;")]:
+    add("row74." + n_, "model", assertion(b))
+add("expected.scalar", "model", assertion("expected: 'a';"))
+add("platform.foo", "model", "###Persistence\nPersistenceContext a::C\n{\n  persistence: a::P;\n  platform: Foo;\n}\n")
+add("pluseq.spec", "spec", "^a::B('a'+=1)")
+add("pluseq.fn", "model", fn_body("^a::B('a'+=1)"))
+add("alias.spec", "spec", "#/a::B/c(1)!n#")
+add("alias.fn", "model", fn_body("#/a::B/c(1)!n#"))
+add("oneplus.spec", "spec", "1 +")
+add("oneplus.fn", "model", fn_body("1 +"))
+# the raw answers rulings 12 and 16 left: to show the classifier's raw category is live (neither input set reaches one)
+add("raw.letFunction", "spec", "letFunction(1, 2)")
+add("raw.dated", "spec", "#/a::B/c(1.5)#")
+with open(G + "/harness.jsonl", "w", encoding="ascii") as out:
+    for c in C:
+        out.write(json.dumps(c) + "\n")
+print(len(C), "harness cases")
+
+def sha_file(p):
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+def sha_units(p):
+    h = hashlib.sha256(); n = 0
+    for line in open(p, encoding="ascii"):
+        h.update(json.loads(line)["text"].encode("utf-16-le", "surrogatepass")); n += 1
+    return h.hexdigest(), n
+for name in ("corpus", "mut", "mut16", "harness"):
+    p = G + "/" + name + ".jsonl"
+    if os.path.exists(p):
+        print(name, "file sha256", sha_file(p), "concatenated UTF-16LE units sha256, cases", sha_units(p))

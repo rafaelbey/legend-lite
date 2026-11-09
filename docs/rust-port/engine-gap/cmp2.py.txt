@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+# Compares two engine answer files of a set by case id. Usage: cmp2.py set suffixA suffixB
+import json, sys, collections
+G = "/private/tmp/claude-501/-Users-cocobey73-Projects/2feda7e8-66d0-45e8-a3e5-454aab85befc/scratchpad/gap"
+name, sa, sb = sys.argv[1:4]
+def load(s):
+    o = {}
+    for x in open(f"{G}/{name}.{s}.jsonl", encoding="utf-8"):
+        r = json.loads(x); o[r["id"]] = r
+    return o
+a, b = load(sa), load(sb)
+same = pd = md = 0; show = []; asks = 0
+for k in set(a) & set(b):
+    for d in ("model", "spec", "lambda"):
+        if d not in a[k]: continue
+        asks += 1
+        x, y = a[k][d], b[k][d]
+        kx = (x["verdict"], x.get("class"), x.get("line"), x.get("column"), x.get("endLine"), x.get("endColumn"))
+        ky = (y["verdict"], y.get("class"), y.get("line"), y.get("column"), y.get("endLine"), y.get("endColumn"))
+        if kx != ky:
+            pd += 1
+            if len(show) < 3: show.append((k, d, kx[:4], ky[:4]))
+        elif x.get("message") != y.get("message"):
+            md += 1
+        else:
+            same += 1
+print(name, sa, "vs", sb, "cases", len(a), len(b), "asks compared", asks, "identical", same, "verdict/class/place differ", pd, "message differs", md)
+for s in show:
+    print("  ", s)

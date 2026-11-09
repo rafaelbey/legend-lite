@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+# Probe source (ruling 17, docs/rust-port/ENGINE_GAP_2026_11_09.md): which disagreements a row of
+# docs/SEMANTICS_REGISTER.md or rust/lite-front/PARITY.md already names. First matching rule wins. A rule reads lite's
+# words at the disagreeing door, the engine's words, the place, the text, and (at a record door) what the engine-JSON door
+# answers for the same text. Tier H: the row names this input and this difference from the engine. Tier M: a PARITY row
+# names lite's answer for this input (Java's behaviour kept) and says nothing of the engine's. Everything else: unledgered.
+import re
+
+STRICT, LOOSE, PLACE = "lite stricter", "lite looser", "other place"
+def kind_of(cat):
+    if cat == "lite stricter": return STRICT
+    if cat == "lite looser": return LOOSE
+    if cat in ("same line, other column", "different line", "both refuse, engine unplaced"): return PLACE
+    return None
+
+def offset(t, line, col):
+    """index of (line, col) in t, col 1-based; None when out of range"""
+    if not line or line < 1: return None
+    i = 0
+    for _ in range(line - 1):
+        j = t.find("\n", i)
+        if j < 0: return None
+        i = j + 1
+    return i + max(col - 1, 0)
+
+def before(r, t, n=200):
+    o = offset(t, r["eline"], r["ecol"] or 0)
+    return "" if o is None else t[max(0, o - n):o]
+
+def before_lite(r, t, n=200):
+    if not r.get("lline"): return ""
+    o = offset(t, int(r["lline"]), int(r["lcol"]))
+    return "" if o is None else t[max(0, o - n):o]
+
+ISLAND_OPEN = re.compile(r"#\s*[A-Za-z_]*\s*\{")
+def island_relative(r, t):
+    """Does lite's place read as the engine's place in the coordinates of the island around it (PARITY rows 33, 57)?"""
+    if r["eline"] is None or not r.get("lline"): return False
+    if r["grammar"] not in ("###Connection", "###Runtime", "###Service", "###Persistence"): return False
+    ll, lc = int(r["lline"]), int(r["lcol"])
+    o = offset(t, r["eline"], r["ecol"])
+    if o is None: return False
+    # innermost island open before the engine's place, not closed before it
+    depth = 0; i = min(o, len(t))
+    while i > 0:
+        i -= 1
+        two = t[max(0, i - 1):i + 1]
+        if two == "}#":
+            depth += 1; i -= 1; continue
+        if t[i] == "{" :
+            m = None
+            j = i - 1
+            while j >= 0 and (t[j].isalnum() or t[j] in " \t\n_"):
+                j -= 1
+            if j >= 0 and t[j] == "#":
+                if depth == 0:
+                    start = i + 1
+                    il = t.count("\n", 0, start) + 1
+                    ic = start - (t.rfind("\n", 0, start) + 1)
+                    rel_line = r["eline"] - il + 1
+                    rel_col = r["ecol"] - ic if r["eline"] == il else r["ecol"]
+                    return ll == rel_line and abs(lc - rel_col) <= 3 and (ll != r["eline"] or abs(lc - r["ecol"]) > 3)
+                depth -= 1
+    return False
+
+def astral_before(r, t):
+    """A non-BMP character on the line before the place: code points against UTF-16 units (PARITY row 2)"""
+    if r["eline"] is None or not r.get("lcol"): return False
+    o = offset(t, r["eline"], r["ecol"] or 0)
+    if o is None: return False
+    ls = t.rfind("\n", 0, o) + 1
+    n = sum(1 for c in t[ls:o] if ord(c) > 0xFFFF or 0xD800 <= ord(c) <= 0xDBFF)
+    return n > 0 and abs(r["ecol"] - int(r["lcol"])) == n
+
+def json_says(r, ctx, pat):
+    a = ctx["json"].get(r["id"])
+    return a is not None and a.get("v") == "E" and re.search(pat, a.get("msg") or "") is not None
+
+def json_refuses(r, ctx):
+    a = ctx["json"].get(r["id"])
+    return a is not None and a.get("v") == "E"
+
+def record_door(r): return r["door"] in ("pmcd", "spec", "lambda")
+
+R = []
+def rule(name, row, tier, kinds, lite=None, eng=None, pred=None, doors=None):
+    R.append(dict(name=name, row=row, tier=tier, kinds=kinds, lite=re.compile(lite) if lite else None, eng=re.compile(eng) if eng else None, pred=pred, doors=doors))
+
+# ---- lite stricter: the rows that say lite refuses what the engine accepts
+rule("impossible date with a zone", "S151 / P3", "H", {STRICT, PLACE}, lite=r"invalid date literal .*Invalid date")
+rule("1.ed, 1.e+d, 1.ef", "S153 / P8", "H", {STRICT}, lite=r"Unexpected token '[eE][-+]?[dDfF]?'", pred=lambda r, t, c: re.search(r"\d\.$", before_lite(r, t, 8)) is not None)
+rule("empty ###Diagram before another", "S155 / P46", "H", {STRICT, PLACE}, lite=r"an empty ###Diagram section")
+rule("jsonSchema value of the wrong kind", "S156 / P50", "H", {STRICT, PLACE}, lite=r"a jsonSchema (title|description|required|minLength|maxLength)")
+rule("AggregationAware local property", "S157 / P72", "H", {STRICT, PLACE}, lite=r"the local property .* AggregationAware")
+rule("Default platform with a body", "S158 / P73", "H", {STRICT, PLACE}, lite=r"Persistence platform 'Default' must not have a body")
+rule("^a::B(1)(x=1)", "S166", "H", {STRICT}, lite=r"trailing tokens after .*PAREN_OPEN|a positional cast", pred=lambda r, t, c: before_lite(r, t, 3).rstrip().endswith(")"))
+rule("ModelStore's -9223372036854775808", "S96", "H", {STRICT}, lite=r"Unexpected token '9223372036854775808'")
+
+# ---- lite looser: a record door keeps what the rows refuse only at the engine-JSON doors
+for pat, row, name in [
+    (r"a positional cast", "S159 / P69", "positional cast at a record door"),
+    (r"the multiplicity parameter", "S161 / P70", "multiplicity parameter at a record door"),
+    (r"Unexpected token '\?'", "S160 / P69", "wildcard relation column at a record door"),
+    (r"Unexpected token 'activationConfiguration'", "S162 / P71", "DeephavenApp configuration at a record door"),
+]:
+    rule(name, row, "H", {LOOSE}, doors={"pmcd", "spec", "lambda"}, pred=(lambda p: lambda r, t, c: json_says(r, c, p))(pat))
+rule("spelled @Relation<(a:?)> at a record door", "S160 / P69", "H", {LOOSE}, doors={"pmcd", "spec", "lambda"}, eng=r"Unexpected token '<'", pred=lambda r, t, c: "?" in t and "@Relation<" in t and json_says(r, c, r"Unexpected token '<'"))
+rule("schema algebra as a type argument at a record door", "S150 / P87", "H", {LOOSE}, doors={"pmcd", "spec", "lambda"}, eng=r"Unexpected token '<'", pred=lambda r, t, c: json_says(r, c, r"Unexpected token '<'") and re.match(r"\s*<[^>]*-", (lambda o: t[o:o + 200] if o is not None else "")(offset(t, r["eline"], r["ecol"]))) is not None)
+rule("EqualToJson entries at a record door", "S165 / P74", "H", {LOOSE}, doors={"pmcd"}, pred=lambda r, t, c: "EqualToJson" in before(r, t, 400) and json_refuses(r, c))
+rule("persistence node the emitter refuses, at a record door", "S143 / P73", "H", {LOOSE}, doors={"pmcd"}, pred=lambda r, t, c: r["grammar"] == "###Persistence" and json_refuses(r, c))
+rule("DataQuality context at a record door", "S144 / P76", "H", {LOOSE}, doors={"pmcd"}, pred=lambda r, t, c: r["grammar"] == "###DataQualityValidation" and json_refuses(r, c))
+rule("TIME and TIMESTAMP_NS columns", "S64", "H", {LOOSE}, eng=r"Unsupported column data type '(TIME|TIMESTAMP_NS)'")
+
+# ---- other place, rows that name the place
+rule("empty embedded runtime or connection, unplaced", "P33", "H", {PLACE}, lite=r"Embedded runtime must not be empty|unsupported connection flavor", pred=lambda r, t, c: r["lline"] == "0")
+rule("EqualTo #{ }# unplaced", "P31", "H", {PLACE}, lite=r"assertion key '<EOF>' is unbuilt", pred=lambda r, t, c: r["lline"] == "0")
+rule("#{ as the last token", "S146 / P83", "H", {PLACE}, lite=r"Graph fetch tree must not be empty", pred=lambda r, t, c: t.rstrip().endswith("#{"))
+rule("graph-fetch argument, column", "S142 / P63", "H", {PLACE}, lite=r"a graph-fetch argument must be", pred=lambda r, t, c: r["cat"] == "same line, other column")
+rule("graph-fetch argument, later syntax error", "S164 / P63", "M", {PLACE}, lite=r"a graph-fetch argument must be")
+rule("platform Foo a token late", "P73", "H", {PLACE}, lite=r"Unsupported persistence platform type")
+rule("persistence kind at the node's span", "S143 / P73", "H", {PLACE}, doors={"document"}, lite=r"Unexpected token", pred=lambda r, t, c: r["grammar"] == "###Persistence" and c["pmcd_accepts"](r["id"]))
+rule("refusal in an island's own coordinates", "P33 / P57", "H", {PLACE}, pred=lambda r, t, c: island_relative(r, t))
+rule("column counts code points", "P2", "M", {PLACE}, pred=lambda r, t, c: r["cat"] == "same line, other column" and astral_before(r, t))
+rule("unknown ### section", "P17", "M", {PLACE}, lite=r"is not a known section parser")
+rule("documentation string before a keyword", "P13", "M", {PLACE}, lite=r"Documentation must be written as a multi-line")
+rule("multiplicity parameter in a lambda, unplaced by the engine", "S161 / P70", "H", {PLACE}, lite=r"the multiplicity parameter")
+rule("documentation before a Database member", "P24", "M", {PLACE}, lite=r"unsupported Database member: '''")
+rule("graph-fetch subtype error, unplaced", "P11", "M", {PLACE}, pred=lambda r, t, c: r["lline"] == "0" and "subType" in t)
+rule("relational string with a bad escape", "P25", "M", {PLACE}, lite=r"malformed quoted name: Less than", pred=lambda r, t, c: r["grammar"] in ("###Relational", "###Mapping"))
+rule("URL is not valid", "P38", "M", {PLACE}, lite=r"URL is not valid")
+rule("Diagram import", "P47", "M", {PLACE}, lite=r"malformed import|expected 'Diagram'")
+rule("dataProcessingUnits required", "P58", "M", {PLACE}, lite=r"Field 'dataProcessingUnits' is required")
+rule("Deephaven multiplicity", "P59", "M", {PLACE}, lite=r"Unexpected token '\.\.'")
+rule("ServiceStore optional path parameter", "P62", "M", {PLACE}, lite=r"Path parameters cannot be optional")
+rule("a `.` in a dated segment re-parsed", "P5", "M", {PLACE}, pred=lambda r, t, c: "#/" in t and r["lline"] == "1" and r["eline"] != 1 and r["cat"] == "different line" and "|" in (r["lmsg"] or ""))
+
+def match(r, t, ctx):
+    k = kind_of(r["cat"])
+    if k is None: return None
+    lm = r.get("lmsg") or ""; em = r.get("emsg") or ""
+    for ru in R:
+        if k not in ru["kinds"]: continue
+        if ru["doors"] and r["door"] not in ru["doors"]: continue
+        if ru["lite"] and not ru["lite"].search(lm): continue
+        if ru["eng"] and not ru["eng"].search(em): continue
+        if ru["pred"] and not ru["pred"](r, t, ctx): continue
+        return ru
+    return None

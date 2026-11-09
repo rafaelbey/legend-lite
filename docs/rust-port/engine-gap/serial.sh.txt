@@ -1,0 +1,24 @@
+#!/bin/zsh
+# The engine answers serially (one worker, a big-stack thread per text): the threaded runs were not reproducible.
+# Each set twice, each pass its own JVM; lite's doors are already reproducible and are not rerun here.
+S=/private/tmp/claude-501/-Users-cocobey73-Projects/2feda7e8-66d0-45e8-a3e5-454aab85befc/scratchpad
+G=$S/gap
+CP=$(cat $S/post6b/engine.cp)
+cd $G
+for N in corpus mut16 mut harness; do
+  for P in engine engine2; do
+    [ -f $N.$P.jsonl ] && mv $N.$P.jsonl $N.$P.threaded.jsonl
+  done
+done
+for N in harness corpus mut16 mut; do
+  for P in engine engine2; do
+    java -Xmx8g -XX:+UseSerialGC -XX:-OmitStackTraceInFastThrow -cp "$G/engine/classes:$CP" GapEngineProbe $G/$N.jsonl $G/$N.$P.jsonl 1 120 2> $G/$N.$P.err &
+  done
+done
+wait
+for N in harness corpus mut16 mut; do
+  for P in engine engine2; do
+    tail -1 $G/$N.$P.err | cut -c1-200
+  done
+done
+echo SERIAL-DONE

@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+# Probe source (ruling 17): assembles docs/rust-port/ENGINE_GAP_2026_11_09.md's tables from table.json and report.json.
+# Prints the tables to gap/tables/*.md; the prose around them is written by hand in the document.
+import json, collections, os, re
+G = "/private/tmp/claude-501/-Users-cocobey73-Projects/2feda7e8-66d0-45e8-a3e5-454aab85befc/scratchpad/gap"
+T = json.load(open(G + "/table.json"))
+J = json.load(open(G + "/report.json"))
+os.makedirs(G + "/tables", exist_ok=True)
+CATS = [("both accept", "both accept"), ("same place", "same place"), ("same line, other column", "same line, other col"), ("different line", "different line"), ("lite looser", "lite looser"), ("lite stricter", "lite stricter"), ("lite raw java.*", "raw `java.*`"), ("engine timeout", "engine timeout"), ("both refuse, engine unplaced", "engine unplaced")]
+LABEL = {"corpus": "corpus", "mut16": "mutated (16 per text)", "mut": "mutated (4 per text)", "harness": "harness"}
+DOORS = ["pmcd", "document", "spec", "lambda", "lambdaJson"]
+def n(x): return f"{x:,}"
+KNOWN = {"Pure", "Mapping", "Relational", "Connection", "Runtime", "DataSpace", "Service", "Persistence", "Data", "ExternalFormat", "DataQualityValidation", "ServiceStore", "Diagram", "QueryPostProcessor", "Snowflake", "Elasticsearch", "MongoDB", "FileGeneration", "GenerationSpecification", "Text", "HostedService", "MemSql", "Deephaven", "BigQuery", "FunctionJar", "AuthenticationDemo"}
+def bucket(g):
+    """a section the corpus has, or one bucket for a mangled or unknown header (###Pu, ###R, ###)"""
+    if not g.startswith("###"): return g
+    return g if g[3:] in KNOWN else "(mangled or unknown ###)"
+
+def table1(sets):
+    out = ["| set | door | texts | " + " | ".join(c[1] for c in CATS) + " |", "|---|---|---:|" + "---:|" * len(CATS)]
+    for s in sets:
+        c = T[s]["counts"]; a = T[s]["asked"]
+        for d in DOORS:
+            if d not in a: continue
+            out.append(f"| {LABEL[s]} | `{d}` | {n(a[d])} | " + " | ".join(n(c.get(f"{d}\t{k[0]}", 0)) for k in CATS) + " |")
+    return "\n".join(out)
+
+def ledger_block(s):
+    r = J[s]["res"]
+    out = [f"| door | stricter H / M / unledgered | looser H / M / unledgered | other place H / M / unledgered | all unledgered |", "|---|---|---|---|---:|"]
+    for d in DOORS:
+        vals = {k: r.get(k, 0) for k in r if k.startswith(d + "\t")}
+        if not vals: continue
+        def tr(kind):
+            return (r.get(f"{d}\t{kind}\tLH", 0), r.get(f"{d}\t{kind}\tLM", 0), r.get(f"{d}\t{kind}\tU", 0))
+        a, b, c = tr("lite stricter"), tr("lite looser"), tr("other place")
+        un = a[2] + b[2] + c[2]
+        fmt = lambda t: f"{n(t[0])} / {n(t[1])} / **{n(t[2])}**"
+        out.append(f"| `{d}` | {fmt(a)} | {fmt(b)} | {fmt(c)} | **{n(un)}** |")
+    return "\n".join(out)
+
+def by_grammar(door, sets, title):
+    g = collections.Counter()
+    for s in sets:
+        for k, v in J[s]["grammar"].items():
+            d, gr, kind, lab = k.split("\t")
+            if d != door: continue
+            g[(bucket(gr), kind, "led" if lab.startswith("L") else "un")] += v
+    grams = sorted({k[0] for k in g}, key=lambda x: -sum(v for k, v in g.items() if k[0] == x and k[2] == "un"))
+    out = [f"| {title} | stricter led. / unled. | looser led. / unled. | other place led. / unled. | unledgered |", "|---|---|---|---|---:|"]
+    tot = [0, 0, 0, 0, 0, 0]
+    for x in grams:
+        row = []
+        for i, kd in enumerate(("lite stricter", "lite looser", "other place")):
+            a, b = g.get((x, kd, "led"), 0), g.get((x, kd, "un"), 0)
+            row.append((a, b)); tot[2 * i] += a; tot[2 * i + 1] += b
+        un = sum(b for _, b in row)
+        out.append(f"| `{x}` | " + " | ".join(f"{n(a)} / {n(b)}" for a, b in row) + f" | **{n(un)}** |")
+    out.append("| **total** | " + " | ".join(f"{n(tot[2*i])} / {n(tot[2*i+1])}" for i in range(3)) + f" | **{n(tot[1]+tot[3]+tot[5])}** |")
+    return "\n".join(out)
+
+def esc(s, cut=120):
+    s = s.replace("\\", "\\\\") if False else s
+    j = json.dumps(s, ensure_ascii=False)[1:-1]
+    if len(j) > cut:
+        j = "..." + j[-cut:]
+    return j.replace("|", "\\|").replace("`", "'")
+
+def merged_xshapes():
+    """model texts at pmcd and expression texts at spec, corpus and the mutated set, summed by shape"""
+    c = collections.Counter(); ex = {}
+    for s in ("corpus", "mut16"):
+        for x in J[s]["xshapes"]:
+            door, k, lf, ef, rel, th, v, t, ll, lc, lm, el, ec, em = x
+            if door not in ("pmcd", "spec"): continue
+            key = (k, lf, ef, rel, th)
+            c[key] += v
+            if key not in ex or len(t) < len(ex[key][0]):
+                ex[key] = (t, ll, lc, el, ec, em)
+    return c, ex
+
+def top5():
+    c, ex = merged_xshapes()
+    out = ["| texts | shape (lite's words / the engine's words, where) | shortest example | lite | engine |", "|---:|---|---|---|---|"]
+    for key, v in c.most_common(10):
+        k, lf, ef, rel, th = key
+        t, ll, lc, el, ec, em = ex[key]
+        out.append(f"| {n(v)} | `{lf.replace('|','')}` / `{ef}`, {rel} | `{esc(t)}` | {ll}:{lc} | {el}:{ec} |")
+    return "\n".join(out)
+
+def themes():
+    c = collections.Counter(); d2 = collections.Counter()
+    for s in ("corpus", "mut16"):
+        for k, v in J[s]["themes"].items():
+            door, th = k.split("\t")
+            if door == "pmcd": c[(th, "pmcd", s)] += v
+            if door == "spec": c[(th, "spec", s)] += v
+    ths = sorted({k[0] for k in c}, key=lambda x: -(c[(x, "pmcd", "mut16")] + c[(x, "pmcd", "corpus")] + c[(x, "spec", "corpus")]))
+    out = ["| what the difference comes down to | `pmcd`, mutated | `pmcd`, corpus | `spec`, corpus |", "|---|---:|---:|---:|"]
+    for th in ths:
+        out.append(f"| {th} | {n(c[(th,'pmcd','mut16')])} | {n(c[(th,'pmcd','corpus')])} | {n(c[(th,'spec','corpus')])} |")
+    return "\n".join(out)
+
+def per_grammar_shapes():
+    lines = []
+    for door, sets, head in [("pmcd", ("mut16", "corpus"), "model"), ("spec", ("corpus",), "expr")]:
+        by = collections.defaultdict(collections.Counter); ex = {}
+        for s in sets:
+            for x in J[s]["shapes"]:
+                d, k, g, lf, ef, rel, v, t, ll, lc, lm, el, ec, em = x
+                if d != door: continue
+                g = bucket(g)
+                key = (k, lf, ef, rel)
+                by[g][key] += v
+                if (g, key) not in ex or len(t) < len(ex[(g, key)][0]):
+                    ex[(g, key)] = (t, ll, lc, el, ec)
+        for g in sorted(by, key=lambda x: -sum(by[x].values())):
+            tot = sum(by[g].values())
+            if tot < 100: continue
+            lines.append(f"**`{g}`** ({n(tot)} unledgered at `{door}`):")
+            for key, v in by[g].most_common(3):
+                if v < 10: continue
+                k, lf, ef, rel = key
+                t, ll, lc, el, ec = ex[(g, key)]
+                lines.append(f"- {n(v)}: `{lf.replace('|','')}` / `{ef}`, {rel}: `{esc(t, 90)}` (lite {ll}:{lc}, engine {el}:{ec})")
+    return "\n".join(lines)
+
+def rules():
+    c = collections.Counter(); meta = {}
+    for s in ("corpus", "mut16"):
+        for x in J[s]["rules"]:
+            door, row, name, tier, kind, v = x
+            if door in ("pmcd", "spec"):
+                c[(row, name, tier, kind)] += v
+    out = ["| row | what | tier | kind | texts (`pmcd` + `spec`, corpus + mutated) |", "|---|---|---|---|---:|"]
+    for (row, name, tier, kind), v in c.most_common():
+        out.append(f"| {row} | {name} | {tier} | {kind} | {n(v)} |")
+    return "\n".join(out)
+
+def verdicts(kind, topn):
+    c = collections.Counter(); ex = {}
+    for st in ("corpus", "mut16"):
+        for x in J[st]["shapes"]:
+            d, k, g, lf, ef, rel, v, t, ll, lc, lm, el, ec, em = x
+            if k != kind or d not in ("pmcd", "spec"): continue
+            key = (bucket(g), lf if kind == "lite stricter" else (em or "")[:40].split("Valid")[0].strip())
+            c[key] += v
+            if key not in ex or len(t) < len(ex[key][0]):
+                ex[key] = (t, ll, lc, el, ec)
+    out = ["| texts | where | words | shortest example | place |", "|---:|---|---|---|---|"]
+    for key, v in c.most_common(topn):
+        g, w = key
+        t, ll, lc, el, ec = ex[key]
+        place = f"lite {ll}:{lc}" if kind == "lite stricter" else f"engine {el}:{ec}"
+        out.append(f"| {n(v)} | `{g}` | `{w.replace('|','')}` | `{esc(t, 96)}` | {place} |")
+    return "\n".join(out)
+
+for name, body in [("t1_corpus_mut", table1(["corpus", "mut16"])), ("t1_mut4", table1(["mut"])), ("t1_harness", table1(["harness"])),
+                   ("t2_corpus", ledger_block("corpus")), ("t2_mut", ledger_block("mut16")),
+                   ("t3_model", by_grammar("pmcd", ("corpus", "mut16"), "section")), ("t3_expr", by_grammar("spec", ("corpus",), "construct")),
+                   ("t4_top", top5()), ("t5_themes", themes()), ("t6_shapes", per_grammar_shapes()), ("t7_rules", rules()), ("t8_looser", verdicts("lite looser", 8)), ("t9_stricter", verdicts("lite stricter", 8))]:
+    open(f"{G}/tables/{name}.md", "w", encoding="utf-8").write(body + "\n")
+    print(name, len(body))

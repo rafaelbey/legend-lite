@@ -1,0 +1,102 @@
+// Probe source, never built in the repo (ruling 17, docs/rust-port/ENGINE_GAP_2026_11_09.md): every case through
+// lite-front's doors at the engine's dialect, as the product answers, one JSON line per (case, door): accepted, or the
+// error's class, line, column and the first 400 characters of its message. Usage: doors <cases.jsonl> <out.jsonl> <threads>
+use lite_front::doors::{Dialect, answer_form, engine_forms, on_parse_stack};
+use lite_front::wire;
+use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+fn esc(s: &str) -> String {
+    let mut o = String::from("\"");
+    for ch in s.chars() {
+        match ch {
+            '"' => o.push_str("\\\""),
+            '\\' => o.push_str("\\\\"),
+            '\n' => o.push_str("\\n"),
+            '\t' => o.push_str("\\t"),
+            '\r' => o.push_str("\\r"),
+            c if (c as u32) < 0x20 => o.push_str(&format!("\\u{:04x}", c as u32)),
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
+}
+
+fn ask(door: &str, t: &[u16]) -> Vec<u16> {
+    match door {
+        "document" | "lambdaJson" => engine_forms(door, t).0,
+        _ => on_parse_stack(|| answer_form(door, Dialect::LegendEngine, t)),
+    }
+}
+
+// the canonical form: `A\t<answer>` or `E\t<class>\t<line>\t<column>\t<message>`
+fn record(id: &str, door: &str, form: Result<Vec<u16>, ()>) -> String {
+    let form = match form {
+        Err(()) => return format!("{{\"id\":{},\"door\":\"{door}\",\"v\":\"PANIC\"}}", esc(id)),
+        Ok(f) => f,
+    };
+    if form.first() == Some(&(b'A' as u16)) {
+        return format!("{{\"id\":{},\"door\":\"{door}\",\"v\":\"A\"}}", esc(id));
+    }
+    let s = String::from_utf16_lossy(&form[..form.len().min(1600)]);
+    let mut p = s.splitn(5, '\t');
+    let (_e, cls, line, col) = (p.next().unwrap_or(""), p.next().unwrap_or(""), p.next().unwrap_or(""), p.next().unwrap_or(""));
+    let msg: String = p.next().unwrap_or("").chars().take(400).collect();
+    format!("{{\"id\":{},\"door\":\"{door}\",\"v\":\"E\",\"cls\":{},\"line\":{},\"col\":{},\"msg\":{}}}", esc(id), esc(cls), esc(line), esc(col), esc(&msg))
+}
+
+fn doors_of(kind: &str) -> &'static [&'static str] {
+    match kind {
+        "model" => &["pmcd", "document"],
+        "spec" => &["spec", "lambda", "lambdaJson"],
+        "lambda" => &["lambda", "lambdaJson"],
+        other => panic!("{other}"),
+    }
+}
+
+fn main() {
+    std::panic::set_hook(Box::new(|_| {}));
+    let args: Vec<String> = std::env::args().collect();
+    let threads: usize = args[3].parse().unwrap();
+    let mut cases: Vec<(String, String, Vec<u16>)> = Vec::new();
+    for line in BufReader::new(std::fs::File::open(&args[1]).unwrap()).lines() {
+        let line = line.unwrap();
+        let q = wire::parse(&line, 64).unwrap();
+        let id = q.get("id").and_then(wire::Json::as_string).unwrap().to_string();
+        let kind = q.get("kind").and_then(wire::Json::as_string).unwrap().to_string();
+        let text = q.get("text").and_then(wire::Json::as_units).unwrap().to_vec();
+        cases.push((id, kind, text));
+    }
+    let next = AtomicUsize::new(0);
+    let results: Vec<Mutex<Vec<String>>> = (0..cases.len()).map(|_| Mutex::new(Vec::new())).collect();
+    std::thread::scope(|s| {
+        for _ in 0..threads {
+            s.spawn(|| {
+                loop {
+                    let i = next.fetch_add(1, Ordering::Relaxed);
+                    if i >= cases.len() {
+                        break;
+                    }
+                    let (id, kind, text) = &cases[i];
+                    let mut lines = Vec::new();
+                    for door in doors_of(kind) {
+                        let t: &[u16] = text;
+                        let d: &str = door;
+                        let form = std::panic::catch_unwind(move || ask(d, t)).map_err(|_| ());
+                        lines.push(record(id, door, form));
+                    }
+                    *results[i].lock().unwrap() = lines;
+                }
+            });
+        }
+    });
+    let mut out = BufWriter::new(std::fs::File::create(&args[2]).unwrap());
+    for r in &results {
+        for l in r.lock().unwrap().iter() {
+            writeln!(out, "{l}").unwrap();
+        }
+    }
+    println!("{} cases", cases.len());
+}

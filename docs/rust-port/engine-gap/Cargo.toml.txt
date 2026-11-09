@@ -1,0 +1,10 @@
+[package]
+name = "gapprobe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+lite-front = { path = "/Users/cocobey73/Projects/legend-lite/.claude/worktrees/rust-port-phase0/rust/lite-front" }
+
+[workspace]

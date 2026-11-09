@@ -1,0 +1,12 @@
+#!/bin/zsh
+# Does a serial run's answer depend on the order of the texts? The same cases, shuffled, one worker.
+S=/private/tmp/claude-501/-Users-cocobey73-Projects/2feda7e8-66d0-45e8-a3e5-454aab85befc/scratchpad
+G=$S/gap
+CP=$(cat $S/post6b/engine.cp)
+python3 $G/shuffle.py
+for N in corpus mut16; do
+  java -Xmx8g -XX:+UseSerialGC -XX:-OmitStackTraceInFastThrow -cp "$G/engine/classes:$CP" GapEngineProbe $G/$N.shuf.jsonl $G/$N.engine.shuf.jsonl 1 120 2> $G/$N.engine.shuf.err &
+done
+wait
+for N in corpus mut16; do tail -1 $G/$N.engine.shuf.err | cut -c1-200; done
+echo SHUFFLE-DONE

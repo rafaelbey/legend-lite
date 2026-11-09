@@ -1,0 +1,98 @@
+// Probe source, never built in the repo (ruling 17, docs/rust-port/ENGINE_GAP_2026_11_09.md): the mutated model texts of
+// the post-6b `fuzz` binary, written out instead of only asked. The generator is that binary's, byte for byte in what
+// decides a text: the same xorshift seed, the same JUNK, the same mutate(), the same draw order, the same stride and
+// length cut over the same questions in file order. Usage: gen <questions.jsonl> <per> <out.jsonl>
+use lite_front::wire;
+use std::io::{BufRead, BufReader, BufWriter, Write};
+
+struct Rng(u64);
+impl Rng {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+    fn below(&mut self, n: usize) -> usize {
+        (self.next() % n.max(1) as u64) as usize
+    }
+}
+
+const JUNK: &[&str] = &["#{", "}#", "'", "\"", "\\u12", "-", "1.5e", "99999999999999999999", "::", ";", "(", ")", "{", "}", "[", "]", "$", "@", "~", "|", ".", ",", "1e999", "%2024-02-30T10:00+0500"];
+
+fn mutate(t: &[u16], r: &mut Rng) -> Vec<u16> {
+    let n = t.len();
+    match r.below(5) {
+        0 => t[..r.below(n + 1)].to_vec(),
+        1 => {
+            let a = r.below(n + 1);
+            let b = (a + 1 + r.below(12)).min(n);
+            let mut o = t[..a].to_vec();
+            o.extend_from_slice(&t[b..]);
+            o
+        }
+        2 | 3 => {
+            let a = r.below(n + 1);
+            let mut o = t[..a].to_vec();
+            o.extend(JUNK[r.below(JUNK.len())].encode_utf16());
+            o.extend_from_slice(&t[a..]);
+            o
+        }
+        _ => {
+            let a = r.below(n + 1);
+            let mut o = t[..a].to_vec();
+            o.extend(JUNK[r.below(JUNK.len())].encode_utf16());
+            o
+        }
+    }
+}
+
+// ASCII only: a lone surrogate (a cut pair) stays exactly that unit for both parsers.
+fn esc(t: &[u16]) -> String {
+    let mut o = String::with_capacity(t.len() + 2);
+    o.push('"');
+    for &u in t {
+        match u {
+            0x22 => o.push_str("\\\""),
+            0x5c => o.push_str("\\\\"),
+            0x0a => o.push_str("\\n"),
+            0x0d => o.push_str("\\r"),
+            0x09 => o.push_str("\\t"),
+            u if !(0x20..0x7f).contains(&u) => o.push_str(&format!("\\u{u:04x}")),
+            u => o.push(u as u8 as char),
+        }
+    }
+    o.push('"');
+    o
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let per: usize = args[2].parse().unwrap();
+    let mut texts: Vec<(String, Vec<u16>)> = Vec::new();
+    for line in BufReader::new(std::fs::File::open(&args[1]).unwrap()).lines() {
+        let line = line.unwrap();
+        let q = wire::parse(&line, 64).unwrap();
+        let asks = q.get("asks").and_then(wire::Json::as_array).unwrap();
+        if asks.iter().any(|a| a.as_array().unwrap()[0].as_string().unwrap() == "pmcd") {
+            let sha = q.get("sha").and_then(wire::Json::as_string).unwrap();
+            texts.push((sha.to_string(), q.get("text").and_then(wire::Json::as_units).unwrap().to_vec()));
+        }
+    }
+    let mut r = Rng(0x9E3779B97F4A7C15);
+    let mut out = BufWriter::new(std::fs::File::create(&args[3]).unwrap());
+    let stride = (texts.len() / 9000).max(1);
+    let (mut bases, mut made) = (0usize, 0usize);
+    for (i, (sha, t)) in texts.iter().enumerate() {
+        if i % stride != 0 || t.len() > 30_000 {
+            continue;
+        }
+        bases += 1;
+        for k in 0..per {
+            let m = mutate(t, &mut r);
+            writeln!(out, "{{\"id\":\"m{made:06}\",\"set\":\"mut\",\"kind\":\"model\",\"base\":\"{}\",\"k\":{k},\"text\":{}}}", &sha[..8], esc(&m)).unwrap();
+            made += 1;
+        }
+    }
+    println!("pmcd texts {}, stride {stride}, bases {bases}, per {per}, mutated texts {made}", texts.len());
+}

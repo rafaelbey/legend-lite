@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+# Probe source (ruling 17, docs/rust-port/ENGINE_GAP_2026_11_09.md): reads <set>.rows.jsonl, labels each disagreement
+# ledgered or unledgered (ledger.py), groups by grammar and shape, writes gap/report.json and a text summary.
+import json, re, collections, sys
+G = "/private/tmp/claude-501/-Users-cocobey73-Projects/2feda7e8-66d0-45e8-a3e5-454aab85befc/scratchpad/gap"
+sys.path.insert(0, G)
+import ledger as L
+
+JSON_OF = {"pmcd": "document", "spec": "lambdaJson", "lambda": "lambdaJson"}
+
+def eof_flags(t, r):
+    n = t.count("\n") + 1; last = len(t) - (t.rfind("\n") + 1)
+    e_end = r["eline"] == n and r["ecol"] in (last, last + 1) if r["eline"] is not None else False
+    if not e_end and r["eline"] is not None and r["eline"] > n: e_end = True
+    return e_end
+
+def lite_fam(m):
+    if m is None: return "(accepts)"
+    m = re.sub(r"^\[-?\d+:-?\d+\] ", "", m)
+    if m.startswith("Unexpected token"): return "Unexpected token"
+    m2 = re.sub(r"\(.*\)$", "", m)
+    m3 = re.match(r"expected (identifier|type name)(, got)? ?(\w*)", m)
+    if m3: return ("expected a name, got EOF" if m3.group(3) == "EOF" else "expected a name, got another token")
+    m4 = re.match(r"expected ([A-Z_]+) but found (\w+)", m)
+    if m4: return ("expected <token> but found EOF" if m4.group(2) == "EOF" else "expected <token> but found another")
+    if m.startswith("expected expression, got end of input"): return "expected expression, got end of input"
+    if m.startswith("expected "): return re.sub(r"'[^']*'", "'_'", m)[:40]
+    if m.startswith("The type {"): return "The type {...} is not supported yet"
+    if m.startswith("unknown key"): return "unknown key"
+    if m.startswith("unsupported column datatype"): return "unsupported column datatype"
+    m = re.sub(r"'[^']*'", "'_'", m); m = re.sub(r"[0-9]+", "N", m)
+    return m[:64]
+
+def eng_fam(m, cls):
+    if m is None: return "(accepts)"
+    if m.startswith("Unexpected token"): return "Unexpected token"
+    if m.startswith("no viable alternative"): return "no viable alternative"
+    if m.startswith("An exception of type"): return "section catch-all (NPE and kin)"
+    if m.startswith("token recognition error"): return "token recognition error"
+    if m.startswith("extraneous input") or m.startswith("mismatched input") or m.startswith("missing "): return "ANTLR extraneous/mismatched"
+    if m.startswith("Can't find") or "available ones:" in m: return "no such island parser"
+    if m.startswith("The type {"): return "The type {...} is not supported yet"
+    if m.startswith("Unknown database type"): return "Unknown database type"
+    m = re.sub(r"'[^']*'", "'_'", m); m = re.sub(r"[0-9]+", "N", m)
+    return m[:48]
+
+def relation(r, t):
+    if r["cat"] == "lite stricter": return "lite refuses, engine accepts"
+    if r["cat"] == "lite looser": return "lite accepts, engine refuses"
+    if r["cat"] == "both refuse, engine unplaced": return "engine unplaced"
+    if eof_flags(t, r): return "at end of input"
+    dl = int(r["lline"]) - r["eline"]
+    if dl == 0:
+        return "lite earlier on the line" if int(r["lcol"]) < r["ecol"] else "lite later on the line"
+    return "lite on an earlier line" if dl < 0 else "lite on a later line"
+
+NAMED = re.compile(r"Unsupported syntax|Type and/or multiplicity|copy-with-update|class projections|The type \{|Unit instance|allVersionsInRange|Bracket operation|Unknown database type|unsupported column datatype|unsupported class mapping type|Missing table or alias|unknown key|is unbuilt|malformed |Primitive type|unlexable|integer literal out of range|Column data type|Field '|URL|unknown aggregation")
+def theme(r, t, lf, ef, rel):
+    """The root the shapes fall under, read off lite's words and the place. A heuristic, stated as one in the document."""
+    m = r.get("lmsg") or ""
+    k = L.kind_of(r["cat"])
+    if k == L.LOOSE:
+        return "lite accepts what the engine refuses"
+    if k == L.STRICT:
+        return "lite refuses what the engine accepts"
+    if "unknown DSL island type" in m: return "a lite-only island refused at the engine's dialect: the column"
+    if "brace-less #TDS" in m: return "brace-less #TDS: lite's place past the literal"
+    if rel == "at end of input" or lf.endswith("EOF") or "end of input" in lf: return "the end of the input: where each places it"
+    if rel == "engine unplaced": return "the engine answers a raw exception, unplaced"
+    if NAMED.search(m): return "a construct lite refuses by name, at a token of its own"
+    if lf.startswith("expected") or lf.startswith("trailing"):
+        return "lite reads a token further (or fewer) before stopping"
+    if lf == "Unexpected token": return "lite's walk stops at another token"
+    return "other"
+
+def main():
+    sets = ["corpus", "mut16", "mut", "harness"]
+    out = {}
+    for name in sets:
+        texts = {}
+        for x in open(f"{G}/{name}.jsonl", encoding="ascii"):
+            o = json.loads(x); texts[o["id"]] = o["text"]
+        lite = collections.defaultdict(dict)
+        for x in open(f"{G}/{name}.lite.jsonl", encoding="utf-8"):
+            o = json.loads(x); lite[o["id"]][o["door"]] = o
+        rows = [json.loads(x) for x in open(f"{G}/{name}.rows.jsonl", encoding="utf-8")]
+        res = collections.Counter(); ruleC = collections.Counter(); perGram = collections.Counter(); shape = collections.Counter()
+        ex = {}; ctxs = {}
+        byRow = collections.Counter()
+        unl = []
+        themes = collections.Counter(); xshape = collections.Counter(); xex = {}; rex = {}
+        for r in rows:
+            t = texts[r["id"]]
+            ctx = {"json": {r["id"]: lite[r["id"]].get(JSON_OF.get(r["door"], ""), None)}, "pmcd_accepts": lambda i: lite[i]["pmcd"]["v"] == "A"}
+            k = L.kind_of(r["cat"])
+            if k is None:
+                continue
+            ru = L.match(r, t, ctx)
+            label = ("L" + ru["tier"]) if ru else "U"
+            res[(r["door"], k, label)] += 1
+            perGram[(r["door"], r["grammar"], k, label)] += 1
+            if ru:
+                ruleC[(r["door"], ru["row"], ru["name"], ru["tier"], k)] += 1
+                byRow[(ru["row"], ru["tier"], k, r["door"])] += 1
+                rk = (ru["row"], ru["name"])
+                if rk not in rex or len(t) < len(rex[rk][0]):
+                    rex[rk] = (t, r)
+            else:
+                lf = lite_fam(r.get("lmsg")); ef = eng_fam(r.get("emsg"), r.get("ecls")); rel = relation(r, t)
+                sh = (r["door"], k, r["grammar"], lf, ef, rel)
+                shape[sh] += 1
+                th = theme(r, t, lf, ef, rel)
+                themes[(r["door"], th)] += 1
+                xk = (r["door"], k, lf, ef, rel, th)
+                xshape[xk] += 1
+                if xk not in xex or len(t) < len(xex[xk][0]):
+                    xex[xk] = (t, r)
+                if sh not in ex or len(t) < len(ex[sh][0]):
+                    ex[sh] = (t, r)
+        out[name] = dict(
+            res={"\t".join(k): v for k, v in res.items()},
+            rules=sorted([list(k) + [v] for k, v in ruleC.items()], key=lambda x: -x[-1]),
+            grammar={"\t".join(k): v for k, v in perGram.items()},
+            themes={"\t".join(k): v for k, v in themes.items()},
+            xshapes=[list(k) + [v, xex[k][0], xex[k][1].get("lline"), xex[k][1].get("lcol"), (xex[k][1].get("lmsg") or "")[:140], xex[k][1].get("eline"), xex[k][1].get("ecol"), (xex[k][1].get("emsg") or "")[:140]] for k, v in xshape.most_common()],
+            ruleEx={f"{k[0]}\t{k[1]}": [rex[k][0], rex[k][1]["door"], rex[k][1]["cat"], rex[k][1].get("lline"), rex[k][1].get("lcol"), (rex[k][1].get("lmsg") or "")[:140], rex[k][1].get("eline"), rex[k][1].get("ecol"), (rex[k][1].get("emsg") or "")[:140]] for k in rex},
+            shapes=[list(k) + [v, ex[k][0], ex[k][1].get("lline"), ex[k][1].get("lcol"), (ex[k][1].get("lmsg") or "")[:140], ex[k][1].get("eline"), ex[k][1].get("ecol"), (ex[k][1].get("emsg") or "")[:140]] for k, v in shape.most_common()])
+    json.dump(out, open(G + "/report.json", "w"), indent=0)
+
+if __name__ == "__main__":
+    main()

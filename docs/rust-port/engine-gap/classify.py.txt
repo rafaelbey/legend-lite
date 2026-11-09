@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+# Probe source (ruling 17, docs/rust-port/ENGINE_GAP_2026_11_09.md): joins the engine's answers and lite's, one category
+# per (text, door); the place compared is verdict.py's of the previous probes, unchanged: the engine's
+# sourceInformation.startLine and startColumn against lite's error line and column, as both report them.
+# Writes <set>.rows.jsonl (every disagreement) and prints the table. Usage: classify.py <set> ...
+import json, sys, collections, re
+S = "/private/tmp/claude-501/-Users-cocobey73-Projects/2feda7e8-66d0-45e8-a3e5-454aab85befc/scratchpad"
+G = S + "/gap"
+KEY = {"pmcd": "model", "document": "model", "spec": "spec", "lambda": "lambda", "lambdaJson": "lambda"}
+CATS = ["both accept", "same place", "same line, other column", "different line", "lite looser", "lite stricter", "lite raw java.*", "engine timeout", "both refuse, engine unplaced", "lite panic or leak"]
+
+HDR = re.compile(r"^\s*###(\w*)", re.M)
+def section_of(text, line):
+    """The section grammar at a line: the last ###Name header at or before it, ###Pure if none (mangled headers: same rule)."""
+    name = "Pure"
+    for m in HDR.finditer(text):
+        if text.count("\n", 0, m.start() + (len(m.group(0)) - len(m.group(0).lstrip()))) + 1 <= line:
+            name = m.group(1) or "(empty ###)"
+        else:
+            break
+    return "###" + name
+
+def construct_of(text):
+    t = text.lstrip()
+    if t.startswith("|"): return "lambda |"
+    if t.startswith("#{"): return "graph fetch #{"
+    if t.startswith("#/"): return "path #/"
+    if t.startswith("#>"): return "relation accessor #>"
+    if t.startswith("#"): return "island #..."
+    if t.startswith("{"): return "lambda {"
+    if t.startswith("^"): return "new instance ^"
+    if t.startswith("["): return "collection ["
+    if t.startswith("%"): return "date %"
+    if t.startswith("$"): return "variable $"
+    if t.startswith("@"): return "type @"
+    if t.startswith("~"): return "column spec ~"
+    if t.startswith("'"): return "string"
+    if t[:1].isdigit() or t[:1] in "-+.": return "number or sign"
+    if re.match(r"let\b", t): return "let"
+    m = re.match(r"[\w:]+\s*(\(|\|)", t)
+    if m: return "call or param lambda"
+    if t[:1].isalpha() or t[:1] == "_": return "name"
+    return "other"
+
+def load(p):
+    return [json.loads(l) for l in open(p, encoding="ascii" if p.endswith("/" + p.rsplit("/", 1)[1]) and not p.endswith(("engine.jsonl", "lite.jsonl")) else "utf-8")]
+
+def classify(c, door, l, e):
+    if e["verdict"] == "TIMEOUT": return "engine timeout"
+    if l["v"] == "PANIC" or l.get("cls", "").startswith("lite."): return "lite panic or leak"
+    if l["v"] == "E" and l["cls"].startswith("java."): return "lite raw java.*"
+    if e["verdict"] == "ACCEPT":
+        return "both accept" if l["v"] == "A" else "lite stricter"
+    if l["v"] == "A": return "lite looser"
+    if e.get("line") is None: return "both refuse, engine unplaced"
+    if str(e["line"]) != l["line"]: return "different line"
+    if str(e["column"]) != l["col"]: return "same line, other column"
+    return "same place"
+
+def main(sets):
+    table = {}
+    total = collections.Counter()
+    for name in sets:
+        cases = {}
+        for x in open(f"{G}/{name}.jsonl", encoding="ascii"):
+            o = json.loads(x); cases[o["id"]] = o
+        eng = {}
+        for x in open(f"{G}/{name}.engine.jsonl", encoding="utf-8"):
+            o = json.loads(x); eng[o["id"]] = o
+        counts = collections.Counter()
+        lcls = collections.Counter(); ecls = collections.Counter()
+        asked = collections.Counter()
+        with open(f"{G}/{name}.rows.jsonl", "w", encoding="utf-8") as out:
+            for x in open(f"{G}/{name}.lite.jsonl", encoding="utf-8"):
+                l = json.loads(x)
+                c = cases[l["id"]]; door = l["door"]
+                e = eng[l["id"]][KEY[door]]
+                cat = classify(c, door, l, e)
+                counts[(door, cat)] += 1
+                asked[door] += 1
+                if l["v"] == "E": lcls[l["cls"]] += 1
+                if e["verdict"] == "REJECT": ecls[e["class"]] += 1
+                if cat in ("both accept", "same place"): continue
+                if c["kind"] == "model":
+                    target = e.get("line") if e.get("line") else (int(l["line"]) if l.get("line") else 0)
+                    grammar = section_of(c["text"], target) if target and target > 0 else "(unplaced)"
+                else:
+                    grammar = construct_of(c["text"])
+                out.write(json.dumps({"set": name, "id": l["id"], "door": door, "kind": c["kind"], "cat": cat, "grammar": grammar, "len": len(c["text"]),
+                    "lcls": l.get("cls"), "lline": l.get("line"), "lcol": l.get("col"), "lmsg": l.get("msg"),
+                    "ecls": e.get("class"), "eline": e.get("line"), "ecol": e.get("column"), "emsg": e.get("message")}, ensure_ascii=True) + "\n")
+        table[name] = (counts, asked)
+        print("==", name, "lite classes", lcls.most_common(12))
+        print("   engine classes", ecls.most_common(14))
+        doors = sorted(asked)
+        print("   conservation:", {d: (sum(v for (dd, _), v in counts.items() if dd == d), asked[d]) for d in doors})
+        for d in doors:
+            print("  ", d, {cat: counts[(d, cat)] for cat in CATS if counts[(d, cat)]})
+    json.dump({name: {"asked": a, "counts": {f"{d}\t{c}": v for (d, c), v in cs.items()}} for name, (cs, a) in table.items()}, open(G + "/table.json", "w"), indent=0)
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

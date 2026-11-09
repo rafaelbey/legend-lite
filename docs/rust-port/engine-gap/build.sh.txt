@@ -1,0 +1,11 @@
+#!/bin/zsh
+# Builds the two probes (cargo and javac only; no Bazel).
+S=/private/tmp/claude-501/-Users-cocobey73-Projects/2feda7e8-66d0-45e8-a3e5-454aab85befc/scratchpad
+G=$S/gap
+export CARGO_TARGET_DIR=$S/ffi-target
+export RUSTUP_TOOLCHAIN=1.99.1
+cargo build --release --manifest-path $G/probe/Cargo.toml 2>&1 | tail -4
+CP=$(cat $S/post6b/engine.cp)
+mkdir -p $G/engine/classes
+javac -nowarn -cp "$CP" -d $G/engine/classes $G/engine/GapEngineProbe.java 2>&1 | grep -v "^Note" | tail -20
+ls -la $G/engine/classes

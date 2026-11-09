@@ -1,0 +1,367 @@
+# The parser's gap from legend-engine, measured (2026-11-09)
+
+Ruling 17 of `docs/rust-port/PHASE2.md` section 6: three rounds of fixes each found more differences near the last, so the
+gap is measured once before anything more is fixed. Read-only: no code, row, ratchet or floor moved. Accept/refuse and
+place only; what two accepted texts answer was not compared.
+
+## The number
+
+At `pmcd`, the engine's dialect:
+
+- **Accept or refuse.** Mutated texts: 99.38% agree (943 of 153,008 differ, 586 lite looser and 357 lite stricter); **636
+  of the 943 no row names**. Corpus: 97.90% (613 of 29,188, of which 571 are lite's own `TIME` columns, S64); **41 no row
+  names**. `spec` over the corpus: 52 differ, **43 no row names**.
+- **Place, where both refuse.** Mutated texts: 67.5% at the same line and column (87,633 of 129,783). Corpus: 52.7% at
+  `pmcd`; at the expression doors 0.4%, because nearly all those texts are lite-only syntax (below).
+- **Disagreements no row names, all kinds:** 40,944 of 153,008 mutated texts at `pmcd` (95% of its 43,093 disagreements),
+  2,626 of 29,188 corpus texts at `pmcd`, 14,740 of 22,091 corpus texts at `spec`.
+
+No text timed out, no door panicked, and no input text answered a raw `java.*` class (the two the rulings left, shown in
+the harness set, are `lambdaJson` only).
+
+## How it was run
+
+- **The engine.** legend-engine 4.145.0's `PureGrammarParser` on parser-equivalence's class path (448 jars, every one
+  resolved; no Bazel build was needed), Temurin 27, `-XX:-OmitStackTraceInFastThrow`. A model text goes to `parseModel`, an
+  expression to `parseValueSpecification(text, "", 0, 0, true)` and `parseLambda`, a lambda to `parseLambda`. Each ask has a
+  thread of its own with a 512 MiB stack and a 120-second limit. Accepted means the parser returned; the answer is not
+  serialized.
+- **Serial, not a thread pool.** The engine's answers are not reproducible under threads: with ten workers
+  sharing nothing but the JVM, 635 of 153,008 mutated asks, 80 of 38,252 and 32 of 74,246 corpus asks differed from the serial
+  answer in verdict or place, accept against refuse among them. The cause was not looked for. So one worker, one JVM per
+  pass. Two serial passes are byte-identical (the mutated sets and the harness; the corpus but for one message holding an
+  object's identity hash), and a shuffled order changes no verdict, class or place of 227,254 asks (one engine message,
+  `Unexpected token` against `Unexpected token '{'. Valid alternatives: ...`, changes with the order).
+- **Lite.** Commit `3a7f962b4`, product behaviour, `lite_front::doors` in a scratch Rust binary (no FFI), Rust 1.99.1:
+  `answer_form("pmcd"|"spec", LEGEND_ENGINE)`, `answer_form("lambda")`, `engine_forms("document"|"lambdaJson")`, the
+  first form. Identical at 10 and 3 threads, byte for byte.
+- **Doors.** A model text: `pmcd`, `document`, each against `parseModel`. An expression text: `spec` against
+  `parseValueSpecification`; `lambda`, `lambdaJson` against `parseLambda`. A lambda text: `lambda`, `lambdaJson`. The `block`
+  door is not measured; the three texts asked only there are read as expressions.
+- **Place.** As the previous probes (`verdict.py`): the engine's `sourceInformation.startLine` and `startColumn` against
+  lite's error line and column, as each reports them, no normalisation. An engine answer without source information is its
+  own category.
+- **Categories**, per text and door: both accept; same line and column; same line, other column; different line; lite
+  looser (lite accepts, the engine refuses); lite stricter; lite raw `java.*`; engine timeout; and one more, both refuse
+  with the engine unplaced (a raw NPE or `NumberFormatException` from it). Each door's categories sum to its texts.
+- **Where a difference is filed.** Model texts by the last `###Name` header at or before the engine's line (lite's when the
+  engine accepts), `###Pure` if none; a mangled header (`###Pu`) goes in one bucket. Expressions by their leading construct.
+
+**The inputs, pinned** (SHA-256 of the texts' UTF-16LE units, concatenated, then of the case file):
+
+| set | what | texts | SHA-256 of the texts / of the file |
+|---|---|---:|---|
+| corpus | every text of `rust/oracles/front/questions.jsonl.zst` (`7cf6e558...`, MANIFEST's); 29,188 model, 22,091 expression, 876 lambda; 12 texts in two kinds | 52,143 texts, 52,155 cases | `ae16e0c92e94047474df7f090817d769d49601e6793264ee6f71588f403b058e` / `80c61fa7e96d0b660504396139a56360c0fd7df8df0ff9c73db2a6656bc677db` |
+| mutated | the post-6b `fuzz` generator (seeded and deterministic, two runs byte-identical: xorshift, seed `0x9E3779B97F4A7C15`, its `mutate` and `JUNK`, every 3rd model text of at most 30,000 units in file order: 9,563 bases), 16 mutations each | 153,008 | `22deff99164fb9f65364e467efcb0f37d2085c12c01685bc175f50d31342a38f` / `04071d93d242cfd44b80e78060f6259953992efbf8d532f5fa8387dcbce15d51` |
+| mutated, 4 per text | the same generator at its default, 4 each | 38,252 | `11342ac045af95bd028ae022864065032ebb2bb7142d3e9704a8d615a1d5a5c7` / `eb87edcf9c255075738936e4a5ea4fcbeed32caff7a539a6390b221632715b60` |
+| harness | the 21 hand-written cases of the check below | 21 | `a718b34025cc8af271af94029f3f921abf34947f138a44b2914d65c3d505e581` / `5e8abe72de9170465aa3fded2841188c3d9535d1f7eb3987142e52136d988381` |
+
+The "153,008 mutated texts" of `PHASE2.md` was a count of door answers: the fuzz at its default makes 38,252 texts and asks
+each at four doors. Sixteen per text makes 153,008 texts, which is the set used here; the 38,252 were run too and land at
+the same rates (table below). The mutator cuts UTF-16 units, so a text can hold a lone surrogate; the case files write every
+non-ASCII unit as `\uXXXX`, and both parsers read the same units. To re-run after phase 3, from `docs/rust-port/engine-gap/`
+(the sources name a scratch folder as they stood): `mk_cp.py` writes the class path from parser-equivalence's jar list
+(`bazel-bin/parser-equivalence/engine_jars_exec.jars`, which needs that target built), `build.sh` builds the probes, then
+`gen <questions.jsonl> 16`, `inputs.py`, `serial.sh`, `doors`, `classify.py`, `report.py`, `mkdoc.py`.
+
+## By door and category
+
+| set | door | texts | both accept | same place | same line, other col | different line | lite looser | lite stricter | raw `java.*` | engine timeout | engine unplaced |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| corpus | `pmcd` | 29,188 | 22,664 | 3,113 | 1,721 | 1,077 | 593 | 20 | 0 | 0 | 0 |
+| corpus | `document` | 29,188 | 22,664 | 3,113 | 1,721 | 1,077 | 593 | 20 | 0 | 0 | 0 |
+| corpus | `spec` | 22,091 | 7,282 | 59 | 11,262 | 3,417 | 49 | 3 | 0 | 0 | 19 |
+| corpus | `lambda` | 22,967 | 8,157 | 53 | 11,244 | 3,445 | 44 | 5 | 0 | 0 | 19 |
+| corpus | `lambdaJson` | 22,967 | 8,157 | 60 | 11,244 | 3,445 | 36 | 5 | 0 | 0 | 20 |
+| mutated (16 per text) | `pmcd` | 153,008 | 22,282 | 87,633 | 27,256 | 14,894 | 586 | 357 | 0 | 0 | 0 |
+| mutated (16 per text) | `document` | 153,008 | 22,282 | 87,650 | 27,260 | 14,894 | 565 | 357 | 0 | 0 | 0 |
+
+The other input set, for the rates:
+
+| set | door | texts | both accept | same place | same line, other col | different line | lite looser | lite stricter | raw `java.*` | engine timeout | engine unplaced |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| mutated (4 per text) | `pmcd` | 38,252 | 5,666 | 21,827 | 6,831 | 3,658 | 165 | 105 | 0 | 0 | 0 |
+| mutated (4 per text) | `document` | 38,252 | 5,666 | 21,832 | 6,831 | 3,658 | 160 | 105 | 0 | 0 | 0 |
+
+The corpus's expression texts were written for lite's dialect; at the engine's almost all are refused by both, and the
+two then name different columns (the clusters below).
+
+## Ledgered against unledgered
+
+A disagreement is **ledgered** when a row of `docs/SEMANTICS_REGISTER.md` or `rust/lite-front/PARITY.md` already names it;
+**H** when the row names this input and this difference from the engine, **M** when a PARITY row names lite's answer for this
+input (Java's behaviour kept) and says nothing of the engine's. Everything else is unledgered, a row that names the words but
+not the place included. The raw answers rulings 12 and 16 left are ledgered and appear only in the harness.
+
+**How it was matched:** `engine-gap/ledger.py.txt`, an ordered list of rules, first match wins, each reading lite's words,
+the engine's words, the door, and for a record door what the engine-JSON door answers for the same text (the rows' "the
+record doors read as they did"). One shortest example per rule was read by hand. **Confidence:** high for H rules keyed on
+words that are a row's own, or on the record/JSON door pair; medium for the island-coordinates rule (rows 33, 57: lite's
+place must equal the engine's place translated into the island) and for M. A false negative is possible where a row
+describes an input in words the rules do not look for; those count as unledgered, so the unledgered figure is an upper
+bound by that margin. Three judgement calls are left unledgered and named here: `^a::B('a'+=1)` (S159 mentions `+=` only as
+a place rule), `c(1)!n` (no row), `expected: 'a';` (S165's list does not name it).
+
+Corpus:
+
+| door | stricter H / M / unledgered | looser H / M / unledgered | other place H / M / unledgered | all unledgered |
+|---|---|---|---|---:|
+| `pmcd` | 1 / 0 / **19** | 571 / 0 / **22** | 82 / 131 / **2,585** | **2,626** |
+| `document` | 1 / 0 / **19** | 571 / 0 / **22** | 82 / 131 / **2,585** | **2,626** |
+| `spec` | 1 / 0 / **2** | 8 / 0 / **41** | 0 / 1 / **14,697** | **14,740** |
+| `lambda` | 1 / 0 / **4** | 8 / 0 / **36** | 0 / 1 / **14,707** | **14,747** |
+| `lambdaJson` | 1 / 0 / **4** | 0 / 0 / **36** | 1 / 1 / **14,707** | **14,747** |
+
+Mutated (16 per text):
+
+| door | stricter H / M / unledgered | looser H / M / unledgered | other place H / M / unledgered | all unledgered |
+|---|---|---|---|---:|
+| `pmcd` | 3 / 0 / **354** | 304 / 0 / **282** | 673 / 1,169 / **40,308** | **40,944** |
+| `document` | 3 / 0 / **354** | 283 / 0 / **282** | 677 / 1,169 / **40,308** | **40,944** |
+
+**By section, model texts at `pmcd`, corpus and mutated together** (`document` is the same but for 21 mutated texts `pmcd`
+accepts and its engine-JSON refusals refuse: 17 at the engine's place, 4 ledgered):
+
+| section | stricter led. / unled. | looser led. / unled. | other place led. / unled. | unledgered |
+|---|---|---|---|---:|
+| `###Pure` | 3 / 200 | 2 / 104 | 530 / 22,616 | **22,920** |
+| `###Mapping` | 0 / 44 | 0 / 86 | 9 / 5,233 | **5,363** |
+| `###Relational` | 0 / 5 | 854 / 11 | 20 / 3,845 | **3,861** |
+| `###Connection` | 0 / 97 | 0 / 15 | 15 / 3,744 | **3,856** |
+| `(mangled or unknown ###)` | 0 / 0 | 0 / 0 | 849 / 1,910 | **1,910** |
+| `###Service` | 0 / 3 | 0 / 20 | 415 / 1,462 | **1,485** |
+| `###Runtime` | 0 / 11 | 0 / 11 | 62 / 774 | **796** |
+| `###DataSpace` | 0 / 0 | 0 / 6 | 0 / 732 | **738** |
+| `###Persistence` | 0 / 0 | 14 / 13 | 88 / 688 | **701** |
+| `###Diagram` | 0 / 0 | 0 / 4 | 2 / 509 | **513** |
+| `###DataQualityValidation` | 0 / 13 | 5 / 0 | 2 / 284 | **297** |
+| `###ExternalFormat` | 0 / 0 | 0 / 0 | 0 / 211 | **211** |
+| `###Data` | 1 / 0 | 0 / 28 | 0 / 151 | **179** |
+| `###ServiceStore` | 0 / 0 | 0 / 1 | 1 / 166 | **167** |
+| `###Snowflake` | 0 / 0 | 0 / 1 | 0 / 108 | **109** |
+| `###Elasticsearch` | 0 / 0 | 0 / 0 | 0 / 85 | **85** |
+| `###MongoDB` | 0 / 0 | 0 / 0 | 0 / 60 | **60** |
+| `###HostedService` | 0 / 0 | 0 / 1 | 0 / 57 | **58** |
+| `###FunctionJar` | 0 / 0 | 0 / 0 | 0 / 54 | **54** |
+| `###GenerationSpecification` | 0 / 0 | 0 / 1 | 0 / 44 | **45** |
+| `###QueryPostProcessor` | 0 / 0 | 0 / 1 | 0 / 36 | **37** |
+| `###MemSql` | 0 / 0 | 0 / 1 | 0 / 34 | **35** |
+| `###BigQuery` | 0 / 0 | 0 / 0 | 0 / 29 | **29** |
+| `###FileGeneration` | 0 / 0 | 0 / 0 | 0 / 24 | **24** |
+| `###Text` | 0 / 0 | 0 / 0 | 0 / 24 | **24** |
+| `###Deephaven` | 0 / 0 | 0 / 0 | 0 / 13 | **13** |
+| `###AuthenticationDemo` | 0 / 0 | 0 / 0 | 62 / 0 | **0** |
+| **total** | 4 / 373 | 875 / 304 | 2,055 / 42,893 | **43,570** |
+
+**By construct, expression texts at `spec`, corpus** (`lambda` and `lambdaJson` are within a few of it):
+
+| construct | stricter led. / unled. | looser led. / unled. | other place led. / unled. | unledgered |
+|---|---|---|---|---:|
+| `island #...` | 0 / 0 | 0 / 0 | 0 / 13,237 | **13,237** |
+| `lambda |` | 0 / 1 | 0 / 1 | 0 / 1,425 | **1,427** |
+| `relation accessor #>` | 0 / 0 | 0 / 28 | 0 / 0 | **28** |
+| `lambda {` | 0 / 0 | 1 / 0 | 0 / 14 | **14** |
+| `let` | 0 / 0 | 0 / 5 | 0 / 3 | **8** |
+| `new instance ^` | 0 / 0 | 5 / 0 | 0 / 5 | **5** |
+| `number or sign` | 0 / 0 | 0 / 0 | 0 / 5 | **5** |
+| `name` | 0 / 0 | 0 / 4 | 0 / 1 | **5** |
+| `type @` | 0 / 1 | 2 / 1 | 0 / 2 | **4** |
+| `date %` | 1 / 0 | 0 / 1 | 0 / 1 | **2** |
+| `variable $` | 0 / 0 | 0 / 0 | 0 / 2 | **2** |
+| `column spec ~` | 0 / 0 | 0 / 1 | 0 / 1 | **2** |
+| `call or param lambda` | 0 / 0 | 0 / 0 | 0 / 1 | **1** |
+| `graph fetch #{` | 0 / 0 | 0 / 0 | 1 / 0 | **0** |
+| **total** | 1 / 2 | 8 / 41 | 1 / 14,697 | **14,740** |
+
+**What the ledgered rows are:**
+
+| row | what | tier | kind | texts (`pmcd` + `spec`, corpus + mutated) |
+|---|---|---|---|---:|
+| P17 | unknown ### section | M | other place | 930 |
+| S64 | TIME and TIMESTAMP_NS columns | H | lite looser | 854 |
+| P33 | empty embedded runtime or connection, unplaced | H | other place | 384 |
+| P13 | documentation string before a keyword | M | other place | 358 |
+| P33 / P57 | refusal in an island's own coordinates | H | other place | 183 |
+| S151 / P3 | impossible date with a zone | H | other place | 108 |
+| S146 / P83 | #{ as the last token | H | other place | 71 |
+| S143 / P73 | persistence node the emitter refuses, at a record door | H | lite looser | 13 |
+| P11 | graph-fetch subtype error, unplaced | M | other place | 7 |
+| S159 / P69 | positional cast at a record door | H | lite looser | 6 |
+| P31 | EqualTo #{ }# unplaced | H | other place | 5 |
+| S144 / P76 | DataQuality context at a record door | H | lite looser | 5 |
+| P73 | platform Foo a token late | H | other place | 3 |
+| S151 / P3 | impossible date with a zone | H | lite stricter | 3 |
+| P47 | Diagram import | M | other place | 2 |
+| S160 / P69 | spelled @Relation<(a:?)> at a record door | H | lite looser | 2 |
+| S161 / P70 | multiplicity parameter at a record door | H | lite looser | 2 |
+| P25 | relational string with a bad escape | M | other place | 2 |
+| S96 | ModelStore's -9223372036854775808 | H | lite stricter | 1 |
+| P62 | ServiceStore optional path parameter | M | other place | 1 |
+| S142 / P63 | graph-fetch argument, column | H | other place | 1 |
+| S165 / P74 | EqualToJson entries at a record door | H | lite looser | 1 |
+| P38 | URL is not valid | M | other place | 1 |
+| S153 / P8 | 1.ed, 1.e+d, 1.ef | H | lite stricter | 1 |
+
+## The largest clusters (unledgered)
+
+Counts are texts at `pmcd` (model) and `spec` (expression), corpus and mutated together. A shape is lite's words / the
+engine's words, and where lite's place falls from the engine's.
+
+| texts | shape (lite's words / the engine's words, where) | shortest example | lite | engine |
+|---:|---|---|---|---|
+| 10,787 | `unknown DSL island type: '_'` / `no such island parser`, lite later on the line | `#IQ{SELECT PATINDEX('%z%', 'abc')}#` | 1:36 | 1:34 |
+| 5,056 | `expected <token> but found EOF` / `Unexpected token`, at end of input | `Class'` | 1:7 | 1:6 |
+| 2,910 | `Unsupported syntax` / `Unexpected token`, lite earlier on the line | `native C~` | 1:1 | 1:8 |
+| 2,191 | `unknown DSL island type: '_'` / `no such island parser`, lite on a later line | `#IQ{SELECT 1 -- + 100\n + 1}#` | 2:7 | 1:34 |
+| 1,888 | `Unexpected token` / `Unexpected token`, at end of input | `^` | 1:1 | 1:2 |
+| 1,867 | `expected <token> but found another` / `Unexpected token`, lite later on the line | `Class a::B extends a::G<Str}\n` | 1:28 | 1:24 |
+| 1,696 | `Unexpected token` / `Unexpected token`, lite later on the line | `###]` | 1:4 | 1:1 |
+| 1,490 | `Unsupported syntax` / `Unexpected token`, at end of input | `native` | 1:1 | 1:7 |
+| 1,422 | `brace-less #TDS literal is not supported` / `Unexpected token`, lite on a later line | `#TDS\nid\n1\n#` | 4:2 | 1:1 |
+| 1,238 | `Unexpected token` / `'_' is not a known section parser`, lite on an earlier line | `###Pur{ as }\n` | 1:7 | 2:8 |
+
+What they come down to, a heuristic read off lite's words and the place (`engine-gap/report.py.txt`, `theme`):
+
+| what the difference comes down to | `pmcd`, mutated | `pmcd`, corpus | `spec`, corpus |
+|---|---:|---:|---:|
+| the end of the input: where each places it | 17,009 | 180 | 7 |
+| a lite-only island refused at the engine's dialect: the column | 112 | 33 | 13,419 |
+| a construct lite refuses by name, at a token of its own | 11,417 | 1,914 | 5 |
+| lite reads a token further (or fewer) before stopping | 5,807 | 106 | 8 |
+| lite's walk stops at another token | 4,541 | 164 | 0 |
+| brace-less #TDS: lite's place past the literal | 159 | 66 | 1,238 |
+| other | 1,263 | 122 | 1 |
+| lite refuses what the engine accepts | 354 | 19 | 2 |
+| lite accepts what the engine refuses | 282 | 22 | 41 |
+| the engine answers a raw exception, unplaced | 0 | 0 | 19 |
+
+The verdict differences no row names, largest first.
+
+Lite accepts, the engine refuses:
+
+| texts | where | words | shortest example | place |
+|---:|---|---|---|---|
+| 91 | `###Pure` | `Unexpected token '<'.` | `Class a::B extends a::G<Strin-g>\n{\n}\n` | engine 1:24 |
+| 66 | `###Mapping` | `Unexpected token '*'.` | `###Mapping\nimport *;\nMapping test::mapping2\n(\n  include mapping mapping1\n)\n` | engine 2:8 |
+| 28 | `relation accessor #>` | `Unexpected token ':'.` | `#>{test::PersonDatabase.T_PERSON}#->navigate(~x: [1, 2, 3], {r, f \| $r.AGE == $f})` | engine 1:48 |
+| 27 | `###Data` | `Unexpected token '{'` | `...  {\n          method: GET;\n          url: '/employees';\n        };\n      }\n    ]\n  }#\n}\n` | engine 7:8 |
+| 17 | `###Service` | `Unexpected token '<EOF>'` | `...on: '';   execution: Single { query: my::funcs::peopleQuery; mapping: my::M; runtime: my::R; } }` | engine 3:115 |
+| 15 | `###Connection` | `Unexpected token` | `...  type: DuckDB;\n  specification: DuckDB\n  {\n    path: '}#:memory:';\n  };\n  auth: Test;\n}\n` | engine 9:4 |
+| 11 | `###Runtime` | `Unexpected token ']'.` | `...Runtime test::RT { mappings: [ ]; connections: [ store::DB: [ environment: store::Conn ] ,]; }\n` | engine 32:91 |
+| 10 | `###Persistence` | `Unexpected token` | `... {\n      auditing: None;\n      fcates: false;\n      filterDuplicates: false;\n    }\n  }\n}\n` | engine 22:7 |
+
+Lite refuses, the engine accepts:
+
+| texts | where | words | shortest example | place |
+|---:|---|---|---|---|
+| 92 | `###Connection` | `expected <token> but found EOF` | `...tabaseConnection store::C { store: db::DB; type: DuckDB; specification: DuckDB { }; auth: Test; ` | lite 2:108 |
+| 92 | `###Pure` | `expected a name, got another token` | `Class 1e999a::B\n{\n  x: Integer[0..1] = 5;\n}\n` | lite 1:7 |
+| 46 | `###Pure` | `Unexpected token` | `###Pure\nfunction f::f(): Any[*]\n{\n  #>{(a::db.t}#->select(~query)\n}\n` | lite 4:3 |
+| 19 | `###Mapping` | `expected a name, got another token` | `...apping::test\n(\n  mapping::SomeClass: XStore\n  {\n    p1[x, y]: true,\n    p2: false\n  }\n)\n` | lite 2:9 |
+| 13 | `###Pure` | `expected '_' to close argument list` | `...lean[1]\n{\n  assert(\n      1$ == my::testMapping.classMappings->size(),\n      \|''\n    )\n}\n` | lite 5:8 |
+| 13 | `###DataQualityValidation` | `Unexpected token` | `...ataset cannot be empty';\n     assertion: rel\|$rel->assertRelationNotEmpty();\n    }\n   ];\n}\n` | lite 4:12 |
+| 9 | `###Runtime` | `expected a name, got another token` | `...H2\n          {\n          };\n          auth: DefaultH2;\n        }\n      }#\n    ]\n  ];\n}\n` | lite 10:5 |
+| 9 | `###Pure` | `trailing tokens after code block: DOLLAR ('_')` | `###Pure\nfunction f::f(): Any[*]\n{\n  1$ - 2 * 3 - 4;\n}\n` | lite 4:4 |
+
+**Within each section** (the three largest shapes; shortest example; sections with 100 unledgered texts or more):
+
+**`###Pure`** (22,920 unledgered at `pmcd`):
+- 2,910: `Unsupported syntax` / `Unexpected token`, lite earlier on the line: `native C~` (lite 1:1, engine 1:8)
+- 1,914: `expected <token> but found EOF` / `Unexpected token`, at end of input: `Class'` (lite 1:7, engine 1:6)
+- 1,490: `Unsupported syntax` / `Unexpected token`, at end of input: `native` (lite 1:1, engine 1:7)
+**`###Mapping`** (5,363 unledgered at `pmcd`):
+- 1,642: `expected <token> but found EOF` / `Unexpected token`, at end of input: `###Mapping\nMapping my::M ` (lite 2:14, engine 2:15)
+- 337: `expected a name, got another token` / `Unexpected token`, at end of input: `###Mapping\nMapping a::1e999` (lite 2:12, engine 2:17)
+- 309: `Missing table or alias for column '_'` / `Unexpected token`, at end of input: `###Mapping\nMapping a::m\n(\n  a::A: Relational\n  {\n    name: [a::db]1.5e` (lite 6:13, engine 6:21)
+**`###Relational`** (3,861 unledgered at `pmcd`):
+- 826: `unsupported column datatype` / `Unexpected token`, lite earlier on the line: `###Relational\nDatabase a::A (Table tb(id Inte\\u12` (lite 2:28, engine 2:32)
+- 597: `expected <token> but found EOF` / `Unexpected token`, at end of input: `###Relational\nDatabase a::A\n` (lite 2:14, engine 3:1)
+- 515: `unsupported column datatype` / `Unexpected token`, at end of input: `###Relational\nDatabase a::A(Table t(col VARC` (lite 2:27, engine 2:31)
+**`###Connection`** (3,856 unledgered at `pmcd`):
+- 807: `Unknown database type '_'` / `Unknown database type`, lite later on the line: `...ore::X\n{\n  store: store::S;\n  type: a;\n  specification: DuckDB {};\n  auth: Test;\n}\n` (lite 5:9, engine 5:3)
+- 388: `expected <token> but found another` / `Unexpected token`, lite later on the line: `###Connection\nXmlModelConnection test::connection\n{\n  c{` (lite 4:4, engine 4:3)
+- 336: `Unexpected token` / `Unexpected token`, lite earlier on the line: `###Connection\nDeep#{` (lite 2:1, engine 2:5)
+**`(mangled or unknown ###)`** (1,910 unledgered at `pmcd`):
+- 1,214: `Unexpected token` / `'_' is not a known section parser`, lite on an earlier line: `###Pur{ as }\n` (lite 1:7, engine 2:8)
+- 475: `Unexpected token` / `'_' is not a known section parser`, at end of input: `###P(` (lite 1:5, engine 2:8)
+- 219: `Unexpected token` / `Unexpected token`, lite later on the line: `###]` (lite 1:4, engine 1:1)
+**`###Service`** (1,485 unledgered at `pmcd`):
+- 324: `expected <token> but found another` / `Unexpected token`, lite later on the line: `###Service\nService meta::pure::myServiceSingle\n{\n  documentat]` (lite 4:13, engine 4:3)
+- 226: `expected <token> but found EOF` / `Unexpected token`, at end of input: `###Service\nService test::Service\n{\n` (lite 3:2, engine 4:1)
+- 122: `expected <token> but found EOF` / `Unexpected token`, lite later on the line: `###Service\nService demo::S\n{\n  patter` (lite 4:9, engine 4:3)
+**`###Runtime`** (796 unledgered at `pmcd`):
+- 293: `expected <token> but found another` / `Unexpected token`, lite later on the line: `###Runtime\nRuntime test\n{\n mappi,` (lite 4:7, engine 4:2)
+- 172: `expected <token> but found EOF` / `Unexpected token`, at end of input: `###Runtime\nRuntime books::runtime::Python\n{\|` (lite 3:3, engine 3:2)
+- 67: `unknown key` / `Unexpected token`, lite later on the line: `###Runtime\nRuntime a::r\n{\n  gs: [];\n}\n` (lite 4:7, engine 4:3)
+**`###DataSpace`** (738 unledgered at `pmcd`):
+- 247: `expected <token> but found another` / `Unexpected token`, lite later on the line: `###DataSpace\nDataSpace a::DS\n{\n  executio(` (lite 4:11, engine 4:3)
+- 117: `expected <token> but found EOF` / `Unexpected token`, at end of input: `###DataSpace\nDataSpace model::dataSpace\n{\n` (lite 3:2, engine 4:1)
+- 82: `expected <token> but found EOF` / `Unexpected token`, lite later on the line: `###DataSpace\nDataSpace a::DS\n{\n  exe` (lite 4:6, engine 4:3)
+**`###Persistence`** (701 unledgered at `pmcd`):
+- 162: `expected <token> but found another` / `Unexpected token`, lite later on the line: `###Persistence\nPersistenceContext test::TestPersistenceContext\n{\n  pe]` (lite 4:5, engine 4:3)
+- 135: `expected <token> but found EOF` / `Unexpected token`, at end of input: `###Persistence\n\nPersistence test::TestPersistence ` (lite 3:34, engine 3:35)
+- 62: `expected <token> but found EOF` / `Unexpected token`, lite later on the line: `###Persistence\nPersistence demo::P\n{\n  doc: 'd';\n  trigg` (lite 5:8, engine 5:3)
+**`###Diagram`** (513 unledgered at `pmcd`):
+- 367: `Unexpected token` / `Unexpected token`, lite on a later line: `...e,\n        attributeTypesVisible=true,\n        color=#FFFFCC,\n        lineWidth=1.0)\n}` (lite 4:13, engine 2:68)
+- 29: `expected '_'` / `Unexpected token`, lite later on the line: `###Diagram\nDiagram meta::pure::MyDiagram\n{\n  propertyView\n  {\n    sourc` (lite 6:10, engine 6:5)
+- 20: `unknown diagram view '_'` / `Unexpected token`, lite later on the line: `###Diagram\nDiagram meta::pure::MyDiagram\n{\n  cla}` (lite 4:6, engine 4:3)
+**`###DataQualityValidation`** (297 unledgered at `pmcd`):
+- 69: `expected <token> but found another` / `Unexpected token`, lite later on the line: `...ion\nDataQualityRelationComparison meta::dataquality::TestRelationComparison\n{\n    sour@` (lite 4:9, engine 4:5)
+- 26: `expected <token> but found EOF` / `Unexpected token`, at end of input: `###DataQualityValidation\nDataQualityRelationValidation meta::dataquality::Validation\n{\n` (lite 3:2, engine 4:1)
+- 24: `malformed quoted name: missing surrounding quotes` / `Unexpected token`, lite later on the line: `...yValidation\n{\n   context: fromDataSpace(meta::external::dataquality::PersonDataSpace, '$` (lite 4:75, engine 4:73)
+**`###ExternalFormat`** (211 unledgered at `pmcd`):
+- 47: `malformed quoted name: missing surrounding quotes` / `Unexpected token`, lite later on the line: `...##ExternalFormat\nBinding demo::binding::PersonJsonBinding\n{\n  contentType: 'application` (lite 4:28, engine 4:16)
+- 33: `expected <token> but found another` / `Unexpected token`, lite later on the line: `...n  fullName: String[1];\n}\n\n###ExternalFormat\nBinding meta::firm::Binding\n{\n  schem}#` (lite 10:8, engine 10:3)
+- 24: `expected <token> but found EOF` / `Unexpected token`, at end of input: `###ExternalFormat\nBinding demo::binding::PersonJsonBinding\n{\n ` (lite 3:2, engine 4:2)
+**`###Data`** (179 unledgered at `pmcd`):
+- 27: `(accepts)` / `Unexpected token`, lite accepts, engine refuses: `...         method: GET;\n          url: '/employees';\n        };\n      }\n    ]\n  }#\n}\n` (lite None:None, engine 7:8)
+- 22: `embedded data kind '_' is unbuilt` / `no viable alternative`, lite earlier on the line: `###Data\nData snaps::data::TradesSample\n{\n  Relati\\u12` (lite 4:3, engine 4:9)
+- 16: `embedded data kind '_' is unbuilt` / `no viable alternative`, at end of input: `###Data\nData meta::data::MyData\n{\n   E'` (lite 4:4, engine 4:5)
+**`###ServiceStore`** (167 unledgered at `pmcd`):
+- 29: `expected <token> but found another` / `Unexpected token`, lite later on the line: `...\n    method : GET;\n    parameters :\n    (\n      serializationFormat : String ( locati)` (lite 10:44, engine 10:38)
+- 29: `expected <token> but found EOF` / `Unexpected token`, at end of input: `###ServiceStore\nServiceStore test::testServiceStoreGrammarWithSingleService\n(\n` (lite 3:2, engine 4:1)
+- 15: `expected <token> but found EOF` / `Unexpected token`, lite later on the line: `...tore test::testServiceStoreGrammarWithSingleService\n(\n  Service TestService\n  (\n    pa` (lite 6:7, engine 6:5)
+**`###Snowflake`** (109 unledgered at `pmcd`):
+- 30: `expected <token> but found another` / `Unexpected token`, lite later on the line: `###Snowflake\nSnowflakeM2MUdf x::A\n{\n   ownershi\"` (lite 4:12, engine 4:4)
+- 13: `unknown key` / `Unexpected token`, lite later on the line: `###Snowflake\nSnowflakeApp x::A\n{\n   applicatioName : 'sass';\n}\n` (lite 4:21, engine 4:4)
+- 13: `Unknown permission scheme '_'` / `Unknown permission scheme '_'`, lite later on the line: `...   permissionScheme : WHATSCHEME;\n   ownership : Deployment { identifier: 'pierre'};\n}\n` (lite 5:33, engine 5:4)
+**`island #...`** (13,237 unledgered at `spec`):
+- 10,428: `unknown DSL island type: '_'` / `no such island parser`, lite later on the line: `#IQ{SELECT PATINDEX('%z%', 'abc')}#` (lite 1:36, engine 1:34)
+- 2,186: `unknown DSL island type: '_'` / `no such island parser`, lite on a later line: `#IQ{SELECT 1 -- + 100\n + 1}#` (lite 2:7, engine 1:34)
+- 374: `unknown DSL island type: '_'` / `no such island parser`, lite earlier on the line: `#9x{content}#` (lite 1:14, engine 1:34)
+**`lambda |`** (1,427 unledgered at `spec`):
+- 1,002: `brace-less #TDS literal is not supported` / `Unexpected token`, lite on a later line: `\|#TDS\nid\n1\n#->extend(~pi: x \| 3.14)` (lite 4:2, engine 1:2)
+- 349: `unknown DSL island type: '_'` / `no such island parser`, lite later on the line: `\|#Cypher{MATCH (p:Person) WHERE p.age > 30 RETURN p.name}#` (lite 1:59, engine 1:40)
+- 43: `unknown DSL island type: '_'` / `no such island parser`, lite earlier on the line: `\|#IQ{SELECT 1}#` (lite 1:16, engine 1:36)
+
+## The harness check
+
+The differences the last agents listed as unchanged all show up:
+
+| input | where it landed | ledger |
+|---|---|---|
+| `^a::B($x)` | lite looser at the record doors `spec`, `lambda`, `pmcd`; same place at `lambdaJson`, `document` | S159, P69 |
+| row 74's eight entries (`['a']`, `[a, b]`, `[]`, `#/a::B/c#`, `[#/a::B/c#]`, `[{x: 1;}]`, `database:`, `binding:`) | lite looser at `pmcd`, same place at `document`, all eight | S165, P74 |
+| `expected: 'a';` | lite looser at `document` and `pmcd` | unledgered |
+| `platform: Foo;` | same line, other column: lite 5:16, engine 5:13 | P73 |
+| `^a::B('a'+=1)` | lite stricter at all five doors | unledgered (a judgement call) |
+| `#/a::B/c(1)!n#` | lite stricter at all five doors | unledgered |
+| `1 +` | same line, other column at all five doors, lite one column later (1:4 / 1:3; in a function 3:6 / 3:5) | unledgered |
+| `letFunction(1, 2)`, `#/a::B/c(1.5)#` (added to show the raw category is live) | lite raw `java.lang.UnsupportedOperationException` at `lambdaJson`, both accept elsewhere | rulings 12 and 16 |
+
+The new probes against the previous agents' single-threaded answers on their 501 cases (`r15`): 678 engine asks and 1,179
+lite asks, none different.
+
+## What could not be established
+
+- Why the engine's parser is not reproducible under threads, and whether a server sharing one JVM sees it (it was not looked
+  for; the serial answers are the ones measured).
+- Mutations reach the expression parser only through function bodies at the model doors: `spec`, `lambda` and `lambdaJson`
+  were asked the corpus's unmutated expressions alone, nearly all lite-only syntax, so their accept/refuse figures say
+  little about expressions the engine reads.
+- What two accepted texts answer (the 22,664 and 22,282 "both accept", and 8,157 at the lambda doors): out of scope, a
+  possible extension (the engine's JSON beside `document`'s).
+- Error wording, and the end of the engine's span: compared by no column here.
+- `block`, and lite's and the platform's dialects: not asked of the engine.
+- That the mutated texts are a fair sample of real input: they are random cuts and insertions over 9,563 texts of the tests'
+  own models. The rates are for those.
