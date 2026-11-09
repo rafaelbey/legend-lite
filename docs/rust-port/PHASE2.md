@@ -618,6 +618,74 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      warnings` clean on lite-front and lite-ffi. Ledger: `rust/RETIRED_TESTS.md`; every test source changed since
      `7fdf4582a` is a row.
 
+   **Post-6b fixes done 2026-11-09** (from `91db76618`, the rulings of §6; commits `2a20d1cf9`, `f5175c9c3`, `62e08ffaf`,
+   `e1fba827f`, `508f7fb7f`): rulings 2, 4 and 9.
+   - **Ruling 2** (`2a20d1cf9`). `ArchitectureTest`'s 6i pins `PmcdParser` beside `SpecParser`. The widened rule found 11
+     dependencies in three classes outside its packages, each a parse entry by role, exempted by name so a new class in
+     either package still trips it: `door.ModelFromText`, the generated `ffi.FrontReader` and `ffi.FrontRecords`.
+   - **Ruling 4** (`f5175c9c3`). Every Rust site answering a `java.*` class was tied to its PARITY row, and every input
+     shape of each row asked of legend-engine's own parser on the parser-equivalence class path (`PureGrammarParser`,
+     4.145.0, every extension grammar present: 340 inputs, each door at each dialect; the probe not committed, its
+     results these rows). A refusal is a `ParseException` at the engine's place: its section's start where the engine's
+     section catch-all answers (`PureGrammarParser.visitSection`, the place `section_span` already computed), the token
+     where its grammar refuses. It travels as neither a `ParseException` nor a JDK class (`JavaError::as_refusal`,
+     `refused_at_section`), so Java's `catch (ParseException)` recovery points pass it on as they passed the exception it
+     replaces and no refused text becomes accepted; every door turns it into the `ParseException` (`placed`,
+     `at_section`). What came of each row:
+
+     | row | outcome | the engine's answer | the deliberate-difference list |
+     |---|---|---|---|
+     | 3 | left for the user | accepts (`%2024-02-30T10:00+0500` is text to it) | none (the frozen `672e812e` is `raw-left-for-user.tsv`) |
+     | 6 | fixed | `For input string: ...`: section catch-all in a model, raw as an expression | none |
+     | 7 | left | accepts `1e999` | none |
+     | 8 | split | refuses `1.5ed` at `ed`; accepts `1.ed`, `1.e+d`, `1.ef`, and `1.5e99999999999` at a float | none |
+     | 9 | fixed | section catch-all (`Less than 4 hex digits ...`, `Unable to parse unicode value: sers`) | 4 asks (`109b58da`: `pmcd` at three dialects, `document`) |
+     | 26 | fixed | `Unexpected token` at the `-` | none |
+     | 28 | fixed | section catch-all, `... 'NullPointerException' occurred, please notify developer` | none |
+     | 29 | fixed | at `<EOF>`; `~src` one column before it | none |
+     | 32 | fixed | `Unexpected token` at the terminator | none |
+     | 35 | fixed | `Unexpected token '<EOF>'` | none |
+     | 37 | fixed | section catch-all, `For input string: ...` | none |
+     | 46 | left | accepts an empty `###Diagram` | none |
+     | 49 | fixed | `Unexpected token '1-2'`, `'x'` at the token | none |
+     | 50 | split | its reader fails on a node with no `bsonType` or a non-string one; ignores the rest | none |
+     | 52 | fixed | `Unexpected token '"'` at it | none |
+     | 55 | fixed | `<EOF>` where an island is admitted, `#{` where not | none |
+     | 56 | fixed | `<EOF>` | none |
+     | 63 | fixed | at the first token past the argument's first primary | 1 ask (`00dc41c7`, `document`) |
+     | 72 | left | accepts the local property | none |
+     | 73 | split | refuses the word; accepts `platform: Default #{ x: 1; }#` | none |
+     | 76 | fixed | at the `)`, the word or the strategy | none |
+
+     Six raw sites no row named, found by the census and by mutating the oracle's texts, are new rows 82 to 87 (a
+     FileGeneration integer past a long; `#{` and `#/` as the last token; a `'` left open in a mapping test, a panic in the
+     Rust; a `'''` left open; schema algebra as a type argument). Sites proven unreachable are `unreachable!` or `expect`
+     with the reason (`operator_parts`' collection carrier, among them). The rows of the emitter's same
+     `UnsupportedOperationException` the ruling does not name (68, 69, 70, 71, 74, 81) are unchanged and listed for the
+     user. PARITY's rows say each row's answer and date; `docs/SEMANTICS_REGISTER.md` S128 to S150 quote the engine's answer
+     for each fixed row, no standing row covering parse wording. The frozen oracle stays Java's:
+     `rust/oracles/front/deliberate-differences.tsv` lists the 5 asks, `raw-left-for-user.tsv` the 1 frozen question still
+     raw, and the three differentials and `//core:front_shim` hold identical + listed == total both ways and fail on any
+     other `java.*` answer (no floor lowered). `RustParserProvider.raised` loses its `ArrayIndexOutOfBounds` and
+     `Arithmetic` arms, which no site raises; the native image's reachability metadata named none of these classes.
+     Beyond the oracle: 1,530,080 door answers over mutated oracle texts, no panic, the raw classes left being those above.
+   - **Ruling 9** (`62e08ffaf`; `e1fba827f`, formatting alone). `DocElement` and `DocSection` deleted. Comments in ten kept
+     tests and `lite-front`'s description name what stands today. The library written out of the jar goes to
+     `<user.home>/.cache/legend-lite/lib/<sha256>/<file>`, through a temp file and an atomic move, reused only when it
+     hashes to its name; an unwritable cache falls back to a process-private temp file. `FrontRead.Cursor` starts at an
+     offset, so the reader's two whole-answer `substring` copies are gone (`FrontReader` is hand-written; `FrontRecords`,
+     generated, did not change). `rust/rustfmt.toml` at 120 columns and `cargo fmt --all`, the generated `records.rs`
+     skipped on its `mod` line.
+   - **The gates.** `bazel test //core/... //spec/... //rust/... //parser-equivalence/... //tools/... //gates/...`: 525 targets, 523 pass and the
+     same 2 skipped at `508f7fb7f`. Its first run, at `e1fba827f`, failed one, `//wasm:round_trip_test`: the frozen
+     `//wasm:planner`, TeaVM's last build of the Java parser, keeps the raw answer on `TestProfile.java#52`, the text the JVM
+     now refuses (row 9); it is a named difference held both ways (`FROZEN_MODULE_DIFFERS`, `508f7fb7f`), gone with the Rust
+     wasm32 build. `//parser-equivalence:parser_parity`: 422 pins, 421 rejected, 0 missed, line agreement 415, column exact
+     337 (no count fell, none rose); the sentinel 2,217 in scope, matched 2,216, lenient 1; the sweep 6,755 documents
+     matched, seam 6,746/0; own corpus 2,943, `diffs=0`. `//core:front_shim`: the four doors 110,593 identical and 3 listed of
+     110,596, the engine-JSON doors 30,062 and 2 of 30,064. `cargo test --workspace`, `cargo clippy --workspace --all-targets
+     -- -D warnings` and `cargo fmt --all -- --check` clean. Ledger: `rust/RETIRED_TESTS.md`.
+
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
 exists, and the committed oracle after.
