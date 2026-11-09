@@ -49,7 +49,11 @@ pub(super) fn descending(key: &str, t: Option<&SqlType>) -> Result<String, Refus
             "arrayPushBack(arrayMap(\"__i\" -> -toInt16(reinterpretAsUInt8(substring(ifNull({key}, ''), \"__i\", 1))), \
              range(1, length(ifNull({key}, '')) + 1)), 1)"
         ),
-        None => return Err(Refusal::capability("a descending sort key of no type reached ClickHouse")),
+        None => {
+            return Err(Refusal::capability(
+                "a descending sort key of no type reached ClickHouse",
+            ));
+        }
         Some(t) => {
             return Err(Refusal::capability(format!(
                 "a descending sort key of {} reached ClickHouse",
@@ -61,8 +65,10 @@ pub(super) fn descending(key: &str, t: Option<&SqlType>) -> Result<String, Refus
 
 /// `Math.multiplyExact`'s overflow: Java's `ArithmeticException`.
 fn multiply_exact(a: i64, b: i64) -> Result<i64, Refusal> {
-    a.checked_mul(b)
-        .ok_or_else(|| Refusal { class: "java.lang.ArithmeticException", message: "long overflow".to_owned() })
+    a.checked_mul(b).ok_or_else(|| Refusal {
+        class: "java.lang.ArithmeticException",
+        message: "long overflow".to_owned(),
+    })
 }
 
 /// A unit's fixed length in milliseconds (Java's `unitMillis`; `UNIT_MILLIS`, a plural unit its singular).
@@ -87,12 +93,12 @@ fn unit_millis(unit: &str) -> Result<i64, Refusal> {
 /// An interval bound as its milliseconds (Java's `millis`): a `Long` offset.
 fn millis(b: &Bound) -> Result<Bound, Refusal> {
     Ok(match b {
-        Bound::IntervalPreceding { n, unit } => {
-            Bound::Preceding { n: JavaNumber::Long(multiply_exact(*n, unit_millis(unit)?)?) }
-        }
-        Bound::IntervalFollowing { n, unit } => {
-            Bound::Following { n: JavaNumber::Long(multiply_exact(*n, unit_millis(unit)?)?) }
-        }
+        Bound::IntervalPreceding { n, unit } => Bound::Preceding {
+            n: JavaNumber::Long(multiply_exact(*n, unit_millis(unit)?)?),
+        },
+        Bound::IntervalFollowing { n, unit } => Bound::Following {
+            n: JavaNumber::Long(multiply_exact(*n, unit_millis(unit)?)?),
+        },
         other => other.clone(),
     })
 }
@@ -117,7 +123,10 @@ fn number_text(n: &JavaNumber) -> String {
 
 /// `new BigDecimal(text)`, refused as Java's constructor refuses a NaN's or an infinity's text.
 fn decimal_text(text: &str) -> Result<&str, Refusal> {
-    match text.chars().find(|c| !(c.is_ascii_digit() || matches!(c, '-' | '+' | '.' | 'E' | 'e'))) {
+    match text
+        .chars()
+        .find(|c| !(c.is_ascii_digit() || matches!(c, '-' | '+' | '.' | 'E' | 'e')))
+    {
         Some(c) => Err(Refusal {
             class: Refusal::NUMBER_FORMAT,
             message: format!(
@@ -174,9 +183,10 @@ fn nulls_at_edge(order_by: &[SortKey]) -> Result<Vec<SortKey>, Refusal> {
             build::int_lit(if high { i64::MAX } else { i64::MIN })
         }
         // an infinity is no Float literal: the text cast
-        Some(SqlType::Scalar(Scalar::Double)) => {
-            build::cast(build::string_lit(if high { "inf" } else { "-inf" }), SqlType::Scalar(Scalar::Double))
-        }
+        Some(SqlType::Scalar(Scalar::Double)) => build::cast(
+            build::string_lit(if high { "inf" } else { "-inf" }),
+            SqlType::Scalar(Scalar::Double),
+        ),
         Some(t) => {
             return Err(Refusal::capability(format!(
                 "a RANGE frame of offsets over a {} key reached ClickHouse, whose frame reaches a NULL key from any \
@@ -184,7 +194,11 @@ fn nulls_at_edge(order_by: &[SortKey]) -> Result<Vec<SortKey>, Refusal> {
                 crate::java::sql_type_text(t)
             )));
         }
-        None => return Err(Refusal::capability("a RANGE frame of offsets over an untyped key reached ClickHouse")),
+        None => {
+            return Err(Refusal::capability(
+                "a RANGE frame of offsets over an untyped key reached ClickHouse",
+            ));
+        }
     };
     let keyed = build::sort_key(
         build::call(SqlFn::Coalesce, vec![k.expr.clone(), edge]),
@@ -205,7 +219,10 @@ impl ClickHouse {
             SqlFn::BitShiftRight => "bitShiftRight",
             other => return Err(Refusal::illegal_state(format!("not a bit op: {other}"))),
         };
-        w.append(&format!("{name}(toInt64(")).expr(self, arg(a, 0)?, 0)?.append("), ").expr(self, arg(a, 1)?, 0)?;
+        w.append(&format!("{name}(toInt64("))
+            .expr(self, arg(a, 0)?, 0)?
+            .append("), ")
+            .expr(self, arg(a, 1)?, 0)?;
         w.append(")");
         Ok(())
     }
@@ -225,7 +242,11 @@ impl ClickHouse {
                     let key = format!("tupleElement(\"__s\", {})", i + 2);
                     // NULLs where the key says: isNull sorts false (0) before true (1)
                     w.append(if i > 0 { ", " } else { "" });
-                    w.append(&if k.nulls_first { format!("isNotNull({key}), ") } else { format!("isNull({key}), ") });
+                    w.append(&if k.nulls_first {
+                        format!("isNotNull({key}), ")
+                    } else {
+                        format!("isNull({key}), ")
+                    });
                     let text = if k.ascending { key } else { descending(&key, k.r#type)? };
                     w.append(&text);
                 }
@@ -251,7 +272,12 @@ impl ClickHouse {
             Some(order) => order == NullOrder::NullsFirst,
             None => !k.ascending,
         };
-        Key { key: self.ex(&k.expr, 0), ascending: k.ascending, nulls_first, r#type: type_of(&k.expr) }
+        Key {
+            key: self.ex(&k.expr, 0),
+            ascending: k.ascending,
+            nulls_first,
+            r#type: type_of(&k.expr),
+        }
     }
 
     /// `win`'s OVER clause after an aggregate call, when the reducer is windowed (Java's `ov`).
@@ -273,7 +299,9 @@ impl ClickHouse {
             }
             // corr takes no Decimal beside an Int64: Float64 operands
             AggFn::Corr => {
-                w.append("corrOrNull(toFloat64(").expr(self, arg(&r.args, 0)?, 0)?.append("), toFloat64(");
+                w.append("corrOrNull(toFloat64(")
+                    .expr(self, arg(&r.args, 0)?, 0)?
+                    .append("), toFloat64(");
                 w.expr(self, arg(&r.args, 1)?, 0)?.append("))");
                 self.ov(w, win)?;
             }
@@ -310,7 +338,8 @@ impl ClickHouse {
             AggFn::AnyValue => self.plain_ov(w, "anyOrNull", r, win)?,
             AggFn::StringAgg => self.string_agg(w, r, win)?,
             AggFn::Median => {
-                w.append("quantileExactInclusiveOrNull(0.5)(toFloat64(").expr(self, arg(&r.args, 0)?, 0)?;
+                w.append("quantileExactInclusiveOrNull(0.5)(toFloat64(")
+                    .expr(self, arg(&r.args, 0)?, 0)?;
                 w.append("))");
                 self.ov(w, win)?;
             }
@@ -320,7 +349,10 @@ impl ClickHouse {
                 if desc {
                     w.append("1 - ");
                 }
-                w.expr(self, &r.args[1], 6)?.append(")(toFloat64(").expr(self, &r.args[0], 0)?.append("))");
+                w.expr(self, &r.args[1], 6)?
+                    .append(")(toFloat64(")
+                    .expr(self, &r.args[0], 0)?
+                    .append("))");
                 self.ov(w, win)?;
             }
             AggFn::QuantileDisc => self.quantile_disc(w, r, win)?,
@@ -340,7 +372,10 @@ impl ClickHouse {
             }
             AggFn::ArgMax | AggFn::ArgMin => {
                 if r.args.len() != 2 || r.distinct || !r.order_by.is_empty() {
-                    return Err(Refusal::capability(format!("{} of this shape reached ClickHouse", r.r#fn)));
+                    return Err(Refusal::capability(format!(
+                        "{} of this shape reached ClickHouse",
+                        r.r#fn
+                    )));
                 }
                 let name = if r.r#fn == AggFn::ArgMax { "argMax" } else { "argMin" };
                 w.append(name).append("(").list(self, &r.args)?.append(")");
@@ -375,7 +410,11 @@ impl ClickHouse {
         if !r.order_by.is_empty() {
             return Err(Refusal::capability(format!("an ordered {} reached ClickHouse", r.r#fn)));
         }
-        w.append(name).append("(").append(if r.distinct { "DISTINCT " } else { "" }).list(self, &r.args)?.append(")");
+        w.append(name)
+            .append("(")
+            .append(if r.distinct { "DISTINCT " } else { "" })
+            .list(self, &r.args)?
+            .append(")");
         Ok(())
     }
 
@@ -393,7 +432,10 @@ impl ClickHouse {
     /// The `STRING_AGG` arm of `reducerIn` (Java's `stringAgg`).
     fn string_agg(&self, w: &mut SqlWriter, r: &Reducer, win: Option<Win<'_>>) -> Result<(), Refusal> {
         if r.args.len() != 2 {
-            return Err(Refusal::capability(format!("a STRING_AGG of {} arguments reached ClickHouse", r.args.len())));
+            return Err(Refusal::capability(format!(
+                "a STRING_AGG of {} arguments reached ClickHouse",
+                r.args.len()
+            )));
         }
         let v = &r.args[0];
         let values: P<'_> = if r.distinct {
@@ -412,11 +454,17 @@ impl ClickHouse {
             let keys = r.order_by.iter().map(|k| self.sort_key_of(k)).collect();
             let collected = self.collected(self.ex(v, 0), keys, win);
             pc(move |w| {
-                w.append("arrayFilter(\"__x\" -> isNotNull(\"__x\"), ").piece(&*collected)?.append(")");
+                w.append("arrayFilter(\"__x\" -> isNotNull(\"__x\"), ")
+                    .piece(&*collected)?
+                    .append(")");
                 Ok(())
             })
         };
-        w.append("if(empty(").piece(&*values)?.append("), NULL, arrayStringConcat(").piece(&*values)?.append(", ");
+        w.append("if(empty(")
+            .piece(&*values)?
+            .append("), NULL, arrayStringConcat(")
+            .piece(&*values)?
+            .append(", ");
         w.expr(self, &r.args[1], 0)?.append("))");
         Ok(())
     }
@@ -438,8 +486,14 @@ impl ClickHouse {
             }
             Ok(())
         };
-        w.append("if(empty(").piece(&sorted)?.append("), NULL, arrayElement(").piece(&sorted)?;
-        w.append(", toInt64(greatest(ceil(length(").piece(&sorted)?.append(") * ").piece(&q)?;
+        w.append("if(empty(")
+            .piece(&sorted)?
+            .append("), NULL, arrayElement(")
+            .piece(&sorted)?;
+        w.append(", toInt64(greatest(ceil(length(")
+            .piece(&sorted)?
+            .append(") * ")
+            .piece(&q)?;
         w.append(") - 1, 0)) + 1))");
         Ok(())
     }
@@ -478,7 +532,10 @@ impl ClickHouse {
             let op = if start == k.ascending { " >= " } else { " <= " };
             let offset = match n {
                 None => String::new(),
-                Some(n) => format!("{sign}{}", crate::java::big_decimal_plain(decimal_text(&number_text(n))?)),
+                Some(n) => format!(
+                    "{sign}{}",
+                    crate::java::big_decimal_plain(decimal_text(&number_text(n))?)
+                ),
             };
             Ok(Some((op, offset)))
         };
@@ -507,17 +564,27 @@ impl ClickHouse {
         };
         // the frame's values: the partition's pairs within the bounds, their values
         let values = |x: &mut SqlWriter| -> Result<(), Refusal> {
-            x.append("arrayMap(__p -> ").append(if r.r#fn == AggFn::Median { "toFloat64(__p.1)" } else { "__p.1" });
+            x.append("arrayMap(__p -> ").append(if r.r#fn == AggFn::Median {
+                "toFloat64(__p.1)"
+            } else {
+                "__p.1"
+            });
             x.append(", ");
             if !conds.is_empty() {
                 x.append("arrayFilter(__p -> ");
                 for (i, (op, offset)) in conds.iter().enumerate() {
-                    x.append(if i > 0 { " AND " } else { "" }).append("__p.2").append(op).expr(self, key, 0)?;
+                    x.append(if i > 0 { " AND " } else { "" })
+                        .append("__p.2")
+                        .append(op)
+                        .expr(self, key, 0)?;
                     x.append(offset);
                 }
                 x.append(", ");
             }
-            x.append("groupArray(tuple(").expr(self, &r.args[0], 0)?.append(", ").expr(self, key, 0)?;
+            x.append("groupArray(tuple(")
+                .expr(self, &r.args[0], 0)?
+                .append(", ")
+                .expr(self, key, 0)?;
             x.append(")) OVER (");
             if !partition_by.is_empty() {
                 x.append("PARTITION BY ").list(self, partition_by)?;
@@ -525,13 +592,20 @@ impl ClickHouse {
             x.append(")").append(if conds.is_empty() { ")" } else { "))" });
             Ok(())
         };
-        let sample = matches!(r.r#fn, AggFn::StddevSamp | AggFn::Stddev | AggFn::VarSamp | AggFn::Variance);
+        let sample = matches!(
+            r.r#fn,
+            AggFn::StddevSamp | AggFn::Stddev | AggFn::VarSamp | AggFn::Variance
+        );
         if sample {
             // under two values NULL, as the native sample statistic
-            w.append("if(arrayReduce('count', ").piece(&values)?.append(") < 2, NULL, ");
+            w.append("if(arrayReduce('count', ")
+                .piece(&values)?
+                .append(") < 2, NULL, ");
         }
         let count = r.r#fn == AggFn::Count;
-        w.append(if count { "toInt64(" } else { "" }).append(&format!("arrayReduce('{agg}', ")).piece(&values)?;
+        w.append(if count { "toInt64(" } else { "" })
+            .append(&format!("arrayReduce('{agg}', "))
+            .piece(&values)?;
         w.append(")").append(if count { ")" } else { "" });
         if sample {
             w.append(")");
@@ -573,7 +647,11 @@ impl ClickHouse {
             let from = millis(&fr.from)?;
             let to = millis(&fr.to)?;
             keys = vec![epoch];
-            frame = Some(Frame { kind: FrameKind::Range, from, to });
+            frame = Some(Frame {
+                kind: FrameKind::Range,
+                from,
+                to,
+            });
         }
         if let Some(fr) = &frame
             && fr.kind == FrameKind::Range
@@ -584,9 +662,21 @@ impl ClickHouse {
                 return self.fractional_range(w, f, partition_by, &keys, fr);
             }
         }
-        let win = Win { partition_by, order_by: &keys, frame: frame.as_ref() };
-        if let SqlAgg::ValueFn { r#fn: v @ (AggFn::Lag | AggFn::Lead), args } = f {
-            w.append(if *v == AggFn::Lag { "lagInFrame(toNullable(" } else { "leadInFrame(toNullable(" });
+        let win = Win {
+            partition_by,
+            order_by: &keys,
+            frame: frame.as_ref(),
+        };
+        if let SqlAgg::ValueFn {
+            r#fn: v @ (AggFn::Lag | AggFn::Lead),
+            args,
+        } = f
+        {
+            w.append(if *v == AggFn::Lag {
+                "lagInFrame(toNullable("
+            } else {
+                "leadInFrame(toNullable("
+            });
             w.expr(self, arg(args, 0)?, 0)?.append(")");
             for e in &args[1..] {
                 w.append(", ").expr(self, e, 0)?;
@@ -596,14 +686,18 @@ impl ClickHouse {
                 w.append("PARTITION BY ").list(self, partition_by)?;
             }
             if !keys.is_empty() {
-                w.append(if partition_by.is_empty() { "" } else { " " }).append("ORDER BY ");
+                w.append(if partition_by.is_empty() { "" } else { " " })
+                    .append("ORDER BY ");
                 w.join(&keys, ", ", |w, k| self.sort_key(w, k))?;
             }
             w.append(" ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)");
             return Ok(());
         }
         // cume_dist: the rows up to the current one's value over the partition's rows
-        if let SqlAgg::RankingFn { r#fn: AggFn::CumeDist, .. } = f {
+        if let SqlAgg::RankingFn {
+            r#fn: AggFn::CumeDist, ..
+        } = f
+        {
             w.append("(toFloat64(count() OVER (");
             if !partition_by.is_empty() {
                 w.append("PARTITION BY ").list(self, partition_by)?.append(" ");
@@ -629,7 +723,10 @@ impl ClickHouse {
         match f {
             SqlAgg::Reducer(r) => self.reducer_in(w, r, Some(win))?,
             // ntile's bucket count is unsigned
-            SqlAgg::RankingFn { r#fn: AggFn::Ntile, args } => {
+            SqlAgg::RankingFn {
+                r#fn: AggFn::Ntile,
+                args,
+            } => {
                 w.append("ntile(toUInt64(").list(self, args)?.append("))");
             }
             SqlAgg::RankingFn { r#fn, args } => {
@@ -639,7 +736,10 @@ impl ClickHouse {
             // a value function reads the nullable value: past the frame it is NULL
             SqlAgg::ValueFn { r#fn, args } => {
                 let name = self.aggregate_name(*r#fn);
-                w.append(&name).append("(toNullable(").expr(self, arg(args, 0)?, 0)?.append(")");
+                w.append(&name)
+                    .append("(toNullable(")
+                    .expr(self, arg(args, 0)?, 0)?
+                    .append(")");
                 for e in &args[1..] {
                     w.append(", ").expr(self, e, 0)?;
                 }
@@ -674,7 +774,9 @@ impl ClickHouse {
             });
         }
         pc(move |w| {
-            w.append("coalesce(toJSONString(").expr(self, x, 0)?.append("), 'null')");
+            w.append("coalesce(toJSONString(")
+                .expr(self, x, 0)?
+                .append("), 'null')");
             Ok(())
         })
     }
@@ -683,7 +785,10 @@ impl ClickHouse {
         w.append("concat('{'");
         let mut i = 0;
         while i < kv.len() {
-            w.append(if i > 0 { ", ','" } else { "" }).append(", ").piece(&*self.json(&kv[i]))?.append(", ':', ");
+            w.append(if i > 0 { ", ','" } else { "" })
+                .append(", ")
+                .piece(&*self.json(&kv[i]))?
+                .append(", ':', ");
             w.piece(&*self.json(arg(kv, i + 1)?))?;
             i += 2;
         }
@@ -694,7 +799,9 @@ impl ClickHouse {
     pub(super) fn json_array_arm(&self, w: &mut SqlWriter, elements: &[SqlExpr]) -> Result<(), Refusal> {
         w.append("concat('['");
         for (i, e) in elements.iter().enumerate() {
-            w.append(if i > 0 { ", ','" } else { "" }).append(", ").piece(&*self.json(e))?;
+            w.append(if i > 0 { ", ','" } else { "" })
+                .append(", ")
+                .piece(&*self.json(e))?;
         }
         w.append(", ']')");
         Ok(())
@@ -725,7 +832,9 @@ impl ClickHouse {
                 .collect();
             self.collected(self.json(value), keys, None)
         };
-        w.append("concat('[', arrayStringConcat(").piece(&*values)?.append(", ','), ']')");
+        w.append("concat('[', arrayStringConcat(")
+            .piece(&*values)?
+            .append(", ','), ']')");
         Ok(())
     }
 }
@@ -734,7 +843,10 @@ impl ClickHouse {
 /// `descendingPercentile`).
 fn descending_percentile(r: &Reducer) -> Result<bool, Refusal> {
     if r.args.len() != 2 || r.distinct || r.order_by.len() > 1 {
-        return Err(Refusal::capability(format!("{} of this shape reached ClickHouse", r.r#fn)));
+        return Err(Refusal::capability(format!(
+            "{} of this shape reached ClickHouse",
+            r.r#fn
+        )));
     }
     Ok(r.order_by.first().is_some_and(|k| !k.ascending))
 }
@@ -829,7 +941,9 @@ pub(super) fn ddl_type(t: &ColumnType) -> Result<String, Refusal> {
             ColumnKind::Varchar => "VARCHAR",
             // a time of day: ClickHouse's Time type is experimental
             ColumnKind::Time | ColumnKind::Other | ColumnKind::Distinct | ColumnKind::Array | ColumnKind::Object => {
-                return Err(Refusal::illegal_state(format!("no DDL spelling for declared column type {kind}")));
+                return Err(Refusal::illegal_state(format!(
+                    "no DDL spelling for declared column type {kind}"
+                )));
             }
         }
         .to_owned(),

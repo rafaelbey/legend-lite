@@ -42,11 +42,13 @@ pub fn exploded_read(alias: &str, p: &Projection, slot: Option<&SqlType>) -> Res
         None => build::derived(Some(alias), &name),
         Some(t) => build::typed_column(Some(alias), &name, t.clone(), true, Origin::Derived),
     };
-    Ok(if t == Some(&SqlType::Scalar(Scalar::Json)) && slot == Some(&SqlType::Scalar(Scalar::Varchar)) {
-        build::cast(read, SqlType::Scalar(Scalar::Varchar))
-    } else {
-        read
-    })
+    Ok(
+        if t == Some(&SqlType::Scalar(Scalar::Json)) && slot == Some(&SqlType::Scalar(Scalar::Varchar)) {
+            build::cast(read, SqlType::Scalar(Scalar::Varchar))
+        } else {
+            read
+        },
+    )
 }
 
 /// `((SqlExpr.Call) e).args().get(0)`: the list a marker's projection explodes.
@@ -65,10 +67,16 @@ pub fn null_over_null_list(e: &SqlExpr) -> bool {
         return null_over_null_list(value);
     }
     match e {
-        SqlExpr::Call { r#fn: SqlFn::ListMin | SqlFn::ListMax | SqlFn::ListGet, args, .. } => {
-            args.first().is_some_and(null_list)
-        }
-        SqlExpr::ReduceCollection { reducer: AggFn::Min | AggFn::Max, collection, .. } => null_list(collection),
+        SqlExpr::Call {
+            r#fn: SqlFn::ListMin | SqlFn::ListMax | SqlFn::ListGet,
+            args,
+            ..
+        } => args.first().is_some_and(null_list),
+        SqlExpr::ReduceCollection {
+            reducer: AggFn::Min | AggFn::Max,
+            collection,
+            ..
+        } => null_list(collection),
         _ => false,
     }
 }
@@ -113,7 +121,9 @@ pub fn marker_column(p: &Projection) -> Result<String, Refusal> {
     match (&p.alias, &p.out) {
         (Some(alias), _) => Ok(alias.clone()),
         (None, Some(out)) => Ok(out.name.clone()),
-        (None, None) => Err(Refusal::capability("an UNNEST without a column name reached the renderer")),
+        (None, None) => Err(Refusal::capability(
+            "an UNNEST without a column name reached the renderer",
+        )),
     }
 }
 
@@ -149,7 +159,12 @@ impl SqlRewriter for StarOverExplosionUnwrapped {
     }
 
     fn source(&mut self, s: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
-        let SqlSource::Subselect { inner: outer_inner, alias, frame_name } = s else {
+        let SqlSource::Subselect {
+            inner: outer_inner,
+            alias,
+            frame_name,
+        } = s
+        else {
             return Ok(Rw::Same(s));
         };
         let unwrap = match outer_inner.as_ref() {
@@ -159,10 +174,18 @@ impl SqlRewriter for StarOverExplosionUnwrapped {
             _ => false,
         };
         if !unwrap {
-            return Ok(Rw::Same(SqlSource::Subselect { inner: outer_inner, alias, frame_name }));
+            return Ok(Rw::Same(SqlSource::Subselect {
+                inner: outer_inner,
+                alias,
+                frame_name,
+            }));
         }
-        let SqlQuery::Select(star) = *outer_inner else { unreachable!("matched a select above") };
-        let SqlSource::Subselect { inner, .. } = star.from else { unreachable!("matched a subselect above") };
+        let SqlQuery::Select(star) = *outer_inner else {
+            unreachable!("matched a select above")
+        };
+        let SqlSource::Subselect { inner, .. } = star.from else {
+            unreachable!("matched a subselect above")
+        };
         Ok(Rw::New(build::subselect(*inner, &alias, frame_name)))
     }
 }
@@ -191,7 +214,12 @@ fn output_name(p: &Projection) -> Option<&str> {
 
 /// `inner` with its carry's lists inlined, or none when it is not an explosion of a carry (Java's `inlined`).
 fn inlined(inner: &SqlSelect) -> Result<Option<SqlSelect>, Refusal> {
-    let SqlSource::Subselect { inner: carry_q, alias: carry_alias, .. } = &inner.from else {
+    let SqlSource::Subselect {
+        inner: carry_q,
+        alias: carry_alias,
+        ..
+    } = &inner.from
+    else {
         return Ok(None);
     };
     let SqlQuery::Select(c) = carry_q.as_ref() else {
@@ -237,7 +265,11 @@ fn inlined(inner: &SqlSelect) -> Result<Option<SqlSelect>, Refusal> {
         let Some((_, list)) = carried.iter().find(|(n, _)| *n == col.name) else {
             return Ok(None);
         };
-        ps.push(build::projection(build::call(SqlFn::Unnest, vec![(*list).clone()]), p.alias.clone(), p.out.clone())?);
+        ps.push(build::projection(
+            build::call(SqlFn::Unnest, vec![(*list).clone()]),
+            p.alias.clone(),
+            p.out.clone(),
+        )?);
     }
     Ok(Some(dual_select(ps)?))
 }
@@ -249,7 +281,11 @@ impl SqlRewriter for LateralUnnestAsMarker {
 
     fn source(&mut self, s: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
         let marker = match &s {
-            SqlSource::Join { right, kind: JoinKind::CrossLateral | JoinKind::LeftLateral, .. } => match right.as_ref() {
+            SqlSource::Join {
+                right,
+                kind: JoinKind::CrossLateral | JoinKind::LeftLateral,
+                ..
+            } => match right.as_ref() {
                 SqlSource::Subselect { inner, .. } => match inner.as_ref() {
                     SqlQuery::Select(inner) if !is_marker_select(inner) => inlined(inner)?,
                     _ => None,
@@ -261,8 +297,15 @@ impl SqlRewriter for LateralUnnestAsMarker {
         let Some(marker) = marker else {
             return Ok(Rw::Same(s));
         };
-        let SqlSource::Join { left, right, kind, on, .. } = s else { unreachable!("matched a join above") };
-        let SqlSource::Subselect { alias, frame_name, .. } = *right else { unreachable!("matched a subselect above") };
+        let SqlSource::Join {
+            left, right, kind, on, ..
+        } = s
+        else {
+            unreachable!("matched a join above")
+        };
+        let SqlSource::Subselect { alias, frame_name, .. } = *right else {
+            unreachable!("matched a subselect above")
+        };
         let right = build::subselect(build::query(marker), &alias, frame_name);
         Ok(Rw::New(build::join(*left, right, kind, on.map(|o| *o))?))
     }
@@ -321,10 +364,26 @@ impl SqlRewriter for SelectListUnnestAsLateral {
             let name = marker_column(p)?;
             unnests.push(build::projection(p.expr.clone(), Some(name), p.out.clone())?);
             let slot = p.out.as_ref().map(|o| &o.r#type);
-            ps.push(build::projection(exploded_read(&alias, p, slot)?, p.alias.clone(), p.out.clone())?);
+            ps.push(build::projection(
+                exploded_read(&alias, p, slot)?,
+                p.alias.clone(),
+                p.out.clone(),
+            )?);
         }
         let marker = build::subselect(build::query(dual_select(unnests)?), &alias, None);
-        let SqlSelect { distinct, from, r#where, group_by, having, qualify, order_by, limit, offset, outputs, .. } = s;
+        let SqlSelect {
+            distinct,
+            from,
+            r#where,
+            group_by,
+            having,
+            qualify,
+            order_by,
+            limit,
+            offset,
+            outputs,
+            ..
+        } = s;
         let from = match from {
             SqlSource::Dual => marker,
             other => build::join(other, marker, JoinKind::CrossLateral, None)?,

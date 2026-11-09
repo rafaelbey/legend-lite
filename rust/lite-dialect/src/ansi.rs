@@ -78,7 +78,11 @@ pub fn render_passes<D: AnsiSqlRenderer>(d: &D) -> Vec<Box<dyn SqlRewriter>> {
 
 /// Java's `raw`: the engine's H2 text is the one translated language.
 pub fn raw<D: AnsiSqlRenderer>(d: &D, statement: &str, written_for: Option<&str>) -> Result<String, Refusal> {
-    if written_for == Some(raw_sql::ENGINE_TEXT) { d.from_engine_text(statement) } else { Ok(statement.to_owned()) }
+    if written_for == Some(raw_sql::ENGINE_TEXT) {
+        d.from_engine_text(statement)
+    } else {
+        Ok(statement.to_owned())
+    }
 }
 
 /// A HUGEINT-fact integer literal: bare.
@@ -94,7 +98,9 @@ pub fn stored_read<D: AnsiSqlRenderer>(
     stored: &ColumnType,
 ) -> Result<(), Refusal> {
     if reads_as_text(stored) {
-        w.append("CAST(").expr(d, &SqlExpr::Column(column.clone()), 0)?.append(" AS ");
+        w.append("CAST(")
+            .expr(d, &SqlExpr::Column(column.clone()), 0)?
+            .append(" AS ");
         let t = cast_type_name(d, &SqlType::Scalar(Scalar::Varchar))?;
         w.append(&t).append(")");
         return Ok(());
@@ -115,8 +121,19 @@ pub fn stars_as_source_columns(
     alias: &str,
     product: &str,
 ) -> Result<Vec<Projection>, Refusal> {
-    let star = [Projection { expr: SqlExpr::Star { table: None, r#type: TypeFact::Unknown }, alias: None, out: None }];
-    let projections: &[Projection] = if s.projections.is_empty() { &star } else { &s.projections };
+    let star = [Projection {
+        expr: SqlExpr::Star {
+            table: None,
+            r#type: TypeFact::Unknown,
+        },
+        alias: None,
+        out: None,
+    }];
+    let projections: &[Projection] = if s.projections.is_empty() {
+        &star
+    } else {
+        &s.projections
+    };
     let mut spelled = Vec::with_capacity(projections.len());
     for p in projections {
         match &p.expr {
@@ -139,7 +156,12 @@ pub fn stars_as_source_columns(
 
 /// A type Pure cannot name: a Pure String, read as text on every dialect.
 pub fn reads_as_text(t: &ColumnType) -> bool {
-    matches!(t, ColumnType::Plain { kind: ColumnKind::Other | ColumnKind::Distinct })
+    matches!(
+        t,
+        ColumnType::Plain {
+            kind: ColumnKind::Other | ColumnKind::Distinct
+        }
+    )
 }
 
 // ==================================================================
@@ -230,7 +252,9 @@ pub fn select<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, s: &SqlSelect, depth
 
 /// No ANSI spelling of an external source exists.
 pub fn source_url(url: &str) -> Result<String, Refusal> {
-    Err(Refusal::capability(format!("sourceUrl reached a dialect without an external-source encoding: {url}")))
+    Err(Refusal::capability(format!(
+        "sourceUrl reached a dialect without an external-source encoding: {url}"
+    )))
 }
 
 pub fn append_qualify<D: AnsiSqlRenderer>(
@@ -309,9 +333,12 @@ pub fn projections_with(
     }
     let (fixed, keyed) = at.split_at(run);
     w.join(fixed, ", ", |w, i| each(w, *i))?;
-    w.region(if fixed.is_empty() { "" } else { ", " }, ", ", if fixed.is_empty() { None } else { Some("") }, |w| {
-        w.join(keyed, ", ", |w, i| each(w, *i)).map(|_| ())
-    })?;
+    w.region(
+        if fixed.is_empty() { "" } else { ", " },
+        ", ",
+        if fixed.is_empty() { None } else { Some("") },
+        |w| w.join(keyed, ", ", |w, i| each(w, *i)).map(|_| ()),
+    )?;
     Ok(())
 }
 
@@ -372,8 +399,16 @@ pub fn sort_key<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, k: &SortKey) -> Re
 
 pub fn source<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, src: &SqlSource, depth: usize) -> Result<(), Refusal> {
     match src {
-        SqlSource::Dual => Err(Refusal::illegal_state("Dual renders as FROM-clause omission — caller bug")),
-        SqlSource::Table { name, alias, call, quoting, .. } => {
+        SqlSource::Dual => Err(Refusal::illegal_state(
+            "Dual renders as FROM-clause omission — caller bug",
+        )),
+        SqlSource::Table {
+            name,
+            alias,
+            call,
+            quoting,
+            ..
+        } => {
             let t = d.table_name(name, *quoting);
             w.append(&t).append(if *call { "()" } else { "" });
             let a = d.alias_ident(alias);
@@ -391,8 +426,18 @@ pub fn source<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, src: &SqlSource, dep
             w.append("(${").append(var_name).append("}) as ").append(&a);
             Ok(())
         }
-        SqlSource::Values { rows, columns, alias, outputs } => d.values_source(w, rows, columns, alias, outputs),
-        SqlSource::RawSql { sql, alias, written_for, .. } => {
+        SqlSource::Values {
+            rows,
+            columns,
+            alias,
+            outputs,
+        } => d.values_source(w, rows, columns, alias, outputs),
+        SqlSource::RawSql {
+            sql,
+            alias,
+            written_for,
+            ..
+        } => {
             let text = raw(d, sql, Some(written_for))?;
             let a = d.alias_ident(alias);
             w.append("(").append(&text).append(") AS ").append(&a);
@@ -416,7 +461,9 @@ pub fn source<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, src: &SqlSource, dep
             Ok(())
         }
         SqlSource::Pivot { .. } => d.pivot_source(w, src, depth),
-        SqlSource::Join { left, right, kind, on, .. } => {
+        SqlSource::Join {
+            left, right, kind, on, ..
+        } => {
             d.source(w, left, depth)?;
             d.nl(w, depth);
             let keyword = d.join_keyword(*kind)?;
@@ -464,7 +511,11 @@ pub fn values_source<D: AnsiSqlRenderer>(
     }
     let names: Vec<String> = columns.iter().map(|c| d.alias_ident(c)).collect();
     let a = d.alias_ident(alias);
-    w.append(") AS ").append(&a).append("(").append(&names.join(", ")).append(")");
+    w.append(") AS ")
+        .append(&a)
+        .append("(")
+        .append(&names.join(", "))
+        .append(")");
     Ok(())
 }
 
@@ -504,7 +555,9 @@ pub fn checked_one<D: AnsiSqlRenderer>(
                 call(SqlFn::IsNull, vec![list.clone()]),
                 call(
                     SqlFn::Error,
-                    vec![string_lit(&format!("Cannot cast a collection of size 0 to multiplicity {bound}"))],
+                    vec![string_lit(&format!(
+                        "Cannot cast a collection of size 0 to multiplicity {bound}"
+                    ))],
                 ),
             )],
             Some(list.clone()),
@@ -518,7 +571,10 @@ pub fn checked_one<D: AnsiSqlRenderer>(
             SqlFn::Concat,
             vec![
                 string_lit("Cannot cast a collection of size "),
-                cast(call(SqlFn::Coalesce, vec![len.clone(), int_lit(0)]), SqlType::Scalar(Scalar::Varchar)),
+                cast(
+                    call(SqlFn::Coalesce, vec![len.clone(), int_lit(0)]),
+                    SqlType::Scalar(Scalar::Varchar),
+                ),
                 string_lit(&format!(" to multiplicity {bound}")),
             ],
         )],
@@ -529,7 +585,10 @@ pub fn checked_one<D: AnsiSqlRenderer>(
             vec![when(
                 call(
                     SqlFn::Or,
-                    vec![call(SqlFn::IsNull, vec![list.clone()]), call(SqlFn::Equal, vec![len, int_lit(0)])],
+                    vec![
+                        call(SqlFn::IsNull, vec![list.clone()]),
+                        call(SqlFn::Equal, vec![len, int_lit(0)]),
+                    ],
                 ),
                 size_err,
             )],
@@ -541,7 +600,10 @@ pub fn checked_one<D: AnsiSqlRenderer>(
             vec![when(
                 call(
                     SqlFn::Or,
-                    vec![call(SqlFn::IsNull, vec![list.clone()]), call(SqlFn::NotEqual, vec![len, int_lit(1)])],
+                    vec![
+                        call(SqlFn::IsNull, vec![list.clone()]),
+                        call(SqlFn::NotEqual, vec![len, int_lit(1)]),
+                    ],
                 ),
                 size_err,
             )],
@@ -559,8 +621,13 @@ pub fn compact_list<D: AnsiSqlRenderer>(
     parent_prec: i32,
 ) -> Result<(), Refusal> {
     use crate::build::{call, derived, lambda};
-    let filtered =
-        call(SqlFn::ListFilter, vec![list.clone(), lambda(&["x"], call(SqlFn::IsNotNull, vec![derived(None, "x")]))]);
+    let filtered = call(
+        SqlFn::ListFilter,
+        vec![
+            list.clone(),
+            lambda(&["x"], call(SqlFn::IsNotNull, vec![derived(None, "x")])),
+        ],
+    );
     d.expr(w, &filtered, parent_prec)
 }
 
@@ -654,10 +721,16 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
         // fractional decimal render bare
         SqlExpr::DecimalLit { value, r#type } => {
             let text = match r#type {
-                TypeFact::Typed { r#type: SqlType::Decimal { precision, scale: 0 }, .. } => {
+                TypeFact::Typed {
+                    r#type: SqlType::Decimal { precision, scale: 0 },
+                    ..
+                } => {
                     format!("CAST({} AS DECIMAL({precision},0))", big_decimal_plain(value.as_str()))
                 }
-                TypeFact::Typed { r#type: SqlType::Scalar(Scalar::Hugeint), .. } => d.huge_int_literal(value),
+                TypeFact::Typed {
+                    r#type: SqlType::Scalar(Scalar::Hugeint),
+                    ..
+                } => d.huge_int_literal(value),
                 _ => big_decimal_plain(value.as_str()),
             };
             w.append(&text);
@@ -682,13 +755,21 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
             w.append(&text);
         }
         SqlExpr::OrderedListAgg { value, order_by, .. } => {
-            w.append("list(").expr(d, value, 0)?.append(" ORDER BY ").expr(d, order_by, 0)?.append(")");
+            w.append("list(")
+                .expr(d, value, 0)?
+                .append(" ORDER BY ")
+                .expr(d, order_by, 0)?
+                .append(")");
         }
         SqlExpr::ArrayLit { elements, .. } => return d.array_lit(w, elements),
         SqlExpr::StructLit { fields, .. } => return d.struct_lit(w, fields),
         SqlExpr::StructGet { source, field, r#type } => return d.struct_get(w, source, field, r#type),
         SqlExpr::Call { r#fn, args, r#type } => return d.call(w, *r#fn, args, r#type, parent_prec),
-        SqlExpr::Case { whens, otherwise, r#type } => return d.case_expr(w, whens, otherwise.as_deref(), r#type),
+        SqlExpr::Case {
+            whens,
+            otherwise,
+            r#type,
+        } => return d.case_expr(w, whens, otherwise.as_deref(), r#type),
         SqlExpr::Exists { subquery, .. } => {
             w.append("EXISTS (");
             inline(d, w, subquery)?;
@@ -700,19 +781,33 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
             w.append(")");
         }
         SqlExpr::CheckedDefects { .. } => {
-            return Err(Refusal::capability("nested checked defects reached a dialect without list lambdas"));
+            return Err(Refusal::capability(
+                "nested checked defects reached a dialect without list lambdas",
+            ));
         }
         SqlExpr::CheckedChildValue { .. } => {
-            return Err(Refusal::capability("a checked child's value reached a dialect without list lambdas"));
+            return Err(Refusal::capability(
+                "a checked child's value reached a dialect without list lambdas",
+            ));
         }
-        SqlExpr::Quantified { value, comparison, quantifier, subquery, .. } => {
+        SqlExpr::Quantified {
+            value,
+            comparison,
+            quantifier,
+            subquery,
+            ..
+        } => {
             w.expr(d, value, 4)?;
             let Some((op, _)) = infix_of(*comparison) else {
                 return Err(Refusal::null_pointer(format!(
                     "quantified comparison must be an infix operator: {comparison}"
                 )));
             };
-            w.append(" ").append(op).append(" ").append(quantifier.as_str()).append(" (");
+            w.append(" ")
+                .append(op)
+                .append(" ")
+                .append(quantifier.as_str())
+                .append(" (");
             inline(d, w, subquery)?;
             w.append(")");
         }
@@ -721,7 +816,12 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
             inline(d, w, subquery)?;
             w.append(")");
         }
-        SqlExpr::CheckedOne { list, scalar_carrier, at_least_only, .. } => {
+        SqlExpr::CheckedOne {
+            list,
+            scalar_carrier,
+            at_least_only,
+            ..
+        } => {
             return d.checked_one(w, list, *scalar_carrier, *at_least_only, parent_prec);
         }
         SqlExpr::CompactList { list, .. } => return d.compact_list(w, list, parent_prec),
@@ -731,18 +831,35 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
                  column list first (DeferredTdsString id {id})"
             )));
         }
-        SqlExpr::WindowCall { r#fn, partition_by, order_by, frame, .. } => {
+        SqlExpr::WindowCall {
+            r#fn,
+            partition_by,
+            order_by,
+            frame,
+            ..
+        } => {
             return d.window_call(w, r#fn, partition_by, order_by, frame.as_ref());
         }
         SqlExpr::Lambda(l) => return d.lambda(w, l),
         // a cast to the tagged carrier is the identity
-        SqlExpr::Cast { value, target: SqlType::Tagged { .. }, .. } => return d.expr(w, value, parent_prec),
-        SqlExpr::Cast { value, target, conform, .. } => return d.variant_aware_cast(w, value, target, *conform),
+        SqlExpr::Cast {
+            value,
+            target: SqlType::Tagged { .. },
+            ..
+        } => return d.expr(w, value, parent_prec),
+        SqlExpr::Cast {
+            value, target, conform, ..
+        } => return d.variant_aware_cast(w, value, target, *conform),
         SqlExpr::FoldCall { .. } => return d.fold_call(w, e),
         SqlExpr::JsonObject { kv, .. } => return d.json_object(w, kv),
         SqlExpr::JsonArray { elements, .. } => return d.json_array(w, elements),
         SqlExpr::JsonArrayAgg { value, order_keys, .. } => return d.json_array_agg(w, value, order_keys),
-        SqlExpr::ReduceCollection { reducer, collection, extras, .. } => {
+        SqlExpr::ReduceCollection {
+            reducer,
+            collection,
+            extras,
+            ..
+        } => {
             return d.reduce_collection(w, *reducer, collection, extras);
         }
         SqlExpr::Membership { needle, collection, .. } => {
@@ -759,19 +876,25 @@ pub fn expr<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, e: &SqlExpr, parent_pr
 /// Variant navigation: a backend without JSON support refuses it.
 pub fn variant_get<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
     let _ = (d, w, args);
-    Err(Refusal::capability("variant navigation reached a dialect without JSON support"))
+    Err(Refusal::capability(
+        "variant navigation reached a dialect without JSON support",
+    ))
 }
 
 /// A struct literal: a backend without struct support refuses it.
 pub fn struct_lit<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, fields: &[StructLitField]) -> Result<(), Refusal> {
     let _ = (d, w, fields);
-    Err(Refusal::capability("a struct literal reached a dialect without struct support"))
+    Err(Refusal::capability(
+        "a struct literal reached a dialect without struct support",
+    ))
 }
 
 /// A struct's field read: a backend without struct support refuses it.
 pub fn struct_get<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, source: &SqlExpr, field: &str) -> Result<(), Refusal> {
     let _ = (d, w, source, field);
-    Err(Refusal::capability("a struct extraction reached a dialect without struct support"))
+    Err(Refusal::capability(
+        "a struct extraction reached a dialect without struct support",
+    ))
 }
 
 /// Collection membership: a backend data-model capability.
@@ -811,11 +934,17 @@ pub fn json_array_agg<D: AnsiSqlRenderer>(
     order_keys: &[JsonArrayAggKey],
 ) -> Result<(), Refusal> {
     if order_keys.is_empty() {
-        w.append("coalesce(json_group_array(").expr(d, value, 0)?.append("), '[]')");
+        w.append("coalesce(json_group_array(")
+            .expr(d, value, 0)?
+            .append("), '[]')");
     } else {
-        w.append("coalesce(to_json(list(").expr(d, value, 0)?.append(" ORDER BY ");
+        w.append("coalesce(to_json(list(")
+            .expr(d, value, 0)?
+            .append(" ORDER BY ");
         w.join(order_keys, ", ", |w, k| {
-            w.expr(d, &k.expr, 0)?.append(if k.desc { " DESC" } else { " ASC" }).append(" NULLS LAST");
+            w.expr(d, &k.expr, 0)?
+                .append(if k.desc { " DESC" } else { " ASC" })
+                .append(" NULLS LAST");
             Ok(())
         })?;
         w.append(")), '[]')");
@@ -866,7 +995,15 @@ pub fn infix<D: AnsiSqlRenderer>(
         if i > 0 {
             w.append(&pad).append(sql).append(&pad);
         }
-        w.expr(d, a, if (i > 0 && trailing_own_value) || non_associative { prec + 1 } else { prec })?;
+        w.expr(
+            d,
+            a,
+            if (i > 0 && trailing_own_value) || non_associative {
+                prec + 1
+            } else {
+                prec
+            },
+        )?;
     }
     if wrap {
         w.append(")");
@@ -922,7 +1059,11 @@ pub fn flatten_concat(a: &[SqlExpr]) -> Vec<&SqlExpr> {
     let mut out = Vec::new();
     for e in a {
         match e {
-            SqlExpr::Call { r#fn: SqlFn::Concat, args, .. } => out.extend(flatten_concat(args)),
+            SqlExpr::Call {
+                r#fn: SqlFn::Concat,
+                args,
+                ..
+            } => out.extend(flatten_concat(args)),
             other => out.push(other),
         }
     }
@@ -968,17 +1109,28 @@ pub fn in_list<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, a: &[SqlExpr], pare
     {
         return any_of(d, w, &a[0], &p, parent_prec);
     }
-    w.expr(d, arg(a, 0)?, 4)?.append(" IN (").list(d, tail(a, 1)?)?.append(")");
+    w.expr(d, arg(a, 0)?, 4)?
+        .append(" IN (")
+        .list(d, tail(a, 1)?)?
+        .append(")");
     Ok(())
 }
 
 pub fn distinct_from<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("(").expr(d, arg(a, 0)?, 4)?.append(" IS DISTINCT FROM ").expr(d, arg(a, 1)?, 4)?.append(")");
+    w.append("(")
+        .expr(d, arg(a, 0)?, 4)?
+        .append(" IS DISTINCT FROM ")
+        .expr(d, arg(a, 1)?, 4)?
+        .append(")");
     Ok(())
 }
 
 pub fn not_distinct_from<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("(").expr(d, arg(a, 0)?, 4)?.append(" IS NOT DISTINCT FROM ").expr(d, arg(a, 1)?, 4)?.append(")");
+    w.append("(")
+        .expr(d, arg(a, 0)?, 4)?
+        .append(" IS NOT DISTINCT FROM ")
+        .expr(d, arg(a, 1)?, 4)?
+        .append(")");
     Ok(())
 }
 
@@ -994,20 +1146,35 @@ pub fn divide_as_doubles<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, a: &[SqlE
 
 /// Pure's mod: the remainder with the divisor's sign.
 pub fn mod_floored<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("MOD(MOD(").expr(d, arg(a, 0)?, 0)?.append(", ").expr(d, arg(a, 1)?, 0)?.append(") + ");
-    w.expr(d, arg(a, 1)?, 0)?.append(", ").expr(d, arg(a, 1)?, 0)?.append(")");
+    w.append("MOD(MOD(")
+        .expr(d, arg(a, 0)?, 0)?
+        .append(", ")
+        .expr(d, arg(a, 1)?, 0)?
+        .append(") + ");
+    w.expr(d, arg(a, 1)?, 0)?
+        .append(", ")
+        .expr(d, arg(a, 1)?, 0)?
+        .append(")");
     Ok(())
 }
 
 /// Pure's rem: the remainder with the dividend's sign.
 pub fn mod_truncated<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("MOD(").expr(d, arg(a, 0)?, 0)?.append(", ").expr(d, arg(a, 1)?, 0)?.append(")");
+    w.append("MOD(")
+        .expr(d, arg(a, 0)?, 0)?
+        .append(", ")
+        .expr(d, arg(a, 1)?, 0)?
+        .append(")");
     Ok(())
 }
 
 /// `CAST(fn(x) AS BIGINT)`: ceiling, floor and sign are Integers in Pure.
 pub fn bigint_of<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, f: &str, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("CAST(").append(f).append("(").expr(d, arg(a, 0)?, 0)?.append(") AS BIGINT)");
+    w.append("CAST(")
+        .append(f)
+        .append("(")
+        .expr(d, arg(a, 0)?, 0)?
+        .append(") AS BIGINT)");
     Ok(())
 }
 
@@ -1025,8 +1192,15 @@ pub fn xor_as_and_or<D: AnsiSqlRenderer>(
     parent_prec: i32,
 ) -> Result<(), Refusal> {
     op(w, parent_prec, &|w| {
-        w.append("(").expr(d, arg(a, 0)?, 3)?.append(" AND NOT ").expr(d, arg(a, 1)?, 3)?.append(") OR (NOT ");
-        w.expr(d, arg(a, 0)?, 3)?.append(" AND ").expr(d, arg(a, 1)?, 3)?.append(")");
+        w.append("(")
+            .expr(d, arg(a, 0)?, 3)?
+            .append(" AND NOT ")
+            .expr(d, arg(a, 1)?, 3)?
+            .append(") OR (NOT ");
+        w.expr(d, arg(a, 0)?, 3)?
+            .append(" AND ")
+            .expr(d, arg(a, 1)?, 3)?
+            .append(")");
         Ok(())
     })
 }
@@ -1036,7 +1210,11 @@ pub fn pad_with_space<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, f: &str, a: 
     w.append(f).append("(");
     if a.len() == 2 {
         let space = crate::build::string_lit(" ");
-        w.expr(d, &a[0], 0)?.append(", ").expr(d, &a[1], 0)?.append(", ").expr(d, &space, 0)?;
+        w.expr(d, &a[0], 0)?
+            .append(", ")
+            .expr(d, &a[1], 0)?
+            .append(", ")
+            .expr(d, &space, 0)?;
     } else {
         w.list(d, a)?;
     }
@@ -1054,7 +1232,12 @@ pub fn pad_with_space_to_integer<D: AnsiSqlRenderer>(
     if matches!(arg(a, 1)?, SqlExpr::IntLit { .. }) {
         return pad_with_space(d, w, f, a);
     }
-    w.append(f).append("(").expr(d, arg(a, 0)?, 0)?.append(", CAST(").expr(d, arg(a, 1)?, 0)?.append(" AS INTEGER), ");
+    w.append(f)
+        .append("(")
+        .expr(d, arg(a, 0)?, 0)?
+        .append(", CAST(")
+        .expr(d, arg(a, 1)?, 0)?
+        .append(" AS INTEGER), ");
     if a.len() == 2 {
         w.expr(d, &crate::build::string_lit(" "), 0)?;
     } else {
@@ -1073,7 +1256,10 @@ pub fn first_char_cased<D: AnsiSqlRenderer>(
     parent_prec: i32,
 ) -> Result<(), Refusal> {
     op(w, parent_prec, &|w| {
-        w.append(f).append("(substr(").expr(d, arg(a, 0)?, 0)?.append(", 1, 1)) || substr(");
+        w.append(f)
+            .append("(substr(")
+            .expr(d, arg(a, 0)?, 0)?
+            .append(", 1, 1)) || substr(");
         w.expr(d, arg(a, 0)?, 0)?.append(", 2)");
         Ok(())
     })
@@ -1087,7 +1273,11 @@ pub fn date_trunc_date_grained<D: AnsiSqlRenderer>(
     spelled_part: &str,
 ) -> Result<(), Refusal> {
     let trunc = |w: &mut SqlWriter| -> Result<(), Refusal> {
-        w.append("date_trunc(").append(spelled_part).append(", ").expr(d, arg(a, 1)?, 0)?.append(")");
+        w.append("date_trunc(")
+            .append(spelled_part)
+            .append(", ")
+            .expr(d, arg(a, 1)?, 0)?
+            .append(")");
         Ok(())
     };
     match part(arg(a, 0)?)? {
@@ -1168,7 +1358,10 @@ pub fn case_expr<D: AnsiSqlRenderer>(
 ) -> Result<(), Refusal> {
     w.append("CASE");
     for wh in whens {
-        w.append(" WHEN ").expr(d, &wh.condition, 0)?.append(" THEN ").expr(d, &wh.then, 0)?;
+        w.append(" WHEN ")
+            .expr(d, &wh.condition, 0)?
+            .append(" THEN ")
+            .expr(d, &wh.then, 0)?;
     }
     if let Some(o) = otherwise {
         w.append(" ELSE ").expr(d, o, 0)?;
@@ -1212,7 +1405,9 @@ pub fn over<D: AnsiSqlRenderer>(
         if !partition_by.is_empty() {
             w.append(" ");
         }
-        w.append(&kw("ORDER BY")).append(" ").join(order_by, ", ", |w, k| d.sort_key(w, k))?;
+        w.append(&kw("ORDER BY"))
+            .append(" ")
+            .join(order_by, ", ", |w, k| d.sort_key(w, k))?;
     }
     if let Some(fr) = frame {
         let text = format!(
@@ -1258,7 +1453,11 @@ fn number_text(n: &JavaNumber) -> String {
 
 /// An aggregate as most databases write it: `name([DISTINCT ]args[ ORDER BY keys])`, `*` for no argument.
 pub fn aggregate<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, name: &str, r: &Reducer) -> Result<(), Refusal> {
-    let distinct = if r.distinct { format!("{} ", d.keyword("DISTINCT")) } else { String::new() };
+    let distinct = if r.distinct {
+        format!("{} ", d.keyword("DISTINCT"))
+    } else {
+        String::new()
+    };
     w.append(name).append("(").append(&distinct);
     if r.args.is_empty() {
         w.append("*");
@@ -1267,7 +1466,10 @@ pub fn aggregate<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, name: &str, r: &R
     }
     if !r.order_by.is_empty() {
         let kw = d.keyword("ORDER BY");
-        w.append(" ").append(&kw).append(" ").join(&r.order_by, ", ", |w, k| aggregate_order_key(d, w, k))?;
+        w.append(" ")
+            .append(&kw)
+            .append(" ")
+            .join(&r.order_by, ", ", |w, k| aggregate_order_key(d, w, k))?;
     }
     w.append(")");
     Ok(())
@@ -1298,7 +1500,11 @@ pub fn window_function(r: &Reducer) -> Refusal {
 /// A key of an aggregate's own ordering.
 pub fn aggregate_order_key<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, k: &SortKey) -> Result<(), Refusal> {
     w.expr(d, &k.expr, 0)?;
-    let text = format!(" {}{}", d.keyword(if k.ascending { "ASC" } else { "DESC" }), d.agg_order_null_placement(k));
+    let text = format!(
+        " {}{}",
+        d.keyword(if k.ascending { "ASC" } else { "DESC" }),
+        d.agg_order_null_placement(k)
+    );
     w.append(&text);
     Ok(())
 }
@@ -1355,7 +1561,10 @@ pub fn cast_type_name<D: AnsiSqlRenderer>(d: &D, t: &SqlType) -> Result<String, 
 
 /// A struct type's fields, each its name spelled and its type spelled.
 pub fn struct_fields<D: AnsiSqlRenderer>(d: &D, fields: &[StructField]) -> Result<Vec<(String, String)>, Refusal> {
-    fields.iter().map(|f| Ok((d.ident(&f.name), cast_type_name(d, &f.r#type)?))).collect()
+    fields
+        .iter()
+        .map(|f| Ok((d.ident(&f.name), cast_type_name(d, &f.r#type)?)))
+        .collect()
 }
 
 /// A date format in strftime codes.
@@ -1389,14 +1598,21 @@ pub fn strftime_text(parts: &[DateFmt]) -> String {
 /// A plan parameter's placeholder: the value bound bare -- but a date-time, cast to a type hole the runner fills.
 pub fn placeholder<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, p: &PlanParam<'_>) -> Result<(), Refusal> {
     if let Some(by_value) = p.by_value
-        && by_value.kinds.iter().any(|k| matches!(k, ValueKind::DateTime | ValueKind::DateTimeNanos))
+        && by_value
+            .kinds
+            .iter()
+            .any(|k| matches!(k, ValueKind::DateTime | ValueKind::DateTimeNanos))
     {
         let mut types = Vec::new();
         for kind in &by_value.kinds {
             types.push((*kind, d.hole_type(*kind)?));
         }
         let bind = scalar_bind(p)?;
-        w.append("CAST(").bind(bind).append(" AS ").type_hole(enum_map(types), by_value.absent)?.append(")");
+        w.append("CAST(")
+            .bind(bind)
+            .append(" AS ")
+            .type_hole(enum_map(types), by_value.absent)?
+            .append(")");
         return Ok(());
     }
     let bind = scalar_bind(p)?;
@@ -1409,9 +1625,9 @@ pub fn hole_type(kind: ValueKind) -> Result<TypeSpelling, Refusal> {
     match kind {
         ValueKind::Date => Ok(TypeSpelling::new("DATE", Digits::None)),
         ValueKind::DateTime => Ok(TypeSpelling::new("TIMESTAMP", Digits::None)),
-        ValueKind::DateTimeNanos => {
-            Err(Refusal::capability("a date-time finer than a microsecond: this dialect names no type its literal has"))
-        }
+        ValueKind::DateTimeNanos => Err(Refusal::capability(
+            "a date-time finer than a microsecond: this dialect names no type its literal has",
+        )),
         ValueKind::Integer | ValueKind::Decimal | ValueKind::Floating => Err(Refusal::capability(format!(
             "a value of kind {kind} is bound bare here, typed by the database from the value"
         ))),
@@ -1433,7 +1649,13 @@ pub fn scalar_bind(p: &PlanParam<'_>) -> Result<Bind, Refusal> {
             p.name
         )));
     }
-    Ok(Bind { parameter: p.name.to_owned(), binding: Binding::One { null_type: null_type(p)?, hole: None } })
+    Ok(Bind {
+        parameter: p.name.to_owned(),
+        binding: Binding::One {
+            null_type: null_type(p)?,
+            hole: None,
+        },
+    })
 }
 
 /// The JDBC type an absent value of `p` is bound as.
@@ -1490,7 +1712,11 @@ pub fn any_of<D: AnsiSqlRenderer>(
     list: &PlanParam<'_>,
     parent_prec: i32,
 ) -> Result<(), Refusal> {
-    let TypeFact::Typed { r#type: SqlType::Array { element }, .. } = list.r#type else {
+    let TypeFact::Typed {
+        r#type: SqlType::Array { element },
+        ..
+    } = list.r#type
+    else {
         return Err(not_a_list(list));
     };
     let SqlType::Scalar(element) = element.as_ref() else {
@@ -1502,7 +1728,9 @@ pub fn any_of<D: AnsiSqlRenderer>(
     }
     let bind = Bind {
         parameter: list.name.to_owned(),
-        binding: Binding::Array { element_sql_type: element.as_str().to_owned() },
+        binding: Binding::Array {
+            element_sql_type: element.as_str().to_owned(),
+        },
     };
     w.expr(d, needle, 5)?.append(" = ANY(").bind(bind).append(")");
     if wrap {
@@ -1521,7 +1749,11 @@ fn not_a_list(list: &PlanParam<'_>) -> Refusal {
 
 /// A parameter written where one value goes: a list parameter is refused by name.
 fn one_value<'a>(p: &PlanParam<'a>) -> Result<PlanParam<'a>, Refusal> {
-    if let TypeFact::Typed { r#type: SqlType::Array { .. }, .. } = p.r#type {
+    if let TypeFact::Typed {
+        r#type: SqlType::Array { .. },
+        ..
+    } = p.r#type
+    {
         return Err(Refusal::capability(format!(
             "list parameter '{}' is bound only as a whole list (in, contains); written where one value goes, it is \
              not bound",
@@ -1571,7 +1803,11 @@ pub fn table_name<D: AnsiSqlRenderer>(d: &D, name: &str, quoting: NameQuoting) -
 
 /// A column name at a reference: a declared-quoted physical name delimited, any other by `ident`.
 pub fn column_name<D: AnsiSqlRenderer>(d: &D, c: &Column) -> String {
-    if c.origin == Some(Origin::PhysicalQuoted) { d.delimited(&c.name) } else { d.ident(&c.name) }
+    if c.origin == Some(Origin::PhysicalQuoted) {
+        d.delimited(&c.name)
+    } else {
+        d.ident(&c.name)
+    }
 }
 
 /// `name` as a delimited identifier: always quoted, the quote doubled inside.
@@ -1626,8 +1862,18 @@ pub fn nl<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, depth: usize) {
 
 pub fn render_ddl<D: AnsiSqlRenderer>(d: &D, ddl: &SqlDdl) -> Result<String, Refusal> {
     Ok(match ddl {
-        SqlDdl::CreateTable { schema, table, quoting, columns, temporary } => {
-            let mut sb = String::from(if *temporary { "Create Temporary Table " } else { "Create Table " });
+        SqlDdl::CreateTable {
+            schema,
+            table,
+            quoting,
+            columns,
+            temporary,
+        } => {
+            let mut sb = String::from(if *temporary {
+                "Create Temporary Table "
+            } else {
+                "Create Table "
+            });
             sb.push_str(&ddl_qualified(d, schema.as_deref(), table, *quoting));
             sb.push('(');
             for (i, col) in columns.iter().enumerate() {
@@ -1654,7 +1900,10 @@ pub fn render_ddl<D: AnsiSqlRenderer>(d: &D, ddl: &SqlDdl) -> Result<String, Ref
             sb
         }
         SqlDdl::DropTable { schema, table, quoting } => {
-            format!("Drop table if exists {};", ddl_qualified(d, schema.as_deref(), table, *quoting))
+            format!(
+                "Drop table if exists {};",
+                ddl_qualified(d, schema.as_deref(), table, *quoting)
+            )
         }
         SqlDdl::CreateSchema { schema, quoted } => {
             format!("Create Schema if not exists {};", d.stored_name(schema, *quoted))
@@ -1667,7 +1916,14 @@ pub fn render_ddl<D: AnsiSqlRenderer>(d: &D, ddl: &SqlDdl) -> Result<String, Ref
 
 pub fn render_dml<D: AnsiSqlRenderer>(d: &D, dml: &SqlDml) -> Result<String, Refusal> {
     match dml {
-        SqlDml::InsertValues { schema, table, quoting, columns, quoted_columns, rows } => {
+        SqlDml::InsertValues {
+            schema,
+            table,
+            quoting,
+            columns,
+            quoted_columns,
+            rows,
+        } => {
             let mut w = SqlWriter::new();
             let head = format!(
                 "INSERT INTO {}{} VALUES ",
@@ -1688,15 +1944,23 @@ pub fn render_dml<D: AnsiSqlRenderer>(d: &D, dml: &SqlDml) -> Result<String, Ref
             }
             Ok(insert.sql)
         }
-        SqlDml::InsertFromTable { schema, table, quoting, columns, quoted_columns, source } => Ok(format!(
+        SqlDml::InsertFromTable {
+            schema,
+            table,
+            quoting,
+            columns,
+            quoted_columns,
+            source,
+        } => Ok(format!(
             "INSERT INTO {}{} SELECT * FROM {};",
             ddl_qualified(d, schema.as_deref(), table, *quoting),
             dml_columns(d, columns, quoted_columns),
             d.ident(source)
         )),
-        SqlDml::DeleteAll { schema, table, quoting } => {
-            Ok(format!("DELETE FROM {};", ddl_qualified(d, schema.as_deref(), table, *quoting)))
-        }
+        SqlDml::DeleteAll { schema, table, quoting } => Ok(format!(
+            "DELETE FROM {};",
+            ddl_qualified(d, schema.as_deref(), table, *quoting)
+        )),
         SqlDml::CreateTempTableAs { .. } => d.temp_table_as(dml)?.into_text(),
         SqlDml::InsertSelect { .. } => d.insert_select(dml)?.into_text(),
         SqlDml::Update { .. } => d.update(dml)?.into_text(),
@@ -1734,7 +1998,15 @@ fn not_the_statement(what: &str) -> Refusal {
 
 /// The standard `INSERT INTO t (columns) query`, the query written with its passes applied.
 pub fn standard_insert_select<D: AnsiSqlRenderer>(d: &D, dml: &SqlDml) -> Result<SqlWriter, Refusal> {
-    let SqlDml::InsertSelect { schema, table, quoting, columns, quoted_columns, query } = dml else {
+    let SqlDml::InsertSelect {
+        schema,
+        table,
+        quoting,
+        columns,
+        quoted_columns,
+        query,
+    } = dml
+    else {
         return Err(not_the_statement("an INSERT of a query's rows"));
     };
     let mut w = SqlWriter::new();
@@ -1751,18 +2023,33 @@ pub fn standard_insert_select<D: AnsiSqlRenderer>(d: &D, dml: &SqlDml) -> Result
 
 /// The standard `UPDATE t AS alias SET c = value, ... [WHERE condition]`.
 pub fn standard_update<D: AnsiSqlRenderer>(d: &D, dml: &SqlDml) -> Result<SqlWriter, Refusal> {
-    let SqlDml::Update { schema, table, quoting, alias, stored_types, assignments, r#where } = dml else {
+    let SqlDml::Update {
+        schema,
+        table,
+        quoting,
+        alias,
+        stored_types,
+        assignments,
+        r#where,
+    } = dml
+    else {
         return Err(not_the_statement("an UPDATE"));
     };
     let values: Vec<SqlExpr> = assignments.iter().map(|a| a.value.clone()).collect();
     let read = stored_reads_over::<D>(table, alias, stored_types, values, r#where.clone())?;
     let mut w = SqlWriter::new();
-    let head =
-        format!("UPDATE {} AS {} SET ", ddl_qualified(d, schema.as_deref(), table, *quoting), d.alias_ident(alias));
+    let head = format!(
+        "UPDATE {} AS {} SET ",
+        ddl_qualified(d, schema.as_deref(), table, *quoting),
+        d.alias_ident(alias)
+    );
     w.append(&head);
     for (i, a) in assignments.iter().enumerate() {
         let column = d.stored_name(&a.column, a.quoted);
-        w.append(if i == 0 { "" } else { ", " }).append(&column).append(" = ").expr(d, &read.projections[i].expr, 0)?;
+        w.append(if i == 0 { "" } else { ", " })
+            .append(&column)
+            .append(" = ")
+            .expr(d, &read.projections[i].expr, 0)?;
     }
     if let Some(wh) = &read.r#where {
         w.append(" WHERE ").expr(d, wh, 0)?;
@@ -1773,13 +2060,24 @@ pub fn standard_update<D: AnsiSqlRenderer>(d: &D, dml: &SqlDml) -> Result<SqlWri
 
 /// The standard `DELETE FROM t AS alias [WHERE condition]`.
 pub fn standard_delete_where<D: AnsiSqlRenderer>(d: &D, dml: &SqlDml) -> Result<SqlWriter, Refusal> {
-    let SqlDml::DeleteWhere { schema, table, quoting, alias, stored_types, r#where } = dml else {
+    let SqlDml::DeleteWhere {
+        schema,
+        table,
+        quoting,
+        alias,
+        stored_types,
+        r#where,
+    } = dml
+    else {
         return Err(not_the_statement("a DELETE ... WHERE"));
     };
     let read = stored_reads_over::<D>(table, alias, stored_types, Vec::new(), r#where.clone())?;
     let mut w = SqlWriter::new();
-    let head =
-        format!("DELETE FROM {} AS {}", ddl_qualified(d, schema.as_deref(), table, *quoting), d.alias_ident(alias));
+    let head = format!(
+        "DELETE FROM {} AS {}",
+        ddl_qualified(d, schema.as_deref(), table, *quoting),
+        d.alias_ident(alias)
+    );
     w.append(&head);
     if let Some(wh) = &read.r#where {
         w.append(" WHERE ").expr(d, wh, 0)?;
@@ -1802,10 +2100,18 @@ fn stored_reads_over<D: AnsiSqlRenderer>(
     let mut ps: Vec<Projection> = values
         .into_iter()
         .enumerate()
-        .map(|(i, v)| Projection { expr: v, alias: Some(format!("__v{i}")), out: None })
+        .map(|(i, v)| Projection {
+            expr: v,
+            alias: Some(format!("__v{i}")),
+            out: None,
+        })
         .collect();
     if ps.is_empty() {
-        ps.push(Projection { expr: crate::build::int_lit(1), alias: Some("__v".to_owned()), out: None });
+        ps.push(Projection {
+            expr: crate::build::int_lit(1),
+            alias: Some("__v".to_owned()),
+            out: None,
+        });
     }
     let scope = SqlSelect {
         projections: ps,
@@ -1835,7 +2141,17 @@ fn stored_reads_over<D: AnsiSqlRenderer>(
 
 /// The standard `MERGE INTO t AS alias USING (query) AS source ON ... WHEN MATCHED ... WHEN NOT MATCHED ...`.
 pub fn standard_merge<D: AnsiSqlRenderer>(d: &D, dml: &SqlDml) -> Result<SqlWriter, Refusal> {
-    let SqlDml::Merge { schema, table, quoting, columns, quoted_columns, keys, query, alias, source_alias } = dml
+    let SqlDml::Merge {
+        schema,
+        table,
+        quoting,
+        columns,
+        quoted_columns,
+        keys,
+        query,
+        alias,
+        source_alias,
+    } = dml
     else {
         return Err(not_the_statement("a MERGE"));
     };
@@ -1851,7 +2167,10 @@ pub fn standard_merge<D: AnsiSqlRenderer>(d: &D, dml: &SqlDml) -> Result<SqlWrit
         d.column_ref(&column_of(Some(source_alias), oc))
     };
     let mut w = SqlWriter::new();
-    let head = format!("MERGE INTO {} AS {target} USING (", ddl_qualified(d, schema.as_deref(), table, *quoting));
+    let head = format!(
+        "MERGE INTO {} AS {target} USING (",
+        ddl_qualified(d, schema.as_deref(), table, *quoting)
+    );
     w.append(&head);
     d.query(&mut w, &passed(d, query.clone())?, 0)?;
     let source = d.alias_ident(source_alias);
@@ -1872,11 +2191,16 @@ pub fn standard_merge<D: AnsiSqlRenderer>(d: &D, dml: &SqlDml) -> Result<SqlWrit
         for (i, c) in others.iter().enumerate() {
             let column = d.stored_name(c, quoted_columns.contains(c));
             let value = read(c)?;
-            w.append(if i == 0 { "" } else { ", " }).append(&column).append(" = ").append(&value);
+            w.append(if i == 0 { "" } else { ", " })
+                .append(&column)
+                .append(" = ")
+                .append(&value);
         }
     }
     let insert = dml_columns(d, columns, quoted_columns);
-    w.append(" WHEN NOT MATCHED THEN INSERT").append(&insert).append(" VALUES (");
+    w.append(" WHEN NOT MATCHED THEN INSERT")
+        .append(&insert)
+        .append(" VALUES (");
     for (i, c) in columns.iter().enumerate() {
         let value = read(c)?;
         w.append(if i == 0 { "" } else { ", " }).append(&value);
@@ -1899,7 +2223,10 @@ pub fn column_of(table: Option<&str>, oc: &OutputCol) -> Column {
     Column {
         table: table.map(str::to_owned),
         name: oc.name.clone(),
-        r#type: TypeFact::Typed { r#type: oc.r#type.clone(), nullable: oc.nullable },
+        r#type: TypeFact::Typed {
+            r#type: oc.r#type.clone(),
+            nullable: oc.nullable,
+        },
         origin: Some(oc.origin),
     }
 }
@@ -1912,7 +2239,10 @@ pub fn create_temporary_table_as<D: AnsiSqlRenderer>(
     create: &str,
     options: &str,
 ) -> Result<SqlWriter, Refusal> {
-    let SqlDml::CreateTempTableAs { table, query, columns, .. } = dml else {
+    let SqlDml::CreateTempTableAs {
+        table, query, columns, ..
+    } = dml
+    else {
         return Err(not_the_statement("a temporary table from a query"));
     };
     let mut w = SqlWriter::new();
@@ -1941,7 +2271,11 @@ fn dml_columns<D: AnsiSqlRenderer>(d: &D, columns: &[String], quoted: &[String])
 fn ddl_qualified<D: AnsiSqlRenderer>(d: &D, schema: Option<&str>, table: &str, quoting: NameQuoting) -> String {
     match schema {
         None | Some("") | Some("default") => d.stored_name(table, quoting.table),
-        Some(s) => format!("{}.{}", d.stored_name(s, quoting.schema), d.stored_name(table, quoting.table)),
+        Some(s) => format!(
+            "{}.{}",
+            d.stored_name(s, quoting.schema),
+            d.stored_name(table, quoting.table)
+        ),
     }
 }
 
@@ -1953,5 +2287,9 @@ pub fn decimal_unit(n: i64) -> (String, String, String) {
 
 /// The lambda's parameters as DuckDB writes them: one bare, several parenthesized.
 pub fn lambda_params(l: &Lambda) -> String {
-    if l.params.len() == 1 { l.params[0].clone() } else { format!("({})", l.params.join(", ")) }
+    if l.params.len() == 1 {
+        l.params[0].clone()
+    } else {
+        format!("({})", l.params.join(", "))
+    }
 }

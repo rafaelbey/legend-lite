@@ -82,8 +82,12 @@ pub fn of(e: &SqlExpr) -> Pc<'_> {
 static LEXICON: LazyLock<Lexicon> = LazyLock::new(|| Lexicon::new('"', &[]));
 
 /// Lists are native BSON arrays; a correlated explosion, a JSON carrier and a native full join are not shaped.
-pub const CAPS: carrier::Caps =
-    carrier::Caps { native_lists: true, correlated_explode: false, json_carrier: false, native_full_outer: false };
+pub const CAPS: carrier::Caps = carrier::Caps {
+    native_lists: true,
+    correlated_explode: false,
+    json_carrier: false,
+    native_full_outer: false,
+};
 
 /// The field a group stage computes an aggregate into, by its index (`__agg0`).
 pub const AGGREGATE_MARKER: &str = "__agg";
@@ -128,7 +132,12 @@ struct Scope {
 
 impl Scope {
     fn new(variable_aliases: Vec<String>, flat_alias: Option<String>) -> Scope {
-        Scope { variable_aliases, flat_alias, reads: Vec::new(), sole_alias: None }
+        Scope {
+            variable_aliases,
+            flat_alias,
+            reads: Vec::new(),
+            sole_alias: None,
+        }
     }
 }
 
@@ -150,7 +159,10 @@ impl std::fmt::Debug for MongoDb {
 
 /// Java's `ArrayDeque.getFirst()` on an empty deque.
 fn no_scope() -> Refusal {
-    Refusal { class: "java.util.NoSuchElementException", message: String::new() }
+    Refusal {
+        class: "java.util.NoSuchElementException",
+        message: String::new(),
+    }
 }
 
 impl MongoDb {
@@ -162,7 +174,9 @@ impl MongoDb {
     /// A lookup's pipeline: the row's aliases become its `let` variables; `flat` is the alias whose rows the pipeline
     /// sees flat (a join's right source), or none for a subquery's pipeline.
     pub(crate) fn push_lookup_scope(&self, variables: &[String], flat: Option<&str>) {
-        self.scopes.borrow_mut().push(Scope::new(variables.to_vec(), flat.map(str::to_owned)));
+        self.scopes
+            .borrow_mut()
+            .push(Scope::new(variables.to_vec(), flat.map(str::to_owned)));
     }
 
     pub(crate) fn pop_scope(&self) {
@@ -212,7 +226,12 @@ impl MongoDb {
 
     /// The variable a lambda parameter `name` reads as, the innermost binding first.
     fn lambda_variable(&self, name: &str) -> Option<String> {
-        self.lambda_variables.borrow().iter().rev().find(|(k, _)| k == name).map(|(_, v)| v.clone())
+        self.lambda_variables
+            .borrow()
+            .iter()
+            .rev()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.clone())
     }
 
     /// `body` written with the lambda's parameters bound to `variables`, in order (Java's `withLambda`).
@@ -259,10 +278,21 @@ impl MongoDb {
         let (variable_aliases, flat_alias, sole_alias) = {
             let scopes = self.scopes.borrow();
             let scope = scopes.last().ok_or_else(no_scope)?;
-            (scope.variable_aliases.clone(), scope.flat_alias.clone(), scope.sole_alias.clone())
+            (
+                scope.variable_aliases.clone(),
+                scope.flat_alias.clone(),
+                scope.sole_alias.clone(),
+            )
         };
         if c.origin == Some(Origin::PerKey) {
-            return per_key_column(w, &variable_aliases, flat_alias.as_deref(), sole_alias.as_deref(), table, name);
+            return per_key_column(
+                w,
+                &variable_aliases,
+                flat_alias.as_deref(),
+                sole_alias.as_deref(),
+                table,
+                name,
+            );
         }
         let Some(table) = table else {
             if name.starts_with(AGGREGATE_MARKER)
@@ -275,7 +305,9 @@ impl MongoDb {
                     scope.reads.iter().find(|(k, _)| k == name).map(|(_, p)| p.clone())
                 };
                 let Some(read) = read else {
-                    return Err(Refusal::illegal_state(format!("marker {name} has no read in this scope")));
+                    return Err(Refusal::illegal_state(format!(
+                        "marker {name} has no read in this scope"
+                    )));
                 };
                 return read(self, w);
             }
@@ -355,7 +387,11 @@ fn per_key_column(
 
 /// A parameter written where ONE value goes: a list parameter is bound only as a whole list.
 fn one_value<'a>(p: &PlanParam<'a>) -> Result<PlanParam<'a>, Refusal> {
-    if let TypeFact::Typed { r#type: SqlType::Array { .. }, .. } = p.r#type {
+    if let TypeFact::Typed {
+        r#type: SqlType::Array { .. },
+        ..
+    } = p.r#type
+    {
         return Err(Refusal::capability(format!(
             "list parameter '{}' is bound only as a whole list (in, contains); written where one value goes, it is \
              not bound",
@@ -367,12 +403,17 @@ fn one_value<'a>(p: &PlanParam<'a>) -> Result<PlanParam<'a>, Refusal> {
 
 /// A list parameter's bind: the whole list, as one array of its element's type.
 fn list_bind(p: &PlanParam<'_>) -> Result<Bind, Refusal> {
-    if let TypeFact::Typed { r#type: SqlType::Array { element }, .. } = p.r#type
+    if let TypeFact::Typed {
+        r#type: SqlType::Array { element },
+        ..
+    } = p.r#type
         && let SqlType::Scalar(element) = element.as_ref()
     {
         return Ok(Bind {
             parameter: p.name.to_owned(),
-            binding: Binding::Array { element_sql_type: element.as_str().to_owned() },
+            binding: Binding::Array {
+                element_sql_type: element.as_str().to_owned(),
+            },
         });
     }
     Err(Refusal::capability(format!(
@@ -385,7 +426,10 @@ fn list_bind(p: &PlanParam<'_>) -> Result<Bind, Refusal> {
 /// DATE or TIMESTAMP when `e` is typed so; none otherwise.
 pub(crate) fn temporal(e: &SqlExpr) -> Option<Scalar> {
     match e.r#type() {
-        TypeFact::Typed { r#type: SqlType::Scalar(s @ (Scalar::Date | Scalar::Timestamp)), .. } => Some(*s),
+        TypeFact::Typed {
+            r#type: SqlType::Scalar(s @ (Scalar::Date | Scalar::Timestamp)),
+            ..
+        } => Some(*s),
         _ => None,
     }
 }
@@ -428,7 +472,9 @@ fn insert_value(w: &mut SqlWriter, cell: &SqlExpr) -> Result<(), Refusal> {
             w.append("{\"$numberDouble\": \"").append(&text).append("\"}");
         }
         SqlExpr::DecimalLit { value, .. } => {
-            w.append("{\"$numberDecimal\": \"").append(&crate::java::big_decimal_plain(value.as_str())).append("\"}");
+            w.append("{\"$numberDecimal\": \"")
+                .append(&crate::java::big_decimal_plain(value.as_str()))
+                .append("\"}");
         }
         SqlExpr::BoolLit { value, .. } => {
             w.append(if *value { "true" } else { "false" });
@@ -466,7 +512,9 @@ impl MongoDb {
         }
         let mut w = SqlWriter::new();
         let collection = ddl_collection(schema, table)?;
-        w.append("{\"insert\": ").append(&json::string(&collection)).append(", \"documents\": [");
+        w.append("{\"insert\": ")
+            .append(&json::string(&collection))
+            .append(", \"documents\": [");
         for (r, row) in rows.iter().enumerate() {
             if row.len() != columns.len() {
                 return Err(Refusal::illegal_state(format!(
@@ -477,7 +525,9 @@ impl MongoDb {
             }
             w.append(if r > 0 { ", {" } else { "{" });
             for (c, cell) in row.iter().enumerate() {
-                w.append(if c > 0 { ", " } else { "" }).append(&json::key(&columns[c])?).append(": ");
+                w.append(if c > 0 { ", " } else { "" })
+                    .append(&json::key(&columns[c])?)
+                    .append(": ");
                 insert_value(&mut w, cell)?;
             }
             w.append("}");
@@ -507,7 +557,9 @@ impl AnsiSqlRenderer for MongoDb {
     /// The engine's H2 text has no translation into a pipeline.
     fn from_engine_text(&self, statement: &str) -> Result<String, Refusal> {
         let _ = statement;
-        Err(Refusal::capability("the engine's H2 text reached MongoDb, which runs no SQL text"))
+        Err(Refusal::capability(
+            "the engine's H2 text reached MongoDb, which runs no SQL text",
+        ))
     }
 
     fn passes(&self) -> Vec<Box<dyn SqlRewriter>> {
@@ -516,12 +568,19 @@ impl AnsiSqlRenderer for MongoDb {
 
     /// A collection's `_id` declared `OTHER` (an objectId) is read as its hex text.
     fn reads_stored(t: &ColumnType) -> bool {
-        matches!(t, ColumnType::Plain { kind: ColumnKind::Other })
+        matches!(
+            t,
+            ColumnType::Plain {
+                kind: ColumnKind::Other
+            }
+        )
     }
 
     fn stored_read(&self, w: &mut SqlWriter, column: &Column, stored: &ColumnType) -> Result<(), Refusal> {
         let _ = stored;
-        w.append("{\"$toString\": ").expr(self, &SqlExpr::Column(column.clone()), 0)?.append("}");
+        w.append("{\"$toString\": ")
+            .expr(self, &SqlExpr::Column(column.clone()), 0)?
+            .append("}");
         Ok(())
     }
 
@@ -571,7 +630,9 @@ impl AnsiSqlRenderer for MongoDb {
                 ));
             }
             SqlExpr::StarExcept { .. } => {
-                return Err(Refusal::capability("a star with excluded columns reached MongoDb: no shape yet"));
+                return Err(Refusal::capability(
+                    "a star with excluded columns reached MongoDb: no shape yet",
+                ));
             }
             SqlExpr::StringLit { value, .. } => json::literal(w, value),
             SqlExpr::FormatLit { parts, .. } => {
@@ -614,7 +675,9 @@ impl AnsiSqlRenderer for MongoDb {
                 w.append(&json::date_literal(iso)?);
             }
             SqlExpr::TimeLit { .. } => {
-                return Err(Refusal::capability("a time-of-day literal reached MongoDb, which has no time type"));
+                return Err(Refusal::capability(
+                    "a time-of-day literal reached MongoDb, which has no time type",
+                ));
             }
             SqlExpr::OrderedListAgg { .. } => {
                 return Err(Refusal::illegal_state(
@@ -625,7 +688,11 @@ impl AnsiSqlRenderer for MongoDb {
             SqlExpr::StructLit { fields, .. } => return self.struct_lit(w, fields),
             SqlExpr::StructGet { source, field, r#type } => return self.struct_get(w, source, field, r#type),
             SqlExpr::Call { r#fn, args, r#type } => return self.call(w, *r#fn, args, r#type, parent_prec),
-            SqlExpr::Case { whens, otherwise, r#type } => {
+            SqlExpr::Case {
+                whens,
+                otherwise,
+                r#type,
+            } => {
                 return self.case_expr(w, whens, otherwise.as_deref(), r#type);
             }
             SqlExpr::Exists { .. } => {
@@ -639,10 +706,14 @@ impl AnsiSqlRenderer for MongoDb {
                 ));
             }
             SqlExpr::CheckedDefects { .. } => {
-                return Err(Refusal::capability("nested checked defects reached MongoDb: no shape yet"));
+                return Err(Refusal::capability(
+                    "nested checked defects reached MongoDb: no shape yet",
+                ));
             }
             SqlExpr::CheckedChildValue { .. } => {
-                return Err(Refusal::capability("a checked child's value reached MongoDb: no shape yet"));
+                return Err(Refusal::capability(
+                    "a checked child's value reached MongoDb: no shape yet",
+                ));
             }
             SqlExpr::Quantified { .. } => {
                 return Err(Refusal::illegal_state(
@@ -653,7 +724,12 @@ impl AnsiSqlRenderer for MongoDb {
             SqlExpr::ScalarSubquery { .. } => {
                 return Err(Refusal::capability("a scalar subquery reached MongoDb: no shape yet"));
             }
-            SqlExpr::CheckedOne { list, scalar_carrier, at_least_only, .. } => {
+            SqlExpr::CheckedOne {
+                list,
+                scalar_carrier,
+                at_least_only,
+                ..
+            } => {
                 return self.checked_one(w, list, *scalar_carrier, *at_least_only, parent_prec);
             }
             SqlExpr::CompactList { list, .. } => return self.compact_list(w, list, parent_prec),
@@ -663,19 +739,36 @@ impl AnsiSqlRenderer for MongoDb {
                      dynamic column list first (DeferredTdsString id {id})"
                 )));
             }
-            SqlExpr::WindowCall { r#fn, partition_by, order_by, frame, .. } => {
+            SqlExpr::WindowCall {
+                r#fn,
+                partition_by,
+                order_by,
+                frame,
+                ..
+            } => {
                 return self.window_call(w, r#fn, partition_by, order_by, frame.as_ref());
             }
             SqlExpr::Lambda(l) => return self.lambda(w, l),
-            SqlExpr::Cast { value, target: SqlType::Tagged { .. }, .. } => {
+            SqlExpr::Cast {
+                value,
+                target: SqlType::Tagged { .. },
+                ..
+            } => {
                 w.expr(self, value, parent_prec)?;
             }
-            SqlExpr::Cast { value, target, conform, .. } => return self.variant_aware_cast(w, value, target, *conform),
+            SqlExpr::Cast {
+                value, target, conform, ..
+            } => return self.variant_aware_cast(w, value, target, *conform),
             SqlExpr::FoldCall { .. } => return self.fold_call(w, e),
             SqlExpr::JsonObject { kv, .. } => return self.json_object(w, kv),
             SqlExpr::JsonArray { elements, .. } => return self.json_array(w, elements),
             SqlExpr::JsonArrayAgg { value, order_keys, .. } => return self.json_array_agg(w, value, order_keys),
-            SqlExpr::ReduceCollection { reducer, collection, extras, .. } => {
+            SqlExpr::ReduceCollection {
+                reducer,
+                collection,
+                extras,
+                ..
+            } => {
                 return self.reduce_collection(w, *reducer, collection, extras);
             }
             SqlExpr::Membership { needle, collection, .. } => return self.membership(w, needle, collection),
@@ -712,7 +805,9 @@ impl AnsiSqlRenderer for MongoDb {
 
     fn struct_get(&self, w: &mut SqlWriter, source: &SqlExpr, field: &str, r#type: &TypeFact) -> Result<(), Refusal> {
         let _ = r#type;
-        w.append("{\"$getField\": {\"field\": ").append(&json::key(field)?).append(", \"input\": ");
+        w.append("{\"$getField\": {\"field\": ")
+            .append(&json::key(field)?)
+            .append(", \"input\": ");
         w.expr(self, source, 0)?.append("}}");
         Ok(())
     }
@@ -731,7 +826,9 @@ impl AnsiSqlRenderer for MongoDb {
             if i > 0 {
                 w.append(", ");
             }
-            w.append("{\"case\": ").expr(self, &wh.condition, 0)?.append(", \"then\": ");
+            w.append("{\"case\": ")
+                .expr(self, &wh.condition, 0)?
+                .append(", \"then\": ");
             w.expr(self, &wh.then, 0)?.append("}");
         }
         w.append("], \"default\": ");
@@ -764,7 +861,9 @@ impl AnsiSqlRenderer for MongoDb {
 
     fn lambda(&self, w: &mut SqlWriter, l: &Lambda) -> Result<(), Refusal> {
         let _ = (w, l);
-        Err(Refusal::illegal_state("a lambda reached the expression writer outside the list operator that applies it"))
+        Err(Refusal::illegal_state(
+            "a lambda reached the expression writer outside the list operator that applies it",
+        ))
     }
 
     fn variant_aware_cast(
@@ -781,7 +880,10 @@ impl AnsiSqlRenderer for MongoDb {
     /// A fold as `$reduce`, the lambda's Pure order (element, accumulator) read as `$$this` and `$$value`; the empty
     /// (null) collection folds to the initial value.
     fn fold_call(&self, w: &mut SqlWriter, fold: &SqlExpr) -> Result<(), Refusal> {
-        let SqlExpr::FoldCall { source, lambda, init, .. } = fold else {
+        let SqlExpr::FoldCall {
+            source, lambda, init, ..
+        } = fold
+        else {
             return Err(Refusal::illegal_state("fold_call is handed a FoldCall"));
         };
         if lambda.params.len() != 2 {
@@ -790,8 +892,11 @@ impl AnsiSqlRenderer for MongoDb {
                 java_text::strings(&lambda.params)
             )));
         }
-        w.append("{\"$reduce\": {\"input\": {\"$ifNull\": [").expr(self, source, 0)?;
-        w.append(", []]}, \"initialValue\": ").expr(self, init, 0)?.append(", \"in\": ");
+        w.append("{\"$reduce\": {\"input\": {\"$ifNull\": [")
+            .expr(self, source, 0)?;
+        w.append(", []]}, \"initialValue\": ")
+            .expr(self, init, 0)?
+            .append(", \"in\": ");
         self.with_lambda(w, lambda, &["this".to_owned(), "value".to_owned()], &of(&lambda.body))?;
         w.append("}}");
         Ok(())
@@ -829,7 +934,9 @@ impl AnsiSqlRenderer for MongoDb {
         order_keys: &[JsonArrayAggKey],
     ) -> Result<(), Refusal> {
         let _ = (w, value, order_keys);
-        Err(Refusal::illegal_state("a JSON array aggregate reached the expression writer outside a group stage"))
+        Err(Refusal::illegal_state(
+            "a JSON array aggregate reached the expression writer outside a group stage",
+        ))
     }
 
     /// A collection value reduced by an aggregate: its non-null elements, as the group reads reduce.
@@ -850,7 +957,9 @@ impl AnsiSqlRenderer for MongoDb {
         if let Some(p) = PlanParam::of(collection) {
             let body = pc(move |_, x| {
                 let bind = list_bind(&p)?;
-                x.append(&["{\"$in\": [", G0, ", "].concat()).bind_as(MARKER, bind).append("]}");
+                x.append(&["{\"$in\": [", G0, ", "].concat())
+                    .bind_as(MARKER, bind)
+                    .append("]}");
                 Ok(())
             });
             return json::guarded(self, w, std::slice::from_ref(needle), &body);
@@ -904,7 +1013,17 @@ impl AnsiSqlRenderer for MongoDb {
             self,
             w,
             args,
-            &text(["{\"$eq\": [{\"$size\": ", G0, "}, {\"$size\":", " {\"$setUnion\": [", G0, "]}}]}"].concat()),
+            &text(
+                [
+                    "{\"$eq\": [{\"$size\": ",
+                    G0,
+                    "}, {\"$size\":",
+                    " {\"$setUnion\": [",
+                    G0,
+                    "]}}]}",
+                ]
+                .concat(),
+            ),
         )
     }
 
@@ -914,16 +1033,25 @@ impl AnsiSqlRenderer for MongoDb {
 
     fn unnest_projection(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let _ = (w, args);
-        Err(Refusal::capability("an unnest reached MongoDb in expression position: an $unwind stage is not placed yet"))
+        Err(Refusal::capability(
+            "an unnest reached MongoDb in expression position: an $unwind stage is not placed yet",
+        ))
     }
 
     /// `struct_insert(struct, name, value)`: the document with the field merged in.
     fn struct_insert(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let SqlExpr::StringLit { value: name, .. } = crate::refusal::arg(args, 1)? else {
-            return Err(Refusal::capability("a struct insert with a computed field name reached MongoDb"));
+            return Err(Refusal::capability(
+                "a struct insert with a computed field name reached MongoDb",
+            ));
         };
-        w.append("{\"$mergeObjects\": [").expr(self, crate::refusal::arg(args, 0)?, 0)?.append(", {");
-        w.append(&json::key(name)?).append(": ").expr(self, crate::refusal::arg(args, 2)?, 0)?.append("}]}");
+        w.append("{\"$mergeObjects\": [")
+            .expr(self, crate::refusal::arg(args, 0)?, 0)?
+            .append(", {");
+        w.append(&json::key(name)?)
+            .append(": ")
+            .expr(self, crate::refusal::arg(args, 2)?, 0)?
+            .append("}]}");
         Ok(())
     }
 
@@ -967,7 +1095,9 @@ impl AnsiSqlRenderer for MongoDb {
                 ));
             }
             Scalar::Time => {
-                return Err(Refusal::capability("a cast to a time of day reached MongoDb, which has no time type"));
+                return Err(Refusal::capability(
+                    "a cast to a time of day reached MongoDb, which has no time type",
+                ));
             }
             Scalar::Json => return Err(Refusal::illegal_state("a cast to JSON is the value itself on MongoDb")),
             Scalar::DecimalText => return Err(Refusal::capability("a cast to a decimal's text reached MongoDb")),
@@ -977,7 +1107,9 @@ impl AnsiSqlRenderer for MongoDb {
 
     fn struct_type_name(&self, fields: &[StructField]) -> Result<String, Refusal> {
         let _ = fields;
-        Err(Refusal::capability("a cast to a struct type reached MongoDb, whose documents are untyped"))
+        Err(Refusal::capability(
+            "a cast to a struct type reached MongoDb, whose documents are untyped",
+        ))
     }
 
     /// `$dateToString`'s codes: the date and time parts to the millisecond; a name or a 12-hour part has none.
@@ -1004,7 +1136,9 @@ impl AnsiSqlRenderer for MongoDb {
         if matches!(scalar, Scalar::Date | Scalar::Timestamp) {
             return Ok("date".to_owned());
         }
-        Err(Refusal::capability(format!("a TYPEOF compared with {scalar}'s name reached MongoDb")))
+        Err(Refusal::capability(format!(
+            "a TYPEOF compared with {scalar}'s name reached MongoDb"
+        )))
     }
 
     /// A name is a JSON string: no quoting, no reserved words.
@@ -1033,14 +1167,18 @@ impl AnsiSqlRenderer for MongoDb {
                     return Err(Refusal::capability("a TIME column: MongoDB has no time-of-day type"));
                 }
                 ColumnKind::TimestampNs => {
-                    return Err(Refusal::capability("a TIMESTAMP_NS column: MongoDB's dates keep milliseconds"));
+                    return Err(Refusal::capability(
+                        "a TIMESTAMP_NS column: MongoDB's dates keep milliseconds",
+                    ));
                 }
                 ColumnKind::Varchar => "string",
                 ColumnKind::Json | ColumnKind::Object => "object",
                 ColumnKind::Array => "array",
                 ColumnKind::Other => "objectId",
                 ColumnKind::Distinct => {
-                    return Err(Refusal::illegal_state(format!("no DDL spelling for declared column type {kind}")));
+                    return Err(Refusal::illegal_state(format!(
+                        "no DDL spelling for declared column type {kind}"
+                    )));
                 }
             },
             ColumnType::Sized { .. } => "string",
@@ -1055,17 +1193,26 @@ impl AnsiSqlRenderer for MongoDb {
     /// collection.
     fn render_ddl(&self, ddl: &SqlDdl) -> Result<String, Refusal> {
         match ddl {
-            SqlDdl::CreateTable { schema, table, temporary, .. } => {
+            SqlDdl::CreateTable {
+                schema,
+                table,
+                temporary,
+                ..
+            } => {
                 if *temporary {
                     return Err(Refusal::capability(
                         "a temporary table reached MongoDb, which has no temporary collection",
                     ));
                 }
-                Ok(format!("{{\"create\": {}}}", json::string(&ddl_collection(schema.as_deref(), table)?)))
+                Ok(format!(
+                    "{{\"create\": {}}}",
+                    json::string(&ddl_collection(schema.as_deref(), table)?)
+                ))
             }
-            SqlDdl::DropTable { schema, table, .. } => {
-                Ok(format!("{{\"drop\": {}}}", json::string(&ddl_collection(schema.as_deref(), table)?)))
-            }
+            SqlDdl::DropTable { schema, table, .. } => Ok(format!(
+                "{{\"drop\": {}}}",
+                json::string(&ddl_collection(schema.as_deref(), table)?)
+            )),
             SqlDdl::CreateSchema { schema, .. } | SqlDdl::DropSchema { schema, .. } => {
                 Err(Refusal::capability(format!(
                     "a schema ({schema}) reached MongoDb: a collection's database is the connection's, and has no \
@@ -1079,9 +1226,13 @@ impl AnsiSqlRenderer for MongoDb {
     /// write are not shaped.
     fn render_dml(&self, dml: &SqlDml) -> Result<String, Refusal> {
         match dml {
-            SqlDml::InsertValues { schema, table, columns, rows, .. } => {
-                self.insert(schema.as_deref(), table, columns, rows)
-            }
+            SqlDml::InsertValues {
+                schema,
+                table,
+                columns,
+                rows,
+                ..
+            } => self.insert(schema.as_deref(), table, columns, rows),
             SqlDml::InsertFromTable { .. } => Err(Refusal::capability(
                 "a copy from a table reached MongoDb: an insert from another collection is not shaped yet",
             )),
@@ -1093,15 +1244,15 @@ impl AnsiSqlRenderer for MongoDb {
             SqlDml::InsertSelect { .. } => Err(Refusal::capability(
                 "an insert of a query's rows reached MongoDb: a store write is not shaped on MongoDb",
             )),
-            SqlDml::Update { .. } => {
-                Err(Refusal::capability("an update reached MongoDb: a store write is not shaped on MongoDb"))
-            }
+            SqlDml::Update { .. } => Err(Refusal::capability(
+                "an update reached MongoDb: a store write is not shaped on MongoDb",
+            )),
             SqlDml::DeleteWhere { .. } => Err(Refusal::capability(
                 "a delete of a condition's rows reached MongoDb: a store write is not shaped on MongoDb",
             )),
-            SqlDml::Merge { .. } => {
-                Err(Refusal::capability("a merge reached MongoDb: a store write is not shaped on MongoDb"))
-            }
+            SqlDml::Merge { .. } => Err(Refusal::capability(
+                "a merge reached MongoDb: a store write is not shaped on MongoDb",
+            )),
         }
     }
 }

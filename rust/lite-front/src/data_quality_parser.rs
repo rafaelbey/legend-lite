@@ -75,8 +75,11 @@ fn parse_validation<'s>(c: &mut impl Cursor<'s>) -> R<PDataQualityValidation> {
             ctx_path_span = c.span(s, c.pos() - 1);
             if c.match_tok(T::COMMA)? {
                 let s2 = c.pos();
-                let second =
-                    if c.peek() == T::STRING { string_value(c)? } else { unquote_path_iae(&c.parse_qualified_name()?)? };
+                let second = if c.peek() == T::STRING {
+                    string_value(c)?
+                } else {
+                    unquote_path_iae(&c.parse_qualified_name()?)?
+                };
                 ctx_second = Some(JStr(second));
                 if eq(&kind, "fromMappingAndRuntime") {
                     ctx_second_span = c.span(s2, c.pos() - 1);
@@ -98,7 +101,11 @@ fn parse_validation<'s>(c: &mut impl Cursor<'s>) -> R<PDataQualityValidation> {
     }
     c.expect(T::BRACE_CLOSE)?;
     let (Some(ctx_kind), Some(ctx_path), Some(tree)) = (ctx_kind, ctx_path, tree) else {
-        return Err(throw_at(c.tokens(), h.decl_start, JStr::from("DataQualityValidation needs context and validationTree")));
+        return Err(throw_at(
+            c.tokens(),
+            h.decl_start,
+            JStr::from("DataQualityValidation needs context and validationTree"),
+        ));
     };
     Ok(PDataQualityValidation {
         pkg: JStr(h.pkg),
@@ -135,7 +142,11 @@ fn parse_tree_node<'s>(c: &mut impl Cursor<'s>, root: bool) -> R<PDqTreeNode> {
     let mut constraints = Vec::new();
     if c.match_tok(T::LESS_THAN)? {
         while c.peek() != T::GREATER_THAN {
-            let v = if c.peek() == T::STRING { string_value(c)? } else { c.parse_identifier()? };
+            let v = if c.peek() == T::STRING {
+                string_value(c)?
+            } else {
+                c.parse_identifier()?
+            };
             constraints.push(JStr(v));
             if !c.match_tok(T::COMMA)? {
                 break;
@@ -165,7 +176,11 @@ fn parse_tree_node<'s>(c: &mut impl Cursor<'s>, root: bool) -> R<PDqTreeNode> {
         }
         c.expect(T::BRACE_CLOSE)?;
     }
-    let (class_name, property) = if root { (Some(JStr(qn)), None) } else { (None, Some(JStr(qn))) };
+    let (class_name, property) = if root {
+        (Some(JStr(qn)), None)
+    } else {
+        (None, Some(JStr(qn)))
+    };
     Ok(PDqTreeNode {
         class_name,
         property,
@@ -205,10 +220,18 @@ fn parse_relation_validation<'s>(c: &mut impl Cursor<'s>) -> R<PDataQualityRelat
     }
     c.expect(T::BRACE_CLOSE)?;
     if !seen.contains(&crate::ustr::u("validations")) {
-        return Err(throw_at(c.tokens(), h.decl_start, JStr::from("Field 'validations' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            h.decl_start,
+            JStr::from("Field 'validations' is required"),
+        ));
     }
     let Some(query) = query else {
-        return Err(throw_at(c.tokens(), h.decl_start, JStr::from("DataQualityRelationValidation needs a query")));
+        return Err(throw_at(
+            c.tokens(),
+            h.decl_start,
+            JStr::from("DataQualityRelationValidation needs a query"),
+        ));
     };
     Ok(PDataQualityRelationValidation {
         pkg: JStr(h.pkg),
@@ -260,7 +283,10 @@ fn parse_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PDqTestSuite>>> {
                     }
                 }
                 c.expect(T::BRACKET_CLOSE)?;
-                data = Some(Box::new(PDqTestData { test_data: entries, source_information: c.span(key_start, c.pos() - 1) }));
+                data = Some(Box::new(PDqTestData {
+                    test_data: entries,
+                    source_information: c.span(key_start, c.pos() - 1),
+                }));
             } else if eq(&key, "tests") {
                 let mut list = Vec::new();
                 c.expect(T::BRACKET_OPEN)?;
@@ -312,7 +338,12 @@ fn parse_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PDqTestSuite>>> {
         let Some(tests) = tests else {
             return Err(throw_at(c.tokens(), ss, JStr::from("Field 'tests' is required")));
         };
-        out.push(Box::new(PDqTestSuite { id: JStr(id), test_data: data, tests, source_information: c.span(ss, c.pos() - 1) }));
+        out.push(Box::new(PDqTestSuite {
+            id: JStr(id),
+            test_data: data,
+            tests,
+            source_information: c.span(ss, c.pos() - 1),
+        }));
         if !c.match_tok(T::COMMA)? {
             break;
         }
@@ -353,9 +384,18 @@ fn parse_checks<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDqRelationCheck>
         }
         c.expect(T::BRACE_CLOSE)?;
         let (Some(name), Some(assertion)) = (name, assertion) else {
-            return Err(throw_at(c.tokens(), element_anchor, JStr::from("validation needs name and assertion")));
+            return Err(throw_at(
+                c.tokens(),
+                element_anchor,
+                JStr::from("validation needs name and assertion"),
+            ));
         };
-        out.push(Box::new(PDqRelationCheck { name, description, assertion, r#type }));
+        out.push(Box::new(PDqRelationCheck {
+            name,
+            description,
+            assertion,
+            r#type,
+        }));
         if !c.match_tok(T::COMMA)? {
             break;
         }
@@ -396,9 +436,10 @@ fn parse_relation_comparison<'s>(c: &mut impl Cursor<'s>) -> R<PDataQualityRelat
             let num = c.slack_text();
             c.advance()?;
             // the engine's grammar takes a number alone here, and refuses the token (PARITY row 49)
-            expected_match = Some(parse_double(num).map_err(|_| {
-                crate::cursor::refused_at(c.tokens(), at, jcat!("Unexpected token '", shown, "'"))
-            })?);
+            expected_match = Some(
+                parse_double(num)
+                    .map_err(|_| crate::cursor::refused_at(c.tokens(), at, jcat!("Unexpected token '", shown, "'")))?,
+            );
         } else if eq(&key, "testSuites") {
             test_suites = Some(parse_test_suites(c)?);
             continue;
@@ -448,7 +489,11 @@ fn parse_recon_strategy<'s>(c: &mut impl Cursor<'s>) -> R<PReconStrategy> {
     let kind = c.parse_identifier()?;
     // the engine's grammar names one strategy; the record holds no place for its emitter to refuse at (PARITY row 76)
     if c.dialect() == crate::doors::Dialect::LegendEngine && !eq(&kind, "MD5Hash") {
-        return Err(crate::cursor::refused_at(c.tokens(), kind_at, jcat!("Unexpected token '", kind, "'")));
+        return Err(crate::cursor::refused_at(
+            c.tokens(),
+            kind_at,
+            jcat!("Unexpected token '", kind, "'"),
+        ));
     }
     let mut source_hash = None;
     let mut target_hash = None;
@@ -482,5 +527,10 @@ fn parse_recon_strategy<'s>(c: &mut impl Cursor<'s>) -> R<PReconStrategy> {
         }
         c.expect(T::BRACE_CLOSE)?;
     }
-    Ok(PReconStrategy { kind: JStr(kind), source_hash_column: source_hash, target_hash_column: target_hash, aggregated_hash: aggregated })
+    Ok(PReconStrategy {
+        kind: JStr(kind),
+        source_hash_column: source_hash,
+        target_hash_column: target_hash,
+        aggregated_hash: aggregated,
+    })
 }

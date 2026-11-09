@@ -175,8 +175,12 @@ static LEXICON: LazyLock<Lexicon> = LazyLock::new(|| Lexicon::new('"', RESERVED)
 
 /// Java's `Snowflake.CAPS`: semi-structured arrays with higher-order functions -- the strategies stand aside, as on
 /// DuckDB and Databricks; FULL OUTER is native.
-pub const CAPS: carrier::Caps =
-    carrier::Caps { native_lists: true, correlated_explode: true, json_carrier: true, native_full_outer: true };
+pub const CAPS: carrier::Caps = carrier::Caps {
+    native_lists: true,
+    correlated_explode: true,
+    json_carrier: true,
+    native_full_outer: true,
+};
 
 /// The session's one statement (Java's `sessionSetup`).
 pub const SESSION_SETUP: &str = "ALTER SESSION SET TIMEZONE = 'UTC', WEEK_START = 1, WEEK_OF_YEAR_POLICY = 1, \
@@ -232,7 +236,10 @@ fn is_double(e: &SqlExpr) -> bool {
 
 /// Java's `isInteger(t)`: INTEGER, BIGINT or HUGEINT.
 fn is_integer(t: Option<&SqlType>) -> bool {
-    matches!(t, Some(SqlType::Scalar(Scalar::Integer | Scalar::Bigint | Scalar::Hugeint)))
+    matches!(
+        t,
+        Some(SqlType::Scalar(Scalar::Integer | Scalar::Bigint | Scalar::Hugeint))
+    )
 }
 
 /// Java's `isTimestamp(e)`: a TIMESTAMP.
@@ -265,7 +272,11 @@ fn param_at(l: &Lambda, i: usize) -> Result<&str, Refusal> {
 /// trailing zeros carry its scale, which Snowflake drops from a literal's type).
 fn trailing_scale(text: &str) -> Option<(i64, i64)> {
     let (_, digits, scale) = unscaled(text);
-    let stripped = if digits == "0" { 0 } else { scale - (digits.len() - digits.trim_end_matches('0').len()) as i64 };
+    let stripped = if digits == "0" {
+        0
+    } else {
+        scale - (digits.len() - digits.trim_end_matches('0').len()) as i64
+    };
     (scale > 0 && stripped < scale).then_some((digits.len() as i64, scale))
 }
 
@@ -288,7 +299,11 @@ fn put<V>(into: &mut Vec<(String, V)>, key: String, value: V) {
 enum Sub {
     Text(String),
     /// `GET(xs, at)`, cast to `cast` when the list's element type is known
-    Element { xs: Rc<SqlExpr>, at: String, cast: Option<String> },
+    Element {
+        xs: Rc<SqlExpr>,
+        at: String,
+        cast: Option<String>,
+    },
 }
 
 /// A lambda being written (Java's `Scope`): its declared parameters, and the names it writes as [`Sub`]s.
@@ -313,7 +328,10 @@ struct Param {
 }
 
 fn param(name: &str, t: Option<&str>) -> Param {
-    Param { name: name.to_owned(), r#type: t.map(str::to_owned) }
+    Param {
+        name: name.to_owned(),
+        r#type: t.map(str::to_owned),
+    }
 }
 
 /// An element lambda over a list (Java's `Ranged`): the array it ranges over, the lambda, and whether it ranges over
@@ -327,7 +345,9 @@ struct Ranged<'a> {
 /// The positions of `xs`, 0-based (`NULL` for a NULL list): Java's `positions`.
 fn positions<'a>(d: &'a Snowflake, xs: &'a SqlExpr) -> P<'a> {
     pc(move |w| {
-        w.append("ARRAY_GENERATE_RANGE(0, ARRAY_SIZE(").expr(d, xs, 0)?.append("))");
+        w.append("ARRAY_GENERATE_RANGE(0, ARRAY_SIZE(")
+            .expr(d, xs, 0)?
+            .append("))");
         Ok(())
     })
 }
@@ -335,7 +355,9 @@ fn positions<'a>(d: &'a Snowflake, xs: &'a SqlExpr) -> P<'a> {
 /// `v` as a list element keeping a SQL NULL as JSON null (Java's `keepNull`).
 fn keep_null<'a>(d: &'a Snowflake, v: &'a SqlExpr) -> P<'a> {
     pc(move |w| {
-        w.append("COALESCE(TO_VARIANT(").expr(d, v, 0)?.append("), PARSE_JSON('null'))");
+        w.append("COALESCE(TO_VARIANT(")
+            .expr(d, v, 0)?
+            .append("), PARSE_JSON('null'))");
         Ok(())
     })
 }
@@ -351,7 +373,9 @@ fn collect_captured(e: &SqlExpr, bound: &HashSet<String>, scopes: &[Scope], out:
     if let SqlExpr::Column(c) = e {
         let name = c.table.as_deref().unwrap_or(&c.name);
         if !bound.contains(name)
-            && scopes.iter().any(|s| s.params.iter().any(|p| p == name) || s.subs.iter().any(|(k, _)| k == name))
+            && scopes
+                .iter()
+                .any(|s| s.params.iter().any(|p| p == name) || s.subs.iter().any(|(k, _)| k == name))
             && !out.iter().any(|o| o == name)
         {
             out.push(name.to_owned());
@@ -476,7 +500,11 @@ impl Snowflake {
                     Some(t) => format!("{} {t}", self.delimited(&p.name)),
                 })
                 .collect();
-            let head = if decl.len() == 1 { decl[0].clone() } else { format!("({})", decl.join(", ")) };
+            let head = if decl.len() == 1 {
+                decl[0].clone()
+            } else {
+                format!("({})", decl.join(", "))
+            };
             w.append(&head).append(" -> ");
             let mut names: Vec<String> = Vec::new();
             for p in &params {
@@ -484,7 +512,10 @@ impl Snowflake {
                     names.push(p.name.clone());
                 }
             }
-            self.scopes.borrow_mut().push(Scope { params: names, subs: subs.clone() });
+            self.scopes.borrow_mut().push(Scope {
+                params: names,
+                subs: subs.clone(),
+            });
             let written = body(w);
             self.scopes.borrow_mut().pop();
             written
@@ -503,8 +534,16 @@ impl Snowflake {
         let element = list_element(xs);
         if l.params.len() == 1 {
             let t = self.param_type(element)?;
-            let lambda = self.lambda_of(vec![param(&l.params[0], t.as_deref())], Vec::new(), body(self.ex(&l.body, 0)));
-            return Ok(Ranged { over: self.ex(xs, 0), lambda, positions: false });
+            let lambda = self.lambda_of(
+                vec![param(&l.params[0], t.as_deref())],
+                Vec::new(),
+                body(self.ex(&l.body, 0)),
+            );
+            return Ok(Ranged {
+                over: self.ex(xs, 0),
+                lambda,
+                positions: false,
+            });
         }
         if l.params.len() != 2 {
             return Err(Refusal::capability(format!(
@@ -516,10 +555,22 @@ impl Snowflake {
         let i_ref = self.delimited(&i);
         let mut subs = Vec::new();
         let cast = self.cast_of(element)?;
-        put(&mut subs, l.params[0].clone(), Sub::Element { xs: Rc::new(xs.clone()), at: i_ref.clone(), cast });
+        put(
+            &mut subs,
+            l.params[0].clone(),
+            Sub::Element {
+                xs: Rc::new(xs.clone()),
+                at: i_ref.clone(),
+                cast,
+            },
+        );
         put(&mut subs, l.params[1].clone(), Sub::Text(format!("({i_ref} + 1)")));
         let lambda = self.lambda_of(vec![param(&i, Some("INTEGER"))], subs, body(self.ex(&l.body, 0)));
-        Ok(Ranged { over: positions(self, xs), lambda, positions: true })
+        Ok(Ranged {
+            over: positions(self, xs),
+            lambda,
+            positions: true,
+        })
     }
 
     /// The names `l`'s body reads that an enclosing lambda binds (Java's `captured`): carried in by
@@ -561,14 +612,21 @@ impl Snowflake {
             let kept = kept.clone();
             let element = self.delimited(&element);
             pc(move |w| {
-                w.append("IFF(").expr(self, &l.body, 0)?.append(", ARRAY_APPEND(").append(&kept);
+                w.append("IFF(")
+                    .expr(self, &l.body, 0)?
+                    .append(", ARRAY_APPEND(")
+                    .append(&kept);
                 w.append(&format!(", {element}), ")).append(&kept).append(")");
                 Ok(())
             })
         } else {
             let kept = kept.clone();
             pc(move |w| {
-                w.append("ARRAY_APPEND(").append(&kept).append(", ").expr(self, &l.body, 0)?.append(")");
+                w.append("ARRAY_APPEND(")
+                    .append(&kept)
+                    .append(", ")
+                    .expr(self, &l.body, 0)?
+                    .append(")");
                 Ok(())
             })
         };
@@ -601,7 +659,11 @@ impl Snowflake {
             step,
         );
         Ok(pc(move |w| {
-            w.append("CAST(GET(REDUCE(").expr(self, xs, 0)?.append(", ").piece(&*start)?.append(", ");
+            w.append("CAST(GET(REDUCE(")
+                .expr(self, xs, 0)?
+                .append(", ")
+                .piece(&*start)?
+                .append(", ");
             w.piece(&*lambda)?.append("), 'r') AS ARRAY)");
             Ok(())
         }))
@@ -621,8 +683,10 @@ impl Snowflake {
                 let owner = {
                     let laterals = self.laterals.borrow();
                     laterals.last().and_then(|innermost| {
-                        let owners: Vec<&(String, Vec<(String, SqlExpr)>)> =
-                            innermost.iter().filter(|(_, cols)| cols.iter().any(|(n, _)| *n == c.name)).collect();
+                        let owners: Vec<&(String, Vec<(String, SqlExpr)>)> = innermost
+                            .iter()
+                            .filter(|(_, cols)| cols.iter().any(|(n, _)| *n == c.name))
+                            .collect();
                         (owners.len() == 1).then(|| {
                             let (alias, cols) = owners[0];
                             let list = cols.iter().find(|(n, _)| *n == c.name).map(|(_, l)| l.clone());
@@ -639,7 +703,11 @@ impl Snowflake {
             w.append(&text);
             return Ok(());
         };
-        let r = if self.scopes.borrow().is_empty() { Binding::None } else { self.resolve(table)? };
+        let r = if self.scopes.borrow().is_empty() {
+            Binding::None
+        } else {
+            self.resolve(table)?
+        };
         if !matches!(r, Binding::None) {
             let param: P<'_> = match r {
                 Binding::Sub(sub) => pc(move |w| self.write_sub(w, &sub)),
@@ -715,8 +783,11 @@ impl Snowflake {
 
     /// A marker's FLATTEN input: the positions of its longest list (Java's `markerPositions`).
     fn marker_positions<'a>(&'a self, m: &'a SqlSelect) -> Result<P<'a>, Refusal> {
-        let lists =
-            m.projections.iter().map(|p| explosion_markers::unnest_list(&p.expr)).collect::<Result<Vec<_>, _>>()?;
+        let lists = m
+            .projections
+            .iter()
+            .map(|p| explosion_markers::unnest_list(&p.expr))
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(pc(move |w| {
             w.append("ARRAY_GENERATE_RANGE(0, ");
             if lists.len() == 1 {
@@ -742,7 +813,9 @@ impl Snowflake {
                 self.star(right, into)
             }
             SqlSource::Subselect { inner, alias, .. } if is_marker(inner) => {
-                let SqlQuery::Select(m) = inner.as_ref() else { unreachable!("a marker is a select") };
+                let SqlQuery::Select(m) = inner.as_ref() else {
+                    unreachable!("a marker is a select")
+                };
                 for p in &m.projections {
                     let name = marker_column(p)?;
                     let read = exploded_read(alias, p, p.out.as_ref().map(|o| &o.r#type))?;
@@ -781,8 +854,11 @@ impl Snowflake {
         } else {
             // a list's element, min or max over the NULL list is NULL: written as its slot's NULL
             let root = self.root_labels();
-            let labels: &[OutputCol] =
-                if depth == 0 && root.len() == s.projections.len() { &root } else { &s.outputs };
+            let labels: &[OutputCol] = if depth == 0 && root.len() == s.projections.len() {
+                &root
+            } else {
+                &s.outputs
+            };
             let aligned = labels.len() == s.projections.len();
             ansi::projections_with(w, &s.projections, &|w, i| {
                 let p = &s.projections[i];
@@ -829,7 +905,8 @@ impl Snowflake {
         }
         if !s.order_by.is_empty() {
             self.nl(w, depth);
-            w.append("ORDER BY ").join(&s.order_by, ", ", |w, k| self.sort_key(w, k))?;
+            w.append("ORDER BY ")
+                .join(&s.order_by, ", ", |w, k| self.sort_key(w, k))?;
         }
         if let Some(limit) = s.limit {
             self.nl(w, depth);
@@ -849,7 +926,9 @@ impl Snowflake {
 /// The source of a FROM bound to `alias` (Java's `sourceNamed`).
 fn source_named<'a>(from: &'a SqlSource, alias: &str) -> Result<&'a SqlSource, Refusal> {
     source_named_or_none(from, alias)?.ok_or_else(|| {
-        Refusal::capability(format!("a star over '{alias}', which the FROM does not bind, reached Snowflake"))
+        Refusal::capability(format!(
+            "a star over '{alias}', which the FROM does not bind, reached Snowflake"
+        ))
     })
 }
 
@@ -897,7 +976,10 @@ fn conjuncts<'a>(e: Option<&'a SqlExpr>, into: &mut Vec<&'a SqlExpr>) {
     if matches!(e, SqlExpr::BoolLit { value: true, .. }) {
         return;
     }
-    if let SqlExpr::Call { r#fn: SqlFn::And, args, .. } = e {
+    if let SqlExpr::Call {
+        r#fn: SqlFn::And, args, ..
+    } = e
+    {
         for x in args {
             conjuncts(Some(x), into);
         }
@@ -910,7 +992,10 @@ fn conjuncts<'a>(e: Option<&'a SqlExpr>, into: &mut Vec<&'a SqlExpr>) {
 fn inequality(e: &SqlExpr) -> bool {
     matches!(
         e,
-        SqlExpr::Call { r#fn: SqlFn::Greater | SqlFn::GreaterEqual | SqlFn::Less | SqlFn::LessEqual, .. }
+        SqlExpr::Call {
+            r#fn: SqlFn::Greater | SqlFn::GreaterEqual | SqlFn::Less | SqlFn::LessEqual,
+            ..
+        }
     )
 }
 
@@ -943,7 +1028,10 @@ fn microseconds(iso: &str) -> String {
     let Some(dot) = units.iter().rposition(|&u| u == u16::from(b'.')) else {
         return iso.to_owned();
     };
-    let digits = units[dot + 1..].iter().take_while(|&&u| lite_javacompat::character::is_digit(u)).count();
+    let digits = units[dot + 1..]
+        .iter()
+        .take_while(|&&u| lite_javacompat::character::is_digit(u))
+        .count();
     if digits > 6 {
         let kept = String::from_utf16_lossy(&units[..dot + 7]);
         let rest = String::from_utf16_lossy(&units[dot + 1 + digits..]);
@@ -969,8 +1057,10 @@ fn quoted(value: &str) -> String {
 pub struct PivotAsGroupBy;
 
 /// Snowflake's own words for the shared pass's two refusals.
-const PIVOT_WORDS: shared_passes::PivotWords =
-    shared_passes::PivotWords { no_argument: None, unnamed_value: " reached Snowflake without a column name" };
+const PIVOT_WORDS: shared_passes::PivotWords = shared_passes::PivotWords {
+    no_argument: None,
+    unnamed_value: " reached Snowflake without a column name",
+};
 
 impl SqlRewriter for PivotAsGroupBy {
     fn name(&self) -> &'static str {
@@ -1023,7 +1113,9 @@ impl AnsiSqlRenderer for Snowflake {
     /// The engine's H2 text is refused here: Snowflake has no translation of it.
     fn from_engine_text(&self, statement: &str) -> Result<String, Refusal> {
         let _ = statement;
-        Err(Refusal::capability("the engine's H2 text reached Snowflake, which has no translation of it"))
+        Err(Refusal::capability(
+            "the engine's H2 text reached Snowflake, which has no translation of it",
+        ))
     }
 
     /// Spelled here ([`Snowflake::float_canon`]).
@@ -1065,21 +1157,31 @@ impl AnsiSqlRenderer for Snowflake {
     }
 
     fn row_order_column(&self) -> Result<String, Refusal> {
-        Err(Refusal::capability("row order reached Snowflake, which has no row-order column"))
+        Err(Refusal::capability(
+            "row order reached Snowflake, which has no row-order column",
+        ))
     }
 
     /// The as-of join is written whole by `source`.
     fn as_of_join_clause(&self) -> Result<String, Refusal> {
-        Err(Refusal::illegal_state("an as-of join reached the base join writer: Snowflake's source() writes it"))
+        Err(Refusal::illegal_state(
+            "an as-of join reached the base join writer: Snowflake's source() writes it",
+        ))
     }
 
     fn pivot_source(&self, w: &mut SqlWriter, pivot: &SqlSource, depth: usize) -> Result<(), Refusal> {
         let _ = (w, depth);
-        let SqlSource::Pivot { on, r#in, .. } = pivot else { unreachable!("a pivot") };
+        let SqlSource::Pivot { on, r#in, .. } = pivot else {
+            unreachable!("a pivot")
+        };
         Err(Refusal::capability(format!(
             "a pivot reached the Snowflake writer: PivotAsGroupBy emulates a static one{}; this one has {} pivot \
              columns",
-            if r#in.is_empty() { " (a dynamic pivot is discovered first: needsStaticPivot)" } else { "" },
+            if r#in.is_empty() {
+                " (a dynamic pivot is discovered first: needsStaticPivot)"
+            } else {
+                ""
+            },
             on.len()
         )))
     }
@@ -1091,12 +1193,19 @@ impl AnsiSqlRenderer for Snowflake {
             let alias = self.fresh_name("u");
             // the root's slots are the plan's own labels, before this dialect's passes re-typed its expressions
             let root = self.root_labels();
-            let labels: &[OutputCol] =
-                if depth == 0 && root.len() == s.projections.len() { &root } else { &s.outputs };
+            let labels: &[OutputCol] = if depth == 0 && root.len() == s.projections.len() {
+                &root
+            } else {
+                &s.outputs
+            };
             let aligned = labels.len() == s.projections.len();
             let mut ps = Vec::with_capacity(s.projections.len());
             for (i, p) in s.projections.iter().enumerate() {
-                let slot = if aligned { Some(&labels[i].r#type) } else { p.out.as_ref().map(|o| &o.r#type) };
+                let slot = if aligned {
+                    Some(&labels[i].r#type)
+                } else {
+                    p.out.as_ref().map(|o| &o.r#type)
+                };
                 let read = exploded_read(&alias, p, slot)?;
                 ps.push(build::projection(read, Some(marker_column(p)?), p.out.clone())?);
             }
@@ -1126,7 +1235,10 @@ impl AnsiSqlRenderer for Snowflake {
     /// A marker's FLATTEN over its positions (a lateral one CROSS JOINed, a LEFT one with `OUTER => TRUE`); an as-of
     /// join's inequality as its MATCH_CONDITION.
     fn source(&self, w: &mut SqlWriter, src: &SqlSource, depth: usize) -> Result<(), Refusal> {
-        if let SqlSource::Join { left, right, kind, on, .. } = src {
+        if let SqlSource::Join {
+            left, right, kind, on, ..
+        } = src
+        {
             if let SqlSource::Subselect { inner, alias, .. } = right.as_ref()
                 && let SqlQuery::Select(m) = inner.as_ref()
                 && is_marker_select(m)
@@ -1135,14 +1247,20 @@ impl AnsiSqlRenderer for Snowflake {
                 if let Some(on) = on
                     && !matches!(on.as_ref(), SqlExpr::BoolLit { value: true, .. })
                 {
-                    return Err(Refusal::capability("a lateral explosion with a join condition reached Snowflake"));
+                    return Err(Refusal::capability(
+                        "a lateral explosion with a join condition reached Snowflake",
+                    ));
                 }
                 self.source(w, left, depth)?;
                 self.nl(w, depth);
                 let positions = self.marker_positions(m)?;
                 w.append("CROSS JOIN LATERAL FLATTEN(INPUT => ").piece(&*positions)?;
                 let a = self.alias_ident(alias);
-                w.append(if *kind == JoinKind::LeftLateral { ", OUTER => TRUE" } else { "" });
+                w.append(if *kind == JoinKind::LeftLateral {
+                    ", OUTER => TRUE"
+                } else {
+                    ""
+                });
                 w.append(") AS ").append(&a);
                 return Ok(());
             }
@@ -1183,7 +1301,11 @@ impl AnsiSqlRenderer for Snowflake {
             w.append(")) AS ").append(&a);
             return Ok(());
         }
-        if let SqlSource::Join { kind: JoinKind::LeftLateral, .. } = src {
+        if let SqlSource::Join {
+            kind: JoinKind::LeftLateral,
+            ..
+        } = src
+        {
             return Err(Refusal::capability(
                 "a LEFT JOIN LATERAL of a subquery reached Snowflake (only FLATTEN joins laterally, and without ON)",
             ));
@@ -1282,7 +1404,12 @@ impl AnsiSqlRenderer for Snowflake {
             return Ok("CAST('NaN' AS DOUBLE)".to_owned());
         }
         if v.is_infinite() {
-            return Ok(if v > 0.0 { "CAST('inf' AS DOUBLE)" } else { "CAST('-inf' AS DOUBLE)" }.to_owned());
+            return Ok(if v > 0.0 {
+                "CAST('inf' AS DOUBLE)"
+            } else {
+                "CAST('-inf' AS DOUBLE)"
+            }
+            .to_owned());
         }
         let plain = crate::java::plain_float(v)?;
         if let Some(digits) = crate::java::float_decimal(v)?
@@ -1315,9 +1442,11 @@ impl AnsiSqlRenderer for Snowflake {
         match kind {
             ValueKind::Date => Ok(TypeSpelling::new("DATE", Digits::None)),
             ValueKind::DateTime => Ok(TypeSpelling::new("TIMESTAMP_NTZ", Digits::None)),
-            ValueKind::DateTimeNanos => {
-                Ok(TypeSpelling { name: "TIMESTAMP_NTZ".to_owned(), digits: Digits::None, fraction: Some(6) })
-            }
+            ValueKind::DateTimeNanos => Ok(TypeSpelling {
+                name: "TIMESTAMP_NTZ".to_owned(),
+                digits: Digits::None,
+                fraction: Some(6),
+            }),
             ValueKind::Integer | ValueKind::Decimal | ValueKind::Floating => ansi::hole_type(kind),
         }
     }
@@ -1337,7 +1466,9 @@ impl AnsiSqlRenderer for Snowflake {
             Scalar::Json => "VARIANT",
             Scalar::Time => "TIME",
             Scalar::DecimalText => {
-                return Err(Refusal::illegal_state(format!("{s} cast reached a dialect without {s} support")));
+                return Err(Refusal::illegal_state(format!(
+                    "{s} cast reached a dialect without {s} support"
+                )));
             }
         }
         .to_owned())
@@ -1361,7 +1492,9 @@ impl AnsiSqlRenderer for Snowflake {
                 ColumnKind::Json => "VARIANT",
                 ColumnKind::Varchar => "VARCHAR",
                 ColumnKind::Other | ColumnKind::Distinct => {
-                    return Err(Refusal::illegal_state(format!("no DDL spelling for declared column type {kind}")));
+                    return Err(Refusal::illegal_state(format!(
+                        "no DDL spelling for declared column type {kind}"
+                    )));
                 }
                 ColumnKind::Array => "ARRAY",
                 ColumnKind::Object => "OBJECT",
@@ -1380,12 +1513,16 @@ impl AnsiSqlRenderer for Snowflake {
             SqlExpr::Column(c) if c.origin == Some(Origin::PerKey) => ansi::expr(self, w, e, parent_prec),
             SqlExpr::Column(c) => self.column(w, c),
             SqlExpr::OrderedListAgg { value, order_by, .. } => {
-                w.append("ARRAY_AGG(").piece(&*keep_null(self, value))?.append(") WITHIN GROUP (ORDER BY ");
+                w.append("ARRAY_AGG(")
+                    .piece(&*keep_null(self, value))?
+                    .append(") WITHIN GROUP (ORDER BY ");
                 w.expr(self, order_by, 0)?.append(")");
                 Ok(())
             }
             SqlExpr::Membership { collection, .. } if matches!(collection.as_ref(), SqlExpr::PlanParam { .. }) => {
-                let SqlExpr::PlanParam { name, .. } = collection.as_ref() else { unreachable!("a plan parameter") };
+                let SqlExpr::PlanParam { name, .. } = collection.as_ref() else {
+                    unreachable!("a plan parameter")
+                };
                 Err(Refusal::capability(format!(
                     "list parameter '{name}' reached Snowflake, which binds no array (= ANY(?))"
                 )))
@@ -1394,16 +1531,25 @@ impl AnsiSqlRenderer for Snowflake {
             SqlExpr::DecimalLit { value, r#type } if trailing_scale(value.as_str()).is_some() => {
                 let (precision, scale) = trailing_scale(value.as_str()).expect("a trailing scale");
                 let t = match r#type {
-                    TypeFact::Typed { r#type: dd @ SqlType::Decimal { .. }, .. } => cast_type_name(self, dd)?,
+                    TypeFact::Typed {
+                        r#type: dd @ SqlType::Decimal { .. },
+                        ..
+                    } => cast_type_name(self, dd)?,
                     _ => format!("NUMBER({},{scale})", precision.max(scale)),
                 };
-                w.append(&format!("CAST({} AS {t})", crate::java::big_decimal_plain(value.as_str())));
+                w.append(&format!(
+                    "CAST({} AS {t})",
+                    crate::java::big_decimal_plain(value.as_str())
+                ));
                 Ok(())
             }
             // Java's `reduceCollection(writer, rc)` reads the node's own type: its arm takes the node
-            SqlExpr::ReduceCollection { reducer, collection, extras, r#type } => {
-                self.reduce_collection_arm(w, *reducer, collection, extras, r#type)
-            }
+            SqlExpr::ReduceCollection {
+                reducer,
+                collection,
+                extras,
+                r#type,
+            } => self.reduce_collection_arm(w, *reducer, collection, extras, r#type),
             other => ansi::expr(self, w, other, parent_prec),
         }
     }
@@ -1436,7 +1582,10 @@ impl AnsiSqlRenderer for Snowflake {
     /// exists([]) is false: the kept elements are some.
     fn list_exists(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let r = self.ranged(arg(args, 0)?, lambda_arg(arg(args, 1)?)?, |b| b)?;
-        w.append("COALESCE(ARRAY_SIZE(FILTER(").piece(&*r.over)?.append(", ").piece(&*r.lambda)?;
+        w.append("COALESCE(ARRAY_SIZE(FILTER(")
+            .piece(&*r.over)?
+            .append(", ")
+            .piece(&*r.lambda)?;
         w.append(")) > 0, FALSE)");
         Ok(())
     }
@@ -1449,22 +1598,33 @@ impl AnsiSqlRenderer for Snowflake {
                 Ok(())
             })
         })?;
-        w.append("COALESCE(ARRAY_SIZE(FILTER(").piece(&*r.over)?.append(", ").piece(&*r.lambda)?;
+        w.append("COALESCE(ARRAY_SIZE(FILTER(")
+            .piece(&*r.over)?
+            .append(", ")
+            .piece(&*r.lambda)?;
         w.append(")) = 0, TRUE)");
         Ok(())
     }
 
     /// No duplicates iff the distinct non-NULL count is the count.
     fn all_distinct(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("COALESCE(ARRAY_SIZE(ARRAY_DISTINCT(ARRAY_COMPACT(").expr(self, arg(args, 0)?, 0)?;
-        w.append("))) = ARRAY_SIZE(").expr(self, arg(args, 0)?, 0)?.append("), TRUE)");
+        w.append("COALESCE(ARRAY_SIZE(ARRAY_DISTINCT(ARRAY_COMPACT(")
+            .expr(self, arg(args, 0)?, 0)?;
+        w.append("))) = ARRAY_SIZE(")
+            .expr(self, arg(args, 0)?, 0)?
+            .append("), TRUE)");
         Ok(())
     }
 
     /// DuckDB's list_contains: NULL for a NULL needle or list.
     fn membership(&self, w: &mut SqlWriter, needle: &SqlExpr, collection: &SqlExpr) -> Result<(), Refusal> {
-        w.append("(CASE WHEN ").expr(self, needle, 4)?.append(" IS NULL THEN NULL ELSE ARRAY_CONTAINS(TO_VARIANT(");
-        w.expr(self, needle, 0)?.append("), ").expr(self, collection, 0)?.append(") END)");
+        w.append("(CASE WHEN ")
+            .expr(self, needle, 4)?
+            .append(" IS NULL THEN NULL ELSE ARRAY_CONTAINS(TO_VARIANT(");
+        w.expr(self, needle, 0)?
+            .append("), ")
+            .expr(self, collection, 0)?
+            .append(") END)");
         Ok(())
     }
 
@@ -1524,7 +1684,9 @@ impl AnsiSqlRenderer for Snowflake {
             }
         }
         let Some(t) = t else {
-            return Err(Refusal::capability(format!("a field '{field}' of unknown type reached Snowflake")));
+            return Err(Refusal::capability(format!(
+                "a field '{field}' of unknown type reached Snowflake"
+            )));
         };
         let get = pc(move |w| {
             w.append("GET(").expr(self, source, 0)?.append(", ");
@@ -1539,8 +1701,13 @@ impl AnsiSqlRenderer for Snowflake {
 
     /// The struct with one field set (a NULL kept as JSON null).
     fn struct_insert(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("OBJECT_INSERT(").expr(self, arg(args, 0)?, 0)?.append(", ").expr(self, arg(args, 1)?, 0)?;
-        w.append(", ").piece(&*keep_null(self, arg(args, 2)?))?.append(", TRUE)");
+        w.append("OBJECT_INSERT(")
+            .expr(self, arg(args, 0)?, 0)?
+            .append(", ")
+            .expr(self, arg(args, 1)?, 0)?;
+        w.append(", ")
+            .piece(&*keep_null(self, arg(args, 2)?))?
+            .append(", TRUE)");
         Ok(())
     }
 
@@ -1548,7 +1715,10 @@ impl AnsiSqlRenderer for Snowflake {
 
     fn variant_construct(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() != 1 {
-            return Err(Refusal::capability(format!("toVariant of {} arguments reached Snowflake", a.len())));
+            return Err(Refusal::capability(format!(
+                "toVariant of {} arguments reached Snowflake",
+                a.len()
+            )));
         }
         w.append("TO_VARIANT(").expr(self, &a[0], 0)?.append(")");
         Ok(())
@@ -1588,7 +1758,11 @@ impl AnsiSqlRenderer for Snowflake {
     /// A projection that IS error() raised in its column's type, as a CASE branch is.
     fn projection_value(&self, w: &mut SqlWriter, p: &Projection) -> Result<(), Refusal> {
         if let Some(out) = &p.out
-            && let SqlExpr::Call { r#fn: SqlFn::Error, args, .. } = &p.expr
+            && let SqlExpr::Call {
+                r#fn: SqlFn::Error,
+                args,
+                ..
+            } = &p.expr
         {
             let raised = self.raise(args, Some(&out.r#type))?;
             w.piece(&*raised)?;
@@ -1691,7 +1865,9 @@ impl AnsiSqlRenderer for Snowflake {
         w.append("ARRAY_AGG(").piece(&*keep_null(self, value))?.append(")");
         if !order_keys.is_empty() {
             w.append(" WITHIN GROUP (ORDER BY ").join(order_keys, ", ", |w, k| {
-                w.expr(self, &k.expr, 0)?.append(if k.desc { " DESC" } else { " ASC" }).append(" NULLS LAST");
+                w.expr(self, &k.expr, 0)?
+                    .append(if k.desc { " DESC" } else { " ASC" })
+                    .append(" NULLS LAST");
                 Ok(())
             })?;
             w.append(")");
@@ -1721,7 +1897,9 @@ impl AnsiSqlRenderer for Snowflake {
         if scalar == Scalar::Date {
             return Ok("DATE".to_owned());
         }
-        Err(Refusal::capability(format!("a TYPEOF compared with {scalar}'s name reached Snowflake")))
+        Err(Refusal::capability(format!(
+            "a TYPEOF compared with {scalar}'s name reached Snowflake"
+        )))
     }
 }
 
@@ -1729,7 +1907,11 @@ impl Snowflake {
     /// A CASE branch: error() raised in the CASE's own type, any other value as it is (Java's `branch`).
     fn branch<'a>(&'a self, value: &'a SqlExpr, slot: Option<&SqlType>) -> Result<P<'a>, Refusal> {
         match value {
-            SqlExpr::Call { r#fn: SqlFn::Error, args, .. } => self.raise(args, slot),
+            SqlExpr::Call {
+                r#fn: SqlFn::Error,
+                args,
+                ..
+            } => self.raise(args, slot),
             other => Ok(self.ex(other, 0)),
         }
     }

@@ -88,25 +88,40 @@ fn ddl_and_dml_are_collection_commands() {
     );
     let delete =
         r#"{"dml":{"_type":"deleteAll","schema":null,"table":"Trades","quoting":{"schema":false,"table":false}}}"#;
-    assert_eq!(ok("dml.render", delete), r#""{\"delete\": \"Trades\", \"deletes\": [{\"q\": {}, \"limit\": 0}]}""#);
+    assert_eq!(
+        ok("dml.render", delete),
+        r#""{\"delete\": \"Trades\", \"deletes\": [{\"q\": {}, \"limit\": 0}]}""#
+    );
     let schema = CREATE.replace("\"schema\":null", "\"schema\":\"S\"");
     let r = refused("ddl.render", &wrap("ddl", &schema));
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("DIALECT_CAPABILITY", "a schema-qualified table (S.Trades) reached MongoDb: a collection has no schema")
+        (
+            "DIALECT_CAPABILITY",
+            "a schema-qualified table (S.Trades) reached MongoDb: a collection has no schema"
+        )
     );
-    let r = refused("ddl.render", r#"{"ddl":{"_type":"createSchema","schema":"S","quoted":false}}"#);
+    let r = refused(
+        "ddl.render",
+        r#"{"ddl":{"_type":"createSchema","schema":"S","quoted":false}}"#,
+    );
     assert_eq!(
         r.message,
         "a schema (S) reached MongoDb: a collection's database is the connection's, and has no schema"
     );
     // the interface's default session table: the table, then its insert -- a temporary one has no collection
-    assert_eq!(ok("sessionTable", &format!(r#"{{"table":{CREATE},"rows":{INSERT}}}"#)), format!("[{create},{insert}]"));
+    assert_eq!(
+        ok("sessionTable", &format!(r#"{{"table":{CREATE},"rows":{INSERT}}}"#)),
+        format!("[{create},{insert}]")
+    );
     let temporary = CREATE.replace("\"temporary\":false", "\"temporary\":true");
     let r = refused("sessionTable", &format!(r#"{{"table":{temporary},"rows":null}}"#));
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("DIALECT_CAPABILITY", "a temporary table reached MongoDb, which has no temporary collection")
+        (
+            "DIALECT_CAPABILITY",
+            "a temporary table reached MongoDb, which has no temporary collection"
+        )
     );
 }
 
@@ -115,21 +130,45 @@ fn names_are_json_strings() {
     // no quoting, no reserved words
     assert_eq!(ok("physicalName", r#"{"name":"select"}"#), r#""select""#);
     assert_eq!(ok("storedName", r#"{"name":"a b","declaredQuoted":true}"#), r#""a b""#);
-    assert_eq!(ok("storedName", r#"{"name":"Orders","declaredQuoted":false}"#), r#""Orders""#);
-    assert_eq!(ok("insertColumnName", r#"{"name":"x y","declaredQuoted":false}"#), r#""x y""#);
     assert_eq!(
-        ok("tableName", r#"{"name":"Sales.Orders","quoting":{"schema":false,"table":false}}"#),
+        ok("storedName", r#"{"name":"Orders","declaredQuoted":false}"#),
+        r#""Orders""#
+    );
+    assert_eq!(
+        ok("insertColumnName", r#"{"name":"x y","declaredQuoted":false}"#),
+        r#""x y""#
+    );
+    assert_eq!(
+        ok(
+            "tableName",
+            r#"{"name":"Sales.Orders","quoting":{"schema":false,"table":false}}"#
+        ),
         r#""Sales.Orders""#
     );
-    assert_eq!(ok("tableName", r#"{"name":"Order","quoting":{"schema":false,"table":true}}"#), r#""Order""#);
+    assert_eq!(
+        ok(
+            "tableName",
+            r#"{"name":"Order","quoting":{"schema":false,"table":true}}"#
+        ),
+        r#""Order""#
+    );
     let r = refused("fromEngineText", r#"{"statement":"CREATE TABLE T (X DOUBLE)"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("DIALECT_CAPABILITY", "the engine's H2 text reached MongoDb, which runs no SQL text")
+        (
+            "DIALECT_CAPABILITY",
+            "the engine's H2 text reached MongoDb, which runs no SQL text"
+        )
     );
-    assert_eq!(ok("raw", r#"{"statement":"{\"find\": 1}","writtenFor":null}"#), r#""{\"find\": 1}""#);
+    assert_eq!(
+        ok("raw", r#"{"statement":"{\"find\": 1}","writtenFor":null}"#),
+        r#""{\"find\": 1}""#
+    );
     assert_eq!(ok("raw", r#"{"statement":"x","writtenFor":"MongoDb"}"#), r#""x""#);
-    assert_eq!(refused("raw", r#"{"statement":"x","writtenFor":"H2"}"#).message, r.message);
+    assert_eq!(
+        refused("raw", r#"{"statement":"x","writtenFor":"H2"}"#).message,
+        r.message
+    );
 }
 
 #[test]
@@ -138,13 +177,22 @@ fn the_interface_answers_with_its_defaults() {
     assert_eq!(ok("wireTypeName", r#"{"driverTypeName":"BIGINT"}"#), r#""BIGINT""#);
     assert_eq!(ok("typingWireName", r#"{"driverTypeName":"VARCHAR"}"#), r#""VARCHAR""#);
     assert_eq!(ok("wireTypeName", r#"{"driverTypeName":null}"#), r#""""#);
-    assert_eq!(ok("deliversOwn", r#"{"label":{"_type":"scalar","name":"BIGINT"},"wire":"DECIMAL(19,0)"}"#), "false");
+    assert_eq!(
+        ok(
+            "deliversOwn",
+            r#"{"label":{"_type":"scalar","name":"BIGINT"},"wire":"DECIMAL(19,0)"}"#
+        ),
+        "false"
+    );
     assert_eq!(ok("script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
     assert_eq!(ok("failingStatement", r#"{"message":"x","statements":["a"]}"#), "null");
     let r = refused("catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("UNSUPPORTED_OPERATION", "the platform asks no catalog question of MongoDb")
+        (
+            "UNSUPPORTED_OPERATION",
+            "the platform asks no catalog question of MongoDb"
+        )
     );
     assert_eq!(
         refused("bareNameReaches", r#"{"catalogName":"t"}"#).message,
@@ -168,11 +216,19 @@ fn the_interface_answers_with_its_defaults() {
     let r = refused("host.statements", r#"{"operation":{"op":"platform"}}"#);
     assert!(r.message.contains(" on MongoDb is not built"), "{r}");
     // an objectId (OTHER) is read as its hex text; no other stored type, DISTINCT included, is
-    let reads = |kind: &str| ok("readsStored", &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#));
+    let reads = |kind: &str| {
+        ok(
+            "readsStored",
+            &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#),
+        )
+    };
     assert_eq!(reads("OTHER"), "true");
     assert_eq!(reads("DISTINCT"), "false");
     assert_eq!(reads("VARCHAR"), "false");
-    assert_eq!(refused("duckdb.tables", "{}").message, "'duckdb.tables' is DuckDb's op, not MongoDb's");
+    assert_eq!(
+        refused("duckdb.tables", "{}").message,
+        "'duckdb.tables' is DuckDb's op, not MongoDb's"
+    );
     assert_eq!(
         refused("engine.selectList", &wrap("query", SELECT)).message,
         "'engine.selectList' is an engine-text dialect's op (EngineStyleH2, EngineStyleDB2, EngineStyleComposite), not \

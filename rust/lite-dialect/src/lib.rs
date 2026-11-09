@@ -87,13 +87,13 @@ pub use mariadb::MariaDb;
 pub use mongodb::MongoDb;
 pub use postgres::Postgres;
 pub use refusal::Refusal;
-pub use snowflake::Snowflake;
-pub use sqlite::Sqlite;
-pub use trino::Trino;
 pub use renderer::{AnsiSqlRenderer, AnsiState, Lexicon, PlanParam};
 pub use rewriter::SqlRewriter;
 pub use seam::dispatch;
+pub use snowflake::Snowflake;
+pub use sqlite::Sqlite;
 pub use statement::{Bind, Binding, Digits, Region, RenderedStatement, TypeHole, TypeSpelling};
+pub use trino::Trino;
 pub use writer::SqlWriter;
 
 #[cfg(test)]

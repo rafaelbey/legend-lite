@@ -53,6 +53,7 @@ pub mod persistence_parser;
 pub mod probes;
 pub mod protocol;
 pub mod query_post_processor_parser;
+#[rustfmt::skip] // generated, and held byte for byte to its generator: //rust/lite-front:update_generated_test
 pub mod records;
 pub mod runtime_parser;
 pub mod sections;
@@ -108,7 +109,10 @@ pub fn canonical_tokens(ts: &TokenStream<'_>) -> Vec<u16> {
     for s in &ts.skipped_sections {
         put("S ", &mut b);
         b.extend_from_slice(&s.name);
-        put(&format!(" {} {} {}\n", s.name_offset, s.start_offset, s.end_offset), &mut b);
+        put(
+            &format!(" {} {} {}\n", s.name_offset, s.start_offset, s.end_offset),
+            &mut b,
+        );
     }
     b
 }

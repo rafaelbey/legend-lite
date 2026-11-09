@@ -49,7 +49,11 @@ pub fn parse_cluster<'s>(c: &mut impl Cursor<'s>) -> R<PElasticsearch7Cluster> {
     }
     c.expect(T::BRACE_CLOSE)?;
     let Some(indices) = indices else {
-        return Err(throw_at(c.tokens(), h.decl_start, JStr::from("Field 'indices' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            h.decl_start,
+            JStr::from("Field 'indices' is required"),
+        ));
     };
     Ok(PElasticsearch7Cluster {
         pkg: JStr(h.pkg),
@@ -93,7 +97,11 @@ fn parse_property<'s>(c: &mut impl Cursor<'s>) -> R<Property> {
     let mut fields = None;
     let mut children = None;
     if complex && c.peek() != T::BRACE_OPEN {
-        return Err(throw_at(c.tokens(), kind_tok, jcat!(kind, " property requires a { properties: [...]; } body")));
+        return Err(throw_at(
+            c.tokens(),
+            kind_tok,
+            jcat!(kind, " property requires a { properties: [...]; } body"),
+        ));
     }
     if c.match_tok(T::BRACE_OPEN)? {
         let want = if complex { "properties" } else { "fields" };
@@ -132,7 +140,11 @@ fn parse_property<'s>(c: &mut impl Cursor<'s>) -> R<Property> {
         }
         c.expect(T::BRACE_CLOSE)?;
         if complex && children.is_none() {
-            return Err(throw_at(c.tokens(), kind_tok, JStr::from("Field 'properties' is required")));
+            return Err(throw_at(
+                c.tokens(),
+                kind_tok,
+                JStr::from("Field 'properties' is required"),
+            ));
         }
     }
     Ok(Property {
@@ -183,7 +195,14 @@ fn parse_index<'s>(c: &mut impl Cursor<'s>) -> R<PElasticsearch7ClusterPEsIndex>
     }
     c.expect(T::BRACE_CLOSE)?;
     let Some(properties) = props else {
-        return Err(throw_at(c.tokens(), name_tok, JStr::from("Field 'properties' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            name_tok,
+            JStr::from("Field 'properties' is required"),
+        ));
     };
-    Ok(PElasticsearch7ClusterPEsIndex { index_name: JStr(index_name), properties })
+    Ok(PElasticsearch7ClusterPEsIndex {
+        index_name: JStr(index_name),
+        properties,
+    })
 }

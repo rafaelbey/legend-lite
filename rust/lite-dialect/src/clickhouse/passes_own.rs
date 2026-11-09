@@ -31,7 +31,9 @@ fn marker_aliases<'a>(src: &'a SqlSource, into: &mut Vec<(String, &'a [Projectio
             SqlSource::Subselect { inner, alias, .. }
                 if is_marker(inner) && matches!(kind, JoinKind::CrossLateral | JoinKind::LeftLateral) =>
             {
-                let SqlQuery::Select(marker) = inner.as_ref() else { unreachable!("a marker is a select") };
+                let SqlQuery::Select(marker) = inner.as_ref() else {
+                    unreachable!("a marker is a select")
+                };
                 match into.iter_mut().find(|(a, _)| a == alias) {
                     Some(slot) => slot.1 = &marker.projections,
                     None => into.push((alias.clone(), &marker.projections)),
@@ -68,7 +70,11 @@ impl SqlRewriter for ArrayJoinColumnsNamed {
             let mut cols = Vec::with_capacity(ps.len());
             for p in ps {
                 let name = marker_column(p)?;
-                cols.push(build::projection(build::derived(Some(&alias), &name), Some(name), p.out.clone())?);
+                cols.push(build::projection(
+                    build::derived(Some(&alias), &name),
+                    Some(name),
+                    p.out.clone(),
+                )?);
             }
             named.push((alias, cols));
         }
@@ -97,7 +103,10 @@ impl SqlRewriter for ArrayJoinColumnsNamed {
                 _ => ps.push(p.clone()),
             }
         }
-        Ok(Rw::New(build::query(build::select(SqlSelect { projections: ps, ..s })?)))
+        Ok(Rw::New(build::query(build::select(SqlSelect {
+            projections: ps,
+            ..s
+        })?)))
     }
 }
 
@@ -118,7 +127,9 @@ pub struct OuterJoinResidualsAsMatches {
 /// `e`'s conjuncts: an AND's operands and a group's inner, each flattened (the pass's own `conjuncts`).
 fn conjuncts(e: &SqlExpr) -> Vec<&SqlExpr> {
     match e {
-        SqlExpr::Call { r#fn: SqlFn::And, args, .. } => args.iter().flat_map(conjuncts).collect(),
+        SqlExpr::Call {
+            r#fn: SqlFn::And, args, ..
+        } => args.iter().flat_map(conjuncts).collect(),
         SqlExpr::Group { inner, .. } => conjuncts(inner),
         other => vec![other],
     }
@@ -193,7 +204,14 @@ fn substitute(e: &SqlExpr, to: &[(SqlExpr, SqlExpr)]) -> Result<Option<SqlExpr>,
 
 impl OuterJoinResidualsAsMatches {
     fn joins(&mut self, src: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
-        let SqlSource::Join { left, right, kind, on, outputs } = src else {
+        let SqlSource::Join {
+            left,
+            right,
+            kind,
+            on,
+            outputs,
+        } = src
+        else {
             return Ok(Rw::Same(src));
         };
         let left_rw = self.joins(*left)?;
@@ -203,7 +221,13 @@ impl OuterJoinResidualsAsMatches {
         let join = if changed {
             build::join(left, *right, kind, on.map(|b| *b))?
         } else {
-            SqlSource::Join { left: Box::new(left), right, kind, on, outputs }
+            SqlSource::Join {
+                left: Box::new(left),
+                right,
+                kind,
+                on,
+                outputs,
+            }
         };
         Ok(match self.matched(&join)? {
             Some(m) => Rw::New(m),
@@ -214,7 +238,12 @@ impl OuterJoinResidualsAsMatches {
 
     /// `j` as its matches, or none when it is no LEFT join with a residual both sides read (Java's `matched`).
     fn matched(&mut self, j: &SqlSource) -> Result<Option<SqlSource>, Refusal> {
-        let SqlSource::Join { left, right, kind, on, .. } = j else { unreachable!("a join") };
+        let SqlSource::Join {
+            left, right, kind, on, ..
+        } = j
+        else {
+            unreachable!("a join")
+        };
         let right_alias = source_alias(right)?.to_owned();
         let Some(on) = on.as_deref() else {
             return Ok(None);
@@ -249,20 +278,36 @@ impl OuterJoinResidualsAsMatches {
         let mut to_keys: Vec<(SqlExpr, SqlExpr)> = Vec::new();
         let mut rejoin = Vec::new();
         for (i, c) in refs.iter().enumerate() {
-            let TypeFact::Typed { r#type, .. } = &c.r#type else { unreachable!("a typed column") };
+            let TypeFact::Typed { r#type, .. } = &c.r#type else {
+                unreachable!("a typed column")
+            };
             let key = build::output_col(&format!("{stem}c{i}"), r#type.clone(), true);
             let matching = build::output_col(&format!("{stem}k{i}"), r#type.clone(), true);
-            key_cols.push(build::projection(SqlExpr::Column(c.clone()), Some(key.name.clone()), Some(key.clone()))?);
+            key_cols.push(build::projection(
+                SqlExpr::Column(c.clone()),
+                Some(key.name.clone()),
+                Some(key.clone()),
+            )?);
             let key_read = SqlExpr::Column(build::column_of(Some(&keys_alias), &key));
             to_keys.push((SqlExpr::Column(c.clone()), key_read.clone()));
-            match_cols.push(build::projection(key_read, Some(matching.name.clone()), Some(matching.clone()))?);
+            match_cols.push(build::projection(
+                key_read,
+                Some(matching.name.clone()),
+                Some(matching.clone()),
+            )?);
             rejoin.push(build::call(
                 SqlFn::NullSafeEqual,
-                vec![SqlExpr::Column(c.clone()), SqlExpr::Column(build::column_of(Some(&right_alias), &matching))],
+                vec![
+                    SqlExpr::Column(c.clone()),
+                    SqlExpr::Column(build::column_of(Some(&right_alias), &matching)),
+                ],
             ));
         }
         match_cols.push(build::projection(build::star(Some(&right_alias)), None, None)?);
-        let keys = build::with_distinct(build::with_projections(build::star_of(left.as_ref().clone())?, key_cols)?)?;
+        let keys = build::with_distinct(build::with_projections(
+            build::star_of(left.as_ref().clone())?,
+            key_cols,
+        )?)?;
         let condition = substitute(on, &to_keys)?.unwrap_or_else(|| on.clone());
         let inner = build::join(
             build::subselect(build::query(keys), &keys_alias, None),
@@ -297,7 +342,9 @@ impl SqlRewriter for OuterJoinResidualsAsMatches {
 
     fn select(&mut self, s: SqlSelect) -> Result<Rw<SqlQuery>, Refusal> {
         if !matches!(s.from, SqlSource::Join { .. })
-            || s.projections.iter().any(|p| matches!(p.expr, SqlExpr::Star { .. } | SqlExpr::StarExcept { .. }))
+            || s.projections
+                .iter()
+                .any(|p| matches!(p.expr, SqlExpr::Star { .. } | SqlExpr::StarExcept { .. }))
         {
             return Ok(Rw::Same(build::query(s)));
         }

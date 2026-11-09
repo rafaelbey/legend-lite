@@ -37,12 +37,21 @@ fn every_text_lexes_as_the_java_lexer_lexes_it() {
         let q = wire::parse(&line, 64).unwrap();
         let sha = q.get("sha").and_then(wire::Json::as_string).expect("a question's sha");
         let text = q.get("text").and_then(wire::Json::as_units).expect("a question's text");
-        assert_eq!(sha256_utf16le(text), sha, "a text's id is the SHA-256 of its UTF-16 units");
-        let java_line =
-            java.next().unwrap_or_else(|| panic!("Java lexed no text {sha}: the frozen file ends")).unwrap();
+        assert_eq!(
+            sha256_utf16le(text),
+            sha,
+            "a text's id is the SHA-256 of its UTF-16 units"
+        );
+        let java_line = java
+            .next()
+            .unwrap_or_else(|| panic!("Java lexed no text {sha}: the frozen file ends"))
+            .unwrap();
         let mut f = java_line.split('\t');
         let (java_form, java_count) = (f.next().unwrap().to_owned(), f.next().unwrap().to_owned());
-        assert!(f.next().is_none(), "a frozen token line is [form's sha, count]: {java_line}");
+        assert!(
+            f.next().is_none(),
+            "a frozen token line is [form's sha, count]: {java_line}"
+        );
         texts += 1;
         let ts = tokenize(text);
         tokens += ts.count();
@@ -53,11 +62,17 @@ fn every_text_lexes_as_the_java_lexer_lexes_it() {
             differ.push(format!("{sha}: Rust {} tokens, Java {java_count}", ts.count()));
         }
     }
-    println!("[front-lexer] {texts} texts, {tokens} tokens: {matched} lex as Java lexes them, {} differ", differ.len());
+    println!(
+        "[front-lexer] {texts} texts, {tokens} tokens: {matched} lex as Java lexes them, {} differ",
+        differ.len()
+    );
     for d in differ.iter().take(SHOWN) {
         println!("[front-lexer]   {d}");
     }
-    assert!(java.next().is_none(), "Java lexed every text of the question set, and only those");
+    assert!(
+        java.next().is_none(),
+        "Java lexed every text of the question set, and only those"
+    );
     assert!(differ.is_empty(), "{} texts lex differently from Java", differ.len());
     // the ruling's deliberate differences are answers, never tokens: the list names none here
     let listed = Deliberate::load().listed("tokens");

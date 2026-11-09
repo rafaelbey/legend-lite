@@ -42,7 +42,11 @@ pub fn parse_runtime<'s>(c: &mut impl Cursor<'s>) -> R<PRuntime> {
     let mut body = Body::default();
     let mappings_keys = parse_body_keys(c, single, &qn, Some(T::BRACE_CLOSE), &mut body, decl_start)?;
     if mappings_keys == 0 {
-        return Err(throw_at(c.tokens(), decl_start, JStr::from("Field 'mappings' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            decl_start,
+            JStr::from("Field 'mappings' is required"),
+        ));
     }
     c.expect(T::BRACE_CLOSE)?;
     Ok(PRuntime {
@@ -151,8 +155,13 @@ fn parse_body_keys<'s>(
         let key_text = c.safe_text();
         c.advance()?;
         c.expect(T::COLON)?;
-        let once =
-            |what: &str| throw_at(c.tokens(), decl_start, jcat!("Field '", what, "' should be specified only once"));
+        let once = |what: &str| {
+            throw_at(
+                c.tokens(),
+                decl_start,
+                jcat!("Field '", what, "' should be specified only once"),
+            )
+        };
         if key == T::MAPPINGS {
             seen_mappings += 1;
             if seen_mappings > 1 {
@@ -295,7 +304,9 @@ mod tests {
         let text = "###Runtime\nRuntime 'a::b'\n{\n  mappings: [ m::A ];\n  connections: [ s::DB: [ c1: #{ \
                     JsonModelConnection { class: m::P; url: 'u'; } }# ], s::E: [] ];\n}\n";
         let parsed = parse(&u(text), Dialect::LegendLite).expect("parses");
-        let Some(Element::PRuntime(rt)) = parsed.model.elements.first() else { panic!("a runtime") };
+        let Some(Element::PRuntime(rt)) = parsed.model.elements.first() else {
+            panic!("a runtime")
+        };
         assert_eq!((rt.pkg.lossy().as_str(), rt.name.lossy().as_str()), ("a", "b"));
         assert_eq!(rt.connections.len(), 1, "a store group with no connection is dropped");
         let PConnectionValue::PJsonModelConnection(j) = &rt.connections[0].store_connections[0].connection else {

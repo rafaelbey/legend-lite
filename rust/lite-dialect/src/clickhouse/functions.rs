@@ -42,7 +42,10 @@ fn wall(f: SqlFn, why: &str) -> Refusal {
 
 /// `a.subList(0, n)`, refused as `subList` words an end past the size.
 fn head(a: &[SqlExpr], n: usize) -> Result<&[SqlExpr], Refusal> {
-    a.get(..n).ok_or_else(|| Refusal { class: Refusal::INDEX_OUT_OF_BOUNDS, message: format!("toIndex = {n}") })
+    a.get(..n).ok_or_else(|| Refusal {
+        class: Refusal::INDEX_OUT_OF_BOUNDS,
+        message: format!("toIndex = {n}"),
+    })
 }
 
 /// A printf template's conversions in order, `%%` none (Java's `conversions`).
@@ -100,7 +103,9 @@ fn diff_unit(unit: DatePart) -> Result<&'static str, Refusal> {
         DatePart::Millisecond => "millisecond",
         DatePart::Microsecond => "microsecond",
         DatePart::DayOfYear | DatePart::IsoDayOfWeek | DatePart::Nanosecond => {
-            return Err(Refusal::capability(format!("dateDiff of {unit} has no ClickHouse spelling")));
+            return Err(Refusal::capability(format!(
+                "dateDiff of {unit} has no ClickHouse spelling"
+            )));
         }
     })
 }
@@ -123,7 +128,11 @@ fn modulo(a: &[SqlExpr]) -> Result<&'static str, Refusal> {
     let (a0, a1) = (arg(a, 0)?, arg(a, 1)?);
     let decimal = |e: &SqlExpr| matches!(type_of(e), Some(SqlType::Decimal { .. }));
     let float = |e: &SqlExpr| matches!(e, SqlExpr::FloatLit { .. });
-    Ok(if decimal(a0) || decimal(a1) || float(a0) || float(a1) { "modulo" } else { "moduloOrZero" })
+    Ok(if decimal(a0) || decimal(a1) || float(a0) || float(a1) {
+        "modulo"
+    } else {
+        "moduloOrZero"
+    })
 }
 
 /// A quantile's level when it is a literal number (an aggregate's parameter, spelled in its name) (Java's
@@ -143,7 +152,10 @@ fn literal_level(extras: &[SqlExpr]) -> Option<String> {
 /// A quantile's one level (Java's `level`).
 fn level(extras: &[SqlExpr]) -> Result<&SqlExpr, Refusal> {
     if extras.len() != 1 {
-        return Err(Refusal::capability(format!("a quantile of {} levels reached ClickHouse", extras.len())));
+        return Err(Refusal::capability(format!(
+            "a quantile of {} levels reached ClickHouse",
+            extras.len()
+        )));
     }
     Ok(&extras[0])
 }
@@ -152,7 +164,11 @@ fn level(extras: &[SqlExpr]) -> Result<&SqlExpr, Refusal> {
 /// `nullOrigin`).
 fn null_origin(e: &SqlExpr) -> Option<&SqlExpr> {
     match e {
-        SqlExpr::Cast { value, target: SqlType::Array { .. }, .. } if is_scalar(value, Scalar::Json) => Some(value),
+        SqlExpr::Cast {
+            value,
+            target: SqlType::Array { .. },
+            ..
+        } if is_scalar(value, Scalar::Json) => Some(value),
         SqlExpr::Call { r#fn, args, .. } if NULL_STRICT_LISTS.contains(r#fn) && !args.is_empty() => {
             null_origin(&args[0])
         }
@@ -219,8 +235,11 @@ impl ClickHouse {
     /// The most frequent of the values: by count, a tie by the smaller value; NULL over none (Java's `modeOf`).
     pub(super) fn mode_of<'a>(values: P<'a>) -> P<'a> {
         pc(move |w| {
-            w.append("arrayElement(arraySort(\"__v\" -> (-countEqual(").piece(&*values)?;
-            w.append(", \"__v\"), \"__v\"), arrayDistinct(").piece(&*values)?.append(")), 1)");
+            w.append("arrayElement(arraySort(\"__v\" -> (-countEqual(")
+                .piece(&*values)?;
+            w.append(", \"__v\"), \"__v\"), arrayDistinct(")
+                .piece(&*values)?
+                .append(")), 1)");
             Ok(())
         })
     }
@@ -236,7 +255,11 @@ impl ClickHouse {
         let pos: P<'a> = {
             let s = s.clone();
             pc(move |w| {
-                w.append("((length(").piece(&*s)?.append(") - 1) * ").expr(self, q, 6)?.append(")");
+                w.append("((length(")
+                    .piece(&*s)?
+                    .append(") - 1) * ")
+                    .expr(self, q, 6)?
+                    .append(")");
                 Ok(())
             })
         };
@@ -244,15 +267,27 @@ impl ClickHouse {
             let s = s.clone();
             let pos = pos.clone();
             pc(move |w| {
-                w.append("arrayElement(").piece(&*s)?.append(&format!(", toUInt64({round}("));
+                w.append("arrayElement(")
+                    .piece(&*s)?
+                    .append(&format!(", toUInt64({round}("));
                 w.piece(&*pos)?.append(")) + 1)");
                 Ok(())
             })
         };
         let (floor, ceil) = (at("floor"), at("ceil"));
         pc(move |w| {
-            w.append("if(empty(").piece(&*s)?.append("), NULL, ").piece(&*floor)?.append(" + (").piece(&*pos)?;
-            w.append(" - floor(").piece(&*pos)?.append(")) * (").piece(&*ceil)?.append(" - ").piece(&*floor)?;
+            w.append("if(empty(")
+                .piece(&*s)?
+                .append("), NULL, ")
+                .piece(&*floor)?
+                .append(" + (")
+                .piece(&*pos)?;
+            w.append(" - floor(")
+                .piece(&*pos)?
+                .append(")) * (")
+                .piece(&*ceil)?
+                .append(" - ")
+                .piece(&*floor)?;
             w.append("))");
             Ok(())
         })
@@ -263,7 +298,11 @@ impl ClickHouse {
         let a1 = || arg(args, 1);
         match f {
             SqlFn::ListFilter | SqlFn::ListTransform => {
-                w.append(if f == SqlFn::ListFilter { "arrayFilter(" } else { "arrayMap(" });
+                w.append(if f == SqlFn::ListFilter {
+                    "arrayFilter("
+                } else {
+                    "arrayMap("
+                });
                 w.expr(self, a1()?, 0)?.append(", ");
                 let arrays = self.lambda_arrays(xs, lambda_arg(a1()?)?);
                 w.piece(&*arrays)?.append(")");
@@ -280,22 +319,39 @@ impl ClickHouse {
                 let list = self.list(xs);
                 if matches!(type_of(xs), Some(SqlType::Array { element }) if matches!(**element, SqlType::Struct { .. }))
                 {
-                    w.append("arrayElement(").piece(&*list)?.append(", ").expr(self, a1()?, 0)?.append(")");
+                    w.append("arrayElement(")
+                        .piece(&*list)?
+                        .append(", ")
+                        .expr(self, a1()?, 0)?
+                        .append(")");
                 } else {
-                    w.append("(CASE WHEN ").expr(self, a1()?, 0)?.append(" = 0 OR abs(").expr(self, a1()?, 0)?;
-                    w.append(") > length(").piece(&*list)?.append(") THEN NULL ELSE arrayElement(").piece(&*list)?;
+                    w.append("(CASE WHEN ")
+                        .expr(self, a1()?, 0)?
+                        .append(" = 0 OR abs(")
+                        .expr(self, a1()?, 0)?;
+                    w.append(") > length(")
+                        .piece(&*list)?
+                        .append(") THEN NULL ELSE arrayElement(")
+                        .piece(&*list)?;
                     w.append(", ").expr(self, a1()?, 0)?.append(") END)");
                 }
             }
             SqlFn::ListPosition => {
-                w.append("nullIf(toInt64(indexOf(").piece(&*self.list(xs))?.append(", ").expr(self, a1()?, 0)?;
+                w.append("nullIf(toInt64(indexOf(")
+                    .piece(&*self.list(xs))?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?;
                 w.append(")), 0)");
             }
             SqlFn::ListDistinct => {
                 w.append("arrayDistinct(").piece(&*self.present(xs))?.append(")");
             }
             SqlFn::ListAppend => {
-                w.append("arrayPushBack(").piece(&*self.list(xs))?.append(", ").expr(self, a1()?, 0)?.append(")");
+                w.append("arrayPushBack(")
+                    .piece(&*self.list(xs))?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?
+                    .append(")");
             }
             SqlFn::ListSum => {
                 w.piece(&*self.reduced("sum", xs))?;
@@ -307,7 +363,9 @@ impl ClickHouse {
                 w.piece(&*self.reduced("max", xs))?;
             }
             SqlFn::ListAvg => {
-                w.append("CAST(").piece(&*self.reduced("avg", xs))?.append(" AS Nullable(Float64))");
+                w.append("CAST(")
+                    .piece(&*self.reduced("avg", xs))?
+                    .append(" AS Nullable(Float64))");
             }
             SqlFn::ListMedian => {
                 w.piece(&*self.reduced("quantileExactInclusive(0.5)", xs))?;
@@ -317,12 +375,19 @@ impl ClickHouse {
             }
             SqlFn::ListBoolAnd | SqlFn::ListBoolOr => {
                 let present = self.present(xs);
-                let all = if f == SqlFn::ListBoolAnd { "arrayAll" } else { "arrayExists" };
-                w.append("if(empty(").piece(&*present)?.append(&format!("), NULL, {all}(\"__x\" -> \"__x\", "));
+                let all = if f == SqlFn::ListBoolAnd {
+                    "arrayAll"
+                } else {
+                    "arrayExists"
+                };
+                w.append("if(empty(")
+                    .piece(&*present)?
+                    .append(&format!("), NULL, {all}(\"__x\" -> \"__x\", "));
                 w.piece(&*present)?.append("))");
             }
             SqlFn::ListProduct => {
-                w.append("arrayProduct(arrayMap(\"__x\" -> coalesce(\"__x\", 1), ").piece(&*self.list(xs))?;
+                w.append("arrayProduct(arrayMap(\"__x\" -> coalesce(\"__x\", 1), ")
+                    .piece(&*self.list(xs))?;
                 w.append("))");
             }
             SqlFn::ListSort => {
@@ -342,8 +407,13 @@ impl ClickHouse {
             }
             // DuckDB's list_slice: 1-based, both ends inclusive
             SqlFn::ListSlice => {
-                w.append("arraySlice(").piece(&*self.list(xs))?.append(", greatest(").expr(self, a1()?, 0)?;
-                w.append(", 1), greatest(").expr(self, arg(args, 2)?, 6)?.append(" - greatest(");
+                w.append("arraySlice(")
+                    .piece(&*self.list(xs))?
+                    .append(", greatest(")
+                    .expr(self, a1()?, 0)?;
+                w.append(", 1), greatest(")
+                    .expr(self, arg(args, 2)?, 6)?
+                    .append(" - greatest(");
                 w.expr(self, a1()?, 0)?.append(", 1) + 1, 0))");
             }
             // DuckDB's list_zip: pairs by position; each list cut to the shorter (truncate) or padded to the longer
@@ -353,15 +423,17 @@ impl ClickHouse {
                 let truncate = flagged && matches!(last, Some(SqlExpr::BoolLit { value: true, .. }));
                 let lists = if flagged { &args[..args.len() - 1] } else { args };
                 let n = |w: &mut SqlWriter| -> Result<(), Refusal> {
-                    w.append(if truncate { "least(" } else { "greatest(" }).join(lists, ", ", |v, l| {
-                        v.append("length(").piece(&*self.list(l))?.append(")");
-                        Ok(())
-                    })?;
+                    w.append(if truncate { "least(" } else { "greatest(" })
+                        .join(lists, ", ", |v, l| {
+                            v.append("length(").piece(&*self.list(l))?.append(")");
+                            Ok(())
+                        })?;
                     w.append(")");
                     Ok(())
                 };
                 w.append("arrayZip(").join(lists, ", ", |w, l| {
-                    w.append("arrayResize(arrayMap(\"__z\" -> toNullable(\"__z\"), ").piece(&*self.list(l))?;
+                    w.append("arrayResize(arrayMap(\"__z\" -> toNullable(\"__z\"), ")
+                        .piece(&*self.list(l))?;
                     w.append("), ").piece(&n)?.append(", NULL)");
                     Ok(())
                 })?;
@@ -371,7 +443,11 @@ impl ClickHouse {
             SqlFn::ListReduce => {
                 let element = list_element(xs);
                 let list = self.list(xs);
-                w.append("arrayFold(").expr(self, a1()?, 0)?.append(", arraySlice(").piece(&*list)?.append(", 2), ");
+                w.append("arrayFold(")
+                    .expr(self, a1()?, 0)?
+                    .append(", arraySlice(")
+                    .piece(&*list)?
+                    .append(", 2), ");
                 match element {
                     None => {
                         w.append("arrayElement(").piece(&*list)?.append(", 1))");
@@ -413,8 +489,13 @@ impl ClickHouse {
                         extras.len()
                     )));
                 }
-                w.append("if(empty(").piece(&*present)?.append("), NULL, arrayStringConcat(arrayMap(\"__x\" ->");
-                w.append(" toString(\"__x\"), ").piece(&*present)?.append("), ").expr(self, &extras[0], 0)?;
+                w.append("if(empty(")
+                    .piece(&*present)?
+                    .append("), NULL, arrayStringConcat(arrayMap(\"__x\" ->");
+                w.append(" toString(\"__x\"), ")
+                    .piece(&*present)?
+                    .append("), ")
+                    .expr(self, &extras[0], 0)?;
                 w.append("))");
             }
             AggFn::Count => {
@@ -459,7 +540,11 @@ impl ClickHouse {
             AggFn::Mode => {
                 w.piece(&*ClickHouse::mode_of(present))?;
             }
-            other => return Err(Refusal::capability(format!("a list reduced by {other} reached ClickHouse"))),
+            other => {
+                return Err(Refusal::capability(format!(
+                    "a list reduced by {other} reached ClickHouse"
+                )));
+            }
         }
         Ok(())
     }
@@ -467,8 +552,19 @@ impl ClickHouse {
     /// Several lists exploded in one select align: one ARRAY JOIN of the lists zipped, each padded with NULL to the
     /// longest, every column its position of the tuple (Java's `select`).
     pub(super) fn select_arm(&self, w: &mut SqlWriter, s: &SqlSelect, depth: usize) -> Result<(), Refusal> {
-        let unnests =
-            s.projections.iter().filter(|p| matches!(p.expr, SqlExpr::Call { r#fn: SqlFn::Unnest, .. })).count();
+        let unnests = s
+            .projections
+            .iter()
+            .filter(|p| {
+                matches!(
+                    p.expr,
+                    SqlExpr::Call {
+                        r#fn: SqlFn::Unnest,
+                        ..
+                    }
+                )
+            })
+            .count();
         if unnests <= 1 {
             return ansi::select(self, w, s, depth);
         }
@@ -489,15 +585,21 @@ impl ClickHouse {
         }
         let mut lists = Vec::with_capacity(s.projections.len());
         for p in &s.projections {
-            let SqlExpr::Call { args, .. } = &p.expr else { unreachable!("an unnest") };
+            let SqlExpr::Call { args, .. } = &p.expr else {
+                unreachable!("an unnest")
+            };
             if args.len() != 1 {
-                return Err(Refusal::capability(format!("an unnest of {} lists reached ClickHouse", args.len())));
+                return Err(Refusal::capability(format!(
+                    "an unnest of {} lists reached ClickHouse",
+                    args.len()
+                )));
             }
             lists.push(&args[0]);
         }
         w.append("SELECT ");
         for (i, p) in s.projections.iter().enumerate() {
-            w.append(if i > 0 { ", " } else { "" }).append(&format!("tupleElement(\"__zj\", {})", i + 1));
+            w.append(if i > 0 { ", " } else { "" })
+                .append(&format!("tupleElement(\"__zj\", {})", i + 1));
             if let Some(name) = output_name(p) {
                 let a = self.alias_ident(&name);
                 w.append(" AS ").append(&a);
@@ -520,7 +622,8 @@ impl ClickHouse {
         };
         self.nl(w, depth);
         w.append("ARRAY JOIN arrayZip(").join(&lists, ", ", |w, l| {
-            w.append("arrayResize(arrayMap(\"__z\" -> toNullable(\"__z\"), ").piece(&*self.list(l))?;
+            w.append("arrayResize(arrayMap(\"__z\" -> toNullable(\"__z\"), ")
+                .piece(&*self.list(l))?;
             w.append("), ").piece(&n)?.append(", NULL)");
             Ok(())
         })?;
@@ -538,15 +641,24 @@ impl ClickHouse {
             return Err(untyped());
         };
         let Some(added) = type_of(arg(args, 2)?) else {
-            return Err(Refusal::capability("struct_insert of a value of unknown type reached ClickHouse"));
+            return Err(Refusal::capability(
+                "struct_insert of a value of unknown type reached ClickHouse",
+            ));
         };
         let kept: Vec<&StructField> = fields.iter().filter(|f| f.name != *name).collect();
         let mut all: Vec<StructField> = kept.iter().map(|f| (*f).clone()).collect();
-        all.push(StructField { name: name.clone(), r#type: added.clone() });
+        all.push(StructField {
+            name: name.clone(),
+            r#type: added.clone(),
+        });
         w.append("CAST(tuple(");
         for f in &kept {
             let lit = self.string_lit(&f.name)?;
-            w.append("tupleElement(").expr(self, &args[0], 0)?.append(", ").append(&lit).append("), ");
+            w.append("tupleElement(")
+                .expr(self, &args[0], 0)?
+                .append(", ")
+                .append(&lit)
+                .append("), ");
         }
         w.expr(self, &args[2], 0)?.append(") AS ");
         let t = cast_type_name(self, &SqlType::Struct { fields: all })?;
@@ -560,7 +672,10 @@ impl ClickHouse {
 
     pub(super) fn variant_construct_arm(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() != 1 {
-            return Err(Refusal::capability(format!("toVariant of {} arguments reached ClickHouse", a.len())));
+            return Err(Refusal::capability(format!(
+                "toVariant of {} arguments reached ClickHouse",
+                a.len()
+            )));
         }
         // a JSON value is its own; a NULL stays SQL's NULL
         if is_scalar(&a[0], Scalar::Json) {
@@ -591,7 +706,9 @@ impl ClickHouse {
             w.append(" END)");
             return Ok(());
         }
-        w.append("if(coalesce(JSONType(").expr(self, origin, 0)?.append("), 'Null') = 'Null', NULL, toJSONString(");
+        w.append("if(coalesce(JSONType(")
+            .expr(self, origin, 0)?
+            .append("), 'Null') = 'Null', NULL, toJSONString(");
         w.expr(self, x, 0)?.append("))");
         Ok(())
     }
@@ -613,12 +730,18 @@ impl ClickHouse {
             w.expr(self, arg(args, 0)?, 0)?;
             return Ok(());
         }
-        w.append("nullIf(JSONExtractRaw(").expr(self, arg(args, 0)?, 0)?.append(", ");
+        w.append("nullIf(JSONExtractRaw(")
+            .expr(self, arg(args, 0)?, 0)?
+            .append(", ");
         if is_scalar(key, Scalar::Varchar) || matches!(key, SqlExpr::StringLit { .. }) {
             w.expr(self, key, 0)?;
         } else {
             // JSON's indexes are 1-based, a negative one from the end
-            w.append("if(").expr(self, key, 0)?.append(" >= 0, ").expr(self, key, 6)?.append(" + 1, ");
+            w.append("if(")
+                .expr(self, key, 0)?
+                .append(" >= 0, ")
+                .expr(self, key, 6)?
+                .append(" + 1, ");
             w.expr(self, key, 0)?.append(")");
         }
         w.append("), '')");
@@ -643,7 +766,9 @@ impl ClickHouse {
         }
         // a zoned timestamp from text: ISO 8601's T, Z and offsets
         if target_is(Scalar::Timestamptz) && is_scalar(value, Scalar::Varchar) {
-            w.append("parseDateTime64BestEffort(").expr(self, value, 0)?.append(", 6, 'UTC')");
+            w.append("parseDateTime64BestEffort(")
+                .expr(self, value, 0)?
+                .append(", 6, 'UTC')");
             return Ok(());
         }
         if let SqlType::Decimal { precision, scale } = target {
@@ -653,7 +778,9 @@ impl ClickHouse {
                 w.append(&format!(", 18), {scale}) AS Nullable(Decimal({precision}, {scale})))"));
                 return Ok(());
             }
-            w.append("CAST(").expr(self, value, 0)?.append(&format!(" AS Nullable(Decimal({precision}, {scale})))"));
+            w.append("CAST(")
+                .expr(self, value, 0)?
+                .append(&format!(" AS Nullable(Decimal({precision}, {scale})))"));
             return Ok(());
         }
         // a Float literal's text: its shortest digits, one fraction digit at least
@@ -670,25 +797,39 @@ impl ClickHouse {
             && let Some(SqlType::Decimal { scale, .. }) = type_of(value)
         {
             if matches!(value, SqlExpr::FloatLit { .. } | SqlExpr::DecimalLit { .. }) {
-                w.append("toDecimalString(").expr(self, value, 0)?.append(&format!(", {scale})"));
+                w.append("toDecimalString(")
+                    .expr(self, value, 0)?
+                    .append(&format!(", {scale})"));
                 return Ok(());
             }
-            w.append("toDecimalString(").expr(self, value, 0)?.append(", toUInt8(extract(toTypeName(");
+            w.append("toDecimalString(")
+                .expr(self, value, 0)?
+                .append(", toUInt8(extract(toTypeName(");
             w.expr(self, value, 0)?.append(r"), ', (\\d+)\\)')))");
             return Ok(());
         }
         // a double's text: its shortest digits, and a fraction digit where it has none
         if target_is(Scalar::Varchar) && is_scalar(value, Scalar::Double) {
-            w.append("replaceRegexpOne(toString(").expr(self, value, 0)?.append(r"), '^(-?[0-9]+)$', '\\1.0')");
+            w.append("replaceRegexpOne(toString(")
+                .expr(self, value, 0)?
+                .append(r"), '^(-?[0-9]+)$', '\\1.0')");
             return Ok(());
         }
         // a Variant's member as text: a JSON string unquoted, any other value its JSON
         if is_scalar(value, Scalar::Json) && target_is(Scalar::Varchar) {
-            if !matches!(value, SqlExpr::Call { r#fn: SqlFn::VariantGet, .. }) {
+            if !matches!(
+                value,
+                SqlExpr::Call {
+                    r#fn: SqlFn::VariantGet,
+                    ..
+                }
+            ) {
                 w.expr(self, value, 0)?;
                 return Ok(());
             }
-            w.append("if(JSONType(").expr(self, value, 0)?.append(") = 'String', JSONExtractString(");
+            w.append("if(JSONType(")
+                .expr(self, value, 0)?
+                .append(") = 'String', JSONExtractString(");
             w.expr(self, value, 0)?.append("), ").expr(self, value, 0)?.append(")");
             return Ok(());
         }
@@ -706,7 +847,9 @@ impl ClickHouse {
         }
         // a Variant as a list or a map: extracted to the type, from the JSON null where there is no value
         if is_scalar(value, Scalar::Json) && matches!(target, SqlType::Array { .. } | SqlType::Map { .. }) {
-            w.append("JSONExtract(coalesce(").expr(self, value, 0)?.append(", 'null'), ");
+            w.append("JSONExtract(coalesce(")
+                .expr(self, value, 0)?
+                .append(", 'null'), ");
             let lit = self.string_lit(&cast_type_name(self, target)?)?;
             w.append(&lit).append(")");
             return Ok(());
@@ -749,7 +892,9 @@ impl ClickHouse {
                     && matches!(type_of(&a[0]), Some(SqlType::Struct { .. }))
                     && matches!(type_of(&a[1]), Some(SqlType::Struct { .. }))
                 {
-                    w.append("([").expr(self, &a[0], 0)?.append(if f == SqlFn::Equal { "] = [" } else { "] != [" });
+                    w.append("([")
+                        .expr(self, &a[0], 0)?
+                        .append(if f == SqlFn::Equal { "] = [" } else { "] != [" });
                     w.expr(self, &a[1], 0)?.append("])");
                     return Ok(());
                 }
@@ -842,11 +987,15 @@ impl ClickHouse {
             SqlFn::JaroWinkler => plain(w, "jaroWinklerSimilarity"),
             SqlFn::Chr => plain(w, "char"),
             // ClickHouse's current_date is a function: the bare keyword is an unknown identifier
-            SqlFn::Today => Err(Refusal::capability("today() reached ClickHouse, which has no bare current_date")),
+            SqlFn::Today => Err(Refusal::capability(
+                "today() reached ClickHouse, which has no bare current_date",
+            )),
             // an integer's abs is a UInt64 here: back to an Int64, raising where it does not fit
             SqlFn::Abs => {
                 if is_scalar(a0()?, Scalar::Bigint) || is_scalar(a0()?, Scalar::Integer) {
-                    w.append("accurateCast(abs(").expr(self, a0()?, 0)?.append("), 'Int64')");
+                    w.append("accurateCast(abs(")
+                        .expr(self, a0()?, 0)?
+                        .append("), 'Int64')");
                 } else {
                     w.append("abs(").expr(self, a0()?, 0)?.append(")");
                 }
@@ -858,37 +1007,69 @@ impl ClickHouse {
                 if f != SqlFn::NullSafeEqual {
                     w.append("NOT ");
                 }
-                w.append("coalesce(").expr(self, a0()?, 4)?.append(" = ").expr(self, a1()?, 4)?;
-                w.append(", isNull(").expr(self, a0()?, 0)?.append(") AND isNull(").expr(self, a1()?, 0)?.append("))");
+                w.append("coalesce(")
+                    .expr(self, a0()?, 4)?
+                    .append(" = ")
+                    .expr(self, a1()?, 4)?;
+                w.append(", isNull(")
+                    .expr(self, a0()?, 0)?
+                    .append(") AND isNull(")
+                    .expr(self, a1()?, 0)?
+                    .append("))");
                 Ok(())
             }
             // NULL-ignoring, as DuckDB's concat
             SqlFn::Concat => {
-                w.append("concat(").join(&ansi::flatten_concat(a), ", ", |w, e| self.as_text(w, e))?.append(")");
+                w.append("concat(")
+                    .join(&ansi::flatten_concat(a), ", ", |w, e| self.as_text(w, e))?
+                    .append(")");
                 Ok(())
             }
             SqlFn::ConcatJoin => {
-                w.append("concat(").join(a, ", ", |w, e| self.as_text(w, e))?.append(")");
+                w.append("concat(")
+                    .join(a, ", ", |w, e| self.as_text(w, e))?
+                    .append(")");
                 Ok(())
             }
             // each its non-raising form under the guard; Pure's mod takes the divisor's sign
             SqlFn::Rem => {
-                w.append("(CASE WHEN ").expr(self, a1()?, 0)?.append(" = 0 THEN NULL ELSE ").append(modulo(a)?);
-                w.append("(").piece(&*operand(self, a, 0)?)?.append(", ").piece(&*operand(self, a, 1)?)?;
+                w.append("(CASE WHEN ")
+                    .expr(self, a1()?, 0)?
+                    .append(" = 0 THEN NULL ELSE ")
+                    .append(modulo(a)?);
+                w.append("(")
+                    .piece(&*operand(self, a, 0)?)?
+                    .append(", ")
+                    .piece(&*operand(self, a, 1)?)?;
                 w.append(") END)");
                 Ok(())
             }
             SqlFn::Mod => {
                 let m = modulo(a)?;
-                w.append("(CASE WHEN ").expr(self, a1()?, 0)?.append(" = 0 THEN NULL ELSE ").append(m);
-                w.append("(").append(m).append("(").piece(&*operand(self, a, 0)?)?.append(", ");
-                w.piece(&*operand(self, a, 1)?)?.append(") + ").piece(&*operand(self, a, 1)?)?.append(", ");
+                w.append("(CASE WHEN ")
+                    .expr(self, a1()?, 0)?
+                    .append(" = 0 THEN NULL ELSE ")
+                    .append(m);
+                w.append("(")
+                    .append(m)
+                    .append("(")
+                    .piece(&*operand(self, a, 0)?)?
+                    .append(", ");
+                w.piece(&*operand(self, a, 1)?)?
+                    .append(") + ")
+                    .piece(&*operand(self, a, 1)?)?
+                    .append(", ");
                 w.piece(&*operand(self, a, 1)?)?.append(") END)");
                 Ok(())
             }
             SqlFn::IntDivide => {
-                w.append("(CASE WHEN ").expr(self, a1()?, 0)?.append(" = 0 THEN NULL ELSE intDivOrZero(");
-                w.expr(self, a0()?, 0)?.append(", ").expr(self, a1()?, 0)?.append(") END)");
+                w.append("(CASE WHEN ")
+                    .expr(self, a1()?, 0)?
+                    .append(" = 0 THEN NULL ELSE intDivOrZero(");
+                w.expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?
+                    .append(") END)");
                 Ok(())
             }
             SqlFn::BoolToText => self.wrap(w, "toString(", a0()?, ")"),
@@ -920,8 +1101,11 @@ impl ClickHouse {
             SqlFn::Upper => self.wrap(w, "upperUTF8(", a0()?, ")"),
             SqlFn::UcFirst | SqlFn::LcFirst => {
                 let case = if f == SqlFn::UcFirst { "upperUTF8" } else { "lowerUTF8" };
-                w.append(&format!("concat({case}(substringUTF8(")).expr(self, a0()?, 0)?;
-                w.append(", 1, 1)), substringUTF8(").expr(self, a0()?, 0)?.append(", 2))");
+                w.append(&format!("concat({case}(substringUTF8("))
+                    .expr(self, a0()?, 0)?;
+                w.append(", 1, 1)), substringUTF8(")
+                    .expr(self, a0()?, 0)?
+                    .append(", 2))");
                 Ok(())
             }
             SqlFn::Substring => self.listed(w, "substringUTF8(", a, ")"),
@@ -934,20 +1118,32 @@ impl ClickHouse {
             SqlFn::Translate => plain(w, "translateUTF8"),
             SqlFn::Levenshtein => self.listed(w, "toInt64(editDistanceUTF8(", a, "))"),
             SqlFn::RepeatStr => {
-                w.append("repeat(").expr(self, a0()?, 0)?.append(", toUInt64(greatest(").expr(self, a1()?, 0)?;
+                w.append("repeat(")
+                    .expr(self, a0()?, 0)?
+                    .append(", toUInt64(greatest(")
+                    .expr(self, a1()?, 0)?;
                 w.append(", 0)))");
                 Ok(())
             }
             SqlFn::AsciiCode => self.wrap(w, "toInt64(ascii(", a0()?, "))"),
             // DuckDB's split_part: the empty string past the end; the text past NULL, its answer NULL's
             SqlFn::SplitPart => {
-                w.append("if(isNull(").expr(self, a0()?, 0)?.append("), NULL, coalesce(arrayElement(");
-                w.append("splitByString(").expr(self, a1()?, 0)?.append(", ifNull(").expr(self, a0()?, 0)?;
+                w.append("if(isNull(")
+                    .expr(self, a0()?, 0)?
+                    .append("), NULL, coalesce(arrayElement(");
+                w.append("splitByString(")
+                    .expr(self, a1()?, 0)?
+                    .append(", ifNull(")
+                    .expr(self, a0()?, 0)?;
                 w.append(", '')), ").expr(self, arg(a, 2)?, 0)?.append("), ''))");
                 Ok(())
             }
             SqlFn::Matches => {
-                w.append("match(").expr(self, a0()?, 0)?.append(", ").expr(self, a1()?, 0)?.append(")");
+                w.append("match(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?
+                    .append(")");
                 Ok(())
             }
             SqlFn::RegexpFullMatch => {
@@ -957,7 +1153,10 @@ impl ClickHouse {
                 Ok(())
             }
             SqlFn::RegexpExtract => {
-                w.append("regexpExtract(").expr(self, a0()?, 0)?.append(", ").expr(self, a1()?, 0)?;
+                w.append("regexpExtract(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?;
                 if a.len() > 2 && !matches!(a[2], SqlExpr::IntLit { value: 0, .. }) {
                     w.append(", ").expr(self, &a[2], 0)?.append(")");
                 } else {
@@ -973,11 +1172,18 @@ impl ClickHouse {
                     Ok(())
                 };
                 if a.len() > 2 && !matches!(a[2], SqlExpr::IntLit { value: 0, .. }) {
-                    w.append("arrayMap(\"__g\" -> arrayElement(\"__g\", ").expr(self, &a[2], 0)?;
-                    w.append("), extractAllGroupsVertical(").piece(&text)?.append(", ").expr(self, a1()?, 0)?;
+                    w.append("arrayMap(\"__g\" -> arrayElement(\"__g\", ")
+                        .expr(self, &a[2], 0)?;
+                    w.append("), extractAllGroupsVertical(")
+                        .piece(&text)?
+                        .append(", ")
+                        .expr(self, a1()?, 0)?;
                     w.append("))");
                 } else {
-                    w.append("extractAll(").piece(&text)?.append(", concat('(', ").expr(self, a1()?, 0)?;
+                    w.append("extractAll(")
+                        .piece(&text)?
+                        .append(", concat('(', ")
+                        .expr(self, a1()?, 0)?;
                     w.append(", ')'))");
                 }
                 w.append(")");
@@ -986,12 +1192,20 @@ impl ClickHouse {
             // DuckDB replaces the first match unless 'g'
             SqlFn::RegexpReplace => {
                 let global = a.len() > 3 && matches!(&a[3], SqlExpr::StringLit { value, .. } if value.contains('g'));
-                w.append(if global { "replaceRegexpAll(" } else { "replaceRegexpOne(" }).list(self, head(a, 3)?)?;
+                w.append(if global {
+                    "replaceRegexpAll("
+                } else {
+                    "replaceRegexpOne("
+                })
+                .list(self, head(a, 3)?)?;
                 w.append(")");
                 Ok(())
             }
             SqlFn::Split => {
-                w.append("if(isNull(").expr(self, a0()?, 0)?.append("), [], splitByString(").expr(self, a1()?, 0)?;
+                w.append("if(isNull(")
+                    .expr(self, a0()?, 0)?
+                    .append("), [], splitByString(")
+                    .expr(self, a1()?, 0)?;
                 w.append(", ifNull(").expr(self, a0()?, 0)?.append(", '')))");
                 Ok(())
             }
@@ -1002,9 +1216,14 @@ impl ClickHouse {
                     _ => "TRAILING",
                 };
                 if a.len() == 1 {
-                    w.append(&format!("trim({side} ' ' FROM ")).expr(self, &a[0], 0)?.append(")");
+                    w.append(&format!("trim({side} ' ' FROM "))
+                        .expr(self, &a[0], 0)?
+                        .append(")");
                 } else {
-                    w.append(&format!("trim({side} ")).expr(self, a1()?, 0)?.append(" FROM ").expr(self, a0()?, 0)?;
+                    w.append(&format!("trim({side} "))
+                        .expr(self, a1()?, 0)?
+                        .append(" FROM ")
+                        .expr(self, a0()?, 0)?;
                     w.append(")");
                 }
                 Ok(())
@@ -1066,7 +1285,10 @@ impl ClickHouse {
                     }
                     3 => {
                         // a constant step is folded before its guard runs
-                        w.expr(self, &a[0], 0)?.append(", ").expr(self, &a[1], 0)?.append(", materialize(");
+                        w.expr(self, &a[0], 0)?
+                            .append(", ")
+                            .expr(self, &a[1], 0)?
+                            .append(", materialize(");
                         w.expr(self, &a[2], 0)?.append(")))");
                     }
                     _ => {
@@ -1076,7 +1298,9 @@ impl ClickHouse {
                 Ok(())
             }
             SqlFn::RepeatValue => {
-                w.append("arrayWithConstant(toUInt64(greatest(").expr(self, a1()?, 0)?.append(", 0)), ");
+                w.append("arrayWithConstant(toUInt64(greatest(")
+                    .expr(self, a1()?, 0)?
+                    .append(", 0)), ");
                 w.expr(self, a0()?, 0)?.append(")");
                 Ok(())
             }
@@ -1088,24 +1312,38 @@ impl ClickHouse {
             SqlFn::MapFromLists => self.listed(w, "mapFromArrays(", a, ")"),
             // the entries are (key, value) tuples
             SqlFn::MapFromEntries => {
-                w.append("mapFromArrays(arrayMap(\"__e\" -> tupleElement(\"__e\", 1), ").expr(self, a0()?, 0)?;
-                w.append("), arrayMap(\"__e\" -> tupleElement(\"__e\", 2), ").expr(self, a0()?, 0)?.append("))");
+                w.append("mapFromArrays(arrayMap(\"__e\" -> tupleElement(\"__e\", 1), ")
+                    .expr(self, a0()?, 0)?;
+                w.append("), arrayMap(\"__e\" -> tupleElement(\"__e\", 2), ")
+                    .expr(self, a0()?, 0)?
+                    .append("))");
                 Ok(())
             }
             SqlFn::MapExtract => {
-                w.append("if(mapContains(").expr(self, a0()?, 0)?.append(", ").expr(self, a1()?, 0)?.append("), [");
-                w.expr(self, a0()?, 0)?.append("[").expr(self, a1()?, 0)?.append("]], [])");
+                w.append("if(mapContains(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?
+                    .append("), [");
+                w.expr(self, a0()?, 0)?
+                    .append("[")
+                    .expr(self, a1()?, 0)?
+                    .append("]], [])");
                 Ok(())
             }
             SqlFn::MapConcat => self.listed(w, "mapUpdate(", a, ")"),
             // ---- variant: in DuckDB's json_type vocabulary
             SqlFn::JsonType => {
                 let x = a0()?;
-                w.append("multiIf(isNull(").expr(self, x, 0)?.append("), NULL, JSONType(").expr(self, x, 0)?;
+                w.append("multiIf(isNull(")
+                    .expr(self, x, 0)?
+                    .append("), NULL, JSONType(")
+                    .expr(self, x, 0)?;
                 w.append(") = 'Null', 'NULL', JSONType(").expr(self, x, 0)?;
                 w.append(") = 'String', 'VARCHAR', JSONType(").expr(self, x, 0)?;
                 w.append(") = 'Bool', 'BOOLEAN', JSONType(").expr(self, x, 0)?;
-                w.append(") IN ('Int64', 'UInt64'), 'BIGINT', JSONType(").expr(self, x, 0)?;
+                w.append(") IN ('Int64', 'UInt64'), 'BIGINT', JSONType(")
+                    .expr(self, x, 0)?;
                 w.append(") = 'Array', 'ARRAY', JSONType(")
                     .expr(self, x, 0)?
                     .append(") = 'Object', 'OBJECT', 'DOUBLE')");
@@ -1142,7 +1380,9 @@ impl ClickHouse {
             w.expr(self, &a[1], 0)?.append(", char(30), ");
         }
         // each quote travels as the envelope's quote mark
-        w.append("replaceAll(toString(").expr(self, arg(a, 0)?, 0)?.append(r"), '\'', char(29)), char(31))))");
+        w.append("replaceAll(toString(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(r"), '\'', char(29)), char(31))))");
         Ok(())
     }
 
@@ -1212,20 +1452,28 @@ impl ClickHouse {
         };
         Ok(match unit {
             DatePart::Year => pc(move |w| {
-                w.append("(toInt128(toYear(").expr(self, date, 0)?.append(")) + toInt128(").expr(self, n, 0)?;
+                w.append("(toInt128(toYear(")
+                    .expr(self, date, 0)?
+                    .append(")) + toInt128(")
+                    .expr(self, n, 0)?;
                 w.append(")) NOT BETWEEN 1900 AND 2299");
                 Ok(())
             }),
             DatePart::Month => pc(move |w| {
-                w.append("intDiv(toInt128(toYear(").expr(self, date, 0)?.append(")) * 12 + toMonth(");
+                w.append("intDiv(toInt128(toYear(")
+                    .expr(self, date, 0)?
+                    .append(")) * 12 + toMonth(");
                 w.expr(self, date, 0)?.append(") - 1 + toInt128(").expr(self, n, 0)?;
                 w.append("), 12) NOT BETWEEN 1900 AND 2299");
                 Ok(())
             }),
             _ => pc(move |w| {
-                w.append("(toInt128(toUnixTimestamp64Micro(toDateTime64(").expr(self, date, 0)?;
+                w.append("(toInt128(toUnixTimestamp64Micro(toDateTime64(")
+                    .expr(self, date, 0)?;
                 w.append(", 6, 'UTC'))) + toInt128(").expr(self, n, 0)?;
-                w.append(&format!(") * {micros}) NOT BETWEEN -2208988800000000 AND 10413791999999999"));
+                w.append(&format!(
+                    ") * {micros}) NOT BETWEEN -2208988800000000 AND 10413791999999999"
+                ));
                 Ok(())
             }),
         })
@@ -1242,7 +1490,8 @@ impl ClickHouse {
         if let Some(micros) = bucket_micros(unit) {
             let origin: i64 = if unit == DatePart::Week { -3 * 86_400_000_000 } else { 0 };
             let x: P<'a> = pc(move |w| {
-                w.append("(toUnixTimestamp64Micro(toDateTime64(").expr(self, arg(a, 2)?, 0)?;
+                w.append("(toUnixTimestamp64Micro(toDateTime64(")
+                    .expr(self, arg(a, 2)?, 0)?;
                 w.append(&format!(", 6, 'UTC')) - ({origin}))"));
                 Ok(())
             });
@@ -1254,7 +1503,11 @@ impl ClickHouse {
                 })
             };
             return Ok(pc(move |w| {
-                w.append("fromUnixTimestamp64Micro(").piece(&*x)?.append(" - ((").piece(&*x)?.append(" % ");
+                w.append("fromUnixTimestamp64Micro(")
+                    .piece(&*x)?
+                    .append(" - ((")
+                    .piece(&*x)?
+                    .append(" % ");
                 w.piece(&*u)?.append(") + ").piece(&*u)?.append(") % ").piece(&*u)?;
                 w.append(&format!(" + ({origin}), 'UTC')"));
                 Ok(())
@@ -1266,7 +1519,9 @@ impl ClickHouse {
             other => return Err(Refusal::capability(format!("a {other} time bucket reached ClickHouse"))),
         };
         let m: P<'a> = pc(move |w| {
-            w.append("((toYear(").expr(self, arg(a, 2)?, 0)?.append(") - 1970) * 12 + toMonth(");
+            w.append("((toYear(")
+                .expr(self, arg(a, 2)?, 0)?
+                .append(") - 1970) * 12 + toMonth(");
             w.expr(self, arg(a, 2)?, 0)?.append(") - 1)");
             Ok(())
         });
@@ -1275,8 +1530,16 @@ impl ClickHouse {
             Ok(())
         });
         Ok(pc(move |w| {
-            w.append("toDateTime64(addMonths(toDate32('1970-01-01'), ").piece(&*m)?.append(" - ((").piece(&*m)?;
-            w.append(" % ").piece(&*size)?.append(") + ").piece(&*size)?.append(") % ").piece(&*size)?;
+            w.append("toDateTime64(addMonths(toDate32('1970-01-01'), ")
+                .piece(&*m)?
+                .append(" - ((")
+                .piece(&*m)?;
+            w.append(" % ")
+                .piece(&*size)?
+                .append(") + ")
+                .piece(&*size)?
+                .append(") % ")
+                .piece(&*size)?;
             w.append("), 6, 'UTC')");
             Ok(())
         }))
@@ -1297,10 +1560,14 @@ impl ClickHouse {
             DatePart::DayOfYear => "toDayOfYear",
             DatePart::IsoDayOfWeek => "toDayOfWeek",
             DatePart::Millisecond | DatePart::Microsecond | DatePart::Nanosecond => {
-                return Err(Refusal::capability(format!("date part {p} has no probed ClickHouse spelling")));
+                return Err(Refusal::capability(format!(
+                    "date part {p} has no probed ClickHouse spelling"
+                )));
             }
         };
-        w.append(&format!("toInt64({f}(")).expr(self, arg(a, 1)?, 0)?.append("))");
+        w.append(&format!("toInt64({f}("))
+            .expr(self, arg(a, 1)?, 0)?
+            .append("))");
         Ok(())
     }
 
@@ -1331,13 +1598,17 @@ impl ClickHouse {
                     | DatePart::Nanosecond
                     | DatePart::DayOfYear
                     | DatePart::IsoDayOfWeek => {
-                        return Err(Refusal::capability(format!("date_trunc {p} has no ClickHouse spelling")));
+                        return Err(Refusal::capability(format!(
+                            "date_trunc {p} has no ClickHouse spelling"
+                        )));
                     }
                 };
                 w.append(open).expr(self, a1()?, 0)?.append(close);
             }
             SqlFn::ParseDate => {
-                w.append("parseDateTime64BestEffort(").expr(self, a0()?, 0)?.append(", 6, 'UTC')");
+                w.append("parseDateTime64BestEffort(")
+                    .expr(self, a0()?, 0)?
+                    .append(", 6, 'UTC')");
             }
             SqlFn::Extract => self.extract(w, a)?,
             SqlFn::MakeDate => {
@@ -1347,8 +1618,10 @@ impl ClickHouse {
                 if a.len() != 6 {
                     return Err(wall(f, &format!("make_timestamp of {} arguments", a.len())));
                 }
-                w.append("addMicroseconds(toDateTime64(makeDateTime(").list(self, &a[..5])?;
-                w.append(", 0, 'UTC'), 6, 'UTC'), toInt64(round(toFloat64(").expr(self, &a[5], 0)?;
+                w.append("addMicroseconds(toDateTime64(makeDateTime(")
+                    .list(self, &a[..5])?;
+                w.append(", 0, 'UTC'), 6, 'UTC'), toInt64(round(toFloat64(")
+                    .expr(self, &a[5], 0)?;
                 w.append(") * 1000000)))");
             }
             SqlFn::AddInterval | SqlFn::AddIntervalTemporal => {
@@ -1382,7 +1655,10 @@ impl ClickHouse {
                         w.append(&format!(" AS {ty})"));
                     }
                 }
-                w.append(&format!(" ELSE {name}(")).expr(self, arg(a, 2)?, 0)?.append(", ").expr(self, a1()?, 0)?;
+                w.append(&format!(" ELSE {name}("))
+                    .expr(self, arg(a, 2)?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?;
                 w.append(") END");
             }
             // DuckDB's date_diff counts boundaries crossed, as ClickHouse's dateDiff does
@@ -1405,15 +1681,19 @@ impl ClickHouse {
                 w.piece(&*bucket)?;
             }
             SqlFn::DateAtTime => {
-                return Err(Refusal::capability("a time of day: ClickHouse's Time type is experimental"));
+                return Err(Refusal::capability(
+                    "a time of day: ClickHouse's Time type is experimental",
+                ));
             }
             SqlFn::Timezone => {
                 w.append("addSeconds(toDateTime64(").expr(self, a1()?, 0)?;
-                w.append(", 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(").expr(self, a1()?, 0)?;
+                w.append(", 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(")
+                    .expr(self, a1()?, 0)?;
                 w.append(", 6, 'UTC'), ").expr(self, a0()?, 0)?.append(")))");
             }
             SqlFn::EpochSeconds => {
-                w.append("(toFloat64(toUnixTimestamp64Micro(toDateTime64(").expr(self, a0()?, 0)?;
+                w.append("(toFloat64(toUnixTimestamp64Micro(toDateTime64(")
+                    .expr(self, a0()?, 0)?;
                 w.append(", 6, 'UTC'))) / 1000000)");
             }
             SqlFn::EpochNs | SqlFn::FromEpochNs => {
@@ -1423,13 +1703,19 @@ impl ClickHouse {
                 ));
             }
             SqlFn::EpochMs => {
-                w.append("toUnixTimestamp64Milli(toDateTime64(").expr(self, a0()?, 0)?.append(", 6, 'UTC'))");
+                w.append("toUnixTimestamp64Milli(toDateTime64(")
+                    .expr(self, a0()?, 0)?
+                    .append(", 6, 'UTC'))");
             }
             SqlFn::FromEpochSeconds => {
-                w.append("fromUnixTimestamp64Micro(toInt64(").expr(self, a0()?, 0)?.append(" * 1000000), 'UTC')");
+                w.append("fromUnixTimestamp64Micro(toInt64(")
+                    .expr(self, a0()?, 0)?
+                    .append(" * 1000000), 'UTC')");
             }
             SqlFn::FromEpochMs => {
-                w.append("fromUnixTimestamp64Milli(toInt64(").expr(self, a0()?, 0)?.append("), 'UTC')");
+                w.append("fromUnixTimestamp64Milli(toInt64(")
+                    .expr(self, a0()?, 0)?
+                    .append("), 'UTC')");
             }
             SqlFn::Dayname => {
                 w.append("dateName('weekday', ").expr(self, a0()?, 0)?.append(")");
@@ -1439,16 +1725,25 @@ impl ClickHouse {
             }
             SqlFn::Strftime => {
                 let SqlExpr::FormatLit { parts, .. } = a1()? else {
-                    return Err(wall(f, "a date format that is not a format literal: its codes are DuckDB's"));
+                    return Err(wall(
+                        f,
+                        "a date format that is not a format literal: its codes are DuckDB's",
+                    ));
                 };
                 let formatted = self.formatted(a0()?, parts)?;
                 w.piece(&*formatted)?;
             }
             SqlFn::Strptime => {
                 if !matches!(a1()?, SqlExpr::FormatLit { .. }) {
-                    return Err(wall(f, "a date format that is not a format literal: its codes are DuckDB's"));
+                    return Err(wall(
+                        f,
+                        "a date format that is not a format literal: its codes are DuckDB's",
+                    ));
                 }
-                w.append("toDateTime64(parseDateTime(").expr(self, a0()?, 0)?.append(", ").expr(self, a1()?, 0)?;
+                w.append("toDateTime64(parseDateTime(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?;
                 w.append(", 'UTC'), 6, 'UTC')");
             }
             other => return Err(Refusal::illegal_state(format!("not a temporal call: {other}"))),
@@ -1467,7 +1762,9 @@ impl ClickHouse {
                     pieces.push(self.formatted_run(value, std::mem::take(&mut run))?);
                 }
                 pieces.push(pc(move |w| {
-                    w.append("substring(formatDateTime(").expr(self, value, 0)?.append(", '%f'), 1, 3)");
+                    w.append("substring(formatDateTime(")
+                        .expr(self, value, 0)?
+                        .append(", '%f'), 1, 3)");
                     Ok(())
                 }));
             } else {
@@ -1490,9 +1787,17 @@ impl ClickHouse {
     fn formatted_run<'a>(&'a self, value: &'a SqlExpr, parts: Vec<DateFmt>) -> Result<P<'a>, Refusal> {
         let joda = parts.contains(&DateFmt::Part(lite_sql::DateFmtPart::Hour12Nopad));
         Ok(pc(move |w| {
-            w.append(if joda { "formatDateTimeInJodaSyntax(" } else { "formatDateTime(" }).expr(self, value, 0)?;
-            let format =
-                if joda { super::aggregates::joda_text(&parts)? } else { super::aggregates::format_text(&parts)? };
+            w.append(if joda {
+                "formatDateTimeInJodaSyntax("
+            } else {
+                "formatDateTime("
+            })
+            .expr(self, value, 0)?;
+            let format = if joda {
+                super::aggregates::joda_text(&parts)?
+            } else {
+                super::aggregates::format_text(&parts)?
+            };
             let lit = self.string_lit(&format)?;
             w.append(", ").append(&lit).append(")");
             Ok(())

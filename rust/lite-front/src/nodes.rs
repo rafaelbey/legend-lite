@@ -54,7 +54,11 @@ pub fn vs_fn(f: AppliedFunction) -> ValueSpecification {
 
 /// `new CString(value, pos)`: not multi-line.
 pub fn cstring(value: JStr, pos: Span) -> ValueSpecification {
-    ValueSpecification::CString(Box::new(CString { value, pos, multi_line: false }))
+    ValueSpecification::CString(Box::new(CString {
+        value,
+        pos,
+        multi_line: false,
+    }))
 }
 
 /// `new PureCollection(values, pos)`.
@@ -69,12 +73,22 @@ pub fn ptr(full_path: JStr, pos: Span) -> ValueSpecification {
 
 /// `new AppliedProperty(receiver, property, pos)`: no owner class.
 pub fn property(receiver: ValueSpecification, name: JStr, pos: Span) -> ValueSpecification {
-    ValueSpecification::AppliedProperty(Box::new(AppliedProperty { receiver, property: name, pos, owner_class: None }))
+    ValueSpecification::AppliedProperty(Box::new(AppliedProperty {
+        receiver,
+        property: name,
+        pos,
+        owner_class: None,
+    }))
 }
 
 /// `new Variable(name)`: no type, multiplicity or span.
 pub fn variable(name: JStr) -> Variable {
-    Variable { name, r#type: None, multiplicity: None, pos: None }
+    Variable {
+        name,
+        r#type: None,
+        multiplicity: None,
+        pos: None,
+    }
 }
 
 pub fn vs_var(v: Variable) -> ValueSpecification {
@@ -83,7 +97,11 @@ pub fn vs_var(v: Variable) -> ValueSpecification {
 
 /// `new LambdaFunction(parameters, body, pos)`.
 pub fn lambda(parameters: Vec<Variable>, body: Vec<ValueSpecification>, pos: Span) -> LambdaFunction {
-    LambdaFunction { parameters: parameters.into_iter().map(Box::new).collect(), body, pos }
+    LambdaFunction {
+        parameters: parameters.into_iter().map(Box::new).collect(),
+        body,
+        pos,
+    }
 }
 
 /// `new TypeExpression.NameRef(name, pos)`.
@@ -93,7 +111,10 @@ pub fn name_ref(name: JStr, pos: Span) -> TypeExpression {
 
 /// `new Multiplicity.Concrete(lower, upper)`.
 pub fn concrete(lower: i32, upper: Option<i32>) -> Multiplicity {
-    Multiplicity::MultiplicityConcrete(Box::new(MultiplicityConcrete { lower_bound: lower, upper_bound: upper }))
+    Multiplicity::MultiplicityConcrete(Box::new(MultiplicityConcrete {
+        lower_bound: lower,
+        upper_bound: upper,
+    }))
 }
 
 /// A span's box.

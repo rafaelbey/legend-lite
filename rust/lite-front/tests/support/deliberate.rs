@@ -52,21 +52,35 @@ impl Deliberate {
     pub fn load() -> Deliberate {
         let mut expected = BTreeMap::new();
         for r in rows("LITE_FRONT_DELIBERATE") {
-            assert_eq!(r.len(), 8, "door, dialect, sha, PARITY row, class, line, column, message sha: {r:?}");
+            assert_eq!(
+                r.len(),
+                8,
+                "door, dialect, sha, PARITY row, class, line, column, message sha: {r:?}"
+            );
             let e = Expected {
                 class: r[4].clone(),
                 line: r[5].clone(),
                 column: r[6].clone(),
                 message_sha: r[7].clone(),
             };
-            assert!(expected.insert(key(&r[0], &r[1], &r[2]), e).is_none(), "listed twice: {r:?}");
+            assert!(
+                expected.insert(key(&r[0], &r[1], &r[2]), e).is_none(),
+                "listed twice: {r:?}"
+            );
         }
         let mut left = BTreeMap::new();
         for r in rows("LITE_FRONT_RAW_LEFT") {
             assert_eq!(r.len(), 6, "door, dialect, sha, PARITY row, class, what: {r:?}");
-            assert!(left.insert(key(&r[0], &r[1], &r[2]), r[4].clone()).is_none(), "listed twice: {r:?}");
+            assert!(
+                left.insert(key(&r[0], &r[1], &r[2]), r[4].clone()).is_none(),
+                "listed twice: {r:?}"
+            );
         }
-        Deliberate { expected, left, left_seen: BTreeSet::new() }
+        Deliberate {
+            expected,
+            left,
+            left_seen: BTreeSet::new(),
+        }
     }
 
     /// How many questions the list names at `door`.
@@ -93,7 +107,11 @@ impl Deliberate {
 
     /// The left-for-the-user lines of `door` whose question no longer answers the raw class they name.
     pub fn stale_left(&self, door: &str) -> Vec<String> {
-        self.left.keys().filter(|k| k.0 == door && !self.left_seen.contains(*k)).map(|k| format!("{k:?}")).collect()
+        self.left
+            .keys()
+            .filter(|k| k.0 == door && !self.left_seen.contains(*k))
+            .map(|k| format!("{k:?}"))
+            .collect()
     }
 }
 
@@ -111,7 +129,12 @@ pub fn is_the_new_answer(form: &[u16], e: &Expected) -> Result<(), String> {
     let f: Vec<&[u16]> = form.splitn(5, |&c| c == tab).collect();
     let field = |i: usize| f.get(i).map_or(String::new(), |u| String::from_utf16_lossy(u));
     let message_sha = f.get(4).map_or(String::new(), |m| sha256_utf16le(m));
-    if field(0) == "E" && field(1) == e.class && field(2) == e.line && field(3) == e.column && message_sha == e.message_sha {
+    if field(0) == "E"
+        && field(1) == e.class
+        && field(2) == e.line
+        && field(3) == e.column
+        && message_sha == e.message_sha
+    {
         return Ok(());
     }
     Err(format!(

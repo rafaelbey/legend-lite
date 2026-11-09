@@ -66,7 +66,9 @@ fn interval_unit(unit: DatePart) -> Result<&'static str, Refusal> {
         DatePart::Millisecond => "millisecond",
         DatePart::Microsecond => "microsecond",
         DatePart::Nanosecond | DatePart::DayOfYear | DatePart::IsoDayOfWeek => {
-            return Err(Refusal::capability(format!("interval unit {unit} has no Trino spelling")));
+            return Err(Refusal::capability(format!(
+                "interval unit {unit} has no Trino spelling"
+            )));
         }
     })
 }
@@ -139,13 +141,11 @@ fn has_back_reference(p: &str) -> bool {
 /// (Java's `micros`).
 fn micros(t: P<'_>) -> P<'_> {
     pc(move |w| {
-        w.append(
-            "(date_diff('second', TIMESTAMP '1970-01-01 00:00:00', date_trunc('second', CAST(",
-        )
-        .piece(&*t)?
-        .append(" AS TIMESTAMP(6)))) * 1000000 + CAST(substr(CAST(CAST(")
-        .piece(&*t)?
-        .append(" AS TIMESTAMP(6)) AS VARCHAR), 21, 6) AS BIGINT))");
+        w.append("(date_diff('second', TIMESTAMP '1970-01-01 00:00:00', date_trunc('second', CAST(")
+            .piece(&*t)?
+            .append(" AS TIMESTAMP(6)))) * 1000000 + CAST(substr(CAST(CAST(")
+            .piece(&*t)?
+            .append(" AS TIMESTAMP(6)) AS VARCHAR), 21, 6) AS BIGINT))");
         Ok(())
     })
 }
@@ -153,7 +153,9 @@ fn micros(t: P<'_>) -> P<'_> {
 /// The naive UTC timestamp `x` microseconds after 1970 (Java's `fromMicros`).
 fn from_micros(x: P<'_>) -> P<'_> {
     pc(move |w| {
-        w.append("CAST(at_timezone(from_unixtime_nanos((").piece(&*x)?.append(") * 1000), 'UTC') AS TIMESTAMP(6))");
+        w.append("CAST(at_timezone(from_unixtime_nanos((")
+            .piece(&*x)?
+            .append(") * 1000), 'UTC') AS TIMESTAMP(6))");
         Ok(())
     })
 }
@@ -163,7 +165,8 @@ fn epoch_boundaries<'a>(from: P<'a>, to: P<'a>, per_unit: i64) -> P<'a> {
     pc(move |w| {
         w.append("(floor(CAST(").piece(&*micros(to.clone()))?;
         w.append(&format!(" AS DOUBLE) / {per_unit}) - floor(CAST("));
-        w.piece(&*micros(from.clone()))?.append(&format!(" AS DOUBLE) / {per_unit}))"));
+        w.piece(&*micros(from.clone()))?
+            .append(&format!(" AS DOUBLE) / {per_unit}))"));
         Ok(())
     })
 }
@@ -171,7 +174,11 @@ fn epoch_boundaries<'a>(from: P<'a>, to: P<'a>, per_unit: i64) -> P<'a> {
 /// `d`, NULL where it is zero (Java's `divisor`).
 fn divisor<'a>(d: &'a Trino, x: &'a SqlExpr) -> P<'a> {
     pc(move |w| {
-        w.append("CASE WHEN ").expr(d, x, 0)?.append(" = 0 THEN NULL ELSE ").expr(d, x, 0)?.append(" END");
+        w.append("CASE WHEN ")
+            .expr(d, x, 0)?
+            .append(" = 0 THEN NULL ELSE ")
+            .expr(d, x, 0)?
+            .append(" END");
         Ok(())
     })
 }
@@ -230,7 +237,10 @@ fn jaro_winkler<'a>(d: &'a Trino, p: &'a SqlExpr, t: &'a SqlExpr) -> P<'a> {
          {s} -> {counted}) END"
     );
     pc(move |w| {
-        w.append("element_at(transform(ARRAY[CAST(ROW(").expr(d, p, 0)?.append(", ").expr(d, t, 0)?;
+        w.append("element_at(transform(ARRAY[CAST(ROW(")
+            .expr(d, p, 0)?
+            .append(", ")
+            .expr(d, t, 0)?;
         w.append(&format!(") AS ROW(p VARCHAR, t VARCHAR))], {o} -> {body}), 1)"));
         Ok(())
     })
@@ -284,11 +294,15 @@ impl Trino {
             DatePart::DayOfYear => "day_of_year",
             DatePart::IsoDayOfWeek => "day_of_week",
             DatePart::Millisecond | DatePart::Microsecond | DatePart::Nanosecond => {
-                return Err(Refusal::capability(format!("date part {part} has no probed Trino spelling")));
+                return Err(Refusal::capability(format!(
+                    "date part {part} has no probed Trino spelling"
+                )));
             }
         };
         Ok(pc(move |w| {
-            w.append(&format!("CAST({f}(")).expr(self, arg(a, 1)?, 0)?.append(") AS BIGINT)");
+            w.append(&format!("CAST({f}("))
+                .expr(self, arg(a, 1)?, 0)?
+                .append(") AS BIGINT)");
             Ok(())
         }))
     }
@@ -301,7 +315,11 @@ impl Trino {
         let y = {
             let (from, to) = (from.clone(), to.clone());
             pc(move |w| {
-                w.append("(year(").piece(&*to)?.append(") - year(").piece(&*from)?.append("))");
+                w.append("(year(")
+                    .piece(&*to)?
+                    .append(") - year(")
+                    .piece(&*from)?
+                    .append("))");
                 Ok(())
             })
         };
@@ -310,7 +328,11 @@ impl Trino {
             DatePart::Quarter => {
                 let (from, to) = (from.clone(), to.clone());
                 pc(move |w| {
-                    w.piece(&*y)?.append(" * 4 + (quarter(").piece(&*to)?.append(") - quarter(").piece(&*from)?;
+                    w.piece(&*y)?
+                        .append(" * 4 + (quarter(")
+                        .piece(&*to)?
+                        .append(") - quarter(")
+                        .piece(&*from)?;
                     w.append("))");
                     Ok(())
                 })
@@ -318,7 +340,11 @@ impl Trino {
             DatePart::Month => {
                 let (from, to) = (from.clone(), to.clone());
                 pc(move |w| {
-                    w.piece(&*y)?.append(" * 12 + (month(").piece(&*to)?.append(") - month(").piece(&*from)?;
+                    w.piece(&*y)?
+                        .append(" * 12 + (month(")
+                        .piece(&*to)?
+                        .append(") - month(")
+                        .piece(&*from)?;
                     w.append("))");
                     Ok(())
                 })
@@ -326,7 +352,8 @@ impl Trino {
             DatePart::Week => {
                 let (from, to) = (from.clone(), to.clone());
                 pc(move |w| {
-                    w.append("floor(CAST(date_diff('day', DATE '1969-12-29', CAST(").piece(&*to)?;
+                    w.append("floor(CAST(date_diff('day', DATE '1969-12-29', CAST(")
+                        .piece(&*to)?;
                     w.append(" AS DATE)) AS DOUBLE) / 7) - floor(CAST(date_diff('day', DATE '1969-12-29', CAST(");
                     w.piece(&*from)?.append(" AS DATE)) AS DOUBLE) / 7)");
                     Ok(())
@@ -335,7 +362,10 @@ impl Trino {
             DatePart::Day => {
                 let (from, to) = (from.clone(), to.clone());
                 pc(move |w| {
-                    w.append("date_diff('day', CAST(").piece(&*from)?.append(" AS DATE), CAST(").piece(&*to)?;
+                    w.append("date_diff('day', CAST(")
+                        .piece(&*from)?
+                        .append(" AS DATE), CAST(")
+                        .piece(&*to)?;
                     w.append(" AS DATE))");
                     Ok(())
                 })
@@ -347,12 +377,18 @@ impl Trino {
             DatePart::Microsecond => {
                 let (from, to) = (from.clone(), to.clone());
                 pc(move |w| {
-                    w.append("(").piece(&*micros(to.clone()))?.append(" - ").piece(&*micros(from.clone()))?.append(")");
+                    w.append("(")
+                        .piece(&*micros(to.clone()))?
+                        .append(" - ")
+                        .piece(&*micros(from.clone()))?
+                        .append(")");
                     Ok(())
                 })
             }
             DatePart::Nanosecond | DatePart::DayOfYear | DatePart::IsoDayOfWeek => {
-                return Err(Refusal::capability(format!("date_diff part {part} has no probed Trino spelling")));
+                return Err(Refusal::capability(format!(
+                    "date_diff part {part} has no probed Trino spelling"
+                )));
             }
         };
         Ok(pc(move |w| {
@@ -387,7 +423,11 @@ impl Trino {
         let months = match unit {
             DatePart::Month => 1,
             DatePart::Year => 12,
-            _ => return Err(Refusal::capability(format!("a {unit} time bucket has no Trino spelling"))),
+            _ => {
+                return Err(Refusal::capability(format!(
+                    "a {unit} time bucket has no Trino spelling"
+                )));
+            }
         };
         let size: P<'a> = pc(move |w| {
             w.append("(").piece(&*n)?.append(&format!(" * {months})"));
@@ -395,8 +435,13 @@ impl Trino {
         });
         Ok(pc(move |w| {
             w.append("CAST(date_add('month', CAST(floor(CAST((year(").piece(&*t)?;
-            w.append(") - 1970) * 12 + month(").piece(&*t)?.append(") - 1 AS DOUBLE) / ").piece(&*size)?;
-            w.append(") * ").piece(&*size)?.append(" AS BIGINT), DATE '1970-01-01') AS TIMESTAMP(6))");
+            w.append(") - 1970) * 12 + month(")
+                .piece(&*t)?
+                .append(") - 1 AS DOUBLE) / ")
+                .piece(&*size)?;
+            w.append(") * ")
+                .piece(&*size)?
+                .append(" AS BIGINT), DATE '1970-01-01') AS TIMESTAMP(6))");
             Ok(())
         }))
     }
@@ -413,7 +458,9 @@ impl Trino {
             | DatePart::Millisecond
             | DatePart::Microsecond => false,
             DatePart::Nanosecond | DatePart::DayOfYear | DatePart::IsoDayOfWeek => {
-                return Err(Refusal::capability(format!("date_trunc to {part} has no Trino spelling")));
+                return Err(Refusal::capability(format!(
+                    "date_trunc to {part} has no Trino spelling"
+                )));
             }
         };
         w.append(if to_date { "CAST(date_trunc(" } else { "date_trunc(" });
@@ -428,9 +475,14 @@ impl Trino {
     /// The `MAKE_TIMESTAMP` arm: its text, cast (date_add has no microsecond unit), the seconds to six digits.
     fn make_timestamp(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() != 6 {
-            return Err(wall(SqlFn::MakeTimestamp, &format!("make_timestamp of {} arguments", a.len())));
+            return Err(wall(
+                SqlFn::MakeTimestamp,
+                &format!("make_timestamp of {} arguments", a.len()),
+            ));
         }
-        w.append("CAST(format('%04d-%02d-%02d %02d:%02d:%09.6f', ").list(self, &a[..5])?.append(", CAST(");
+        w.append("CAST(format('%04d-%02d-%02d %02d:%02d:%09.6f', ")
+            .list(self, &a[..5])?
+            .append(", CAST(");
         w.expr(self, &a[5], 0)?.append(" AS DOUBLE)) AS TIMESTAMP(6))");
         Ok(())
     }
@@ -449,7 +501,11 @@ impl Trino {
             return from_micros(x)(w);
         }
         let unit = self.string_lit(unit)?;
-        w.append("date_add(").append(&unit).append(", ").expr(self, arg(a, 1)?, 0)?.append(", ");
+        w.append("date_add(")
+            .append(&unit)
+            .append(", ")
+            .expr(self, arg(a, 1)?, 0)?
+            .append(", ");
         w.expr(self, arg(a, 2)?, 0)?.append(")");
         Ok(())
     }
@@ -473,7 +529,10 @@ impl Trino {
     fn strftime(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let x = arg(a, 0)?;
         let SqlExpr::FormatLit { parts, .. } = arg(a, 1)? else {
-            return Err(wall(SqlFn::Strftime, "a date format that is not a format literal: its codes are DuckDB's"));
+            return Err(wall(
+                SqlFn::Strftime,
+                "a date format that is not a format literal: its codes are DuckDB's",
+            ));
         };
         let format_datetime = |run: Vec<DateFmt>| self.format_datetime(x, run);
         let mut pieces: Vec<P<'_>> = Vec::new();
@@ -484,7 +543,9 @@ impl Trino {
                     pieces.push(format_datetime(std::mem::take(&mut run)));
                 }
                 pieces.push(pc(move |w| {
-                    w.append("substr(CAST(CAST(").expr(self, x, 0)?.append(" AS TIMESTAMP(6)) AS VARCHAR), -6)");
+                    w.append("substr(CAST(CAST(")
+                        .expr(self, x, 0)?
+                        .append(" AS TIMESTAMP(6)) AS VARCHAR), -6)");
                     Ok(())
                 }));
                 if *part == DateFmtPart::SubsecNano {
@@ -508,10 +569,17 @@ impl Trino {
     fn format_datetime<'a>(&'a self, x: &'a SqlExpr, run: Vec<DateFmt>) -> P<'a> {
         let format = SqlExpr::FormatLit {
             parts: run,
-            r#type: TypeFact::Typed { r#type: SqlType::Scalar(Scalar::Varchar), nullable: false },
+            r#type: TypeFact::Typed {
+                r#type: SqlType::Scalar(Scalar::Varchar),
+                nullable: false,
+            },
         };
         pc(move |w| {
-            w.append("format_datetime(").expr(self, x, 0)?.append(", ").expr(self, &format, 0)?.append(")");
+            w.append("format_datetime(")
+                .expr(self, x, 0)?
+                .append(", ")
+                .expr(self, &format, 0)?
+                .append(")");
             Ok(())
         })
     }
@@ -519,9 +587,15 @@ impl Trino {
     /// The `STRPTIME` arm.
     fn strptime(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if !matches!(arg(a, 1)?, SqlExpr::FormatLit { .. }) {
-            return Err(wall(SqlFn::Strptime, "a date format that is not a format literal: its codes are DuckDB's"));
+            return Err(wall(
+                SqlFn::Strptime,
+                "a date format that is not a format literal: its codes are DuckDB's",
+            ));
         }
-        w.append("CAST(parse_datetime(").expr(self, &a[0], 0)?.append(", ").expr(self, &a[1], 0)?;
+        w.append("CAST(parse_datetime(")
+            .expr(self, &a[0], 0)?
+            .append(", ")
+            .expr(self, &a[1], 0)?;
         w.append(") AS TIMESTAMP(6))");
         Ok(())
     }
@@ -533,9 +607,17 @@ impl Trino {
             w.append("json_format(").expr(self, x, 0)?.append(")");
             Ok(())
         };
-        w.append("(CASE WHEN ").expr(self, x, 0)?.append(" IS NULL THEN NULL WHEN ").piece(&s)?;
-        w.append(" = 'null' THEN 'NULL' WHEN ").piece(&s)?.append(" IN ('true', 'false') THEN 'BOOLEAN'");
-        w.append(" WHEN substr(").piece(&s)?.append(", 1, 1) = '\"' THEN 'VARCHAR' WHEN substr(").piece(&s)?;
+        w.append("(CASE WHEN ")
+            .expr(self, x, 0)?
+            .append(" IS NULL THEN NULL WHEN ")
+            .piece(&s)?;
+        w.append(" = 'null' THEN 'NULL' WHEN ")
+            .piece(&s)?
+            .append(" IN ('true', 'false') THEN 'BOOLEAN'");
+        w.append(" WHEN substr(")
+            .piece(&s)?
+            .append(", 1, 1) = '\"' THEN 'VARCHAR' WHEN substr(")
+            .piece(&s)?;
         w.append(", 1, 1) = '[' THEN 'ARRAY' WHEN substr(").piece(&s)?;
         w.append(", 1, 1) = '{' THEN 'OBJECT' WHEN regexp_like(").piece(&s)?;
         w.append(", '^-?[0-9]+$') THEN 'BIGINT' ELSE 'DOUBLE' END)");
@@ -553,7 +635,9 @@ impl Trino {
             })
         };
         let stop: P<'_> = pc(move |w| {
-            w.append("CAST(").expr(self, arg(a, if a.len() == 1 { 0 } else { 1 })?, 0)?.append(" AS BIGINT)");
+            w.append("CAST(")
+                .expr(self, arg(a, if a.len() == 1 { 0 } else { 1 })?, 0)?
+                .append(" AS BIGINT)");
             Ok(())
         });
         let step: P<'_> = if a.len() > 2 {
@@ -564,8 +648,17 @@ impl Trino {
         } else {
             text("BIGINT '1'")
         };
-        w.append("(CASE WHEN (").piece(&*stop)?.append(" - ").piece(&*start)?.append(") * ").piece(&*step)?;
-        w.append(" > 0 THEN filter(sequence(").piece(&*start)?.append(", ").piece(&*stop)?.append(", ");
+        w.append("(CASE WHEN (")
+            .piece(&*stop)?
+            .append(" - ")
+            .piece(&*start)?
+            .append(") * ")
+            .piece(&*step)?;
+        w.append(" > 0 THEN filter(sequence(")
+            .piece(&*start)?
+            .append(", ")
+            .piece(&*stop)?
+            .append(", ");
         w.piece(&*step)?.append("), \"__g\" -> \"__g\" <> ").piece(&*stop)?;
         w.append(") ELSE CAST(ARRAY[] AS ARRAY(BIGINT)) END)");
         Ok(())
@@ -578,7 +671,11 @@ impl Trino {
             return Err(wall(SqlFn::RegexpReplace, "a computed regexp replacement"));
         };
         if global {
-            w.append("regexp_replace(").expr(self, &a[0], 0)?.append(", ").expr(self, &a[1], 0)?.append(", ");
+            w.append("regexp_replace(")
+                .expr(self, &a[0], 0)?
+                .append(", ")
+                .expr(self, &a[1], 0)?
+                .append(", ");
             let lit = self.string_lit(&java_replacement(r, 0))?;
             w.append(&lit).append(")");
             return Ok(());
@@ -586,14 +683,19 @@ impl Trino {
         if let SqlExpr::StringLit { value: p, .. } = &a[1]
             && has_back_reference(p)
         {
-            return Err(wall(SqlFn::RegexpReplace, "a first-match replacement whose pattern has a back reference"));
+            return Err(wall(
+                SqlFn::RegexpReplace,
+                "a first-match replacement whose pattern has a back reference",
+            ));
         }
         w.append("regexp_replace(").expr(self, &a[0], 0)?.append(", ");
         if let SqlExpr::StringLit { value: p, .. } = &a[1] {
             let lit = self.string_lit(&format!("^(?s:(.*?))(?:{p})"))?;
             w.append(&lit);
         } else {
-            w.append("concat('^(?s:(.*?))(?:', ").expr(self, &a[1], 0)?.append(", ')')");
+            w.append("concat('^(?s:(.*?))(?:', ")
+                .expr(self, &a[1], 0)?
+                .append(", ')')");
         }
         let lit = self.string_lit(&format!("$1{}", java_replacement(r, 1)))?;
         w.append(", ").append(&lit).append(")");
@@ -773,25 +875,44 @@ impl Trino {
             SqlFn::Error => ansi::raise_envelope(self, w, a, "fail"),
             // NULL-ignoring, as DuckDB's concat (Trino's concat is NULL if any argument is)
             SqlFn::Concat => {
-                w.append("concat_ws('', ").join(&ansi::flatten_concat(a), ", ", |w, e| self.as_text(w, e))?.append(")");
+                w.append("concat_ws('', ")
+                    .join(&ansi::flatten_concat(a), ", ", |w, e| self.as_text(w, e))?
+                    .append(")");
                 Ok(())
             }
             SqlFn::ConcatJoin => {
-                w.append("concat_ws('', ").join(a, ", ", |w, e| self.as_text(w, e))?.append(")");
+                w.append("concat_ws('', ")
+                    .join(a, ", ", |w, e| self.as_text(w, e))?
+                    .append(")");
                 Ok(())
             }
             // integer division truncates toward zero, as DuckDB's //; a zero divisor is NULL
             SqlFn::IntDivide => {
-                w.append("(").expr(self, a0()?, 6)?.append(" / ").piece(&*divisor(self, a1()?))?.append(")");
+                w.append("(")
+                    .expr(self, a0()?, 6)?
+                    .append(" / ")
+                    .piece(&*divisor(self, a1()?))?
+                    .append(")");
                 Ok(())
             }
             SqlFn::Rem => {
-                w.append("MOD(").expr(self, a0()?, 0)?.append(", ").piece(&*divisor(self, a1()?))?.append(")");
+                w.append("MOD(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .piece(&*divisor(self, a1()?))?
+                    .append(")");
                 Ok(())
             }
             SqlFn::Mod => {
-                w.append("MOD(MOD(").expr(self, a0()?, 0)?.append(", ").piece(&*divisor(self, a1()?))?.append(") + ");
-                w.expr(self, a1()?, 6)?.append(", ").piece(&*divisor(self, a1()?))?.append(")");
+                w.append("MOD(MOD(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .piece(&*divisor(self, a1()?))?
+                    .append(") + ");
+                w.expr(self, a1()?, 6)?
+                    .append(", ")
+                    .piece(&*divisor(self, a1()?))?
+                    .append(")");
                 Ok(())
             }
             SqlFn::BoolToText => {
@@ -799,7 +920,9 @@ impl Trino {
                 Ok(())
             }
             SqlFn::BitNot => {
-                w.append("bitwise_not(CAST(").expr(self, a0()?, 0)?.append(" AS BIGINT))");
+                w.append("bitwise_not(CAST(")
+                    .expr(self, a0()?, 0)?
+                    .append(" AS BIGINT))");
                 Ok(())
             }
             // floor without the BIGINT conversion
@@ -809,8 +932,12 @@ impl Trino {
             }
             // the first character's code point (codepoint takes a VARCHAR(1), and refuses the empty one)
             SqlFn::AsciiCode => {
-                w.append("(CASE WHEN length(").expr(self, a0()?, 0)?.append(") = 0 THEN 0 ELSE");
-                w.append(" codepoint(CAST(substr(").expr(self, a0()?, 0)?.append(", 1, 1) AS VARCHAR(1))) END)");
+                w.append("(CASE WHEN length(")
+                    .expr(self, a0()?, 0)?
+                    .append(") = 0 THEN 0 ELSE");
+                w.append(" codepoint(CAST(substr(")
+                    .expr(self, a0()?, 0)?
+                    .append(", 1, 1) AS VARCHAR(1))) END)");
                 Ok(())
             }
             SqlFn::Cot => {
@@ -818,27 +945,49 @@ impl Trino {
                 Ok(())
             }
             SqlFn::Left => {
-                w.append("substr(").expr(self, a0()?, 0)?.append(", 1, greatest(").expr(self, a1()?, 0)?;
+                w.append("substr(")
+                    .expr(self, a0()?, 0)?
+                    .append(", 1, greatest(")
+                    .expr(self, a1()?, 0)?;
                 w.append(", 0))");
                 Ok(())
             }
             SqlFn::Right => {
-                w.append("(CASE WHEN ").expr(self, a1()?, 0)?.append(" <= 0 THEN '' ELSE substr(");
-                w.expr(self, a0()?, 0)?.append(", greatest(length(").expr(self, a0()?, 0)?.append(") - ");
+                w.append("(CASE WHEN ")
+                    .expr(self, a1()?, 0)?
+                    .append(" <= 0 THEN '' ELSE substr(");
+                w.expr(self, a0()?, 0)?
+                    .append(", greatest(length(")
+                    .expr(self, a0()?, 0)?
+                    .append(") - ");
                 w.expr(self, a1()?, 6)?.append(" + 1, 1)) END)");
                 Ok(())
             }
             SqlFn::EndsWith => {
-                w.append("(substr(").expr(self, a0()?, 0)?.append(", greatest(length(").expr(self, a0()?, 0)?;
-                w.append(") - length(").expr(self, a1()?, 0)?.append(") + 1, 1)) = ").expr(self, a1()?, 0)?;
-                w.append(" AND length(").expr(self, a0()?, 0)?.append(") >= length(").expr(self, a1()?, 0)?;
+                w.append("(substr(")
+                    .expr(self, a0()?, 0)?
+                    .append(", greatest(length(")
+                    .expr(self, a0()?, 0)?;
+                w.append(") - length(")
+                    .expr(self, a1()?, 0)?
+                    .append(") + 1, 1)) = ")
+                    .expr(self, a1()?, 0)?;
+                w.append(" AND length(")
+                    .expr(self, a0()?, 0)?
+                    .append(") >= length(")
+                    .expr(self, a1()?, 0)?;
                 w.append("))");
                 Ok(())
             }
             // array_join skips a NULL element: no string repeated is NULL, not ''
             SqlFn::RepeatStr => {
-                w.append("(CASE WHEN ").expr(self, a0()?, 0)?.append(" IS NULL THEN NULL ELSE");
-                w.append(" array_join(repeat(").expr(self, a0()?, 0)?.append(", greatest(").expr(self, a1()?, 0)?;
+                w.append("(CASE WHEN ")
+                    .expr(self, a0()?, 0)?
+                    .append(" IS NULL THEN NULL ELSE");
+                w.append(" array_join(repeat(")
+                    .expr(self, a0()?, 0)?
+                    .append(", greatest(")
+                    .expr(self, a1()?, 0)?;
                 w.append(", 0)), '') END)");
                 Ok(())
             }
@@ -858,7 +1007,11 @@ impl Trino {
 
             // ---- strings
             SqlFn::Matches => {
-                w.append("regexp_like(").expr(self, a0()?, 0)?.append(", ").expr(self, a1()?, 0)?.append(")");
+                w.append("regexp_like(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?
+                    .append(")");
                 Ok(())
             }
             SqlFn::RegexpFullMatch => {
@@ -868,15 +1021,27 @@ impl Trino {
                 Ok(())
             }
             SqlFn::RegexpExtract | SqlFn::RegexpExtractAll => {
-                let name = if f == SqlFn::RegexpExtract { "regexp_extract(" } else { "regexp_extract_all(" };
-                w.append(name).expr(self, a0()?, 0)?.append(", ").expr(self, a1()?, 0)?.append(", ");
+                let name = if f == SqlFn::RegexpExtract {
+                    "regexp_extract("
+                } else {
+                    "regexp_extract_all("
+                };
+                w.append(name)
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?
+                    .append(", ");
                 w.piece(&*group(self, a))?.append(")");
                 Ok(())
             }
             SqlFn::RegexpReplace => self.regexp_replace(w, a),
             // split takes the delimiter as text
             SqlFn::Split => {
-                w.append("split(").expr(self, a0()?, 0)?.append(", ").expr(self, a1()?, 0)?.append(")");
+                w.append("split(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?
+                    .append(")");
                 Ok(())
             }
             SqlFn::Trim | SqlFn::Ltrim | SqlFn::Rtrim => {
@@ -906,7 +1071,9 @@ impl Trino {
                     SqlFn::Sha1 => "sha1",
                     _ => "sha256",
                 };
-                w.append(&format!("lower(to_hex({name}(to_utf8(")).expr(self, a0()?, 0)?.append("))))");
+                w.append(&format!("lower(to_hex({name}(to_utf8("))
+                    .expr(self, a0()?, 0)?
+                    .append("))))");
                 Ok(())
             }
             SqlFn::Guid => {
@@ -943,8 +1110,12 @@ impl Trino {
             }
             SqlFn::Extract => self.extract(a)?(w),
             SqlFn::MakeDate => {
-                w.append("date_add('day', ").expr(self, arg(a, 2)?, 0)?.append(" - 1, date_add('month', ");
-                w.expr(self, a1()?, 0)?.append(" - 1, date_add('year', ").expr(self, a0()?, 0)?;
+                w.append("date_add('day', ")
+                    .expr(self, arg(a, 2)?, 0)?
+                    .append(" - 1, date_add('month', ");
+                w.expr(self, a1()?, 0)?
+                    .append(" - 1, date_add('year', ")
+                    .expr(self, a0()?, 0)?;
                 w.append(" - 1970, DATE '1970-01-01')))");
                 Ok(())
             }
@@ -955,24 +1126,31 @@ impl Trino {
             SqlFn::Timezone => self.timezone(w, a),
             // Trino adds no date and time: the date-time is read from their texts
             SqlFn::DateAtTime => {
-                w.append("CAST(CAST(").expr(self, a0()?, 0)?.append(" AS VARCHAR) || ' ' || CAST(");
+                w.append("CAST(CAST(")
+                    .expr(self, a0()?, 0)?
+                    .append(" AS VARCHAR) || ' ' || CAST(");
                 w.expr(self, a1()?, 0)?.append(" AS VARCHAR) AS TIMESTAMP(6))");
                 Ok(())
             }
             SqlFn::EpochSeconds => {
-                w.append("to_unixtime(with_timezone(").expr(self, a0()?, 0)?.append(", 'UTC'))");
+                w.append("to_unixtime(with_timezone(")
+                    .expr(self, a0()?, 0)?
+                    .append(", 'UTC'))");
                 Ok(())
             }
             SqlFn::EpochNs | SqlFn::FromEpochNs => Err(Refusal::capability(
                 "a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)",
             )),
             SqlFn::EpochMs => {
-                w.append("CAST(truncate(to_unixtime(with_timezone(").expr(self, a0()?, 0)?;
+                w.append("CAST(truncate(to_unixtime(with_timezone(")
+                    .expr(self, a0()?, 0)?;
                 w.append(", 'UTC')) * 1000) AS BIGINT)");
                 Ok(())
             }
             SqlFn::FromEpochSeconds => {
-                w.append("CAST(from_unixtime(").expr(self, a0()?, 0)?.append(", 'UTC') AS TIMESTAMP(6))");
+                w.append("CAST(from_unixtime(")
+                    .expr(self, a0()?, 0)?
+                    .append(", 'UTC') AS TIMESTAMP(6))");
                 Ok(())
             }
             SqlFn::FromEpochMs => {
@@ -999,7 +1177,11 @@ impl Trino {
             // DuckDB's range: [start, stop) by step
             SqlFn::RangeFn => self.range_of(w, a),
             SqlFn::RepeatValue => {
-                w.append("repeat(").expr(self, a0()?, 0)?.append(", greatest(").expr(self, a1()?, 0)?.append(", 0))");
+                w.append("repeat(")
+                    .expr(self, a0()?, 0)?
+                    .append(", greatest(")
+                    .expr(self, a1()?, 0)?
+                    .append(", 0))");
                 Ok(())
             }
 
@@ -1014,8 +1196,14 @@ impl Trino {
             }
             // DuckDB's map_extract: a list of the key's value, empty when absent
             SqlFn::MapExtract => {
-                w.append("(CASE WHEN contains(map_keys(").expr(self, a0()?, 0)?.append("), ").expr(self, a1()?, 0)?;
-                w.append(") THEN ARRAY[element_at(").expr(self, a0()?, 0)?.append(", ").expr(self, a1()?, 0)?;
+                w.append("(CASE WHEN contains(map_keys(")
+                    .expr(self, a0()?, 0)?
+                    .append("), ")
+                    .expr(self, a1()?, 0)?;
+                w.append(") THEN ARRAY[element_at(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?;
                 w.append(")] ELSE ARRAY[] END)");
                 Ok(())
             }
@@ -1044,19 +1232,37 @@ impl Trino {
             // a lambda over the element and its 1-based index (DuckDB's): zip_with binds both, over the positions
             SqlFn::ListFilter => {
                 if lambda_arg(arg(args, 1)?)?.params.len() > 1 {
-                    w.append("transform(filter(zip(").piece(&*list)?.append(", zip_with(").piece(&*list)?;
-                    w.append(", ").piece(&*self.positions(xs))?.append(", ").expr(self, &args[1], 0)?;
+                    w.append("transform(filter(zip(")
+                        .piece(&*list)?
+                        .append(", zip_with(")
+                        .piece(&*list)?;
+                    w.append(", ")
+                        .piece(&*self.positions(xs))?
+                        .append(", ")
+                        .expr(self, &args[1], 0)?;
                     w.append(")), \"__z\" -> \"__z\"[2]), \"__z\" -> \"__z\"[1])");
                 } else {
-                    w.append("filter(").piece(&*list)?.append(", ").expr(self, &args[1], 0)?.append(")");
+                    w.append("filter(")
+                        .piece(&*list)?
+                        .append(", ")
+                        .expr(self, &args[1], 0)?
+                        .append(")");
                 }
             }
             SqlFn::ListTransform => {
                 if lambda_arg(arg(args, 1)?)?.params.len() > 1 {
-                    w.append("zip_with(").piece(&*list)?.append(", ").piece(&*self.positions(xs))?.append(", ");
+                    w.append("zip_with(")
+                        .piece(&*list)?
+                        .append(", ")
+                        .piece(&*self.positions(xs))?
+                        .append(", ");
                     w.expr(self, &args[1], 0)?.append(")");
                 } else {
-                    w.append("transform(").piece(&*list)?.append(", ").expr(self, &args[1], 0)?.append(")");
+                    w.append("transform(")
+                        .piece(&*list)?
+                        .append(", ")
+                        .expr(self, &args[1], 0)?
+                        .append(")");
                 }
             }
             // a NULL or empty literal list adds nothing, and an untyped one leaves concat no candidate: only the
@@ -1083,13 +1289,21 @@ impl Trino {
             }
             // 1-based, negative from the end, out of range NULL; 0 is out of range
             SqlFn::ListGet => {
-                w.append("(CASE WHEN ").expr(self, arg(args, 1)?, 0)?.append(" = 0 THEN NULL ELSE element_at(");
+                w.append("(CASE WHEN ")
+                    .expr(self, arg(args, 1)?, 0)?
+                    .append(" = 0 THEN NULL ELSE element_at(");
                 w.piece(&*list)?.append(", ").expr(self, &args[1], 0)?.append(") END)");
             }
             // DuckDB's list_position: NULL when absent (array_position answers 0)
             SqlFn::ListPosition => {
-                w.append("(CASE WHEN array_position(").piece(&*list)?.append(", ").expr(self, arg(args, 1)?, 0)?;
-                w.append(") = 0 THEN NULL ELSE array_position(").piece(&*list)?.append(", ").expr(self, &args[1], 0)?;
+                w.append("(CASE WHEN array_position(")
+                    .piece(&*list)?
+                    .append(", ")
+                    .expr(self, arg(args, 1)?, 0)?;
+                w.append(") = 0 THEN NULL ELSE array_position(")
+                    .piece(&*list)?
+                    .append(", ")
+                    .expr(self, &args[1], 0)?;
                 w.append(") END)");
             }
             // DuckDB's list_distinct drops NULLs; array_distinct keeps the first occurrence's order
@@ -1097,7 +1311,11 @@ impl Trino {
                 w.append("array_distinct(").piece(&*self.present(xs))?.append(")");
             }
             SqlFn::ListAppend => {
-                w.append("concat(").piece(&*list)?.append(", ARRAY[").expr(self, arg(args, 1)?, 0)?.append("])");
+                w.append("concat(")
+                    .piece(&*list)?
+                    .append(", ARRAY[")
+                    .expr(self, arg(args, 1)?, 0)?
+                    .append("])");
             }
             SqlFn::ListSum => {
                 w.piece(&*self.over_rows(xs, AggFn::Sum, &[]))?;
@@ -1110,7 +1328,9 @@ impl Trino {
                 w.append("array_max(").piece(&*self.present(xs))?.append(")");
             }
             SqlFn::ListAvg => {
-                w.append("CAST(").piece(&*self.over_rows(xs, AggFn::Avg, &[]))?.append(" AS DOUBLE)");
+                w.append("CAST(")
+                    .piece(&*self.over_rows(xs, AggFn::Avg, &[]))?
+                    .append(" AS DOUBLE)");
             }
             SqlFn::ListMedian => {
                 w.piece(&*self.over_rows(xs, AggFn::Median, &[]))?;
@@ -1133,24 +1353,37 @@ impl Trino {
                 w.append("array_sort(").piece(&*list)?.append(")");
             }
             SqlFn::ListSortDesc => {
-                w.append("concat(reverse(array_sort(").piece(&*self.present(xs))?.append(")), filter(");
+                w.append("concat(reverse(array_sort(")
+                    .piece(&*self.present(xs))?
+                    .append(")), filter(");
                 w.piece(&*list)?.append(", \"__x\" -> \"__x\" IS NULL))");
             }
             SqlFn::ListReverse => {
                 w.append("reverse(").piece(&*list)?.append(")");
             }
             SqlFn::ListTail => {
-                w.append("slice(").piece(&*list)?.append(", 2, greatest(cardinality(").piece(&*list)?;
+                w.append("slice(")
+                    .piece(&*list)?
+                    .append(", 2, greatest(cardinality(")
+                    .piece(&*list)?;
                 w.append(") - 1, 0))");
             }
             SqlFn::ListInit => {
-                w.append("slice(").piece(&*list)?.append(", 1, greatest(cardinality(").piece(&*list)?;
+                w.append("slice(")
+                    .piece(&*list)?
+                    .append(", 1, greatest(cardinality(")
+                    .piece(&*list)?;
                 w.append(") - 1, 0))");
             }
             // DuckDB's list_slice: 1-based, both ends inclusive
             SqlFn::ListSlice => {
-                w.append("slice(").piece(&*list)?.append(", greatest(").expr(self, arg(args, 1)?, 0)?;
-                w.append(", 1), greatest(").expr(self, arg(args, 2)?, 6)?.append(" - greatest(");
+                w.append("slice(")
+                    .piece(&*list)?
+                    .append(", greatest(")
+                    .expr(self, arg(args, 1)?, 0)?;
+                w.append(", 1), greatest(")
+                    .expr(self, arg(args, 2)?, 6)?
+                    .append(" - greatest(");
                 w.expr(self, &args[1], 0)?.append(", 1) + 1, 0))");
             }
             // DuckDB's list_zip: pairs by position; truncated to the shorter list when asked, else the shorter padded
@@ -1179,7 +1412,11 @@ impl Trino {
                         Ok(())
                     };
                     w.append("zip(").join(lists, ", ", |w, l| {
-                        w.append("slice(").piece(&*self.list(l))?.append(", 1, ").piece(&n)?.append(")");
+                        w.append("slice(")
+                            .piece(&*self.list(l))?
+                            .append(", 1, ")
+                            .piece(&n)?
+                            .append(")");
                         Ok(())
                     })?;
                     w.append(")");
@@ -1187,8 +1424,14 @@ impl Trino {
             }
             // DuckDB's list_reduce: the first element is the accumulator's start, the lambda (acc, x) over the rest
             SqlFn::ListReduce => {
-                w.append("reduce(slice(").piece(&*list)?.append(", 2, greatest(cardinality(").piece(&*list)?;
-                w.append(") - 1, 0)), element_at(").piece(&*list)?.append(", 1), ").expr(self, arg(args, 1)?, 0)?;
+                w.append("reduce(slice(")
+                    .piece(&*list)?
+                    .append(", 2, greatest(cardinality(")
+                    .piece(&*list)?;
+                w.append(") - 1, 0)), element_at(")
+                    .piece(&*list)?
+                    .append(", 1), ")
+                    .expr(self, arg(args, 1)?, 0)?;
                 w.append(", \"__s\" -> \"__s\")");
             }
             // Trino's own name of the value's type, compared only with typeofName's

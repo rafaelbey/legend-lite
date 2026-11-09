@@ -135,7 +135,10 @@ fn drop_schema(s: &[u8], i: usize) -> Option<(usize, String)> {
     if !boundary(s, k) {
         return None;
     }
-    Some((k, format!("Drop schema if exists {}", String::from_utf8_lossy(&s[j..name_end]))))
+    Some((
+        k,
+        format!("Drop schema if exists {}", String::from_utf8_lossy(&s[j..name_end])),
+    ))
 }
 
 /// `(?i)\bcreate\s+schema\s+(?!if\b)(\w+)` to `Create schema if not exists $1`.
@@ -150,7 +153,10 @@ fn create_schema(s: &[u8], i: usize) -> Option<(usize, String)> {
         return None;
     }
     let end = word1(s, j)?;
-    Some((end, format!("Create schema if not exists {}", String::from_utf8_lossy(&s[j..end]))))
+    Some((
+        end,
+        format!("Create schema if not exists {}", String::from_utf8_lossy(&s[j..end])),
+    ))
 }
 
 /// `(?i)^\s*create\s+table\s+[\w."]+\s*\(`, found at the start: the index after its `(`.
@@ -171,7 +177,9 @@ fn insert_cols(s: &[u8]) -> Option<(usize, usize)> {
 
 /// `(?i)primary|constraint|foreign|unique|check`, matched whole.
 fn non_column_head(head: &str) -> bool {
-    ["primary", "constraint", "foreign", "unique", "check"].iter().any(|w| head.eq_ignore_ascii_case(w))
+    ["primary", "constraint", "foreign", "unique", "check"]
+        .iter()
+        .any(|w| head.eq_ignore_ascii_case(w))
 }
 
 /// `(?i)\b<word>\b` to `replacement` (`word` ASCII).
@@ -283,7 +291,9 @@ fn quote_create_columns(
         if !out.is_empty() {
             out.push_str(", ");
         }
-        let sp = col.find(|c: char| is_java_whitespace(c) || c == '(').unwrap_or(col.len());
+        let sp = col
+            .find(|c: char| is_java_whitespace(c) || c == '(')
+            .unwrap_or(col.len());
         let head = &col[..sp];
         if let Some(quoted) = col.strip_prefix('"') {
             // a pre-quoted name: the type part still needs the kind mapping (Java's indexOf('"', 1) + 1, 0 for none)

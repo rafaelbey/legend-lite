@@ -73,7 +73,10 @@ impl std::error::Error for Error {}
 impl Num {
     /// A long, as `Long.toString` writes it.
     pub fn from_i64(v: i64) -> Num {
-        Num { token: v.to_string(), kind: NumKind::Integer(v) }
+        Num {
+            token: v.to_string(),
+            kind: NumKind::Integer(v),
+        }
     }
 
     /// A double, as Java's `writeDouble` writes it: integral below 10^19 as an integer, else `Double.toString`.
@@ -86,7 +89,10 @@ impl Num {
             // Java's (long) cast saturates past a long, as Rust's does
             return Ok(Num::from_i64(v as i64));
         }
-        Ok(Num { token: lite_javacompat::double_to_string(v), kind: NumKind::Fraction(v) })
+        Ok(Num {
+            token: lite_javacompat::double_to_string(v),
+            kind: NumKind::Fraction(v),
+        })
     }
 
     /// A number already in JSON's number grammar, read as the parser reads one.
@@ -213,7 +219,8 @@ impl Obj {
     /// An integer field that fits a long.
     pub fn i64(&self, key: &str) -> Result<i64, Error> {
         let n = self.num(key)?;
-        n.as_i64().ok_or_else(|| Error(format!("field '{key}' is not an integer: {}", n.token())))
+        n.as_i64()
+            .ok_or_else(|| Error(format!("field '{key}' is not an integer: {}", n.token())))
     }
 
     /// An object field (Java's `getObj`).

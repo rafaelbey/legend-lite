@@ -98,11 +98,21 @@ impl CatalogType {
                 text(&reason)
             )));
         }
-        Ok(CatalogType { read, declared, conversion, reason })
+        Ok(CatalogType {
+            read,
+            declared,
+            conversion,
+            reason,
+        })
     }
 
     pub fn as_stored(declared: &str) -> CatalogType {
-        CatalogType { read: Read::AsStored, declared: Some(declared.to_owned()), conversion: None, reason: None }
+        CatalogType {
+            read: Read::AsStored,
+            declared: Some(declared.to_owned()),
+            conversion: None,
+            reason: None,
+        }
     }
 
     pub fn converted(declared: &str, conversion: &str) -> CatalogType {
@@ -124,7 +134,12 @@ impl CatalogType {
     }
 
     pub fn left_out(reason: &str) -> CatalogType {
-        CatalogType { read: Read::LeftOut, declared: None, conversion: None, reason: Some(reason.to_owned()) }
+        CatalogType {
+            read: Read::LeftOut,
+            declared: None,
+            conversion: None,
+            reason: Some(reason.to_owned()),
+        }
     }
 }
 
@@ -176,7 +191,9 @@ impl CatalogRules {
         }
         let why = match logical.as_deref() {
             None => "its catalog names no canonical type",
-            Some(l) => lookup(&self.refused, l).copied().unwrap_or("a type this dialect does not read"),
+            Some(l) => lookup(&self.refused, l)
+                .copied()
+                .unwrap_or("a type this dialect does not read"),
         };
         Err(Refusal::capability(format!(
             "a column of {} type '{}' cannot be declared in a Pure Database ({why})",
@@ -193,13 +210,27 @@ mod tests {
     fn a_catalog_type_has_exactly_its_reads_parts() {
         let s = |v: &str| Some(v.to_owned());
         assert!(CatalogType::new(Read::AsStored, s("INTEGER"), None, None).is_ok());
-        assert!(CatalogType::new(Read::Converted, s("DECIMAL(20,0)"), s("CAST(%s AS DECIMAL(20,0))"), None).is_ok());
+        assert!(
+            CatalogType::new(
+                Read::Converted,
+                s("DECIMAL(20,0)"),
+                s("CAST(%s AS DECIMAL(20,0))"),
+                None
+            )
+            .is_ok()
+        );
         assert!(CatalogType::new(Read::LeftOut, None, None, s("bytes")).is_ok());
         let r = CatalogType::new(Read::AsStored, s("INTEGER"), s("x"), None).unwrap_err();
         assert_eq!(r.class, Refusal::ILLEGAL_ARGUMENT);
-        assert_eq!(r.message, "a AS_STORED catalog type with declared=INTEGER, conversion=x, reason=null");
+        assert_eq!(
+            r.message,
+            "a AS_STORED catalog type with declared=INTEGER, conversion=x, reason=null"
+        );
         let r = CatalogType::new(Read::LeftOut, None, None, None).unwrap_err();
-        assert_eq!(r.message, "a LEFT_OUT catalog type with declared=null, conversion=null, reason=null");
+        assert_eq!(
+            r.message,
+            "a LEFT_OUT catalog type with declared=null, conversion=null, reason=null"
+        );
     }
 
     #[test]
@@ -212,7 +243,10 @@ mod tests {
     fn rules_read_aliases_decimals_types_and_refusals_in_order() {
         let rules = CatalogRules {
             database: "Db",
-            types: vec![("INTEGER", CatalogType::as_stored("INTEGER")), ("JSON", CatalogType::as_stored("X"))],
+            types: vec![
+                ("INTEGER", CatalogType::as_stored("INTEGER")),
+                ("JSON", CatalogType::as_stored("X")),
+            ],
             aliases: vec![("JSON", CatalogType::as_stored("SEMISTRUCTURED"))],
             refused: vec![("GEOMETRY", "spatial")],
             decimal: "DECIMAL",
@@ -228,18 +262,37 @@ mod tests {
         };
         // the alias wins over the canonical type, read trimmed and upper-cased
         assert_eq!(
-            rules.type_of(&col(" json\n", Some("VARCHAR"), None, None)).unwrap().declared.unwrap(),
+            rules
+                .type_of(&col(" json\n", Some("VARCHAR"), None, None))
+                .unwrap()
+                .declared
+                .unwrap(),
             "SEMISTRUCTURED"
         );
         assert_eq!(
-            rules.type_of(&col("DECIMAL(9,2)", Some("decimal"), Some(9), Some(2))).unwrap().declared.unwrap(),
+            rules
+                .type_of(&col("DECIMAL(9,2)", Some("decimal"), Some(9), Some(2)))
+                .unwrap()
+                .declared
+                .unwrap(),
             "DECIMAL(9,2)"
         );
         assert_eq!(
-            rules.type_of(&col("DECIMAL", Some("DECIMAL"), Some(9), None)).unwrap().declared.unwrap(),
+            rules
+                .type_of(&col("DECIMAL", Some("DECIMAL"), Some(9), None))
+                .unwrap()
+                .declared
+                .unwrap(),
             "DECIMAL(38,10)"
         );
-        assert_eq!(rules.type_of(&col("INT", Some("integer"), None, None)).unwrap().declared.unwrap(), "INTEGER");
+        assert_eq!(
+            rules
+                .type_of(&col("INT", Some("integer"), None, None))
+                .unwrap()
+                .declared
+                .unwrap(),
+            "INTEGER"
+        );
         let refused = |c: CatalogColumn| rules.type_of(&c).unwrap_err().message;
         assert_eq!(
             refused(col("POINT", Some("geometry"), None, None)),
@@ -253,8 +306,13 @@ mod tests {
             refused(col("FOO", None, None, None)),
             "a column of Db type 'FOO' cannot be declared in a Pure Database (its catalog names no canonical type)"
         );
-        let strict = CatalogRules { unsized_decimal: None, ..rules.clone() };
-        let r = strict.type_of(&col("DECIMAL", Some("DECIMAL"), None, None)).unwrap_err();
+        let strict = CatalogRules {
+            unsized_decimal: None,
+            ..rules.clone()
+        };
+        let r = strict
+            .type_of(&col("DECIMAL", Some("DECIMAL"), None, None))
+            .unwrap_err();
         assert_eq!(r.class, Refusal::DIALECT_CAPABILITY);
         assert_eq!(
             r.message,

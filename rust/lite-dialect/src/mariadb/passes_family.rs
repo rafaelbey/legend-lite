@@ -23,9 +23,13 @@ use lite_sql::{
 /// A window call's parts, owned (Java's `SqlExpr.WindowCall` as a map key).
 fn window_parts(w: &SqlExpr) -> (&SqlAgg, &[SqlExpr], &[SortKey], Option<&Frame>) {
     match w {
-        SqlExpr::WindowCall { r#fn, partition_by, order_by, frame, .. } => {
-            (r#fn, partition_by, order_by, frame.as_ref())
-        }
+        SqlExpr::WindowCall {
+            r#fn,
+            partition_by,
+            order_by,
+            frame,
+            ..
+        } => (r#fn, partition_by, order_by, frame.as_ref()),
         _ => unreachable!("a window call"),
     }
 }
@@ -133,7 +137,10 @@ pub struct WindowAggregatesAsCorrelated {
 impl WindowAggregatesAsCorrelated {
     /// Java's `new WindowAggregatesAsCorrelated(unwindowed)`.
     pub fn new(unwindowed: &[AggFn]) -> WindowAggregatesAsCorrelated {
-        WindowAggregatesAsCorrelated { unwindowed: unwindowed.to_vec(), next: 0 }
+        WindowAggregatesAsCorrelated {
+            unwindowed: unwindowed.to_vec(),
+            next: 0,
+        }
     }
 
     /// Java's `collect`: each window call of an unwindowed aggregate under `e`.
@@ -176,7 +183,10 @@ fn interval(b: &Bound) -> bool {
 
 /// Java's `rankBound`.
 fn rank_bound(b: &Bound) -> bool {
-    matches!(b, Bound::UnboundedPreceding | Bound::CurrentRow | Bound::UnboundedFollowing)
+    matches!(
+        b,
+        Bound::UnboundedPreceding | Bound::CurrentRow | Bound::UnboundedFollowing
+    )
 }
 
 /// Java's `helper(value, name)`: a helper column, typed when its value is.
@@ -194,7 +204,11 @@ fn frame_of(order_by: &[SortKey], frame: Option<&Frame>) -> Option<Frame> {
     if frame.is_some() || order_by.is_empty() {
         return frame.cloned();
     }
-    Some(Frame { kind: FrameKind::Range, from: Bound::UnboundedPreceding, to: Bound::CurrentRow })
+    Some(Frame {
+        kind: FrameKind::Range,
+        from: Bound::UnboundedPreceding,
+        to: Bound::CurrentRow,
+    })
 }
 
 /// Java's `Number.longValue()`.
@@ -226,8 +240,14 @@ fn bound(b: &Bound, row: &SqlExpr) -> Result<Option<SqlExpr>, Refusal> {
     Ok(match b {
         Bound::UnboundedPreceding | Bound::UnboundedFollowing => None,
         Bound::CurrentRow => Some(row.clone()),
-        Bound::Preceding { n } => Some(build::call(SqlFn::Minus, vec![row.clone(), build::int_lit(long_value(n))])),
-        Bound::Following { n } => Some(build::call(SqlFn::Plus, vec![row.clone(), build::int_lit(long_value(n))])),
+        Bound::Preceding { n } => Some(build::call(
+            SqlFn::Minus,
+            vec![row.clone(), build::int_lit(long_value(n))],
+        )),
+        Bound::Following { n } => Some(build::call(
+            SqlFn::Plus,
+            vec![row.clone(), build::int_lit(long_value(n))],
+        )),
         Bound::IntervalPreceding { .. } | Bound::IntervalFollowing { .. } => {
             return Err(Refusal::illegal_state("an interval bound passed rewritable()"));
         }
@@ -237,7 +257,9 @@ fn bound(b: &Bound, row: &SqlExpr) -> Result<Option<SqlExpr>, Refusal> {
 /// Java's `aggregateOfFrame`: `w` as the aggregate of the numbered rows in the outer row's frame.
 fn aggregate_of_frame(w: &SqlExpr, c: &str, rows: &SqlSelect, outer: &str, inner: &str) -> Result<SqlExpr, Refusal> {
     let (f, partition_by, order_by, frame) = window_parts(w);
-    let SqlAgg::Reducer(r) = f else { unreachable!("a rewritable window is a reducer's") };
+    let SqlAgg::Reducer(r) = f else {
+        unreachable!("a rewritable window is a reducer's")
+    };
     let args: Vec<SqlExpr> = r
         .args
         .iter()
@@ -253,7 +275,12 @@ fn aggregate_of_frame(w: &SqlExpr, c: &str, rows: &SqlSelect, outer: &str, inner
     // a joined or listed value keeps the window's order
     let ordered = matches!(r.r#fn, AggFn::StringAgg | AggFn::List);
     let order = if ordered {
-        vec![build::sort_key(build::derived(Some(inner), &format!("{c}n")), true, None, None)]
+        vec![build::sort_key(
+            build::derived(Some(inner), &format!("{c}n")),
+            true,
+            None,
+            None,
+        )]
     } else {
         Vec::new()
     };
@@ -262,11 +289,18 @@ fn aggregate_of_frame(w: &SqlExpr, c: &str, rows: &SqlSelect, outer: &str, inner
     for i in 0..partition_by.len() {
         conds.push(build::call(
             SqlFn::NullSafeEqual,
-            vec![build::derived(Some(inner), &format!("{c}p{i}")), build::derived(Some(outer), &format!("{c}p{i}"))],
+            vec![
+                build::derived(Some(inner), &format!("{c}p{i}")),
+                build::derived(Some(outer), &format!("{c}p{i}")),
+            ],
         ));
     }
     if let Some(f) = frame_of(order_by, frame) {
-        let col = if f.kind == FrameKind::Rows { format!("{c}n") } else { format!("{c}k") };
+        let col = if f.kind == FrameKind::Rows {
+            format!("{c}n")
+        } else {
+            format!("{c}k")
+        };
         let mine = build::derived(Some(inner), &col);
         let row = build::derived(Some(outer), &col);
         let lo = bound(&f.from, &row)?;
@@ -341,7 +375,9 @@ impl SqlRewriter for WindowAggregatesAsCorrelated {
             for (i, p) in partition_by.iter().enumerate() {
                 numbered.push(helper(p, format!("{c}p{i}"))?);
             }
-            let SqlAgg::Reducer(r) = f else { unreachable!("a rewritable window is a reducer's") };
+            let SqlAgg::Reducer(r) = f else {
+                unreachable!("a rewritable window is a reducer's")
+            };
             for (i, a) in r.args.iter().enumerate() {
                 if !matches!(a, SqlExpr::StringLit { .. }) {
                     numbered.push(helper(a, format!("{c}a{i}"))?);
@@ -350,7 +386,10 @@ impl SqlRewriter for WindowAggregatesAsCorrelated {
             let mut order = order_by.to_vec();
             order.extend(tiebreak.iter().cloned());
             let position = build::window_call(
-                SqlAgg::RankingFn { r#fn: AggFn::RowNumber, args: Vec::new() },
+                SqlAgg::RankingFn {
+                    r#fn: AggFn::RowNumber,
+                    args: Vec::new(),
+                },
                 partition_by.to_vec(),
                 order,
                 None,
@@ -363,7 +402,10 @@ impl SqlRewriter for WindowAggregatesAsCorrelated {
             )?);
             if frame_of(order_by, frame).is_some_and(|f| f.kind == FrameKind::Range) {
                 let rank = build::window_call(
-                    SqlAgg::RankingFn { r#fn: AggFn::Rank, args: Vec::new() },
+                    SqlAgg::RankingFn {
+                        r#fn: AggFn::Rank,
+                        args: Vec::new(),
+                    },
                     partition_by.to_vec(),
                     order_by.to_vec(),
                     None,

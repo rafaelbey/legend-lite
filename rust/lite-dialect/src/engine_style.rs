@@ -67,7 +67,9 @@ impl Profile {
 
     /// The profile a simple name names.
     pub fn of(simple_name: &str) -> Option<Profile> {
-        [Profile::H2, Profile::Db2, Profile::Composite].into_iter().find(|p| p.simple_name() == simple_name)
+        [Profile::H2, Profile::Db2, Profile::Composite]
+            .into_iter()
+            .find(|p| p.simple_name() == simple_name)
     }
 
     /// `instanceof EngineStyleDB2`: DB2 and its subclass Composite.
@@ -181,7 +183,12 @@ impl EngineStyle {
 
     /// `renames.getOrDefault(alias, alias)`.
     fn rename(&self, alias: &str) -> String {
-        self.plan.borrow().renames.get(alias).cloned().unwrap_or_else(|| alias.to_owned())
+        self.plan
+            .borrow()
+            .renames
+            .get(alias)
+            .cloned()
+            .unwrap_or_else(|| alias.to_owned())
     }
 
     /// Whether a column reads an aliased projection of a plain frame, or a union frame's output: a quoted read.
@@ -261,7 +268,9 @@ impl EngineStyle {
     /// The WHERE clause: DB2 wraps a top-level conjunction one of whose conjuncts is OR-rooted.
     fn where_sql(&self, w: &mut SqlWriter, wh: &SqlExpr) -> Result<(), Refusal> {
         if self.profile.db2()
-            && let SqlExpr::Call { r#fn: SqlFn::And, args, .. } = wh
+            && let SqlExpr::Call {
+                r#fn: SqlFn::And, args, ..
+            } = wh
             && args.iter().any(or_rooted)
         {
             w.append("(").expr(self, wh, 0)?.append(")");
@@ -330,11 +339,15 @@ impl EngineStyle {
     fn h2_expr(&self, w: &mut SqlWriter, e: &SqlExpr, parent_prec: i32) -> Result<(), Refusal> {
         // a Float literal: cast(x as float), the engine's current H2 text
         if let SqlExpr::FloatLit { value, .. } = e {
-            w.append("cast(").append(&lite_javacompat::double_to_string(value.value())).append(" as float)");
+            w.append("cast(")
+                .append(&lite_javacompat::double_to_string(value.value()))
+                .append(" as float)");
             return Ok(());
         }
         if let SqlExpr::DecimalLit { value, .. } = e {
-            w.append("cast(").append(&big_decimal_plain(value.as_str())).append(" as Decimal(32,16))");
+            w.append("cast(")
+                .append(&big_decimal_plain(value.as_str()))
+                .append(" as Decimal(32,16))");
             return Ok(());
         }
         if let SqlExpr::Exists { subquery, .. } = e
@@ -354,7 +367,9 @@ impl EngineStyle {
             return self.plan_param(w, &p);
         }
         // an enum parameter's comparison: one selector template; its negation a lowercase not around it
-        if let SqlExpr::Call { r#fn: SqlFn::Not, args, .. } = e
+        if let SqlExpr::Call {
+            r#fn: SqlFn::Not, args, ..
+        } = e
             && args.len() == 1
             && let Some(selector) = self.enum_selector(&args[0])?
         {
@@ -378,7 +393,11 @@ impl EngineStyle {
             }
             if let Some(pp) = PlanParam::of(cur) {
                 let fields: Vec<&str> = path.into_iter().collect();
-                w.append("'${").append(pp.name).append(".").append(&fields.join(".")).append("}'");
+                w.append("'${")
+                    .append(pp.name)
+                    .append(".")
+                    .append(&fields.join("."))
+                    .append("}'");
                 return Ok(());
             }
             return Err(Refusal {
@@ -397,9 +416,16 @@ impl EngineStyle {
                 && self.quoted_frame_read(t, &c.name)
             {
                 if self.is_placeholder(t) {
-                    w.append("\"").append(&self.rename(t)).append("\".").append(strip_quotes(&c.name));
+                    w.append("\"")
+                        .append(&self.rename(t))
+                        .append("\".")
+                        .append(strip_quotes(&c.name));
                 } else {
-                    w.append("\"").append(&self.rename(t)).append("\".\"").append(&c.name).append("\"");
+                    w.append("\"")
+                        .append(&self.rename(t))
+                        .append("\".\"")
+                        .append(&c.name)
+                        .append("\"");
                 }
                 return Ok(());
             }
@@ -424,8 +450,11 @@ impl EngineStyle {
         if let SqlExpr::Call { r#fn, args: a, .. } = e {
             match r#fn {
                 SqlFn::NullSafeEqual | SqlFn::NullSafeNotEqual => {
-                    let op =
-                        if *r#fn == SqlFn::NullSafeEqual { " is not distinct from " } else { " is distinct from " };
+                    let op = if *r#fn == SqlFn::NullSafeEqual {
+                        " is not distinct from "
+                    } else {
+                        " is distinct from "
+                    };
                     w.expr(self, arg(a, 0)?, 4)?.append(op).expr(self, arg(a, 1)?, 4)?;
                     return Ok(());
                 }
@@ -457,7 +486,11 @@ impl EngineStyle {
                 SqlFn::Coalesce => {
                     if a.len() == 2 && is_false(&a[1]) {
                         let mut in0 = &a[0];
-                        while let SqlExpr::Call { r#fn: SqlFn::Coalesce, args: cc, .. } = in0
+                        while let SqlExpr::Call {
+                            r#fn: SqlFn::Coalesce,
+                            args: cc,
+                            ..
+                        } = in0
                             && cc.len() == 2
                             && is_false(&cc[1])
                         {
@@ -491,7 +524,8 @@ impl EngineStyle {
         {
             let alias = temp_table_name.to_lowercase() + "_0";
             w.expr(self, &a[0], 4)?.append(" in (select \"").append(&alias);
-            w.append("\".ColumnForStoringInCollection as ColumnForStoringInCollection from ").append(temp_table_name);
+            w.append("\".ColumnForStoringInCollection as ColumnForStoringInCollection from ")
+                .append(temp_table_name);
             w.append(" as \"").append(&alias).append("\")");
             return Ok(());
         }
@@ -507,7 +541,10 @@ impl EngineStyle {
             if cp.kind == ParamKind::Datetime
                 && let Some(tz) = &self.time_zone
             {
-                w.expr(self, &a[0], 4)?.append(" in (${renderCollectionWithTz(").append(cp.name).append("![] \"[");
+                w.expr(self, &a[0], 4)?
+                    .append(" in (${renderCollectionWithTz(")
+                    .append(cp.name)
+                    .append("![] \"[");
                 w.append(tz).append("]\" \",\" \"TIMESTAMP'\" \"'\" \"null\")})");
                 return Ok(());
             }
@@ -521,7 +558,10 @@ impl EngineStyle {
             w.expr(self, &a[0], 4)?.append(" = ").expr(self, &a[1], 4)?;
             return Ok(());
         }
-        w.expr(self, arg(a, 0)?, 4)?.append(" in (").list(self, tail(a, 1)?)?.append(")");
+        w.expr(self, arg(a, 0)?, 4)?
+            .append(" in (")
+            .list(self, tail(a, 1)?)?
+            .append(")");
         Ok(())
     }
 
@@ -540,7 +580,12 @@ impl EngineStyle {
             ParamKind::Date => w.append("TIMESTAMP'${").append(name).append("}'"),
             ParamKind::StrictDate => w.append("DATE'${").append(name).append("}'"),
             ParamKind::Datetime => match &self.time_zone {
-                Some(tz) => w.append("TIMESTAMP'${GMTtoTZ( \"[").append(tz).append("]\" ").append(name).append(")}'"),
+                Some(tz) => w
+                    .append("TIMESTAMP'${GMTtoTZ( \"[")
+                    .append(tz)
+                    .append("]\" ")
+                    .append(name)
+                    .append(")}'"),
                 None => w.append("TIMESTAMP'${").append(name).append("}'"),
             },
             ParamKind::Enum => w.append("'${").append(name).append("}'"),
@@ -558,7 +603,10 @@ impl EngineStyle {
         {
             inner = format!("GMTtoTZ( \"[{tz}]\" {inner})");
         }
-        Ok(format!("${{varPlaceHolderToString({inner} {} \"null\")}}", self.holder_args(p.kind)?))
+        Ok(format!(
+            "${{varPlaceHolderToString({inner} {} \"null\")}}",
+            self.holder_args(p.kind)?
+        ))
     }
 
     /// The template's prefix, suffix and escape map for a parameter's kind; DB2 quotes a boolean.
@@ -568,7 +616,9 @@ impl EngineStyle {
         }
         Ok(match k {
             ParamKind::Raw => {
-                return Err(Refusal::illegal_state("RAW plan params are bare splices, never collections"));
+                return Err(Refusal::illegal_state(
+                    "RAW plan params are bare splices, never collections",
+                ));
             }
             ParamKind::String => "\"'\" \"'\" {\"'\" : \"''\"}",
             // DATE and DATETIME both carry the TIMESTAMP keyword on the upgraded-H2 plan surface
@@ -582,7 +632,12 @@ impl EngineStyle {
     /// `rawColumn = enumParam` as the engine's `optionalVarPlaceHolderOperationSelector` template; none when the
     /// expression is not that shape. The column is written now, quoted into the template's arguments (`'` as `\'`).
     fn enum_selector(&self, e: &SqlExpr) -> Result<Option<String>, Refusal> {
-        let SqlExpr::Call { r#fn: SqlFn::Equal, args, .. } = e else {
+        let SqlExpr::Call {
+            r#fn: SqlFn::Equal,
+            args,
+            ..
+        } = e
+        else {
             return Ok(None);
         };
         if args.len() != 2 {
@@ -625,7 +680,12 @@ impl EngineStyle {
     /// An optional plan parameter in an equality: null-safe on the plan surface (`nullSafeEq`), its side kept; false
     /// (nothing written) when the expression is not that shape.
     fn optional_param_equality(&self, w: &mut SqlWriter, e: &SqlExpr) -> Result<bool, Refusal> {
-        let SqlExpr::Call { r#fn: SqlFn::Equal, args, .. } = e else {
+        let SqlExpr::Call {
+            r#fn: SqlFn::Equal,
+            args,
+            ..
+        } = e
+        else {
             return Ok(false);
         };
         if args.len() != 2 {
@@ -672,7 +732,13 @@ impl EngineStyle {
         r: crate::writer::Piece<'_>,
     ) -> Result<(), Refusal> {
         if self.profile.db2() {
-            w.append("(").piece(l)?.append(" = ").piece(r)?.append(" or (").piece(l)?.append(" is null and ");
+            w.append("(")
+                .piece(l)?
+                .append(" = ")
+                .piece(r)?
+                .append(" or (")
+                .piece(l)?
+                .append(" is null and ");
             w.piece(r)?.append(" is null))");
             return Ok(());
         }
@@ -684,7 +750,11 @@ impl EngineStyle {
     /// columns.
     fn correlated_exists(&self, w: &mut SqlWriter, xs: &SqlSelect) -> Result<(), Refusal> {
         w.append("exists (");
-        let one = Projection { expr: crate::build::int_lit(1), alias: None, out: None };
+        let one = Projection {
+            expr: crate::build::int_lit(1),
+            alias: None,
+            out: None,
+        };
         let probe = crate::build::with_projections(xs.clone(), vec![one])?;
         ansi::inline(self, w, &SqlQuery::Select(Box::new(probe)))?;
         w.append(")");
@@ -694,24 +764,48 @@ impl EngineStyle {
     /// A physical column's spelling: a declared-quoted one keeps its quotes, any other bare (quoted under
     /// `quoteIdentifiers`).
     fn phys_column(&self, origin: Option<lite_sql::Origin>, name: &str) -> String {
-        if origin == Some(lite_sql::Origin::PhysicalQuoted) { self.delimited(name) } else { self.phys(name) }
+        if origin == Some(lite_sql::Origin::PhysicalQuoted) {
+            self.delimited(name)
+        } else {
+            self.phys(name)
+        }
     }
 
     fn phys(&self, name: &str) -> String {
-        if self.quote_identifiers { format!("\"{name}\"") } else { name.to_owned() }
+        if self.quote_identifiers {
+            format!("\"{name}\"")
+        } else {
+            name.to_owned()
+        }
     }
 
     /// dateDiff's composite shapes folded back to the engine's `datediff(unit, a, b)`, the mapping's enum decode
     /// chain spelled flat, and the generic lowercase CASE; false (nothing written) for any other expression.
     fn engine_date_diff(&self, w: &mut SqlWriter, e: &SqlExpr) -> Result<bool, Refusal> {
         // truncated elapsed time: (epoch_ms(end) - epoch_ms(start)) // unitMs
-        if let SqlExpr::Call { r#fn: SqlFn::IntDivide, args: div, .. } = e
+        if let SqlExpr::Call {
+            r#fn: SqlFn::IntDivide,
+            args: div,
+            ..
+        } = e
             && div.len() == 2
             && let SqlExpr::IntLit { value: u, .. } = &div[1]
-            && let SqlExpr::Call { r#fn: SqlFn::Minus, args: minus, .. } = &div[0]
+            && let SqlExpr::Call {
+                r#fn: SqlFn::Minus,
+                args: minus,
+                ..
+            } = &div[0]
             && minus.len() == 2
-            && let SqlExpr::Call { r#fn: SqlFn::EpochMs, args: end, .. } = &minus[0]
-            && let SqlExpr::Call { r#fn: SqlFn::EpochMs, args: start, .. } = &minus[1]
+            && let SqlExpr::Call {
+                r#fn: SqlFn::EpochMs,
+                args: end,
+                ..
+            } = &minus[0]
+            && let SqlExpr::Call {
+                r#fn: SqlFn::EpochMs,
+                args: start,
+                ..
+            } = &minus[1]
         {
             // Java's `(int) u.value()`: the long's low 32 bits
             let unit = match *u as i32 {
@@ -721,24 +815,48 @@ impl EngineStyle {
                 _ => None,
             };
             if let Some(unit) = unit {
-                w.append("datediff(").append(unit).append(", ").expr(self, arg(start, 0)?, 0)?.append(", ");
+                w.append("datediff(")
+                    .append(unit)
+                    .append(", ")
+                    .expr(self, arg(start, 0)?, 0)?
+                    .append(", ");
                 w.expr(self, arg(end, 0)?, 0)?.append(")");
                 return Ok(true);
             }
         }
         // Sunday-boundary weeks: CASE WHEN date_diff('day', end, start) <= 0 THEN forward ELSE backward, both branches
         // the sundayIndex difference
-        if let SqlExpr::Case { whens, otherwise: Some(otherwise), .. } = e
+        if let SqlExpr::Case {
+            whens,
+            otherwise: Some(otherwise),
+            ..
+        } = e
             && whens.len() == 1
-            && let SqlExpr::Call { r#fn: SqlFn::LessEqual, args: le, .. } = &whens[0].condition
+            && let SqlExpr::Call {
+                r#fn: SqlFn::LessEqual,
+                args: le,
+                ..
+            } = &whens[0].condition
             && le.len() == 2
-            && let SqlExpr::Call { r#fn: SqlFn::DateDiff, args: day_diff, .. } = &le[0]
-            && matches!(arg(day_diff, 0)?, SqlExpr::DatePartLit { part: DatePart::Day, .. })
+            && let SqlExpr::Call {
+                r#fn: SqlFn::DateDiff,
+                args: day_diff,
+                ..
+            } = &le[0]
+            && matches!(
+                arg(day_diff, 0)?,
+                SqlExpr::DatePartLit {
+                    part: DatePart::Day,
+                    ..
+                }
+            )
             && matches!(le[1], SqlExpr::IntLit { value: 0, .. })
             && is_sunday_index_difference(&whens[0].then)?
             && is_sunday_index_difference(otherwise)?
         {
-            w.append("datediff(week, ").expr(self, arg(day_diff, 2)?, 0)?.append(", ");
+            w.append("datediff(week, ")
+                .expr(self, arg(day_diff, 2)?, 0)?
+                .append(", ");
             w.expr(self, arg(day_diff, 1)?, 0)?.append(")");
             return Ok(true);
         }
@@ -767,7 +885,10 @@ impl EngineStyle {
         if let SqlExpr::Case { whens, otherwise, .. } = e {
             w.append("case");
             for wh in whens {
-                w.append(" when ").expr(self, &wh.condition, 0)?.append(" then ").expr(self, &wh.then, 0)?;
+                w.append(" when ")
+                    .expr(self, &wh.condition, 0)?
+                    .append(" then ")
+                    .expr(self, &wh.then, 0)?;
             }
             if let Some(o) = otherwise {
                 w.append(" else ").expr(self, o, 0)?;
@@ -815,15 +936,23 @@ impl EngineStyle {
             }
             F::Substring => plain(w, "substring"),
             F::Strpos => {
-                w.append("locate(").expr(self, arg(a, 1)?, 0)?.append(", ").expr(self, arg(a, 0)?, 0)?.append(")");
+                w.append("locate(")
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append(", ")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(")");
                 Ok(())
             }
             F::Ltrim => {
-                w.append("regexp_replace(").expr(self, arg(a, 0)?, 0)?.append(", '^[ ]+', '')");
+                w.append("regexp_replace(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", '^[ ]+', '')");
                 Ok(())
             }
             F::Rtrim => {
-                w.append("regexp_replace(").expr(self, arg(a, 0)?, 0)?.append(", '[ ]+$', '')");
+                w.append("regexp_replace(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", '[ ]+$', '')");
                 Ok(())
             }
             F::Lpad => self.pad_call(w, "legend_h2_extension_lpad", a),
@@ -831,14 +960,22 @@ impl EngineStyle {
             // n-ary concat: nested CONCATs splice into one flat concat
             F::Concat => self.concat_arm(w, a),
             F::DateDiff => {
-                w.append("datediff(").append(engine_part(part(arg(a, 0)?)?)?).append(", ");
-                w.expr(self, arg(a, 1)?, 0)?.append(", ").expr(self, arg(a, 2)?, 0)?.append(")");
+                w.append("datediff(")
+                    .append(engine_part(part(arg(a, 0)?)?)?)
+                    .append(", ");
+                w.expr(self, arg(a, 1)?, 0)?
+                    .append(", ")
+                    .expr(self, arg(a, 2)?, 0)?
+                    .append(")");
                 Ok(())
             }
             // the engine's adjust: dateadd(unit, n, x), its unit lowercase
             F::AddInterval | F::AddIntervalTemporal => {
                 w.append("dateadd(").append(db_unit_of(part(arg(a, 0)?)?)?).append(", ");
-                w.expr(self, arg(a, 1)?, 0)?.append(", ").expr(self, arg(a, 2)?, 0)?.append(")");
+                w.expr(self, arg(a, 1)?, 0)?
+                    .append(", ")
+                    .expr(self, arg(a, 2)?, 0)?
+                    .append(")");
                 Ok(())
             }
             F::ParseInt => {
@@ -858,7 +995,9 @@ impl EngineStyle {
                 Ok(())
             }
             F::ReverseString => {
-                w.append("legend_h2_extension_reverse_string(").expr(self, arg(a, 0)?, 0)?.append(")");
+                w.append("legend_h2_extension_reverse_string(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(")");
                 Ok(())
             }
             F::SplitPart => plain(w, "legend_h2_extension_split_part"),
@@ -873,7 +1012,9 @@ impl EngineStyle {
                 }
             }
             F::DateTruncDay => {
-                w.append("cast(truncate(").expr(self, arg(a, 0)?, 0)?.append(") as date)");
+                w.append("cast(truncate(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(") as date)");
                 Ok(())
             }
             F::Greater => self.greater(w, a, parent_prec),
@@ -1073,7 +1214,11 @@ impl EngineStyle {
             F::Trim if a.len() == 1 => one(w, "trim"),
             F::Cbrt => one(w, "cbrt"),
             F::Strpos => {
-                w.append("position(").expr(self, arg(a, 1)?, 0)?.append(", ").expr(self, arg(a, 0)?, 0)?.append(")");
+                w.append("position(")
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append(", ")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(")");
                 Ok(())
             }
             // DB2's short substr (Composite keeps the full substring)
@@ -1093,7 +1238,11 @@ impl EngineStyle {
             // left/right wrapped in trim
             F::Left | F::Right => {
                 let name = if f == F::Left { "trim(left(" } else { "trim(right(" };
-                w.append(name).expr(self, arg(a, 0)?, 0)?.append(", ").expr(self, arg(a, 1)?, 0)?.append("))");
+                w.append(name)
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", ")
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append("))");
                 Ok(())
             }
             F::Today => {
@@ -1101,7 +1250,9 @@ impl EngineStyle {
                 Ok(())
             }
             F::Length => {
-                w.append("CHARACTER_LENGTH(").expr(self, arg(a, 0)?, 0)?.append(",CODEUNITS32)");
+                w.append("CHARACTER_LENGTH(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(",CODEUNITS32)");
                 Ok(())
             }
             F::DateTrunc => self.db2_date_trunc(w, a),
@@ -1467,13 +1618,22 @@ impl EngineStyle {
 
     /// `rawtohex(hash('<algorithm>', x))`.
     fn digest(&self, w: &mut SqlWriter, algorithm: &str, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("rawtohex(hash('").append(algorithm).append("', ").expr(self, arg(a, 0)?, 0)?.append("))");
+        w.append("rawtohex(hash('")
+            .append(algorithm)
+            .append("', ")
+            .expr(self, arg(a, 0)?, 0)?
+            .append("))");
         Ok(())
     }
 
     /// `name(s, n, pad)`: the engine's pad extension; Pure's pad character is optional, a space.
     fn pad_call(&self, w: &mut SqlWriter, name: &str, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append(name).append("(").expr(self, arg(a, 0)?, 0)?.append(", ").expr(self, arg(a, 1)?, 0)?.append(", ");
+        w.append(name)
+            .append("(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ")
+            .expr(self, arg(a, 1)?, 0)?
+            .append(", ");
         if a.len() > 2 {
             w.expr(self, &a[2], 0)?;
         } else {
@@ -1488,14 +1648,22 @@ impl EngineStyle {
     fn concat_arm(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() == 2 {
             // CONCAT(CONCAT(prefix, J), suffix)
-            if let SqlExpr::Call { r#fn: SqlFn::Concat, args: c0, .. } = &a[0]
+            if let SqlExpr::Call {
+                r#fn: SqlFn::Concat,
+                args: c0,
+                ..
+            } = &a[0]
                 && c0.len() == 2
                 && let Some((collection, extras)) = joined_reduction(&c0[1])?
             {
                 return self.flat_concat(w, collection, &[&c0[0], &extras[0], &a[1]]);
             }
             // CONCAT(prefix, CONCAT(J, suffix))
-            if let SqlExpr::Call { r#fn: SqlFn::Concat, args: c1, .. } = &a[1]
+            if let SqlExpr::Call {
+                r#fn: SqlFn::Concat,
+                args: c1,
+                ..
+            } = &a[1]
                 && c1.len() == 2
                 && let Some((collection, extras)) = joined_reduction(&c1[0])?
             {
@@ -1515,7 +1683,11 @@ impl EngineStyle {
             return self.flat_concat(w, collection, &seps);
         }
         if a.len() == 2
-            && let SqlExpr::Call { r#fn: SqlFn::ListLength, args: len, .. } = &a[0]
+            && let SqlExpr::Call {
+                r#fn: SqlFn::ListLength,
+                args: len,
+                ..
+            } = &a[0]
             && len.len() == 1
             && let Some(cp) = PlanParam::of(&len[0])
             && matches!(a[1], SqlExpr::IntLit { value: 0, .. })
@@ -1561,7 +1733,11 @@ impl EngineStyle {
                 _ => None,
             };
             if let Some(java) = java {
-                w.append("formatdatetime(").expr(self, &a[0], 0)?.append(", '").append(java).append("')");
+                w.append("formatdatetime(")
+                    .expr(self, &a[0], 0)?
+                    .append(", '")
+                    .append(java)
+                    .append("')");
                 return Ok(());
             }
         }
@@ -1574,12 +1750,19 @@ impl EngineStyle {
     /// The GREATER arm: `strpos(x, 'lit') > 0` as the engine's `x like '%lit%'`.
     fn greater(&self, w: &mut SqlWriter, a: &[SqlExpr], parent_prec: i32) -> Result<(), Refusal> {
         if a.len() == 2
-            && let SqlExpr::Call { r#fn: SqlFn::Strpos, args: sp, .. } = &a[0]
+            && let SqlExpr::Call {
+                r#fn: SqlFn::Strpos,
+                args: sp,
+                ..
+            } = &a[0]
             && sp.len() == 2
             && let SqlExpr::StringLit { value: lit, .. } = &sp[1]
             && matches!(a[1], SqlExpr::IntLit { value: 0, .. })
         {
-            w.expr(self, &sp[0], 0)?.append(" like '%").append(&lit.replace('\'', "''")).append("%'");
+            w.expr(self, &sp[0], 0)?
+                .append(" like '%")
+                .append(&lit.replace('\'', "''"))
+                .append("%'");
             return Ok(());
         }
         ansi::infix(self, w, SqlFn::Greater, a, parent_prec)
@@ -1592,7 +1775,11 @@ impl EngineStyle {
             return Ok(());
         }
         let spelled = self.string_lit(engine_part(part(arg(a, 0)?)?)?)?;
-        w.append("date_part(").append(&spelled).append(", ").list(self, tail(a, 1)?)?.append(")");
+        w.append("date_part(")
+            .append(&spelled)
+            .append(", ")
+            .list(self, tail(a, 1)?)?
+            .append(")");
         Ok(())
     }
 
@@ -1623,12 +1810,21 @@ impl EngineStyle {
         {
             let date_only = !parts.contains(&DateFmt::Part(DateFmtPart::Hour2));
             if java == "MMMyyyy" {
-                w.append("parsedatetime(concat('01', ").expr(self, &a[0], 0)?.append("), 'ddMMMyyyy')");
+                w.append("parsedatetime(concat('01', ")
+                    .expr(self, &a[0], 0)?
+                    .append("), 'ddMMMyyyy')");
             } else if date_only {
-                w.append("parsedatetime(substring(").expr(self, &a[0], 0)?.append(", 1, 10), '").append(&java);
+                w.append("parsedatetime(substring(")
+                    .expr(self, &a[0], 0)?
+                    .append(", 1, 10), '")
+                    .append(&java);
                 w.append("')");
             } else {
-                w.append("parsedatetime(").expr(self, &a[0], 0)?.append(", '").append(&java).append("')");
+                w.append("parsedatetime(")
+                    .expr(self, &a[0], 0)?
+                    .append(", '")
+                    .append(&java)
+                    .append("')");
             }
             return Ok(());
         }
@@ -1655,12 +1851,17 @@ impl EngineStyle {
                     return Ok(());
                 }
                 DatePart::Month => {
-                    w.append("date(1) + (year(").piece(&anchor)?.append(")-1) YEARS + (month(").piece(&anchor)?;
+                    w.append("date(1) + (year(")
+                        .piece(&anchor)?
+                        .append(")-1) YEARS + (month(")
+                        .piece(&anchor)?;
                     w.append(")-1) MONTHS");
                     return Ok(());
                 }
                 DatePart::Quarter => {
-                    w.append("date(1) + ((year(").piece(&anchor)?.append(")-1) YEARS) + (3 * QUARTER(");
+                    w.append("date(1) + ((year(")
+                        .piece(&anchor)?
+                        .append(")-1) YEARS) + (3 * QUARTER(");
                     w.piece(&anchor)?.append(") - 3) MONTHS");
                     return Ok(());
                 }
@@ -1676,7 +1877,10 @@ impl EngineStyle {
                 | DatePart::IsoDayOfWeek => {}
             }
         }
-        Err(Refusal::illegal_state(format!("date_trunc unit has no engine-DB2 spelling yet: {}", list_text(a))))
+        Err(Refusal::illegal_state(format!(
+            "date_trunc unit has no engine-DB2 spelling yet: {}",
+            list_text(a)
+        )))
     }
 
     /// DB2's ADD_INTERVAL over a literal count: `x - 1 MONTHS`, `x + 3 DAYS` (a week as seven days).
@@ -1706,12 +1910,19 @@ impl EngineStyle {
                 v = v.wrapping_mul(7);
             }
             if let Some(unit) = unit {
-                let count = if v < 0 { format!(" - {}", v.wrapping_neg()) } else { format!(" + {v}") };
+                let count = if v < 0 {
+                    format!(" - {}", v.wrapping_neg())
+                } else {
+                    format!(" + {v}")
+                };
                 w.expr(self, &a[2], 0)?.append(&count).append(" ").append(unit);
                 return Ok(());
             }
         }
-        Err(Refusal::illegal_state(format!("interval shape has no engine-DB2 spelling yet: {}", list_text(a))))
+        Err(Refusal::illegal_state(format!(
+            "interval shape has no engine-DB2 spelling yet: {}",
+            list_text(a)
+        )))
     }
 
     /// DB2's STRPTIME: `to_date` (a date-only format) or `timestamp_format`, the whole string, the pattern after a
@@ -1722,11 +1933,16 @@ impl EngineStyle {
             && let Some(java) = db2_pattern(parts)
         {
             let date_only = !parts.contains(&DateFmt::Part(DateFmtPart::Hour2));
-            w.append(if date_only { "to_date(" } else { "timestamp_format(" }).expr(self, &a[0], 0)?.append(",'");
+            w.append(if date_only { "to_date(" } else { "timestamp_format(" })
+                .expr(self, &a[0], 0)?
+                .append(",'");
             w.append(&java).append("')");
             return Ok(());
         }
-        Err(Refusal::illegal_state(format!("strptime format has no engine-DB2 spelling yet: {}", list_text(a))))
+        Err(Refusal::illegal_state(format!(
+            "strptime format has no engine-DB2 spelling yet: {}",
+            list_text(a)
+        )))
     }
 
     // ==================================================================
@@ -1736,14 +1952,23 @@ impl EngineStyle {
     /// A percentile the engine writes within group: `name(p) within group (order by v asc|desc)`.
     fn percentile(&self, w: &mut SqlWriter, name: &str, r: &Reducer) -> Result<(), Refusal> {
         let desc = r.order_by.first().is_some_and(|k| !k.ascending);
-        w.append(name).append("(").expr(self, arg(&r.args, 1)?, 0)?.append(") within group (order by ");
-        w.expr(self, arg(&r.args, 0)?, 0)?.append(if desc { " desc" } else { " asc" }).append(")");
+        w.append(name)
+            .append("(")
+            .expr(self, arg(&r.args, 1)?, 0)?
+            .append(") within group (order by ");
+        w.expr(self, arg(&r.args, 0)?, 0)?
+            .append(if desc { " desc" } else { " asc" })
+            .append(")");
         Ok(())
     }
 
     /// `listagg([distinct] x, separator)`.
     fn listagg(&self, w: &mut SqlWriter, r: &Reducer) -> Result<(), Refusal> {
-        let distinct = if r.distinct { self.keyword("DISTINCT") + " " } else { String::new() };
+        let distinct = if r.distinct {
+            self.keyword("DISTINCT") + " "
+        } else {
+            String::new()
+        };
         w.append("listagg(").append(&distinct).list(self, &r.args)?.append(")");
         Ok(())
     }
@@ -1763,7 +1988,15 @@ impl EngineStyle {
 
     /// A seed row as legend-engine's H2 `loadValuesToDbTableH2` writes it: one row a statement, a cell a column.
     fn seed_row(&self, dml: &SqlDml) -> Result<String, Refusal> {
-        let SqlDml::InsertValues { schema, table, columns, quoted_columns, rows, .. } = dml else {
+        let SqlDml::InsertValues {
+            schema,
+            table,
+            columns,
+            quoted_columns,
+            rows,
+            ..
+        } = dml
+        else {
             return Err(Refusal::illegal_state("a seed row is an INSERT of values"));
         };
         if rows.len() != 1 || columns.len() != rows[0].len() {
@@ -1773,11 +2006,17 @@ impl EngineStyle {
                 columns.len()
             )));
         }
-        let names: Vec<String> =
-            columns.iter().map(|c| AnsiSqlRenderer::insert_column_name(self, c, quoted_columns.contains(c))).collect();
+        let names: Vec<String> = columns
+            .iter()
+            .map(|c| AnsiSqlRenderer::insert_column_name(self, c, quoted_columns.contains(c)))
+            .collect();
         let cells = rows[0].iter().map(seed_cell).collect::<Result<Vec<_>, _>>()?;
         let schema = schema.as_ref().map_or(String::new(), |s| format!("{s}."));
-        Ok(format!("insert into {schema}{table} ({}) values ({});", names.join(","), cells.join(",")))
+        Ok(format!(
+            "insert into {schema}{table} ({}) values ({});",
+            names.join(","),
+            cells.join(",")
+        ))
     }
 }
 
@@ -1828,7 +2067,9 @@ pub fn ddl_engine_text(t: &ColumnType) -> Result<String, Refusal> {
             ColumnKind::Varchar => "VARCHAR",
             ColumnKind::Other => "OTHER",
             ColumnKind::Distinct | ColumnKind::Array | ColumnKind::Object => {
-                return Err(Refusal::illegal_state(format!("no DDL spelling for declared column type {kind}")));
+                return Err(Refusal::illegal_state(format!(
+                    "no DDL spelling for declared column type {kind}"
+                )));
             }
         }
         .to_owned(),
@@ -1850,7 +2091,9 @@ fn db_unit_of(unit: DatePart) -> Result<&'static str, Refusal> {
         DatePart::Millisecond => "millisecond",
         DatePart::Microsecond => "microsecond",
         DatePart::Quarter | DatePart::DayOfYear | DatePart::IsoDayOfWeek => {
-            return Err(Refusal::illegal_state(format!("no H2 dateadd unit for an interval of {unit}")));
+            return Err(Refusal::illegal_state(format!(
+                "no H2 dateadd unit for an interval of {unit}"
+            )));
         }
         DatePart::Nanosecond => {
             return Err(Refusal::capability(
@@ -1944,7 +2187,11 @@ fn output_name(expr: &SqlExpr, alias: Option<&str>) -> Option<String> {
 }
 
 fn strip_quotes(n: &str) -> &str {
-    if n.len() > 1 && n.starts_with('"') && n.ends_with('"') { &n[1..n.len() - 1] } else { n }
+    if n.len() > 1 && n.starts_with('"') && n.ends_with('"') {
+        &n[1..n.len() - 1]
+    } else {
+        n
+    }
 }
 
 fn is_false(e: &SqlExpr) -> bool {
@@ -1968,7 +2215,10 @@ fn mixed_operand_arithmetic(f: SqlFn, args: &[SqlExpr], parent_prec: i32) -> boo
 
 /// The flattened conjuncts of an AND, each with whether it is an OR (parenthesized under the AND).
 fn flatten_and<'e>(e: &'e SqlExpr, out: &mut Vec<(&'e SqlExpr, bool)>) {
-    if let SqlExpr::Call { r#fn: SqlFn::And, args, .. } = e {
+    if let SqlExpr::Call {
+        r#fn: SqlFn::And, args, ..
+    } = e
+    {
         for a in args {
             flatten_and(a, out);
         }
@@ -1982,10 +2232,15 @@ fn flatten_and<'e>(e: &'e SqlExpr, out: &mut Vec<(&'e SqlExpr, bool)>) {
 fn or_rooted(a: &SqlExpr) -> bool {
     match a {
         SqlExpr::Group { inner, .. } => or_rooted(inner),
-        SqlExpr::Call { r#fn: SqlFn::Or | SqlFn::NullSafeEqual | SqlFn::NullSafeNotEqual, .. } => true,
-        SqlExpr::Call { r#fn: SqlFn::Equal | SqlFn::NotEqual, args, .. } => {
-            args.iter().any(|x| PlanParam::of(x).is_some_and(|p| p.optional))
-        }
+        SqlExpr::Call {
+            r#fn: SqlFn::Or | SqlFn::NullSafeEqual | SqlFn::NullSafeNotEqual,
+            ..
+        } => true,
+        SqlExpr::Call {
+            r#fn: SqlFn::Equal | SqlFn::NotEqual,
+            args,
+            ..
+        } => args.iter().any(|x| PlanParam::of(x).is_some_and(|p| p.optional)),
         _ => false,
     }
 }
@@ -1993,14 +2248,23 @@ fn or_rooted(a: &SqlExpr) -> bool {
 /// The right-hand literals of a decode branch's equality, or of its OR-tree of equalities.
 fn collect_equality_rhs<'e>(cond: &'e SqlExpr, out: &mut Vec<&'e SqlExpr>) -> Result<(), Refusal> {
     match cond {
-        SqlExpr::Call { r#fn: SqlFn::Equal, args, .. } if args.len() == 2 => out.push(&args[1]),
-        SqlExpr::Call { r#fn: SqlFn::Or, args, .. } => {
+        SqlExpr::Call {
+            r#fn: SqlFn::Equal,
+            args,
+            ..
+        } if args.len() == 2 => out.push(&args[1]),
+        SqlExpr::Call {
+            r#fn: SqlFn::Or, args, ..
+        } => {
             for a in args {
                 collect_equality_rhs(a, out)?;
             }
         }
         other => {
-            return Err(Refusal::illegal_state(format!("decode branch is not an equality: {}", expr_text(other))));
+            return Err(Refusal::illegal_state(format!(
+                "decode branch is not an equality: {}",
+                expr_text(other)
+            )));
         }
     }
     Ok(())
@@ -2008,17 +2272,30 @@ fn collect_equality_rhs<'e>(cond: &'e SqlExpr, out: &mut Vec<&'e SqlExpr>) -> Re
 
 /// `sundayIndex(d2) - sundayIndex(d1)`, sundayIndex = `date_diff('day', DATE '0001-01-07', d) // 7`.
 fn is_sunday_index_difference(e: &SqlExpr) -> Result<bool, Refusal> {
-    let SqlExpr::Call { r#fn: SqlFn::Minus, args, .. } = e else {
+    let SqlExpr::Call {
+        r#fn: SqlFn::Minus,
+        args,
+        ..
+    } = e
+    else {
         return Ok(false);
     };
     Ok(args.len() == 2 && is_sunday_index(&args[0])? && is_sunday_index(&args[1])?)
 }
 
 fn is_sunday_index(e: &SqlExpr) -> Result<bool, Refusal> {
-    if let SqlExpr::Call { r#fn: SqlFn::IntDivide, args: div, .. } = e
+    if let SqlExpr::Call {
+        r#fn: SqlFn::IntDivide,
+        args: div,
+        ..
+    } = e
         && div.len() == 2
         && matches!(div[1], SqlExpr::IntLit { value: 7, .. })
-        && let SqlExpr::Call { r#fn: SqlFn::DateDiff, args: dd, .. } = &div[0]
+        && let SqlExpr::Call {
+            r#fn: SqlFn::DateDiff,
+            args: dd,
+            ..
+        } = &div[0]
     {
         return Ok(matches!(arg(dd, 1)?, SqlExpr::DateLit { iso, .. } if iso == "0001-01-07"));
     }
@@ -2029,7 +2306,11 @@ fn is_sunday_index(e: &SqlExpr) -> Result<bool, Refusal> {
 fn empty_collection(e: &SqlExpr) -> bool {
     match e {
         SqlExpr::NullLit { .. } => true,
-        SqlExpr::Cast { value, target: SqlType::Array { .. }, .. } => matches!(value.as_ref(), SqlExpr::NullLit { .. }),
+        SqlExpr::Cast {
+            value,
+            target: SqlType::Array { .. },
+            ..
+        } => matches!(value.as_ref(), SqlExpr::NullLit { .. }),
         _ => false,
     }
 }
@@ -2073,7 +2354,11 @@ fn is_param(e: &SqlExpr, param: &str) -> bool {
 /// other shape.
 fn joined_reduction(e: &SqlExpr) -> Result<Option<(&SqlExpr, &[SqlExpr])>, Refusal> {
     match e {
-        SqlExpr::Call { r#fn: SqlFn::Coalesce, args, .. } => joined_reduction_of(args),
+        SqlExpr::Call {
+            r#fn: SqlFn::Coalesce,
+            args,
+            ..
+        } => joined_reduction_of(args),
         _ => Ok(None),
     }
 }
@@ -2081,7 +2366,12 @@ fn joined_reduction(e: &SqlExpr) -> Result<Option<(&SqlExpr, &[SqlExpr])>, Refus
 /// [`joined_reduction`] of a COALESCE's arguments.
 fn joined_reduction_of(args: &[SqlExpr]) -> Result<Option<(&SqlExpr, &[SqlExpr])>, Refusal> {
     if args.len() == 2
-        && let SqlExpr::ReduceCollection { reducer: AggFn::StringAgg, collection, extras, .. } = &args[0]
+        && let SqlExpr::ReduceCollection {
+            reducer: AggFn::StringAgg,
+            collection,
+            extras,
+            ..
+        } = &args[0]
         && extras.len() == 1
         && literal_elements(collection)?.is_some()
     {
@@ -2094,7 +2384,11 @@ fn joined_reduction_of(args: &[SqlExpr]) -> Result<Option<(&SqlExpr, &[SqlExpr])
 fn literal_elements(coll: &SqlExpr) -> Result<Option<&[SqlExpr]>, Refusal> {
     Ok(match coll {
         SqlExpr::ArrayLit { elements, .. } => Some(elements),
-        SqlExpr::Call { r#fn: SqlFn::ListTransform, args, .. } => match arg(args, 0)? {
+        SqlExpr::Call {
+            r#fn: SqlFn::ListTransform,
+            args,
+            ..
+        } => match arg(args, 0)? {
             SqlExpr::ArrayLit { elements, .. } => Some(elements),
             _ => None,
         },
@@ -2105,7 +2399,11 @@ fn literal_elements(coll: &SqlExpr) -> Result<Option<&[SqlExpr]>, Refusal> {
 /// An element's text coercion (`coalesce(cast(x as varchar), 'TDSNull')`) dropped: the raw element.
 fn unwrap_element_text(e: &SqlExpr) -> &SqlExpr {
     let mut inner = e;
-    if let SqlExpr::Call { r#fn: SqlFn::Coalesce, args, .. } = inner
+    if let SqlExpr::Call {
+        r#fn: SqlFn::Coalesce,
+        args,
+        ..
+    } = inner
         && args.len() == 2
         && matches!(&args[1], SqlExpr::StringLit { value, .. } if value == TDS_NULL_CELL)
     {
@@ -2154,7 +2452,11 @@ fn wrap_tds_join_top(query: SqlQuery) -> Result<SqlQuery, Refusal> {
         .outputs
         .iter()
         .map(|o| {
-            let name = if ph_cols.contains(o.name.as_str()) { o.name.clone() } else { format!("\"{}\"", o.name) };
+            let name = if ph_cols.contains(o.name.as_str()) {
+                o.name.clone()
+            } else {
+                format!("\"{}\"", o.name)
+            };
             let column = lite_sql::Column {
                 table: Some(WRAP.to_owned()),
                 name,
@@ -2167,7 +2469,11 @@ fn wrap_tds_join_top(query: SqlQuery) -> Result<SqlQuery, Refusal> {
     let SqlQuery::Select(s) = query else {
         unreachable!("matched above");
     };
-    let wrapped = crate::build::select_of(cols, crate::build::subselect(SqlQuery::Select(s), WRAP, None), Vec::new())?;
+    let wrapped = crate::build::select_of(
+        cols,
+        crate::build::subselect(SqlQuery::Select(s), WRAP, None),
+        Vec::new(),
+    )?;
     Ok(SqlQuery::Select(Box::new(wrapped)))
 }
 
@@ -2223,7 +2529,11 @@ impl AliasPlan {
                 };
                 self.renames.insert(alias.clone(), renamed);
             }
-            SqlSource::Subselect { inner, alias, frame_name } => {
+            SqlSource::Subselect {
+                inner,
+                alias,
+                frame_name,
+            } => {
                 // a named frame groups by its own name; any other by its first inner table
                 let group = match frame_name {
                     Some(f) if f != EXISTS_KEYS_FRAME => f.to_lowercase(),
@@ -2240,7 +2550,8 @@ impl AliasPlan {
                 };
                 self.renames.insert(alias.clone(), renamed);
                 self.plan_query(inner, groups, frame_name.as_deref() != Some(EXISTS_KEYS_FRAME));
-                self.subselects.insert(alias.clone(), frame_read(inner, frame_name.as_deref()));
+                self.subselects
+                    .insert(alias.clone(), frame_read(inner, frame_name.as_deref()));
             }
             SqlSource::Join { left, right, .. } => {
                 self.plan_source(left, leftmost, groups);
@@ -2369,7 +2680,10 @@ impl AnsiSqlRenderer for EngineStyle {
     /// H2's carrier strategies (no literal reduction folded: this text spells the engine's chains), then the lateral
     /// explode as the engine's decorrelated union; no other pass.
     fn passes(&self) -> Vec<Box<dyn SqlRewriter>> {
-        vec![Box::new(CarrierStrategies::with_literal_folds(CAPS, false)), Box::new(LateralExplodeToUnion)]
+        vec![
+            Box::new(CarrierStrategies::with_literal_folds(CAPS, false)),
+            Box::new(LateralExplodeToUnion),
+        ]
     }
 
     /// The engine's text reads every column as stored.
@@ -2425,13 +2739,15 @@ impl AnsiSqlRenderer for EngineStyle {
             self.where_sql(w, wh)?;
         }
         if !s.group_by.is_empty() {
-            w.append(" group by ").join(&s.group_by, self.group_by_separator(), |w, e| self.group_key(w, s, e))?;
+            w.append(" group by ")
+                .join(&s.group_by, self.group_by_separator(), |w, e| self.group_key(w, s, e))?;
         }
         if let Some(h) = &s.having {
             w.append(" having ").expr(self, h, 0)?;
         }
         if !s.order_by.is_empty() {
-            w.append(" order by ").join(&s.order_by, ", ", |w, k| self.sort_key(w, k))?;
+            w.append(" order by ")
+                .join(&s.order_by, ", ", |w, k| self.sort_key(w, k))?;
         }
         if let Some(offset) = s.offset {
             w.append(" offset ").append_long(offset).append(" rows");
@@ -2480,7 +2796,11 @@ impl AnsiSqlRenderer for EngineStyle {
                 }
                 w.append(" as \"").append(&self.rename(alias)).append("\"");
             }
-            SqlSource::Subselect { inner, alias, frame_name } => {
+            SqlSource::Subselect {
+                inner,
+                alias,
+                frame_name,
+            } => {
                 w.append("(");
                 // a union frame keeps its quoted interior; only a view frame unquotes its projections
                 let f = frame_name.as_deref();
@@ -2503,9 +2823,15 @@ impl AnsiSqlRenderer for EngineStyle {
                 w.append(") as \"").append(&self.rename(alias)).append("\"");
             }
             SqlSource::VarSetPlaceholder { var_name, alias, .. } => {
-                w.append("(${").append(var_name).append("}) as \"").append(&self.rename(alias)).append("\"");
+                w.append("(${")
+                    .append(var_name)
+                    .append("}) as \"")
+                    .append(&self.rename(alias))
+                    .append("\"");
             }
-            SqlSource::Join { left, right, kind, on, .. } => {
+            SqlSource::Join {
+                left, right, kind, on, ..
+            } => {
                 self.source(w, left, depth)?;
                 let keyword = self.join_keyword(*kind)?;
                 w.append(" ").append(&keyword).append(" ");
@@ -2562,16 +2888,34 @@ impl AnsiSqlRenderer for EngineStyle {
     /// DB2's null-safe OR expansions (`extensionDefaults.pure`), then the engine's H2 forms.
     fn expr(&self, w: &mut SqlWriter, e: &SqlExpr, parent_prec: i32) -> Result<(), Refusal> {
         if self.profile.db2()
-            && let SqlExpr::Call { r#fn: f @ (SqlFn::NullSafeEqual | SqlFn::NullSafeNotEqual), args, .. } = e
+            && let SqlExpr::Call {
+                r#fn: f @ (SqlFn::NullSafeEqual | SqlFn::NullSafeNotEqual),
+                args,
+                ..
+            } = e
         {
             let a = |w: &mut SqlWriter| w.expr(self, arg(args, 0)?, 4).map(drop);
             let b = |w: &mut SqlWriter| w.expr(self, arg(args, 1)?, 4).map(drop);
             if *f == SqlFn::NullSafeEqual {
-                w.append("(").piece(&a)?.append(" = ").piece(&b)?.append(" or (").piece(&a)?.append(" is null and ");
+                w.append("(")
+                    .piece(&a)?
+                    .append(" = ")
+                    .piece(&b)?
+                    .append(" or (")
+                    .piece(&a)?
+                    .append(" is null and ");
                 w.piece(&b)?.append(" is null))");
             } else {
-                w.append("(not (").piece(&a)?.append(" = ").piece(&b)?.append(") or (").piece(&a)?;
-                w.append(" is null and ").piece(&b)?.append(" is not null) or (").piece(&a)?;
+                w.append("(not (")
+                    .piece(&a)?
+                    .append(" = ")
+                    .piece(&b)?
+                    .append(") or (")
+                    .piece(&a)?;
+                w.append(" is null and ")
+                    .piece(&b)?
+                    .append(" is not null) or (")
+                    .piece(&a)?;
                 w.append(" is not null and ").piece(&b)?.append(" is null))");
             }
             return Ok(());
@@ -2582,7 +2926,12 @@ impl AnsiSqlRenderer for EngineStyle {
     /// Expression membership: `x in (<collection>)`, a literal collection's elements spelled.
     fn membership(&self, w: &mut SqlWriter, needle: &SqlExpr, collection: &SqlExpr) -> Result<(), Refusal> {
         let mut coll = collection;
-        while let SqlExpr::Cast { value, target: SqlType::Array { .. }, .. } = coll {
+        while let SqlExpr::Cast {
+            value,
+            target: SqlType::Array { .. },
+            ..
+        } = coll
+        {
             coll = value;
         }
         w.expr(self, needle, 4)?.append(" in (");
@@ -2629,7 +2978,9 @@ impl AnsiSqlRenderer for EngineStyle {
         if scalar == Scalar::Date {
             return Ok("DATE".to_owned());
         }
-        Err(Refusal::capability(format!("a TYPEOF compared with {scalar}'s name reached the engine text")))
+        Err(Refusal::capability(format!(
+            "a TYPEOF compared with {scalar}'s name reached the engine text"
+        )))
     }
 
     /// Pure's round: the engine's bare `round(x[, n])`.
@@ -2656,10 +3007,17 @@ impl AnsiSqlRenderer for EngineStyle {
         if f == SqlFn::ListGet
             && args.len() == 2
             && matches!(args[0], SqlExpr::ArrayLit { .. })
-            && let SqlExpr::Call { r#fn: SqlFn::ListPosition, args: pos, .. } = &args[1]
+            && let SqlExpr::Call {
+                r#fn: SqlFn::ListPosition,
+                args: pos,
+                ..
+            } = &args[1]
             && pos.len() == 2
             && let SqlExpr::ArrayLit { elements: vals, .. } = &pos[0]
-            && let SqlExpr::Call { r#fn: win @ (SqlFn::ListMax | SqlFn::ListMin), .. } = &pos[1]
+            && let SqlExpr::Call {
+                r#fn: win @ (SqlFn::ListMax | SqlFn::ListMin),
+                ..
+            } = &pos[1]
         {
             return self.variadic_extreme(w, *win == SqlFn::ListMax, vals);
         }
@@ -2683,7 +3041,11 @@ impl AnsiSqlRenderer for EngineStyle {
                 }
                 let chain = crate::build::call(op, elems);
                 // boolean chains are flat; arithmetic ones parenthesize
-                let prec = if matches!(op, SqlFn::And | SqlFn::Or) { 0 } else { i32::MAX };
+                let prec = if matches!(op, SqlFn::And | SqlFn::Or) {
+                    0
+                } else {
+                    i32::MAX
+                };
                 w.expr(self, &chain, prec)?;
                 return Ok(());
             }
@@ -2692,7 +3054,11 @@ impl AnsiSqlRenderer for EngineStyle {
         if f == SqlFn::ListGet
             && args.len() == 2
             && matches!(args[1], SqlExpr::IntLit { value: 1, .. })
-            && let SqlExpr::Call { r#fn: SqlFn::ListFilter, args: flt, .. } = &args[0]
+            && let SqlExpr::Call {
+                r#fn: SqlFn::ListFilter,
+                args: flt,
+                ..
+            } = &args[0]
             && flt.len() == 2
             && let SqlExpr::ArrayLit { elements: src, .. } = &flt[0]
             && !src.is_empty()
@@ -2703,13 +3069,20 @@ impl AnsiSqlRenderer for EngineStyle {
             w.expr(self, &crate::build::call(SqlFn::Coalesce, src.clone()), 0)?;
             return Ok(());
         }
-        Err(Refusal::capability(format!("{f} reached a dialect without a list encoding")))
+        Err(Refusal::capability(format!(
+            "{f} reached a dialect without a list encoding"
+        )))
     }
 
     /// splitPart: the engine's own H2 extension function.
     fn split_part_call(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("legend_h2_extension_split_part(").expr(self, arg(a, 0)?, 0)?.append(", ");
-        w.expr(self, arg(a, 1)?, 0)?.append(", ").expr(self, arg(a, 2)?, 0)?.append(")");
+        w.append("legend_h2_extension_split_part(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ");
+        w.expr(self, arg(a, 1)?, 0)?
+            .append(", ")
+            .expr(self, arg(a, 2)?, 0)?
+            .append(")");
         Ok(())
     }
 
@@ -2732,7 +3105,13 @@ impl AnsiSqlRenderer for EngineStyle {
                 return Ok(());
             }
             if matches!(target, SqlType::Scalar(Scalar::Date | Scalar::Timestamp))
-                && matches!(value, SqlExpr::Call { r#fn: SqlFn::Strptime | SqlFn::AddInterval, .. })
+                && matches!(
+                    value,
+                    SqlExpr::Call {
+                        r#fn: SqlFn::Strptime | SqlFn::AddInterval,
+                        ..
+                    }
+                )
             {
                 w.expr(self, value, 0)?;
                 return Ok(());
@@ -2748,7 +3127,11 @@ impl AnsiSqlRenderer for EngineStyle {
         } else if t == "double precision" || t == "double" {
             t = "float".to_owned();
         }
-        w.append("cast(").expr(self, value, 0)?.append(" as ").append(&t).append(")");
+        w.append("cast(")
+            .expr(self, value, 0)?
+            .append(" as ")
+            .append(&t)
+            .append(")");
         Ok(())
     }
 
@@ -2914,7 +3297,9 @@ impl AnsiSqlRenderer for EngineStyle {
                 ));
             }
             Scalar::Json | Scalar::DecimalText => {
-                return Err(Refusal::illegal_state(format!("{s} cast reached a dialect without {s} support")));
+                return Err(Refusal::illegal_state(format!(
+                    "{s} cast reached a dialect without {s} support"
+                )));
             }
         }
         .to_owned())
@@ -2923,7 +3308,9 @@ impl AnsiSqlRenderer for EngineStyle {
     /// No STRUCT type here: a struct cast is refused.
     fn struct_type_name(&self, fields: &[StructField]) -> Result<String, Refusal> {
         let _ = fields;
-        Err(Refusal::capability("a STRUCT type reached a dialect without struct support"))
+        Err(Refusal::capability(
+            "a STRUCT type reached a dialect without struct support",
+        ))
     }
 
     /// A date format's parts: the base's strftime codes.
@@ -2933,7 +3320,12 @@ impl AnsiSqlRenderer for EngineStyle {
 
     /// DB2's dynafunction templates print `-` and `+` tight (`position(...)-1`).
     fn infix_pad(&self, f: SqlFn) -> String {
-        if self.profile.db2() && matches!(f, SqlFn::Minus | SqlFn::Plus) { "" } else { " " }.to_owned()
+        if self.profile.db2() && matches!(f, SqlFn::Minus | SqlFn::Plus) {
+            ""
+        } else {
+            " "
+        }
+        .to_owned()
     }
 
     /// A stored table's and schema's names as the store wrote them, declared quoted or not.
@@ -2949,7 +3341,11 @@ impl AnsiSqlRenderer for EngineStyle {
 
     /// The engine's processColumnName: a declared-quoted name quoted, any other by the engine's rule.
     fn ddl_identifier(&self, name: &str, declared_quoted: bool) -> String {
-        if declared_quoted { format!("\"{name}\"") } else { engine_column_name(name) }
+        if declared_quoted {
+            format!("\"{name}\"")
+        } else {
+            engine_column_name(name)
+        }
     }
 
     /// The engine's rule plus the execution necessity: a name that is not a plain identifier quoted (its quotes
@@ -2969,7 +3365,11 @@ impl AnsiSqlRenderer for EngineStyle {
 
     /// The metamodel names joined raw in `PRIMARY KEY(...)`: a declared-quoted name carries its quotes.
     fn ddl_key_identifier(&self, name: &str, declared_quoted: bool) -> String {
-        if declared_quoted { format!("\"{name}\"") } else { name.to_owned() }
+        if declared_quoted {
+            format!("\"{name}\"")
+        } else {
+            name.to_owned()
+        }
     }
 
     fn ddl_column_separator(&self) -> String {

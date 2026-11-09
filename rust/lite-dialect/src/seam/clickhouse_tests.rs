@@ -40,7 +40,10 @@ fn facts_are_clickhouses() {
     );
     // every server version is spelled alike; a spec's server keeps ClickHouse
     assert_eq!(ok(CH, "forServer", r#"{"version":"25.8"}"#), r#""ClickHouse""#);
-    assert_eq!(dispatch(r#"{"dialect":"ClickHouse","server":"24"}"#, "facts", "{}").unwrap(), ok(CH, "facts", "{}"));
+    assert_eq!(
+        dispatch(r#"{"dialect":"ClickHouse","server":"24"}"#, "facts", "{}").unwrap(),
+        ok(CH, "facts", "{}")
+    );
     assert_eq!(
         refused(r#"{"dialect":"ClickHouse","timeZone":"UTC"}"#, "facts", "{}").message,
         "quoteIdentifiers and timeZone configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not ClickHouse"
@@ -81,15 +84,30 @@ fn ddl_and_dml_render_and_a_session_table_is_a_temporary_table() {
     // a session's table is the TEMPORARY table and its INSERT, the interface's own renders
     let temporary = r#""Create Temporary Table \"legend_rows\"(\"ID\" BIGINT NOT NULL, PRIMARY KEY(\"ID\"));""#;
     assert_eq!(
-        ok(CH, "sessionTable", &format!(r#"{{"table":{SESSION_TABLE},"rows":{INSERT_VALUES}}}"#)),
+        ok(
+            CH,
+            "sessionTable",
+            &format!(r#"{{"table":{SESSION_TABLE},"rows":{INSERT_VALUES}}}"#)
+        ),
         format!("[{temporary},{insert}]")
     );
     assert_eq!(
-        ok(CH, "sessionTable", &format!(r#"{{"table":{SESSION_TABLE},"rows":null}}"#)),
+        ok(
+            CH,
+            "sessionTable",
+            &format!(r#"{{"table":{SESSION_TABLE},"rows":null}}"#)
+        ),
         format!("[{temporary}]")
     );
-    let r = refused(CH, "sessionTable", &format!(r#"{{"table":{CREATE_TABLE},"rows":null}}"#));
-    assert_eq!((r.kind(), r.message.as_str()), ("ILLEGAL_ARGUMENT", "a session table is temporary: Trades"));
+    let r = refused(
+        CH,
+        "sessionTable",
+        &format!(r#"{{"table":{CREATE_TABLE},"rows":null}}"#),
+    );
+    assert_eq!(
+        (r.kind(), r.message.as_str()),
+        ("ILLEGAL_ARGUMENT", "a session table is temporary: Trades")
+    );
 }
 
 #[test]
@@ -98,41 +116,83 @@ fn names_are_clickhouses() {
     assert_eq!(name("physicalName", r#"{"name":"Trades"}"#), r#""\"Trades\"""#);
     // a double-quoted declaration is its own spelling
     assert_eq!(name("physicalName", r#"{"name":"\"date\""}"#), r#""\"date\"""#);
-    assert_eq!(name("storedName", r#"{"name":"Trades","declaredQuoted":true}"#), r#""\"Trades\"""#);
-    assert_eq!(name("insertColumnName", r#"{"name":"a\"b","declaredQuoted":false}"#), r#""\"a\"\"b\"""#);
+    assert_eq!(
+        name("storedName", r#"{"name":"Trades","declaredQuoted":true}"#),
+        r#""\"Trades\"""#
+    );
+    assert_eq!(
+        name("insertColumnName", r#"{"name":"a\"b","declaredQuoted":false}"#),
+        r#""\"a\"\"b\"""#
+    );
     let r = refused(CH, "fromEngineText", r#"{"statement":"CREATE TABLE T (X DOUBLE)"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("DIALECT_CAPABILITY", "the engine's H2 text reached ClickHouse, which has no translation of it")
+        (
+            "DIALECT_CAPABILITY",
+            "the engine's H2 text reached ClickHouse, which has no translation of it"
+        )
     );
-    assert_eq!(name("raw", r#"{"statement":"select 1","writtenFor":"ClickHouse"}"#), r#""select 1""#);
     assert_eq!(
-        name("tableName", r#"{"name":"Sales.Orders","quoting":{"schema":false,"table":false}}"#),
+        name("raw", r#"{"statement":"select 1","writtenFor":"ClickHouse"}"#),
+        r#""select 1""#
+    );
+    assert_eq!(
+        name(
+            "tableName",
+            r#"{"name":"Sales.Orders","quoting":{"schema":false,"table":false}}"#
+        ),
         r#""\"Sales\".\"Orders\"""#
     );
 }
 
 #[test]
 fn the_interface_answers_as_clickhouse() {
-    assert_eq!(ok(CH, "wireTypeName", r#"{"driverTypeName":"Nullable(Int64)"}"#), r#""BIGINT""#);
-    assert_eq!(ok(CH, "wireTypeName", r#"{"driverTypeName":"DateTime64(6, 'UTC')"}"#), r#""TIMESTAMP""#);
+    assert_eq!(
+        ok(CH, "wireTypeName", r#"{"driverTypeName":"Nullable(Int64)"}"#),
+        r#""BIGINT""#
+    );
+    assert_eq!(
+        ok(CH, "wireTypeName", r#"{"driverTypeName":"DateTime64(6, 'UTC')"}"#),
+        r#""TIMESTAMP""#
+    );
     assert_eq!(ok(CH, "wireTypeName", r#"{"driverTypeName":null}"#), r#""""#);
-    assert_eq!(ok(CH, "typingWireName", r#"{"driverTypeName":"Nullable(UInt8)"}"#), r#""INTEGER""#);
+    assert_eq!(
+        ok(CH, "typingWireName", r#"{"driverTypeName":"Nullable(UInt8)"}"#),
+        r#""INTEGER""#
+    );
     let json = r#"{"_type":"scalar","name":"JSON"}"#;
-    assert_eq!(ok(CH, "deliversOwn", &format!(r#"{{"label":{json},"wire":"VARCHAR"}}"#)), "true");
-    assert_eq!(ok(CH, "deliversOwn", &format!(r#"{{"label":{json},"wire":"JSON"}}"#)), "false");
+    assert_eq!(
+        ok(CH, "deliversOwn", &format!(r#"{{"label":{json},"wire":"VARCHAR"}}"#)),
+        "true"
+    );
+    assert_eq!(
+        ok(CH, "deliversOwn", &format!(r#"{{"label":{json},"wire":"JSON"}}"#)),
+        "false"
+    );
     assert_eq!(ok(CH, "script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-    assert_eq!(ok(CH, "failingStatement", r#"{"message":"x","statements":["a"]}"#), "null");
+    assert_eq!(
+        ok(CH, "failingStatement", r#"{"message":"x","statements":["a"]}"#),
+        "null"
+    );
     let r = refused(CH, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("UNSUPPORTED_OPERATION", "the platform asks no catalog question of ClickHouse")
+        (
+            "UNSUPPORTED_OPERATION",
+            "the platform asks no catalog question of ClickHouse"
+        )
     );
     let column = r#"{"name":"c","dataType":"Int64","logicalType":null,"precision":null,"scale":null,"notNull":false}"#;
     let r = refused(CH, "catalogType", &format!(r#"{{"column":{column}}}"#));
-    assert_eq!(r.message, "reading this database's catalog type 'Int64' is not implemented for ClickHouse");
+    assert_eq!(
+        r.message,
+        "reading this database's catalog type 'Int64' is not implemented for ClickHouse"
+    );
     let r = refused(CH, "bareNameReaches", r#"{"catalogName":"t"}"#);
-    assert_eq!(r.message, "reading this database's catalog names is not implemented for ClickHouse");
+    assert_eq!(
+        r.message,
+        "reading this database's catalog names is not implemented for ClickHouse"
+    );
     assert_eq!(ok(CH, "copySelectList", r#"{"conversions":[]}"#), r#""*""#);
     // no host operations of its own: each refused, naming the dialect
     let r = refused(CH, "host.openDatabase", r#"{"name":"p"}"#);
@@ -141,10 +201,19 @@ fn the_interface_answers_as_clickhouse() {
         "a project's own database on ClickHouse is not built: only DuckDB makes one so far \
          (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5)"
     );
-    let reads = |kind: &str| ok(CH, "readsStored", &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#));
+    let reads = |kind: &str| {
+        ok(
+            CH,
+            "readsStored",
+            &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#),
+        )
+    };
     assert_eq!(reads("OTHER"), "true");
     assert_eq!(reads("JSON"), "false");
-    assert_eq!(refused(CH, "duckdb.tables", "{}").message, "'duckdb.tables' is DuckDb's op, not ClickHouse's");
+    assert_eq!(
+        refused(CH, "duckdb.tables", "{}").message,
+        "'duckdb.tables' is DuckDb's op, not ClickHouse's"
+    );
     assert_eq!(
         refused(CH, "engine.selectList", &wrap("query", SELECT)).message,
         "'engine.selectList' is an engine-text dialect's op (EngineStyleH2, EngineStyleDB2, EngineStyleComposite), \

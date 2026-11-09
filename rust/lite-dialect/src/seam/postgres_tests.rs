@@ -36,7 +36,10 @@ fn facts_are_postgres() {
     );
     // every server version is spelled alike; a spec's server keeps Postgres
     assert_eq!(ok(PG, "forServer", r#"{"version":"16.4"}"#), r#""Postgres""#);
-    assert_eq!(dispatch(r#"{"dialect":"Postgres","server":"17.0"}"#, "facts", "{}").unwrap(), ok(PG, "facts", "{}"));
+    assert_eq!(
+        dispatch(r#"{"dialect":"Postgres","server":"17.0"}"#, "facts", "{}").unwrap(),
+        ok(PG, "facts", "{}")
+    );
     // an engine-text dialect's configuration is no Postgres's
     assert_eq!(
         refused(r#"{"dialect":"Postgres","timeZone":null}"#, "facts", "{}").message,
@@ -75,7 +78,12 @@ fn queries_render_as_postgres_writes_them() {
     );
     let r = refused(PG, "query.render", &wrap("query", PARAM_SELECT));
     assert_eq!(r.class, Refusal::ILLEGAL_STATE);
-    assert!(r.message.starts_with("a statement with bound parameters [Bind[parameter=#at"), "{}", r.message);
+    assert!(
+        r.message
+            .starts_with("a statement with bound parameters [Bind[parameter=#at"),
+        "{}",
+        r.message
+    );
 }
 
 const CREATE_TABLE: &str = r#"{"_type":"createTable","schema":"S","table":"Trades","quoting":{"schema":false,"table":false},"columns":[{"name":"ID","declaredQuoted":false,"type":{"_type":"plain","kind":"TINYINT"},"notNull":true,"primaryKey":true},{"name":"Amt","declaredQuoted":true,"type":{"_type":"plain","kind":"DOUBLE"},"notNull":false,"primaryKey":false}],"temporary":false}"#;
@@ -93,14 +101,21 @@ fn ddl_and_dml_render_and_a_session_table_is_its_table_then_its_rows() {
         r#"{"sql":"INSERT INTO trades (id, \"Amt\") VALUES (1, NULL);","binds":[],"regions":[]}"#
     );
     assert_eq!(
-        ok(PG, "sessionTable", &format!(r#"{{"table":{CREATE_TABLE},"rows":{INSERT_VALUES}}}"#)),
+        ok(
+            PG,
+            "sessionTable",
+            &format!(r#"{{"table":{CREATE_TABLE},"rows":{INSERT_VALUES}}}"#)
+        ),
         format!("[{create},{insert}]")
     );
     let unspelled = CREATE_TABLE.replace(r#""kind":"TINYINT""#, r#""kind":"TIMESTAMP_NS""#);
     let r = refused(PG, "ddl.render", &wrap("ddl", &unspelled));
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("DIALECT_CAPABILITY", "a TIMESTAMP_NS column: Postgres keeps microseconds")
+        (
+            "DIALECT_CAPABILITY",
+            "a TIMESTAMP_NS column: Postgres keeps microseconds"
+        )
     );
 }
 
@@ -110,30 +125,60 @@ fn names_are_postgres() {
     assert_eq!(name("physicalName", r#"{"name":"ORDER"}"#), r#""\"order\"""#);
     assert_eq!(name("physicalName", r#"{"name":"Trades"}"#), r#""trades""#);
     assert_eq!(name("physicalName", r#"{"name":"\"Trades\""}"#), r#""\"Trades\"""#);
-    assert_eq!(name("storedName", r#"{"name":"Trades","declaredQuoted":true}"#), r#""\"Trades\"""#);
-    assert_eq!(name("storedName", r#"{"name":"Trades","declaredQuoted":false}"#), r#""trades""#);
-    assert_eq!(name("insertColumnName", r#"{"name":"Amt","declaredQuoted":false}"#), r#""amt""#);
-    assert_eq!(name("insertColumnName", r#"{"name":"Amt","declaredQuoted":true}"#), r#""\"Amt\"""#);
+    assert_eq!(
+        name("storedName", r#"{"name":"Trades","declaredQuoted":true}"#),
+        r#""\"Trades\"""#
+    );
+    assert_eq!(
+        name("storedName", r#"{"name":"Trades","declaredQuoted":false}"#),
+        r#""trades""#
+    );
+    assert_eq!(
+        name("insertColumnName", r#"{"name":"Amt","declaredQuoted":false}"#),
+        r#""amt""#
+    );
+    assert_eq!(
+        name("insertColumnName", r#"{"name":"Amt","declaredQuoted":true}"#),
+        r#""\"Amt\"""#
+    );
     // the engine's H2 text translated; any other text as written
     assert_eq!(
-        name("fromEngineText", r#"{"statement":"CREATE TABLE T (X DOUBLE, Y FLOAT)"}"#),
+        name(
+            "fromEngineText",
+            r#"{"statement":"CREATE TABLE T (X DOUBLE, Y FLOAT)"}"#
+        ),
         r#""CREATE TABLE T (\"x\" DOUBLE PRECISION, \"y\" DOUBLE PRECISION)""#
     );
     assert_eq!(
-        name("raw", r#"{"statement":"insert into T (A) values (1)","writtenFor":"H2"}"#),
+        name(
+            "raw",
+            r#"{"statement":"insert into T (A) values (1)","writtenFor":"H2"}"#
+        ),
         r#""insert into T (\"a\") values (1)""#
     );
-    assert_eq!(name("raw", r#"{"statement":"select 1","writtenFor":null}"#), r#""select 1""#);
+    assert_eq!(
+        name("raw", r#"{"statement":"select 1","writtenFor":null}"#),
+        r#""select 1""#
+    );
     // a same-package test's question: a stored table's name as a query reads it (TempTableAsTest)
     assert_eq!(
-        name("tableName", r#"{"name":"legend_stage_rowsA","quoting":{"schema":false,"table":false}}"#),
+        name(
+            "tableName",
+            r#"{"name":"legend_stage_rowsA","quoting":{"schema":false,"table":false}}"#
+        ),
         r#""legend_stage_rowsa""#
     );
     assert_eq!(
-        name("tableName", r#"{"name":"Sales.Orders","quoting":{"schema":true,"table":false}}"#),
+        name(
+            "tableName",
+            r#"{"name":"Sales.Orders","quoting":{"schema":true,"table":false}}"#
+        ),
         r#""\"Sales\".orders""#
     );
-    assert_eq!(refused(PG, "tableName", r#"{"name":"t"}"#).message, "missing field 'quoting'");
+    assert_eq!(
+        refused(PG, "tableName", r#"{"name":"t"}"#).message,
+        "missing field 'quoting'"
+    );
 }
 
 #[test]
@@ -141,21 +186,42 @@ fn the_interface_answers_as_postgres() {
     // the interface's defaults
     assert_eq!(ok(PG, "wireTypeName", r#"{"driverTypeName":"int8"}"#), r#""BIGINT""#);
     assert_eq!(ok(PG, "typingWireName", r#"{"driverTypeName":"int8"}"#), r#""BIGINT""#);
-    assert_eq!(ok(PG, "failingStatement", r#"{"message":"x","statements":["a"]}"#), "null");
+    assert_eq!(
+        ok(PG, "failingStatement", r#"{"message":"x","statements":["a"]}"#),
+        "null"
+    );
     assert_eq!(ok(PG, "copySelectList", r#"{"conversions":[]}"#), r#""*""#);
     let r = refused(PG, "copySelectList", r#"{"conversions":[{"column":"c","sql":"x"}]}"#);
-    assert_eq!(r.message, "a copy that converts columns in its star select is not implemented for Postgres");
+    assert_eq!(
+        r.message,
+        "a copy that converts columns in its star select is not implemented for Postgres"
+    );
     let r = refused(PG, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("UNSUPPORTED_OPERATION", "the platform asks no catalog question of Postgres")
+        (
+            "UNSUPPORTED_OPERATION",
+            "the platform asks no catalog question of Postgres"
+        )
     );
     // Postgres's own
-    assert_eq!(ok(PG, "script", r#"{"statements":["a","b"]}"#), r#""BEGIN TRANSACTION;\na;\nb;\nCOMMIT;""#);
-    assert_eq!(ok(PG, "script", r#"{"statements":[]}"#), r#""BEGIN TRANSACTION;\n;\nCOMMIT;""#);
+    assert_eq!(
+        ok(PG, "script", r#"{"statements":["a","b"]}"#),
+        r#""BEGIN TRANSACTION;\na;\nb;\nCOMMIT;""#
+    );
+    assert_eq!(
+        ok(PG, "script", r#"{"statements":[]}"#),
+        r#""BEGIN TRANSACTION;\n;\nCOMMIT;""#
+    );
     let map = r#"{"_type":"map","key":{"_type":"scalar","name":"VARCHAR"},"value":{"_type":"scalar","name":"BIGINT"}}"#;
-    assert_eq!(ok(PG, "deliversOwn", &format!(r#"{{"label":{map},"wire":"ARRAY"}}"#)), "true");
-    assert_eq!(ok(PG, "deliversOwn", &format!(r#"{{"label":{map},"wire":"VARCHAR"}}"#)), "false");
+    assert_eq!(
+        ok(PG, "deliversOwn", &format!(r#"{{"label":{map},"wire":"ARRAY"}}"#)),
+        "true"
+    );
+    assert_eq!(
+        ok(PG, "deliversOwn", &format!(r#"{{"label":{map},"wire":"VARCHAR"}}"#)),
+        "false"
+    );
     assert_eq!(ok(PG, "bareNameReaches", r#"{"catalogName":"orders"}"#), "true");
     assert_eq!(ok(PG, "bareNameReaches", r#"{"catalogName":"Orders"}"#), "false");
     let column = |data: &str, logical: &str| {
@@ -194,12 +260,19 @@ fn the_interface_answers_as_postgres() {
 fn postgres_host_operations_count_a_query_and_refuse_every_other() {
     // HostOperationsPostgresTest: a planner's query counted, its subquery aliased
     let count = r#"{"operation":{"op":"count","from":{"query":"SELECT x FROM g"}}}"#;
-    assert_eq!(ok(PG, "host.statements", count), r#"["SELECT count(*) AS n FROM (SELECT x FROM g) AS counted"]"#);
+    assert_eq!(
+        ok(PG, "host.statements", count),
+        r#"["SELECT count(*) AS n FROM (SELECT x FROM g) AS counted"]"#
+    );
     let not_built = "a project's own database on Postgres is not built: only DuckDB makes one so far \
                      (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5)";
     for op in ["host.openDatabase", "host.useDatabase", "host.closeDatabase"] {
         let r = refused(PG, op, r#"{"name":"p"}"#);
-        assert_eq!((r.kind(), r.message.as_str()), ("DIALECT_CAPABILITY", not_built), "{op}");
+        assert_eq!(
+            (r.kind(), r.message.as_str()),
+            ("DIALECT_CAPABILITY", not_built),
+            "{op}"
+        );
     }
     // a count of a relation, and any other operation, refused by name
     let relation = r#"{"operation":{"op":"count","from":{"relation":{"name":"t"}}}}"#;
@@ -215,31 +288,52 @@ fn postgres_host_operations_count_a_query_and_refuse_every_other() {
 
 #[test]
 fn reads_stored_answers_for_every_dialect() {
-    let reads =
-        |spec: &str, kind: &str| ok(spec, "readsStored", &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#));
+    let reads = |spec: &str, kind: &str| {
+        ok(
+            spec,
+            "readsStored",
+            &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#),
+        )
+    };
     // Postgres reads a nested value as jsonb, and OTHER as text (StoredReadsTest)
-    for (kind, read) in
-        [("JSON", "true"), ("ARRAY", "true"), ("OBJECT", "true"), ("OTHER", "true"), ("VARCHAR", "false")]
-    {
+    for (kind, read) in [
+        ("JSON", "true"),
+        ("ARRAY", "true"),
+        ("OBJECT", "true"),
+        ("OTHER", "true"),
+        ("VARCHAR", "false"),
+    ] {
         assert_eq!(reads(PG, kind), read, "{kind}");
     }
     // every other dialect's rule: DuckDB's and the base's (only OTHER and DISTINCT, as text) ...
-    for spec in [r#"{"dialect":"DuckDb"}"#, r#"{"dialect":"H2"}"#, r#"{"dialect":"H2Modern"}"#] {
+    for spec in [
+        r#"{"dialect":"DuckDb"}"#,
+        r#"{"dialect":"H2"}"#,
+        r#"{"dialect":"H2Modern"}"#,
+    ] {
         assert_eq!(reads(spec, "DISTINCT"), "true", "{spec}");
         assert_eq!(reads(spec, "JSON"), "false", "{spec}");
     }
     // ... and the engine text's override: every column as stored (EngineStyleH2.readsStored, false)
-    for spec in
-        [r#"{"dialect":"EngineStyleH2"}"#, r#"{"dialect":"EngineStyleDB2"}"#, r#"{"dialect":"EngineStyleComposite"}"#]
-    {
+    for spec in [
+        r#"{"dialect":"EngineStyleH2"}"#,
+        r#"{"dialect":"EngineStyleDB2"}"#,
+        r#"{"dialect":"EngineStyleComposite"}"#,
+    ] {
         assert_eq!(reads(spec, "DISTINCT"), "false", "{spec}");
         assert_eq!(reads(spec, "OTHER"), "false", "{spec}");
     }
     // DuckDB's own op keeps answering, and only for DuckDB
     let other = r#"{"type":{"_type":"plain","kind":"OTHER"}}"#;
     assert_eq!(ok(r#"{"dialect":"DuckDb"}"#, "duckdb.readsStored", other), "true");
-    assert_eq!(refused(PG, "duckdb.readsStored", other).message, "'duckdb.readsStored' is DuckDb's op, not Postgres's");
-    assert_eq!(refused(PG, "duckdb.tables", "{}").message, "'duckdb.tables' is DuckDb's op, not Postgres's");
+    assert_eq!(
+        refused(PG, "duckdb.readsStored", other).message,
+        "'duckdb.readsStored' is DuckDb's op, not Postgres's"
+    );
+    assert_eq!(
+        refused(PG, "duckdb.tables", "{}").message,
+        "'duckdb.tables' is DuckDb's op, not Postgres's"
+    );
     assert_eq!(refused(PG, "readsStored", "{}").message, "missing field 'type'");
     assert_eq!(
         refused(PG, "engine.inTempTableSelect", r#"{"table":"t"}"#).message,

@@ -62,8 +62,10 @@ fn number_text(n: &JavaNumber) -> String {
 
 /// `Math.multiplyExact`'s overflow: Java's `ArithmeticException`.
 fn multiply_exact(a: i64, b: i64) -> Result<i64, Refusal> {
-    a.checked_mul(b)
-        .ok_or_else(|| Refusal { class: "java.lang.ArithmeticException", message: "long overflow".to_owned() })
+    a.checked_mul(b).ok_or_else(|| Refusal {
+        class: "java.lang.ArithmeticException",
+        message: "long overflow".to_owned(),
+    })
 }
 
 /// An interval frame offset as a DAY TO SECOND or YEAR TO MONTH literal (Java's `interval`): Spark wants both bounds of
@@ -91,7 +93,11 @@ pub(super) fn interval(n: i64, unit: &str) -> Result<String, Refusal> {
     let months: i64 = match u.as_str() {
         "YEARS" | "YEAR" => 12,
         "MONTHS" | "MONTH" => 1,
-        _ => return Err(Refusal::capability(format!("a {unit} window frame offset has no Databricks interval"))),
+        _ => {
+            return Err(Refusal::capability(format!(
+                "a {unit} window frame offset has no Databricks interval"
+            )));
+        }
     };
     let total = multiply_exact(n, months)?;
     Ok(format!("INTERVAL '{}-{}' YEAR TO MONTH", total / 12, total % 12))
@@ -148,7 +154,9 @@ impl Databricks {
             }
             w.append("))");
             if !keys.is_empty() {
-                w.append(", (`__l`, `__r`) -> ").append(&comparator(&keys, 0)).append(")");
+                w.append(", (`__l`, `__r`) -> ")
+                    .append(&comparator(&keys, 0))
+                    .append(")");
             }
             w.append(", `__s` -> `__s`.`v`)");
             Ok(())
@@ -161,7 +169,11 @@ impl Databricks {
             Some(o) => o == NullOrder::NullsFirst,
             None => !k.ascending,
         };
-        Key { key: self.ex(&k.expr, 0), ascending: k.ascending, nulls_first }
+        Key {
+            key: self.ex(&k.expr, 0),
+            ascending: k.ascending,
+            nulls_first,
+        }
     }
 
     pub(super) fn bit_op_arm(&self, w: &mut SqlWriter, f: SqlFn, a: &[SqlExpr]) -> Result<(), Refusal> {
@@ -174,13 +186,36 @@ impl Databricks {
             Ok(())
         };
         match f {
-            SqlFn::BitAnd => w.append("(").piece(&x)?.append(" & CAST(").piece(&y)?.append(" AS BIGINT))"),
-            SqlFn::BitOr => w.append("(").piece(&x)?.append(" | CAST(").piece(&y)?.append(" AS BIGINT))"),
-            SqlFn::BitXor => w.append("(").piece(&x)?.append(" ^ CAST(").piece(&y)?.append(" AS BIGINT))"),
-            SqlFn::BitShiftLeft => w.append("shiftleft(").piece(&x)?.append(", CAST(").piece(&y)?.append(" AS INT))"),
-            SqlFn::BitShiftRight => {
-                w.append("shiftright(").piece(&x)?.append(", CAST(").piece(&y)?.append(" AS INT))")
-            }
+            SqlFn::BitAnd => w
+                .append("(")
+                .piece(&x)?
+                .append(" & CAST(")
+                .piece(&y)?
+                .append(" AS BIGINT))"),
+            SqlFn::BitOr => w
+                .append("(")
+                .piece(&x)?
+                .append(" | CAST(")
+                .piece(&y)?
+                .append(" AS BIGINT))"),
+            SqlFn::BitXor => w
+                .append("(")
+                .piece(&x)?
+                .append(" ^ CAST(")
+                .piece(&y)?
+                .append(" AS BIGINT))"),
+            SqlFn::BitShiftLeft => w
+                .append("shiftleft(")
+                .piece(&x)?
+                .append(", CAST(")
+                .piece(&y)?
+                .append(" AS INT))"),
+            SqlFn::BitShiftRight => w
+                .append("shiftright(")
+                .piece(&x)?
+                .append(", CAST(")
+                .piece(&y)?
+                .append(" AS INT))"),
             other => return Err(Refusal::illegal_state(format!("not a bit op: {other}"))),
         };
         Ok(())
@@ -246,10 +281,14 @@ impl Databricks {
 
     /// The `STRING_AGG` arm: `listagg(...)[ WITHIN GROUP (ORDER BY ...)]` (Java's `listagg`).
     fn listagg(&self, w: &mut SqlWriter, r: &Reducer) -> Result<(), Refusal> {
-        w.append("listagg(").append(if r.distinct { "DISTINCT " } else { "" }).list(self, &r.args)?.append(")");
+        w.append("listagg(")
+            .append(if r.distinct { "DISTINCT " } else { "" })
+            .list(self, &r.args)?
+            .append(")");
         if !r.order_by.is_empty() {
             w.append(" WITHIN GROUP (ORDER BY ");
-            w.join(&r.order_by, ", ", |w, k| ansi::aggregate_order_key(self, w, k))?.append(")");
+            w.join(&r.order_by, ", ", |w, k| ansi::aggregate_order_key(self, w, k))?
+                .append(")");
         }
         Ok(())
     }
@@ -258,7 +297,10 @@ impl Databricks {
     /// `percentile`).
     fn percentile(&self, w: &mut SqlWriter, name: &str, r: &Reducer, cast: bool) -> Result<(), Refusal> {
         if r.args.len() != 2 || r.distinct || r.order_by.len() > 1 {
-            return Err(Refusal::capability(format!("{} of this shape reached Databricks", r.r#fn)));
+            return Err(Refusal::capability(format!(
+                "{} of this shape reached Databricks",
+                r.r#fn
+            )));
         }
         let desc = r.order_by.first().is_some_and(|k| !k.ascending);
         let ty = match &r.r#type {
@@ -272,8 +314,13 @@ impl Databricks {
         if cast_to.is_some() {
             w.append("CAST(");
         }
-        w.append(name).append("(").expr(self, &r.args[1], 0)?.append(") WITHIN GROUP (ORDER BY ");
-        w.expr(self, &r.args[0], 0)?.append(if desc { " DESC" } else { "" }).append(")");
+        w.append(name)
+            .append("(")
+            .expr(self, &r.args[1], 0)?
+            .append(") WITHIN GROUP (ORDER BY ");
+        w.expr(self, &r.args[0], 0)?
+            .append(if desc { " DESC" } else { "" })
+            .append(")");
         if let Some(t) = cast_to {
             w.append(" AS ").append(&t).append(")");
         }
@@ -292,7 +339,10 @@ impl Databricks {
     /// `max_by(value, key)` / `min_by`: the value at the key's greatest (least) row (Java's `byExtreme`).
     fn by_extreme(&self, w: &mut SqlWriter, name: &str, r: &Reducer) -> Result<(), Refusal> {
         if r.args.len() != 2 || r.distinct || !r.order_by.is_empty() {
-            return Err(Refusal::capability(format!("{} of this shape reached Databricks", r.r#fn)));
+            return Err(Refusal::capability(format!(
+                "{} of this shape reached Databricks",
+                r.r#fn
+            )));
         }
         w.append(name).append("(").list(self, &r.args)?.append(")");
         Ok(())
@@ -316,7 +366,10 @@ impl Databricks {
             SqlAgg::Reducer(r) => self.reducer(w, r)?,
             SqlAgg::RankingFn { r#fn, args } | SqlAgg::ValueFn { r#fn, args } => {
                 let name = self.aggregate_name(*r#fn);
-                w.append(&name).append("(").join(args, ", ", |w, e| self.int_arg(w, e))?.append(")");
+                w.append(&name)
+                    .append("(")
+                    .join(args, ", ", |w, e| self.int_arg(w, e))?
+                    .append(")");
             }
         }
         w.append(" OVER (");
@@ -324,15 +377,20 @@ impl Databricks {
             w.append("PARTITION BY ").list(self, partition_by)?;
         }
         if !order_by.is_empty() {
-            w.append(if partition_by.is_empty() { "" } else { " " }).append("ORDER BY ");
+            w.append(if partition_by.is_empty() { "" } else { " " })
+                .append("ORDER BY ");
             w.join(order_by, ", ", |w, k| self.sort_key(w, k))?;
         } else if matches!(f, SqlAgg::RankingFn { .. }) {
             // Spark refuses a ranking window with no order; a constant order numbers the rows as they come
-            w.append(if partition_by.is_empty() { "" } else { " " }).append("ORDER BY 1");
+            w.append(if partition_by.is_empty() { "" } else { " " })
+                .append("ORDER BY 1");
         }
         if let Some(fr) = frame {
-            let key =
-                if fr.kind == FrameKind::Range && order_by.len() == 1 { type_of(&order_by[0].expr) } else { None };
+            let key = if fr.kind == FrameKind::Range && order_by.len() == 1 {
+                type_of(&order_by[0].expr)
+            } else {
+                None
+            };
             let text = format!(
                 " {} BETWEEN {} AND {}",
                 fr.kind.as_str(),

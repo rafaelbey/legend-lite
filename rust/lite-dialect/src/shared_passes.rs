@@ -66,7 +66,10 @@ impl SqlRewriter for ExprHook<'_> {
 }
 
 /// `e` walked with `hook`: Java's `new SqlRewriter() { expr(x) ... }.rewriteExpr(e)`.
-pub(crate) fn walk(e: SqlExpr, hook: &mut dyn FnMut(SqlExpr) -> Result<Rw<SqlExpr>, Refusal>) -> Result<SqlExpr, Refusal> {
+pub(crate) fn walk(
+    e: SqlExpr,
+    hook: &mut dyn FnMut(SqlExpr) -> Result<Rw<SqlExpr>, Refusal>,
+) -> Result<SqlExpr, Refusal> {
     Ok(rewrite_expr(&mut ExprHook(hook), e)?.into_inner())
 }
 
@@ -86,7 +89,11 @@ impl SqlRewriter for StarExceptToColumns {
     }
 
     fn select(&mut self, s: SqlSelect) -> Result<Rw<SqlQuery>, Refusal> {
-        if !s.projections.iter().any(|p| matches!(p.expr, SqlExpr::StarExcept { .. })) {
+        if !s
+            .projections
+            .iter()
+            .any(|p| matches!(p.expr, SqlExpr::StarExcept { .. }))
+        {
             return same(s);
         }
         let leaves = Stars::sources(&s.from);
@@ -122,12 +129,16 @@ const ORDERED_SETS: [AggFn; 4] = [AggFn::Median, AggFn::Mode, AggFn::QuantileCon
 /// The reducer and the partition of an ordered set over a whole partition (no order, no frame), when `e` is one.
 fn whole_partition(e: &SqlExpr) -> Option<(&Reducer, &[SqlExpr])> {
     match e {
-        SqlExpr::WindowCall { r#fn, partition_by, order_by, frame: None, .. } if order_by.is_empty() => {
-            match r#fn.as_ref() {
-                SqlAgg::Reducer(r) if ORDERED_SETS.contains(&r.r#fn) => Some((r, partition_by)),
-                _ => None,
-            }
-        }
+        SqlExpr::WindowCall {
+            r#fn,
+            partition_by,
+            order_by,
+            frame: None,
+            ..
+        } if order_by.is_empty() => match r#fn.as_ref() {
+            SqlAgg::Reducer(r) if ORDERED_SETS.contains(&r.r#fn) => Some((r, partition_by)),
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -157,7 +168,11 @@ fn replace(e: &SqlExpr, s: &SqlSelect, alias: &str) -> Result<Option<SqlExpr>, R
             None => mapped.push(k.into_owned()),
         }
     }
-    if changed { Ok(Some(with_children(e, mapped)?)) } else { Ok(None) }
+    if changed {
+        Ok(Some(with_children(e, mapped)?))
+    } else {
+        Ok(None)
+    }
 }
 
 /// `(SELECT r(args') FROM copy WHERE where' AND NOT (p1' IS DISTINCT FROM p1) ...)`, or none when the select's source
@@ -172,13 +187,23 @@ fn partition_aggregate(
     let Some(copy) = copy_with_alias(&s.from, alias) else {
         return Ok(None);
     };
-    let args = r.args.iter().map(|a| remap_alias(a, from, alias)).collect::<Result<Vec<_>, _>>()?;
+    let args = r
+        .args
+        .iter()
+        .map(|a| remap_alias(a, from, alias))
+        .collect::<Result<Vec<_>, _>>()?;
     let mut conds = Vec::new();
     if let Some(w) = &s.r#where {
         conds.push(remap_alias(w, from, alias)?);
     }
     for p in partition {
-        conds.push(call(SqlFn::Not, vec![call(SqlFn::IsDistinctFrom, vec![remap_alias(p, from, alias)?, p.clone()])]));
+        conds.push(call(
+            SqlFn::Not,
+            vec![call(
+                SqlFn::IsDistinctFrom,
+                vec![remap_alias(p, from, alias)?, p.clone()],
+            )],
+        ));
     }
     let mut r#where = None;
     for c in conds {
@@ -272,7 +297,13 @@ impl SqlRewriter for StringCountsAsInt {
         for &i in positions {
             if i < args.len()
                 && !matches!(args[i], SqlExpr::IntLit { .. })
-                && !matches!(args[i], SqlExpr::Cast { target: SqlType::Scalar(Scalar::Integer), .. })
+                && !matches!(
+                    args[i],
+                    SqlExpr::Cast {
+                        target: SqlType::Scalar(Scalar::Integer),
+                        ..
+                    }
+                )
             {
                 let x = std::mem::replace(&mut args[i], build::null_lit());
                 args[i] = build::cast(x, SqlType::Scalar(Scalar::Integer));
@@ -395,7 +426,11 @@ fn by_outputs(s: SqlSelect) -> Result<SqlQuery, Refusal> {
             "a QUALIFY or sort holding a subquery cannot be re-addressed through its wrapping select",
         ));
     }
-    let projections = if s.projections.is_empty() { vec![star_projection()?] } else { s.projections.clone() };
+    let projections = if s.projections.is_empty() {
+        vec![star_projection()?]
+    } else {
+        s.projections.clone()
+    };
     let mut hidden: Vec<Projection> = Vec::new();
     let r#where = read_through_outputs(qualify, &projections, &mut hidden)?;
     let mut order = Vec::with_capacity(s.order_by.len());
@@ -531,7 +566,15 @@ impl SqlRewriter for QualifyToSubselect {
         let outputs = s.outputs.clone();
         let inner = build::select(SqlSelect { qualify: None, ..s })?;
         let from = build::subselect(query(inner), QUALIFY_ALIAS, None);
-        Ok(Rw::New(query(wrapping(vec![star_projection()?], from, qualify, Vec::new(), None, None, outputs)?)))
+        Ok(Rw::New(query(wrapping(
+            vec![star_projection()?],
+            from,
+            qualify,
+            Vec::new(),
+            None,
+            None,
+            outputs,
+        )?)))
     }
 }
 
@@ -548,7 +591,10 @@ impl SqlRewriter for QualifyToSubselect {
 pub struct RootNumericTypes;
 
 /// The SQL type of a Decimal no precision is declared for (the lowering's `PureSql.type(DECIMAL)`).
-const UNBOUNDED_DECIMAL: SqlType = SqlType::Decimal { precision: 38, scale: 18 };
+const UNBOUNDED_DECIMAL: SqlType = SqlType::Decimal {
+    precision: 38,
+    scale: 18,
+};
 
 /// The type a root column is cast to: its label's DECIMAL(p,s) or HUGEINT, unless the label is the unbounded Decimal
 /// (which states no scale of its own) or the column is already that (a cast to it, or a table's own column).
@@ -611,7 +657,11 @@ fn typed(s: SqlSelect) -> Result<SqlSelect, Refusal> {
     } else {
         s.order_by.clone()
     };
-    build::select(SqlSelect { projections: ps, order_by: order, ..s })
+    build::select(SqlSelect {
+        projections: ps,
+        order_by: order,
+        ..s
+    })
 }
 
 impl SqlRewriter for RootNumericTypes {
@@ -624,7 +674,11 @@ impl SqlRewriter for RootNumericTypes {
             SqlQuery::Select(s) => Ok(query(typed(*s)?)),
             // a new union always: its labels re-reconcile
             SqlQuery::Union(u) => {
-                let branches = u.branches.into_iter().map(|b| self.rewrite_root(b)).collect::<Result<Vec<_>, _>>()?;
+                let branches = u
+                    .branches
+                    .into_iter()
+                    .map(|b| self.rewrite_root(b))
+                    .collect::<Result<Vec<_>, _>>()?;
                 Ok(SqlQuery::Union(build::union(branches, u.all, u.outputs)?))
             }
             SqlQuery::With(w) => {
@@ -670,7 +724,10 @@ fn pivot_value_text(v: &SqlExpr, words: &PivotWords) -> Result<String, Refusal> 
         SqlExpr::BoolLit { value, .. } => Ok(value.to_string()),
         other => {
             let class = crate::java::simple_name(other);
-            Err(Refusal::capability(format!("a pivot value {class}{}", words.unnamed_value)))
+            Err(Refusal::capability(format!(
+                "a pivot value {class}{}",
+                words.unnamed_value
+            )))
         }
     }
 }
@@ -688,7 +745,16 @@ impl SqlRewriter for PivotAsGroupBy {
 /// The pass's rewrite of one source, in `words` (the shared pass's, or a dialect's own copy's).
 pub fn pivot_as_group_by(s: SqlSource, words: &PivotWords) -> Result<Rw<SqlSource>, Refusal> {
     // a dynamic pivot a cast names pivots on the named values (`Pivot.values()`: `in`'s, else the named ones)
-    let SqlSource::Pivot { source, on, r#in, named, usings, alias, outputs } = &s else {
+    let SqlSource::Pivot {
+        source,
+        on,
+        r#in,
+        named,
+        usings,
+        alias,
+        outputs,
+    } = &s
+    else {
         return Ok(Rw::Same(s));
     };
     let values = if r#in.is_empty() { named } else { r#in };
@@ -726,7 +792,10 @@ pub fn pivot_as_group_by(s: SqlSource, words: &PivotWords) -> Result<Rw<SqlSourc
             )?);
         }
     }
-    let sel = build::with_group_by(build::with_projections(build::star_of(source.as_ref().clone())?, ps)?, group)?;
+    let sel = build::with_group_by(
+        build::with_projections(build::star_of(source.as_ref().clone())?, ps)?,
+        group,
+    )?;
     Ok(Rw::New(build::subselect(query(sel), alias, None)))
 }
 
@@ -753,7 +822,13 @@ impl SqlRewriter for AsOfAsPick {
     }
 
     fn select(&mut self, s: SqlSelect) -> Result<Rw<SqlQuery>, Refusal> {
-        if !matches!(s.from, SqlSource::Join { kind: JoinKind::AsofLeft, .. }) {
+        if !matches!(
+            s.from,
+            SqlSource::Join {
+                kind: JoinKind::AsofLeft,
+                ..
+            }
+        ) {
             return same(s);
         }
         Ok(Rw::New(query(as_of_pick(s, &AS_OF_AS_PICK)?)))
@@ -784,7 +859,9 @@ const AS_OF_AS_PICK: AsOfWords = AsOfWords {
 /// the extreme right key's window `MAX(k)` (or `MIN(k)`) and the pick `k = extreme OR extreme IS NULL`.
 pub fn as_of_pick(s: SqlSelect, words: &AsOfWords) -> Result<SqlSelect, Refusal> {
     let SqlSource::Join { left, right, on, .. } = &s.from else {
-        return Err(Refusal::illegal_state("an as-of pick of a select whose FROM is no join"));
+        return Err(Refusal::illegal_state(
+            "an as-of pick of a select whose FROM is no join",
+        ));
     };
     let Some((right_key, pick_max)) = as_of_key(&s.from)? else {
         return Err(Refusal::capability(words.no_key));
@@ -802,8 +879,10 @@ pub fn as_of_pick(s: SqlSelect, words: &AsOfWords) -> Result<SqlSelect, Refusal>
     if left_outputs.is_empty() {
         return Err(Refusal::capability(words.no_left));
     }
-    let partition: Vec<SqlExpr> =
-        left_outputs.iter().map(|oc| SqlExpr::Column(build::column_of(Some(&left_alias), oc))).collect();
+    let partition: Vec<SqlExpr> = left_outputs
+        .iter()
+        .map(|oc| SqlExpr::Column(build::column_of(Some(&left_alias), oc)))
+        .collect();
     let extreme = build::window_call(
         SqlAgg::Reducer(build::reducer(
             if pick_max { AggFn::Max } else { AggFn::Min },
@@ -817,9 +896,17 @@ pub fn as_of_pick(s: SqlSelect, words: &AsOfWords) -> Result<SqlSelect, Refusal>
     );
     let pick = call(
         SqlFn::Or,
-        vec![call(SqlFn::Equal, vec![right_key, extreme.clone()]), call(SqlFn::IsNull, vec![extreme])],
+        vec![
+            call(SqlFn::Equal, vec![right_key, extreme.clone()]),
+            call(SqlFn::IsNull, vec![extreme]),
+        ],
     );
-    let join = build::join(left.as_ref().clone(), right.as_ref().clone(), JoinKind::Left, on.as_deref().cloned())?;
+    let join = build::join(
+        left.as_ref().clone(),
+        right.as_ref().clone(),
+        JoinKind::Left,
+        on.as_deref().cloned(),
+    )?;
     build::with_qualify(build::with_from(s, join)?, Some(pick))
 }
 

@@ -46,7 +46,10 @@ impl Refusal {
 
     /// The refusal's kind at the seam: its class's, by [`Refusal::KINDS`], else `INTERNAL`.
     pub fn kind(&self) -> &'static str {
-        Refusal::KINDS.iter().find(|(class, _)| *class == self.class).map_or(Refusal::INTERNAL, |(_, kind)| kind)
+        Refusal::KINDS
+            .iter()
+            .find(|(class, _)| *class == self.class)
+            .map_or(Refusal::INTERNAL, |(_, kind)| kind)
     }
 
     /// The refusal's message at the seam: Java's message, prefixed `<class>: ` when its kind is `INTERNAL` (the kind
@@ -61,22 +64,34 @@ impl Refusal {
 
     /// Java's `new DialectCapability(message)`.
     pub fn capability(message: impl Into<String>) -> Refusal {
-        Refusal { class: Refusal::DIALECT_CAPABILITY, message: message.into() }
+        Refusal {
+            class: Refusal::DIALECT_CAPABILITY,
+            message: message.into(),
+        }
     }
 
     /// Java's `new IllegalStateException(message)`.
     pub fn illegal_state(message: impl Into<String>) -> Refusal {
-        Refusal { class: Refusal::ILLEGAL_STATE, message: message.into() }
+        Refusal {
+            class: Refusal::ILLEGAL_STATE,
+            message: message.into(),
+        }
     }
 
     /// Java's `new IllegalArgumentException(message)`.
     pub fn illegal_argument(message: impl Into<String>) -> Refusal {
-        Refusal { class: Refusal::ILLEGAL_ARGUMENT, message: message.into() }
+        Refusal {
+            class: Refusal::ILLEGAL_ARGUMENT,
+            message: message.into(),
+        }
     }
 
     /// Java's `Objects.requireNonNull(x, message)` failing.
     pub fn null_pointer(message: impl Into<String>) -> Refusal {
-        Refusal { class: Refusal::NULL_POINTER, message: message.into() }
+        Refusal {
+            class: Refusal::NULL_POINTER,
+            message: message.into(),
+        }
     }
 
     /// A cast Java's code makes without a check (`(SqlExpr.StringLit) e`) failing: the message names the classes

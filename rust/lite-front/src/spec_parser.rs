@@ -170,7 +170,15 @@ struct Scalar {
 
 impl Scalar {
     fn of(kind: ScalarKind, a: &[u16], b: &[u16], int_value: i64, s: isize, e: isize, next: isize) -> Scalar {
-        Scalar { kind, a: a.to_vec(), b: b.to_vec(), int_value, s, e, next }
+        Scalar {
+            kind,
+            a: a.to_vec(),
+            b: b.to_vec(),
+            int_value,
+            s,
+            e,
+            next,
+        }
     }
 }
 
@@ -297,14 +305,21 @@ impl<'t, 's> SpecParser<'t, 's> {
         self.expect_with(T::EQUAL, || jcat!("expected '=' after 'let ", var_name, "'"))?;
         let value = self.parse_combined_expression()?;
         let constant = fold_string_concat(&value, &|n: &[u16]| self.const_string(n));
-        self.const_strings.last_mut().expect("a scope is always open").insert(var_name.clone(), constant);
+        self.const_strings
+            .last_mut()
+            .expect("a scope is always open")
+            .insert(var_name.clone(), constant);
         let mut let_span = self.span_of(let_tok, self.pos - 1);
         if self.tokens.ty(self.pos - 1) == T::DOC_STRING {
             let d = self.doc_string_span(self.pos - 1);
             let_span.end_line = d.end_line;
             let_span.end_column = d.end_column;
         }
-        Ok(applied(JStr::from("letFunction"), vec![cstring(JStr(var_name), None), value], boxed(let_span)))
+        Ok(applied(
+            JStr::from("letFunction"),
+            vec![cstring(JStr(var_name), None), value],
+            boxed(let_span),
+        ))
     }
 
     /// `parseCodeBlockUntil(terminator)`: statements to the terminator (not consumed) or the end; a lone statement's
@@ -439,7 +454,11 @@ impl<'t, 's> SpecParser<'t, 's> {
                 let not_tok = self.pos;
                 self.pos += 1;
                 let operand = self.parse_expression()?;
-                return Ok(vs_fn(applied(JStr::from("not"), vec![operand], self.span(not_tok, self.pos - 1))));
+                return Ok(vs_fn(applied(
+                    JStr::from("not"),
+                    vec![operand],
+                    self.span(not_tok, self.pos - 1),
+                )));
             }
             if t == T::MINUS {
                 let op_tok = self.pos;
@@ -454,7 +473,11 @@ impl<'t, 's> SpecParser<'t, 's> {
                     return self.unit_literal(vs_fn(infix(JStr::from("minus"), vec![n], self.span(op_tok, op_tok))));
                 }
                 let operand = self.parse_expression()?;
-                return Ok(vs_fn(infix(JStr::from("minus"), vec![operand], self.span(op_tok, op_tok))));
+                return Ok(vs_fn(infix(
+                    JStr::from("minus"),
+                    vec![operand],
+                    self.span(op_tok, op_tok),
+                )));
             }
             if t == T::PLUS {
                 let op_tok = self.pos;
@@ -464,7 +487,11 @@ impl<'t, 's> SpecParser<'t, 's> {
                     return Ok(signed_literal(n, false, self.span(op_tok, self.pos - 1)));
                 }
                 let operand = self.parse_expression()?;
-                return Ok(vs_fn(infix(JStr::from("plus"), vec![operand], self.span(op_tok, op_tok))));
+                return Ok(vs_fn(infix(
+                    JStr::from("plus"),
+                    vec![operand],
+                    self.span(op_tok, op_tok),
+                )));
             }
         }
         self.parse_primary()
@@ -490,7 +517,11 @@ impl<'t, 's> SpecParser<'t, 's> {
         while !self.at_end() && is_arithmetic_op(self.peek()) {
             parts.push(self.parse_arithmetic_part_context()?);
         }
-        Ok(if parts.is_empty() { expr } else { vs_fn(arithmetic_part(parts, expr)) })
+        Ok(if parts.is_empty() {
+            expr
+        } else {
+            vs_fn(arithmetic_part(parts, expr))
+        })
     }
 
     fn parse_arithmetic_part_context(&mut self) -> R<ArithPart> {
@@ -508,7 +539,10 @@ impl<'t, 's> SpecParser<'t, 's> {
             // the one caller loops while `is_arithmetic_op(self.peek())`, these eight tokens
             _ => unreachable!("parseArithmeticPartContext on a token is_arithmetic_op refuses"),
         };
-        if matches!(op, T::LESS_THAN | T::LESS_OR_EQUAL | T::GREATER_THAN | T::GREATER_OR_EQUAL) {
+        if matches!(
+            op,
+            T::LESS_THAN | T::LESS_OR_EQUAL | T::GREATER_THAN | T::GREATER_OR_EQUAL
+        ) {
             self.pos += 1;
             let rhs = self.parse_expression()?;
             return Ok(ArithPart {
@@ -524,7 +558,12 @@ impl<'t, 's> SpecParser<'t, 's> {
             self.pos += 1;
             operands.push(self.parse_expression()?);
         }
-        Ok(ArithPart { function, comparison: false, operands, ctx_span: self.span(first_op, self.pos - 1) })
+        Ok(ArithPart {
+            function,
+            comparison: false,
+            operands,
+            ctx_span: self.span(first_op, self.pos - 1),
+        })
     }
 
     fn parse_boolean_part_context(&mut self) -> R<BoolPart> {
@@ -532,7 +571,11 @@ impl<'t, 's> SpecParser<'t, 's> {
         let op_tok = self.pos;
         self.pos += 1;
         let operand = self.parse_expression()?;
-        Ok(BoolPart { function, operand, op_span: self.span(op_tok, op_tok) })
+        Ok(BoolPart {
+            function,
+            operand,
+            op_span: self.span(op_tok, op_tok),
+        })
     }
 
     // -------------------------------------------------------------------- primaries
@@ -578,7 +621,8 @@ impl<'t, 's> SpecParser<'t, 's> {
             T::TILDE => self.parse_column_builders().map(VS::ColumnInstance),
             // a fused mapping command token in expression position is an ordinary colspec of its name
             T::DISTINCT_CMD | T::FILTER_CMD | T::GROUP_BY_CMD | T::MAIN_TABLE_CMD | T::PRIMARY_KEY_CMD | T::SRC_CMD => {
-                self.parse_tilde_command_col_spec().map(|c| VS::ColumnInstance(ColumnInstance::ColSpec(Box::new(c))))
+                self.parse_tilde_command_col_spec()
+                    .map(|c| VS::ColumnInstance(ColumnInstance::ColSpec(Box::new(c))))
             }
             T::AT => self.parse_type_annotation().map(VS::TypeAnnotation),
             T::TDS_LITERAL => self.parse_tds_literal(),
@@ -588,14 +632,18 @@ impl<'t, 's> SpecParser<'t, 's> {
                 if is_identifier_token(t) {
                     // single-param shorthand 'x | body' (never across '::')
                     if self.pos + 1 < self.tokens.count() && self.tokens.ty(self.pos + 1) == T::PIPE {
-                        return self.parse_single_param_lambda().map(|l| VS::LambdaFunction(Box::new(l)));
+                        return self
+                            .parse_single_param_lambda()
+                            .map(|l| VS::LambdaFunction(Box::new(l)));
                     }
                     // typed 'x: Type[mult] | body', committed only when the whole pattern is there
                     if self.pos + 1 < self.tokens.count()
                         && self.tokens.ty(self.pos + 1) == T::COLON
                         && self.looks_like_typed_lambda_param()?
                     {
-                        return self.parse_single_param_lambda().map(|l| VS::LambdaFunction(Box::new(l)));
+                        return self
+                            .parse_single_param_lambda()
+                            .map(|l| VS::LambdaFunction(Box::new(l)));
                     }
                     return self.parse_qualified_name_start();
                 }
@@ -607,7 +655,13 @@ impl<'t, 's> SpecParser<'t, 's> {
                     }
                     return Ok(ptr(JStr::from("::"), self.span(self.pos - 1, self.pos - 1)));
                 }
-                Err(self.error(jcat!("unsupported expression token: ", t, " ('", self.safe_text(), "')")))
+                Err(self.error(jcat!(
+                    "unsupported expression token: ",
+                    t,
+                    " ('",
+                    self.safe_text(),
+                    "')"
+                )))
             }
         }
     }
@@ -622,7 +676,10 @@ impl<'t, 's> SpecParser<'t, 's> {
         let text = self.tokens.text(tok);
         let span = self.span(tok, tok);
         match parse_long(text) {
-            Ok(v) => Ok(CInteger { value: JValue::Long(v), pos: span }),
+            Ok(v) => Ok(CInteger {
+                value: JValue::Long(v),
+                pos: span,
+            }),
             Err(_) => {
                 if self.dialect.refuses_lite_extensions() {
                     return Err(throw_at(self.tokens, tok, jcat!("Unexpected token '", text, "'")));
@@ -631,7 +688,11 @@ impl<'t, 's> SpecParser<'t, 's> {
                 let digits = String::from_utf16_lossy(text);
                 let trimmed = digits.trim_start_matches('0');
                 Ok(CInteger {
-                    value: JValue::BigInteger(if trimmed.is_empty() { "0".to_owned() } else { trimmed.to_owned() }),
+                    value: JValue::BigInteger(if trimmed.is_empty() {
+                        "0".to_owned()
+                    } else {
+                        trimmed.to_owned()
+                    }),
                     pos: span,
                 })
             }
@@ -659,14 +720,25 @@ impl<'t, 's> SpecParser<'t, 's> {
             let exact = java_big_decimal(text)?;
             // BigDecimal.valueOf(d): refuses an infinite or NaN double, else Double.toString's digits
             if !d.is_finite() {
-                return Err(JavaError::java("java.lang.NumberFormatException", JStr::from("Infinite or NaN")));
+                return Err(JavaError::java(
+                    "java.lang.NumberFormatException",
+                    JStr::from("Infinite or NaN"),
+                ));
             }
             let shown = java_big_decimal(&u(&lite_javacompat::double_to_string(d)))?;
             if exact.compare_to(&shown) != std::cmp::Ordering::Equal {
-                return Ok(VS::CFloat(Box::new(CFloat { value: d, exact: Some(exact), pos: span })));
+                return Ok(VS::CFloat(Box::new(CFloat {
+                    value: d,
+                    exact: Some(exact),
+                    pos: span,
+                })));
             }
         }
-        Ok(VS::CFloat(Box::new(CFloat { value: d, exact: None, pos: span })))
+        Ok(VS::CFloat(Box::new(CFloat {
+            value: d,
+            exact: None,
+            pos: span,
+        })))
     }
 
     /// `NumberLiterals.decimal`: the `d`/`D` suffix dropped, the rest a `BigDecimal`.
@@ -690,7 +762,10 @@ impl<'t, 's> SpecParser<'t, 's> {
             Err(e) if point_before_exponent(text) => return Err(e),
             Err(_) => return Err(crate::cursor::refused_exponent(self.tokens, tok)),
         };
-        Ok(CDecimal { value, pos: self.span(tok, tok) })
+        Ok(CDecimal {
+            value,
+            pos: self.span(tok, tok),
+        })
     }
 
     // -------------------------------------------------------------------- strings, booleans, temporals
@@ -704,7 +779,11 @@ impl<'t, 's> SpecParser<'t, 's> {
         let unescaped = self.unescape_body(&raw[1..raw.len() - 1], "string literal")?;
         let tok = self.pos;
         self.pos += 1;
-        Ok(CString { value: JStr(unescaped), pos: self.span(tok, tok), multi_line: false })
+        Ok(CString {
+            value: JStr(unescaped),
+            pos: self.span(tok, tok),
+            multi_line: false,
+        })
     }
 
     /// A `'''...'''` literal in expression position: the text-block value, the single-line span, multi-line.
@@ -724,7 +803,10 @@ impl<'t, 's> SpecParser<'t, 's> {
     fn consume_boolean(&mut self, value: bool) -> ValueSpecification {
         let tok = self.pos;
         self.pos += 1;
-        VS::CBoolean(Box::new(CBoolean { value, pos: self.span(tok, tok) }))
+        VS::CBoolean(Box::new(CBoolean {
+            value,
+            pos: self.span(tok, tok),
+        }))
     }
 
     /// A DATE token: `PureDateLiteral.parse`, validated but at the engine's dialect, which (like its lexer) also
@@ -746,9 +828,11 @@ impl<'t, 's> SpecParser<'t, 's> {
                 written: Some(JStr::from(value)),
                 pos: self.span(date_pos, date_pos),
             }))),
-            Err(TemporalError::IllegalArgument(m)) => {
-                Err(throw_at(self.tokens, date_pos, jcat!("invalid date literal '%", value, "': ", m)))
-            }
+            Err(TemporalError::IllegalArgument(m)) => Err(throw_at(
+                self.tokens,
+                date_pos,
+                jcat!("invalid date literal '%", value, "': ", m),
+            )),
             // the engine does not read the date: it accepts the text (PARITY row 3, the user's list, ruling 4)
             Err(TemporalError::DateTime(m)) => Err(JavaError::java("java.time.DateTimeException", m)),
             Err(TemporalError::IllegalState(m)) => unreachable!("{}", m.lossy()),
@@ -781,7 +865,9 @@ impl<'t, 's> SpecParser<'t, 's> {
     fn parse_latest_date(&mut self) -> ValueSpecification {
         let tok = self.pos;
         self.pos += 1;
-        VS::CLatestDate(Box::new(CLatestDate { pos: self.span(tok, tok) }))
+        VS::CLatestDate(Box::new(CLatestDate {
+            pos: self.span(tok, tok),
+        }))
     }
 
     /// `$name`, `$'quoted name'` decoded as `let 'quoted name'` binds it; the span covers the dollar.
@@ -791,10 +877,18 @@ impl<'t, 's> SpecParser<'t, 's> {
         if !is_identifier_token(self.peek()) {
             return Err(self.error_str("expected identifier after '$' to form a variable reference"));
         }
-        let name =
-            if self.peek() == T::STRING { self.unquote_and_unescape(self.text())? } else { self.text().to_vec() };
+        let name = if self.peek() == T::STRING {
+            self.unquote_and_unescape(self.text())?
+        } else {
+            self.text().to_vec()
+        };
         self.pos += 1;
-        Ok(Variable { name: JStr(name), r#type: None, multiplicity: None, pos: self.span(dollar_tok, self.pos - 1) })
+        Ok(Variable {
+            name: JStr(name),
+            r#type: None,
+            multiplicity: None,
+            pos: self.span(dollar_tok, self.pos - 1),
+        })
     }
 
     // -------------------------------------------------------------------- collections and grouping
@@ -818,10 +912,21 @@ impl<'t, 's> SpecParser<'t, 's> {
             self.pos += 1; // the [:stop] form, start 0
             let stop = self.parse_combined_expression()?;
             self.expect_msg(T::BRACKET_CLOSE, "expected ']' to close range literal")?;
-            let zero = VS::CInteger(Box::new(CInteger { value: JValue::Long(0), pos: None }));
-            return Ok(vs_fn(infix(JStr::from("range"), vec![zero, stop], self.span(open, self.pos - 1))));
+            let zero = VS::CInteger(Box::new(CInteger {
+                value: JValue::Long(0),
+                pos: None,
+            }));
+            return Ok(vs_fn(infix(
+                JStr::from("range"),
+                vec![zero, stop],
+                self.span(open, self.pos - 1),
+            )));
         }
-        values.push(if platform { self.parse_combined_expression()? } else { self.parse_expression()? });
+        values.push(if platform {
+            self.parse_combined_expression()?
+        } else {
+            self.parse_expression()?
+        });
         if platform && self.peek() == T::COLON {
             self.pos += 1; // [start:stop(:step)]
             let mut args = vec![values.pop().expect("the start")];
@@ -838,7 +943,11 @@ impl<'t, 's> SpecParser<'t, 's> {
             if !self.at_end() && self.peek() == T::BRACKET_CLOSE {
                 return Err(self.error_str("trailing comma in collection literal"));
             }
-            values.push(if platform { self.parse_combined_expression()? } else { self.parse_expression()? });
+            values.push(if platform {
+                self.parse_combined_expression()?
+            } else {
+                self.parse_expression()?
+            });
         }
         self.expect_msg(T::BRACKET_CLOSE, "expected ']' to close collection literal")?;
         Ok(collection(values, self.span(open, self.pos - 1)))
@@ -867,7 +976,11 @@ impl<'t, 's> SpecParser<'t, 's> {
             return Ok(number);
         }
         if self.dialect.refuses_lite_extensions() {
-            return Err(throw_at(self.tokens, self.pos, JStr::from("Unit instance not supported")));
+            return Err(throw_at(
+                self.tokens,
+                self.pos,
+                JStr::from("Unit instance not supported"),
+            ));
         }
         let unit = self.parse_qualified_name_start()?;
         Ok(vs_fn(applied(JStr::from("newUnit"), vec![unit, number], None)))
@@ -918,8 +1031,14 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         if !self.at_end() && self.peek() == T::PAREN_OPEN {
             let args = self.parse_arg_list()?;
-            let at = throw_at(self.tokens, fqn_start, JStr::default()).position.unwrap_or((0, 0));
-            let call = applied(unquoted(&fqn).map_err(|e| e.held_at(at))?, args, self.span(fqn_start, fqn_end));
+            let at = throw_at(self.tokens, fqn_start, JStr::default())
+                .position
+                .unwrap_or((0, 0));
+            let call = applied(
+                unquoted(&fqn).map_err(|e| e.held_at(at))?,
+                args,
+                self.span(fqn_start, fqn_end),
+            );
             if let Some(folded) = self.fold_tree(&call)? {
                 return Ok(folded);
             }
@@ -965,13 +1084,25 @@ impl<'t, 's> SpecParser<'t, 's> {
             }
         }
         self.expect_with(T::PAREN_CLOSE, || jcat!("expected ')' to close '.", name, "(...)'"))?;
-        Ok(applied_full(JStr::from(name), args, self.span(name_tok, name_tok), true, false, false, false))
+        Ok(applied_full(
+            JStr::from(name),
+            args,
+            self.span(name_tok, name_tok),
+            true,
+            false,
+            false,
+            false,
+        ))
     }
 
     fn parse_all_versions_call(&mut self, fqn: Vec<u16>, dot_tok: usize, fqn_span: Span) -> R<AppliedFunction> {
         self.expect_msg(T::PAREN_OPEN, "expected '(' after '.allVersions'")?;
         self.expect_msg(T::PAREN_CLOSE, "'.allVersions()' takes no arguments")?;
-        Ok(applied(JStr::from("getAllVersions"), vec![ptr(JStr(fqn), fqn_span)], self.span(dot_tok, self.pos - 1)))
+        Ok(applied(
+            JStr::from("getAllVersions"),
+            vec![ptr(JStr(fqn), fqn_span)],
+            self.span(dot_tok, self.pos - 1),
+        ))
     }
 
     fn parse_all_versions_in_range_call(
@@ -987,7 +1118,10 @@ impl<'t, 's> SpecParser<'t, 's> {
             return self.property_form_call("allVersionsInRange", name_tok, vec![ptr(JStr(fqn), fqn_span)]);
         }
         let start = self.parse_milestoning_expression()?;
-        self.expect_msg(T::COMMA, "expected ',' between range endpoints in '.allVersionsInRange'")?;
+        self.expect_msg(
+            T::COMMA,
+            "expected ',' between range endpoints in '.allVersionsInRange'",
+        )?;
         let end = self.parse_milestoning_expression()?;
         self.expect_msg(T::PAREN_CLOSE, "expected ')' to close '.allVersionsInRange(...)'")?;
         if self.dialect.refuses_platform_dialect() {
@@ -1044,7 +1178,15 @@ impl<'t, 's> SpecParser<'t, 's> {
             let mut params = Vec::with_capacity(1 + args.len());
             params.push(receiver);
             params.extend(args);
-            return Ok(vs_fn(applied_full(name, params, self.span(name_start, name_end), true, false, false, false)));
+            return Ok(vs_fn(applied_full(
+                name,
+                params,
+                self.span(name_start, name_end),
+                true,
+                false,
+                false,
+                false,
+            )));
         }
         if let VS::PackageableElementPtr(p) = receiver {
             let node = p.pos.is_none();
@@ -1092,8 +1234,14 @@ impl<'t, 's> SpecParser<'t, 's> {
         let mut params = Vec::with_capacity(1 + args.len());
         params.push(receiver);
         params.extend(args);
-        let at = throw_at(self.tokens, fn_start, JStr::default()).position.unwrap_or((0, 0));
-        Ok(applied(unquoted(&f).map_err(|e| e.held_at(at))?, params, self.span(fn_start, fn_end)))
+        let at = throw_at(self.tokens, fn_start, JStr::default())
+            .position
+            .unwrap_or((0, 0));
+        Ok(applied(
+            unquoted(&f).map_err(|e| e.held_at(at))?,
+            params,
+            self.span(fn_start, fn_end),
+        ))
     }
 
     /// `(args)`: no trailing comma.
@@ -1128,7 +1276,11 @@ impl<'t, 's> SpecParser<'t, 's> {
         let t = self.peek();
         let result = if t == T::INTEGER {
             let index = self.parse_integer()?;
-            vs_fn(applied(JStr::from("at"), vec![receiver, VS::CInteger(Box::new(index))], None))
+            vs_fn(applied(
+                JStr::from("at"),
+                vec![receiver, VS::CInteger(Box::new(index))],
+                None,
+            ))
         } else if t == T::STRING {
             let key = self.parse_string()?;
             property(receiver, key.value, None)
@@ -1195,7 +1347,10 @@ impl<'t, 's> SpecParser<'t, 's> {
         if !self.at_end() && is_fqn_segment_token(self.peek()) && self.peek_at(1) == T::PAREN_OPEN {
             self.pos += 1;
         }
-        self.expect_msg(T::PAREN_OPEN, "expected '(' after class name or $variable in ^NewInstance")?;
+        self.expect_msg(
+            T::PAREN_OPEN,
+            "expected '(' after class name or $variable in ^NewInstance",
+        )?;
         let mut properties: Vec<Box<NewInstanceKeyBinding>> = Vec::new();
         if !self.at_end() && self.peek() == T::PAREN_CLOSE {
             self.pos += 1;
@@ -1212,9 +1367,17 @@ impl<'t, 's> SpecParser<'t, 's> {
             self.expect_with(T::PAREN_CLOSE, || {
                 jcat!("expected ')' to close ^", class_name, "($src) positional cast")
             })?;
-            let cast =
-                NewInstanceCast { class_name: JStr(class_name), type_arguments: type_args, src, target_set_id: None };
-            return Ok(vs_fn(applied(JStr::from("new"), vec![receiver, VS::NewInstanceCast(Box::new(cast))], None)));
+            let cast = NewInstanceCast {
+                class_name: JStr(class_name),
+                type_arguments: type_args,
+                src,
+                target_set_id: None,
+            };
+            return Ok(vs_fn(applied(
+                JStr::from("new"),
+                vec![receiver, VS::NewInstanceCast(Box::new(cast))],
+                None,
+            )));
         }
         self.parse_and_put_key_expression(&mut properties)?;
         while !self.at_end() && self.peek() == T::COMMA {
@@ -1249,7 +1412,11 @@ impl<'t, 's> SpecParser<'t, 's> {
                 Err(missing_key) => return Err(self.error(missing_key)),
             }
         }
-        Ok(vs_fn(applied(JStr::from("new"), vec![receiver, VS::NewInstance(Box::new(ni))], None)))
+        Ok(vs_fn(applied(
+            JStr::from("new"),
+            vec![receiver, VS::NewInstance(Box::new(ni))],
+            None,
+        )))
     }
 
     /// One `key (= | +=) value` binding, appended (duplicates kept). A quoted key keeps its raw spelling; a dotted
@@ -1265,7 +1432,11 @@ impl<'t, 's> SpecParser<'t, 's> {
             }
             properties.push(Box::new(NewInstanceKeyBinding {
                 key: JStr::from(key),
-                expression: Box::new(KeyExpression { value, is_add: false, is_local: false }),
+                expression: Box::new(KeyExpression {
+                    value,
+                    is_add: false,
+                    is_local: false,
+                }),
             }));
             return Ok(());
         }
@@ -1320,7 +1491,11 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         properties.push(Box::new(NewInstanceKeyBinding {
             key: JStr(key),
-            expression: Box::new(KeyExpression { value, is_add, is_local: false }),
+            expression: Box::new(KeyExpression {
+                value,
+                is_add,
+                is_local: false,
+            }),
         }));
         Ok(())
     }
@@ -1448,7 +1623,12 @@ impl<'t, 's> SpecParser<'t, 's> {
         self.advance()?;
         let t = self.parse_type()?;
         let m = self.parse_multiplicity()?;
-        Ok(Variable { name, r#type: Some(t), multiplicity: Some(m), pos: self.span(name_tok, self.pos - 1) })
+        Ok(Variable {
+            name,
+            r#type: Some(t),
+            multiplicity: Some(m),
+            pos: self.span(name_tok, self.pos - 1),
+        })
     }
 
     /// `x | body` / `x: T[m] | body`: a brace-less code block body (no constant scope of its own).
@@ -1631,7 +1811,9 @@ impl<'t, 's> SpecParser<'t, 's> {
     fn parse_column_builders(&mut self) -> R<ColumnInstance> {
         self.pos += 1;
         if !self.at_end() && self.peek() == T::BRACKET_OPEN {
-            return self.parse_col_spec_array().map(|a| ColumnInstance::ColSpecArray(Box::new(a)));
+            return self
+                .parse_col_spec_array()
+                .map(|a| ColumnInstance::ColSpecArray(Box::new(a)));
         }
         self.parse_one_col_spec().map(|c| ColumnInstance::ColSpec(Box::new(c)))
     }
@@ -1765,9 +1947,11 @@ impl<'t, 's> SpecParser<'t, 's> {
         while k + 1 < n && ts.ty(k) == T::PATH_SEPARATOR && is_fqn_segment_token(ts.ty(k + 1)) {
             k += 2;
         }
-        for (open, close) in
-            [(T::LESS_THAN, T::GREATER_THAN), (T::PAREN_OPEN, T::PAREN_CLOSE), (T::BRACKET_OPEN, T::BRACKET_CLOSE)]
-        {
+        for (open, close) in [
+            (T::LESS_THAN, T::GREATER_THAN),
+            (T::PAREN_OPEN, T::PAREN_CLOSE),
+            (T::BRACKET_OPEN, T::BRACKET_CLOSE),
+        ] {
             if k < n && ts.ty(k) == open {
                 let mut depth = 1;
                 k += 1;
@@ -1785,7 +1969,10 @@ impl<'t, 's> SpecParser<'t, 's> {
         if k >= n {
             return true;
         }
-        matches!(ts.ty(k), T::COMMA | T::BRACKET_CLOSE | T::SEMI_COLON | T::PAREN_CLOSE | T::BRACE_CLOSE)
+        matches!(
+            ts.ty(k),
+            T::COMMA | T::BRACKET_CLOSE | T::SEMI_COLON | T::PAREN_CLOSE | T::BRACE_CLOSE
+        )
     }
 
     /// `tryTypedColSpec`: a type and an optional multiplicity followed by a terminator, or nothing (a
@@ -1793,8 +1980,11 @@ impl<'t, 's> SpecParser<'t, 's> {
     fn try_typed_col_spec(&mut self) -> R<Option<(TypeExpression, Option<Multiplicity>)>> {
         let attempt = (|| -> R<(TypeExpression, Option<Multiplicity>)> {
             let col_type = self.parse_type()?;
-            let col_mult =
-                if !self.at_end() && self.peek() == T::BRACKET_OPEN { Some(self.parse_multiplicity()?) } else { None };
+            let col_mult = if !self.at_end() && self.peek() == T::BRACKET_OPEN {
+                Some(self.parse_multiplicity()?)
+            } else {
+                None
+            };
             Ok((col_type, col_mult))
         })();
         match attempt {
@@ -1821,7 +2011,10 @@ impl<'t, 's> SpecParser<'t, 's> {
         let mut specs = Vec::new();
         if !self.at_end() && self.peek() == T::BRACKET_CLOSE {
             self.pos += 1;
-            return Ok(ColSpecArray { col_specs: specs, pos: self.span(open, self.pos - 1) });
+            return Ok(ColSpecArray {
+                col_specs: specs,
+                pos: self.span(open, self.pos - 1),
+            });
         }
         specs.push(Box::new(self.parse_one_col_spec()?));
         while !self.at_end() && self.peek() == T::COMMA {
@@ -1832,7 +2025,10 @@ impl<'t, 's> SpecParser<'t, 's> {
             specs.push(Box::new(self.parse_one_col_spec()?));
         }
         self.expect_msg(T::BRACKET_CLOSE, "expected ']' to close ColSpec array")?;
-        Ok(ColSpecArray { col_specs: specs, pos: self.span(open, self.pos - 1) })
+        Ok(ColSpecArray {
+            col_specs: specs,
+            pos: self.span(open, self.pos - 1),
+        })
     }
 
     /// A lambda after a colspec's `:` -- the four lambda forms, else a general expression as a parameterless thunk.
@@ -1871,19 +2067,23 @@ impl<'t, 's> SpecParser<'t, 's> {
         let platform = !self.dialect.refuses_platform_dialect();
         if platform && !self.at_end() && self.peek() == T::BRACKET_OPEN {
             let multiplicity = self.parse_multiplicity()?;
-            return Ok(TypeAnnotation::TypeAnnotationMultiplicityRef(Box::new(TypeAnnotationMultiplicityRef {
-                multiplicity,
-                pos: self.span(at_tok, self.pos - 1),
-            })));
+            return Ok(TypeAnnotation::TypeAnnotationMultiplicityRef(Box::new(
+                TypeAnnotationMultiplicityRef {
+                    multiplicity,
+                    pos: self.span(at_tok, self.pos - 1),
+                },
+            )));
         }
         if !self.at_end() && self.peek() == T::PAREN_OPEN {
             let columns = self.parse_relation_shape()?;
-            return Ok(TypeAnnotation::TypeAnnotationRelationShape(Box::new(TypeAnnotationRelationShape {
-                columns,
-                spelled_name: None,
-                type_span: self.span(at_tok, self.pos - 1),
-                pos: self.span(at_tok, self.pos - 1),
-            })));
+            return Ok(TypeAnnotation::TypeAnnotationRelationShape(Box::new(
+                TypeAnnotationRelationShape {
+                    columns,
+                    spelled_name: None,
+                    type_span: self.span(at_tok, self.pos - 1),
+                    pos: self.span(at_tok, self.pos - 1),
+                },
+            )));
         }
         if !is_fqn_segment_token(self.peek()) {
             return Err(self.error_str("expected type name after '@'"));
@@ -1909,12 +2109,14 @@ impl<'t, 's> SpecParser<'t, 's> {
             self.pos += 1;
             let columns = self.parse_relation_shape()?;
             self.expect_msg(T::GREATER_THAN, "expected '>' to close @Relation type annotation")?;
-            return Ok(TypeAnnotation::TypeAnnotationRelationShape(Box::new(TypeAnnotationRelationShape {
-                columns,
-                spelled_name: Some(JStr(name)),
-                type_span: self.span(name_start, self.pos - 1),
-                pos: self.span(at_tok, self.pos - 1),
-            })));
+            return Ok(TypeAnnotation::TypeAnnotationRelationShape(Box::new(
+                TypeAnnotationRelationShape {
+                    columns,
+                    spelled_name: Some(JStr(name)),
+                    type_span: self.span(name_start, self.pos - 1),
+                    pos: self.span(at_tok, self.pos - 1),
+                },
+            )));
         }
         if !self.at_end() && self.peek() == T::PAREN_OPEN {
             let tvv = self.parse_type_variable_values()?;
@@ -1999,7 +2201,12 @@ impl<'t, 's> SpecParser<'t, 's> {
         } else {
             concrete(0, Some(1))
         };
-        Ok(TypeAnnotationRelationShapeColumn { name, r#type, multiplicity, pos: self.span(name_tok_idx, self.pos - 1) })
+        Ok(TypeAnnotationRelationShapeColumn {
+            name,
+            r#type,
+            multiplicity,
+            pos: self.span(name_tok_idx, self.pos - 1),
+        })
     }
 
     // -------------------------------------------------------------------- path literals
@@ -2135,8 +2342,12 @@ impl<'t, 's> SpecParser<'t, 's> {
             pos: None,
         };
         let desugared = lambda(vec![param], vec![body], None);
-        let line_starts: Vec<i32> =
-            text.iter().enumerate().filter(|&(_, &c)| c == ch(b'\n')).map(|(k, _)| k as i32 + 1).collect();
+        let line_starts: Vec<i32> = text
+            .iter()
+            .enumerate()
+            .filter(|&(_, &c)| c == ch(b'\n'))
+            .map(|(k, _)| k as i32 + 1)
+            .collect();
         Ok(VS::PathLiteral(Box::new(PathLiteral {
             start_type,
             segments: pieces,
@@ -2187,43 +2398,42 @@ impl<'t, 's> SpecParser<'t, 's> {
             let (s, e) = ((base + sc.s) as i32, (base + sc.e) as i32);
             match sc.kind {
                 ScalarKind::Skip => {}
-                ScalarKind::Latest => {
-                    out.push(PathLiteralPathArg::PathLiteralPathArgLatest(Box::new(PathLiteralPathArgLatest {
-                        start: s,
-                        end: e,
-                    })))
-                }
+                ScalarKind::Latest => out.push(PathLiteralPathArg::PathLiteralPathArgLatest(Box::new(
+                    PathLiteralPathArgLatest { start: s, end: e },
+                ))),
                 ScalarKind::Date => {
                     if is_date_body(&sc.a) {
-                        out.push(PathLiteralPathArg::PathLiteralPathArgDateArg(Box::new(PathLiteralPathArgDateArg {
-                            value: JStr(sc.a.clone()),
-                            start: s,
-                            end: e,
-                        })));
+                        out.push(PathLiteralPathArg::PathLiteralPathArgDateArg(Box::new(
+                            PathLiteralPathArgDateArg {
+                                value: JStr(sc.a.clone()),
+                                start: s,
+                                end: e,
+                            },
+                        )));
                     } else {
                         *unsupported = true;
                     }
                 }
-                ScalarKind::Int => {
-                    out.push(PathLiteralPathArg::PathLiteralPathArgIntArg(Box::new(PathLiteralPathArgIntArg {
+                ScalarKind::Int => out.push(PathLiteralPathArg::PathLiteralPathArgIntArg(Box::new(
+                    PathLiteralPathArgIntArg {
                         value: sc.int_value,
                         start: s,
                         end: e,
-                    })))
-                }
-                ScalarKind::String => {
-                    out.push(PathLiteralPathArg::PathLiteralPathArgStrArg(Box::new(PathLiteralPathArgStrArg {
+                    },
+                ))),
+                ScalarKind::String => out.push(PathLiteralPathArg::PathLiteralPathArgStrArg(Box::new(
+                    PathLiteralPathArgStrArg {
                         value: JStr(sc.a.clone()),
                         start: s,
                         end: e,
-                    })))
-                }
-                ScalarKind::Enum => {
-                    out.push(PathLiteralPathArg::PathLiteralPathArgEnumArg(Box::new(PathLiteralPathArgEnumArg {
+                    },
+                ))),
+                ScalarKind::Enum => out.push(PathLiteralPathArg::PathLiteralPathArgEnumArg(Box::new(
+                    PathLiteralPathArgEnumArg {
                         full_path: JStr(sc.a.clone()),
                         value: JStr(sc.b.clone()),
-                    })))
-                }
+                    },
+                ))),
                 ScalarKind::Numericish | ScalarKind::Bool | ScalarKind::Var | ScalarKind::Other => *unsupported = true,
             }
             i = sc.next;
@@ -2251,7 +2461,11 @@ impl<'t, 's> SpecParser<'t, 's> {
             if body.is_empty() {
                 return Ok(Scalar::of(ScalarKind::Other, &[], &[], 0, i, i, i + 1));
             }
-            let kind = if eq(body, "latest") { ScalarKind::Latest } else { ScalarKind::Date };
+            let kind = if eq(body, "latest") {
+                ScalarKind::Latest
+            } else {
+                ScalarKind::Date
+            };
             return Ok(Scalar::of(kind, body, &src[i as usize..k as usize], 0, i, k - 1, k));
         }
         if is_digit(c) {
@@ -2264,7 +2478,15 @@ impl<'t, 's> SpecParser<'t, 's> {
                 while k < limit && (at(k) == ch(b'.') || is_graph_ident_char(at(k))) {
                     k += 1;
                 }
-                return Ok(Scalar::of(ScalarKind::Numericish, &src[i as usize..k as usize], &[], 0, i, k - 1, k));
+                return Ok(Scalar::of(
+                    ScalarKind::Numericish,
+                    &src[i as usize..k as usize],
+                    &[],
+                    0,
+                    i,
+                    k - 1,
+                    k,
+                ));
             }
             let digits = &src[i as usize..k as usize];
             let int_val =
@@ -2287,7 +2509,15 @@ impl<'t, 's> SpecParser<'t, 's> {
             if k == i + 1 {
                 return Ok(Scalar::of(ScalarKind::Other, &[], &[], 0, i, i, i + 1));
             }
-            return Ok(Scalar::of(ScalarKind::Var, &src[(i + 1) as usize..k as usize], &[], 0, i + 1, k - 1, k));
+            return Ok(Scalar::of(
+                ScalarKind::Var,
+                &src[(i + 1) as usize..k as usize],
+                &[],
+                0,
+                i + 1,
+                k - 1,
+                k,
+            ));
         }
         if is_letter(c) || c == ch(b'_') {
             let mut k = i;
@@ -2306,7 +2536,15 @@ impl<'t, 's> SpecParser<'t, 's> {
                     ve += 1;
                 }
                 if ve > vs {
-                    return Ok(Scalar::of(ScalarKind::Enum, word, &src[vs as usize..ve as usize], 0, i, ve - 1, ve));
+                    return Ok(Scalar::of(
+                        ScalarKind::Enum,
+                        word,
+                        &src[vs as usize..ve as usize],
+                        0,
+                        i,
+                        ve - 1,
+                        ve,
+                    ));
                 }
             }
             return Ok(Scalar::of(ScalarKind::Other, word, &[], 0, i, k - 1, k));
@@ -2390,7 +2628,9 @@ impl<'t, 's> SpecParser<'t, 's> {
         if dsl_type.is_empty() {
             // the tree is the source between the opener '#{' and the closer '}#'
             let (from, to) = (self.tokens.end(island_start), self.tokens.start(self.pos - 1));
-            return self.parse_graph_fetch_tree(from, to, island_start).map(|g| VS::GraphFetchLiteral(Box::new(g)));
+            return self
+                .parse_graph_fetch_tree(from, to, island_start)
+                .map(|g| VS::GraphFetchLiteral(Box::new(g)));
         }
         if eq(dsl_type, ">") {
             let content_text = trim(&content);
@@ -2408,7 +2648,11 @@ impl<'t, 's> SpecParser<'t, 's> {
         if eq(dsl_type, "GQL") {
             // parsed from the raw source slice, laid at the opener's end
             let ts = self.tokens;
-            let src = ustr::substring(ts.source(), ts.end(island_start) as isize, ts.start(self.pos - 1) as isize)?;
+            let src = ustr::substring(
+                ts.source(),
+                ts.end(island_start) as isize,
+                ts.start(self.pos - 1) as isize,
+            )?;
             let document = crate::gql::parse_document(
                 src,
                 ts.end_line(island_start) as i32,
@@ -2422,7 +2666,9 @@ impl<'t, 's> SpecParser<'t, 's> {
         // the platform's legacy graph-fetch spelling puts the root class in the island kind
         if !self.dialect.refuses_platform_dialect() && is_type_name_shaped(dsl_type) {
             let (from, to) = (self.tokens.start(island_start) + 1, self.tokens.start(self.pos - 1) + 1);
-            return self.parse_graph_fetch_tree(from, to, island_start).map(|g| VS::GraphFetchLiteral(Box::new(g)));
+            return self
+                .parse_graph_fetch_tree(from, to, island_start)
+                .map(|g| VS::GraphFetchLiteral(Box::new(g)));
         }
         Err(self.error(jcat!("unknown DSL island type: '#", dsl_type, "{'")))
     }
@@ -2452,7 +2698,12 @@ impl<'t, 's> SpecParser<'t, 's> {
                 return Err(throw_at(
                     self.tokens,
                     island_start,
-                    jcat!("unknown #IQ{...}# profile '", p, "': a profile is one of ", IQ_PROFILES.join(", ")),
+                    jcat!(
+                        "unknown #IQ{...}# profile '",
+                        p,
+                        "': a profile is one of ",
+                        IQ_PROFILES.join(", ")
+                    ),
                 ));
             }
             profile = Some(JStr::from(p));
@@ -2469,7 +2720,11 @@ impl<'t, 's> SpecParser<'t, 's> {
     /// store alone legal. A damaged island's junk is the engine's `Unexpected token`.
     fn parse_table_reference(&self, content: &[u16], span: SourceInfo) -> R<AppliedFunction> {
         if content.iter().any(|&c| u("()|;={}\n").contains(&c)) {
-            return Err(JavaError::parse(JStr::from("Unexpected token"), span.start_line, span.start_column));
+            return Err(JavaError::parse(
+                JStr::from("Unexpected token"),
+                span.start_line,
+                span.start_column,
+            ));
         }
         let path_end = last_index_of_str(content, "::");
         let dot = index_of(content, ch(b'.'), path_end.map_or(0, |p| p + 2));
@@ -2481,7 +2736,15 @@ impl<'t, 's> SpecParser<'t, 's> {
         if let Some(r) = rest {
             params.push(cstring(JStr::from(r), None));
         }
-        Ok(applied_full(JStr::from("tableReference"), params, boxed(span), false, false, false, true))
+        Ok(applied_full(
+            JStr::from("tableReference"),
+            params,
+            boxed(span),
+            false,
+            false,
+            false,
+            true,
+        ))
     }
 
     /// A graph-fetch tree: its source slice re-lexed in place (absolute spans) and read by a parser of its own.
@@ -2489,9 +2752,17 @@ impl<'t, 's> SpecParser<'t, 's> {
         // `#{` as the last token: an empty tree, past the end (the raw `lexRange` refusal until 2026-11-09, ruling 4 of
         // docs/rust-port/PHASE2.md section 6; PARITY row 83)
         if from > to {
-            return Err(throw_at(self.tokens, island_start, JStr::from("Graph fetch tree must not be empty")).as_refusal());
+            return Err(throw_at(
+                self.tokens,
+                island_start,
+                JStr::from("Graph fetch tree must not be empty"),
+            )
+            .as_refusal());
         }
-        let inner_tokens = self.tokens.lex_range(from, to).expect("an island's content lies inside its source");
+        let inner_tokens = self
+            .tokens
+            .lex_range(from, to)
+            .expect("an island's content lies inside its source");
         if inner_tokens.count() == 0 {
             return Err(JavaError::parse(
                 JStr::from("Graph fetch tree must not be empty"),
@@ -2506,7 +2777,11 @@ impl<'t, 's> SpecParser<'t, 's> {
         let mut sub_types = Vec::new();
         let nodes = inner.parse_graph_definition(Some(&mut sub_types))?;
         if !inner.at_end() {
-            return Err(inner.error(jcat!("trailing content after graph-fetch tree: '", inner.safe_text(), "'")));
+            return Err(inner.error(jcat!(
+                "trailing content after graph-fetch tree: '",
+                inner.safe_text(),
+                "'"
+            )));
         }
         Ok(GraphFetchLiteral {
             class_name: JStr(class_name),
@@ -2553,7 +2828,9 @@ impl<'t, 's> SpecParser<'t, 's> {
     ) -> R<()> {
         if self.at_sub_type_arrow() {
             let Some(sub_types) = sub_types else {
-                return Err(JavaError::parse_unplaced(JStr::from("->subType() is supported only at root level")));
+                return Err(JavaError::parse_unplaced(JStr::from(
+                    "->subType() is supported only at root level",
+                )));
             };
             let (class_name, pos) = self.parse_sub_type_view()?;
             let body = if !self.at_end() && self.peek() == T::BRACE_OPEN {
@@ -2562,9 +2839,15 @@ impl<'t, 's> SpecParser<'t, 's> {
                 Vec::new()
             };
             if body.is_empty() {
-                return Err(JavaError::parse_unplaced(JStr::from("a ->subType() body must not be empty")));
+                return Err(JavaError::parse_unplaced(JStr::from(
+                    "a ->subType() body must not be empty",
+                )));
             }
-            sub_types.push(Box::new(GraphFetchLiteralSubTypeNode { sub_type_class: class_name, pos, sub_trees: body }));
+            sub_types.push(Box::new(GraphFetchLiteralSubTypeNode {
+                sub_type_class: class_name,
+                pos,
+                sub_trees: body,
+            }));
             return Ok(());
         }
         let mut alias = None;
@@ -2596,7 +2879,11 @@ impl<'t, 's> SpecParser<'t, 's> {
                 t += 1;
             }
         }
-        let sub_type = if self.at_sub_type_arrow() { Some(self.parse_sub_type_view()?.0) } else { None };
+        let sub_type = if self.at_sub_type_arrow() {
+            Some(self.parse_sub_type_view()?.0)
+        } else {
+            None
+        };
         let children = if !self.at_end() && self.peek() == T::BRACE_OPEN {
             self.parse_graph_definition(None)?
         } else {
@@ -2696,7 +2983,11 @@ impl<'t, 's> SpecParser<'t, 's> {
                             })
                         })
                         .collect();
-                    functions.push(Box::new(LambdaFunction { parameters, body: fd.body, pos: None }));
+                    functions.push(Box::new(LambdaFunction {
+                        parameters,
+                        body: fd.body,
+                        pos: None,
+                    }));
                 }
                 _ => return Ok(None),
             }
@@ -2755,7 +3046,13 @@ pub(crate) fn caret_special(ni: &NewInstance) -> Result<Option<AppliedFunction>,
             Some(b) => params.push(b.expression.value.clone()),
             None if drop_missing => continue,
             None => {
-                return Err(jcat!("no rule for a caret special missing key '", key, "' (at ", spelled, ")"));
+                return Err(jcat!(
+                    "no rule for a caret special missing key '",
+                    key,
+                    "' (at ",
+                    spelled,
+                    ")"
+                ));
             }
         }
     }
@@ -2806,9 +3103,10 @@ fn signed_literal(n: ValueSpecification, negative: bool, span: Span) -> ValueSpe
             },
             pos: span,
         })),
-        VS::CDecimal(c) => {
-            VS::CDecimal(Box::new(CDecimal { value: if negative { c.value.negate() } else { c.value }, pos: span }))
-        }
+        VS::CDecimal(c) => VS::CDecimal(Box::new(CDecimal {
+            value: if negative { c.value.negate() } else { c.value },
+            pos: span,
+        })),
         // the one caller hands it what parse_number built, one of the three above
         other => unreachable!("a number literal is an integer, a float or a decimal: {other:?}"),
     }
@@ -2827,15 +3125,25 @@ fn spelled_relation(name: &[u16]) -> bool {
 }
 
 /// `IqProfile`'s spellings, in declaration order.
-const IQ_PROFILES: &[&str] =
-    &["iq16-default", "iq16-odbc", "iq16-tds", "sqla17-default", "sqla17-tds", "iq17-default", "iq17-odbc", "iq17-tds"];
+const IQ_PROFILES: &[&str] = &[
+    "iq16-default",
+    "iq16-odbc",
+    "iq16-tds",
+    "sqla17-default",
+    "sqla17-tds",
+    "iq17-default",
+    "iq17-odbc",
+    "iq17-tds",
+];
 
 /// A legacy island kind: a possibly qualified type name.
 fn is_type_name_shaped(s: &[u16]) -> bool {
     if s.is_empty() || !(is_letter(s[0]) || s[0] == ch(b'_')) {
         return false;
     }
-    s[1..].iter().all(|&c| is_letter_or_digit(c) || c == ch(b'_') || c == ch(b':'))
+    s[1..]
+        .iter()
+        .all(|&c| is_letter_or_digit(c) || c == ch(b'_') || c == ch(b':'))
 }
 
 /// Every char in the date-literal class `[0-9T:.Z+-]`, non-empty.
@@ -2958,10 +3266,16 @@ mod tests {
     #[test]
     fn the_engine_s_operator_shapes() {
         let f = form("1 < 2 + 3 * 4", Dialect::LegendLite);
-        assert!(f.starts_with("A\t{\"@\":\"protocol.spec.AppliedFunction\",\"function\":\"lessThan\""), "{f}");
+        assert!(
+            f.starts_with("A\t{\"@\":\"protocol.spec.AppliedFunction\",\"function\":\"lessThan\""),
+            "{f}"
+        );
         let f = form("$x.a->filter(p | $p.b == 1)", Dialect::LegendEngine);
         assert!(f.starts_with("A\t"), "{f}");
         let f = form("1 +", Dialect::LegendLite);
-        assert_eq!(f, "E\tcom.legend.parser.ParseException\t1\t4\t[1:4] expected expression, got end of input");
+        assert_eq!(
+            f,
+            "E\tcom.legend.parser.ParseException\t1\t4\t[1:4] expected expression, got end of input"
+        );
     }
 }

@@ -81,13 +81,17 @@ pub fn sql_type_text(t: &SqlType) -> String {
         SqlType::Array { element } => format!("Array[element={}]", sql_type_text(element)),
         SqlType::Map { key, value } => format!("Map[key={}, value={}]", sql_type_text(key), sql_type_text(value)),
         SqlType::Struct { fields } => {
-            let fs: Vec<String> =
-                fields.iter().map(|f| format!("Field[name={}, type={}]", f.name, sql_type_text(&f.r#type))).collect();
+            let fs: Vec<String> = fields
+                .iter()
+                .map(|f| format!("Field[name={}, type={}]", f.name, sql_type_text(&f.r#type)))
+                .collect();
             format!("Struct[fields=[{}]]", fs.join(", "))
         }
         SqlType::Tagged { slots } => {
-            let ss: Vec<String> =
-                slots.iter().map(|s| format!("Slot[kind={}, type={}]", s.kind, sql_type_text(&s.r#type))).collect();
+            let ss: Vec<String> = slots
+                .iter()
+                .map(|s| format!("Slot[kind={}, type={}]", s.kind, sql_type_text(&s.r#type)))
+                .collect();
             format!("Tagged[slots=[{}]]", ss.join(", "))
         }
     }
@@ -225,7 +229,8 @@ pub fn split(s: &str, sep: char) -> Vec<&str> {
 
 /// Java's `String.hashCode()`: `s[0]*31^(n-1) + ... + s[n-1]` over the UTF-16 code units, wrapping.
 pub fn string_hash(s: &str) -> i32 {
-    s.encode_utf16().fold(0i32, |h, u| h.wrapping_mul(31).wrapping_add(i32::from(u)))
+    s.encode_utf16()
+        .fold(0i32, |h, u| h.wrapping_mul(31).wrapping_add(i32::from(u)))
 }
 
 /// The order a `java.util.HashMap<String, V>` built by putting `keys` in turn (a repeated key kept where it first

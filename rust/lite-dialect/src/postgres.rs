@@ -157,8 +157,12 @@ static LEXICON: LazyLock<Lexicon> = LazyLock::new(|| Lexicon::new('"', RESERVED)
 
 /// Java's `Postgres.CAPS`: the portable carrier strategies (no native-list carrier: jsonb), correlated explosion, the
 /// JSON carrier, and FULL OUTER natively (no H2 emulation).
-pub const CAPS: crate::carrier::Caps =
-    crate::carrier::Caps { native_lists: false, correlated_explode: true, json_carrier: true, native_full_outer: true };
+pub const CAPS: crate::carrier::Caps = crate::carrier::Caps {
+    native_lists: false,
+    correlated_explode: true,
+    json_carrier: true,
+    native_full_outer: true,
+};
 
 /// Java's `DOUBLE_AGGREGATES`: the Float aggregates Postgres answers as numeric over an integer or a numeric, cast over
 /// their exact result (`AggregatesDeliverDouble`), grouped or windowed.
@@ -195,10 +199,16 @@ pub fn catalog_types() -> Vec<(&'static str, CatalogType)> {
         ("TIMESTAMP", CatalogType::as_stored("TIMESTAMP")),
         // a zoned timestamp is its UTC instant: read in place under the UTC session the attach pins, and a copy (in
         // the tab's DuckDB, where conversions run) holds its UTC wall time
-        ("TIMESTAMPTZ", CatalogType::copy_converted("TIMESTAMP", "CAST(timezone('UTC', %s) AS TIMESTAMP)")),
+        (
+            "TIMESTAMPTZ",
+            CatalogType::copy_converted("TIMESTAMP", "CAST(timezone('UTC', %s) AS TIMESTAMP)"),
+        ),
         ("JSON", CatalogType::as_stored("SEMISTRUCTURED")),
         ("JSONB", CatalogType::as_stored("SEMISTRUCTURED")),
-        ("BYTEA", CatalogType::left_out("bytes: no Pure Database type holds them")),
+        (
+            "BYTEA",
+            CatalogType::left_out("bytes: no Pure Database type holds them"),
+        ),
     ];
     for t in OTHER_TYPES {
         m.push((t, CatalogType::as_stored("OTHER")));
@@ -396,7 +406,11 @@ const EMPTY_IN_EMPTY_OUT: &[SqlFn] = &[
 /// The empty list literal, typed or not.
 fn empty_list_literal(e: &SqlExpr) -> bool {
     let v = match e {
-        SqlExpr::Cast { value, target: SqlType::Array { .. }, .. } => value,
+        SqlExpr::Cast {
+            value,
+            target: SqlType::Array { .. },
+            ..
+        } => value,
         other => other,
     };
     matches!(v, SqlExpr::ArrayLit { elements, .. } if elements.is_empty())
@@ -451,7 +465,11 @@ fn wall(f: SqlFn, why: &str) -> Refusal {
 
 /// Whether `e` holds a call that draws afresh at each reading (the database's random, a uuid).
 fn draws_afresh(e: &SqlExpr) -> bool {
-    if let SqlExpr::Call { r#fn: SqlFn::Random | SqlFn::Guid, .. } = e {
+    if let SqlExpr::Call {
+        r#fn: SqlFn::Random | SqlFn::Guid,
+        ..
+    } = e
+    {
         return true;
     }
     crate::typing::children(e).iter().any(|k| draws_afresh(k))
@@ -493,7 +511,9 @@ fn interval_unit(unit: DatePart) -> Result<&'static str, Refusal> {
         DatePart::Millisecond => "millisecond",
         DatePart::Microsecond => "microsecond",
         DatePart::Quarter | DatePart::Nanosecond | DatePart::DayOfYear | DatePart::IsoDayOfWeek => {
-            return Err(Refusal::capability(format!("interval unit '{unit}' has no Postgres spelling")));
+            return Err(Refusal::capability(format!(
+                "interval unit '{unit}' has no Postgres spelling"
+            )));
         }
     })
 }
@@ -535,7 +555,10 @@ fn frame_interval(n: i64, unit: &str) -> Result<String, Refusal> {
     };
     let per: i64 = if u == "WEEKS" { 7 } else { 1 };
     let Some(v) = n.checked_mul(per) else {
-        return Err(Refusal { class: "java.lang.ArithmeticException", message: "long overflow".to_owned() });
+        return Err(Refusal {
+            class: "java.lang.ArithmeticException",
+            message: "long overflow".to_owned(),
+        });
     };
     Ok(format!("INTERVAL '{v}' {qualifier}"))
 }
@@ -657,9 +680,15 @@ fn directive_at(s: &str, i: usize) -> Option<Directive<'_>> {
         }
     }
     match b.get(j) {
-        Some(&c @ (b's' | b'd' | b'f')) => {
-            Some(Directive { start: i, end: j + 1, percent: false, zero, width, precision, conversion: c })
-        }
+        Some(&c @ (b's' | b'd' | b'f')) => Some(Directive {
+            start: i,
+            end: j + 1,
+            percent: false,
+            zero,
+            width,
+            precision,
+            conversion: c,
+        }),
         _ => None,
     }
 }
@@ -682,8 +711,10 @@ fn directives(s: &str) -> Vec<Directive<'_>> {
 
 /// Java's `Integer.parseInt` of a run of ASCII digits.
 fn parse_int(s: &str) -> Result<i32, Refusal> {
-    s.parse::<i32>()
-        .map_err(|_| Refusal { class: Refusal::NUMBER_FORMAT, message: format!("For input string: \"{s}\"") })
+    s.parse::<i32>().map_err(|_| Refusal {
+        class: Refusal::NUMBER_FORMAT,
+        message: format!("For input string: \"{s}\""),
+    })
 }
 
 // ==================================================================
@@ -728,7 +759,11 @@ impl Postgres {
 
     /// The SQL type an element of type `t` is held as in a list (Java's `carrier`).
     fn carrier(&self, t: &SqlType) -> Result<String, Refusal> {
-        if held_as_itself(t) { cast_type_name(self, t) } else { Ok("JSONB".to_owned()) }
+        if held_as_itself(t) {
+            cast_type_name(self, t)
+        } else {
+            Ok("JSONB".to_owned())
+        }
     }
 
     /// `list`, as a piece, when it is a list; refused by name otherwise, at once (Java's `listOf`).
@@ -812,7 +847,9 @@ impl Postgres {
                     w.append(" WITH ORDINALITY AS __mu(__me, __mo) ORDER BY __mo)");
                     Ok(())
                 });
-                w.append("(CASE WHEN ").expr(self, xs, 4)?.append(" IS NULL THEN NULL ELSE ");
+                w.append("(CASE WHEN ")
+                    .expr(self, xs, 4)?
+                    .append(" IS NULL THEN NULL ELSE ");
                 self.keys_checked(entries)(w)?;
                 w.append(" END)");
             }
@@ -837,8 +874,13 @@ impl Postgres {
                     w.append(" WITH ORDINALITY AS __mu(__mk, __mo) ORDER BY __mo)");
                     Ok(())
                 });
-                w.append("(CASE WHEN ").expr(self, ks, 4)?.append(" IS NULL OR ").expr(self, vs, 4)?;
-                w.append(" IS NULL THEN NULL WHEN cardinality(").expr(self, ks, 0)?.append(") <> cardinality(");
+                w.append("(CASE WHEN ")
+                    .expr(self, ks, 4)?
+                    .append(" IS NULL OR ")
+                    .expr(self, vs, 4)?;
+                w.append(" IS NULL THEN NULL WHEN cardinality(")
+                    .expr(self, ks, 0)?
+                    .append(") <> cardinality(");
                 w.expr(self, vs, 0)?.append(") THEN ");
                 self.map_raise("The map key list does not align with the map value list.")(w)?;
                 w.append(" ELSE ");
@@ -852,8 +894,9 @@ impl Postgres {
                      DESC))[1]) FROM (",
                 );
                 for (i, map) in a.iter().enumerate() {
-                    w.append(if i > 0 { " UNION ALL " } else { "" })
-                        .append(&format!("SELECT {i} AS s, __me -> 'key' AS k, __me -> 'value' AS v, __mo AS o FROM "));
+                    w.append(if i > 0 { " UNION ALL " } else { "" }).append(&format!(
+                        "SELECT {i} AS s, __me -> 'key' AS k, __me -> 'value' AS v, __mo AS o FROM "
+                    ));
                     unnest(self.ex(map, 0))(w)?;
                     w.append(&format!(" WITH ORDINALITY AS __mu{i}(__me, __mo)"));
                 }
@@ -865,7 +908,9 @@ impl Postgres {
                     return Err(wall(f, "a map of unknown key and value types"));
                 };
                 let keys = f == SqlFn::MapKeys;
-                w.append("(CASE WHEN ").expr(self, m, 4)?.append(" IS NULL THEN NULL ELSE ARRAY(SELECT ");
+                w.append("(CASE WHEN ")
+                    .expr(self, m, 4)?
+                    .append(" IS NULL THEN NULL ELSE ARRAY(SELECT ");
                 let entry = text(if keys { "__me -> 'key'" } else { "__me -> 'value'" });
                 self.held(entry, if keys { key } else { value }, 0)(w)?;
                 w.append(" FROM ");
@@ -898,7 +943,13 @@ impl Postgres {
         }
         match t {
             // a map is its entries, a jsonb[]: rebuilt as a list of jsonb
-            SqlType::Map { .. } => self.decode(json, &SqlType::Array { element: Box::new(json_type()) }, depth),
+            SqlType::Map { .. } => self.decode(
+                json,
+                &SqlType::Array {
+                    element: Box::new(json_type()),
+                },
+                depth,
+            ),
             // NULL for SQL's NULL or jsonb's null; any other value that is not an array is jsonb_array_elements'
             // error, as Pure's toMany raises one and DuckDB's cast does
             SqlType::Array { element } => {
@@ -914,7 +965,8 @@ impl Postgres {
                     inner(w)?;
                     w.append(" FROM jsonb_array_elements(");
                     json(w)?;
-                    w.append(&format!(") WITH ORDINALITY AS __j{depth}({e}, {o}) ORDER BY {o}")).append(") END)");
+                    w.append(&format!(") WITH ORDINALITY AS __j{depth}({e}, {o}) ORDER BY {o}"))
+                        .append(") END)");
                     Ok(())
                 })
             }
@@ -931,7 +983,11 @@ impl Postgres {
 
     /// An element of type `t` read from jsonb as a list holds it: a scalar decoded, anything else kept as jsonb.
     fn held<'a>(&'a self, json: P<'a>, t: &SqlType, depth: usize) -> P<'a> {
-        if held_as_itself(t) { self.decode(json, t, depth) } else { json }
+        if held_as_itself(t) {
+            self.decode(json, t, depth)
+        } else {
+            json
+        }
     }
 
     /// `{list}'s elements, each bound to `elem` as its type reads (a list element held as jsonb rebuilt), its 1-based
@@ -1033,8 +1089,11 @@ impl Postgres {
                     u.append(" -> ").append(&lit).append(")");
                     Ok(())
                 });
-                let read =
-                    if matches!(f.r#type, SqlType::Struct { .. }) { field } else { self.decode(field, &f.r#type, 0) };
+                let read = if matches!(f.r#type, SqlType::Struct { .. }) {
+                    field
+                } else {
+                    self.decode(field, &f.r#type, 0)
+                };
                 self.sort_key_of(read, &f.r#type, direction)(v)
             })?;
             Ok(())
@@ -1044,7 +1103,11 @@ impl Postgres {
     /// A lambda's element and index parameters, spelled; the index is a fresh name when the lambda has none.
     fn lambda_params(&self, l: &Lambda) -> Result<(String, String), Refusal> {
         let element = self.param_at(&l.params, 0)?;
-        let index = if l.params.len() > 1 { self.param_at(&l.params, 1)? } else { "__o".to_owned() };
+        let index = if l.params.len() > 1 {
+            self.param_at(&l.params, 1)?
+        } else {
+            "__o".to_owned()
+        };
         Ok((element, index))
     }
 
@@ -1065,7 +1128,11 @@ impl Postgres {
             w.append("(").expr(self, xs, 0)?.append(")[").append(index).append("]");
             Ok(())
         });
-        if held_as_itself(element) { at } else { self.decode(at, element, 0) }
+        if held_as_itself(element) {
+            at
+        } else {
+            self.decode(at, element, 0)
+        }
     }
 
     /// error(msg[, 'line:col']): the sentinel-wrapped message cast to TIMESTAMPTZ (which cannot parse it), then text,
@@ -1080,7 +1147,11 @@ impl Postgres {
             }
             w.append("(").expr(self, arg(a, 0)?, 0)?.append(") || chr(31)");
             let volatile = unnestable || w.in_planned();
-            w.append(if volatile { " || left(CAST(random() AS VARCHAR), 0)" } else { "" });
+            w.append(if volatile {
+                " || left(CAST(random() AS VARCHAR), 0)"
+            } else {
+                ""
+            });
             w.append(" AS TIMESTAMPTZ) AS VARCHAR)");
             Ok(())
         });
@@ -1113,7 +1184,11 @@ impl Postgres {
     /// A CASE branch: one that IS error() raised in the CASE's own type.
     fn branch<'a>(&'a self, value: &'a SqlExpr, slot: Option<&SqlType>) -> P<'a> {
         match value {
-            SqlExpr::Call { r#fn: SqlFn::Error, args, .. } => self.raise_in(args, slot),
+            SqlExpr::Call {
+                r#fn: SqlFn::Error,
+                args,
+                ..
+            } => self.raise_in(args, slot),
             other => self.ex(other, 0),
         }
     }
@@ -1138,14 +1213,22 @@ impl Postgres {
 
     /// SPLIT: DuckDB's string_split('', d) is [''], Postgres's string_to_array is {}.
     fn split(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("(CASE WHEN ").expr(self, arg(a, 0)?, 0)?.append(" = '' THEN ARRAY[''] ELSE string_to_array(");
-        w.expr(self, arg(a, 0)?, 0)?.append(", ").expr(self, arg(a, 1)?, 0)?.append(") END)");
+        w.append("(CASE WHEN ")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(" = '' THEN ARRAY[''] ELSE string_to_array(");
+        w.expr(self, arg(a, 0)?, 0)?
+            .append(", ")
+            .expr(self, arg(a, 1)?, 0)?
+            .append(") END)");
         Ok(())
     }
 
     /// STRUCT_INSERT: a struct with one field set, the jsonb object with the field replaced or added.
     fn struct_insert_arm(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("(").expr(self, arg(a, 0)?, 0)?.append(" || jsonb_build_object(").expr(self, arg(a, 1)?, 0)?;
+        w.append("(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(" || jsonb_build_object(")
+            .expr(self, arg(a, 1)?, 0)?;
         w.append(", ").expr(self, arg(a, 2)?, 0)?.append("))");
         Ok(())
     }
@@ -1169,19 +1252,30 @@ impl Postgres {
             return w.expr(self, &lists[0], parent_prec).map(|_| ());
         }
         let concat = build::call(SqlFn::ListConcat, lists);
-        let SqlExpr::Call { args, r#type, .. } = &concat else { unreachable!("a call") };
+        let SqlExpr::Call { args, r#type, .. } = &concat else {
+            unreachable!("a call")
+        };
         self.call(w, SqlFn::ListConcat, args, r#type, parent_prec)
     }
 
     /// The RANGE_FN arm: DuckDB's range, [start, stop) by step (start 0, step 1 by default).
     fn range(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        let start = if a.len() == 1 { text("0") } else { self.ex(arg(a, 0)?, 0) };
+        let start = if a.len() == 1 {
+            text("0")
+        } else {
+            self.ex(arg(a, 0)?, 0)
+        };
         let stop = self.ex(arg(a, if a.len() == 1 { 0 } else { 1 })?, 0);
         let step = if a.len() > 2 { self.ex(&a[2], 0) } else { text("1") };
         // (generate_series's arguments: Postgres's planner estimates its rows from them, so a raise within them is
         // written as no planner evaluates)
-        w.append("ARRAY(SELECT g FROM generate_series(CAST(").planned(&*start)?.append(" AS BIGINT), CAST(");
-        w.planned(&*stop)?.append(" AS BIGINT), CAST(").planned(&*step)?.append(" AS BIGINT)) AS g WHERE CASE WHEN ");
+        w.append("ARRAY(SELECT g FROM generate_series(CAST(")
+            .planned(&*start)?
+            .append(" AS BIGINT), CAST(");
+        w.planned(&*stop)?
+            .append(" AS BIGINT), CAST(")
+            .planned(&*step)?
+            .append(" AS BIGINT)) AS g WHERE CASE WHEN ");
         step(w)?;
         w.append(" > 0 THEN g < ");
         stop(w)?;
@@ -1196,7 +1290,9 @@ impl Postgres {
         let xs = arg(a, 0)?;
         let element = element_of(xs, SqlFn::ListTransform.as_str())?.clone();
         let Some(result) = fact_list_element(t).cloned() else {
-            return Err(Refusal::capability("a list transform of unknown result type reached Postgres"));
+            return Err(Refusal::capability(
+                "a list transform of unknown result type reached Postgres",
+            ));
         };
         let l = Postgres::body_over(lambda_arg(arg(a, 1)?)?, &element)?;
         let (p0, p1) = self.lambda_params(&l)?;
@@ -1217,14 +1313,18 @@ impl Postgres {
             w.append("CAST(").expr(self, x, 0)?.append(" AS INTEGER)");
             Ok(())
         })?;
-        w.append(", CAST(").expr(self, &a[5], 0)?.append(" AS DOUBLE PRECISION))");
+        w.append(", CAST(")
+            .expr(self, &a[5], 0)?
+            .append(" AS DOUBLE PRECISION))");
         Ok(())
     }
 
     /// Pure's HALF_UP rounding: round over NUMERIC (half away from zero), a double cast back.
     fn round_half_up(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let r = pc(move |w| {
-            w.append("round(CAST(").expr(self, arg(a, 0)?, 0)?.append(" AS NUMERIC)");
+            w.append("round(CAST(")
+                .expr(self, arg(a, 0)?, 0)?
+                .append(" AS NUMERIC)");
             if a.len() > 1 {
                 w.append(", CAST(").expr(self, &a[1], 0)?.append(" AS INTEGER)");
             }
@@ -1244,19 +1344,27 @@ impl Postgres {
     fn time_bucket(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let unit = interval_unit(part(arg(a, 0)?)?)?;
         if let Some(origin) = bucket_origin(unit) {
-            w.append("date_bin(").expr(self, arg(a, 1)?, 6)?.append(" * INTERVAL '1 ").append(unit).append("', ");
+            w.append("date_bin(")
+                .expr(self, arg(a, 1)?, 6)?
+                .append(" * INTERVAL '1 ")
+                .append(unit)
+                .append("', ");
             self.naive(arg(a, 2)?)(w)?;
             w.append(", ").append(origin).append(")");
             return Ok(());
         }
         let Some(months_per_unit) = calendar_months(unit) else {
-            return Err(Refusal::capability(format!("a {unit} time bucket has no Postgres spelling")));
+            return Err(Refusal::capability(format!(
+                "a {unit} time bucket has no Postgres spelling"
+            )));
         };
         // the month index since 1970-01, floored to the bucket's size in months
         let t = self.naive(arg(a, 2)?);
         let n = arg(a, 1)?;
         let size = pc(move |w| {
-            w.append("(CAST(").expr(self, n, 0)?.append(&format!(" AS INTEGER) * {months_per_unit})"));
+            w.append("(CAST(")
+                .expr(self, n, 0)?
+                .append(&format!(" AS INTEGER) * {months_per_unit})"));
             Ok(())
         });
         w.append("(TIMESTAMP '1970-01-01 00:00:00' + CAST(floor(((extract(year FROM ");
@@ -1282,7 +1390,9 @@ impl Postgres {
         let element = element_of(xs, "exists/forAll")?.clone();
         let l = Postgres::body_over(lambda_arg(arg(args, 1)?)?, &element)?;
         let (p0, p1) = self.lambda_params(&l)?;
-        w.append(&format!("coalesce((SELECT {agg}(")).expr(self, &l.body, 0)?.append(") FROM ");
+        w.append(&format!("coalesce((SELECT {agg}("))
+            .expr(self, &l.body, 0)?
+            .append(") FROM ");
         self.elements_from(self.ex(xs, 0), &element, p0, p1)(w)?;
         w.append(&format!("), {empty})"));
         Ok(())
@@ -1296,7 +1406,8 @@ impl Postgres {
                 type_fact_text(t)
             )));
         };
-        w.append("CAST(ARRAY[").join(elements, ", ", |w, e| encode(self.ex(e, 0), Some(element))(w))?;
+        w.append("CAST(ARRAY[")
+            .join(elements, ", ", |w, e| encode(self.ex(e, 0), Some(element))(w))?;
         let carrier = self.carrier(element)?;
         w.append(&format!("] AS {carrier}[])"));
         Ok(())
@@ -1322,18 +1433,25 @@ impl Postgres {
         let next = self.element_at(xs, "__r.__i + 1", element);
         w.append("(WITH RECURSIVE __r(__i, __acc) AS (SELECT 1, CAST(");
         at1(w)?;
-        w.append(&format!(" AS {ty}) UNION ALL SELECT __r.__i + 1, CAST(")).expr(self, &l.body, 0)?;
+        w.append(&format!(" AS {ty}) UNION ALL SELECT __r.__i + 1, CAST("))
+            .expr(self, &l.body, 0)?;
         w.append(&format!(" AS {ty}) FROM __r CROSS JOIN LATERAL (SELECT "));
         next(w)?;
-        w.append(&format!(" AS {x}, __r.__acc AS {acc_name}) AS __b WHERE __r.__i < coalesce(cardinality("));
-        w.expr(self, xs, 0)?.append("), 0)) SELECT __acc FROM __r ORDER BY __i DESC LIMIT 1)");
+        w.append(&format!(
+            " AS {x}, __r.__acc AS {acc_name}) AS __b WHERE __r.__i < coalesce(cardinality("
+        ));
+        w.expr(self, xs, 0)?
+            .append("), 0)) SELECT __acc FROM __r ORDER BY __i DESC LIMIT 1)");
         Ok(())
     }
 
     /// A temporal operand as a NAIVE timestamp: a DATE implicitly casts to timestamptz in Postgres's function
     /// resolution, which the session zone would then shift; a declared TIMESTAMPTZ stays one.
     fn naive<'a>(&'a self, e: &'a SqlExpr) -> P<'a> {
-        if matches!(type_of(e), Some(SqlType::Scalar(Scalar::Timestamp | Scalar::Timestamptz))) {
+        if matches!(
+            type_of(e),
+            Some(SqlType::Scalar(Scalar::Timestamp | Scalar::Timestamptz))
+        ) {
             return self.ex(e, 0);
         }
         pc(move |w| {
@@ -1364,7 +1482,9 @@ impl Postgres {
             return Ok(trunc);
         }
         // century/millennium/decade: Postgres counts from year 1 (2001), DuckDB from 2000
-        Err(Refusal::capability(format!("date_trunc part '{part}' has no probed Postgres spelling")))
+        Err(Refusal::capability(format!(
+            "date_trunc part '{part}' has no probed Postgres spelling"
+        )))
     }
 
     /// DuckDB's date_diff counts BOUNDARIES crossed, never elapsed time.
@@ -1423,7 +1543,9 @@ impl Postgres {
             })
         } else {
             // week is DuckDB's plain day count / 7, not a boundary count: unprobed beyond that, so it walls
-            return Err(Refusal::capability(format!("date_diff part '{part}' has no probed Postgres spelling")));
+            return Err(Refusal::capability(format!(
+                "date_diff part '{part}' has no probed Postgres spelling"
+            )));
         };
         Ok(pc(move |w| {
             w.append("CAST(");
@@ -1443,7 +1565,11 @@ impl Postgres {
             }
             return self.exact_remainder(w, a);
         }
-        if f == SqlFn::Mod { ansi::mod_floored(self, w, a) } else { ansi::mod_truncated(self, w, a) }
+        if f == SqlFn::Mod {
+            ansi::mod_floored(self, w, a)
+        } else {
+            ansi::mod_truncated(self, w, a)
+        }
     }
 
     /// Pure's `rem` of two Floats, exact as Java's `%` (Java's `exactRemainder`): each operand an integer times a
@@ -1515,14 +1641,21 @@ impl Postgres {
     /// The ACOS, ASIN arm: the engine's out-of-domain answer is NaN; Postgres raises.
     fn acos(&self, w: &mut SqlWriter, f: SqlFn, a: &[SqlExpr]) -> Result<(), Refusal> {
         let name = if f == SqlFn::Acos { "acos" } else { "asin" };
-        w.append("(CASE WHEN (").expr(self, arg(a, 0)?, 0)?.append(") BETWEEN -1 AND 1 THEN ").append(name);
-        w.append("(").expr(self, arg(a, 0)?, 0)?.append(") ELSE CAST('NaN' AS DOUBLE PRECISION) END)");
+        w.append("(CASE WHEN (")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(") BETWEEN -1 AND 1 THEN ")
+            .append(name);
+        w.append("(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(") ELSE CAST('NaN' AS DOUBLE PRECISION) END)");
         Ok(())
     }
 
     /// The REGEXP_EXTRACT arm: regexp_extract(s, p[, g]) is '' on a miss.
     fn regexp_extract(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("coalesce(regexp_substr(").expr(self, arg(a, 0)?, 0)?.append(", ");
+        w.append("coalesce(regexp_substr(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ");
         self.pattern(arg(a, 1)?, "", "")?(w)?;
         w.append(", 1, 1, '', ");
         if a.len() > 2 {
@@ -1561,11 +1694,18 @@ impl Postgres {
     /// The EXTRACT arm: DuckDB's date_part is an integer (seconds truncated); extract is numeric.
     fn extract_arm(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let part = date_part(part(arg(a, 0)?)?)?;
-        let probed = ["year", "quarter", "month", "week", "day", "doy", "dow", "isodow", "hour", "minute", "second"];
+        let probed = [
+            "year", "quarter", "month", "week", "day", "doy", "dow", "isodow", "hour", "minute", "second",
+        ];
         if !probed.contains(&part) {
-            return Err(Refusal::capability(format!("date part '{part}' has no probed Postgres spelling")));
+            return Err(Refusal::capability(format!(
+                "date part '{part}' has no probed Postgres spelling"
+            )));
         }
-        w.append("CAST(floor(extract(").append(part).append(" FROM ").expr(self, arg(a, 1)?, 0)?;
+        w.append("CAST(floor(extract(")
+            .append(part)
+            .append(" FROM ")
+            .expr(self, arg(a, 1)?, 0)?;
         w.append(")) AS BIGINT)");
         Ok(())
     }
@@ -1576,14 +1716,17 @@ impl Postgres {
         w.append(") WHEN 'null' THEN 'NULL' WHEN 'string' THEN 'VARCHAR'");
         w.append(" WHEN 'boolean' THEN 'BOOLEAN' WHEN 'array' THEN 'ARRAY' WHEN 'object' THEN 'OBJECT'");
         w.append(" WHEN 'number' THEN CASE WHEN (").expr(self, arg(a, 0)?, 0)?;
-        w.append(" #>> '{}') ~ '^-?[0-9]+$' THEN 'BIGINT'").append(" ELSE 'DOUBLE' END END)");
+        w.append(" #>> '{}') ~ '^-?[0-9]+$' THEN 'BIGINT'")
+            .append(" ELSE 'DOUBLE' END END)");
         Ok(())
     }
 
     /// The REGEXP_EXTRACT_ALL arm: group g of every match, the n-th by regexp_substr.
     fn regexp_extract_all(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let pat = self.pattern(arg(a, 1)?, "", "")?;
-        w.append("ARRAY(SELECT regexp_substr(").expr(self, arg(a, 0)?, 0)?.append(", ");
+        w.append("ARRAY(SELECT regexp_substr(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ");
         pat(w)?;
         w.append(", 1, __n, '', ");
         if a.len() > 2 {
@@ -1591,7 +1734,9 @@ impl Postgres {
         } else {
             w.append("0");
         }
-        w.append(") FROM generate_series(1, regexp_count(").expr(self, &a[0], 0)?.append(", ");
+        w.append(") FROM generate_series(1, regexp_count(")
+            .expr(self, &a[0], 0)?
+            .append(", ");
         pat(w)?;
         w.append(")) AS __g(__n) ORDER BY __n)");
         Ok(())
@@ -1635,7 +1780,9 @@ impl Postgres {
                 lead.clear();
             }
             if next >= a.len() {
-                return Err(Refusal::capability("a format with more directives than arguments reached Postgres"));
+                return Err(Refusal::capability(
+                    "a format with more directives than arguments reached Postgres",
+                ));
             }
             let x = &a[next];
             next += 1;
@@ -1662,7 +1809,8 @@ impl Postgres {
                              THEN floor(__hv) ELSE floor(__hv) + 1 END) ELSE round(__hv) END / {scale}, {precision}) \
                              FROM (SELECT CAST(CAST("
                         ));
-                        w.expr(self, x, 0)?.append(&format!(" AS TEXT) AS NUMERIC) * {scale} AS __hv) AS __he)"));
+                        w.expr(self, x, 0)?
+                            .append(&format!(" AS TEXT) AS NUMERIC) * {scale} AS __hv) AS __he)"));
                         Ok(())
                     });
                     pc(move |w| {
@@ -1702,7 +1850,9 @@ impl Postgres {
             }
         }
         if next != a.len() {
-            return Err(Refusal::capability("a format with more arguments than directives reached Postgres"));
+            return Err(Refusal::capability(
+                "a format with more arguments than directives reached Postgres",
+            ));
         }
         lead.push_str(&f[at..]);
         if !lead.is_empty() || parts.is_empty() {
@@ -1730,7 +1880,11 @@ impl Postgres {
         {
             flags = f;
             literal = Some(&lit[end..]);
-        } else if let SqlExpr::Call { r#fn: SqlFn::Concat, args, .. } = p
+        } else if let SqlExpr::Call {
+            r#fn: SqlFn::Concat,
+            args,
+            ..
+        } = p
             && args.len() == 2
             && let SqlExpr::StringLit { value, .. } = &args[0]
             && let Some((f, end)) = re2_flags(value)
@@ -1756,7 +1910,11 @@ impl Postgres {
         }
         Ok(pc(move |w| {
             w.append(&format!("('{options}{open}' || ")).expr(self, body, 0)?;
-            w.append(&if close.is_empty() { ")".to_owned() } else { format!(" || '{close}')") });
+            w.append(&if close.is_empty() {
+                ")".to_owned()
+            } else {
+                format!(" || '{close}')")
+            });
             Ok(())
         }))
     }
@@ -1771,11 +1929,17 @@ impl Postgres {
         r: &Reducer,
     ) -> Result<(), Refusal> {
         if r.args.len() == 1 && r.order_by.is_empty() && is_boolean(&r.args[0]) {
-            w.append(over_boolean).append("(").expr(self, &r.args[0], 0)?.append(")");
+            w.append(over_boolean)
+                .append("(")
+                .expr(self, &r.args[0], 0)?
+                .append(")");
             return Ok(());
         }
         if r.args.len() == 1 && r.order_by.is_empty() && is_json(&r.args[0]) {
-            w.append("(array_agg(").expr(self, &r.args[0], 0)?.append(" ORDER BY ").expr(self, &r.args[0], 0)?;
+            w.append("(array_agg(")
+                .expr(self, &r.args[0], 0)?
+                .append(" ORDER BY ")
+                .expr(self, &r.args[0], 0)?;
             w.append(direction).append(" NULLS LAST))[1]");
             return Ok(());
         }
@@ -1789,7 +1953,9 @@ impl Postgres {
                 "median of a non-number reached Postgres, whose percentile_cont interpolates numbers only",
             ));
         }
-        w.append("percentile_cont(0.5) WITHIN GROUP (ORDER BY ").expr(self, &r.args[0], 0)?.append(")");
+        w.append("percentile_cont(0.5) WITHIN GROUP (ORDER BY ")
+            .expr(self, &r.args[0], 0)?
+            .append(")");
         Ok(())
     }
 
@@ -1798,18 +1964,28 @@ impl Postgres {
         if r.args.len() != 1 || r.distinct || !r.order_by.is_empty() {
             return Err(Refusal::capability("a distinct or ordered mode reached Postgres"));
         }
-        w.append("mode() WITHIN GROUP (ORDER BY ").expr(self, &r.args[0], 0)?.append(")");
+        w.append("mode() WITHIN GROUP (ORDER BY ")
+            .expr(self, &r.args[0], 0)?
+            .append(")");
         Ok(())
     }
 
     /// `name(level) WITHIN GROUP (ORDER BY value[ DESC])`.
     fn percentile(&self, w: &mut SqlWriter, name: &str, r: &Reducer) -> Result<(), Refusal> {
         if r.args.len() != 2 || r.distinct || r.order_by.len() > 1 {
-            return Err(Refusal::capability(format!("{} of this shape reached Postgres", r.r#fn)));
+            return Err(Refusal::capability(format!(
+                "{} of this shape reached Postgres",
+                r.r#fn
+            )));
         }
         let desc = r.order_by.first().is_some_and(|k| !k.ascending);
-        w.append(name).append("(").expr(self, &r.args[1], 0)?.append(") WITHIN GROUP (ORDER BY ");
-        w.expr(self, &r.args[0], 0)?.append(if desc { " DESC" } else { "" }).append(")");
+        w.append(name)
+            .append("(")
+            .expr(self, &r.args[1], 0)?
+            .append(") WITHIN GROUP (ORDER BY ");
+        w.expr(self, &r.args[0], 0)?
+            .append(if desc { " DESC" } else { "" })
+            .append(")");
         Ok(())
     }
 
@@ -1822,7 +1998,8 @@ impl Postgres {
         w.append("array_agg(").append(if r.distinct { "DISTINCT " } else { "" });
         encode(self.ex(x, 0), type_of(x))(w)?;
         if !r.order_by.is_empty() {
-            w.append(" ORDER BY ").join(&r.order_by, ", ", |w, k| ansi::aggregate_order_key(self, w, k))?;
+            w.append(" ORDER BY ")
+                .join(&r.order_by, ", ", |w, k| ansi::aggregate_order_key(self, w, k))?;
         }
         w.append(")");
         Ok(())
@@ -1831,10 +2008,19 @@ impl Postgres {
     /// The value at the first row in the key's `direction`, rows of a NULL key ignored (DuckDB's arg_max/arg_min).
     fn arg_extreme(&self, w: &mut SqlWriter, direction: &str, r: &Reducer) -> Result<(), Refusal> {
         if r.args.len() != 2 || r.distinct || !r.order_by.is_empty() {
-            return Err(Refusal::capability(format!("{} of this shape reached Postgres", r.r#fn)));
+            return Err(Refusal::capability(format!(
+                "{} of this shape reached Postgres",
+                r.r#fn
+            )));
         }
-        w.append("(array_agg(").expr(self, &r.args[0], 0)?.append(" ORDER BY ").expr(self, &r.args[1], 0)?;
-        w.append(direction).append(") FILTER (WHERE ").expr(self, &r.args[1], 0)?.append(" IS NOT NULL))[1]");
+        w.append("(array_agg(")
+            .expr(self, &r.args[0], 0)?
+            .append(" ORDER BY ")
+            .expr(self, &r.args[1], 0)?;
+        w.append(direction)
+            .append(") FILTER (WHERE ")
+            .expr(self, &r.args[1], 0)?
+            .append(" IS NOT NULL))[1]");
         Ok(())
     }
 
@@ -1885,7 +2071,9 @@ impl Postgres {
             && held_as_itself(element)
         {
             let carrier = self.carrier(element)?;
-            w.append("CAST(").expr(self, value, 0)?.append(&format!(" AS {carrier}[])"));
+            w.append("CAST(")
+                .expr(self, value, 0)?
+                .append(&format!(" AS {carrier}[])"));
             return Ok(());
         }
         if let Some(from) = from
@@ -2155,11 +2343,15 @@ impl AnsiSqlRenderer for Postgres {
     fn stored_read(&self, w: &mut SqlWriter, column: &Column, stored: &ColumnType) -> Result<(), Refusal> {
         match jsonb_read(stored) {
             JsonbRead::Cast => {
-                w.append("CAST(").expr(self, &SqlExpr::Column(column.clone()), 0)?.append(" AS JSONB)");
+                w.append("CAST(")
+                    .expr(self, &SqlExpr::Column(column.clone()), 0)?
+                    .append(" AS JSONB)");
                 Ok(())
             }
             JsonbRead::Convert => {
-                w.append("to_jsonb(").expr(self, &SqlExpr::Column(column.clone()), 0)?.append(")");
+                w.append("to_jsonb(")
+                    .expr(self, &SqlExpr::Column(column.clone()), 0)?
+                    .append(")");
                 Ok(())
             }
             JsonbRead::None => ansi::stored_read(self, w, column, stored),
@@ -2190,14 +2382,21 @@ impl AnsiSqlRenderer for Postgres {
             return self.label(w, p);
         }
         if let Some(out) = &p.out
-            && let SqlExpr::Call { r#fn: SqlFn::Error, args, .. } = &p.expr
+            && let SqlExpr::Call {
+                r#fn: SqlFn::Error,
+                args,
+                ..
+            } = &p.expr
         {
             self.raise_in(args, Some(&out.r#type))(w)?;
             return self.label(w, p);
         }
         if let Some(out) = &p.out
             && matches!(p.expr.r#type(), TypeFact::Bottom)
-            && matches!(out.r#type, SqlType::Scalar(_) | SqlType::Decimal { .. } | SqlType::Struct { .. })
+            && matches!(
+                out.r#type,
+                SqlType::Scalar(_) | SqlType::Decimal { .. } | SqlType::Struct { .. }
+            )
         {
             w.append("CAST(").expr(self, &p.expr, 0)?;
             let ty = if matches!(out.r#type, SqlType::Struct { .. }) {
@@ -2227,12 +2426,20 @@ impl AnsiSqlRenderer for Postgres {
             return name.to_owned();
         }
         let folded = name.to_lowercase();
-        if bare(&folded) && !self.lexicon().is_reserved(&folded) { folded } else { self.delimited(&folded) }
+        if bare(&folded) && !self.lexicon().is_reserved(&folded) {
+            folded
+        } else {
+            self.delimited(&folded)
+        }
     }
 
     /// A DDL column the store declared bare is a [`AnsiSqlRenderer::physical_name`].
     fn ddl_identifier(&self, name: &str, declared_quoted: bool) -> String {
-        if declared_quoted { self.delimited(name) } else { self.physical_name(name) }
+        if declared_quoted {
+            self.delimited(name)
+        } else {
+            self.physical_name(name)
+        }
     }
 
     /// A stored table, each part a stored name.
@@ -2286,7 +2493,11 @@ impl AnsiSqlRenderer for Postgres {
     /// A date-time finer than a microsecond is a TIMESTAMP of its first six digits, as its literal is.
     fn hole_type(&self, kind: ValueKind) -> Result<TypeSpelling, Refusal> {
         if kind == ValueKind::DateTimeNanos {
-            return Ok(TypeSpelling { name: "TIMESTAMP".to_owned(), digits: Digits::None, fraction: Some(6) });
+            return Ok(TypeSpelling {
+                name: "TIMESTAMP".to_owned(),
+                digits: Digits::None,
+                fraction: Some(6),
+            });
         }
         ansi::hole_type(kind)
     }
@@ -2296,7 +2507,10 @@ impl AnsiSqlRenderer for Postgres {
         // by UTF-16 unit, a digit as Java's Character.isDigit says
         let units: Vec<u16> = iso.encode_utf16().collect();
         if let Some(dot) = units.iter().rposition(|&u| u == u16::from(b'.')) {
-            let digits = units[dot + 1..].iter().take_while(|&&u| lite_javacompat::character::is_digit(u)).count();
+            let digits = units[dot + 1..]
+                .iter()
+                .take_while(|&&u| lite_javacompat::character::is_digit(u))
+                .count();
             let end = dot + 1 + digits;
             if digits > 6 {
                 let kept = String::from_utf16_lossy(&units[..dot + 7]);
@@ -2310,7 +2524,9 @@ impl AnsiSqlRenderer for Postgres {
     /// Postgres text cannot hold NUL.
     fn string_lit(&self, value: &str) -> Result<String, Refusal> {
         if value.contains('\0') {
-            return Err(Refusal::capability("a string holding NUL reached Postgres, whose text type cannot hold it"));
+            return Err(Refusal::capability(
+                "a string holding NUL reached Postgres, whose text type cannot hold it",
+            ));
         }
         Ok(ansi::string_lit(value))
     }
@@ -2329,7 +2545,10 @@ impl AnsiSqlRenderer for Postgres {
         }
         // a Variant as a map: its members as entries, in jsonb's own key order
         if matches!(target, SqlType::Map { .. }) && is_json(value) {
-            w.append("(CASE WHEN ").expr(self, value, 0)?.append(" IS NULL OR jsonb_typeof(").expr(self, value, 0)?;
+            w.append("(CASE WHEN ")
+                .expr(self, value, 0)?
+                .append(" IS NULL OR jsonb_typeof(")
+                .expr(self, value, 0)?;
             w.append(
                 ") = 'null' THEN NULL ELSE ARRAY(SELECT jsonb_build_object('key', to_jsonb(__mk), 'value', __mv) FROM \
                  jsonb_each(",
@@ -2376,7 +2595,12 @@ impl AnsiSqlRenderer for Postgres {
         }
         let marker = matches!(target, SqlType::Scalar(Scalar::TemporalText | Scalar::DecimalText));
         if !marker {
-            if let SqlExpr::Call { r#fn: SqlFn::VariantGet, args, .. } = value {
+            if let SqlExpr::Call {
+                r#fn: SqlFn::VariantGet,
+                args,
+                ..
+            } = value
+            {
                 return self.variant_get_cast(w, args, target);
             }
             // a whole value to a scalar reads its text; to TEXT it is its JSON text, as DuckDB's cast
@@ -2402,7 +2626,10 @@ impl AnsiSqlRenderer for Postgres {
             return Ok(());
         }
         if matches!(value, SqlExpr::StringLit { .. })
-            && !matches!(target, SqlType::Scalar(Scalar::Varchar | Scalar::TemporalText | Scalar::DecimalText))
+            && !matches!(
+                target,
+                SqlType::Scalar(Scalar::Varchar | Scalar::TemporalText | Scalar::DecimalText)
+            )
         {
             return ansi::variant_aware_cast(self, w, &typed_text(value), target, false);
         }
@@ -2418,16 +2645,27 @@ impl AnsiSqlRenderer for Postgres {
         }
         if !matches!(key, SqlExpr::IntLit { .. }) && is_numeric(key) {
             // a computed index: Postgres's -> takes an int or a text, never a bigint
-            w.append("(").expr(self, &args[0], 8)?.append(" -> CAST(").expr(self, key, 0)?.append(" AS INTEGER))");
+            w.append("(")
+                .expr(self, &args[0], 8)?
+                .append(" -> CAST(")
+                .expr(self, key, 0)?
+                .append(" AS INTEGER))");
             return Ok(());
         }
-        w.append("(").expr(self, &args[0], 8)?.append(" -> ").expr(self, key, 8)?.append(")");
+        w.append("(")
+            .expr(self, &args[0], 8)?
+            .append(" -> ")
+            .expr(self, key, 8)?
+            .append(")");
         Ok(())
     }
 
     fn variant_construct(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() != 1 {
-            return Err(Refusal::capability(format!("toVariant of {} arguments reached Postgres", a.len())));
+            return Err(Refusal::capability(format!(
+                "toVariant of {} arguments reached Postgres",
+                a.len()
+            )));
         }
         let x = &a[0];
         if matches!(x, SqlExpr::StringLit { .. }) {
@@ -2439,7 +2677,9 @@ impl AnsiSqlRenderer for Postgres {
         }
         if matches!(list_element(x), Some(SqlType::Scalar(Scalar::Double))) {
             // a list of doubles, each element so (in order; a null list null, an empty one [])
-            w.append("(CASE WHEN ").expr(self, x, 0)?.append(" IS NULL THEN NULL ELSE COALESCE((SELECT jsonb_agg(");
+            w.append("(CASE WHEN ")
+                .expr(self, x, 0)?
+                .append(" IS NULL THEN NULL ELSE COALESCE((SELECT jsonb_agg(");
             double_jsonb(text("__ve"))(w)?;
             w.append(" ORDER BY __vo) FROM unnest(").expr(self, x, 0)?;
             w.append(") WITH ORDINALITY AS __v(__ve, __vo)), CAST('[]' AS JSONB)) END)");
@@ -2472,7 +2712,9 @@ impl AnsiSqlRenderer for Postgres {
             }
         }
         let Some(t) = t else {
-            return Err(Refusal::capability(format!("a field '{field}' of unknown type reached Postgres")));
+            return Err(Refusal::capability(format!(
+                "a field '{field}' of unknown type reached Postgres"
+            )));
         };
         let read = pc(move |w| {
             w.append("(").expr(self, source, 8)?;
@@ -2501,11 +2743,14 @@ impl AnsiSqlRenderer for Postgres {
                     let order = text(p1.clone());
                     return self.over_elements(xs, first, p0, p1, select, Some(body), order)(w);
                 }
-                Err(Refusal::illegal_state("LIST_TRANSFORM is rendered with its result type (call)"))
+                Err(Refusal::illegal_state(
+                    "LIST_TRANSFORM is rendered with its result type (call)",
+                ))
             }
             // NULL || xs is xs, as DuckDB's list_concat
             SqlFn::ListConcat => {
-                w.append("(").join(args, " || ", |w, e| self.list_of(e, f.as_str())?(w))?;
+                w.append("(")
+                    .join(args, " || ", |w, e| self.list_of(e, f.as_str())?(w))?;
                 w.append(")");
                 Ok(())
             }
@@ -2524,7 +2769,11 @@ impl AnsiSqlRenderer for Postgres {
                     Ok(())
                 });
                 // an inner list is held as jsonb: read back as a list
-                if rebuilt(Some(&first)) { self.decode(at, &first, 0)(w) } else { at(w) }
+                if rebuilt(Some(&first)) {
+                    self.decode(at, &first, 0)(w)
+                } else {
+                    at(w)
+                }
             }
             SqlFn::ListPosition => {
                 w.append("array_position(");
@@ -2536,7 +2785,9 @@ impl AnsiSqlRenderer for Postgres {
             SqlFn::ListDistinct => {
                 w.append("(CASE WHEN ");
                 xs(w)?;
-                w.append(" IS NULL THEN NULL ELSE ARRAY(SELECT ").append(&x).append(" FROM ");
+                w.append(" IS NULL THEN NULL ELSE ARRAY(SELECT ")
+                    .append(&x)
+                    .append(" FROM ");
                 unnest(xs.clone())(w)?;
                 w.append(&format!(" WITH ORDINALITY AS __u({x}, __o) WHERE "));
                 w.append(&format!("{x} IS NOT NULL GROUP BY {x} ORDER BY min(__o)) END)"));
@@ -2578,17 +2829,29 @@ impl AnsiSqlRenderer for Postgres {
             SqlFn::ListSlice => {
                 w.append("(");
                 xs(w)?;
-                w.append(")[").expr(self, arg(args, 1)?, 0)?.append(":").expr(self, arg(args, 2)?, 0)?.append("]");
+                w.append(")[")
+                    .expr(self, arg(args, 1)?, 0)?
+                    .append(":")
+                    .expr(self, arg(args, 2)?, 0)?
+                    .append("]");
                 Ok(())
             }
             SqlFn::ListSum => self.over_reduce(xs, format!("sum({x})"))(w),
             // a Boolean list's extremes: false < true, and Postgres has no max(boolean)
             SqlFn::ListMin => {
-                let f = if first == SqlType::Scalar(Scalar::Boolean) { "bool_and(" } else { "min(" };
+                let f = if first == SqlType::Scalar(Scalar::Boolean) {
+                    "bool_and("
+                } else {
+                    "min("
+                };
                 self.over_reduce(xs, format!("{f}{x})"))(w)
             }
             SqlFn::ListMax => {
-                let f = if first == SqlType::Scalar(Scalar::Boolean) { "bool_or(" } else { "max(" };
+                let f = if first == SqlType::Scalar(Scalar::Boolean) {
+                    "bool_or("
+                } else {
+                    "max("
+                };
                 self.over_reduce(xs, format!("{f}{x})"))(w)
             }
             SqlFn::ListAvg => self.over_reduce(xs, format!("CAST(avg({x}) AS DOUBLE PRECISION)"))(w),
@@ -2614,7 +2877,10 @@ impl AnsiSqlRenderer for Postgres {
             Ok(())
         };
         let cast_double = |w: &mut SqlWriter, name: &str| -> Result<(), Refusal> {
-            w.append(name).append("(CAST(").expr(self, arg(a, 0)?, 0)?.append(" AS DOUBLE PRECISION))");
+            w.append(name)
+                .append("(CAST(")
+                .expr(self, arg(a, 0)?, 0)?
+                .append(" AS DOUBLE PRECISION))");
             Ok(())
         };
         match f {
@@ -2728,13 +2994,17 @@ impl AnsiSqlRenderer for Postgres {
             // ---- arithmetic
             // Pure's pow is a Float, as DuckDB's power answers; Postgres's power over numeric is numeric
             F::Pow => {
-                w.append("power(CAST(").expr(self, arg(a, 0)?, 0)?.append(" AS DOUBLE PRECISION), CAST(");
+                w.append("power(CAST(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(" AS DOUBLE PRECISION), CAST(");
                 w.expr(self, arg(a, 1)?, 0)?.append(" AS DOUBLE PRECISION))");
                 Ok(())
             }
             // Pure's divide is a Float division: both operands DOUBLE PRECISION
             F::Divide => {
-                w.append("(CAST(").expr(self, arg(a, 0)?, 0)?.append(" AS DOUBLE PRECISION) / CAST(");
+                w.append("(CAST(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(" AS DOUBLE PRECISION) / CAST(");
                 w.expr(self, arg(a, 1)?, 0)?.append(" AS DOUBLE PRECISION))");
                 Ok(())
             }
@@ -2747,7 +3017,10 @@ impl AnsiSqlRenderer for Postgres {
             }
             // DuckDB's // truncates toward zero; so does div() (numeric)
             F::IntDivide => {
-                w.append("CAST(div(").expr(self, arg(a, 0)?, 0)?.append(", ").expr(self, arg(a, 1)?, 0)?;
+                w.append("CAST(div(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", ")
+                    .expr(self, arg(a, 1)?, 0)?;
                 w.append(") AS BIGINT)");
                 Ok(())
             }
@@ -2766,7 +3039,10 @@ impl AnsiSqlRenderer for Postgres {
                 Ok(())
             }
             F::EndsWith => {
-                w.append("(right(").expr(self, arg(a, 0)?, 0)?.append(", length(").expr(self, arg(a, 1)?, 0)?;
+                w.append("(right(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", length(")
+                    .expr(self, arg(a, 1)?, 0)?;
                 w.append(")) = ").expr(self, &a[1], 0)?.append(")");
                 Ok(())
             }
@@ -2793,12 +3069,16 @@ impl AnsiSqlRenderer for Postgres {
                 Ok(())
             }
             F::DecodeBase64 => {
-                w.append("convert_from(decode(").expr(self, arg(a, 0)?, 0)?.append(", 'base64'), 'UTF8')");
+                w.append("convert_from(decode(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", 'base64'), 'UTF8')");
                 Ok(())
             }
             // sha256 is bytea here; the reference is lowercase hex text
             F::Sha256 => {
-                w.append("encode(sha256(convert_to(").expr(self, arg(a, 0)?, 0)?.append(", 'UTF8')), 'hex')");
+                w.append("encode(sha256(convert_to(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", 'UTF8')), 'hex')");
                 Ok(())
             }
             F::Guid => {
@@ -2841,7 +3121,10 @@ impl AnsiSqlRenderer for Postgres {
             F::MakeTimestamp => self.make_timestamp(w, a),
             // (unitFn, amount, date): amount × a one-unit interval
             F::AddInterval | F::AddIntervalTemporal => ansi::op(w, parent_prec, &|w| {
-                w.expr(self, arg(a, 2)?, 5)?.append(" + ").expr(self, arg(a, 1)?, 6)?.append(" * INTERVAL '1 ");
+                w.expr(self, arg(a, 2)?, 5)?
+                    .append(" + ")
+                    .expr(self, arg(a, 1)?, 6)?
+                    .append(" * INTERVAL '1 ");
                 w.append(interval_unit(part(arg(a, 0)?)?)?).append("'");
                 Ok(())
             }),
@@ -2850,24 +3133,30 @@ impl AnsiSqlRenderer for Postgres {
             F::TimeBucket => self.time_bucket(w, a),
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             F::EpochSeconds => {
-                w.append("CAST(extract(epoch FROM ").expr(self, arg(a, 0)?, 0)?.append(") AS DOUBLE PRECISION)");
+                w.append("CAST(extract(epoch FROM ")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(") AS DOUBLE PRECISION)");
                 Ok(())
             }
             F::EpochNs | F::FromEpochNs => Err(Refusal::capability(
                 "a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)",
             )),
             F::EpochMs => {
-                w.append("CAST(trunc(extract(epoch FROM ").expr(self, arg(a, 0)?, 0)?.append(") * 1000) AS BIGINT)");
+                w.append("CAST(trunc(extract(epoch FROM ")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(") * 1000) AS BIGINT)");
                 Ok(())
             }
             // epoch arithmetic on a naive timestamp: no session zone involved
             F::FromEpochSeconds => ansi::op(w, parent_prec, &|w| {
-                w.append("TIMESTAMP '1970-01-01 00:00:00' + ").expr(self, arg(a, 0)?, 6)?;
+                w.append("TIMESTAMP '1970-01-01 00:00:00' + ")
+                    .expr(self, arg(a, 0)?, 6)?;
                 w.append(" * INTERVAL '1 second'");
                 Ok(())
             }),
             F::FromEpochMs => ansi::op(w, parent_prec, &|w| {
-                w.append("TIMESTAMP '1970-01-01 00:00:00' + CAST(").expr(self, arg(a, 0)?, 0)?;
+                w.append("TIMESTAMP '1970-01-01 00:00:00' + CAST(")
+                    .expr(self, arg(a, 0)?, 0)?;
                 w.append(" AS BIGINT) * INTERVAL '1 millisecond'");
                 Ok(())
             }),
@@ -2877,13 +3166,16 @@ impl AnsiSqlRenderer for Postgres {
                 self.raise(a, None, unnestable)(w)
             }
             // ---- walls
-            F::Strptime => {
-                Err(wall(f, "to_timestamp(text, fmt) is lenient and zone-bound; not yet probed against the reference"))
-            }
+            F::Strptime => Err(wall(
+                f,
+                "to_timestamp(text, fmt) is lenient and zone-bound; not yet probed against the reference",
+            )),
             F::Format => self.format(a)?(w),
             // SHA-1 is pgcrypto's digest()
             F::Sha1 => {
-                w.append("encode(digest(convert_to(").expr(self, arg(a, 0)?, 0)?.append(", 'UTF8'), 'sha1'), 'hex')");
+                w.append("encode(digest(convert_to(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", 'UTF8'), 'sha1'), 'hex')");
                 Ok(())
             }
             F::Levenshtein => levenshtein(self, arg(a, 0)?, arg(a, 1)?)(w),
@@ -2908,7 +3200,13 @@ impl AnsiSqlRenderer for Postgres {
                     w.expr(self, x, 0)?;
                     return Ok(());
                 }
-                self.decode(self.ex(x, 0), &SqlType::Array { element: Box::new(json_type()) }, 0)(w)
+                self.decode(
+                    self.ex(x, 0),
+                    &SqlType::Array {
+                        element: Box::new(json_type()),
+                    },
+                    0,
+                )(w)
             }
             F::JsonMergePatch => Err(wall(f, "variant over jsonb is leg P4")),
             // ---- lists: a list of scalars is a native array
@@ -2937,7 +3235,10 @@ impl AnsiSqlRenderer for Postgres {
             // the list-making calls whose first argument is no list
             F::RangeFn => self.range(w, a),
             F::RepeatValue => {
-                w.append("array_fill(").expr(self, arg(a, 0)?, 0)?.append(", ARRAY[CAST(").expr(self, arg(a, 1)?, 0)?;
+                w.append("array_fill(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", ARRAY[CAST(")
+                    .expr(self, arg(a, 1)?, 0)?;
                 w.append(" AS INTEGER)])");
                 Ok(())
             }
@@ -2978,7 +3279,10 @@ impl AnsiSqlRenderer for Postgres {
 
     /// Pure's splitPart: the non-empty tokens, 1-based, NULL past either end, as an array index is.
     fn split_part_call(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("(array_remove(string_to_array(").expr(self, arg(a, 0)?, 0)?.append(", ").expr(self, arg(a, 1)?, 0)?;
+        w.append("(array_remove(string_to_array(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ")
+            .expr(self, arg(a, 1)?, 0)?;
         w.append("), ''))[").expr(self, arg(a, 2)?, 0)?.append("]");
         Ok(())
     }
@@ -3006,7 +3310,9 @@ impl AnsiSqlRenderer for Postgres {
     /// DuckDB's list_contains: NULL for a NULL list; found by IS NOT DISTINCT FROM, as array_position.
     fn membership(&self, w: &mut SqlWriter, needle: &SqlExpr, collection: &SqlExpr) -> Result<(), Refusal> {
         let element = element_of(collection, "membership")?;
-        w.append("(CASE WHEN ").expr(self, collection, 0)?.append(" IS NULL THEN NULL ELSE array_position(");
+        w.append("(CASE WHEN ")
+            .expr(self, collection, 0)?
+            .append(" IS NULL THEN NULL ELSE array_position(");
         w.expr(self, collection, 0)?.append(", ");
         encode(self.ex(needle, 0), Some(element))(w)?;
         w.append(") IS NOT NULL END)");
@@ -3061,7 +3367,14 @@ impl AnsiSqlRenderer for Postgres {
     /// fold(xs, {element, accumulator | body}, init): a correlated recursive walk, the accumulator typed as the fold's
     /// result (a scalar, or a list of scalars).
     fn fold_call(&self, w: &mut SqlWriter, fold: &SqlExpr) -> Result<(), Refusal> {
-        let SqlExpr::FoldCall { source, lambda, init, r#type, .. } = fold else {
+        let SqlExpr::FoldCall {
+            source,
+            lambda,
+            init,
+            r#type,
+            ..
+        } = fold
+        else {
             return Err(Refusal::illegal_state("a fold's call is no fold"));
         };
         let held = |t: &SqlType| {
@@ -3078,15 +3391,20 @@ impl AnsiSqlRenderer for Postgres {
         let ty = cast_type_name(self, t)?;
         let elem = self.param_at(&lambda.params, 0)?;
         let acc = self.param_at(&lambda.params, 1)?;
-        w.append("(WITH RECURSIVE __f(__i, __acc) AS (SELECT 0, CAST(").expr(self, init, 0)?;
-        w.append(&format!(" AS {ty})")).append(" UNION ALL SELECT __f.__i + 1, CAST(").expr(self, &lambda.body, 0)?;
-        w.append(&format!(" AS {ty})")).append(" FROM __f CROSS JOIN LATERAL (SELECT (");
+        w.append("(WITH RECURSIVE __f(__i, __acc) AS (SELECT 0, CAST(")
+            .expr(self, init, 0)?;
+        w.append(&format!(" AS {ty})"))
+            .append(" UNION ALL SELECT __f.__i + 1, CAST(")
+            .expr(self, &lambda.body, 0)?;
+        w.append(&format!(" AS {ty})"))
+            .append(" FROM __f CROSS JOIN LATERAL (SELECT (");
         xs(w)?;
         w.append(&format!(
             ")[__f.__i + 1] AS {elem}, __f.__acc AS {acc}) AS __b WHERE __f.__i < coalesce(cardinality("
         ));
         xs(w)?;
-        w.append("), 0))").append(" SELECT __acc FROM __f ORDER BY __i DESC LIMIT 1)");
+        w.append("), 0))")
+            .append(" SELECT __acc FROM __f ORDER BY __i DESC LIMIT 1)");
         Ok(())
     }
 
@@ -3132,7 +3450,9 @@ impl AnsiSqlRenderer for Postgres {
     /// the even neighbour.
     fn round_half_even(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() == 1 {
-            w.append("round(CAST(").expr(self, &a[0], 0)?.append(" AS DOUBLE PRECISION))");
+            w.append("round(CAST(")
+                .expr(self, &a[0], 0)?
+                .append(" AS DOUBLE PRECISION))");
             return Ok(());
         }
         let scale = pc(move |w| {
@@ -3148,7 +3468,9 @@ impl AnsiSqlRenderer for Postgres {
                 w.append(")");
                 Ok(())
             });
-            w.append("(round(CAST(").expr(self, x, 0)?.append(" AS DOUBLE PRECISION) * ");
+            w.append("(round(CAST(")
+                .expr(self, x, 0)?
+                .append(" AS DOUBLE PRECISION) * ");
             p(w)?;
             w.append(") / ");
             p(w)?;
@@ -3197,8 +3519,13 @@ impl AnsiSqlRenderer for Postgres {
             SqlFn::BitShiftRight => (">>", true),
             other => return Err(Refusal::illegal_state(format!("not a bit op: {other}"))),
         };
-        w.append("(CAST(").expr(self, arg(a, 0)?, 0)?.append(" AS BIGINT) ").append(op).append(" CAST(");
-        w.expr(self, arg(a, 1)?, 0)?.append(if shift { " AS INTEGER))" } else { " AS BIGINT))" });
+        w.append("(CAST(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(" AS BIGINT) ")
+            .append(op)
+            .append(" CAST(");
+        w.expr(self, arg(a, 1)?, 0)?
+            .append(if shift { " AS INTEGER))" } else { " AS BIGINT))" });
         Ok(())
     }
 
@@ -3264,7 +3591,10 @@ impl AnsiSqlRenderer for Postgres {
         frame: Option<&Frame>,
     ) -> Result<(), Refusal> {
         if let SqlAgg::Reducer(r) = f {
-            if matches!(r.r#fn, AggFn::Median | AggFn::Mode | AggFn::QuantileCont | AggFn::QuantileDisc) {
+            if matches!(
+                r.r#fn,
+                AggFn::Median | AggFn::Mode | AggFn::QuantileCont | AggFn::QuantileDisc
+            ) {
                 return Err(Refusal::capability(format!(
                     "{} over a window reached Postgres, where ordered-set aggregates take no OVER clause",
                     r.r#fn
@@ -3310,7 +3640,9 @@ impl AnsiSqlRenderer for Postgres {
         w.append("coalesce(json_agg(").expr(self, value, 0)?;
         if !order_keys.is_empty() {
             w.append(" ORDER BY ").join(order_keys, ", ", |w, k| {
-                w.expr(self, &k.expr, 0)?.append(if k.desc { " DESC" } else { " ASC" }).append(" NULLS LAST");
+                w.expr(self, &k.expr, 0)?
+                    .append(if k.desc { " DESC" } else { " ASC" })
+                    .append(" NULLS LAST");
                 Ok(())
             })?;
         }
@@ -3366,7 +3698,9 @@ impl AnsiSqlRenderer for Postgres {
             Scalar::Json => "JSONB",
             Scalar::Time => "TIME",
             Scalar::DecimalText => {
-                return Err(Refusal::illegal_state(format!("{s} cast reached a dialect without {s} support")));
+                return Err(Refusal::illegal_state(format!(
+                    "{s} cast reached a dialect without {s} support"
+                )));
             }
         }
         .to_owned())
@@ -3375,7 +3709,9 @@ impl AnsiSqlRenderer for Postgres {
     /// No STRUCT type here: a struct cast is refused.
     fn struct_type_name(&self, fields: &[StructField]) -> Result<String, Refusal> {
         let _ = fields;
-        Err(Refusal::capability("a STRUCT type reached a dialect without struct support"))
+        Err(Refusal::capability(
+            "a STRUCT type reached a dialect without struct support",
+        ))
     }
 
     /// A map is its entries, a jsonb[] of `{"key", "value"}`.
@@ -3399,12 +3735,16 @@ impl AnsiSqlRenderer for Postgres {
                 ColumnKind::Time => "TIME",
                 // a nanosecond timestamp column: Postgres's timestamps keep microseconds
                 ColumnKind::TimestampNs => {
-                    return Err(Refusal::capability("a TIMESTAMP_NS column: Postgres keeps microseconds"));
+                    return Err(Refusal::capability(
+                        "a TIMESTAMP_NS column: Postgres keeps microseconds",
+                    ));
                 }
                 ColumnKind::Json => "JSONB",
                 ColumnKind::Varchar => "VARCHAR",
                 ColumnKind::Other | ColumnKind::Distinct | ColumnKind::Array | ColumnKind::Object => {
-                    return Err(Refusal::illegal_state(format!("no DDL spelling for declared column type {kind}")));
+                    return Err(Refusal::illegal_state(format!(
+                        "no DDL spelling for declared column type {kind}"
+                    )));
                 }
             }
             .to_owned(),
@@ -3431,7 +3771,9 @@ impl AnsiSqlRenderer for Postgres {
     /// Refused, as TYPEOF is here (its type names are Postgres's).
     fn typeof_name(&self, scalar: Scalar) -> Result<String, Refusal> {
         let _ = scalar;
-        Err(Refusal::capability("typeof reached Postgres: its type names are Postgres's"))
+        Err(Refusal::capability(
+            "typeof reached Postgres: its type names are Postgres's",
+        ))
     }
 
     /// Measured on Postgres 16: the standard spellings of the store writes, each statement atomic on an error.

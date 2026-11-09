@@ -126,14 +126,20 @@ fn the_interfaces_defaults_answer_as_javas() {
         "reading this database's catalog type 'POINT' is not implemented for Plain"
     );
     let r = d.catalog_columns_query("s", "t").unwrap_err();
-    assert_eq!((r.class, r.kind()), (Refusal::UNSUPPORTED_OPERATION, "UNSUPPORTED_OPERATION"));
+    assert_eq!(
+        (r.class, r.kind()),
+        (Refusal::UNSUPPORTED_OPERATION, "UNSUPPORTED_OPERATION")
+    );
     assert_eq!(r.message, "the platform asks no catalog question of Plain");
     assert_eq!(
         d.bare_name_reaches("x").unwrap_err().message,
         "reading this database's catalog names is not implemented for Plain"
     );
     assert_eq!(d.copy_select_list(&[]).unwrap(), "*");
-    let one = [Conversion { column: "a".into(), sql: "b".into() }];
+    let one = [Conversion {
+        column: "a".into(),
+        sql: "b".into(),
+    }];
     assert_eq!(
         d.copy_select_list(&one).unwrap_err().message,
         "a copy that converts columns in its star select is not implemented for Plain"
@@ -151,7 +157,10 @@ fn the_interfaces_defaults_answer_as_javas() {
 
 #[test]
 fn queries_render_as_text_inline_and_statements() {
-    assert_eq!(ok("query.render", &wrap("query", RAW_SELECT)), r#""SELECT *\nFROM (select 3 as V) AS _p\nLIMIT 0""#);
+    assert_eq!(
+        ok("query.render", &wrap("query", RAW_SELECT)),
+        r#""SELECT *\nFROM (select 3 as V) AS _p\nLIMIT 0""#
+    );
     assert_eq!(
         ok("query.renderInline", &wrap("query", RAW_SELECT)),
         r#""SELECT * FROM (select 3 as V) AS _p LIMIT 0""#
@@ -183,13 +192,21 @@ fn the_spec_carries_the_engines_scan_order() {
     let fired = || ok("scanOrderFirings", "{}").parse::<u64>().unwrap();
     let before = fired();
     let ordered = dispatch(spec, "query.render", &wrap("query", join)).unwrap();
-    assert!(ordered.contains("ORDER BY t0.rowid NULLS LAST, t1.rowid NULLS LAST"), "{ordered}");
+    assert!(
+        ordered.contains("ORDER BY t0.rowid NULLS LAST, t1.rowid NULLS LAST"),
+        "{ordered}"
+    );
     // the statement changed, so the process's count moved (other tests render beside this one: at least one)
     assert!(fired() > before, "StableScanOrder's firings did not move");
     // missing: off; a server: DuckDB's text depends on none
     let bare = dispatch(r#"{"dialect":"DuckDb"}"#, "query.render", &wrap("query", join)).unwrap();
     assert_eq!(bare, plain);
-    let served = dispatch(r#"{"dialect":"DuckDb","server":"1.4.1"}"#, "query.render", &wrap("query", join)).unwrap();
+    let served = dispatch(
+        r#"{"dialect":"DuckDb","server":"1.4.1"}"#,
+        "query.render",
+        &wrap("query", join),
+    )
+    .unwrap();
     assert_eq!(served, plain);
 }
 
@@ -199,20 +216,29 @@ fn ddl_and_dml_render() {
         ok("ddl.render", &wrap("ddl", CREATE_TABLE)),
         r#""Create Table T(ID INTEGER NOT NULL, PRIMARY KEY(ID));""#
     );
-    assert_eq!(ok("dml.render", &wrap("dml", INSERT_VALUES)), r#""INSERT INTO T (ID) VALUES ('2');""#);
+    assert_eq!(
+        ok("dml.render", &wrap("dml", INSERT_VALUES)),
+        r#""INSERT INTO T (ID) VALUES ('2');""#
+    );
     assert_eq!(
         ok("dml.renderStatement", &wrap("dml", INSERT_FROM_TABLE)),
         r#"{"sql":"INSERT INTO s.t SELECT * FROM legend_row_load;","binds":[],"regions":[]}"#
     );
     // a DDL statement read as DML is refused by MirJson's reader
     let r = refused("dml.render", &wrap("dml", CREATE_TABLE));
-    assert_eq!((r.class, r.message.as_str()), (Refusal::ILLEGAL_ARGUMENT, "unknown DML statement tag 'createTable'"));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_ARGUMENT, "unknown DML statement tag 'createTable'")
+    );
 }
 
 #[test]
 fn a_session_table_is_its_table_then_its_rows() {
     assert_eq!(
-        ok("sessionTable", &format!(r#"{{"table":{CREATE_TABLE},"rows":{INSERT_VALUES}}}"#)),
+        ok(
+            "sessionTable",
+            &format!(r#"{{"table":{CREATE_TABLE},"rows":{INSERT_VALUES}}}"#)
+        ),
         r#"["Create Table T(ID INTEGER NOT NULL, PRIMARY KEY(ID));","INSERT INTO T (ID) VALUES ('2');"]"#
     );
     assert_eq!(
@@ -225,7 +251,11 @@ fn a_session_table_is_its_table_then_its_rows() {
         "sessionTable's table is a createTable, not dropTable"
     );
     assert_eq!(
-        refused("sessionTable", &format!(r#"{{"table":{CREATE_TABLE},"rows":{INSERT_FROM_TABLE}}}"#)).message,
+        refused(
+            "sessionTable",
+            &format!(r#"{{"table":{CREATE_TABLE},"rows":{INSERT_FROM_TABLE}}}"#)
+        )
+        .message,
         "sessionTable's rows are an insertValues, not insertFromTable"
     );
 }
@@ -236,23 +266,50 @@ fn names_are_spelled_by_duckdbs_rules() {
     assert_eq!(ok("physicalName", r#"{"name":"order"}"#), r#""\"order\"""#);
     assert_eq!(ok("physicalName", r#"{"name":"\"date\""}"#), r#""\"date\"""#);
     assert_eq!(ok("physicalName", r#"{"name":"a b"}"#), r#""\"a b\"""#);
-    assert_eq!(ok("storedName", r#"{"name":"Orders","declaredQuoted":true}"#), r#""\"Orders\"""#);
-    assert_eq!(ok("storedName", r#"{"name":"select","declaredQuoted":false}"#), r#""\"select\"""#);
+    assert_eq!(
+        ok("storedName", r#"{"name":"Orders","declaredQuoted":true}"#),
+        r#""\"Orders\"""#
+    );
+    assert_eq!(
+        ok("storedName", r#"{"name":"select","declaredQuoted":false}"#),
+        r#""\"select\"""#
+    );
     // the DDL's column rule: a bare name folded upper, a declared-quoted one as declared
-    assert_eq!(ok("insertColumnName", r#"{"name":"id","declaredQuoted":false}"#), r#""ID""#);
-    assert_eq!(ok("insertColumnName", r#"{"name":"Amt","declaredQuoted":true}"#), r#""\"Amt\"""#);
+    assert_eq!(
+        ok("insertColumnName", r#"{"name":"id","declaredQuoted":false}"#),
+        r#""ID""#
+    );
+    assert_eq!(
+        ok("insertColumnName", r#"{"name":"Amt","declaredQuoted":true}"#),
+        r#""\"Amt\"""#
+    );
     let r = refused("storedName", r#"{"name":"x"}"#);
-    assert_eq!((r.class, r.message.as_str()), (Refusal::ILLEGAL_ARGUMENT, "missing field 'declaredQuoted'"));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_ARGUMENT, "missing field 'declaredQuoted'")
+    );
 }
 
 #[test]
 fn raw_text_is_translated_only_from_the_engines_h2() {
-    assert_eq!(ok("raw", r#"{"statement":"create schema S","writtenFor":"H2"}"#), r#""Create schema if not exists S""#);
-    assert_eq!(ok("raw", r#"{"statement":"create schema S","writtenFor":"DuckDB"}"#), r#""create schema S""#);
-    assert_eq!(ok("raw", r#"{"statement":"create schema S","writtenFor":null}"#), r#""create schema S""#);
+    assert_eq!(
+        ok("raw", r#"{"statement":"create schema S","writtenFor":"H2"}"#),
+        r#""Create schema if not exists S""#
+    );
+    assert_eq!(
+        ok("raw", r#"{"statement":"create schema S","writtenFor":"DuckDB"}"#),
+        r#""create schema S""#
+    );
+    assert_eq!(
+        ok("raw", r#"{"statement":"create schema S","writtenFor":null}"#),
+        r#""create schema S""#
+    );
     assert_eq!(ok("raw", r#"{"statement":"create schema S"}"#), r#""create schema S""#);
     assert_eq!(
-        ok("fromEngineText", r#"{"statement":"insert into T (id, name) values (1, CURRENT_TIMESTAMP())"}"#),
+        ok(
+            "fromEngineText",
+            r#"{"statement":"insert into T (id, name) values (1, CURRENT_TIMESTAMP())"}"#
+        ),
         r#""insert into T (\"id\", \"name\") values (1, CURRENT_TIMESTAMP)""#
     );
 }
@@ -261,13 +318,35 @@ fn raw_text_is_translated_only_from_the_engines_h2() {
 fn wire_names_fold_and_nothing_is_delivered_by_a_convention() {
     assert_eq!(ok("wireTypeName", r#"{"driverTypeName":null}"#), r#""""#);
     assert_eq!(ok("wireTypeName", r#"{"driverTypeName":"int8"}"#), r#""BIGINT""#);
-    assert_eq!(ok("wireTypeName", r#"{"driverTypeName":"STRUCT(a INTEGER)"}"#), r#""STRUCT""#);
-    assert_eq!(ok("typingWireName", r#"{"driverTypeName":"numeric(10, 2)"}"#), r#""DECIMAL(10,2)""#);
-    assert_eq!(ok("typingWireName", r#"{}"#), r#""""#);
-    assert_eq!(ok("deliversOwn", r#"{"label":{"_type":"scalar","name":"BIGINT"},"wire":"BIGINT"}"#), "false");
-    assert_eq!(ok("deliversOwn", r#"{"label":{"_type":"decimal","precision":10,"scale":2},"wire":"DOUBLE"}"#), "false");
     assert_eq!(
-        refused("deliversOwn", r#"{"label":{"_type":"scalar","name":"NOPE"},"wire":"X"}"#).message,
+        ok("wireTypeName", r#"{"driverTypeName":"STRUCT(a INTEGER)"}"#),
+        r#""STRUCT""#
+    );
+    assert_eq!(
+        ok("typingWireName", r#"{"driverTypeName":"numeric(10, 2)"}"#),
+        r#""DECIMAL(10,2)""#
+    );
+    assert_eq!(ok("typingWireName", r#"{}"#), r#""""#);
+    assert_eq!(
+        ok(
+            "deliversOwn",
+            r#"{"label":{"_type":"scalar","name":"BIGINT"},"wire":"BIGINT"}"#
+        ),
+        "false"
+    );
+    assert_eq!(
+        ok(
+            "deliversOwn",
+            r#"{"label":{"_type":"decimal","precision":10,"scale":2},"wire":"DOUBLE"}"#
+        ),
+        "false"
+    );
+    assert_eq!(
+        refused(
+            "deliversOwn",
+            r#"{"label":{"_type":"scalar","name":"NOPE"},"wire":"X"}"#
+        )
+        .message,
         "unknown scalar type 'NOPE'"
     );
 }
@@ -275,12 +354,27 @@ fn wire_names_fold_and_nothing_is_delivered_by_a_convention() {
 #[test]
 fn a_script_is_one_transaction_and_names_no_failing_statement() {
     assert_eq!(
-        ok("script", r#"{"statements":["CREATE TABLE a(x INT)","INSERT INTO a VALUES (1)"]}"#),
+        ok(
+            "script",
+            r#"{"statements":["CREATE TABLE a(x INT)","INSERT INTO a VALUES (1)"]}"#
+        ),
         r#""BEGIN TRANSACTION;\nCREATE TABLE a(x INT);\nINSERT INTO a VALUES (1);\nCOMMIT;""#
     );
-    assert_eq!(ok("script", r#"{"statements":[]}"#), r#""BEGIN TRANSACTION;\n;\nCOMMIT;""#);
-    assert_eq!(ok("failingStatement", r#"{"message":"Constraint Error","statements":["a","b"]}"#), "null");
-    assert_eq!(refused("script", r#"{"statements":[1]}"#).message, "field 'statements' is an array of strings");
+    assert_eq!(
+        ok("script", r#"{"statements":[]}"#),
+        r#""BEGIN TRANSACTION;\n;\nCOMMIT;""#
+    );
+    assert_eq!(
+        ok(
+            "failingStatement",
+            r#"{"message":"Constraint Error","statements":["a","b"]}"#
+        ),
+        "null"
+    );
+    assert_eq!(
+        refused("script", r#"{"statements":[1]}"#).message,
+        "field 'statements' is an array of strings"
+    );
 }
 
 fn column(data_type: &str, logical: Option<&str>, precision: Option<i32>, scale: Option<i32>) -> String {
@@ -302,8 +396,16 @@ fn catalog_types_are_duckdbs_decisions() {
             Some("VARCHAR"),
             r#"{"read":"AS_STORED","declared":"VARCHAR(4096)","conversion":null,"reason":null}"#,
         ),
-        ("BOOLEAN", Some("BOOLEAN"), r#"{"read":"AS_STORED","declared":"BIT","conversion":null,"reason":null}"#),
-        ("UTINYINT", Some("UTINYINT"), r#"{"read":"AS_STORED","declared":"SMALLINT","conversion":null,"reason":null}"#),
+        (
+            "BOOLEAN",
+            Some("BOOLEAN"),
+            r#"{"read":"AS_STORED","declared":"BIT","conversion":null,"reason":null}"#,
+        ),
+        (
+            "UTINYINT",
+            Some("UTINYINT"),
+            r#"{"read":"AS_STORED","declared":"SMALLINT","conversion":null,"reason":null}"#,
+        ),
         (
             "UBIGINT",
             Some("UBIGINT"),
@@ -314,7 +416,11 @@ fn catalog_types_are_duckdbs_decisions() {
             Some("hugeint"),
             r#"{"read":"CONVERTED","declared":"DECIMAL(38,0)","conversion":"CAST(%s AS DECIMAL(38,0))","reason":null}"#,
         ),
-        ("FLOAT", Some("FLOAT"), r#"{"read":"AS_STORED","declared":"REAL","conversion":null,"reason":null}"#),
+        (
+            "FLOAT",
+            Some("FLOAT"),
+            r#"{"read":"AS_STORED","declared":"REAL","conversion":null,"reason":null}"#,
+        ),
         (
             "TIMESTAMP_NS",
             Some("TIMESTAMP_NS"),
@@ -325,7 +431,11 @@ fn catalog_types_are_duckdbs_decisions() {
             Some("TIMESTAMP WITH TIME ZONE"),
             r#"{"read":"COPY_CONVERTED","declared":"TIMESTAMP","conversion":"CAST(timezone('UTC', %s) AS TIMESTAMP)","reason":null}"#,
         ),
-        ("UUID", Some("UUID"), r#"{"read":"AS_STORED","declared":"OTHER","conversion":null,"reason":null}"#),
+        (
+            "UUID",
+            Some("UUID"),
+            r#"{"read":"AS_STORED","declared":"OTHER","conversion":null,"reason":null}"#,
+        ),
         (
             "INTEGER[]",
             Some("LIST"),
@@ -344,10 +454,17 @@ fn catalog_types_are_duckdbs_decisions() {
         ),
     ];
     for (data_type, logical, want) in cases {
-        assert_eq!(ok("catalogType", &column(data_type, logical, None, None)), want, "{data_type}");
+        assert_eq!(
+            ok("catalogType", &column(data_type, logical, None, None)),
+            want,
+            "{data_type}"
+        );
     }
     assert_eq!(
-        ok("catalogType", &column("DECIMAL(18,3)", Some("DECIMAL"), Some(18), Some(3))),
+        ok(
+            "catalogType",
+            &column("DECIMAL(18,3)", Some("DECIMAL"), Some(18), Some(3))
+        ),
         r#"{"read":"AS_STORED","declared":"DECIMAL(18,3)","conversion":null,"reason":null}"#
     );
     let refusals = [
@@ -378,9 +495,15 @@ fn catalog_types_are_duckdbs_decisions() {
     }
     // every canonical type is declared, refused or the decimal: none is both
     for (name, _) in crate::duckdb::catalog_types() {
-        assert!(!crate::duckdb::CATALOG_REFUSED.iter().any(|(r, _)| *r == name), "{name}");
+        assert!(
+            !crate::duckdb::CATALOG_REFUSED.iter().any(|(r, _)| *r == name),
+            "{name}"
+        );
     }
-    let r = refused("catalogType", r#"{"column":{"name":"c","dataType":"X","precision":3000000000,"notNull":false}}"#);
+    let r = refused(
+        "catalogType",
+        r#"{"column":{"name":"c","dataType":"X","precision":3000000000,"notNull":false}}"#,
+    );
     assert_eq!(r.message, "field 'precision' is not an int: 3000000000");
 }
 
@@ -394,14 +517,19 @@ fn the_catalog_question_names_its_table_by_literals() {
                 WHERE c.database_name = current_database() AND c.schema_name = 'main' AND c.table_name = 'it''s {table}'\n\
                 ORDER BY c.column_index";
     let d = DuckDb::new();
-    assert_eq!(SqlDialect::catalog_columns_query(&d, "main", "it's {table}").unwrap(), want);
+    assert_eq!(
+        SqlDialect::catalog_columns_query(&d, "main", "it's {table}").unwrap(),
+        want
+    );
     assert_eq!(
         ok("catalogColumnsQuery", r#"{"schema":"main","table":"it's {table}"}"#),
         to_compact(&Node::Str(want.into()))
     );
     // a NUL is spliced as the renderer's string literal splices it
     assert!(
-        SqlDialect::catalog_columns_query(&d, "a\0b", "t").unwrap().contains("c.schema_name = ('a' || chr(0) || 'b')")
+        SqlDialect::catalog_columns_query(&d, "a\0b", "t")
+            .unwrap()
+            .contains("c.schema_name = ('a' || chr(0) || 'b')")
     );
 }
 
@@ -420,17 +548,38 @@ fn bare_names_reach_and_copies_replace_their_converted_columns() {
 
 #[test]
 fn host_operations_through_the_seam() {
-    assert_eq!(ok("host.openDatabase", r#"{"name":"p1"}"#), r#"["ATTACH ':memory:' AS \"p1\""]"#);
-    assert_eq!(ok("host.useDatabase", r#"{"name":"p1"}"#), r#"["USE \"p1\""]"#);
-    assert_eq!(ok("host.closeDatabase", r#"{"name":"p1"}"#), r#"["DETACH DATABASE IF EXISTS \"p1\""]"#);
     assert_eq!(
-        ok("host.statements", r#"{"operation":{"op":"extensions","names":["httpfs"]}}"#),
+        ok("host.openDatabase", r#"{"name":"p1"}"#),
+        r#"["ATTACH ':memory:' AS \"p1\""]"#
+    );
+    assert_eq!(ok("host.useDatabase", r#"{"name":"p1"}"#), r#"["USE \"p1\""]"#);
+    assert_eq!(
+        ok("host.closeDatabase", r#"{"name":"p1"}"#),
+        r#"["DETACH DATABASE IF EXISTS \"p1\""]"#
+    );
+    assert_eq!(
+        ok(
+            "host.statements",
+            r#"{"operation":{"op":"extensions","names":["httpfs"]}}"#
+        ),
         r#"["INSTALL httpfs","LOAD httpfs"]"#
     );
-    assert_eq!(ok("host.statements", r#"{"operation":{"op":"secret","name":"s","scope":"x","credentials":{}}}"#), "[]");
+    assert_eq!(
+        ok(
+            "host.statements",
+            r#"{"operation":{"op":"secret","name":"s","scope":"x","credentials":{}}}"#
+        ),
+        "[]"
+    );
     assert_eq!(refused("host.statements", "{}").message, "missing field 'operation'");
-    assert_eq!(refused("host.statements", r#"{"operation":"platform"}"#).message, "an operation is a JSON object");
-    assert_eq!(refused("host.openDatabase", r#"{"name":null}"#).message, "field 'name' is null, not a string");
+    assert_eq!(
+        refused("host.statements", r#"{"operation":"platform"}"#).message,
+        "an operation is a JSON object"
+    );
+    assert_eq!(
+        refused("host.openDatabase", r#"{"name":null}"#).message,
+        "field 'name' is null, not a string"
+    );
 }
 
 #[test]
@@ -445,10 +594,18 @@ fn the_seam_refuses_what_it_cannot_read() {
              MongoDb"
         )
     );
-    assert_eq!(dispatch("[]", "facts", "{}").unwrap_err().message, "a dialect's spec is a JSON object");
-    assert_eq!(dispatch("{}", "facts", "{}").unwrap_err().message, "missing field 'dialect'");
     assert_eq!(
-        dispatch(r#"{"dialect":"DuckDb","engineScanOrder":"yes"}"#, "facts", "{}").unwrap_err().message,
+        dispatch("[]", "facts", "{}").unwrap_err().message,
+        "a dialect's spec is a JSON object"
+    );
+    assert_eq!(
+        dispatch("{}", "facts", "{}").unwrap_err().message,
+        "missing field 'dialect'"
+    );
+    assert_eq!(
+        dispatch(r#"{"dialect":"DuckDb","engineScanOrder":"yes"}"#, "facts", "{}")
+            .unwrap_err()
+            .message,
         "field 'engineScanOrder' is a string, not a boolean"
     );
     // the JSON reader's own words (Json.parse's IllegalArgumentException)
@@ -459,9 +616,16 @@ fn the_seam_refuses_what_it_cannot_read() {
     // the op is refused before its args are read
     assert_eq!(refused("nope", "not json").message, "unknown dialect op 'nope'");
     assert_eq!(refused("facts", "[]").message, "the args of 'facts' are a JSON object");
-    assert!(refused("facts", "{").message.contains("at line 1 col 2"), "{}", refused("facts", "{").message);
+    assert!(
+        refused("facts", "{").message.contains("at line 1 col 2"),
+        "{}",
+        refused("facts", "{").message
+    );
     assert_eq!(refused("query.render", "{}").message, "missing field 'query'");
-    assert_eq!(refused("query.render", r#"{"query":{"_type":"selekt"}}"#).message, "unknown query tag 'selekt'");
+    assert_eq!(
+        refused("query.render", r#"{"query":{"_type":"selekt"}}"#).message,
+        "unknown query tag 'selekt'"
+    );
     for op in OPS {
         let r = dispatch(DUCKDB, op, "[]").unwrap_err();
         assert_eq!(r.kind(), "ILLEGAL_ARGUMENT", "{op}");
@@ -500,7 +664,11 @@ fn a_mir_nests_as_deep_as_mirjson_reads_it() {
     // two levels more: refused by the parser
     let too_deep = run(nested(nots + 1)).unwrap_err();
     assert_eq!(too_deep.class, Refusal::ILLEGAL_ARGUMENT);
-    assert!(too_deep.message.starts_with("Nesting depth exceeds limit of 4097"), "{}", too_deep.message);
+    assert!(
+        too_deep.message.starts_with("Nesting depth exceeds limit of 4097"),
+        "{}",
+        too_deep.message
+    );
 }
 
 #[test]
@@ -508,11 +676,18 @@ fn a_statement_writes_every_records_components_and_reads_back() {
     let hole = TypeHole::new(
         8,
         vec![
-            (ValueKind::DateTimeNanos, TypeSpelling::new("TIMESTAMP_NS", Digits::None)),
+            (
+                ValueKind::DateTimeNanos,
+                TypeSpelling::new("TIMESTAMP_NS", Digits::None),
+            ),
             (ValueKind::Integer, TypeSpelling::new("BIGINT", Digits::None)),
             (
                 ValueKind::Decimal,
-                TypeSpelling { name: "DECIMAL".into(), digits: Digits::PrecisionAndScale, fraction: Some(3) },
+                TypeSpelling {
+                    name: "DECIMAL".into(),
+                    digits: Digits::PrecisionAndScale,
+                    fraction: Some(3),
+                },
             ),
         ],
         ValueKind::Integer,
@@ -521,9 +696,23 @@ fn a_statement_writes_every_records_components_and_reads_back() {
     let s = RenderedStatement::new(
         "SELECT ?, ? FROM t WHERE k IN (?)".into(),
         vec![
-            Bind { parameter: "a".into(), binding: Binding::One { null_type: "BIGINT".into(), hole: Some(hole) } },
-            Bind { parameter: "b".into(), binding: Binding::Array { element_sql_type: "VARCHAR".into() } },
-            Bind { parameter: "k".into(), binding: Binding::key(1).unwrap() },
+            Bind {
+                parameter: "a".into(),
+                binding: Binding::One {
+                    null_type: "BIGINT".into(),
+                    hole: Some(hole),
+                },
+            },
+            Bind {
+                parameter: "b".into(),
+                binding: Binding::Array {
+                    element_sql_type: "VARCHAR".into(),
+                },
+            },
+            Bind {
+                parameter: "k".into(),
+                binding: Binding::key(1).unwrap(),
+            },
         ],
         vec![Region::new(28, 29, " OR ".into(), ", ".into(), None, 2, 1, vec![28]).unwrap()],
     )
@@ -537,7 +726,12 @@ fn a_statement_writes_every_records_components_and_reads_back() {
     assert_eq!(back, s);
     // the constructors' checks hold on the way back
     let bad = text.replace(r#""cell":1"#, r#""cell":-1"#);
-    assert_eq!(read_statement(parse(&bad).unwrap().as_obj().unwrap()).unwrap_err().message, "a key's cell -1");
+    assert_eq!(
+        read_statement(parse(&bad).unwrap().as_obj().unwrap())
+            .unwrap_err()
+            .message,
+        "a key's cell -1"
+    );
 }
 
 #[test]
@@ -553,15 +747,24 @@ fn refusals_fold_to_the_seams_kinds() {
         (Refusal::INDEX_OUT_OF_BOUNDS, "INDEX_OUT_OF_BOUNDS"),
     ];
     for (class, kind) in kinds {
-        let r = Refusal { class, message: "m".into() };
+        let r = Refusal {
+            class,
+            message: "m".into(),
+        };
         assert_eq!((r.kind(), r.seam_message().as_str()), (kind, "m"));
     }
     for class in [Refusal::NUMBER_FORMAT, "java.lang.StringIndexOutOfBoundsException"] {
-        let r = Refusal { class, message: "m".into() };
+        let r = Refusal {
+            class,
+            message: "m".into(),
+        };
         assert_eq!((r.kind(), r.seam_message()), ("INTERNAL", format!("{class}: m")));
     }
     assert_eq!(
-        to_compact(&refused_json(&Refusal { class: Refusal::NUMBER_FORMAT, message: "x".into() })),
+        to_compact(&refused_json(&Refusal {
+            class: Refusal::NUMBER_FORMAT,
+            message: "x".into()
+        })),
         r#"{"refused":{"kind":"INTERNAL","message":"java.lang.NumberFormatException: x"}}"#
     );
 }
@@ -569,17 +772,123 @@ fn refusals_fold_to_the_seams_kinds() {
 /// Java's `DuckDb.LEXICON` reserved words, as its source listed them (held to DuckDB's `duckdb_keywords()` by
 /// `DuckDbKeywordsTest`).
 const JAVA_RESERVED_WORDS: &[&str] = &[
-    "all", "analyse", "analyze", "and", "anti", "any", "array", "as", "asc", "asof", "asymmetric", "at",
-    "authorization", "between", "binary", "both", "by", "case", "cast", "check", "collate", "collation", "column",
-    "columns", "concurrently", "constraint", "create", "cross", "default", "deferrable", "delete", "desc", "describe",
-    "distinct", "do", "drop", "else", "end", "except", "exists", "false", "fetch", "for", "foreign", "freeze", "from",
-    "full", "generated", "glob", "group", "having", "ilike", "in", "initially", "inner", "insert", "intersect", "into",
-    "is", "isnull", "join", "lambda", "lateral", "leading", "left", "like", "limit", "map", "natural", "not", "notnull",
-    "null", "offset", "on", "only", "or", "order", "outer", "overlaps", "pivot", "pivot_longer", "pivot_wider",
-    "placing", "positional", "primary", "qualify", "references", "returning", "right", "select", "semi", "show",
-    "similar", "some", "struct", "summarize", "symmetric", "table", "tablesample", "then", "to", "trailing", "true",
-    "try_cast", "union", "unique", "unpack", "unpivot", "update", "using", "values", "variadic", "verbose", "when",
-    "where", "window", "with",
+    "all",
+    "analyse",
+    "analyze",
+    "and",
+    "anti",
+    "any",
+    "array",
+    "as",
+    "asc",
+    "asof",
+    "asymmetric",
+    "at",
+    "authorization",
+    "between",
+    "binary",
+    "both",
+    "by",
+    "case",
+    "cast",
+    "check",
+    "collate",
+    "collation",
+    "column",
+    "columns",
+    "concurrently",
+    "constraint",
+    "create",
+    "cross",
+    "default",
+    "deferrable",
+    "delete",
+    "desc",
+    "describe",
+    "distinct",
+    "do",
+    "drop",
+    "else",
+    "end",
+    "except",
+    "exists",
+    "false",
+    "fetch",
+    "for",
+    "foreign",
+    "freeze",
+    "from",
+    "full",
+    "generated",
+    "glob",
+    "group",
+    "having",
+    "ilike",
+    "in",
+    "initially",
+    "inner",
+    "insert",
+    "intersect",
+    "into",
+    "is",
+    "isnull",
+    "join",
+    "lambda",
+    "lateral",
+    "leading",
+    "left",
+    "like",
+    "limit",
+    "map",
+    "natural",
+    "not",
+    "notnull",
+    "null",
+    "offset",
+    "on",
+    "only",
+    "or",
+    "order",
+    "outer",
+    "overlaps",
+    "pivot",
+    "pivot_longer",
+    "pivot_wider",
+    "placing",
+    "positional",
+    "primary",
+    "qualify",
+    "references",
+    "returning",
+    "right",
+    "select",
+    "semi",
+    "show",
+    "similar",
+    "some",
+    "struct",
+    "summarize",
+    "symmetric",
+    "table",
+    "tablesample",
+    "then",
+    "to",
+    "trailing",
+    "true",
+    "try_cast",
+    "union",
+    "unique",
+    "unpack",
+    "unpivot",
+    "update",
+    "using",
+    "values",
+    "variadic",
+    "verbose",
+    "when",
+    "where",
+    "window",
+    "with",
 ];
 
 #[test]
@@ -588,7 +897,12 @@ fn duckdbs_tables_are_javas() {
     let tables = answer.as_obj().unwrap();
     let lexicon = tables.obj("lexicon").unwrap();
     assert_eq!(lexicon.str("quoteChar").unwrap(), "\"");
-    let words: Vec<&str> = lexicon.arr("reservedWords").unwrap().iter().map(|w| w.as_str().unwrap()).collect();
+    let words: Vec<&str> = lexicon
+        .arr("reservedWords")
+        .unwrap()
+        .iter()
+        .map(|w| w.as_str().unwrap())
+        .collect();
     let mut java = JAVA_RESERVED_WORDS.to_vec();
     java.sort_unstable();
     assert_eq!(words, java, "Java's LEXICON, sorted");
@@ -598,10 +912,38 @@ fn duckdbs_tables_are_javas() {
     assert_eq!(
         names,
         [
-            "VARCHAR", "BOOLEAN", "TINYINT", "SMALLINT", "INTEGER", "BIGINT", "UTINYINT", "USMALLINT", "UINTEGER",
-            "UBIGINT", "HUGEINT", "FLOAT", "DOUBLE", "DATE", "TIMESTAMP", "TIMESTAMP_S", "TIMESTAMP_MS", "TIMESTAMP_NS",
-            "TIMESTAMP WITH TIME ZONE", "TIME", "TIME WITH TIME ZONE", "UUID", "INTERVAL", "BIT", "BIGNUM", "ENUM",
-            "STRUCT", "LIST", "MAP", "UNION", "ARRAY", "BLOB",
+            "VARCHAR",
+            "BOOLEAN",
+            "TINYINT",
+            "SMALLINT",
+            "INTEGER",
+            "BIGINT",
+            "UTINYINT",
+            "USMALLINT",
+            "UINTEGER",
+            "UBIGINT",
+            "HUGEINT",
+            "FLOAT",
+            "DOUBLE",
+            "DATE",
+            "TIMESTAMP",
+            "TIMESTAMP_S",
+            "TIMESTAMP_MS",
+            "TIMESTAMP_NS",
+            "TIMESTAMP WITH TIME ZONE",
+            "TIME",
+            "TIME WITH TIME ZONE",
+            "UUID",
+            "INTERVAL",
+            "BIT",
+            "BIGNUM",
+            "ENUM",
+            "STRUCT",
+            "LIST",
+            "MAP",
+            "UNION",
+            "ARRAY",
+            "BLOB",
         ]
     );
     assert_eq!(

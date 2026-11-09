@@ -35,7 +35,10 @@ fn pushed_fn(f: AggFn) -> bool {
 
 /// The aggregates over two columns, pushed as pairs (`{"x": .., "y": ..}`).
 fn bivariate(f: AggFn) -> bool {
-    matches!(f, AggFn::Corr | AggFn::CovarSamp | AggFn::CovarPop | AggFn::ArgMax | AggFn::ArgMin)
+    matches!(
+        f,
+        AggFn::Corr | AggFn::CovarSamp | AggFn::CovarPop | AggFn::ArgMax | AggFn::ArgMin
+    )
 }
 
 /// Whether the aggregate is pushed and reduced at the read, rather than accumulated natively.
@@ -55,7 +58,10 @@ impl GroupField {
     /// Java's constructor: the stem is a field name.
     pub fn new(stem: &str, per_key: bool) -> Result<GroupField, Refusal> {
         json::key(stem)?;
-        Ok(GroupField { stem: stem.to_owned(), per_key })
+        Ok(GroupField {
+            stem: stem.to_owned(),
+            per_key,
+        })
     }
 
     /// The field's name, quoted, with `suffix`.
@@ -142,7 +148,9 @@ fn count_accumulator(d: &MongoDb, w: &mut SqlWriter, r: &Reducer) -> Result<(), 
         w.append("{\"$sum\": 1}");
         return Ok(());
     };
-    w.append("{\"$sum\": {\"$cond\": [{\"$eq\": [").expr(d, a0, 0)?.append(", null]}, 0, 1]}}");
+    w.append("{\"$sum\": {\"$cond\": [{\"$eq\": [")
+        .expr(d, a0, 0)?
+        .append(", null]}, 0, 1]}}");
     Ok(())
 }
 
@@ -162,7 +170,10 @@ fn pushed_value(d: &MongoDb, w: &mut SqlWriter, r: &Reducer) -> Result<(), Refus
     }
     let value: Pc<'_> = if bivariate(r.r#fn) {
         pc(move |d, x| {
-            x.append("{\"x\": ").expr(d, &r.args[0], 0)?.append(", \"y\": ").expr(d, arg(&r.args, 1)?, 0)?;
+            x.append("{\"x\": ")
+                .expr(d, &r.args[0], 0)?
+                .append(", \"y\": ")
+                .expr(d, arg(&r.args, 1)?, 0)?;
             x.append("}");
             Ok(())
         })
@@ -182,7 +193,12 @@ fn pushed_with_keys(d: &MongoDb, w: &mut SqlWriter, value: &Pc<'_>, keys: &[&Sql
     w.append("{\"v\": ");
     value(d, w)?;
     for (i, k) in keys.iter().enumerate() {
-        w.append(", \"k").append_long(i as i64).append("\": ").expr(d, k, 0)?.append(", \"n").append_long(i as i64);
+        w.append(", \"k")
+            .append_long(i as i64)
+            .append("\": ")
+            .expr(d, k, 0)?
+            .append(", \"n")
+            .append_long(i as i64);
         w.append("\": {\"$eq\": [").expr(d, k, 0)?.append(", null]}");
     }
     w.append("}");
@@ -193,14 +209,22 @@ fn pushed_with_keys(d: &MongoDb, w: &mut SqlWriter, value: &Pc<'_>, keys: &[&Sql
 /// whole), made distinct where the aggregate asks, and reduced; a quantile over the value's own descending order where
 /// the reducer orders it so.
 fn pushed_read(r: Reducer, path: Pc<'static>) -> Pc<'static> {
-    let extras: Vec<SqlExpr> = if bivariate(r.r#fn) { Vec::new() } else { r.args[1..].to_vec() };
+    let extras: Vec<SqlExpr> = if bivariate(r.r#fn) {
+        Vec::new()
+    } else {
+        r.args[1..].to_vec()
+    };
     let values = pushed_values(path, r.order_by.clone());
     let present: Pc<'static> = if bivariate(r.r#fn) {
         pc(move |d, x| non_null_pairs(d, x, &values))
     } else {
         pc(move |d, x| non_null(d, x, &values))
     };
-    let set: Pc<'static> = if r.distinct { pc(move |d, x| distinct_in_order(d, x, &present)) } else { present };
+    let set: Pc<'static> = if r.distinct {
+        pc(move |d, x| distinct_in_order(d, x, &present))
+    } else {
+        present
+    };
     let descending = !r.order_by.is_empty() && r.order_by.iter().all(|k| !k.ascending);
     let f = r.r#fn;
     pc(move |d, x| array_reduction(d, x, f, &set, &extras, descending))
@@ -217,7 +241,9 @@ pub fn accumulator(d: &MongoDb, w: &mut SqlWriter, node: &SqlExpr, field: &Group
                 if r.r#fn == AggFn::Sum {
                     // SQL's SUM over no non-null value is null, and $sum answers 0: a count of the non-null values
                     // beside the sum decides at the read
-                    field.name(w.append(", "), "_n")?.append(": {\"$sum\": {\"$cond\": [{\"$eq\": [");
+                    field
+                        .name(w.append(", "), "_n")?
+                        .append(": {\"$sum\": {\"$cond\": [{\"$eq\": [");
                     w.expr(d, arg(&r.args, 0)?, 0)?.append(", null]}, 0, 1]}}");
                     let count = field.path("_n");
                     return Ok(pc(move |d, x| {
@@ -238,8 +264,12 @@ pub fn accumulator(d: &MongoDb, w: &mut SqlWriter, node: &SqlExpr, field: &Group
             w.append("{\"$push\": ");
             pushed_with_keys(d, w, &of(value), &[order_by])?;
             w.append("}");
-            let keys =
-                vec![SortKey { expr: order_by.as_ref().clone(), ascending: true, null_order: None, output_name: None }];
+            let keys = vec![SortKey {
+                expr: order_by.as_ref().clone(),
+                ascending: true,
+                null_order: None,
+                output_name: None,
+            }];
             let values = pushed_values(path, keys);
             Ok(pc(move |d, x| array_reduction(d, x, AggFn::List, &values, &[], false)))
         }
@@ -254,7 +284,12 @@ pub fn accumulator(d: &MongoDb, w: &mut SqlWriter, node: &SqlExpr, field: &Group
             w.append("}");
             let keys: Vec<SortKey> = order_keys
                 .iter()
-                .map(|k| SortKey { expr: k.expr.clone(), ascending: !k.desc, null_order: None, output_name: None })
+                .map(|k| SortKey {
+                    expr: k.expr.clone(),
+                    ascending: !k.desc,
+                    null_order: None,
+                    output_name: None,
+                })
                 .collect();
             let values = pushed_values(path, keys);
             Ok(pc(move |d, x| {
@@ -264,7 +299,10 @@ pub fn accumulator(d: &MongoDb, w: &mut SqlWriter, node: &SqlExpr, field: &Group
                 Ok(())
             }))
         }
-        other => Err(Refusal::illegal_state(format!("not an aggregate: {}", java_text::expr(other)))),
+        other => Err(Refusal::illegal_state(format!(
+            "not an aggregate: {}",
+            java_text::expr(other)
+        ))),
     }
 }
 
@@ -279,7 +317,10 @@ pub fn empty_input(node: &SqlExpr) -> Result<&'static str, Refusal> {
             "null"
         }),
         SqlExpr::OrderedListAgg { .. } | SqlExpr::JsonArrayAgg { .. } => Ok("[]"),
-        other => Err(Refusal::illegal_state(format!("not an aggregate: {}", java_text::expr(other)))),
+        other => Err(Refusal::illegal_state(format!(
+            "not an aggregate: {}",
+            java_text::expr(other)
+        ))),
     }
 }
 
@@ -382,15 +423,26 @@ pub(super) fn reduce_array(
     extras: &[SqlExpr],
     descending: bool,
 ) -> Result<(), Refusal> {
-    let sorted = format!("{{\"$sortArray\": {{\"input\": \"$$a\", \"sortBy\": {}}}}}", if descending { -1 } else { 1 });
+    let sorted = format!(
+        "{{\"$sortArray\": {{\"input\": \"$$a\", \"sortBy\": {}}}}}",
+        if descending { -1 } else { 1 }
+    );
     // the pairs' sides and their products, for the two-column statistics
     let xs = "{\"$map\": {\"input\": \"$$a\", \"in\": \"$$this.x\"}}";
     let ys = "{\"$map\": {\"input\": \"$$a\", \"in\": \"$$this.y\"}}";
     let xys = "{\"$map\": {\"input\": \"$$a\", \"in\": {\"$multiply\": [\"$$this.x\", \"$$this.y\"]}}}";
     // the population covariance: E[xy] - E[x]E[y]
-    let covar_pop =
-        ["{\"$subtract\": [{\"$avg\": ", xys, "}, {\"$multiply\": [{\"$avg\": ", xs, "},", " {\"$avg\": ", ys, "}]}]}"]
-            .concat();
+    let covar_pop = [
+        "{\"$subtract\": [{\"$avg\": ",
+        xys,
+        "}, {\"$multiply\": [{\"$avg\": ",
+        xs,
+        "},",
+        " {\"$avg\": ",
+        ys,
+        "}]}]}",
+    ]
+    .concat();
     match f {
         AggFn::Sum => {
             w.append("{\"$sum\": \"$$a\"}");
@@ -468,7 +520,15 @@ pub(super) fn reduce_array(
             w.append(&[", {\"$toString\": ", THIS, "}]}]}}}"].concat());
         }
         AggFn::QuantileCont => {
-            w.append(&["{\"$let\": {\"vars\": {\"s\": ", &sorted, ", \"p\": {\"$multiply\":", " ["].concat());
+            w.append(
+                &[
+                    "{\"$let\": {\"vars\": {\"s\": ",
+                    &sorted,
+                    ", \"p\": {\"$multiply\":",
+                    " [",
+                ]
+                .concat(),
+            );
             quantile(d, w, extras)?;
             w.append(concat!(
                 ", {\"$subtract\": [{\"$size\": \"$$a\"}, 1]}]}},",
@@ -564,7 +624,9 @@ pub(super) fn reduce_array(
             ));
         }
         AggFn::Wavg | AggFn::HashList | AggFn::IsDistinctMark | AggFn::UniqueValueOnly => {
-            return Err(Refusal::illegal_state(format!("lowering marker {f} reached the renderer")));
+            return Err(Refusal::illegal_state(format!(
+                "lowering marker {f} reached the renderer"
+            )));
         }
         AggFn::RowNumber
         | AggFn::Rank
@@ -577,7 +639,9 @@ pub(super) fn reduce_array(
         | AggFn::FirstValue
         | AggFn::LastValue
         | AggFn::NthValue => {
-            return Err(Refusal::illegal_state(format!("window-only function {f} in a reduction")));
+            return Err(Refusal::illegal_state(format!(
+                "window-only function {f} in a reduction"
+            )));
         }
     }
     Ok(())
@@ -615,13 +679,21 @@ pub fn window_output(
                 w.append("}");
                 if r.r#fn == AggFn::Sum {
                     let count = format!("{field}_n");
-                    w.append(", ").append(&json::string(&count)).append(": {\"$sum\": {\"$cond\": [{\"$eq\": [");
+                    w.append(", ")
+                        .append(&json::string(&count))
+                        .append(": {\"$sum\": {\"$cond\": [{\"$eq\": [");
                     w.expr(d, arg(&r.args, 0)?, 0)?.append(", null]}, 0, 1]}");
                     window(d, w)?;
                     w.append("}");
                     return Ok(text(
-                        ["{\"$cond\": [{\"$gt\": [", &json::string(&format!("${count}")), ", 0]}, ", &path, ", null]}"]
-                            .concat(),
+                        [
+                            "{\"$cond\": [{\"$gt\": [",
+                            &json::string(&format!("${count}")),
+                            ", 0]}, ",
+                            &path,
+                            ", null]}",
+                        ]
+                        .concat(),
                     ));
                 }
                 return Ok(text(path));
@@ -648,7 +720,9 @@ pub fn window_output(
             AggFn::PercentRank => {
                 // (rank - 1) / (count - 1), 0 over one row
                 let n = json::string(&format!("${field}_n"));
-                w.append(&key).append(": {\"$rank\": {}}, ").append(&json::string(&format!("{field}_n")));
+                w.append(&key)
+                    .append(": {\"$rank\": {}}, ")
+                    .append(&json::string(&format!("{field}_n")));
                 w.append(": {\"$count\": {}}");
                 Ok(text(
                     [
@@ -668,25 +742,34 @@ pub fn window_output(
                 let n = json::string(&format!("${field}_n"));
                 w.append(&key).append(": {\"$count\": {}");
                 window(d, w)?;
-                w.append("}, ").append(&json::string(&format!("{field}_n"))).append(": {\"$count\": {}}");
+                w.append("}, ")
+                    .append(&json::string(&format!("{field}_n")))
+                    .append(": {\"$count\": {}}");
                 Ok(text(["{\"$divide\": [", &path, ", ", &n, "]}"].concat()))
             }
             AggFn::Ntile => {
                 // SQL's buckets: floor((row - 1) * k / count) + 1
                 let n = json::string(&format!("${field}_n"));
-                w.append(&key).append(": {\"$documentNumber\": {}}, ").append(&json::string(&format!("{field}_n")));
+                w.append(&key)
+                    .append(": {\"$documentNumber\": {}}, ")
+                    .append(&json::string(&format!("{field}_n")));
                 w.append(": {\"$count\": {}}");
                 let k = arg(args, 0)?.clone();
-                let head =
-                    ["{\"$add\": [{\"$floor\": {\"$divide\": [{\"$multiply\": [{\"$subtract\": [", &path, ", 1]}, "]
-                        .concat();
+                let head = [
+                    "{\"$add\": [{\"$floor\": {\"$divide\": [{\"$multiply\": [{\"$subtract\": [",
+                    &path,
+                    ", 1]}, ",
+                ]
+                .concat();
                 let tail = ["]}, ", &n, "]}}, 1]}"].concat();
                 Ok(pc(move |d, x| {
                     x.append(&head).expr(d, &k, 0)?.append(&tail);
                     Ok(())
                 }))
             }
-            other => Err(Refusal::capability(format!("the window function {other} reached MongoDb: not shaped yet"))),
+            other => Err(Refusal::capability(format!(
+                "the window function {other} reached MongoDb: not shaped yet"
+            ))),
         },
         SqlAgg::ValueFn { r#fn, args } => match r#fn {
             AggFn::Lag | AggFn::Lead => {
@@ -701,8 +784,11 @@ pub fn window_output(
                     Some(SqlExpr::IntLit { value, .. }) if args.len() > 1 => *value,
                     _ => 1,
                 };
-                w.append(&key).append(": {\"$shift\": {\"output\": ").expr(d, arg(args, 0)?, 0)?;
-                w.append(", \"by\": ").append_long(if *r#fn == AggFn::Lag { by.wrapping_neg() } else { by });
+                w.append(&key)
+                    .append(": {\"$shift\": {\"output\": ")
+                    .expr(d, arg(args, 0)?, 0)?;
+                w.append(", \"by\": ")
+                    .append_long(if *r#fn == AggFn::Lag { by.wrapping_neg() } else { by });
                 w.append(", \"default\": ");
                 if args.len() > 2 {
                     w.expr(d, &args[2], 0)?;
@@ -735,7 +821,9 @@ pub fn window_output(
                     Ok(())
                 }))
             }
-            other => Err(Refusal::capability(format!("the window function {other} reached MongoDb: not shaped yet"))),
+            other => Err(Refusal::capability(format!(
+                "the window function {other} reached MongoDb: not shaped yet"
+            ))),
         },
     }
 }
@@ -753,7 +841,9 @@ fn reducer_open(d: &MongoDb, w: &mut SqlWriter, r: &Reducer) -> Result<(), Refus
         AggFn::StddevPop => "$stdDevPop",
         AggFn::AnyValue => "$first",
         other => {
-            return Err(Refusal::capability(format!("the window aggregate {other} reached MongoDb: not shaped yet")));
+            return Err(Refusal::capability(format!(
+                "the window aggregate {other} reached MongoDb: not shaped yet"
+            )));
         }
     };
     if r.r#fn == AggFn::Count {
@@ -763,7 +853,9 @@ fn reducer_open(d: &MongoDb, w: &mut SqlWriter, r: &Reducer) -> Result<(), Refus
             }
             Some(a0) => {
                 // COUNT(x): the non-null values
-                w.append("{\"$sum\": {\"$cond\": [{\"$eq\": [").expr(d, a0, 0)?.append(", null]}, 0, 1]}");
+                w.append("{\"$sum\": {\"$cond\": [{\"$eq\": [")
+                    .expr(d, a0, 0)?
+                    .append(", null]}, 0, 1]}");
             }
         }
         return Ok(());

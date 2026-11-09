@@ -92,7 +92,9 @@ impl Writer {
                 _ if c < 0x20 || (0xD800..=0xDFFF).contains(&c) => {
                     self.out.push_str(&format!("\\u{c:04x}"));
                 }
-                _ => self.out.push(char::from_u32(u32::from(c)).expect("a non-surrogate unit is a char")),
+                _ => self
+                    .out
+                    .push(char::from_u32(u32::from(c)).expect("a non-surrogate unit is a char")),
             }
         }
         self.out.push('"');

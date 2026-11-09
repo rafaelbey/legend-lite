@@ -22,17 +22,26 @@ use lite_sql::{
 
 /// `new SqlExpr.StringLit(value)`.
 pub fn string_lit(value: &str) -> SqlExpr {
-    SqlExpr::StringLit { value: value.to_owned(), r#type: scalar(Scalar::Varchar) }
+    SqlExpr::StringLit {
+        value: value.to_owned(),
+        r#type: scalar(Scalar::Varchar),
+    }
 }
 
 /// `new SqlExpr.IntLit(value)`.
 pub fn int_lit(value: i64) -> SqlExpr {
-    SqlExpr::IntLit { value, r#type: scalar(Scalar::Bigint) }
+    SqlExpr::IntLit {
+        value,
+        r#type: scalar(Scalar::Bigint),
+    }
 }
 
 /// `new SqlExpr.BoolLit(value)`.
 pub fn bool_lit(value: bool) -> SqlExpr {
-    SqlExpr::BoolLit { value, r#type: scalar(Scalar::Boolean) }
+    SqlExpr::BoolLit {
+        value,
+        r#type: scalar(Scalar::Boolean),
+    }
 }
 
 /// `new SqlExpr.FloatLit(value)`: the double as MirJson carries one, its `Double.toString` text, typed by the decimal
@@ -52,17 +61,25 @@ pub fn decimal_lit(value: BigDecimal) -> SqlExpr {
 
 /// `new SqlExpr.NullLit()`: the NULL value, bottom.
 pub fn null_lit() -> SqlExpr {
-    SqlExpr::NullLit { r#type: TypeFact::Bottom }
+    SqlExpr::NullLit {
+        r#type: TypeFact::Bottom,
+    }
 }
 
 /// `new SqlExpr.RowOrder(table)`.
 pub fn row_order(table: Option<String>) -> SqlExpr {
-    SqlExpr::RowOrder { table, r#type: scalar(Scalar::Bigint) }
+    SqlExpr::RowOrder {
+        table,
+        r#type: scalar(Scalar::Bigint),
+    }
 }
 
 /// `new SqlExpr.Star(table)`.
 pub fn star(table: Option<&str>) -> SqlExpr {
-    SqlExpr::Star { table: table.map(str::to_owned), r#type: TypeFact::Unknown }
+    SqlExpr::Star {
+        table: table.map(str::to_owned),
+        r#type: TypeFact::Unknown,
+    }
 }
 
 // ---- references
@@ -79,7 +96,12 @@ pub fn derived(table: Option<&str>, name: &str) -> SqlExpr {
 
 /// `new SqlExpr.Column(table, name)`: an untyped reference, no origin.
 pub fn plain_column(table: Option<&str>, name: &str) -> Column {
-    Column { table: table.map(str::to_owned), name: name.to_owned(), r#type: TypeFact::Unknown, origin: None }
+    Column {
+        table: table.map(str::to_owned),
+        name: name.to_owned(),
+        r#type: TypeFact::Unknown,
+        origin: None,
+    }
 }
 
 /// `SqlExpr.Column.of(table, OutputCol)`: the stamped reference to a source's declared output.
@@ -87,7 +109,10 @@ pub fn column_of(table: Option<&str>, oc: &OutputCol) -> Column {
     Column {
         table: table.map(str::to_owned),
         name: oc.name.clone(),
-        r#type: TypeFact::Typed { r#type: oc.r#type.clone(), nullable: oc.nullable },
+        r#type: TypeFact::Typed {
+            r#type: oc.r#type.clone(),
+            nullable: oc.nullable,
+        },
         origin: Some(oc.origin),
     }
 }
@@ -127,7 +152,11 @@ pub fn call(f: SqlFn, args: Vec<SqlExpr>) -> SqlExpr {
 /// `new SqlExpr.Case(whens, otherwise)`.
 pub fn case(whens: Vec<When>, otherwise: Option<SqlExpr>) -> SqlExpr {
     let r#type = typing::case_type(&whens, otherwise.as_ref());
-    SqlExpr::Case { whens, otherwise: otherwise.map(Box::new), r#type }
+    SqlExpr::Case {
+        whens,
+        otherwise: otherwise.map(Box::new),
+        r#type,
+    }
 }
 
 /// `new SqlExpr.Case.When(condition, then)`.
@@ -143,13 +172,21 @@ pub fn cast(value: SqlExpr, target: SqlType) -> SqlExpr {
 /// `new SqlExpr.Cast(value, target, conform)`.
 pub fn cast_conform(value: SqlExpr, target: SqlType, conform: bool) -> SqlExpr {
     let r#type = typing::cast_type(&value, &target);
-    SqlExpr::Cast { value: Box::new(value), target, conform, r#type }
+    SqlExpr::Cast {
+        value: Box::new(value),
+        target,
+        conform,
+        r#type,
+    }
 }
 
 /// `new SqlExpr.Group(inner)`: parentheses transport the inner fact.
 pub fn group(inner: SqlExpr) -> SqlExpr {
     let r#type = inner.r#type().clone();
-    SqlExpr::Group { inner: Box::new(inner), r#type }
+    SqlExpr::Group {
+        inner: Box::new(inner),
+        r#type,
+    }
 }
 
 /// `new SqlExpr.ArrayLit(elements)`.
@@ -160,7 +197,11 @@ pub fn array_lit(elements: Vec<SqlExpr>) -> SqlExpr {
 /// `new SqlExpr.ArrayLit(elements, type)`: the type the elements prove, else the one given.
 pub fn array_lit_given(elements: Vec<SqlExpr>, given: TypeFact) -> SqlExpr {
     let proven = typing::array_lit_type(&elements);
-    let r#type = if matches!(proven, TypeFact::Unknown) { given } else { proven };
+    let r#type = if matches!(proven, TypeFact::Unknown) {
+        given
+    } else {
+        proven
+    };
     SqlExpr::ArrayLit { elements, r#type }
 }
 
@@ -178,42 +219,76 @@ pub fn struct_get(source: SqlExpr, field: &str) -> SqlExpr {
 /// `new SqlExpr.StructGet(source, field, type)`: the type the source proves, else the one given.
 pub fn struct_get_given(source: SqlExpr, field: String, given: TypeFact) -> SqlExpr {
     let proven = typing::struct_get_type(&source, &field);
-    let r#type = if matches!(proven, TypeFact::Unknown) { given } else { proven };
-    SqlExpr::StructGet { source: Box::new(source), field, r#type }
+    let r#type = if matches!(proven, TypeFact::Unknown) {
+        given
+    } else {
+        proven
+    };
+    SqlExpr::StructGet {
+        source: Box::new(source),
+        field,
+        r#type,
+    }
 }
 
 /// `new SqlExpr.Membership(needle, collection)`.
 pub fn membership(needle: SqlExpr, collection: SqlExpr) -> SqlExpr {
     let r#type = typing::membership_type(&needle, &collection);
-    SqlExpr::Membership { needle: Box::new(needle), collection: Box::new(collection), r#type }
+    SqlExpr::Membership {
+        needle: Box::new(needle),
+        collection: Box::new(collection),
+        r#type,
+    }
 }
 
 /// `new SqlExpr.ReduceCollection(reducer, collection, extras)`.
 pub fn reduce_collection(reducer: AggFn, collection: SqlExpr, extras: Vec<SqlExpr>) -> SqlExpr {
     let r#type = typing::reduce_collection_type(reducer, &collection);
-    SqlExpr::ReduceCollection { reducer, collection: Box::new(collection), extras, r#type }
+    SqlExpr::ReduceCollection {
+        reducer,
+        collection: Box::new(collection),
+        extras,
+        r#type,
+    }
 }
 
 /// `new SqlExpr.OrderedListAgg(value, orderBy)`: the LIST reducer's fact.
 pub fn ordered_list_agg(value: SqlExpr, order_by: SqlExpr) -> SqlExpr {
     let r#type = typing::reducer_type(AggFn::List, value.r#type());
-    SqlExpr::OrderedListAgg { value: Box::new(value), order_by: Box::new(order_by), r#type }
+    SqlExpr::OrderedListAgg {
+        value: Box::new(value),
+        order_by: Box::new(order_by),
+        r#type,
+    }
 }
 
 /// `new SqlAgg.Reducer(fn, args, distinct, orderBy)`.
 pub fn reducer(f: AggFn, args: Vec<SqlExpr>, distinct: bool, order_by: Vec<SortKey>) -> Reducer {
     let r#type = typing::reducer_type(f, args.first().map_or(&TypeFact::Unknown, SqlExpr::r#type));
-    Reducer { r#fn: f, args, distinct, order_by, r#type }
+    Reducer {
+        r#fn: f,
+        args,
+        distinct,
+        order_by,
+        r#type,
+    }
 }
 
 /// `new SqlExpr.Exists(subquery)`.
 pub fn exists(subquery: SqlQuery) -> SqlExpr {
-    SqlExpr::Exists { subquery: Box::new(subquery), r#type: scalar(Scalar::Boolean) }
+    SqlExpr::Exists {
+        subquery: Box::new(subquery),
+        r#type: scalar(Scalar::Boolean),
+    }
 }
 
 /// `new SqlExpr.InSubquery(value, subquery)`.
 pub fn in_subquery(value: SqlExpr, subquery: SqlQuery) -> SqlExpr {
-    SqlExpr::InSubquery { value: Box::new(value), subquery: Box::new(subquery), r#type: scalar(Scalar::Boolean) }
+    SqlExpr::InSubquery {
+        value: Box::new(value),
+        subquery: Box::new(subquery),
+        r#type: scalar(Scalar::Boolean),
+    }
 }
 
 /// `new SqlExpr.Quantified(value, comparison, quantifier, subquery)`.
@@ -230,51 +305,90 @@ pub fn quantified(value: SqlExpr, comparison: SqlFn, quantifier: Quantifier, sub
 /// `new SqlExpr.ScalarSubquery(subquery)`.
 pub fn scalar_subquery(subquery: SqlQuery) -> SqlExpr {
     let r#type = typing::scalar_subquery_type(&subquery);
-    SqlExpr::ScalarSubquery { subquery: Box::new(subquery), r#type }
+    SqlExpr::ScalarSubquery {
+        subquery: Box::new(subquery),
+        r#type,
+    }
 }
 
 /// `new SqlExpr.CheckedDefects(own, hoists)`: no rule types it.
 pub fn checked_defects(own: SqlExpr, hoists: Vec<Hoist>) -> SqlExpr {
-    SqlExpr::CheckedDefects { own: Box::new(own), hoists, r#type: TypeFact::Unknown }
+    SqlExpr::CheckedDefects {
+        own: Box::new(own),
+        hoists,
+        r#type: TypeFact::Unknown,
+    }
 }
 
 /// `new SqlExpr.CheckedChildValue(envelope, toMany)`: no rule types it.
 pub fn checked_child_value(envelope: SqlExpr, to_many: bool) -> SqlExpr {
-    SqlExpr::CheckedChildValue { envelope: Box::new(envelope), to_many, r#type: TypeFact::Unknown }
+    SqlExpr::CheckedChildValue {
+        envelope: Box::new(envelope),
+        to_many,
+        r#type: TypeFact::Unknown,
+    }
 }
 
 /// `new SqlExpr.CheckedOne(list, scalarCarrier, atLeastOnly)`: an at-least-one guard keeps the list's fact, the
 /// exactly-one narrowing yields the element's.
 pub fn checked_one(list: SqlExpr, scalar_carrier: bool, at_least_only: bool) -> SqlExpr {
-    let r#type = if at_least_only { list.r#type().clone() } else { typing::checked_one_type(&list) };
-    SqlExpr::CheckedOne { list: Box::new(list), scalar_carrier, at_least_only, r#type }
+    let r#type = if at_least_only {
+        list.r#type().clone()
+    } else {
+        typing::checked_one_type(&list)
+    };
+    SqlExpr::CheckedOne {
+        list: Box::new(list),
+        scalar_carrier,
+        at_least_only,
+        r#type,
+    }
 }
 
 /// `new SqlExpr.CompactList(list)`: compaction keeps the carrier's fact.
 pub fn compact_list(list: SqlExpr) -> SqlExpr {
     let r#type = list.r#type().clone();
-    SqlExpr::CompactList { list: Box::new(list), r#type }
+    SqlExpr::CompactList {
+        list: Box::new(list),
+        r#type,
+    }
 }
 
 /// `new SqlExpr.JsonObject(kv)`.
 pub fn json_object(kv: Vec<SqlExpr>) -> SqlExpr {
-    SqlExpr::JsonObject { kv, r#type: scalar(Scalar::Json) }
+    SqlExpr::JsonObject {
+        kv,
+        r#type: scalar(Scalar::Json),
+    }
 }
 
 /// `new SqlExpr.JsonArray(elements)`.
 pub fn json_array(elements: Vec<SqlExpr>) -> SqlExpr {
-    SqlExpr::JsonArray { elements, r#type: scalar(Scalar::Json) }
+    SqlExpr::JsonArray {
+        elements,
+        r#type: scalar(Scalar::Json),
+    }
 }
 
 /// `new SqlExpr.JsonArrayAgg(value, orderKeys)`.
 pub fn json_array_agg(value: SqlExpr, order_keys: Vec<JsonArrayAggKey>) -> SqlExpr {
-    SqlExpr::JsonArrayAgg { value: Box::new(value), order_keys, r#type: scalar(Scalar::Json) }
+    SqlExpr::JsonArrayAgg {
+        value: Box::new(value),
+        order_keys,
+        r#type: scalar(Scalar::Json),
+    }
 }
 
 /// `new SqlExpr.WindowCall(fn, partitionBy, orderBy, frame)`.
 pub fn window_call(f: SqlAgg, partition_by: Vec<SqlExpr>, order_by: Vec<SortKey>, frame: Option<Frame>) -> SqlExpr {
     let r#type = typing::window_type(&f);
-    SqlExpr::WindowCall { r#fn: Box::new(f), partition_by, order_by, frame, r#type }
+    SqlExpr::WindowCall {
+        r#fn: Box::new(f),
+        partition_by,
+        order_by,
+        frame,
+        r#type,
+    }
 }
 
 /// `new SqlExpr.Lambda(params, body)`: a lambda's fact is a leaf's, UNKNOWN by default.
@@ -284,18 +398,34 @@ pub fn lambda(params: &[&str], body: SqlExpr) -> SqlExpr {
 
 /// `new SqlExpr.Lambda(params, body)`, as the record.
 pub fn lambda_of(params: Vec<String>, body: SqlExpr) -> Lambda {
-    Lambda { params, body: Box::new(body), r#type: TypeFact::Unknown }
+    Lambda {
+        params,
+        body: Box::new(body),
+        r#type: TypeFact::Unknown,
+    }
 }
 
 /// `new SqlExpr.FoldCall(source, lambda, init, accIsList, homogeneous)`.
 pub fn fold_call(source: SqlExpr, lambda: Lambda, init: SqlExpr, acc_is_list: bool, homogeneous: bool) -> SqlExpr {
     let r#type = typing::fold_type(&source, &lambda, &init, acc_is_list);
-    SqlExpr::FoldCall { source: Box::new(source), lambda, init: Box::new(init), acc_is_list, homogeneous, r#type }
+    SqlExpr::FoldCall {
+        source: Box::new(source),
+        lambda,
+        init: Box::new(init),
+        acc_is_list,
+        homogeneous,
+        r#type,
+    }
 }
 
 /// `new SqlSelect.SortKey(expr, ascending, nullOrder, outputName)`.
 pub fn sort_key(expr: SqlExpr, ascending: bool, null_order: Option<NullOrder>, output_name: Option<String>) -> SortKey {
-    SortKey { expr, ascending, null_order, output_name }
+    SortKey {
+        expr,
+        ascending,
+        null_order,
+        output_name,
+    }
 }
 
 // ---- queries and sources
@@ -311,14 +441,22 @@ pub fn projection(expr: SqlExpr, alias: Option<String>, out: Option<OutputCol>) 
     }
     let out = out.map(|o| match o.origin {
         Origin::Derived | Origin::PerKey => o,
-        _ => OutputCol { origin: Origin::Derived, ..o },
+        _ => OutputCol {
+            origin: Origin::Derived,
+            ..o
+        },
     });
     Ok(Projection { expr, alias, out })
 }
 
 /// `new OutputCol(name, type, nullable)`: a derived column.
 pub fn output_col(name: &str, t: SqlType, nullable: bool) -> OutputCol {
-    OutputCol { name: name.to_owned(), r#type: t, nullable, origin: Origin::Derived }
+    OutputCol {
+        name: name.to_owned(),
+        r#type: t,
+        nullable,
+        origin: Origin::Derived,
+    }
 }
 
 /// `new SqlSelect(...)`'s canonical constructor over `s`: a projection frame's outputs rebuilt from its projections,
@@ -436,7 +574,11 @@ pub fn with(ctes: Vec<Cte>, body: SqlQuery, recursive: bool) -> Result<SqlWith, 
     if ctes.is_empty() {
         return Err(Refusal::illegal_argument("a WITH without expressions is its body"));
     }
-    Ok(SqlWith { ctes, body: Box::new(body), recursive })
+    Ok(SqlWith {
+        ctes,
+        body: Box::new(body),
+        recursive,
+    })
 }
 
 /// `SqlWith.prepend(ctes, q, recursive)`: `ctes` ahead of `q`'s own (a WITH merges; any other query is the body).
@@ -463,12 +605,22 @@ pub fn join(left: SqlSource, right: SqlSource, kind: JoinKind, on: Option<SqlExp
         return Err(Refusal::illegal_argument(format!("{kind} requires an ON condition")));
     }
     let outputs = typing::join_delivered(&left, &right, kind);
-    Ok(SqlSource::Join { left: Box::new(left), right: Box::new(right), kind, on: on.map(Box::new), outputs })
+    Ok(SqlSource::Join {
+        left: Box::new(left),
+        right: Box::new(right),
+        kind,
+        on: on.map(Box::new),
+        outputs,
+    })
 }
 
 /// `new SqlSource.Subselect(inner, alias, frameName)`.
 pub fn subselect(inner: SqlQuery, alias: &str, frame_name: Option<String>) -> SqlSource {
-    SqlSource::Subselect { inner: Box::new(inner), alias: alias.to_owned(), frame_name }
+    SqlSource::Subselect {
+        inner: Box::new(inner),
+        alias: alias.to_owned(),
+        frame_name,
+    }
 }
 
 /// A select as a query.

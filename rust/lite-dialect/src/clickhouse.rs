@@ -80,15 +80,25 @@ pub const RESERVED: &[&str] = &[
 static LEXICON: LazyLock<Lexicon> = LazyLock::new(|| Lexicon::new('"', RESERVED));
 
 /// Java's `ClickHouse.CAPS`: typed native arrays with lambdas; FULL OUTER, the as-of join and QUALIFY native.
-pub const CAPS: carrier::Caps =
-    carrier::Caps { native_lists: true, correlated_explode: true, json_carrier: true, native_full_outer: true };
+pub const CAPS: carrier::Caps = carrier::Caps {
+    native_lists: true,
+    correlated_explode: true,
+    json_carrier: true,
+    native_full_outer: true,
+};
 
 /// A list of no element type (Java's `EMPTY_UNTYPED`).
 const EMPTY_UNTYPED: &str = "CAST([] AS Array(Nullable(Nothing)))";
 
 /// The comparisons a null-rejecting conjunct may be (Java's `COMPARISONS`).
-const COMPARISONS: &[SqlFn] =
-    &[SqlFn::Equal, SqlFn::NotEqual, SqlFn::Less, SqlFn::LessEqual, SqlFn::Greater, SqlFn::GreaterEqual];
+const COMPARISONS: &[SqlFn] = &[
+    SqlFn::Equal,
+    SqlFn::NotEqual,
+    SqlFn::Less,
+    SqlFn::LessEqual,
+    SqlFn::Greater,
+    SqlFn::GreaterEqual,
+];
 
 // ==================================================================
 // Pieces and the type facts the arms read
@@ -220,7 +230,9 @@ fn reads_only(e: &SqlExpr, own: &HashSet<String>) -> Result<bool, Refusal> {
 /// `e`'s conjuncts: an AND's operands, each flattened; any other expression is its own one (Java's `conjuncts`).
 fn conjuncts(e: &SqlExpr) -> Vec<&SqlExpr> {
     match e {
-        SqlExpr::Call { r#fn: SqlFn::And, args, .. } => args.iter().flat_map(conjuncts).collect(),
+        SqlExpr::Call {
+            r#fn: SqlFn::And, args, ..
+        } => args.iter().flat_map(conjuncts).collect(),
         other => vec![other],
     }
 }
@@ -357,12 +369,15 @@ fn in_range(iso: &str) -> Result<&str, Refusal> {
     let start = usize::from(bytes.first() == Some(&b'-'));
     let digits = bytes[start..].iter().take_while(|b| b.is_ascii_digit()).count();
     if digits == 0 || bytes.get(start + digits) != Some(&b'-') {
-        return Err(Refusal::illegal_state(format!("a date literal with no year reached ClickHouse: {iso}")));
+        return Err(Refusal::illegal_state(format!(
+            "a date literal with no year reached ClickHouse: {iso}"
+        )));
     }
     let group = &iso[..start + digits];
-    let year: i32 = group
-        .parse()
-        .map_err(|_| Refusal { class: Refusal::NUMBER_FORMAT, message: format!("For input string: \"{group}\"") })?;
+    let year: i32 = group.parse().map_err(|_| Refusal {
+        class: Refusal::NUMBER_FORMAT,
+        message: format!("For input string: \"{group}\""),
+    })?;
     if !(1900..=2299).contains(&year) {
         return Err(Refusal::capability(format!(
             "the date {iso} reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)"
@@ -381,16 +396,27 @@ fn decimal(text: &str) -> Result<String, Refusal> {
             "a decimal literal of {precision} digits reached ClickHouse, whose Decimal holds 76"
         )));
     }
-    Ok(format!("CAST('{}' AS Decimal({precision}, {scale}))", crate::java::big_decimal_plain(text)))
+    Ok(format!(
+        "CAST('{}' AS Decimal({precision}, {scale}))",
+        crate::java::big_decimal_plain(text)
+    ))
 }
 
 /// A struct field's spelled type: a Tuple's is its Variant, anything else itself (Java's `fieldTypeName`).
 fn field_type_name(t: &str) -> String {
-    if t.starts_with("Tuple(") { format!("Variant({t})") } else { t.to_owned() }
+    if t.starts_with("Tuple(") {
+        format!("Variant({t})")
+    } else {
+        t.to_owned()
+    }
 }
 
 fn not_nullable(t: &str) -> &str {
-    if t.starts_with("Nullable(") && t.ends_with(')') { &t[9..t.len() - 1] } else { t }
+    if t.starts_with("Nullable(") && t.ends_with(')') {
+        &t[9..t.len() - 1]
+    } else {
+        t
+    }
 }
 
 /// A struct field's type: its value's, or the type its class declares (Java's `fieldType`).
@@ -408,7 +434,12 @@ fn variant_field(e: &SqlExpr) -> bool {
 
 /// An unnest of the empty list of no element type, filtered or not (Java's `unnestOfUntypedEmpty`).
 fn unnest_of_untyped_empty(e: &SqlExpr) -> bool {
-    let SqlExpr::Call { r#fn: SqlFn::Unnest, args, .. } = e else {
+    let SqlExpr::Call {
+        r#fn: SqlFn::Unnest,
+        args,
+        ..
+    } = e
+    else {
         return false;
     };
     if args.len() != 1 {
@@ -418,7 +449,11 @@ fn unnest_of_untyped_empty(e: &SqlExpr) -> bool {
     loop {
         match xs {
             SqlExpr::CompactList { list, .. } => xs = list,
-            SqlExpr::Call { r#fn: SqlFn::ListFilter, args, .. } => match args.first() {
+            SqlExpr::Call {
+                r#fn: SqlFn::ListFilter,
+                args,
+                ..
+            } => match args.first() {
                 Some(first) => xs = first,
                 None => return false,
             },
@@ -435,7 +470,9 @@ fn unnest_of_untyped_empty(e: &SqlExpr) -> bool {
 /// Whether a value is a Float literal or Float-typed member beside a Decimal one (Java's `unified`'s test).
 fn needs_unifying(members: &[SqlExpr]) -> bool {
     let dbl = members.iter().any(|e| is_scalar(e, Scalar::Double));
-    let dec = members.iter().any(|e| matches!(type_of(e), Some(SqlType::Decimal { .. })));
+    let dec = members
+        .iter()
+        .any(|e| matches!(type_of(e), Some(SqlType::Decimal { .. })));
     dbl && dec
 }
 
@@ -464,7 +501,9 @@ impl ClickHouse {
     fn present<'a>(&'a self, xs: &'a SqlExpr) -> P<'a> {
         let list = self.list(xs);
         pc(move |w| {
-            w.append("arrayFilter(\"__x\" -> isNotNull(\"__x\"), ").piece(&*list)?.append(")");
+            w.append("arrayFilter(\"__x\" -> isNotNull(\"__x\"), ")
+                .piece(&*list)?
+                .append(")");
             Ok(())
         })
     }
@@ -529,7 +568,9 @@ impl ClickHouse {
         {
             let t = cast_type_name(self, slot)?;
             return Ok(pc(move |w| {
-                w.append(&format!("arrayResize(CAST([] AS {t}), ")).expr(self, e, 0)?.append(")");
+                w.append(&format!("arrayResize(CAST([] AS {t}), "))
+                    .expr(self, e, 0)?
+                    .append(")");
                 Ok(())
             }));
         }
@@ -547,14 +588,18 @@ impl ClickHouse {
 
     /// EXISTS; over a select of constants, the rows' own columns selected instead (Java's `exists`).
     fn exists(&self, w: &mut SqlWriter, ex: &SqlExpr, parent_prec: i32) -> Result<(), Refusal> {
-        let SqlExpr::Exists { subquery, .. } = ex else { unreachable!("an EXISTS") };
+        let SqlExpr::Exists { subquery, .. } = ex else {
+            unreachable!("an EXISTS")
+        };
         if let SqlQuery::Select(q) = subquery.as_ref()
             && q.group_by.is_empty()
             && q.having.is_none()
             && !q.distinct
             && !matches!(q.from, SqlSource::Dual)
             && !q.projections.is_empty()
-            && q.projections.iter().all(|p| matches!(p.expr, SqlExpr::IntLit { .. } | SqlExpr::BoolLit { .. }))
+            && q.projections
+                .iter()
+                .all(|p| matches!(p.expr, SqlExpr::IntLit { .. } | SqlExpr::BoolLit { .. }))
         {
             w.append("EXISTS (");
             let star = build::select(SqlSelect {
@@ -627,14 +672,24 @@ impl ClickHouse {
         let three_valued = build::case(
             vec![
                 build::when(
-                    some_row(s, filter, Some(build::call(SqlFn::Equal, vec![c.clone(), value.clone()])))?,
+                    some_row(
+                        s,
+                        filter,
+                        Some(build::call(SqlFn::Equal, vec![c.clone(), value.clone()])),
+                    )?,
                     build::bool_lit(true),
                 ),
-                build::when(some_row(s, filter, Some(build::call(SqlFn::IsNull, vec![c.clone()])))?, build::null_lit()),
+                build::when(
+                    some_row(s, filter, Some(build::call(SqlFn::IsNull, vec![c.clone()])))?,
+                    build::null_lit(),
+                ),
                 build::when(
                     build::call(
                         SqlFn::And,
-                        vec![build::call(SqlFn::IsNull, vec![value.clone()]), some_row(s, filter, None)?],
+                        vec![
+                            build::call(SqlFn::IsNull, vec![value.clone()]),
+                            some_row(s, filter, None)?,
+                        ],
                     ),
                     build::null_lit(),
                 ),
@@ -660,7 +715,11 @@ impl ClickHouse {
         let lists = ps.iter().map(|p| unnest_list(&p.expr)).collect::<Result<Vec<_>, _>>()?;
         self.source(w, left, depth)?;
         self.nl(w, depth);
-        w.append(if kind == JoinKind::LeftLateral { "LEFT ARRAY JOIN " } else { "ARRAY JOIN " });
+        w.append(if kind == JoinKind::LeftLateral {
+            "LEFT ARRAY JOIN "
+        } else {
+            "ARRAY JOIN "
+        });
         let n = |w: &mut SqlWriter| -> Result<(), Refusal> {
             w.append("greatest(").join(&lists, ", ", |v, l| {
                 v.append("length(").piece(&*self.list(l))?.append(")");
@@ -676,7 +735,10 @@ impl ClickHouse {
                 w.piece(&*self.exploded(l, p)?)?;
             } else {
                 w.append("arrayResize(arrayMap(\"__z\" -> toNullable(\"__z\"), ");
-                w.piece(&*self.exploded(l, p)?)?.append("), ").piece(&n)?.append(", NULL)");
+                w.piece(&*self.exploded(l, p)?)?
+                    .append("), ")
+                    .piece(&n)?
+                    .append(", NULL)");
             }
             let name = self.alias_ident(&format!("{sub_alias}.{}", marker_column(p)?));
             w.append(" AS ").append(&name);
@@ -720,7 +782,9 @@ impl ClickHouse {
         let clause = self.as_of_join_clause()?;
         w.append(&clause).append(" ");
         self.source(w, right, depth)?;
-        w.append(" ON cityHash64(").expr(self, &args[0], 0)?.append(") * 0 = cityHash64(");
+        w.append(" ON cityHash64(")
+            .expr(self, &args[0], 0)?
+            .append(") * 0 = cityHash64(");
         w.expr(self, &args[1], 0)?.append(") * 0 AND ").expr(self, on, 0)?;
         Ok(())
     }
@@ -746,7 +810,11 @@ impl ClickHouse {
         let mut local = Vec::new();
         let mut correlated = Vec::new();
         for c in conjuncts(filter) {
-            if reads_only(c, &inner)? { local.push(c.clone()) } else { correlated.push(c) }
+            if reads_only(c, &inner)? {
+                local.push(c.clone())
+            } else {
+                correlated.push(c)
+            }
         }
         // its own columns only
         let columns = s
@@ -761,7 +829,9 @@ impl ClickHouse {
             // SELECT * over one source: each of its columns is output under its own name
             let only = inner.iter().next().expect("one alias");
             for o in &s.outputs {
-                output_of.entry(format!("{only}.{}", o.name)).or_insert_with(|| o.name.clone());
+                output_of
+                    .entry(format!("{only}.{}", o.name))
+                    .or_insert_with(|| o.name.clone());
             }
         }
         for p in &s.projections {
@@ -793,9 +863,17 @@ impl ClickHouse {
         let filtered = build::with_where(s.clone(), filtered_where)?;
         self.source(w, left, depth)?;
         self.nl(w, depth);
-        w.append(if kind == JoinKind::LeftLateral { "LEFT OUTER JOIN " } else { "INNER JOIN " });
+        w.append(if kind == JoinKind::LeftLateral {
+            "LEFT OUTER JOIN "
+        } else {
+            "INNER JOIN "
+        });
         self.subselect_source(w, &build::query(filtered), sub_alias, depth)?;
-        let condition = if joined.len() == 1 { joined.pop().expect("one") } else { build::call(SqlFn::And, joined) };
+        let condition = if joined.len() == 1 {
+            joined.pop().expect("one")
+        } else {
+            build::call(SqlFn::And, joined)
+        };
         w.append(" ON ").expr(self, &condition, 0)?;
         Ok(true)
     }
@@ -821,7 +899,9 @@ impl AnsiSqlRenderer for ClickHouse {
     /// The engine's H2 text is refused here: ClickHouse has no translation of it.
     fn from_engine_text(&self, statement: &str) -> Result<String, Refusal> {
         let _ = statement;
-        Err(Refusal::capability("the engine's H2 text reached ClickHouse, which has no translation of it"))
+        Err(Refusal::capability(
+            "the engine's H2 text reached ClickHouse, which has no translation of it",
+        ))
     }
 
     /// Native lists (the carrier strategies stand aside); a static pivot as a grouped CASE aggregation; an outer
@@ -857,7 +937,11 @@ impl AnsiSqlRenderer for ClickHouse {
         written?;
         if root {
             self.nl(w, 0);
-            w.append(SETTINGS).append(if self.correlated_exists.get() { CORRELATED } else { UNCORRELATED });
+            w.append(SETTINGS).append(if self.correlated_exists.get() {
+                CORRELATED
+            } else {
+                UNCORRELATED
+            });
         }
         Ok(())
     }
@@ -868,7 +952,10 @@ impl AnsiSqlRenderer for ClickHouse {
     }
 
     fn source(&self, w: &mut SqlWriter, src: &SqlSource, depth: usize) -> Result<(), Refusal> {
-        let SqlSource::Join { left, right, kind, on, .. } = src else {
+        let SqlSource::Join {
+            left, right, kind, on, ..
+        } = src
+        else {
             return ansi::source(self, w, src, depth);
         };
         let on = on.as_deref();
@@ -882,14 +969,18 @@ impl AnsiSqlRenderer for ClickHouse {
             if let Some(on) = on
                 && !matches!(on, SqlExpr::BoolLit { value: true, .. })
             {
-                return Err(Refusal::capability("a lateral explosion with a join condition reached ClickHouse"));
+                return Err(Refusal::capability(
+                    "a lateral explosion with a join condition reached ClickHouse",
+                ));
             }
             return self.array_join(w, left, *kind, marker, alias, depth);
         }
         // an as-of join whose ON is its inequality alone gets an equality that always holds where it can
         if *kind == JoinKind::AsofLeft
             && let Some(on) = on
-            && !conjuncts(on).iter().any(|c| matches!(c, SqlExpr::Call { r#fn: SqlFn::Equal, .. }))
+            && !conjuncts(on)
+                .iter()
+                .any(|c| matches!(c, SqlExpr::Call { r#fn: SqlFn::Equal, .. }))
         {
             return self.as_of_keyed(w, left, right, on, depth);
         }
@@ -912,7 +1003,9 @@ impl AnsiSqlRenderer for ClickHouse {
                     Ok(())
                 };
                 let zero = |w: &mut SqlWriter| -> Result<(), Refusal> {
-                    w.append("coalesce(cityHash64(").expr(self, &other, 0)?.append("), 0) * 0");
+                    w.append("coalesce(cityHash64(")
+                        .expr(self, &other, 0)?
+                        .append("), 0) * 0");
                     Ok(())
                 };
                 self.source(w, left, depth)?;
@@ -944,9 +1037,26 @@ impl AnsiSqlRenderer for ClickHouse {
             && matches!(kind, JoinKind::Inner | JoinKind::Left)
         {
             let keys = conjuncts(on);
-            let all_keys =
-                keys.iter().all(|c| matches!(c, SqlExpr::Call { r#fn: SqlFn::NullSafeEqual | SqlFn::Equal, .. }));
-            if all_keys && keys.iter().any(|c| matches!(c, SqlExpr::Call { r#fn: SqlFn::NullSafeEqual, .. })) {
+            let all_keys = keys.iter().all(|c| {
+                matches!(
+                    c,
+                    SqlExpr::Call {
+                        r#fn: SqlFn::NullSafeEqual | SqlFn::Equal,
+                        ..
+                    }
+                )
+            });
+            if all_keys
+                && keys.iter().any(|c| {
+                    matches!(
+                        c,
+                        SqlExpr::Call {
+                            r#fn: SqlFn::NullSafeEqual,
+                            ..
+                        }
+                    )
+                })
+            {
                 self.source(w, left, depth)?;
                 self.nl(w, depth);
                 let keyword = self.join_keyword(*kind)?;
@@ -956,8 +1066,14 @@ impl AnsiSqlRenderer for ClickHouse {
                 for (i, key) in keys.iter().enumerate() {
                     w.append(if i > 0 { " AND " } else { "" });
                     match key {
-                        SqlExpr::Call { r#fn: SqlFn::NullSafeEqual, args, .. } => {
-                            w.append("isNotDistinctFrom(").expr(self, arg(args, 0)?, 0)?.append(", ");
+                        SqlExpr::Call {
+                            r#fn: SqlFn::NullSafeEqual,
+                            args,
+                            ..
+                        } => {
+                            w.append("isNotDistinctFrom(")
+                                .expr(self, arg(args, 0)?, 0)?
+                                .append(", ");
                             w.expr(self, arg(args, 1)?, 0)?.append(")");
                         }
                         other => {
@@ -1001,7 +1117,9 @@ impl AnsiSqlRenderer for ClickHouse {
         outputs: &[OutputCol],
     ) -> Result<(), Refusal> {
         if outputs.len() != columns.len() {
-            return Err(Refusal::capability("a VALUES source without a declared type per column reached ClickHouse"));
+            return Err(Refusal::capability(
+                "a VALUES source without a declared type per column reached ClickHouse",
+            ));
         }
         let mut structure = String::new();
         for (i, column) in columns.iter().enumerate() {
@@ -1015,7 +1133,11 @@ impl AnsiSqlRenderer for ClickHouse {
                             scale = scale.max(*cell);
                         }
                     }
-                    if scale == *d_scale { declared.clone() } else { SqlType::Decimal { precision: 38, scale } }
+                    if scale == *d_scale {
+                        declared.clone()
+                    } else {
+                        SqlType::Decimal { precision: 38, scale }
+                    }
                 }
                 other => other.clone(),
             };
@@ -1037,7 +1159,9 @@ impl AnsiSqlRenderer for ClickHouse {
     }
 
     fn row_order_column(&self) -> Result<String, Refusal> {
-        Err(Refusal::capability("row order reached ClickHouse, which has no row-order column"))
+        Err(Refusal::capability(
+            "row order reached ClickHouse, which has no row-order column",
+        ))
     }
 
     /// ClickHouse's own as-of join.
@@ -1089,7 +1213,9 @@ impl AnsiSqlRenderer for ClickHouse {
 
     fn time_lit(&self, iso: &str) -> Result<String, Refusal> {
         let _ = iso;
-        Err(Refusal::capability("a time of day: ClickHouse's Time type is experimental"))
+        Err(Refusal::capability(
+            "a time of day: ClickHouse's Time type is experimental",
+        ))
     }
 
     /// A naive UTC date-time of six digits (finer ones cut); a `T` is a space.
@@ -1099,7 +1225,10 @@ impl AnsiSqlRenderer for ClickHouse {
         let units: Vec<u16> = t.encode_utf16().collect();
         let t = match units.iter().rposition(|&u| u == u16::from(b'.')) {
             Some(dot) => {
-                let digits = units[dot + 1..].iter().take_while(|&&u| lite_javacompat::character::is_digit(u)).count();
+                let digits = units[dot + 1..]
+                    .iter()
+                    .take_while(|&&u| lite_javacompat::character::is_digit(u))
+                    .count();
                 if digits > 6 {
                     let kept = String::from_utf16_lossy(&units[..dot + 7]);
                     let rest = String::from_utf16_lossy(&units[dot + 1 + digits..]);
@@ -1227,11 +1356,15 @@ impl AnsiSqlRenderer for ClickHouse {
                 if matches!(subquery.as_ref(), SqlQuery::Select(s) if s.projections.len() == 1)
                     && correlated_of(subquery)? =>
             {
-                let SqlQuery::Select(s) = subquery.as_ref() else { unreachable!("a select") };
+                let SqlQuery::Select(s) = subquery.as_ref() else {
+                    unreachable!("a select")
+                };
                 self.in_correlated(w, value, s, parent_prec)
             }
             // a quantified comparison over no rows is SQL's ALL true and ANY false
-            SqlExpr::Quantified { quantifier, subquery, .. } => {
+            SqlExpr::Quantified {
+                quantifier, subquery, ..
+            } => {
                 if let SqlQuery::Select(s) = subquery.as_ref()
                     && correlated(s)?
                 {
@@ -1247,7 +1380,12 @@ impl AnsiSqlRenderer for ClickHouse {
                 w.append("(CASE WHEN (SELECT count() FROM (");
                 ansi::inline(self, w, subquery)?;
                 w.append(") AS \"__qa\") = 0 THEN ");
-                w.append(if *quantifier == Quantifier::All { "true" } else { "false" }).append(" ELSE ");
+                w.append(if *quantifier == Quantifier::All {
+                    "true"
+                } else {
+                    "false"
+                })
+                .append(" ELSE ");
                 ansi::expr(self, w, e, 0)?;
                 w.append(" END)");
                 Ok(())
@@ -1269,7 +1407,13 @@ impl AnsiSqlRenderer for ClickHouse {
                 self.exists(w, e, parent_prec)
             }
             SqlExpr::DecimalLit { value, r#type }
-                if !matches!(r#type, TypeFact::Typed { r#type: SqlType::Scalar(Scalar::Hugeint), .. }) =>
+                if !matches!(
+                    r#type,
+                    TypeFact::Typed {
+                        r#type: SqlType::Scalar(Scalar::Hugeint),
+                        ..
+                    }
+                ) =>
             {
                 let text = decimal(value.as_str())?;
                 w.append(&text);
@@ -1296,7 +1440,9 @@ impl AnsiSqlRenderer for ClickHouse {
             return Ok(());
         }
         let unify = needs_unifying(elements);
-        w.append("[").join(elements, ", ", |w, e| self.unified_member(w, e, unify))?.append("]");
+        w.append("[")
+            .join(elements, ", ", |w, e| self.unified_member(w, e, unify))?
+            .append("]");
         Ok(())
     }
 
@@ -1314,7 +1460,9 @@ impl AnsiSqlRenderer for ClickHouse {
                 w.append(&format!("CAST([] AS {})", types[i]));
             } else if matches!(ft, SqlType::Struct { .. }) {
                 // an instance as its Variant: NULL where it is absent
-                w.append("CAST(").expr(self, &f.value, 0)?.append(&format!(" AS {})", types[i]));
+                w.append("CAST(")
+                    .expr(self, &f.value, 0)?
+                    .append(&format!(" AS {})", types[i]));
             } else {
                 w.expr(self, &f.value, 0)?;
             }
@@ -1322,7 +1470,10 @@ impl AnsiSqlRenderer for ClickHouse {
         w.append(") AS Tuple(");
         for (i, f) in fields.iter().enumerate() {
             let name = self.ident(&f.name);
-            w.append(if i > 0 { ", " } else { "" }).append(&name).append(" ").append(&types[i]);
+            w.append(if i > 0 { ", " } else { "" })
+                .append(&name)
+                .append(" ")
+                .append(&types[i]);
         }
         w.append("))");
         Ok(())
@@ -1331,7 +1482,11 @@ impl AnsiSqlRenderer for ClickHouse {
     /// A field by name; a field NUMBER by its index; a struct-typed field of an instance read through its Variant.
     fn struct_get(&self, w: &mut SqlWriter, source: &SqlExpr, field: &str, r#type: &TypeFact) -> Result<(), Refusal> {
         let _ = r#type;
-        let field = if all_digits(field) { field.to_owned() } else { self.string_lit(field)? };
+        let field = if all_digits(field) {
+            field.to_owned()
+        } else {
+            self.string_lit(field)?
+        };
         w.append("tupleElement(");
         if variant_field(source)
             && let Some(st @ SqlType::Struct { .. }) = type_of(source)
@@ -1377,12 +1532,20 @@ impl AnsiSqlRenderer for ClickHouse {
 
     fn all_distinct(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let list = self.list(arg(args, 0)?);
-        w.append("(length(arrayDistinct(").piece(&*list)?.append(")) = length(").piece(&*list)?.append("))");
+        w.append("(length(arrayDistinct(")
+            .piece(&*list)?
+            .append(")) = length(")
+            .piece(&*list)?
+            .append("))");
         Ok(())
     }
 
     fn membership(&self, w: &mut SqlWriter, needle: &SqlExpr, collection: &SqlExpr) -> Result<(), Refusal> {
-        w.append("has(").piece(&*self.list(collection))?.append(", ").expr(self, needle, 0)?.append(")");
+        w.append("has(")
+            .piece(&*self.list(collection))?
+            .append(", ")
+            .expr(self, needle, 0)?
+            .append(")");
         Ok(())
     }
 
@@ -1399,7 +1562,10 @@ impl AnsiSqlRenderer for ClickHouse {
     /// One list exploded in a select list: `arrayJoin`.
     fn unnest_projection(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         if args.len() != 1 {
-            return Err(Refusal::capability(format!("an unnest of {} lists reached ClickHouse", args.len())));
+            return Err(Refusal::capability(format!(
+                "an unnest of {} lists reached ClickHouse",
+                args.len()
+            )));
         }
         w.append("arrayJoin(").piece(&*self.list(&args[0]))?.append(")");
         Ok(())
@@ -1407,15 +1573,28 @@ impl AnsiSqlRenderer for ClickHouse {
 
     /// Pure's fold, `(element, acc)`, as `arrayFold((acc, x) -> ..., xs, init)`.
     fn fold_call(&self, w: &mut SqlWriter, fold: &SqlExpr) -> Result<(), Refusal> {
-        let SqlExpr::FoldCall { source, lambda, init, r#type, .. } = fold else { unreachable!("a fold") };
+        let SqlExpr::FoldCall {
+            source,
+            lambda,
+            init,
+            r#type,
+            ..
+        } = fold
+        else {
+            unreachable!("a fold")
+        };
         let TypeFact::Typed { r#type: t, .. } = r#type else {
             return Err(Refusal::capability("a fold of unknown type reached ClickHouse"));
         };
         let ty = cast_type_name(self, t)?;
         let elem = self.param(param_name(&lambda.params, 0)?)?;
         let acc = self.param(param_name(&lambda.params, 1)?)?;
-        w.append(&format!("arrayFold(({acc}, {elem}) -> CAST(")).expr(self, &lambda.body, 0)?;
-        w.append(&format!(" AS {ty}), ")).piece(&*self.list(source))?.append(", CAST(").expr(self, init, 0)?;
+        w.append(&format!("arrayFold(({acc}, {elem}) -> CAST("))
+            .expr(self, &lambda.body, 0)?;
+        w.append(&format!(" AS {ty}), "))
+            .piece(&*self.list(source))?
+            .append(", CAST(")
+            .expr(self, init, 0)?;
         w.append(&format!(" AS {ty}))"));
         Ok(())
     }
@@ -1423,13 +1602,22 @@ impl AnsiSqlRenderer for ClickHouse {
     /// Pure's splitPart: the non-empty tokens, 1-based, NULL past the end.
     fn split_part_call(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let tokens = |w: &mut SqlWriter| -> Result<(), Refusal> {
-            w.append("arrayFilter(\"__t\" -> \"__t\" != '', splitByString(").expr(self, arg(a, 1)?, 0)?;
+            w.append("arrayFilter(\"__t\" -> \"__t\" != '', splitByString(")
+                .expr(self, arg(a, 1)?, 0)?;
             w.append(", ifNull(").expr(self, arg(a, 0)?, 0)?.append(", '')))");
             Ok(())
         };
         let n = arg(a, 2)?;
-        w.append("(CASE WHEN ").expr(self, n, 0)?.append(" < 1 OR ").expr(self, n, 0)?.append(" > length(");
-        w.piece(&tokens)?.append(") THEN NULL ELSE arrayElement(").piece(&tokens)?.append(", ").expr(self, n, 0)?;
+        w.append("(CASE WHEN ")
+            .expr(self, n, 0)?
+            .append(" < 1 OR ")
+            .expr(self, n, 0)?
+            .append(" > length(");
+        w.piece(&tokens)?
+            .append(") THEN NULL ELSE arrayElement(")
+            .piece(&tokens)?
+            .append(", ")
+            .expr(self, n, 0)?;
         w.append(") END)");
         Ok(())
     }
@@ -1454,7 +1642,9 @@ impl AnsiSqlRenderer for ClickHouse {
             w.expr(self, a0, 0)?;
             return Ok(());
         }
-        w.append("JSONExtractArrayRaw(coalesce(").expr(self, a0, 0)?.append(", 'null'))");
+        w.append("JSONExtractArrayRaw(coalesce(")
+            .expr(self, a0, 0)?
+            .append(", 'null'))");
         Ok(())
     }
 
@@ -1478,14 +1668,17 @@ impl AnsiSqlRenderer for ClickHouse {
 
     /// Pure's hashCode is a signed 64-bit integer: cityHash64's bits, read signed.
     fn hash_signed(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("coalesce(reinterpretAsInt64(cityHash64(").list(self, a)?.append(")), toInt64(0))");
+        w.append("coalesce(reinterpretAsInt64(cityHash64(")
+            .list(self, a)?
+            .append(")), toInt64(0))");
         Ok(())
     }
 
     /// Pure round is half-EVEN: ClickHouse's round of a Float is; of a Decimal it is roundBankers.
     fn round_half_even(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let dbl = is_scalar(arg(a, 0)?, Scalar::Double);
-        w.append(if dbl { "round(" } else { "roundBankers(" }).expr(self, &a[0], 0)?;
+        w.append(if dbl { "round(" } else { "roundBankers(" })
+            .expr(self, &a[0], 0)?;
         if a.len() > 1 {
             w.append(", ").expr(self, &a[1], 0)?;
         }
@@ -1550,9 +1743,15 @@ impl AnsiSqlRenderer for ClickHouse {
             Scalar::Date => "Nullable(Date32)",
             Scalar::Timestamp | Scalar::Timestamptz => "Nullable(DateTime64(6, 'UTC'))",
             // ClickHouse's Time type is experimental (25.6, behind a setting)
-            Scalar::Time => return Err(Refusal::capability("a time of day: ClickHouse's Time type is experimental")),
+            Scalar::Time => {
+                return Err(Refusal::capability(
+                    "a time of day: ClickHouse's Time type is experimental",
+                ));
+            }
             Scalar::DecimalText => {
-                return Err(Refusal::illegal_state(format!("{s} cast reached a dialect without {s} support")));
+                return Err(Refusal::illegal_state(format!(
+                    "{s} cast reached a dialect without {s} support"
+                )));
             }
         }
         .to_owned())
@@ -1586,7 +1785,9 @@ impl AnsiSqlRenderer for ClickHouse {
         if scalar == Scalar::Date {
             return Ok("Date32".to_owned());
         }
-        Err(Refusal::capability(format!("a TYPEOF compared with {scalar}'s name reached ClickHouse")))
+        Err(Refusal::capability(format!(
+            "a TYPEOF compared with {scalar}'s name reached ClickHouse"
+        )))
     }
 }
 
@@ -1673,11 +1874,16 @@ impl crate::dialect::SqlDialect for ClickHouse {
     /// A session's own table is a TEMPORARY table (the host opens the HTTP session that keeps it): the table and its
     /// INSERT, this interface's own renders.
     fn session_table(&self, table: &SqlDdl, rows: Option<&SqlDml>) -> Result<Vec<String>, Refusal> {
-        let SqlDdl::CreateTable { table: name, temporary, .. } = table else {
+        let SqlDdl::CreateTable {
+            table: name, temporary, ..
+        } = table
+        else {
             unreachable!("the seam hands a session table a createTable")
         };
         if !temporary {
-            return Err(Refusal::illegal_argument(format!("a session table is temporary: {name}")));
+            return Err(Refusal::illegal_argument(format!(
+                "a session table is temporary: {name}"
+            )));
         }
         let mut out = vec![AnsiSqlRenderer::render_ddl(self, table)?];
         if let Some(rows) = rows {

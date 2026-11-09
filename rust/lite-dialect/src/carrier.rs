@@ -54,16 +54,25 @@ impl CarrierStrategies {
 
     /// Java's `new CarrierStrategies(caps, foldLiteralReductions)`.
     pub fn with_literal_folds(caps: Caps, fold_literal_reductions: bool) -> CarrierStrategies {
-        CarrierStrategies { caps, fold_literal_reductions }
+        CarrierStrategies {
+            caps,
+            fold_literal_reductions,
+        }
     }
 }
 
 fn index_error(i: usize, len: usize) -> Refusal {
-    Refusal { class: Refusal::INDEX_OUT_OF_BOUNDS, message: format!("Index {i} out of bounds for length {len}") }
+    Refusal {
+        class: Refusal::INDEX_OUT_OF_BOUNDS,
+        message: format!("Index {i} out of bounds for length {len}"),
+    }
 }
 
 fn name_at(names: &[String], i: usize) -> Result<&str, Refusal> {
-    names.get(i).map(String::as_str).ok_or_else(|| index_error(i, names.len()))
+    names
+        .get(i)
+        .map(String::as_str)
+        .ok_or_else(|| index_error(i, names.len()))
 }
 
 // ==================================================================
@@ -118,7 +127,11 @@ pub(crate) fn map_children(
             None => mapped.push(k.into_owned()),
         }
     }
-    if changed { Ok(Some(with_children(e, mapped)?)) } else { Ok(None) }
+    if changed {
+        Ok(Some(with_children(e, mapped)?))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Java's `SqlExpr.withChildren(cs)`: the node with its direct children replaced, through the constructors that
@@ -148,16 +161,27 @@ pub fn with_children(e: &SqlExpr, cs: Vec<SqlExpr>) -> Result<SqlExpr, Refusal> 
         SqlExpr::InSubquery { subquery, .. } => build::in_subquery(next(), subquery.as_ref().clone()),
         SqlExpr::CheckedDefects { hoists, .. } => {
             let own = next();
-            let hs = hoists.iter().map(|h| lite_sql::Hoist { envelope: next(), ..h.clone() }).collect();
+            let hs = hoists
+                .iter()
+                .map(|h| lite_sql::Hoist {
+                    envelope: next(),
+                    ..h.clone()
+                })
+                .collect();
             build::checked_defects(own, hs)
         }
         SqlExpr::CheckedChildValue { to_many, .. } => build::checked_child_value(next(), *to_many),
-        SqlExpr::Quantified { comparison, quantifier, subquery, .. } => {
-            build::quantified(next(), *comparison, *quantifier, subquery.as_ref().clone())
-        }
-        SqlExpr::CheckedOne { scalar_carrier, at_least_only, .. } => {
-            build::checked_one(next(), *scalar_carrier, *at_least_only)
-        }
+        SqlExpr::Quantified {
+            comparison,
+            quantifier,
+            subquery,
+            ..
+        } => build::quantified(next(), *comparison, *quantifier, subquery.as_ref().clone()),
+        SqlExpr::CheckedOne {
+            scalar_carrier,
+            at_least_only,
+            ..
+        } => build::checked_one(next(), *scalar_carrier, *at_least_only),
         SqlExpr::CompactList { .. } => build::compact_list(next()),
         SqlExpr::Group { .. } => build::group(next()),
         SqlExpr::ArrayLit { elements, r#type } => {
@@ -167,9 +191,15 @@ pub fn with_children(e: &SqlExpr, cs: Vec<SqlExpr>) -> Result<SqlExpr, Refusal> 
             let value = next();
             build::ordered_list_agg(value, next())
         }
-        SqlExpr::StructLit { fields, .. } => {
-            build::struct_lit(fields.iter().map(|f| StructLitField { value: next(), ..f.clone() }).collect())
-        }
+        SqlExpr::StructLit { fields, .. } => build::struct_lit(
+            fields
+                .iter()
+                .map(|f| StructLitField {
+                    value: next(),
+                    ..f.clone()
+                })
+                .collect(),
+        ),
         SqlExpr::StructGet { field, r#type, .. } => build::struct_get_given(next(), field.clone(), r#type.clone()),
         SqlExpr::Call { r#fn, args, .. } => build::call(*r#fn, (0..args.len()).map(|_| next()).collect()),
         SqlExpr::Case { whens, otherwise, .. } => {
@@ -177,13 +207,22 @@ pub fn with_children(e: &SqlExpr, cs: Vec<SqlExpr>) -> Result<SqlExpr, Refusal> 
                 .iter()
                 .map(|_| {
                     let condition = next();
-                    When { condition, then: next() }
+                    When {
+                        condition,
+                        then: next(),
+                    }
                 })
                 .collect();
             let ot = otherwise.as_ref().map(|_| next());
             build::case(ws, ot)
         }
-        SqlExpr::WindowCall { r#fn, partition_by, order_by, frame, .. } => {
+        SqlExpr::WindowCall {
+            r#fn,
+            partition_by,
+            order_by,
+            frame,
+            ..
+        } => {
             let f = match r#fn.as_ref() {
                 SqlAgg::Reducer(_) => match next() {
                     SqlExpr::Reducer(r) => SqlAgg::Reducer(r),
@@ -200,14 +239,26 @@ pub fn with_children(e: &SqlExpr, cs: Vec<SqlExpr>) -> Result<SqlExpr, Refusal> 
                 other => other.clone(),
             };
             let pb = (0..partition_by.len()).map(|_| next()).collect();
-            let ks = order_by.iter().map(|k| SortKey { expr: next(), ..k.clone() }).collect();
+            let ks = order_by
+                .iter()
+                .map(|k| SortKey {
+                    expr: next(),
+                    ..k.clone()
+                })
+                .collect();
             build::window_call(f, pb, ks, frame.clone())
         }
-        SqlExpr::Lambda(l) => {
-            SqlExpr::Lambda(Lambda { params: l.params.clone(), body: Box::new(next()), r#type: l.r#type.clone() })
-        }
+        SqlExpr::Lambda(l) => SqlExpr::Lambda(Lambda {
+            params: l.params.clone(),
+            body: Box::new(next()),
+            r#type: l.r#type.clone(),
+        }),
         SqlExpr::Cast { target, conform, .. } => build::cast_conform(next(), target.clone(), *conform),
-        SqlExpr::FoldCall { acc_is_list, homogeneous, .. } => {
+        SqlExpr::FoldCall {
+            acc_is_list,
+            homogeneous,
+            ..
+        } => {
             let source = next();
             let lambda = match next() {
                 SqlExpr::Lambda(l) => l,
@@ -219,12 +270,25 @@ pub fn with_children(e: &SqlExpr, cs: Vec<SqlExpr>) -> Result<SqlExpr, Refusal> 
         SqlExpr::JsonArray { elements, .. } => build::json_array((0..elements.len()).map(|_| next()).collect()),
         SqlExpr::JsonArrayAgg { order_keys, .. } => {
             let value = next();
-            let ks = order_keys.iter().map(|k| JsonArrayAggKey { expr: next(), desc: k.desc }).collect();
+            let ks = order_keys
+                .iter()
+                .map(|k| JsonArrayAggKey {
+                    expr: next(),
+                    desc: k.desc,
+                })
+                .collect();
             build::json_array_agg(value, ks)
         }
         SqlExpr::Reducer(r) => {
             let args = (0..r.args.len()).map(|_| next()).collect();
-            let ks = r.order_by.iter().map(|k| SortKey { expr: next(), ..k.clone() }).collect();
+            let ks = r
+                .order_by
+                .iter()
+                .map(|k| SortKey {
+                    expr: next(),
+                    ..k.clone()
+                })
+                .collect();
             SqlExpr::Reducer(build::reducer(r.r#fn, args, r.distinct, ks))
         }
         // the leaves, and the nodes whose only children are queries: the node itself
@@ -269,14 +333,21 @@ fn remapped(e: &SqlExpr, from: &str, to: &str) -> Result<Option<SqlExpr>, Refusa
     if let SqlExpr::Column(c) = e
         && c.table.as_deref() == Some(from)
     {
-        return Ok(Some(SqlExpr::Column(Column { table: Some(to.to_owned()), ..c.clone() })));
+        return Ok(Some(SqlExpr::Column(Column {
+            table: Some(to.to_owned()),
+            ..c.clone()
+        })));
     }
     map_children(e, &mut |k| remapped(k, from, to))
 }
 
 /// `CarrierStrategies.literalNullTests`: a struct literal's null tests as their answers. `None`: the node itself.
 fn literal_null_tests(e: &SqlExpr) -> Result<Option<SqlExpr>, Refusal> {
-    if let SqlExpr::Call { r#fn: f @ (SqlFn::IsNull | SqlFn::IsNotNull), args, .. } = e
+    if let SqlExpr::Call {
+        r#fn: f @ (SqlFn::IsNull | SqlFn::IsNotNull),
+        args,
+        ..
+    } = e
         && let [SqlExpr::StructLit { .. }] = args.as_slice()
     {
         return Ok(Some(build::bool_lit(*f == SqlFn::IsNotNull)));
@@ -300,26 +371,47 @@ fn full_outer(
     left_copy: SqlSource,
 ) -> Result<SqlQuery, Refusal> {
     // the select's ORDER BY / LIMIT / OFFSET belong to the union, not to its branches
-    let bare = build::with_offset(build::with_limit(build::with_order_by(s.clone(), Vec::new())?, None)?, None)?;
-    let left_branch =
-        build::with_from(bare.clone(), build::join(left.clone(), right.clone(), JoinKind::Left, Some(on.clone()))?)?;
-    let probe = build::with_projections(build::star_of(left_copy)?, vec![build::projection(int_lit(1), None, None)?])?;
+    let bare = build::with_offset(
+        build::with_limit(build::with_order_by(s.clone(), Vec::new())?, None)?,
+        None,
+    )?;
+    let left_branch = build::with_from(
+        bare.clone(),
+        build::join(left.clone(), right.clone(), JoinKind::Left, Some(on.clone()))?,
+    )?;
+    let probe = build::with_projections(
+        build::star_of(left_copy)?,
+        vec![build::projection(int_lit(1), None, None)?],
+    )?;
     let probe = build::with_where(probe, Some(remap_alias(on, source_alias(left)?, "_full")?))?;
     let anti = call(SqlFn::Not, vec![build::exists(build::query(probe))]);
-    let right_branch =
-        build::with_from(bare, build::join(left.clone(), right.clone(), JoinKind::Right, Some(on.clone()))?)?;
+    let right_branch = build::with_from(
+        bare,
+        build::join(left.clone(), right.clone(), JoinKind::Right, Some(on.clone()))?,
+    )?;
     let w = match &s.r#where {
         None => anti,
         Some(w) => call(SqlFn::And, vec![w.clone(), anti]),
     };
     let right_branch = build::with_where(right_branch, Some(w))?;
-    let union = build::union(vec![build::query(left_branch), build::query(right_branch)], true, s.outputs.clone())?;
+    let union = build::union(
+        vec![build::query(left_branch), build::query(right_branch)],
+        true,
+        s.outputs.clone(),
+    )?;
     if s.order_by.is_empty() && s.limit.is_none() && s.offset.is_none() {
         return Ok(SqlQuery::Union(union));
     }
     let outer = build::star_of(build::subselect(SqlQuery::Union(union), "_fullu", None))?;
-    let keys = s.order_by.iter().map(|k| output_keyed_sort(k, s, "_fullu")).collect::<Result<Vec<_>, _>>()?;
-    let outer = build::with_offset(build::with_limit(build::with_order_by(outer, keys)?, s.limit)?, s.offset)?;
+    let keys = s
+        .order_by
+        .iter()
+        .map(|k| output_keyed_sort(k, s, "_fullu"))
+        .collect::<Result<Vec<_>, _>>()?;
+    let outer = build::with_offset(
+        build::with_limit(build::with_order_by(outer, keys)?, s.limit)?,
+        s.offset,
+    )?;
     Ok(build::query(outer))
 }
 
@@ -354,7 +446,13 @@ fn output_keyed_sort(k: &SortKey, s: &SqlSelect, outer_alias: &str) -> Result<So
     };
     // the union's output is a derived frame column of the outer select
     Ok(build::sort_key(
-        build::typed_column(Some(outer_alias), &out.name, out.r#type.clone(), out.nullable, Origin::Derived),
+        build::typed_column(
+            Some(outer_alias),
+            &out.name,
+            out.r#type.clone(),
+            out.nullable,
+            Origin::Derived,
+        ),
         k.ascending,
         k.null_order,
         Some(out.name.clone()),
@@ -369,25 +467,43 @@ struct Dedup {
 
 /// `CarrierStrategies.dedupList`: the bare `LIST_FILTER(list, (x, i) -> ...)` or its subquery-carrying form.
 fn dedup_list(e: &SqlExpr) -> Option<Dedup> {
-    if let SqlExpr::Call { r#fn: SqlFn::ListFilter, args, .. } = e
+    if let SqlExpr::Call {
+        r#fn: SqlFn::ListFilter,
+        args,
+        ..
+    } = e
         && let [list, SqlExpr::Lambda(l)] = args.as_slice()
         && l.params.len() == 2
     {
-        return Some(Dedup { list: list.clone(), keep: l.clone() });
+        return Some(Dedup {
+            list: list.clone(),
+            keep: l.clone(),
+        });
     }
     if let SqlExpr::ScalarSubquery { subquery, .. } = e
         && let SqlQuery::Select(sel) = subquery.as_ref()
         && sel.projections.len() == 1
-        && let SqlSource::Subselect { inner, alias: carry_alias, .. } = &sel.from
+        && let SqlSource::Subselect {
+            inner,
+            alias: carry_alias,
+            ..
+        } = &sel.from
         && let SqlQuery::Select(cs) = inner.as_ref()
         && cs.projections.len() == 1
         && matches!(cs.from, SqlSource::Dual)
-        && let SqlExpr::Call { r#fn: SqlFn::ListFilter, args, .. } = &sel.projections[0].expr
+        && let SqlExpr::Call {
+            r#fn: SqlFn::ListFilter,
+            args,
+            ..
+        } = &sel.projections[0].expr
         && let [SqlExpr::Column(lc), SqlExpr::Lambda(l2)] = args.as_slice()
         && lc.table.as_deref() == Some(carry_alias.as_str())
         && l2.params.len() == 2
     {
-        return Some(Dedup { list: cs.projections[0].expr.clone(), keep: l2.clone() });
+        return Some(Dedup {
+            list: cs.projections[0].expr.clone(),
+            keep: l2.clone(),
+        });
     }
     None
 }
@@ -395,8 +511,19 @@ fn dedup_list(e: &SqlExpr) -> Option<Dedup> {
 /// `CarrierStrategies.dedupKey`: the key the idiom compares `value` by, or none when the filter is not
 /// `LIST_POSITION(keys, key(x)) = i`.
 fn dedup_key(keep: &Lambda, value: &SqlExpr) -> Result<Option<SqlExpr>, Refusal> {
-    if let SqlExpr::Call { r#fn: SqlFn::Equal, args, .. } = keep.body.as_ref()
-        && let [SqlExpr::Call { r#fn: SqlFn::ListPosition, args: pos, .. }, SqlExpr::Column(i)] = args.as_slice()
+    if let SqlExpr::Call {
+        r#fn: SqlFn::Equal,
+        args,
+        ..
+    } = keep.body.as_ref()
+        && let [
+            SqlExpr::Call {
+                r#fn: SqlFn::ListPosition,
+                args: pos,
+                ..
+            },
+            SqlExpr::Column(i),
+        ] = args.as_slice()
         && pos.len() == 2
         && i.table.is_none()
         && i.name == name_at(&keep.params, 1)?
@@ -423,7 +550,11 @@ fn select_cast_error(q: &SqlQuery) -> Refusal {
 fn filter_branches(q: SqlQuery, pred: &Lambda) -> Result<SqlQuery, Refusal> {
     match q {
         SqlQuery::Union(u) => {
-            let bs = u.branches.into_iter().map(|b| filter_branches(b, pred)).collect::<Result<Vec<_>, _>>()?;
+            let bs = u
+                .branches
+                .into_iter()
+                .map(|b| filter_branches(b, pred))
+                .collect::<Result<Vec<_>, _>>()?;
             Ok(SqlQuery::Union(build::union(bs, u.all, u.outputs)?))
         }
         SqlQuery::Select(sel) => {
@@ -456,7 +587,15 @@ fn key_slot(key: &SqlExpr, value: &OutputCol) -> OutputCol {
 }
 
 fn row_number(partition: Vec<SqlExpr>, order: Vec<SortKey>) -> SqlExpr {
-    build::window_call(SqlAgg::RankingFn { r#fn: AggFn::RowNumber, args: Vec::new() }, partition, order, None)
+    build::window_call(
+        SqlAgg::RankingFn {
+            r#fn: AggFn::RowNumber,
+            args: Vec::new(),
+        },
+        partition,
+        order,
+        None,
+    )
 }
 
 fn plain_select(
@@ -490,7 +629,9 @@ fn distinct_of(q: SqlQuery, outer: &SqlSelect, keep: &Lambda) -> Result<Option<S
     if let SqlQuery::Union(u) = &q
         && u.all
         && outer.outputs.len() == 1
-        && u.branches.iter().all(|b| matches!(b, SqlQuery::Select(bs) if bs.projections.len() == 1))
+        && u.branches
+            .iter()
+            .all(|b| matches!(b, SqlQuery::Select(bs) if bs.projections.len() == 1))
     {
         let value = &outer.outputs[0];
         let index = build::output_col("__dd_index", bigint(), false);
@@ -498,7 +639,9 @@ fn distinct_of(q: SqlQuery, outer: &SqlSelect, keep: &Lambda) -> Result<Option<S
         let mut key_col: Option<OutputCol> = None;
         let mut indexed = Vec::with_capacity(u.branches.len());
         for (i, b) in u.branches.iter().enumerate() {
-            let SqlQuery::Select(b) = b else { unreachable!("every branch is a select") };
+            let SqlQuery::Select(b) = b else {
+                unreachable!("every branch is a select")
+            };
             let v = &b.projections[0].expr;
             let Some(key) = dedup_key(keep, v)? else {
                 return Ok(None);
@@ -506,14 +649,22 @@ fn distinct_of(q: SqlQuery, outer: &SqlSelect, keep: &Lambda) -> Result<Option<S
             let kc = key_col.get_or_insert_with(|| key_slot(&key, value)).clone();
             indexed.push(build::query(build::with_projections(
                 b.as_ref().clone(),
-                vec![named(v.clone(), value)?, named(key, &kc)?, named(int_lit(i as i64), &index)?],
+                vec![
+                    named(v.clone(), value)?,
+                    named(key, &kc)?,
+                    named(int_lit(i as i64), &index)?,
+                ],
             )?));
         }
         let Some(key_col) = key_col else {
             return Ok(None);
         };
         let src = build::subselect(
-            SqlQuery::Union(build::union(indexed, true, vec![value.clone(), key_col.clone(), index.clone()])?),
+            SqlQuery::Union(build::union(
+                indexed,
+                true,
+                vec![value.clone(), key_col.clone(), index.clone()],
+            )?),
             "dedup_src",
             None,
         );
@@ -522,7 +673,11 @@ fn distinct_of(q: SqlQuery, outer: &SqlSelect, keep: &Lambda) -> Result<Option<S
             vec![build::sort_key(col("dedup_src", &index), true, None, None)],
         );
         let ranked = plain_select(
-            vec![named(col("dedup_src", value), value)?, named(col("dedup_src", &index), &index)?, named(rn, &first)?],
+            vec![
+                named(col("dedup_src", value), value)?,
+                named(col("dedup_src", &index), &index)?,
+                named(rn, &first)?,
+            ],
             src,
             None,
             Vec::new(),
@@ -543,11 +698,20 @@ fn distinct_of(q: SqlQuery, outer: &SqlSelect, keep: &Lambda) -> Result<Option<S
         return keyed_distinct(q, outer, keep);
     }
     if let SqlQuery::Select(sel) = q {
-        return Ok(Some(build::query(build::select(SqlSelect { distinct: true, order_by: Vec::new(), ..*sel })?)));
+        return Ok(Some(build::query(build::select(SqlSelect {
+            distinct: true,
+            order_by: Vec::new(),
+            ..*sel
+        })?)));
     }
     let star = build::projection(build::star(None), None, None)?;
-    let mut s =
-        plain_select(vec![star], build::subselect(q, "dedup_src", None), None, Vec::new(), outer.outputs.clone())?;
+    let mut s = plain_select(
+        vec![star],
+        build::subselect(q, "dedup_src", None),
+        None,
+        Vec::new(),
+        outer.outputs.clone(),
+    )?;
     s.distinct = true;
     Ok(Some(build::query(build::select(s)?)))
 }
@@ -620,7 +784,10 @@ fn collect_of(sel: &SqlSelect) -> &Reducer {
 /// `sel` projecting `e` in its one projection's place (its alias and slot kept).
 fn reprojected(sel: &SqlSelect, e: SqlExpr) -> Result<SqlSelect, Refusal> {
     let p0 = &sel.projections[0];
-    build::with_projections(sel.clone(), vec![build::projection(e, p0.alias.clone(), p0.out.clone())?])
+    build::with_projections(
+        sel.clone(),
+        vec![build::projection(e, p0.alias.clone(), p0.out.clone())?],
+    )
 }
 
 /// `CarrierStrategies.explode`: the portable form of `SELECT unnest(arg) AS alias` for the witnessed argument
@@ -633,7 +800,11 @@ fn explode(arg: &SqlExpr, s: &SqlSelect, alias: Option<&str>) -> Result<Option<S
         arg = *list;
     }
     // an array-cast wrapper over a folded literal unwraps
-    if let SqlExpr::Cast { value, target: SqlType::Array { .. }, .. } = &arg
+    if let SqlExpr::Cast {
+        value,
+        target: SqlType::Array { .. },
+        ..
+    } = &arg
         && let Some(jl) = json_literal(value)
         && let Json::List(ll) = json::parse(jl)?
     {
@@ -667,7 +838,11 @@ fn explode(arg: &SqlExpr, s: &SqlSelect, alias: Option<&str>) -> Result<Option<S
     }
     // a sorted explode: ASC NULLS LAST, the collect keys secondary
     if dual
-        && let SqlExpr::Call { r#fn: SqlFn::ListSort, args, .. } = &arg
+        && let SqlExpr::Call {
+            r#fn: SqlFn::ListSort,
+            args,
+            ..
+        } = &arg
         && args.len() == 1
         && let Some(coll) = collect_select(&args[0])
     {
@@ -680,7 +855,11 @@ fn explode(arg: &SqlExpr, s: &SqlSelect, alias: Option<&str>) -> Result<Option<S
     }
     // a filtered explode: the inner list exploded, the predicate each branch's WHERE
     if dual
-        && let SqlExpr::Call { r#fn: SqlFn::ListFilter, args, .. } = &arg
+        && let SqlExpr::Call {
+            r#fn: SqlFn::ListFilter,
+            args,
+            ..
+        } = &arg
         && let [list, SqlExpr::Lambda(flam)] = args.as_slice()
         && flam.params.len() == 1
         && let Some(inner) = explode(list, s, alias)?
@@ -696,7 +875,11 @@ fn explode(arg: &SqlExpr, s: &SqlSelect, alias: Option<&str>) -> Result<Option<S
     }
     // a concatenation: the branches of each arm in turn
     if dual
-        && let SqlExpr::Call { r#fn: SqlFn::ListConcat, args, .. } = &arg
+        && let SqlExpr::Call {
+            r#fn: SqlFn::ListConcat,
+            args,
+            ..
+        } = &arg
         && args.len() >= 2
     {
         let mut branches = Vec::new();
@@ -721,13 +904,22 @@ fn explode(arg: &SqlExpr, s: &SqlSelect, alias: Option<&str>) -> Result<Option<S
         && inner.limit.is_none()
         && inner.offset.is_none()
     {
-        let src = inner.projections.iter().rfind(|ip| ip.alias.as_deref() == Some(c.name.as_str()));
-        if let Some(Projection { expr: SqlExpr::ArrayLit { elements: cells, .. }, .. }) = src
+        let src = inner
+            .projections
+            .iter()
+            .rfind(|ip| ip.alias.as_deref() == Some(c.name.as_str()));
+        if let Some(Projection {
+            expr: SqlExpr::ArrayLit { elements: cells, .. },
+            ..
+        }) = src
             && !cells.is_empty()
         {
             let mut branches = Vec::with_capacity(cells.len());
             for cell in cells {
-                branches.push(build::query(build::with_projections(inner.as_ref().clone(), one(cell.clone())?)?));
+                branches.push(build::query(build::with_projections(
+                    inner.as_ref().clone(),
+                    one(cell.clone())?,
+                )?));
             }
             return Ok(Some(union_or_one(branches, &s.outputs)?));
         }
@@ -754,7 +946,13 @@ impl SqlRewriter for CarrierStrategies {
         }
         // FULL OUTER emulation: LEFT branch UNION ALL RIGHT branch anti-joined on a copy of the LEFT source
         if !self.caps.native_full_outer
-            && let SqlSource::Join { left, right, kind: JoinKind::Full, on: Some(on), .. } = &s.from
+            && let SqlSource::Join {
+                left,
+                right,
+                kind: JoinKind::Full,
+                on: Some(on),
+                ..
+            } = &s.from
             && let Some(left_copy) = copy_with_alias(left, "_full")
         {
             return Ok(Rw::New(full_outer(&s, left, right, on, left_copy)?));
@@ -769,7 +967,11 @@ impl SqlRewriter for CarrierStrategies {
             && s.limit.is_none()
             && s.offset.is_none()
             && !s.distinct
-            && let SqlExpr::Call { r#fn: SqlFn::Unnest, args, .. } = &p.expr
+            && let SqlExpr::Call {
+                r#fn: SqlFn::Unnest,
+                args,
+                ..
+            } = &p.expr
             && let [a] = args.as_slice()
             && let Some(ex) = explode(a, &s, p.alias.as_deref())?
         {
@@ -782,7 +984,11 @@ impl SqlRewriter for CarrierStrategies {
         if self.caps.native_lists {
             return Ok(Rw::Same(s));
         }
-        if let SqlSource::Join { kind: JoinKind::AsofLeft, on: Some(_), .. } = &s
+        if let SqlSource::Join {
+            kind: JoinKind::AsofLeft,
+            on: Some(_),
+            ..
+        } = &s
             && let Some(em) = as_of_emulation(&s)?
         {
             return Ok(Rw::New(em));
@@ -811,7 +1017,16 @@ impl SqlRewriter for CarrierStrategies {
 /// A static pivot as GROUP BY over the non-pivoted columns with one filtered aggregate per value and USING; none
 /// for a dynamic pivot, more than one ON key, or a COUNT(*)-style USING.
 fn pivot_as_group_by(s: &SqlSource) -> Result<Option<SqlSource>, Refusal> {
-    let SqlSource::Pivot { source, on, r#in, named, usings, alias, outputs } = s else {
+    let SqlSource::Pivot {
+        source,
+        on,
+        r#in,
+        named,
+        usings,
+        alias,
+        outputs,
+    } = s
+    else {
         return Ok(None);
     };
     let values = if r#in.is_empty() { named } else { r#in };
@@ -836,7 +1051,10 @@ fn pivot_as_group_by(s: &SqlSource) -> Result<Option<SqlSource>, Refusal> {
                 return Ok(None);
             }
             let first = std::mem::replace(&mut args[0], build::null_lit());
-            args[0] = build::case(vec![when(call(SqlFn::Equal, vec![on[0].clone(), v.clone()]), first)], None);
+            args[0] = build::case(
+                vec![when(call(SqlFn::Equal, vec![on[0].clone(), v.clone()]), first)],
+                None,
+            );
             let pname = format!("{}__|__{}", lit_text(v), u.alias);
             let slot = generated_slot(outputs, u, &pname)?;
             ps.push(build::projection(
@@ -846,7 +1064,10 @@ fn pivot_as_group_by(s: &SqlSource) -> Result<Option<SqlSource>, Refusal> {
             )?);
         }
     }
-    let sel = build::with_group_by(build::with_projections(build::star_of(source.as_ref().clone())?, ps)?, group)?;
+    let sel = build::with_group_by(
+        build::with_projections(build::star_of(source.as_ref().clone())?, ps)?,
+        group,
+    )?;
     Ok(Some(build::subselect(build::query(sel), alias, None)))
 }
 
@@ -857,7 +1078,13 @@ fn named_projection(e: SqlExpr, oc: &OutputCol) -> Result<Projection, Refusal> {
 /// `CarrierStrategies.asOfEmulation`: a plain LEFT JOIN whose ON pins the right key to the correlated MAX (bounded
 /// above) or MIN (bounded below) over a copy of the right source; none for an unrecognized inequality or right side.
 fn as_of_emulation(j: &SqlSource) -> Result<Option<SqlSource>, Refusal> {
-    let SqlSource::Join { left, right, on: Some(on), .. } = j else {
+    let SqlSource::Join {
+        left,
+        right,
+        on: Some(on),
+        ..
+    } = j
+    else {
         return Ok(None);
     };
     let right_alias = source_alias(right)?;
@@ -890,9 +1117,20 @@ fn as_of_emulation(j: &SqlSource) -> Result<Option<SqlSource>, Refusal> {
     )?;
     let on2 = call(
         SqlFn::And,
-        vec![on.as_ref().clone(), call(SqlFn::Equal, vec![right_key, build::scalar_subquery(build::query(pick))])],
+        vec![
+            on.as_ref().clone(),
+            call(
+                SqlFn::Equal,
+                vec![right_key, build::scalar_subquery(build::query(pick))],
+            ),
+        ],
     );
-    Ok(Some(build::join(left.as_ref().clone(), right.as_ref().clone(), JoinKind::Left, Some(on2))?))
+    Ok(Some(build::join(
+        left.as_ref().clone(),
+        right.as_ref().clone(),
+        JoinKind::Left,
+        Some(on2),
+    )?))
 }
 
 /// `CarrierStrategies.copyWithAlias`: a fresh re-aliased copy of a simple source (a table, a CTE reference, a
@@ -900,7 +1138,14 @@ fn as_of_emulation(j: &SqlSource) -> Result<Option<SqlSource>, Refusal> {
 pub fn copy_with_alias(src: &SqlSource, alias: &str) -> Option<SqlSource> {
     let alias = alias.to_owned();
     Some(match src {
-        SqlSource::Table { name, outputs, call, stored_types, quoting, .. } => SqlSource::Table {
+        SqlSource::Table {
+            name,
+            outputs,
+            call,
+            stored_types,
+            quoting,
+            ..
+        } => SqlSource::Table {
             name: name.clone(),
             alias,
             outputs: outputs.clone(),
@@ -908,11 +1153,24 @@ pub fn copy_with_alias(src: &SqlSource, alias: &str) -> Option<SqlSource> {
             stored_types: stored_types.clone(),
             quoting: *quoting,
         },
-        SqlSource::Cte { name, outputs, .. } => SqlSource::Cte { name: name.clone(), alias, outputs: outputs.clone() },
-        SqlSource::Subselect { inner, .. } => SqlSource::Subselect { inner: inner.clone(), alias, frame_name: None },
-        SqlSource::Values { rows, columns, outputs, .. } => {
-            SqlSource::Values { rows: rows.clone(), columns: columns.clone(), alias, outputs: outputs.clone() }
-        }
+        SqlSource::Cte { name, outputs, .. } => SqlSource::Cte {
+            name: name.clone(),
+            alias,
+            outputs: outputs.clone(),
+        },
+        SqlSource::Subselect { inner, .. } => SqlSource::Subselect {
+            inner: inner.clone(),
+            alias,
+            frame_name: None,
+        },
+        SqlSource::Values {
+            rows, columns, outputs, ..
+        } => SqlSource::Values {
+            rows: rows.clone(),
+            columns: columns.clone(),
+            alias,
+            outputs: outputs.clone(),
+        },
         _ => return None,
     })
 }
@@ -924,7 +1182,9 @@ pub fn as_of_key(j: &SqlSource) -> Result<Option<(SqlExpr, bool)>, Refusal> {
         return Ok(None);
     };
     let right_alias = source_alias(right)?;
-    let on = on.as_ref().ok_or_else(|| Refusal::null_pointer("the as-of join's ON"))?;
+    let on = on
+        .as_ref()
+        .ok_or_else(|| Refusal::null_pointer("the as-of join's ON"))?;
     let mut conjuncts = Vec::new();
     flatten_and(on, &mut conjuncts);
     let mut key = None;
@@ -948,7 +1208,10 @@ pub fn as_of_key(j: &SqlSource) -> Result<Option<(SqlExpr, bool)>, Refusal> {
 }
 
 fn flatten_and<'a>(e: &'a SqlExpr, out: &mut Vec<&'a SqlExpr>) {
-    if let SqlExpr::Call { r#fn: SqlFn::And, args, .. } = e {
+    if let SqlExpr::Call {
+        r#fn: SqlFn::And, args, ..
+    } = e
+    {
         args.iter().for_each(|a| flatten_and(a, out));
         return;
     }
@@ -980,7 +1243,10 @@ fn lit_text(v: &SqlExpr) -> String {
 fn record_text(e: &SqlExpr) -> String {
     let fact = |t: &TypeFact| match t {
         TypeFact::Typed { r#type, nullable } => {
-            format!("Typed[type={}, nullable={nullable}]", crate::java::sql_type_text(r#type))
+            format!(
+                "Typed[type={}, nullable={nullable}]",
+                crate::java::sql_type_text(r#type)
+            )
         }
         TypeFact::Bottom => "Bottom[]".to_owned(),
         TypeFact::Raises => "Raises[]".to_owned(),
@@ -992,7 +1258,11 @@ fn record_text(e: &SqlExpr) -> String {
         SqlExpr::BoolLit { value, r#type } => format!("BoolLit[value={value}, type={}]", fact(r#type)),
         SqlExpr::FloatLit { value, r#type } => format!("FloatLit[value={}, type={}]", value.text(), fact(r#type)),
         SqlExpr::DecimalLit { value, r#type } => {
-            format!("DecimalLit[value={}, type={}]", json::big_decimal_text(value.as_str()), fact(r#type))
+            format!(
+                "DecimalLit[value={}, type={}]",
+                json::big_decimal_text(value.as_str()),
+                fact(r#type)
+            )
         }
         SqlExpr::DateLit { iso, r#type } => format!("DateLit[iso={iso}, type={}]", fact(r#type)),
         SqlExpr::TimestampLit { iso, r#type } => format!("TimestampLit[iso={iso}, type={}]", fact(r#type)),
@@ -1022,7 +1292,11 @@ impl CarrierStrategies {
     /// The expression hook's rules, in Java's order; none when no rule applies.
     fn rewritten(&mut self, e: &SqlExpr) -> Result<Option<SqlExpr>, Refusal> {
         // LIST_CONCAT over compile-time collections folds (nested concats inside-out: the walk is bottom-up)
-        if let SqlExpr::Call { r#fn: SqlFn::ListConcat, args, .. } = e
+        if let SqlExpr::Call {
+            r#fn: SqlFn::ListConcat,
+            args,
+            ..
+        } = e
             && !args.is_empty()
             && args.iter().all(|x| matches!(x, SqlExpr::ArrayLit { .. }))
         {
@@ -1043,7 +1317,11 @@ impl CarrierStrategies {
         }
         // LIST_LENGTH: a literal's length is compile-time, a filtered literal's a sum of tests, a split's token count
         // its separators plus one, a collect's COUNT(*) over the same rows
-        if let SqlExpr::Call { r#fn: SqlFn::ListLength, args, .. } = e
+        if let SqlExpr::Call {
+            r#fn: SqlFn::ListLength,
+            args,
+            ..
+        } = e
             && let [a0] = args.as_slice()
         {
             if let SqlExpr::ArrayLit { elements, .. } = a0 {
@@ -1052,7 +1330,11 @@ impl CarrierStrategies {
             if let Some(counted) = filtered_literal_length(a0)? {
                 return Ok(Some(counted));
             }
-            if let SqlExpr::Call { r#fn: SqlFn::Split, args: sp, .. } = a0
+            if let SqlExpr::Call {
+                r#fn: SqlFn::Split,
+                args: sp,
+                ..
+            } = a0
                 && let [s0, sep @ SqlExpr::StringLit { value: sl, .. }] = sp.as_slice()
                 && sl.encode_utf16().count() == 1
             {
@@ -1079,13 +1361,21 @@ impl CarrierStrategies {
             }
         }
         // the elements of an already-literal collection are the collection
-        if let SqlExpr::Call { r#fn: SqlFn::VariantElements, args, .. } = e
+        if let SqlExpr::Call {
+            r#fn: SqlFn::VariantElements,
+            args,
+            ..
+        } = e
             && let [a0 @ SqlExpr::ArrayLit { .. }] = args.as_slice()
         {
             return Ok(Some(a0.clone()));
         }
         // literal-variant const-folds: the JSON text is compile-time
-        if let SqlExpr::Call { r#fn: f @ (SqlFn::VariantGet | SqlFn::VariantElements), args, .. } = e
+        if let SqlExpr::Call {
+            r#fn: f @ (SqlFn::VariantGet | SqlFn::VariantElements),
+            args,
+            ..
+        } = e
             && let Some(lit) = json_literal(arg(args, 0)?)
         {
             let node = json::parse(lit)?;
@@ -1109,25 +1399,45 @@ impl CarrierStrategies {
                 && let Json::List(l) = &node
             {
                 // the elements of a Variant array are Variants: each a JSON cast literal, a scalar too
-                let els = l.iter().map(|el| cast(string_lit(&json_text(el)), SqlType::Scalar(Scalar::Json))).collect();
+                let els = l
+                    .iter()
+                    .map(|el| cast(string_lit(&json_text(el)), SqlType::Scalar(Scalar::Json)))
+                    .collect();
                 return Ok(Some(build::array_lit(els)));
             }
         }
         // typeof(e) = 'DATE' is a length test on the text: a DATE casts to 10 characters
-        if let SqlExpr::Call { r#fn: SqlFn::Equal, args, .. } = e
+        if let SqlExpr::Call {
+            r#fn: SqlFn::Equal,
+            args,
+            ..
+        } = e
             && let [
-                SqlExpr::Call { r#fn: SqlFn::Typeof, args: tf, .. },
-                SqlExpr::TypeNameLit { scalar: Scalar::Date, .. },
+                SqlExpr::Call {
+                    r#fn: SqlFn::Typeof,
+                    args: tf,
+                    ..
+                },
+                SqlExpr::TypeNameLit {
+                    scalar: Scalar::Date, ..
+                },
             ] = args.as_slice()
             && let [x] = tf.as_slice()
         {
             return Ok(Some(call(
                 SqlFn::Equal,
-                vec![call(SqlFn::Length, vec![cast(x.clone(), SqlType::Scalar(Scalar::Varchar))]), int_lit(10)],
+                vec![
+                    call(SqlFn::Length, vec![cast(x.clone(), SqlType::Scalar(Scalar::Varchar))]),
+                    int_lit(10),
+                ],
             )));
         }
         // a sorted collect is the collect ordered by its value, ASC NULLS LAST, its own keys the tiebreak
-        if let SqlExpr::Call { r#fn: SqlFn::ListSort, args, .. } = e
+        if let SqlExpr::Call {
+            r#fn: SqlFn::ListSort,
+            args,
+            ..
+        } = e
             && let [a0] = args.as_slice()
             && let Some(sel) = collect_select(a0)
         {
@@ -1139,7 +1449,11 @@ impl CarrierStrategies {
             return Ok(Some(build::scalar_subquery(build::query(reprojected(sel, list)?))));
         }
         // a filtered collect pushes the element predicate into the collect's WHERE
-        if let SqlExpr::Call { r#fn: SqlFn::ListFilter, args, .. } = e
+        if let SqlExpr::Call {
+            r#fn: SqlFn::ListFilter,
+            args,
+            ..
+        } = e
             && let [a0, SqlExpr::Lambda(flam)] = args.as_slice()
             && flam.params.len() == 1
             && let Some(sel) = collect_select(a0)
@@ -1150,7 +1464,10 @@ impl CarrierStrategies {
                 None => pred,
                 Some(w) => call(SqlFn::And, vec![w.clone(), pred]),
             };
-            return Ok(Some(build::scalar_subquery(build::query(build::with_where(sel.clone(), Some(w))?))));
+            return Ok(Some(build::scalar_subquery(build::query(build::with_where(
+                sel.clone(),
+                Some(w),
+            )?))));
         }
         if let SqlExpr::Call { r#fn, args, r#type } = e
             && let [SqlExpr::ArrayLit { elements, .. }] = args.as_slice()
@@ -1159,7 +1476,11 @@ impl CarrierStrategies {
         {
             return Ok(Some(folded));
         }
-        if let SqlExpr::Call { r#fn: SqlFn::ListGet, args, .. } = e
+        if let SqlExpr::Call {
+            r#fn: SqlFn::ListGet,
+            args,
+            ..
+        } = e
             && let [coll, idx] = args.as_slice()
         {
             if let Some(got) = list_get_rule(coll, idx)? {
@@ -1174,7 +1495,12 @@ impl CarrierStrategies {
         {
             return Ok(Some(rewritten));
         }
-        if let SqlExpr::ReduceCollection { reducer, collection, extras, .. } = e
+        if let SqlExpr::ReduceCollection {
+            reducer,
+            collection,
+            extras,
+            ..
+        } = e
             && let Some(fused) = fuse(*reducer, collection, extras, self.fold_literal_reductions)?
         {
             return Ok(Some(fused));
@@ -1187,7 +1513,11 @@ impl CarrierStrategies {
     /// position is.
     fn literal_pick(&mut self, array: &SqlExpr, position: &SqlExpr) -> Result<Option<SqlExpr>, Refusal> {
         let (element, lit) = match array {
-            SqlExpr::Cast { value, target: SqlType::Array { element }, .. } => (Some(element.as_ref()), value.as_ref()),
+            SqlExpr::Cast {
+                value,
+                target: SqlType::Array { element },
+                ..
+            } => (Some(element.as_ref()), value.as_ref()),
             _ => (None, array),
         };
         let SqlExpr::ArrayLit { elements, .. } = lit else {
@@ -1221,7 +1551,11 @@ fn fuse(
 ) -> Result<Option<SqlExpr>, Refusal> {
     let mut coll = collection.clone();
     let mut transform: Option<Lambda> = None;
-    if let SqlExpr::Call { r#fn: SqlFn::ListTransform, args, .. } = &coll
+    if let SqlExpr::Call {
+        r#fn: SqlFn::ListTransform,
+        args,
+        ..
+    } = &coll
         && let [inner, SqlExpr::Lambda(lam)] = args.as_slice()
         && lam.params.len() == 1
     {
@@ -1230,7 +1564,11 @@ fn fuse(
     }
     // a sorted join: the fused STRING_AGG orders by the raw collected value
     let mut sorted = false;
-    if let SqlExpr::Call { r#fn: SqlFn::ListSort, args, .. } = &coll
+    if let SqlExpr::Call {
+        r#fn: SqlFn::ListSort,
+        args,
+        ..
+    } = &coll
         && let [inner] = args.as_slice()
     {
         sorted = true;
@@ -1242,10 +1580,18 @@ fn fuse(
         && extras.len() == 1
         && !elements.is_empty()
     {
-        return Ok(if fold_literals { Some(concat_join(elements, transform.as_ref(), &extras[0])?) } else { None });
+        return Ok(if fold_literals {
+            Some(concat_join(elements, transform.as_ref(), &extras[0])?)
+        } else {
+            None
+        });
     }
     // the singleton-flatten unwrap: a collect of one-element literals is a collect of the elements
-    if let SqlExpr::Call { r#fn: SqlFn::ListFlatten, args, .. } = &coll
+    if let SqlExpr::Call {
+        r#fn: SqlFn::ListFlatten,
+        args,
+        ..
+    } = &coll
         && let [SqlExpr::ScalarSubquery { subquery, .. }] = args.as_slice()
         && let SqlQuery::Select(usel) = subquery.as_ref()
         && usel.projections.len() == 1
@@ -1253,7 +1599,11 @@ fn fuse(
         && ucollect.r#fn == AggFn::List
         && !ucollect.distinct
         && let [SqlExpr::Column(ucol)] = ucollect.args.as_slice()
-        && let SqlSource::Subselect { inner, alias: usub_alias, frame_name } = &usel.from
+        && let SqlSource::Subselect {
+            inner,
+            alias: usub_alias,
+            frame_name,
+        } = &usel.from
         && let SqlQuery::Select(uinner) = inner.as_ref()
         && uinner.projections.len() == 1
         && uinner.projections[0].alias.as_deref() == Some(ucol.name.as_str())
@@ -1267,7 +1617,11 @@ fn fuse(
         )?));
     }
     // a row-major cell collect: STRING_AGG over the per-row CONCAT of the cells
-    if let SqlExpr::Call { r#fn: SqlFn::ListFlatten, args, .. } = &coll
+    if let SqlExpr::Call {
+        r#fn: SqlFn::ListFlatten,
+        args,
+        ..
+    } = &coll
         && let [SqlExpr::ScalarSubquery { subquery, .. }] = args.as_slice()
         && let SqlQuery::Select(fsel) = subquery.as_ref()
         && fsel.projections.len() == 1
@@ -1302,7 +1656,11 @@ fn fuse(
         return Ok(Some(sorted_cells(union, transform.as_ref(), sep)?));
     }
     // a through-subselect row-major collect: the cells live in the inner select's scope
-    if let SqlExpr::Call { r#fn: SqlFn::ListFlatten, args, .. } = &coll
+    if let SqlExpr::Call {
+        r#fn: SqlFn::ListFlatten,
+        args,
+        ..
+    } = &coll
         && let [SqlExpr::ScalarSubquery { subquery, .. }] = args.as_slice()
         && let SqlQuery::Select(fsel2) = subquery.as_ref()
         && fsel2.projections.len() == 1
@@ -1310,7 +1668,11 @@ fn fuse(
         && fc2.r#fn == AggFn::List
         && !fc2.distinct
         && let [fcol_expr @ SqlExpr::Column(fcol)] = fc2.args.as_slice()
-        && let SqlSource::Subselect { inner, alias: fsub_alias, frame_name } = &fsel2.from
+        && let SqlSource::Subselect {
+            inner,
+            alias: fsub_alias,
+            frame_name,
+        } = &fsel2.from
         && let SqlQuery::Select(finner) = inner.as_ref()
         && !finner.distinct
         && finner.group_by.is_empty()
@@ -1334,8 +1696,11 @@ fn fuse(
             if !sorted {
                 let row_joined = concat_join(cells2, transform.as_ref(), sep)?;
                 let mut np = finner.projections.clone();
-                np[src_ix] =
-                    build::projection(row_joined, Some(fcol.name.clone()), finner.projections[src_ix].out.clone())?;
+                np[src_ix] = build::projection(
+                    row_joined,
+                    Some(fcol.name.clone()),
+                    finner.projections[src_ix].out.clone(),
+                )?;
                 let fused = SqlExpr::Reducer(build::reducer(
                     AggFn::StringAgg,
                     vec![fcol_expr.clone(), sep.clone()],
@@ -1350,7 +1715,9 @@ fn fuse(
                         frame_name.clone(),
                     ),
                 )?;
-                return Ok(Some(build::scalar_subquery(build::query(reprojected(&rebuilt, fused)?))));
+                return Ok(Some(build::scalar_subquery(build::query(reprojected(
+                    &rebuilt, fused,
+                )?))));
             }
             let mut branches = Vec::with_capacity(cells2.len());
             for cell in cells2 {
@@ -1386,7 +1753,11 @@ fn fuse(
     };
     let mut args = vec![value];
     args.extend(extras.iter().cloned());
-    let order = if sorted { vec![build::sort_key(raw.clone(), true, None, None)] } else { collect.order_by.clone() };
+    let order = if sorted {
+        vec![build::sort_key(raw.clone(), true, None, None)]
+    } else {
+        collect.order_by.clone()
+    };
     let fused = SqlExpr::Reducer(build::reducer(reducer, args, false, order));
     Ok(Some(build::scalar_subquery(build::query(reprojected(sel, fused)?))))
 }
@@ -1444,20 +1815,36 @@ fn list_get_rule(coll: &SqlExpr, idx: &SqlExpr) -> Result<Option<SqlExpr>, Refus
         } else {
             0
         };
-        return Ok(Some(if pos >= 1 && pos <= n { elements[(pos - 1) as usize].clone() } else { build::null_lit() }));
+        return Ok(Some(if pos >= 1 && pos <= n {
+            elements[(pos - 1) as usize].clone()
+        } else {
+            build::null_lit()
+        }));
     }
     // the first-non-null idiom: LIST_FILTER(lit, x | x IS NOT NULL)[1] is COALESCE over the elements
     if i == 1
-        && let SqlExpr::Call { r#fn: SqlFn::ListFilter, args, .. } = coll
+        && let SqlExpr::Call {
+            r#fn: SqlFn::ListFilter,
+            args,
+            ..
+        } = coll
         && let [SqlExpr::ArrayLit { elements: fal, .. }, SqlExpr::Lambda(lam)] = args.as_slice()
         && !fal.is_empty()
         && is_not_null_of_param(lam)
     {
-        return Ok(Some(if fal.len() == 1 { fal[0].clone() } else { call(SqlFn::Coalesce, fal.clone()) }));
+        return Ok(Some(if fal.len() == 1 {
+            fal[0].clone()
+        } else {
+            call(SqlFn::Coalesce, fal.clone())
+        }));
     }
     // a token pick over a split: SPLIT_PART guarded to NULL when the token is missing
     if i >= 1
-        && let SqlExpr::Call { r#fn: SqlFn::Split, args, .. } = coll
+        && let SqlExpr::Call {
+            r#fn: SqlFn::Split,
+            args,
+            ..
+        } = coll
         && let [s0, sep @ SqlExpr::StringLit { value: sl, .. }] = args.as_slice()
         && sl.encode_utf16().count() == 1
     {
@@ -1468,14 +1855,21 @@ fn list_get_rule(coll: &SqlExpr, idx: &SqlExpr) -> Result<Option<SqlExpr>, Refus
                     SqlFn::Minus,
                     vec![
                         call(SqlFn::Length, vec![s0.clone()]),
-                        call(SqlFn::Length, vec![call(SqlFn::Replace, vec![s0.clone(), sep.clone(), string_lit("")])]),
+                        call(
+                            SqlFn::Length,
+                            vec![call(SqlFn::Replace, vec![s0.clone(), sep.clone(), string_lit("")])],
+                        ),
                     ],
                 ),
                 int_lit(i - 1),
             ],
         );
         let part = call(SqlFn::SplitPart, vec![s0.clone(), sep.clone(), idx.clone()]);
-        return Ok(Some(if i == 1 { part } else { build::case(vec![when(missing, build::null_lit())], Some(part)) }));
+        return Ok(Some(if i == 1 {
+            part
+        } else {
+            build::case(vec![when(missing, build::null_lit())], Some(part))
+        }));
     }
     // an element pick over a collect: an order-carrying LIMIT/OFFSET; the last needs keys to flip
     if let Some(sel) = collect_select(coll) {
@@ -1490,7 +1884,14 @@ fn list_get_rule(coll: &SqlExpr, idx: &SqlExpr) -> Result<Option<SqlExpr>, Refus
             let flipped = collect
                 .order_by
                 .iter()
-                .map(|k| build::sort_key(k.expr.clone(), !k.ascending, flip_nulls(k.null_order), k.output_name.clone()))
+                .map(|k| {
+                    build::sort_key(
+                        k.expr.clone(),
+                        !k.ascending,
+                        flip_nulls(k.null_order),
+                        k.output_name.clone(),
+                    )
+                })
                 .collect();
             let p = build::with_limit(build::with_order_by(picked, flipped)?, Some(1))?;
             return Ok(Some(build::scalar_subquery(build::query(p))));
@@ -1502,7 +1903,11 @@ fn list_get_rule(coll: &SqlExpr, idx: &SqlExpr) -> Result<Option<SqlExpr>, Refus
 /// A one-parameter lambda `x -> x IS NOT NULL`.
 fn is_not_null_of_param(lam: &Lambda) -> bool {
     if let [p] = lam.params.as_slice()
-        && let SqlExpr::Call { r#fn: SqlFn::IsNotNull, args, .. } = lam.body.as_ref()
+        && let SqlExpr::Call {
+            r#fn: SqlFn::IsNotNull,
+            args,
+            ..
+        } = lam.body.as_ref()
         && let [SqlExpr::Column(pc)] = args.as_slice()
         && pc.table.is_none()
         && pc.name == *p
@@ -1514,7 +1919,11 @@ fn is_not_null_of_param(lam: &Lambda) -> bool {
 
 /// `CarrierStrategies.jsonLiteral`: the compile-time JSON text of `CAST('...' AS JSON)`.
 fn json_literal(e: &SqlExpr) -> Option<&str> {
-    if let SqlExpr::Cast { value, target: SqlType::Scalar(Scalar::Json), .. } = e
+    if let SqlExpr::Cast {
+        value,
+        target: SqlType::Scalar(Scalar::Json),
+        ..
+    } = e
         && let SqlExpr::StringLit { value, .. } = value.as_ref()
     {
         return Some(value);
@@ -1597,7 +2006,13 @@ fn lit_fold(elements: &[SqlExpr], neutral: SqlExpr, op: SqlFn, lead: Option<SqlE
 }
 
 fn flip_nulls(n: Option<NullOrder>) -> Option<NullOrder> {
-    n.map(|n| if n == NullOrder::NullsFirst { NullOrder::NullsLast } else { NullOrder::NullsFirst })
+    n.map(|n| {
+        if n == NullOrder::NullsFirst {
+            NullOrder::NullsLast
+        } else {
+            NullOrder::NullsFirst
+        }
+    })
 }
 
 /// `CarrierStrategies.membershipRule`: a literal collection's OR-chain of equalities (NULL elements dropped), pushed
@@ -1618,7 +2033,11 @@ fn membership_rule(needle: &SqlExpr, collection: &SqlExpr) -> Result<Option<SqlE
         }
         return Ok(Some(chain.unwrap_or_else(|| build::bool_lit(false))));
     }
-    if let SqlExpr::Call { r#fn: SqlFn::ListConcat, args, .. } = collection
+    if let SqlExpr::Call {
+        r#fn: SqlFn::ListConcat,
+        args,
+        ..
+    } = collection
         && args.len() >= 2
     {
         let mut chain: Option<SqlExpr> = None;
@@ -1651,7 +2070,11 @@ fn membership_rule(needle: &SqlExpr, collection: &SqlExpr) -> Result<Option<SqlE
         return Ok(Some(build::case(ws, ot)));
     }
     // a non-null filter is redundant under membership
-    if let SqlExpr::Call { r#fn: SqlFn::ListFilter, args, .. } = collection
+    if let SqlExpr::Call {
+        r#fn: SqlFn::ListFilter,
+        args,
+        ..
+    } = collection
         && let [inner, SqlExpr::Lambda(nn)] = args.as_slice()
         && is_not_null_of_param(nn)
     {
@@ -1694,7 +2117,11 @@ fn filtered_literal_length(a: &SqlExpr) -> Result<Option<SqlExpr>, Refusal> {
                 compacted = true;
                 x = list;
             }
-            SqlExpr::Call { r#fn: SqlFn::ListFilter, args, .. } => match args.as_slice() {
+            SqlExpr::Call {
+                r#fn: SqlFn::ListFilter,
+                args,
+                ..
+            } => match args.as_slice() {
                 [inner, SqlExpr::Lambda(lam)] if lam.params.len() == 1 => {
                     filters.insert(0, lam);
                     x = inner;
@@ -1712,8 +2139,11 @@ fn filtered_literal_length(a: &SqlExpr) -> Result<Option<SqlExpr>, Refusal> {
     }
     let mut sum: Option<SqlExpr> = None;
     for el in elements {
-        let mut cond =
-            if compacted { Some(null_tests_answered(call(SqlFn::IsNotNull, vec![el.clone()]))?) } else { None };
+        let mut cond = if compacted {
+            Some(null_tests_answered(call(SqlFn::IsNotNull, vec![el.clone()]))?)
+        } else {
+            None
+        };
         for lam in &filters {
             let p = null_tests_answered(subst(&lam.body, &lam.params[0], el)?)?;
             cond = Some(match cond {
@@ -1721,7 +2151,10 @@ fn filtered_literal_length(a: &SqlExpr) -> Result<Option<SqlExpr>, Refusal> {
                 Some(c) => call(SqlFn::And, vec![c, p]),
             });
         }
-        let one = build::case(vec![when(cond.expect("at least one filter"), int_lit(1))], Some(int_lit(0)));
+        let one = build::case(
+            vec![when(cond.expect("at least one filter"), int_lit(1))],
+            Some(int_lit(0)),
+        );
         sum = Some(match sum {
             None => one,
             Some(s) => call(SqlFn::Plus, vec![s, one]),

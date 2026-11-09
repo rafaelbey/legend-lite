@@ -67,8 +67,11 @@ pub fn variant_aware_cast(d: &MongoDb, w: &mut SqlWriter, value: &SqlExpr, targe
         return Ok(());
     }
     if let SqlType::Decimal { scale, .. } = target {
-        w.append("{\"$round\": [{\"$convert\": {\"input\": ").expr(d, value, 0)?;
-        w.append(", \"to\": \"decimal\"}}, ").append_long(i64::from(*scale)).append("]}");
+        w.append("{\"$round\": [{\"$convert\": {\"input\": ")
+            .expr(d, value, 0)?;
+        w.append(", \"to\": \"decimal\"}}, ")
+            .append_long(i64::from(*scale))
+            .append("]}");
         return Ok(());
     }
     if *target == SqlType::Scalar(Scalar::Timestamptz) {
@@ -76,7 +79,9 @@ pub fn variant_aware_cast(d: &MongoDb, w: &mut SqlWriter, value: &SqlExpr, targe
         // first), a date is one already
         let from_text = matches!(value, SqlExpr::StringLit { .. }) || typed_as(value, Scalar::Varchar);
         if !from_text {
-            w.append("{\"$convert\": {\"input\": ").expr(d, value, 0)?.append(", \"to\": \"date\"}}");
+            w.append("{\"$convert\": {\"input\": ")
+                .expr(d, value, 0)?
+                .append(", \"to\": \"date\"}}");
             return Ok(());
         }
         let pad = "{\"$cond\": [{\"$eq\": [{\"$strLenCP\": %s}, 1]}, {\"$concat\": [\"0\", %s]}, %s]}";
@@ -117,7 +122,13 @@ pub fn variant_aware_cast(d: &MongoDb, w: &mut SqlWriter, value: &SqlExpr, targe
         return json_text(d, w, value);
     }
     if is_text && typed_as(value, Scalar::Json) {
-        if matches!(value, SqlExpr::Call { r#fn: SqlFn::VariantGet, .. }) {
+        if matches!(
+            value,
+            SqlExpr::Call {
+                r#fn: SqlFn::VariantGet,
+                ..
+            }
+        ) {
             // a Variant element read as text is the element's own string, any other kind its JSON text
             w.append("{\"$let\": {\"vars\": {\"e\": ").expr(d, value, 0)?;
             w.append("}, \"in\": {\"$cond\": [{\"$eq\": [{\"$type\": \"$$e\"}, \"string\"]}, \"$$e\", ");
@@ -130,8 +141,15 @@ pub fn variant_aware_cast(d: &MongoDb, w: &mut SqlWriter, value: &SqlExpr, targe
         return cell_text(d, w, value);
     }
     if is_text && let Some(t) = temporal(value) {
-        w.append("{\"$dateToString\": {\"date\": ").expr(d, value, 0)?.append(", \"format\": ");
-        w.append(&json::string(if t == Scalar::Date { "%Y-%m-%d" } else { DATE_TIME_FORMAT })).append("}}");
+        w.append("{\"$dateToString\": {\"date\": ")
+            .expr(d, value, 0)?
+            .append(", \"format\": ");
+        w.append(&json::string(if t == Scalar::Date {
+            "%Y-%m-%d"
+        } else {
+            DATE_TIME_FORMAT
+        }))
+        .append("}}");
         return Ok(());
     }
     if is_text && may_be_number(value) {
@@ -159,7 +177,9 @@ pub fn variant_aware_cast(d: &MongoDb, w: &mut SqlWriter, value: &SqlExpr, targe
         .concat();
         return guarded(d, w, std::slice::from_ref(value), &text(body));
     }
-    w.append("{\"$convert\": {\"input\": ").expr(d, value, 0)?.append(", \"to\": ");
+    w.append("{\"$convert\": {\"input\": ")
+        .expr(d, value, 0)?
+        .append(", \"to\": ");
     let name = d.scalar_type_name(*s)?;
     w.append(&json::string(&name)).append("}}");
     Ok(())
@@ -263,7 +283,11 @@ pub fn number_text_of(d: &MongoDb, w: &mut SqlWriter, bound: &Pc<'_>, huge_int: 
 
 /// The format a date's text takes in a wire: a date alone, or Pure's date-time to the millisecond.
 fn date_format(e: &SqlExpr) -> &'static str {
-    if temporal(e) == Some(Scalar::Date) { "%Y-%m-%d" } else { DATE_TIME_FORMAT }
+    if temporal(e) == Some(Scalar::Date) {
+        "%Y-%m-%d"
+    } else {
+        DATE_TIME_FORMAT
+    }
 }
 
 /// The JSON text of an object or an array the wire builds (`CAST(json_object(...) AS VARCHAR)`), key by key, each
@@ -272,7 +296,10 @@ pub(super) fn json_text(d: &MongoDb, w: &mut SqlWriter, value: &SqlExpr) -> Resu
     match value {
         SqlExpr::JsonObject { kv, .. } => object_text(d, w, kv),
         SqlExpr::JsonArray { elements, .. } => array_text(d, w, elements),
-        other => Err(Refusal::illegal_state(format!("not a JSON constructor: {}", super::java_text::expr(other)))),
+        other => Err(Refusal::illegal_state(format!(
+            "not a JSON constructor: {}",
+            super::java_text::expr(other)
+        ))),
     }
 }
 
@@ -343,7 +370,9 @@ fn json_level(d: &MongoDb, w: &mut SqlWriter, date_format: &str, depth: usize) -
         " {\"case\": {\"$in\": [{\"$type\": \"$$v\"}, [\"object\", \"array\"]]}, \"then\": "
     ));
     if depth == 0 {
-        w.append(&raise_text(&format!("a document nested beyond {JSON_DEPTH} levels reached MongoDb's JSON writer")));
+        w.append(&raise_text(&format!(
+            "a document nested beyond {JSON_DEPTH} levels reached MongoDb's JSON writer"
+        )));
     } else {
         // the elements -- a document's entries, an array's values -- folded into one text, each written at the next
         // level, a document's keyed, commas between, the kind's brackets around
@@ -380,7 +409,13 @@ fn json_level(d: &MongoDb, w: &mut SqlWriter, date_format: &str, depth: usize) -
 /// The string `s`, with JSON's escapes: a backslash, a quote, a newline, a return, a tab.
 fn escaped_json_string(s: &str) -> String {
     let mut s = s.to_owned();
-    for (find, replacement) in [("\\", "\\\\"), ("\"", "\\\""), ("\n", "\\n"), ("\r", "\\r"), ("\t", "\\t")] {
+    for (find, replacement) in [
+        ("\\", "\\\\"),
+        ("\"", "\\\""),
+        ("\n", "\\n"),
+        ("\r", "\\r"),
+        ("\t", "\\t"),
+    ] {
         s = [
             "{\"$replaceAll\": {\"input\": ",
             &s,
@@ -597,7 +632,9 @@ enum Directive {
 /// literal is.
 pub fn format(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
     let SqlExpr::StringLit { value: f, .. } = arg(a, 0)? else {
-        return Err(Refusal::capability("a format that is not a literal reached MongoDb: no printf operator"));
+        return Err(Refusal::capability(
+            "a format that is not a literal reached MongoDb: no printf operator",
+        ));
     };
     let mut pieces: Vec<String> = Vec::new();
     let mut directives: Vec<Directive> = Vec::new();
@@ -653,7 +690,9 @@ pub fn format(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refus
             Directive::Text => format_argument(d, w, &a[i])?,
             Directive::Integer => {
                 // %d: the integer's digits
-                w.append("{\"$toString\": {\"$toLong\": ").expr(d, &a[i], 0)?.append("}}");
+                w.append("{\"$toString\": {\"$toLong\": ")
+                    .expr(d, &a[i], 0)?
+                    .append("}}");
             }
             Directive::Fixed(digits) => fixed_fraction(d, w, &a[i], digits)?,
         }
@@ -674,7 +713,8 @@ fn no_printf(f: &str) -> Refusal {
 fn fixed_fraction(d: &MongoDb, w: &mut SqlWriter, value: &SqlExpr, digits: i32) -> Result<(), Refusal> {
     w.append("{\"$let\": {\"vars\": {\"f\": ");
     fixed_fraction_text(d, w, value, digits)?;
-    w.append("}, \"in\": {\"$cond\": [{\"$and\": [{\"$lt\": [").expr(d, value, 0)?;
+    w.append("}, \"in\": {\"$cond\": [{\"$and\": [{\"$lt\": [")
+        .expr(d, value, 0)?;
     w.append(concat!(
         ", 0]}, {\"$ne\":",
         " [{\"$substrCP\": [\"$$f\", 0, 1]}, \"-\"]}]}, {\"$concat\": [\"-\", \"$$f\"]}, \"$$f\"]}}}"
@@ -683,8 +723,11 @@ fn fixed_fraction(d: &MongoDb, w: &mut SqlWriter, value: &SqlExpr, digits: i32) 
 }
 
 fn fixed_fraction_text(d: &MongoDb, w: &mut SqlWriter, value: &SqlExpr, digits: i32) -> Result<(), Refusal> {
-    w.append("{\"$let\": {\"vars\": {\"r\": {\"$round\": [{\"$toDouble\": ").expr(d, value, 0)?.append("}, ");
-    w.append_long(i64::from(digits)).append("]}}, \"in\": {\"$let\": {\"vars\": {\"t\": ");
+    w.append("{\"$let\": {\"vars\": {\"r\": {\"$round\": [{\"$toDouble\": ")
+        .expr(d, value, 0)?
+        .append("}, ");
+    w.append_long(i64::from(digits))
+        .append("]}}, \"in\": {\"$let\": {\"vars\": {\"t\": ");
     number_text_of(d, w, &json::var("r"), false)?;
     w.append("}, \"in\": {\"$let\": {\"vars\": {\"dot\": {\"$indexOfCP\": [\"$$t\", \".\"]}}, \"in\": ");
     if digits == 0 {
@@ -694,7 +737,8 @@ fn fixed_fraction_text(d: &MongoDb, w: &mut SqlWriter, value: &SqlExpr, digits: 
             "{\"$concat\": [{\"$substrCP\": [\"$$t\", 0, \"$$dot\"]}, \".\", {\"$substrCP\": [{\"$concat\":",
             " [{\"$substrCP\": [\"$$t\", {\"$add\": [\"$$dot\", 1]}, {\"$strLenCP\": \"$$t\"}]}, "
         ));
-        w.append(&json::string(&"0".repeat(usize::try_from(digits).unwrap_or(0)))).append("]}, 0, ");
+        w.append(&json::string(&"0".repeat(usize::try_from(digits).unwrap_or(0))))
+            .append("]}, 0, ");
         w.append_long(i64::from(digits)).append("]}]}");
     }
     w.append("}}}}}}");
@@ -744,12 +788,16 @@ pub fn strftime(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Ref
     let parts = match a1 {
         SqlExpr::FormatLit { parts, .. } if parts.iter().any(composed) => parts,
         _ => {
-            w.append("{\"$dateToString\": {\"date\": ").expr(d, arg(a, 0)?, 0)?.append(", \"format\": ");
+            w.append("{\"$dateToString\": {\"date\": ")
+                .expr(d, arg(a, 0)?, 0)?
+                .append(", \"format\": ");
             w.expr(d, a1, 0)?.append("}}");
             return Ok(());
         }
     };
-    w.append("{\"$let\": {\"vars\": {\"d\": ").expr(d, arg(a, 0)?, 0)?.append("}, \"in\": {\"$concat\": [");
+    w.append("{\"$let\": {\"vars\": {\"d\": ")
+        .expr(d, arg(a, 0)?, 0)?
+        .append("}, \"in\": {\"$concat\": [");
     let mut run: Vec<DateFmt> = Vec::new();
     let mut first = true;
     for p in parts {
@@ -808,7 +856,8 @@ fn coded_run(w: &mut SqlWriter, run: &mut Vec<DateFmt>, first: bool) -> Result<b
         return Ok(first);
     }
     let codes = format_text(run)?;
-    w.append(if first { "" } else { ", " }).append("{\"$dateToString\": {\"date\": \"$$d\", \"format\": ");
+    w.append(if first { "" } else { ", " })
+        .append("{\"$dateToString\": {\"date\": \"$$d\", \"format\": ");
     w.append(&json::string(&codes)).append("}}");
     run.clear();
     Ok(false)

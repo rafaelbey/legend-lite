@@ -52,7 +52,11 @@ pub fn md5(text: P<'_>) -> P<'_> {
     );
     let g = "CASE WHEN r.i < 16 THEN r.i WHEN r.i < 32 THEN (5 * r.i + 1) % 16 WHEN r.i < 48 THEN (3 * r.i + 5) % 16 \
              ELSE (7 * r.i) % 16 END";
-    let t = format!("((({f}) + r.a + {} + {}) & {M32})", at(&list(&MD5_K), "r.i"), at("__c.w", g));
+    let t = format!(
+        "((({f}) + r.a + {} + {}) & {M32})",
+        at(&list(&MD5_K), "r.i"),
+        at("__c.w", g)
+    );
     let next = [
         "r.d".to_owned(),
         format!("((r.b + {}) & {M32})", rotl(&t, &at(&list(&MD5_S), "r.i"))),
@@ -68,7 +72,17 @@ pub fn md5(text: P<'_>) -> P<'_> {
             "printf('%02x%02x%02x%02x', r.{v}0 & 255, (r.{v}0 >> 8) & 255, (r.{v}0 >> 16) & 255, (r.{v}0 >> 24) & 255)"
         ));
     }
-    rounds(text, false, 16, None, 64, &["a", "b", "c", "d"], &[0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476], &next, &out)
+    rounds(
+        text,
+        false,
+        16,
+        None,
+        64,
+        &["a", "b", "c", "d"],
+        &[0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476],
+        &next,
+        &out,
+    )
 }
 
 /// The SHA-1 of `text`'s UTF-8 bytes, as 40 lowercase hex digits; NULL for NULL.
@@ -80,12 +94,25 @@ pub fn sha1(text: P<'_>) -> P<'_> {
     );
     let k = "CASE WHEN r.i < 20 THEN 1518500249 WHEN r.i < 40 THEN 1859775393 WHEN r.i < 60 THEN 2400959708 ELSE \
              3395469782 END";
-    let t = format!("(({} + ({f}) + r.e + {k} + {}) & {M32})", rotl("r.a", "5"), at("__c.w", "r.i"));
-    let next = [t, "r.a".to_owned(), rotl("r.b", "30"), "r.c".to_owned(), "r.d".to_owned()];
+    let t = format!(
+        "(({} + ({f}) + r.e + {k} + {}) & {M32})",
+        rotl("r.a", "5"),
+        at("__c.w", "r.i")
+    );
+    let next = [
+        t,
+        "r.a".to_owned(),
+        rotl("r.b", "30"),
+        "r.c".to_owned(),
+        "r.d".to_owned(),
+    ];
     let schedule = |w: &str, j: &str| {
         rotl(
             &xor(
-                &xor(&xor(&at(w, &format!("{j} - 3")), &at(w, &format!("{j} - 8"))), &at(w, &format!("{j} - 14"))),
+                &xor(
+                    &xor(&at(w, &format!("{j} - 3")), &at(w, &format!("{j} - 8"))),
+                    &at(w, &format!("{j} - 14")),
+                ),
                 &at(w, &format!("{j} - 16")),
             ),
             "1",
@@ -109,7 +136,11 @@ pub fn sha1(text: P<'_>) -> P<'_> {
 pub fn sha256(text: P<'_>) -> P<'_> {
     let s1 = xor(&xor(&rotr("r.e", 6), &rotr("r.e", 11)), &rotr("r.e", 25));
     let ch = xor("r.e & r.f", "~r.e & r.g");
-    let t1 = format!("(r.h + {s1} + {ch} + {} + {})", at(&list(&SHA256_K), "r.i"), at("__c.w", "r.i"));
+    let t1 = format!(
+        "(r.h + {s1} + {ch} + {} + {})",
+        at(&list(&SHA256_K), "r.i"),
+        at("__c.w", "r.i")
+    );
     let s0 = xor(&xor(&rotr("r.a", 2), &rotr("r.a", 13)), &rotr("r.a", 22));
     let maj = xor(&xor("r.a & r.b", "r.a & r.c"), "r.b & r.c");
     let next = [
@@ -128,7 +159,11 @@ pub fn sha256(text: P<'_>) -> P<'_> {
         let w15 = at(w, &format!("{j} - 15"));
         let sigma0 = xor(&xor(&rotr(&w15, 7), &rotr(&w15, 18)), &format!("({w15} >> 3)"));
         let sigma1 = xor(&xor(&rotr(&w2, 17), &rotr(&w2, 19)), &format!("({w2} >> 10)"));
-        format!("(({sigma1} + {} + {sigma0} + {}) & {M32})", at(w, &format!("{j} - 7")), at(w, &format!("{j} - 16")))
+        format!(
+            "(({sigma1} + {} + {sigma0} + {}) & {M32})",
+            at(w, &format!("{j} - 7")),
+            at(w, &format!("{j} - 16"))
+        )
     };
     rounds(
         text,
@@ -137,7 +172,9 @@ pub fn sha256(text: P<'_>) -> P<'_> {
         Some(&schedule),
         64,
         &vars,
-        &[0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19],
+        &[
+            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+        ],
         &next,
         &hex_words(&vars),
     )
@@ -171,11 +208,16 @@ fn rounds<'a>(
     let mut step = format!("CASE WHEN {last} THEN r.k + 1 ELSE r.k END, CASE WHEN {last} THEN 0 ELSE r.i + 1 END");
     for (i, v) in vars.iter().enumerate() {
         cols.push_str(&format!(", {v}"));
-        step.push_str(&format!(", CASE WHEN {last} THEN (r.{v}0 + r.{v}) & {M32} ELSE {} END", next[i]));
+        step.push_str(&format!(
+            ", CASE WHEN {last} THEN (r.{v}0 + r.{v}) & {M32} ELSE {} END",
+            next[i]
+        ));
     }
     for v in vars {
         cols.push_str(&format!(", {v}0"));
-        step.push_str(&format!(", CASE WHEN {last} THEN (r.{v}0 + r.{v}) & {M32} ELSE r.{v}0 END"));
+        step.push_str(&format!(
+            ", CASE WHEN {last} THEN (r.{v}0 + r.{v}) & {M32} ELSE r.{v}0 END"
+        ));
     }
     for _ in 0..2 {
         for v in iv {
@@ -194,7 +236,8 @@ fn rounds<'a>(
         le.push(')');
         le
     };
-    let padded = format!("hex(CAST(__in.v AS BLOB)) || '80' || hex(zeroblob((((55 - {n}) % 64) + 64) % 64)) || {length}");
+    let padded =
+        format!("hex(CAST(__in.v AS BLOB)) || '80' || hex(zeroblob((((55 - {n}) % 64) + 64) % 64)) || {length}");
     let tail = format!(
         "), __m(h) AS (SELECT {padded} FROM __in WHERE __in.v IS NOT NULL), __w(k, j, w) AS (SELECT 0, 0, '[]' UNION \
          ALL SELECT CASE WHEN __w.j = {words} THEN __w.k + 1 ELSE __w.k END, CASE WHEN __w.j = {words} THEN 0 ELSE \
@@ -213,7 +256,10 @@ fn rounds<'a>(
 
 /// The state words as hex, eight digits each, big-endian.
 fn hex_words(vars: &[&str]) -> String {
-    vars.iter().map(|v| format!("printf('%08x', r.{v}0)")).collect::<Vec<_>>().join(" || ")
+    vars.iter()
+        .map(|v| format!("printf('%08x', r.{v}0)"))
+        .collect::<Vec<_>>()
+        .join(" || ")
 }
 
 /// `x ^ y` of two 32-bit words.
@@ -244,9 +290,7 @@ fn word(h: &str, at: &str, big_endian: bool) -> String {
     let mut out = String::from("(");
     for j in 0..4 {
         let q = format!("({at}) + {}", 2 * j + 1);
-        let b = format!(
-            "((instr({HEX}, substr({h}, {q}, 1)) - 1) * 16 + instr({HEX}, substr({h}, {q} + 1, 1)) - 1)"
-        );
+        let b = format!("((instr({HEX}, substr({h}, {q}, 1)) - 1) * 16 + instr({HEX}, substr({h}, {q} + 1, 1)) - 1)");
         if j > 0 {
             out.push_str(" | ");
         }
@@ -276,16 +320,24 @@ mod tests {
     #[test]
     fn the_walks_name_their_constants() {
         let md5 = text(md5(x()));
-        assert!(md5.starts_with("(WITH RECURSIVE __in(v) AS (SELECT x), __m(h) AS (SELECT hex(CAST(__in.v AS BLOB)) || '80'"));
+        assert!(
+            md5.starts_with(
+                "(WITH RECURSIVE __in(v) AS (SELECT x), __m(h) AS (SELECT hex(CAST(__in.v AS BLOB)) || '80'"
+            )
+        );
         // MD5 pads its bit length little-endian
-        assert!(md5.contains("printf('%02X%02X%02X%02X%02X%02X%02X%02X', (((length(hex(CAST(__in.v AS BLOB))) / 2) * 8) >> 0) & 255"));
+        assert!(md5.contains(
+            "printf('%02X%02X%02X%02X%02X%02X%02X%02X', (((length(hex(CAST(__in.v AS BLOB))) / 2) * 8) >> 0) & 255"
+        ));
         assert!(md5.contains("'[3614090360,3905402710,"), "{md5}");
         assert!(md5.contains("__r(k, i, a, b, c, d, a0, b0, c0, d0) AS (SELECT 0, 0, 1732584193, 4023233417, 2562383102, 271733878, 1732584193"));
         assert!(md5.ends_with("printf('%02x%02x%02x%02x', r.d0 & 255, (r.d0 >> 8) & 255, (r.d0 >> 16) & 255, (r.d0 >> 24) & 255) FROM __r AS r WHERE r.k = (SELECT count(*) FROM __c) AND EXISTS (SELECT 1 FROM __m))"));
         let sha1 = text(sha1(x()));
         assert!(sha1.contains("printf('%016X', ((length(hex(CAST(__in.v AS BLOB))) / 2) * 8))"));
         assert!(sha1.contains("CASE WHEN __w.j < 16 THEN"));
-        assert!(sha1.ends_with("printf('%08x', r.e0) FROM __r AS r WHERE r.k = (SELECT count(*) FROM __c) AND EXISTS (SELECT 1 FROM __m))"));
+        assert!(sha1.ends_with(
+            "printf('%08x', r.e0) FROM __r AS r WHERE r.k = (SELECT count(*) FROM __c) AND EXISTS (SELECT 1 FROM __m))"
+        ));
         let sha256 = text(sha256(x()));
         assert!(sha256.contains("'[1116352408,1899447441,"));
         assert!(sha256.contains("(((((r.e) >> 6) | ((r.e) << 26)) & 4294967295)"));

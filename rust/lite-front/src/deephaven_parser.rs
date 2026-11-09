@@ -94,11 +94,19 @@ fn parse_table<'s>(c: &mut impl Cursor<'s>) -> R<PDeephavenDatabasePDeephavenTab
             scale = Some(c.consume_long()? as i32);
             c.expect(T::PAREN_CLOSE)?;
         }
-        cols.push(Box::new(PDeephavenColumn { name: JStr(col_name), kind: JStr::from(wire), precision, scale }));
+        cols.push(Box::new(PDeephavenColumn {
+            name: JStr(col_name),
+            kind: JStr::from(wire),
+            precision,
+            scale,
+        }));
         if !c.match_tok(T::COMMA)? {
             break;
         }
     }
     c.expect(T::PAREN_CLOSE)?;
-    Ok(PDeephavenDatabasePDeephavenTable { name: JStr(table_name), columns: cols })
+    Ok(PDeephavenDatabasePDeephavenTable {
+        name: JStr(table_name),
+        columns: cols,
+    })
 }

@@ -80,18 +80,29 @@ fn open_island(ts: &TokenStream<'_>) -> JavaError {
 }
 
 fn start_line(ts: &TokenStream<'_>, i: usize) -> R<i32> {
-    if i < ts.count() { Ok(ts.start_line(i) as i32) } else { Err(open_island(ts)) }
+    if i < ts.count() {
+        Ok(ts.start_line(i) as i32)
+    } else {
+        Err(open_island(ts))
+    }
 }
 
 fn start_column(ts: &TokenStream<'_>, i: usize) -> R<i32> {
-    if i < ts.count() { Ok(ts.start_column(i) as i32) } else { Err(open_island(ts)) }
+    if i < ts.count() {
+        Ok(ts.start_column(i) as i32)
+    } else {
+        Err(open_island(ts))
+    }
 }
 
 /// `SpecParser.parse(tokens.slice(at, at + 1), dialect)`: one token's expression; at the end of the input refused
 /// there, where a path literal was to come (PARITY row 56).
 fn one_token_spec<'s>(c: &impl Cursor<'s>, at: usize) -> R<ValueSpecification> {
     if at >= c.tokens().count() {
-        return Err(refused_at_eof(c.tokens(), jcat!("expected ", T::PATH_LITERAL, " but found EOF ('<EOF>')")));
+        return Err(refused_at_eof(
+            c.tokens(),
+            jcat!("expected ", T::PATH_LITERAL, " but found EOF ('<EOF>')"),
+        ));
     }
     parse_tokens(&c.tokens().slice(at, at + 1), c.dialect())
 }
@@ -142,11 +153,19 @@ fn node(
     span: Option<Box<SourceInfo>>,
 ) -> PPersistenceNode {
     entries.sort_by(|a, b| entry_key(a).cmp(entry_key(b)));
-    PPersistenceNode { kind, head_path, entries, source_information: span }
+    PPersistenceNode {
+        kind,
+        head_path,
+        entries,
+        source_information: span,
+    }
 }
 
 fn node_entry(key: &str, n: PPersistenceNode) -> PPersistenceEntry {
-    PPersistenceEntry::PPersistenceEntryNode(Box::new(PPersistenceEntryNode { key: JStr::from(key), node: Box::new(n) }))
+    PPersistenceEntry::PPersistenceEntryNode(Box::new(PPersistenceEntryNode {
+        key: JStr::from(key),
+        node: Box::new(n),
+    }))
 }
 
 /// `NO_DEDUPLICATION`: a flat target's default deduplication, spanless (as the sentinel `KEYLESS_TARGET`, an empty
@@ -184,7 +203,11 @@ fn parse_persistence<'s>(c: &mut impl Cursor<'s>) -> R<PPersistence> {
         let key = c.parse_identifier()?;
         c.expect(T::COLON)?;
         if !seen.insert(key.clone()) {
-            return Err(throw_at(c.tokens(), decl_start, jcat!("Field '", key, "' should be specified only once")));
+            return Err(throw_at(
+                c.tokens(),
+                decl_start,
+                jcat!("Field '", key, "' should be specified only once"),
+            ));
         }
         match String::from_utf16_lossy(&key).as_str() {
             "doc" => {
@@ -388,7 +411,11 @@ fn validate_node(slot: &str, n: &PPersistenceNode) -> R<()> {
             walked.insert(u(r));
             let count = n.entries.iter().filter(|e| eq(entry_key(e), r)).count();
             if count > 1 {
-                return Err(JavaError::parse(jcat!("Field '", *r, "' should be specified only once"), line, col));
+                return Err(JavaError::parse(
+                    jcat!("Field '", *r, "' should be specified only once"),
+                    line,
+                    col,
+                ));
             }
             if count == 0 {
                 return Err(JavaError::parse(jcat!("Field '", *r, "' is required"), line, col));
@@ -404,7 +431,11 @@ fn validate_node(slot: &str, n: &PPersistenceNode) -> R<()> {
     for e in &n.entries {
         let k = entry_key(e);
         if !walked.contains(k) && !seen.insert(k) {
-            return Err(JavaError::parse(jcat!("Field '", k, "' should be specified only once"), line, col));
+            return Err(JavaError::parse(
+                jcat!("Field '", k, "' should be specified only once"),
+                line,
+                col,
+            ));
         }
     }
     for e in &n.entries {
@@ -430,7 +461,11 @@ fn recurse_entry(e: &PPersistenceEntry) -> R<()> {
 }
 
 /// `SPANLESS_OUTSIDE_TARGET`.
-const SPANLESS_OUTSIDE_TARGET: &[&str] = &["auditing:None", "mergeStrategy:NoDeletes", "mergeStrategy:DeleteIndicator"];
+const SPANLESS_OUTSIDE_TARGET: &[&str] = &[
+    "auditing:None",
+    "mergeStrategy:NoDeletes",
+    "mergeStrategy:DeleteIndicator",
+];
 
 /// `wireSpans(node, slot, target)`: the spans the engine's JSON carries and no others -- the spanless kinds outside a
 /// persistence target, an entry-less deduplication strategy -- applied after validation.
@@ -443,11 +478,17 @@ fn wire_spans(n: PPersistenceNode, slot: &[u16], target: bool) -> PPersistenceNo
             PPersistenceEntry::PPersistenceEntryNode(nd) => {
                 let PPersistenceEntryNode { key, node: inner } = *nd;
                 let inner = wire_spans(*inner, &key.0, target);
-                PPersistenceEntry::PPersistenceEntryNode(Box::new(PPersistenceEntryNode { key, node: Box::new(inner) }))
+                PPersistenceEntry::PPersistenceEntryNode(Box::new(PPersistenceEntryNode {
+                    key,
+                    node: Box::new(inner),
+                }))
             }
             PPersistenceEntry::PPersistenceEntryNodeList(nl) => {
                 let PPersistenceEntryNodeList { key, nodes } = *nl;
-                let nodes = nodes.into_iter().map(|x| Box::new(wire_spans(*x, &key.0, target))).collect();
+                let nodes = nodes
+                    .into_iter()
+                    .map(|x| Box::new(wire_spans(*x, &key.0, target)))
+                    .collect();
                 PPersistenceEntry::PPersistenceEntryNodeList(Box::new(PPersistenceEntryNodeList { key, nodes }))
             }
             other => other,
@@ -471,7 +512,10 @@ fn content_anchored_island_node<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNo
     let emb = c.reconstruct_text(emb_start, c.pos());
     let mut entries = Vec::new();
     let island = tokenize(&emb);
-    let off = (start_line(c.tokens(), emb_start)? - 1, start_column(c.tokens(), emb_start)? - 1);
+    let off = (
+        start_line(c.tokens(), emb_start)? - 1,
+        start_column(c.tokens(), emb_start)? - 1,
+    );
     parse_entries(&mut island_cursor(&island, off, c.dialect()), off, &mut entries, None)?;
     let cs = c.span_of(emb_start, emb_start);
     let open_line = start_line(c.tokens(), emb_start - 1)?;
@@ -490,8 +534,19 @@ fn content_anchored_island_node<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNo
 
 /// Persistence's island re-lex cursor (`OffsetCursor`): its spans shifted by the island's offsets, its errors left in
 /// the island's own coordinates.
-fn island_cursor<'t, 's>(ts: &'t TokenStream<'s>, off: (i32, i32), dialect: crate::doors::Dialect) -> IslandCursor<'t, 's> {
-    IslandCursor { tokens: ts, pos: 0, dialect, line_offset: off.0, col_offset: off.1, runtime: false }
+fn island_cursor<'t, 's>(
+    ts: &'t TokenStream<'s>,
+    off: (i32, i32),
+    dialect: crate::doors::Dialect,
+) -> IslandCursor<'t, 's> {
+    IslandCursor {
+        tokens: ts,
+        pos: 0,
+        dialect,
+        line_offset: off.0,
+        col_offset: off.1,
+        runtime: false,
+    }
 }
 
 /// `parseNode(c)`: a path-headed node (`#/C/p# { ... }`), `Kind { entries }`, `Kind #{ entries }#` (re-lexed, the
@@ -505,7 +560,12 @@ fn parse_node<'s>(c: &mut impl Cursor<'s>, off: (i32, i32)) -> R<PPersistenceNod
         c.expect(T::BRACE_OPEN)?;
         parse_entries(c, off, &mut path_entries, Some(T::BRACE_CLOSE))?;
         c.expect(T::BRACE_CLOSE)?;
-        return Ok(node(JStr::from("#path"), Some(head_path), path_entries, c.span(s, c.pos() - 1)));
+        return Ok(node(
+            JStr::from("#path"),
+            Some(head_path),
+            path_entries,
+            c.span(s, c.pos() - 1),
+        ));
     }
     let kind = c.parse_identifier()?;
     let mut entries = Vec::new();
@@ -520,7 +580,9 @@ fn parse_node<'s>(c: &mut impl Cursor<'s>, off: (i32, i32)) -> R<PPersistenceNod
             let ts = c.tokens();
             let line = ts.start_line(open) as i32;
             let column = ts.start_column(open) as i32 + if line == 1 { off.1 } else { 0 };
-            return Err(JavaError::parse(jcat!("Unexpected token '", ts.text(open), "'"), line + off.0, column).as_refusal());
+            return Err(
+                JavaError::parse(jcat!("Unexpected token '", ts.text(open), "'"), line + off.0, column).as_refusal(),
+            );
         }
         let emb = c.reconstruct_text(emb_start, c.pos());
         let base_line = start_line(c.tokens(), emb_start)? - 1 + off.0;
@@ -528,7 +590,12 @@ fn parse_node<'s>(c: &mut impl Cursor<'s>, off: (i32, i32)) -> R<PPersistenceNod
         let island = tokenize(&emb);
         let ic_off = (base_line, base_col);
         c.expect(T::ISLAND_END)?;
-        parse_entries(&mut island_cursor(&island, ic_off, c.dialect()), ic_off, &mut entries, None)?;
+        parse_entries(
+            &mut island_cursor(&island, ic_off, c.dialect()),
+            ic_off,
+            &mut entries,
+            None,
+        )?;
     } else {
         return Ok(node(JStr(kind), None, entries, c.span(s, s)));
     }
@@ -550,10 +617,12 @@ fn with_flat_defaults(entries: Vec<PPersistenceEntry>) -> Vec<PPersistenceEntry>
         out.push(node_entry("deduplicationStrategy", no_deduplication()));
     }
     if !partitions {
-        out.push(PPersistenceEntry::PPersistenceEntryStrings(Box::new(PPersistenceEntryStrings {
-            key: JStr::from("partitionFields"),
-            values: Vec::new(),
-        })));
+        out.push(PPersistenceEntry::PPersistenceEntryStrings(Box::new(
+            PPersistenceEntryStrings {
+                key: JStr::from("partitionFields"),
+                values: Vec::new(),
+            },
+        )));
     }
     out
 }
@@ -613,10 +682,9 @@ fn parse_entries<'s>(
                     }
                     c.expect(T::BRACKET_CLOSE)?;
                     c.match_tok(T::SEMI_COLON)?;
-                    out.push(PPersistenceEntry::PPersistenceEntryNodeList(Box::new(PPersistenceEntryNodeList {
-                        key: JStr(key),
-                        nodes,
-                    })));
+                    out.push(PPersistenceEntry::PPersistenceEntryNodeList(Box::new(
+                        PPersistenceEntryNodeList { key: JStr(key), nodes },
+                    )));
                     continue;
                 }
                 if c.peek() == T::PATH_LITERAL {
@@ -630,10 +698,9 @@ fn parse_entries<'s>(
                     }
                     c.expect(T::BRACKET_CLOSE)?;
                     c.match_tok(T::SEMI_COLON)?;
-                    out.push(PPersistenceEntry::PPersistenceEntryPathList(Box::new(PPersistenceEntryPathList {
-                        key: JStr(key),
-                        specs,
-                    })));
+                    out.push(PPersistenceEntry::PPersistenceEntryPathList(Box::new(
+                        PPersistenceEntryPathList { key: JStr(key), specs },
+                    )));
                     continue;
                 }
                 let mut vals = Vec::new();
@@ -651,17 +718,18 @@ fn parse_entries<'s>(
                 }
                 c.expect(T::BRACKET_CLOSE)?;
                 c.match_tok(T::SEMI_COLON)?;
-                out.push(PPersistenceEntry::PPersistenceEntryStrings(Box::new(PPersistenceEntryStrings {
-                    key: JStr(key),
-                    values: vals,
-                })));
+                out.push(PPersistenceEntry::PPersistenceEntryStrings(Box::new(
+                    PPersistenceEntryStrings {
+                        key: JStr(key),
+                        values: vals,
+                    },
+                )));
             }
             T::PATH_LITERAL => {
                 let spec = one_token_spec(c, c.pos())?;
-                out.push(PPersistenceEntry::PPersistenceEntryPathValue(Box::new(PPersistenceEntryPathValue {
-                    key: JStr(key),
-                    spec,
-                })));
+                out.push(PPersistenceEntry::PPersistenceEntryPathValue(Box::new(
+                    PPersistenceEntryPathValue { key: JStr(key), spec },
+                )));
                 c.advance()?;
                 c.expect(T::SEMI_COLON)?;
             }
@@ -685,18 +753,22 @@ fn parse_entries<'s>(
                     if eq(&key, "targetShape") && eq(&n.kind.0, "Flat") {
                         n = node(n.kind, n.head_path, with_flat_defaults(n.entries), n.source_information);
                     }
-                    out.push(PPersistenceEntry::PPersistenceEntryNode(Box::new(PPersistenceEntryNode {
-                        key: JStr(key),
-                        node: Box::new(n),
-                    })));
+                    out.push(PPersistenceEntry::PPersistenceEntryNode(Box::new(
+                        PPersistenceEntryNode {
+                            key: JStr(key),
+                            node: Box::new(n),
+                        },
+                    )));
                     c.match_tok(T::SEMI_COLON)?;
                 } else if eq(&key, "database") || eq(&key, "binding") {
                     c.expect(T::SEMI_COLON)?;
-                    out.push(PPersistenceEntry::PPersistenceEntryPointer(Box::new(PPersistenceEntryPointer {
-                        key: JStr(key),
-                        path: JStr(head),
-                        source_information: c.span(key_start, c.pos() - 1),
-                    })));
+                    out.push(PPersistenceEntry::PPersistenceEntryPointer(Box::new(
+                        PPersistenceEntryPointer {
+                            key: JStr(key),
+                            path: JStr(head),
+                            source_information: c.span(key_start, c.pos() - 1),
+                        },
+                    )));
                 } else if !head.is_empty()
                     && is_upper_case(head[0])
                     && head.iter().any(|&ch| is_lower_case(ch))
@@ -706,11 +778,16 @@ fn parse_entries<'s>(
                 {
                     c.expect(T::SEMI_COLON)?;
                     let ks = c.span_of(key_start + 2, key_start + 2);
-                    let leaf = SourceInfo { end_column: ks.end_column + 1, ..ks };
-                    out.push(PPersistenceEntry::PPersistenceEntryNode(Box::new(PPersistenceEntryNode {
-                        key: JStr(key),
-                        node: Box::new(node(JStr(head), None, Vec::new(), Some(Box::new(leaf)))),
-                    })));
+                    let leaf = SourceInfo {
+                        end_column: ks.end_column + 1,
+                        ..ks
+                    };
+                    out.push(PPersistenceEntry::PPersistenceEntryNode(Box::new(
+                        PPersistenceEntryNode {
+                            key: JStr(key),
+                            node: Box::new(node(JStr(head), None, Vec::new(), Some(Box::new(leaf)))),
+                        },
+                    )));
                 } else {
                     c.expect(T::SEMI_COLON)?;
                     out.push(scalar(key, head, true));
@@ -763,7 +840,11 @@ fn parse_notifier<'s>(c: &mut impl Cursor<'s>, key_start: usize) -> R<PPersisten
             return Err(c.error(jcat!("unknown notifier key '", key, "'")));
         }
         if spelled {
-            return Err(throw_at(c.tokens(), key_start, JStr::from("Field 'notifyees' should be specified only once")));
+            return Err(throw_at(
+                c.tokens(),
+                key_start,
+                JStr::from("Field 'notifyees' should be specified only once"),
+            ));
         }
         spelled = true;
         c.expect(T::BRACKET_OPEN)?;
@@ -780,9 +861,16 @@ fn parse_notifier<'s>(c: &mut impl Cursor<'s>, key_start: usize) -> R<PPersisten
     }
     c.expect(T::BRACE_CLOSE)?;
     if !spelled {
-        return Err(throw_at(c.tokens(), key_start, JStr::from("Field 'notifyees' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            key_start,
+            JStr::from("Field 'notifyees' is required"),
+        ));
     }
-    Ok(PPersistenceNotifier { notifyees, source_information: c.span(key_start, c.pos() - 1) })
+    Ok(PPersistenceNotifier {
+        notifyees,
+        source_information: c.span(key_start, c.pos() - 1),
+    })
 }
 
 /// `parseTests`: `[ id: { testBatches: [...] isTestDataFromServiceOutput: b; graphFetchPath: #/..#; }, ... ]`, each key
@@ -937,7 +1025,11 @@ fn parse_context<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceContext> {
         let key = c.parse_identifier()?;
         c.expect(T::COLON)?;
         if !seen.insert(key.clone()) {
-            return Err(throw_at(c.tokens(), decl_start, jcat!("Field '", key, "' should be specified only once")));
+            return Err(throw_at(
+                c.tokens(),
+                decl_start,
+                jcat!("Field '", key, "' should be specified only once"),
+            ));
         }
         match String::from_utf16_lossy(&key).as_str() {
             "persistence" => {
@@ -968,7 +1060,11 @@ fn parse_context<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceContext> {
     }
     c.expect(T::BRACE_CLOSE)?;
     let Some(persistence) = persistence else {
-        return Err(throw_at(c.tokens(), decl_start, JStr::from("Field 'persistence' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            decl_start,
+            JStr::from("Field 'persistence' is required"),
+        ));
     };
     Ok(PPersistenceContext {
         pkg: JStr(pkg),
@@ -1008,7 +1104,10 @@ fn parse_platform<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNode> {
     let emb = c.reconstruct_text(emb_start, c.pos());
     let mut entries = Vec::new();
     let island = tokenize(&emb);
-    let off = (start_line(c.tokens(), emb_start)? - 1, start_column(c.tokens(), emb_start)? - 1);
+    let off = (
+        start_line(c.tokens(), emb_start)? - 1,
+        start_column(c.tokens(), emb_start)? - 1,
+    );
     parse_entries(&mut island_cursor(&island, off, c.dialect()), off, &mut entries, None)?;
     if aws {
         let (a_line, a_col) = if island.count() > 0 {
@@ -1023,9 +1122,16 @@ fn parse_platform<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNode> {
         } else {
             (start_line(c.tokens(), c.pos())?, 1)
         };
-        let dpu = entries.iter().filter(|e| eq(entry_key(e), "dataProcessingUnits")).count();
+        let dpu = entries
+            .iter()
+            .filter(|e| eq(entry_key(e), "dataProcessingUnits"))
+            .count();
         if dpu == 0 {
-            return Err(JavaError::parse(JStr::from("Field 'dataProcessingUnits' is required"), a_line, a_col));
+            return Err(JavaError::parse(
+                JStr::from("Field 'dataProcessingUnits' is required"),
+                a_line,
+                a_col,
+            ));
         }
         if dpu > 1 {
             return Err(JavaError::parse(
@@ -1090,7 +1196,11 @@ fn parse_ctx_params<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PCtxParam>>) 
                 spec: parse_tokens(&c.tokens().slice(vs, c.pos()), c.dialect())?,
             }))
         };
-        out.push(Box::new(PCtxParam { name: JStr(name), value, source_information: c.span(s, c.pos() - 1) }));
+        out.push(Box::new(PCtxParam {
+            name: JStr(name),
+            value,
+            source_information: c.span(s, c.pos() - 1),
+        }));
         c.match_tok(T::COMMA)?;
     }
     c.expect(T::BRACKET_CLOSE)
@@ -1101,8 +1211,12 @@ fn parse_ctx_params<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PCtxParam>>) 
 fn parse_connection_island<'s>(c: &mut impl Cursor<'s>) -> R<PConnectionValue> {
     let emb_start = scan_island(c)?;
     let emb = c.reconstruct_text(emb_start, c.pos());
-    let value =
-        parse_island_value(&emb, start_line(c.tokens(), emb_start)?, start_column(c.tokens(), emb_start)?, c.dialect())?;
+    let value = parse_island_value(
+        &emb,
+        start_line(c.tokens(), emb_start)?,
+        start_column(c.tokens(), emb_start)?,
+        c.dialect(),
+    )?;
     c.expect(T::ISLAND_END)?;
     Ok(value)
 }

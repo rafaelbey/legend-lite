@@ -177,31 +177,67 @@ impl SqlRewriter for ConstantLateralsAsRows {
         for x in &s.group_by {
             g.push(fields_as_columns(x, &explosions)?.unwrap_or_else(|| x.clone()));
         }
-        let r#where = s.r#where.as_ref().map(|w| fields_or_itself(w, &explosions)).transpose()?;
-        let having = s.having.as_ref().map(|h| fields_or_itself(h, &explosions)).transpose()?;
-        let out =
-            SqlSelect { projections: ps, from: from.into_inner(), r#where, group_by: g, having, order_by: ob, ..s };
+        let r#where = s
+            .r#where
+            .as_ref()
+            .map(|w| fields_or_itself(w, &explosions))
+            .transpose()?;
+        let having = s
+            .having
+            .as_ref()
+            .map(|h| fields_or_itself(h, &explosions))
+            .transpose()?;
+        let out = SqlSelect {
+            projections: ps,
+            from: from.into_inner(),
+            r#where,
+            group_by: g,
+            having,
+            order_by: ob,
+            ..s
+        };
         Ok(Rw::New(query(build::select(out)?)))
     }
 }
 
 /// `src` with each lateral over a constant list as its rows, recorded in `out`; any other source as it is.
 fn rewrite_joins(src: &SqlSource, out: &mut Explosions) -> Result<Rw<SqlSource>, Refusal> {
-    let SqlSource::Join { left, right, kind, on, .. } = src else {
+    let SqlSource::Join {
+        left, right, kind, on, ..
+    } = src
+    else {
         return Ok(Rw::Same(src.clone()));
     };
     let new_left = rewrite_joins(left, out)?;
     if matches!(kind, JoinKind::LeftLateral | JoinKind::CrossLateral)
-        && let SqlSource::Subselect { inner, alias, frame_name } = right.as_ref()
+        && let SqlSource::Subselect {
+            inner,
+            alias,
+            frame_name,
+        } = right.as_ref()
         && let Some(rows) = rows_of(inner, alias, frame_name, out)?
     {
-        let joined = if *kind == JoinKind::LeftLateral { JoinKind::Left } else { JoinKind::Inner };
-        return Ok(Rw::New(build::join(new_left.into_inner(), rows, joined, Some(build::bool_lit(true)))?));
+        let joined = if *kind == JoinKind::LeftLateral {
+            JoinKind::Left
+        } else {
+            JoinKind::Inner
+        };
+        return Ok(Rw::New(build::join(
+            new_left.into_inner(),
+            rows,
+            joined,
+            Some(build::bool_lit(true)),
+        )?));
     }
     if !new_left.is_new() {
         return Ok(Rw::Same(src.clone()));
     }
-    Ok(Rw::New(build::join(new_left.into_inner(), right.as_ref().clone(), *kind, on.as_deref().cloned())?))
+    Ok(Rw::New(build::join(
+        new_left.into_inner(),
+        right.as_ref().clone(),
+        *kind,
+        on.as_deref().cloned(),
+    )?))
 }
 
 /// The lateral subselect's rows when it explodes a constant list -- `SELECT UNNEST(lst) AS elem FROM (SELECT <list> AS
@@ -230,7 +266,12 @@ fn rows_of(
         return Ok(None);
     }
     let p = &u.projections[0];
-    let SqlExpr::Call { r#fn: SqlFn::Unnest, args, .. } = unwrap(&p.expr) else {
+    let SqlExpr::Call {
+        r#fn: SqlFn::Unnest,
+        args,
+        ..
+    } = unwrap(&p.expr)
+    else {
         return Ok(None);
     };
     if args.len() != 1 {
@@ -272,7 +313,13 @@ fn constant_rows(q: &SqlQuery) -> Option<Vec<&SqlSelect>> {
             || r.r#where.is_some()
             || !r.group_by.is_empty()
             || !r.order_by.is_empty()
-            || matches!(r.projections[0].expr, SqlExpr::Call { r#fn: SqlFn::Unnest, .. })
+            || matches!(
+                r.projections[0].expr,
+                SqlExpr::Call {
+                    r#fn: SqlFn::Unnest,
+                    ..
+                }
+            )
             || reads_column(&r.projections[0].expr)
         {
             return None;
@@ -299,7 +346,9 @@ fn rows(
     let mut fields: Option<Vec<StructField>> = None;
     let structs = !elements.is_empty() && elements.iter().all(|e| matches!(e, SqlExpr::StructLit { .. }));
     if structs {
-        let SqlExpr::StructLit { fields: first, .. } = &elements[0] else { unreachable!("checked above") };
+        let SqlExpr::StructLit { fields: first, .. } = &elements[0] else {
+            unreachable!("checked above")
+        };
         let mut fs = Vec::with_capacity(first.len());
         for f in first {
             let t = match f.value.r#type() {
@@ -310,10 +359,15 @@ fn rows(
             let Some(t) = t else {
                 return Ok(None);
             };
-            fs.push(StructField { name: f.name.clone(), r#type: t });
+            fs.push(StructField {
+                name: f.name.clone(),
+                r#type: t,
+            });
         }
         for e in elements {
-            let SqlExpr::StructLit { fields: efs, .. } = e else { unreachable!("checked above") };
+            let SqlExpr::StructLit { fields: efs, .. } = e else {
+                unreachable!("checked above")
+            };
             if !efs.iter().map(|f| &f.name).eq(fs.iter().map(|f| &f.name)) {
                 return Ok(None);
             }
@@ -374,7 +428,12 @@ fn rows(
                 Some(oc.clone()),
             )?);
         }
-        branches.push(query(plain_select(ps, SqlSource::Dual, Some(build::bool_lit(false)), Vec::new())?));
+        branches.push(query(plain_select(
+            ps,
+            SqlSource::Dual,
+            Some(build::bool_lit(false)),
+            Vec::new(),
+        )?));
     }
     let body = if branches.len() == 1 {
         branches.pop().expect("one branch")
@@ -391,13 +450,19 @@ fn rows(
 
 /// A NULL element typed by its column (a UNION's first branch types the column).
 fn typed(v: SqlExpr, t: &SqlType) -> SqlExpr {
-    if matches!(v, SqlExpr::NullLit { .. }) { build::cast(v, t.clone()) } else { v }
+    if matches!(v, SqlExpr::NullLit { .. }) {
+        build::cast(v, t.clone())
+    } else {
+        v
+    }
 }
 
 /// Whether `e` reads a row: a column, a scalar subquery or EXISTS anywhere in it.
 fn reads_column(e: &SqlExpr) -> bool {
-    matches!(e, SqlExpr::Column(_) | SqlExpr::ScalarSubquery { .. } | SqlExpr::Exists { .. })
-        || children(e).iter().any(|c| reads_column(c))
+    matches!(
+        e,
+        SqlExpr::Column(_) | SqlExpr::ScalarSubquery { .. } | SqlExpr::Exists { .. }
+    ) || children(e).iter().any(|c| reads_column(c))
 }
 
 /// Whether every read of an exploded struct element under `e` reads one of its fields.
@@ -459,7 +524,12 @@ impl SqlRewriter for LateralExplodeToUnion {
         if !matches!(kind, JoinKind::LeftLateral | JoinKind::CrossLateral) {
             return same(s);
         }
-        let SqlSource::Subselect { inner, alias: sub_alias, frame_name } = right.as_ref() else {
+        let SqlSource::Subselect {
+            inner,
+            alias: sub_alias,
+            frame_name,
+        } = right.as_ref()
+        else {
             return same(s);
         };
         let SqlQuery::Select(u) = inner.as_ref() else {
@@ -469,7 +539,12 @@ impl SqlRewriter for LateralExplodeToUnion {
             return same(s);
         }
         let p = &u.projections[0];
-        let SqlExpr::Call { r#fn: SqlFn::Unnest, args, .. } = unwrap(&p.expr) else {
+        let SqlExpr::Call {
+            r#fn: SqlFn::Unnest,
+            args,
+            ..
+        } = unwrap(&p.expr)
+        else {
             return same(s);
         };
         if args.len() != 1 {
@@ -503,19 +578,35 @@ impl SqlRewriter for LateralExplodeToUnion {
         for e in &elements {
             let projections = vec![
                 build::projection(e.value.clone(), Some(elem_alias.clone()), Some(elem_out.clone()))?,
-                build::projection(row_order(Some(base.clone())), Some("__rid".to_owned()), Some(rid_out.clone()))?,
+                build::projection(
+                    row_order(Some(base.clone())),
+                    Some("__rid".to_owned()),
+                    Some(rid_out.clone()),
+                )?,
             ];
             let r#where = e.not_null.then(|| call(SqlFn::IsNotNull, vec![e.value.clone()]));
             let outputs = vec![elem_out.clone(), rid_out.clone()];
-            branches.push(query(plain_select(projections, left.as_ref().clone(), r#where, outputs)?));
+            branches.push(query(plain_select(
+                projections,
+                left.as_ref().clone(),
+                r#where,
+                outputs,
+            )?));
         }
         let body = if branches.len() == 1 {
             branches.pop().expect("one branch")
         } else {
             SqlQuery::Union(build::union(branches, true, vec![elem_out, rid_out])?)
         };
-        let joined = if *kind == JoinKind::CrossLateral { JoinKind::Inner } else { JoinKind::Left };
-        let on = call(SqlFn::Equal, vec![derived(Some(sub_alias), "__rid"), row_order(Some(base))]);
+        let joined = if *kind == JoinKind::CrossLateral {
+            JoinKind::Inner
+        } else {
+            JoinKind::Left
+        };
+        let on = call(
+            SqlFn::Equal,
+            vec![derived(Some(sub_alias), "__rid"), row_order(Some(base))],
+        );
         let decorrelated = build::join(
             left.as_ref().clone(),
             build::subselect(body, sub_alias, frame_name.clone()),
@@ -530,23 +621,42 @@ impl SqlRewriter for LateralExplodeToUnion {
 fn elements_of(list: &SqlExpr, out: &mut Vec<Element>) -> bool {
     let e = unwrap(list);
     if let SqlExpr::ArrayLit { elements, .. } = e {
-        out.extend(elements.iter().map(|x| Element { value: x.clone(), not_null: false }));
+        out.extend(elements.iter().map(|x| Element {
+            value: x.clone(),
+            not_null: false,
+        }));
         return true;
     }
-    if let SqlExpr::Call { r#fn: SqlFn::ListConcat, args, .. } = e {
+    if let SqlExpr::Call {
+        r#fn: SqlFn::ListConcat,
+        args,
+        ..
+    } = e
+    {
         return args.iter().all(|a| elements_of(a, out));
     }
     // CASE WHEN x IS NULL THEN [] ELSE [x] END: the null-dropping singleton
-    if let SqlExpr::Case { whens, otherwise: Some(otherwise), .. } = e
+    if let SqlExpr::Case {
+        whens,
+        otherwise: Some(otherwise),
+        ..
+    } = e
         && whens.len() == 1
-        && let SqlExpr::Call { r#fn: SqlFn::IsNull, args, .. } = &whens[0].condition
+        && let SqlExpr::Call {
+            r#fn: SqlFn::IsNull,
+            args,
+            ..
+        } = &whens[0].condition
         && args.len() == 1
         && let SqlExpr::ArrayLit { elements: empty, .. } = unwrap(&whens[0].then)
         && empty.is_empty()
         && let SqlExpr::ArrayLit { elements: one, .. } = unwrap(otherwise)
         && one.len() == 1
     {
-        out.push(Element { value: one[0].clone(), not_null: true });
+        out.push(Element {
+            value: one[0].clone(),
+            not_null: true,
+        });
         return true;
     }
     false
@@ -576,7 +686,11 @@ fn first_table(e: &SqlExpr) -> Option<String> {
 
 /// The element type a list expression states (`ARRAY<T>`: T); a list stating none is refused by name.
 fn element_type_of(list: &SqlExpr) -> Result<SqlType, Refusal> {
-    if let TypeFact::Typed { r#type: SqlType::Array { element }, .. } = list.r#type() {
+    if let TypeFact::Typed {
+        r#type: SqlType::Array { element },
+        ..
+    } = list.r#type()
+    {
         return Ok(element.as_ref().clone());
     }
     Err(Refusal::capability(format!(

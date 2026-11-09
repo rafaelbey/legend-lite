@@ -48,7 +48,11 @@ struct Window<'a> {
 
 impl<'a> Window<'a> {
     fn with_frame(&self, f: Option<Frame>) -> Window<'a> {
-        Window { partition_by: self.partition_by.clone(), order_by: self.order_by, frame: f }
+        Window {
+            partition_by: self.partition_by.clone(),
+            order_by: self.order_by,
+            frame: f,
+        }
     }
 }
 
@@ -67,17 +71,27 @@ fn rows_frame(win: &Window<'_>) -> bool {
 
 /// The whole partition, as ROWS (Java's `WHOLE`).
 fn whole() -> Frame {
-    Frame { kind: FrameKind::Rows, from: Bound::UnboundedPreceding, to: Bound::UnboundedFollowing }
+    Frame {
+        kind: FrameKind::Rows,
+        from: Bound::UnboundedPreceding,
+        to: Bound::UnboundedFollowing,
+    }
 }
 
 /// A date or date-time key (Java's `temporal`).
 fn temporal(e: &SqlExpr) -> bool {
-    matches!(type_of(e), Some(SqlType::Scalar(Scalar::Date | Scalar::Timestamp | Scalar::Timestamptz)))
+    matches!(
+        type_of(e),
+        Some(SqlType::Scalar(Scalar::Date | Scalar::Timestamp | Scalar::Timestamptz))
+    )
 }
 
 /// The aggregates no ordered or framed window takes (Java's `UNORDERED_ONLY`).
 fn unordered_only(f: AggFn) -> bool {
-    matches!(f, AggFn::Median | AggFn::Mode | AggFn::QuantileCont | AggFn::QuantileDisc)
+    matches!(
+        f,
+        AggFn::Median | AggFn::Mode | AggFn::QuantileCont | AggFn::QuantileDisc
+    )
 }
 
 impl Snowflake {
@@ -95,8 +109,16 @@ impl Snowflake {
             return Ok(());
         }
         let (v, scale) = self.scaled(a);
-        w.append("((CASE WHEN ABS(").piece(&*v)?.append(" - TRUNC(").piece(&*v)?.append(")) = 0.5 THEN 2 * ROUND(");
-        w.piece(&*v)?.append(" / 2) ELSE SIGN(").piece(&*v)?.append(") * FLOOR(ABS(").piece(&*v)?;
+        w.append("((CASE WHEN ABS(")
+            .piece(&*v)?
+            .append(" - TRUNC(")
+            .piece(&*v)?
+            .append(")) = 0.5 THEN 2 * ROUND(");
+        w.piece(&*v)?
+            .append(" / 2) ELSE SIGN(")
+            .piece(&*v)?
+            .append(") * FLOOR(ABS(")
+            .piece(&*v)?;
         w.append(") + 0.5) END)");
         if let Some(scale) = &scale {
             w.append(" / ").piece(&**scale)?;
@@ -111,7 +133,11 @@ impl Snowflake {
             .args
             .iter()
             .map(|x| {
-                if is_double(x) { x.clone() } else { crate::build::cast(x.clone(), SqlType::Scalar(Scalar::Double)) }
+                if is_double(x) {
+                    x.clone()
+                } else {
+                    crate::build::cast(x.clone(), SqlType::Scalar(Scalar::Double))
+                }
             })
             .collect();
         crate::build::reducer(r.r#fn, args, r.distinct, r.order_by.clone())
@@ -148,20 +174,28 @@ impl Snowflake {
             AggFn::Stddev => moment(w, "STDDEV"),
             AggFn::BoolAnd | AggFn::BoolOr => {
                 unordered(r)?;
-                w.append(if r.r#fn == AggFn::BoolAnd { "BOOLAND_AGG(" } else { "BOOLOR_AGG(" });
+                w.append(if r.r#fn == AggFn::BoolAnd {
+                    "BOOLAND_AGG("
+                } else {
+                    "BOOLOR_AGG("
+                });
                 w.list(self, &r.args)?.append(")");
                 Ok(())
             }
             // LISTAGG answers '' over no row; DuckDB's string_agg NULL
             AggFn::StringAgg => {
-                w.append("(CASE WHEN COUNT(").expr(self, arg(&r.args, 0)?, 0)?.append(") = 0 THEN NULL ELSE ");
+                w.append("(CASE WHEN COUNT(")
+                    .expr(self, arg(&r.args, 0)?, 0)?
+                    .append(") = 0 THEN NULL ELSE ");
                 w.piece(&*self.listagg(r))?.append(" END)");
                 Ok(())
             }
             // DuckDB's median interpolates numbers in DOUBLE (an integer's median is a DOUBLE)
             AggFn::Median => {
                 unordered(r)?;
-                w.append("MEDIAN(").piece(&*self.numeric_arg(arg(&r.args, 0)?))?.append(")");
+                w.append("MEDIAN(")
+                    .piece(&*self.numeric_arg(arg(&r.args, 0)?))?
+                    .append(")");
                 Ok(())
             }
             AggFn::Mode => {
@@ -177,9 +211,14 @@ impl Snowflake {
             AggFn::ArgMax | AggFn::ArgMin => {
                 unordered(r)?;
                 if r.args.len() != 2 || r.distinct {
-                    return Err(Refusal::capability(format!("{} of this shape reached Snowflake", r.r#fn)));
+                    return Err(Refusal::capability(format!(
+                        "{} of this shape reached Snowflake",
+                        r.r#fn
+                    )));
                 }
-                w.append(if r.r#fn == AggFn::ArgMax { "MAX_BY(" } else { "MIN_BY(" }).list(self, &r.args)?.append(")");
+                w.append(if r.r#fn == AggFn::ArgMax { "MAX_BY(" } else { "MIN_BY(" })
+                    .list(self, &r.args)?
+                    .append(")");
                 Ok(())
             }
             AggFn::Wavg | AggFn::HashList | AggFn::IsDistinctMark | AggFn::UniqueValueOnly => {
@@ -214,10 +253,16 @@ impl Snowflake {
     /// `name(level) WITHIN GROUP (ORDER BY value[ DESC])`, the value a number when `numeric` (Java's `percentile`).
     fn percentile(&self, w: &mut SqlWriter, name: &str, r: &Reducer, numeric: bool) -> Result<(), Refusal> {
         if r.args.len() != 2 || r.distinct || r.order_by.len() > 1 {
-            return Err(Refusal::capability(format!("{} of this shape reached Snowflake", r.r#fn)));
+            return Err(Refusal::capability(format!(
+                "{} of this shape reached Snowflake",
+                r.r#fn
+            )));
         }
         let desc = r.order_by.first().is_some_and(|k| !k.ascending);
-        w.append(name).append("(").expr(self, &r.args[1], 0)?.append(") WITHIN GROUP (ORDER BY ");
+        w.append(name)
+            .append("(")
+            .expr(self, &r.args[1], 0)?
+            .append(") WITHIN GROUP (ORDER BY ");
         if numeric {
             w.piece(&*self.numeric_arg(&r.args[0]))?;
         } else {
@@ -235,10 +280,13 @@ impl Snowflake {
                 r.args.len()
             )));
         }
-        w.append("ARRAY_AGG(").append(if r.distinct { "DISTINCT " } else { "" }).piece(&*keep_null(self, &r.args[0]))?;
+        w.append("ARRAY_AGG(")
+            .append(if r.distinct { "DISTINCT " } else { "" })
+            .piece(&*keep_null(self, &r.args[0]))?;
         w.append(")");
         if !r.order_by.is_empty() {
-            w.append(" WITHIN GROUP (ORDER BY ").join(&r.order_by, ", ", |w, k| ansi::aggregate_order_key(self, w, k))?;
+            w.append(" WITHIN GROUP (ORDER BY ")
+                .join(&r.order_by, ", ", |w, k| ansi::aggregate_order_key(self, w, k))?;
             w.append(")");
         }
         Ok(())
@@ -258,10 +306,14 @@ impl Snowflake {
     /// `LISTAGG([DISTINCT ]args)[ WITHIN GROUP (ORDER BY keys)]` (Java's `listagg`).
     fn listagg<'a>(&'a self, r: &'a Reducer) -> P<'a> {
         pc(move |w| {
-            w.append("LISTAGG(").append(if r.distinct { "DISTINCT " } else { "" }).list(self, &r.args)?.append(")");
+            w.append("LISTAGG(")
+                .append(if r.distinct { "DISTINCT " } else { "" })
+                .list(self, &r.args)?
+                .append(")");
             if !r.order_by.is_empty() {
                 w.append(" WITHIN GROUP (ORDER BY ");
-                w.join(&r.order_by, ", ", |w, k| ansi::aggregate_order_key(self, w, k))?.append(")");
+                w.join(&r.order_by, ", ", |w, k| ansi::aggregate_order_key(self, w, k))?
+                    .append(")");
             }
             Ok(())
         })
@@ -288,7 +340,11 @@ impl Snowflake {
             }
             frame = None;
         }
-        let win = Window { partition_by: partition_by.to_vec(), order_by, frame };
+        let win = Window {
+            partition_by: partition_by.to_vec(),
+            order_by,
+            frame,
+        };
         match f {
             SqlAgg::Reducer(r) => self.windowed_reducer(w, r, &win),
             // a ranking function takes no frame (ANSI ignores one; Snowflake refuses it)
@@ -332,20 +388,38 @@ impl Snowflake {
             let mut peers = win.partition_by.clone();
             peers.extend(win.order_by.iter().map(|k| k.expr.clone()));
             w.append("LAST_VALUE(").list(self, args)?.append(")");
-            return self.over(w, &Window { partition_by: peers, order_by: win.order_by, frame: Some(whole()) });
+            return self.over(
+                w,
+                &Window {
+                    partition_by: peers,
+                    order_by: win.order_by,
+                    frame: Some(whole()),
+                },
+            );
         }
         if args.len() != 2 {
-            return Err(Refusal::capability(format!("NTH_VALUE of {} arguments reached Snowflake", args.len())));
+            return Err(Refusal::capability(format!(
+                "NTH_VALUE of {} arguments reached Snowflake",
+                args.len()
+            )));
         }
         w.append("(CASE WHEN COUNT(*)");
         let counted = if win.frame.is_some() {
             win.clone()
         } else {
-            let cumulative = Frame { kind: FrameKind::Range, from: Bound::UnboundedPreceding, to: Bound::CurrentRow };
+            let cumulative = Frame {
+                kind: FrameKind::Range,
+                from: Bound::UnboundedPreceding,
+                to: Bound::CurrentRow,
+            };
             win.with_frame(Some(cumulative))
         };
         self.over(w, &counted)?;
-        w.append(" >= ").expr(self, &args[1], 0)?.append(" THEN NTH_VALUE(").list(self, args)?.append(")");
+        w.append(" >= ")
+            .expr(self, &args[1], 0)?
+            .append(" THEN NTH_VALUE(")
+            .list(self, args)?
+            .append(")");
         self.over(w, &whole_win)?;
         w.append(" END)");
         Ok(())
@@ -376,7 +450,11 @@ impl Snowflake {
             return self.windowed_reducer(
                 w,
                 &within,
-                &Window { partition_by: win.partition_by.clone(), order_by: &[], frame: None },
+                &Window {
+                    partition_by: win.partition_by.clone(),
+                    order_by: &[],
+                    frame: None,
+                },
             );
         }
         if unordered_only(r.r#fn) && (ordered || win.frame.is_some()) {
@@ -406,12 +484,16 @@ impl Snowflake {
             }
         }
         if r.r#fn == AggFn::StringAgg {
-            w.append("(CASE WHEN COUNT(").expr(self, arg(&r.args, 0)?, 0)?.append(")");
+            w.append("(CASE WHEN COUNT(")
+                .expr(self, arg(&r.args, 0)?, 0)?
+                .append(")");
             self.over(w, win)?;
             w.append(" = 0 THEN NULL ELSE ");
             if ordered {
                 // the frame's values in the window's order (ARRAY_AGG drops a NULL, as string_agg)
-                w.append("ARRAY_TO_STRING(ARRAY_AGG(").expr(self, &r.args[0], 0)?.append(")");
+                w.append("ARRAY_TO_STRING(ARRAY_AGG(")
+                    .expr(self, &r.args[0], 0)?
+                    .append(")");
                 self.over(w, win)?;
                 w.append(", ").expr(self, arg(&r.args, 1)?, 0)?.append(")");
             } else {
@@ -446,7 +528,10 @@ impl Snowflake {
     /// `windowQuantile`): the values and q bound once, in a one-element TRANSFORM.
     fn window_quantile<'a>(&'a self, r: &'a Reducer, win: &Window<'a>) -> Result<P<'a>, Refusal> {
         if r.args.len() != 2 || r.distinct || r.order_by.len() > 1 {
-            return Err(Refusal::capability(format!("{} of this shape reached Snowflake", r.r#fn)));
+            return Err(Refusal::capability(format!(
+                "{} of this shape reached Snowflake",
+                r.r#fn
+            )));
         }
         let ascending = r.order_by.first().is_none_or(|k| k.ascending);
         let o = self.delimited(&self.fresh_name("q"));
@@ -478,7 +563,8 @@ impl Snowflake {
             w.append("PARTITION BY ").list(self, &win.partition_by)?;
         }
         if !win.order_by.is_empty() {
-            w.append(if win.partition_by.is_empty() { "" } else { " " }).append("ORDER BY ");
+            w.append(if win.partition_by.is_empty() { "" } else { " " })
+                .append("ORDER BY ");
             w.join(win.order_by, ", ", |w, k| self.sort_key(w, k))?;
         }
         if let Some(f) = &win.frame {
@@ -494,7 +580,9 @@ impl Snowflake {
                 } else {
                     "SECONDS"
                 };
-                w.append(&format!("INTERVAL '0 {unit}' PRECEDING AND INTERVAL '0 {unit}' FOLLOWING"));
+                w.append(&format!(
+                    "INTERVAL '0 {unit}' PRECEDING AND INTERVAL '0 {unit}' FOLLOWING"
+                ));
             } else {
                 let text = format!("{} AND {}", self.bound(&f.from)?, self.bound(&f.to)?);
                 w.append(&text);

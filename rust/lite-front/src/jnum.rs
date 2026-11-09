@@ -195,7 +195,11 @@ pub fn parse_double(s: &[u16]) -> Result<f64, JStr> {
         }
         while i < len && fd_digit(s[i], true) {
             // appendDecDigit: clamped at 10^10
-            ep = if ep < 1_000_000_000 { 10 * ep + i64::from(s[i] - 0x30) } else { 10_000_000_000 };
+            ep = if ep < 1_000_000_000 {
+                10 * ep + i64::from(s[i] - 0x30)
+            } else {
+                10_000_000_000
+            };
             i += 1;
         }
         check(i - stop >= 3 || (i - stop == 2 && esign == 0))?;
@@ -247,7 +251,11 @@ fn hex_double(s: &[u16], negative: bool, lz: usize, tnz: usize, stop: usize, pt:
         i += 1;
         if ch != u16::from(b'.') {
             j += 1;
-            let d = if ch <= u16::from(b'9') { ch - 0x30 } else { (ch | 0x20) - 0x61 + 10 };
+            let d = if ch <= u16::from(b'9') {
+                ch - 0x30
+            } else {
+                (ch | 0x20) - 0x61 + 10
+            };
             c = (c << 4) | i64::from(d);
         }
     }
@@ -301,7 +309,10 @@ mod tests {
     fn numbers_read_as_the_jdk_reads_them() {
         assert_eq!(parse_long(&u("9223372036854775807")), Ok(i64::MAX));
         assert_eq!(parse_long(&u("-9223372036854775808")), Ok(i64::MIN));
-        assert_eq!(parse_long(&u("9223372036854775808")), Err(JStr::from("For input string: \"9223372036854775808\"")));
+        assert_eq!(
+            parse_long(&u("9223372036854775808")),
+            Err(JStr::from("For input string: \"9223372036854775808\""))
+        );
         assert_eq!(parse_long(&u("\u{0967}\u{0968}")), Ok(12));
         assert!(parse_int(&u("2147483648")).is_err());
         assert_eq!(digit(0xFF21, 16), Some(10));
@@ -315,7 +326,10 @@ mod tests {
         assert_eq!(parse_double(&u("  ")), Err(JStr::from("empty String")));
         assert_eq!(parse_double(&u(" 2.5d ")), Ok(2.5));
         assert_eq!(parse_double(&u("1e99999999999999999999")), Ok(f64::INFINITY));
-        assert_eq!(parse_double(&u("-1e-99999999999999999999")).map(f64::to_bits), Ok((-0.0f64).to_bits()));
+        assert_eq!(
+            parse_double(&u("-1e-99999999999999999999")).map(f64::to_bits),
+            Ok((-0.0f64).to_bits())
+        );
         assert!(parse_double(&u("-NaN")).is_ok_and(f64::is_nan));
         assert!(parse_double(&u("Infinityx")).is_err());
         assert_eq!(parse_double(&u("0x1p3")), Ok(8.0));
@@ -329,7 +343,10 @@ mod tests {
         assert_eq!(parse_double(&u("0x1p1024")), Ok(f64::INFINITY));
         assert_eq!(parse_double(&u("0x1.00000000000008p0")), Ok(1.0));
         assert_eq!(parse_double(&u("0x1.00000000000018p0")), Ok(1.0 + 2.0 * f64::EPSILON));
-        assert_eq!(parse_double(&u("0x123456789abcdef0123p0")), Ok(f64::from_bits(0x4472_3456_789a_bcdf)));
+        assert_eq!(
+            parse_double(&u("0x123456789abcdef0123p0")),
+            Ok(f64::from_bits(0x4472_3456_789a_bcdf))
+        );
         assert_eq!(parse_double(&u("0x0.fffffffffffff8p-1022")), Ok(f64::MIN_POSITIVE));
         assert_eq!(parse_double(&u("0x1.ffffffffffffffp-1023")), Ok(f64::MIN_POSITIVE));
         assert!(parse_double(&u("0x1")).is_err());

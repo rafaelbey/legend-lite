@@ -16,7 +16,10 @@ use crate::build::{call, float_lit, int_lit, null_lit, string_lit};
 use lite_sql::{DdlColumn, JavaNumber, PivotUsing};
 
 fn typed(s: Scalar) -> TypeFact {
-    TypeFact::Typed { r#type: SqlType::Scalar(s), nullable: true }
+    TypeFact::Typed {
+        r#type: SqlType::Scalar(s),
+        nullable: true,
+    }
 }
 
 fn col(name: &str, t: TypeFact) -> SqlExpr {
@@ -29,7 +32,15 @@ fn col(name: &str, t: TypeFact) -> SqlExpr {
 }
 
 fn list(name: &str, s: Scalar) -> SqlExpr {
-    col(name, TypeFact::Typed { r#type: SqlType::Array { element: Box::new(SqlType::Scalar(s)) }, nullable: true })
+    col(
+        name,
+        TypeFact::Typed {
+            r#type: SqlType::Array {
+                element: Box::new(SqlType::Scalar(s)),
+            },
+            nullable: true,
+        },
+    )
 }
 
 fn render_result(e: &SqlExpr) -> Result<String, Refusal> {
@@ -49,7 +60,12 @@ fn list_call(f: SqlFn, args: &[SqlExpr]) -> Result<String, Refusal> {
 }
 
 fn out(name: &str, t: SqlType) -> OutputCol {
-    OutputCol { name: name.into(), r#type: t, nullable: true, origin: Origin::Physical }
+    OutputCol {
+        name: name.into(),
+        r#type: t,
+        nullable: true,
+        origin: Origin::Physical,
+    }
 }
 
 fn table(alias: &str, outputs: Vec<OutputCol>) -> SqlSource {
@@ -67,19 +83,39 @@ fn table(alias: &str, outputs: Vec<OutputCol>) -> SqlSource {
 fn the_list_calls_no_call_arm_reaches_answer_as_java() {
     let xs = list("xs", Scalar::Bigint);
     // LIST_REVERSE: `call` spells it `reverse(xs)` itself; listCall's own arm reads the empty collection too
-    assert_eq!(list_call(SqlFn::ListReverse, std::slice::from_ref(&xs)).unwrap(), "reverse(`t0`.`xs`)");
-    assert_eq!(list_call(SqlFn::ListReverse, &[null_lit()]).unwrap(), "reverse(CAST(NULL AS ARRAY<VOID>))");
+    assert_eq!(
+        list_call(SqlFn::ListReverse, std::slice::from_ref(&xs)).unwrap(),
+        "reverse(`t0`.`xs`)"
+    );
+    assert_eq!(
+        list_call(SqlFn::ListReverse, &[null_lit()]).unwrap(),
+        "reverse(CAST(NULL AS ARRAY<VOID>))"
+    );
     for f in [SqlFn::RangeFn, SqlFn::RepeatValue] {
         let r = list_call(f, std::slice::from_ref(&xs)).unwrap_err();
-        assert_eq!((r.class, r.message), (Refusal::ILLEGAL_STATE, format!("{f} is rendered by call")));
+        assert_eq!(
+            (r.class, r.message),
+            (Refusal::ILLEGAL_STATE, format!("{f} is rendered by call"))
+        );
     }
     let r = list_call(SqlFn::Abs, std::slice::from_ref(&xs)).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::ILLEGAL_STATE, "not a list call: ABS"));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_STATE, "not a list call: ABS")
+    );
     let r = list_call(SqlFn::ListSort, &[]).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::INDEX_OUT_OF_BOUNDS, "Index 0 out of bounds for length 0"));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::INDEX_OUT_OF_BOUNDS, "Index 0 out of bounds for length 0")
+    );
     let mut w = SqlWriter::new();
-    let r = Databricks::new().bit_op(&mut w, SqlFn::Abs, &[int_lit(1), int_lit(2)]).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::ILLEGAL_STATE, "not a bit op: ABS"));
+    let r = Databricks::new()
+        .bit_op(&mut w, SqlFn::Abs, &[int_lit(1), int_lit(2)])
+        .unwrap_err();
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_STATE, "not a bit op: ABS")
+    );
 }
 
 #[test]
@@ -104,9 +140,15 @@ fn a_list_lambda_that_is_no_lambda_is_javas_class_cast() {
 fn a_pivot_of_avg_is_javas_class_cast() {
     // AggregatesDeliverDouble casts the pivot's AVG to DOUBLE, which the walk then reads back as a reducer: Java's
     // `(SqlAgg.Reducer) rewriteExpr(u.agg())` fails
-    let px = SqlType::Decimal { precision: 18, scale: 6 };
+    let px = SqlType::Decimal {
+        precision: 18,
+        scale: 6,
+    };
     let pivot = |f: AggFn| SqlSource::Pivot {
-        source: Box::new(table("t0", vec![out("id", SqlType::Scalar(Scalar::Bigint)), out("px", px.clone())])),
+        source: Box::new(table(
+            "t0",
+            vec![out("id", SqlType::Scalar(Scalar::Bigint)), out("px", px.clone())],
+        )),
         on: vec![col("sym", typed(Scalar::Varchar))],
         r#in: vec![string_lit("A")],
         named: Vec::new(),
@@ -116,7 +158,10 @@ fn a_pivot_of_avg_is_javas_class_cast() {
             r#type: Some(SqlType::Scalar(Scalar::Double)),
         }],
         alias: "p".into(),
-        outputs: vec![out("id", SqlType::Scalar(Scalar::Bigint)), out("A__|__s", SqlType::Scalar(Scalar::Double))],
+        outputs: vec![
+            out("id", SqlType::Scalar(Scalar::Bigint)),
+            out("A__|__s", SqlType::Scalar(Scalar::Double)),
+        ],
     };
     let query = |f| build::query(build::star_of(pivot(f)).unwrap());
     let r = SqlDialect::render(&Databricks::new(), query(AggFn::Avg)).unwrap_err();
@@ -144,14 +189,19 @@ fn create_table(temporary: bool) -> SqlDdl {
             DdlColumn {
                 name: "ID".into(),
                 declared_quoted: false,
-                r#type: ColumnType::Plain { kind: ColumnKind::Integer },
+                r#type: ColumnType::Plain {
+                    kind: ColumnKind::Integer,
+                },
                 not_null: true,
                 primary_key: true,
             },
             DdlColumn {
                 name: "Name".into(),
                 declared_quoted: true,
-                r#type: ColumnType::Sized { kind: "VARCHAR".into(), size: 20 },
+                r#type: ColumnType::Sized {
+                    kind: "VARCHAR".into(),
+                    size: 20,
+                },
                 not_null: false,
                 primary_key: false,
             },
@@ -177,17 +227,24 @@ fn a_session_table_is_a_temporary_view_over_its_rows() {
     let held = rows(vec![vec![int_lit(1), string_lit("it's")], vec![int_lit(2), null_lit()]]);
     assert_eq!(
         d.session_table(&create_table(true), Some(&held)).unwrap(),
-        ["CREATE TEMPORARY VIEW `legend_rows` AS SELECT CAST(`c0` AS INTEGER) AS `ID`, CAST(`c1` AS VARCHAR(20)) AS \
-          `Name` FROM VALUES (1L, 'it\\'s'), (2L, NULL) AS `t`(`c0`, `c1`)"]
+        [
+            "CREATE TEMPORARY VIEW `legend_rows` AS SELECT CAST(`c0` AS INTEGER) AS `ID`, CAST(`c1` AS VARCHAR(20)) AS \
+          `Name` FROM VALUES (1L, 'it\\'s'), (2L, NULL) AS `t`(`c0`, `c1`)"
+        ]
     );
     // no rows: each column a typed NULL, no row
     assert_eq!(
         d.session_table(&create_table(true), None).unwrap(),
-        ["CREATE TEMPORARY VIEW `legend_rows` AS SELECT CAST(NULL AS INTEGER) AS `ID`, CAST(NULL AS VARCHAR(20)) AS \
-          `Name` WHERE FALSE"]
+        [
+            "CREATE TEMPORARY VIEW `legend_rows` AS SELECT CAST(NULL AS INTEGER) AS `ID`, CAST(NULL AS VARCHAR(20)) AS \
+          `Name` WHERE FALSE"
+        ]
     );
     let r = d.session_table(&create_table(false), None).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::ILLEGAL_ARGUMENT, "a session table is temporary: legend_rows"));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_ARGUMENT, "a session table is temporary: legend_rows")
+    );
     // a row holds values: a plan parameter is refused, naming the bind
     let p = SqlExpr::PlanParam {
         name: "p".into(),
@@ -197,10 +254,19 @@ fn a_session_table_is_a_temporary_view_over_its_rows() {
         r#type: typed(Scalar::Bigint),
         by_value: None,
     };
-    let r = d.session_table(&create_table(true), Some(&rows(vec![vec![p, null_lit()]]))).unwrap_err();
+    let r = d
+        .session_table(&create_table(true), Some(&rows(vec![vec![p, null_lit()]])))
+        .unwrap_err();
     assert_eq!(r.class, Refusal::DIALECT_CAPABILITY);
-    assert!(r.message.starts_with("plan parameters [Bind[parameter=p, "), "{}", r.message);
-    assert!(r.message.ends_with(" in a session table's rows: a row holds values, and a DDL statement is text"));
+    assert!(
+        r.message.starts_with("plan parameters [Bind[parameter=p, "),
+        "{}",
+        r.message
+    );
+    assert!(
+        r.message
+            .ends_with(" in a session table's rows: a row holds values, and a DDL statement is text")
+    );
 }
 
 #[test]
@@ -208,15 +274,24 @@ fn a_frame_offset_is_in_its_keys_type_and_an_interval_one_type() {
     use super::aggregates::interval;
     assert_eq!(interval(3, "DAYS").unwrap(), "INTERVAL '3 00:00:00' DAY TO SECOND");
     assert_eq!(interval(2, "weeks").unwrap(), "INTERVAL '14 00:00:00' DAY TO SECOND");
-    assert_eq!(interval(90061, "SECONDS").unwrap(), "INTERVAL '1 01:01:01' DAY TO SECOND");
+    assert_eq!(
+        interval(90061, "SECONDS").unwrap(),
+        "INTERVAL '1 01:01:01' DAY TO SECOND"
+    );
     assert_eq!(interval(14, "MONTHS").unwrap(), "INTERVAL '1-2' YEAR TO MONTH");
     assert_eq!(interval(2, "YEAR").unwrap(), "INTERVAL '2-0' YEAR TO MONTH");
     // a negative count: each field signed, as Java's String.format("%02d") writes a negative number
     assert_eq!(interval(-1, "HOURS").unwrap(), "INTERVAL '0 -1:00:00' DAY TO SECOND");
     let r = interval(i64::MAX, "HOURS").unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), ("java.lang.ArithmeticException", "long overflow"));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        ("java.lang.ArithmeticException", "long overflow")
+    );
     let r = interval(1, "QUARTERS").unwrap_err();
-    assert_eq!(r, Refusal::capability("a QUARTERS window frame offset has no Databricks interval"));
+    assert_eq!(
+        r,
+        Refusal::capability("a QUARTERS window frame offset has no Databricks interval")
+    );
     // a RANGE frame's offset has its ORDER BY key's type; a ranking function's argument is an INT
     let key = |s: Scalar| lite_sql::SortKey {
         expr: col("k", typed(s)),
@@ -229,15 +304,31 @@ fn a_frame_offset_is_in_its_keys_type_and_an_interval_one_type() {
         from: lite_sql::Bound::Preceding { n },
         to: lite_sql::Bound::CurrentRow,
     };
-    let sum = || SqlAgg::Reducer(build::reducer(AggFn::Sum, vec![col("x", typed(Scalar::Bigint))], false, Vec::new()));
+    let sum = || {
+        SqlAgg::Reducer(build::reducer(
+            AggFn::Sum,
+            vec![col("x", typed(Scalar::Bigint))],
+            false,
+            Vec::new(),
+        ))
+    };
     let windowed =
         |k: Scalar, n: JavaNumber| render(&build::window_call(sum(), Vec::new(), vec![key(k)], Some(frame(n))));
     assert!(windowed(Scalar::Integer, JavaNumber::Long(2)).ends_with("RANGE BETWEEN 2 PRECEDING AND CURRENT ROW)"));
     assert!(windowed(Scalar::Bigint, JavaNumber::Integer(2)).ends_with("RANGE BETWEEN 2L PRECEDING AND CURRENT ROW)"));
     let double = windowed(Scalar::Double, JavaNumber::Long(2));
-    assert!(double.ends_with("RANGE BETWEEN CAST(2 AS DOUBLE) PRECEDING AND CURRENT ROW)"), "{double}");
-    let ntile = SqlAgg::RankingFn { r#fn: AggFn::Ntile, args: vec![int_lit(4)] };
-    assert_eq!(render(&build::window_call(ntile, Vec::new(), Vec::new(), None)), "NTILE(4) OVER (ORDER BY 1)");
+    assert!(
+        double.ends_with("RANGE BETWEEN CAST(2 AS DOUBLE) PRECEDING AND CURRENT ROW)"),
+        "{double}"
+    );
+    let ntile = SqlAgg::RankingFn {
+        r#fn: AggFn::Ntile,
+        args: vec![int_lit(4)],
+    };
+    assert_eq!(
+        render(&build::window_call(ntile, Vec::new(), Vec::new(), None)),
+        "NTILE(4) OVER (ORDER BY 1)"
+    );
 }
 
 #[test]
@@ -251,7 +342,10 @@ fn a_lambdas_index_is_read_one_based_from_sparks_zero_based() {
         r#type: typed(Scalar::Bigint),
         origin: Some(Origin::Physical),
     });
-    let body = call(SqlFn::Greater, vec![call(SqlFn::Times, vec![i.clone(), int_lit(2)]), qualified]);
+    let body = call(
+        SqlFn::Greater,
+        vec![call(SqlFn::Times, vec![i.clone(), int_lit(2)]), qualified],
+    );
     let l = build::lambda(&["x", "i"], body);
     assert_eq!(
         render(&call(SqlFn::ListFilter, vec![xs.clone(), l])),
@@ -259,7 +353,10 @@ fn a_lambdas_index_is_read_one_based_from_sparks_zero_based() {
     );
     // a lambda of the element alone is itself
     let one = build::lambda(&["x"], call(SqlFn::IsNotNull, vec![build::derived(None, "x")]));
-    assert_eq!(render(&call(SqlFn::ListTransform, vec![xs, one])), "transform(`t0`.`xs`, `x` -> `x` IS NOT NULL)");
+    assert_eq!(
+        render(&call(SqlFn::ListTransform, vec![xs, one])),
+        "transform(`t0`.`xs`, `x` -> `x` IS NOT NULL)"
+    );
 }
 
 #[test]
@@ -267,7 +364,10 @@ fn literals_identifiers_and_the_quoted_split_are_databricks() {
     let d = Databricks::new();
     // a backslash and a quote escaped by a backslash; a NUL spliced
     assert_eq!(d.string_lit("it's a\\b").unwrap(), "'it\\'s a\\\\b'");
-    assert_eq!(d.string_lit("a\0b\0").unwrap(), "('a' || chr(0) || 'b' || chr(0) || '')");
+    assert_eq!(
+        d.string_lit("a\0b\0").unwrap(),
+        "('a' || chr(0) || 'b' || chr(0) || '')"
+    );
     assert_eq!(render(&int_lit(-7)), "-7L");
     assert_eq!(render(&float_lit(1.5)), "1.5");
     // every identifier in backticks; a double-quoted declaration is its inner name
@@ -277,7 +377,10 @@ fn literals_identifiers_and_the_quoted_split_are_databricks() {
     assert_eq!(d.ident("a`b"), "`a``b`");
     // Spark's split takes a regex: the literal delimiter quoted as Pattern.quote does, \E closed and reopened
     let s = col("s", typed(Scalar::Varchar));
-    assert_eq!(render(&call(SqlFn::Split, vec![s.clone(), string_lit("|")])), "split(`t0`.`s`, '\\\\Q|\\\\E', -1)");
+    assert_eq!(
+        render(&call(SqlFn::Split, vec![s.clone(), string_lit("|")])),
+        "split(`t0`.`s`, '\\\\Q|\\\\E', -1)"
+    );
     assert_eq!(super::pattern_quote("a\\Eb"), "\\Qa\\E\\\\E\\Qb\\E");
     assert_eq!(
         render(&call(SqlFn::Split, vec![s.clone(), s])),
@@ -303,11 +406,17 @@ fn several_unnests_are_one_inline_arrays_zip_and_a_having_is_dropped() {
     };
     let s = || build::select_of(vec![unnest(1, "a"), unnest(2, "b")], SqlSource::Dual, Vec::new()).unwrap();
     let written = |s: SqlSelect| SqlDialect::render(&Databricks::new(), build::query(s));
-    assert_eq!(written(s()).unwrap(), "SELECT inline(arrays_zip(array(1L), array(2L))) AS (`a`, `b`)");
+    assert_eq!(
+        written(s()).unwrap(),
+        "SELECT inline(arrays_zip(array(1L), array(2L))) AS (`a`, `b`)"
+    );
     // Java checks every clause but HAVING: a HAVING is dropped, a WHERE refused
     let mut having = s();
     having.having = Some(build::bool_lit(false));
-    assert_eq!(written(having).unwrap(), "SELECT inline(arrays_zip(array(1L), array(2L))) AS (`a`, `b`)");
+    assert_eq!(
+        written(having).unwrap(),
+        "SELECT inline(arrays_zip(array(1L), array(2L))) AS (`a`, `b`)"
+    );
     let mut filtered = s();
     filtered.r#where = Some(build::bool_lit(false));
     assert_eq!(

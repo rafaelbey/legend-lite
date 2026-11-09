@@ -168,8 +168,10 @@ impl Snowflake {
         );
         let mut rounded = String::from("CASE");
         for places in 14..=15 {
-            let round =
-                format!("ROUND(CAST({} AS NUMBER(38, 37)), {places}, 'HALF_TO_EVEN')", field_of(&b, "m", "VARCHAR"));
+            let round = format!(
+                "ROUND(CAST({} AS NUMBER(38, 37)), {places}, 'HALF_TO_EVEN')",
+                field_of(&b, "m", "VARCHAR")
+            );
             rounded.push_str(&format!(
                 " WHEN TRY_TO_DOUBLE(TO_VARCHAR({round}) || 'e' || TO_VARCHAR({})) = TRY_TO_DOUBLE({}) THEN {round}",
                 field_of(&b, "e", "INTEGER"),
@@ -209,12 +211,16 @@ impl Snowflake {
         );
         let first = step(
             &b,
-            &format!("'v', {}, 'd', {exact}, 'e', {exponent}, 'm', {mantissa}", field_of(&a, "v", "DOUBLE")),
+            &format!(
+                "'v', {}, 'd', {exact}, 'e', {exponent}, 'm', {mantissa}",
+                field_of(&a, "v", "DOUBLE")
+            ),
             &second,
         );
         let bound = step(&a, &format!("'v', {value}, 'd', {decimal}"), &first);
         pc(move |w| {
-            w.append("CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('v', ").expr(self, v, 0)?;
+            w.append("CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('v', ")
+                .expr(self, v, 0)?;
             w.append(&format!(")), {z} OBJECT -> {bound}), 0) AS VARCHAR)"));
             Ok(())
         })
@@ -245,7 +251,11 @@ impl Snowflake {
         let window = format!(
             "REDUCE(ARRAY_GENERATE_RANGE(GREATEST(1, {j} - {b}), {j} + {b} + 1), {}, ({u} OBJECT, {i} INTEGER) -> \
              IFF({} = 0 AND SUBSTR({}, {i}, 1) = '0' AND SUBSTR({}, {i}, 1) = {}, {take}, {u}))",
-            with_field(&with_field(&s, "c", &format!("SUBSTR({}, {j}, 1)", field_of(&s, "t", "STRING"))), "k", "0"),
+            with_field(
+                &with_field(&s, "c", &format!("SUBSTR({}, {j}, 1)", field_of(&s, "t", "STRING"))),
+                "k",
+                "0"
+            ),
             field_of(&u, "k", "INTEGER"),
             field_of(&u, "f", "STRING"),
             field_of(&u, "p", "STRING"),
@@ -295,8 +305,11 @@ impl Snowflake {
         );
         let body = format!("GET(TRANSFORM(ARRAY_CONSTRUCT({counted}), {q} OBJECT -> {score}), 0)");
         pc(move |w| {
-            w.append("CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('p', ").expr(self, p, 0)?;
-            w.append(", 't', ").expr(self, t, 0)?.append(&format!(")), {o} OBJECT -> {body}), 0) AS DOUBLE)"));
+            w.append("CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('p', ")
+                .expr(self, p, 0)?;
+            w.append(", 't', ")
+                .expr(self, t, 0)?
+                .append(&format!(")), {o} OBJECT -> {body}), 0) AS DOUBLE)"));
             Ok(())
         })
     }

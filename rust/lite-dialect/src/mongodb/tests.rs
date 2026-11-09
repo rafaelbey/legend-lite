@@ -22,7 +22,12 @@ fn t(s: Scalar) -> SqlType {
 }
 
 fn out(name: &str, ty: SqlType) -> OutputCol {
-    OutputCol { name: name.into(), r#type: ty, nullable: true, origin: Origin::Physical }
+    OutputCol {
+        name: name.into(),
+        r#type: ty,
+        nullable: true,
+        origin: Origin::Physical,
+    }
 }
 
 fn table(alias: &str, outputs: Vec<OutputCol>) -> SqlSource {
@@ -45,7 +50,10 @@ fn col(name: &str, ty: SqlType) -> SqlExpr {
     SqlExpr::Column(Column {
         table: Some("t0".into()),
         name: name.into(),
-        r#type: TypeFact::Typed { r#type: ty, nullable: true },
+        r#type: TypeFact::Typed {
+            r#type: ty,
+            nullable: true,
+        },
         origin: Some(Origin::Physical),
     })
 }
@@ -116,7 +124,10 @@ fn the_helpers_defaults_no_caller_reaches_answer_as_java() {
         refused(aggregates::accumulator(&d, &mut w, &n(), &field).map(|_| ())),
         (Refusal::ILLEGAL_STATE, format!("not an aggregate: {N_TEXT}"))
     );
-    assert_eq!(refused(aggregates::empty_input(&n())), (Refusal::ILLEGAL_STATE, format!("not an aggregate: {N_TEXT}")));
+    assert_eq!(
+        refused(aggregates::empty_input(&n())),
+        (Refusal::ILLEGAL_STATE, format!("not an aggregate: {N_TEXT}"))
+    );
     // a group field's stem is a field name
     assert_eq!(
         refused(GroupField::new("a.b", false)).1,
@@ -151,19 +162,31 @@ fn the_type_names_a_cast_takes_first_answer_as_java() {
     );
     assert_eq!(
         refused(d.scalar_type_name(Scalar::Time)),
-        (Refusal::DIALECT_CAPABILITY, "a cast to a time of day reached MongoDb, which has no time type".into())
+        (
+            Refusal::DIALECT_CAPABILITY,
+            "a cast to a time of day reached MongoDb, which has no time type".into()
+        )
     );
     assert_eq!(
         refused(d.scalar_type_name(Scalar::Json)),
-        (Refusal::ILLEGAL_STATE, "a cast to JSON is the value itself on MongoDb".into())
+        (
+            Refusal::ILLEGAL_STATE,
+            "a cast to JSON is the value itself on MongoDb".into()
+        )
     );
     assert_eq!(
         refused(d.scalar_type_name(Scalar::DecimalText)),
-        (Refusal::DIALECT_CAPABILITY, "a cast to a decimal's text reached MongoDb".into())
+        (
+            Refusal::DIALECT_CAPABILITY,
+            "a cast to a decimal's text reached MongoDb".into()
+        )
     );
     assert_eq!(
         refused(d.struct_type_name(&[])),
-        (Refusal::DIALECT_CAPABILITY, "a cast to a struct type reached MongoDb, whose documents are untyped".into())
+        (
+            Refusal::DIALECT_CAPABILITY,
+            "a cast to a struct type reached MongoDb, whose documents are untyped".into()
+        )
     );
     // a cast to BOOLEAN reads a text by its word (variantAwareCast's own arm), never by the type name
     let cast = build::cast(s(), t(Scalar::Boolean));
@@ -196,18 +219,42 @@ fn ddl_type_spells_every_declared_column_though_no_ddl_writes_one() {
     }
     assert_eq!(
         refused(plain(ColumnKind::Time)),
-        (Refusal::DIALECT_CAPABILITY, "a TIME column: MongoDB has no time-of-day type".into())
+        (
+            Refusal::DIALECT_CAPABILITY,
+            "a TIME column: MongoDB has no time-of-day type".into()
+        )
     );
     assert_eq!(
         refused(plain(ColumnKind::TimestampNs)),
-        (Refusal::DIALECT_CAPABILITY, "a TIMESTAMP_NS column: MongoDB's dates keep milliseconds".into())
+        (
+            Refusal::DIALECT_CAPABILITY,
+            "a TIMESTAMP_NS column: MongoDB's dates keep milliseconds".into()
+        )
     );
     assert_eq!(
         refused(plain(ColumnKind::Distinct)),
-        (Refusal::ILLEGAL_STATE, "no DDL spelling for declared column type DISTINCT".into())
+        (
+            Refusal::ILLEGAL_STATE,
+            "no DDL spelling for declared column type DISTINCT".into()
+        )
     );
-    assert_eq!(d.ddl_type(&ColumnType::Sized { kind: "VARCHAR".into(), size: 20 }).unwrap(), "string");
-    assert_eq!(d.ddl_type(&ColumnType::Scaled { kind: "DECIMAL".into(), precision: 10, scale: 2 }).unwrap(), "decimal");
+    assert_eq!(
+        d.ddl_type(&ColumnType::Sized {
+            kind: "VARCHAR".into(),
+            size: 20
+        })
+        .unwrap(),
+        "string"
+    );
+    assert_eq!(
+        d.ddl_type(&ColumnType::Scaled {
+            kind: "DECIMAL".into(),
+            precision: 10,
+            scale: 2
+        })
+        .unwrap(),
+        "decimal"
+    );
     // a collection declares no columns: a TIME column's table is created whole
     let create = SqlDdl::CreateTable {
         schema: Some("default".into()),
@@ -238,8 +285,13 @@ fn a_nested_query_and_a_flat_join_are_walls_no_query_reaches() {
         )
     );
     let on = call(SqlFn::Equal, vec![n(), n()]);
-    let join =
-        build::join(t0(), table("t1", vec![out("n", t(Scalar::Bigint))]), lite_sql::JoinKind::Inner, Some(on)).unwrap();
+    let join = build::join(
+        t0(),
+        table("t1", vec![out("n", t(Scalar::Bigint))]),
+        lite_sql::JoinKind::Inner,
+        Some(on),
+    )
+    .unwrap();
     d.reset();
     let mut w = SqlWriter::new();
     assert_eq!(
@@ -260,7 +312,10 @@ fn reduce_array_counts_by_size_where_array_reduction_takes_count_first() {
     assert_eq!(w.into_text().unwrap(), "{\"$size\": \"$$a\"}");
     let mut w = SqlWriter::new();
     aggregates::array_reduction(&d, &mut w, AggFn::Count, &text("\"$xs\""), &[], false).unwrap();
-    assert_eq!(w.into_text().unwrap(), "{\"$let\": {\"vars\": {\"a\": \"$xs\"}, \"in\": {\"$size\": \"$$a\"}}}");
+    assert_eq!(
+        w.into_text().unwrap(),
+        "{\"$let\": {\"vars\": {\"a\": \"$xs\"}, \"in\": {\"$size\": \"$$a\"}}}"
+    );
 }
 
 #[test]
@@ -269,7 +324,10 @@ fn the_float_forms_are_the_base_compositions() {
     let d = MongoDb::new();
     let x = col("d", t(Scalar::Double));
     let canon = call(SqlFn::FloatCanon, vec![x.clone()]);
-    assert_eq!(expr_text(&d, &canon), expr_text(&d, &crate::float_text::canon_of(x.clone())));
+    assert_eq!(
+        expr_text(&d, &canon),
+        expr_text(&d, &crate::float_text::canon_of(x.clone()))
+    );
     let print = call(SqlFn::FloatPrint, vec![x.clone()]);
     assert_eq!(expr_text(&d, &print), expr_text(&d, &crate::float_text::print_of(x)));
 }
@@ -295,13 +353,19 @@ fn a_window_over_a_grouped_aggregate_is_javas_class_cast() {
 
 #[test]
 fn an_nth_value_of_one_argument_is_javas_index_out_of_bounds() {
-    let nth = SqlAgg::ValueFn { r#fn: AggFn::NthValue, args: vec![n()] };
+    let nth = SqlAgg::ValueFn {
+        r#fn: AggFn::NthValue,
+        args: vec![n()],
+    };
     let order = vec![build::sort_key(n(), true, None, None)];
     let window = build::window_call(nth, vec![s()], order, None);
     let q = select(vec![proj(window, "v")], t0());
     assert_eq!(
         refused(AnsiSqlRenderer::render_statement(&MongoDb::new(), build::query(q))),
-        (Refusal::INDEX_OUT_OF_BOUNDS, "Index 1 out of bounds for length 1".to_owned())
+        (
+            Refusal::INDEX_OUT_OF_BOUNDS,
+            "Index 1 out of bounds for length 1".to_owned()
+        )
     );
 }
 
@@ -330,7 +394,10 @@ fn the_insert_holds_values_alone() {
             build::cast(string_lit("x"), t(Scalar::Varchar)),
             build::float_lit(2.5),
             build::decimal_lit(lite_sql::BigDecimal::parse("1E+2").unwrap()),
-            SqlExpr::TimestampLit { iso: "2024-01-02 03:04:05.5".into(), r#type: TypeFact::Unknown },
+            SqlExpr::TimestampLit {
+                iso: "2024-01-02 03:04:05.5".into(),
+                r#type: TypeFact::Unknown,
+            },
         ]),
     )
     .unwrap();
@@ -343,7 +410,10 @@ fn the_insert_holds_values_alone() {
     let canon = call(SqlFn::FloatCanon, vec![build::float_lit(1.0)]);
     assert_eq!(
         refused(AnsiSqlRenderer::render_dml(&d, &insert(vec![canon]))),
-        (Refusal::DIALECT_CAPABILITY, "a row's cell is Call: a MongoDb insert holds values, not expressions".into())
+        (
+            Refusal::DIALECT_CAPABILITY,
+            "a row's cell is Call: a MongoDb insert holds values, not expressions".into()
+        )
     );
     let short = SqlDml::InsertValues {
         schema: None,
@@ -363,13 +433,31 @@ fn the_insert_holds_values_alone() {
 fn a_date_literal_is_a_bson_date_to_the_millisecond() {
     let date = |iso: &str| json::date_literal(iso);
     assert_eq!(date("2024-01-02").unwrap(), "{\"$date\": \"2024-01-02T00:00:00Z\"}");
-    assert_eq!(date(" 2024-01-02 03:04:05.1 ").unwrap(), "{\"$date\": \"2024-01-02T03:04:05.100Z\"}");
-    assert_eq!(date("2024-01-02T03:04:05.123000").unwrap(), "{\"$date\": \"2024-01-02T03:04:05.123Z\"}");
-    assert_eq!(date("2024-01-02T03:04:05+05:30").unwrap(), "{\"$date\": \"2024-01-02T03:04:05+05:30\"}");
-    assert_eq!(date("2024-01-02T03:04:05-0530").unwrap(), "{\"$date\": \"2024-01-02T03:04:05-0530\"}");
-    assert_eq!(date("2024-01-02T03:04:05Z").unwrap(), "{\"$date\": \"2024-01-02T03:04:05Z\"}");
+    assert_eq!(
+        date(" 2024-01-02 03:04:05.1 ").unwrap(),
+        "{\"$date\": \"2024-01-02T03:04:05.100Z\"}"
+    );
+    assert_eq!(
+        date("2024-01-02T03:04:05.123000").unwrap(),
+        "{\"$date\": \"2024-01-02T03:04:05.123Z\"}"
+    );
+    assert_eq!(
+        date("2024-01-02T03:04:05+05:30").unwrap(),
+        "{\"$date\": \"2024-01-02T03:04:05+05:30\"}"
+    );
+    assert_eq!(
+        date("2024-01-02T03:04:05-0530").unwrap(),
+        "{\"$date\": \"2024-01-02T03:04:05-0530\"}"
+    );
+    assert_eq!(
+        date("2024-01-02T03:04:05Z").unwrap(),
+        "{\"$date\": \"2024-01-02T03:04:05Z\"}"
+    );
     // a line terminator before the offset: Java's `.` takes none, so the offset is not read and a Z is added
-    assert_eq!(date("2024-01-02\n03:04+0530").unwrap(), "{\"$date\": \"2024-01-02\\n03:04+0530Z\"}");
+    assert_eq!(
+        date("2024-01-02\n03:04+0530").unwrap(),
+        "{\"$date\": \"2024-01-02\\n03:04+0530Z\"}"
+    );
     assert_eq!(
         refused(date("2024-01-02T03:04:05.1234")),
         (
@@ -398,7 +486,10 @@ fn names_keys_and_strings_are_mongodbs() {
     let list = build::array_lit(vec![int_lit(1)]);
     let mut w = SqlWriter::new();
     json::op1(&d, &mut w, "$reverseArray", &list).unwrap();
-    assert_eq!(w.into_text().unwrap(), "{\"$reverseArray\": [[{\"$numberLong\": \"1\"}]]}");
+    assert_eq!(
+        w.into_text().unwrap(),
+        "{\"$reverseArray\": [[{\"$numberLong\": \"1\"}]]}"
+    );
     let mut w = SqlWriter::new();
     json::op1(&d, &mut w, "$sum", &list).unwrap();
     assert_eq!(w.into_text().unwrap(), "{\"$sum\": [{\"$numberLong\": \"1\"}]}");
@@ -408,8 +499,14 @@ fn names_keys_and_strings_are_mongodbs() {
 fn the_records_text_is_javas() {
     // as the oracle's refusals spell them
     assert_eq!(java_text::expr(&n()), N_TEXT);
-    let date = SqlExpr::DateLit { iso: "2024-01-02".into(), r#type: crate::typing::scalar(Scalar::Date) };
-    assert_eq!(java_text::expr(&date), "DateLit[iso=2024-01-02, type=Typed[type=DATE, nullable=false]]");
+    let date = SqlExpr::DateLit {
+        iso: "2024-01-02".into(),
+        r#type: crate::typing::scalar(Scalar::Date),
+    };
+    assert_eq!(
+        java_text::expr(&date),
+        "DateLit[iso=2024-01-02, type=Typed[type=DATE, nullable=false]]"
+    );
     let less = call(SqlFn::Less, vec![n(), col("d", t(Scalar::Double))]);
     assert_eq!(
         java_text::expr(&less),
@@ -435,7 +532,10 @@ fn a_marker_with_no_read_and_an_empty_scope_are_refused() {
     );
     // a fresh dialect, before any render: Java's empty deque
     let mut w = SqlWriter::new();
-    assert_eq!(refused(MongoDb::new().expr(&mut w, &n(), 0)).0, "java.util.NoSuchElementException");
+    assert_eq!(
+        refused(MongoDb::new().expr(&mut w, &n(), 0)).0,
+        "java.util.NoSuchElementException"
+    );
 }
 
 #[test]
@@ -453,8 +553,14 @@ fn every_render_starts_its_scopes_over() {
     });
     let right = table("t1", vec![out("n", t(Scalar::Bigint))]);
     let on = call(SqlFn::Equal, vec![n(), dotted]);
-    let failing = select(vec![proj(s(), "s")], build::join(t0(), right, lite_sql::JoinKind::Inner, Some(on)).unwrap());
-    assert_eq!(refused(AnsiSqlRenderer::render(&d, build::query(failing))).0, Refusal::DIALECT_CAPABILITY);
+    let failing = select(
+        vec![proj(s(), "s")],
+        build::join(t0(), right, lite_sql::JoinKind::Inner, Some(on)).unwrap(),
+    );
+    assert_eq!(
+        refused(AnsiSqlRenderer::render(&d, build::query(failing))).0,
+        Refusal::DIALECT_CAPABILITY
+    );
     let q = || {
         let mut q = select(vec![proj(s(), "s")], t0());
         q.r#where = Some(build::in_subquery(n(), build::query(inner.clone())));
@@ -475,13 +581,37 @@ fn the_facts_and_the_pass_list_are_javas() {
     let names: Vec<&str> = d.passes().iter().map(|p| p.name()).collect();
     assert_eq!(names, ["CarrierStrategies"]);
     let rendered: Vec<&str> = ansi::render_passes(&d).iter().map(|p| p.name()).collect();
-    assert_eq!(rendered, ["FloatPrintText.Expansion", "FloatCanonText.Expansion", "CarrierStrategies", "StoredReads"]);
+    assert_eq!(
+        rendered,
+        [
+            "FloatPrintText.Expansion",
+            "FloatCanonText.Expansion",
+            "CarrierStrategies",
+            "StoredReads"
+        ]
+    );
     // a stored objectId is read as its hex text; nothing else is
-    assert!(<MongoDb as AnsiSqlRenderer>::reads_stored(&ColumnType::Plain { kind: ColumnKind::Other }));
-    assert!(!<MongoDb as AnsiSqlRenderer>::reads_stored(&ColumnType::Plain { kind: ColumnKind::Distinct }));
-    let column = Column { table: Some("t0".into()), name: "_id".into(), r#type: TypeFact::Unknown, origin: None };
+    assert!(<MongoDb as AnsiSqlRenderer>::reads_stored(&ColumnType::Plain {
+        kind: ColumnKind::Other
+    }));
+    assert!(!<MongoDb as AnsiSqlRenderer>::reads_stored(&ColumnType::Plain {
+        kind: ColumnKind::Distinct
+    }));
+    let column = Column {
+        table: Some("t0".into()),
+        name: "_id".into(),
+        r#type: TypeFact::Unknown,
+        origin: None,
+    };
     d.reset();
     let mut w = SqlWriter::new();
-    d.stored_read(&mut w, &column, &ColumnType::Plain { kind: ColumnKind::Other }).unwrap();
+    d.stored_read(
+        &mut w,
+        &column,
+        &ColumnType::Plain {
+            kind: ColumnKind::Other,
+        },
+    )
+    .unwrap();
     assert_eq!(w.into_text().unwrap(), "{\"$toString\": \"$t0._id\"}");
 }

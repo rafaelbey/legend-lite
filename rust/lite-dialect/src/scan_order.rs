@@ -62,7 +62,11 @@ fn stabilize_select(s: &SqlSelect, frames: &HashSet<String>) -> Result<Option<Sq
         return Ok(Some(ordered(s, base, frames)?));
     }
     // a rows->at(N)-style cap whose inner carries the relation
-    if let SqlSource::Subselect { inner, alias, frame_name } = &s.from
+    if let SqlSource::Subselect {
+        inner,
+        alias,
+        frame_name,
+    } = &s.from
         && let SqlQuery::Select(inner) = inner.as_ref()
         && (inner.limit.is_some() || inner.offset.is_some())
         && let Some(inner_base) = orderable_base(inner, frames)
@@ -78,8 +82,10 @@ fn stabilize_select(s: &SqlSelect, frames: &HashSet<String>) -> Result<Option<Sq
 fn ordered(s: &SqlSelect, base_alias: &str, frames: &HashSet<String>) -> Result<SqlSelect, Refusal> {
     let mut tables = Vec::new();
     scan_tables(&s.from, frames, &mut tables);
-    let mut keys: Vec<SortKey> =
-        tables.into_iter().map(|alias| sort_key(row_order(Some(alias.to_owned())), true, None, None)).collect();
+    let mut keys: Vec<SortKey> = tables
+        .into_iter()
+        .map(|alias| sort_key(row_order(Some(alias.to_owned())), true, None, None))
+        .collect();
     if keys.is_empty() {
         keys.push(sort_key(row_order(Some(base_alias.to_owned())), true, None, None));
     }
@@ -181,7 +187,11 @@ impl StableScanOrder {
                 outs.push(build::output_col(n, bigint(), true));
             }
         }
-        Some(SqlSource::Cte { name: name.clone(), alias: alias.clone(), outputs: outs })
+        Some(SqlSource::Cte {
+            name: name.clone(),
+            alias: alias.clone(),
+            outputs: outs,
+        })
     }
 
     /// `stabilizeOverFrame(s)`: a positional read (a LIMIT/OFFSET select with no sort of its own) whose leftmost
@@ -208,12 +218,24 @@ impl StableScanOrder {
         // scan-major: the ordinals are recorded probe-major, so the cap reads them reversed
         let mut ords = self.cte_ords.get(name).cloned().unwrap_or_default();
         ords.reverse();
-        let SqlSource::Cte { alias: wide_alias, outputs: wide_outputs, .. } = &wide else {
+        let SqlSource::Cte {
+            alias: wide_alias,
+            outputs: wide_outputs,
+            ..
+        } = &wide
+        else {
             return Ok(None);
         };
         let keys: Vec<SortKey> = ords
             .iter()
-            .map(|n| sort_key(SqlExpr::Column(column_in(Some(wide_alias), wide_outputs, n)), true, None, None))
+            .map(|n| {
+                sort_key(
+                    SqlExpr::Column(column_in(Some(wide_alias), wide_outputs, n)),
+                    true,
+                    None,
+                    None,
+                )
+            })
             .collect();
         let from = replace_leftmost(s.from.clone(), &wide)?;
         Ok(Some(build::with_order_by(build::with_from(s.clone(), from)?, keys)?))
@@ -236,7 +258,9 @@ impl StableScanOrder {
             return Ok(None);
         }
         let mut ord_exprs = Vec::new();
-        let from2 = self.walk_from(&sel.from, &mut ord_exprs)?.unwrap_or_else(|| sel.from.clone());
+        let from2 = self
+            .walk_from(&sel.from, &mut ord_exprs)?
+            .unwrap_or_else(|| sel.from.clone());
         if ord_exprs.is_empty() {
             return Ok(None);
         }
@@ -250,7 +274,12 @@ impl StableScanOrder {
             outs.push(col);
             names.push(name);
         }
-        let threaded = build::select(SqlSelect { projections: ps, from: from2, outputs: outs, ..sel.clone() })?;
+        let threaded = build::select(SqlSelect {
+            projections: ps,
+            from: from2,
+            outputs: outs,
+            ..sel.clone()
+        })?;
         Ok(Some((threaded, names)))
     }
 
@@ -274,7 +303,9 @@ impl StableScanOrder {
                 }
                 Ok(Some(wide))
             }
-            SqlSource::Join { left, right, kind, on, .. } => {
+            SqlSource::Join {
+                left, right, kind, on, ..
+            } => {
                 let mut right_ords = Vec::new();
                 let r = self.walk_from(right, &mut right_ords)?;
                 let mut left_ords = Vec::new();
@@ -288,7 +319,11 @@ impl StableScanOrder {
                 let r = r.unwrap_or_else(|| right.as_ref().clone());
                 Ok(Some(build::join(l, r, *kind, on.as_deref().cloned())?))
             }
-            SqlSource::Subselect { inner, alias, frame_name } => match inner.as_ref() {
+            SqlSource::Subselect {
+                inner,
+                alias,
+                frame_name,
+            } => match inner.as_ref() {
                 SqlQuery::Select(inner) => {
                     let Some((threaded, names)) = self.thread_scan(inner)? else {
                         return Ok(None);
@@ -296,7 +331,11 @@ impl StableScanOrder {
                     for n in &names {
                         ord_exprs.push(SqlExpr::Column(column_in(Some(alias), &threaded.outputs, n)));
                     }
-                    Ok(Some(build::subselect(build::query(threaded), alias, frame_name.clone())))
+                    Ok(Some(build::subselect(
+                        build::query(threaded),
+                        alias,
+                        frame_name.clone(),
+                    )))
                 }
                 // a UNION ALL frame: H2 runs its legs in turn -- every leg appends its index and its own first scan
                 // ordinal, and the frame re-exports both
@@ -342,7 +381,11 @@ impl StableScanOrder {
         let mut ords = Vec::new();
         // Java walks the leg's from tree for its ordinals alone (the rewritten source is not kept)
         self.walk_from(&leg.from, &mut ords)?;
-        let ord = if ords.is_empty() { build::cast(build::null_lit(), bigint()) } else { ords.swap_remove(0) };
+        let ord = if ords.is_empty() {
+            build::cast(build::null_lit(), bigint())
+        } else {
+            ords.swap_remove(0)
+        };
         let mut ps = leg.projections.clone();
         if ps.is_empty() {
             // an implicit star frame keeps its row explicitly (`SELECT *, <ordinals>`)
@@ -351,17 +394,34 @@ impl StableScanOrder {
         let mut outs = leg.outputs.clone();
         let leg_col = build::output_col("__agg_leg", bigint(), true);
         let ord_col = build::output_col("__agg_legord", bigint(), true);
-        ps.push(build::projection(build::int_lit(index), Some("__agg_leg".to_owned()), Some(leg_col.clone()))?);
-        ps.push(build::projection(ord, Some("__agg_legord".to_owned()), Some(ord_col.clone()))?);
+        ps.push(build::projection(
+            build::int_lit(index),
+            Some("__agg_leg".to_owned()),
+            Some(leg_col.clone()),
+        )?);
+        ps.push(build::projection(
+            ord,
+            Some("__agg_legord".to_owned()),
+            Some(ord_col.clone()),
+        )?);
         outs.push(leg_col);
         outs.push(ord_col);
-        Ok(Some(build::select(SqlSelect { projections: ps, outputs: outs, ..leg.clone() })?))
+        Ok(Some(build::select(SqlSelect {
+            projections: ps,
+            outputs: outs,
+            ..leg.clone()
+        })?))
     }
 
     /// The select hook's frame case: an order-sensitive reducer over a from-subselect orders by the input's user
     /// sort keys, then the frame's threaded scan ordinals; none where Java returns `s`.
     fn through_frame(&self, s: &SqlSelect) -> Result<Option<SqlSelect>, Refusal> {
-        let SqlSource::Subselect { inner, alias: sub_alias, frame_name } = &s.from else {
+        let SqlSource::Subselect {
+            inner,
+            alias: sub_alias,
+            frame_name,
+        } = &s.from
+        else {
             return Ok(None);
         };
         let SqlQuery::Select(inner) = inner.as_ref() else {
@@ -371,7 +431,11 @@ impl StableScanOrder {
         let wants = |r: &Reducer| {
             order_sensitive(r) && r.order_by.is_empty() && !r.args.is_empty() && reads_alias(&r.args[0], sub_alias)
         };
-        if !s.projections.iter().any(|p| matches!(&p.expr, SqlExpr::Reducer(r) if wants(r))) {
+        if !s
+            .projections
+            .iter()
+            .any(|p| matches!(&p.expr, SqlExpr::Reducer(r) if wants(r)))
+        {
             return Ok(None);
         }
         let Some((mut widened, ord_names)) = self.thread_scan(inner)? else {
@@ -394,9 +458,17 @@ impl StableScanOrder {
                     let col = build::output_col(&hidden, SqlType::Scalar(Scalar::Varchar), true);
                     let mut wp = widened.projections.clone();
                     let mut wo = widened.outputs.clone();
-                    wp.push(build::projection(k.expr.clone(), Some(hidden.clone()), Some(col.clone()))?);
+                    wp.push(build::projection(
+                        k.expr.clone(),
+                        Some(hidden.clone()),
+                        Some(col.clone()),
+                    )?);
                     wo.push(col);
-                    widened = build::select(SqlSelect { projections: wp, outputs: wo, ..widened })?;
+                    widened = build::select(SqlSelect {
+                        projections: wp,
+                        outputs: wo,
+                        ..widened
+                    })?;
                     hidden
                 }
             };
@@ -404,7 +476,12 @@ impl StableScanOrder {
             keys.push(sort_key(reference, k.ascending, k.null_order, None));
         }
         for ord in &ord_names {
-            keys.push(sort_key(SqlExpr::Column(column_in(Some(sub_alias), &widened.outputs, ord)), true, None, None));
+            keys.push(sort_key(
+                SqlExpr::Column(column_in(Some(sub_alias), &widened.outputs, ord)),
+                true,
+                None,
+                None,
+            ));
         }
         let mut out = s.projections.clone();
         for p in out.iter_mut() {
@@ -416,7 +493,11 @@ impl StableScanOrder {
             }
         }
         let from = build::subselect(build::query(widened), sub_alias, frame_name.clone());
-        Ok(Some(build::select(SqlSelect { projections: out, from, ..s.clone() })?))
+        Ok(Some(build::select(SqlSelect {
+            projections: out,
+            from,
+            ..s.clone()
+        })?))
     }
 }
 
@@ -439,7 +520,10 @@ fn base_table_reducers(s: &SqlSelect) -> Result<Option<SqlSelect>, Refusal> {
     }
     match out {
         None => Ok(None),
-        Some(ps) => Ok(Some(build::select(SqlSelect { projections: ps, ..s.clone() })?)),
+        Some(ps) => Ok(Some(build::select(SqlSelect {
+            projections: ps,
+            ..s.clone()
+        })?)),
     }
 }
 
@@ -473,9 +557,9 @@ fn order_sensitive(r: &Reducer) -> bool {
 /// `replaceLeftmost(src, wide)`: the join tree with its leftmost source the widened frame reference.
 fn replace_leftmost(src: SqlSource, wide: &SqlSource) -> Result<SqlSource, Refusal> {
     match src {
-        SqlSource::Join { left, right, kind, on, .. } => {
-            build::join(replace_leftmost(*left, wide)?, *right, kind, on.map(|o| *o))
-        }
+        SqlSource::Join {
+            left, right, kind, on, ..
+        } => build::join(replace_leftmost(*left, wide)?, *right, kind, on.map(|o| *o)),
         _ => Ok(wide.clone()),
     }
 }
@@ -561,7 +645,11 @@ impl SqlRewriter for StableScanOrder {
                     _ => cs.push(c.clone()),
                 }
             }
-            if changed { Some(SqlQuery::With(build::with(cs, (*w.body).clone(), w.recursive)?)) } else { None }
+            if changed {
+                Some(SqlQuery::With(build::with(cs, (*w.body).clone(), w.recursive)?))
+            } else {
+                None
+            }
         } else {
             None
         };
@@ -594,7 +682,12 @@ impl SqlRewriter for StableScanOrder {
     /// Subselect inners stabilize too (a verdict statement compiles the asserted relation as a subquery), FROM
     /// subselects only (an ORDER BY is legal there).
     fn source(&mut self, s: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
-        let SqlSource::Subselect { inner, alias, frame_name } = &s else {
+        let SqlSource::Subselect {
+            inner,
+            alias,
+            frame_name,
+        } = &s
+        else {
             return Ok(Rw::Same(s));
         };
         let SqlQuery::Select(sel) = inner.as_ref() else {
@@ -628,7 +721,12 @@ mod tests {
     }
 
     fn physical(name: &str, t: SqlType) -> OutputCol {
-        OutputCol { name: name.to_owned(), r#type: t, nullable: true, origin: Origin::Physical }
+        OutputCol {
+            name: name.to_owned(),
+            r#type: t,
+            nullable: true,
+            origin: Origin::Physical,
+        }
     }
 
     /// A base table with columns `id` (BIGINT) and `name` (VARCHAR).
@@ -636,7 +734,10 @@ mod tests {
         SqlSource::Table {
             name: name.to_owned(),
             alias: alias.to_owned(),
-            outputs: vec![physical("id", SqlType::Scalar(Scalar::Bigint)), physical("name", varchar())],
+            outputs: vec![
+                physical("id", SqlType::Scalar(Scalar::Bigint)),
+                physical("name", varchar()),
+            ],
             call: false,
             stored_types: Vec::new(),
             quoting: NameQuoting::default(),
@@ -647,7 +748,10 @@ mod tests {
         SqlExpr::Column(Column {
             table: Some(table.to_owned()),
             name: name.to_owned(),
-            r#type: TypeFact::Typed { r#type: t, nullable: true },
+            r#type: TypeFact::Typed {
+                r#type: t,
+                nullable: true,
+            },
             origin: Some(Origin::Physical),
         })
     }
@@ -662,7 +766,12 @@ mod tests {
 
     /// `e AS alias`, its slot declared VARCHAR.
     fn named(e: SqlExpr, alias: &str) -> Projection {
-        build::projection(e, Some(alias.to_owned()), Some(build::output_col(alias, varchar(), true))).unwrap()
+        build::projection(
+            e,
+            Some(alias.to_owned()),
+            Some(build::output_col(alias, varchar(), true)),
+        )
+        .unwrap()
     }
 
     fn select(projections: Vec<Projection>, from: SqlSource) -> SqlSelect {
@@ -684,7 +793,12 @@ mod tests {
     }
 
     fn string_agg(value: SqlExpr) -> SqlExpr {
-        SqlExpr::Reducer(build::reducer(AggFn::StringAgg, vec![value, build::string_lit(",")], false, Vec::new()))
+        SqlExpr::Reducer(build::reducer(
+            AggFn::StringAgg,
+            vec![value, build::string_lit(",")],
+            false,
+            Vec::new(),
+        ))
     }
 
     fn as_select(q: &SqlQuery) -> &SqlSelect {
@@ -708,7 +822,10 @@ mod tests {
     #[test]
     fn a_positional_read_over_a_join_of_scans_orders_by_each_scans_row_order() {
         // SELECT t0.name AS name FROM T t0 JOIN U t1 ON t0.id = t1.id LIMIT 2
-        let s = SqlSelect { limit: Some(2), ..select(vec![named(name_of("t0"), "name")], joined()) };
+        let s = SqlSelect {
+            limit: Some(2),
+            ..select(vec![named(name_of("t0"), "name")], joined())
+        };
         let mut pass = StableScanOrder::new();
         let out = pass.rewrite_root(build::query(s)).unwrap();
         // the driving table first, then the joined one (ScanOrder.ordered)
@@ -716,8 +833,11 @@ mod tests {
         assert_eq!(as_select(&out).limit, Some(2));
         assert_eq!(pass.firings, 1);
         // a joined subselect contributes no key: only the driving scan's
-        let sub =
-            build::subselect(build::query(select(vec![named(name_of("t1"), "name")], table("U", "t1"))), "s1", None);
+        let sub = build::subselect(
+            build::query(select(vec![named(name_of("t1"), "name")], table("U", "t1"))),
+            "s1",
+            None,
+        );
         let on = build::call(SqlFn::Equal, vec![name_of("t0"), col("s1", "name", varchar())]);
         let over_frame = select(
             vec![named(name_of("t0"), "name")],
@@ -736,14 +856,25 @@ mod tests {
             order_by: vec![build::sort_key(name_of("t0"), true, None, None)],
             ..select(vec![named(name_of("t0"), "name")], joined())
         };
-        let grouped =
-            SqlSelect { group_by: vec![name_of("t0")], ..select(vec![named(name_of("t0"), "name")], joined()) };
-        let distinct = SqlSelect { distinct: true, ..select(vec![named(name_of("t0"), "name")], joined()) };
+        let grouped = SqlSelect {
+            group_by: vec![name_of("t0")],
+            ..select(vec![named(name_of("t0"), "name")], joined())
+        };
+        let distinct = SqlSelect {
+            distinct: true,
+            ..select(vec![named(name_of("t0"), "name")], joined())
+        };
         let counted = select(
-            vec![named(SqlExpr::Reducer(build::reducer(AggFn::Count, vec![id_of("t0")], false, Vec::new())), "n")],
+            vec![named(
+                SqlExpr::Reducer(build::reducer(AggFn::Count, vec![id_of("t0")], false, Vec::new())),
+                "n",
+            )],
             joined(),
         );
-        let single = SqlSelect { limit: Some(1), ..select(vec![named(name_of("t0"), "name")], table("T", "t0")) };
+        let single = SqlSelect {
+            limit: Some(1),
+            ..select(vec![named(name_of("t0"), "name")], table("T", "t0"))
+        };
         for s in [sorted, grouped, distinct, counted, single] {
             let q = build::query(s);
             assert_eq!(pass.rewrite_root(q.clone()).unwrap(), q);
@@ -756,13 +887,19 @@ mod tests {
         let mut frames = HashSet::new();
         frames.insert("T".to_owned());
         let framed = select(vec![named(name_of("t0"), "name")], joined());
-        assert!(matches!(ScanOrder::stabilize(build::query(framed), &frames).unwrap(), Rw::Same(_)));
+        assert!(matches!(
+            ScanOrder::stabilize(build::query(framed), &frames).unwrap(),
+            Rw::Same(_)
+        ));
     }
 
     #[test]
     fn a_cap_wrapper_orders_the_relation_its_inner_caps() {
         // SELECT * FROM (SELECT t0.name AS name FROM T t0 JOIN U t1 ON ... OFFSET 1) AS sub
-        let inner = SqlSelect { offset: Some(1), ..select(vec![named(name_of("t0"), "name")], joined()) };
+        let inner = SqlSelect {
+            offset: Some(1),
+            ..select(vec![named(name_of("t0"), "name")], joined())
+        };
         let outer = build::star_of(build::subselect(build::query(inner), "sub", None)).unwrap();
         let out = ScanOrder::stabilize(build::query(outer), &HashSet::new()).unwrap();
         assert!(out.is_new());
@@ -778,9 +915,17 @@ mod tests {
         let s = select(vec![named(string_agg(name_of("t0")), "names")], table("T", "t0"));
         let mut pass = StableScanOrder::new();
         let out = pass.rewrite_root(build::query(s)).unwrap();
-        let SqlExpr::Reducer(r) = &as_select(&out).projections[0].expr else { panic!("a reducer") };
+        let SqlExpr::Reducer(r) = &as_select(&out).projections[0].expr else {
+            panic!("a reducer")
+        };
         assert_eq!(r.order_by, vec![rowid_key("t0")]);
-        assert_eq!(r.r#type, TypeFact::Typed { r#type: varchar(), nullable: true });
+        assert_eq!(
+            r.r#type,
+            TypeFact::Typed {
+                r#type: varchar(),
+                nullable: true
+            }
+        );
         assert_eq!(as_select(&out).projections[0].alias.as_deref(), Some("names"));
         assert_eq!(pass.firings, 1);
         // a DISTINCT concat is set-shaped
@@ -806,7 +951,9 @@ mod tests {
             build::subselect(build::query(inner), "sub", None),
         );
         let mut pass = StableScanOrder::new();
-        let Rw::New(out) = pass.select(s).unwrap() else { panic!("rewritten") };
+        let Rw::New(out) = pass.select(s).unwrap() else {
+            panic!("rewritten")
+        };
         let out = as_select(&out);
         let frame = inner_select(&out.from);
         // the scan ordinal threads as a hidden projection, then the unexported sort key is exported hidden; Java's
@@ -817,9 +964,16 @@ mod tests {
         assert_eq!(frame.outputs[2].r#type, SqlType::Scalar(Scalar::Bigint));
         assert_eq!(frame.projections[1].expr, build::row_order(Some("t0".to_owned())));
         assert_eq!(frame.projections[2].expr, id_of("t0"));
-        let SqlExpr::Reducer(r) = &out.projections[0].expr else { panic!("a reducer") };
+        let SqlExpr::Reducer(r) = &out.projections[0].expr else {
+            panic!("a reducer")
+        };
         let key = |name: &str, asc: bool| {
-            build::sort_key(SqlExpr::Column(build::column_in(Some("sub"), &frame.outputs, name)), asc, None, None)
+            build::sort_key(
+                SqlExpr::Column(build::column_in(Some("sub"), &frame.outputs, name)),
+                asc,
+                None,
+                None,
+            )
         };
         assert_eq!(r.order_by, vec![key("__agg_key0", false), key("__agg_ord0", true)]);
         // the outer select's outputs are rebuilt from its projections
@@ -829,9 +983,12 @@ mod tests {
     #[test]
     fn a_union_all_frame_threads_each_legs_index_and_first_scan() {
         let leg = |t: &str, a: &str| build::query(select(vec![named(name_of(a), "name")], table(t, a)));
-        let union =
-            build::union(vec![leg("T", "t0"), leg("U", "t1")], true, vec![build::output_col("name", varchar(), true)])
-                .unwrap();
+        let union = build::union(
+            vec![leg("T", "t0"), leg("U", "t1")],
+            true,
+            vec![build::output_col("name", varchar(), true)],
+        )
+        .unwrap();
         let middle = select(
             vec![named(col("u", "name", varchar()), "name")],
             build::subselect(SqlQuery::Union(union), "u", None),
@@ -841,24 +998,36 @@ mod tests {
             build::subselect(build::query(middle), "m", None),
         );
         let mut pass = StableScanOrder::new();
-        let Rw::New(out) = pass.select(s).unwrap() else { panic!("rewritten") };
+        let Rw::New(out) = pass.select(s).unwrap() else {
+            panic!("rewritten")
+        };
         let frame = inner_select(&as_select(&out).from);
         assert_eq!(names(&frame.outputs), ["name", "__agg_ord0", "__agg_ord1"]);
-        let SqlSource::Subselect { inner, .. } = &frame.from else { panic!("the union frame") };
-        let SqlQuery::Union(u) = inner.as_ref() else { panic!("a union") };
+        let SqlSource::Subselect { inner, .. } = &frame.from else {
+            panic!("the union frame")
+        };
+        let SqlQuery::Union(u) = inner.as_ref() else {
+            panic!("a union")
+        };
         assert_eq!(names(&u.outputs), ["name", "__agg_leg", "__agg_legord"]);
         let second = as_select(&u.branches[1]);
         assert_eq!(second.projections[1].expr, build::int_lit(1));
         assert_eq!(second.projections[2].expr, build::row_order(Some("t1".to_owned())));
         // the frame reads the leg columns as the local list labels them (Java's `Column.of(alias, outs, name)`)
-        let leg_ref =
-            SqlExpr::Column(build::column_of(Some("u"), &build::output_col("__agg_leg", super::bigint(), true)));
+        let leg_ref = SqlExpr::Column(build::column_of(
+            Some("u"),
+            &build::output_col("__agg_leg", super::bigint(), true),
+        ));
         assert_eq!(frame.projections[1].expr, leg_ref);
     }
 
     fn with_frame(body: SqlQuery) -> SqlQuery {
         let frame = build::query(select(vec![named(name_of("t0"), "name")], table("T", "t0")));
-        let ctes = vec![Cte { name: "f".to_owned(), query: frame, materialized: false }];
+        let ctes = vec![Cte {
+            name: "f".to_owned(),
+            query: frame,
+            materialized: false,
+        }];
         SqlQuery::With(build::with(ctes, body, false).unwrap())
     }
 
@@ -873,8 +1042,10 @@ mod tests {
     #[test]
     fn a_frame_cte_threads_its_ordinals_when_a_positional_read_needs_them() {
         // WITH f AS (SELECT t0.name AS name FROM T t0) SELECT * FROM (SELECT f0.name AS name FROM f f0 LIMIT 1) s0
-        let capped =
-            SqlSelect { limit: Some(1), ..select(vec![named(col("f0", "name", varchar()), "name")], frame_ref()) };
+        let capped = SqlSelect {
+            limit: Some(1),
+            ..select(vec![named(col("f0", "name", varchar()), "name")], frame_ref())
+        };
         let body = build::star_of(build::subselect(build::query(capped), "s0", None)).unwrap();
         let mut pass = StableScanOrder::new();
         let out = pass.rewrite_root(with_frame(build::query(body))).unwrap();
@@ -883,7 +1054,9 @@ mod tests {
         assert_eq!(names(&frame.outputs), ["name", "__agg_ord0"]);
         let read = inner_select(&as_select(&w.body).from);
         // the reference re-exports the frame's ordinals, and the cap orders by them
-        let SqlSource::Cte { outputs, .. } = &read.from else { panic!("the frame reference") };
+        let SqlSource::Cte { outputs, .. } = &read.from else {
+            panic!("the frame reference")
+        };
         assert_eq!(names(outputs), ["name", "__agg_ord0"]);
         let key = SqlExpr::Column(build::column_in(Some("f0"), outputs, "__agg_ord0"));
         assert_eq!(read.order_by, vec![build::sort_key(key, true, None, None)]);
@@ -902,7 +1075,10 @@ mod tests {
 
     #[test]
     fn the_engine_scan_order_flag_runs_the_pass_in_duckdbs_pipeline() {
-        let s = SqlSelect { limit: Some(2), ..select(vec![named(name_of("t0"), "name")], joined()) };
+        let s = SqlSelect {
+            limit: Some(2),
+            ..select(vec![named(name_of("t0"), "name")], joined())
+        };
         let plain = DuckDb::new().render(build::query(s.clone())).unwrap();
         let mut d = DuckDb::new();
         d.engine_scan_order = true;

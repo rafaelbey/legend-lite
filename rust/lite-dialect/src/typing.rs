@@ -22,7 +22,10 @@ use std::collections::{HashMap, HashSet};
 
 /// `SqlTyping.typed(t)`: a non-null fact of `t`.
 pub fn typed(t: SqlType) -> TypeFact {
-    TypeFact::Typed { r#type: t, nullable: false }
+    TypeFact::Typed {
+        r#type: t,
+        nullable: false,
+    }
 }
 
 /// A non-null fact of a scalar (`T_BOOLEAN`, `T_VARCHAR`, ...).
@@ -33,7 +36,10 @@ pub fn scalar(s: Scalar) -> TypeFact {
 /// `SqlTyping.nullable(f)`: a Typed fact marked may-be-null; Bottom, Raises and Unknown pass through.
 pub fn nullable(f: TypeFact) -> TypeFact {
     match f {
-        TypeFact::Typed { r#type, nullable: false } => TypeFact::Typed { r#type, nullable: true },
+        TypeFact::Typed {
+            r#type,
+            nullable: false,
+        } => TypeFact::Typed { r#type, nullable: true },
         other => other,
     }
 }
@@ -93,7 +99,12 @@ pub fn reconcile_slot(pe: &SqlExpr, oc: &OutputCol, grouped: bool) -> OutputCol 
     if t == oc.r#type && nul == oc.nullable {
         return oc.clone();
     }
-    OutputCol { name: oc.name.clone(), r#type: t, nullable: nul, origin: oc.origin }
+    OutputCol {
+        name: oc.name.clone(),
+        r#type: t,
+        nullable: nul,
+        origin: oc.origin,
+    }
 }
 
 /// `SqlTyping.reconcileUnionLabels`: column i adopts the branches' uniform type, their nullability's OR and the
@@ -138,7 +149,12 @@ pub fn reconcile_union_labels(branches: &[SqlQuery], outputs: Vec<OutputCol>) ->
         if *t == oc.r#type && nul == oc.nullable && first == oc.origin {
             continue;
         }
-        let replacement = OutputCol { name: oc.name.clone(), r#type: t.clone(), nullable: nul, origin: first };
+        let replacement = OutputCol {
+            name: oc.name.clone(),
+            r#type: t.clone(),
+            nullable: nul,
+            origin: first,
+        };
         os.get_or_insert_with(|| outputs.clone())[i] = replacement;
     }
     os.unwrap_or(outputs)
@@ -189,7 +205,11 @@ fn bottom_or(a: &[SqlExpr], t: Scalar) -> TypeFact {
     if a.is_empty() {
         return TypeFact::Unknown;
     }
-    if a.iter().any(|x| matches!(x.r#type(), TypeFact::Bottom)) { TypeFact::Bottom } else { scalar(t) }
+    if a.iter().any(|x| matches!(x.r#type(), TypeFact::Bottom)) {
+        TypeFact::Bottom
+    } else {
+        scalar(t)
+    }
 }
 
 fn call_kind(f: SqlFn, a: &[SqlExpr]) -> TypeFact {
@@ -306,10 +326,18 @@ fn call_kind(f: SqlFn, a: &[SqlExpr]) -> TypeFact {
         | F::FromEpochNs
         | F::Timezone
         | F::DateAtTime => scalar(Scalar::Timestamp),
-        F::ListSum => a.first().map_or(TypeFact::Unknown, |c| reduce_collection_type(AggFn::Sum, c)),
-        F::ListAvg => a.first().map_or(TypeFact::Unknown, |c| reduce_collection_type(AggFn::Avg, c)),
-        F::ListMedian => a.first().map_or(TypeFact::Unknown, |c| reduce_collection_type(AggFn::Median, c)),
-        F::ListMode => a.first().map_or(TypeFact::Unknown, |c| reduce_collection_type(AggFn::Mode, c)),
+        F::ListSum => a
+            .first()
+            .map_or(TypeFact::Unknown, |c| reduce_collection_type(AggFn::Sum, c)),
+        F::ListAvg => a
+            .first()
+            .map_or(TypeFact::Unknown, |c| reduce_collection_type(AggFn::Avg, c)),
+        F::ListMedian => a
+            .first()
+            .map_or(TypeFact::Unknown, |c| reduce_collection_type(AggFn::Median, c)),
+        F::ListMode => a
+            .first()
+            .map_or(TypeFact::Unknown, |c| reduce_collection_type(AggFn::Mode, c)),
         F::ListProduct => list_product_type(a),
         F::ListAppend => list_append_type(a),
         F::ListReduce => match a {
@@ -323,31 +351,44 @@ fn call_kind(f: SqlFn, a: &[SqlExpr]) -> TypeFact {
         F::MapFromEntries => map_from_entries_type(a),
         F::MapFromLists => match a {
             [k, v] => match (array_element(k.r#type()), array_element(v.r#type())) {
-                (Some(ke), Some(ve)) => typed(SqlType::Map { key: Box::new(ke.clone()), value: Box::new(ve.clone()) }),
+                (Some(ke), Some(ve)) => typed(SqlType::Map {
+                    key: Box::new(ke.clone()),
+                    value: Box::new(ve.clone()),
+                }),
                 _ => TypeFact::Unknown,
             },
             _ => TypeFact::Unknown,
         },
         F::MapExtract | F::MapValues => match first_type(a) {
-            Some(TypeFact::Typed { r#type: SqlType::Map { value, .. }, .. }) => {
-                typed(SqlType::Array { element: value.clone() })
-            }
+            Some(TypeFact::Typed {
+                r#type: SqlType::Map { value, .. },
+                ..
+            }) => typed(SqlType::Array { element: value.clone() }),
             _ => TypeFact::Unknown,
         },
         F::MapKeys => match first_type(a) {
-            Some(TypeFact::Typed { r#type: SqlType::Map { key, .. }, .. }) => {
-                typed(SqlType::Array { element: key.clone() })
-            }
+            Some(TypeFact::Typed {
+                r#type: SqlType::Map { key, .. },
+                ..
+            }) => typed(SqlType::Array { element: key.clone() }),
             _ => TypeFact::Unknown,
         },
         F::DateTrunc => bottom_or(a, Scalar::Timestamp),
         F::DateTruncDay => bottom_or(a, Scalar::Date),
         F::ToVariant | F::JsonMergePatch | F::VariantGet => scalar(Scalar::Json),
-        F::VariantElements => typed(SqlType::Array { element: Box::new(SqlType::Scalar(Scalar::Json)) }),
-        F::Split | F::RegexpExtractAll => typed(SqlType::Array { element: Box::new(SqlType::Scalar(Scalar::Varchar)) }),
-        F::RangeFn => typed(SqlType::Array { element: Box::new(SqlType::Scalar(Scalar::Bigint)) }),
+        F::VariantElements => typed(SqlType::Array {
+            element: Box::new(SqlType::Scalar(Scalar::Json)),
+        }),
+        F::Split | F::RegexpExtractAll => typed(SqlType::Array {
+            element: Box::new(SqlType::Scalar(Scalar::Varchar)),
+        }),
+        F::RangeFn => typed(SqlType::Array {
+            element: Box::new(SqlType::Scalar(Scalar::Bigint)),
+        }),
         F::RepeatValue => match first_type(a) {
-            Some(TypeFact::Typed { r#type, .. }) => typed(SqlType::Array { element: Box::new(r#type.clone()) }),
+            Some(TypeFact::Typed { r#type, .. }) => typed(SqlType::Array {
+                element: Box::new(r#type.clone()),
+            }),
             _ => TypeFact::Unknown,
         },
         F::Coalesce => uniform(a, TypeFact::Bottom),
@@ -366,11 +407,10 @@ fn call_kind(f: SqlFn, a: &[SqlExpr]) -> TypeFact {
         F::BitAnd | F::BitOr | F::BitXor | F::BitNot | F::BitShiftLeft | F::BitShiftRight => bit_op_type(a),
         F::Greatest | F::Least => uniform(a, TypeFact::Bottom),
         F::ListFlatten => match first_type(a) {
-            Some(TypeFact::Typed { r#type: SqlType::Array { element }, .. })
-                if matches!(element.as_ref(), SqlType::Array { .. }) =>
-            {
-                typed(element.as_ref().clone())
-            }
+            Some(TypeFact::Typed {
+                r#type: SqlType::Array { element },
+                ..
+            }) if matches!(element.as_ref(), SqlType::Array { .. }) => typed(element.as_ref().clone()),
             _ => TypeFact::Unknown,
         },
         F::ListZip => {
@@ -381,8 +421,14 @@ fn call_kind(f: SqlFn, a: &[SqlExpr]) -> TypeFact {
                 (Some(ea), Some(eb)) => typed(SqlType::Array {
                     element: Box::new(SqlType::Struct {
                         fields: vec![
-                            StructField { name: "1".to_owned(), r#type: ea.clone() },
-                            StructField { name: "2".to_owned(), r#type: eb.clone() },
+                            StructField {
+                                name: "1".to_owned(),
+                                r#type: ea.clone(),
+                            },
+                            StructField {
+                                name: "2".to_owned(),
+                                r#type: eb.clone(),
+                            },
                         ],
                     }),
                 }),
@@ -393,8 +439,13 @@ fn call_kind(f: SqlFn, a: &[SqlExpr]) -> TypeFact {
             let [s, name, v] = a else {
                 return TypeFact::Unknown;
             };
-            let (TypeFact::Typed { r#type: SqlType::Struct { fields }, .. }, SqlExpr::StringLit { value: name, .. }) =
-                (s.r#type(), name)
+            let (
+                TypeFact::Typed {
+                    r#type: SqlType::Struct { fields },
+                    ..
+                },
+                SqlExpr::StringLit { value: name, .. },
+            ) = (s.r#type(), name)
             else {
                 return TypeFact::Unknown;
             };
@@ -404,7 +455,10 @@ fn call_kind(f: SqlFn, a: &[SqlExpr]) -> TypeFact {
                 _ => return TypeFact::Unknown,
             };
             let mut fs = fields.clone();
-            fs.push(StructField { name: name.clone(), r#type: vt });
+            fs.push(StructField {
+                name: name.clone(),
+                r#type: vt,
+            });
             typed(SqlType::Struct { fields: fs })
         }
         F::ListTransform => {
@@ -414,11 +468,19 @@ fn call_kind(f: SqlFn, a: &[SqlExpr]) -> TypeFact {
             if lam.params.len() > 2 {
                 return TypeFact::Unknown;
             }
-            if !matches!(list.r#type(), TypeFact::Typed { r#type: SqlType::Array { .. }, .. }) {
+            if !matches!(
+                list.r#type(),
+                TypeFact::Typed {
+                    r#type: SqlType::Array { .. },
+                    ..
+                }
+            ) {
                 return TypeFact::Unknown;
             }
             match lam.body.r#type() {
-                TypeFact::Typed { r#type, .. } => typed(SqlType::Array { element: Box::new(r#type.clone()) }),
+                TypeFact::Typed { r#type, .. } => typed(SqlType::Array {
+                    element: Box::new(r#type.clone()),
+                }),
                 _ => TypeFact::Unknown,
             }
         }
@@ -441,7 +503,10 @@ fn call_kind(f: SqlFn, a: &[SqlExpr]) -> TypeFact {
 
 fn array_element(f: &TypeFact) -> Option<&SqlType> {
     match f {
-        TypeFact::Typed { r#type: SqlType::Array { element }, .. } => Some(element),
+        TypeFact::Typed {
+            r#type: SqlType::Array { element },
+            ..
+        } => Some(element),
         _ => None,
     }
 }
@@ -503,8 +568,12 @@ pub fn where_pad_neutralized(from: &SqlSource, r#where: &SqlExpr, outputs: Vec<O
         if nul == oc.nullable {
             continue;
         }
-        let replacement =
-            OutputCol { name: oc.name.clone(), r#type: oc.r#type.clone(), nullable: nul, origin: oc.origin };
+        let replacement = OutputCol {
+            name: oc.name.clone(),
+            r#type: oc.r#type.clone(),
+            nullable: nul,
+            origin: oc.origin,
+        };
         os.get_or_insert_with(|| outputs.clone())[i] = replacement;
     }
     os.unwrap_or(outputs)
@@ -535,7 +604,9 @@ fn tree_nullability(src: &SqlSource, rejected: &HashSet<String>, out: &mut HashM
 fn strict_rejections(w: &SqlExpr, out: &mut HashSet<String>) {
     match w {
         SqlExpr::Group { inner, .. } => strict_rejections(inner, out),
-        SqlExpr::Call { r#fn: SqlFn::And, args, .. } => args.iter().for_each(|a| strict_rejections(a, out)),
+        SqlExpr::Call {
+            r#fn: SqlFn::And, args, ..
+        } => args.iter().for_each(|a| strict_rejections(a, out)),
         _ => {
             if null_strict(w) {
                 column_names(w, out);
@@ -603,7 +674,11 @@ fn arith_type(f: SqlFn, a: &[SqlExpr]) -> TypeFact {
                 let date = SqlType::Scalar(Scalar::Date);
                 let (l_date, r_date) = (*lt == date, *rt == date);
                 if l_date && r_date {
-                    return if f == F::Minus { scalar(Scalar::Bigint) } else { TypeFact::Unknown };
+                    return if f == F::Minus {
+                        scalar(Scalar::Bigint)
+                    } else {
+                        TypeFact::Unknown
+                    };
                 }
                 if l_date && integer_kind(rt) || r_date && f == F::Plus && integer_kind(lt) {
                     return scalar(Scalar::Date);
@@ -696,7 +771,10 @@ fn list_product_type(a: &[SqlExpr]) -> TypeFact {
     match first_type(a) {
         None => TypeFact::Unknown,
         Some(TypeFact::Bottom) => TypeFact::Bottom,
-        Some(TypeFact::Typed { r#type: SqlType::Array { .. }, .. }) => scalar(Scalar::Double),
+        Some(TypeFact::Typed {
+            r#type: SqlType::Array { .. },
+            ..
+        }) => scalar(Scalar::Double),
         Some(_) => TypeFact::Unknown,
     }
 }
@@ -705,7 +783,11 @@ fn list_append_type(a: &[SqlExpr]) -> TypeFact {
     let [list, e] = a else {
         return TypeFact::Unknown;
     };
-    let TypeFact::Typed { r#type: at @ SqlType::Array { element }, .. } = list.r#type() else {
+    let TypeFact::Typed {
+        r#type: at @ SqlType::Array { element },
+        ..
+    } = list.r#type()
+    else {
         return TypeFact::Unknown;
     };
     match e.r#type() {
@@ -742,7 +824,9 @@ pub fn array_lit_type(elements: &[SqlExpr]) -> TypeFact {
         return TypeFact::Unknown;
     }
     match uniform(elements, TypeFact::Unknown) {
-        TypeFact::Typed { r#type, .. } => typed(SqlType::Array { element: Box::new(r#type) }),
+        TypeFact::Typed { r#type, .. } => typed(SqlType::Array {
+            element: Box::new(r#type),
+        }),
         _ => TypeFact::Unknown,
     }
 }
@@ -752,12 +836,14 @@ pub fn struct_lit_type(fields: &[StructLitField]) -> TypeFact {
     let mut fs = Vec::with_capacity(fields.len());
     for f in fields {
         match (f.value.r#type(), &f.declared) {
-            (TypeFact::Typed { r#type, .. }, _) => {
-                fs.push(StructField { name: f.name.clone(), r#type: r#type.clone() })
-            }
-            (TypeFact::Bottom, Some(declared)) => {
-                fs.push(StructField { name: f.name.clone(), r#type: declared.clone() })
-            }
+            (TypeFact::Typed { r#type, .. }, _) => fs.push(StructField {
+                name: f.name.clone(),
+                r#type: r#type.clone(),
+            }),
+            (TypeFact::Bottom, Some(declared)) => fs.push(StructField {
+                name: f.name.clone(),
+                r#type: declared.clone(),
+            }),
             _ => return TypeFact::Unknown,
         }
     }
@@ -768,9 +854,13 @@ pub fn struct_lit_type(fields: &[StructLitField]) -> TypeFact {
 pub fn struct_get_type(source: &SqlExpr, field: &str) -> TypeFact {
     match source.r#type() {
         TypeFact::Bottom => TypeFact::Bottom,
-        TypeFact::Typed { r#type: SqlType::Struct { fields }, .. } => {
-            fields.iter().find(|f| f.name == field).map_or(TypeFact::Unknown, |f| nullable(typed(f.r#type.clone())))
-        }
+        TypeFact::Typed {
+            r#type: SqlType::Struct { fields },
+            ..
+        } => fields
+            .iter()
+            .find(|f| f.name == field)
+            .map_or(TypeFact::Unknown, |f| nullable(typed(f.r#type.clone()))),
         _ => TypeFact::Unknown,
     }
 }
@@ -782,7 +872,11 @@ pub fn scalar_subquery_type(sub: &SqlQuery) -> TypeFact {
     let outputs = query_outputs(sub);
     if outputs.len() == 1 {
         let t = typed(outputs[0].r#type.clone());
-        return if one_row && !outputs[0].nullable { t } else { nullable(t) };
+        return if one_row && !outputs[0].nullable {
+            t
+        } else {
+            nullable(t)
+        };
     }
     if let SqlQuery::Select(s) = sub
         && s.outputs.is_empty()
@@ -824,7 +918,10 @@ pub fn aggregates_select(e: &SqlExpr) -> bool {
 pub fn checked_one_type(list: &SqlExpr) -> TypeFact {
     match list.r#type() {
         TypeFact::Bottom => TypeFact::Bottom,
-        TypeFact::Typed { r#type: SqlType::Array { element }, .. } => nullable(typed(element.as_ref().clone())),
+        TypeFact::Typed {
+            r#type: SqlType::Array { element },
+            ..
+        } => nullable(typed(element.as_ref().clone())),
         _ => TypeFact::Unknown,
     }
 }
@@ -839,7 +936,11 @@ pub fn fold_type(source: &SqlExpr, lambda: &Lambda, init: &SqlExpr, acc_is_list:
         }
         _ => TypeFact::Unknown,
     };
-    if may_be_null(source) || may_be_null(init) || may_be_null(&lambda.body) { nullable(t) } else { t }
+    if may_be_null(source) || may_be_null(init) || may_be_null(&lambda.body) {
+        nullable(t)
+    } else {
+        t
+    }
 }
 
 /// `SqlTyping.windowType`: a windowed reducer keeps its own fact; the ranking and value kinds by kind.
@@ -889,7 +990,10 @@ fn reducer_kind(f: AggFn, arg0: &TypeFact) -> TypeFact {
             } else if is(Scalar::Double) {
                 scalar(Scalar::Double)
             } else if let SqlType::Decimal { scale, .. } = t {
-                typed(SqlType::Decimal { precision: 38, scale: *scale })
+                typed(SqlType::Decimal {
+                    precision: 38,
+                    scale: *scale,
+                })
             } else {
                 TypeFact::Unknown
             }
@@ -917,7 +1021,9 @@ fn reducer_kind(f: AggFn, arg0: &TypeFact) -> TypeFact {
                 TypeFact::Unknown
             }
         }
-        A::List => typed(SqlType::Array { element: Box::new(t.clone()) }),
+        A::List => typed(SqlType::Array {
+            element: Box::new(t.clone()),
+        }),
         _ => TypeFact::Unknown,
     }
 }
@@ -939,7 +1045,10 @@ fn integer_family(t: &SqlType) -> bool {
 fn array_pass(v: &TypeFact) -> TypeFact {
     match v {
         TypeFact::Bottom => TypeFact::Bottom,
-        TypeFact::Typed { r#type: SqlType::Array { .. }, .. } => v.clone(),
+        TypeFact::Typed {
+            r#type: SqlType::Array { .. },
+            ..
+        } => v.clone(),
         _ => TypeFact::Unknown,
     }
 }
@@ -947,7 +1056,10 @@ fn array_pass(v: &TypeFact) -> TypeFact {
 fn element(v: &TypeFact) -> TypeFact {
     match v {
         TypeFact::Bottom => TypeFact::Bottom,
-        TypeFact::Typed { r#type: SqlType::Array { element }, .. } => typed(element.as_ref().clone()),
+        TypeFact::Typed {
+            r#type: SqlType::Array { element },
+            ..
+        } => typed(element.as_ref().clone()),
         _ => TypeFact::Unknown,
     }
 }
@@ -1079,7 +1191,11 @@ fn uniform_refs(es: &[&SqlExpr], all_bottom: TypeFact) -> TypeFact {
         };
     }
     if let Some(c) = common {
-        return if !empty_array || matches!(c, SqlType::Array { .. }) { typed(c) } else { TypeFact::Unknown };
+        return if !empty_array || matches!(c, SqlType::Array { .. }) {
+            typed(c)
+        } else {
+            TypeFact::Unknown
+        };
     }
     if empty_array {
         return TypeFact::Unknown;
@@ -1089,7 +1205,11 @@ fn uniform_refs(es: &[&SqlExpr], all_bottom: TypeFact) -> TypeFact {
 
 fn branch_promote(a: &SqlType, b: &SqlType) -> Option<SqlType> {
     if integer_kind(a) && integer_kind(b) {
-        return Some(if int_width(a) >= int_width(b) { a.clone() } else { b.clone() });
+        return Some(if int_width(a) >= int_width(b) {
+            a.clone()
+        } else {
+            b.clone()
+        });
     }
     let a_num = integer_kind(a) || matches!(a, SqlType::Decimal { .. });
     let b_num = integer_kind(b) || matches!(b, SqlType::Decimal { .. });
@@ -1140,7 +1260,10 @@ fn decimal_text_type(text: &str) -> TypeFact {
         if rendered > 38 {
             return scalar(Scalar::Double);
         }
-        return typed(SqlType::Decimal { precision: rendered as i32, scale: scale as i32 });
+        return typed(SqlType::Decimal {
+            precision: rendered as i32,
+            scale: scale as i32,
+        });
     }
     let bits = bit_length(negative, &digits);
     if bits >= 128 {
@@ -1149,7 +1272,10 @@ fn decimal_text_type(text: &str) -> TypeFact {
     if bits >= 64 {
         return scalar(Scalar::Hugeint);
     }
-    typed(SqlType::Decimal { precision: precision.max(1) as i32, scale: 0 })
+    typed(SqlType::Decimal {
+        precision: precision.max(1) as i32,
+        scale: 0,
+    })
 }
 
 /// `BigDecimal.precision()`: the digits of its unscaled value (a zero has one).
@@ -1171,7 +1297,11 @@ pub(crate) fn unscaled(text: &str) -> (bool, String, i64) {
     let (int, frac) = significand.split_once('.').unwrap_or((significand, ""));
     let joined = format!("{int}{frac}");
     let trimmed = joined.trim_start_matches('0');
-    let digits = if trimmed.is_empty() { "0".to_owned() } else { trimmed.to_owned() };
+    let digits = if trimmed.is_empty() {
+        "0".to_owned()
+    } else {
+        trimmed.to_owned()
+    };
     let negative = negative && digits != "0";
     (negative, digits, frac.len() as i64 - exponent)
 }
@@ -1235,9 +1365,9 @@ pub fn children(e: &SqlExpr) -> Vec<Cow<'_, SqlExpr>> {
     match e {
         SqlExpr::StoredRead { column, .. } => vec![Cow::Owned(SqlExpr::Column(column.clone()))],
         SqlExpr::Membership { needle, collection, .. } => vec![b(needle.as_ref()), b(collection.as_ref())],
-        SqlExpr::ReduceCollection { collection, extras, .. } => {
-            std::iter::once(b(collection.as_ref())).chain(extras.iter().map(b)).collect()
-        }
+        SqlExpr::ReduceCollection { collection, extras, .. } => std::iter::once(b(collection.as_ref()))
+            .chain(extras.iter().map(b))
+            .collect(),
         SqlExpr::Group { inner, .. } => vec![b(inner.as_ref())],
         SqlExpr::ArrayLit { elements, .. } => elements.iter().map(b).collect(),
         SqlExpr::OrderedListAgg { value, order_by, .. } => vec![b(value.as_ref()), b(order_by.as_ref())],
@@ -1250,12 +1380,17 @@ pub fn children(e: &SqlExpr) -> Vec<Cow<'_, SqlExpr>> {
             .chain(otherwise.iter().map(|o| b(o.as_ref())))
             .collect(),
         SqlExpr::InSubquery { value, .. } | SqlExpr::Quantified { value, .. } => vec![b(value.as_ref())],
-        SqlExpr::CheckedDefects { own, hoists, .. } => {
-            std::iter::once(b(own.as_ref())).chain(hoists.iter().map(|h| b(&h.envelope))).collect()
-        }
+        SqlExpr::CheckedDefects { own, hoists, .. } => std::iter::once(b(own.as_ref()))
+            .chain(hoists.iter().map(|h| b(&h.envelope)))
+            .collect(),
         SqlExpr::CheckedChildValue { envelope, .. } => vec![b(envelope.as_ref())],
         SqlExpr::CheckedOne { list, .. } | SqlExpr::CompactList { list, .. } => vec![b(list.as_ref())],
-        SqlExpr::WindowCall { r#fn, partition_by, order_by, .. } => {
+        SqlExpr::WindowCall {
+            r#fn,
+            partition_by,
+            order_by,
+            ..
+        } => {
             let mut out = Vec::new();
             if let SqlAgg::Reducer(r) = r#fn.as_ref() {
                 out.push(Cow::Owned(SqlExpr::Reducer(r.clone())));
@@ -1266,15 +1401,26 @@ pub fn children(e: &SqlExpr) -> Vec<Cow<'_, SqlExpr>> {
         }
         SqlExpr::Lambda(l) => vec![b(l.body.as_ref())],
         SqlExpr::Cast { value, .. } => vec![b(value.as_ref())],
-        SqlExpr::FoldCall { source, lambda, init, .. } => {
-            vec![b(source.as_ref()), Cow::Owned(SqlExpr::Lambda(lambda.clone())), b(init.as_ref())]
+        SqlExpr::FoldCall {
+            source, lambda, init, ..
+        } => {
+            vec![
+                b(source.as_ref()),
+                Cow::Owned(SqlExpr::Lambda(lambda.clone())),
+                b(init.as_ref()),
+            ]
         }
         SqlExpr::JsonObject { kv, .. } => kv.iter().map(b).collect(),
         SqlExpr::JsonArray { elements, .. } => elements.iter().map(b).collect(),
-        SqlExpr::JsonArrayAgg { value, order_keys, .. } => {
-            std::iter::once(b(value.as_ref())).chain(order_keys.iter().map(|k| b(&k.expr))).collect()
-        }
-        SqlExpr::Reducer(r) => r.args.iter().map(b).chain(r.order_by.iter().map(|k| b(&k.expr))).collect(),
+        SqlExpr::JsonArrayAgg { value, order_keys, .. } => std::iter::once(b(value.as_ref()))
+            .chain(order_keys.iter().map(|k| b(&k.expr)))
+            .collect(),
+        SqlExpr::Reducer(r) => r
+            .args
+            .iter()
+            .map(b)
+            .chain(r.order_by.iter().map(|k| b(&k.expr)))
+            .collect(),
         // the leaves, and the nodes whose children are queries
         SqlExpr::Column(_)
         | SqlExpr::RowOrder { .. }
@@ -1331,8 +1477,12 @@ pub fn source_outputs(s: &SqlSource) -> &[OutputCol] {
 /// Java's `SqlSource.alias()`: a nested join and Dual have none (Java's `IllegalStateException`).
 pub fn source_alias(s: &SqlSource) -> Result<&str, Refusal> {
     match s {
-        SqlSource::Join { .. } => Err(Refusal::illegal_state("a nested join has no single alias — resolve per side")),
-        SqlSource::Dual => Err(Refusal::illegal_state("a Dual (FROM-less) source has no alias — caller bug")),
+        SqlSource::Join { .. } => Err(Refusal::illegal_state(
+            "a nested join has no single alias — resolve per side",
+        )),
+        SqlSource::Dual => Err(Refusal::illegal_state(
+            "a Dual (FROM-less) source has no alias — caller bug",
+        )),
         SqlSource::Table { alias, .. }
         | SqlSource::Subselect { alias, .. }
         | SqlSource::Cte { alias, .. }
@@ -1352,7 +1502,10 @@ pub fn pads_left(k: JoinKind) -> bool {
 
 /// `Join.Kind.padsRight()`: LEFT and FULL outer, ASOF LEFT and LEFT LATERAL NULL-pad their right side.
 pub fn pads_right(k: JoinKind) -> bool {
-    matches!(k, JoinKind::Left | JoinKind::Full | JoinKind::AsofLeft | JoinKind::LeftLateral)
+    matches!(
+        k,
+        JoinKind::Left | JoinKind::Full | JoinKind::AsofLeft | JoinKind::LeftLateral
+    )
 }
 
 /// `Join.delivered(left, right, kind)`: both sides' outputs, a padded side's non-null columns weakened to nullable.
@@ -1365,7 +1518,14 @@ pub fn join_delivered(left: &SqlSource, right: &SqlSource, kind: JoinKind) -> Ve
 
 fn padded_side(outs: &[OutputCol], padded: bool, into: &mut Vec<OutputCol>) {
     for c in outs {
-        into.push(if padded && !c.nullable { OutputCol { nullable: true, ..c.clone() } } else { c.clone() });
+        into.push(if padded && !c.nullable {
+            OutputCol {
+                nullable: true,
+                ..c.clone()
+            }
+        } else {
+            c.clone()
+        });
     }
 }
 
@@ -1410,7 +1570,14 @@ fn expand_star(
         if except.is_some_and(|ex| ex.contains(&c.name)) {
             continue;
         }
-        into.push(if padded && !c.nullable { OutputCol { nullable: true, ..c.clone() } } else { c.clone() });
+        into.push(if padded && !c.nullable {
+            OutputCol {
+                nullable: true,
+                ..c.clone()
+            }
+        } else {
+            c.clone()
+        });
     }
     Ok(())
 }

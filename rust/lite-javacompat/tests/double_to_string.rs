@@ -31,5 +31,10 @@ fn every_case_spells_as_the_jdk_does() {
         cases += 1;
     }
     assert!(cases > 80_000, "only {cases} cases read from {}", path.display());
-    assert!(wrong.is_empty(), "{} of {cases} differ, the first:\n{}", wrong.len(), wrong[..wrong.len().min(25)].join("\n"));
+    assert!(
+        wrong.is_empty(),
+        "{} of {cases} differ, the first:\n{}",
+        wrong.len(),
+        wrong[..wrong.len().min(25)].join("\n")
+    );
 }

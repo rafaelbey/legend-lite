@@ -5,9 +5,9 @@
 //! and the helpers their arms name (SQLite.java, "Scalar functions" to "temporal helpers").
 
 use super::{
-    P, Sqlite, digests, element_read, fact_list_element, fact_type, is_double, is_integer, json_of, json_type,
-    lambda_body, lambda_of, list_element, literal, padded, param_at, pc, regex, scalar_is, text, type_of,
-    type_text, wall, date_time_text, list_parameter,
+    P, Sqlite, date_time_text, digests, element_read, fact_list_element, fact_type, is_double, is_integer, json_of,
+    json_type, lambda_body, lambda_of, list_element, list_parameter, literal, padded, param_at, pc, regex, scalar_is,
+    text, type_of, type_text, wall,
 };
 use crate::ansi;
 use crate::build;
@@ -38,7 +38,15 @@ const MONTHS: [&str; 12] = [
     "December",
 ];
 
-const DAYS: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAYS: [&str; 7] = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+];
 
 /// The lower-cased name of a date part, as the refusals spell it.
 fn part_name(p: DatePart) -> String {
@@ -52,13 +60,19 @@ fn group(a: &[SqlExpr]) -> Result<i32, Refusal> {
     }
     match &a[2] {
         SqlExpr::IntLit { value, .. } if (0..=99).contains(value) => Ok(*value as i32),
-        _ => Err(Refusal::capability("a regexp group that is not a literal reached SQLite")),
+        _ => Err(Refusal::capability(
+            "a regexp group that is not a literal reached SQLite",
+        )),
     }
 }
 
 /// The JSON fields of a find's span of group `g`: its start's and end's.
 fn span(g: i32) -> [String; 2] {
-    if g == 0 { ["0".to_owned(), "1".to_owned()] } else { ["2".to_owned(), "3".to_owned()] }
+    if g == 0 {
+        ["0".to_owned(), "1".to_owned()]
+    } else {
+        ["2".to_owned(), "3".to_owned()]
+    }
 }
 
 /// `text`'s part from the find `f`'s span (`from` an offset into it), '' for a group that took no part.
@@ -217,7 +231,9 @@ impl Sqlite {
             }
             // DuckDB's ascii('') is 0 (unicode('') is NULL here)
             F::AsciiCode => {
-                w.append("(CASE WHEN ").expr(self, arg(a, 0)?, 4)?.append(" IS NULL THEN NULL ELSE coalesce(");
+                w.append("(CASE WHEN ")
+                    .expr(self, arg(a, 0)?, 4)?
+                    .append(" IS NULL THEN NULL ELSE coalesce(");
                 w.append("unicode(").expr(self, arg(a, 0)?, 0)?.append("), 0) END)");
                 Ok(())
             }
@@ -242,7 +258,10 @@ impl Sqlite {
             // ---- arithmetic
             // Pure's divide is a DOUBLE division; x / 0 is NULL here
             F::Divide => {
-                w.append("(CAST(").expr(self, arg(a, 0)?, 0)?.append(" AS REAL) / CAST(").expr(self, arg(a, 1)?, 0)?;
+                w.append("(CAST(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(" AS REAL) / CAST(")
+                    .expr(self, arg(a, 1)?, 0)?;
                 w.append(" AS REAL))");
                 Ok(())
             }
@@ -252,13 +271,22 @@ impl Sqlite {
                 if a.iter().any(is_double) {
                     return Err(wall(f, "an integer division of a Float"));
                 }
-                w.append("(").expr(self, arg(a, 0)?, 6)?.append(" / ").expr(self, arg(a, 1)?, 7)?.append(")");
+                w.append("(")
+                    .expr(self, arg(a, 0)?, 6)?
+                    .append(" / ")
+                    .expr(self, arg(a, 1)?, 7)?
+                    .append(")");
                 Ok(())
             }
             F::RoundHalfUp => self.round_half_up(w, a, t),
             F::Cbrt => {
-                w.append("(CASE WHEN ").expr(self, arg(a, 0)?, 4)?.append(" < 0 THEN -pow(-(").expr(self, &a[0], 0)?;
-                w.append("), 1.0 / 3) ELSE pow(").expr(self, &a[0], 0)?.append(", 1.0 / 3) END)");
+                w.append("(CASE WHEN ")
+                    .expr(self, arg(a, 0)?, 4)?
+                    .append(" < 0 THEN -pow(-(")
+                    .expr(self, &a[0], 0)?;
+                w.append("), 1.0 / 3) ELSE pow(")
+                    .expr(self, &a[0], 0)?
+                    .append(", 1.0 / 3) END)");
                 Ok(())
             }
             F::BitNot => {
@@ -275,7 +303,9 @@ impl Sqlite {
             // NULL-skipping, as DuckDB's concat (SQLite's concat, 3.44)
             F::Concat => {
                 w.append("concat(");
-                w.join(&ansi::flatten_concat(a), ", ", |w, x| self.as_text(Cow::Borrowed(*x))(w))?;
+                w.join(&ansi::flatten_concat(a), ", ", |w, x| {
+                    self.as_text(Cow::Borrowed(*x))(w)
+                })?;
                 w.append(")");
                 Ok(())
             }
@@ -294,29 +324,48 @@ impl Sqlite {
             F::Left | F::Right => self.left_right(f, a)(w),
             F::Lpad | F::Rpad => self.pad(f, a)(w),
             F::RepeatStr => {
-                w.append("replace(hex(zeroblob(max(").expr(self, arg(a, 1)?, 0)?.append(", 0))), '00', ");
+                w.append("replace(hex(zeroblob(max(")
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append(", 0))), '00', ");
                 w.expr(self, arg(a, 0)?, 0)?.append(")");
                 Ok(())
             }
             F::StartsWith => {
-                w.append("(substr(").expr(self, arg(a, 0)?, 0)?.append(", 1, length(").expr(self, arg(a, 1)?, 0)?;
+                w.append("(substr(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", 1, length(")
+                    .expr(self, arg(a, 1)?, 0)?;
                 w.append(")) = ").expr(self, &a[1], 5)?.append(")");
                 Ok(())
             }
             F::EndsWith => {
-                w.append("(substr(").expr(self, arg(a, 0)?, 0)?.append(", length(").expr(self, &a[0], 0)?;
-                w.append(") - length(").expr(self, arg(a, 1)?, 0)?.append(") + 1) = ").expr(self, &a[1], 5)?;
+                w.append("(substr(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", length(")
+                    .expr(self, &a[0], 0)?;
+                w.append(") - length(")
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append(") + 1) = ")
+                    .expr(self, &a[1], 5)?;
                 w.append(")");
                 Ok(())
             }
             F::Split => self.split(arg(a, 0)?, arg(a, 1)?)(w),
             // DuckDB's split_part: 1-based, negative from the end, out of range ''
             F::SplitPart => {
-                w.append("(CASE WHEN ").expr(self, arg(a, 0)?, 4)?.append(" IS NULL OR ").expr(self, arg(a, 1)?, 4)?;
+                w.append("(CASE WHEN ")
+                    .expr(self, arg(a, 0)?, 4)?
+                    .append(" IS NULL OR ")
+                    .expr(self, arg(a, 1)?, 4)?;
                 w.append(" IS NULL THEN NULL ELSE coalesce(json_extract(");
                 self.split(&a[0], &a[1])(w)?;
-                w.append(", CASE WHEN ").expr(self, arg(a, 2)?, 4)?.append(" < 0 THEN '$[#' || ").expr(self, &a[2], 6)?;
-                w.append(" || ']' ELSE '$[' || (").expr(self, &a[2], 6)?.append(" - 1) || ']' END), '') END)");
+                w.append(", CASE WHEN ")
+                    .expr(self, arg(a, 2)?, 4)?
+                    .append(" < 0 THEN '$[#' || ")
+                    .expr(self, &a[2], 6)?;
+                w.append(" || ']' ELSE '$[' || (")
+                    .expr(self, &a[2], 6)?
+                    .append(" - 1) || ']' END), '') END)");
                 Ok(())
             }
             // SQLite has no regular-expression function: a literal pattern's NFA is walked by the database
@@ -371,7 +420,10 @@ impl Sqlite {
             F::MakeTimestamp => self.make_timestamp(w, f, a),
             // past SQLite's years 0000-9999 a date function answers NULL: raised, never a NULL value
             F::AddInterval | F::AddIntervalTemporal => {
-                w.append("(CASE WHEN ").expr(self, arg(a, 1)?, 4)?.append(" IS NULL OR ").expr(self, arg(a, 2)?, 4)?;
+                w.append("(CASE WHEN ")
+                    .expr(self, arg(a, 1)?, 4)?
+                    .append(" IS NULL OR ")
+                    .expr(self, arg(a, 2)?, 4)?;
                 w.append(" IS NULL THEN NULL ELSE coalesce(");
                 self.add_interval(a, t)?(w)?;
                 w.append(", ");
@@ -393,7 +445,9 @@ impl Sqlite {
             }
             // a date's text, a space, a time's text: the date-time text SQLite's date functions read
             F::DateAtTime => ansi::op(w, parent_prec, &|w| {
-                w.expr(self, arg(a, 0)?, 3)?.append(" || ' ' || ").expr(self, arg(a, 1)?, 3)?;
+                w.expr(self, arg(a, 0)?, 3)?
+                    .append(" || ' ' || ")
+                    .expr(self, arg(a, 1)?, 3)?;
                 Ok(())
             }),
             F::EpochSeconds => {
@@ -412,18 +466,25 @@ impl Sqlite {
                 Ok(())
             }
             F::FromEpochSeconds => {
-                w.append("datetime(").expr(self, arg(a, 0)?, 0)?.append(", 'unixepoch')");
+                w.append("datetime(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", 'unixepoch')");
                 Ok(())
             }
             F::FromEpochMs => {
-                w.append("strftime('%Y-%m-%d %H:%M:%f', ").expr(self, arg(a, 0)?, 6)?.append(" / 1000.0, 'unixepoch')");
+                w.append("strftime('%Y-%m-%d %H:%M:%f', ")
+                    .expr(self, arg(a, 0)?, 6)?
+                    .append(" / 1000.0, 'unixepoch')");
                 Ok(())
             }
             F::Dayname => self.day_name(arg(a, 0)?)(w),
             F::Monthname => self.month_name(arg(a, 0)?, false)(w),
             F::Strftime => {
                 let SqlExpr::FormatLit { parts, .. } = arg(a, 1)? else {
-                    return Err(wall(f, "a date format that is not a format literal: its codes are DuckDB's"));
+                    return Err(wall(
+                        f,
+                        "a date format that is not a format literal: its codes are DuckDB's",
+                    ));
                 };
                 self.strftime(&a[0], parts)?(w)
             }
@@ -495,7 +556,10 @@ impl Sqlite {
 
     /// The `ACOS` and `ASIN` arms: undefined outside [-1, 1], raised.
     fn domain_guarded(&self, w: &mut SqlWriter, f: SqlFn, a: &[SqlExpr], name: &str) -> Result<(), Refusal> {
-        w.append("(CASE WHEN ").expr(self, arg(a, 0)?, 4)?.append(" IS NULL THEN NULL ELSE coalesce(").append(name);
+        w.append("(CASE WHEN ")
+            .expr(self, arg(a, 0)?, 4)?
+            .append(" IS NULL THEN NULL ELSE coalesce(")
+            .append(name);
         w.append("(").expr(self, &a[0], 0)?.append("), ");
         let undefined = [build::string_lit(&format!("{f} is undefined outside [-1,1]"))];
         self.raise(&undefined)(w)?;
@@ -506,11 +570,16 @@ impl Sqlite {
     /// The `EQUAL`, `NOT_EQUAL` arm: composites compare as their JSON text.
     fn equal_arm(&self, w: &mut SqlWriter, f: SqlFn, a: &[SqlExpr], parent_prec: i32) -> Result<(), Refusal> {
         let composite = |e: &SqlExpr| {
-            matches!(type_of(e), Some(SqlType::Struct { .. } | SqlType::Array { .. } | SqlType::Map { .. }))
+            matches!(
+                type_of(e),
+                Some(SqlType::Struct { .. } | SqlType::Array { .. } | SqlType::Map { .. })
+            )
         };
         if a.len() == 2 && (composite(&a[0]) || composite(&a[1])) {
             w.append("(json(").expr(self, &a[0], 0)?;
-            w.append(if f == SqlFn::Equal { ") = json(" } else { ") <> json(" }).expr(self, &a[1], 0)?.append("))");
+            w.append(if f == SqlFn::Equal { ") = json(" } else { ") <> json(" })
+                .expr(self, &a[1], 0)?
+                .append("))");
             return Ok(());
         }
         ansi::infix(self, w, f, a, parent_prec)
@@ -539,7 +608,9 @@ impl Sqlite {
                 w.expr(self, &a[1], 6)?.append(" || char(30) || ");
             }
             // the error text quotes the path SQL-style ('' for '): each quote travels as the envelope's quote mark
-            w.append("replace(").expr(self, arg(a, 0)?, 0)?.append(", '''', char(29)) || char(31))");
+            w.append("replace(")
+                .expr(self, arg(a, 0)?, 0)?
+                .append(", '''', char(29)) || char(31))");
             Ok(())
         })
     }
@@ -556,12 +627,20 @@ impl Sqlite {
         let dbl = !is_integer(x) || !is_integer(y);
         let rem: P<'a> = if dbl {
             pc(move |w| {
-                w.append("mod(").expr(self, x, 0)?.append(", ").expr(self, y, 0)?.append(")");
+                w.append("mod(")
+                    .expr(self, x, 0)?
+                    .append(", ")
+                    .expr(self, y, 0)?
+                    .append(")");
                 Ok(())
             })
         } else {
             pc(move |w| {
-                w.append("(").expr(self, x, 7)?.append(" % ").expr(self, y, 7)?.append(")");
+                w.append("(")
+                    .expr(self, x, 7)?
+                    .append(" % ")
+                    .expr(self, y, 7)?
+                    .append(")");
                 Ok(())
             })
         };
@@ -572,14 +651,22 @@ impl Sqlite {
             pc(move |w| {
                 w.append("mod(");
                 rem(w)?;
-                w.append(" + ").expr(self, y, 6)?.append(", ").expr(self, y, 0)?.append(")");
+                w.append(" + ")
+                    .expr(self, y, 6)?
+                    .append(", ")
+                    .expr(self, y, 0)?
+                    .append(")");
                 Ok(())
             })
         } else {
             pc(move |w| {
                 w.append("((");
                 rem(w)?;
-                w.append(" + ").expr(self, y, 6)?.append(") % ").expr(self, y, 7)?.append(")");
+                w.append(" + ")
+                    .expr(self, y, 6)?
+                    .append(") % ")
+                    .expr(self, y, 7)?
+                    .append(")");
                 Ok(())
             })
         })
@@ -588,9 +675,9 @@ impl Sqlite {
     /// DuckDB's round: half away from zero, by DuckDB's own algorithm (Java's `roundHalfUp`).
     fn round_half_up(&self, w: &mut SqlWriter, a: &[SqlExpr], t: &TypeFact) -> Result<(), Refusal> {
         if a.len() == 1 {
-            let integral =
-                scalar_is(fact_type(t), Scalar::Bigint) || scalar_is(fact_type(t), Scalar::Integer);
-            w.append(if integral { "CAST(round(" } else { "round(" }).expr(self, &a[0], 0)?;
+            let integral = scalar_is(fact_type(t), Scalar::Bigint) || scalar_is(fact_type(t), Scalar::Integer);
+            w.append(if integral { "CAST(round(" } else { "round(" })
+                .expr(self, &a[0], 0)?;
             w.append(if integral { ") AS INTEGER)" } else { ")" });
             return Ok(());
         }
@@ -634,17 +721,27 @@ impl Sqlite {
         });
         let message = vec![build::call(
             SqlFn::Concat,
-            vec![build::string_lit("Could not convert string '"), s.clone(), build::string_lit("' to INT64")],
+            vec![
+                build::string_lit("Could not convert string '"),
+                s.clone(),
+                build::string_lit("' to INT64"),
+            ],
         )];
         let raised = self.raise_owned(message);
         pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, s, 4)?.append(" IS NULL THEN NULL WHEN ");
+            w.append("(CASE WHEN ")
+                .expr(self, s, 4)?
+                .append(" IS NULL THEN NULL WHEN ");
             digits(w)?;
             w.append(" <> '' AND ");
             digits(w)?;
-            w.append(" NOT GLOB '*[^0-9]*' AND length(trim(").expr(self, s, 0)?.append(")) - length(");
+            w.append(" NOT GLOB '*[^0-9]*' AND length(trim(")
+                .expr(self, s, 0)?
+                .append(")) - length(");
             digits(w)?;
-            w.append(") <= 1 THEN CAST(trim(").expr(self, s, 0)?.append(") AS INTEGER) ELSE ");
+            w.append(") <= 1 THEN CAST(trim(")
+                .expr(self, s, 0)?
+                .append(") AS INTEGER) ELSE ");
             raised(w)?;
             w.append(" END)");
             Ok(())
@@ -660,7 +757,8 @@ impl Sqlite {
         pc(move |w| {
             w.append(f).append("(");
             for i in 0..a.len() {
-                w.append(if i > 0 { ", coalesce(" } else { "coalesce(" }).expr(self, &a[i], 0)?;
+                w.append(if i > 0 { ", coalesce(" } else { "coalesce(" })
+                    .expr(self, &a[i], 0)?;
                 for (j, other) in a.iter().enumerate() {
                     if j != i {
                         w.append(", ").expr(self, other, 0)?;
@@ -677,17 +775,35 @@ impl Sqlite {
     fn left_right<'a>(&'a self, f: SqlFn, a: &'a [SqlExpr]) -> P<'a> {
         if f == SqlFn::Left {
             return pc(move |w| {
-                w.append("(CASE WHEN ").expr(self, arg(a, 1)?, 4)?.append(" < 0 THEN substr(").expr(self, arg(a, 0)?, 0)?;
-                w.append(", 1, max(length(").expr(self, &a[0], 0)?.append(") + ").expr(self, &a[1], 6)?;
-                w.append(", 0)) ELSE substr(").expr(self, &a[0], 0)?.append(", 1, ").expr(self, &a[1], 0)?;
+                w.append("(CASE WHEN ")
+                    .expr(self, arg(a, 1)?, 4)?
+                    .append(" < 0 THEN substr(")
+                    .expr(self, arg(a, 0)?, 0)?;
+                w.append(", 1, max(length(")
+                    .expr(self, &a[0], 0)?
+                    .append(") + ")
+                    .expr(self, &a[1], 6)?;
+                w.append(", 0)) ELSE substr(")
+                    .expr(self, &a[0], 0)?
+                    .append(", 1, ")
+                    .expr(self, &a[1], 0)?;
                 w.append(") END)");
                 Ok(())
             });
         }
         pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, arg(a, 1)?, 4)?.append(" < 0 THEN substr(").expr(self, arg(a, 0)?, 0)?;
-            w.append(", 1 - ").expr(self, &a[1], 7)?.append(") WHEN ").expr(self, &a[1], 4)?;
-            w.append(" = 0 THEN '' ELSE substr(").expr(self, &a[0], 0)?.append(", -").expr(self, &a[1], 7)?;
+            w.append("(CASE WHEN ")
+                .expr(self, arg(a, 1)?, 4)?
+                .append(" < 0 THEN substr(")
+                .expr(self, arg(a, 0)?, 0)?;
+            w.append(", 1 - ")
+                .expr(self, &a[1], 7)?
+                .append(") WHEN ")
+                .expr(self, &a[1], 4)?;
+            w.append(" = 0 THEN '' ELSE substr(")
+                .expr(self, &a[0], 0)?
+                .append(", -")
+                .expr(self, &a[1], 7)?;
             w.append(") END)");
             Ok(())
         })
@@ -698,14 +814,27 @@ impl Sqlite {
     fn pad<'a>(&'a self, f: SqlFn, a: &'a [SqlExpr]) -> P<'a> {
         let p: P<'a> = if a.len() > 2 { self.ex(&a[2], 0) } else { text("' '") };
         let fill = pc(move |w: &mut SqlWriter| {
-            w.append("substr(replace(hex(zeroblob(max(").expr(self, arg(a, 1)?, 0)?.append(", 0))), '00', ");
+            w.append("substr(replace(hex(zeroblob(max(")
+                .expr(self, arg(a, 1)?, 0)?
+                .append(", 0))), '00', ");
             p(w)?;
-            w.append("), 1, ").expr(self, &a[1], 6)?.append(" - length(").expr(self, arg(a, 0)?, 0)?.append("))");
+            w.append("), 1, ")
+                .expr(self, &a[1], 6)?
+                .append(" - length(")
+                .expr(self, arg(a, 0)?, 0)?
+                .append("))");
             Ok(())
         });
         pc(move |w| {
-            w.append("(CASE WHEN length(").expr(self, arg(a, 0)?, 0)?.append(") >= ").expr(self, arg(a, 1)?, 5)?;
-            w.append(" THEN substr(").expr(self, &a[0], 0)?.append(", 1, ").expr(self, &a[1], 0)?.append(") ELSE ");
+            w.append("(CASE WHEN length(")
+                .expr(self, arg(a, 0)?, 0)?
+                .append(") >= ")
+                .expr(self, arg(a, 1)?, 5)?;
+            w.append(" THEN substr(")
+                .expr(self, &a[0], 0)?
+                .append(", 1, ")
+                .expr(self, &a[1], 0)?
+                .append(") ELSE ");
             if f == SqlFn::Lpad {
                 fill(w)?;
                 w.append(" || ").expr(self, &a[0], 6)?;
@@ -732,7 +861,11 @@ impl Sqlite {
             }
             if at < a.len() {
                 let x = &a[at];
-                args.push(if conversion == 's' { self.as_text(Cow::Borrowed(x)) } else { self.ex(x, 0) });
+                args.push(if conversion == 's' {
+                    self.as_text(Cow::Borrowed(x))
+                } else {
+                    self.ex(x, 0)
+                });
             }
             at += 1;
         }
@@ -764,7 +897,9 @@ impl Sqlite {
         Ok(pc(move |w| {
             w.append(&head);
             regex::find(text("__rp.s"), &pattern, &groups)?(w)?;
-            w.append(" AS f FROM (SELECT ").expr(self, &a[0], 0)?.append(" AS s) AS __rp) AS __rq)");
+            w.append(" AS f FROM (SELECT ")
+                .expr(self, &a[0], 0)?
+                .append(" AS s) AS __rp) AS __rq)");
             Ok(())
         }))
     }
@@ -776,7 +911,9 @@ impl Sqlite {
         let groups: Vec<i32> = if g == 0 { Vec::new() } else { vec![g] };
         let next = "__ms.off + (__ms.f ->> 1) + CASE WHEN (__ms.f ->> 1) = (__ms.f ->> 0) THEN 1 ELSE 0 END";
         Ok(pc(move |w| {
-            w.append("(SELECT CASE WHEN __rp.s IS NULL THEN NULL ELSE (WITH RECURSIVE __ms(n, off, f) AS (SELECT 0, 0, ");
+            w.append(
+                "(SELECT CASE WHEN __rp.s IS NULL THEN NULL ELSE (WITH RECURSIVE __ms(n, off, f) AS (SELECT 0, 0, ",
+            );
             regex::find(text("__rp.s"), &pattern, &groups)?(w)?;
             w.append(&format!(" UNION ALL SELECT __ms.n + 1, {next}, "));
             regex::find(text(format!("substr(__rp.s, {next} + 1)")), &pattern, &groups)?(w)?;
@@ -795,7 +932,11 @@ impl Sqlite {
     fn regexp_replace<'a>(&'a self, a: &'a [SqlExpr]) -> Result<P<'a>, Refusal> {
         let pattern = literal(arg(a, 1)?, "a regexp_replace pattern")?;
         let replacement = literal(arg(a, 2)?, "a regexp_replace replacement")?;
-        let options = if a.len() > 3 { literal(&a[3], "regexp_replace options")? } else { "" };
+        let options = if a.len() > 3 {
+            literal(&a[3], "regexp_replace options")?
+        } else {
+            ""
+        };
         let mut global = false;
         let mut flags = "";
         for o in options.chars() {
@@ -803,7 +944,11 @@ impl Sqlite {
                 'g' => global = true,
                 'i' => flags = "(?i)",
                 'c' => flags = "",
-                _ => return Err(Refusal::capability(format!("regexp_replace option '{o}' reached SQLite"))),
+                _ => {
+                    return Err(Refusal::capability(format!(
+                        "regexp_replace option '{o}' reached SQLite"
+                    )));
+                }
             }
         }
         let p = format!("{flags}{pattern}");
@@ -858,7 +1003,11 @@ impl Sqlite {
                     Part::Text(t) => self.lit(t),
                 });
             }
-            if pieces.is_empty() { "''".to_owned() } else { pieces.join(" || ") }
+            if pieces.is_empty() {
+                "''".to_owned()
+            } else {
+                pieces.join(" || ")
+            }
         };
         if !global {
             let head = format!(
@@ -869,7 +1018,9 @@ impl Sqlite {
             return Ok(pc(move |w| {
                 w.append(&head);
                 regex::find(text("__rr.s"), &p, &groups)?(w)?;
-                w.append(" AS f FROM (SELECT ").expr(self, &a[0], 0)?.append(" AS s) AS __rr) AS __rp)");
+                w.append(" AS f FROM (SELECT ")
+                    .expr(self, &a[0], 0)?
+                    .append(" AS s) AS __rr) AS __rp)");
                 Ok(())
             }));
         }
@@ -881,7 +1032,9 @@ impl Sqlite {
             repl("__ms.f", "__ms.off")
         );
         Ok(pc(move |w| {
-            w.append("(SELECT CASE WHEN __rp.s IS NULL THEN NULL ELSE (WITH RECURSIVE __ms(off, o, f) AS (SELECT 0, '', ");
+            w.append(
+                "(SELECT CASE WHEN __rp.s IS NULL THEN NULL ELSE (WITH RECURSIVE __ms(off, o, f) AS (SELECT 0, '', ",
+            );
             regex::find(text("__rp.s"), &p, &groups)?(w)?;
             w.append(&step);
             regex::find(text(format!("substr(__rp.s, {next} + 1)")), &p, &groups)?(w)?;
@@ -929,9 +1082,14 @@ impl Sqlite {
             F::ListConcat => self.concat_lists(a, t)(w),
             // 1-based, negative from the end, 0 and out of range NULL (DuckDB's list_extract)
             F::ListGet => {
-                w.append("(CASE WHEN ").expr(self, arg(a, 1)?, 4)?.append(" = 0 THEN NULL ELSE ");
+                w.append("(CASE WHEN ")
+                    .expr(self, arg(a, 1)?, 4)?
+                    .append(" = 0 THEN NULL ELSE ");
                 let index = pc(move |w: &mut SqlWriter| {
-                    w.append("CASE WHEN ").expr(self, &a[1], 4)?.append(" < 0 THEN '#' || ").expr(self, &a[1], 6)?;
+                    w.append("CASE WHEN ")
+                        .expr(self, &a[1], 4)?
+                        .append(" < 0 THEN '#' || ")
+                        .expr(self, &a[1], 6)?;
                     w.append(" ELSE ").expr(self, &a[1], 6)?.append(" - 1 END");
                     Ok(())
                 });
@@ -943,7 +1101,9 @@ impl Sqlite {
             F::ListPosition => {
                 w.append(&format!("(SELECT min({o}) + 1 FROM "));
                 self.elements(arg(a, 0)?, "__e", "__o", None)?(w)?;
-                w.append(&format!(" WHERE {e} IS ")).expr(self, arg(a, 1)?, 5)?.append(")");
+                w.append(&format!(" WHERE {e} IS "))
+                    .expr(self, arg(a, 1)?, 5)?
+                    .append(")");
                 Ok(())
             }
             // DuckDB's list_distinct drops NULLs; the first occurrence's order
@@ -962,7 +1122,9 @@ impl Sqlite {
             }
             // list_append(NULL, v) is [v]
             F::ListAppend => {
-                w.append("json_insert(coalesce(").expr(self, arg(a, 0)?, 0)?.append(", json_array()), '$[#]', ");
+                w.append("json_insert(coalesce(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", json_array()), '$[#]', ");
                 self.json(arg(a, 1)?)(w)?;
                 w.append(")");
                 Ok(())
@@ -977,14 +1139,20 @@ impl Sqlite {
             F::ListBoolOr => self.over_rows(arg(a, 0)?, AggFn::BoolOr, &[])?(w),
             // ascending / descending, NULLs last both ways; a struct by its fields in declared order
             F::ListSort | F::ListSortDesc => {
-                let dir = if f == F::ListSort { " ASC NULLS LAST" } else { " DESC NULLS LAST" };
+                let dir = if f == F::ListSort {
+                    " ASC NULLS LAST"
+                } else {
+                    " DESC NULLS LAST"
+                };
                 let xs = arg(a, 0)?;
                 let el = list_element(xs).cloned();
                 let held = json_of(text(e.clone()), el.as_ref());
                 let body = pc(move |w: &mut SqlWriter| {
                     w.append("(SELECT json_group_array(");
                     held(w)?;
-                    w.append(" ORDER BY ").append(&self.element_sort(&e, el.as_ref(), dir)).append(") FROM ");
+                    w.append(" ORDER BY ")
+                        .append(&self.element_sort(&e, el.as_ref(), dir))
+                        .append(") FROM ");
                     self.elements(xs, "__e", "__o", None)?(w)?;
                     w.append(")");
                     Ok(())
@@ -1013,7 +1181,9 @@ impl Sqlite {
                 let xs = arg(a, 0)?;
                 let held = json_of(text(e.clone()), list_element(xs));
                 let filter = pc(move |w: &mut SqlWriter| {
-                    w.append(&format!("{o} < json_array_length(")).expr(self, xs, 0)?.append(") - 1");
+                    w.append(&format!("{o} < json_array_length("))
+                        .expr(self, xs, 0)?
+                        .append(") - 1");
                     Ok(())
                 });
                 self.over_elements(xs, "__e", "__o", None, held, Some(filter))?(w)
@@ -1041,7 +1211,8 @@ impl Sqlite {
                 let body = pc(move |w: &mut SqlWriter| {
                     w.append("(SELECT json_group_array(");
                     held(w)?;
-                    w.append(" ORDER BY __fo.key, __fi.key) FROM json_each(").expr(self, xs, 0)?;
+                    w.append(" ORDER BY __fo.key, __fi.key) FROM json_each(")
+                        .expr(self, xs, 0)?;
                     w.append(") AS __fo, json_each(__fo.value) AS __fi)");
                     Ok(())
                 });
@@ -1053,8 +1224,10 @@ impl Sqlite {
                     "(WITH RECURSIVE __p(__i, __v) AS (SELECT 0, 1 UNION ALL SELECT __p.__i + 1, __p.__v * __x.value \
                      FROM __p JOIN json_each(",
                 );
-                w.expr(self, arg(a, 0)?, 0)?.append(") AS __x ON __x.key = __p.__i) SELECT CASE WHEN ");
-                w.expr(self, &a[0], 4)?.append(" IS NULL THEN NULL ELSE __v END FROM __p ORDER BY __i DESC LIMIT 1)");
+                w.expr(self, arg(a, 0)?, 0)?
+                    .append(") AS __x ON __x.key = __p.__i) SELECT CASE WHEN ");
+                w.expr(self, &a[0], 4)?
+                    .append(" IS NULL THEN NULL ELSE __v END FROM __p ORDER BY __i DESC LIMIT 1)");
                 Ok(())
             }
             F::ListReduce => self.list_reduce(w, a),
@@ -1062,7 +1235,9 @@ impl Sqlite {
             F::RangeFn => self.range(w, a),
             F::RepeatValue => {
                 w.append("(WITH RECURSIVE __g(__n) AS (SELECT 1 UNION ALL SELECT __n + 1 FROM __g WHERE __n < ");
-                w.expr(self, arg(a, 1)?, 4)?.append(") SELECT CASE WHEN ").expr(self, &a[1], 4)?;
+                w.expr(self, arg(a, 1)?, 4)?
+                    .append(") SELECT CASE WHEN ")
+                    .expr(self, &a[1], 4)?;
                 w.append(" > 0 THEN json_group_array(");
                 self.json(arg(a, 0)?)(w)?;
                 w.append(") ELSE json_array() END FROM __g)");
@@ -1082,15 +1257,23 @@ impl Sqlite {
         };
         let acc = &l.params[0];
         let x = &l.params[1];
-        let swapped = Lambda { params: vec![x.clone(), acc.clone()], body: l.body.clone(), r#type: TypeFact::Unknown };
+        let swapped = Lambda {
+            params: vec![x.clone(), acc.clone()],
+            body: l.body.clone(),
+            r#type: TypeFact::Unknown,
+        };
         let xs = arg(a, 0)?;
         let body = lambda_body(&swapped, list_element(xs))?;
         let pacc = self.param(acc)?;
         let px = self.param(x)?;
-        w.append("(WITH RECURSIVE __r(__i, ").append(&pacc).append(") AS (SELECT 1, ");
+        w.append("(WITH RECURSIVE __r(__i, ")
+            .append(&pacc)
+            .append(") AS (SELECT 1, ");
         self.element_at(Cow::Borrowed(xs), text("0"))(w)?;
         w.append(" UNION ALL SELECT __r.__i + 1, ").expr(self, &body, 0)?;
-        w.append(" FROM __r JOIN (SELECT key AS __k, ").append(&element_read(list_element(xs), "")).append(" AS ");
+        w.append(" FROM __r JOIN (SELECT key AS __k, ")
+            .append(&element_read(list_element(xs), ""))
+            .append(" AS ");
         w.append(&px).append(" FROM json_each(").expr(self, xs, 0)?;
         w.append(")) AS __x ON __x.__k = __r.__i) SELECT ").append(&pacc);
         w.append(" FROM __r ORDER BY __i DESC LIMIT 1)");
@@ -1107,7 +1290,8 @@ impl Sqlite {
             let read = element_read(el.as_ref(), "");
             for (i, x) in a.iter().enumerate() {
                 w.append(if i > 0 { " UNION ALL " } else { "" });
-                w.append(&format!("SELECT {i} AS __s, key AS __k, {read} AS __v FROM json_each(")).expr(self, x, 0)?;
+                w.append(&format!("SELECT {i} AS __s, key AS __k, {read} AS __v FROM json_each("))
+                    .expr(self, x, 0)?;
                 w.append(")");
             }
             w.append(") AS __c)");
@@ -1126,13 +1310,18 @@ impl Sqlite {
             for (i, x) in a.iter().enumerate() {
                 let name = self.lit(&fields[i].name);
                 w.append(if i > 0 { ", " } else { "" }).append(&name).append(", ");
-                json_of(self.element_at(Cow::Borrowed(x), text("__z.key")), Some(&fields[i].r#type))(w)?;
+                json_of(
+                    self.element_at(Cow::Borrowed(x), text("__z.key")),
+                    Some(&fields[i].r#type),
+                )(w)?;
             }
             w.append(") ORDER BY __z.key) FROM json_each(");
             // the longest list's positions
             w.append("(SELECT __l FROM (");
             for (i, x) in a.iter().enumerate() {
-                w.append(if i > 0 { " UNION ALL " } else { "" }).append("SELECT ").expr(self, x, 0)?;
+                w.append(if i > 0 { " UNION ALL " } else { "" })
+                    .append("SELECT ")
+                    .expr(self, x, 0)?;
                 w.append(" AS __l");
             }
             w.append(") ORDER BY coalesce(json_array_length(__l), 0) DESC LIMIT 1)) AS __z)");
@@ -1174,8 +1363,15 @@ impl Sqlite {
     /// A slice bound, 1-based: a negative one counts from the end (Java's `sliceEnd`).
     fn slice_end<'a>(&'a self, xs: &'a SqlExpr, i: &'a SqlExpr) -> P<'a> {
         pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, i, 4)?.append(" < 0 THEN json_array_length(").expr(self, xs, 0)?;
-            w.append(") + ").expr(self, i, 6)?.append(" + 1 ELSE ").expr(self, i, 0)?.append(" END)");
+            w.append("(CASE WHEN ")
+                .expr(self, i, 4)?
+                .append(" < 0 THEN json_array_length(")
+                .expr(self, xs, 0)?;
+            w.append(") + ")
+                .expr(self, i, 6)?
+                .append(" + 1 ELSE ")
+                .expr(self, i, 0)?
+                .append(" END)");
             Ok(())
         })
     }
@@ -1217,8 +1413,11 @@ impl Sqlite {
                 let v = list_element(arg(a, 1)?);
                 w.append("(SELECT json_group_object(__k.value, ");
                 json_of(text(element_read(v, "__v")), v)(w)?;
-                w.append(" ORDER BY __k.key) FROM json_each(").expr(self, arg(a, 0)?, 0)?;
-                w.append(") AS __k LEFT JOIN json_each(").expr(self, &a[1], 0)?.append(") AS __v ON __v.key = __k.key)");
+                w.append(" ORDER BY __k.key) FROM json_each(")
+                    .expr(self, arg(a, 0)?, 0)?;
+                w.append(") AS __k LEFT JOIN json_each(")
+                    .expr(self, &a[1], 0)?
+                    .append(") AS __v ON __v.key = __k.key)");
                 Ok(())
             }
             // DuckDB's map_from_entries: each entry a struct of (key, value), by position whatever their names
@@ -1234,22 +1433,30 @@ impl Sqlite {
                 let arrow = if *vt == json_type() { "->" } else { "->>" };
                 w.append(&format!("(SELECT json_group_object(__e.value ->> {k}, "));
                 json_of(text(format!("(__e.value {arrow} {v})")), Some(vt))(w)?;
-                w.append(" ORDER BY __e.key) FROM json_each(").expr(self, xs, 0)?.append(") AS __e)");
+                w.append(" ORDER BY __e.key) FROM json_each(")
+                    .expr(self, xs, 0)?
+                    .append(") AS __e)");
                 Ok(())
             }
             // DuckDB's map_extract: a list of the key's value, empty when absent
             F::MapExtract => {
-                w.append("(CASE WHEN ").expr(self, arg(a, 0)?, 4)?.append(" IS NULL THEN NULL ELSE coalesce((");
+                w.append("(CASE WHEN ")
+                    .expr(self, arg(a, 0)?, 4)?
+                    .append(" IS NULL THEN NULL ELSE coalesce((");
                 w.append("SELECT json_array(");
                 json_of(text(element_read(value, "")), value)(w)?;
-                w.append(") FROM json_each(").expr(self, &a[0], 0)?.append(") WHERE key = ").expr(self, arg(a, 1)?, 5)?;
+                w.append(") FROM json_each(")
+                    .expr(self, &a[0], 0)?
+                    .append(") WHERE key = ")
+                    .expr(self, arg(a, 1)?, 5)?;
                 w.append("), json_array()) END)");
                 Ok(())
             }
             F::MapKeys => {
                 let xs = arg(a, 0)?;
                 let body = pc(move |w: &mut SqlWriter| {
-                    w.append("(SELECT json_group_array(key ORDER BY id) FROM json_each(").expr(self, xs, 0)?;
+                    w.append("(SELECT json_group_array(key ORDER BY id) FROM json_each(")
+                        .expr(self, xs, 0)?;
                     w.append("))");
                     Ok(())
                 });
@@ -1261,7 +1468,9 @@ impl Sqlite {
                 let body = pc(move |w: &mut SqlWriter| {
                     w.append("(SELECT json_group_array(");
                     held(w)?;
-                    w.append(" ORDER BY id) FROM json_each(").expr(self, xs, 0)?.append("))");
+                    w.append(" ORDER BY id) FROM json_each(")
+                        .expr(self, xs, 0)?
+                        .append("))");
                     Ok(())
                 });
                 self.unless_null(xs, body)(w)
@@ -1276,12 +1485,15 @@ impl Sqlite {
                 ));
                 for (i, x) in a.iter().enumerate() {
                     w.append(if i > 0 { " UNION ALL " } else { "" });
-                    w.append(&format!("SELECT {i} AS __s, j.* FROM json_each(")).expr(self, x, 0)?.append(") AS j");
+                    w.append(&format!("SELECT {i} AS __s, j.* FROM json_each("))
+                        .expr(self, x, 0)?
+                        .append(") AS j");
                 }
                 w.append(") AS __u WHERE __s = (SELECT max(__s2) FROM (");
                 for (i, x) in a.iter().enumerate() {
                     w.append(if i > 0 { " UNION ALL " } else { "" });
-                    w.append(&format!("SELECT {i} AS __s2, key AS __k2 FROM json_each(")).expr(self, x, 0)?;
+                    w.append(&format!("SELECT {i} AS __s2, key AS __k2 FROM json_each("))
+                        .expr(self, x, 0)?;
                     w.append(")");
                 }
                 w.append(") WHERE __k2 = __u.key)) AS __m)");
@@ -1298,7 +1510,11 @@ impl Sqlite {
     fn parsed_date<'a>(&'a self, x: &'a SqlExpr) -> P<'a> {
         let message = vec![build::call(
             SqlFn::Concat,
-            vec![build::string_lit("Could not parse '"), x.clone(), build::string_lit("' as a date")],
+            vec![
+                build::string_lit("Could not parse '"),
+                x.clone(),
+                build::string_lit("' as a date"),
+            ],
         )];
         let raised = self.raise_owned(message);
         let held = padded(date_time_text(self.ex(x, 0)));
@@ -1346,7 +1562,10 @@ impl Sqlite {
         let mut n = String::new();
         for k in 1..=4 {
             n.push_str(if k == 1 { "" } else { " | " });
-            n.push_str(&format!("((instr('{BASE64}', substr(__g.q4, {k}, 1)) - 1) << {})", 6 * (4 - k)));
+            n.push_str(&format!(
+                "((instr('{BASE64}', substr(__g.q4, {k}, 1)) - 1) << {})",
+                6 * (4 - k)
+            ));
         }
         let tail = format!(
             " AS v) AS __s UNION ALL SELECT substr(__d64.t, 5), __d64.h || (SELECT substr(printf('%06X', __q.n), 1, 2 * \
@@ -1429,9 +1648,15 @@ impl Sqlite {
     /// A date-time's microseconds since the epoch (Java's `micros`).
     fn micros<'a>(&'a self, t: &'a SqlExpr) -> P<'a> {
         pc(move |w| {
-            w.append("(unixepoch(substr(").expr(self, t, 0)?.append(", 1, 19)) * 1000000 + CASE WHEN instr(");
-            w.expr(self, t, 0)?.append(", '.') > 0 THEN CAST(substr(substr(").expr(self, t, 0)?.append(", instr(");
-            w.expr(self, t, 0)?.append(", '.') + 1) || '000000', 1, 6) AS INTEGER) ELSE 0 END)");
+            w.append("(unixepoch(substr(")
+                .expr(self, t, 0)?
+                .append(", 1, 19)) * 1000000 + CASE WHEN instr(");
+            w.expr(self, t, 0)?
+                .append(", '.') > 0 THEN CAST(substr(substr(")
+                .expr(self, t, 0)?
+                .append(", instr(");
+            w.expr(self, t, 0)?
+                .append(", '.') + 1) || '000000', 1, 6) AS INTEGER) ELSE 0 END)");
             Ok(())
         })
     }
@@ -1459,11 +1684,15 @@ impl Sqlite {
         };
         Ok(match code {
             None => pc(move |w| {
-                w.append("((CAST(strftime('%m', ").expr(self, arg(a, 1)?, 0)?.append(") AS INTEGER) + 2) / 3)");
+                w.append("((CAST(strftime('%m', ")
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append(") AS INTEGER) + 2) / 3)");
                 Ok(())
             }),
             Some(code) => pc(move |w| {
-                w.append(&format!("CAST(strftime('{code}', ")).expr(self, arg(a, 1)?, 0)?.append(") AS INTEGER)");
+                w.append(&format!("CAST(strftime('{code}', "))
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append(") AS INTEGER)");
                 Ok(())
             }),
         })
@@ -1483,7 +1712,9 @@ impl Sqlite {
             DatePart::Year => wrapped("strftime('%Y-01-01', ", ")"),
             DatePart::Quarter => pc(move |w| {
                 w.append("printf('%s-%02d-01', strftime('%Y', ").expr(self, t, 0)?;
-                w.append("), ((CAST(strftime('%m', ").expr(self, t, 0)?.append(") AS INTEGER) - 1) / 3) * 3 + 1)");
+                w.append("), ((CAST(strftime('%m', ")
+                    .expr(self, t, 0)?
+                    .append(") AS INTEGER) - 1) / 3) * 3 + 1)");
                 Ok(())
             }),
             DatePart::Month => wrapped("strftime('%Y-%m-01', ", ")"),
@@ -1518,7 +1749,9 @@ impl Sqlite {
         };
         if let Some(months) = months {
             let modifier = pc(move |w: &mut SqlWriter| {
-                w.append(&format!("printf('%+d {months}', ")).expr(self, n, 0)?.append(")");
+                w.append(&format!("printf('%+d {months}', "))
+                    .expr(self, n, 0)?
+                    .append(")");
                 Ok(())
             });
             if date {
@@ -1537,12 +1770,17 @@ impl Sqlite {
             }));
         }
         let Some(micros) = interval_micros(unit) else {
-            return Err(Refusal::capability(format!("interval unit {unit} has no SQLite spelling")));
+            return Err(Refusal::capability(format!(
+                "interval unit {unit} has no SQLite spelling"
+            )));
         };
         if date && micros % 86_400_000_000 == 0 {
             let days = micros / 86_400_000_000;
             return Ok(pc(move |w| {
-                w.append("date(").expr(self, t, 0)?.append(", printf('%+d days', ").expr(self, n, 6)?;
+                w.append("date(")
+                    .expr(self, t, 0)?
+                    .append(", printf('%+d days', ")
+                    .expr(self, n, 6)?;
                 w.append(&format!(" * {days}))"));
                 Ok(())
             }));
@@ -1605,12 +1843,18 @@ impl Sqlite {
                 })
             }
             DatePart::Week => pc(move |w| {
-                w.append("CAST((julianday(date(").expr(self, to, 0)?.append(")) - julianday(date(").expr(self, from, 0)?;
+                w.append("CAST((julianday(date(")
+                    .expr(self, to, 0)?
+                    .append(")) - julianday(date(")
+                    .expr(self, from, 0)?;
                 w.append("))) / 7 AS INTEGER)");
                 Ok(())
             }),
             DatePart::Day => pc(move |w| {
-                w.append("CAST(julianday(date(").expr(self, to, 0)?.append(")) - julianday(date(").expr(self, from, 0)?;
+                w.append("CAST(julianday(date(")
+                    .expr(self, to, 0)?
+                    .append(")) - julianday(date(")
+                    .expr(self, from, 0)?;
                 w.append(")) AS INTEGER)");
                 Ok(())
             }),
@@ -1630,7 +1874,9 @@ impl Sqlite {
 
     fn component<'a>(&'a self, t: &'a SqlExpr, code: &'static str) -> P<'a> {
         pc(move |w| {
-            w.append(&format!("CAST(strftime('{code}', ")).expr(self, t, 0)?.append(") AS INTEGER)");
+            w.append(&format!("CAST(strftime('{code}', "))
+                .expr(self, t, 0)?
+                .append(") AS INTEGER)");
             Ok(())
         })
     }
@@ -1689,7 +1935,9 @@ impl Sqlite {
             _ => 0,
         };
         if months == 0 {
-            return Err(Refusal::capability(format!("a {unit} time bucket has no SQLite spelling")));
+            return Err(Refusal::capability(format!(
+                "a {unit} time bucket has no SQLite spelling"
+            )));
         }
         let (y, mo) = (self.component(t, "%Y"), self.component(t, "%m"));
         let k = pc(move |w: &mut SqlWriter| {
@@ -1725,15 +1973,25 @@ impl Sqlite {
             return Err(wall(f, &format!("make_timestamp of {} arguments", a.len())));
         }
         let s = &a[5];
-        w.append("(printf('%04d-%02d-%02d %02d:%02d:', ").list(self, &a[..5])?.append(") || CASE WHEN ");
-        w.expr(self, s, 4)?.append(" = CAST(").expr(self, s, 0)?.append(" AS INTEGER) THEN printf('%02d', ");
-        w.expr(self, s, 0)?.append(") ELSE rtrim(printf('%09.6f', ").expr(self, s, 0)?.append("), '0') END)");
+        w.append("(printf('%04d-%02d-%02d %02d:%02d:', ")
+            .list(self, &a[..5])?
+            .append(") || CASE WHEN ");
+        w.expr(self, s, 4)?
+            .append(" = CAST(")
+            .expr(self, s, 0)?
+            .append(" AS INTEGER) THEN printf('%02d', ");
+        w.expr(self, s, 0)?
+            .append(") ELSE rtrim(printf('%09.6f', ")
+            .expr(self, s, 0)?
+            .append("), '0') END)");
         Ok(())
     }
 
     fn month_name<'a>(&'a self, t: &'a SqlExpr, abbreviated: bool) -> P<'a> {
         pc(move |w| {
-            w.append("(CASE CAST(strftime('%m', ").expr(self, t, 0)?.append(") AS INTEGER)");
+            w.append("(CASE CAST(strftime('%m', ")
+                .expr(self, t, 0)?
+                .append(") AS INTEGER)");
             for (i, m) in MONTHS.iter().enumerate() {
                 let name = if abbreviated { &m[..3] } else { m };
                 w.append(&format!(" WHEN {} THEN '{name}'", i + 1));
@@ -1745,7 +2003,9 @@ impl Sqlite {
 
     fn day_name<'a>(&'a self, t: &'a SqlExpr) -> P<'a> {
         pc(move |w| {
-            w.append("(CASE CAST(strftime('%w', ").expr(self, t, 0)?.append(") AS INTEGER)");
+            w.append("(CASE CAST(strftime('%w', ")
+                .expr(self, t, 0)?
+                .append(") AS INTEGER)");
             for (i, d) in DAYS.iter().enumerate() {
                 w.append(&format!(" WHEN {i} THEN '{d}'"));
             }
@@ -1758,8 +2018,13 @@ impl Sqlite {
     fn fraction<'a>(&'a self, t: &'a SqlExpr, digits: usize) -> P<'a> {
         let zeros = "0".repeat(digits);
         pc(move |w| {
-            w.append("substr(CASE WHEN instr(").expr(self, t, 0)?.append(", '.') > 0 THEN substr(").expr(self, t, 0)?;
-            w.append(", instr(").expr(self, t, 0)?.append(&format!(", '.') + 1) ELSE '' END || '{zeros}', 1, {digits})"));
+            w.append("substr(CASE WHEN instr(")
+                .expr(self, t, 0)?
+                .append(", '.') > 0 THEN substr(")
+                .expr(self, t, 0)?;
+            w.append(", instr(")
+                .expr(self, t, 0)?
+                .append(&format!(", '.') + 1) ELSE '' END || '{zeros}', 1, {digits})"));
             Ok(())
         })
     }
@@ -1796,9 +2061,13 @@ impl Sqlite {
                 pieces.push(coded(&run));
                 run.clear();
             }
-            let DateFmt::Part(part) = p else { unreachable!("a text is coded") };
+            let DateFmt::Part(part) = p else {
+                unreachable!("a text is coded")
+            };
             let hour = pc(move |w: &mut SqlWriter| {
-                w.append("CAST(strftime('%H', ").expr(self, value, 0)?.append(") AS INTEGER)");
+                w.append("CAST(strftime('%H', ")
+                    .expr(self, value, 0)?
+                    .append(") AS INTEGER)");
                 Ok(())
             });
             pieces.push(match part {
@@ -1849,7 +2118,6 @@ impl Sqlite {
         }))
     }
 }
-
 
 /// A date-time of the given microseconds since the epoch (Java's `fromMicros`).
 fn from_micros(us: P<'_>) -> P<'_> {

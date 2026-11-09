@@ -87,7 +87,13 @@ fn boxed(s: SourceInfo) -> Span {
 }
 
 fn si(start_line: i32, start_column: i32, end_line: i32, end_column: i32) -> SourceInfo {
-    SourceInfo { source_id: JStr::default(), start_line, start_column, end_line, end_column }
+    SourceInfo {
+        source_id: JStr::default(),
+        start_line,
+        start_column,
+        end_line,
+        end_column,
+    }
 }
 
 // ================================================================ the element envelope
@@ -100,7 +106,12 @@ pub fn parse_connection<'s>(c: &mut impl Cursor<'s>) -> R<PConnection> {
     let qn = unquote_path_iae(&c.parse_qualified_name()?)?;
     let (pkg, name) = split_last(&qn);
     let value = parse_value(c, &flavor, decl_start, true)?;
-    Ok(PConnection { pkg: JStr(pkg), name: JStr(name), value, source_information: c.span(decl_start, c.pos() - 1) })
+    Ok(PConnection {
+        pkg: JStr(pkg),
+        name: JStr(name),
+        value,
+        source_information: c.span(decl_start, c.pos() - 1),
+    })
 }
 
 /// `parseIslandValue(islandText, baseLine, baseColumn, dialect)`: an embedded runtime island's connection, re-lexed
@@ -175,8 +186,16 @@ pub fn parse_value<'s>(
         }
         _ => {
             // anchored at the element (the engine's walker: the connection ctx's source information)
-            let at = if c.peek() == T::BRACE_OPEN { c.pos() + 1 } else { c.pos() };
-            return Err(throw_at(c.tokens(), at, jcat!("unsupported connection flavor: ", flavor)));
+            let at = if c.peek() == T::BRACE_OPEN {
+                c.pos() + 1
+            } else {
+                c.pos()
+            };
+            return Err(throw_at(
+                c.tokens(),
+                at,
+                jcat!("unsupported connection flavor: ", flavor),
+            ));
         }
     })
 }
@@ -216,7 +235,11 @@ fn parse_model_connection_body<'s>(c: &mut impl Cursor<'s>, decl_start: usize) -
     c.expect(T::BRACE_CLOSE)?;
     match (cls, url) {
         (Some((cls, span)), Some(url)) => Ok((cls, span, url)),
-        _ => Err(throw_at(c.tokens(), decl_start, JStr::from("model connection needs class and url"))),
+        _ => Err(throw_at(
+            c.tokens(),
+            decl_start,
+            JStr::from("model connection needs class and url"),
+        )),
     }
 }
 
@@ -236,7 +259,11 @@ fn parse_model_chain_body<'s>(
             return Err(c.error(jcat!("unknown ModelChainConnection key: ", key)));
         }
         if map_span.is_some() {
-            return Err(throw_at(c.tokens(), decl_start, JStr::from("Field 'mappings' should be specified only once")));
+            return Err(throw_at(
+                c.tokens(),
+                decl_start,
+                JStr::from("Field 'mappings' should be specified only once"),
+            ));
         }
         c.advance()?;
         c.expect(T::COLON)?;
@@ -251,7 +278,11 @@ fn parse_model_chain_body<'s>(
     }
     c.expect(T::BRACE_CLOSE)?;
     let Some(map_span) = map_span else {
-        return Err(throw_at(c.tokens(), decl_start, JStr::from("ModelChainConnection needs mappings")));
+        return Err(throw_at(
+            c.tokens(),
+            decl_start,
+            JStr::from("ModelChainConnection needs mappings"),
+        ));
     };
     Ok(PModelChainConnection {
         element: standalone.then(|| JStr::from("ModelStore")),
@@ -289,7 +320,11 @@ fn parse_service_store_connection_body<'s>(c: &mut impl Cursor<'s>, decl_start: 
     }
     c.expect(T::BRACE_CLOSE)?;
     let Some(base_url) = base_url else {
-        return Err(throw_at(c.tokens(), decl_start, JStr::from("ServiceStoreConnection needs baseUrl")));
+        return Err(throw_at(
+            c.tokens(),
+            decl_start,
+            JStr::from("ServiceStoreConnection needs baseUrl"),
+        ));
     };
     Ok(PServiceStoreConnection {
         base_url,
@@ -404,7 +439,12 @@ fn parse_deephaven_connection_body<'s>(c: &mut impl Cursor<'s>) -> R<PDeephavenC
         return Err(c.error_str("DeephavenConnection needs serverUrl and authentication"));
     };
     let sp = c.span_of(body_start, close_tok);
-    let v_span = si(sp.start_line, sp.start_column, sp.end_line, c.tokens().start_column(close_tok) as i32 + 4);
+    let v_span = si(
+        sp.start_line,
+        sp.start_column,
+        sp.end_line,
+        c.tokens().start_column(close_tok) as i32 + 4,
+    );
     Ok(PDeephavenConnection {
         server_url,
         psk,
@@ -454,7 +494,10 @@ fn parse_mongo_connection_body<'s>(c: &mut impl Cursor<'s>, decl_start: usize) -
                     let host = c.reconstruct_text(h_s, c.pos());
                     c.expect(T::COLON)?;
                     let port = c.consume_long()?;
-                    urls.push(Box::new(PMongoServerUrl { base_url: JStr(host), port }));
+                    urls.push(Box::new(PMongoServerUrl {
+                        base_url: JStr(host),
+                        port,
+                    }));
                     c.match_tok(T::COMMA)?;
                 }
                 c.expect(T::BRACKET_CLOSE)?;
@@ -469,7 +512,11 @@ fn parse_mongo_connection_body<'s>(c: &mut impl Cursor<'s>, decl_start: usize) -
         return Err(c.error_str("MongoDBConnection needs database and authentication"));
     };
     if urls.is_empty() {
-        return Err(throw_at(c.tokens(), decl_start, JStr::from("Field 'serverURLs' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            decl_start,
+            JStr::from("Field 'serverURLs' is required"),
+        ));
     }
     Ok(PMongoDbConnection {
         database_name,
@@ -556,7 +603,11 @@ fn parse_relational_connection_body<'s>(
         ));
     };
     let Some(auth) = b.auth else {
-        return Err(throw_at(c.tokens(), decl_start, JStr::from("RelationalDatabaseConnection needs auth")));
+        return Err(throw_at(
+            c.tokens(),
+            decl_start,
+            JStr::from("RelationalDatabaseConnection needs auth"),
+        ));
     };
     Ok(PRelationalDatabaseConnection {
         authentication_strategy: auth,
@@ -589,7 +640,11 @@ fn relational_key<'s>(c: &mut impl Cursor<'s>, key: &[u16], k_s: usize, b: &mut 
             if !listed(DATABASE_TYPES, &db_type)
                 && !(!c.dialect().refuses_lite_extensions() && listed(LITE_DATABASE_TYPES, &db_type))
             {
-                return Err(throw_at(c.tokens(), t_tok, jcat!("Unknown database type '", db_type, "'")));
+                return Err(throw_at(
+                    c.tokens(),
+                    t_tok,
+                    jcat!("Unknown database type '", db_type, "'"),
+                ));
             }
             b.db_type = Some(JStr(db_type));
             c.expect(T::SEMI_COLON)?;
@@ -666,7 +721,11 @@ fn parse_generation_features_config<'s>(c: &mut impl Cursor<'s>) -> R<PGeneratio
         let gk = c.parse_identifier()?;
         c.expect(T::COLON)?;
         if !seen.insert(gk.clone()) {
-            return Err(throw_at(c.tokens(), g_s, jcat!("Field '", gk, "' should be specified only once")));
+            return Err(throw_at(
+                c.tokens(),
+                g_s,
+                jcat!("Field '", gk, "' should be specified only once"),
+            ));
         }
         let into = if eq(&gk, "enabled") {
             &mut enabled
@@ -685,7 +744,11 @@ fn parse_generation_features_config<'s>(c: &mut impl Cursor<'s>) -> R<PGeneratio
     }
     let g_e = c.pos();
     c.expect(T::BRACE_CLOSE)?;
-    Ok(PGenerationFeaturesConfig { enabled, disabled, source_information: c.span(g_s, g_e) })
+    Ok(PGenerationFeaturesConfig {
+        enabled,
+        disabled,
+        source_information: c.span(g_s, g_e),
+    })
 }
 
 /// `stringOrInt`: an unquoted integer's text, or a string's body (`proxyPort`).
@@ -730,9 +793,11 @@ fn parse_mapper_post_processors<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<PPost
                 c.match_tok(T::COMMA)?;
             }
             c.expect(T::BRACE_CLOSE)?;
-            out.push(PPostProcessor::PRelationalMapperPostProcessor(Box::new(PRelationalMapperPostProcessor {
-                relational_mappers: ptrs,
-            })));
+            out.push(PPostProcessor::PRelationalMapperPostProcessor(Box::new(
+                PRelationalMapperPostProcessor {
+                    relational_mappers: ptrs,
+                },
+            )));
             c.match_tok(T::COMMA)?;
             continue;
         }
@@ -765,7 +830,9 @@ fn parse_mapper_post_processors<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<PPost
             c.expect(T::SEMI_COLON)?;
         }
         c.expect(T::BRACE_CLOSE)?;
-        out.push(PPostProcessor::PMapperPostProcessor(Box::new(PMapperPostProcessor { mappers })));
+        out.push(PPostProcessor::PMapperPostProcessor(Box::new(PMapperPostProcessor {
+            mappers,
+        })));
         c.match_tok(T::COMMA)?;
     }
     c.expect(T::BRACKET_CLOSE)?;
@@ -791,7 +858,11 @@ fn parse_one_mapper<'s>(c: &mut impl Cursor<'s>) -> R<PMapper> {
     }
     c.expect(T::BRACE_CLOSE)?;
     let table = eq(&flavor, "table");
-    let allowed: &[&str] = if table { &["from", "to", "schemaFrom", "schemaTo"] } else { &["from", "to"] };
+    let allowed: &[&str] = if table {
+        &["from", "to", "schemaFrom", "schemaTo"]
+    } else {
+        &["from", "to"]
+    };
     for i in hash_map_order(&keys) {
         if !listed(allowed, &keys[i]) {
             return Err(c.error(jcat!("unknown ", flavor, " mapper key: ", keys[i])));
@@ -805,7 +876,12 @@ fn parse_one_mapper<'s>(c: &mut impl Cursor<'s>) -> R<PMapper> {
         let (Some(schema_from), Some(schema_to)) = (get("schemaFrom"), get("schemaTo")) else {
             return Err(c.error_str("table mapper needs schemaFrom and schemaTo"));
         };
-        return Ok(PMapper::PTableMapper(Box::new(PTableMapper { from, to, schema_from, schema_to })));
+        return Ok(PMapper::PTableMapper(Box::new(PTableMapper {
+            from,
+            to,
+            schema_from,
+            schema_to,
+        })));
     }
     if eq(&flavor, "schema") {
         return Ok(PMapper::PSchemaMapper(Box::new(PSchemaMapper { from, to })));
@@ -953,7 +1029,11 @@ fn parse_static_spec<'s>(c: &mut impl Cursor<'s>, keyword_tok: usize) -> R<PData
         return Err(c.error_str("Static needs name (or database) and host"));
     };
     let Some(port) = port else {
-        return Err(throw_at(c.tokens(), keyword_tok, JStr::from("Field 'port' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            keyword_tok,
+            JStr::from("Field 'port' is required"),
+        ));
     };
     Ok(PDatasourceSpec::PStaticSpec(Box::new(PStaticSpec {
         database_name,
@@ -1385,11 +1465,15 @@ fn parse_auth_strategy<'s>(c: &mut impl Cursor<'s>, keyword_tok: usize) -> R<PAu
     Ok(match key_name(&kind).as_str() {
         "DefaultH2" => {
             empty_body(c)?;
-            PAuthStrategy::PH2Default(Box::new(PH2Default { source_information: c.span(keyword_tok, c.pos() - 1) }))
+            PAuthStrategy::PH2Default(Box::new(PH2Default {
+                source_information: c.span(keyword_tok, c.pos() - 1),
+            }))
         }
         "Test" => {
             empty_body(c)?;
-            PAuthStrategy::PTestAuth(Box::new(PTestAuth { source_information: c.span(keyword_tok, c.pos() - 1) }))
+            PAuthStrategy::PTestAuth(Box::new(PTestAuth {
+                source_information: c.span(keyword_tok, c.pos() - 1),
+            }))
         }
         "OAuth" => {
             let (mut oauth_key, mut scope_name) = (None, None);
@@ -1579,7 +1663,13 @@ fn parse_auth_strategy<'s>(c: &mut impl Cursor<'s>, keyword_tok: usize) -> R<PAu
                 source_information: c.span(keyword_tok, c.pos() - 1),
             }))
         }
-        _ => return Err(c.error(jcat!("unsupported auth strategy: ", kind, " (corpus-censused shapes only)"))),
+        _ => {
+            return Err(c.error(jcat!(
+                "unsupported auth strategy: ",
+                kind,
+                " (corpus-censused shapes only)"
+            )));
+        }
     })
 }
 
@@ -1700,13 +1790,25 @@ fn parse_elasticsearch_body<'s>(c: &mut impl Cursor<'s>) -> R<PElasticsearchConn
     let close_tok = c.pos();
     c.expect(T::BRACE_CLOSE)?;
     let Some(element) = element else {
-        return Err(throw_at(c.tokens(), first_key_tok, JStr::from("Field 'store' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            first_key_tok,
+            JStr::from("Field 'store' is required"),
+        ));
     };
     let Some(url) = url else {
-        return Err(throw_at(c.tokens(), first_key_tok, JStr::from("Field 'clusterDetails' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            first_key_tok,
+            JStr::from("Field 'clusterDetails' is required"),
+        ));
     };
     let Some(auth) = auth else {
-        return Err(throw_at(c.tokens(), first_key_tok, JStr::from("Field 'authentication' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            first_key_tok,
+            JStr::from("Field 'authentication' is required"),
+        ));
     };
     let vs = c.span_of(first_key_tok, close_tok);
     Ok(PElasticsearchConnection {
@@ -1714,7 +1816,10 @@ fn parse_elasticsearch_body<'s>(c: &mut impl Cursor<'s>) -> R<PElasticsearchConn
         element_source_information: element_span,
         url,
         auth,
-        source_information: boxed(SourceInfo { end_column: vs.end_column + 4, ..vs }),
+        source_information: boxed(SourceInfo {
+            end_column: vs.end_column + 4,
+            ..vs
+        }),
     })
 }
 
@@ -2083,7 +2188,16 @@ fn parse_gcp_wif_island<'s>(c: &mut impl Cursor<'s>, key_tok: usize) -> R<PAuthS
         Some(project_number),
         Some(provider_id),
         Some(pool_id),
-    ) = (email, account_id, region, role, creds, project_number, provider_id, pool_id)
+    ) = (
+        email,
+        account_id,
+        region,
+        role,
+        creds,
+        project_number,
+        provider_id,
+        pool_id,
+    )
     else {
         return Err(c.error_str("GCPWIFWithAWSIdP needs serviceAccountEmail, idP and workload"));
     };
@@ -2135,7 +2249,13 @@ mod tests {
                  {url} }}#;\n  authentication: # Kerberos {{}}#;\n}}\n"
             )
         };
-        assert!(parse(&u(&es("http://h:99999999999/")), Dialect::LegendLite).is_ok(), "the registry-based fallback");
-        assert_eq!(refusal(&es("wrong url")), ("[5:26] URL is not valid".to_owned(), Some((5, 26))));
+        assert!(
+            parse(&u(&es("http://h:99999999999/")), Dialect::LegendLite).is_ok(),
+            "the registry-based fallback"
+        );
+        assert_eq!(
+            refusal(&es("wrong url")),
+            ("[5:26] URL is not valid".to_owned(), Some((5, 26)))
+        );
     }
 }

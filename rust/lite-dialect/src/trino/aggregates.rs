@@ -31,10 +31,15 @@ pub(super) fn interval(n: i64, unit: &str) -> Result<String, Refusal> {
     match single {
         "WEEK" => match n.checked_mul(7) {
             Some(days) => Ok(format!("INTERVAL '{days}' DAY")),
-            None => Err(Refusal { class: "java.lang.ArithmeticException", message: "long overflow".to_owned() }),
+            None => Err(Refusal {
+                class: "java.lang.ArithmeticException",
+                message: "long overflow".to_owned(),
+            }),
         },
         "DAY" | "HOUR" | "MINUTE" | "SECOND" | "YEAR" | "MONTH" => Ok(format!("INTERVAL '{n}' {single}")),
-        _ => Err(Refusal::capability(format!("a {unit} window frame offset has no Trino interval"))),
+        _ => Err(Refusal::capability(format!(
+            "a {unit} window frame offset has no Trino interval"
+        ))),
     }
 }
 
@@ -90,7 +95,10 @@ impl Trino {
 
     /// A value's text for the hash: a list's or a row's text is its JSON (Java's `hashText`).
     fn hash_text(&self, w: &mut SqlWriter, e: &SqlExpr) -> Result<(), Refusal> {
-        if matches!(type_of(e), Some(SqlType::Array { .. } | SqlType::Struct { .. } | SqlType::Map { .. })) {
+        if matches!(
+            type_of(e),
+            Some(SqlType::Array { .. } | SqlType::Struct { .. } | SqlType::Map { .. })
+        ) {
             w.append("json_format(CAST(").expr(self, e, 0)?.append(" AS JSON))");
             return Ok(());
         }
@@ -104,7 +112,9 @@ impl Trino {
         if a.len() == 1 {
             self.hash_text(w, &a[0])?;
         } else {
-            w.append("concat_ws(chr(31), ").join(a, ", ", |w, e| self.hash_text(w, e))?.append(")");
+            w.append("concat_ws(chr(31), ")
+                .join(a, ", ", |w, e| self.hash_text(w, e))?
+                .append(")");
         }
         w.append(", ''))))");
         Ok(())
@@ -123,15 +133,27 @@ impl Trino {
         };
         let x = arg(a, 0)?;
         let exact = !(is_scalar(x, Scalar::Double) || matches!(x, SqlExpr::FloatLit { .. }));
-        let ten = if exact { "CAST(10 AS DECIMAL(38, 0))" } else { "CAST(10 AS DOUBLE)" };
+        let ten = if exact {
+            "CAST(10 AS DECIMAL(38, 0))"
+        } else {
+            "CAST(10 AS DOUBLE)"
+        };
         let p: P<'_> = pc(move |w| {
             w.append(&format!("power({ten}, ")).piece(&*scale)?.append(")");
             Ok(())
         });
         if a.len() == 1 {
-            w.append("(CASE WHEN ").expr(self, x, 6)?.append(" - floor(").expr(self, x, 0)?;
-            w.append(") = 0.5 THEN (CASE WHEN mod(floor(").expr(self, x, 0)?.append("), 2) = 0 THEN floor(");
-            w.expr(self, x, 0)?.append(") ELSE floor(").expr(self, x, 0)?.append(") + 1 END) ELSE round(");
+            w.append("(CASE WHEN ")
+                .expr(self, x, 6)?
+                .append(" - floor(")
+                .expr(self, x, 0)?;
+            w.append(") = 0.5 THEN (CASE WHEN mod(floor(")
+                .expr(self, x, 0)?
+                .append("), 2) = 0 THEN floor(");
+            w.expr(self, x, 0)?
+                .append(") ELSE floor(")
+                .expr(self, x, 0)?
+                .append(") + 1 END) ELSE round(");
             w.expr(self, x, 0)?.append(") END)");
             return Ok(());
         }
@@ -140,8 +162,16 @@ impl Trino {
             Ok(())
         };
         w.append("(CASE WHEN ").piece(&v)?.append(" - floor(").piece(&v)?;
-        w.append(") = 0.5 THEN (CASE WHEN mod(floor(").piece(&v)?.append("), 2) = 0 THEN floor(").piece(&v)?;
-        w.append(") ELSE floor(").piece(&v)?.append(") + 1 END) ELSE round(").piece(&v)?.append(") END / ").piece(&*p)?;
+        w.append(") = 0.5 THEN (CASE WHEN mod(floor(")
+            .piece(&v)?
+            .append("), 2) = 0 THEN floor(")
+            .piece(&v)?;
+        w.append(") ELSE floor(")
+            .piece(&v)?
+            .append(") + 1 END) ELSE round(")
+            .piece(&v)?
+            .append(") END / ")
+            .piece(&*p)?;
         w.append(")");
         Ok(())
     }
@@ -163,12 +193,18 @@ impl Trino {
             SqlFn::BitAnd => w.append("bitwise_and(").piece(&x)?.append(", ").piece(&y)?.append(")"),
             SqlFn::BitOr => w.append("bitwise_or(").piece(&x)?.append(", ").piece(&y)?.append(")"),
             SqlFn::BitXor => w.append("bitwise_xor(").piece(&x)?.append(", ").piece(&y)?.append(")"),
-            SqlFn::BitShiftLeft => {
-                w.append("bitwise_left_shift(").piece(&x)?.append(", ").piece(&shift)?.append(")")
-            }
-            SqlFn::BitShiftRight => {
-                w.append("bitwise_right_shift_arithmetic(").piece(&x)?.append(", ").piece(&shift)?.append(")")
-            }
+            SqlFn::BitShiftLeft => w
+                .append("bitwise_left_shift(")
+                .piece(&x)?
+                .append(", ")
+                .piece(&shift)?
+                .append(")"),
+            SqlFn::BitShiftRight => w
+                .append("bitwise_right_shift_arithmetic(")
+                .piece(&x)?
+                .append(", ")
+                .piece(&shift)?
+                .append(")"),
             other => return Err(Refusal::illegal_state(format!("not a bit op: {other}"))),
         };
         Ok(())
@@ -234,16 +270,26 @@ impl Trino {
     /// sep)`, the values in the order they come (Java's `listagg`).
     fn listagg(&self, w: &mut SqlWriter, r: &Reducer) -> Result<(), Refusal> {
         if r.args.len() != 2 {
-            return Err(Refusal::capability(format!("a STRING_AGG of {} arguments reached Trino", r.args.len())));
+            return Err(Refusal::capability(format!(
+                "a STRING_AGG of {} arguments reached Trino",
+                r.args.len()
+            )));
         }
         let distinct = if r.distinct { "DISTINCT " } else { "" };
         if r.order_by.is_empty() {
-            w.append("array_join(array_agg(").append(distinct).expr(self, &r.args[0], 0)?.append("), ");
+            w.append("array_join(array_agg(")
+                .append(distinct)
+                .expr(self, &r.args[0], 0)?
+                .append("), ");
             w.expr(self, &r.args[1], 0)?.append(")");
             return Ok(());
         }
-        w.append("listagg(").append(distinct).list(self, &r.args)?.append(") WITHIN GROUP (ORDER BY ");
-        w.join(&r.order_by, ", ", |w, k| ansi::aggregate_order_key(self, w, k))?.append(")");
+        w.append("listagg(")
+            .append(distinct)
+            .list(self, &r.args)?
+            .append(") WITHIN GROUP (ORDER BY ");
+        w.join(&r.order_by, ", ", |w, k| ansi::aggregate_order_key(self, w, k))?
+            .append(")");
         Ok(())
     }
 
@@ -254,7 +300,8 @@ impl Trino {
         }
         w.append("array_agg(").expr(self, &r.args[0], 0)?;
         if !r.order_by.is_empty() {
-            w.append(" ORDER BY ").join(&r.order_by, ", ", |w, k| self.list_order_key(w, k))?;
+            w.append(" ORDER BY ")
+                .join(&r.order_by, ", ", |w, k| self.list_order_key(w, k))?;
         }
         w.append(")");
         Ok(())
@@ -301,7 +348,13 @@ impl Trino {
                 let sx = agg("stddev_pop", vec![x]);
                 let sy = agg("stddev_pop", vec![y]);
                 pc(move |w| {
-                    w.append("(").piece(&*cov)?.append(" / (").piece(&*sx)?.append(" * ").piece(&*sy)?.append("))");
+                    w.append("(")
+                        .piece(&*cov)?
+                        .append(" / (")
+                        .piece(&*sx)?
+                        .append(" * ")
+                        .piece(&*sy)?
+                        .append("))");
                     Ok(())
                 })
             }
@@ -311,7 +364,8 @@ impl Trino {
     /// A key of a collected list's order: NULLs where the key says, else where they sort (largest) (Java's
     /// `listOrderKey`).
     fn list_order_key(&self, w: &mut SqlWriter, k: &SortKey) -> Result<(), Refusal> {
-        w.expr(self, &k.expr, 0)?.append(if k.ascending { " ASC" } else { " DESC" });
+        w.expr(self, &k.expr, 0)?
+            .append(if k.ascending { " ASC" } else { " DESC" });
         let nulls_first = match k.null_order {
             Some(o) => o == NullOrder::NullsFirst,
             None => !k.ascending,
@@ -379,8 +433,11 @@ impl Trino {
             })
         };
         pc(move |w| {
-            w.append("element_at(transform(ARRAY[filter(array_sort(").piece(&*values)?;
-            w.append(&format!("), \"__x\" -> \"__x\" IS NOT NULL)], {s} -> CASE WHEN {n} = 0 THEN NULL "));
+            w.append("element_at(transform(ARRAY[filter(array_sort(")
+                .piece(&*values)?;
+            w.append(&format!(
+                "), \"__x\" -> \"__x\" IS NOT NULL)], {s} -> CASE WHEN {n} = 0 THEN NULL "
+            ));
             if cont {
                 let lo = |v: &mut SqlWriter| -> Result<(), Refusal> {
                     v.append(&format!("CAST(element_at({s}, CAST(floor(")).piece(&*pos)?;
@@ -392,14 +449,24 @@ impl Trino {
                     v.append(") AS BIGINT) + 1) AS DOUBLE)");
                     Ok(())
                 };
-                w.append("ELSE ").piece(&lo)?.append(" + (").piece(&*pos)?.append(" - floor(").piece(&*pos)?;
-                w.append(")) * (").piece(&hi)?.append(" - ").piece(&lo)?.append(") END), 1)");
+                w.append("ELSE ")
+                    .piece(&lo)?
+                    .append(" + (")
+                    .piece(&*pos)?
+                    .append(" - floor(")
+                    .piece(&*pos)?;
+                w.append(")) * (")
+                    .piece(&hi)?
+                    .append(" - ")
+                    .piece(&lo)?
+                    .append(") END), 1)");
             } else {
                 w.append("ELSE ");
                 if ty.is_some() {
                     w.append("CAST(");
                 }
-                w.append(&format!("element_at({s}, CAST(greatest(ceiling({n} * ")).piece(&*qp)?;
+                w.append(&format!("element_at({s}, CAST(greatest(ceiling({n} * "))
+                    .piece(&*qp)?;
                 w.append(") - 1, 0) AS BIGINT) + 1)");
                 if let Some(t) = ty {
                     let name = cast_type_name(self, t)?;
@@ -421,9 +488,16 @@ impl Trino {
         order_by: &[SortKey],
         frame: Option<&Frame>,
     ) -> Result<(), Refusal> {
-        let window = Window { partition_by, order_by, frame };
+        let window = Window {
+            partition_by,
+            order_by,
+            frame,
+        };
         if let SqlAgg::Reducer(r) = f
-            && matches!(r.r#fn, AggFn::Median | AggFn::QuantileCont | AggFn::QuantileDisc | AggFn::Mode)
+            && matches!(
+                r.r#fn,
+                AggFn::Median | AggFn::QuantileCont | AggFn::QuantileDisc | AggFn::Mode
+            )
         {
             let x = arg(&r.args, 0)?;
             if r.r#fn == AggFn::Mode {
@@ -460,8 +534,12 @@ impl Trino {
                         r.args.len()
                     )));
                 }
-                w.append("listagg(").append(if r.distinct { "DISTINCT " } else { "" }).list(self, &r.args)?;
-                w.append(") WITHIN GROUP (ORDER BY ").expr(self, &r.args[0], 0)?.append(")");
+                w.append("listagg(")
+                    .append(if r.distinct { "DISTINCT " } else { "" })
+                    .list(self, &r.args)?;
+                w.append(") WITHIN GROUP (ORDER BY ")
+                    .expr(self, &r.args[0], 0)?
+                    .append(")");
             }
             SqlAgg::Reducer(r) => self.reducer(w, r)?,
             SqlAgg::RankingFn { r#fn, args } | SqlAgg::ValueFn { r#fn, args } => {

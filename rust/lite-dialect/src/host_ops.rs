@@ -25,8 +25,17 @@ pub struct Name {
 impl Name {
     /// Java's canonical constructor: a model's default schema is no schema (its tables are made with none).
     pub fn new(database: Option<String>, schema: Option<String>, name: String, declared: bool) -> Name {
-        let schema = if declared && schema.as_deref() == Some("default") { None } else { schema };
-        Name { database, schema, name, declared }
+        let schema = if declared && schema.as_deref() == Some("default") {
+            None
+        } else {
+            schema
+        };
+        Name {
+            database,
+            schema,
+            name,
+            declared,
+        }
     }
 }
 
@@ -256,7 +265,10 @@ pub struct PostgresHostOperations;
 
 impl PostgresHostOperations {
     fn not_built() -> Refusal {
-        Refused { database: "Postgres".to_owned() }.refused()
+        Refused {
+            database: "Postgres".to_owned(),
+        }
+        .refused()
     }
 }
 
@@ -274,7 +286,10 @@ impl HostOperations for PostgresHostOperations {
     }
 
     fn statements(&self, operation: &HostOperation) -> Result<Vec<String>, Refusal> {
-        if let HostOperation::Count { from: Source::Query { sql } } = operation {
+        if let HostOperation::Count {
+            from: Source::Query { sql },
+        } = operation
+        {
             return Ok(vec![format!("SELECT count(*) AS n FROM ({sql}) AS counted")]);
         }
         Err(refusal(operation, "Postgres"))
@@ -291,7 +306,15 @@ pub struct DuckDbHostOperations;
 
 /// S3 credentials' names as a secret takes them, sorted (Java's `new TreeSet<>(CREDENTIALS)`, which its refusal
 /// prints); `USE_SSL` a boolean, every other a string.
-const CREDENTIALS: [&str; 7] = ["ENDPOINT", "KEY_ID", "REGION", "SECRET", "SESSION_TOKEN", "URL_STYLE", "USE_SSL"];
+const CREDENTIALS: [&str; 7] = [
+    "ENDPOINT",
+    "KEY_ID",
+    "REGION",
+    "SECRET",
+    "SESSION_TOKEN",
+    "URL_STYLE",
+    "USE_SSL",
+];
 
 impl HostOperations for DuckDbHostOperations {
     fn open_database(&self, name: &str) -> Result<Vec<String>, Refusal> {
@@ -308,7 +331,14 @@ impl HostOperations for DuckDbHostOperations {
 
     fn statements(&self, operation: &HostOperation) -> Result<Vec<String>, Refusal> {
         Ok(match operation {
-            HostOperation::MakeRelation { kind, target, replace, select_list, replacing, from } => vec![format!(
+            HostOperation::MakeRelation {
+                kind,
+                target,
+                replace,
+                select_list,
+                replacing,
+                from,
+            } => vec![format!(
                 "CREATE {}{} {} AS SELECT {} FROM {}",
                 if *replace { "OR REPLACE " } else { "" },
                 kind_text(*kind),
@@ -319,7 +349,11 @@ impl HostOperations for DuckDbHostOperations {
             HostOperation::Insert { target, columns, from } => vec![format!(
                 "INSERT INTO {} ({}) SELECT {} FROM {}",
                 name(target),
-                columns.iter().map(|c| physical_name(&c.target)).collect::<Vec<_>>().join(", "),
+                columns
+                    .iter()
+                    .map(|c| physical_name(&c.target))
+                    .collect::<Vec<_>>()
+                    .join(", "),
                 columns.iter().map(|c| quoted(&c.from)).collect::<Vec<_>>().join(", "),
                 source(from)
             )],
@@ -327,13 +361,20 @@ impl HostOperations for DuckDbHostOperations {
                 vec![format!("DROP {} IF EXISTS {}", kind_text(*kind), name(target))]
             }
             HostOperation::MakeSchema { database, name } => {
-                vec![format!("CREATE SCHEMA IF NOT EXISTS {}", schema(database.as_deref(), name))]
+                vec![format!(
+                    "CREATE SCHEMA IF NOT EXISTS {}",
+                    schema(database.as_deref(), name)
+                )]
             }
             HostOperation::DropSchema { database, name } => {
                 vec![format!("DROP SCHEMA IF EXISTS {}", schema(database.as_deref(), name))]
             }
             HostOperation::Count { from } => vec![format!("SELECT count(*) AS n FROM {}", source(from))],
-            HostOperation::Secret { name, scope, credentials } => secret(name, scope, credentials)?,
+            HostOperation::Secret {
+                name,
+                scope,
+                credentials,
+            } => secret(name, scope, credentials)?,
             HostOperation::Extensions { names } => {
                 let mut out = Vec::new();
                 for n in names {
@@ -394,14 +435,20 @@ impl HostOperations for DuckDbHostOperations {
             HostOperation::CurrentDatabase => vec!["SELECT current_database() AS name".to_owned()],
             HostOperation::Platform => vec!["PRAGMA platform".to_owned()],
             HostOperation::IcebergManifestLists { url } => {
-                vec![format!("SELECT manifest_list AS path FROM iceberg_snapshots({})", literal(url))]
+                vec![format!(
+                    "SELECT manifest_list AS path FROM iceberg_snapshots({})",
+                    literal(url)
+                )]
             }
             HostOperation::IcebergManifests { lists } => vec![format!(
                 "SELECT DISTINCT manifest_path AS path FROM read_avro([{}])",
                 lists.iter().map(|l| literal(l)).collect::<Vec<_>>().join(", ")
             )],
             HostOperation::IcebergDataFiles { url } => {
-                vec![format!("SELECT file_path AS path FROM iceberg_metadata({})", literal(url))]
+                vec![format!(
+                    "SELECT file_path AS path FROM iceberg_metadata({})",
+                    literal(url)
+                )]
             }
         })
     }
@@ -427,7 +474,10 @@ fn columns(select_list: Option<&str>, replacing: &[Conversion]) -> String {
     if replacing.is_empty() {
         return "*".to_owned();
     }
-    let items: Vec<String> = replacing.iter().map(|c| format!("{} AS {}", c.sql, quoted(&c.column))).collect();
+    let items: Vec<String> = replacing
+        .iter()
+        .map(|c| format!("{} AS {}", c.sql, quoted(&c.column)))
+        .collect();
     format!("* REPLACE ({})", items.join(", "))
 }
 
@@ -463,14 +513,22 @@ fn secret(name: &str, scope: &str, credentials: &[(String, String)]) -> Result<V
             )));
         }
         // Boolean.parseBoolean: "true" in any case, anything else false
-        let spelled = if key == "USE_SSL" { value.eq_ignore_ascii_case("true").to_string() } else { literal(value) };
+        let spelled = if key == "USE_SSL" {
+            value.eq_ignore_ascii_case("true").to_string()
+        } else {
+            literal(value)
+        };
         parts.push(format!("{key} {spelled}"));
     }
     if parts.len() == 1 {
         return Ok(Vec::new());
     }
     parts.push(format!("SCOPE {}", literal(scope)));
-    Ok(vec![format!("CREATE OR REPLACE SECRET {} ({})", quoted(name), parts.join(", "))])
+    Ok(vec![format!(
+        "CREATE OR REPLACE SECRET {} ({})",
+        quoted(name),
+        parts.join(", ")
+    )])
 }
 
 /// An extension's name, as INSTALL takes it: `[a-z][a-z0-9_]*`, never text a host spliced in.
@@ -549,23 +607,36 @@ pub fn read_operation(node: &Node) -> Result<HostOperation, Refusal> {
             columns: read_columns(o)?,
             from: read_source(object_field(o, "from")?)?,
         },
-        "drop" => {
-            HostOperation::Drop { kind: kind(&string(o, "kind")?)?, target: read_name(object_field(o, "target")?)? }
-        }
-        "schema" => HostOperation::MakeSchema { database: string_or_null(o, "database")?, name: string(o, "name")? },
-        "dropSchema" => {
-            HostOperation::DropSchema { database: string_or_null(o, "database")?, name: string(o, "name")? }
-        }
-        "count" => HostOperation::Count { from: read_source(object_field(o, "from")?)? },
+        "drop" => HostOperation::Drop {
+            kind: kind(&string(o, "kind")?)?,
+            target: read_name(object_field(o, "target")?)?,
+        },
+        "schema" => HostOperation::MakeSchema {
+            database: string_or_null(o, "database")?,
+            name: string(o, "name")?,
+        },
+        "dropSchema" => HostOperation::DropSchema {
+            database: string_or_null(o, "database")?,
+            name: string(o, "name")?,
+        },
+        "count" => HostOperation::Count {
+            from: read_source(object_field(o, "from")?)?,
+        },
         "secret" => HostOperation::Secret {
             name: string(o, "name")?,
             scope: string(o, "scope")?,
             credentials: credentials(object_field(o, "credentials")?)?,
         },
-        "extensions" => HostOperation::Extensions { names: string_list(o, "names")? },
+        "extensions" => HostOperation::Extensions {
+            names: string_list(o, "names")?,
+        },
         "extensionRepository" => HostOperation::ExtensionRepository { url: string(o, "url")? },
-        "extensionDirectory" => HostOperation::ExtensionDirectory { folder: string(o, "folder")? },
-        "fileSearchPath" => HostOperation::FileSearchPath { folder: string(o, "folder")? },
+        "extensionDirectory" => HostOperation::ExtensionDirectory {
+            folder: string(o, "folder")?,
+        },
+        "fileSearchPath" => HostOperation::FileSearchPath {
+            folder: string(o, "folder")?,
+        },
         "transaction" => HostOperation::Transaction {
             step: match string(o, "step")?.as_str() {
                 "begin" => Step::Begin,
@@ -578,18 +649,26 @@ pub fn read_operation(node: &Node) -> Result<HostOperation, Refusal> {
                 }
             },
         },
-        "nameTaken" => HostOperation::NameTaken { name: string(o, "name")? },
-        "relationExists" => HostOperation::RelationExists { name: read_name(object_field(o, "name")?)? },
-        "tablesIn" => {
-            HostOperation::TablesIn { database: string_or_null(o, "database")?, schema: string(o, "schema")? }
-        }
-        "schemaExists" => {
-            HostOperation::SchemaExists { database: string_or_null(o, "database")?, schema: string(o, "schema")? }
-        }
+        "nameTaken" => HostOperation::NameTaken {
+            name: string(o, "name")?,
+        },
+        "relationExists" => HostOperation::RelationExists {
+            name: read_name(object_field(o, "name")?)?,
+        },
+        "tablesIn" => HostOperation::TablesIn {
+            database: string_or_null(o, "database")?,
+            schema: string(o, "schema")?,
+        },
+        "schemaExists" => HostOperation::SchemaExists {
+            database: string_or_null(o, "database")?,
+            schema: string(o, "schema")?,
+        },
         "currentDatabase" => HostOperation::CurrentDatabase,
         "platform" => HostOperation::Platform,
         "icebergManifestLists" => HostOperation::IcebergManifestLists { url: string(o, "url")? },
-        "icebergManifests" => HostOperation::IcebergManifests { lists: string_list(o, "lists")? },
+        "icebergManifests" => HostOperation::IcebergManifests {
+            lists: string_list(o, "lists")?,
+        },
         "icebergDataFiles" => HostOperation::IcebergDataFiles { url: string(o, "url")? },
         other => {
             return Err(Refusal::illegal_argument(format!(
@@ -603,7 +682,9 @@ fn kind(kind: &str) -> Result<Kind, Refusal> {
     match kind {
         "table" => Ok(Kind::Table),
         "view" => Ok(Kind::View),
-        other => Err(Refusal::illegal_argument(format!("a relation's kind is table or view, not {other}"))),
+        other => Err(Refusal::illegal_argument(format!(
+            "a relation's kind is table or view, not {other}"
+        ))),
     }
 }
 
@@ -654,9 +735,13 @@ fn read_source(o: &Obj) -> Result<Source, Refusal> {
         return Ok(Source::Remote { url, format });
     }
     if o.get("query").is_some() {
-        return Ok(Source::Query { sql: string(o, "query")? });
+        return Ok(Source::Query {
+            sql: string(o, "query")?,
+        });
     }
-    Err(Refusal::illegal_argument("a source is a relation, a file, a remote file or a query"))
+    Err(Refusal::illegal_argument(
+        "a source is a relation, a file, a remote file or a query",
+    ))
 }
 
 fn conversions(o: &Obj) -> Result<Vec<Conversion>, Refusal> {
@@ -670,7 +755,10 @@ fn conversions(o: &Obj) -> Result<Vec<Conversion>, Refusal> {
         .iter()
         .map(|n| {
             let c = object(n, "a conversion")?;
-            Ok(Conversion { column: string(c, "column")?, sql: string(c, "sql")? })
+            Ok(Conversion {
+                column: string(c, "column")?,
+                sql: string(c, "sql")?,
+            })
         })
         .collect()
 }
@@ -683,7 +771,10 @@ fn read_columns(o: &Obj) -> Result<Vec<Column>, Refusal> {
         .iter()
         .map(|n| {
             let c = object(n, "a column")?;
-            Ok(Column { target: string(c, "target")?, from: string(c, "from")? })
+            Ok(Column {
+                target: string(c, "target")?,
+                from: string(c, "from")?,
+            })
         })
         .collect()
 }
@@ -743,7 +834,9 @@ fn bool_field(o: &Obj, field: &str) -> Result<bool, Refusal> {
     match o.get(field) {
         None => Ok(false),
         Some(Node::Bool(b)) => Ok(*b),
-        Some(_) => Err(Refusal::illegal_argument(format!("an operation's {field} is true or false"))),
+        Some(_) => Err(Refusal::illegal_argument(format!(
+            "an operation's {field} is true or false"
+        ))),
     }
 }
 
@@ -756,7 +849,9 @@ mod tests {
     }
 
     fn statements(json: &str) -> Vec<String> {
-        DuckDbHostOperations.statements(&op(json).expect("an operation")).expect("statements")
+        DuckDbHostOperations
+            .statements(&op(json).expect("an operation"))
+            .expect("statements")
     }
 
     fn refused(json: &str) -> String {
@@ -811,8 +906,14 @@ mod tests {
                 "INSERT INTO Sales.\"order\" (id, \"select\") SELECT \"Id\", \"s\"\"x\" FROM read_csv('f', header = true, all_varchar = true)"
             ]
         );
-        assert_eq!(statements(r#"{"op":"drop","kind":"view","target":{"name":"v"}}"#), ["DROP VIEW IF EXISTS \"v\""]);
-        assert_eq!(statements(r#"{"op":"schema","name":"s"}"#), ["CREATE SCHEMA IF NOT EXISTS \"s\""]);
+        assert_eq!(
+            statements(r#"{"op":"drop","kind":"view","target":{"name":"v"}}"#),
+            ["DROP VIEW IF EXISTS \"v\""]
+        );
+        assert_eq!(
+            statements(r#"{"op":"schema","name":"s"}"#),
+            ["CREATE SCHEMA IF NOT EXISTS \"s\""]
+        );
         assert_eq!(
             statements(r#"{"op":"dropSchema","database":"d","name":"s"}"#),
             ["DROP SCHEMA IF EXISTS \"d\".\"s\""]
@@ -877,8 +978,14 @@ mod tests {
                 "SET autoinstall_known_extensions = false"
             ]
         );
-        assert_eq!(statements(r#"{"op":"fileSearchPath","folder":"/d"}"#), ["SET file_search_path = '/d'"]);
-        assert_eq!(statements(r#"{"op":"transaction","step":"begin"}"#), ["BEGIN TRANSACTION"]);
+        assert_eq!(
+            statements(r#"{"op":"fileSearchPath","folder":"/d"}"#),
+            ["SET file_search_path = '/d'"]
+        );
+        assert_eq!(
+            statements(r#"{"op":"transaction","step":"begin"}"#),
+            ["BEGIN TRANSACTION"]
+        );
         assert_eq!(statements(r#"{"op":"transaction","step":"commit"}"#), ["COMMIT"]);
         assert_eq!(statements(r#"{"op":"transaction","step":"rollback"}"#), ["ROLLBACK"]);
         assert_eq!(
@@ -891,23 +998,29 @@ mod tests {
     fn catalog_questions() {
         assert_eq!(
             statements(r#"{"op":"nameTaken","name":"T'"}"#),
-            ["SELECT (SELECT count(*) FROM duckdb_tables() WHERE database_name IN (current_database(), 'temp') AND \
+            [
+                "SELECT (SELECT count(*) FROM duckdb_tables() WHERE database_name IN (current_database(), 'temp') AND \
                  lower(table_name) = lower('T''')) + (SELECT count(*) FROM duckdb_views() WHERE NOT internal AND \
-                 database_name IN (current_database(), 'temp') AND lower(view_name) = lower('T''')) AS n"]
+                 database_name IN (current_database(), 'temp') AND lower(view_name) = lower('T''')) AS n"
+            ]
         );
         assert_eq!(
             statements(r#"{"op":"relationExists","name":{"name":"t","schema":"default","declared":true}}"#),
-            ["SELECT (SELECT count(*) FROM duckdb_tables() WHERE database_name = current_database() AND \
+            [
+                "SELECT (SELECT count(*) FROM duckdb_tables() WHERE database_name = current_database() AND \
                  lower(schema_name) = lower('main') AND lower(table_name) = lower('t')) + (SELECT count(*) FROM \
                  duckdb_views() WHERE NOT internal AND database_name = current_database() AND lower(schema_name) = \
-                 lower('main') AND lower(view_name) = lower('t')) AS n"]
+                 lower('main') AND lower(view_name) = lower('t')) AS n"
+            ]
         );
         assert_eq!(
             statements(r#"{"op":"relationExists","name":{"database":"d","schema":"default","name":"t"}}"#),
-            ["SELECT (SELECT count(*) FROM duckdb_tables() WHERE database_name = 'd' AND lower(schema_name) = \
+            [
+                "SELECT (SELECT count(*) FROM duckdb_tables() WHERE database_name = 'd' AND lower(schema_name) = \
                  lower('default') AND lower(table_name) = lower('t')) + (SELECT count(*) FROM duckdb_views() WHERE \
                  NOT internal AND database_name = 'd' AND lower(schema_name) = lower('default') AND \
-                 lower(view_name) = lower('t')) AS n"]
+                 lower(view_name) = lower('t')) AS n"
+            ]
         );
         assert_eq!(
             statements(r#"{"op":"tablesIn","schema":"s"}"#),
@@ -921,7 +1034,10 @@ mod tests {
                 "SELECT count(*) AS n FROM duckdb_schemas() WHERE database_name = 'd' AND lower(schema_name) = lower('s')"
             ]
         );
-        assert_eq!(statements(r#"{"op":"currentDatabase"}"#), ["SELECT current_database() AS name"]);
+        assert_eq!(
+            statements(r#"{"op":"currentDatabase"}"#),
+            ["SELECT current_database() AS name"]
+        );
         assert_eq!(statements(r#"{"op":"platform"}"#), ["PRAGMA platform"]);
         assert_eq!(
             statements(r#"{"op":"icebergManifestLists","url":"u"}"#),
@@ -942,19 +1058,43 @@ mod tests {
         let cases = [
             (r#"[]"#, "an operation is a JSON object"),
             (r#"{}"#, "an operation's op is a string"),
-            (r#"{"op":"nope"}"#, "a host's operation is not one this platform names: nope"),
-            (r#"{"op":"drop","kind":"index","target":{"name":"t"}}"#, "a relation's kind is table or view, not index"),
+            (
+                r#"{"op":"nope"}"#,
+                "a host's operation is not one this platform names: nope",
+            ),
+            (
+                r#"{"op":"drop","kind":"index","target":{"name":"t"}}"#,
+                "a relation's kind is table or view, not index",
+            ),
             (r#"{"op":"drop","kind":"table"}"#, "an operation names no target"),
-            (r#"{"op":"drop","kind":"table","target":[]}"#, "an operation's target is a JSON object"),
-            (r#"{"op":"drop","kind":"table","target":{"name":1}}"#, "an operation's name is a string"),
+            (
+                r#"{"op":"drop","kind":"table","target":[]}"#,
+                "an operation's target is a JSON object",
+            ),
+            (
+                r#"{"op":"drop","kind":"table","target":{"name":1}}"#,
+                "an operation's name is a string",
+            ),
             (
                 r#"{"op":"drop","kind":"table","target":{"name":"t","declared":"yes"}}"#,
                 "an operation's declared is true or false",
             ),
-            (r#"{"op":"count","from":{}}"#, "a source is a relation, a file, a remote file or a query"),
-            (r#"{"op":"count","from":{"relation":null}}"#, "an operation's relation is a JSON object"),
-            (r#"{"op":"count","from":{"file":{"at":"a"}}}"#, "an operation's format is a string"),
-            (r#"{"op":"count","from":{"file":{"format":"xml"}}}"#, "an operation's at is a string"),
+            (
+                r#"{"op":"count","from":{}}"#,
+                "a source is a relation, a file, a remote file or a query",
+            ),
+            (
+                r#"{"op":"count","from":{"relation":null}}"#,
+                "an operation's relation is a JSON object",
+            ),
+            (
+                r#"{"op":"count","from":{"file":{"at":"a"}}}"#,
+                "an operation's format is a string",
+            ),
+            (
+                r#"{"op":"count","from":{"file":{"format":"xml"}}}"#,
+                "an operation's at is a string",
+            ),
             (
                 r#"{"op":"count","from":{"file":{"at":"a","format":"xml"}}}"#,
                 "a file is read as csv, csvText, parquet or json, not xml",
@@ -963,7 +1103,10 @@ mod tests {
                 r#"{"op":"count","from":{"remote":{"url":"a","format":"json"}}}"#,
                 "a remote file is csv, parquet or iceberg, not json",
             ),
-            (r#"{"op":"count","from":{"query":null}}"#, "an operation's query is a string"),
+            (
+                r#"{"op":"count","from":{"query":null}}"#,
+                "an operation's query is a string",
+            ),
             (
                 r#"{"op":"relation","kind":"table","target":{"name":"t"},"replacing":null,"from":{"query":"q"}}"#,
                 "a relation's replacing is an array",
@@ -984,8 +1127,14 @@ mod tests {
                 r#"{"op":"secret","name":"s","scope":"x","credentials":{"KEY_ID":1}}"#,
                 "a credential is a string: KEY_ID",
             ),
-            (r#"{"op":"extensions","names":["a",1]}"#, "an operation's names is an array of strings"),
-            (r#"{"op":"icebergManifests"}"#, "an operation's lists is an array of strings"),
+            (
+                r#"{"op":"extensions","names":["a",1]}"#,
+                "an operation's names is an array of strings",
+            ),
+            (
+                r#"{"op":"icebergManifests"}"#,
+                "an operation's lists is an array of strings",
+            ),
         ];
         for (json, want) in cases {
             assert_eq!(refused(json), want, "{json}");
@@ -994,7 +1143,9 @@ mod tests {
 
     #[test]
     fn a_database_without_host_operations_refuses_each_by_name() {
-        let refused = Refused { database: "Postgres".to_owned() };
+        let refused = Refused {
+            database: "Postgres".to_owned(),
+        };
         let r = refused.open_database("p").unwrap_err();
         assert_eq!(r.class, Refusal::DIALECT_CAPABILITY);
         assert_eq!(

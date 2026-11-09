@@ -49,7 +49,12 @@ pub struct Refusal {
 
 impl Refusal {
     pub fn new(kind: &str, message: impl Into<String>) -> Refusal {
-        Refusal { kind: kind.to_owned(), phase: None, position: None, message: message.into() }
+        Refusal {
+            kind: kind.to_owned(),
+            phase: None,
+            position: None,
+            message: message.into(),
+        }
     }
 
     fn invalid_argument(message: impl Into<String>) -> Refusal {
@@ -150,7 +155,9 @@ fn on_big_stack<T: Send + 'static>(body: impl FnOnce() -> T + Send + 'static) ->
             }
         }
     })?;
-    answer.recv().map_err(|_| "the lite-worker thread ended without an answer".to_owned())?
+    answer
+        .recv()
+        .map_err(|_| "the lite-worker thread ended without an answer".to_owned())?
 }
 
 /// A dialect's refusal at the seam: its kind folded from the Java class it carries (`SEAM.md`, "Refusals"), the class
@@ -170,7 +177,9 @@ fn dialect_refusal(r: &lite_dialect::Refusal) -> Refusal {
 pub unsafe extern "C" fn lite_dialect(spec: *const c_char, op: *const c_char, args: *const c_char) -> *mut c_char {
     respond(|| {
         let read = || -> Result<(&str, &str, &str), Refusal> {
-            Ok((unsafe { text(spec, "spec") }?, unsafe { text(op, "op") }?, unsafe { text(args, "args") }?))
+            Ok((unsafe { text(spec, "spec") }?, unsafe { text(op, "op") }?, unsafe {
+                text(args, "args")
+            }?))
         };
         let (spec, op, args) = match read() {
             Ok(texts) => texts,
@@ -206,9 +215,11 @@ pub unsafe extern "C" fn lite_dialect(spec: *const c_char, op: *const c_char, ar
 pub unsafe extern "C" fn lite_front(door: *const c_char, dialect: *const c_char, text: *const c_char) -> *mut c_char {
     respond(|| {
         let read = || -> Result<(&str, &str, &str), Refusal> {
-            Ok((unsafe { self::text(door, "door") }?, unsafe { self::text(dialect, "dialect") }?, unsafe {
-                self::text(text, "text")
-            }?))
+            Ok((
+                unsafe { self::text(door, "door") }?,
+                unsafe { self::text(dialect, "dialect") }?,
+                unsafe { self::text(text, "text") }?,
+            ))
         };
         let (door, dialect, text) = match read() {
             Ok(texts) => texts,
@@ -252,9 +263,11 @@ pub unsafe extern "C" fn lite_front_model(
 ) -> *mut c_char {
     respond(|| {
         let read = || -> Result<(&str, &str, &str), Refusal> {
-            Ok((unsafe { self::text(dialect, "dialect") }?, unsafe { self::text(overlays, "overlays") }?, unsafe {
-                self::text(text, "text")
-            }?))
+            Ok((
+                unsafe { self::text(dialect, "dialect") }?,
+                unsafe { self::text(overlays, "overlays") }?,
+                unsafe { self::text(text, "text") }?,
+            ))
         };
         let (dialect, overlays, text) = match read() {
             Ok(texts) => texts,
@@ -265,7 +278,11 @@ pub unsafe extern "C" fn lite_front_model(
         };
         let grammars = match overlay_grammars(overlays) {
             Some(grammars) => grammars,
-            None => return Answer::Err(Refusal::invalid_argument("the overlays are not a JSON array of [name, lexable]")),
+            None => {
+                return Answer::Err(Refusal::invalid_argument(
+                    "the overlays are not a JSON array of [name, lexable]",
+                ));
+            }
         };
         let units = match lite_front::wire::parse(text, 1) {
             Ok(lite_front::wire::Json::Str(units)) => units,
@@ -317,14 +334,22 @@ pub unsafe extern "C" fn lite_front_engine(
         let spans = match spans {
             "true" => true,
             "false" => false,
-            _ => return Answer::Err(Refusal::invalid_argument(format!("spans is {spans}, not true or false"))),
+            _ => {
+                return Answer::Err(Refusal::invalid_argument(format!(
+                    "spans is {spans}, not true or false"
+                )));
+            }
         };
         if door != "document" && door != "lambdaJson" {
             return Answer::Err(Refusal::invalid_argument(format!("no engine door {door}")));
         }
         let grammars = match overlay_grammars(overlays) {
             Some(grammars) => grammars,
-            None => return Answer::Err(Refusal::invalid_argument("the overlays are not a JSON array of [name, lexable]")),
+            None => {
+                return Answer::Err(Refusal::invalid_argument(
+                    "the overlays are not a JSON array of [name, lexable]",
+                ));
+            }
         };
         let units = match lite_front::wire::parse(text, 1) {
             Ok(lite_front::wire::Json::Str(units)) => units,
@@ -342,7 +367,10 @@ pub unsafe extern "C" fn lite_front_engine(
 fn engine_answer(door: &str, spans: bool, grammars: &[(Vec<u16>, bool)], text: &[u16]) -> String {
     let overlays: Vec<lite_front::model_parser::OverlayGrammar<'_>> = grammars
         .iter()
-        .map(|(name, lexable)| lite_front::model_parser::OverlayGrammar { name, lexable: *lexable })
+        .map(|(name, lexable)| lite_front::model_parser::OverlayGrammar {
+            name,
+            lexable: *lexable,
+        })
         .collect();
     let answer = match door {
         "document" => lite_front::doors::document_with_overlays(text, spans, &overlays),
@@ -387,7 +415,10 @@ fn model_answer(dialect: lite_front::doors::Dialect, grammars: &[(Vec<u16>, bool
     use lite_front::codec;
     let overlays: Vec<lite_front::model_parser::OverlayGrammar<'_>> = grammars
         .iter()
-        .map(|(name, lexable)| lite_front::model_parser::OverlayGrammar { name, lexable: *lexable })
+        .map(|(name, lexable)| lite_front::model_parser::OverlayGrammar {
+            name,
+            lexable: *lexable,
+        })
         .collect();
     let answer = lite_front::doors::pmcd(text, dialect, &overlays);
     let mut w = codec::Writer::new();
@@ -398,7 +429,10 @@ fn model_answer(dialect: lite_front::doors::Dialect, grammars: &[(Vec<u16>, bool
         }
         w.raw("[");
         w.string(&lite_front::jtypes::JStr(o.name.clone()));
-        w.raw(&format!(",{},{},{},{},{}]", o.start_offset, o.end_offset, o.start_line, o.element_index, o.section_index));
+        w.raw(&format!(
+            ",{},{},{},{},{}]",
+            o.start_offset, o.end_offset, o.start_line, o.element_index, o.section_index
+        ));
     }
     w.raw("]");
     let sections = w.finish();
@@ -524,8 +558,11 @@ fn front_error(e: &lite_front::doors::JavaError) -> String {
 /// A C string the caller owns. Text holding a NUL cannot be one, so such an answer is refused instead.
 fn into_c(text: String) -> *mut c_char {
     let c = CString::new(text).unwrap_or_else(|_| {
-        CString::new(fold(&Answer::Err(Refusal::new("INTERNAL", "an answer held a NUL character"))))
-            .expect("a refusal's text holds no NUL")
+        CString::new(fold(&Answer::Err(Refusal::new(
+            "INTERNAL",
+            "an answer held a NUL character",
+        ))))
+        .expect("a refusal's text holds no NUL")
     });
     UNFREED.fetch_add(1, Ordering::SeqCst);
     c.into_raw()
@@ -541,7 +578,9 @@ unsafe fn text<'a>(arg: *const c_char, name: &str) -> Result<&'a str, Refusal> {
     }
     // SAFETY: non-null, and NUL-terminated and alive for the call by the caller's contract
     let bytes = unsafe { CStr::from_ptr(arg) };
-    bytes.to_str().map_err(|e| Refusal::invalid_argument(format!("{name} is not UTF-8: {e}")))
+    bytes
+        .to_str()
+        .map_err(|e| Refusal::invalid_argument(format!("{name} is not UTF-8: {e}")))
 }
 
 /// This library's version: `OK\n<version>`.
@@ -598,7 +637,9 @@ pub unsafe extern "C" fn lite_probe_refusal(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lite_probe_panic(message: *const c_char) -> *mut c_char {
     respond(|| {
-        let message = unsafe { text(message, "message") }.map(str::to_owned).unwrap_or_default();
+        let message = unsafe { text(message, "message") }
+            .map(str::to_owned)
+            .unwrap_or_default();
         panic!("{message}")
     })
 }
@@ -654,8 +695,14 @@ mod tests {
             position: Some((3, 14)),
             message: "expected ')'\nnear here".into(),
         };
-        assert_eq!(fold(&Answer::Err(refusal)), "ERR\nPARSER\nPARSE\n3:14\nexpected ')'\nnear here");
-        assert_eq!(fold(&Answer::Err(Refusal::new("INTERNAL", "boom"))), "ERR\nINTERNAL\n-\n-\nboom");
+        assert_eq!(
+            fold(&Answer::Err(refusal)),
+            "ERR\nPARSER\nPARSE\n3:14\nexpected ')'\nnear here"
+        );
+        assert_eq!(
+            fold(&Answer::Err(Refusal::new("INTERNAL", "boom"))),
+            "ERR\nINTERNAL\n-\n-\nboom"
+        );
     }
 
     #[test]
@@ -663,10 +710,16 @@ mod tests {
         let _serial = serial();
         let s = c("héllo, \u{1F600}\nworld");
         assert_eq!(take(unsafe { lite_echo(s.as_ptr()) }), "OK\nhéllo, \u{1F600}\nworld");
-        assert_eq!(take(unsafe { lite_echo(std::ptr::null()) }), "ERR\nINVALID_ARGUMENT\n-\n-\ntext is null");
+        assert_eq!(
+            take(unsafe { lite_echo(std::ptr::null()) }),
+            "ERR\nINVALID_ARGUMENT\n-\n-\ntext is null"
+        );
         let bad = [0xffu8, 0xfe, 0];
         let answer = take(unsafe { lite_echo(bad.as_ptr().cast()) });
-        assert!(answer.starts_with("ERR\nINVALID_ARGUMENT\n-\n-\ntext is not UTF-8"), "{answer}");
+        assert!(
+            answer.starts_with("ERR\nINVALID_ARGUMENT\n-\n-\ntext is not UTF-8"),
+            "{answer}"
+        );
     }
 
     #[test]
@@ -676,7 +729,10 @@ mod tests {
         let answer = take(unsafe { lite_probe_refusal(kind.as_ptr(), phase.as_ptr(), 2, 5, message.as_ptr()) });
         assert_eq!(answer, "ERR\nCOMPILATION\nTYPE\n2:5\nno such class");
         let message = c("on purpose");
-        assert_eq!(take(unsafe { lite_probe_panic(message.as_ptr()) }), "ERR\nINTERNAL\n-\n-\non purpose");
+        assert_eq!(
+            take(unsafe { lite_probe_panic(message.as_ptr()) }),
+            "ERR\nINTERNAL\n-\n-\non purpose"
+        );
     }
 
     #[test]
@@ -720,7 +776,10 @@ mod tests {
             "OK\n{\"sql\":\"SELECT ? AS value\",\"binds\":[{\"parameter\":\"#count\",\"binding\":{\"_type\":\"one\",\
              \"nullType\":\"BIGINT\",\"hole\":null}}],\"regions\":[]}"
         );
-        assert_eq!(dialect(DUCKDB, "physicalName", r#"{"name":"order"}"#), "OK\n\"\\\"order\\\"\"");
+        assert_eq!(
+            dialect(DUCKDB, "physicalName", r#"{"name":"order"}"#),
+            "OK\n\"\\\"order\\\"\""
+        );
         assert_eq!(lite_unfreed(), before);
     }
 
@@ -776,7 +835,10 @@ mod tests {
     fn a_panic_on_the_worker_is_an_answer() {
         let _serial = serial();
         assert_eq!(on_big_stack(|| 7), Ok(7));
-        assert_eq!(on_big_stack(|| -> i32 { panic!("on purpose") }), Err("on purpose".to_owned()));
+        assert_eq!(
+            on_big_stack(|| -> i32 { panic!("on purpose") }),
+            Err("on purpose".to_owned())
+        );
         assert_eq!(
             on_big_stack(|| -> i32 { std::panic::panic_any(3) }),
             Err("a panic with no message".to_owned())
@@ -789,9 +851,19 @@ mod tests {
     fn a_calling_thread_keeps_its_worker() {
         let _serial = serial();
         let here = on_big_stack(|| std::thread::current().id()).unwrap();
-        assert_ne!(here, std::thread::current().id(), "the body ran on a worker, not the caller");
-        assert_eq!(on_big_stack(|| std::thread::current().id()), Ok(here), "the next call reuses it");
-        let elsewhere = std::thread::spawn(|| on_big_stack(|| std::thread::current().id()).unwrap()).join().unwrap();
+        assert_ne!(
+            here,
+            std::thread::current().id(),
+            "the body ran on a worker, not the caller"
+        );
+        assert_eq!(
+            on_big_stack(|| std::thread::current().id()),
+            Ok(here),
+            "the next call reuses it"
+        );
+        let elsewhere = std::thread::spawn(|| on_big_stack(|| std::thread::current().id()).unwrap())
+            .join()
+            .unwrap();
         assert_ne!(elsewhere, here, "another calling thread has a worker of its own");
     }
 
@@ -821,9 +893,17 @@ mod tests {
     fn the_engine_doors_answer_json_errors_and_lone_surrogates() {
         let _serial = serial();
         let engine = |door: &str, spans: &str, text: &str| {
-            let quoted = format!("\"{}\"", text.replace('\\', "\\\\").replace('\n', "\\n").replace('"', "\\\""));
+            let quoted = format!(
+                "\"{}\"",
+                text.replace('\\', "\\\\").replace('\n', "\\n").replace('"', "\\\"")
+            );
             take(unsafe {
-                lite_front_engine(c(door).as_ptr(), c(spans).as_ptr(), c("[]").as_ptr(), c(&quoted).as_ptr())
+                lite_front_engine(
+                    c(door).as_ptr(),
+                    c(spans).as_ptr(),
+                    c("[]").as_ptr(),
+                    c(&quoted).as_ptr(),
+                )
             })
         };
         assert_eq!(
@@ -833,18 +913,30 @@ mod tests {
         );
         assert!(engine("lambdaJson", "true", "x|$x").contains("\"sourceInformation\":{"));
         let document = engine("document", "false", "Class a::B {}");
-        assert!(document.starts_with("OK\nA\n{\"_type\":\"data\",\"elements\":[{\"_type\":\"class\""), "{document}");
+        assert!(
+            document.starts_with("OK\nA\n{\"_type\":\"data\",\"elements\":[{\"_type\":\"class\""),
+            "{document}"
+        );
         assert!(!document.contains("sourceInformation"), "{document}");
         // a parse error, as lite_front writes it
         let error = engine("document", "true", "Class a::B {");
-        assert!(error.starts_with("OK\nE\n{\"class\":\"com.legend.parser.ParseException\""), "{error}");
+        assert!(
+            error.starts_with("OK\nE\n{\"class\":\"com.legend.parser.ParseException\""),
+            "{error}"
+        );
         // the emitter's refusal of a model the parser accepts (the oracle's one: a graph-fetch argument it has no
         // rule for), a placed parse error since 2026-11-09 (ruling 4 of docs/rust-port/PHASE2.md section 6)
         let refused = engine("document", "false", "function f::g():Any[*]{#{a::B{c(f())}}#}");
-        assert!(refused.starts_with("OK\nE\n{\"class\":\"com.legend.parser.ParseException\""), "{refused}");
+        assert!(
+            refused.starts_with("OK\nE\n{\"class\":\"com.legend.parser.ParseException\""),
+            "{refused}"
+        );
         // a lone surrogate in a string literal: the JSON crosses as a JSON string, its surrogate escaped
         let surrogate = engine("lambdaJson", "false", "|'a\\uD800b'");
-        assert!(surrogate.starts_with("OK\nU\n\"{\\\"_type\\\":\\\"lambda\\\""), "{surrogate}");
+        assert!(
+            surrogate.starts_with("OK\nU\n\"{\\\"_type\\\":\\\"lambda\\\""),
+            "{surrogate}"
+        );
         assert!(surrogate.contains("a\\ud800b"), "{surrogate}");
         assert!(engine("document", "maybe", "Class a::B {}").starts_with("ERR\nINVALID_ARGUMENT"));
         assert!(engine("pmcd", "true", "Class a::B {}").starts_with("ERR\nINVALID_ARGUMENT"));
@@ -854,26 +946,53 @@ mod tests {
     fn the_parity_probes_answer_through_the_front_door() {
         let _serial = serial();
         let front = |door: &str, dialect: &str, text: &str| {
-            let quoted = format!("\"{}\"", text.replace('\\', "\\\\").replace('\n', "\\n").replace('"', "\\\""));
+            let quoted = format!(
+                "\"{}\"",
+                text.replace('\\', "\\\\").replace('\n', "\\n").replace('"', "\\\"")
+            );
             take(unsafe { lite_front(c(door).as_ptr(), c(dialect).as_ptr(), c(&quoted).as_ptr()) })
         };
         assert_eq!(
-            front("sectionHeaders", "LEGEND_ENGINE", "Class a::A {}\n###Relational\nDatabase a::D ()\n"),
+            front(
+                "sectionHeaders",
+                "LEGEND_ENGINE",
+                "Class a::A {}\n###Relational\nDatabase a::D ()\n"
+            ),
             "OK\nA\n[[\"Relational\",28]]"
         );
         assert_eq!(front("sectionHeaders", "LEGEND_ENGINE", "Class a::A {}"), "OK\nA\n[]");
-        assert_eq!(front("elementSites", "LEGEND_ENGINE", "Class a::A {}\nEnum a::E { X }"), "OK\nA\n2");
+        assert_eq!(
+            front("elementSites", "LEGEND_ENGINE", "Class a::A {}\nEnum a::E { X }"),
+            "OK\nA\n2"
+        );
         let refused = front("elementSites", "LEGEND_ENGINE", "Class a::A<T> {}");
-        assert!(refused.starts_with("OK\nE\n{\"class\":\"com.legend.parser.ParseException\""), "{refused}");
+        assert!(
+            refused.starts_with("OK\nE\n{\"class\":\"com.legend.parser.ParseException\""),
+            "{refused}"
+        );
         assert_eq!(front("elementSites", "LEGEND_LITE", "Class a::A<T> {}"), "OK\nA\n1");
         let databases = front("databaseSites", "LEGEND_ENGINE", "###Relational\nDatabase a::D ( )");
-        assert!(databases.starts_with("OK\nA\n[[\"a::D\",\"{\\\"_type\\\":\\\"relational\\\""), "{databases}");
+        assert!(
+            databases.starts_with("OK\nA\n[[\"a::D\",\"{\\\"_type\\\":\\\"relational\\\""),
+            "{databases}"
+        );
         assert_eq!(
-            front("declarationExtents", "LEGEND_PLATFORM", "Enum a::E { X }\nnative function a::n(): String[1];"),
+            front(
+                "declarationExtents",
+                "LEGEND_PLATFORM",
+                "Enum a::E { X }\nnative function a::n(): String[1];"
+            ),
             "OK\nA\n[[\"Enum\",0,15],[\"native function\",16,50]]"
         );
-        let unterminated = front("declarationExtents", "LEGEND_PLATFORM", "native function a::n(): String[1]");
-        assert!(unterminated.starts_with("OK\nE\n{\"class\":\"java.lang.IllegalStateException\""), "{unterminated}");
+        let unterminated = front(
+            "declarationExtents",
+            "LEGEND_PLATFORM",
+            "native function a::n(): String[1]",
+        );
+        assert!(
+            unterminated.starts_with("OK\nE\n{\"class\":\"java.lang.IllegalStateException\""),
+            "{unterminated}"
+        );
         let known = front("knownSections", "LEGEND_ENGINE", "");
         assert!(known.starts_with("OK\nA\n[\"Pure\","), "{known}");
         assert_eq!(known.matches(',').count(), 24, "{known}");
@@ -900,7 +1019,11 @@ mod tests {
             .expect("a thread")
             .join()
             .expect("no panic");
-        assert!(answer.starts_with("OK\n\"SELECT "), "{}", &answer[..answer.len().min(200)]);
+        assert!(
+            answer.starts_with("OK\n\"SELECT "),
+            "{}",
+            &answer[..answer.len().min(200)]
+        );
         assert_eq!(answer.matches("NOT").count(), nots);
     }
 }

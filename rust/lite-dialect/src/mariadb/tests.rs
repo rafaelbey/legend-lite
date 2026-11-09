@@ -24,7 +24,12 @@ fn t(s: Scalar) -> SqlType {
 }
 
 fn out(name: &str, ty: SqlType) -> OutputCol {
-    OutputCol { name: name.into(), r#type: ty, nullable: true, origin: Origin::Physical }
+    OutputCol {
+        name: name.into(),
+        r#type: ty,
+        nullable: true,
+        origin: Origin::Physical,
+    }
 }
 
 fn table(alias: &str, outputs: Vec<OutputCol>) -> SqlSource {
@@ -46,7 +51,12 @@ fn t0() -> SqlSource {
             out("k", t(Scalar::Varchar)),
             out("n", t(Scalar::Bigint)),
             out("s", t(Scalar::Varchar)),
-            out("xs", SqlType::Array { element: Box::new(t(Scalar::Bigint)) }),
+            out(
+                "xs",
+                SqlType::Array {
+                    element: Box::new(t(Scalar::Bigint)),
+                },
+            ),
         ],
     )
 }
@@ -55,7 +65,10 @@ fn col(name: &str, ty: SqlType) -> SqlExpr {
     SqlExpr::Column(Column {
         table: Some("t0".into()),
         name: name.into(),
-        r#type: TypeFact::Typed { r#type: ty, nullable: true },
+        r#type: TypeFact::Typed {
+            r#type: ty,
+            nullable: true,
+        },
         origin: Some(Origin::Physical),
     })
 }
@@ -73,7 +86,12 @@ fn s() -> SqlExpr {
 }
 
 fn xs() -> SqlExpr {
-    col("xs", SqlType::Array { element: Box::new(t(Scalar::Bigint)) })
+    col(
+        "xs",
+        SqlType::Array {
+            element: Box::new(t(Scalar::Bigint)),
+        },
+    )
 }
 
 fn proj(e: SqlExpr, alias: &str) -> Projection {
@@ -114,7 +132,12 @@ fn window(f: SqlAgg, partition_by: Vec<SqlExpr>, order_by: Vec<SortKey>, frame: 
 }
 
 fn string_agg(x: SqlExpr) -> SqlAgg {
-    SqlAgg::Reducer(build::reducer(AggFn::StringAgg, vec![x, string_lit(",")], false, Vec::new()))
+    SqlAgg::Reducer(build::reducer(
+        AggFn::StringAgg,
+        vec![x, string_lit(",")],
+        false,
+        Vec::new(),
+    ))
 }
 
 // ---- the helpers' defaults and the type names no cast reaches
@@ -139,7 +162,8 @@ fn the_helpers_defaults_no_caller_reaches_answer_as_java() {
         );
         // the bit operators, unsigned here, read back signed
         let mut w = SqlWriter::new();
-        d.bit_op(&mut w, SqlFn::BitShiftLeft, &[int_lit(1), int_lit(63)]).unwrap();
+        d.bit_op(&mut w, SqlFn::BitShiftLeft, &[int_lit(1), int_lit(63)])
+            .unwrap();
         assert_eq!(w.into_text().unwrap(), "CAST(1 << 63 AS SIGNED)");
     }
 }
@@ -153,11 +177,17 @@ fn the_cast_type_names_no_cast_reaches_answer_as_java() {
         assert_eq!(d.scalar_type_name(Scalar::Time).unwrap(), "TIME(6)");
         assert_eq!(
             refused(d.scalar_type_name(Scalar::DecimalText)),
-            (Refusal::ILLEGAL_STATE, "DECIMAL_TEXT cast reached a dialect without DECIMAL_TEXT support".to_owned())
+            (
+                Refusal::ILLEGAL_STATE,
+                "DECIMAL_TEXT cast reached a dialect without DECIMAL_TEXT support".to_owned()
+            )
         );
         assert_eq!(
             refused(d.struct_type_name(&[])),
-            (Refusal::DIALECT_CAPABILITY, "a STRUCT type reached a dialect without struct support".to_owned())
+            (
+                Refusal::DIALECT_CAPABILITY,
+                "a STRUCT type reached a dialect without struct support".to_owned()
+            )
         );
         assert_eq!(d.array_type_name("BIGINT").unwrap(), "LONGTEXT");
         assert_eq!(d.map_type_name("CHAR", "BIGINT"), "LONGTEXT");
@@ -173,7 +203,10 @@ fn a_float_is_a_double_by_its_exponent_and_never_non_finite() {
     // a FloatLit holds no non-finite value: the wall no oracle line reaches
     assert_eq!(
         refused(d.float_literal(f64::NAN)),
-        (Refusal::DIALECT_CAPABILITY, "a NaN literal reached MariaDB, whose DOUBLE has no infinity or NaN".to_owned())
+        (
+            Refusal::DIALECT_CAPABILITY,
+            "a NaN literal reached MariaDB, whose DOUBLE has no infinity or NaN".to_owned()
+        )
     );
     assert_eq!(
         refused(MariaDb::mysql().float_literal(f64::NEG_INFINITY)),
@@ -199,7 +232,10 @@ fn mysql_reads_a_row_where_mariadb_refuses_its_recursive_ctes() {
         xs(),
         build::lambda_of(
             vec!["x".into(), "acc".into()],
-            call(SqlFn::Plus, vec![build::derived(None, "acc"), build::derived(None, "x")]),
+            call(
+                SqlFn::Plus,
+                vec![build::derived(None, "acc"), build::derived(None, "x")],
+            ),
         ),
         int_lit(0),
         false,
@@ -222,7 +258,10 @@ fn mysql_reads_a_row_where_mariadb_refuses_its_recursive_ctes() {
             xs(),
             build::lambda(
                 &["acc", "x"],
-                call(SqlFn::Plus, vec![build::derived(None, "acc"), build::derived(None, "x")]),
+                call(
+                    SqlFn::Plus,
+                    vec![build::derived(None, "acc"), build::derived(None, "x")],
+                ),
             ),
         ],
     );
@@ -254,8 +293,13 @@ fn mysql_joins_laterally_where_mariadb_refuses() {
     let (maria, my) = (MariaDb::new(), MariaDb::mysql());
     let source = |w: &mut SqlWriter, d: &MariaDb, src: &SqlSource| d.source(w, src, 0);
     // a lateral join to no derived table
-    let to_table =
-        build::join(t0(), table("t1", vec![out("v", t(Scalar::Bigint))]), JoinKind::CrossLateral, None).unwrap();
+    let to_table = build::join(
+        t0(),
+        table("t1", vec![out("v", t(Scalar::Bigint))]),
+        JoinKind::CrossLateral,
+        None,
+    )
+    .unwrap();
     let mut w = SqlWriter::new();
     assert_eq!(
         refused(source(&mut w, &maria, &to_table)).1,
@@ -263,13 +307,27 @@ fn mysql_joins_laterally_where_mariadb_refuses() {
     );
     let mut w = SqlWriter::new();
     source(&mut w, &my, &to_table).unwrap();
-    assert_eq!(w.into_text().unwrap(), "\"t\" AS \"t0\"\nCROSS JOIN LATERAL \"t\" AS \"t1\"");
+    assert_eq!(
+        w.into_text().unwrap(),
+        "\"t\" AS \"t0\"\nCROSS JOIN LATERAL \"t\" AS \"t1\""
+    );
     // a lateral subquery of no declared column
-    let undeclared =
-        SqlQuery::Select(Box::new(SqlSelect { outputs: Vec::new(), ..build::star_of(table("t2", vec![])).unwrap() }));
-    let lateral = build::join(t0(), build::subselect(undeclared, "l", None), JoinKind::CrossLateral, None).unwrap();
+    let undeclared = SqlQuery::Select(Box::new(SqlSelect {
+        outputs: Vec::new(),
+        ..build::star_of(table("t2", vec![])).unwrap()
+    }));
+    let lateral = build::join(
+        t0(),
+        build::subselect(undeclared, "l", None),
+        JoinKind::CrossLateral,
+        None,
+    )
+    .unwrap();
     let mut w = SqlWriter::new();
-    assert_eq!(refused(source(&mut w, &maria, &lateral)).1, "a lateral subquery of undeclared columns reached MariaDB");
+    assert_eq!(
+        refused(source(&mut w, &maria, &lateral)).1,
+        "a lateral subquery of undeclared columns reached MariaDB"
+    );
     let mut w = SqlWriter::new();
     source(&mut w, &my, &lateral).unwrap();
     assert!(w.into_text().unwrap().contains("CROSS JOIN LATERAL ("));
@@ -280,8 +338,13 @@ fn mysql_joins_laterally_where_mariadb_refuses() {
         build::projection(build::star(Some("t2")), None, None).unwrap(),
     ];
     two.outputs = vec![out("v", t(Scalar::Bigint))];
-    let lateral =
-        build::join(t0(), build::subselect(build::query(two), "l", None), JoinKind::CrossLateral, None).unwrap();
+    let lateral = build::join(
+        t0(),
+        build::subselect(build::query(two), "l", None),
+        JoinKind::CrossLateral,
+        None,
+    )
+    .unwrap();
     let mut w = SqlWriter::new();
     assert_eq!(
         refused(source(&mut w, &maria, &lateral)).1,
@@ -303,7 +366,10 @@ fn the_family_hooks_answer_each_its_own() {
         piece_text(maria.array_agg(true, text("v"), Some(text("o")), true)),
         "JSON_ARRAYAGG(DISTINCT v ORDER BY o LIMIT 1)"
     );
-    assert_eq!(piece_text(my.array_agg(false, text("v"), None, true)), "JSON_ARRAYAGG(v)");
+    assert_eq!(
+        piece_text(my.array_agg(false, text("v"), None, true)),
+        "JSON_ARRAYAGG(v)"
+    );
     assert_eq!(
         piece_text(my.array_agg(true, text("v"), Some(text("o")), true)),
         "JSON_EXTRACT(CAST(CONCAT('[', GROUP_CONCAT(DISTINCT JSON_ARRAY(v) ORDER BY o SEPARATOR ','), ']') AS JSON), \
@@ -314,9 +380,15 @@ fn the_family_hooks_answer_each_its_own() {
         piece_text(my.index_path(text("i"))),
         "(CASE WHEN (i) < 0 THEN CONCAT('$[last-', -(i) - 1, ']') ELSE CONCAT('$[', i, ']') END)"
     );
-    assert_eq!((maria.group_ref(2), my.group_ref(2)), ("\\2".to_owned(), "$2".to_owned()));
+    assert_eq!(
+        (maria.group_ref(2), my.group_ref(2)),
+        ("\\2".to_owned(), "$2".to_owned())
+    );
     assert_eq!((maria.product(), my.product()), ("MariaDB", "MySQL"));
-    assert_eq!(piece_text(maria.json_table(text("j"), "S".into(), "__t".into())), "JSON_TABLE(j, S) AS __t");
+    assert_eq!(
+        piece_text(maria.json_table(text("j"), "S".into(), "__t".into())),
+        "JSON_TABLE(j, S) AS __t"
+    );
     assert_eq!(
         piece_text(my.json_table(text("j"), "S".into(), "\"__a\"".into())),
         "(LATERAL (SELECT j AS \"j\") AS \"__a__j\" CROSS JOIN JSON_TABLE(\"__a__j\".\"j\", S) AS \"__a\")"
@@ -327,8 +399,14 @@ fn the_family_hooks_answer_each_its_own() {
         "(CASE WHEN JSON_TYPE(JSON_EXTRACT(j, p)) = 'NULL' THEN NULL ELSE JSON_UNQUOTE(JSON_EXTRACT(j, p)) END)"
     );
     assert_eq!(maria.json_text_of("j", "p"), "JSON_VALUE(j, p)");
-    assert_eq!(my.json_text_of("j", "p"), piece_text(my.json_text(text("j"), text("p"))));
-    assert_eq!(piece_text(maria.json_member(text("j"), text("p"))), "NULLIF(JSON_EXTRACT(j, p), 'null')");
+    assert_eq!(
+        my.json_text_of("j", "p"),
+        piece_text(my.json_text(text("j"), text("p")))
+    );
+    assert_eq!(
+        piece_text(maria.json_member(text("j"), text("p"))),
+        "NULLIF(JSON_EXTRACT(j, p), 'null')"
+    );
     assert_eq!(
         piece_text(my.json_member(text("j"), text("p"))),
         "(CASE WHEN JSON_TYPE(JSON_EXTRACT(j, p)) = 'NULL' THEN NULL ELSE JSON_EXTRACT(j, p) END)"
@@ -336,8 +414,14 @@ fn the_family_hooks_answer_each_its_own() {
     assert_eq!((maria.boolean_column(), my.boolean_column()), ("BOOLEAN", "INT"));
     assert_eq!((maria.json_is_binary(), my.json_is_binary()), (false, true));
     assert_eq!((maria.correlates_derived(), my.correlates_derived()), (false, true));
-    assert_eq!((maria.window_quantiles_native(), my.window_quantiles_native()), (true, false));
-    assert_eq!((maria.grouped_modes_counted(), my.grouped_modes_counted()), (false, true));
+    assert_eq!(
+        (maria.window_quantiles_native(), my.window_quantiles_native()),
+        (true, false)
+    );
+    assert_eq!(
+        (maria.grouped_modes_counted(), my.grouped_modes_counted()),
+        (false, true)
+    );
     assert_eq!(piece_text(maria.json_as_text(text("j"))), "CAST(j AS CHAR)");
     assert_eq!(
         piece_text(my.json_as_text(text("j"))),
@@ -348,7 +432,10 @@ fn the_family_hooks_answer_each_its_own() {
         piece_text(maria.two_rows(text("m"))),
         "(SELECT 1 FROM JSON_TABLE(JSON_ARRAY(@legend_raise := m, 0), '$[*]' COLUMNS (\"x\" LONGTEXT PATH '$')) AS __r)"
     );
-    assert_eq!(piece_text(my.two_rows(text("m"))), "(SELECT @legend_raise := m UNION ALL SELECT 0)");
+    assert_eq!(
+        piece_text(my.two_rows(text("m"))),
+        "(SELECT @legend_raise := m UNION ALL SELECT 0)"
+    );
     let date = col("d", t(Scalar::Date));
     assert_eq!(piece_text(maria.year_of(&date)), "YEAR(\"t0\".\"d\")");
     assert_eq!(piece_text(my.year_of(&date)), "CAST(YEAR(\"t0\".\"d\") AS SIGNED)");
@@ -360,10 +447,16 @@ fn the_literals_are_each_databases_own() {
     assert_eq!(maria.string_literal("it's"), "'it''s'");
     assert_eq!(maria.string_literal("a\\b"), "'a\\b'");
     // an odd run of backslashes before a quote: each backslash its own character
-    assert_eq!(maria.string_literal("a\\'"), "CONCAT('a', CHAR(92 USING utf8mb4), '''')");
+    assert_eq!(
+        maria.string_literal("a\\'"),
+        "CONCAT('a', CHAR(92 USING utf8mb4), '''')"
+    );
     assert_eq!(maria.string_literal("\\"), "CONCAT('', CHAR(92 USING utf8mb4), '')");
     assert_eq!(my.string_literal("plain"), "'plain'");
-    assert_eq!(my.string_literal("a\\'b"), "CONCAT('', 'a', CHAR(92 USING utf8mb4), CHAR(39 USING utf8mb4), 'b')");
+    assert_eq!(
+        my.string_literal("a\\'b"),
+        "CONCAT('', 'a', CHAR(92 USING utf8mb4), CHAR(39 USING utf8mb4), 'b')"
+    );
     assert_eq!(
         maria.timestamp_lit("2024-01-02T03:04:05.123456").unwrap(),
         "CAST('2024-01-02 03:04:05.123456' AS DATETIME(6))"
@@ -386,13 +479,19 @@ fn the_facts_and_the_wire_answer_as_java() {
     assert_eq!(maria.dialect_name(), "MariaDb");
     assert_eq!(my.dialect_name(), "MySql");
     assert_eq!(maria.session_setup().len(), 7);
-    assert_eq!(maria.session_setup()[0], "SET SESSION optimizer_switch = 'condition_pushdown_for_derived=off'");
+    assert_eq!(
+        maria.session_setup()[0],
+        "SET SESSION optimizer_switch = 'condition_pushdown_for_derived=off'"
+    );
     assert_eq!(
         maria.session_setup()[1],
         "SET SESSION sql_mode = 'ANSI_QUOTES,PIPES_AS_CONCAT,NO_BACKSLASH_ESCAPES,STRICT_ALL_TABLES,\
          NO_ENGINE_SUBSTITUTION'"
     );
-    assert_eq!(maria.session_setup()[5], "SET SESSION max_recursive_iterations = 100000000");
+    assert_eq!(
+        maria.session_setup()[5],
+        "SET SESSION max_recursive_iterations = 100000000"
+    );
     assert_eq!(my.session_setup().len(), 6);
     assert_eq!(
         my.session_setup()[0],
@@ -411,7 +510,10 @@ fn the_facts_and_the_wire_answer_as_java() {
         assert_eq!(d.wire_type_name(Some("LONGTEXT")), "VARCHAR");
         assert_eq!(d.wire_type_name(Some("UUID")), "VARCHAR");
         assert_eq!(d.wire_type_name(Some("DATETIME")), "TIMESTAMP");
-        assert_eq!(d.wire_type_name(Some("BIGINT")), crate::wire_names::fold(Some("BIGINT")));
+        assert_eq!(
+            d.wire_type_name(Some("BIGINT")),
+            crate::wire_names::fold(Some("BIGINT"))
+        );
         assert_eq!(d.wire_type_name(None), crate::wire_names::fold(None));
         assert_eq!(d.typing_wire_name(Some("TINYTEXT")), Some("VARCHAR".to_owned()));
         assert!(d.delivers_own(&t(Scalar::Varchar), "NULL"));
@@ -419,9 +521,26 @@ fn the_facts_and_the_wire_answer_as_java() {
         assert!(d.delivers_own(&t(Scalar::Bigint), "DECIMAL(65,0)"));
         assert!(d.delivers_own(&t(Scalar::Integer), "BIGINT UNSIGNED"));
         assert!(!d.delivers_own(&t(Scalar::Bigint), "DECIMAL(65,2)"));
-        assert!(d.delivers_own(&SqlType::Decimal { precision: 10, scale: 2 }, "DECIMAL(12,2)"));
-        assert!(!d.delivers_own(&SqlType::Decimal { precision: 10, scale: 2 }, "DECIMAL(12,3)"));
-        assert!(d.delivers_own(&SqlType::Array { element: Box::new(t(Scalar::Bigint)) }, "JSON"));
+        assert!(d.delivers_own(
+            &SqlType::Decimal {
+                precision: 10,
+                scale: 2
+            },
+            "DECIMAL(12,2)"
+        ));
+        assert!(!d.delivers_own(
+            &SqlType::Decimal {
+                precision: 10,
+                scale: 2
+            },
+            "DECIMAL(12,3)"
+        ));
+        assert!(d.delivers_own(
+            &SqlType::Array {
+                element: Box::new(t(Scalar::Bigint))
+            },
+            "JSON"
+        ));
         assert!(d.delivers_own(&t(Scalar::Json), "VARCHAR"));
         assert!(!d.delivers_own(&t(Scalar::Double), "DECIMAL(10,0)"));
         assert_eq!(d.script(&["a".into(), "b".into()]), "a;\nb;");
@@ -434,8 +553,14 @@ fn the_facts_and_the_wire_answer_as_java() {
                 "the engine's H2 text reached MariaDB, which has no translation of it".to_owned()
             )
         );
-        assert_eq!(refused(d.typeof_name(Scalar::Bigint)).1, "typeof reached MariaDB: its type names are DuckDB's");
-        assert_eq!(d.hole_type(ValueKind::Date).unwrap(), TypeSpelling::new("DATE", crate::statement::Digits::None));
+        assert_eq!(
+            refused(d.typeof_name(Scalar::Bigint)).1,
+            "typeof reached MariaDB: its type names are DuckDB's"
+        );
+        assert_eq!(
+            d.hole_type(ValueKind::Date).unwrap(),
+            TypeSpelling::new("DATE", crate::statement::Digits::None)
+        );
         assert_eq!(
             d.hole_type(ValueKind::DateTimeNanos).unwrap(),
             TypeSpelling::new("DATETIME(6)", crate::statement::Digits::None)
@@ -478,9 +603,15 @@ fn a_root_select_delivers_its_labels_and_a_nested_one_does_not() {
         ..root.clone()
     }));
     let text = AnsiSqlRenderer::render(&MariaDb::new(), labelled.clone()).unwrap();
-    assert_eq!(text, "SELECT CAST(\"t0\".\"n\" AS DOUBLE) AS \"n\"\nFROM \"t\" AS \"t0\"");
+    assert_eq!(
+        text,
+        "SELECT CAST(\"t0\".\"n\" AS DOUBLE) AS \"n\"\nFROM \"t\" AS \"t0\""
+    );
     // nested, the same select is no root: its value as it is
-    let outer = select(vec![proj(col("n", t(Scalar::Bigint)), "n")], build::subselect(labelled, "q", None));
+    let outer = select(
+        vec![proj(col("n", t(Scalar::Bigint)), "n")],
+        build::subselect(labelled, "q", None),
+    );
     let outer = SqlQuery::Select(Box::new(SqlSelect {
         outputs: vec![build::output_col("n", t(Scalar::Bigint), true)],
         ..outer
@@ -507,13 +638,20 @@ fn a_root_select_delivers_its_labels_and_a_nested_one_does_not() {
 #[test]
 fn a_mode_or_a_quantile_no_count_reached_is_javas_illegal_state() {
     // a windowed MODE in ORDER BY: modesCounted reads only the projections, HAVING and QUALIFY
-    let mode =
-        window(SqlAgg::Reducer(build::reducer(AggFn::Mode, vec![n()], false, Vec::new())), vec![k()], Vec::new(), None);
+    let mode = window(
+        SqlAgg::Reducer(build::reducer(AggFn::Mode, vec![n()], false, Vec::new())),
+        vec![k()],
+        Vec::new(),
+        None,
+    );
     let mut s = select(vec![proj(k(), "k")], t0());
     s.order_by = vec![build::sort_key(mode, true, None, None)];
     assert_eq!(
         refused(AnsiSqlRenderer::render(&MariaDb::new(), build::query(s))),
-        (Refusal::ILLEGAL_STATE, "a MODE reached MariaDB's writer uncounted: modesCounted did not run".to_owned())
+        (
+            Refusal::ILLEGAL_STATE,
+            "a MODE reached MariaDB's writer uncounted: modesCounted did not run".to_owned()
+        )
     );
     // MySQL reads a whole partition's median from the ranks modesCounted adds
     let median = window(
@@ -553,15 +691,22 @@ fn the_day_offsets_of_a_range_frame_are_javas_double_text() {
     let d = MariaDb::new();
     assert_eq!(d.interval_days(2, "days", true), Ok("2.0".to_owned()));
     assert_eq!(d.interval_days(36, "HOURS", true), Ok("1.5".to_owned()));
-    assert_eq!(d.interval_days(1, "MILLISECONDS", true), Ok("1.1574074074074074E-8".to_owned()));
+    assert_eq!(
+        d.interval_days(1, "MILLISECONDS", true),
+        Ok("1.1574074074074074E-8".to_owned())
+    );
     assert_eq!(
         d.interval_days(1, "MONTHS", true),
-        Err(Refusal::capability("a MONTHS window frame offset over this key reached MariaDB"))
+        Err(Refusal::capability(
+            "a MONTHS window frame offset over this key reached MariaDB"
+        ))
     );
     // an interval offset over a key that is no date (the frame has no ORDER BY): refused whatever its unit
     assert_eq!(
         d.interval_days(1, "DAYS", false),
-        Err(Refusal::capability("a DAYS window frame offset over this key reached MariaDB"))
+        Err(Refusal::capability(
+            "a DAYS window frame offset over this key reached MariaDB"
+        ))
     );
 }
 
@@ -570,14 +715,21 @@ fn the_day_offsets_of_a_range_frame_are_javas_double_text() {
 /// The rewritten select's FROM (a subselect over the numbered rows) and its first projection's value.
 fn numbered(q: &SqlQuery) -> (&SqlSelect, &SqlExpr) {
     let SqlQuery::Select(s) = q else { panic!("a select") };
-    let SqlSource::Subselect { inner, alias, .. } = &s.from else { panic!("a subselect FROM: {:?}", s.from) };
+    let SqlSource::Subselect { inner, alias, .. } = &s.from else {
+        panic!("a subselect FROM: {:?}", s.from)
+    };
     assert_eq!(alias, "t0");
-    let SqlQuery::Select(rows) = inner.as_ref() else { panic!("a select of rows") };
+    let SqlQuery::Select(rows) = inner.as_ref() else {
+        panic!("a select of rows")
+    };
     (rows, &s.projections[1].expr)
 }
 
 fn names(s: &SqlSelect) -> Vec<String> {
-    s.projections.iter().map(|p| p.alias.clone().unwrap_or_default()).collect()
+    s.projections
+        .iter()
+        .map(|p| p.alias.clone().unwrap_or_default())
+        .collect()
 }
 
 fn rewritten(pass: &mut dyn SqlRewriter, q: SqlQuery) -> SqlQuery {
@@ -586,47 +738,79 @@ fn rewritten(pass: &mut dyn SqlRewriter, q: SqlQuery) -> SqlQuery {
 
 #[test]
 fn a_windowed_string_agg_over_rows_is_the_aggregate_of_its_frame() {
-    let frame =
-        Frame { kind: FrameKind::Rows, from: Bound::Preceding { n: JavaNumber::Integer(1) }, to: Bound::CurrentRow };
-    let w = window(string_agg(s()), vec![k()], vec![build::sort_key(n(), true, None, None)], Some(frame));
+    let frame = Frame {
+        kind: FrameKind::Rows,
+        from: Bound::Preceding {
+            n: JavaNumber::Integer(1),
+        },
+        to: Bound::CurrentRow,
+    };
+    let w = window(
+        string_agg(s()),
+        vec![k()],
+        vec![build::sort_key(n(), true, None, None)],
+        Some(frame),
+    );
     let q = build::query(select(vec![proj(k(), "k"), proj(w, "joined")], t0()));
     let mut pass = WindowAggregatesAsCorrelated::new(&[AggFn::StringAgg]);
     let out = rewritten(&mut pass, q);
     let (rows, joined) = numbered(&out);
     assert_eq!(names(rows), ["k", "n", "s", "xs", "__wa0c0p0", "__wa0c0a0", "__wa0c0n"]);
     // the position: ROW_NUMBER over the partition in the window's order, ties broken by every column of the FROM
-    let SqlExpr::WindowCall { order_by, .. } = &rows.projections[6].expr else { panic!("a window") };
+    let SqlExpr::WindowCall { order_by, .. } = &rows.projections[6].expr else {
+        panic!("a window")
+    };
     assert_eq!(order_by.len(), 5);
-    let SqlExpr::ScalarSubquery { subquery, .. } = joined else { panic!("a scalar subquery: {joined:?}") };
+    let SqlExpr::ScalarSubquery { subquery, .. } = joined else {
+        panic!("a scalar subquery: {joined:?}")
+    };
     let d = MariaDb::new();
     let mut w = SqlWriter::new();
     d.query(&mut w, subquery, 1).unwrap();
     let sql = w.into_text().unwrap();
-    assert!(sql.contains(
-        "WHERE (\"__wa0b\".\"__wa0c0p0\" <=> \"t0\".\"__wa0c0p0\") AND \"__wa0b\".\"__wa0c0n\" >= \
+    assert!(
+        sql.contains(
+            "WHERE (\"__wa0b\".\"__wa0c0p0\" <=> \"t0\".\"__wa0c0p0\") AND \"__wa0b\".\"__wa0c0n\" >= \
          \"t0\".\"__wa0c0n\" - 1 AND \"__wa0b\".\"__wa0c0n\" <= \"t0\".\"__wa0c0n\""
-    ), "{sql}");
+        ),
+        "{sql}"
+    );
     // the joined text keeps the window's order, its separator a literal
-    assert!(sql.starts_with("SELECT GROUP_CONCAT(CAST(\"__wa0b\".\"__wa0c0a0\" AS CHAR) ORDER BY"), "{sql}");
+    assert!(
+        sql.starts_with("SELECT GROUP_CONCAT(CAST(\"__wa0b\".\"__wa0c0a0\" AS CHAR) ORDER BY"),
+        "{sql}"
+    );
     assert!(sql.contains(" SEPARATOR ',')"), "{sql}");
 }
 
 #[test]
 fn an_ordered_windows_default_frame_reads_the_ranks() {
     // an ordered window without a frame: RANGE UNBOUNDED PRECEDING to CURRENT ROW, its peers by their rank
-    let w = window(string_agg(s()), Vec::new(), vec![build::sort_key(n(), true, None, None)], None);
+    let w = window(
+        string_agg(s()),
+        Vec::new(),
+        vec![build::sort_key(n(), true, None, None)],
+        None,
+    );
     let q = build::query(select(vec![proj(k(), "k"), proj(w, "joined")], t0()));
     let mut pass = WindowAggregatesAsCorrelated::new(&[AggFn::StringAgg]);
     let out = rewritten(&mut pass, q);
     let (rows, joined) = numbered(&out);
     assert_eq!(names(rows), ["k", "n", "s", "xs", "__wa0c0a0", "__wa0c0n", "__wa0c0k"]);
-    let SqlExpr::ScalarSubquery { subquery, .. } = joined else { panic!("a scalar subquery") };
-    let SqlQuery::Select(frame) = subquery.as_ref() else { panic!("a select") };
+    let SqlExpr::ScalarSubquery { subquery, .. } = joined else {
+        panic!("a scalar subquery")
+    };
+    let SqlQuery::Select(frame) = subquery.as_ref() else {
+        panic!("a select")
+    };
     assert_eq!(
         frame.r#where,
         Some(call(
             SqlFn::LessEqual,
-            vec![build::derived(Some("__wa0b"), "__wa0c0k"), build::derived(Some("t0"), "__wa0c0k")]
+            vec![
+                build::derived(Some("__wa0b"), "__wa0c0k"),
+                build::derived(Some("t0"), "__wa0c0k")
+            ]
         ))
     );
 }
@@ -635,9 +819,19 @@ fn an_ordered_windows_default_frame_reads_the_ranks() {
 fn a_window_aggregate_the_pass_cannot_write_is_left_as_it_is() {
     let mut pass = WindowAggregatesAsCorrelated::new(&[AggFn::StringAgg]);
     // a RANGE frame with offsets
-    let offsets =
-        Frame { kind: FrameKind::Range, from: Bound::Preceding { n: JavaNumber::Integer(1) }, to: Bound::CurrentRow };
-    let ranged = window(string_agg(s()), Vec::new(), vec![build::sort_key(n(), true, None, None)], Some(offsets));
+    let offsets = Frame {
+        kind: FrameKind::Range,
+        from: Bound::Preceding {
+            n: JavaNumber::Integer(1),
+        },
+        to: Bound::CurrentRow,
+    };
+    let ranged = window(
+        string_agg(s()),
+        Vec::new(),
+        vec![build::sort_key(n(), true, None, None)],
+        Some(offsets),
+    );
     let q = build::query(select(vec![proj(ranged, "joined")], t0()));
     assert_eq!(rewrite(&mut pass, q.clone()).unwrap(), crate::rewriter::Rw::Same(q));
     // an aggregate with its own order
@@ -647,17 +841,28 @@ fn a_window_aggregate_the_pass_cannot_write_is_left_as_it_is() {
         false,
         vec![build::sort_key(n(), true, None, None)],
     ));
-    let q = build::query(select(vec![proj(window(ordered, Vec::new(), Vec::new(), None), "joined")], t0()));
+    let q = build::query(select(
+        vec![proj(window(ordered, Vec::new(), Vec::new(), None), "joined")],
+        t0(),
+    ));
     assert_eq!(rewrite(&mut pass, q.clone()).unwrap(), crate::rewriter::Rw::Same(q));
     // a select that groups
-    let mut grouped =
-        select(vec![proj(k(), "k"), proj(window(string_agg(s()), Vec::new(), Vec::new(), None), "j")], t0());
+    let mut grouped = select(
+        vec![
+            proj(k(), "k"),
+            proj(window(string_agg(s()), Vec::new(), Vec::new(), None), "j"),
+        ],
+        t0(),
+    );
     grouped.group_by = vec![k()];
     let q = build::query(grouped);
     assert_eq!(rewrite(&mut pass, q.clone()).unwrap(), crate::rewriter::Rw::Same(q));
     // an aggregate the dialect has a window form of
     let summed = SqlAgg::Reducer(build::reducer(AggFn::Sum, vec![n()], false, Vec::new()));
-    let q = build::query(select(vec![proj(window(summed, Vec::new(), Vec::new(), None), "total")], t0()));
+    let q = build::query(select(
+        vec![proj(window(summed, Vec::new(), Vec::new(), None), "total")],
+        t0(),
+    ));
     assert_eq!(rewrite(&mut pass, q.clone()).unwrap(), crate::rewriter::Rw::Same(q));
 }
 
@@ -665,15 +870,24 @@ fn a_window_aggregate_the_pass_cannot_write_is_left_as_it_is() {
 fn the_helper_columns_are_numbered_per_statement() {
     let w = || window(string_agg(s()), Vec::new(), Vec::new(), None);
     // two equal calls in one select are one helper; a second select is the next stem
-    let inner = SqlQuery::Select(Box::new(select(vec![proj(k(), "k"), proj(w(), "a"), proj(w(), "b")], t0())));
+    let inner = SqlQuery::Select(Box::new(select(
+        vec![proj(k(), "k"), proj(w(), "a"), proj(w(), "b")],
+        t0(),
+    )));
     let outer = select(
-        vec![proj(col("k", t(Scalar::Varchar)), "k"), proj(window(string_agg(k()), Vec::new(), Vec::new(), None), "c")],
+        vec![
+            proj(col("k", t(Scalar::Varchar)), "k"),
+            proj(window(string_agg(k()), Vec::new(), Vec::new(), None), "c"),
+        ],
         build::subselect(inner, "t0", None),
     );
     let mut pass = WindowAggregatesAsCorrelated::new(&[AggFn::StringAgg]);
     let first = rewritten(&mut pass, build::query(outer.clone()));
     let text = format!("{first:?}");
-    assert!(text.contains("__wa0c0a0") && text.contains("__wa1c0a0") && !text.contains("__wa0c1"), "{text}");
+    assert!(
+        text.contains("__wa0c0a0") && text.contains("__wa1c0a0") && !text.contains("__wa0c1"),
+        "{text}"
+    );
     // the next statement starts the count over
     let second = rewritten(&mut pass, build::query(outer));
     assert_eq!(first, second);
@@ -685,7 +899,10 @@ fn the_helper_columns_are_numbered_per_statement() {
 fn a_window_inside_an_expression_is_computed_below() {
     let lead = || {
         window(
-            SqlAgg::ValueFn { r#fn: AggFn::Lead, args: vec![n()] },
+            SqlAgg::ValueFn {
+                r#fn: AggFn::Lead,
+                args: vec![n()],
+            },
             vec![k()],
             vec![build::sort_key(n(), true, None, None)],
             None,
@@ -699,40 +916,80 @@ fn a_window_inside_an_expression_is_computed_below() {
     s.order_by = vec![build::sort_key(lead(), true, None, None)];
     let mut pass = WindowsComputedBelow::default();
     let out = rewritten(&mut pass, build::query(s));
-    let SqlQuery::Select(top) = &out else { panic!("a select") };
-    let SqlSource::Subselect { inner, alias, .. } = &top.from else { panic!("a subselect") };
+    let SqlQuery::Select(top) = &out else {
+        panic!("a select")
+    };
+    let SqlSource::Subselect { inner, alias, .. } = &top.from else {
+        panic!("a subselect")
+    };
     assert_eq!(alias, "t0");
-    let SqlQuery::Select(below) = inner.as_ref() else { panic!("a select below") };
+    let SqlQuery::Select(below) = inner.as_ref() else {
+        panic!("a select below")
+    };
     // the one window, once
     assert_eq!(names(below), ["k", "n", "s", "xs", "__wb0w0"]);
-    let read = SqlExpr::Column(build::column_of(Some("t0"), &build::output_col("__wb0w0", t(Scalar::Bigint), true)));
+    let read = SqlExpr::Column(build::column_of(
+        Some("t0"),
+        &build::output_col("__wb0w0", t(Scalar::Bigint), true),
+    ));
     assert_eq!(top.order_by[0].expr, read);
     assert!(format!("{:?}", top.projections[1].expr).contains("__wb0w0"));
     // a bare window projection is left to the select (its own CASE guards nothing)
     let bare = build::query(select(
-        vec![proj(window(SqlAgg::RankingFn { r#fn: AggFn::RowNumber, args: vec![] }, vec![], vec![], None), "rn")],
+        vec![proj(
+            window(
+                SqlAgg::RankingFn {
+                    r#fn: AggFn::RowNumber,
+                    args: vec![],
+                },
+                vec![],
+                vec![],
+                None,
+            ),
+            "rn",
+        )],
         t0(),
     ));
-    assert_eq!(rewrite(&mut WindowsComputedBelow::default(), bare.clone()).unwrap(), crate::rewriter::Rw::Same(bare));
+    assert_eq!(
+        rewrite(&mut WindowsComputedBelow::default(), bare.clone()).unwrap(),
+        crate::rewriter::Rw::Same(bare)
+    );
 }
 
 #[test]
 fn an_extract_and_a_trunc_part_answer_as_java() {
     // the part DuckDB has no MariaDB spelling of, and the date-truncation parts it refuses
     let d = MariaDb::new();
-    let part = |p: DatePart| SqlExpr::DatePartLit { part: p, r#type: TypeFact::Unknown };
+    let part = |p: DatePart| SqlExpr::DatePartLit {
+        part: p,
+        r#type: TypeFact::Unknown,
+    };
     let date = col("d", t(Scalar::Date));
     assert_eq!(
-        refused(expr_result(&d, &call(SqlFn::Extract, vec![part(DatePart::Nanosecond), date.clone()]))).1,
+        refused(expr_result(
+            &d,
+            &call(SqlFn::Extract, vec![part(DatePart::Nanosecond), date.clone()])
+        ))
+        .1,
         "date part 'nanosecond' has no measured MariaDB spelling"
     );
     assert_eq!(
-        refused(expr_result(&d, &call(SqlFn::DateTrunc, vec![part(DatePart::DayOfYear), date.clone()]))).1,
+        refused(expr_result(
+            &d,
+            &call(SqlFn::DateTrunc, vec![part(DatePart::DayOfYear), date.clone()])
+        ))
+        .1,
         "date_trunc part 'day_of_year' has no measured MariaDB spelling"
     );
-    assert_eq!(expr_text(&d, &call(SqlFn::Extract, vec![part(DatePart::Year), date.clone()])), "YEAR(\"t0\".\"d\")");
     assert_eq!(
-        expr_text(&MariaDb::mysql(), &call(SqlFn::Extract, vec![part(DatePart::Year), date])),
+        expr_text(&d, &call(SqlFn::Extract, vec![part(DatePart::Year), date.clone()])),
+        "YEAR(\"t0\".\"d\")"
+    );
+    assert_eq!(
+        expr_text(
+            &MariaDb::mysql(),
+            &call(SqlFn::Extract, vec![part(DatePart::Year), date])
+        ),
         "CAST(YEAR(\"t0\".\"d\") AS SIGNED)"
     );
 }
@@ -749,14 +1006,23 @@ fn printf_is_sformat_on_mariadb_and_pieces_on_mysql() {
         expr_text(&maria, &f("{%-5d}%%%s", vec![n(), s()])),
         "SFORMAT('{{{:<5d}}}%{}', \"t0\".\"n\", CAST(\"t0\".\"s\" AS CHAR))"
     );
-    assert_eq!(refused(expr_result(&maria, &f("%q", vec![n()]))).1, "printf conversion %q reached MariaDB");
+    assert_eq!(
+        refused(expr_result(&maria, &f("%q", vec![n()]))).1,
+        "printf conversion %q reached MariaDB"
+    );
     let my = MariaDb::mysql();
-    assert_eq!(expr_text(&my, &f("a%xb", vec![n()])), "CONCAT('a', LOWER(CONV(\"t0\".\"n\", 10, 16)), 'b')");
+    assert_eq!(
+        expr_text(&my, &f("a%xb", vec![n()])),
+        "CONCAT('a', LOWER(CONV(\"t0\".\"n\", 10, 16)), 'b')"
+    );
     assert_eq!(
         refused(expr_result(&my, &f("%d%d", vec![n()]))).1,
         "a format with more conversions than arguments reached MySQL"
     );
-    assert_eq!(refused(expr_result(&my, &f("%e", vec![n()]))).1, "printf conversion %e reached MySQL");
+    assert_eq!(
+        refused(expr_result(&my, &f("%e", vec![n()]))).1,
+        "printf conversion %e reached MySQL"
+    );
 }
 
 #[test]
@@ -771,12 +1037,18 @@ fn the_regular_expressions_replace_as_each_database_names_a_group() {
         expr_text(&maria, &replace("<\\1>", None)),
         "REGEXP_REPLACE(\"t0\".\"s\", '^([\\s\\S]*?)((a))', '\\1<\\3>')"
     );
-    assert_eq!(expr_text(&maria, &replace("x", Some("gi"))), "REGEXP_REPLACE(\"t0\".\"s\", '(?i)(a)', 'x')");
+    assert_eq!(
+        expr_text(&maria, &replace("x", Some("gi"))),
+        "REGEXP_REPLACE(\"t0\".\"s\", '(?i)(a)', 'x')"
+    );
     assert_eq!(
         refused(expr_result(&maria, &replace("\\8", None))).1,
         "regexp_replace of group 8 (first match only) reached MariaDB"
     );
-    assert_eq!(refused(expr_result(&maria, &replace("x", Some("z")))).1, "regexp_replace option 'z' reached MariaDB");
+    assert_eq!(
+        refused(expr_result(&maria, &replace("x", Some("z")))).1,
+        "regexp_replace option 'z' reached MariaDB"
+    );
     let my = MariaDb::mysql();
     assert_eq!(
         expr_text(&my, &replace("$\\1", Some("g"))),

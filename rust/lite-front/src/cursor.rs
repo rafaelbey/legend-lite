@@ -112,7 +112,11 @@ pub fn throw_at(tokens: &TokenStream<'_>, token_pos: usize, message: JStr) -> Ja
     } else {
         return JavaError::parse_unplaced(message);
     };
-    JavaError::parse(message, tokens.line_of(char_pos) as i32, tokens.column_of(char_pos) as i32)
+    JavaError::parse(
+        message,
+        tokens.line_of(char_pos) as i32,
+        tokens.column_of(char_pos) as i32,
+    )
 }
 
 /// A refusal at the end of the input, where ANTLR places `<EOF>` in the engine's parse: one past the text's last
@@ -124,14 +128,21 @@ pub fn refused_at_eof(tokens: &TokenStream<'_>, message: JStr) -> JavaError {
 
 /// A refusal at a token, or at the end of the input past the last one.
 pub fn refused_at(tokens: &TokenStream<'_>, token_pos: usize, message: JStr) -> JavaError {
-    if token_pos < tokens.count() { throw_at(tokens, token_pos, message).as_refusal() } else { refused_at_eof(tokens, message) }
+    if token_pos < tokens.count() {
+        throw_at(tokens, token_pos, message).as_refusal()
+    } else {
+        refused_at_eof(tokens, message)
+    }
 }
 
 /// A number token whose exponent has no digits (`1.5ed`, `1.5e+`): the engine's lexer ends the number before its
 /// exponent, so its parser refuses at the exponent's letter (PARITY row 8).
 pub fn refused_exponent(tokens: &TokenStream<'_>, token_pos: usize) -> JavaError {
     let text = tokens.text(token_pos);
-    let e = text.iter().position(|&c| c == u16::from(b'e') || c == u16::from(b'E')).unwrap_or(0);
+    let e = text
+        .iter()
+        .position(|&c| c == u16::from(b'e') || c == u16::from(b'E'))
+        .unwrap_or(0);
     let start = tokens.start(token_pos) + e;
     JavaError::parse(
         jcat!("Unexpected token '", &text[e..], "'"),
@@ -162,7 +173,11 @@ pub fn doc_string_value(raw: &[u16], at: (i32, i32)) -> R<Vec<u16>> {
     let layout = text_block_layout(raw).map_err(|_| third_quote(JStr::from("unterminated ''' literal")))?;
     unescape_java_like(&layout).map_err(|m| {
         let refusal = malformed_escape("string literal", m);
-        if is_text_block(raw) { refusal.held_at(at) } else { third_quote(refusal.message.unwrap_or_default()) }
+        if is_text_block(raw) {
+            refusal.held_at(at)
+        } else {
+            third_quote(refusal.message.unwrap_or_default())
+        }
     })
 }
 
@@ -247,13 +262,21 @@ pub trait Cursor<'s> {
     /// The type under the cursor; `EOF` past the end.
     fn peek(&self) -> TokenType {
         let p = self.pos();
-        if p < self.tokens().count() { self.tokens().ty(p) } else { T::EOF }
+        if p < self.tokens().count() {
+            self.tokens().ty(p)
+        } else {
+            T::EOF
+        }
     }
 
     /// The type `offset` past the cursor; `EOF` past the end.
     fn peek_at(&self, offset: usize) -> TokenType {
         let i = self.pos() + offset;
-        if i < self.tokens().count() { self.tokens().ty(i) } else { T::EOF }
+        if i < self.tokens().count() {
+            self.tokens().ty(i)
+        } else {
+            T::EOF
+        }
     }
 
     /// The text under the cursor (the caller ensures it is not at the end).
@@ -274,7 +297,11 @@ pub trait Cursor<'s> {
 
     /// The text under the cursor, or `<EOF>` past the end.
     fn safe_text(&self) -> Vec<u16> {
-        if self.pos() < self.tokens().count() { self.text().to_vec() } else { crate::ustr::u("<EOF>") }
+        if self.pos() < self.tokens().count() {
+            self.text().to_vec()
+        } else {
+            crate::ustr::u("<EOF>")
+        }
     }
 
     /// One token on, the INVALID trap first.
@@ -320,7 +347,15 @@ pub trait Cursor<'s> {
     fn expect(&mut self, t: TokenType) -> R<()> {
         if self.peek() != t {
             self.reject_invalid()?;
-            return Err(self.error(jcat!("expected ", t, " but found ", self.peek(), " ('", self.safe_text(), "')")));
+            return Err(self.error(jcat!(
+                "expected ",
+                t,
+                " but found ",
+                self.peek(),
+                " ('",
+                self.safe_text(),
+                "')"
+            )));
         }
         self.advance()
     }
@@ -379,7 +414,15 @@ pub trait Cursor<'s> {
     fn consume(&mut self, t: TokenType) -> R<&'s [u16]> {
         if self.peek() != t {
             self.reject_invalid()?;
-            return Err(self.error(jcat!("expected ", t, " but found ", self.peek(), " ('", self.safe_text(), "')")));
+            return Err(self.error(jcat!(
+                "expected ",
+                t,
+                " but found ",
+                self.peek(),
+                " ('",
+                self.safe_text(),
+                "')"
+            )));
         }
         let text = self.text();
         self.advance()?;
@@ -529,7 +572,13 @@ pub trait Cursor<'s> {
         }
         if self.peek() == T::PAREN_OPEN {
             let tvv = self.parse_type_variable_values()?;
-            return Ok(generic(name, Vec::new(), Vec::new(), tvv, self.span(start, self.pos() - 1)));
+            return Ok(generic(
+                name,
+                Vec::new(),
+                Vec::new(),
+                tvv,
+                self.span(start, self.pos() - 1),
+            ));
         }
         if !self.match_tok(T::LESS_THAN)? {
             return Ok(name_ref(JStr(name), self.span(start, self.pos() - 1)));
@@ -587,9 +636,10 @@ pub trait Cursor<'s> {
                 let v = self.unquote_and_unescape(self.text())?;
                 tvv.push(cstring(JStr(v), self.span(p, p)));
             } else {
-                return Err(
-                    self.error(jcat!("type variable values support integer and string literals, got ", self.peek()))
-                );
+                return Err(self.error(jcat!(
+                    "type variable values support integer and string literals, got ",
+                    self.peek()
+                )));
             }
             self.advance()?;
         }
@@ -656,7 +706,10 @@ pub trait Cursor<'s> {
             self.advance()?;
             return Ok(name);
         }
-        Err(self.error(jcat!("expected a multiplicity argument (n, n..m, *, or a multiplicity parameter), got ", t)))
+        Err(self.error(jcat!(
+            "expected a multiplicity argument (n, n..m, *, or a multiplicity parameter), got ",
+            t
+        )))
     }
 
     /// `parseMultiplicity`: `[N]`, `[N..M]`, `[N..*]`, `[*]` or `[m]`.
@@ -714,10 +767,15 @@ pub trait Cursor<'s> {
                 " is not supported yet"
             )));
         }
-        Ok(TypeExpression::TypeExpressionFunctionType(Box::new(TypeExpressionFunctionType {
-            parameters: params,
-            result: Box::new(TypeExpressionTypedParameter { r#type: result_type, multiplicity: result_mult }),
-        })))
+        Ok(TypeExpression::TypeExpressionFunctionType(Box::new(
+            TypeExpressionFunctionType {
+                parameters: params,
+                result: Box::new(TypeExpressionTypedParameter {
+                    r#type: result_type,
+                    multiplicity: result_mult,
+                }),
+            },
+        )))
     }
 
     /// `(col:Type[mult], ...)`.
@@ -731,14 +789,20 @@ pub trait Cursor<'s> {
             }
         }
         self.expect(T::PAREN_CLOSE)?;
-        Ok(TypeExpression::TypeExpressionRelationType(Box::new(TypeExpressionRelationType { columns })))
+        Ok(TypeExpression::TypeExpressionRelationType(Box::new(
+            TypeExpressionRelationType { columns },
+        )))
     }
 
     /// One relation-type column (`TokenStreamCursor.parseRelationColumn`): its name or `?`, its type or `?`, its
     /// multiplicity (`[0..1]` undeclared), spanning name through the type and a declared multiplicity.
     fn parse_type_relation_column(&mut self) -> R<TypeExpressionColumn> {
         let name_tok = self.pos();
-        let col_name = if self.match_tok(T::QUESTION)? { crate::ustr::u("?") } else { self.parse_identifier()? };
+        let col_name = if self.match_tok(T::QUESTION)? {
+            crate::ustr::u("?")
+        } else {
+            self.parse_identifier()?
+        };
         self.expect(T::COLON)?;
         let q_tok = self.pos();
         let col_type = if self.match_tok(T::QUESTION)? {
@@ -746,17 +810,28 @@ pub trait Cursor<'s> {
         } else {
             self.parse_type()?
         };
-        let multiplicity =
-            if self.peek() == T::BRACKET_OPEN { self.parse_multiplicity()? } else { concrete(0, Some(1)) };
+        let multiplicity = if self.peek() == T::BRACKET_OPEN {
+            self.parse_multiplicity()?
+        } else {
+            concrete(0, Some(1))
+        };
         let pos = self.span(name_tok, self.pos() - 1);
-        Ok(TypeExpressionColumn { name: JStr(col_name), r#type: col_type, multiplicity, pos })
+        Ok(TypeExpressionColumn {
+            name: JStr(col_name),
+            r#type: col_type,
+            multiplicity,
+            pos,
+        })
     }
 
     /// `Type[mult]` in a function-type signature.
     fn parse_typed_parameter(&mut self) -> R<TypeExpressionTypedParameter> {
         let t = self.parse_type()?;
         let multiplicity = self.parse_multiplicity()?;
-        Ok(TypeExpressionTypedParameter { r#type: t, multiplicity })
+        Ok(TypeExpressionTypedParameter {
+            r#type: t,
+            multiplicity,
+        })
     }
 
     // ---------------------------------------------------------------- the element grammars' helpers
@@ -764,7 +839,11 @@ pub trait Cursor<'s> {
     /// `peekText(offset)`: the text `offset` past the cursor, `""` past the end (an empty string matches no keyword).
     fn peek_text(&self, offset: usize) -> &'s [u16] {
         let i = self.pos() + offset;
-        if i < self.tokens().count() { self.tokens().text(i) } else { &[] }
+        if i < self.tokens().count() {
+            self.tokens().text(i)
+        } else {
+            &[]
+        }
     }
 
     /// `text()` where Java reads it at the stream's end: the lexer's arrays carry zeroed slack past `count`, so the
@@ -842,7 +921,11 @@ pub trait Cursor<'s> {
         let tok = self.pos();
         let raw = self.text();
         self.advance()?;
-        Ok(Some(Documentation { token: tok, raw: raw.to_vec(), span: self.documentation_span(tok, raw) }))
+        Ok(Some(Documentation {
+            token: tok,
+            raw: raw.to_vec(),
+            span: self.documentation_span(tok, raw),
+        }))
     }
 
     /// `taggedValuesWithDocumentation`: the documentation folded in as the FIRST tagged value (profile
@@ -861,7 +944,10 @@ pub trait Cursor<'s> {
         }
         for tv in &tagged_values {
             if tv.tag.value == DOC_TAG && (tv.tag.profile == DOC_TAG || tv.tag.profile == DOC_PROFILE_PATH) {
-                let s = tv.source_information.as_deref().expect("a parsed node always carries its span");
+                let s = tv
+                    .source_information
+                    .as_deref()
+                    .expect("a parsed node always carries its span");
                 return Err(JavaError::parse(
                     JStr::from("Element has both documentation and an explicit doc.doc tagged value. Use one."),
                     s.start_line,
@@ -945,7 +1031,11 @@ pub trait Cursor<'s> {
                 } else {
                     let quoted = self.slack_text();
                     self.expect(T::STRING)?;
-                    (self.unquote_and_unescape(quoted)?, false, self.span_of(t_s, self.pos() - 1))
+                    (
+                        self.unquote_and_unescape(quoted)?,
+                        false,
+                        self.span_of(t_s, self.pos() - 1),
+                    )
                 };
                 tagged_values.push(Box::new(PTaggedValue {
                     tag: Box::new(PTag {
@@ -964,7 +1054,10 @@ pub trait Cursor<'s> {
             }
             self.expect(T::BRACE_CLOSE)?;
         }
-        Ok(Decorations { stereotypes, tagged_values })
+        Ok(Decorations {
+            stereotypes,
+            tagged_values,
+        })
     }
 
     /// `withDocumentation(doc, dec)`: the decorations with the documentation folded into their tagged values.
@@ -973,7 +1066,10 @@ pub trait Cursor<'s> {
             return Ok(dec);
         }
         let tagged_values = self.tagged_values_with_documentation(doc, dec.tagged_values)?;
-        Ok(Decorations { stereotypes: dec.stereotypes, tagged_values })
+        Ok(Decorations {
+            stereotypes: dec.stereotypes,
+            tagged_values,
+        })
     }
 
     // ---------------------------------------------------------------- spans
@@ -1063,7 +1159,11 @@ pub trait Cursor<'s> {
                 self.skip_type_args_and_multiplicity()?;
             }
         }
-        Ok(FunctionDescriptor { start, name_end, end: self.pos() })
+        Ok(FunctionDescriptor {
+            start,
+            name_end,
+            end: self.pos(),
+        })
     }
 
     /// `skipTypeArgsAndMultiplicity`: `<...>` type arguments and a `[..]` multiplicity, if present.
@@ -1131,9 +1231,17 @@ pub fn island_shift(sp: SourceInfo, line_offset: i32, col_offset: i32) -> Source
     SourceInfo {
         source_id: JStr::default(),
         start_line: sp.start_line + line_offset,
-        start_column: if sp.start_line == 1 { sp.start_column + col_offset } else { sp.start_column },
+        start_column: if sp.start_line == 1 {
+            sp.start_column + col_offset
+        } else {
+            sp.start_column
+        },
         end_line: sp.end_line + line_offset,
-        end_column: if sp.end_line == 1 { sp.end_column + col_offset } else { sp.end_column },
+        end_column: if sp.end_line == 1 {
+            sp.end_column + col_offset
+        } else {
+            sp.end_column
+        },
     }
 }
 
@@ -1180,7 +1288,11 @@ pub fn base_parse_identifier<'s, C: Cursor<'s> + ?Sized>(c: &mut C) -> R<Vec<u16
     if !is_identifier_token(c.peek()) {
         return Err(c.error(jcat!("expected identifier, got ", c.peek())));
     }
-    let name = if c.peek() == T::STRING { c.unquote_and_unescape(c.text())? } else { c.text().to_vec() };
+    let name = if c.peek() == T::STRING {
+        c.unquote_and_unescape(c.text())?
+    } else {
+        c.text().to_vec()
+    };
     c.advance()?;
     Ok(name)
 }
@@ -1195,13 +1307,20 @@ pub struct FunctionDescriptor {
 
 /// `isLegacyMappingCommand`: the `~directive` keywords that open a legacy mapping body.
 pub fn is_legacy_mapping_command(t: TokenType) -> bool {
-    matches!(t, T::MAIN_TABLE_CMD | T::FILTER_CMD | T::DISTINCT_CMD | T::GROUP_BY_CMD | T::PRIMARY_KEY_CMD | T::SRC_CMD)
+    matches!(
+        t,
+        T::MAIN_TABLE_CMD | T::FILTER_CMD | T::DISTINCT_CMD | T::GROUP_BY_CMD | T::PRIMARY_KEY_CMD | T::SRC_CMD
+    )
 }
 
 /// `TokenStreamCursor.stripDoubleQuotes`: a `"..."` spelling's quotes off, no escapes.
 pub fn strip_double_quotes(n: &[u16]) -> Vec<u16> {
     let q = u16::from(b'"');
-    if n.len() > 1 && n[0] == q && n[n.len() - 1] == q { n[1..n.len() - 1].to_vec() } else { n.to_vec() }
+    if n.len() > 1 && n[0] == q && n[n.len() - 1] == q {
+        n[1..n.len() - 1].to_vec()
+    } else {
+        n.to_vec()
+    }
 }
 
 /// `tokens.type(i)` where Java reads it unguarded: past `count` the lexer's zeroed slack, ordinal 0, `STRING`.
@@ -1431,7 +1550,10 @@ pub struct Decorations {
 
 /// `DECLARATION_HEADS`: the keywords documentation may precede.
 pub fn is_declaration_head(t: TokenType) -> bool {
-    matches!(t, T::CLASS | T::ENUM | T::ASSOCIATION | T::FUNCTION | T::NATIVE | T::PROFILE)
+    matches!(
+        t,
+        T::CLASS | T::ENUM | T::ASSOCIATION | T::FUNCTION | T::NATIVE | T::PROFILE
+    )
 }
 
 /// `canonicalizeDocumentation`: the text-block layout, no unescape, its leading and trailing blank lines dropped.
@@ -1470,7 +1592,11 @@ pub fn once_at(
     anchor_tok: usize,
 ) -> R<()> {
     if !seen.insert(key.to_vec()) {
-        return Err(throw_at(tokens, anchor_tok, jcat!("Field '", key, "' should be specified only once")));
+        return Err(throw_at(
+            tokens,
+            anchor_tok,
+            jcat!("Field '", key, "' should be specified only once"),
+        ));
     }
     Ok(())
 }

@@ -180,7 +180,11 @@ impl SqlWriter {
             return Err(Refusal::illegal_state("a per-key region inside another per-key region"));
         }
         let start = self.position();
-        self.open.push(OpenRegion { start, first_bind: self.binds.len(), counters: Vec::new() });
+        self.open.push(OpenRegion {
+            start,
+            first_bind: self.binds.len(),
+            counters: Vec::new(),
+        });
         body(self)?;
         let r = self.open.pop().expect("the region pushed above");
         let end = self.position();
@@ -201,7 +205,9 @@ impl SqlWriter {
     /// The key's position in the probe, written here in each copy of the per-key region being written.
     pub fn counter(&mut self) -> Result<&mut SqlWriter, Refusal> {
         if self.open.is_empty() {
-            return Err(Refusal::illegal_state("a per-key name outside a per-key region: no key to name it by"));
+            return Err(Refusal::illegal_state(
+                "a per-key name outside a per-key region: no key to name it by",
+            ));
         }
         let at = self.position();
         self.open.last_mut().expect("checked above").counters.push(at);
@@ -216,10 +222,15 @@ impl SqlWriter {
     /// `bind_key` with the placeholder spelled in the target's own language.
     pub fn bind_key_as(&mut self, placeholder: &str, cell: i32) -> Result<&mut SqlWriter, Refusal> {
         if self.open.is_empty() {
-            return Err(Refusal::illegal_state("a key's cell outside a per-key region: no key to bind"));
+            return Err(Refusal::illegal_state(
+                "a key's cell outside a per-key region: no key to bind",
+            ));
         }
         self.sql.push_str(placeholder);
-        self.binds.push(Bind { parameter: String::new(), binding: Binding::key(cell)? });
+        self.binds.push(Bind {
+            parameter: String::new(),
+            binding: Binding::key(cell)?,
+        });
         Ok(self)
     }
 
@@ -237,7 +248,10 @@ impl SqlWriter {
         }
         let at = self.position();
         match self.binds.last() {
-            Some(Bind { binding: Binding::One { hole: None, .. }, .. }) => {}
+            Some(Bind {
+                binding: Binding::One { hole: None, .. },
+                ..
+            }) => {}
             _ => {
                 return Err(Refusal::illegal_state(format!(
                     "a type hole follows a placeholder of one value with none: {}",
@@ -246,7 +260,11 @@ impl SqlWriter {
             }
         }
         let hole = TypeHole::new(at, types, absent)?;
-        if let Some(Bind { binding: Binding::One { hole: slot, .. }, .. }) = self.binds.last_mut() {
+        if let Some(Bind {
+            binding: Binding::One { hole: slot, .. },
+            ..
+        }) = self.binds.last_mut()
+        {
             *slot = Some(hole);
         }
         Ok(self)

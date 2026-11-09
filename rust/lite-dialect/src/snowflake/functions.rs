@@ -8,8 +8,8 @@
 //! buckets and formats.
 
 use super::{
-    Param, Snowflake, fact_type, is_double, is_integer, is_json, is_text, is_timestamp, lambda_arg,
-    list_element, param, param_at, type_of, type_text,
+    Param, Snowflake, fact_type, is_double, is_integer, is_json, is_text, is_timestamp, lambda_arg, list_element,
+    param, param_at, type_of, type_text,
 };
 use crate::ansi::{self, cast_type_name, part};
 use crate::pieces::{Ex, P, pc, text};
@@ -34,7 +34,11 @@ fn numeric(t: Option<&SqlType>) -> bool {
 
 /// Whether a timestamp is an instant (Java's `instant`): TIMESTAMPTZ-typed, or a timezone() of a naive one.
 fn instant(e: &SqlExpr) -> bool {
-    if let SqlExpr::Call { r#fn: SqlFn::Timezone, args, .. } = e
+    if let SqlExpr::Call {
+        r#fn: SqlFn::Timezone,
+        args,
+        ..
+    } = e
         && args.len() == 2
     {
         return !instant(&args[1]);
@@ -64,7 +68,9 @@ fn unit(part: DatePart) -> Result<&'static str, Refusal> {
 /// An interval's DATEADD unit (Java's `intervalUnit`).
 fn interval_unit(part: DatePart) -> Result<&'static str, Refusal> {
     if part == DatePart::Quarter {
-        return Err(Refusal::capability(format!("interval unit {part} has no Snowflake spelling")));
+        return Err(Refusal::capability(format!(
+            "interval unit {part} has no Snowflake spelling"
+        )));
     }
     unit(part)
 }
@@ -100,7 +106,9 @@ fn format_code(p: &DateFmt) -> Result<String, Refusal> {
                 ));
             }
             DateFmtPart::Hour12Nopad => {
-                return Err(Refusal::capability("an unpadded 12-hour clock in a Snowflake date format"));
+                return Err(Refusal::capability(
+                    "an unpadded 12-hour clock in a Snowflake date format",
+                ));
             }
         }
         .to_owned(),
@@ -124,7 +132,9 @@ pub(super) fn format_text(parts: &[DateFmt]) -> Result<String, Refusal> {
 /// The full English weekday name (Java's `weekdayName`).
 fn weekday_name(x: P<'_>) -> P<'_> {
     pc(move |w| {
-        w.append("DECODE(DAYOFWEEKISO(").piece(&*x)?.append("), 1, 'Monday', 2, 'Tuesday', 3, 'Wednesday',");
+        w.append("DECODE(DAYOFWEEKISO(")
+            .piece(&*x)?
+            .append("), 1, 'Monday', 2, 'Tuesday', 3, 'Wednesday',");
         w.append(" 4, 'Thursday', 5, 'Friday', 6, 'Saturday', 7, 'Sunday')");
         Ok(())
     })
@@ -154,7 +164,11 @@ fn find_directive(f: &str, from: usize) -> Option<Directive<'_>> {
     while i < b.len() {
         if b[i] == b'%' {
             if i + 1 < b.len() && b[i + 1] == b'%' {
-                return Some(Directive { start: i, end: i + 2, spec: None });
+                return Some(Directive {
+                    start: i,
+                    end: i + 2,
+                    spec: None,
+                });
             }
             // (0?)([0-9]*): greedy, and no shorter split matches where the greedy one does not
             let mut at = i + 1;
@@ -463,7 +477,9 @@ impl Snowflake {
             // the engine's out-of-domain answer is NaN; Snowflake raises
             SqlFn::Acos | SqlFn::Asin => {
                 let name = if f == SqlFn::Acos { "ACOS" } else { "ASIN" };
-                w.append("(CASE WHEN (").expr(self, a0()?, 0)?.append(&format!(") BETWEEN -1 AND 1 THEN {name}("));
+                w.append("(CASE WHEN (")
+                    .expr(self, a0()?, 0)?
+                    .append(&format!(") BETWEEN -1 AND 1 THEN {name}("));
                 w.expr(self, a0()?, 0)?.append(") ELSE CAST('NaN' AS DOUBLE) END)");
                 Ok(())
             }
@@ -476,7 +492,8 @@ impl Snowflake {
             // DuckDB's // truncates toward zero; x // 0 is NULL
             SqlFn::IntDivide => {
                 let integers = is_integer(type_of(a0()?)) && is_integer(type_of(arg(a, 1)?));
-                w.append(if integers { "CAST(TRUNC(" } else { "TRUNC(" }).expr(self, a0()?, 6)?;
+                w.append(if integers { "CAST(TRUNC(" } else { "TRUNC(" })
+                    .expr(self, a0()?, 6)?;
                 w.append(" / NULLIF(").expr(self, arg(a, 1)?, 0)?.append(", 0))");
                 if integers {
                     w.append(" AS BIGINT)");
@@ -489,15 +506,22 @@ impl Snowflake {
             }
             // a 64-bit integer text: CAST rounds a decimal text, so the text is checked first
             SqlFn::ParseInt => {
-                w.append("CAST(CASE WHEN REGEXP_LIKE(").expr(self, a0()?, 0)?.append(", ");
+                w.append("CAST(CASE WHEN REGEXP_LIKE(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ");
                 let lit = self.string_lit("\\s*[-+]?[0-9]+\\s*")?;
-                w.append(&lit).append(") THEN ").expr(self, a0()?, 0)?.append(" ELSE ").expr(self, a0()?, 0)?;
+                w.append(&lit)
+                    .append(") THEN ")
+                    .expr(self, a0()?, 0)?
+                    .append(" ELSE ")
+                    .expr(self, a0()?, 0)?;
                 w.append(" || ' is not an integer' END AS BIGINT)");
                 Ok(())
             }
             // an ISO text with an offset is its UTC instant
             SqlFn::ParseDate => {
-                w.append("CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(").expr(self, a0()?, 0)?;
+                w.append("CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(")
+                    .expr(self, a0()?, 0)?;
                 w.append(")) AS TIMESTAMP_NTZ)");
                 Ok(())
             }
@@ -515,7 +539,11 @@ impl Snowflake {
                 Ok(())
             }
             SqlFn::Strpos => {
-                w.append("CHARINDEX(").expr(self, arg(a, 1)?, 0)?.append(", ").expr(self, a0()?, 0)?.append(")");
+                w.append("CHARINDEX(")
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append(", ")
+                    .expr(self, a0()?, 0)?
+                    .append(")");
                 Ok(())
             }
             SqlFn::Sha256 => {
@@ -567,14 +595,20 @@ impl Snowflake {
                     return Err(wall(f, &format!("make_timestamp of {} arguments", a.len())));
                 }
                 w.append("DATEADD(MICROSECOND, ROUND(").expr(self, &a[5], 6)?;
-                w.append(" * 1000000), TIMESTAMP_FROM_PARTS(").list(self, &a[..5])?.append(", 0))");
+                w.append(" * 1000000), TIMESTAMP_FROM_PARTS(")
+                    .list(self, &a[..5])?
+                    .append(", 0))");
                 Ok(())
             }
             // DuckDB's date + interval is a TIMESTAMP at every unit
             SqlFn::AddInterval | SqlFn::AddIntervalTemporal => {
                 w.append("CAST(DATEADD(");
                 let u = interval_unit(part(a0()?)?)?;
-                w.append(u).append(", ").expr(self, arg(a, 1)?, 0)?.append(", ").expr(self, arg(a, 2)?, 0)?;
+                w.append(u)
+                    .append(", ")
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append(", ")
+                    .expr(self, arg(a, 2)?, 0)?;
                 w.append(") AS TIMESTAMP_NTZ)");
                 Ok(())
             }
@@ -593,17 +627,22 @@ impl Snowflake {
             // DuckDB's timezone(zone, t): a naive t read in the zone; an instant to the zone's time
             SqlFn::Timezone => {
                 if instant(arg(a, 1)?) {
-                    w.append("CONVERT_TIMEZONE('UTC', ").expr(self, a0()?, 0)?.append(", CAST(");
+                    w.append("CONVERT_TIMEZONE('UTC', ")
+                        .expr(self, a0()?, 0)?
+                        .append(", CAST(");
                     w.expr(self, &a[1], 0)?.append(" AS TIMESTAMP_NTZ))");
                 } else {
-                    w.append("CAST(CONVERT_TIMEZONE(").expr(self, a0()?, 0)?.append(", 'UTC', CAST(");
+                    w.append("CAST(CONVERT_TIMEZONE(")
+                        .expr(self, a0()?, 0)?
+                        .append(", 'UTC', CAST(");
                     w.expr(self, &a[1], 0)?.append(" AS TIMESTAMP_NTZ)) AS TIMESTAMP_LTZ)");
                 }
                 Ok(())
             }
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             SqlFn::EpochSeconds => {
-                w.append("(CAST(DATE_PART(EPOCH_MICROSECOND, ").piece(&*self.naive(a0()?))?;
+                w.append("(CAST(DATE_PART(EPOCH_MICROSECOND, ")
+                    .piece(&*self.naive(a0()?))?;
                 w.append(") AS DOUBLE) / 1000000)");
                 Ok(())
             }
@@ -611,16 +650,21 @@ impl Snowflake {
                 "a nanosecond epoch: Snowflake keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)",
             )),
             SqlFn::EpochMs => {
-                w.append("CAST(TRUNC(DATE_PART(EPOCH_MICROSECOND, ").piece(&*self.naive(a0()?))?;
+                w.append("CAST(TRUNC(DATE_PART(EPOCH_MICROSECOND, ")
+                    .piece(&*self.naive(a0()?))?;
                 w.append(") / 1000) AS BIGINT)");
                 Ok(())
             }
             SqlFn::FromEpochSeconds => {
-                w.append("TO_TIMESTAMP_NTZ(CAST(ROUND(").expr(self, a0()?, 6)?.append(" * 1000000) AS BIGINT), 6)");
+                w.append("TO_TIMESTAMP_NTZ(CAST(ROUND(")
+                    .expr(self, a0()?, 6)?
+                    .append(" * 1000000) AS BIGINT), 6)");
                 Ok(())
             }
             SqlFn::FromEpochMs => {
-                w.append("TO_TIMESTAMP_NTZ(CAST(").expr(self, a0()?, 0)?.append(" AS BIGINT), 3)");
+                w.append("TO_TIMESTAMP_NTZ(CAST(")
+                    .expr(self, a0()?, 0)?
+                    .append(" AS BIGINT), 3)");
                 Ok(())
             }
             // DAYNAME is 'Sun' here: the full name by the ISO weekday
@@ -631,7 +675,10 @@ impl Snowflake {
             }
             SqlFn::Strftime => {
                 let SqlExpr::FormatLit { parts, .. } = arg(a, 1)? else {
-                    return Err(wall(f, "a date format that is not a format literal: its codes are DuckDB's"));
+                    return Err(wall(
+                        f,
+                        "a date format that is not a format literal: its codes are DuckDB's",
+                    ));
                 };
                 let p = self.strftime(a0()?, parts)?;
                 w.piece(&*p)?;
@@ -639,9 +686,16 @@ impl Snowflake {
             }
             SqlFn::Strptime => {
                 if !matches!(arg(a, 1)?, SqlExpr::FormatLit { .. }) {
-                    return Err(wall(f, "a date format that is not a format literal: its codes are DuckDB's"));
+                    return Err(wall(
+                        f,
+                        "a date format that is not a format literal: its codes are DuckDB's",
+                    ));
                 }
-                w.append("TO_TIMESTAMP_NTZ(").expr(self, a0()?, 0)?.append(", ").expr(self, &a[1], 0)?.append(")");
+                w.append("TO_TIMESTAMP_NTZ(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, &a[1], 0)?
+                    .append(")");
                 Ok(())
             }
 
@@ -682,7 +736,9 @@ impl Snowflake {
             }
             SqlFn::RepeatValue => {
                 let r = self.fresh_name("r");
-                w.append("TRANSFORM(ARRAY_GENERATE_RANGE(0, ").expr(self, arg(a, 1)?, 0)?.append("), ");
+                w.append("TRANSFORM(ARRAY_GENERATE_RANGE(0, ")
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append("), ");
                 let lambda = self.lambda_of(vec![param(&r, Some("INTEGER"))], Vec::new(), self.ex(a0()?, 0));
                 w.piece(&*lambda)?.append(")");
                 Ok(())
@@ -698,10 +754,18 @@ impl Snowflake {
             SqlFn::MapFromEntries => self.map_from_entries(w, f, a),
             // DuckDB's map_extract: a list of the key's value, empty when absent
             SqlFn::MapExtract => {
-                w.append("(CASE WHEN ").expr(self, a0()?, 4)?.append(" IS NULL THEN NULL WHEN");
-                w.append(" ARRAY_CONTAINS(TO_VARIANT(").expr(self, arg(a, 1)?, 0)?.append("), OBJECT_KEYS(");
-                w.expr(self, &a[0], 0)?.append(")) THEN ARRAY_CONSTRUCT(COALESCE(GET(").expr(self, &a[0], 0)?;
-                w.append(", ").expr(self, &a[1], 0)?.append("), PARSE_JSON('null'))) ELSE ARRAY_CONSTRUCT() END)");
+                w.append("(CASE WHEN ")
+                    .expr(self, a0()?, 4)?
+                    .append(" IS NULL THEN NULL WHEN");
+                w.append(" ARRAY_CONTAINS(TO_VARIANT(")
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append("), OBJECT_KEYS(");
+                w.expr(self, &a[0], 0)?
+                    .append(")) THEN ARRAY_CONSTRUCT(COALESCE(GET(")
+                    .expr(self, &a[0], 0)?;
+                w.append(", ")
+                    .expr(self, &a[1], 0)?
+                    .append("), PARSE_JSON('null'))) ELSE ARRAY_CONSTRUCT() END)");
                 Ok(())
             }
             // in the keys' order (OBJECT_KEYS sorts them)
@@ -714,7 +778,8 @@ impl Snowflake {
                     w.append("GET(").expr(self, x, 0)?.append(&format!(", {dk})"));
                     Ok(())
                 });
-                w.piece(&*self.lambda_of(vec![param(&k, Some("VARCHAR"))], Vec::new(), body))?.append(")");
+                w.piece(&*self.lambda_of(vec![param(&k, Some("VARCHAR"))], Vec::new(), body))?
+                    .append(")");
                 Ok(())
             }
             // the later map's keys win, as DuckDB's map_concat
@@ -723,7 +788,9 @@ impl Snowflake {
             // ---- variant
             // in DuckDB's json_type vocabulary; Snowflake reads '1.0' as an INTEGER, so a whole decimal is a BIGINT
             SqlFn::JsonType => {
-                w.append("(CASE WHEN ").expr(self, a0()?, 4)?.append(" IS NULL THEN NULL ELSE DECODE(TYPEOF(");
+                w.append("(CASE WHEN ")
+                    .expr(self, a0()?, 4)?
+                    .append(" IS NULL THEN NULL ELSE DECODE(TYPEOF(");
                 w.append("TO_VARIANT(").expr(self, &a[0], 0)?;
                 w.append(")), 'NULL_VALUE', 'NULL', 'BOOLEAN', 'BOOLEAN',");
                 w.append(" 'INTEGER', 'BIGINT', 'DECIMAL', 'DOUBLE', 'DOUBLE', 'DOUBLE', 'ARRAY', 'ARRAY',");
@@ -758,13 +825,23 @@ impl Snowflake {
                 }
                 let r = self.ranged(xs, fl, |b| b)?;
                 if !r.positions {
-                    w.append("FILTER(").piece(&*r.over)?.append(", ").piece(&*r.lambda)?.append(")");
+                    w.append("FILTER(")
+                        .piece(&*r.over)?
+                        .append(", ")
+                        .piece(&*r.lambda)?
+                        .append(")");
                     return Ok(());
                 }
                 // the kept positions, then their elements (as the list holds them)
                 let j = self.delimited(&self.fresh_name("j"));
-                w.append("TRANSFORM(FILTER(").piece(&*r.over)?.append(", ").piece(&*r.lambda)?.append("), ");
-                w.append(&format!("{j} INTEGER -> GET(")).expr(self, xs, 0)?.append(&format!(", {j}))"));
+                w.append("TRANSFORM(FILTER(")
+                    .piece(&*r.over)?
+                    .append(", ")
+                    .piece(&*r.lambda)?
+                    .append("), ");
+                w.append(&format!("{j} INTEGER -> GET("))
+                    .expr(self, xs, 0)?
+                    .append(&format!(", {j}))"));
                 Ok(())
             }
             SqlFn::ListTransform => {
@@ -776,7 +853,11 @@ impl Snowflake {
                     return Ok(());
                 }
                 let r = self.ranged(xs, tl, |b| b)?;
-                w.append("TRANSFORM(").piece(&*r.over)?.append(", ").piece(&*r.lambda)?.append(")");
+                w.append("TRANSFORM(")
+                    .piece(&*r.over)?
+                    .append(", ")
+                    .piece(&*r.lambda)?
+                    .append(")");
                 Ok(())
             }
             // NULL ++ xs is xs, as DuckDB's list_concat
@@ -788,7 +869,10 @@ impl Snowflake {
                 for next in &a[1..] {
                     let left = acc;
                     acc = pc(move |w| {
-                        w.append("ARRAY_CAT(").piece(&*left)?.append(", COALESCE(").expr(self, next, 0)?;
+                        w.append("ARRAY_CAT(")
+                            .piece(&*left)?
+                            .append(", COALESCE(")
+                            .expr(self, next, 0)?;
                         w.append(", ARRAY_CONSTRUCT()))");
                         Ok(())
                     });
@@ -805,17 +889,26 @@ impl Snowflake {
             }
             // DuckDB's list_position: 1-based, NULL when absent
             SqlFn::ListPosition => {
-                w.append("(ARRAY_POSITION(TO_VARIANT(").expr(self, arg(a, 1)?, 0)?.append("), ").expr(self, xs, 0)?;
+                w.append("(ARRAY_POSITION(TO_VARIANT(")
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append("), ")
+                    .expr(self, xs, 0)?;
                 w.append(") + 1)");
                 Ok(())
             }
             // DuckDB's list_distinct drops NULLs
             SqlFn::ListDistinct => {
-                w.append("ARRAY_DISTINCT(ARRAY_COMPACT(").expr(self, xs, 0)?.append("))");
+                w.append("ARRAY_DISTINCT(ARRAY_COMPACT(")
+                    .expr(self, xs, 0)?
+                    .append("))");
                 Ok(())
             }
             SqlFn::ListAppend => {
-                w.append("ARRAY_APPEND(").expr(self, xs, 0)?.append(", ").expr(self, arg(a, 1)?, 0)?.append(")");
+                w.append("ARRAY_APPEND(")
+                    .expr(self, xs, 0)?
+                    .append(", ")
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append(")");
                 Ok(())
             }
             SqlFn::ListSum => {
@@ -824,7 +917,11 @@ impl Snowflake {
                 Ok(())
             }
             SqlFn::ListMin | SqlFn::ListMax => {
-                let name = if f == SqlFn::ListMin { "ARRAY_MIN(" } else { "ARRAY_MAX(" };
+                let name = if f == SqlFn::ListMin {
+                    "ARRAY_MIN("
+                } else {
+                    "ARRAY_MAX("
+                };
                 let x = xs_ex();
                 let read = pc(move |w| {
                     w.append(name).piece(&*x)?.append(")");
@@ -867,12 +964,17 @@ impl Snowflake {
                     let p = self.struct_sort(xs, fields, desc)?;
                     w.piece(&*p)?;
                 } else {
-                    w.append("ARRAY_SORT(").expr(self, xs, 0)?.append(if desc { ", FALSE, FALSE)" } else { ")" });
+                    w.append("ARRAY_SORT(")
+                        .expr(self, xs, 0)?
+                        .append(if desc { ", FALSE, FALSE)" } else { ")" });
                 }
                 Ok(())
             }
             SqlFn::ListTail => {
-                w.append("ARRAY_SLICE(").expr(self, xs, 0)?.append(", 1, ARRAY_SIZE(").expr(self, xs, 0)?;
+                w.append("ARRAY_SLICE(")
+                    .expr(self, xs, 0)?
+                    .append(", 1, ARRAY_SIZE(")
+                    .expr(self, xs, 0)?;
                 w.append("))");
                 Ok(())
             }
@@ -888,7 +990,10 @@ impl Snowflake {
                         "a slice counted from the end (DuckDB's end is inclusive there, Snowflake's not)",
                     ));
                 }
-                w.append("ARRAY_SLICE(").expr(self, xs, 0)?.append(", GREATEST(").expr(self, &a[1], 6)?;
+                w.append("ARRAY_SLICE(")
+                    .expr(self, xs, 0)?
+                    .append(", GREATEST(")
+                    .expr(self, &a[1], 6)?;
                 w.append(" - 1, 0), ").expr(self, &a[2], 0)?.append(")");
                 Ok(())
             }
@@ -906,7 +1011,10 @@ impl Snowflake {
                 let Some(t) = self.param_type(element)? else {
                     return Err(wall(f, "a reduction over a list of unknown element type"));
                 };
-                w.append("REDUCE(ARRAY_SLICE(").expr(self, xs, 0)?.append(", 1, ARRAY_SIZE(").expr(self, xs, 0)?;
+                w.append("REDUCE(ARRAY_SLICE(")
+                    .expr(self, xs, 0)?
+                    .append(", 1, ARRAY_SIZE(")
+                    .expr(self, xs, 0)?;
                 w.append(")), ");
                 let first = pc(move |w| {
                     w.append("GET(").expr(self, xs, 0)?.append(", 0)");
@@ -934,7 +1042,11 @@ impl Snowflake {
     /// `ARRAY_CONTAINS` of FALSE (TRUE) absent (present): DuckDB's bool_and (bool_or) over a list.
     fn bool_reduce<'a>(&'a self, xs: &'a SqlExpr, and: bool) -> P<'a> {
         pc(move |w| {
-            w.append(if and { "NOT ARRAY_CONTAINS(TO_VARIANT(FALSE), " } else { "ARRAY_CONTAINS(TO_VARIANT(TRUE), " });
+            w.append(if and {
+                "NOT ARRAY_CONTAINS(TO_VARIANT(FALSE), "
+            } else {
+                "ARRAY_CONTAINS(TO_VARIANT(TRUE), "
+            });
             w.expr(self, xs, 0)?.append(")");
             Ok(())
         })
@@ -945,7 +1057,10 @@ impl Snowflake {
         pc(move |w| {
             let dbl = SqlType::Scalar(Scalar::Double);
             let sum = self.sum(xs, Some(&dbl), Some(&dbl))?;
-            w.piece(&*sum)?.append(" / ARRAY_SIZE(ARRAY_COMPACT(").expr(self, xs, 0)?.append("))");
+            w.piece(&*sum)?
+                .append(" / ARRAY_SIZE(ARRAY_COMPACT(")
+                .expr(self, xs, 0)?
+                .append("))");
             Ok(())
         })
     }
@@ -991,16 +1106,36 @@ impl Snowflake {
                 return text("NULL");
             }
             return pc(move |w| {
-                w.append("(CASE WHEN ARRAY_SIZE(").expr(self, xs, 0)?.append(&format!(") + ({n}) >= 0 THEN GET("));
-                w.expr(self, xs, 0)?.append(", ARRAY_SIZE(").expr(self, xs, 0)?.append(&format!(") + ({n})) END)"));
+                w.append("(CASE WHEN ARRAY_SIZE(")
+                    .expr(self, xs, 0)?
+                    .append(&format!(") + ({n}) >= 0 THEN GET("));
+                w.expr(self, xs, 0)?
+                    .append(", ARRAY_SIZE(")
+                    .expr(self, xs, 0)?
+                    .append(&format!(") + ({n})) END)"));
                 Ok(())
             });
         }
         pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, i, 0)?.append(" > 0 THEN GET(").expr(self, xs, 0)?.append(", ");
-            w.expr(self, i, 6)?.append(" - 1) WHEN ").expr(self, i, 0)?.append(" < 0 AND ARRAY_SIZE(");
-            w.expr(self, xs, 0)?.append(") + ").expr(self, i, 6)?.append(" >= 0 THEN GET(").expr(self, xs, 0)?;
-            w.append(", ARRAY_SIZE(").expr(self, xs, 0)?.append(") + ").expr(self, i, 6)?.append(") END)");
+            w.append("(CASE WHEN ")
+                .expr(self, i, 0)?
+                .append(" > 0 THEN GET(")
+                .expr(self, xs, 0)?
+                .append(", ");
+            w.expr(self, i, 6)?
+                .append(" - 1) WHEN ")
+                .expr(self, i, 0)?
+                .append(" < 0 AND ARRAY_SIZE(");
+            w.expr(self, xs, 0)?
+                .append(") + ")
+                .expr(self, i, 6)?
+                .append(" >= 0 THEN GET(")
+                .expr(self, xs, 0)?;
+            w.append(", ARRAY_SIZE(")
+                .expr(self, xs, 0)?
+                .append(") + ")
+                .expr(self, i, 6)?
+                .append(") END)");
             Ok(())
         })
     }
@@ -1008,7 +1143,9 @@ impl Snowflake {
     /// `body` when `xs` holds an element, else NULL (Java's `nonEmpty`).
     fn non_empty<'a>(&'a self, xs: &'a SqlExpr, body: P<'a>) -> P<'a> {
         pc(move |w| {
-            w.append("(CASE WHEN ARRAY_SIZE(ARRAY_COMPACT(").expr(self, xs, 0)?.append(")) > 0 THEN ");
+            w.append("(CASE WHEN ARRAY_SIZE(ARRAY_COMPACT(")
+                .expr(self, xs, 0)?
+                .append(")) > 0 THEN ");
             w.piece(&*body)?.append(" END)");
             Ok(())
         })
@@ -1017,7 +1154,9 @@ impl Snowflake {
     /// The sum of `xs`'s non-NULL elements in `acc`, the element's type when the call's is unknown (Java's `sum`).
     fn sum<'a>(&'a self, xs: &'a SqlExpr, element: Option<&SqlType>, acc: Option<&SqlType>) -> Result<P<'a>, Refusal> {
         let Some(t) = acc.or(element) else {
-            return Err(Refusal::capability("a sum over a list of unknown element type reached Snowflake"));
+            return Err(Refusal::capability(
+                "a sum over a list of unknown element type reached Snowflake",
+            ));
         };
         self.reduce(xs, element, t, "0", "+")
     }
@@ -1079,9 +1218,18 @@ impl Snowflake {
         let middle = {
             let num = num.clone();
             pc(move |w| {
-                w.append("(CASE WHEN ").piece(&*n)?.append(" = 0 THEN NULL WHEN MOD(").piece(&*n)?;
-                w.append(", 2) = 1 THEN ").piece(&*at)?.append(" ELSE (CAST(GET(").piece(&*sorted)?;
-                w.append(", TRUNC(").piece(&*n)?.append(&format!(" / 2) - 1) AS {num}) + ")).piece(&*at)?;
+                w.append("(CASE WHEN ")
+                    .piece(&*n)?
+                    .append(" = 0 THEN NULL WHEN MOD(")
+                    .piece(&*n)?;
+                w.append(", 2) = 1 THEN ")
+                    .piece(&*at)?
+                    .append(" ELSE (CAST(GET(")
+                    .piece(&*sorted)?;
+                w.append(", TRUNC(")
+                    .piece(&*n)?
+                    .append(&format!(" / 2) - 1) AS {num}) + "))
+                    .piece(&*at)?;
                 w.append(") / 2 END)");
                 Ok(())
             })
@@ -1102,7 +1250,9 @@ impl Snowflake {
     /// DuckDB's list mode: the most frequent non-NULL element, the earliest-seen on a tie (Java's `mode`).
     fn mode<'a>(&'a self, xs: &'a SqlExpr, element: Option<&SqlType>) -> Result<P<'a>, Refusal> {
         let Some(t) = self.param_type(element)? else {
-            return Err(Refusal::capability("a list mode of unknown element type reached Snowflake"));
+            return Err(Refusal::capability(
+                "a list mode of unknown element type reached Snowflake",
+            ));
         };
         let i = self.delimited(&self.fresh_name("i"));
         let a = self.delimited(&self.fresh_name("a"));
@@ -1123,8 +1273,10 @@ impl Snowflake {
             Ok(())
         });
         Ok(pc(move |w| {
-            w.append("CAST(GET(REDUCE(ARRAY_SORT(TRANSFORM(ARRAY_GENERATE_RANGE(0, ARRAY_SIZE(").piece(&*compact)?;
-            w.append(&format!(")), {i} INTEGER -> ARRAY_CONSTRUCT(CAST(GET(")).piece(&*compact)?;
+            w.append("CAST(GET(REDUCE(ARRAY_SORT(TRANSFORM(ARRAY_GENERATE_RANGE(0, ARRAY_SIZE(")
+                .piece(&*compact)?;
+            w.append(&format!(")), {i} INTEGER -> ARRAY_CONSTRUCT(CAST(GET("))
+                .piece(&*compact)?;
             w.append(&format!(
                 ", {i}) AS {t}), {i}))), ARRAY_CONSTRUCT(NULL, 0, 0, NULL, 0, 0), ({a} ARRAY, {p} ARRAY) -> {step}), \
                  0) AS {t})"
@@ -1152,7 +1304,10 @@ impl Snowflake {
         let rn = {
             let n = n.clone();
             pc(move |w| {
-                w.append("(CAST(").piece(&*n)?.append(" - 1 AS DOUBLE) * CAST(").expr(self, q, 0)?;
+                w.append("(CAST(")
+                    .piece(&*n)?
+                    .append(" - 1 AS DOUBLE) * CAST(")
+                    .expr(self, q, 0)?;
                 w.append(" AS DOUBLE))");
                 Ok(())
             })
@@ -1160,7 +1315,10 @@ impl Snowflake {
         let bound = |f: &'static str| {
             let (sorted, rn) = (sorted.clone(), rn.clone());
             pc(move |w| {
-                w.append("CAST(GET(").piece(&*sorted)?.append(&format!(", CAST({f}(")).piece(&*rn)?;
+                w.append("CAST(GET(")
+                    .piece(&*sorted)?
+                    .append(&format!(", CAST({f}("))
+                    .piece(&*rn)?;
                 w.append(") AS INTEGER)) AS DOUBLE)");
                 Ok(())
             })
@@ -1168,8 +1326,18 @@ impl Snowflake {
         let lo = bound("FLOOR");
         let hi = bound("CEIL");
         Ok(pc(move |w| {
-            w.append("(CASE WHEN ").piece(&*n)?.append(" = 0 THEN NULL ELSE ").piece(&*lo)?.append(" + (");
-            w.piece(&*hi)?.append(" - ").piece(&*lo)?.append(") * (").piece(&*rn)?.append(" - FLOOR(").piece(&*rn)?;
+            w.append("(CASE WHEN ")
+                .piece(&*n)?
+                .append(" = 0 THEN NULL ELSE ")
+                .piece(&*lo)?
+                .append(" + (");
+            w.piece(&*hi)?
+                .append(" - ")
+                .piece(&*lo)?
+                .append(") * (")
+                .piece(&*rn)?
+                .append(" - FLOOR(")
+                .piece(&*rn)?;
             w.append(")) END)");
             Ok(())
         }))
@@ -1190,7 +1358,11 @@ impl Snowflake {
         let p: P<'_> = match reducer {
             AggFn::Sum => self.non_empty(xs, self.sum(xs, element, result)?),
             AggFn::Min | AggFn::Max => {
-                let name = if reducer == AggFn::Min { "ARRAY_MIN(" } else { "ARRAY_MAX(" };
+                let name = if reducer == AggFn::Min {
+                    "ARRAY_MIN("
+                } else {
+                    "ARRAY_MAX("
+                };
                 let read = pc(move |w| {
                     w.append(name).expr(self, xs, 0)?.append(")");
                     Ok(())
@@ -1226,18 +1398,17 @@ impl Snowflake {
                 self.non_empty(
                     xs,
                     pc(move |w| {
-                        w.append("ARRAY_TO_STRING(ARRAY_COMPACT(").expr(self, xs, 0)?.append("), ");
+                        w.append("ARRAY_TO_STRING(ARRAY_COMPACT(")
+                            .expr(self, xs, 0)?
+                            .append("), ");
                         w.expr(self, sep, 0)?.append(")");
                         Ok(())
                     }),
                 )
             }
-            AggFn::StddevSamp
-            | AggFn::StddevPop
-            | AggFn::VarSamp
-            | AggFn::VarPop
-            | AggFn::Variance
-            | AggFn::Stddev => self.moments(xs, reducer),
+            AggFn::StddevSamp | AggFn::StddevPop | AggFn::VarSamp | AggFn::VarPop | AggFn::Variance | AggFn::Stddev => {
+                self.moments(xs, reducer)
+            }
             AggFn::AnyValue
             | AggFn::List
             | AggFn::QuantileDisc
@@ -1263,7 +1434,9 @@ impl Snowflake {
                 )));
             }
             AggFn::Wavg | AggFn::HashList | AggFn::IsDistinctMark | AggFn::UniqueValueOnly => {
-                return Err(Refusal::illegal_state(format!("lowering marker {reducer} reached the renderer")));
+                return Err(Refusal::illegal_state(format!(
+                    "lowering marker {reducer} reached the renderer"
+                )));
             }
         };
         w.piece(&*p)?;
@@ -1291,11 +1464,18 @@ impl Snowflake {
         let sample = matches!(f, AggFn::StddevSamp | AggFn::VarSamp | AggFn::Variance | AggFn::Stddev);
         let root = matches!(f, AggFn::StddevSamp | AggFn::StddevPop | AggFn::Stddev);
         let variance = pc(move |w| {
-            w.append("(CASE WHEN ").piece(&*read(0))?.append(" > 1 THEN ").piece(&*read(2))?;
+            w.append("(CASE WHEN ")
+                .piece(&*read(0))?
+                .append(" > 1 THEN ")
+                .piece(&*read(2))?;
             if sample {
                 w.append(" / (").piece(&*read(0))?.append(" - 1) END)");
             } else {
-                w.append(" / ").piece(&*read(0))?.append(" WHEN ").piece(&*read(0))?.append(" = 1 THEN 0E0 END)");
+                w.append(" / ")
+                    .piece(&*read(0))?
+                    .append(" WHEN ")
+                    .piece(&*read(0))?
+                    .append(" = 1 THEN 0E0 END)");
             }
             Ok(())
         });
@@ -1310,7 +1490,16 @@ impl Snowflake {
 
     /// Pure's fold as `REDUCE(xs, init, (acc T, x E) -> body)` (Java's `foldCall`).
     pub(super) fn fold_call_arm(&self, w: &mut SqlWriter, fold: &SqlExpr) -> Result<(), Refusal> {
-        let SqlExpr::FoldCall { source, lambda: l, init, r#type, .. } = fold else { unreachable!("a fold") };
+        let SqlExpr::FoldCall {
+            source,
+            lambda: l,
+            init,
+            r#type,
+            ..
+        } = fold
+        else {
+            unreachable!("a fold")
+        };
         let Some(t) = fact_type(r#type) else {
             return Err(Refusal::capability("a fold of unknown type reached Snowflake"));
         };
@@ -1318,8 +1507,16 @@ impl Snowflake {
         let element = list_element(source);
         let acc = param_at(l, 1)?.to_owned();
         let elem_type = self.param_type(element)?;
-        let params = vec![param(&acc, Some(&ty)), Param { name: param_at(l, 0)?.to_owned(), r#type: elem_type }];
-        w.append("REDUCE(COALESCE(").expr(self, source, 0)?.append(", ARRAY_CONSTRUCT()), CAST(");
+        let params = vec![
+            param(&acc, Some(&ty)),
+            Param {
+                name: param_at(l, 0)?.to_owned(),
+                r#type: elem_type,
+            },
+        ];
+        w.append("REDUCE(COALESCE(")
+            .expr(self, source, 0)?
+            .append(", ARRAY_CONSTRUCT()), CAST(");
         w.expr(self, init, 0)?.append(&format!(" AS {ty}), "));
         let body = {
             let ty = ty.clone();
@@ -1335,9 +1532,13 @@ impl Snowflake {
     /// Pure's splitPart: the non-empty tokens, 1-based, NULL past the end (Java's `splitPartCall`).
     pub(super) fn split_part_arm(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let t = self.delimited(&self.fresh_name("t"));
-        w.append("(CASE WHEN ").expr(self, arg(a, 2)?, 0)?.append(" > 0 THEN CAST(GET(FILTER(");
+        w.append("(CASE WHEN ")
+            .expr(self, arg(a, 2)?, 0)?
+            .append(" > 0 THEN CAST(GET(FILTER(");
         let split = self.split(arg(a, 0)?, arg(a, 1)?);
-        w.piece(&*split)?.append(&format!(", {t} VARCHAR -> {t} <> ''), ")).expr(self, &a[2], 6)?;
+        w.piece(&*split)?
+            .append(&format!(", {t} VARCHAR -> {t} <> ''), "))
+            .expr(self, &a[2], 6)?;
         w.append(" - 1) AS VARCHAR) END)");
         Ok(())
     }
@@ -1348,12 +1549,18 @@ impl Snowflake {
             && value.is_empty()
         {
             return pc(move |w| {
-                w.append("REGEXP_SUBSTR_ALL(").expr(self, s, 0)?.append(", '.', 1, 1, 's')");
+                w.append("REGEXP_SUBSTR_ALL(")
+                    .expr(self, s, 0)?
+                    .append(", '.', 1, 1, 's')");
                 Ok(())
             });
         }
         pc(move |w| {
-            w.append("SPLIT(").expr(self, s, 0)?.append(", ").expr(self, d, 0)?.append(")");
+            w.append("SPLIT(")
+                .expr(self, s, 0)?
+                .append(", ")
+                .expr(self, d, 0)?
+                .append(")");
             Ok(())
         })
     }
@@ -1365,7 +1572,11 @@ impl Snowflake {
             return Ok(());
         }
         let (v, scale) = self.scaled(a);
-        w.append("(SIGN(").piece(&*v)?.append(") * FLOOR(ABS(").piece(&*v)?.append(") + 0.5)");
+        w.append("(SIGN(")
+            .piece(&*v)?
+            .append(") * FLOOR(ABS(")
+            .piece(&*v)?
+            .append(") + 0.5)");
         if let Some(scale) = &scale {
             w.append(" / ").piece(&**scale)?;
         }
@@ -1386,7 +1597,11 @@ impl Snowflake {
             Some(scale) => {
                 let scale = scale.clone();
                 pc(move |w| {
-                    w.append("(").expr(self, &a[0], 6)?.append(" * ").piece(&*scale)?.append(")");
+                    w.append("(")
+                        .expr(self, &a[0], 6)?
+                        .append(" * ")
+                        .piece(&*scale)?
+                        .append(")");
                     Ok(())
                 })
             }
@@ -1400,21 +1615,32 @@ impl Snowflake {
         if !matches!(list_element(keys), Some(SqlType::Scalar(Scalar::Varchar))) {
             return Err(wall(
                 f,
-                &format!("a map keyed by {} (an OBJECT's keys are text)", type_text(list_element(keys))),
+                &format!(
+                    "a map keyed by {} (an OBJECT's keys are text)",
+                    type_text(list_element(keys))
+                ),
             ));
         }
         let m = self.fresh_name("m");
         let i = self.fresh_name("i");
-        w.append("REDUCE(ARRAY_GENERATE_RANGE(0, ARRAY_SIZE(").expr(self, keys, 0)?.append(")), OBJECT_CONSTRUCT(), ");
+        w.append("REDUCE(ARRAY_GENERATE_RANGE(0, ARRAY_SIZE(")
+            .expr(self, keys, 0)?
+            .append(")), OBJECT_CONSTRUCT(), ");
         let (dm, di) = (self.delimited(&m), self.delimited(&i));
         let values = arg(a, 1);
         let body = pc(move |w| {
-            w.append(&format!("OBJECT_INSERT({dm}, CAST(GET(")).expr(self, keys, 0)?;
-            w.append(&format!(", {di}) AS VARCHAR), COALESCE(GET(")).expr(self, values.clone()?, 0)?;
+            w.append(&format!("OBJECT_INSERT({dm}, CAST(GET("))
+                .expr(self, keys, 0)?;
+            w.append(&format!(", {di}) AS VARCHAR), COALESCE(GET("))
+                .expr(self, values.clone()?, 0)?;
             w.append(&format!(", {di}), PARSE_JSON('null')), TRUE)"));
             Ok(())
         });
-        w.piece(&*self.lambda_of(vec![param(&m, Some("OBJECT")), param(&i, Some("INTEGER"))], Vec::new(), body))?;
+        w.piece(&*self.lambda_of(
+            vec![param(&m, Some("OBJECT")), param(&i, Some("INTEGER"))],
+            Vec::new(),
+            body,
+        ))?;
         w.append(")");
         Ok(())
     }
@@ -1429,20 +1655,29 @@ impl Snowflake {
                 fields
             }
             other => {
-                return Err(wall(f, &format!("entries of {} (an OBJECT's keys are text)", type_text(other))));
+                return Err(wall(
+                    f,
+                    &format!("entries of {} (an OBJECT's keys are text)", type_text(other)),
+                ));
             }
         };
         let m = self.fresh_name("m");
         let e = self.fresh_name("e");
         let key = self.string_lit(&fields[0].name)?;
         let value = self.string_lit(&fields[1].name)?;
-        w.append("REDUCE(COALESCE(").expr(self, entries, 0)?.append(", ARRAY_CONSTRUCT()), OBJECT_CONSTRUCT(), ");
+        w.append("REDUCE(COALESCE(")
+            .expr(self, entries, 0)?
+            .append(", ARRAY_CONSTRUCT()), OBJECT_CONSTRUCT(), ");
         let (dm, de) = (self.delimited(&m), self.delimited(&e));
         let body = text(format!(
             "OBJECT_INSERT({dm}, CAST(GET({de}, {key}) AS VARCHAR), COALESCE(GET({de}, {value}), PARSE_JSON('null')), \
              TRUE)"
         ));
-        w.piece(&*self.lambda_of(vec![param(&m, Some("OBJECT")), param(&e, Some("OBJECT"))], Vec::new(), body))?;
+        w.piece(&*self.lambda_of(
+            vec![param(&m, Some("OBJECT")), param(&e, Some("OBJECT"))],
+            Vec::new(),
+            body,
+        ))?;
         w.append(")");
         Ok(())
     }
@@ -1451,7 +1686,9 @@ impl Snowflake {
     fn map_concat(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let first = arg(a, 0)?;
         let mut acc: P<'_> = pc(move |w| {
-            w.append("COALESCE(").expr(self, first, 0)?.append(", OBJECT_CONSTRUCT())");
+            w.append("COALESCE(")
+                .expr(self, first, 0)?
+                .append(", OBJECT_CONSTRUCT())");
             Ok(())
         });
         for next in &a[1..] {
@@ -1460,13 +1697,20 @@ impl Snowflake {
             let k = self.fresh_name("k");
             let (dm, dk) = (self.delimited(&m), self.delimited(&k));
             let body = pc(move |v| {
-                v.append(&format!("OBJECT_INSERT({dm}, {dk}, COALESCE(GET(")).expr(self, next, 0)?;
+                v.append(&format!("OBJECT_INSERT({dm}, {dk}, COALESCE(GET("))
+                    .expr(self, next, 0)?;
                 v.append(&format!(", {dk}), PARSE_JSON('null')), TRUE)"));
                 Ok(())
             });
-            let lambda = self.lambda_of(vec![param(&m, Some("OBJECT")), param(&k, Some("VARCHAR"))], Vec::new(), body);
+            let lambda = self.lambda_of(
+                vec![param(&m, Some("OBJECT")), param(&k, Some("VARCHAR"))],
+                Vec::new(),
+                body,
+            );
             acc = pc(move |w| {
-                w.append("REDUCE(COALESCE(OBJECT_KEYS(").expr(self, next, 0)?.append("), ARRAY_CONSTRUCT()), ");
+                w.append("REDUCE(COALESCE(OBJECT_KEYS(")
+                    .expr(self, next, 0)?
+                    .append("), ARRAY_CONSTRUCT()), ");
                 w.piece(&*left)?.append(", ").piece(&*lambda)?.append(")");
                 Ok(())
             });
@@ -1490,7 +1734,11 @@ impl Snowflake {
             }
             let left = acc;
             acc = pc(move |w| {
-                w.append("OBJECT_INSERT(").piece(&*left)?.append(", ").expr(self, k, 0)?.append(", ");
+                w.append("OBJECT_INSERT(")
+                    .piece(&*left)?
+                    .append(", ")
+                    .expr(self, k, 0)?
+                    .append(", ");
                 w.expr(self, val, 0)?.append(", TRUE)");
                 Ok(())
             });
@@ -1608,7 +1856,9 @@ impl Snowflake {
                 continue;
             };
             if next_arg >= a.len() {
-                return Err(Refusal::capability("a format with more directives than arguments reached Snowflake"));
+                return Err(Refusal::capability(
+                    "a format with more directives than arguments reached Snowflake",
+                ));
             }
             if !text_run.is_empty() {
                 parts.push(text(self.string_lit(&text_run)?));
@@ -1640,14 +1890,21 @@ impl Snowflake {
                     // a negative value rounding to zero keeps its sign in Java's %f (-0.00); a NUMBER has no -0
                     let number = format!(" AS NUMBER(38, {precision}))");
                     pc(move |w| {
-                        w.append("(CASE WHEN ").expr(self, x, 0)?.append(" < 0 AND CAST(").expr(self, x, 0)?;
-                        w.append(&number).append(" = 0 THEN '-' ELSE '' END || TO_VARCHAR(CAST(").expr(self, x, 0)?;
+                        w.append("(CASE WHEN ")
+                            .expr(self, x, 0)?
+                            .append(" < 0 AND CAST(")
+                            .expr(self, x, 0)?;
+                        w.append(&number)
+                            .append(" = 0 THEN '-' ELSE '' END || TO_VARCHAR(CAST(")
+                            .expr(self, x, 0)?;
                         w.append(&number).append("))");
                         Ok(())
                     })
                 }
                 other => {
-                    return Err(Refusal::illegal_state(format!("the directive pattern admits s, d, f: {other}")));
+                    return Err(Refusal::illegal_state(format!(
+                        "the directive pattern admits s, d, f: {other}"
+                    )));
                 }
             };
             if width > 0 && conversion == 'd' && zero {
@@ -1656,7 +1913,10 @@ impl Snowflake {
                     Ok(())
                 });
                 parts.push(pc(move |w| {
-                    w.append("(CASE WHEN ").expr(self, x, 0)?.append(" < 0 THEN '-' || LPAD(").piece(&*digits)?;
+                    w.append("(CASE WHEN ")
+                        .expr(self, x, 0)?
+                        .append(" < 0 THEN '-' || LPAD(")
+                        .piece(&*digits)?;
                     w.append(&format!(", {}, '0') ELSE LPAD(", width - 1)).piece(&*digits)?;
                     w.append(&format!(", {width}, '0') END)"));
                     Ok(())
@@ -1690,7 +1950,10 @@ impl Snowflake {
 
     fn matches(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let p = self.pattern(arg(a, 1)?, 0)?;
-        w.append("(REGEXP_INSTR(").expr(self, arg(a, 0)?, 0)?.append(", ").piece(&*p.text)?;
+        w.append("(REGEXP_INSTR(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ")
+            .piece(&*p.text)?;
         let params = self.string_lit(&p.params)?;
         w.append(", 1, 1, 0, ").append(&params).append(") > 0)");
         Ok(())
@@ -1698,7 +1961,11 @@ impl Snowflake {
 
     fn full_match(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let p = self.pattern(arg(a, 1)?, 0)?;
-        w.append("REGEXP_LIKE(").expr(self, arg(a, 0)?, 0)?.append(", ").piece(&*p.text)?.append(", ");
+        w.append("REGEXP_LIKE(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ")
+            .piece(&*p.text)?
+            .append(", ");
         let params = self.string_lit(&p.params)?;
         w.append(&params).append(")");
         Ok(())
@@ -1711,7 +1978,10 @@ impl Snowflake {
             return Ok(());
         }
         let p = self.pattern(arg(a, 1)?, group_read(a))?;
-        w.append("COALESCE(REGEXP_SUBSTR(").expr(self, arg(a, 0)?, 0)?.append(", ").piece(&*p.text)?;
+        w.append("COALESCE(REGEXP_SUBSTR(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ")
+            .piece(&*p.text)?;
         let params = self.string_lit(&format!("{}e", p.params))?;
         w.append(", 1, 1, ").append(&params).append(", ");
         if a.len() > 2 {
@@ -1725,7 +1995,10 @@ impl Snowflake {
 
     fn regexp_extract_all(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let p = self.pattern(arg(a, 1)?, group_read(a))?;
-        w.append("REGEXP_SUBSTR_ALL(").expr(self, arg(a, 0)?, 0)?.append(", ").piece(&*p.text)?;
+        w.append("REGEXP_SUBSTR_ALL(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ")
+            .piece(&*p.text)?;
         let params = self.string_lit(&format!("{}e", p.params))?;
         w.append(", 1, 1, ").append(&params).append(", ");
         if a.len() > 2 {
@@ -1748,15 +2021,21 @@ impl Snowflake {
         }
         // a replacement that reads no group reads none of the pattern's numbering
         let reads_groups = match arg(a, 2)? {
-            SqlExpr::StringLit { value, .. } => {
-                value.as_bytes().windows(2).any(|p| p[0] == b'\\' && p[1].is_ascii_digit())
-            }
+            SqlExpr::StringLit { value, .. } => value
+                .as_bytes()
+                .windows(2)
+                .any(|p| p[0] == b'\\' && p[1].is_ascii_digit()),
             _ => true,
         };
         let p = self.pattern(arg(a, 1)?, if reads_groups { i32::MAX } else { 0 })?;
         let params = format!("{}{}", p.params, if options.contains('i') { "i" } else { "" });
-        w.append("REGEXP_REPLACE(").expr(self, arg(a, 0)?, 0)?.append(", ").piece(&*p.text)?.append(", ");
-        w.expr(self, &a[2], 0)?.append(&format!(", 1, {}, ", if options.contains('g') { 0 } else { 1 }));
+        w.append("REGEXP_REPLACE(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ")
+            .piece(&*p.text)?
+            .append(", ");
+        w.expr(self, &a[2], 0)?
+            .append(&format!(", 1, {}, ", if options.contains('g') { 0 } else { 1 }));
         let lit = self.string_lit(&params)?;
         w.append(&lit).append(")");
         Ok(())
@@ -1777,7 +2056,11 @@ impl Snowflake {
         {
             flags = f;
             literal = Some(&l[end..]);
-        } else if let SqlExpr::Call { r#fn: SqlFn::Concat, args, .. } = p
+        } else if let SqlExpr::Call {
+            r#fn: SqlFn::Concat,
+            args,
+            ..
+        } = p
             && args.len() == 2
             && let SqlExpr::StringLit { value, .. } = &args[0]
             && let Some((f, end)) = re2_flags(value)
@@ -1793,7 +2076,10 @@ impl Snowflake {
             if flags.contains('s') { "s" } else { "" }
         );
         let Some(literal) = literal else {
-            return Ok(Pattern { text: self.ex(body, 0), params });
+            return Ok(Pattern {
+                text: self.ex(body, 0),
+                params,
+            });
         };
         if lazy(literal) {
             return Err(Refusal::capability(format!(
@@ -1816,7 +2102,10 @@ impl Snowflake {
                 "a lookaround, flag group or named group reached Snowflake's POSIX regular expressions: {literal}"
             )));
         }
-        Ok(Pattern { text: text(self.string_lit(&plain)?), params })
+        Ok(Pattern {
+            text: text(self.string_lit(&plain)?),
+            params,
+        })
     }
 
     /// The text before a match, or before a group of it: the lowering's regexpIndexOf as the subject cut at
@@ -1844,9 +2133,17 @@ impl Snowflake {
         let b = &rest[..close];
         let f = &rest[close + 1..];
         let whole = b.is_empty() && f.starts_with("(?:") && f.ends_with(')');
-        let original = if whole { f[3..f.len() - 1].to_owned() } else { format!("{b}{f}") };
+        let original = if whole {
+            f[3..f.len() - 1].to_owned()
+        } else {
+            format!("{b}{f}")
+        };
         let group = if whole { 0 } else { capturing_groups(b) + 1 };
-        let prefix = if flags.is_empty() { String::new() } else { format!("(?{flags})") };
+        let prefix = if flags.is_empty() {
+            String::new()
+        } else {
+            format!("(?{flags})")
+        };
         let rebuilt = crate::build::string_lit(&format!("{prefix}{original}"));
         let group = group as i32;
         let p = self.pattern_owned(rebuilt, group)?;
@@ -1855,8 +2152,15 @@ impl Snowflake {
         let tail = if group > 0 { format!(", {group}") } else { String::new() };
         let pattern_text = p.0;
         Ok(Some(pc(move |w| {
-            w.append("COALESCE(LEFT(").expr(self, x, 0)?.append(", NULLIF(REGEXP_INSTR(").expr(self, x, 0)?;
-            w.append(", ").append(&pattern_text).append(", 1, 1, 0, ").append(&params).append(&tail);
+            w.append("COALESCE(LEFT(")
+                .expr(self, x, 0)?
+                .append(", NULLIF(REGEXP_INSTR(")
+                .expr(self, x, 0)?;
+            w.append(", ")
+                .append(&pattern_text)
+                .append(", 1, 1, 0, ")
+                .append(&params)
+                .append(&tail);
             w.append("), 0) - 1), '')");
             Ok(())
         })))
@@ -1886,13 +2190,23 @@ impl Snowflake {
             && value == "$.*"
         {
             let k = self.delimited(&self.fresh_name("k"));
-            w.append("(CASE WHEN IS_OBJECT(TO_VARIANT(").expr(self, v, 0)?.append(")) THEN TRANSFORM(OBJECT_KEYS(");
-            w.expr(self, v, 0)?.append(&format!("), {k} VARCHAR -> GET(")).expr(self, v, 0)?;
-            w.append(&format!(", {k})) ELSE AS_ARRAY(TO_VARIANT(")).expr(self, v, 0)?.append(")) END)");
+            w.append("(CASE WHEN IS_OBJECT(TO_VARIANT(")
+                .expr(self, v, 0)?
+                .append(")) THEN TRANSFORM(OBJECT_KEYS(");
+            w.expr(self, v, 0)?
+                .append(&format!("), {k} VARCHAR -> GET("))
+                .expr(self, v, 0)?;
+            w.append(&format!(", {k})) ELSE AS_ARRAY(TO_VARIANT("))
+                .expr(self, v, 0)?
+                .append(")) END)");
             return Ok(());
         }
         if is_text(key) {
-            w.append("GET(").expr(self, v, 0)?.append(", ").expr(self, key, 0)?.append(")");
+            w.append("GET(")
+                .expr(self, v, 0)?
+                .append(", ")
+                .expr(self, key, 0)?
+                .append(")");
             return Ok(());
         }
         // a literal index is checked when the statement compiles, in a branch never taken too: its branch is chosen
@@ -1901,14 +2215,31 @@ impl Snowflake {
             if n >= 0 {
                 w.append("GET(").expr(self, v, 0)?.append(&format!(", {n})"));
             } else {
-                w.append("(CASE WHEN ARRAY_SIZE(").expr(self, v, 0)?.append(&format!(") + ({n}) >= 0 THEN GET("));
-                w.expr(self, v, 0)?.append(", ARRAY_SIZE(").expr(self, v, 0)?.append(&format!(") + ({n})) END)"));
+                w.append("(CASE WHEN ARRAY_SIZE(")
+                    .expr(self, v, 0)?
+                    .append(&format!(") + ({n}) >= 0 THEN GET("));
+                w.expr(self, v, 0)?
+                    .append(", ARRAY_SIZE(")
+                    .expr(self, v, 0)?
+                    .append(&format!(") + ({n})) END)"));
             }
             return Ok(());
         }
-        w.append("(CASE WHEN ").expr(self, key, 0)?.append(" >= 0 THEN GET(").expr(self, v, 0)?.append(", ");
-        w.expr(self, key, 0)?.append(") WHEN ARRAY_SIZE(").expr(self, v, 0)?.append(") + ").expr(self, key, 6)?;
-        w.append(" >= 0 THEN GET(").expr(self, v, 0)?.append(", ARRAY_SIZE(").expr(self, v, 0)?.append(") + ");
+        w.append("(CASE WHEN ")
+            .expr(self, key, 0)?
+            .append(" >= 0 THEN GET(")
+            .expr(self, v, 0)?
+            .append(", ");
+        w.expr(self, key, 0)?
+            .append(") WHEN ARRAY_SIZE(")
+            .expr(self, v, 0)?
+            .append(") + ")
+            .expr(self, key, 6)?;
+        w.append(" >= 0 THEN GET(")
+            .expr(self, v, 0)?
+            .append(", ARRAY_SIZE(")
+            .expr(self, v, 0)?
+            .append(") + ");
         w.expr(self, key, 6)?.append(") END)");
         Ok(())
     }
@@ -1927,11 +2258,19 @@ impl Snowflake {
         }
         // text parses into a VARIANT; any other value converts
         if target_is(Scalar::Json) {
-            w.append(if is_text(v) { "PARSE_JSON(" } else { "TO_VARIANT(" }).expr(self, v, 0)?.append(")");
+            w.append(if is_text(v) { "PARSE_JSON(" } else { "TO_VARIANT(" })
+                .expr(self, v, 0)?
+                .append(")");
             return Ok(());
         }
         if is_json(v) {
-            let member = matches!(v, SqlExpr::Call { r#fn: SqlFn::VariantGet, .. });
+            let member = matches!(
+                v,
+                SqlExpr::Call {
+                    r#fn: SqlFn::VariantGet,
+                    ..
+                }
+            );
             // the whole value as text is its JSON; a member's text is its own: a string unquoted
             if target_is(Scalar::Varchar) && !member {
                 w.append("TO_JSON(").expr(self, v, 0)?.append(")");
@@ -2029,16 +2368,22 @@ impl Snowflake {
             // DuckDB counts the second's milli/microseconds with the seconds
             DatePart::Millisecond => pc(move |w| {
                 w.append("(DATE_PART(SECOND, ").piece(&*self.naive(x))?;
-                w.append(") * 1000 + TRUNC(DATE_PART(NANOSECOND, ").piece(&*self.naive(x))?.append(") / 1000000))");
+                w.append(") * 1000 + TRUNC(DATE_PART(NANOSECOND, ")
+                    .piece(&*self.naive(x))?
+                    .append(") / 1000000))");
                 Ok(())
             }),
             DatePart::Microsecond => pc(move |w| {
                 w.append("(DATE_PART(SECOND, ").piece(&*self.naive(x))?;
-                w.append(") * 1000000 + TRUNC(DATE_PART(NANOSECOND, ").piece(&*self.naive(x))?.append(") / 1000))");
+                w.append(") * 1000000 + TRUNC(DATE_PART(NANOSECOND, ")
+                    .piece(&*self.naive(x))?
+                    .append(") / 1000))");
                 Ok(())
             }),
             DatePart::Nanosecond => {
-                return Err(Refusal::capability(format!("date part {p} has no measured Snowflake spelling")));
+                return Err(Refusal::capability(format!(
+                    "date part {p} has no measured Snowflake spelling"
+                )));
             }
         })
     }
@@ -2050,16 +2395,26 @@ impl Snowflake {
         let u = unit(p)?.to_lowercase();
         Ok(match p {
             DatePart::Year | DatePart::Quarter | DatePart::Month | DatePart::Week => pc(move |w| {
-                w.append(&format!("CAST(DATE_TRUNC('{u}', ")).expr(self, x, 0)?.append(") AS DATE)");
+                w.append(&format!("CAST(DATE_TRUNC('{u}', "))
+                    .expr(self, x, 0)?
+                    .append(") AS DATE)");
                 Ok(())
             }),
-            DatePart::Day | DatePart::Hour | DatePart::Minute | DatePart::Second | DatePart::Millisecond
+            DatePart::Day
+            | DatePart::Hour
+            | DatePart::Minute
+            | DatePart::Second
+            | DatePart::Millisecond
             | DatePart::Microsecond => pc(move |w| {
-                w.append(&format!("DATE_TRUNC('{u}', ")).piece(&*self.naive(x))?.append(")");
+                w.append(&format!("DATE_TRUNC('{u}', "))
+                    .piece(&*self.naive(x))?
+                    .append(")");
                 Ok(())
             }),
             DatePart::Nanosecond | DatePart::DayOfYear | DatePart::IsoDayOfWeek => {
-                return Err(Refusal::capability(format!("date_trunc part {p} has no probed Snowflake spelling")));
+                return Err(Refusal::capability(format!(
+                    "date_trunc part {p} has no probed Snowflake spelling"
+                )));
             }
         })
     }
@@ -2074,24 +2429,37 @@ impl Snowflake {
             DatePart::Year | DatePart::Quarter | DatePart::Month | DatePart::Day => {
                 let head = format!("DATEDIFF({}, ", unit(p)?);
                 pc(move |w| {
-                    w.append(&head).expr(self, from, 0)?.append(", ").expr(self, to, 0)?.append(")");
+                    w.append(&head)
+                        .expr(self, from, 0)?
+                        .append(", ")
+                        .expr(self, to, 0)?
+                        .append(")");
                     Ok(())
                 })
             }
             DatePart::Week => pc(move |w| {
-                w.append("CAST(TRUNC(DATEDIFF(DAY, ").expr(self, from, 0)?.append(", ").expr(self, to, 0)?;
+                w.append("CAST(TRUNC(DATEDIFF(DAY, ")
+                    .expr(self, from, 0)?
+                    .append(", ")
+                    .expr(self, to, 0)?;
                 w.append(") / 7) AS BIGINT)");
                 Ok(())
             }),
             DatePart::Hour | DatePart::Minute | DatePart::Second | DatePart::Millisecond | DatePart::Microsecond => {
                 let head = format!("DATEDIFF({}, ", unit(p)?);
                 pc(move |w| {
-                    w.append(&head).piece(&*self.naive(from))?.append(", ").piece(&*self.naive(to))?.append(")");
+                    w.append(&head)
+                        .piece(&*self.naive(from))?
+                        .append(", ")
+                        .piece(&*self.naive(to))?
+                        .append(")");
                     Ok(())
                 })
             }
             DatePart::Nanosecond | DatePart::DayOfYear | DatePart::IsoDayOfWeek => {
-                return Err(Refusal::capability(format!("date_diff part {p} has no probed Snowflake spelling")));
+                return Err(Refusal::capability(format!(
+                    "date_diff part {p} has no probed Snowflake spelling"
+                )));
             }
         })
     }
@@ -2113,11 +2481,16 @@ impl Snowflake {
             | DatePart::Nanosecond
             | DatePart::DayOfYear
             | DatePart::IsoDayOfWeek => {
-                return Err(Refusal::capability(format!("a {u} time bucket has no Snowflake TIME_SLICE unit")));
+                return Err(Refusal::capability(format!(
+                    "a {u} time bucket has no Snowflake TIME_SLICE unit"
+                )));
             }
         };
         Ok(pc(move |w| {
-            w.append("TIME_SLICE(").piece(&*self.naive(arg(a, 2)?))?.append(", ").expr(self, arg(a, 1)?, 0)?;
+            w.append("TIME_SLICE(")
+                .piece(&*self.naive(arg(a, 2)?))?
+                .append(", ")
+                .expr(self, arg(a, 1)?, 0)?;
             w.append(&format!(", '{slice}', 'START')"));
             Ok(())
         }))

@@ -84,7 +84,11 @@ const REDUCERS: &[&str] = &["$sum", "$min", "$max", "$avg"];
 /// (`{"$op": [[...]]}`), the four numeric reducers keeping the bare one.
 pub fn op1(d: &MongoDb, w: &mut SqlWriter, op: &str, arg: &SqlExpr) -> Result<(), Refusal> {
     let listed = matches!(arg, SqlExpr::ArrayLit { .. }) && !REDUCERS.contains(&op);
-    w.append("{\"").append(op).append("\": ").append(if listed { "[" } else { "" }).expr(d, arg, 0)?;
+    w.append("{\"")
+        .append(op)
+        .append("\": ")
+        .append(if listed { "[" } else { "" })
+        .expr(d, arg, 0)?;
     w.append(if listed { "]}" } else { "}" });
     Ok(())
 }
@@ -152,7 +156,9 @@ fn any_null(w: &mut SqlWriter, guards: &[usize]) {
         if i > 0 {
             w.append(", ");
         }
-        w.append("{\"$eq\": [").append(&string(&format!("$$g{g}"))).append(", null]}");
+        w.append("{\"$eq\": [")
+            .append(&string(&format!("$$g{g}")))
+            .append(", null]}");
     }
     if guards.len() > 1 {
         w.append("]}");
@@ -179,14 +185,22 @@ pub fn op_over_vars(op: &str, n: usize) -> Pc<'static> {
 pub fn op1_over_var(op: &str) -> Pc<'static> {
     let op = op.to_owned();
     pc(move |_, w| {
-        w.append("{\"").append(&op).append("\": ").append(&string("$$g0")).append("}");
+        w.append("{\"")
+            .append(&op)
+            .append("\": ")
+            .append(&string("$$g0"))
+            .append("}");
         Ok(())
     })
 }
 
 /// An operator of `args.len()` arguments, each bound once and null-guarded (D7).
 pub fn guarded_op(d: &MongoDb, w: &mut SqlWriter, op: &str, args: &[SqlExpr]) -> Result<(), Refusal> {
-    let body = if args.len() == 1 { op1_over_var(op) } else { op_over_vars(op, args.len()) };
+    let body = if args.len() == 1 {
+        op1_over_var(op)
+    } else {
+        op_over_vars(op, args.len())
+    };
     guarded(d, w, args, &body)
 }
 
@@ -224,7 +238,10 @@ fn ends_in_offset(t: &[u16]) -> bool {
 /// fraction of a second to the millisecond, BSON's precision; finer digits refused by name, never cut). Java's indexes
 /// are UTF-16 units, so the text is read as Java reads it.
 pub fn date_literal(iso: &str) -> Result<String, Refusal> {
-    let trimmed: String = crate::java::trim(iso).chars().map(|c| if c == ' ' { 'T' } else { c }).collect();
+    let trimmed: String = crate::java::trim(iso)
+        .chars()
+        .map(|c| if c == ' ' { 'T' } else { c })
+        .collect();
     let mut t: Vec<u16> = trimmed.encode_utf16().collect();
     if t.len() == 10 {
         t.extend("T00:00:00".encode_utf16());

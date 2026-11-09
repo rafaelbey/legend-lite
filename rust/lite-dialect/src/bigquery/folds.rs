@@ -112,7 +112,9 @@ impl FoldsAsRecursiveCtes {
             | SqlExpr::StarExcept { .. }
             | SqlExpr::WindowCall { .. }
             | SqlExpr::Reducer(_) => false,
-            SqlExpr::FoldCall { source, lambda, init, .. } => {
+            SqlExpr::FoldCall {
+                source, lambda, init, ..
+            } => {
                 self.closed(source, bound)
                     && self.closed(init, bound)
                     && self.closed(&SqlExpr::Lambda(lambda.clone()), bound)
@@ -133,23 +135,45 @@ impl FoldsAsRecursiveCtes {
         acc: &str,
     ) -> Result<SqlExpr, Refusal> {
         let name = format!("__fold{}", self.ctes.len());
-        let anchor = select(vec![named(from, I)?, named(init, ACC)?], SqlSource::Dual, None, Vec::new(), None)?;
+        let anchor = select(
+            vec![named(from, I)?, named(init, ACC)?],
+            SqlSource::Dual,
+            None,
+            Vec::new(),
+            None,
+        )?;
         let outs: Vec<OutputCol> = anchor.outputs.clone();
-        let own = SqlSource::Cte { name: name.clone(), alias: name.clone(), outputs: outs.clone() };
+        let own = SqlSource::Cte {
+            name: name.clone(),
+            alias: name.clone(),
+            outputs: outs.clone(),
+        };
         let i = SqlExpr::Column(build::column_in(Some(&name), &outs, I));
-        let element =
-            build::call(SqlFn::ListGet, vec![xs.clone(), build::call(SqlFn::Plus, vec![i.clone(), build::int_lit(1)])]);
+        let element = build::call(
+            SqlFn::ListGet,
+            vec![xs.clone(), build::call(SqlFn::Plus, vec![i.clone(), build::int_lit(1)])],
+        );
         let acc_read = SqlExpr::Column(build::column_in(Some(&name), &outs, ACC));
         let step = substituted(substituted(body.clone(), x, &element)?, acc, &acc_read)?;
         let next = select(
-            vec![named(build::call(SqlFn::Plus, vec![i.clone(), build::int_lit(1)]), I)?, named(step, ACC)?],
+            vec![
+                named(build::call(SqlFn::Plus, vec![i.clone(), build::int_lit(1)]), I)?,
+                named(step, ACC)?,
+            ],
             own.clone(),
-            Some(build::call(SqlFn::Less, vec![i.clone(), build::call(SqlFn::ListLength, vec![xs.clone()])])),
+            Some(build::call(
+                SqlFn::Less,
+                vec![i.clone(), build::call(SqlFn::ListLength, vec![xs.clone()])],
+            )),
             Vec::new(),
             None,
         )?;
         let union = build::union(vec![build::query(anchor), build::query(next)], true, outs.clone())?;
-        self.ctes.push(Cte { name: name.clone(), query: SqlQuery::Union(union), materialized: false });
+        self.ctes.push(Cte {
+            name: name.clone(),
+            query: SqlQuery::Union(union),
+            materialized: false,
+        });
         let last = build::scalar_subquery(build::query(select(
             vec![named(acc_read, ACC)?],
             own,
@@ -178,7 +202,9 @@ impl SqlRewriter for FoldsAsRecursiveCtes {
     }
 
     fn expr(&mut self, e: SqlExpr) -> Result<Rw<SqlExpr>, Refusal> {
-        if let SqlExpr::FoldCall { source, lambda, init, .. } = &e
+        if let SqlExpr::FoldCall {
+            source, lambda, init, ..
+        } = &e
             && lambda.params.len() == 2
             && self.closed(&e, &[])
         {
@@ -189,7 +215,11 @@ impl SqlRewriter for FoldsAsRecursiveCtes {
             let read = self.hoist(source, build::int_lit(0), init.as_ref().clone(), &lambda.body, &x, &acc)?;
             return Ok(Rw::New(read));
         }
-        if let SqlExpr::Call { r#fn: SqlFn::ListReduce, args, .. } = &e
+        if let SqlExpr::Call {
+            r#fn: SqlFn::ListReduce,
+            args,
+            ..
+        } = &e
             && args.len() == 2
             && let SqlExpr::Lambda(l) = &args[1]
             && l.params.len() == 2

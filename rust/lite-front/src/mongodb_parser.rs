@@ -133,7 +133,11 @@ fn parse_collection<'s>(c: &mut impl Cursor<'s>) -> R<PMongoDatabasePMongoCollec
         let raw = c.text().to_vec();
         c.expect(T::QUOTED_STRING)?;
         let dq = u16::from(b'"');
-        if raw.len() >= 2 && raw[0] == dq && raw[raw.len() - 1] == dq { raw[1..raw.len() - 1].to_vec() } else { raw }
+        if raw.len() >= 2 && raw[0] == dq && raw[raw.len() - 1] == dq {
+            raw[1..raw.len() - 1].to_vec()
+        } else {
+            raw
+        }
     } else {
         c.parse_identifier()?
     };
@@ -196,7 +200,13 @@ fn parse_schema_island<'s>(c: &mut impl Cursor<'s>) -> R<PBsonSchema> {
     {
         return Err(c.error_str("jsonSchema root must be an object"));
     }
-    schema_of(m, true, c).map_err(|e| if e.class.starts_with("java.") { judged(m, c, e) } else { e })
+    schema_of(m, true, c).map_err(|e| {
+        if e.class.starts_with("java.") {
+            judged(m, c, e)
+        } else {
+            e
+        }
+    })
 }
 
 /// A JDK exception `schema_of` raised (PARITY row 50) against what legend-engine's reader does with the same schema: a

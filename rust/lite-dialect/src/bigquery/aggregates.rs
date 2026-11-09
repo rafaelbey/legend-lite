@@ -20,7 +20,10 @@ use lite_sql::{
 /// An ORDER BY key of an aggregate or a window, its NULLs placed by a leading `(k) IS NULL` key (Java's `orderKey`).
 pub(super) fn order_key(key: P<'_>, ascending: bool, nulls_first: bool) -> P<'_> {
     pc(move |w| {
-        w.append("(").piece(&*key)?.append(") IS NULL").append(if nulls_first { " DESC, " } else { " ASC, " });
+        w.append("(")
+            .piece(&*key)?
+            .append(") IS NULL")
+            .append(if nulls_first { " DESC, " } else { " ASC, " });
         w.piece(&*key)?.append(if ascending { " ASC" } else { " DESC" });
         Ok(())
     })
@@ -61,15 +64,20 @@ fn interval_offset(n: i64, unit: &str, scale: Option<i64>) -> Result<i64, Refusa
         return Err(refuse());
     }
     let factor = if scale < 0 { micros / 86_400_000_000 } else { micros };
-    n.checked_mul(factor)
-        .ok_or_else(|| Refusal { class: "java.lang.ArithmeticException", message: "long overflow".to_owned() })
+    n.checked_mul(factor).ok_or_else(|| Refusal {
+        class: "java.lang.ArithmeticException",
+        message: "long overflow".to_owned(),
+    })
 }
 
 /// The `QUANTILE_CONT` / `QUANTILE_DISC` of a group: its non-NULL values sorted and indexed (Java's `quantile`).
 fn quantile<'a>(d: &'a BigQuery, f: AggFn, x: &'a SqlExpr, q: P<'a>, r: &Reducer) -> P<'a> {
     let desc = r.order_by.first().is_some_and(|k| !k.ascending);
     let sorted: P<'a> = pc(move |w| {
-        w.append("ARRAY_AGG(").expr(d, x, 0)?.append(" IGNORE NULLS ORDER BY ").expr(d, x, 0)?;
+        w.append("ARRAY_AGG(")
+            .expr(d, x, 0)?
+            .append(" IGNORE NULLS ORDER BY ")
+            .expr(d, x, 0)?;
         w.append(if desc { " DESC)" } else { " ASC)" });
         Ok(())
     });
@@ -83,7 +91,11 @@ fn quantile<'a>(d: &'a BigQuery, f: AggFn, x: &'a SqlExpr, q: P<'a>, r: &Reducer
     });
     if f == AggFn::QuantileDisc {
         return pc(move |w| {
-            w.piece(&*sorted)?.append("[SAFE_OFFSET(GREATEST(CAST(CEIL(").piece(&*n)?.append(" * ").piece(&*qd)?;
+            w.piece(&*sorted)?
+                .append("[SAFE_OFFSET(GREATEST(CAST(CEIL(")
+                .piece(&*n)?
+                .append(" * ")
+                .piece(&*qd)?;
             w.append(") AS INT64) - 1, 0))]");
             Ok(())
         });
@@ -98,14 +110,22 @@ fn quantile<'a>(d: &'a BigQuery, f: AggFn, x: &'a SqlExpr, q: P<'a>, r: &Reducer
     let at = |round: &'static str| -> P<'a> {
         let (sorted, pos) = (sorted.clone(), pos.clone());
         pc(move |w| {
-            w.append("CAST(").piece(&*sorted)?.append(&format!("[SAFE_OFFSET(CAST({round}("));
+            w.append("CAST(")
+                .piece(&*sorted)?
+                .append(&format!("[SAFE_OFFSET(CAST({round}("));
             w.piece(&*pos)?.append(") AS INT64))] AS FLOAT64)");
             Ok(())
         })
     };
     let (lo, hi) = (at("FLOOR"), at("CEIL"));
     pc(move |w| {
-        w.append("(").piece(&*lo)?.append(" + (").piece(&*hi)?.append(" - ").piece(&*lo)?.append(") * (");
+        w.append("(")
+            .piece(&*lo)?
+            .append(" + (")
+            .piece(&*hi)?
+            .append(" - ")
+            .piece(&*lo)?
+            .append(") * (");
         w.piece(&*pos)?.append(" - FLOOR(").piece(&*pos)?.append(")))");
         Ok(())
     })
@@ -128,7 +148,12 @@ impl BigQuery {
             SqlFn::BitXor => " ^ ",
             SqlFn::BitShiftLeft => " << ",
             SqlFn::BitShiftRight => {
-                w.append("(CASE WHEN ").piece(&x)?.append(" < 0 THEN ~((~").piece(&x)?.append(") >> ").piece(&y)?;
+                w.append("(CASE WHEN ")
+                    .piece(&x)?
+                    .append(" < 0 THEN ~((~")
+                    .piece(&x)?
+                    .append(") >> ")
+                    .piece(&y)?;
                 w.append(") ELSE ").piece(&x)?.append(" >> ").piece(&y)?.append(" END)");
                 return Ok(());
             }
@@ -140,12 +165,17 @@ impl BigQuery {
 
     /// An aggregate's own order key: its declared null placement, else NULLs last (Java's `aggregateKey`).
     fn aggregate_key<'a>(&'a self, k: &'a SortKey) -> P<'a> {
-        order_key(self.ex(&k.expr, 0), k.ascending, k.null_order == Some(NullOrder::NullsFirst))
+        order_key(
+            self.ex(&k.expr, 0),
+            k.ascending,
+            k.null_order == Some(NullOrder::NullsFirst),
+        )
     }
 
     /// `[DISTINCT ]args` (Java's `aggregateArgs`).
     fn aggregate_args(&self, w: &mut SqlWriter, r: &Reducer) -> Result<(), Refusal> {
-        w.append(if r.distinct { "DISTINCT " } else { "" }).list(self, &r.args)?;
+        w.append(if r.distinct { "DISTINCT " } else { "" })
+            .list(self, &r.args)?;
         Ok(())
     }
 
@@ -195,7 +225,10 @@ impl BigQuery {
             }
             AggFn::QuantileCont | AggFn::QuantileDisc => {
                 if r.args.len() != 2 || r.distinct || r.order_by.len() > 1 {
-                    return Err(Refusal::capability(format!("{} of this shape reached BigQuery", r.r#fn)));
+                    return Err(Refusal::capability(format!(
+                        "{} of this shape reached BigQuery",
+                        r.r#fn
+                    )));
                 }
                 let q = quantile(self, r.r#fn, &r.args[0], self.ex(&r.args[1], 0), r);
                 w.piece(&*q)?;
@@ -207,7 +240,10 @@ impl BigQuery {
             // the value at the key's greatest (least) row, rows of a NULL key ignored
             AggFn::ArgMax | AggFn::ArgMin => {
                 if r.args.len() != 2 || r.distinct || !r.order_by.is_empty() {
-                    return Err(Refusal::capability(format!("{} of this shape reached BigQuery", r.r#fn)));
+                    return Err(Refusal::capability(format!(
+                        "{} of this shape reached BigQuery",
+                        r.r#fn
+                    )));
                 }
                 let name = if r.r#fn == AggFn::ArgMax { "MAX_BY" } else { "MIN_BY" };
                 w.append(name).append("(").list(self, &r.args)?.append(")");
@@ -215,7 +251,11 @@ impl BigQuery {
             }
             AggFn::BoolAnd | AggFn::BoolOr => {
                 unordered()?;
-                w.append(if r.r#fn == AggFn::BoolAnd { "LOGICAL_AND(" } else { "LOGICAL_OR(" });
+                w.append(if r.r#fn == AggFn::BoolAnd {
+                    "LOGICAL_AND("
+                } else {
+                    "LOGICAL_OR("
+                });
                 self.aggregate_args(w, r)?;
                 w.append(")");
                 Ok(())
@@ -266,7 +306,10 @@ impl BigQuery {
     ) -> Result<(), Refusal> {
         match f {
             SqlAgg::Reducer(r)
-                if matches!(r.r#fn, AggFn::Median | AggFn::Mode | AggFn::QuantileCont | AggFn::QuantileDisc) =>
+                if matches!(
+                    r.r#fn,
+                    AggFn::Median | AggFn::Mode | AggFn::QuantileCont | AggFn::QuantileDisc
+                ) =>
             {
                 return self.ordered_set_over(w, f, r, partition_by, order_by, frame);
             }
@@ -296,7 +339,15 @@ impl BigQuery {
         frame: Option<&Frame>,
     ) -> Result<(), Refusal> {
         if r.r#fn == AggFn::Mode {
-            return self.mode_arm(w, Mode::Window { r#fn: f, partition_by, order_by, frame });
+            return self.mode_arm(
+                w,
+                Mode::Window {
+                    r#fn: f,
+                    partition_by,
+                    order_by,
+                    frame,
+                },
+            );
         }
         if !order_by.is_empty() || frame.is_some() || r.distinct {
             return Err(Refusal::capability(format!(
@@ -308,10 +359,19 @@ impl BigQuery {
             return self.descending_over(w, f, r, partition_by);
         }
         if r.r#fn == AggFn::Median {
-            w.append("PERCENTILE_CONT(").expr(self, arg(&r.args, 0)?, 0)?.append(", 0.5)");
+            w.append("PERCENTILE_CONT(")
+                .expr(self, arg(&r.args, 0)?, 0)?
+                .append(", 0.5)");
         } else {
-            w.append(if r.r#fn == AggFn::QuantileCont { "PERCENTILE_CONT(" } else { "PERCENTILE_DISC(" });
-            w.expr(self, arg(&r.args, 0)?, 0)?.append(", ").expr(self, arg(&r.args, 1)?, 0)?.append(")");
+            w.append(if r.r#fn == AggFn::QuantileCont {
+                "PERCENTILE_CONT("
+            } else {
+                "PERCENTILE_DISC("
+            });
+            w.expr(self, arg(&r.args, 0)?, 0)?
+                .append(", ")
+                .expr(self, arg(&r.args, 1)?, 0)?
+                .append(")");
         }
         self.bq_over(w, partition_by, order_by, frame)
     }
@@ -345,7 +405,10 @@ impl BigQuery {
                     w.append(&format!("BIGNUMERIC '{}'", crate::java::big_decimal_plain(&text)));
                 }
                 SqlExpr::DecimalLit { value, .. } => {
-                    w.append(&format!("BIGNUMERIC '{}'", crate::java::big_decimal_plain(value.as_str())));
+                    w.append(&format!(
+                        "BIGNUMERIC '{}'",
+                        crate::java::big_decimal_plain(value.as_str())
+                    ));
                 }
                 other => {
                     w.expr(self, other, 0)?;
@@ -360,8 +423,13 @@ impl BigQuery {
             Ok(())
         };
         let sorted = |w: &mut SqlWriter| -> Result<(), Refusal> {
-            w.append("ARRAY_AGG(STRUCT(-(").expr(self, x, 0)?.append(") AS v)) OVER (").piece(&partition)?;
-            w.append(if partition_by.is_empty() { "" } else { " " }).append("ORDER BY -(").expr(self, x, 0)?;
+            w.append("ARRAY_AGG(STRUCT(-(")
+                .expr(self, x, 0)?
+                .append(") AS v)) OVER (")
+                .piece(&partition)?;
+            w.append(if partition_by.is_empty() { "" } else { " " })
+                .append("ORDER BY -(")
+                .expr(self, x, 0)?;
             w.append(") ASC NULLS LAST ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)");
             Ok(())
         };
@@ -376,18 +444,38 @@ impl BigQuery {
             Ok(())
         };
         let lo = |w: &mut SqlWriter| -> Result<(), Refusal> {
-            w.piece(&sorted)?.append("[SAFE_OFFSET(CAST(FLOOR(").piece(&pos)?.append(") AS INT64))].v");
+            w.piece(&sorted)?
+                .append("[SAFE_OFFSET(CAST(FLOOR(")
+                .piece(&pos)?
+                .append(") AS INT64))].v");
             Ok(())
         };
         let hi = |w: &mut SqlWriter| -> Result<(), Refusal> {
-            w.piece(&sorted)?.append("[SAFE_OFFSET(CAST(CEIL(").piece(&pos)?.append(") AS INT64))].v");
+            w.piece(&sorted)?
+                .append("[SAFE_OFFSET(CAST(CEIL(")
+                .piece(&pos)?
+                .append(") AS INT64))].v");
             Ok(())
         };
         // the window's own type (Java's `typeOf(w)`): its function's
-        let dbl =
-            matches!(typing::window_type(f), lite_sql::TypeFact::Typed { r#type: SqlType::Scalar(Scalar::Double), .. });
-        w.append(if dbl { "CAST(-(" } else { "(-(" }).piece(&lo)?.append(" + (").piece(&pos)?.append(" - FLOOR(");
-        w.piece(&pos)?.append(")) * (").piece(&hi)?.append(" - ").piece(&lo)?.append("))");
+        let dbl = matches!(
+            typing::window_type(f),
+            lite_sql::TypeFact::Typed {
+                r#type: SqlType::Scalar(Scalar::Double),
+                ..
+            }
+        );
+        w.append(if dbl { "CAST(-(" } else { "(-(" })
+            .piece(&lo)?
+            .append(" + (")
+            .piece(&pos)?
+            .append(" - FLOOR(");
+        w.piece(&pos)?
+            .append(")) * (")
+            .piece(&hi)?
+            .append(" - ")
+            .piece(&lo)?
+            .append("))");
         w.append(if dbl { " AS FLOAT64)" } else { ")" });
         Ok(())
     }
@@ -446,7 +534,9 @@ impl BigQuery {
                 // BigQuery's own placement is ASC NULLS FIRST, DESC NULLS LAST
                 let moved = nulls_first(k) == !k.ascending;
                 if moved {
-                    w.append("IFNULL(CAST(").piece(&*key)?.append(" AS FLOAT64), CAST('inf' AS FLOAT64))");
+                    w.append("IFNULL(CAST(")
+                        .piece(&*key)?
+                        .append(" AS FLOAT64), CAST('inf' AS FLOAT64))");
                 } else {
                     w.piece(&*key)?;
                 }
@@ -462,7 +552,8 @@ impl BigQuery {
         if let Some(f) = frame {
             let from = self.frame_bound(&f.from, scale)?;
             let to = self.frame_bound(&f.to, scale)?;
-            w.append(if any { " " } else { "" }).append(&format!("{} BETWEEN {from} AND {to}", f.kind.as_str()));
+            w.append(if any { " " } else { "" })
+                .append(&format!("{} BETWEEN {from} AND {to}", f.kind.as_str()));
         }
         w.append(")");
         Ok(())
@@ -481,8 +572,18 @@ impl BigQuery {
     /// `render(SqlDdl)`).
     pub(super) fn render_ddl_arm(&self, ddl: &SqlDdl) -> Result<String, Refusal> {
         Ok(match ddl {
-            SqlDdl::CreateTable { schema, table, quoting, columns, temporary } => {
-                let mut sb = String::from(if *temporary { "CREATE TEMP TABLE " } else { "CREATE TABLE " });
+            SqlDdl::CreateTable {
+                schema,
+                table,
+                quoting,
+                columns,
+                temporary,
+            } => {
+                let mut sb = String::from(if *temporary {
+                    "CREATE TEMP TABLE "
+                } else {
+                    "CREATE TABLE "
+                });
                 sb.push_str(&self.qualified(schema.as_deref(), table, *quoting));
                 sb.push_str(" (");
                 let mut keys = Vec::new();
@@ -491,7 +592,11 @@ impl BigQuery {
                     sb.push_str(&self.ident(&col.name));
                     sb.push(' ');
                     sb.push_str(&ddl_type(&col.r#type)?);
-                    sb.push_str(if col.primary_key || col.not_null { " NOT NULL" } else { "" });
+                    sb.push_str(if col.primary_key || col.not_null {
+                        " NOT NULL"
+                    } else {
+                        ""
+                    });
                     if col.primary_key {
                         keys.push(self.ident(&col.name));
                     }
@@ -503,13 +608,22 @@ impl BigQuery {
                 sb
             }
             SqlDdl::DropTable { schema, table, quoting } => {
-                format!("DROP TABLE IF EXISTS {};", self.qualified(schema.as_deref(), table, *quoting))
+                format!(
+                    "DROP TABLE IF EXISTS {};",
+                    self.qualified(schema.as_deref(), table, *quoting)
+                )
             }
             SqlDdl::CreateSchema { schema, quoted } => {
-                format!("CREATE SCHEMA IF NOT EXISTS {};", AnsiSqlRenderer::stored_name(self, schema, *quoted))
+                format!(
+                    "CREATE SCHEMA IF NOT EXISTS {};",
+                    AnsiSqlRenderer::stored_name(self, schema, *quoted)
+                )
             }
             SqlDdl::DropSchema { schema, quoted } => {
-                format!("DROP SCHEMA IF EXISTS {} CASCADE;", AnsiSqlRenderer::stored_name(self, schema, *quoted))
+                format!(
+                    "DROP SCHEMA IF EXISTS {} CASCADE;",
+                    AnsiSqlRenderer::stored_name(self, schema, *quoted)
+                )
             }
         })
     }
@@ -542,9 +656,12 @@ pub(super) fn ddl_type(t: &ColumnType) -> Result<String, Refusal> {
             }
         }
         .to_owned(),
-        ColumnType::Sized { kind, .. } => {
-            if kind.to_uppercase().contains("BINARY") { "BYTES" } else { "STRING" }.to_owned()
+        ColumnType::Sized { kind, .. } => if kind.to_uppercase().contains("BINARY") {
+            "BYTES"
+        } else {
+            "STRING"
         }
+        .to_owned(),
         ColumnType::Scaled { precision, scale, .. } => {
             if *scale <= 9 && precision - scale <= 29 {
                 format!("NUMERIC({precision}, {scale})")

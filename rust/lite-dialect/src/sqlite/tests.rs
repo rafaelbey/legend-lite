@@ -16,7 +16,13 @@ fn n() -> SqlExpr {
 }
 
 fn s() -> SqlExpr {
-    build::typed_column(Some("t0"), "s", SqlType::Scalar(Scalar::Varchar), true, Origin::Physical)
+    build::typed_column(
+        Some("t0"),
+        "s",
+        SqlType::Scalar(Scalar::Varchar),
+        true,
+        Origin::Physical,
+    )
 }
 
 fn table() -> SqlSource {
@@ -42,7 +48,12 @@ fn big() -> SqlExpr {
 
 fn select_of(e: SqlExpr) -> SqlQuery {
     build::query(
-        build::select_of(vec![build::projection(e, Some("v".into()), None).unwrap()], table(), Vec::new()).unwrap(),
+        build::select_of(
+            vec![build::projection(e, Some("v".into()), None).unwrap()],
+            table(),
+            Vec::new(),
+        )
+        .unwrap(),
     )
 }
 
@@ -71,9 +82,17 @@ fn the_fresh_names_start_over_at_each_render_and_a_dml_render_counts_on() {
     assert_eq!(SqlDialect::render(&d, select_of(lpad.clone())).unwrap(), first);
     assert_eq!(d.binds.get(), 1);
     // Java's tempTableAs pushes the root but starts no names over: a DML render counts on
-    let temp = SqlDml::CreateTempTableAs { table: "tmp".into(), query: select_of(lpad), columns: Vec::new(), staged: false };
+    let temp = SqlDml::CreateTempTableAs {
+        table: "tmp".into(),
+        query: select_of(lpad),
+        columns: Vec::new(),
+        staged: false,
+    };
     let made = SqlDialect::render_dml(&d, &temp).unwrap();
-    assert!(made.starts_with("CREATE TEMPORARY TABLE tmp AS SELECT (SELECT"), "{made}");
+    assert!(
+        made.starts_with("CREATE TEMPORARY TABLE tmp AS SELECT (SELECT"),
+        "{made}"
+    );
     assert!(made.contains("AS __b1)"), "{made}");
     // and the statement's state is popped, a refusal's too
     assert!(d.roots.borrow().is_empty() && d.root_selects.borrow().is_empty());
@@ -86,8 +105,12 @@ fn the_fresh_names_start_over_at_each_render_and_a_dml_render_counts_on() {
 #[test]
 fn a_root_select_is_known_by_its_content() {
     let d = Sqlite::new();
-    let root = build::select_of(vec![build::projection(n(), Some("v".into()), None).unwrap()], table(), Vec::new())
-        .unwrap();
+    let root = build::select_of(
+        vec![build::projection(n(), Some("v".into()), None).unwrap()],
+        table(),
+        Vec::new(),
+    )
+    .unwrap();
     let _scope = d.enter(Vec::new());
     // pending until the root is written
     assert!(!d.is_root_select(&root));
@@ -96,8 +119,12 @@ fn a_root_select_is_known_by_its_content() {
     d.query(&mut w, &q, 0).unwrap();
     // Java's identity after CommonSubexpressions (which makes equal selects one object) is equality
     assert!(d.is_root_select(&root.clone()));
-    let other = build::select_of(vec![build::projection(s(), Some("v".into()), None).unwrap()], table(), Vec::new())
-        .unwrap();
+    let other = build::select_of(
+        vec![build::projection(s(), Some("v".into()), None).unwrap()],
+        table(),
+        Vec::new(),
+    )
+    .unwrap();
     assert!(!d.is_root_select(&other));
 }
 
@@ -131,10 +158,34 @@ fn the_ddl_spells_sqlites_storage_classes() {
     let ddl = |t: ColumnType| d.ddl_type(&t).unwrap();
     assert_eq!(ddl(ColumnType::Plain { kind: ColumnKind::Bit }), "INTEGER");
     assert_eq!(ddl(ColumnType::Plain { kind: ColumnKind::Real }), "REAL");
-    assert_eq!(ddl(ColumnType::Plain { kind: ColumnKind::TimestampNs }), "TEXT");
-    assert_eq!(ddl(ColumnType::Sized { kind: "varbinary".into(), size: 3 }), "BLOB");
-    assert_eq!(ddl(ColumnType::Sized { kind: "VARCHAR".into(), size: 3 }), "TEXT");
-    assert_eq!(ddl(ColumnType::Scaled { kind: "NUMERIC".into(), precision: 10, scale: 2 }), "REAL");
+    assert_eq!(
+        ddl(ColumnType::Plain {
+            kind: ColumnKind::TimestampNs
+        }),
+        "TEXT"
+    );
+    assert_eq!(
+        ddl(ColumnType::Sized {
+            kind: "varbinary".into(),
+            size: 3
+        }),
+        "BLOB"
+    );
+    assert_eq!(
+        ddl(ColumnType::Sized {
+            kind: "VARCHAR".into(),
+            size: 3
+        }),
+        "TEXT"
+    );
+    assert_eq!(
+        ddl(ColumnType::Scaled {
+            kind: "NUMERIC".into(),
+            precision: 10,
+            scale: 2
+        }),
+        "REAL"
+    );
     assert_eq!(d.scalar_type_name(Scalar::Hugeint).unwrap(), "INTEGER");
     assert_eq!(
         d.scalar_type_name(Scalar::DecimalText).unwrap_err(),
@@ -157,7 +208,10 @@ fn the_ddl_spells_sqlites_storage_classes() {
 #[test]
 fn a_replacements_group_reference_is_a_backslash_and_a_java_digit_unit() {
     let replace = |replacement: &str| {
-        let e = build::call(SqlFn::RegexpReplace, vec![s(), build::string_lit("a(b)"), build::string_lit(replacement)]);
+        let e = build::call(
+            SqlFn::RegexpReplace,
+            vec![s(), build::string_lit("a(b)"), build::string_lit(replacement)],
+        );
         let mut w = SqlWriter::new();
         Sqlite::new().expr(&mut w, &e, 0).map(|_| w.into_text().unwrap())
     };
@@ -167,7 +221,10 @@ fn a_replacements_group_reference_is_a_backslash_and_a_java_digit_unit() {
     assert!(replace("x\\\u{0661}").unwrap_err().message.contains("no group 1585"));
     // a superscript is no decimal digit: text
     let superscript = replace("x\\\u{00B9}").unwrap();
-    assert!(superscript.contains("'x¹'") && !superscript.contains("->> 2"), "{superscript}");
+    assert!(
+        superscript.contains("'x¹'") && !superscript.contains("->> 2"),
+        "{superscript}"
+    );
     // a supplementary digit is two units: Java reads the high surrogate after the backslash, no digit, so text
     let bold = replace("\\\u{1D7CF}").unwrap();
     assert!(bold.contains("'\u{1D7CF}'") && !bold.contains("->> 2"), "{bold}");
@@ -178,23 +235,37 @@ fn a_replacements_group_reference_is_a_backslash_and_a_java_digit_unit() {
 #[test]
 fn a_lambdas_struct_parameter_is_read_as_json() {
     let st = SqlType::Struct {
-        fields: vec![lite_sql::StructField { name: "a".into(), r#type: SqlType::Scalar(Scalar::Bigint) }],
+        fields: vec![lite_sql::StructField {
+            name: "a".into(),
+            r#type: SqlType::Scalar(Scalar::Bigint),
+        }],
     };
     let read = SqlExpr::Column(Column {
         table: Some("x".into()),
         name: "a".into(),
-        r#type: TypeFact::Typed { r#type: SqlType::Scalar(Scalar::Bigint), nullable: true },
+        r#type: TypeFact::Typed {
+            r#type: SqlType::Scalar(Scalar::Bigint),
+            nullable: true,
+        },
         origin: None,
     });
-    let l = build::lambda_of(vec!["x".into()], build::call(SqlFn::Greater, vec![read, build::int_lit(1)]));
+    let l = build::lambda_of(
+        vec!["x".into()],
+        build::call(SqlFn::Greater, vec![read, build::int_lit(1)]),
+    );
     let body = lambda_body(&l, Some(&st)).unwrap();
-    let SqlExpr::Call { args, .. } = &body else { panic!("a call") };
+    let SqlExpr::Call { args, .. } = &body else {
+        panic!("a call")
+    };
     assert_eq!(
         args[0],
         build::struct_get_given(
             build::typed_column(None, "x", st, true, Origin::Derived),
             "a".into(),
-            TypeFact::Typed { r#type: SqlType::Scalar(Scalar::Bigint), nullable: true }
+            TypeFact::Typed {
+                r#type: SqlType::Scalar(Scalar::Bigint),
+                nullable: true
+            }
         )
     );
     let mut w = SqlWriter::new();

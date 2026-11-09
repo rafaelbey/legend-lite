@@ -45,7 +45,10 @@ impl H2 {
 
     /// Java's `new H2Modern()`.
     pub fn modern() -> H2 {
-        H2 { ansi: AnsiState::default(), modern: true }
+        H2 {
+            ansi: AnsiState::default(),
+            modern: true,
+        }
     }
 
     /// Whether this is H2Modern.
@@ -302,7 +305,11 @@ impl H2 {
 
     /// `RAWTOHEX(HASH('<algorithm>', x))`: a string's digest in lower-case hex.
     fn digest(&self, w: &mut SqlWriter, algorithm: &str, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("RAWTOHEX(HASH('").append(algorithm).append("', ").expr(self, arg(a, 0)?, 0)?.append("))");
+        w.append("RAWTOHEX(HASH('")
+            .append(algorithm)
+            .append("', ")
+            .expr(self, arg(a, 0)?, 0)?
+            .append("))");
         Ok(())
     }
 
@@ -327,7 +334,10 @@ impl H2 {
                         _ => None,
                     };
                     if let Some(b) = b {
-                        w.append("(").expr(self, &a[i], 4)?.append(" = ").append(if b { "TRUE" } else { "FALSE" });
+                        w.append("(")
+                            .expr(self, &a[i], 4)?
+                            .append(" = ")
+                            .append(if b { "TRUE" } else { "FALSE" });
                         w.append(")");
                         return Ok(());
                     }
@@ -339,7 +349,10 @@ impl H2 {
 
     /// date_diff: `DATEDIFF(UNIT, a, b)`.
     fn date_diff_arm(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("DATEDIFF(").append(date_part(part(arg(a, 0)?)?)?).append(", ").expr(self, arg(a, 1)?, 0)?;
+        w.append("DATEDIFF(")
+            .append(date_part(part(arg(a, 0)?)?)?)
+            .append(", ")
+            .expr(self, arg(a, 1)?, 0)?;
         w.append(", ").expr(self, arg(a, 2)?, 0)?.append(")");
         Ok(())
     }
@@ -356,9 +369,18 @@ impl H2 {
             let q = format!("\\Q{sep}\\E");
             let cls = format!("[^{q}]*");
             let pat = self.string_lit(&format!("^(?:{cls}{q}){{{}}}({cls}).*$", ix - 1))?;
-            w.append("CASE WHEN (CHAR_LENGTH(").expr(self, &a[0], 0)?.append(") - CHAR_LENGTH(REPLACE(");
-            w.expr(self, &a[0], 0)?.append(", ").append(&sep_lit).append(", ''))) < ").append_long(ix - 1);
-            w.append(" THEN '' ELSE REGEXP_REPLACE(").expr(self, &a[0], 0)?.append(", ").append(&pat);
+            w.append("CASE WHEN (CHAR_LENGTH(")
+                .expr(self, &a[0], 0)?
+                .append(") - CHAR_LENGTH(REPLACE(");
+            w.expr(self, &a[0], 0)?
+                .append(", ")
+                .append(&sep_lit)
+                .append(", ''))) < ")
+                .append_long(ix - 1);
+            w.append(" THEN '' ELSE REGEXP_REPLACE(")
+                .expr(self, &a[0], 0)?
+                .append(", ")
+                .append(&pat);
             w.append(", '$1') END");
             return Ok(());
         }
@@ -368,7 +390,10 @@ impl H2 {
     /// regexp_extract(s, p[, g]): `COALESCE(REGEXP_SUBSTR(s, p, 1, 1, NULL, g), '')`.
     fn regexp_extract_arm(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() == 2 || a.len() == 3 {
-            w.append("COALESCE(REGEXP_SUBSTR(").expr(self, &a[0], 0)?.append(", ").expr(self, &a[1], 0)?;
+            w.append("COALESCE(REGEXP_SUBSTR(")
+                .expr(self, &a[0], 0)?
+                .append(", ")
+                .expr(self, &a[1], 0)?;
             w.append(", 1, 1, NULL, ");
             if a.len() == 3 {
                 w.expr(self, &a[2], 0)?;
@@ -420,7 +445,9 @@ impl H2 {
                 continue;
             }
             let Some(spec) = chars.next() else {
-                return Err(Refusal::capability("format template ends in a bare '%' — no H2 spelling"));
+                return Err(Refusal::capability(
+                    "format template ends in a bare '%' — no H2 spelling",
+                ));
             };
             if spec == '%' {
                 text.push('%');
@@ -435,7 +462,10 @@ impl H2 {
                 return Err(Refusal::capability("format template has more slots than arguments"));
             }
             if !text.is_empty() {
-                w.append(if first { "" } else { " || " }).append("'").append(&text.replace('\'', "''")).append("'");
+                w.append(if first { "" } else { " || " })
+                    .append("'")
+                    .append(&text.replace('\'', "''"))
+                    .append("'");
                 first = false;
                 text.clear();
             }
@@ -447,7 +477,10 @@ impl H2 {
             first = false;
         }
         if !text.is_empty() || first {
-            w.append(if first { "" } else { " || " }).append("'").append(&text.replace('\'', "''")).append("'");
+            w.append(if first { "" } else { " || " })
+                .append("'")
+                .append(&text.replace('\'', "''"))
+                .append("'");
         }
         w.append(")");
         Ok(())
@@ -458,14 +491,17 @@ impl H2 {
         if r.order_by.is_empty() {
             return ansi::aggregate(self, w, name, r);
         }
-        w.append(name).append("(").append(if r.distinct { "DISTINCT " } else { "" });
+        w.append(name)
+            .append("(")
+            .append(if r.distinct { "DISTINCT " } else { "" });
         if r.args.is_empty() {
             w.append("*");
         } else {
             w.list(self, &r.args)?;
         }
         w.append(" ORDER BY ").join(&r.order_by, ", ", |w, k| {
-            w.expr(self, &k.expr, 0)?.append(if k.ascending { " ASC" } else { " DESC" });
+            w.expr(self, &k.expr, 0)?
+                .append(if k.ascending { " ASC" } else { " DESC" });
             w.append(match k.null_order {
                 None if k.ascending => " NULLS LAST",
                 None => " NULLS FIRST",
@@ -482,7 +518,10 @@ impl H2 {
     /// carrier is refused.
     fn any_value(&self, w: &mut SqlWriter, r: &Reducer) -> Result<(), Refusal> {
         let a = arg(&r.args, 0)?;
-        if let TypeFact::Typed { r#type: SqlType::Scalar(sc), .. } = a.r#type()
+        if let TypeFact::Typed {
+            r#type: SqlType::Scalar(sc),
+            ..
+        } = a.r#type()
             && *sc != Scalar::Json
         {
             w.append("MIN(").expr(self, a, 0)?.append(")");
@@ -501,8 +540,13 @@ impl H2 {
     /// `name(level) WITHIN GROUP (ORDER BY value[ DESC])`.
     fn percentile(&self, w: &mut SqlWriter, name: &str, r: &Reducer) -> Result<(), Refusal> {
         let desc = r.order_by.first().is_some_and(|k| !k.ascending);
-        w.append(name).append("(").expr(self, arg(&r.args, 1)?, 0)?.append(") WITHIN GROUP (ORDER BY ");
-        w.expr(self, arg(&r.args, 0)?, 0)?.append(if desc { " DESC" } else { "" }).append(")");
+        w.append(name)
+            .append("(")
+            .expr(self, arg(&r.args, 1)?, 0)?
+            .append(") WITHIN GROUP (ORDER BY ");
+        w.expr(self, arg(&r.args, 0)?, 0)?
+            .append(if desc { " DESC" } else { "" })
+            .append(")");
         Ok(())
     }
 
@@ -511,7 +555,8 @@ impl H2 {
         w.append("JSON_ARRAYAGG(").expr(self, arg(&r.args, 0)?, 0)?;
         if !r.order_by.is_empty() {
             w.append(" ORDER BY ").join(&r.order_by, ", ", |w, k: &SortKey| {
-                w.expr(self, &k.expr, 0)?.append(if k.ascending { " ASC" } else { " DESC" });
+                w.expr(self, &k.expr, 0)?
+                    .append(if k.ascending { " ASC" } else { " DESC" });
                 w.append(match k.null_order {
                     None => "",
                     Some(NullOrder::NullsFirst) => " NULLS FIRST",
@@ -567,7 +612,12 @@ impl H2 {
     /// H2Modern's LIST_LENGTH: `CARDINALITY` counts a JSON array's elements on 2.3+ (an Array-cast wrapper unwrapped).
     fn list_length(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let mut x = &a[0];
-        if let SqlExpr::Cast { value, target: SqlType::Array { .. }, .. } = x {
+        if let SqlExpr::Cast {
+            value,
+            target: SqlType::Array { .. },
+            ..
+        } = x
+        {
             x = value;
         }
         w.append("CARDINALITY(").expr(self, x, 0)?.append(")");
@@ -615,7 +665,9 @@ impl AnsiSqlRenderer for H2 {
             // to the nanosecond: H2's TIME keeps no fraction of a second by default
             Scalar::Time => "TIME(9)",
             Scalar::DecimalText => {
-                return Err(Refusal::illegal_state(format!("{s} cast reached a dialect without {s} support")));
+                return Err(Refusal::illegal_state(format!(
+                    "{s} cast reached a dialect without {s} support"
+                )));
             }
         }
         .to_owned())
@@ -624,7 +676,9 @@ impl AnsiSqlRenderer for H2 {
     /// No STRUCT type here: a struct cast is refused.
     fn struct_type_name(&self, fields: &[StructField]) -> Result<String, Refusal> {
         let _ = fields;
-        Err(Refusal::capability("a STRUCT type reached a dialect without struct support"))
+        Err(Refusal::capability(
+            "a STRUCT type reached a dialect without struct support",
+        ))
     }
 
     fn supports_qualify(&self) -> bool {
@@ -647,8 +701,16 @@ impl AnsiSqlRenderer for H2 {
         match name.find('.') {
             Some(dot) if dot > 0 => {
                 let (schema, table) = (&name[..dot], &name[dot + 1..]);
-                let s = if quoting.schema { self.delimited(schema) } else { self.exec_part(schema) };
-                let t = if quoting.table { self.delimited(table) } else { self.exec_part(table) };
+                let s = if quoting.schema {
+                    self.delimited(schema)
+                } else {
+                    self.exec_part(schema)
+                };
+                let t = if quoting.table {
+                    self.delimited(table)
+                } else {
+                    self.exec_part(table)
+                };
                 format!("{s}.{t}")
             }
             _ => ansi::table_name(self, name, quoting),
@@ -752,7 +814,9 @@ impl AnsiSqlRenderer for H2 {
                 ColumnKind::Json => "JSON",
                 ColumnKind::Varchar => "VARCHAR",
                 ColumnKind::Other | ColumnKind::Distinct | ColumnKind::Array | ColumnKind::Object => {
-                    return Err(Refusal::illegal_state(format!("no DDL spelling for declared column type {kind}")));
+                    return Err(Refusal::illegal_state(format!(
+                        "no DDL spelling for declared column type {kind}"
+                    )));
                 }
             }
             .to_owned(),
@@ -770,7 +834,11 @@ impl AnsiSqlRenderer for H2 {
                 types.push((*kind, self.hole_type(*kind)?));
             }
             let bind = ansi::scalar_bind(p)?;
-            w.append("CAST(").bind(bind).append(" AS ").type_hole(enum_map(types), by_value.absent)?.append(")");
+            w.append("CAST(")
+                .bind(bind)
+                .append(" AS ")
+                .type_hole(enum_map(types), by_value.absent)?
+                .append(")");
             return Ok(());
         }
         let TypeFact::Typed { r#type, .. } = p.r#type else {
@@ -818,46 +886,63 @@ impl AnsiSqlRenderer for H2 {
             // ---- this dialect's own spellings
             // integer division: `//` is a line comment on H2; its `/` over integers is integer division
             F::IntDivide => {
-                w.append("CAST(").expr(self, arg(a, 0)?, 6)?.append(" / ").expr(self, arg(a, 1)?, 6)?;
+                w.append("CAST(")
+                    .expr(self, arg(a, 0)?, 6)?
+                    .append(" / ")
+                    .expr(self, arg(a, 1)?, 6)?;
                 w.append(" AS BIGINT)");
                 Ok(())
             }
             // date arithmetic: dateadd(UNIT, n, d)
             F::AddInterval | F::AddIntervalTemporal => {
-                w.append("dateadd(").append(date_unit(part(arg(a, 0)?)?)?).append(", ").expr(self, arg(a, 1)?, 0)?;
+                w.append("dateadd(")
+                    .append(date_unit(part(arg(a, 0)?)?)?)
+                    .append(", ")
+                    .expr(self, arg(a, 1)?, 0)?;
                 w.append(", ").expr(self, arg(a, 2)?, 0)?.append(")");
                 Ok(())
             }
             // the SQL standard's extract(UNIT FROM x)
             F::Extract => {
-                w.append("extract(").append(date_part(part(arg(a, 0)?)?)?).append(" FROM ").expr(
-                    self,
-                    arg(a, 1)?,
-                    0,
-                )?;
+                w.append("extract(")
+                    .append(date_part(part(arg(a, 0)?)?)?)
+                    .append(" FROM ")
+                    .expr(self, arg(a, 1)?, 0)?;
                 w.append(")");
                 Ok(())
             }
             // no starts_with: LEFT/CHAR_LENGTH equality
             F::StartsWith => {
-                w.append("(LEFT(").expr(self, arg(a, 0)?, 0)?.append(", CHAR_LENGTH(").expr(self, arg(a, 1)?, 0)?;
+                w.append("(LEFT(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", CHAR_LENGTH(")
+                    .expr(self, arg(a, 1)?, 0)?;
                 w.append(")) = ").expr(self, arg(a, 1)?, 0)?.append(")");
                 Ok(())
             }
             // strpos: LOCATE with its arguments swapped
             F::Strpos => {
-                w.append("LOCATE(").expr(self, arg(a, 1)?, 0)?.append(", ").expr(self, arg(a, 0)?, 0)?.append(")");
+                w.append("LOCATE(")
+                    .expr(self, arg(a, 1)?, 0)?
+                    .append(", ")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(")");
                 Ok(())
             }
             // ends_with: the RIGHT/CHAR_LENGTH twin
             F::EndsWith => {
-                w.append("(RIGHT(").expr(self, arg(a, 0)?, 0)?.append(", CHAR_LENGTH(").expr(self, arg(a, 1)?, 0)?;
+                w.append("(RIGHT(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", CHAR_LENGTH(")
+                    .expr(self, arg(a, 1)?, 0)?;
                 w.append(")) = ").expr(self, arg(a, 1)?, 0)?.append(")");
                 Ok(())
             }
             // boolean text: H2's CAST prints 'TRUE', the reference 'true'
             F::BoolToText => {
-                w.append("CASE WHEN ").expr(self, arg(a, 0)?, 0)?.append(" THEN 'true' WHEN NOT ");
+                w.append("CASE WHEN ")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(" THEN 'true' WHEN NOT ");
                 w.expr(self, arg(a, 0)?, 0)?.append(" THEN 'false' END");
                 Ok(())
             }
@@ -872,7 +957,9 @@ impl AnsiSqlRenderer for H2 {
                 "a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)",
             )),
             F::EpochMs => {
-                w.append("CAST(EXTRACT(EPOCH FROM ").expr(self, arg(a, 0)?, 0)?.append(") * 1000 AS BIGINT)");
+                w.append("CAST(EXTRACT(EPOCH FROM ")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(") * 1000 AS BIGINT)");
                 Ok(())
             }
             // ---- the ANSI operators
@@ -1056,18 +1143,24 @@ impl AnsiSqlRenderer for H2 {
             F::JsonArrayLength => self.plain(w, "json_array_length", a),
             F::JsonPretty => self.plain(w, "json_pretty", a),
             // refused by name: H2 cannot run DuckDB's spelling
-            F::JsonMergePatch => Err(Refusal::capability("a JSON merge reached H2, which has no json_merge_patch()")),
+            F::JsonMergePatch => Err(Refusal::capability(
+                "a JSON merge reached H2, which has no json_merge_patch()",
+            )),
             F::BitNot => Err(Refusal::capability("bitNot reached H2, which has no xor()")),
             F::MapEmpty => Err(Refusal::capability("an empty map reached H2, which has no map type")),
             F::EncodeBase64 => Err(Refusal::capability("encodeBase64 reached H2, which has no to_base64()")),
-            F::MakeTimestamp => {
-                Err(Refusal::capability("a date-time constructor reached H2, which has no make_timestamp()"))
-            }
-            F::FromEpochMs => {
-                Err(Refusal::capability("a date from epoch milliseconds reached H2, which has no epoch_ms()"))
-            }
-            F::DecodeBase64 => Err(Refusal::capability("decodeBase64 reached H2, which has no from_base64()")),
-            F::TimeBucket => Err(Refusal::capability("a time bucket reached H2, which has no time_bucket()")),
+            F::MakeTimestamp => Err(Refusal::capability(
+                "a date-time constructor reached H2, which has no make_timestamp()",
+            )),
+            F::FromEpochMs => Err(Refusal::capability(
+                "a date from epoch milliseconds reached H2, which has no epoch_ms()",
+            )),
+            F::DecodeBase64 => Err(Refusal::capability(
+                "decodeBase64 reached H2, which has no from_base64()",
+            )),
+            F::TimeBucket => Err(Refusal::capability(
+                "a time bucket reached H2, which has no time_bucket()",
+            )),
         }
     }
 
@@ -1229,12 +1322,26 @@ impl AnsiSqlRenderer for H2 {
             Ok(())
         };
         let scaled = |w: &mut SqlWriter| -> Result<(), Refusal> {
-            w.append("(").expr(self, arg(a, 0)?, 6)?.append(" * ").piece(&p)?.append(")");
+            w.append("(")
+                .expr(self, arg(a, 0)?, 6)?
+                .append(" * ")
+                .piece(&p)?
+                .append(")");
             Ok(())
         };
-        w.append("(CASE WHEN ").piece(&scaled)?.append(" - FLOOR(").piece(&scaled)?.append(") = 0.5");
-        w.append(" THEN (CASE WHEN MOD(CAST(FLOOR(").piece(&scaled)?.append(") AS BIGINT), 2) = 0 THEN FLOOR(");
-        w.piece(&scaled)?.append(") ELSE FLOOR(").piece(&scaled)?.append(") + 1 END)").append(" ELSE ROUND(");
+        w.append("(CASE WHEN ")
+            .piece(&scaled)?
+            .append(" - FLOOR(")
+            .piece(&scaled)?
+            .append(") = 0.5");
+        w.append(" THEN (CASE WHEN MOD(CAST(FLOOR(")
+            .piece(&scaled)?
+            .append(") AS BIGINT), 2) = 0 THEN FLOOR(");
+        w.piece(&scaled)?
+            .append(") ELSE FLOOR(")
+            .piece(&scaled)?
+            .append(") + 1 END)")
+            .append(" ELSE ROUND(");
         w.piece(&scaled)?.append(") END / ").piece(&p)?.append(")");
         Ok(())
     }
@@ -1270,7 +1377,9 @@ impl AnsiSqlRenderer for H2 {
         w.append("COALESCE(JSON_ARRAYAGG(").expr(self, value, 0)?;
         if !order_keys.is_empty() {
             w.append(" ORDER BY ").join(order_keys, ", ", |w, k| {
-                w.expr(self, &k.expr, 0)?.append(if k.desc { " DESC" } else { " ASC" }).append(" NULLS LAST");
+                w.expr(self, &k.expr, 0)?
+                    .append(if k.desc { " DESC" } else { " ASC" })
+                    .append(" NULLS LAST");
                 Ok(())
             })?;
         }
@@ -1288,10 +1397,17 @@ impl AnsiSqlRenderer for H2 {
         conform: bool,
     ) -> Result<(), Refusal> {
         if self.modern {
-            let navigation = matches!(value, SqlExpr::Call { r#fn: SqlFn::VariantGet | SqlFn::VariantElements, .. })
-                || matches!(value, SqlExpr::StructGet { .. });
+            let navigation = matches!(
+                value,
+                SqlExpr::Call {
+                    r#fn: SqlFn::VariantGet | SqlFn::VariantElements,
+                    ..
+                }
+            ) || matches!(value, SqlExpr::StructGet { .. });
             if navigation && matches!(target, SqlType::Scalar(sc) if *sc != Scalar::Json) {
-                w.append("CAST(TRIM(BOTH '\"' FROM CAST(").expr(self, value, 0)?.append(" AS VARCHAR)) AS ");
+                w.append("CAST(TRIM(BOTH '\"' FROM CAST(")
+                    .expr(self, value, 0)?
+                    .append(" AS VARCHAR)) AS ");
                 let t = ansi::cast_type_name(self, target)?;
                 w.append(&t).append(")");
                 return Ok(());
@@ -1301,9 +1417,18 @@ impl AnsiSqlRenderer for H2 {
             return self.json_parse_cast(w, value);
         }
         // a value whose type fact is BOOLEAN takes the reference spelling too, not only a boolean-shaped one
-        let boolean_fact = matches!(value.r#type(), TypeFact::Typed { r#type: SqlType::Scalar(Scalar::Boolean), .. });
+        let boolean_fact = matches!(
+            value.r#type(),
+            TypeFact::Typed {
+                r#type: SqlType::Scalar(Scalar::Boolean),
+                ..
+            }
+        );
         if *target == SqlType::Scalar(Scalar::Varchar) && (boolean_fact || boolean_shaped(value)) {
-            w.append("CASE WHEN ").expr(self, value, 0)?.append(" THEN 'true' WHEN NOT ").expr(self, value, 0)?;
+            w.append("CASE WHEN ")
+                .expr(self, value, 0)?
+                .append(" THEN 'true' WHEN NOT ")
+                .expr(self, value, 0)?;
             w.append(" THEN 'false' END");
             return Ok(());
         }
@@ -1315,7 +1440,11 @@ impl AnsiSqlRenderer for H2 {
     fn split_part_call(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let sep = match arg(a, 1)? {
             SqlExpr::StringLit { value, .. } if !value.is_empty() => value,
-            _ => return Err(Refusal::capability("splitPart on H2 needs a literal, non-empty separator")),
+            _ => {
+                return Err(Refusal::capability(
+                    "splitPart on H2 needs a literal, non-empty separator",
+                ));
+            }
         };
         let mut cls = String::from("[^");
         for c in sep.chars() {
@@ -1323,7 +1452,11 @@ impl AnsiSqlRenderer for H2 {
         }
         cls.push_str("]+");
         let lit = self.string_lit(&cls)?;
-        w.append("REGEXP_SUBSTR(").expr(self, arg(a, 0)?, 0)?.append(", ").append(&lit).append(", 1, ");
+        w.append("REGEXP_SUBSTR(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ")
+            .append(&lit)
+            .append(", 1, ");
         w.expr(self, arg(a, 2)?, 0)?.append(")");
         Ok(())
     }
@@ -1348,7 +1481,9 @@ impl AnsiSqlRenderer for H2 {
         if scalar == Scalar::Date {
             return Ok("DATE".to_owned());
         }
-        Err(Refusal::capability(format!("a TYPEOF compared with {scalar}'s name reached H2")))
+        Err(Refusal::capability(format!(
+            "a TYPEOF compared with {scalar}'s name reached H2"
+        )))
     }
 
     /// H2Modern: `(x)."key"` for a literal key, `(x)[i+1]` for a literal index (one-based); a dynamic key is refused.
@@ -1364,7 +1499,11 @@ impl AnsiSqlRenderer for H2 {
                     return Ok(());
                 }
                 SqlExpr::IntLit { value: ix, .. } => {
-                    w.append("(").expr(self, &args[0], 7)?.append(")[").append_long(ix.wrapping_add(1)).append("]");
+                    w.append("(")
+                        .expr(self, &args[0], 7)?
+                        .append(")[")
+                        .append_long(ix.wrapping_add(1))
+                        .append("]");
                     return Ok(());
                 }
                 _ => {}
@@ -1392,7 +1531,11 @@ impl AnsiSqlRenderer for H2 {
         if !self.modern {
             return ansi::struct_get(self, w, source, field);
         }
-        w.append("(").expr(self, source, 7)?.append(").\"").append(&field.replace('"', "\"\"")).append("\"");
+        w.append("(")
+            .expr(self, source, 7)?
+            .append(").\"")
+            .append(&field.replace('"', "\"\""))
+            .append("\"");
         Ok(())
     }
 

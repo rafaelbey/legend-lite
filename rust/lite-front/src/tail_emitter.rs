@@ -496,7 +496,9 @@ fn ss_service(b: &mut Buf, sv: &PSsService) -> Em {
     b.a(",\"response\":");
     ss_type_ref(b, &sv.response)?;
     if !sv.security.is_empty() {
-        return Err(illegal_state(JStr::from("non-empty ServiceStore security wire is unprobed")));
+        return Err(illegal_state(JStr::from(
+            "non-empty ServiceStore security wire is unprobed",
+        )));
     }
     b.a(",\"security\":[],\"sourceInformation\":");
     src_info(b, sv.source_information.as_deref());
@@ -894,7 +896,11 @@ fn data_space_context(b: &mut Buf, ctx: &PDataSpaceContext) -> Em {
 fn data_space_executable(b: &mut Buf, e: &PDataSpaceExecutable) -> Em {
     let template = e.query.is_some();
     b.a("{\"_type\":\"");
-    b.a(if template { "dataSpaceTemplateExecutable" } else { "dataSpacePackageableElementExecutable" });
+    b.a(if template {
+        "dataSpaceTemplateExecutable"
+    } else {
+        "dataSpacePackageableElementExecutable"
+    });
     b.ch(b'"');
     if let Some(desc) = &e.description {
         b.a(",\"description\":");
@@ -1186,7 +1192,9 @@ pub fn persistence(b: &mut Buf, p: &PPersistence) -> Em {
     str(b, &p.name);
     b.a(",\"notifier\":{\"notifyees\":[");
     if let Some(nf) = &p.notifier {
-        comma_each(b, &nf.notifyees, |b, n| persistence_node(b, &crate::ustr::u("notifyee"), n, false, false))?;
+        comma_each(b, &nf.notifyees, |b, n| {
+            persistence_node(b, &crate::ustr::u("notifyee"), n, false, false)
+        })?;
     }
     b.ch(b']');
     if let Some(nf) = &p.notifier
@@ -1214,7 +1222,13 @@ pub fn persistence(b: &mut Buf, p: &PPersistence) -> Em {
             b.ch(b'{');
             if t.persistence_target.kind != "__empty__" {
                 b.a("\"persistenceTarget\":");
-                persistence_node(b, &crate::ustr::u("persistenceTarget"), &t.persistence_target, false, false)?;
+                persistence_node(
+                    b,
+                    &crate::ustr::u("persistenceTarget"),
+                    &t.persistence_target,
+                    false,
+                    false,
+                )?;
                 b.ch(b',');
             }
             b.a("\"serviceOutput\":");
@@ -1232,7 +1246,12 @@ pub fn persistence(b: &mut Buf, p: &PPersistence) -> Em {
         b.ch(b']');
     }
     b.a(",\"trigger\":{\"_type\":\"");
-    b.a(persistence_type(&crate::ustr::u("trigger"), &p.trigger_kind, false, false)?);
+    b.a(persistence_type(
+        &crate::ustr::u("trigger"),
+        &p.trigger_kind,
+        false,
+        false,
+    )?);
     b.a("\"}}");
     Ok(())
 }
@@ -1310,7 +1329,12 @@ enum EntryRef<'a> {
 /// A node kind the emitter's tables do not name: the engine's grammar names the kinds too, and refuses the word at the
 /// node's place (PARITY row 73). A platform written with an island is the exception: the engine accepts it, so the
 /// answer stays (the user's list, ruling 4 of docs/rust-port/PHASE2.md section 6).
-fn unknown_persistence_kind(raw: JavaError, slot: &[u16], n: &PPersistenceNode, outer: Option<&SourceInfo>) -> JavaError {
+fn unknown_persistence_kind(
+    raw: JavaError,
+    slot: &[u16],
+    n: &PPersistenceNode,
+    outer: Option<&SourceInfo>,
+) -> JavaError {
     match n.source_information.as_deref().or(outer) {
         Some(at) if !eq(slot, "platform") => {
             JavaError::parse(jcat!("Unexpected token '", n.kind, "'"), at.start_line, at.start_column).as_refusal()
@@ -1367,7 +1391,11 @@ fn persistence_node_in(
             // a PathValue keyed `path`: neither rename applies
             EntryRef::HeadPath(_) => crate::ustr::u("path"),
         };
-        if gf_partition && eq(&k, "partitionFields") { crate::ustr::u("partitionFieldPaths") } else { k }
+        if gf_partition && eq(&k, "partitionFields") {
+            crate::ustr::u("partitionFieldPaths")
+        } else {
+            k
+        }
     };
     let mut keyed: Vec<(Vec<u16>, EntryRef<'_>)> = entries.into_iter().map(|e| (key_of(&e), e)).collect();
     keyed.sort_by(|x, y| x.0.cmp(&y.0));
@@ -1409,9 +1437,14 @@ fn persistence_node_in(
                     str(b, &s.value);
                 }
             }
-            PPersistenceEntry::PPersistenceEntryNode(nd) => {
-                persistence_node_in(b, &nd.key.0, &nd.node, gf, tgt, n.source_information.as_deref().or(outer))?
-            }
+            PPersistenceEntry::PPersistenceEntryNode(nd) => persistence_node_in(
+                b,
+                &nd.key.0,
+                &nd.node,
+                gf,
+                tgt,
+                n.source_information.as_deref().or(outer),
+            )?,
             PPersistenceEntry::PPersistenceEntryPointer(pt) => {
                 if pt.key == "binding" {
                     // binding pointers carry no type tag
@@ -1443,7 +1476,9 @@ fn persistence_node_in(
             PPersistenceEntry::PPersistenceEntryNodeList(nl) => {
                 b.ch(b'[');
                 let within = n.source_information.as_deref().or(outer);
-                comma_each(b, &nl.nodes, |b, node| persistence_node_in(b, &nl.key.0, node, gf, tgt, within))?;
+                comma_each(b, &nl.nodes, |b, node| {
+                    persistence_node_in(b, &nl.key.0, node, gf, tgt, within)
+                })?;
                 b.ch(b']');
             }
         }
@@ -1615,18 +1650,25 @@ fn persistence_asserts(b: &mut Buf, asserts: &[Box<PPersistenceAssert>]) -> Em {
             b.ch(b',');
         }
         b.a("{\"_type\":\"");
-        b.a(persistence_type(&crate::ustr::u("assertion"), &as_.assertion.kind, false, false).map_err(|raw| {
-            // the engine's walker refuses a test assertion kind it does not know, at the kind (PARITY row 73)
-            match as_.assertion.source_information.as_deref().or(as_.source_information.as_deref()) {
-                Some(at) => JavaError::parse(
-                    jcat!("Unknown test assertion type: ", as_.assertion.kind),
-                    at.start_line,
-                    at.start_column,
-                )
-                .as_refusal(),
-                None => raw,
-            }
-        })?);
+        b.a(
+            persistence_type(&crate::ustr::u("assertion"), &as_.assertion.kind, false, false).map_err(|raw| {
+                // the engine's walker refuses a test assertion kind it does not know, at the kind (PARITY row 73)
+                match as_
+                    .assertion
+                    .source_information
+                    .as_deref()
+                    .or(as_.source_information.as_deref())
+                {
+                    Some(at) => JavaError::parse(
+                        jcat!("Unknown test assertion type: ", as_.assertion.kind),
+                        at.start_line,
+                        at.start_column,
+                    )
+                    .as_refusal(),
+                    None => raw,
+                }
+            })?,
+        );
         b.ch(b'"');
         for e in &as_.assertion.entries {
             b.a(",\"");
@@ -1673,7 +1715,9 @@ fn legacy_assert(b: &mut Buf, a: &PLegacyServiceTestPLegacyAssert) -> Em {
                     && af.parameters.len() == 1
                     && matches!(af.parameters[0], ValueSpecification::PureCollection(_)) =>
             {
-                let ValueSpecification::PureCollection(pc) = &af.parameters[0] else { unreachable!("matched above") };
+                let ValueSpecification::PureCollection(pc) = &af.parameters[0] else {
+                    unreachable!("matched above")
+                };
                 // list([...]) wires as classInstance/listInstance; outer and inner span the whole call's
                 b.a("{\"_type\":\"classInstance\",\"sourceInformation\":");
                 src_info(b, af.pos.as_deref());
@@ -1865,7 +1909,12 @@ fn single_execution_parameters(b: &mut Buf, k: &PKeyedExecution) -> Em {
     }
     if k.runtime.is_some() || k.embedded_runtime.is_some() {
         // "runtime" sorts before "runtimeComponents"; a keyed execution may carry both
-        service_runtime(b, k.runtime.as_ref(), k.runtime_span.as_deref(), k.embedded_runtime.as_deref())?;
+        service_runtime(
+            b,
+            k.runtime.as_ref(),
+            k.runtime_span.as_deref(),
+            k.embedded_runtime.as_deref(),
+        )?;
     }
     if let Some(rc) = &k.runtime_components {
         b.a(",\"runtimeComponents\":{\"binding\":");
@@ -2027,7 +2076,12 @@ fn service_execution(b: &mut Buf, e: &PServiceExecution) -> Em {
                 b.a(",\"mappingSourceInformation\":");
                 src_info(b, se.mapping_span.as_deref());
             }
-            service_runtime(b, se.runtime.as_ref(), se.runtime_span.as_deref(), se.embedded_runtime.as_deref())?;
+            service_runtime(
+                b,
+                se.runtime.as_ref(),
+                se.runtime_span.as_deref(),
+                se.embedded_runtime.as_deref(),
+            )?;
             b.a(",\"sourceInformation\":");
             src_info(b, se.source_information.as_deref());
             b.ch(b'}');
@@ -2059,7 +2113,12 @@ fn service_execution(b: &mut Buf, e: &PServiceExecution) -> Em {
                     b.a(",\"mappingSourceInformation\":");
                     src_info(b, k.mapping_span.as_deref());
                 }
-                service_runtime(b, k.runtime.as_ref(), k.runtime_span.as_deref(), k.embedded_runtime.as_deref())?;
+                service_runtime(
+                    b,
+                    k.runtime.as_ref(),
+                    k.runtime_span.as_deref(),
+                    k.embedded_runtime.as_deref(),
+                )?;
                 b.a(",\"sourceInformation\":");
                 src_info(b, k.source_information.as_deref());
                 b.ch(b'}');
@@ -2132,7 +2191,12 @@ fn service_runtime(
         b.ch(b'}');
     } else if let Some(embedded) = embedded {
         b.a(",\"runtime\":{\"_type\":\"engineRuntime\"");
-        emitter::runtime_arrays(b, &embedded.connection_stores, &embedded.connections, &embedded.mappings)?;
+        emitter::runtime_arrays(
+            b,
+            &embedded.connection_stores,
+            &embedded.connections,
+            &embedded.mappings,
+        )?;
         b.a(",\"sourceInformation\":");
         src_info(b, embedded.source_information.as_deref());
         b.ch(b'}');
@@ -2189,7 +2253,10 @@ fn dq_context(b: &mut Buf, v: &PDataQualityValidation) -> Em {
     } else {
         // the engine's grammar names the two contexts, and refuses the word, one `(` before the first argument
         let (line, column) = v.context_path_span.as_deref().map_or((0, 0), |at| {
-            (at.start_line, at.start_column - crate::ustr::u(&v.context_kind.lossy()).len() as i32 - 1)
+            (
+                at.start_line,
+                at.start_column - crate::ustr::u(&v.context_kind.lossy()).len() as i32 - 1,
+            )
         });
         return Err(JavaError::parse(jcat!("Unexpected token '", v.context_kind, "'"), line, column).as_refusal());
     }
@@ -2199,7 +2266,10 @@ fn dq_context(b: &mut Buf, v: &PDataQualityValidation) -> Em {
 /// A context with one argument where the engine's grammar wants two: it refuses the `)`, just after the first (PARITY
 /// row 76).
 fn missing_second_context_argument(v: &PDataQualityValidation) -> JavaError {
-    let (line, column) = v.context_path_span.as_deref().map_or((0, 0), |at| (at.end_line, at.end_column + 1));
+    let (line, column) = v
+        .context_path_span
+        .as_deref()
+        .map_or((0, 0), |at| (at.end_line, at.end_column + 1));
     JavaError::parse(JStr::from("Unexpected token ')'"), line, column).as_refusal()
 }
 
@@ -2215,7 +2285,11 @@ fn pointer(b: &mut Buf, path: &JStr, span: Option<&SourceInfo>, ty: &str) {
 }
 
 fn dq_tree(b: &mut Buf, n: &PDqTreeNode, root: bool) -> Em {
-    let t = if root { "dataQualityRootGraphFetchTree" } else { "dataQualityPropertyGraphFetchTree" };
+    let t = if root {
+        "dataQualityRootGraphFetchTree"
+    } else {
+        "dataQualityPropertyGraphFetchTree"
+    };
     b.a("{\"_type\":\"");
     b.a(t);
     b.a("\",\"_type\":\"");
@@ -2420,8 +2494,13 @@ mod tests {
     #[test]
     fn persistence_types_as_java_maps_them() {
         assert_eq!(
-            persistence_type(&crate::ustr::u("processingDimension"), &JStr::from("BatchIdAndDateTime"), false, false)
-                .unwrap(),
+            persistence_type(
+                &crate::ustr::u("processingDimension"),
+                &JStr::from("BatchIdAndDateTime"),
+                false,
+                false
+            )
+            .unwrap(),
             "batchIdAndProcessingTime"
         );
         assert_eq!(

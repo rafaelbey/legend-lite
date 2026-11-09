@@ -14,7 +14,9 @@ fn scalar(s: Scalar) -> SqlType {
 }
 
 fn list_type(s: Scalar) -> SqlType {
-    SqlType::Array { element: Box::new(scalar(s)) }
+    SqlType::Array {
+        element: Box::new(scalar(s)),
+    }
 }
 
 fn col(table: &str, name: &str, t: SqlType) -> SqlExpr {
@@ -26,7 +28,11 @@ fn unnest(list: SqlExpr) -> SqlExpr {
 }
 
 fn proj(e: SqlExpr, alias: &str) -> Projection {
-    Projection { expr: e, alias: Some(alias.to_owned()), out: None }
+    Projection {
+        expr: e,
+        alias: Some(alias.to_owned()),
+        out: None,
+    }
 }
 
 fn select(projections: Vec<Projection>, from: SqlSource) -> SqlSelect {
@@ -45,36 +51,71 @@ fn table() -> SqlSource {
 }
 
 fn marker() -> SqlSelect {
-    select(vec![proj(unnest(col("t0", "xs", list_type(Scalar::Bigint))), "e")], SqlSource::Dual)
+    select(
+        vec![proj(unnest(col("t0", "xs", list_type(Scalar::Bigint))), "e")],
+        SqlSource::Dual,
+    )
 }
 
 #[test]
 fn the_predicates() {
     assert!(is_marker_select(&marker()));
     let mut ordered = marker();
-    ordered.order_by.push(SortKey { expr: build::int_lit(1), ascending: true, null_order: None, output_name: None });
+    ordered.order_by.push(SortKey {
+        expr: build::int_lit(1),
+        ascending: true,
+        null_order: None,
+        output_name: None,
+    });
     assert!(!is_marker_select(&ordered));
     let mut limited = marker();
     limited.limit = Some(1);
     assert!(!is_marker_select(&limited));
-    assert!(!is_marker_select(&select(vec![proj(build::int_lit(1), "x")], SqlSource::Dual)));
-    assert!(!is_marker_select(&select(vec![proj(unnest(build::null_lit()), "e")], table())));
-    assert!(!is_unnest(&build::call(SqlFn::Unnest, vec![build::null_lit(), build::null_lit()])));
+    assert!(!is_marker_select(&select(
+        vec![proj(build::int_lit(1), "x")],
+        SqlSource::Dual
+    )));
+    assert!(!is_marker_select(&select(
+        vec![proj(unnest(build::null_lit()), "e")],
+        table()
+    )));
+    assert!(!is_unnest(&build::call(
+        SqlFn::Unnest,
+        vec![build::null_lit(), build::null_lit()]
+    )));
     assert!(null_list(&build::null_lit()));
     assert!(null_list(&build::compact_list(build::null_lit())));
     assert!(!null_list(&build::array_lit(Vec::new())));
     let min = build::call(SqlFn::ListMin, vec![build::null_lit()]);
     assert!(null_over_null_list(&min));
     assert!(null_over_null_list(&build::cast(min, scalar(Scalar::Bigint))));
-    assert!(null_over_null_list(&build::reduce_collection(AggFn::Max, build::null_lit(), Vec::new())));
-    assert!(!null_over_null_list(&build::call(SqlFn::ListMin, vec![col("t0", "xs", list_type(Scalar::Bigint))])));
+    assert!(null_over_null_list(&build::reduce_collection(
+        AggFn::Max,
+        build::null_lit(),
+        Vec::new()
+    )));
+    assert!(!null_over_null_list(&build::call(
+        SqlFn::ListMin,
+        vec![col("t0", "xs", list_type(Scalar::Bigint))]
+    )));
     // a cast of NULL itself is no read of a list
-    assert!(!null_over_null_list(&build::cast(build::null_lit(), scalar(Scalar::Bigint))));
+    assert!(!null_over_null_list(&build::cast(
+        build::null_lit(),
+        scalar(Scalar::Bigint)
+    )));
     // the column a marker's projection names: its alias, else its output's, else refused
     let out = build::output_col("o", scalar(Scalar::Bigint), true);
-    let named = Projection { expr: unnest(build::null_lit()), alias: None, out: Some(out) };
+    let named = Projection {
+        expr: unnest(build::null_lit()),
+        alias: None,
+        out: Some(out),
+    };
     assert_eq!(marker_column(&named).unwrap(), "o");
-    let nameless = Projection { expr: unnest(build::null_lit()), alias: None, out: None };
+    let nameless = Projection {
+        expr: unnest(build::null_lit()),
+        alias: None,
+        out: None,
+    };
     assert_eq!(
         marker_column(&nameless).unwrap_err(),
         Refusal::capability("an UNNEST without a column name reached the renderer")
@@ -86,7 +127,10 @@ fn an_exploded_read_is_typed_as_its_element_or_its_slot() {
     let xs = col("t0", "xs", list_type(Scalar::Bigint));
     // the element's type when known
     let read = exploded_read("u", &proj(unnest(xs.clone()), "e"), None).unwrap();
-    assert_eq!(read, build::typed_column(Some("u"), "e", scalar(Scalar::Bigint), true, Origin::Derived));
+    assert_eq!(
+        read,
+        build::typed_column(Some("u"), "e", scalar(Scalar::Bigint), true, Origin::Derived)
+    );
     // an untyped list: a scalar slot's type; a composite slot over a real list none; over a NULL list the slot's
     let untyped = build::derived(Some("t0"), "ys");
     let p = proj(unnest(untyped), "e");
@@ -96,7 +140,10 @@ fn an_exploded_read_is_typed_as_its_element_or_its_slot() {
         build::typed_column(Some("u"), "e", varchar.clone(), true, Origin::Derived)
     );
     let composite = list_type(Scalar::Bigint);
-    assert_eq!(exploded_read("u", &p, Some(&composite)).unwrap(), build::derived(Some("u"), "e"));
+    assert_eq!(
+        exploded_read("u", &p, Some(&composite)).unwrap(),
+        build::derived(Some("u"), "e")
+    );
     let nulls = proj(unnest(build::null_lit()), "e");
     assert_eq!(
         exploded_read("u", &nulls, Some(&composite)).unwrap(),
@@ -106,7 +153,10 @@ fn an_exploded_read_is_typed_as_its_element_or_its_slot() {
     let js = col("t0", "js", list_type(Scalar::Json));
     assert_eq!(
         exploded_read("u", &proj(unnest(js), "e"), Some(&varchar)).unwrap(),
-        build::cast(build::typed_column(Some("u"), "e", scalar(Scalar::Json), true, Origin::Derived), varchar)
+        build::cast(
+            build::typed_column(Some("u"), "e", scalar(Scalar::Json), true, Origin::Derived),
+            varchar
+        )
     );
 }
 
@@ -116,7 +166,9 @@ fn a_star_over_a_marker_is_the_marker() {
     let q = build::query(select(vec![], build::subselect(build::query(star.clone()), "u", None)));
     let out = rewrite(&mut StarOverExplosionUnwrapped, q).unwrap();
     assert!(out.is_new());
-    let SqlQuery::Select(s) = out.into_inner() else { panic!("a select") };
+    let SqlQuery::Select(s) = out.into_inner() else {
+        panic!("a select")
+    };
     assert_eq!(s.from, build::subselect(build::query(marker()), "u", None));
     // a star with a clause, or over no marker, is left as it came
     let mut filtered = star;
@@ -130,10 +182,22 @@ fn a_star_over_a_marker_is_the_marker() {
 
 /// `t CROSS JOIN LATERAL (SELECT UNNEST(c.lst) AS elem FROM (SELECT t0.xs AS lst) AS c) AS u`.
 fn carried(kind: JoinKind, carry_filter: Option<SqlExpr>) -> SqlQuery {
-    let mut carry = select(vec![proj(col("t0", "xs", list_type(Scalar::Bigint)), "lst")], SqlSource::Dual);
+    let mut carry = select(
+        vec![proj(col("t0", "xs", list_type(Scalar::Bigint)), "lst")],
+        SqlSource::Dual,
+    );
     carry.r#where = carry_filter;
     let explode = select(
-        vec![proj(unnest(build::typed_column(Some("c"), "lst", list_type(Scalar::Bigint), true, Origin::Derived)), "elem")],
+        vec![proj(
+            unnest(build::typed_column(
+                Some("c"),
+                "lst",
+                list_type(Scalar::Bigint),
+                true,
+                Origin::Derived,
+            )),
+            "elem",
+        )],
         build::subselect(build::query(carry), "c", None),
     );
     let on = (kind == JoinKind::LeftLateral).then(|| build::bool_lit(true));
@@ -146,15 +210,26 @@ fn a_lateral_explosion_of_a_carried_list_is_a_marker() {
     for kind in [JoinKind::CrossLateral, JoinKind::LeftLateral] {
         let out = rewrite(&mut LateralUnnestAsMarker, carried(kind, None)).unwrap();
         assert!(out.is_new());
-        let SqlQuery::Select(s) = out.into_inner() else { panic!("a select") };
-        let SqlSource::Join { right, kind: k, .. } = &s.from else { panic!("a join") };
+        let SqlQuery::Select(s) = out.into_inner() else {
+            panic!("a select")
+        };
+        let SqlSource::Join { right, kind: k, .. } = &s.from else {
+            panic!("a join")
+        };
         assert_eq!(*k, kind);
-        let SqlSource::Subselect { inner, alias, .. } = right.as_ref() else { panic!("a subselect") };
+        let SqlSource::Subselect { inner, alias, .. } = right.as_ref() else {
+            panic!("a subselect")
+        };
         assert_eq!(alias, "u");
         assert!(is_marker(inner));
-        let SqlQuery::Select(m) = inner.as_ref() else { panic!("a select") };
+        let SqlQuery::Select(m) = inner.as_ref() else {
+            panic!("a select")
+        };
         // the carried list inlined, the projection's name kept
-        assert_eq!(m.projections[0].expr, unnest(col("t0", "xs", list_type(Scalar::Bigint))));
+        assert_eq!(
+            m.projections[0].expr,
+            unnest(col("t0", "xs", list_type(Scalar::Bigint)))
+        );
         assert_eq!(m.projections[0].alias.as_deref(), Some("elem"));
     }
     // a carry with a filter, and a join that is no lateral, are left as they came
@@ -162,7 +237,13 @@ fn a_lateral_explosion_of_a_carried_list_is_a_marker() {
     assert!(!rewrite(&mut LateralUnnestAsMarker, filtered).unwrap().is_new());
     let plain = build::query(select(
         vec![],
-        build::join(table(), build::subselect(build::query(marker()), "u", None), JoinKind::Cross, None).unwrap(),
+        build::join(
+            table(),
+            build::subselect(build::query(marker()), "u", None),
+            JoinKind::Cross,
+            None,
+        )
+        .unwrap(),
     ));
     assert!(!rewrite(&mut LateralUnnestAsMarker, plain).unwrap().is_new());
 }
@@ -172,17 +253,27 @@ fn a_select_list_unnest_is_a_lateral_marker_named_by_the_pass() {
     let xs = col("t0", "xs", list_type(Scalar::Bigint));
     let out = build::output_col("e", scalar(Scalar::Bigint), true);
     let exploding = || {
-        let p = Projection { expr: unnest(xs.clone()), alias: Some("e".into()), out: Some(out.clone()) };
+        let p = Projection {
+            expr: unnest(xs.clone()),
+            alias: Some("e".into()),
+            out: Some(out.clone()),
+        };
         build::query(select(vec![p, proj(build::int_lit(1), "k")], table()))
     };
     let mut pass = SelectListUnnestAsLateral::default();
     for n in 0..2 {
         let rewritten = rewrite(&mut pass, exploding()).unwrap();
         assert!(rewritten.is_new());
-        let SqlQuery::Select(s) = rewritten.into_inner() else { panic!("a select") };
-        let SqlSource::Join { right, kind, on, .. } = &s.from else { panic!("a join") };
+        let SqlQuery::Select(s) = rewritten.into_inner() else {
+            panic!("a select")
+        };
+        let SqlSource::Join { right, kind, on, .. } = &s.from else {
+            panic!("a join")
+        };
         assert_eq!((*kind, on.is_none()), (JoinKind::CrossLateral, true));
-        let SqlSource::Subselect { alias, .. } = right.as_ref() else { panic!("a subselect") };
+        let SqlSource::Subselect { alias, .. } = right.as_ref() else {
+            panic!("a subselect")
+        };
         // the pass object counts its markers
         assert_eq!(alias, &format!("__unnest{n}"));
         assert_eq!(
@@ -190,15 +281,26 @@ fn a_select_list_unnest_is_a_lateral_marker_named_by_the_pass() {
             build::typed_column(Some(alias), "e", scalar(Scalar::Bigint), true, Origin::Derived)
         );
         assert_eq!(s.projections[1].expr, build::int_lit(1));
-        assert_eq!(s.outputs[0], OutputCol { origin: Origin::Derived, ..out.clone() });
+        assert_eq!(
+            s.outputs[0],
+            OutputCol {
+                origin: Origin::Derived,
+                ..out.clone()
+            }
+        );
     }
     // a fresh pass starts over
     let mut fresh = SelectListUnnestAsLateral::default();
-    let SqlQuery::Select(s) = rewrite(&mut fresh, exploding()).unwrap().into_inner() else { panic!("a select") };
+    let SqlQuery::Select(s) = rewrite(&mut fresh, exploding()).unwrap().into_inner() else {
+        panic!("a select")
+    };
     assert!(matches!(&s.from, SqlSource::Join { right, .. }
         if matches!(right.as_ref(), SqlSource::Subselect { alias, .. } if alias == "__unnest0")));
     // over no source: the marker is the FROM
-    let dual = select(vec![proj(unnest(xs.clone()), "e"), proj(build::int_lit(1), "k")], SqlSource::Dual);
+    let dual = select(
+        vec![proj(unnest(xs.clone()), "e"), proj(build::int_lit(1), "k")],
+        SqlSource::Dual,
+    );
     let SqlQuery::Select(s) = rewrite(&mut fresh, build::query(dual)).unwrap().into_inner() else {
         panic!("a select")
     };

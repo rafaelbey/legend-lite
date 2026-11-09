@@ -76,13 +76,25 @@ const REFUSED_AT_SECTION: &str = "lite.front.RefusedAtSection";
 impl JavaError {
     /// A `ParseException` at a position: its message carries Java's `[line:col] ` prefix when `line > 0`.
     pub fn parse_at(message: &str, line: i32, column: i32) -> JavaError {
-        let text = if line > 0 { format!("[{line}:{column}] {message}") } else { message.to_owned() };
-        JavaError { class: PARSE_EXCEPTION.to_owned(), message: Some(JStr::from(text)), position: Some((line, column)) }
+        let text = if line > 0 {
+            format!("[{line}:{column}] {message}")
+        } else {
+            message.to_owned()
+        };
+        JavaError {
+            class: PARSE_EXCEPTION.to_owned(),
+            message: Some(JStr::from(text)),
+            position: Some((line, column)),
+        }
     }
 
     /// Another class's error (no position): `IllegalStateException`, `IllegalArgumentException`, ...
     pub fn of(class: &str, message: Option<&str>) -> JavaError {
-        JavaError { class: class.to_owned(), message: message.map(JStr::from), position: None }
+        JavaError {
+            class: class.to_owned(),
+            message: message.map(JStr::from),
+            position: None,
+        }
     }
 
     /// A `ParseException(message, line, column)` (Java's three-argument constructor) over a message's UTF-16 units:
@@ -95,17 +107,29 @@ impl JavaError {
         } else {
             message
         };
-        JavaError { class: PARSE_EXCEPTION.to_owned(), message: Some(text), position: Some((line, column)) }
+        JavaError {
+            class: PARSE_EXCEPTION.to_owned(),
+            message: Some(text),
+            position: Some((line, column)),
+        }
     }
 
     /// A `ParseException(message)`, Java's one-argument constructor: no position (line and column 0).
     pub fn parse_unplaced(message: JStr) -> JavaError {
-        JavaError { class: PARSE_EXCEPTION.to_owned(), message: Some(message), position: Some((0, 0)) }
+        JavaError {
+            class: PARSE_EXCEPTION.to_owned(),
+            message: Some(message),
+            position: Some((0, 0)),
+        }
     }
 
     /// Another class's error over a message's UTF-16 units.
     pub fn java(class: &str, message: JStr) -> JavaError {
-        JavaError { class: class.to_owned(), message: Some(message), position: None }
+        JavaError {
+            class: class.to_owned(),
+            message: Some(message),
+            position: None,
+        }
     }
 
     /// Whether this is a `ParseException` (the class Java's `catch (ParseException e)` takes).
@@ -122,7 +146,11 @@ impl JavaError {
     /// A refusal the engine answers from its section catch-all ([`REFUSED_AT_SECTION`]); `at` is the token that held
     /// it (`(0, 0)` when the site knows none), for a door with no section.
     pub fn refused_at_section(message: JStr, at: (i32, i32)) -> JavaError {
-        JavaError { class: REFUSED_AT_SECTION.to_owned(), message: Some(message), position: Some(at) }
+        JavaError {
+            class: REFUSED_AT_SECTION.to_owned(),
+            message: Some(message),
+            position: Some(at),
+        }
     }
 
     /// A section catch-all's refusal, its token named now that the caller knows it.
@@ -145,7 +173,10 @@ impl JavaError {
     /// What a door answers: a refusal in flight as the `ParseException` it is; every other error as it stands.
     pub fn placed(self) -> JavaError {
         if self.class == REFUSED {
-            return JavaError { class: PARSE_EXCEPTION.to_owned(), ..self };
+            return JavaError {
+                class: PARSE_EXCEPTION.to_owned(),
+                ..self
+            };
         }
         if self.class == REFUSED_AT_SECTION {
             let (line, column) = match self.position {
@@ -203,7 +234,10 @@ pub fn block(text: &[u16], dialect: Dialect) -> Answer<Vec<ValueSpecification>> 
 /// the walk met, whose grammar the shim calls and whose elements it splices (`model_parser::OverlaySection`).
 pub fn pmcd(text: &[u16], dialect: Dialect, overlays: &[OverlayGrammar<'_>]) -> PmcdAnswer {
     let answer = crate::model_parser::parse_with_overlays(text, dialect, overlays);
-    PmcdAnswer { parsed: answer.parsed.map_err(JavaError::placed), overlays: answer.overlays }
+    PmcdAnswer {
+        parsed: answer.parsed.map_err(JavaError::placed),
+        overlays: answer.overlays,
+    }
 }
 
 /// The shim's half of an overlay section, as the differential plays it: the text, the door's answer, and the records
@@ -271,7 +305,11 @@ pub fn document_with_overlays(text: &[u16], spans: bool, overlays: &[OverlayGram
     }
     Some(answer.parsed.and_then(|parsed| {
         let json = crate::emitter::emit(&parsed.model).map_err(|e| emitter_refusal(e, &parsed))?;
-        Ok(if spans { json } else { crate::source_information::without_spans(&json) })
+        Ok(if spans {
+            json
+        } else {
+            crate::source_information::without_spans(&json)
+        })
     }))
 }
 
@@ -281,9 +319,12 @@ pub fn document_with_overlays(text: &[u16], spans: bool, overlays: &[OverlayGram
 fn emitter_refusal(e: JavaError, parsed: &PmcdParserParsed) -> JavaError {
     let line = e.position.map_or(0, |p| p.0);
     let section = parsed.model.elements.iter().rev().find_map(|element| match element {
-        Element::PSectionIndex(index) => {
-            index.sections.iter().rev().filter_map(|s| s.source_information.as_deref()).find(|s| s.start_line - 1 <= line)
-        }
+        Element::PSectionIndex(index) => index
+            .sections
+            .iter()
+            .rev()
+            .filter_map(|s| s.source_information.as_deref())
+            .find(|s| s.start_line - 1 <= line),
         _ => None,
     });
     match section {
@@ -298,7 +339,11 @@ fn emitter_refusal(e: JavaError, parsed: &PmcdParserParsed) -> JavaError {
 pub fn lambda_json(text: &[u16], spans: bool) -> Answer<Vec<u16>> {
     let lam = lambda(text)?;
     let json = crate::emitter::emit_lambda(&lam).map_err(JavaError::placed)?;
-    Ok(if spans { json } else { crate::source_information::without_spans(&json) })
+    Ok(if spans {
+        json
+    } else {
+        crate::source_information::without_spans(&json)
+    })
 }
 
 /// An engine door's two canonical forms, as Java's `FrontEngineAnswers.forms` writes them: with its source information
@@ -420,8 +465,14 @@ mod refusal_tests {
         model_refused_at(&fun("@Varchar(99999999999999999999)"), (1, 1));
         expression_refused_at("@Varchar(99999999999999999999)", (1, 10));
         // a section header is the engine's [line below the header : the end of the line before it]
-        model_refused_at("###Service\nService s::S\n{\n  pattern: '/p';\n  documentation: 'd';\n  execution: Single\n  {\n    query: |1;\n    mapping: m::M;\n    runtime: r::R;\n  }\n  test: Single\n  {\n    data: 'x';\n    asserts: [ { [-99999999999999999999], |true } ];\n  }\n}\n", (2, 8));
-        model_refused_at("###FileGeneration\nProtobuf a::G\n{\n  scopeElements: [a];\n  x: 99999999999999999999;\n}\n", (2, 8));
+        model_refused_at(
+            "###Service\nService s::S\n{\n  pattern: '/p';\n  documentation: 'd';\n  execution: Single\n  {\n    query: |1;\n    mapping: m::M;\n    runtime: r::R;\n  }\n  test: Single\n  {\n    data: 'x';\n    asserts: [ { [-99999999999999999999], |true } ];\n  }\n}\n",
+            (2, 8),
+        );
+        model_refused_at(
+            "###FileGeneration\nProtobuf a::G\n{\n  scopeElements: [a];\n  x: 99999999999999999999;\n}\n",
+            (2, 8),
+        );
     }
 
     #[test]
@@ -431,7 +482,10 @@ mod refusal_tests {
             expression_refused_at(t, (1, 4));
         }
         model_refused_at(&fun("1.5ed"), (3, 6));
-        model_refused_at("###Relational\nDatabase a::D\n(\n  Table T (ID INTEGER)\n  Join j(T.ID = 1.5ef)\n)\n", (5, 20));
+        model_refused_at(
+            "###Relational\nDatabase a::D\n(\n  Table T (ID INTEGER)\n  Join j(T.ID = 1.5ef)\n)\n",
+            (5, 20),
+        );
         // past an int: the engine's section catch-all
         model_refused_at(&fun("1.5e99999999999d"), (1, 1));
     }
@@ -442,7 +496,10 @@ mod refusal_tests {
         model_refused_at("Class 'a\\u12'::B\n{\n}\n", (1, 1));
         model_refused_at("###Pure\nimport 'a\\u12'::*;\nClass a::B\n{\n}\n", (2, 8));
         model_refused_at("###Mapping\nMapping 'a\\u12'::M\n(\n)\n", (2, 8));
-        model_refused_at("Profile a::P\n{\n  tags: [doc];\n}\nClass {a::P.doc='''\n\\u12'''} a::B\n{\n}\n", (1, 1));
+        model_refused_at(
+            "Profile a::P\n{\n  tags: [doc];\n}\nClass {a::P.doc='''\n\\u12'''} a::B\n{\n}\n",
+            (1, 1),
+        );
         model_refused_at(&fun("'x\\u12'::f()"), (1, 1));
         expression_refused_at("'x\\u12'::f()", (1, 1));
         // one line is no text block to the engine, which refuses at the string after the first `''`
@@ -452,33 +509,53 @@ mod refusal_tests {
     #[test]
     fn a_relational_sign_is_refused_where_it_stands() {
         // row 26
-        let db = |o: &str| format!("###Relational\nDatabase a::D\n(\n  Table T (ID INTEGER)\n  Join j(T.ID = {o})\n)\n");
+        let db =
+            |o: &str| format!("###Relational\nDatabase a::D\n(\n  Table T (ID INTEGER)\n  Join j(T.ID = {o})\n)\n");
         model_refused_at(&db("- x"), (5, 17));
         model_refused_at(&db("- 'a'"), (5, 17));
         model_refused_at(&db("- .."), (5, 17));
-        model_refused_at("###Relational\nDatabase a::D\n(\n  Table T (ID INTEGER)\n  Join j(T.ID = -", (5, 17));
+        model_refused_at(
+            "###Relational\nDatabase a::D\n(\n  Table T (ID INTEGER)\n  Join j(T.ID = -",
+            (5, 17),
+        );
     }
 
     #[test]
     fn a_service_store_local_property_multiplicity_parameter_is_the_section_catch_all_s() {
         // row 28
-        model_refused_at("###Mapping\nMapping a::M\n(\n  *a::C: ServiceStore\n  {\n    +x: String[m];\n    ~service [a::S] G.S\n  }\n)\n", (2, 8));
+        model_refused_at(
+            "###Mapping\nMapping a::M\n(\n  *a::C: ServiceStore\n  {\n    +x: String[m];\n    ~service [a::S] G.S\n  }\n)\n",
+            (2, 8),
+        );
     }
 
     #[test]
     fn the_end_of_the_input_is_where_the_engine_puts_it() {
         // rows 29 and 35
-        model_refused_at("###Mapping\nMapping a::M\n(\n  MappingTests\n  [\n    t\n    (\n      assert: '{}'", (8, 19));
-        model_refused_at("###Mapping\nMapping a::M\n(\n  MappingTests\n  [\n    t\n    (\n      assert: '{}'\n", (9, 1));
+        model_refused_at(
+            "###Mapping\nMapping a::M\n(\n  MappingTests\n  [\n    t\n    (\n      assert: '{}'",
+            (8, 19),
+        );
+        model_refused_at(
+            "###Mapping\nMapping a::M\n(\n  MappingTests\n  [\n    t\n    (\n      assert: '{}'\n",
+            (9, 1),
+        );
         // a `~src` is re-parsed on its own: one column before the end
         model_refused_at("###Mapping\nMapping a::M\n(\n  *a::C: Relation\n  {\n    ~src", (6, 8));
-        model_refused_at("###Service\nService s::S\n{\n  pattern: '/p';\n  documentation: 'd';\n  execution: Single { query: |1; mapping: m::M; runtime: #{", (6, 60));
+        model_refused_at(
+            "###Service\nService s::S\n{\n  pattern: '/p';\n  documentation: 'd';\n  execution: Single { query: |1; mapping: m::M; runtime: #{",
+            (6, 60),
+        );
     }
 
     #[test]
     fn an_empty_aggregate_lambda_is_refused_at_its_terminator() {
         // row 32
-        let agg = |g: &str| format!("###Mapping\nMapping a::M\n(\n  a::P[x]: AggregationAware\n  {{\n    Views: [\n      (\n        ~modelOperation: {{\n          ~canAggregate true,\n          ~groupByFunctions ({g}),\n          ~aggregateValues (\n            ( ~mapFn:$this.p , ~aggregateFn: $mapped->sum() )\n          )\n        }},\n        ~aggregateMapping: Pure\n        {{\n          ~src a::S\n          p: $src.p\n        }}\n      )\n    ],\n    ~mainMapping: Pure\n    {{\n      ~src a::P\n      p: $src.p\n    }}\n  }}\n)\n");
+        let agg = |g: &str| {
+            format!(
+                "###Mapping\nMapping a::M\n(\n  a::P[x]: AggregationAware\n  {{\n    Views: [\n      (\n        ~modelOperation: {{\n          ~canAggregate true,\n          ~groupByFunctions ({g}),\n          ~aggregateValues (\n            ( ~mapFn:$this.p , ~aggregateFn: $mapped->sum() )\n          )\n        }},\n        ~aggregateMapping: Pure\n        {{\n          ~src a::S\n          p: $src.p\n        }}\n      )\n    ],\n    ~mainMapping: Pure\n    {{\n      ~src a::P\n      p: $src.p\n    }}\n  }}\n)\n"
+            )
+        };
         model_refused_at(&agg(" ,"), (10, 31));
         model_refused_at(&agg("\n  ,"), (11, 3));
     }
@@ -486,11 +563,19 @@ mod refusal_tests {
     #[test]
     fn a_diagram_coordinate_and_a_data_quality_match_are_refused_at_the_token() {
         // row 49
-        let dgm = |n: &str| format!("###Diagram\nDiagram a::D\n{{\n  classView id1\n  {{\n    class: a::C;\n    position: ({n}, 3.0);\n    rectangle: (1.0, 1.0);\n  }}\n}}\n");
+        let dgm = |n: &str| {
+            format!(
+                "###Diagram\nDiagram a::D\n{{\n  classView id1\n  {{\n    class: a::C;\n    position: ({n}, 3.0);\n    rectangle: (1.0, 1.0);\n  }}\n}}\n"
+            )
+        };
         model_refused_at(&dgm("1-2"), (7, 16));
         model_refused_at(&dgm("\u{0661}\u{0662}"), (7, 16));
         model_refused_at(&dgm("1.2.3"), (7, 19));
-        let dq = |m: &str| format!("###DataQualityValidation\nDataQualityRelationComparison a::R\n{{\n  source: src|#>{{a::D.T}}#;\n  target: tgt|#>{{a::D.T}}#;\n  keys: [A];\n  strategy: MD5Hash;\n  expectedMatch: {m};\n}}\n");
+        let dq = |m: &str| {
+            format!(
+                "###DataQualityValidation\nDataQualityRelationComparison a::R\n{{\n  source: src|#>{{a::D.T}}#;\n  target: tgt|#>{{a::D.T}}#;\n  keys: [A];\n  strategy: MD5Hash;\n  expectedMatch: {m};\n}}\n"
+            )
+        };
         model_refused_at(&dq("'x'"), (8, 18));
         model_refused_at(&dq("x"), (8, 18));
     }
@@ -533,13 +618,19 @@ mod refusal_tests {
         model_refused_at(&format!("{c}  platform: AwsGlue #{{"), (5, 23));
         model_refused_at(&format!("{c}  sinkConnection: #{{"), (5, 21));
         model_refused_at(&format!("{c}  serviceParameters: [ foo = #{{"), (5, 32));
-        model_refused_at(&format!("{p}  serviceOutputTargets: [ #/a::T/h# {{ keys: [ #/a::T/h/k1#,"), (7, 60));
+        model_refused_at(
+            &format!("{p}  serviceOutputTargets: [ #/a::T/h# {{ keys: [ #/a::T/h/k1#,"),
+            (7, 60),
+        );
     }
 
     #[test]
     fn a_graph_fetch_argument_is_refused_where_the_engine_refuses_it() {
         // row 63, at the engine-JSON doors alone: the parser's doors keep their records
-        document_refused_at("function y4::b(): Any[*]\n{\n  #{I {product(2015-10-16){name}}}#;\n}\n", (3, 20));
+        document_refused_at(
+            "function y4::b(): Any[*]\n{\n  #{I {product(2015-10-16){name}}}#;\n}\n",
+            (3, 20),
+        );
         document_refused_at(&fun("#{a::B{c(f())}}#"), (3, 13));
         document_refused_at(&fun("#{a::B{c(a::E)}}#"), (3, 16));
         document_refused_at(&fun("#{a::B{c($x.y)}}#"), (3, 14));
@@ -551,7 +642,10 @@ mod refusal_tests {
         // what the engine's walker fails on: its section catch-all
         document_refused_at(&fun("#{a::B{c(1.5d)}}#"), (1, 1));
         document_refused_at(&fun("#{a::B{c(-1)}}#"), (1, 1));
-        document_refused_at("Class a::X {}\n###Pure\nfunction a::f():Any[*]\n{\n  #{a::B{c(1.5d)}}#\n}\n", (3, 14));
+        document_refused_at(
+            "Class a::X {}\n###Pure\nfunction a::f():Any[*]\n{\n  #{a::B{c(1.5d)}}#\n}\n",
+            (3, 14),
+        );
         let e = lambda_json(&u("|#{a::B{c(1.5d)}}#"), true).expect_err("a decimal");
         assert!(e.is_parse_exception(), "{e:?}");
     }
@@ -561,8 +655,15 @@ mod refusal_tests {
         // rows 73 and 76
         let p = "###Persistence\nPersistence a::P\n{\n  doc: 'd';\n  trigger: Manual;\n  service: a::S;\n";
         document_refused_at(&format!("{p}  persister: Foo\n  {{\n  }}\n}}\n"), (7, 14));
-        document_refused_at(&format!("{p}  serviceOutputTargets: [ x {{ keys: [] }} -> {{ }} ];\n}}\n"), (7, 27));
-        let v = |c: &str| format!("###DataQualityValidation\nDataQualityValidation a::V\n{{\n  context: {c};\n  validationTree: $[\n    a::P<mustBeNamed>{{\n      name\n    }}\n  ]$;\n}}\n");
+        document_refused_at(
+            &format!("{p}  serviceOutputTargets: [ x {{ keys: [] }} -> {{ }} ];\n}}\n"),
+            (7, 27),
+        );
+        let v = |c: &str| {
+            format!(
+                "###DataQualityValidation\nDataQualityValidation a::V\n{{\n  context: {c};\n  validationTree: $[\n    a::P<mustBeNamed>{{\n      name\n    }}\n  ]$;\n}}\n"
+            )
+        };
         document_refused_at(&v("fromMappingAndRuntime(a::M)"), (4, 38));
         document_refused_at(&v("fromDataSpace(a::DS)"), (4, 31));
         document_refused_at(&v("fromSomewhere(a::B)"), (4, 12));
@@ -592,7 +693,10 @@ mod refusal_tests {
         // rows 85 and 86, found by mutating the oracle's texts
         let m = "###Mapping\nMapping a::M\n(\n  MappingTests\n  [\n    t\n    (\n";
         model_refused_at(&format!("{m}      assert: '"), (8, 15));
-        model_refused_at("###Pure\nProfile a::p { tags: [doc]; }\nClass {a::p.doc = '''hello'' a::A { x: String[1]; }\n", (3, 21));
+        model_refused_at(
+            "###Pure\nProfile a::p { tags: [doc]; }\nClass {a::p.doc = '''hello'' a::A { x: String[1]; }\n",
+            (3, 21),
+        );
         model_refused_at("Class {meta::pure::profiles::doc.doc = '''\nDo", (1, 42));
         expression_refused_at("'''\nDo", (1, 3));
         expression_refused_at("'''", (1, 3));
@@ -608,27 +712,67 @@ mod refusal_tests {
     fn what_the_engine_accepts_keeps_its_answer_and_comes_back_to_the_user() {
         // the ruling's carve-out: rows 3, 7, 8 (a part), 46, 50 (a part), 72 and 73 (a part)
         let m = |t: &str| pmcd(&u(t), Dialect::LegendLite, &[]).parsed.map(|_| ());
-        still_raw("row 3", "java.time.DateTimeException", spec(&u("%2024-02-30T10:00+0500"), Dialect::LegendEngine).map(|_| ()));
-        still_raw("row 7", "java.lang.NumberFormatException", spec(&u("1e999"), Dialect::LegendLite).map(|_| ()));
-        still_raw("row 8", "java.lang.NumberFormatException", spec(&u("1.ed"), Dialect::LegendEngine).map(|_| ()));
-        still_raw("row 46", "java.lang.StringIndexOutOfBoundsException", m("###Diagram\n###Pure\nClass a::B\n{\n}\n"));
-        still_raw("row 50", "java.lang.ClassCastException", m(&mongo(r#"{"bsonType": "object", "title": 1}"#)));
-        still_raw("row 50", "java.lang.NumberFormatException", m(&mongo(r#"{"bsonType": "object", "minLength": 99999999999999999999}"#)));
+        still_raw(
+            "row 3",
+            "java.time.DateTimeException",
+            spec(&u("%2024-02-30T10:00+0500"), Dialect::LegendEngine).map(|_| ()),
+        );
+        still_raw(
+            "row 7",
+            "java.lang.NumberFormatException",
+            spec(&u("1e999"), Dialect::LegendLite).map(|_| ()),
+        );
+        still_raw(
+            "row 8",
+            "java.lang.NumberFormatException",
+            spec(&u("1.ed"), Dialect::LegendEngine).map(|_| ()),
+        );
+        still_raw(
+            "row 46",
+            "java.lang.StringIndexOutOfBoundsException",
+            m("###Diagram\n###Pure\nClass a::B\n{\n}\n"),
+        );
+        still_raw(
+            "row 50",
+            "java.lang.ClassCastException",
+            m(&mongo(r#"{"bsonType": "object", "title": 1}"#)),
+        );
+        still_raw(
+            "row 50",
+            "java.lang.NumberFormatException",
+            m(&mongo(r#"{"bsonType": "object", "minLength": 99999999999999999999}"#)),
+        );
         let aggregation = "###Mapping\nMapping a::M\n(\n  a::P[x]: AggregationAware\n  {\n    Views: [\n      (\n        ~modelOperation: {\n          ~canAggregate true,\n          ~groupByFunctions ($this.id),\n          ~aggregateValues (\n            ( ~mapFn:$this.p , ~aggregateFn: $mapped->sum() )\n          )\n        },\n        ~aggregateMapping: Pure\n        {\n          ~src a::S\n          p: $src.p\n        }\n      )\n    ],\n    ~mainMapping: Pure\n    {\n      ~src a::P\n      +loc: String[1]: $src.x\n    }\n  }\n)\n";
-        still_raw("row 72", "java.lang.NullPointerException", document(&u(aggregation), true).map(|_| ()));
-        let platform = "###Persistence\nPersistenceContext a::C\n{\n  persistence: a::P;\n  platform: Default #{ x: 1; }#;\n}\n";
-        still_raw("row 73", "java.lang.IllegalStateException", document(&u(platform), true).map(|_| ()));
+        still_raw(
+            "row 72",
+            "java.lang.NullPointerException",
+            document(&u(aggregation), true).map(|_| ()),
+        );
+        let platform =
+            "###Persistence\nPersistenceContext a::C\n{\n  persistence: a::P;\n  platform: Default #{ x: 1; }#;\n}\n";
+        still_raw(
+            "row 73",
+            "java.lang.IllegalStateException",
+            document(&u(platform), true).map(|_| ()),
+        );
     }
 
     #[test]
     fn a_refusal_in_flight_passes_the_recoveries_and_a_door_places_it() {
         let flying = JavaError::refused_at_section(JStr::from("m"), (3, 4));
-        assert!(!flying.is_parse_exception(), "Java's catch (ParseException e) must not take it");
+        assert!(
+            !flying.is_parse_exception(),
+            "Java's catch (ParseException e) must not take it"
+        );
         let token = JavaError::parse(JStr::from("m"), 3, 4).as_refusal();
         assert!(!token.is_parse_exception());
         assert_eq!(token.clone().placed().message.unwrap().lossy(), "[3:4] m");
         assert_eq!(flying.clone().placed().position, Some((3, 4)));
         let unknown = JavaError::refused_at_section(JStr::from("m"), (0, 0));
-        assert_eq!(unknown.placed().position, Some((1, 1)), "a door with no section and no token: the text's start");
+        assert_eq!(
+            unknown.placed().position,
+            Some((1, 1)),
+            "a door with no section and no token: the text's start"
+        );
     }
 }

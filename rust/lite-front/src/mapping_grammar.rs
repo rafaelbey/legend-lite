@@ -17,9 +17,7 @@
 // The generated records hold their record-typed list elements boxed (`Vec<Box<T>>`), so the readers build that.
 #![allow(clippy::vec_box)]
 
-use crate::cursor::{
-    Cursor, R, is_identifier_token, strip_double_quotes, throw_at, ty_or_slack, unquote_path_iae,
-};
+use crate::cursor::{Cursor, R, is_identifier_token, strip_double_quotes, throw_at, ty_or_slack, unquote_path_iae};
 use crate::database_parser::{ScopeCtx, operation_at, rel_op_span, scoped_operation_at, with_rel_op_span};
 use crate::doors::{Dialect, JavaError};
 use crate::jcat;
@@ -80,12 +78,18 @@ fn operation_discriminator(fqn: &[u16]) -> Option<&'static str> {
             "ROUTER_UNION",
             "meta::pure::router::operations::special_union_OperationSetImplementation_1__SetImplementation_MANY_",
         ),
-        ("STORE_UNION", "meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_"),
+        (
+            "STORE_UNION",
+            "meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_",
+        ),
         (
             "INHERITANCE",
             "meta::pure::router::operations::inheritance_OperationSetImplementation_1__SetImplementation_MANY_",
         ),
-        ("MERGE", "meta::pure::router::operations::merge_OperationSetImplementation_1__SetImplementation_MANY_"),
+        (
+            "MERGE",
+            "meta::pure::router::operations::merge_OperationSetImplementation_1__SetImplementation_MANY_",
+        ),
     ];
     let op = OPS.iter().find(|(_, f)| eq(fqn, f))?.0;
     if op == "MERGE" { None } else { Some(op) }
@@ -131,7 +135,11 @@ fn split_last(qn: &[u16]) -> (Vec<u16>, Vec<u16>) {
 }
 
 fn pointer(kind: &str, path: &[u16], span: &SourceInfo) -> Box<PPointer> {
-    Box::new(PPointer { r#type: JStr::from(kind), path: JStr(path.to_vec()), source_information: boxed(span.clone()) })
+    Box::new(PPointer {
+        r#type: JStr::from(kind),
+        path: JStr(path.to_vec()),
+        source_information: boxed(span.clone()),
+    })
 }
 
 fn is_open(t: TokenType) -> bool {
@@ -160,14 +168,24 @@ fn expr_wrapper(rb: &RelationBinding, brace_line: i64) -> Span {
 /// The clean-sheet body's parse: a single element pointer is a function reference, anything else an inline body.
 fn clean_sheet_realization(
     body: Vec<ValueSpecification>,
-) -> (Option<Box<crate::records::PackageableElementPtr>>, Option<Box<LambdaFunction>>) {
+) -> (
+    Option<Box<crate::records::PackageableElementPtr>>,
+    Option<Box<LambdaFunction>>,
+) {
     if body.len() == 1 && matches!(body[0], ValueSpecification::PackageableElementPtr(_)) {
         let Some(ValueSpecification::PackageableElementPtr(ptr)) = body.into_iter().next() else {
             unreachable!("matched above")
         };
         return (Some(ptr), None);
     }
-    (None, Some(Box::new(LambdaFunction { parameters: Vec::new(), body, pos: None })))
+    (
+        None,
+        Some(Box::new(LambdaFunction {
+            parameters: Vec::new(),
+            body,
+            pos: None,
+        })),
+    )
 }
 
 /// `withSpanStart(op, startTok)`'s arithmetic: the op's span from `start`'s start to its own end.
@@ -330,7 +348,11 @@ impl MappingCursor<'_, '_> {
         let kind = self.safe_text();
         if self.peek() == T::ENUMERATION_MAPPING {
             self.advance()?;
-            enums.push(Box::new(self.parse_enumeration_mapping(&target, member_start, &target_span)?));
+            enums.push(Box::new(self.parse_enumeration_mapping(
+                &target,
+                member_start,
+                &target_span,
+            )?));
             return Ok(());
         }
         if self.peek() == T::ASSOCIATION_MAPPING && self.clean_sheet_ahead_at(1)? {
@@ -372,8 +394,15 @@ impl MappingCursor<'_, '_> {
         if self.peek() == T::PURE_MAPPING {
             self.advance()?;
             if self.clean_sheet_ahead()? {
-                let m =
-                    self.parse_function_class_mapping(&target, member_start, &target_span, id, extends_id, root, "PURE")?;
+                let m = self.parse_function_class_mapping(
+                    &target,
+                    member_start,
+                    &target_span,
+                    id,
+                    extends_id,
+                    root,
+                    "PURE",
+                )?;
                 class_mappings.push(PClassMapping::PClassMappingFunction(Box::new(m)));
                 return Ok(());
             }
@@ -492,7 +521,10 @@ impl MappingCursor<'_, '_> {
                 }
             }
             let service = |store: &[u16], segments: Vec<Box<PServiceSegment>>| {
-                Box::new(PServicePtr { service_store: JStr(store.to_vec()), segments })
+                Box::new(PServicePtr {
+                    service_store: JStr(store.to_vec()),
+                    segments,
+                })
             };
             let mut path_offset = None;
             if self.peek() == T::PAREN_OPEN {
@@ -603,8 +635,11 @@ impl MappingCursor<'_, '_> {
                 }
                 let req_end = self.pos;
                 self.expect(T::PAREN_CLOSE)?;
-                let request =
-                    PRequestBuildInfo { parameters: params, body, source_information: self.span(req_start, req_end) };
+                let request = PRequestBuildInfo {
+                    parameters: params,
+                    body,
+                    source_information: self.span(req_start, req_end),
+                };
                 if self.peek() != T::PAREN_CLOSE {
                     services.push(Box::new(self.parse_legacy_service_tail(
                         &store,
@@ -730,15 +765,27 @@ impl MappingCursor<'_, '_> {
         }
         let outer_end = self.pos;
         self.expect(T::PAREN_CLOSE)?;
-        let params = Box::new(PParametersBuildInfo { entries: legacy, source_information: None });
+        let params = Box::new(PParametersBuildInfo {
+            entries: legacy,
+            source_information: None,
+        });
         let merged = match request {
-            None => PRequestBuildInfo { parameters: Some(params), body: None, source_information: None },
-            Some(r) => {
-                PRequestBuildInfo { parameters: Some(params), body: r.body, source_information: r.source_information }
-            }
+            None => PRequestBuildInfo {
+                parameters: Some(params),
+                body: None,
+                source_information: None,
+            },
+            Some(r) => PRequestBuildInfo {
+                parameters: Some(params),
+                body: r.body,
+                source_information: r.source_information,
+            },
         };
         Ok(PServiceMapping {
-            service: Box::new(PServicePtr { service_store: JStr(store.to_vec()), segments }),
+            service: Box::new(PServicePtr {
+                service_store: JStr(store.to_vec()),
+                segments,
+            }),
             path_offset: path_offset.map(Box::new),
             request: Some(Box::new(merged)),
             source_information: self.span(svc_start, outer_end),
@@ -768,7 +815,12 @@ impl MappingCursor<'_, '_> {
 
     /// `parseMongoDbClassMapping`: `{ ~mainCollection [db] Coll ~filter [db] name ~binding path }` -- no spans, the
     /// filter parsed and dropped.
-    fn parse_mongo_db_class_mapping(&mut self, target: &[u16], id: Option<JStr>, root: bool) -> R<PClassMappingMongoDb> {
+    fn parse_mongo_db_class_mapping(
+        &mut self,
+        target: &[u16],
+        id: Option<JStr>,
+        root: bool,
+    ) -> R<PClassMappingMongoDb> {
         self.expect(T::BRACE_OPEN)?;
         let mut store = None;
         let mut coll = None;
@@ -885,7 +937,11 @@ impl MappingCursor<'_, '_> {
     ) -> R<PFunctionAssociationMapping> {
         let (body, close) = self.clean_sheet_body()?;
         if body.is_empty() {
-            return Err(self.error(jcat!("clean-sheet association binding for '", target, "' has an empty body")));
+            return Err(self.error(jcat!(
+                "clean-sheet association binding for '",
+                target,
+                "' has an empty body"
+            )));
         }
         let (function, body_lambda) = clean_sheet_realization(body);
         Ok(PFunctionAssociationMapping {
@@ -910,7 +966,11 @@ impl MappingCursor<'_, '_> {
     ) -> R<PClassMappingFunction> {
         let (body, close) = self.clean_sheet_body()?;
         if body.is_empty() {
-            return Err(self.error(jcat!("clean-sheet mapping binding for '", target, "' has an empty body")));
+            return Err(self.error(jcat!(
+                "clean-sheet mapping binding for '",
+                target,
+                "' has an empty body"
+            )));
         }
         let (function, body_lambda) = clean_sheet_realization(body);
         Ok(PClassMappingFunction {
@@ -978,11 +1038,25 @@ impl MappingCursor<'_, '_> {
         let rhs = parse_tokens(&self.tokens.slice(expr_start, self.pos), self.dialect)?;
         let span = self.span_of(expr_start, self.pos - 1);
         match rhs {
-            ValueSpecification::CString(cs) => Ok(RelationBinding { column: Some(cs.value), expr: None, span }),
-            ValueSpecification::PackageableElementPtr(ptr) if index_of_units(&ptr.full_path.0, &u("::"), 0).is_none() => {
-                Ok(RelationBinding { column: Some(ptr.full_path), expr: None, span })
+            ValueSpecification::CString(cs) => Ok(RelationBinding {
+                column: Some(cs.value),
+                expr: None,
+                span,
+            }),
+            ValueSpecification::PackageableElementPtr(ptr)
+                if index_of_units(&ptr.full_path.0, &u("::"), 0).is_none() =>
+            {
+                Ok(RelationBinding {
+                    column: Some(ptr.full_path),
+                    expr: None,
+                    span,
+                })
             }
-            rhs => Ok(RelationBinding { column: None, expr: Some(rhs), span }),
+            rhs => Ok(RelationBinding {
+                column: None,
+                expr: Some(rhs),
+                span,
+            }),
         }
     }
 
@@ -1192,7 +1266,11 @@ impl MappingCursor<'_, '_> {
                 continue;
             }
             if self.peek() == T::TILDE {
-                return Err(self.error(jcat!("pure class-mapping directive '", self.safe_text(), "' is unbuilt")));
+                return Err(self.error(jcat!(
+                    "pure class-mapping directive '",
+                    self.safe_text(),
+                    "' is unbuilt"
+                )));
             }
             let p_s = self.pos;
             let local = self.match_tok(T::PLUS)?;
@@ -1272,9 +1350,9 @@ impl MappingCursor<'_, '_> {
         let close = self.pos;
         self.expect(T::BRACE_CLOSE)?;
         if src_class.is_none() && filter_body.is_some() {
-            return Err(self.error_str(
-                "a ~filter needs a ~src: the filter reads $src, so the mapping must declare its type",
-            ));
+            return Err(
+                self.error_str("a ~filter needs a ~src: the filter reads $src, so the mapping must declare its type")
+            );
         }
         Ok(PClassMappingPure {
             class_name: JStr(target.to_vec()),
@@ -1512,16 +1590,18 @@ impl MappingCursor<'_, '_> {
             self.match_tok(T::SEMI_COLON)?;
             let close = self.pos;
             self.expect(T::BRACE_CLOSE)?;
-            return Ok(PClassMapping::PClassMappingMergeOperation(Box::new(PClassMappingMergeOperation {
-                class_name: JStr(target.to_vec()),
-                class_source_information: boxed(target_span.clone()),
-                id,
-                root,
-                parameters: params,
-                validation_lambda: body.remove(0),
-                source_information: self.span(member_start, close),
-                extends_class_mapping_id: None,
-            })));
+            return Ok(PClassMapping::PClassMappingMergeOperation(Box::new(
+                PClassMappingMergeOperation {
+                    class_name: JStr(target.to_vec()),
+                    class_source_information: boxed(target_span.clone()),
+                    id,
+                    root,
+                    parameters: params,
+                    validation_lambda: body.remove(0),
+                    source_information: self.span(member_start, close),
+                    extends_class_mapping_id: None,
+                },
+            )));
         }
         while self.peek() != T::PAREN_CLOSE && !self.at_end() {
             params.push(JStr(self.parse_set_id()?));
@@ -1532,16 +1612,22 @@ impl MappingCursor<'_, '_> {
         let close = self.pos;
         self.expect(T::BRACE_CLOSE)?;
         // the engine's walker drops an operation's extends; lite's dialect keeps it (S89, rule A)
-        Ok(PClassMapping::PClassMappingOperation(Box::new(PClassMappingOperation {
-            class_name: JStr(target.to_vec()),
-            class_source_information: boxed(target_span.clone()),
-            id,
-            extends_class_mapping_id: if self.dialect.refuses_lite_extensions() { None } else { extends_id },
-            root,
-            operation,
-            parameters: params,
-            source_information: self.span(member_start, close),
-        })))
+        Ok(PClassMapping::PClassMappingOperation(Box::new(
+            PClassMappingOperation {
+                class_name: JStr(target.to_vec()),
+                class_source_information: boxed(target_span.clone()),
+                id,
+                extends_class_mapping_id: if self.dialect.refuses_lite_extensions() {
+                    None
+                } else {
+                    extends_id
+                },
+                root,
+                operation,
+                parameters: params,
+                source_information: self.span(member_start, close),
+            },
+        )))
     }
 
     /// `parseSetId`: a set-implementation id, a number or boolean admitted.
@@ -1756,16 +1842,18 @@ impl MappingCursor<'_, '_> {
                 )));
                 return self.entry_comma(&[T::BRACE_CLOSE, T::PAREN_CLOSE]);
             }
-            props.push(PPropertyMapping::PEmbeddedPropertyMapping(Box::new(PEmbeddedPropertyMapping {
-                owner_class: owner(),
-                property: JStr(prop),
-                property_source_information: boxed(prop_span),
-                id: emb_id,
-                primary_key: pk,
-                property_mappings: inner,
-                source_information: self.span(paren_tok, close),
-                embedded_class: None,
-            })));
+            props.push(PPropertyMapping::PEmbeddedPropertyMapping(Box::new(
+                PEmbeddedPropertyMapping {
+                    owner_class: owner(),
+                    property: JStr(prop),
+                    property_source_information: boxed(prop_span),
+                    id: emb_id,
+                    primary_key: pk,
+                    property_mappings: inner,
+                    source_information: self.span(paren_tok, close),
+                    embedded_class: None,
+                },
+            )));
             return self.entry_comma(&[T::BRACE_CLOSE, T::PAREN_CLOSE]);
         }
         let mut colon_tok = self.pos;
@@ -1939,7 +2027,10 @@ impl MappingCursor<'_, '_> {
                     self.advance()?;
                 }
                 if e_s >= self.tokens.count() {
-                    return Err(end_of_embedded_lambda(self.tokens, "~src expression must be ONE expression"));
+                    return Err(end_of_embedded_lambda(
+                        self.tokens,
+                        "~src expression must be ONE expression",
+                    ));
                 }
                 let delta = self.tokens.start_line(e_s) as i64 - brace_line;
                 let mut e_body =
@@ -2256,7 +2347,11 @@ impl MappingCursor<'_, '_> {
                     can_aggs.push(can_agg);
                     group_bys.push(gbs);
                     agg_vals.push(avs);
-                    agg_body_toks.push(if agg_is_pure { -(self.pos as isize) } else { self.pos as isize });
+                    agg_body_toks.push(if agg_is_pure {
+                        -(self.pos as isize)
+                    } else {
+                        self.pos as isize
+                    });
                     self.skip_brace_block()?;
                     self.expect(T::PAREN_CLOSE)?;
                     self.match_tok(T::COMMA)?;
@@ -2275,7 +2370,11 @@ impl MappingCursor<'_, '_> {
                 } else {
                     self.expect(T::RELATIONAL)?;
                 }
-                main_body_tok = if main_is_pure { -(self.pos as isize) } else { self.pos as isize };
+                main_body_tok = if main_is_pure {
+                    -(self.pos as isize)
+                } else {
+                    self.pos as isize
+                };
                 self.skip_brace_block()?;
                 self.match_tok(T::COMMA)?;
                 continue;
@@ -2370,7 +2469,8 @@ impl MappingCursor<'_, '_> {
         if signed_body_tok < 0 {
             let body_tok = (-signed_body_tok) as usize;
             let mut p = MappingCursor::at(self.tokens, body_tok, self.dialect);
-            let cm = p.parse_pure_class_mapping(target, body_tok, shifted_target, explicit_outer_id, root, extends_id)?;
+            let cm =
+                p.parse_pure_class_mapping(target, body_tok, shifted_target, explicit_outer_id, root, extends_id)?;
             return Ok(PClassMapping::PClassMappingPure(Box::new(PClassMappingPure {
                 class_name: cm.class_name,
                 class_source_information: boxed(shifted_target.clone()),
@@ -2518,7 +2618,11 @@ impl MappingCursor<'_, '_> {
         target_start: usize,
         target_span: &SourceInfo,
     ) -> R<PEnumerationMapping> {
-        let id = if self.peek() == T::BRACE_OPEN { None } else { Some(JStr(self.parse_mapping_word()?)) };
+        let id = if self.peek() == T::BRACE_OPEN {
+            None
+        } else {
+            Some(JStr(self.parse_mapping_word()?))
+        };
         self.expect(T::BRACE_OPEN)?;
         let mut rows = Vec::new();
         while !self.at_end() && self.peek() != T::BRACE_CLOSE {
@@ -2542,7 +2646,10 @@ impl MappingCursor<'_, '_> {
             } else {
                 sources.push(Box::new(self.parse_source_value()?));
             }
-            rows.push(Box::new(PEnumValueMapping { enum_value: JStr(enum_value), source_values: sources }));
+            rows.push(Box::new(PEnumValueMapping {
+                enum_value: JStr(enum_value),
+                source_values: sources,
+            }));
             self.entry_comma(&[T::BRACE_CLOSE])?;
         }
         let close = self.pos;
@@ -2582,10 +2689,16 @@ impl MappingCursor<'_, '_> {
         if self.peek() == T::STRING {
             let v = self.unquote_and_unescape(self.text())?;
             self.advance()?;
-            return Ok(PEnumSourceValue { enumeration: None, value: JValue::String(JStr(v)) });
+            return Ok(PEnumSourceValue {
+                enumeration: None,
+                value: JValue::String(JStr(v)),
+            });
         }
         if self.peek() == T::INTEGER {
-            return Ok(PEnumSourceValue { enumeration: None, value: JValue::Long(self.consume_long()?) });
+            return Ok(PEnumSourceValue {
+                enumeration: None,
+                value: JValue::Long(self.consume_long()?),
+            });
         }
         if is_identifier_token(self.peek()) {
             let enum_path = unquote_path_iae(&self.parse_qualified_name()?)?;
@@ -2597,7 +2710,10 @@ impl MappingCursor<'_, '_> {
             } else {
                 self.parse_identifier()?
             };
-            return Ok(PEnumSourceValue { enumeration: Some(JStr(enum_path)), value: JValue::String(JStr(v)) });
+            return Ok(PEnumSourceValue {
+                enumeration: Some(JStr(enum_path)),
+                value: JValue::String(JStr(v)),
+            });
         }
         Err(self.error(jcat!("unsupported enum source value: ", self.safe_text())))
     }
@@ -2606,12 +2722,19 @@ impl MappingCursor<'_, '_> {
 /// `new PPathOffset(startType, propertyPath)`: `$service.response`, its segments, one empty argument list each.
 fn path_offset_of(segs: Vec<JStr>) -> PPathOffset {
     let parameters = segs.iter().map(|_| Vec::new()).collect();
-    PPathOffset { start_type: JStr::from("$service.response"), property_path: segs, parameters }
+    PPathOffset {
+        start_type: JStr::from("$service.response"),
+        property_path: segs,
+        parameters,
+    }
 }
 
 /// `Boolean.parseBoolean`: `"true"`, ignoring case.
 fn parse_boolean(s: &[u16]) -> bool {
-    s.len() == 4 && s.iter().zip("true".bytes()).all(|(&c, b)| c < 128 && (c as u8).eq_ignore_ascii_case(&b))
+    s.len() == 4
+        && s.iter()
+            .zip("true".bytes())
+            .all(|(&c, b)| c < 128 && (c as u8).eq_ignore_ascii_case(&b))
 }
 
 /// An embedded lambda (`~src`, an aggregate's) cut off by the end of the input: the engine re-parses it on its own, and
@@ -2628,12 +2751,16 @@ mod tests {
 
     #[test]
     fn a_relational_class_mapping_reads_its_clauses_and_properties() {
-        let text = u("Mapping m::M (\n  *m::P[p]: Relational { ~mainTable [db::D] T name: [db::D] T.NAME, age: \
-                      [db::D] T.AGE }\n)");
+        let text = u(
+            "Mapping m::M (\n  *m::P[p]: Relational { ~mainTable [db::D] T name: [db::D] T.NAME, age: \
+                      [db::D] T.AGE }\n)",
+        );
         let ts = tokenize(&text);
         let (m, end) = parse_mapping(&ts, 0, 2, Dialect::LegendLite).expect("parses");
         assert_eq!(end, ts.count());
-        let PClassMapping::PClassMappingRel(cm) = &m.class_mappings[0] else { panic!("relational") };
+        let PClassMapping::PClassMappingRel(cm) = &m.class_mappings[0] else {
+            panic!("relational")
+        };
         assert!(cm.root && cm.main_table.is_some());
         assert_eq!(cm.property_mappings.len(), 2);
     }

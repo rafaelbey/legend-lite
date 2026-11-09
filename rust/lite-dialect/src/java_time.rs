@@ -121,7 +121,14 @@ impl LocalDateTime {
         {
             return None;
         }
-        Some(LocalDateTime { year, month, day, hour, minute, second })
+        Some(LocalDateTime {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+        })
     }
 
     /// The instant this local date-time is at offset 0, in seconds from the epoch (`toEpochSecond(UTC)`).
@@ -182,7 +189,10 @@ impl LocalDateTime {
             }
             out.push_str(&self.year.to_string());
         }
-        out.push_str(&format!("-{:02}-{:02}T{:02}:{:02}", self.month, self.day, self.hour, self.minute));
+        out.push_str(&format!(
+            "-{:02}-{:02}T{:02}:{:02}",
+            self.month, self.day, self.hour, self.minute
+        ));
         if self.second > 0 {
             out.push_str(&format!(":{:02}", self.second));
         }
@@ -255,7 +265,11 @@ impl Transition {
     /// `new ZoneOffsetTransition(LocalDateTime transition, before, after)`: the transition's local date-time at its
     /// offset before.
     fn at_local(transition: LocalDateTime, offset_before: i32, offset_after: i32) -> Transition {
-        Transition { epoch_second: transition.to_epoch_second(offset_before), offset_before, offset_after }
+        Transition {
+            epoch_second: transition.to_epoch_second(offset_before),
+            offset_before,
+            offset_after,
+        }
     }
 
     /// `isGap()`: the offset grows, so local date-times are skipped.
@@ -275,7 +289,11 @@ impl Transition {
 
     /// `getValidOffsets()`: none in a gap, both in an overlap.
     pub fn valid_offsets(&self) -> Vec<i32> {
-        if self.is_gap() { Vec::new() } else { vec![self.offset_before, self.offset_after] }
+        if self.is_gap() {
+            Vec::new()
+        } else {
+            vec![self.offset_before, self.offset_after]
+        }
     }
 }
 
@@ -396,9 +414,15 @@ impl ZoneRules {
     ) -> ZoneRules {
         let mut locals = Vec::with_capacity(savings_instant_transitions.len() * 2);
         for (i, &epoch_second) in savings_instant_transitions.iter().enumerate() {
-            let t = Transition { epoch_second, offset_before: wall_offsets[i], offset_after: wall_offsets[i + 1] };
+            let t = Transition {
+                epoch_second,
+                offset_before: wall_offsets[i],
+                offset_after: wall_offsets[i + 1],
+            };
             let (before, after) = (t.date_time_before(), t.date_time_after());
-            let (before, after) = before.zip(after).expect("a historic transition is within LocalDateTime's range");
+            let (before, after) = before
+                .zip(after)
+                .expect("a historic transition is within LocalDateTime's range");
             if t.is_gap() {
                 locals.push(before);
                 locals.push(after);
@@ -487,7 +511,11 @@ impl ZoneRules {
             let (before, after) = (locals[index], locals[index + 1]);
             let (offset_before, offset_after) = (self.wall_offsets[index / 2], self.wall_offsets[index / 2 + 1]);
             let at = if offset_after > offset_before { before } else { after };
-            Some(OffsetInfo::Transition(Transition::at_local(at, offset_before, offset_after)))
+            Some(OffsetInfo::Transition(Transition::at_local(
+                at,
+                offset_before,
+                offset_after,
+            )))
         } else {
             Some(OffsetInfo::Offset(self.wall_offsets[index / 2 + 1]))
         }
@@ -601,7 +629,13 @@ impl Tzdb {
                     offset_after: r.s()? as i32,
                 });
             }
-            rules.push(ZoneRules::new(standard_transitions, standard_offsets, savings, wall_offsets, last_rules));
+            rules.push(ZoneRules::new(
+                standard_transitions,
+                standard_offsets,
+                savings,
+                wall_offsets,
+                last_rules,
+            ));
         }
         let mut regions = Vec::new();
         for _ in 0..r.u()? {
@@ -622,7 +656,13 @@ impl Tzdb {
         if !regions.windows(2).all(|w| w[0].0 < w[1].0) {
             return Err("the regions are not sorted".to_owned());
         }
-        Ok(Tzdb { java, version, rules, regions, short_ids })
+        Ok(Tzdb {
+            java,
+            version,
+            rules,
+            regions,
+            short_ids,
+        })
     }
 }
 
@@ -756,7 +796,10 @@ impl Zone {
         match valid.as_slice() {
             [] => {
                 let t = self.transition(dt)??;
-                Some((dt.plus_seconds(i64::from(t.offset_after - t.offset_before))?, t.offset_after))
+                Some((
+                    dt.plus_seconds(i64::from(t.offset_after - t.offset_before))?,
+                    t.offset_after,
+                ))
             }
             [first, ..] => Some((*dt, *first)),
         }
@@ -805,7 +848,9 @@ fn offset_of(id: &str) -> Option<i32> {
             return None;
         }
         let d = b.get(at..at + 2)?;
-        d.iter().all(u8::is_ascii_digit).then(|| i32::from(d[0] - b'0') * 10 + i32::from(d[1] - b'0'))
+        d.iter()
+            .all(u8::is_ascii_digit)
+            .then(|| i32::from(d[0] - b'0') * 10 + i32::from(d[1] - b'0'))
     };
     let (hours, minutes, seconds) = match b.len() {
         // "+h" is "+0h"
@@ -853,7 +898,14 @@ mod tests {
     use super::*;
 
     fn at(y: i64, mo: u32, d: u32, h: u32, mi: u32, s: u32) -> LocalDateTime {
-        LocalDateTime { year: y, month: mo, day: d, hour: h, minute: mi, second: s }
+        LocalDateTime {
+            year: y,
+            month: mo,
+            day: d,
+            hour: h,
+            minute: mi,
+            second: s,
+        }
     }
 
     #[test]
@@ -908,7 +960,10 @@ mod tests {
         assert_eq!(data.short_id("MST"), Some("America/Phoenix"));
         assert_eq!(data.short_id("UTC"), None);
         // links share their rules
-        assert!(std::ptr::eq(data.region("US/Arizona").unwrap(), data.region("America/Phoenix").unwrap()));
+        assert!(std::ptr::eq(
+            data.region("US/Arizona").unwrap(),
+            data.region("America/Phoenix").unwrap()
+        ));
     }
 
     #[test]
@@ -937,7 +992,17 @@ mod tests {
         }
         assert_eq!(zone_of("Etc/GMT+5").offset_at(0), Some(-18_000));
         // a DateTimeException each
-        for unknown in ["UTC+19", "+5:00", "", "XYZ", "bad id!", "utc", "Europe/Nowhere", "Z1", "UTC+5:30"] {
+        for unknown in [
+            "UTC+19",
+            "+5:00",
+            "",
+            "XYZ",
+            "bad id!",
+            "utc",
+            "Europe/Nowhere",
+            "Z1",
+            "UTC+5:30",
+        ] {
             assert!(matches!(zone_of(unknown), Zone::Unknown), "{unknown}");
         }
     }
@@ -949,7 +1014,10 @@ mod tests {
         let gap = at(2019, 3, 10, 2, 30, 0);
         assert_eq!(ny.valid_offsets(&gap), Some(vec![]));
         let t = ny.transition(&gap).unwrap().unwrap();
-        assert_eq!((t.epoch_second, t.offset_before, t.offset_after), (1_552_201_200, -18_000, -14_400));
+        assert_eq!(
+            (t.epoch_second, t.offset_before, t.offset_after),
+            (1_552_201_200, -18_000, -14_400)
+        );
         assert_eq!(ny.resolve(&gap), Some((at(2019, 3, 10, 3, 30, 0), -14_400)));
         // 2019-11-03 02:00 EDT falls back to 01:00 EST: 01:30 is in the overlap, its earlier offset kept
         let overlap = at(2019, 11, 3, 1, 30, 0);
@@ -958,32 +1026,71 @@ mod tests {
         // far past the last historic transition, the last rules make the year's
         assert_eq!(ny.offset_at(at(2500, 7, 1, 12, 0, 0).epoch_second()), Some(-14_400));
         assert_eq!(ny.offset_at(at(2500, 1, 1, 12, 0, 0).epoch_second()), Some(-18_000));
-        assert_eq!(ny.standard_offset_at(at(2500, 7, 1, 12, 0, 0).epoch_second()), Some(-18_000));
+        assert_eq!(
+            ny.standard_offset_at(at(2500, 7, 1, 12, 0, 0).epoch_second()),
+            Some(-18_000)
+        );
         // Lord Howe's half-hour summer time; Dublin's, which the JDK holds in tzdb's rearguard form (measured: standard
         // offset 0 all year, the summer's hour its daylight saving)
-        assert_eq!(zone_of("Australia/Lord_Howe").offset_at(at(2019, 1, 1, 0, 0, 0).epoch_second()), Some(39_600));
-        assert_eq!(zone_of("Australia/Lord_Howe").offset_at(at(2019, 7, 1, 0, 0, 0).epoch_second()), Some(37_800));
+        assert_eq!(
+            zone_of("Australia/Lord_Howe").offset_at(at(2019, 1, 1, 0, 0, 0).epoch_second()),
+            Some(39_600)
+        );
+        assert_eq!(
+            zone_of("Australia/Lord_Howe").offset_at(at(2019, 7, 1, 0, 0, 0).epoch_second()),
+            Some(37_800)
+        );
         let dublin = zone_of("Europe/Dublin");
         let summer = at(2020, 7, 15, 12, 0, 0).epoch_second();
-        assert_eq!((dublin.offset_at(summer), dublin.standard_offset_at(summer)), (Some(3_600), Some(0)));
+        assert_eq!(
+            (dublin.offset_at(summer), dublin.standard_offset_at(summer)),
+            (Some(3_600), Some(0))
+        );
     }
 
     #[test]
     fn a_constant_shifts_as_the_engine_text_shifts_it() {
         let shift = |iso: &str, tz: &str| shift_to_zone(iso, tz);
         // the oracle's: EST is America/Panama, UTC-5 since 1908
-        assert_eq!(shift("2019-04-08 18:00:00", "EST").as_deref(), Some("2019-04-08 13:00:00"));
-        assert_eq!(shift("2019-04-08 18:00:30", "EST").as_deref(), Some("2019-04-08 13:00:30"));
+        assert_eq!(
+            shift("2019-04-08 18:00:00", "EST").as_deref(),
+            Some("2019-04-08 13:00:00")
+        );
+        assert_eq!(
+            shift("2019-04-08 18:00:30", "EST").as_deref(),
+            Some("2019-04-08 13:00:30")
+        );
         // Java's toString drops a zero second; ':00' is added back only when nothing follows
-        assert_eq!(shift("2019-04-08 18:00:00.000", "EST").as_deref(), Some("2019-04-08 13:00.000"));
+        assert_eq!(
+            shift("2019-04-08 18:00:00.000", "EST").as_deref(),
+            Some("2019-04-08 13:00.000")
+        );
         // measured: EST before 1890 is Panama's local mean time, -5:18:08
-        assert_eq!(shift("0001-01-01 00:00:00", "EST").as_deref(), Some("0000-12-31 18:41:52"));
-        assert_eq!(shift("0000-01-01 03:00:00", "EST").as_deref(), Some("-0001-12-31 21:41:52"));
-        assert_eq!(shift("9999-12-31 23:00:00", "+09:00").as_deref(), Some("+10000-01-01 08:00"));
+        assert_eq!(
+            shift("0001-01-01 00:00:00", "EST").as_deref(),
+            Some("0000-12-31 18:41:52")
+        );
+        assert_eq!(
+            shift("0000-01-01 03:00:00", "EST").as_deref(),
+            Some("-0001-12-31 21:41:52")
+        );
+        assert_eq!(
+            shift("9999-12-31 23:00:00", "+09:00").as_deref(),
+            Some("+10000-01-01 08:00")
+        );
         // Arizona's 1967 summer time, and no summer time since; New York's
-        assert_eq!(shift("1967-07-01 12:00:00", "US/Arizona").as_deref(), Some("1967-07-01 06:00:00"));
-        assert_eq!(shift("2019-07-01 12:00:00", "US/Arizona").as_deref(), Some("2019-07-01 05:00:00"));
-        assert_eq!(shift("2019-04-08 18:00:00", "America/New_York").as_deref(), Some("2019-04-08 14:00:00"));
+        assert_eq!(
+            shift("1967-07-01 12:00:00", "US/Arizona").as_deref(),
+            Some("1967-07-01 06:00:00")
+        );
+        assert_eq!(
+            shift("2019-07-01 12:00:00", "US/Arizona").as_deref(),
+            Some("2019-07-01 05:00:00")
+        );
+        assert_eq!(
+            shift("2019-04-08 18:00:00", "America/New_York").as_deref(),
+            Some("2019-04-08 14:00:00")
+        );
         // a text that is no date-time, or a zone Java does not know: unshifted
         assert_eq!(shift("2019-02-30 00:00:00", "EST"), None);
         assert_eq!(shift("2019-04-08 18:00:00", "Mars/Olympus"), None);

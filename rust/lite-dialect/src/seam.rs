@@ -13,24 +13,24 @@
 //! the Java record's components by name, in declaration order, a nested record the same way, a Java enum by its
 //! `name()`. Every refusal is a [`Refusal`]: Java's class and message.
 
-use crate::catalog_model::{CatalogColumn, CatalogType, Conversion};
 use crate::bigquery::BigQuery;
+use crate::catalog_model::{CatalogColumn, CatalogType, Conversion};
 use crate::clickhouse::ClickHouse;
 use crate::databricks::Databricks;
 use crate::dialect::{EngineTextDialect, SqlDialect};
 use crate::duckdb::DuckDb;
 use crate::engine_style::{EngineStyle, Profile};
 use crate::h2::H2;
+use crate::host_ops;
 use crate::mariadb::MariaDb;
 use crate::mongodb::MongoDb;
-use crate::host_ops;
 use crate::postgres::Postgres;
-use crate::sqlite::Sqlite;
-use crate::trino::Trino;
 use crate::refusal::Refusal;
-use crate::snowflake::Snowflake;
 use crate::renderer::PlanParam;
+use crate::snowflake::Snowflake;
+use crate::sqlite::Sqlite;
 use crate::statement::{Bind, Binding, Digits, Region, RenderedStatement, TypeHole, TypeSpelling};
+use crate::trino::Trino;
 use lite_json::{Node, Num, Obj, parse, parse_with_depth, to_compact};
 use lite_sql::{MAX_DEPTH, SqlDdl, SqlDml, SqlQuery, ValueKind, read_ddl, read_dml, read_expr, read_query, read_type};
 
@@ -105,7 +105,9 @@ pub fn dispatch(spec: &str, op: &str, args: &str) -> Result<String, Refusal> {
     // the args object holds the MIR one level down: the MIR itself nests MAX_DEPTH deep, as MirJson reads it
     let args = parse_with_depth(args, MAX_DEPTH + 1).map_err(json)?;
     let Node::Obj(args) = args else {
-        return Err(Refusal::illegal_argument(format!("the args of '{op}' are a JSON object")));
+        return Err(Refusal::illegal_argument(format!(
+            "the args of '{op}' are a JSON object"
+        )));
     };
     Ok(to_compact(&answer(dialect.as_ref(), op, &args)?))
 }
@@ -134,10 +136,7 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
     let configured = spec.get("quoteIdentifiers").is_some() || spec.get("timeZone").is_some();
     let dialect: Box<dyn SqlDialect> = match name {
         "DuckDb" | "H2" | "H2Modern" | "Postgres" | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery"
-        | "Snowflake"
-        | "MariaDb"
-        | "MySql"
-        | "MongoDb"
+        | "Snowflake" | "MariaDb" | "MySql" | "MongoDb"
             if configured =>
         {
             return Err(Refusal::illegal_argument(format!(
@@ -189,7 +188,10 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
 fn answer(d: &dyn SqlDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
     // DuckDB's own tables and stored-read rule, which only the JVM's DuckDb asks for
     if op.starts_with("duckdb.") && d.dialect_name() != "DuckDb" {
-        return Err(Refusal::illegal_argument(format!("'{op}' is DuckDb's op, not {}'s", d.dialect_name())));
+        return Err(Refusal::illegal_argument(format!(
+            "'{op}' is DuckDb's op, not {}'s",
+            d.dialect_name()
+        )));
     }
     // Java's EngineTextDialect methods, which only the engine-text dialects have
     if op.starts_with("engine.") {
@@ -231,7 +233,10 @@ fn answer(d: &dyn SqlDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
         // any dialect's `tableName(name, quoting)`, which core's same-package tests ask a dialect directly
         "tableName" => {
             let q = a.obj("quoting").map_err(json)?;
-            let quoting = lite_sql::NameQuoting { schema: boolean(q, "schema")?, table: boolean(q, "table")? };
+            let quoting = lite_sql::NameQuoting {
+                schema: boolean(q, "schema")?,
+                table: boolean(q, "table")?,
+            };
             text(d.table_name_spelled(string(a, "name")?, quoting))
         }
         "query.render" => text(d.render(query(a)?)?),
@@ -252,7 +257,9 @@ fn answer(d: &dyn SqlDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
         "raw" => text(d.raw(string(a, "statement")?, string_or_null(a, "writtenFor")?)?),
         "fromEngineText" => text(d.from_engine_text(string(a, "statement")?)?),
         "wireTypeName" => text(d.wire_type_name(string_or_null(a, "driverTypeName")?)),
-        "typingWireName" => d.typing_wire_name(string_or_null(a, "driverTypeName")?).map_or(Node::Null, Node::Str),
+        "typingWireName" => d
+            .typing_wire_name(string_or_null(a, "driverTypeName")?)
+            .map_or(Node::Null, Node::Str),
         "deliversOwn" => {
             let label = read_type(a.obj("label").map_err(json)?).map_err(json)?;
             Node::Bool(d.delivers_own(&label, string(a, "wire")?))
@@ -336,7 +343,10 @@ fn facts(d: &dyn SqlDialect) -> Node {
         ("loadsRowsInBulk", Node::Bool(d.loads_rows_in_bulk())),
         ("relational", Node::Bool(d.relational())),
         ("inProcess", Node::Bool(d.in_process())),
-        ("dropsStagedTablesWithTheirTransaction", Node::Bool(d.drops_staged_tables_with_their_transaction())),
+        (
+            "dropsStagedTablesWithTheirTransaction",
+            Node::Bool(d.drops_staged_tables_with_their_transaction()),
+        ),
         ("needsStaticPivot", Node::Bool(d.needs_static_pivot())),
         ("serverVersions", server_versions),
         ("inMemoryPath", d.in_memory_path().map_or(Node::Null, Node::Str)),
@@ -359,12 +369,20 @@ fn duckdb_tables() -> Node {
             "lexicon",
             object(vec![
                 ("quoteChar", Node::Str(lexicon.quote_char().to_string())),
-                ("reservedWords", Node::Arr(words.into_iter().map(|w| Node::Str(w.to_owned())).collect())),
+                (
+                    "reservedWords",
+                    Node::Arr(words.into_iter().map(|w| Node::Str(w.to_owned())).collect()),
+                ),
             ]),
         ),
         (
             "catalogTypes",
-            object(crate::duckdb::catalog_types().iter().map(|(name, t)| (*name, catalog_type_json(t))).collect()),
+            object(
+                crate::duckdb::catalog_types()
+                    .iter()
+                    .map(|(name, t)| (*name, catalog_type_json(t)))
+                    .collect(),
+            ),
         ),
         (
             "catalogRefused",
@@ -382,7 +400,10 @@ fn duckdb_tables() -> Node {
 pub fn refused_json(r: &Refusal) -> Node {
     object(vec![(
         "refused",
-        object(vec![("kind", Node::Str(r.kind().to_owned())), ("message", Node::Str(r.seam_message()))]),
+        object(vec![
+            ("kind", Node::Str(r.kind().to_owned())),
+            ("message", Node::Str(r.seam_message())),
+        ]),
     )])
 }
 
@@ -428,7 +449,10 @@ pub fn statement_json(s: &RenderedStatement) -> Node {
 }
 
 fn bind_json(b: &Bind) -> Node {
-    object(vec![("parameter", Node::Str(b.parameter.clone())), ("binding", binding_json(&b.binding))])
+    object(vec![
+        ("parameter", Node::Str(b.parameter.clone())),
+        ("binding", binding_json(&b.binding)),
+    ])
 }
 
 /// A binding, tagged by its record: `one`, `array` or `key`.
@@ -443,9 +467,10 @@ pub fn binding_json(b: &Binding) -> Node {
             ("_type", Node::Str("array".to_owned())),
             ("elementSqlType", Node::Str(element_sql_type.clone())),
         ]),
-        Binding::Key { cell } => {
-            object(vec![("_type", Node::Str("key".to_owned())), ("cell", number(i64::from(*cell)))])
-        }
+        Binding::Key { cell } => object(vec![
+            ("_type", Node::Str("key".to_owned())),
+            ("cell", number(i64::from(*cell))),
+        ]),
     }
 }
 
@@ -479,7 +504,10 @@ fn region_json(r: &Region) -> Node {
         ("empty", r.empty.clone().map_or(Node::Null, Node::Str)),
         ("firstBind", number(r.first_bind as i64)),
         ("bindCount", number(r.bind_count as i64)),
-        ("counters", Node::Arr(r.counters.iter().map(|&c| number(c as i64)).collect())),
+        (
+            "counters",
+            Node::Arr(r.counters.iter().map(|&c| number(c as i64)).collect()),
+        ),
     ])
 }
 
@@ -509,7 +537,10 @@ pub fn read_catalog_column(o: &Obj) -> Result<CatalogColumn, Refusal> {
 
 /// A conversion: `{"column", "sql"}`.
 pub fn read_conversion(o: &Obj) -> Result<Conversion, Refusal> {
-    Ok(Conversion { column: o.str("column").map_err(json)?.to_owned(), sql: o.str("sql").map_err(json)?.to_owned() })
+    Ok(Conversion {
+        column: o.str("column").map_err(json)?.to_owned(),
+        sql: o.str("sql").map_err(json)?.to_owned(),
+    })
 }
 
 /// A rendered statement read back from [`statement_json`]'s form, through the records' constructors and their checks
@@ -541,7 +572,11 @@ pub fn read_statement(o: &Obj) -> Result<RenderedStatement, Refusal> {
                 r.str_or_null("empty").map_err(json)?.map(str::to_owned),
                 index(r, "firstBind")?,
                 index(r, "bindCount")?,
-                r.arr("counters").map_err(json)?.iter().map(index_of).collect::<Result<_, _>>()?,
+                r.arr("counters")
+                    .map_err(json)?
+                    .iter()
+                    .map(index_of)
+                    .collect::<Result<_, _>>()?,
             )
         })
         .collect::<Result<Vec<_>, Refusal>>()?;
@@ -569,12 +604,21 @@ fn read_binding(o: &Obj) -> Result<Binding, Refusal> {
                             },
                         ));
                     }
-                    Some(TypeHole::new(index(h, "at")?, types, value_kind(h.str("absent").map_err(json)?)?)?)
+                    Some(TypeHole::new(
+                        index(h, "at")?,
+                        types,
+                        value_kind(h.str("absent").map_err(json)?)?,
+                    )?)
                 }
             };
-            Ok(Binding::One { null_type: o.str("nullType").map_err(json)?.to_owned(), hole })
+            Ok(Binding::One {
+                null_type: o.str("nullType").map_err(json)?.to_owned(),
+                hole,
+            })
         }
-        "array" => Ok(Binding::Array { element_sql_type: o.str("elementSqlType").map_err(json)?.to_owned() }),
+        "array" => Ok(Binding::Array {
+            element_sql_type: o.str("elementSqlType").map_err(json)?.to_owned(),
+        }),
         "key" => {
             let cell = o.i64("cell").map_err(json)?;
             Binding::key(i32::try_from(cell).map_err(|_| Refusal::illegal_argument(format!("a key's cell {cell}")))?)
@@ -632,7 +676,9 @@ fn strings(a: &Obj, key: &str) -> Result<Vec<String>, Refusal> {
         .iter()
         .map(|n| match n {
             Node::Str(s) => Ok(s.clone()),
-            _ => Err(Refusal::illegal_argument(format!("field '{key}' is an array of strings"))),
+            _ => Err(Refusal::illegal_argument(format!(
+                "field '{key}' is an array of strings"
+            ))),
         })
         .collect()
 }
@@ -643,7 +689,9 @@ fn int_or_null(o: &Obj, key: &str) -> Result<Option<i32>, Refusal> {
         return Ok(None);
     }
     let v = o.i64(key).map_err(json)?;
-    i32::try_from(v).map(Some).map_err(|_| Refusal::illegal_argument(format!("field '{key}' is not an int: {v}")))
+    i32::try_from(v)
+        .map(Some)
+        .map_err(|_| Refusal::illegal_argument(format!("field '{key}' is not an int: {v}")))
 }
 
 /// A position or count: a non-negative int.
@@ -663,26 +711,26 @@ fn index_of(n: &Node) -> Result<usize, Refusal> {
 }
 
 #[cfg(test)]
+mod bigquery_tests;
+#[cfg(test)]
+mod clickhouse_tests;
+#[cfg(test)]
+mod databricks_tests;
+#[cfg(test)]
 mod engine_tests;
 #[cfg(test)]
 mod h2_tests;
 #[cfg(test)]
+mod mariadb_tests;
+#[cfg(test)]
+mod mongodb_tests;
+#[cfg(test)]
 mod postgres_tests;
+#[cfg(test)]
+mod snowflake_tests;
 #[cfg(test)]
 mod sqlite_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod trino_tests;
-#[cfg(test)]
-mod databricks_tests;
-#[cfg(test)]
-mod clickhouse_tests;
-#[cfg(test)]
-mod bigquery_tests;
-#[cfg(test)]
-mod snowflake_tests;
-#[cfg(test)]
-mod mariadb_tests;
-#[cfg(test)]
-mod mongodb_tests;

@@ -131,9 +131,17 @@ impl BigDecimal {
         let scale = fraction - exponent;
         let scale = i32::try_from(scale).map_err(|_| format!("Scale out of range. ({s})"))?;
         let trimmed = digits.trim_start_matches('0');
-        let digits = if trimmed.is_empty() { "0".to_owned() } else { trimmed.to_owned() };
+        let digits = if trimmed.is_empty() {
+            "0".to_owned()
+        } else {
+            trimmed.to_owned()
+        };
         let negative = negative && digits != "0";
-        Ok(BigDecimal { negative, digits, scale })
+        Ok(BigDecimal {
+            negative,
+            digits,
+            scale,
+        })
     }
 
     /// Java's `new BigDecimal(String)` over a string's UTF-16 units, as JDK 25's
@@ -205,7 +213,11 @@ impl BigDecimal {
         let scale = i32::try_from(scale).map_err(|_| message("Exponent overflow."))?;
         let digits = if digits.is_empty() { "0".to_owned() } else { digits };
         let negative = negative && digits != "0";
-        Ok(BigDecimal { negative, digits, scale })
+        Ok(BigDecimal {
+            negative,
+            digits,
+            scale,
+        })
     }
 
     /// JDK 25's `BigDecimal.parseExp`: the exponent after the `e` at `offset`, `len` units left from it.
@@ -255,7 +267,11 @@ impl BigDecimal {
     }
 
     pub fn negate(&self) -> BigDecimal {
-        BigDecimal { negative: !self.negative && self.digits != "0", digits: self.digits.clone(), scale: self.scale }
+        BigDecimal {
+            negative: !self.negative && self.digits != "0",
+            digits: self.digits.clone(),
+            scale: self.scale,
+        }
     }
 
     /// Java's `compareTo`: the numeric values compared, scale ignored (`2.0` equals `2.00`).
@@ -360,7 +376,8 @@ impl JValue {
 
 /// Java's `String.hashCode()` over UTF-16 units: `s[0]*31^(n-1) + ... + s[n-1]`, wrapping.
 pub fn string_hash(s: &[u16]) -> i32 {
-    s.iter().fold(0i32, |h, &u| h.wrapping_mul(31).wrapping_add(i32::from(u)))
+    s.iter()
+        .fold(0i32, |h, &u| h.wrapping_mul(31).wrapping_add(i32::from(u)))
 }
 
 /// The order a `java.util.HashMap<String, V>`'s key set iterates `keys` (distinct, put in turn): by bucket under the
@@ -401,8 +418,16 @@ pub fn base64_of_utf8(s: &[u16]) -> String {
         let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
         out.push(ALPHABET[(n >> 18) as usize & 63] as char);
         out.push(ALPHABET[(n >> 12) as usize & 63] as char);
-        out.push(if chunk.len() > 1 { ALPHABET[(n >> 6) as usize & 63] as char } else { '=' });
-        out.push(if chunk.len() > 2 { ALPHABET[n as usize & 63] as char } else { '=' });
+        out.push(if chunk.len() > 1 {
+            ALPHABET[(n >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            ALPHABET[n as usize & 63] as char
+        } else {
+            '='
+        });
     }
     out
 }
@@ -420,7 +445,10 @@ mod tests {
                 &["to", "from", "schemaFrom", "schemaTo", "x", "zz"][..],
                 &["zz", "schemaFrom", "schemaTo", "x", "from", "to"][..],
             ),
-            (&["from", "to", "bogus", "other"][..], &["bogus", "other", "from", "to"][..]),
+            (
+                &["from", "to", "bogus", "other"][..],
+                &["bogus", "other", "from", "to"][..],
+            ),
         ] {
             let keys: Vec<Vec<u16>> = put.iter().map(|s| k(s)).collect();
             let order: Vec<Vec<u16>> = hash_map_order(&keys).into_iter().map(|i| keys[i].clone()).collect();
@@ -448,7 +476,10 @@ mod tests {
             ("12.5e-10", "1.25E-9"),
             ("0.0000001", "1E-7"),
             ("0.000001", "0.000001"),
-            ("123456789012345678901234567890.123", "123456789012345678901234567890.123"),
+            (
+                "123456789012345678901234567890.123",
+                "123456789012345678901234567890.123",
+            ),
             ("-0.0", "0.0"),
             ("100", "100"),
             ("1.50E2", "150"),
@@ -464,16 +495,28 @@ mod tests {
         assert_eq!(units("1e\u{0665}").unwrap().to_java_string(), "1E+5");
         assert_eq!(units("1.5e"), Err(None));
         assert_eq!(units("1.5e+"), Err(None));
-        assert_eq!(units("1e99999999999"), Err(Some(JStr::from("Too many nonzero exponent digits."))));
+        assert_eq!(
+            units("1e99999999999"),
+            Err(Some(JStr::from("Too many nonzero exponent digits.")))
+        );
         assert_eq!(units("1e-2147483649"), Err(Some(JStr::from("Exponent overflow."))));
-        assert_eq!(units("1..2"), Err(Some(JStr::from("Character array contains more than one decimal point."))));
+        assert_eq!(
+            units("1..2"),
+            Err(Some(JStr::from(
+                "Character array contains more than one decimal point."
+            )))
+        );
         assert_eq!(units("."), Err(Some(JStr::from("No digits found."))));
         assert_eq!(
-            BigDecimal::parse("2.0").unwrap().compare_to(&BigDecimal::parse("2.00").unwrap()),
+            BigDecimal::parse("2.0")
+                .unwrap()
+                .compare_to(&BigDecimal::parse("2.00").unwrap()),
             std::cmp::Ordering::Equal
         );
         assert_eq!(
-            BigDecimal::parse("-3").unwrap().compare_to(&BigDecimal::parse("-2.5").unwrap()),
+            BigDecimal::parse("-3")
+                .unwrap()
+                .compare_to(&BigDecimal::parse("-2.5").unwrap()),
             std::cmp::Ordering::Less
         );
     }

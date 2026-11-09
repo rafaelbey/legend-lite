@@ -36,7 +36,10 @@ pub struct Lexicon {
 
 impl Lexicon {
     pub fn new(quote: char, reserved: &[&'static str]) -> Lexicon {
-        Lexicon { quote, reserved: reserved.iter().copied().collect() }
+        Lexicon {
+            quote,
+            reserved: reserved.iter().copied().collect(),
+        }
     }
 
     pub fn quote_char(&self) -> char {
@@ -76,7 +79,14 @@ impl<'a> PlanParam<'a> {
     /// The parameter `e` is, when it is one.
     pub fn of(e: &'a SqlExpr) -> Option<PlanParam<'a>> {
         match e {
-            SqlExpr::PlanParam { name, kind, optional, enum_map_fn, r#type, by_value } => Some(PlanParam {
+            SqlExpr::PlanParam {
+                name,
+                kind,
+                optional,
+                enum_map_fn,
+                r#type,
+                by_value,
+            } => Some(PlanParam {
                 name,
                 kind: *kind,
                 optional: *optional,
@@ -262,7 +272,9 @@ pub trait AnsiSqlRenderer: Sized {
     }
 
     fn as_of_join_clause(&self) -> Result<String, Refusal> {
-        Err(Refusal::capability("asOfJoin reached a dialect without an AS-OF strategy"))
+        Err(Refusal::capability(
+            "asOfJoin reached a dialect without an AS-OF strategy",
+        ))
     }
 
     // ---- expressions
@@ -308,7 +320,9 @@ pub trait AnsiSqlRenderer: Sized {
         extras: &[SqlExpr],
     ) -> Result<(), Refusal> {
         let _ = (w, collection, extras);
-        Err(Refusal::capability(format!("collection reduction '{reducer}' reached a dialect without a list encoding")))
+        Err(Refusal::capability(format!(
+            "collection reduction '{reducer}' reached a dialect without a list encoding"
+        )))
     }
 
     fn json_object(&self, w: &mut SqlWriter, kv: &[SqlExpr]) -> Result<(), Refusal> {
@@ -352,17 +366,23 @@ pub trait AnsiSqlRenderer: Sized {
 
     fn hash_signed(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let _ = (w, a);
-        Err(Refusal::capability("signed 64-bit hashCode reached a dialect without a spelling"))
+        Err(Refusal::capability(
+            "signed 64-bit hashCode reached a dialect without a spelling",
+        ))
     }
 
     fn round_half_even(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let _ = (w, a);
-        Err(Refusal::capability("banker's ROUND reached a dialect without a spelling"))
+        Err(Refusal::capability(
+            "banker's ROUND reached a dialect without a spelling",
+        ))
     }
 
     fn bit_op(&self, w: &mut SqlWriter, r#fn: SqlFn, a: &[SqlExpr]) -> Result<(), Refusal> {
         let _ = (w, a);
-        Err(Refusal::capability(format!("{fn} reached a dialect without bit-op support")))
+        Err(Refusal::capability(format!(
+            "{fn} reached a dialect without bit-op support"
+        )))
     }
 
     fn variant_construct(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
@@ -378,37 +398,51 @@ pub trait AnsiSqlRenderer: Sized {
 
     fn list_exists(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let _ = (w, args);
-        Err(Refusal::capability("collection exists reached a dialect without a list-predicate encoding"))
+        Err(Refusal::capability(
+            "collection exists reached a dialect without a list-predicate encoding",
+        ))
     }
 
     fn all_distinct(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let _ = (w, args);
-        Err(Refusal::capability("collection isDistinct reached a dialect without a list encoding"))
+        Err(Refusal::capability(
+            "collection isDistinct reached a dialect without a list encoding",
+        ))
     }
 
     fn list_for_all(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let _ = (w, args);
-        Err(Refusal::capability("collection forAll reached a dialect without a list-predicate encoding"))
+        Err(Refusal::capability(
+            "collection forAll reached a dialect without a list-predicate encoding",
+        ))
     }
 
     fn list_call(&self, w: &mut SqlWriter, r#fn: SqlFn, args: &[SqlExpr]) -> Result<(), Refusal> {
         let _ = (w, args);
-        Err(Refusal::capability(format!("{fn} reached a dialect without a list encoding")))
+        Err(Refusal::capability(format!(
+            "{fn} reached a dialect without a list encoding"
+        )))
     }
 
     fn split_part_call(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let _ = (w, args);
-        Err(Refusal::capability("PURE_SPLIT_PART reached a dialect without a spelling"))
+        Err(Refusal::capability(
+            "PURE_SPLIT_PART reached a dialect without a spelling",
+        ))
     }
 
     fn unnest_projection(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let _ = (w, args);
-        Err(Refusal::capability("UNNEST reached a dialect without an unnest placement"))
+        Err(Refusal::capability(
+            "UNNEST reached a dialect without an unnest placement",
+        ))
     }
 
     fn variant_elements(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let _ = (w, args);
-        Err(Refusal::capability("variant navigation reached a dialect without JSON support"))
+        Err(Refusal::capability(
+            "variant navigation reached a dialect without JSON support",
+        ))
     }
 
     fn variant_get(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
@@ -417,7 +451,9 @@ pub trait AnsiSqlRenderer: Sized {
 
     fn struct_insert(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let _ = (w, args);
-        Err(Refusal::capability("struct_insert reached a dialect without struct support"))
+        Err(Refusal::capability(
+            "struct_insert reached a dialect without struct support",
+        ))
     }
 
     fn lambda(&self, w: &mut SqlWriter, l: &Lambda) -> Result<(), Refusal> {
@@ -512,7 +548,9 @@ pub trait AnsiSqlRenderer: Sized {
 
     fn array_lit(&self, w: &mut SqlWriter, elements: &[SqlExpr]) -> Result<(), Refusal> {
         let _ = (w, elements);
-        Err(Refusal::capability("an array literal reached a dialect without array support"))
+        Err(Refusal::capability(
+            "an array literal reached a dialect without array support",
+        ))
     }
 
     fn struct_lit(&self, w: &mut SqlWriter, fields: &[StructLitField]) -> Result<(), Refusal> {
@@ -617,14 +655,22 @@ pub trait AnsiSqlRenderer: Sized {
     // ---- DDL
 
     fn stored_name(&self, name: &str, declared_quoted: bool) -> String {
-        if declared_quoted { self.delimited(name) } else { self.physical_name(name) }
+        if declared_quoted {
+            self.delimited(name)
+        } else {
+            self.physical_name(name)
+        }
     }
 
     /// A store column's declared type as this database spells it in DDL.
     fn ddl_type(&self, t: &ColumnType) -> Result<String, Refusal>;
 
     fn ddl_identifier(&self, name: &str, declared_quoted: bool) -> String {
-        if declared_quoted { self.delimited(name) } else { self.ident(name) }
+        if declared_quoted {
+            self.delimited(name)
+        } else {
+            self.ident(name)
+        }
     }
 
     fn insert_column_name(&self, name: &str, declared_quoted: bool) -> String {

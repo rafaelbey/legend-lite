@@ -165,8 +165,12 @@ pub const RESERVED: &[&str] = &[
 static LEXICON: LazyLock<Lexicon> = LazyLock::new(|| Lexicon::new('`', RESERVED));
 
 /// Java's `Databricks.CAPS`: typed native arrays with lambdas, as DuckDB's.
-pub const CAPS: carrier::Caps =
-    carrier::Caps { native_lists: true, correlated_explode: true, json_carrier: true, native_full_outer: true };
+pub const CAPS: carrier::Caps = carrier::Caps {
+    native_lists: true,
+    correlated_explode: true,
+    json_carrier: true,
+    native_full_outer: true,
+};
 
 /// `Databricks.asOf`'s refusals.
 const AS_OF: AsOfWords = AsOfWords {
@@ -220,7 +224,13 @@ fn is_raise(e: &SqlExpr) -> bool {
 }
 
 fn is_unnest(e: &SqlExpr) -> bool {
-    matches!(e, SqlExpr::Call { r#fn: SqlFn::Unnest, .. })
+    matches!(
+        e,
+        SqlExpr::Call {
+            r#fn: SqlFn::Unnest,
+            ..
+        }
+    )
 }
 
 /// `x` as Java's `(SqlExpr.Lambda) x` reads it.
@@ -341,7 +351,11 @@ impl Databricks {
     /// `(SELECT agg FROM explode(xs) AS __v(__e))`: a list reduced as rows; an empty or NULL list reduces over no rows
     /// (Java's `overRows`).
     fn over_rows<'a>(&'a self, xs: &'a SqlExpr, f: AggFn, extras: &[SqlExpr]) -> P<'a> {
-        let e = if list_element(xs).is_none() { build::derived(None, "__e") } else { column_param("__e", xs) };
+        let e = if list_element(xs).is_none() {
+            build::derived(None, "__e")
+        } else {
+            column_param("__e", xs)
+        };
         let mut args = vec![e];
         args.extend(extras.iter().cloned());
         let r = build::reducer(f, args, false, Vec::new());
@@ -380,7 +394,9 @@ impl Databricks {
                 let lit = self.string_lit(&pattern_quote(value))?;
                 w.append(&lit);
             } else {
-                w.append(r"concat('\\Q', replace(").expr(self, d, 0)?.append(r", '\\E', '\\E\\\\E\\Q'), '\\E')");
+                w.append(r"concat('\\Q', replace(")
+                    .expr(self, d, 0)?
+                    .append(r", '\\E', '\\E\\\\E\\Q'), '\\E')");
             }
             w.append(", -1)");
             Ok(())
@@ -394,7 +410,11 @@ impl Databricks {
         {
             let t = cast_type_name(self, slot)?;
             return Ok(pc(move |w| {
-                w.append("CAST(").expr(self, e, 0)?.append(" AS ").append(&t).append(")");
+                w.append("CAST(")
+                    .expr(self, e, 0)?
+                    .append(" AS ")
+                    .append(&t)
+                    .append(")");
                 Ok(())
             }));
         }
@@ -437,15 +457,25 @@ impl Databricks {
         let column = "`__q`.`__c`";
         let all = quantifier == Quantifier::All;
         let cmp = |w: &mut SqlWriter| -> Result<(), Refusal> {
-            w.append("(").expr(self, value, 5)?.append(op).append(column).append(")");
+            w.append("(")
+                .expr(self, value, 5)?
+                .append(op)
+                .append(column)
+                .append(")");
             Ok(())
         };
         w.append("(CASE WHEN EXISTS (SELECT 1 FROM (");
         ansi::inline(self, w, subquery)?;
-        w.append(") AS `__q`(`__c`) WHERE ").append(if all { "NOT " } else { "" }).piece(&cmp)?.append(") THEN ");
-        w.append(if all { "FALSE" } else { "TRUE" }).append(" WHEN EXISTS (SELECT 1 FROM (");
+        w.append(") AS `__q`(`__c`) WHERE ")
+            .append(if all { "NOT " } else { "" })
+            .piece(&cmp)?
+            .append(") THEN ");
+        w.append(if all { "FALSE" } else { "TRUE" })
+            .append(" WHEN EXISTS (SELECT 1 FROM (");
         ansi::inline(self, w, subquery)?;
-        w.append(") AS `__q`(`__c`) WHERE ").piece(&cmp)?.append(" IS NULL) THEN NULL ELSE ");
+        w.append(") AS `__q`(`__c`) WHERE ")
+            .piece(&cmp)?
+            .append(" IS NULL) THEN NULL ELSE ");
         w.append(if all { "TRUE" } else { "FALSE" }).append(" END)");
         Ok(())
     }
@@ -465,7 +495,11 @@ impl Databricks {
         } else {
             "CASE WHEN `__a`.`n` > 1 THEN `__a`.`q` / `__a`.`n` WHEN `__a`.`n` = 1 THEN CAST(0 AS DOUBLE) END"
         };
-        let finish = if root { format!("sqrt({variance})") } else { variance.to_owned() };
+        let finish = if root {
+            format!("sqrt({variance})")
+        } else {
+            variance.to_owned()
+        };
         pc(move |w| {
             w.append("aggregate(").piece(&*present)?;
             w.append(&format!(
@@ -510,7 +544,9 @@ impl AnsiSqlRenderer for Databricks {
     /// The engine's H2 text is refused here: Databricks has no translation of it.
     fn from_engine_text(&self, statement: &str) -> Result<String, Refusal> {
         let _ = statement;
-        Err(Refusal::capability("the engine's H2 text reached Databricks, which has no translation of it"))
+        Err(Refusal::capability(
+            "the engine's H2 text reached Databricks, which has no translation of it",
+        ))
     }
 
     /// Native lists (the carrier strategies stand aside, as on DuckDB), the pivot's unqualified arguments, the
@@ -532,7 +568,13 @@ impl AnsiSqlRenderer for Databricks {
     /// `inline(arrays_zip(...))`, which aligns them as DuckDB's unnests are -- the form where every projection is such
     /// an unnest, any other mix refused by name.
     fn select(&self, w: &mut SqlWriter, s: &SqlSelect, depth: usize) -> Result<(), Refusal> {
-        if matches!(s.from, SqlSource::Join { kind: JoinKind::AsofLeft, .. }) {
+        if matches!(
+            s.from,
+            SqlSource::Join {
+                kind: JoinKind::AsofLeft,
+                ..
+            }
+        ) {
             let picked = as_of_pick(s.clone(), &AS_OF)?;
             return self.select(w, &picked, depth);
         }
@@ -550,13 +592,16 @@ impl AnsiSqlRenderer for Databricks {
             || s.offset.is_some()
             || s.distinct
         {
-            return Err(Refusal::capability("several unnests beside other columns or clauses reached Databricks"));
+            return Err(Refusal::capability(
+                "several unnests beside other columns or clauses reached Databricks",
+            ));
         }
-        w.append("SELECT inline(arrays_zip(").join(&s.projections, ", ", |w, p| {
-            let list = self.list(unnest_list(&p.expr)?);
-            w.piece(&*list)?;
-            Ok(())
-        })?;
+        w.append("SELECT inline(arrays_zip(")
+            .join(&s.projections, ", ", |w, p| {
+                let list = self.list(unnest_list(&p.expr)?);
+                w.piece(&*list)?;
+                Ok(())
+            })?;
         w.append(")) AS (").join(&s.projections, ", ", |w, p| {
             let name = output_name(p).ok_or_else(|| Refusal::null_pointer("an unnest's column name"))?;
             let a = self.alias_ident(&name);
@@ -583,11 +628,15 @@ impl AnsiSqlRenderer for Databricks {
     }
 
     fn row_order_column(&self) -> Result<String, Refusal> {
-        Err(Refusal::capability("row order reached Databricks, which has no row-order column"))
+        Err(Refusal::capability(
+            "row order reached Databricks, which has no row-order column",
+        ))
     }
 
     fn as_of_join_clause(&self) -> Result<String, Refusal> {
-        Err(Refusal::illegal_state("an as-of join reached the join clause: Databricks writes its select (asOf)"))
+        Err(Refusal::illegal_state(
+            "an as-of join reached the join clause: Databricks writes its select (asOf)",
+        ))
     }
 
     /// An inline table, `VALUES (..), (..) AS t(a, b)`: a parenthesized VALUES is a syntax error here.
@@ -601,15 +650,14 @@ impl AnsiSqlRenderer for Databricks {
     ) -> Result<(), Refusal> {
         w.append("VALUES ");
         // a column of NULLs alone is VOID to Spark: its first row says its declared type
-        let all_null =
-            |c: usize| -> Result<bool, Refusal> {
-                for row in rows {
-                    if !matches!(arg(row, c)?, SqlExpr::NullLit { .. }) {
-                        return Ok(false);
-                    }
+        let all_null = |c: usize| -> Result<bool, Refusal> {
+            for row in rows {
+                if !matches!(arg(row, c)?, SqlExpr::NullLit { .. }) {
+                    return Ok(false);
                 }
-                Ok(true)
-            };
+            }
+            Ok(true)
+        };
         for (r, row) in rows.iter().enumerate() {
             w.append(if r > 0 { ", (" } else { "(" });
             for (c, cell) in row.iter().enumerate() {
@@ -625,7 +673,11 @@ impl AnsiSqlRenderer for Databricks {
         }
         let a = self.alias_ident(alias);
         let names: Vec<String> = columns.iter().map(|c| self.alias_ident(c)).collect();
-        w.append(" AS ").append(&a).append("(").append(&names.join(", ")).append(")");
+        w.append(" AS ")
+            .append(&a)
+            .append("(")
+            .append(&names.join(", "))
+            .append(")");
         Ok(())
     }
 
@@ -633,7 +685,16 @@ impl AnsiSqlRenderer for Databricks {
     /// aggregate the value's alias is the whole name, with several Spark joins the value's alias and the aggregate's
     /// with `_`, so the aggregate's carries the tail.
     fn pivot_source(&self, w: &mut SqlWriter, pivot: &SqlSource, depth: usize) -> Result<(), Refusal> {
-        let SqlSource::Pivot { source, on, r#in, named, usings, alias, .. } = pivot else {
+        let SqlSource::Pivot {
+            source,
+            on,
+            r#in,
+            named,
+            usings,
+            alias,
+            ..
+        } = pivot
+        else {
             unreachable!("a pivot")
         };
         // a dynamic pivot a cast names pivots on the named values
@@ -644,14 +705,21 @@ impl AnsiSqlRenderer for Databricks {
             ));
         }
         if on.len() != 1 {
-            return Err(Refusal::capability(format!("a pivot on {} columns reached Databricks", on.len())));
+            return Err(Refusal::capability(format!(
+                "a pivot on {} columns reached Databricks",
+                on.len()
+            )));
         }
         let one = usings.len() == 1;
         w.append("(SELECT * FROM ");
         self.source(w, source, depth)?;
         w.append(" PIVOT (").join(usings, ", ", |w, u| {
             self.reducer(w, &u.agg)?;
-            let name = self.ident(&if one { u.alias.clone() } else { format!("_|__{}", u.alias) });
+            let name = self.ident(&if one {
+                u.alias.clone()
+            } else {
+                format!("_|__{}", u.alias)
+            });
             w.append(" AS ").append(&name);
             Ok(())
         })?;
@@ -668,7 +736,11 @@ impl AnsiSqlRenderer for Databricks {
         w.append(" IN (").join(values, ", ", |w, v| {
             w.expr(self, v, 0)?.append(" AS ");
             let text = Databricks::pivot_value_text(v)?;
-            let name = self.ident(&if one { format!("{text}__|__{}", usings[0].alias) } else { text });
+            let name = self.ident(&if one {
+                format!("{text}__|__{}", usings[0].alias)
+            } else {
+                text
+            });
             w.append(&name);
             Ok(())
         })?;
@@ -735,7 +807,11 @@ impl AnsiSqlRenderer for Databricks {
     /// declared type; a value that can only be NULL (bottom-typed, or a raise) spelled in its declared slot's type.
     fn projection(&self, w: &mut SqlWriter, p: &Projection) -> Result<(), Refusal> {
         if let Some(out) = &p.out
-            && let SqlExpr::Call { r#fn: SqlFn::Unnest, args, .. } = &p.expr
+            && let SqlExpr::Call {
+                r#fn: SqlFn::Unnest,
+                args,
+                ..
+            } = &p.expr
             && args.len() == 1
             && list_element(&args[0]).is_none()
         {
@@ -789,12 +865,20 @@ impl AnsiSqlRenderer for Databricks {
                 Ok(())
             }
             SqlExpr::OrderedListAgg { value, order_by, .. } => {
-                let keys = vec![aggregates::Key { key: self.ex(order_by, 0), ascending: true, nulls_first: false }];
+                let keys = vec![aggregates::Key {
+                    key: self.ex(order_by, 0),
+                    ascending: true,
+                    nulls_first: false,
+                }];
                 self.collected(self.ex(value, 0), keys)(w)
             }
-            SqlExpr::Quantified { value, comparison, quantifier, subquery, .. } => {
-                self.quantified(w, value, *comparison, *quantifier, subquery)
-            }
+            SqlExpr::Quantified {
+                value,
+                comparison,
+                quantifier,
+                subquery,
+                ..
+            } => self.quantified(w, value, *comparison, *quantifier, subquery),
             other => ansi::expr(self, w, other, parent_prec),
         }
     }
@@ -851,26 +935,39 @@ impl AnsiSqlRenderer for Databricks {
     }
 
     fn list_exists(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("coalesce(exists(").piece(&*self.list(arg(args, 0)?))?.append(", ").expr(self, arg(args, 1)?, 0)?;
+        w.append("coalesce(exists(")
+            .piece(&*self.list(arg(args, 0)?))?
+            .append(", ")
+            .expr(self, arg(args, 1)?, 0)?;
         w.append("), FALSE)");
         Ok(())
     }
 
     fn list_for_all(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("coalesce(forall(").piece(&*self.list(arg(args, 0)?))?.append(", ").expr(self, arg(args, 1)?, 0)?;
+        w.append("coalesce(forall(")
+            .piece(&*self.list(arg(args, 0)?))?
+            .append(", ")
+            .expr(self, arg(args, 1)?, 0)?;
         w.append("), TRUE)");
         Ok(())
     }
 
     fn all_distinct(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let list = self.list(arg(args, 0)?);
-        w.append("coalesce(array_size(array_distinct(").piece(&*list)?.append(")) = array_size(").piece(&*list)?;
+        w.append("coalesce(array_size(array_distinct(")
+            .piece(&*list)?
+            .append(")) = array_size(")
+            .piece(&*list)?;
         w.append("), TRUE)");
         Ok(())
     }
 
     fn membership(&self, w: &mut SqlWriter, needle: &SqlExpr, collection: &SqlExpr) -> Result<(), Refusal> {
-        w.append("array_contains(").piece(&*self.list(collection))?.append(", ").expr(self, needle, 0)?.append(")");
+        w.append("array_contains(")
+            .piece(&*self.list(collection))?
+            .append(", ")
+            .expr(self, needle, 0)?
+            .append(")");
         Ok(())
     }
 
@@ -894,8 +991,12 @@ impl AnsiSqlRenderer for Databricks {
         match reducer {
             // NULL over no present element, as string_agg over no row
             AggFn::StringAgg if extras.len() == 1 => {
-                w.append("(CASE WHEN array_size(").piece(&*present)?.append(") = 0 THEN NULL ELSE array_join(");
-                w.append("transform(").piece(&*present)?.append(", `__x` -> CAST(`__x` AS STRING)), ");
+                w.append("(CASE WHEN array_size(")
+                    .piece(&*present)?
+                    .append(") = 0 THEN NULL ELSE array_join(");
+                w.append("transform(")
+                    .piece(&*present)?
+                    .append(", `__x` -> CAST(`__x` AS STRING)), ");
                 w.expr(self, &extras[0], 0)?.append(") END)");
             }
             AggFn::Min => {
@@ -907,12 +1008,7 @@ impl AnsiSqlRenderer for Databricks {
             AggFn::Count => {
                 w.append("array_size(").piece(&*present)?.append(")");
             }
-            AggFn::StddevSamp
-            | AggFn::StddevPop
-            | AggFn::VarSamp
-            | AggFn::VarPop
-            | AggFn::Variance
-            | AggFn::Stddev => {
+            AggFn::StddevSamp | AggFn::StddevPop | AggFn::VarSamp | AggFn::VarPop | AggFn::Variance | AggFn::Stddev => {
                 w.piece(&*Databricks::moments(present, reducer))?;
             }
             _ => {
@@ -924,7 +1020,10 @@ impl AnsiSqlRenderer for Databricks {
 
     fn unnest_projection(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         if args.len() != 1 {
-            return Err(Refusal::capability(format!("an unnest of {} lists reached Databricks", args.len())));
+            return Err(Refusal::capability(format!(
+                "an unnest of {} lists reached Databricks",
+                args.len()
+            )));
         }
         w.append("explode(").piece(&*self.list(&args[0]))?.append(")");
         Ok(())
@@ -933,7 +1032,14 @@ impl AnsiSqlRenderer for Databricks {
     /// Pure's fold, `(element, acc)`, as Spark's `aggregate(xs, init, (acc, x) -> ...)`: its accumulator may be any
     /// type, a list included; an empty or NULL list folds to the init.
     fn fold_call(&self, w: &mut SqlWriter, fold: &SqlExpr) -> Result<(), Refusal> {
-        let SqlExpr::FoldCall { source, lambda, init, r#type, .. } = fold else {
+        let SqlExpr::FoldCall {
+            source,
+            lambda,
+            init,
+            r#type,
+            ..
+        } = fold
+        else {
             unreachable!("a fold")
         };
         let TypeFact::Typed { r#type: t, .. } = r#type else {
@@ -942,8 +1048,12 @@ impl AnsiSqlRenderer for Databricks {
         let ty = cast_type_name(self, t)?;
         let elem = self.param(param_name(&lambda.params, 0)?)?;
         let acc = self.param(param_name(&lambda.params, 1)?)?;
-        w.append("aggregate(coalesce(").piece(&*self.list(source))?.append(", array()), CAST(").expr(self, init, 0)?;
-        w.append(&format!(" AS {ty}), ({acc}, {elem}) -> CAST(")).expr(self, &lambda.body, 0)?;
+        w.append("aggregate(coalesce(")
+            .piece(&*self.list(source))?
+            .append(", array()), CAST(")
+            .expr(self, init, 0)?;
+        w.append(&format!(" AS {ty}), ({acc}, {elem}) -> CAST("))
+            .expr(self, &lambda.body, 0)?;
         w.append(&format!(" AS {ty}))"));
         Ok(())
     }
@@ -951,7 +1061,9 @@ impl AnsiSqlRenderer for Databricks {
     /// Pure's splitPart: the non-empty tokens, 1-based, NULL past the end.
     fn split_part_call(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let split = self.split(arg(a, 0)?, arg(a, 1)?);
-        w.append("try_element_at(filter(").piece(&*split)?.append(", `__t` -> `__t` <> ''), CAST(");
+        w.append("try_element_at(filter(")
+            .piece(&*split)?
+            .append(", `__t` -> `__t` <> ''), CAST(");
         w.expr(self, arg(a, 2)?, 0)?.append(" AS INT))");
         Ok(())
     }
@@ -966,7 +1078,9 @@ impl AnsiSqlRenderer for Databricks {
     fn struct_insert(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let st = type_of(arg(args, 0)?);
         let (Some(SqlType::Struct { fields }), SqlExpr::StringLit { value: name, .. }) = (st, arg(args, 1)?) else {
-            return Err(Refusal::capability("struct_insert over an untyped struct reached Databricks"));
+            return Err(Refusal::capability(
+                "struct_insert over an untyped struct reached Databricks",
+            ));
         };
         w.append("named_struct(");
         let mut first = true;
@@ -975,13 +1089,20 @@ impl AnsiSqlRenderer for Databricks {
                 continue;
             }
             let lit = self.string_lit(&f.name)?;
-            w.append(if first { "" } else { ", " }).append(&lit).append(", (").expr(self, &args[0], 8)?;
+            w.append(if first { "" } else { ", " })
+                .append(&lit)
+                .append(", (")
+                .expr(self, &args[0], 8)?;
             let n = self.ident(&f.name);
             w.append(").").append(&n);
             first = false;
         }
         let lit = self.string_lit(name)?;
-        w.append(if first { "" } else { ", " }).append(&lit).append(", ").expr(self, arg(args, 2)?, 0)?.append(")");
+        w.append(if first { "" } else { ", " })
+            .append(&lit)
+            .append(", ")
+            .expr(self, arg(args, 2)?, 0)?
+            .append(")");
         Ok(())
     }
 
@@ -989,7 +1110,10 @@ impl AnsiSqlRenderer for Databricks {
 
     fn variant_construct(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() != 1 {
-            return Err(Refusal::capability(format!("toVariant of {} arguments reached Databricks", a.len())));
+            return Err(Refusal::capability(format!(
+                "toVariant of {} arguments reached Databricks",
+                a.len()
+            )));
         }
         self.to_variant(&a[0])(w)
     }
@@ -1005,13 +1129,19 @@ impl AnsiSqlRenderer for Databricks {
             return Ok(());
         }
         if is_text(key) || matches!(key, SqlExpr::StringLit { .. }) {
-            w.append("try_element_at(try_cast(").expr(self, arg(args, 0)?, 0)?.append(" AS MAP<STRING, VARIANT>), ");
+            w.append("try_element_at(try_cast(")
+                .expr(self, arg(args, 0)?, 0)?
+                .append(" AS MAP<STRING, VARIANT>), ");
             w.expr(self, key, 0)?.append(")");
             return Ok(());
         }
         w.append("try_element_at(try_cast(").expr(self, arg(args, 0)?, 0)?;
         w.append(" AS ARRAY<VARIANT>), CAST(CASE WHEN ");
-        w.expr(self, key, 0)?.append(" >= 0 THEN ").expr(self, key, 6)?.append(" + 1 ELSE ").expr(self, key, 0)?;
+        w.expr(self, key, 0)?
+            .append(" >= 0 THEN ")
+            .expr(self, key, 6)?
+            .append(" + 1 ELSE ")
+            .expr(self, key, 0)?;
         w.append(" END AS INT))");
         Ok(())
     }
@@ -1052,7 +1182,13 @@ impl AnsiSqlRenderer for Databricks {
         }
         if is_json(value) {
             // a member's value as text is its text; the whole value as text is its JSON, as DuckDB's cast
-            let member = matches!(value, SqlExpr::Call { r#fn: SqlFn::VariantGet, .. });
+            let member = matches!(
+                value,
+                SqlExpr::Call {
+                    r#fn: SqlFn::VariantGet,
+                    ..
+                }
+            );
             if target_is(Scalar::Varchar) && !member {
                 w.append("to_json(").expr(self, value, 0)?.append(")");
                 return Ok(());
@@ -1116,7 +1252,9 @@ impl AnsiSqlRenderer for Databricks {
     }
 
     fn json_array(&self, w: &mut SqlWriter, elements: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("to_variant_object(array(").join(elements, ", ", |w, e| self.to_variant(e)(w))?.append("))");
+        w.append("to_variant_object(array(")
+            .join(elements, ", ", |w, e| self.to_variant(e)(w))?
+            .append("))");
         Ok(())
     }
 
@@ -1128,9 +1266,15 @@ impl AnsiSqlRenderer for Databricks {
     ) -> Result<(), Refusal> {
         let keys = order_keys
             .iter()
-            .map(|k| aggregates::Key { key: self.ex(&k.expr, 0), ascending: !k.desc, nulls_first: false })
+            .map(|k| aggregates::Key {
+                key: self.ex(&k.expr, 0),
+                ascending: !k.desc,
+                nulls_first: false,
+            })
             .collect();
-        w.append("to_variant_object(").piece(&*self.collected(self.to_variant(value), keys))?.append(")");
+        w.append("to_variant_object(")
+            .piece(&*self.collected(self.to_variant(value), keys))?
+            .append(")");
         Ok(())
     }
 
@@ -1153,7 +1297,9 @@ impl AnsiSqlRenderer for Databricks {
             // Databricks SQL has no TIME type
             Scalar::Time => return Err(Refusal::capability("a time of day: Databricks has no TIME type")),
             Scalar::DecimalText => {
-                return Err(Refusal::illegal_state(format!("{s} cast reached a dialect without {s} support")));
+                return Err(Refusal::illegal_state(format!(
+                    "{s} cast reached a dialect without {s} support"
+                )));
             }
         }
         .to_owned())
@@ -1189,7 +1335,9 @@ impl AnsiSqlRenderer for Databricks {
                 | ColumnKind::Distinct
                 | ColumnKind::Array
                 | ColumnKind::Object => {
-                    return Err(Refusal::illegal_state(format!("no DDL spelling for declared column type {kind}")));
+                    return Err(Refusal::illegal_state(format!(
+                        "no DDL spelling for declared column type {kind}"
+                    )));
                 }
             }
             .to_owned(),
@@ -1220,7 +1368,9 @@ impl AnsiSqlRenderer for Databricks {
         if scalar == Scalar::Date {
             return Ok("date".to_owned());
         }
-        Err(Refusal::capability(format!("a TYPEOF compared with {scalar}'s name reached Databricks")))
+        Err(Refusal::capability(format!(
+            "a TYPEOF compared with {scalar}'s name reached Databricks"
+        )))
     }
 }
 
@@ -1298,11 +1448,20 @@ impl crate::dialect::SqlDialect for Databricks {
     /// one statement; each column cast to its declared type in the view's projection, so a column whose cells are all
     /// NULL, or a view with no rows, is still typed.
     fn session_table(&self, table: &SqlDdl, rows: Option<&SqlDml>) -> Result<Vec<String>, Refusal> {
-        let SqlDdl::CreateTable { table: name, quoting, columns, temporary, .. } = table else {
+        let SqlDdl::CreateTable {
+            table: name,
+            quoting,
+            columns,
+            temporary,
+            ..
+        } = table
+        else {
             unreachable!("the seam hands a session table a createTable")
         };
         if !temporary {
-            return Err(Refusal::illegal_argument(format!("a session table is temporary: {name}")));
+            return Err(Refusal::illegal_argument(format!(
+                "a session table is temporary: {name}"
+            )));
         }
         let rows = match rows {
             None => None,

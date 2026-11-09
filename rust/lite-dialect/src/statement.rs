@@ -43,13 +43,21 @@ impl RenderedStatement {
 
     /// A statement with no bound parameter and no region.
     pub fn plain(sql: String) -> RenderedStatement {
-        RenderedStatement { sql, binds: Vec::new(), regions: Vec::new() }
+        RenderedStatement {
+            sql,
+            binds: Vec::new(),
+            regions: Vec::new(),
+        }
     }
 }
 
 /// The text's length as Java's `String.length()` counts it: UTF-16 units.
 pub fn utf16_len(s: &str) -> usize {
-    if s.is_ascii() { s.len() } else { s.encode_utf16().count() }
+    if s.is_ascii() {
+        s.len()
+    } else {
+        s.encode_utf16().count()
+    }
 }
 
 /// What one placeholder binds (Java's `RenderedStatement.Bind`).
@@ -132,7 +140,11 @@ pub struct TypeSpelling {
 impl TypeSpelling {
     /// Java's two-argument constructor: no fraction.
     pub fn new(name: impl Into<String>, digits: Digits) -> TypeSpelling {
-        TypeSpelling { name: name.into(), digits, fraction: None }
+        TypeSpelling {
+            name: name.into(),
+            digits,
+            fraction: None,
+        }
     }
 }
 
@@ -155,7 +167,9 @@ impl Digits {
 
     /// The constant whose Java `name()` is `name`.
     pub fn from_name(name: &str) -> Option<Digits> {
-        [Digits::None, Digits::Precision, Digits::PrecisionAndScale].into_iter().find(|d| d.as_str() == name)
+        [Digits::None, Digits::Precision, Digits::PrecisionAndScale]
+            .into_iter()
+            .find(|d| d.as_str() == name)
     }
 }
 
@@ -195,7 +209,16 @@ impl Region {
                 )));
             }
         }
-        Ok(Region { start, end, lead, separator, empty, first_bind, bind_count, counters })
+        Ok(Region {
+            start,
+            end,
+            lead,
+            separator,
+            empty,
+            first_bind,
+            bind_count,
+            counters,
+        })
     }
 
     /// Java's `Region.check`: the regions in order within a statement of `length`, each one's placeholders among
@@ -287,7 +310,13 @@ impl fmt::Display for Binding {
 
 impl fmt::Display for TypeHole {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TypeHole[at={}, types={}, absent={}]", self.at, map_text(&self.types), self.absent)
+        write!(
+            f,
+            "TypeHole[at={}, types={}, absent={}]",
+            self.at,
+            map_text(&self.types),
+            self.absent
+        )
     }
 }
 

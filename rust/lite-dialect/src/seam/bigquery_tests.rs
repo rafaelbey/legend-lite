@@ -35,7 +35,10 @@ fn facts_are_bigquerys() {
     );
     // every server version is spelled alike; a spec's server keeps BigQuery
     assert_eq!(ok(BQ, "forServer", r#"{"version":"1"}"#), r#""BigQuery""#);
-    assert_eq!(dispatch(r#"{"dialect":"BigQuery","server":"2"}"#, "facts", "{}").unwrap(), ok(BQ, "facts", "{}"));
+    assert_eq!(
+        dispatch(r#"{"dialect":"BigQuery","server":"2"}"#, "facts", "{}").unwrap(),
+        ok(BQ, "facts", "{}")
+    );
     assert_eq!(
         refused(r#"{"dialect":"BigQuery","quoteIdentifiers":false}"#, "facts", "{}").message,
         "quoteIdentifiers and timeZone configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not BigQuery"
@@ -86,7 +89,11 @@ fn ddl_and_dml_render_and_a_session_table_is_a_temp_table() {
     // the interface's default: the TEMP table, then its INSERT
     let temporary = r#""CREATE TEMP TABLE `legend_rows` (`ID` INT64 NOT NULL, PRIMARY KEY (`ID`) NOT ENFORCED);""#;
     assert_eq!(
-        ok(BQ, "sessionTable", &format!(r#"{{"table":{SESSION_TABLE},"rows":{INSERT_VALUES}}}"#)),
+        ok(
+            BQ,
+            "sessionTable",
+            &format!(r#"{{"table":{SESSION_TABLE},"rows":{INSERT_VALUES}}}"#)
+        ),
         format!("[{temporary},{insert}]")
     );
     // a DELETE needs a WHERE clause
@@ -107,15 +114,27 @@ fn names_are_bigquerys() {
     assert_eq!(name("physicalName", r#"{"name":"Trades"}"#), r#""`Trades`""#);
     // a double-quoted declaration is its inner name; a backtick and a backslash escaped by a backslash
     assert_eq!(name("physicalName", r#"{"name":"\"date\""}"#), r#""`date`""#);
-    assert_eq!(name("insertColumnName", r#"{"name":"a`b","declaredQuoted":false}"#), r#""`a\\`b`""#);
+    assert_eq!(
+        name("insertColumnName", r#"{"name":"a`b","declaredQuoted":false}"#),
+        r#""`a\\`b`""#
+    );
     let r = refused(BQ, "fromEngineText", r#"{"statement":"CREATE TABLE T (X DOUBLE)"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("DIALECT_CAPABILITY", "the engine's H2 text reached BigQuery, which has no translation of it")
+        (
+            "DIALECT_CAPABILITY",
+            "the engine's H2 text reached BigQuery, which has no translation of it"
+        )
     );
-    assert_eq!(name("raw", r#"{"statement":"select 1","writtenFor":"BigQuery"}"#), r#""select 1""#);
     assert_eq!(
-        name("tableName", r#"{"name":"Sales.Orders","quoting":{"schema":false,"table":false}}"#),
+        name("raw", r#"{"statement":"select 1","writtenFor":"BigQuery"}"#),
+        r#""select 1""#
+    );
+    assert_eq!(
+        name(
+            "tableName",
+            r#"{"name":"Sales.Orders","quoting":{"schema":false,"table":false}}"#
+        ),
         r#""`Sales`.`Orders`""#
     );
 }
@@ -124,24 +143,55 @@ fn names_are_bigquerys() {
 fn the_interface_answers_as_bigquery() {
     assert_eq!(ok(BQ, "wireTypeName", r#"{"driverTypeName":"INT64"}"#), r#""BIGINT""#);
     assert_eq!(ok(BQ, "wireTypeName", r#"{"driverTypeName":null}"#), r#""""#);
-    assert_eq!(ok(BQ, "typingWireName", r#"{"driverTypeName":"DATETIME"}"#), r#""TIMESTAMP""#);
+    assert_eq!(
+        ok(BQ, "typingWireName", r#"{"driverTypeName":"DATETIME"}"#),
+        r#""TIMESTAMP""#
+    );
     let map = r#"{"_type":"map","key":{"_type":"scalar","name":"VARCHAR"},"value":{"_type":"scalar","name":"BIGINT"}}"#;
-    assert_eq!(ok(BQ, "deliversOwn", &format!(r#"{{"label":{map},"wire":"ARRAY"}}"#)), "true");
+    assert_eq!(
+        ok(BQ, "deliversOwn", &format!(r#"{{"label":{map},"wire":"ARRAY"}}"#)),
+        "true"
+    );
     let decimal = r#"{"_type":"decimal","precision":10,"scale":2}"#;
-    assert_eq!(ok(BQ, "deliversOwn", &format!(r#"{{"label":{decimal},"wire":"BIGNUMERIC"}}"#)), "true");
-    assert_eq!(ok(BQ, "deliversOwn", &format!(r#"{{"label":{decimal},"wire":"NUMERIC"}}"#)), "false");
+    assert_eq!(
+        ok(
+            BQ,
+            "deliversOwn",
+            &format!(r#"{{"label":{decimal},"wire":"BIGNUMERIC"}}"#)
+        ),
+        "true"
+    );
+    assert_eq!(
+        ok(BQ, "deliversOwn", &format!(r#"{{"label":{decimal},"wire":"NUMERIC"}}"#)),
+        "false"
+    );
     assert_eq!(ok(BQ, "script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-    assert_eq!(ok(BQ, "failingStatement", r#"{"message":"x","statements":["a"]}"#), "null");
+    assert_eq!(
+        ok(BQ, "failingStatement", r#"{"message":"x","statements":["a"]}"#),
+        "null"
+    );
     let r = refused(BQ, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("UNSUPPORTED_OPERATION", "the platform asks no catalog question of BigQuery")
+        (
+            "UNSUPPORTED_OPERATION",
+            "the platform asks no catalog question of BigQuery"
+        )
     );
     let r = refused(BQ, "bareNameReaches", r#"{"catalogName":"t"}"#);
-    assert_eq!(r.message, "reading this database's catalog names is not implemented for BigQuery");
+    assert_eq!(
+        r.message,
+        "reading this database's catalog names is not implemented for BigQuery"
+    );
     let r = refused(BQ, "host.useDatabase", r#"{"name":"p"}"#);
     assert!(r.message.contains("on BigQuery"), "{r}");
-    let reads = |kind: &str| ok(BQ, "readsStored", &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#));
+    let reads = |kind: &str| {
+        ok(
+            BQ,
+            "readsStored",
+            &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#),
+        )
+    };
     assert_eq!(reads("DISTINCT"), "true");
     assert_eq!(reads("VARCHAR"), "false");
     assert_eq!(

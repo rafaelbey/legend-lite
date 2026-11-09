@@ -12,20 +12,37 @@ use crate::rewriter::{rewrite, rewrite_expr, rewrite_source};
 use crate::{AnsiSqlRenderer, DuckDb, SqlWriter};
 use lite_sql::{ColumnType, NameQuoting, PivotUsing};
 
-const H2: Caps = Caps { native_lists: false, correlated_explode: false, json_carrier: false, native_full_outer: false };
-const POSTGRES: Caps =
-    Caps { native_lists: false, correlated_explode: true, json_carrier: true, native_full_outer: true };
+const H2: Caps = Caps {
+    native_lists: false,
+    correlated_explode: false,
+    json_carrier: false,
+    native_full_outer: false,
+};
+const POSTGRES: Caps = Caps {
+    native_lists: false,
+    correlated_explode: true,
+    json_carrier: true,
+    native_full_outer: true,
+};
 
 fn ty(s: Scalar) -> SqlType {
     SqlType::Scalar(s)
 }
 
 fn fact(s: Scalar, nullable: bool) -> TypeFact {
-    TypeFact::Typed { r#type: ty(s), nullable }
+    TypeFact::Typed {
+        r#type: ty(s),
+        nullable,
+    }
 }
 
 fn out(name: &str, s: Scalar, nullable: bool, origin: Origin) -> OutputCol {
-    OutputCol { name: name.to_owned(), r#type: ty(s), nullable, origin }
+    OutputCol {
+        name: name.to_owned(),
+        r#type: ty(s),
+        nullable,
+        origin,
+    }
 }
 
 fn table(name: &str, alias: &str, cols: &[(&str, Scalar)]) -> SqlSource {
@@ -57,9 +74,23 @@ fn p(e: SqlExpr, alias: &str, o: OutputCol) -> Projection {
 
 /// `(SELECT LIST(t.v) FROM T t)`: a collect of `t.v`, its order keys `keys`.
 fn collect(keys: Vec<SortKey>) -> SqlExpr {
-    let list = SqlExpr::Reducer(build::reducer(AggFn::List, vec![c("t", "v", Scalar::Integer)], false, keys));
-    let o = build::output_col("l", SqlType::Array { element: Box::new(ty(Scalar::Integer)) }, true);
-    scalar_subquery(build::query(sel(vec![p(list, "l", o)], table("T", "t", &[("v", Scalar::Integer)]))))
+    let list = SqlExpr::Reducer(build::reducer(
+        AggFn::List,
+        vec![c("t", "v", Scalar::Integer)],
+        false,
+        keys,
+    ));
+    let o = build::output_col(
+        "l",
+        SqlType::Array {
+            element: Box::new(ty(Scalar::Integer)),
+        },
+        true,
+    );
+    scalar_subquery(build::query(sel(
+        vec![p(list, "l", o)],
+        table("T", "t", &[("v", Scalar::Integer)]),
+    )))
 }
 
 fn sql_e(e: &SqlExpr) -> String {
@@ -89,7 +120,9 @@ fn h2(e: SqlExpr) -> String {
 }
 
 fn h2_q(s: SqlSelect) -> SqlQuery {
-    rewrite(&mut CarrierStrategies::new(H2), build::query(s)).unwrap().into_inner()
+    rewrite(&mut CarrierStrategies::new(H2), build::query(s))
+        .unwrap()
+        .into_inner()
 }
 
 // ---- DuckDB: every hook the identity
@@ -102,17 +135,33 @@ fn duckdb_caps_leave_every_tree_as_it_came() {
         t,
         u,
         JoinKind::Full,
-        Some(call(SqlFn::Equal, vec![c("t", "v", Scalar::Integer), c("u", "v", Scalar::Integer)])),
+        Some(call(
+            SqlFn::Equal,
+            vec![c("t", "v", Scalar::Integer), c("u", "v", Scalar::Integer)],
+        )),
     )
     .unwrap();
     let member = build::membership(c("t", "k", Scalar::Bigint), array_lit(vec![int_lit(1), int_lit(2)]));
-    let concat = call(SqlFn::ListConcat, vec![array_lit(vec![int_lit(1)]), array_lit(vec![int_lit(2)])]);
+    let concat = call(
+        SqlFn::ListConcat,
+        vec![array_lit(vec![int_lit(1)]), array_lit(vec![int_lit(2)])],
+    );
     let unnest = call(SqlFn::Unnest, vec![collect(Vec::new())]);
     let s = build::select(SqlSelect {
         r#where: Some(member),
         ..sel(
             vec![
-                p(concat, "c", build::output_col("c", SqlType::Array { element: Box::new(ty(Scalar::Bigint)) }, false)),
+                p(
+                    concat,
+                    "c",
+                    build::output_col(
+                        "c",
+                        SqlType::Array {
+                            element: Box::new(ty(Scalar::Bigint)),
+                        },
+                        false,
+                    ),
+                ),
                 p(unnest, "u", out("u", Scalar::Integer, true, Origin::Derived)),
             ],
             full,
@@ -130,22 +179,40 @@ fn duckdb_caps_leave_every_tree_as_it_came() {
 fn a_concatenation_of_literal_lists_folds_to_one_literal() {
     let e = call(
         SqlFn::ListConcat,
-        vec![array_lit(vec![int_lit(1), int_lit(2)]), array_lit(vec![int_lit(3)]), array_lit(Vec::new())],
+        vec![
+            array_lit(vec![int_lit(1), int_lit(2)]),
+            array_lit(vec![int_lit(3)]),
+            array_lit(Vec::new()),
+        ],
     );
     let r = on(H2, e).into_inner();
     assert_eq!(sql_e(&r), "[1, 2, 3]");
     assert_eq!(
         *r.r#type(),
-        TypeFact::Typed { r#type: SqlType::Array { element: Box::new(ty(Scalar::Bigint)) }, nullable: false }
+        TypeFact::Typed {
+            r#type: SqlType::Array {
+                element: Box::new(ty(Scalar::Bigint))
+            },
+            nullable: false
+        }
     );
     // one non-literal arm: no rule
-    let e = call(SqlFn::ListConcat, vec![array_lit(vec![int_lit(1)]), c("t", "l", Scalar::Integer)]);
+    let e = call(
+        SqlFn::ListConcat,
+        vec![array_lit(vec![int_lit(1)]), c("t", "l", Scalar::Integer)],
+    );
     assert!(!on(H2, e).is_new());
 }
 
 #[test]
 fn a_list_length_is_compile_time_a_count_or_a_separator_count() {
-    assert_eq!(h2(call(SqlFn::ListLength, vec![array_lit(vec![s_lit("a"), null_lit(), s_lit("b")])])), "3");
+    assert_eq!(
+        h2(call(
+            SqlFn::ListLength,
+            vec![array_lit(vec![s_lit("a"), null_lit(), s_lit("b")])]
+        )),
+        "3"
+    );
     let split = call(SqlFn::Split, vec![c("t", "s", Scalar::Varchar), s_lit(",")]);
     assert_eq!(
         h2(call(SqlFn::ListLength, vec![split])),
@@ -157,7 +224,13 @@ fn a_list_length_is_compile_time_a_count_or_a_separator_count() {
     let counted = on(H2, call(SqlFn::ListLength, vec![collect(Vec::new())])).into_inner();
     assert_eq!(sql_e(&counted), "(SELECT COUNT(*) AS l FROM T AS t)");
     // the COUNT never nulls and the select is one row: the subquery's slot keeps the declared label
-    assert_eq!(*counted.r#type(), TypeFact::Typed { r#type: ty(Scalar::Bigint), nullable: false });
+    assert_eq!(
+        *counted.r#type(),
+        TypeFact::Typed {
+            r#type: ty(Scalar::Bigint),
+            nullable: false
+        }
+    );
 }
 
 #[test]
@@ -175,7 +248,11 @@ fn a_filtered_literal_length_sums_the_element_tests() {
         "CASE WHEN 1 > 2 THEN 1 ELSE 0 END + CASE WHEN 5 > 2 THEN 1 ELSE 0 END"
     );
     // compacted: an element must be non-null too, and a struct literal's null test is its answer
-    let point = build::struct_lit(vec![StructLitField { name: "a".to_owned(), value: int_lit(1), declared: None }]);
+    let point = build::struct_lit(vec![StructLitField {
+        name: "a".to_owned(),
+        value: int_lit(1),
+        declared: None,
+    }]);
     let compact = build::compact_list(call(
         SqlFn::ListFilter,
         vec![
@@ -183,7 +260,10 @@ fn a_filtered_literal_length_sums_the_element_tests() {
             build::lambda(&["p"], call(SqlFn::Greater, vec![derived(Some("p"), "a"), int_lit(0)])),
         ],
     ));
-    assert_eq!(h2(call(SqlFn::ListLength, vec![compact])), "CASE WHEN TRUE AND 1 > 0 THEN 1 ELSE 0 END");
+    assert_eq!(
+        h2(call(SqlFn::ListLength, vec![compact])),
+        "CASE WHEN TRUE AND 1 > 0 THEN 1 ELSE 0 END"
+    );
 }
 
 #[test]
@@ -193,11 +273,20 @@ fn literal_variants_fold_in_java_s_number_model() {
     assert_eq!(h2(call(SqlFn::VariantGet, vec![json("[10, 20]"), int_lit(1)])), "20");
     // a composite re-emits as a JSON cast of its text; a decimal keeps BigDecimal's text
     assert_eq!(
-        h2(call(SqlFn::VariantGet, vec![json(r#"{"a": [1, 2.50, "x\"y"], "b": null}"#), s_lit("a")])),
+        h2(call(
+            SqlFn::VariantGet,
+            vec![json(r#"{"a": [1, 2.50, "x\"y"], "b": null}"#), s_lit("a")]
+        )),
         r#"CAST('[1,2.50,"x\"y"]' AS JSON)"#
     );
-    assert_eq!(h2(call(SqlFn::VariantGet, vec![json(r#"{"n": 1e5}"#), s_lit("n")])), "CAST('1E+5' AS JSON)");
-    assert_eq!(h2(call(SqlFn::VariantGet, vec![json(r#"{"n": null}"#), s_lit("n")])), "NULL");
+    assert_eq!(
+        h2(call(SqlFn::VariantGet, vec![json(r#"{"n": 1e5}"#), s_lit("n")])),
+        "CAST('1E+5' AS JSON)"
+    );
+    assert_eq!(
+        h2(call(SqlFn::VariantGet, vec![json(r#"{"n": null}"#), s_lit("n")])),
+        "NULL"
+    );
     // a missing key or an index past the end: no fold
     assert!(!on(H2, call(SqlFn::VariantGet, vec![json("[1]"), int_lit(1)])).is_new());
     assert!(!on(H2, call(SqlFn::VariantGet, vec![json(r#"{"n": 1}"#), s_lit("m")])).is_new());
@@ -206,9 +295,15 @@ fn literal_variants_fold_in_java_s_number_model() {
         r#"[CAST('1' AS JSON), CAST('"a"' AS JSON), CAST('{"k":true}' AS JSON)]"#
     );
     // the elements of a literal collection are the collection
-    assert_eq!(h2(call(SqlFn::VariantElements, vec![array_lit(vec![int_lit(7)])])), "[7]");
+    assert_eq!(
+        h2(call(SqlFn::VariantElements, vec![array_lit(vec![int_lit(7)])])),
+        "[7]"
+    );
     // malformed literal JSON is Java's refusal
-    let r = rewrite_expr(&mut CarrierStrategies::new(H2), call(SqlFn::VariantElements, vec![json("[1] 2")]));
+    let r = rewrite_expr(
+        &mut CarrierStrategies::new(H2),
+        call(SqlFn::VariantElements, vec![json("[1] 2")]),
+    );
     assert_eq!(r.unwrap_err(), Refusal::illegal_state("trailing JSON at 4"));
 }
 
@@ -218,7 +313,10 @@ fn a_typeof_date_test_is_a_length_test() {
         SqlFn::Equal,
         vec![
             call(SqlFn::Typeof, vec![c("t", "d", Scalar::Timestamp)]),
-            SqlExpr::TypeNameLit { scalar: Scalar::Date, r#type: fact(Scalar::Varchar, false) },
+            SqlExpr::TypeNameLit {
+                scalar: Scalar::Date,
+                r#type: fact(Scalar::Varchar, false),
+            },
         ],
     );
     assert_eq!(h2(e), "length(CAST(CAST(t.d AS VARCHAR) AS VARCHAR)) = 10");
@@ -227,7 +325,10 @@ fn a_typeof_date_test_is_a_length_test() {
 #[test]
 fn a_sorted_or_filtered_collect_is_the_collect_reordered_or_filtered() {
     let key = build::sort_key(
-        SqlExpr::RowOrder { table: Some("t".to_owned()), r#type: fact(Scalar::Bigint, false) },
+        SqlExpr::RowOrder {
+            table: Some("t".to_owned()),
+            r#type: fact(Scalar::Bigint, false),
+        },
         true,
         None,
         None,
@@ -251,7 +352,13 @@ fn literal_reductions_fold_null_ignoring_in_the_reduction_s_type() {
         sql_e(&folded),
         "CAST(CASE WHEN 1 IS NULL AND NULL IS NULL THEN NULL ELSE coalesce(1, 0) + coalesce(NULL, 0) END AS HUGEINT)"
     );
-    assert_eq!(*folded.r#type(), TypeFact::Typed { r#type: ty(Scalar::Hugeint), nullable: true });
+    assert_eq!(
+        *folded.r#type(),
+        TypeFact::Typed {
+            r#type: ty(Scalar::Hugeint),
+            nullable: true
+        }
+    );
     assert_eq!(
         h2(call(SqlFn::ListProduct, vec![array_lit(vec![int_lit(2), int_lit(3)])])),
         // the 1.0 factor is a DECIMAL(2,1), so the product's chain is DECIMAL(38,1): cast to the call's DOUBLE
@@ -275,11 +382,17 @@ fn a_list_read_is_a_compile_time_pick_a_coalesce_a_split_part_or_a_limited_colle
     let not_null = build::lambda(&["x"], call(SqlFn::IsNotNull, vec![derived(None, "x")]));
     let first = call(
         SqlFn::ListFilter,
-        vec![array_lit(vec![c("t", "a", Scalar::Varchar), c("t", "b", Scalar::Varchar)]), not_null],
+        vec![
+            array_lit(vec![c("t", "a", Scalar::Varchar), c("t", "b", Scalar::Varchar)]),
+            not_null,
+        ],
     );
     assert_eq!(h2(call(SqlFn::ListGet, vec![first, int_lit(1)])), "coalesce(t.a, t.b)");
     let split = || call(SqlFn::Split, vec![c("t", "s", Scalar::Varchar), s_lit("-")]);
-    assert_eq!(h2(call(SqlFn::ListGet, vec![split(), int_lit(1)])), "split_part(t.s, '-', 1)");
+    assert_eq!(
+        h2(call(SqlFn::ListGet, vec![split(), int_lit(1)])),
+        "split_part(t.s, '-', 1)"
+    );
     assert_eq!(
         h2(call(SqlFn::ListGet, vec![split(), int_lit(3)])),
         "CASE WHEN length(CAST(t.s AS VARCHAR)) - length(CAST(replace(t.s, '-', '') AS VARCHAR)) < 2 THEN NULL ELSE \
@@ -300,31 +413,56 @@ fn a_list_read_is_a_compile_time_pick_a_coalesce_a_split_part_or_a_limited_colle
 
 #[test]
 fn a_literal_read_at_a_computed_position_is_a_case_typed_by_the_channel() {
-    let channel =
-        cast(array_lit(vec![s_lit("x"), s_lit("y")]), SqlType::Array { element: Box::new(ty(Scalar::Varchar)) });
+    let channel = cast(
+        array_lit(vec![s_lit("x"), s_lit("y")]),
+        SqlType::Array {
+            element: Box::new(ty(Scalar::Varchar)),
+        },
+    );
     let r = on(H2, call(SqlFn::ListGet, vec![channel, c("t", "i", Scalar::Bigint)])).into_inner();
-    assert_eq!(sql_e(&r), "CAST(CASE WHEN t.i = 1 THEN 'x' WHEN t.i = 2 THEN 'y' END AS VARCHAR)");
+    assert_eq!(
+        sql_e(&r),
+        "CAST(CASE WHEN t.i = 1 THEN 'x' WHEN t.i = 2 THEN 'y' END AS VARCHAR)"
+    );
     assert_eq!(*r.r#type(), fact(Scalar::Varchar, true));
 }
 
 #[test]
 fn membership_is_an_or_chain_pushed_through_concat_and_case_or_an_exists() {
     let k = || c("t", "k", Scalar::Bigint);
-    assert_eq!(h2(build::membership(k(), array_lit(vec![int_lit(1), null_lit(), int_lit(2)]))), "t.k = 1 OR t.k = 2");
+    assert_eq!(
+        h2(build::membership(
+            k(),
+            array_lit(vec![int_lit(1), null_lit(), int_lit(2)])
+        )),
+        "t.k = 1 OR t.k = 2"
+    );
     assert_eq!(h2(build::membership(k(), array_lit(vec![null_lit()]))), "FALSE");
-    let concat = call(SqlFn::ListConcat, vec![array_lit(vec![int_lit(1)]), array_lit(vec![int_lit(2)])]);
+    let concat = call(
+        SqlFn::ListConcat,
+        vec![array_lit(vec![int_lit(1)]), array_lit(vec![int_lit(2)])],
+    );
     // a concatenation of literals folds first (bottom-up), so push the arms through a CASE
     let branched = build::case(
         vec![when(c("t", "b", Scalar::Boolean), array_lit(vec![int_lit(1)]))],
         Some(array_lit(vec![int_lit(2), int_lit(3)])),
     );
-    assert_eq!(h2(build::membership(k(), branched)), "CASE WHEN t.b THEN t.k = 1 ELSE t.k = 2 OR t.k = 3 END");
-    assert_eq!(membership_rule(&k(), &concat).unwrap().map(|e| sql_e(&e)).as_deref(), Some("t.k = 1 OR t.k = 2"));
+    assert_eq!(
+        h2(build::membership(k(), branched)),
+        "CASE WHEN t.b THEN t.k = 1 ELSE t.k = 2 OR t.k = 3 END"
+    );
+    assert_eq!(
+        membership_rule(&k(), &concat).unwrap().map(|e| sql_e(&e)).as_deref(),
+        Some("t.k = 1 OR t.k = 2")
+    );
     let not_null = build::lambda(&["x"], call(SqlFn::IsNotNull, vec![derived(None, "x")]));
     let filtered = call(SqlFn::ListFilter, vec![collect(Vec::new()), not_null]);
     // the collect's filter folds into it first; membership then reads the collect
     let r = on(H2, build::membership(k(), filtered)).into_inner();
-    assert_eq!(sql_e(&r), "EXISTS (SELECT 1 FROM T AS t WHERE t.v IS NOT NULL AND t.v = t.k)");
+    assert_eq!(
+        sql_e(&r),
+        "EXISTS (SELECT 1 FROM T AS t WHERE t.v IS NOT NULL AND t.v = t.k)"
+    );
     assert_eq!(
         h2(build::membership(k(), build::compact_list(collect(Vec::new())))),
         "EXISTS (SELECT 1 FROM T AS t WHERE t.v = t.k)"
@@ -341,7 +479,10 @@ fn membership_is_an_or_chain_pushed_through_concat_and_case_or_an_exists() {
 fn a_reduction_fuses_into_its_collect() {
     let sep = s_lit(",");
     let key = build::sort_key(
-        SqlExpr::RowOrder { table: Some("t".to_owned()), r#type: fact(Scalar::Bigint, false) },
+        SqlExpr::RowOrder {
+            table: Some("t".to_owned()),
+            r#type: fact(Scalar::Bigint, false),
+        },
         true,
         None,
         None,
@@ -354,24 +495,38 @@ fn a_reduction_fuses_into_its_collect() {
     // the element transform substitutes into the collected value
     let upper = build::lambda(&["x"], call(SqlFn::Upper, vec![derived(None, "x")]));
     let transformed = call(SqlFn::ListTransform, vec![collect(vec![key.clone()]), upper.clone()]);
-    assert_eq!(h2(agg(transformed)), "(SELECT STRING_AGG(upper(t.v), ',' ORDER BY t.rowid ASC) AS l FROM T AS t)");
+    assert_eq!(
+        h2(agg(transformed)),
+        "(SELECT STRING_AGG(upper(t.v), ',' ORDER BY t.rowid ASC) AS l FROM T AS t)"
+    );
     // a sort between: the walk is bottom-up, so the sort of the collect is already the collect reordered (by its
     // value, its own keys the tiebreak) when the reduction fuses
-    let sorted = call(SqlFn::ListTransform, vec![call(SqlFn::ListSort, vec![collect(vec![key])]), upper]);
+    let sorted = call(
+        SqlFn::ListTransform,
+        vec![call(SqlFn::ListSort, vec![collect(vec![key])]), upper],
+    );
     assert_eq!(
         h2(agg(sorted)),
         "(SELECT STRING_AGG(upper(t.v), ',' ORDER BY t.v ASC NULLS LAST, t.rowid ASC) AS l FROM T AS t)"
     );
     // a sort the walk has not reordered (no collect beneath it) is the fuse's own: ORDER BY the raw value
     assert_eq!(
-        fuse(AggFn::StringAgg, &call(SqlFn::ListSort, vec![collect(Vec::new())]), &[s_lit(",")], true)
-            .unwrap()
-            .map(|e| sql_e(&e))
-            .as_deref(),
+        fuse(
+            AggFn::StringAgg,
+            &call(SqlFn::ListSort, vec![collect(Vec::new())]),
+            &[s_lit(",")],
+            true
+        )
+        .unwrap()
+        .map(|e| sql_e(&e))
+        .as_deref(),
         Some("(SELECT STRING_AGG(t.v, ',' ORDER BY t.v ASC) AS l FROM T AS t)")
     );
     // a LIST_* reducer is the reduction
-    assert_eq!(h2(call(SqlFn::ListMax, vec![collect(Vec::new())])), "(SELECT MAX(t.v) AS l FROM T AS t)");
+    assert_eq!(
+        h2(call(SqlFn::ListMax, vec![collect(Vec::new())])),
+        "(SELECT MAX(t.v) AS l FROM T AS t)"
+    );
     // a literal collection joins as a CONCAT chain, unless literal folds are off (the engine text's)
     let lit = array_lit(vec![s_lit("a"), s_lit("b")]);
     assert_eq!(h2(agg(lit.clone())), "concat('a', ',', 'b')");
@@ -384,14 +539,23 @@ fn a_reduction_fuses_into_its_collect() {
 fn a_row_major_cell_collect_joins_per_row_or_sorts_globally() {
     let cells = array_lit(vec![c("t", "a", Scalar::Varchar), c("t", "b", Scalar::Varchar)]);
     let list = SqlExpr::Reducer(build::reducer(AggFn::List, vec![cells], false, Vec::new()));
-    let o = build::output_col("l", SqlType::Array { element: Box::new(ty(Scalar::Varchar)) }, true);
+    let o = build::output_col(
+        "l",
+        SqlType::Array {
+            element: Box::new(ty(Scalar::Varchar)),
+        },
+        true,
+    );
     let coll = scalar_subquery(build::query(sel(
         vec![p(list, "l", o)],
         table("T", "t", &[("a", Scalar::Varchar), ("b", Scalar::Varchar)]),
     )));
     let flat = || call(SqlFn::ListFlatten, vec![coll.clone()]);
     let agg = |x: SqlExpr| build::reduce_collection(AggFn::StringAgg, x, vec![s_lit("|")]);
-    assert_eq!(h2(agg(flat())), "(SELECT STRING_AGG(concat(t.a, '|', t.b), '|') AS l FROM T AS t)");
+    assert_eq!(
+        h2(agg(flat())),
+        "(SELECT STRING_AGG(concat(t.a, '|', t.b), '|') AS l FROM T AS t)"
+    );
     assert_eq!(
         h2(agg(call(SqlFn::ListSort, vec![flat()]))),
         "(SELECT STRING_AGG(_cells.v, '|' ORDER BY _cells.v ASC) FROM ( SELECT t.a AS v FROM T AS t UNION ALL SELECT t.b AS v FROM T AS t ) AS _cells)"
@@ -404,25 +568,39 @@ fn a_through_subselect_cell_collect_joins_in_the_inner_scope() {
         vec![p(
             array_lit(vec![c("t", "a", Scalar::Varchar), c("t", "b", Scalar::Varchar)]),
             "cs",
-            build::output_col("cs", SqlType::Array { element: Box::new(ty(Scalar::Varchar)) }, false),
+            build::output_col(
+                "cs",
+                SqlType::Array {
+                    element: Box::new(ty(Scalar::Varchar)),
+                },
+                false,
+            ),
         )],
         table("T", "t", &[("a", Scalar::Varchar), ("b", Scalar::Varchar)]),
     );
     let read = typed_column(
         Some("i"),
         "cs",
-        SqlType::Array { element: Box::new(ty(Scalar::Varchar)) },
+        SqlType::Array {
+            element: Box::new(ty(Scalar::Varchar)),
+        },
         false,
         Origin::Derived,
     );
     let list = SqlExpr::Reducer(build::reducer(AggFn::List, vec![read], false, Vec::new()));
     let o = build::output_col(
         "l",
-        SqlType::Array { element: Box::new(SqlType::Array { element: Box::new(ty(Scalar::Varchar)) }) },
+        SqlType::Array {
+            element: Box::new(SqlType::Array {
+                element: Box::new(ty(Scalar::Varchar)),
+            }),
+        },
         true,
     );
-    let coll =
-        scalar_subquery(build::query(sel(vec![p(list, "l", o)], build::subselect(build::query(inner), "i", None))));
+    let coll = scalar_subquery(build::query(sel(
+        vec![p(list, "l", o)],
+        build::subselect(build::query(inner), "i", None),
+    )));
     let agg = |x: SqlExpr| build::reduce_collection(AggFn::StringAgg, x, vec![s_lit("|")]);
     assert_eq!(
         h2(agg(call(SqlFn::ListFlatten, vec![coll.clone()]))),
@@ -440,18 +618,43 @@ fn a_singleton_flatten_unwraps_to_a_collect_of_the_elements() {
         vec![p(
             array_lit(vec![c("t", "d", Scalar::Date)]),
             "ds",
-            build::output_col("ds", SqlType::Array { element: Box::new(ty(Scalar::Date)) }, false),
+            build::output_col(
+                "ds",
+                SqlType::Array {
+                    element: Box::new(ty(Scalar::Date)),
+                },
+                false,
+            ),
         )],
         table("T", "t", &[("d", Scalar::Date)]),
     );
-    let read =
-        typed_column(Some("i"), "ds", SqlType::Array { element: Box::new(ty(Scalar::Date)) }, false, Origin::Derived);
+    let read = typed_column(
+        Some("i"),
+        "ds",
+        SqlType::Array {
+            element: Box::new(ty(Scalar::Date)),
+        },
+        false,
+        Origin::Derived,
+    );
     let list = SqlExpr::Reducer(build::reducer(AggFn::List, vec![read], false, Vec::new()));
-    let o = build::output_col("l", SqlType::Array { element: Box::new(ty(Scalar::Date)) }, true);
-    let coll =
-        scalar_subquery(build::query(sel(vec![p(list, "l", o)], build::subselect(build::query(inner), "i", None))));
+    let o = build::output_col(
+        "l",
+        SqlType::Array {
+            element: Box::new(ty(Scalar::Date)),
+        },
+        true,
+    );
+    let coll = scalar_subquery(build::query(sel(
+        vec![p(list, "l", o)],
+        build::subselect(build::query(inner), "i", None),
+    )));
     assert_eq!(
-        h2(build::reduce_collection(AggFn::Min, call(SqlFn::ListFlatten, vec![coll]), Vec::new())),
+        h2(build::reduce_collection(
+            AggFn::Min,
+            call(SqlFn::ListFlatten, vec![coll]),
+            Vec::new()
+        )),
         "(SELECT MIN(i.ds) AS l FROM ( SELECT t.d AS ds FROM T AS t ) AS i)"
     );
 }
@@ -459,7 +662,14 @@ fn a_singleton_flatten_unwraps_to_a_collect_of_the_elements() {
 // ---- the select rules: explode placements, FULL OUTER emulation
 
 fn unnest_select(arg: SqlExpr) -> SqlSelect {
-    sel(vec![p(call(SqlFn::Unnest, vec![arg]), "x", out("x", Scalar::Bigint, true, Origin::Derived))], SqlSource::Dual)
+    sel(
+        vec![p(
+            call(SqlFn::Unnest, vec![arg]),
+            "x",
+            out("x", Scalar::Bigint, true, Origin::Derived),
+        )],
+        SqlSource::Dual,
+    )
 }
 
 #[test]
@@ -473,8 +683,16 @@ fn an_explode_of_a_literal_is_a_union_of_rows() {
     let q = h2_q(unnest_select(null_lit()));
     assert_eq!(sql_q(&q), "SELECT CAST(NULL AS BIGINT) AS x WHERE FALSE");
     // a JSON array cast folds to its literal first
-    let json = cast(cast(s_lit("[3, 4]"), ty(Scalar::Json)), SqlType::Array { element: Box::new(ty(Scalar::Bigint)) });
-    assert_eq!(sql_q(&h2_q(unnest_select(json))), "SELECT 3 AS x UNION ALL SELECT 4 AS x");
+    let json = cast(
+        cast(s_lit("[3, 4]"), ty(Scalar::Json)),
+        SqlType::Array {
+            element: Box::new(ty(Scalar::Bigint)),
+        },
+    );
+    assert_eq!(
+        sql_q(&h2_q(unnest_select(json))),
+        "SELECT 3 AS x UNION ALL SELECT 4 AS x"
+    );
     // concatenated arms flatten into one union; a compaction is a no-op over rows
     let concat = build::compact_list(call(
         SqlFn::ListConcat,
@@ -512,31 +730,60 @@ fn an_explode_through_a_subselect_reads_its_cells() {
         vec![p(
             array_lit(vec![c("t", "a", Scalar::Bigint), c("t", "b", Scalar::Bigint)]),
             "cs",
-            build::output_col("cs", SqlType::Array { element: Box::new(ty(Scalar::Bigint)) }, false),
+            build::output_col(
+                "cs",
+                SqlType::Array {
+                    element: Box::new(ty(Scalar::Bigint)),
+                },
+                false,
+            ),
         )],
         table("T", "t", &[("a", Scalar::Bigint), ("b", Scalar::Bigint)]),
     );
-    let read =
-        typed_column(Some("i"), "cs", SqlType::Array { element: Box::new(ty(Scalar::Bigint)) }, false, Origin::Derived);
+    let read = typed_column(
+        Some("i"),
+        "cs",
+        SqlType::Array {
+            element: Box::new(ty(Scalar::Bigint)),
+        },
+        false,
+        Origin::Derived,
+    );
     let s = sel(
-        vec![p(call(SqlFn::Unnest, vec![read]), "x", out("x", Scalar::Bigint, true, Origin::Derived))],
+        vec![p(
+            call(SqlFn::Unnest, vec![read]),
+            "x",
+            out("x", Scalar::Bigint, true, Origin::Derived),
+        )],
         build::subselect(build::query(inner), "i", None),
     );
-    assert_eq!(sql_q(&h2_q(s)), "SELECT t.a AS x FROM T AS t UNION ALL SELECT t.b AS x FROM T AS t");
+    assert_eq!(
+        sql_q(&h2_q(s)),
+        "SELECT t.a AS x FROM T AS t UNION ALL SELECT t.b AS x FROM T AS t"
+    );
 }
 
 /// `LIST_FILTER(list, (x, i) -> LIST_POSITION(list's keys, key(x)) = i)`: the ordered dedup.
 fn dedup(list: SqlExpr, key: SqlExpr) -> SqlExpr {
     let keep = build::lambda(
         &["x", "i"],
-        call(SqlFn::Equal, vec![call(SqlFn::ListPosition, vec![derived(None, "keys"), key]), derived(None, "i")]),
+        call(
+            SqlFn::Equal,
+            vec![
+                call(SqlFn::ListPosition, vec![derived(None, "keys"), key]),
+                derived(None, "i"),
+            ],
+        ),
     );
     call(SqlFn::ListFilter, vec![list, keep])
 }
 
 #[test]
 fn an_ordered_dedup_explodes_to_the_first_row_of_each_key() {
-    let q = h2_q(unnest_select(dedup(array_lit(vec![int_lit(1), int_lit(2), int_lit(1)]), derived(None, "x"))));
+    let q = h2_q(unnest_select(dedup(
+        array_lit(vec![int_lit(1), int_lit(2), int_lit(1)]),
+        derived(None, "x"),
+    )));
     let text = sql_q(&q);
     assert_eq!(
         text,
@@ -551,7 +798,10 @@ fn an_ordered_dedup_explodes_to_the_first_row_of_each_key() {
     let q = h2_q(unnest_select(dedup(collect(vec![key]), derived(None, "x"))));
     assert_eq!(sql_q(&q), "SELECT DISTINCT t.v AS x FROM T AS t");
     // by a key: one row per key
-    let q = h2_q(unnest_select(dedup(collect(Vec::new()), call(SqlFn::Lower, vec![derived(None, "x")]))));
+    let q = h2_q(unnest_select(dedup(
+        collect(Vec::new()),
+        call(SqlFn::Lower, vec![derived(None, "x")]),
+    )));
     assert_eq!(
         sql_q(&q),
         "SELECT dedup_first.x FROM ( SELECT dedup_src.x AS x, ROW_NUMBER() OVER (PARTITION BY dedup_src.__dd_key) AS \
@@ -564,12 +814,23 @@ fn an_ordered_dedup_explodes_to_the_first_row_of_each_key() {
 fn a_full_outer_join_is_a_left_branch_and_an_anti_joined_right_branch() {
     let t = table("T", "t", &[("id", Scalar::Bigint)]);
     let u = table("U", "u", &[("id", Scalar::Bigint)]);
-    let cond = call(SqlFn::Equal, vec![c("t", "id", Scalar::Bigint), c("u", "id", Scalar::Bigint)]);
+    let cond = call(
+        SqlFn::Equal,
+        vec![c("t", "id", Scalar::Bigint), c("u", "id", Scalar::Bigint)],
+    );
     let full = build::join(t, u, JoinKind::Full, Some(cond)).unwrap();
     let s = sel(
         vec![
-            p(c("t", "id", Scalar::Bigint), "a", out("a", Scalar::Bigint, true, Origin::Derived)),
-            p(c("u", "id", Scalar::Bigint), "b", out("b", Scalar::Bigint, true, Origin::Derived)),
+            p(
+                c("t", "id", Scalar::Bigint),
+                "a",
+                out("a", Scalar::Bigint, true, Origin::Derived),
+            ),
+            p(
+                c("u", "id", Scalar::Bigint),
+                "b",
+                out("b", Scalar::Bigint, true, Origin::Derived),
+            ),
         ],
         full,
     );
@@ -585,15 +846,24 @@ fn a_full_outer_join_is_a_left_branch_and_an_anti_joined_right_branch() {
     assert!(!pg.is_new());
     // the order and the limit belong to the union: keyed by output name
     let ordered = build::with_limit(
-        build::with_order_by(s.clone(), vec![build::sort_key(c("u", "id", Scalar::Bigint), false, None, None)])
-            .unwrap(),
+        build::with_order_by(
+            s.clone(),
+            vec![build::sort_key(c("u", "id", Scalar::Bigint), false, None, None)],
+        )
+        .unwrap(),
         Some(5),
     )
     .unwrap();
     let q = h2_q(ordered);
     let text = sql_q(&q);
-    assert!(text.starts_with("SELECT * FROM ( SELECT t.id AS a, u.id AS b FROM T AS t LEFT OUTER JOIN"), "{text}");
-    assert!(text.ends_with(") AS _fullu ORDER BY _fullu.b DESC NULLS FIRST LIMIT 5"), "{text}");
+    assert!(
+        text.starts_with("SELECT * FROM ( SELECT t.id AS a, u.id AS b FROM T AS t LEFT OUTER JOIN"),
+        "{text}"
+    );
+    assert!(
+        text.ends_with(") AS _fullu ORDER BY _fullu.b DESC NULLS FIRST LIMIT 5"),
+        "{text}"
+    );
     // a key naming no output is refused
     let bad = build::with_order_by(s, vec![build::sort_key(c("t", "zz", Scalar::Bigint), true, None, None)]).unwrap();
     let err = rewrite(&mut CarrierStrategies::new(H2), build::query(bad)).unwrap_err();
@@ -611,7 +881,11 @@ fn pivot(usings: Vec<PivotUsing>, values: Vec<SqlExpr>) -> SqlSource {
         source: Box::new(table(
             "S",
             "s",
-            &[("city", Scalar::Varchar), ("yr", Scalar::Bigint), ("qty", Scalar::Bigint)],
+            &[
+                ("city", Scalar::Varchar),
+                ("yr", Scalar::Bigint),
+                ("qty", Scalar::Bigint),
+            ],
         )),
         on: vec![c("s", "yr", Scalar::Bigint)],
         r#in: values,
@@ -635,10 +909,15 @@ fn sum_qty(r#type: Option<SqlType>) -> PivotUsing {
 
 #[test]
 fn a_static_pivot_is_a_group_by_with_a_filtered_aggregate_per_value() {
-    let pv = pivot(vec![sum_qty(Some(ty(Scalar::Hugeint)))], vec![int_lit(2011), int_lit(2012)]);
+    let pv = pivot(
+        vec![sum_qty(Some(ty(Scalar::Hugeint)))],
+        vec![int_lit(2011), int_lit(2012)],
+    );
     let r = rewrite_source(&mut CarrierStrategies::new(H2), pv).unwrap();
     assert!(r.is_new());
-    let SqlSource::Subselect { inner, alias, .. } = r.into_inner() else { panic!("a subselect") };
+    let SqlSource::Subselect { inner, alias, .. } = r.into_inner() else {
+        panic!("a subselect")
+    };
     assert_eq!(alias, "pv");
     assert_eq!(
         sql_q(&inner),
@@ -660,15 +939,25 @@ fn a_static_pivot_is_a_group_by_with_a_filtered_aggregate_per_value() {
     );
     // a dynamic pivot (no values) stays for the renderer's wall
     let dynamic = pivot(vec![sum_qty(None)], Vec::new());
-    assert!(!rewrite_source(&mut CarrierStrategies::new(H2), dynamic).unwrap().is_new());
+    assert!(
+        !rewrite_source(&mut CarrierStrategies::new(H2), dynamic)
+            .unwrap()
+            .is_new()
+    );
 }
 
 #[test]
 fn a_pivot_value_s_column_name_is_its_literal_text() {
     assert_eq!(lit_text(&s_lit("NY")), "NY");
     assert_eq!(lit_text(&bool_lit(true)), "true");
-    let date = SqlExpr::DateLit { iso: "2020-01-01".to_owned(), r#type: fact(Scalar::Date, false) };
-    assert_eq!(lit_text(&date), "DateLit[iso=2020-01-01, type=Typed[type=DATE, nullable=false]]");
+    let date = SqlExpr::DateLit {
+        iso: "2020-01-01".to_owned(),
+        r#type: fact(Scalar::Date, false),
+    };
+    assert_eq!(
+        lit_text(&date),
+        "DateLit[iso=2020-01-01, type=Typed[type=DATE, nullable=false]]"
+    );
     assert_eq!(
         lit_text(&build::float_lit(1.5)),
         "FloatLit[value=1.5, type=Typed[type=Decimal[precision=2, scale=1], nullable=false]]"
@@ -682,13 +971,21 @@ fn an_asof_join_is_a_left_join_pinned_to_the_extreme_key() {
     let cond = call(
         SqlFn::And,
         vec![
-            call(SqlFn::Equal, vec![c("t", "k", Scalar::Bigint), c("q", "k", Scalar::Bigint)]),
-            call(SqlFn::GreaterEqual, vec![c("t", "ts", Scalar::Timestamp), c("q", "ts", Scalar::Timestamp)]),
+            call(
+                SqlFn::Equal,
+                vec![c("t", "k", Scalar::Bigint), c("q", "k", Scalar::Bigint)],
+            ),
+            call(
+                SqlFn::GreaterEqual,
+                vec![c("t", "ts", Scalar::Timestamp), c("q", "ts", Scalar::Timestamp)],
+            ),
         ],
     );
     let asof = build::join(t, q, JoinKind::AsofLeft, Some(cond)).unwrap();
     assert_eq!(as_of_key(&asof).unwrap(), Some((c("q", "ts", Scalar::Timestamp), true)));
-    let r = rewrite_source(&mut CarrierStrategies::new(H2), asof).unwrap().into_inner();
+    let r = rewrite_source(&mut CarrierStrategies::new(H2), asof)
+        .unwrap()
+        .into_inner();
     let s = sel(vec![build::projection(build::star(None), None, None).unwrap()], r);
     assert_eq!(
         sql_q(&build::query(s)),
@@ -702,10 +999,16 @@ fn an_asof_join_is_a_left_join_pinned_to_the_extreme_key() {
         t,
         q,
         JoinKind::AsofLeft,
-        Some(call(SqlFn::Less, vec![c("t", "ts", Scalar::Timestamp), c("q", "ts", Scalar::Timestamp)])),
+        Some(call(
+            SqlFn::Less,
+            vec![c("t", "ts", Scalar::Timestamp), c("q", "ts", Scalar::Timestamp)],
+        )),
     )
     .unwrap();
-    assert_eq!(as_of_key(&below).unwrap(), Some((c("q", "ts", Scalar::Timestamp), false)));
+    assert_eq!(
+        as_of_key(&below).unwrap(),
+        Some((c("q", "ts", Scalar::Timestamp), false))
+    );
 }
 
 // ---- the helpers' identity
@@ -716,7 +1019,12 @@ fn a_helper_that_changes_nothing_hands_the_node_back_and_a_rebuild_keeps_withchi
     assert_eq!(remapped(&e, "u", "_x").unwrap(), None);
     assert_eq!(sql_e(&remap_alias(&e, "t", "_x").unwrap()), "_x.a + 1");
     // withChildren keeps an array literal's given fact and a lambda's own (SqlRewriter's constructors do not)
-    let given = TypeFact::Typed { r#type: SqlType::Array { element: Box::new(ty(Scalar::Varchar)) }, nullable: false };
+    let given = TypeFact::Typed {
+        r#type: SqlType::Array {
+            element: Box::new(ty(Scalar::Varchar)),
+        },
+        nullable: false,
+    };
     let arr = build::array_lit_given(vec![derived(None, "p")], given.clone());
     let lam = SqlExpr::Lambda(Lambda {
         params: vec!["y".to_owned()],
@@ -724,24 +1032,39 @@ fn a_helper_that_changes_nothing_hands_the_node_back_and_a_rebuild_keeps_withchi
         r#type: fact(Scalar::Json, false),
     });
     let substituted = subst(&lam, "p", &null_lit()).unwrap();
-    let SqlExpr::Lambda(l) = &substituted else { panic!("a lambda") };
+    let SqlExpr::Lambda(l) = &substituted else {
+        panic!("a lambda")
+    };
     assert_eq!(l.r#type, fact(Scalar::Json, false));
     assert_eq!(*l.body.r#type(), given);
     // a stored read's column replaced by a non-column is Java's refusal
-    let read =
-        build::stored_read(build::plain_column(None, "p"), ColumnType::Plain { kind: lite_sql::ColumnKind::Other });
+    let read = build::stored_read(
+        build::plain_column(None, "p"),
+        ColumnType::Plain {
+            kind: lite_sql::ColumnKind::Other,
+        },
+    );
     let err = subst(&read, "p", &int_lit(1)).unwrap_err();
     assert_eq!(err.class, Refusal::ILLEGAL_STATE);
-    assert!(err.message.starts_with("a stored read reads a table column, not IntLit"));
+    assert!(
+        err.message
+            .starts_with("a stored read reads a table column, not IntLit")
+    );
     // a qualified parameter read is the field of the value, folded over a literal struct
-    let point = build::struct_lit(vec![StructLitField { name: "a".to_owned(), value: int_lit(9), declared: None }]);
+    let point = build::struct_lit(vec![StructLitField {
+        name: "a".to_owned(),
+        value: int_lit(9),
+        declared: None,
+    }]);
     assert_eq!(subst(&derived(Some("p"), "a"), "p", &point).unwrap(), int_lit(9));
 }
 
 #[test]
 fn copies_re_alias_the_simple_sources_alone() {
     let t = table("T", "t", &[("a", Scalar::Bigint)]);
-    let SqlSource::Table { alias, outputs, .. } = copy_with_alias(&t, "_c").unwrap() else { panic!("a table") };
+    let SqlSource::Table { alias, outputs, .. } = copy_with_alias(&t, "_c").unwrap() else {
+        panic!("a table")
+    };
     assert_eq!((alias.as_str(), outputs.len()), ("_c", 1));
     let j = build::join(t.clone(), t, JoinKind::Cross, None).unwrap();
     assert_eq!(copy_with_alias(&j, "_c"), None);
@@ -750,7 +1073,10 @@ fn copies_re_alias_the_simple_sources_alone() {
 #[test]
 fn a_generated_slot_is_the_pivot_s_own_or_the_using_s_typed_result() {
     let outs = vec![out("2011__|__total", Scalar::Integer, false, Origin::Derived)];
-    assert_eq!(generated_slot(&outs, &sum_qty(None), "2011__|__total").unwrap(), outs[0]);
+    assert_eq!(
+        generated_slot(&outs, &sum_qty(None), "2011__|__total").unwrap(),
+        outs[0]
+    );
     assert_eq!(
         generated_slot(&outs, &sum_qty(Some(ty(Scalar::Hugeint))), "2012__|__total").unwrap(),
         build::output_col("2012__|__total", ty(Scalar::Hugeint), true)
@@ -763,7 +1089,10 @@ fn a_dedup_over_a_union_with_no_single_slot_is_a_distinct_star() {
     let s = sel(
         vec![
             build::projection(
-                call(SqlFn::Unnest, vec![dedup(array_lit(vec![int_lit(1), int_lit(1)]), derived(None, "x"))]),
+                call(
+                    SqlFn::Unnest,
+                    vec![dedup(array_lit(vec![int_lit(1), int_lit(1)]), derived(None, "x"))],
+                ),
                 None,
                 None,
             )
@@ -771,7 +1100,10 @@ fn a_dedup_over_a_union_with_no_single_slot_is_a_distinct_star() {
         ],
         SqlSource::Dual,
     );
-    assert_eq!(sql_q(&h2_q(s)), "SELECT DISTINCT * FROM ( SELECT 1 UNION ALL SELECT 1 ) AS dedup_src");
+    assert_eq!(
+        sql_q(&h2_q(s)),
+        "SELECT DISTINCT * FROM ( SELECT 1 UNION ALL SELECT 1 ) AS dedup_src"
+    );
 }
 
 #[test]
@@ -782,5 +1114,8 @@ fn a_pivot_whose_using_takes_no_argument_stays() {
         r#type: Some(ty(Scalar::Bigint)),
     };
     let pv = pivot(vec![count], vec![int_lit(2011)]);
-    assert_eq!(rewrite_source(&mut CarrierStrategies::new(H2), pv.clone()).unwrap(), Rw::Same(pv));
+    assert_eq!(
+        rewrite_source(&mut CarrierStrategies::new(H2), pv.clone()).unwrap(),
+        Rw::Same(pv)
+    );
 }

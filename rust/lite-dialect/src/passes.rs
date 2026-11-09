@@ -56,7 +56,11 @@ pub struct FloatPrintExpansion {
 
 impl FloatPrintExpansion {
     pub fn new(bind: bool) -> FloatPrintExpansion {
-        FloatPrintExpansion { bind, fresh: 0, spelled: Vec::new() }
+        FloatPrintExpansion {
+            bind,
+            fresh: 0,
+            spelled: Vec::new(),
+        }
     }
 
     fn bound(&mut self, x: SqlExpr) -> Result<SqlExpr, Refusal> {
@@ -72,7 +76,10 @@ impl FloatPrintExpansion {
         let value = build::select_of(vec![projection(x, "v", double())?], SqlSource::Dual, Vec::new())?;
         let v = column(&inner, "v", double());
         let texted = build::select_of(
-            vec![projection(v.clone(), "v", double())?, projection(cast(v, varchar()), "t", varchar())?],
+            vec![
+                projection(v.clone(), "v", double())?,
+                projection(cast(v, varchar()), "t", varchar())?,
+            ],
             build::subselect(build::query(value), &inner, None),
             Vec::new(),
         )?;
@@ -87,7 +94,13 @@ impl FloatPrintExpansion {
 }
 
 fn is_double(x: &SqlExpr) -> bool {
-    matches!(x.r#type(), TypeFact::Typed { r#type: SqlType::Scalar(Scalar::Double), .. })
+    matches!(
+        x.r#type(),
+        TypeFact::Typed {
+            r#type: SqlType::Scalar(Scalar::Double),
+            ..
+        }
+    )
 }
 
 impl SqlRewriter for FloatPrintExpansion {
@@ -96,7 +109,12 @@ impl SqlRewriter for FloatPrintExpansion {
     }
 
     fn expr(&mut self, e: SqlExpr) -> Result<Rw<SqlExpr>, Refusal> {
-        let SqlExpr::Call { r#fn: SqlFn::FloatPrint, args, .. } = &e else {
+        let SqlExpr::Call {
+            r#fn: SqlFn::FloatPrint,
+            args,
+            ..
+        } = &e
+        else {
             return Ok(Rw::Same(e));
         };
         // Java's `expr(c.args().get(0))`: this hook over the (already walked) argument
@@ -127,7 +145,11 @@ pub struct FloatCanonExpansion {
 
 impl FloatCanonExpansion {
     pub fn new(bind_text: bool) -> FloatCanonExpansion {
-        FloatCanonExpansion { bind_text, fresh: 0, spelled: Vec::new() }
+        FloatCanonExpansion {
+            bind_text,
+            fresh: 0,
+            spelled: Vec::new(),
+        }
     }
 }
 
@@ -137,7 +159,12 @@ impl SqlRewriter for FloatCanonExpansion {
     }
 
     fn expr(&mut self, e: SqlExpr) -> Result<Rw<SqlExpr>, Refusal> {
-        let SqlExpr::Call { r#fn: SqlFn::FloatCanon, args, .. } = &e else {
+        let SqlExpr::Call {
+            r#fn: SqlFn::FloatCanon,
+            args,
+            ..
+        } = &e
+        else {
             return Ok(Rw::Same(e));
         };
         if !self.bind_text {
@@ -158,7 +185,11 @@ impl SqlRewriter for FloatCanonExpansion {
         )?;
         let spelled = float_text::canon_of(reference);
         let used = build::select_of(
-            vec![build::projection(spelled, Some("v".to_owned()), Some(build::output_col("v", varchar(), true)))?],
+            vec![build::projection(
+                spelled,
+                Some("v".to_owned()),
+                Some(build::output_col("v", varchar(), true)),
+            )?],
             build::subselect(build::query(bind), &alias, None),
             Vec::new(),
         )?;
@@ -192,7 +223,10 @@ fn encode(r: &Reducer) -> SqlExpr {
     if ascending {
         return interpolate(value, p, r.distinct);
     }
-    call(SqlFn::Negate, vec![interpolate(call(SqlFn::Negate, vec![value]), p, r.distinct)])
+    call(
+        SqlFn::Negate,
+        vec![interpolate(call(SqlFn::Negate, vec![value]), p, r.distinct)],
+    )
 }
 
 fn reducer_expr(f: AggFn, value: SqlExpr, distinct: bool) -> SqlExpr {
@@ -204,7 +238,11 @@ fn discrete(value: SqlExpr, p: SqlExpr, distinct: bool, ascending: bool) -> SqlE
         SqlFn::ListGet,
         vec![
             call(
-                if ascending { SqlFn::ListSort } else { SqlFn::ListSortDesc },
+                if ascending {
+                    SqlFn::ListSort
+                } else {
+                    SqlFn::ListSortDesc
+                },
                 vec![reducer_expr(AggFn::List, value.clone(), distinct)],
             ),
             call(
@@ -231,7 +269,10 @@ fn discrete(value: SqlExpr, p: SqlExpr, distinct: bool, ascending: bool) -> SqlE
 }
 
 fn interpolate(value: SqlExpr, p: SqlExpr, distinct: bool) -> SqlExpr {
-    let sorted = call(SqlFn::ListSort, vec![reducer_expr(AggFn::List, value.clone(), distinct)]);
+    let sorted = call(
+        SqlFn::ListSort,
+        vec![reducer_expr(AggFn::List, value.clone(), distinct)],
+    );
     let n = reducer_expr(AggFn::Count, value, distinct);
     let idx = call(SqlFn::Times, vec![p, call(SqlFn::Minus, vec![n, int_lit(1)])]);
     let floor_idx = call(SqlFn::Floor, vec![idx.clone()]);
@@ -241,7 +282,13 @@ fn interpolate(value: SqlExpr, p: SqlExpr, distinct: bool) -> SqlExpr {
         SqlFn::Plus,
         vec![
             lo.clone(),
-            call(SqlFn::Times, vec![call(SqlFn::Minus, vec![idx, floor_idx]), call(SqlFn::Minus, vec![hi, lo])]),
+            call(
+                SqlFn::Times,
+                vec![
+                    call(SqlFn::Minus, vec![idx, floor_idx]),
+                    call(SqlFn::Minus, vec![hi, lo]),
+                ],
+            ),
         ],
     )
 }
@@ -249,22 +296,34 @@ fn interpolate(value: SqlExpr, p: SqlExpr, distinct: bool) -> SqlExpr {
 fn at(sorted: SqlExpr, zero_based: SqlExpr) -> SqlExpr {
     call(
         SqlFn::ListGet,
-        vec![sorted, call(SqlFn::Plus, vec![cast(zero_based, SqlType::Scalar(Scalar::Bigint)), int_lit(1)])],
+        vec![
+            sorted,
+            call(
+                SqlFn::Plus,
+                vec![cast(zero_based, SqlType::Scalar(Scalar::Bigint)), int_lit(1)],
+            ),
+        ],
     )
 }
 
 /// Every reducer of the encoding takes the window's spec.
 fn windowize(e: SqlExpr, partition_by: &[SqlExpr], order_by: &[SortKey], frame: &Option<lite_sql::Frame>) -> SqlExpr {
     match e {
-        SqlExpr::Reducer(r) => {
-            build::window_call(SqlAgg::Reducer(r), partition_by.to_vec(), order_by.to_vec(), frame.clone())
-        }
-        SqlExpr::Call { r#fn, args, .. } => {
-            call(r#fn, args.into_iter().map(|x| windowize(x, partition_by, order_by, frame)).collect())
-        }
-        SqlExpr::Cast { value, target, conform, .. } => {
-            build::cast_conform(windowize(*value, partition_by, order_by, frame), target, conform)
-        }
+        SqlExpr::Reducer(r) => build::window_call(
+            SqlAgg::Reducer(r),
+            partition_by.to_vec(),
+            order_by.to_vec(),
+            frame.clone(),
+        ),
+        SqlExpr::Call { r#fn, args, .. } => call(
+            r#fn,
+            args.into_iter()
+                .map(|x| windowize(x, partition_by, order_by, frame))
+                .collect(),
+        ),
+        SqlExpr::Cast {
+            value, target, conform, ..
+        } => build::cast_conform(windowize(*value, partition_by, order_by, frame), target, conform),
         other => other,
     }
 }
@@ -280,7 +339,13 @@ impl SqlRewriter for QuantileOrder {
         {
             return Ok(Rw::New(encode(r)));
         }
-        if let SqlExpr::WindowCall { r#fn, partition_by, order_by, frame, .. } = &e
+        if let SqlExpr::WindowCall {
+            r#fn,
+            partition_by,
+            order_by,
+            frame,
+            ..
+        } = &e
             && let SqlAgg::Reducer(r) = r#fn.as_ref()
             && ordered(r)
         {
@@ -309,16 +374,27 @@ fn unqualify(e: SqlExpr) -> SqlExpr {
         }
         SqlExpr::RowOrder { .. } => build::row_order(None),
         SqlExpr::Call { r#fn, args, .. } => call(r#fn, all(args)),
-        SqlExpr::Cast { value, target, conform, .. } => build::cast_conform(unqualify(*value), target, conform),
+        SqlExpr::Cast {
+            value, target, conform, ..
+        } => build::cast_conform(unqualify(*value), target, conform),
         SqlExpr::Case { whens, otherwise, .. } => build::case(
-            whens.into_iter().map(|w| when(unqualify(w.condition), unqualify(w.then))).collect(),
+            whens
+                .into_iter()
+                .map(|w| when(unqualify(w.condition), unqualify(w.then)))
+                .collect(),
             otherwise.map(|o| unqualify(*o)),
         ),
         SqlExpr::ArrayLit { elements, .. } => build::array_lit(all(elements)),
         SqlExpr::StructGet { source, field, .. } => build::struct_get(unqualify(*source), &field),
-        SqlExpr::StructLit { fields, .. } => {
-            build::struct_lit(fields.into_iter().map(|f| StructLitField { value: unqualify(f.value), ..f }).collect())
-        }
+        SqlExpr::StructLit { fields, .. } => build::struct_lit(
+            fields
+                .into_iter()
+                .map(|f| StructLitField {
+                    value: unqualify(f.value),
+                    ..f
+                })
+                .collect(),
+        ),
         SqlExpr::OrderedListAgg { value, order_by, .. } => {
             build::ordered_list_agg(unqualify(*value), unqualify(*order_by))
         }
@@ -328,16 +404,28 @@ fn unqualify(e: SqlExpr) -> SqlExpr {
             unqualify(*value),
             order_keys
                 .into_iter()
-                .map(|k| lite_sql::JsonArrayAggKey { expr: unqualify(k.expr), desc: k.desc })
+                .map(|k| lite_sql::JsonArrayAggKey {
+                    expr: unqualify(k.expr),
+                    desc: k.desc,
+                })
                 .collect(),
         ),
         SqlExpr::Reducer(r) => SqlExpr::Reducer(unqualify_reducer(r)),
-        SqlExpr::FoldCall { source, lambda, init, acc_is_list, homogeneous, .. } => {
-            build::fold_call(unqualify(*source), lambda, unqualify(*init), acc_is_list, homogeneous)
-        }
-        SqlExpr::WindowCall { r#fn, partition_by, order_by, frame, .. } => {
-            build::window_call(*r#fn, all(partition_by), order_by, frame)
-        }
+        SqlExpr::FoldCall {
+            source,
+            lambda,
+            init,
+            acc_is_list,
+            homogeneous,
+            ..
+        } => build::fold_call(unqualify(*source), lambda, unqualify(*init), acc_is_list, homogeneous),
+        SqlExpr::WindowCall {
+            r#fn,
+            partition_by,
+            order_by,
+            frame,
+            ..
+        } => build::window_call(*r#fn, all(partition_by), order_by, frame),
         SqlExpr::Group { inner, .. } => build::group(unqualify(*inner)),
         // subqueries own their aliases; lambdas bind their own params; leaves carry no qualifier
         other => other,
@@ -349,7 +437,13 @@ fn unqualify_reducer(r: Reducer) -> Reducer {
         r.r#fn,
         r.args.into_iter().map(unqualify).collect(),
         r.distinct,
-        r.order_by.into_iter().map(|k| SortKey { expr: unqualify(k.expr), ..k }).collect(),
+        r.order_by
+            .into_iter()
+            .map(|k| SortKey {
+                expr: unqualify(k.expr),
+                ..k
+            })
+            .collect(),
     )
 }
 
@@ -359,7 +453,16 @@ impl SqlRewriter for UnqualifyPivotArgs {
     }
 
     fn source(&mut self, s: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
-        let SqlSource::Pivot { source, on, r#in, named, usings, alias, outputs } = s else {
+        let SqlSource::Pivot {
+            source,
+            on,
+            r#in,
+            named,
+            usings,
+            alias,
+            outputs,
+        } = s
+        else {
             return Ok(Rw::Same(s));
         };
         Ok(Rw::New(SqlSource::Pivot {
@@ -367,7 +470,13 @@ impl SqlRewriter for UnqualifyPivotArgs {
             on: on.into_iter().map(unqualify).collect(),
             r#in,
             named,
-            usings: usings.into_iter().map(|u| lite_sql::PivotUsing { agg: unqualify_reducer(u.agg), ..u }).collect(),
+            usings: usings
+                .into_iter()
+                .map(|u| lite_sql::PivotUsing {
+                    agg: unqualify_reducer(u.agg),
+                    ..u
+                })
+                .collect(),
             alias,
             outputs,
         }))
@@ -390,7 +499,15 @@ impl SqlRewriter for FoldToListReduce {
     }
 
     fn expr(&mut self, e: SqlExpr) -> Result<Rw<SqlExpr>, Refusal> {
-        let SqlExpr::FoldCall { source, lambda, init, acc_is_list, homogeneous, .. } = e else {
+        let SqlExpr::FoldCall {
+            source,
+            lambda,
+            init,
+            acc_is_list,
+            homogeneous,
+            ..
+        } = e
+        else {
             return Ok(Rw::Same(e));
         };
         let elem = name_at(&lambda.params, 0)?.to_owned();
@@ -406,7 +523,11 @@ impl SqlRewriter for FoldToListReduce {
             // a fold over the empty (SQL NULL) collection is the init value
             return Ok(Rw::New(call(
                 SqlFn::ListReduce,
-                vec![call(SqlFn::Coalesce, vec![*source, build::array_lit(Vec::new())]), swapped, *init],
+                vec![
+                    call(SqlFn::Coalesce, vec![*source, build::array_lit(Vec::new())]),
+                    swapped,
+                    *init,
+                ],
             )));
         }
         let wrapped = call(
@@ -445,7 +566,13 @@ fn unwrap_elem_refs(e: SqlExpr, elem: &str) -> SqlExpr {
             otherwise.map(|o| unwrap_elem_refs(*o, elem)),
         ),
         SqlExpr::StructLit { fields, .. } => build::struct_lit(
-            fields.into_iter().map(|f| StructLitField { value: unwrap_elem_refs(f.value, elem), ..f }).collect(),
+            fields
+                .into_iter()
+                .map(|f| StructLitField {
+                    value: unwrap_elem_refs(f.value, elem),
+                    ..f
+                })
+                .collect(),
         ),
         SqlExpr::StructGet { source, field, .. } => build::struct_get(unwrap_elem_refs(*source, elem), &field),
         SqlExpr::Lambda(l) => {
@@ -455,7 +582,14 @@ fn unwrap_elem_refs(e: SqlExpr, elem: &str) -> SqlExpr {
                 SqlExpr::Lambda(build::lambda_of(l.params, unwrap_elem_refs(*l.body, elem)))
             }
         }
-        SqlExpr::FoldCall { source, lambda, init, acc_is_list, homogeneous, .. } => {
+        SqlExpr::FoldCall {
+            source,
+            lambda,
+            init,
+            acc_is_list,
+            homogeneous,
+            ..
+        } => {
             let lambda = if lambda.params.iter().any(|p| p == elem) {
                 lambda
             } else {
@@ -470,9 +604,12 @@ fn unwrap_elem_refs(e: SqlExpr, elem: &str) -> SqlExpr {
             )
         }
         SqlExpr::Group { inner, .. } => build::group(unwrap_elem_refs(*inner, elem)),
-        SqlExpr::CheckedOne { list, scalar_carrier, at_least_only, .. } => {
-            build::checked_one(unwrap_elem_refs(*list, elem), scalar_carrier, at_least_only)
-        }
+        SqlExpr::CheckedOne {
+            list,
+            scalar_carrier,
+            at_least_only,
+            ..
+        } => build::checked_one(unwrap_elem_refs(*list, elem), scalar_carrier, at_least_only),
         SqlExpr::CompactList { list, .. } => build::compact_list(unwrap_elem_refs(*list, elem)),
         // leaves and structures that cannot hold the element's reference (a subquery's is a known hole in Java)
         other => other,
@@ -540,14 +677,24 @@ fn prefixed(d: SqlExpr, path: &[String], index: SqlExpr) -> SqlExpr {
             string_lit("propertyName"),
             string_lit(p),
             string_lit("index"),
-            if i == path.len() - 1 { index.clone() } else { build::null_lit() },
+            if i == path.len() - 1 {
+                index.clone()
+            } else {
+                build::null_lit()
+            },
         ]));
     }
     let full = call(
         SqlFn::ToVariant,
-        vec![call(SqlFn::ListConcat, vec![build::array_lit(nodes), elements(variant_get(d.clone(), "path"))])],
+        vec![call(
+            SqlFn::ListConcat,
+            vec![build::array_lit(nodes), elements(variant_get(d.clone(), "path"))],
+        )],
     );
-    call(SqlFn::JsonMergePatch, vec![d, build::json_object(vec![string_lit("path"), full])])
+    call(
+        SqlFn::JsonMergePatch,
+        vec![d, build::json_object(vec![string_lit("path"), full])],
+    )
 }
 
 impl SqlRewriter for CheckedDefectsToLists {
@@ -599,11 +746,20 @@ impl SqlRewriter for SubstringClamp {
     }
 
     fn expr(&mut self, e: SqlExpr) -> Result<Rw<SqlExpr>, Refusal> {
-        let SqlExpr::Call { r#fn: SqlFn::Substring, args, r#type } = e else {
+        let SqlExpr::Call {
+            r#fn: SqlFn::Substring,
+            args,
+            r#type,
+        } = e
+        else {
             return Ok(Rw::Same(e));
         };
         if args.len() < 2 || matches!(args[1], SqlExpr::IntLit { value, .. } if value >= 1) {
-            return Ok(Rw::Same(SqlExpr::Call { r#fn: SqlFn::Substring, args, r#type }));
+            return Ok(Rw::Same(SqlExpr::Call {
+                r#fn: SqlFn::Substring,
+                args,
+                r#type,
+            }));
         }
         let mut a2 = args;
         let st = std::mem::replace(&mut a2[1], build::null_lit());
@@ -632,14 +788,20 @@ pub struct ConstantKeysAsExpressions {
 impl Default for ConstantKeysAsExpressions {
     /// Java's no-argument constructor: Postgres's.
     fn default() -> ConstantKeysAsExpressions {
-        ConstantKeysAsExpressions { order_too: true, database: "Postgres" }
+        ConstantKeysAsExpressions {
+            order_too: true,
+            database: "Postgres",
+        }
     }
 }
 
 impl ConstantKeysAsExpressions {
     /// Java's `groupByOnly()`: DuckDB's.
     pub fn group_by_only() -> ConstantKeysAsExpressions {
-        ConstantKeysAsExpressions { order_too: false, database: "DuckDB" }
+        ConstantKeysAsExpressions {
+            order_too: false,
+            database: "DuckDB",
+        }
     }
 
     /// A literal key as `CAST(<lit> AS <its own type>)`; any other key as it is.
@@ -697,10 +859,21 @@ impl SqlRewriter for ConstantKeysAsExpressions {
         let order = std::mem::take(&mut s.order_by);
         let mut ob = Vec::with_capacity(order.len());
         for k in order {
-            let e = if self.order_too { self.typed_key(k.expr, "ORDER BY")? } else { Rw::Same(k.expr) };
-            ob.push(SortKey { expr: e.take(&mut changed), ..k });
+            let e = if self.order_too {
+                self.typed_key(k.expr, "ORDER BY")?
+            } else {
+                Rw::Same(k.expr)
+            };
+            ob.push(SortKey {
+                expr: e.take(&mut changed),
+                ..k
+            });
         }
-        let s = SqlSelect { group_by: g, order_by: ob, ..s };
+        let s = SqlSelect {
+            group_by: g,
+            order_by: ob,
+            ..s
+        };
         if !changed {
             return Ok(Rw::Same(build::query(s)));
         }
@@ -719,7 +892,14 @@ impl SqlRewriter for ConstantKeysAsExpressions {
 pub struct OuterJoinSubqueryFilters;
 
 fn moved(source: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
-    let SqlSource::Join { left, right, kind, on, outputs } = source else {
+    let SqlSource::Join {
+        left,
+        right,
+        kind,
+        on,
+        outputs,
+    } = source
+    else {
         return Ok(Rw::Same(source));
     };
     let left = moved(*left)?;
@@ -771,7 +951,12 @@ fn moved(source: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
             outputs,
         }));
     }
-    Ok(Rw::New(build::join(left.into_inner(), right.into_inner(), kind, on.map(|o| *o))?))
+    Ok(Rw::New(build::join(
+        left.into_inner(),
+        right.into_inner(),
+        kind,
+        on.map(|o| *o),
+    )?))
 }
 
 fn aliases(s: &SqlSource, out: &mut HashSet<String>) -> Result<(), Refusal> {
@@ -785,7 +970,9 @@ fn aliases(s: &SqlSource, out: &mut HashSet<String>) -> Result<(), Refusal> {
 
 fn collect_conjuncts<'a>(e: &'a SqlExpr, out: &mut Vec<&'a SqlExpr>) {
     match e {
-        SqlExpr::Call { r#fn: SqlFn::And, args, .. } => args.iter().for_each(|a| collect_conjuncts(a, out)),
+        SqlExpr::Call {
+            r#fn: SqlFn::And, args, ..
+        } => args.iter().for_each(|a| collect_conjuncts(a, out)),
         SqlExpr::Group { inner, .. } => collect_conjuncts(inner, out),
         _ => out.push(e),
     }
@@ -882,7 +1069,11 @@ impl Stars {
             for oc in source_outputs(l) {
                 if !except.contains(&oc.name) {
                     let c = SqlExpr::Column(build::column_of(Some(alias), oc));
-                    out.push(Projection { expr: reference(c), alias: None, out: None });
+                    out.push(Projection {
+                        expr: reference(c),
+                        alias: None,
+                        out: None,
+                    });
                 }
             }
         }
@@ -966,7 +1157,11 @@ impl SqlRewriter for VariantEgress {
         match q {
             SqlQuery::Select(s) => Ok(build::query(variant_spelled(*s)?)),
             SqlQuery::Union(u) => {
-                let branches = u.branches.into_iter().map(|b| self.rewrite_root(b)).collect::<Result<Vec<_>, _>>()?;
+                let branches = u
+                    .branches
+                    .into_iter()
+                    .map(|b| self.rewrite_root(b))
+                    .collect::<Result<Vec<_>, _>>()?;
                 Ok(SqlQuery::Union(build::union(branches, u.all, u.outputs)?))
             }
             SqlQuery::With(w) => {
@@ -991,7 +1186,10 @@ pub struct StoredReads {
 
 impl StoredReads {
     pub fn new(reads: fn(&ColumnType) -> bool) -> StoredReads {
-        StoredReads { reads, read: HashMap::new() }
+        StoredReads {
+            reads,
+            read: HashMap::new(),
+        }
     }
 
     fn stored(&self, table: &str, name: &str) -> Option<&ColumnType> {
@@ -1016,7 +1214,9 @@ impl StoredReads {
         except: &[String],
     ) -> Result<Option<Vec<Projection>>, Refusal> {
         let reaches = match table {
-            None => leaves.iter().any(|l| matches!(l, SqlSource::Table { alias, .. } if self.read.contains_key(alias))),
+            None => leaves
+                .iter()
+                .any(|l| matches!(l, SqlSource::Table { alias, .. } if self.read.contains_key(alias))),
             Some(t) => self.read.contains_key(t),
         };
         if !reaches {
@@ -1038,7 +1238,10 @@ impl SqlRewriter for ReadTables<'_> {
     }
 
     fn source(&mut self, s: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
-        if let SqlSource::Table { alias, stored_types, .. } = &s {
+        if let SqlSource::Table {
+            alias, stored_types, ..
+        } = &s
+        {
             let cols: Vec<(String, ColumnType)> =
                 stored_types.iter().filter(|(_, t)| (self.reads)(t)).cloned().collect();
             if !cols.is_empty() {
@@ -1099,7 +1302,10 @@ impl SqlRewriter for StoredReads {
 
     fn rewrite_root(&mut self, q: SqlQuery) -> Result<SqlQuery, Refusal> {
         self.read.clear();
-        let mut collect = ReadTables { reads: self.reads, read: &mut self.read };
+        let mut collect = ReadTables {
+            reads: self.reads,
+            read: &mut self.read,
+        };
         let q = rewrite(&mut collect, q)?.into_inner();
         if self.read.is_empty() {
             return Ok(q);
@@ -1154,7 +1360,10 @@ impl SqlRewriter for StoredReads {
         refuse_unqualified_select(&s, &unqualified)?;
         if s.projections.is_empty() {
             let ps = Stars::columns(&leaves, None, &[], &mut |e| self.read_ref(e))?;
-            return Ok(Rw::New(build::query(build::select(SqlSelect { projections: ps, ..s })?)));
+            return Ok(Rw::New(build::query(build::select(SqlSelect {
+                projections: ps,
+                ..s
+            })?)));
         }
         let mut ps = Vec::new();
         let mut expanded = false;
@@ -1175,7 +1384,10 @@ impl SqlRewriter for StoredReads {
         if !expanded {
             return Ok(Rw::Same(build::query(s)));
         }
-        Ok(Rw::New(build::query(build::select(SqlSelect { projections: ps, ..s })?)))
+        Ok(Rw::New(build::query(build::select(SqlSelect {
+            projections: ps,
+            ..s
+        })?)))
     }
 }
 

@@ -37,7 +37,11 @@ pub struct Head {
 /// `SectionParse.head(c, expectedKind, admitsDocumentation)`: `documentation? Kind [decorations] qn`.
 pub fn head<'s>(c: &mut impl Cursor<'s>, expected_kind: &str, admits_documentation: bool) -> R<Head> {
     let decl_start = c.pos();
-    let doc = if admits_documentation { c.parse_documentation()? } else { None };
+    let doc = if admits_documentation {
+        c.parse_documentation()?
+    } else {
+        None
+    };
     let kind = c.safe_text();
     if !eq(&kind, expected_kind) {
         return Err(c.error(jcat!("expected ", expected_kind, ", got ", kind)));
@@ -50,7 +54,12 @@ pub fn head<'s>(c: &mut impl Cursor<'s>, expected_kind: &str, admits_documentati
         None => (Vec::new(), qn),
         Some(cut) => (qn[..cut].to_vec(), qn[cut + 2..].to_vec()),
     };
-    Ok(Head { decl_start, dec, pkg, name })
+    Ok(Head {
+        decl_start,
+        dec,
+        pkg,
+        name,
+    })
 }
 
 /// A section element's unquoted qualified name split at its last `::` (`qn.lastIndexOf("::")`, as the Connection,
@@ -182,7 +191,11 @@ pub fn parse_import<'s>(c: &mut impl Cursor<'s>) -> R<Vec<u16>> {
         sb.extend(c.parse_identifier()?);
     }
     if !starred {
-        return Err(c.error(jcat!("an import names a package wildcard — expected '::*' (import ", sb, "::*;)")));
+        return Err(c.error(jcat!(
+            "an import names a package wildcard — expected '::*' (import ",
+            sb,
+            "::*;)"
+        )));
     }
     c.expect(T::SEMI_COLON)?;
     Ok(sb)

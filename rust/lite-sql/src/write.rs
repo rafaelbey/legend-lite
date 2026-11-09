@@ -144,7 +144,14 @@ fn stored_types(types: &[(String, ColumnType)]) -> Node {
 /// Java's `source`.
 pub fn write_source(src: &SqlSource) -> Node {
     let o = match src {
-        SqlSource::Table { name, alias, outputs, call, stored_types: stored, quoting: q } => {
+        SqlSource::Table {
+            name,
+            alias,
+            outputs,
+            call,
+            stored_types: stored,
+            quoting: q,
+        } => {
             let mut o = tagged("table");
             o.insert("name", s(name));
             o.insert("alias", s(alias));
@@ -154,7 +161,11 @@ pub fn write_source(src: &SqlSource) -> Node {
             o.insert("quoting", quoting(q));
             o
         }
-        SqlSource::Subselect { inner, alias, frame_name } => {
+        SqlSource::Subselect {
+            inner,
+            alias,
+            frame_name,
+        } => {
             let mut o = tagged("subselect");
             o.insert("inner", write_query(inner));
             o.insert("alias", s(alias));
@@ -168,7 +179,13 @@ pub fn write_source(src: &SqlSource) -> Node {
             o.insert("outputs", output_cols(outputs));
             o
         }
-        SqlSource::Join { left, right, kind, on, outputs } => {
+        SqlSource::Join {
+            left,
+            right,
+            kind,
+            on,
+            outputs,
+        } => {
             let mut o = tagged("join");
             o.insert("left", write_source(left));
             o.insert("right", write_source(right));
@@ -177,7 +194,15 @@ pub fn write_source(src: &SqlSource) -> Node {
             o.insert("outputs", output_cols(outputs));
             o
         }
-        SqlSource::Pivot { source, on, r#in, named, usings, alias, outputs } => {
+        SqlSource::Pivot {
+            source,
+            on,
+            r#in,
+            named,
+            usings,
+            alias,
+            outputs,
+        } => {
             let mut o = tagged("pivot");
             o.insert("source", write_source(source));
             o.insert("on", exprs(on));
@@ -198,7 +223,12 @@ pub fn write_source(src: &SqlSource) -> Node {
             o.insert("outputs", output_cols(outputs));
             o
         }
-        SqlSource::Values { rows, columns, alias, outputs } => {
+        SqlSource::Values {
+            rows,
+            columns,
+            alias,
+            outputs,
+        } => {
             let mut o = tagged("values");
             o.insert("rows", Node::Arr(rows.iter().map(|r| exprs(r)).collect()));
             o.insert("columns", strings(columns));
@@ -214,7 +244,12 @@ pub fn write_source(src: &SqlSource) -> Node {
             o.insert("outputs", output_cols(outputs));
             o
         }
-        SqlSource::RawSql { sql, alias, outputs, written_for } => {
+        SqlSource::RawSql {
+            sql,
+            alias,
+            outputs,
+            written_for,
+        } => {
             let mut o = tagged("rawSql");
             o.insert("sql", s(sql));
             o.insert("alias", s(alias));
@@ -222,7 +257,14 @@ pub fn write_source(src: &SqlSource) -> Node {
             o.insert("writtenFor", s(written_for));
             o
         }
-        SqlSource::Catalog { grid, schema_pattern, table_pattern, column_pattern, alias, outputs } => {
+        SqlSource::Catalog {
+            grid,
+            schema_pattern,
+            table_pattern,
+            column_pattern,
+            alias,
+            outputs,
+        } => {
             let mut o = tagged("catalog");
             o.insert("grid", s(grid.as_str()));
             o.insert("schemaPattern", s_or_null(schema_pattern));
@@ -232,7 +274,11 @@ pub fn write_source(src: &SqlSource) -> Node {
             o.insert("outputs", output_cols(outputs));
             o
         }
-        SqlSource::VarSetPlaceholder { var_name, alias, outputs } => {
+        SqlSource::VarSetPlaceholder {
+            var_name,
+            alias,
+            outputs,
+        } => {
             let mut o = tagged("varSet");
             o.insert("varName", s(var_name));
             o.insert("alias", s(alias));
@@ -265,7 +311,12 @@ pub fn write_expr(e: &SqlExpr) -> Node {
             o.insert("column", column(c));
             o.insert("stored", write_column_type(stored));
         }
-        SqlExpr::ReduceCollection { reducer, collection, extras, .. } => {
+        SqlExpr::ReduceCollection {
+            reducer,
+            collection,
+            extras,
+            ..
+        } => {
             o.insert("reducer", s(reducer.as_str()));
             o.insert("collection", write_expr(collection));
             o.insert("extras", exprs(extras));
@@ -289,7 +340,14 @@ pub fn write_expr(e: &SqlExpr) -> Node {
         }
         SqlExpr::Group { inner, .. } => o.insert("inner", write_expr(inner)),
         SqlExpr::KeyCell { cell, .. } => o.insert("cell", int(i64::from(*cell))),
-        SqlExpr::PlanParam { name, kind, optional, enum_map_fn, by_value, .. } => {
+        SqlExpr::PlanParam {
+            name,
+            kind,
+            optional,
+            enum_map_fn,
+            by_value,
+            ..
+        } => {
             o.insert("name", s(name));
             o.insert("kind", s(kind.as_str()));
             o.insert("optional", Node::Bool(*optional));
@@ -372,19 +430,37 @@ pub fn write_expr(e: &SqlExpr) -> Node {
             o.insert("envelope", write_expr(envelope));
             o.insert("toMany", Node::Bool(*to_many));
         }
-        SqlExpr::Quantified { value, comparison, quantifier, subquery, .. } => {
+        SqlExpr::Quantified {
+            value,
+            comparison,
+            quantifier,
+            subquery,
+            ..
+        } => {
             o.insert("value", write_expr(value));
             o.insert("comparison", s(comparison.as_str()));
             o.insert("quantifier", s(quantifier.as_str()));
             o.insert("subquery", write_query(subquery));
         }
-        SqlExpr::CheckedOne { list, scalar_carrier, at_least_only, .. } => {
+        SqlExpr::CheckedOne {
+            list,
+            scalar_carrier,
+            at_least_only,
+            ..
+        } => {
             o.insert("list", write_expr(list));
             o.insert("scalarCarrier", Node::Bool(*scalar_carrier));
             o.insert("atLeastOnly", Node::Bool(*at_least_only));
         }
         SqlExpr::CompactList { list, .. } => o.insert("list", write_expr(list)),
-        SqlExpr::DeferredTdsString { inner, alias, id, form, render_tds_null, .. } => {
+        SqlExpr::DeferredTdsString {
+            inner,
+            alias,
+            id,
+            form,
+            render_tds_null,
+            ..
+        } => {
             o.insert("inner", Node::Obj(select(inner)));
             o.insert("alias", s(alias));
             o.insert("id", int(i64::from(*id)));
@@ -406,18 +482,33 @@ pub fn write_expr(e: &SqlExpr) -> Node {
                 .collect();
             o.insert("orderKeys", Node::Arr(keys));
         }
-        SqlExpr::WindowCall { r#fn, partition_by, order_by, frame: f, .. } => {
+        SqlExpr::WindowCall {
+            r#fn,
+            partition_by,
+            order_by,
+            frame: f,
+            ..
+        } => {
             o.insert("fn", write_agg(r#fn));
             o.insert("partitionBy", exprs(partition_by));
             o.insert("orderBy", sort_keys(order_by));
             o.insert("frame", f.as_ref().map_or(Node::Null, frame));
         }
-        SqlExpr::Cast { value, target, conform, .. } => {
+        SqlExpr::Cast {
+            value, target, conform, ..
+        } => {
             o.insert("value", write_expr(value));
             o.insert("target", write_type(target));
             o.insert("conform", Node::Bool(*conform));
         }
-        SqlExpr::FoldCall { source, lambda: l, init, acc_is_list, homogeneous, .. } => {
+        SqlExpr::FoldCall {
+            source,
+            lambda: l,
+            init,
+            acc_is_list,
+            homogeneous,
+            ..
+        } => {
             o.insert("source", write_expr(source));
             o.insert("lambda", lambda(l));
             o.insert("init", write_expr(init));
@@ -519,7 +610,11 @@ pub fn write_agg(a: &SqlAgg) -> Node {
     Node::Obj(match a {
         SqlAgg::Reducer(r) => reducer(r),
         SqlAgg::RankingFn { r#fn, args } | SqlAgg::ValueFn { r#fn, args } => {
-            let mut o = tagged(if matches!(a, SqlAgg::RankingFn { .. }) { "rankingFn" } else { "valueFn" });
+            let mut o = tagged(if matches!(a, SqlAgg::RankingFn { .. }) {
+                "rankingFn"
+            } else {
+                "valueFn"
+            });
             o.insert("fn", s(r#fn.as_str()));
             o.insert("args", exprs(args));
             o
@@ -535,8 +630,11 @@ fn bound(b: &Bound) -> Node {
         Bound::Following { n } => number(tagged("following"), n),
         Bound::UnboundedFollowing => tagged("unboundedFollowing"),
         Bound::IntervalPreceding { n, unit } | Bound::IntervalFollowing { n, unit } => {
-            let tag =
-                if matches!(b, Bound::IntervalPreceding { .. }) { "intervalPreceding" } else { "intervalFollowing" };
+            let tag = if matches!(b, Bound::IntervalPreceding { .. }) {
+                "intervalPreceding"
+            } else {
+                "intervalFollowing"
+            };
             let mut o = tagged(tag);
             o.insert("n", int(*n));
             o.insert("unit", s(unit));
@@ -671,7 +769,13 @@ pub fn write_column_type(t: &ColumnType) -> Node {
 /// Java's `ddl`.
 pub fn write_ddl(d: &SqlDdl) -> Node {
     Node::Obj(match d {
-        SqlDdl::CreateTable { schema, table, quoting: q, columns, temporary } => {
+        SqlDdl::CreateTable {
+            schema,
+            table,
+            quoting: q,
+            columns,
+            temporary,
+        } => {
             let mut o = tagged("createTable");
             o.insert("schema", s_or_null(schema));
             o.insert("table", s(table));
@@ -692,7 +796,11 @@ pub fn write_ddl(d: &SqlDdl) -> Node {
             o.insert("temporary", Node::Bool(*temporary));
             o
         }
-        SqlDdl::DropTable { schema, table, quoting: q } => {
+        SqlDdl::DropTable {
+            schema,
+            table,
+            quoting: q,
+        } => {
             let mut o = tagged("dropTable");
             o.insert("schema", s_or_null(schema));
             o.insert("table", s(table));
@@ -700,7 +808,11 @@ pub fn write_ddl(d: &SqlDdl) -> Node {
             o
         }
         SqlDdl::CreateSchema { schema, quoted } | SqlDdl::DropSchema { schema, quoted } => {
-            let mut o = tagged(if matches!(d, SqlDdl::CreateSchema { .. }) { "createSchema" } else { "dropSchema" });
+            let mut o = tagged(if matches!(d, SqlDdl::CreateSchema { .. }) {
+                "createSchema"
+            } else {
+                "dropSchema"
+            });
             o.insert("schema", s(schema));
             o.insert("quoted", Node::Bool(*quoted));
             o
@@ -720,14 +832,28 @@ fn target(tag: &str, schema: &Option<String>, table: &str, q: &NameQuoting) -> O
 /// Java's `dml`.
 pub fn write_dml(d: &SqlDml) -> Node {
     Node::Obj(match d {
-        SqlDml::InsertValues { schema, table, quoting, columns, quoted_columns, rows } => {
+        SqlDml::InsertValues {
+            schema,
+            table,
+            quoting,
+            columns,
+            quoted_columns,
+            rows,
+        } => {
             let mut o = target("insertValues", schema, table, quoting);
             o.insert("columns", strings(columns));
             o.insert("quotedColumns", strings(quoted_columns));
             o.insert("rows", Node::Arr(rows.iter().map(|r| exprs(r)).collect()));
             o
         }
-        SqlDml::InsertFromTable { schema, table, quoting, columns, quoted_columns, source } => {
+        SqlDml::InsertFromTable {
+            schema,
+            table,
+            quoting,
+            columns,
+            quoted_columns,
+            source,
+        } => {
             let mut o = target("insertFromTable", schema, table, quoting);
             o.insert("columns", strings(columns));
             o.insert("quotedColumns", strings(quoted_columns));
@@ -735,7 +861,12 @@ pub fn write_dml(d: &SqlDml) -> Node {
             o
         }
         SqlDml::DeleteAll { schema, table, quoting } => target("deleteAll", schema, table, quoting),
-        SqlDml::CreateTempTableAs { table, query, columns, staged } => {
+        SqlDml::CreateTempTableAs {
+            table,
+            query,
+            columns,
+            staged,
+        } => {
             let mut o = tagged("createTempTableAs");
             o.insert("table", s(table));
             o.insert("query", write_query(query));
@@ -743,14 +874,29 @@ pub fn write_dml(d: &SqlDml) -> Node {
             o.insert("staged", Node::Bool(*staged));
             o
         }
-        SqlDml::InsertSelect { schema, table, quoting, columns, quoted_columns, query } => {
+        SqlDml::InsertSelect {
+            schema,
+            table,
+            quoting,
+            columns,
+            quoted_columns,
+            query,
+        } => {
             let mut o = target("insertSelect", schema, table, quoting);
             o.insert("columns", strings(columns));
             o.insert("quotedColumns", strings(quoted_columns));
             o.insert("query", write_query(query));
             o
         }
-        SqlDml::Update { schema, table, quoting, alias, stored_types: stored, assignments, r#where } => {
+        SqlDml::Update {
+            schema,
+            table,
+            quoting,
+            alias,
+            stored_types: stored,
+            assignments,
+            r#where,
+        } => {
             let mut o = target("update", schema, table, quoting);
             o.insert("alias", s(alias));
             o.insert("storedTypes", stored_types(stored));
@@ -768,14 +914,31 @@ pub fn write_dml(d: &SqlDml) -> Node {
             o.insert("where", expr_or_null(r#where.as_ref()));
             o
         }
-        SqlDml::DeleteWhere { schema, table, quoting, alias, stored_types: stored, r#where } => {
+        SqlDml::DeleteWhere {
+            schema,
+            table,
+            quoting,
+            alias,
+            stored_types: stored,
+            r#where,
+        } => {
             let mut o = target("deleteWhere", schema, table, quoting);
             o.insert("alias", s(alias));
             o.insert("storedTypes", stored_types(stored));
             o.insert("where", expr_or_null(r#where.as_ref()));
             o
         }
-        SqlDml::Merge { schema, table, quoting, columns, quoted_columns, keys, query, alias, source_alias } => {
+        SqlDml::Merge {
+            schema,
+            table,
+            quoting,
+            columns,
+            quoted_columns,
+            keys,
+            query,
+            alias,
+            source_alias,
+        } => {
             let mut o = target("merge", schema, table, quoting);
             o.insert("columns", strings(columns));
             o.insert("quotedColumns", strings(quoted_columns));

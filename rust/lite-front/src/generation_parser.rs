@@ -114,7 +114,11 @@ fn parse_pointers<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PPointer>>) -> 
 
 /// The refusal of a reserved name whose value has another shape, at the declaration.
 fn reserved<'s>(c: &impl Cursor<'s>, decl_start: usize, key: &[u16]) -> JavaError {
-    throw_at(c.tokens(), decl_start, jcat!("Can't have config property with reserved name '", key, "'"))
+    throw_at(
+        c.tokens(),
+        decl_start,
+        jcat!("Can't have config property with reserved name '", key, "'"),
+    )
 }
 
 /// `FileGenerationSectionGrammar.parseOne`: `Kind qn { scopeElements: [...]; generationOutputPath: '..'; name: value;
@@ -139,11 +143,19 @@ pub fn parse_file_generation<'s>(c: &mut impl Cursor<'s>) -> R<PFileGeneration> 
     let mut props = Vec::new();
     while !c.at_end() && c.peek() != T::BRACE_CLOSE {
         let key_start = c.pos();
-        let key = if c.peek() == T::STRING { raw_string_token(c)? } else { c.parse_identifier()? };
+        let key = if c.peek() == T::STRING {
+            raw_string_token(c)?
+        } else {
+            c.parse_identifier()?
+        };
         let scope = eq(&key, "scopeElements");
         let output = eq(&key, "generationOutputPath");
         if (scope || output) && !named_seen.insert(key.clone()) {
-            return Err(throw_at(c.tokens(), decl_start, jcat!("Field '", key, "' should be specified only once")));
+            return Err(throw_at(
+                c.tokens(),
+                decl_start,
+                jcat!("Field '", key, "' should be specified only once"),
+            ));
         }
         c.expect(T::COLON)?;
         if scope {
@@ -196,19 +208,27 @@ fn parse_config_value<'s>(c: &mut impl Cursor<'s>) -> R<PConfigValue> {
     match c.peek() {
         T::TRUE => {
             c.advance()?;
-            Ok(PConfigValue::PConfigValuePCBoolean(Box::new(PConfigValuePCBoolean { value: true })))
+            Ok(PConfigValue::PConfigValuePCBoolean(Box::new(PConfigValuePCBoolean {
+                value: true,
+            })))
         }
         T::FALSE => {
             c.advance()?;
-            Ok(PConfigValue::PConfigValuePCBoolean(Box::new(PConfigValuePCBoolean { value: false })))
+            Ok(PConfigValue::PConfigValuePCBoolean(Box::new(PConfigValuePCBoolean {
+                value: false,
+            })))
         }
         T::INTEGER => {
             // past a long: the engine's walker parses it uncaught too, so its section catch-all answers
             let v = parse_long(c.text()).map_err(|m| c.section_refusal(m))?;
             c.advance()?;
-            Ok(PConfigValue::PConfigValuePCInteger(Box::new(PConfigValuePCInteger { value: v })))
+            Ok(PConfigValue::PConfigValuePCInteger(Box::new(PConfigValuePCInteger {
+                value: v,
+            })))
         }
-        T::STRING => Ok(PConfigValue::PConfigValuePCString(Box::new(PConfigValuePCString { value: JStr(string_value(c)?) }))),
+        T::STRING => Ok(PConfigValue::PConfigValuePCString(Box::new(PConfigValuePCString {
+            value: JStr(string_value(c)?),
+        }))),
         T::BRACKET_OPEN => {
             c.advance()?;
             let mut vs = Vec::new();
@@ -219,7 +239,9 @@ fn parse_config_value<'s>(c: &mut impl Cursor<'s>) -> R<PConfigValue> {
                 }
             }
             c.expect(T::BRACKET_CLOSE)?;
-            Ok(PConfigValue::PConfigValuePCStrings(Box::new(PConfigValuePCStrings { values: vs })))
+            Ok(PConfigValue::PConfigValuePCStrings(Box::new(PConfigValuePCStrings {
+                values: vs,
+            })))
         }
         T::BRACE_OPEN => {
             c.advance()?;

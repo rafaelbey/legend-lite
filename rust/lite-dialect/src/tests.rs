@@ -18,7 +18,10 @@ use lite_sql::{
 // ---- builders
 
 fn typed(s: Scalar) -> TypeFact {
-    TypeFact::Typed { r#type: SqlType::Scalar(s), nullable: true }
+    TypeFact::Typed {
+        r#type: SqlType::Scalar(s),
+        nullable: true,
+    }
 }
 
 fn col(table: &str, name: &str, origin: Origin) -> SqlExpr {
@@ -58,7 +61,11 @@ fn select(projections: Vec<Projection>, from: SqlSource) -> SqlSelect {
 }
 
 fn proj(expr: SqlExpr, alias: Option<&str>) -> Projection {
-    Projection { expr, alias: alias.map(str::to_owned), out: None }
+    Projection {
+        expr,
+        alias: alias.map(str::to_owned),
+        out: None,
+    }
 }
 
 fn query(s: SqlSelect) -> SqlQuery {
@@ -88,10 +95,19 @@ fn render(e: SqlExpr) -> String {
 #[test]
 fn a_bind_is_recorded_where_its_placeholder_is_written() {
     let mut w = SqlWriter::new();
-    w.append("a = ")
-        .bind(Bind { parameter: "x".into(), binding: Binding::One { null_type: "BIGINT".into(), hole: None } });
-    w.append(" AND b = ")
-        .bind(Bind { parameter: "y".into(), binding: Binding::Array { element_sql_type: "VARCHAR".into() } });
+    w.append("a = ").bind(Bind {
+        parameter: "x".into(),
+        binding: Binding::One {
+            null_type: "BIGINT".into(),
+            hole: None,
+        },
+    });
+    w.append(" AND b = ").bind(Bind {
+        parameter: "y".into(),
+        binding: Binding::Array {
+            element_sql_type: "VARCHAR".into(),
+        },
+    });
     assert_eq!(w.bound(), 2);
     let s = w.into_statement().unwrap();
     assert_eq!(s.sql, "a = ? AND b = ?");
@@ -104,8 +120,13 @@ fn a_bind_is_recorded_where_its_placeholder_is_written() {
 #[test]
 fn a_statement_that_binds_is_refused_as_text_in_javas_words() {
     let mut w = SqlWriter::new();
-    w.append("x > ")
-        .bind(Bind { parameter: "age".into(), binding: Binding::One { null_type: "BIGINT".into(), hole: None } });
+    w.append("x > ").bind(Bind {
+        parameter: "age".into(),
+        binding: Binding::One {
+            null_type: "BIGINT".into(),
+            hole: None,
+        },
+    });
     let refusal = w.into_text().unwrap_err();
     assert_eq!(refusal.class, "java.lang.IllegalStateException");
     assert_eq!(
@@ -140,12 +161,21 @@ fn a_region_records_utf16_positions_and_its_key_cells() {
 #[test]
 fn a_region_is_refused_where_java_refuses_it() {
     let mut w = SqlWriter::new();
-    assert_eq!(w.counter().unwrap_err().message, "a per-key name outside a per-key region: no key to name it by");
-    assert_eq!(w.bind_key(0).unwrap_err().message, "a key's cell outside a per-key region: no key to bind");
-    let nested = w.region("", ", ", None, |w| w.region("", ", ", None, |_| Ok(())).map(|_| ())).unwrap_err();
+    assert_eq!(
+        w.counter().unwrap_err().message,
+        "a per-key name outside a per-key region: no key to name it by"
+    );
+    assert_eq!(
+        w.bind_key(0).unwrap_err().message,
+        "a key's cell outside a per-key region: no key to bind"
+    );
+    let nested = w
+        .region("", ", ", None, |w| w.region("", ", ", None, |_| Ok(())).map(|_| ()))
+        .unwrap_err();
     assert_eq!(nested.message, "a per-key region inside another per-key region");
     let mut w = SqlWriter::new();
-    w.region("", ", ", None, |w| w.append("x").counter().map(|_| ())).unwrap();
+    w.region("", ", ", None, |w| w.append("x").counter().map(|_| ()))
+        .unwrap();
     assert_eq!(
         w.into_text().unwrap_err().message,
         "a statement with per-key regions was asked for as text: render it as a statement, which the runner writes \
@@ -155,10 +185,16 @@ fn a_region_is_refused_where_java_refuses_it() {
 
 #[test]
 fn a_key_cell_outside_every_region_is_refused_by_the_statement() {
-    let binds = vec![Bind { parameter: String::new(), binding: Binding::Key { cell: 0 } }];
+    let binds = vec![Bind {
+        parameter: String::new(),
+        binding: Binding::Key { cell: 0 },
+    }];
     let refusal = RenderedStatement::new("?".into(), binds, Vec::new()).unwrap_err();
     assert_eq!(refusal.class, "java.lang.IllegalArgumentException");
-    assert_eq!(refusal.message, "placeholder 1 binds a key's cell outside a per-key region: no key to bind");
+    assert_eq!(
+        refusal.message,
+        "placeholder 1 binds a key's cell outside a per-key region: no key to bind"
+    );
     assert_eq!(Binding::key(-1).unwrap_err().message, "a key's cell -1");
     let r = Region::new(5, 3, String::new(), String::new(), None, 0, 0, Vec::new()).unwrap_err();
     assert_eq!(r.message, "a per-key region [5, 3)");
@@ -167,10 +203,21 @@ fn a_key_cell_outside_every_region_is_refused_by_the_statement() {
 #[test]
 fn a_type_hole_follows_its_placeholder() {
     let mut w = SqlWriter::new();
-    let refused = w.type_hole(vec![(ValueKind::Date, TypeSpelling::new("DATE", Digits::None))], ValueKind::Date);
-    assert_eq!(refused.unwrap_err().message, "a type hole follows a placeholder of one value with none: []");
-    w.append("CAST(")
-        .bind(Bind { parameter: "d".into(), binding: Binding::One { null_type: "DATE".into(), hole: None } });
+    let refused = w.type_hole(
+        vec![(ValueKind::Date, TypeSpelling::new("DATE", Digits::None))],
+        ValueKind::Date,
+    );
+    assert_eq!(
+        refused.unwrap_err().message,
+        "a type hole follows a placeholder of one value with none: []"
+    );
+    w.append("CAST(").bind(Bind {
+        parameter: "d".into(),
+        binding: Binding::One {
+            null_type: "DATE".into(),
+            hole: None,
+        },
+    });
     w.append(" AS ")
         .type_hole(
             vec![
@@ -203,14 +250,21 @@ fn a_refusal_carries_the_java_class_and_message() {
         "com.legend.sql.dialect.DialectCapability: pivot reached a dialect without a PIVOT strategy"
     );
     assert!(!Refusal::illegal_state("x").is_capability());
-    assert_eq!(crate::refusal::arg(&[], 1).unwrap_err().message, "Index 1 out of bounds for length 0");
+    assert_eq!(
+        crate::refusal::arg(&[], 1).unwrap_err().message,
+        "Index 1 out of bounds for length 0"
+    );
 }
 
 #[test]
 fn the_base_refuses_what_duckdb_does_not_spell() {
     let fold = SqlExpr::FoldCall {
         source: Box::new(int_lit(1)),
-        lambda: lite_sql::Lambda { params: vec!["x".into()], body: Box::new(int_lit(1)), r#type: TypeFact::Unknown },
+        lambda: lite_sql::Lambda {
+            params: vec!["x".into()],
+            body: Box::new(int_lit(1)),
+            r#type: TypeFact::Unknown,
+        },
         init: Box::new(int_lit(0)),
         acc_is_list: false,
         homogeneous: true,
@@ -221,16 +275,27 @@ fn the_base_refuses_what_duckdb_does_not_spell() {
     let r = d.expr(&mut w, &fold, 0).unwrap_err();
     assert_eq!(
         (r.class, r.message.as_str()),
-        (Refusal::DIALECT_CAPABILITY, "fold reached a dialect without a fold encoding")
+        (
+            Refusal::DIALECT_CAPABILITY,
+            "fold reached a dialect without a fold encoding"
+        )
     );
     let tagged = SqlType::Tagged { slots: Vec::new() };
-    assert!(ansi::cast_type_name(&d, &tagged).unwrap_err().message.starts_with("a tagged value is never cast"));
+    assert!(
+        ansi::cast_type_name(&d, &tagged)
+            .unwrap_err()
+            .message
+            .starts_with("a tagged value is never cast")
+    );
     let r = d.typeof_name(Scalar::Varchar).unwrap_err();
     assert_eq!(r.message, "a TYPEOF compared with VARCHAR's name reached DuckDB");
     let r = d.scalar_type_name(Scalar::DecimalText).unwrap_err();
     assert_eq!(
         (r.class, r.message.as_str()),
-        (Refusal::ILLEGAL_STATE, "DECIMAL_TEXT cast reached a dialect without DECIMAL_TEXT support")
+        (
+            Refusal::ILLEGAL_STATE,
+            "DECIMAL_TEXT cast reached a dialect without DECIMAL_TEXT support"
+        )
     );
 }
 
@@ -245,7 +310,10 @@ fn a_big_decimal_is_written_plain() {
     assert_eq!(big_decimal_plain("-0.0"), "0.0");
     assert_eq!(big_decimal_plain("0E+3"), "0");
     assert_eq!(big_decimal_plain("0E-3"), "0.000");
-    assert_eq!(big_decimal_plain("12345678901234567890123456789"), "12345678901234567890123456789");
+    assert_eq!(
+        big_decimal_plain("12345678901234567890123456789"),
+        "12345678901234567890123456789"
+    );
 }
 
 #[test]
@@ -267,8 +335,14 @@ fn a_float_literal_is_the_numeric_charters_plain_spelling() {
 
 #[test]
 fn a_decimal_unit_is_bigdecimals_text() {
-    assert_eq!(ansi::decimal_unit(0), ("1".to_owned(), "0.5".to_owned(), "2".to_owned()));
-    assert_eq!(ansi::decimal_unit(3), ("0.001".to_owned(), "0.0005".to_owned(), "0.002".to_owned()));
+    assert_eq!(
+        ansi::decimal_unit(0),
+        ("1".to_owned(), "0.5".to_owned(), "2".to_owned())
+    );
+    assert_eq!(
+        ansi::decimal_unit(3),
+        ("0.001".to_owned(), "0.0005".to_owned(), "0.002".to_owned())
+    );
 }
 
 #[test]
@@ -292,8 +366,20 @@ fn identifiers_quote_only_when_necessary() {
     // a quote-bearing identity is its own spelling when its interior is a valid quoted body
     assert_eq!(d.ident("\"date\""), "\"date\"");
     assert_eq!(d.ident("\"a\"b\""), "\"\"\"a\"\"b\"\"\"");
-    assert_eq!(d.table_name("hr.EMPLOYEES", NameQuoting::default()), "\"hr\".\"EMPLOYEES\"");
-    assert_eq!(d.table_name("Orders", NameQuoting { schema: false, table: true }), "\"Orders\"");
+    assert_eq!(
+        d.table_name("hr.EMPLOYEES", NameQuoting::default()),
+        "\"hr\".\"EMPLOYEES\""
+    );
+    assert_eq!(
+        d.table_name(
+            "Orders",
+            NameQuoting {
+                schema: false,
+                table: true
+            }
+        ),
+        "\"Orders\""
+    );
     assert_eq!(d.ddl_identifier("name", false), "NAME");
     assert_eq!(d.ddl_identifier("default", false), "\"DEFAULT\"");
     assert_eq!(d.ddl_identifier("Amt", true), "\"Amt\"");
@@ -313,10 +399,19 @@ fn a_positional_field_is_one_of_digits_of_any_script() {
 #[test]
 fn literals_are_spelled_as_java_spells_them() {
     assert_eq!(render(string_lit("it's")), "'it''s'");
-    assert_eq!(render(string_lit("a\0b'\0")), "('a' || chr(0) || 'b''' || chr(0) || '')");
+    assert_eq!(
+        render(string_lit("a\0b'\0")),
+        "('a' || chr(0) || 'b''' || chr(0) || '')"
+    );
     let d = DuckDb::new();
-    assert_eq!(d.timestamp_lit("2024-01-01T00:00:00.123456789").unwrap(), "TIMESTAMP_NS '2024-01-01T00:00:00.123456789'");
-    assert_eq!(d.timestamp_lit("9999-12-31T23:59:59.999999000").unwrap(), "TIMESTAMP '9999-12-31T23:59:59.999999000'");
+    assert_eq!(
+        d.timestamp_lit("2024-01-01T00:00:00.123456789").unwrap(),
+        "TIMESTAMP_NS '2024-01-01T00:00:00.123456789'"
+    );
+    assert_eq!(
+        d.timestamp_lit("9999-12-31T23:59:59.999999000").unwrap(),
+        "TIMESTAMP '9999-12-31T23:59:59.999999000'"
+    );
     assert_eq!(
         d.timestamp_lit("2024-01-01T00:00:00.123456789+0000").unwrap(),
         "TIMESTAMP_NS '2024-01-01T00:00:00.123456789+0000'"
@@ -325,7 +420,10 @@ fn literals_are_spelled_as_java_spells_them() {
         value: lite_sql::BigDecimal::parse(text).unwrap(),
         r#type,
     };
-    let dec0 = TypeFact::Typed { r#type: SqlType::Decimal { precision: 5, scale: 0 }, nullable: false };
+    let dec0 = TypeFact::Typed {
+        r#type: SqlType::Decimal { precision: 5, scale: 0 },
+        nullable: false,
+    };
     assert_eq!(render(decimal("17774", dec0)), "CAST(17774 AS DECIMAL(5,0))");
     assert_eq!(render(decimal("1.5E-7", TypeFact::Unknown)), "0.00000015");
 }
@@ -335,8 +433,14 @@ fn literals_are_spelled_as_java_spells_them() {
 #[test]
 fn a_select_writes_its_clauses_in_order() {
     let d = DuckDb::new();
-    let mut s = select(vec![proj(col("t0", "ID", Origin::Physical), None)], table("PERSON", "t0"));
-    s.r#where = Some(call(SqlFn::Greater, vec![col("t0", "AGE", Origin::Physical), int_lit(30)]));
+    let mut s = select(
+        vec![proj(col("t0", "ID", Origin::Physical), None)],
+        table("PERSON", "t0"),
+    );
+    s.r#where = Some(call(
+        SqlFn::Greater,
+        vec![col("t0", "AGE", Origin::Physical), int_lit(30)],
+    ));
     s.group_by = vec![col("t0", "ID", Origin::Physical)];
     s.order_by = vec![SortKey {
         expr: col("t0", "ID", Origin::Physical),
@@ -354,16 +458,25 @@ fn a_select_writes_its_clauses_in_order() {
 #[test]
 fn infix_operators_parenthesize_by_precedence() {
     // 6 - (4 - 5): a trailing operand of the same precedence is its own value
-    let e = call(SqlFn::Minus, vec![int_lit(6), call(SqlFn::Minus, vec![int_lit(4), int_lit(5)])]);
+    let e = call(
+        SqlFn::Minus,
+        vec![int_lit(6), call(SqlFn::Minus, vec![int_lit(4), int_lit(5)])],
+    );
     assert_eq!(render(e), "6 - (4 - 5)");
-    let e = call(SqlFn::Times, vec![call(SqlFn::Plus, vec![int_lit(1), int_lit(2)]), int_lit(3)]);
+    let e = call(
+        SqlFn::Times,
+        vec![call(SqlFn::Plus, vec![int_lit(1), int_lit(2)]), int_lit(3)],
+    );
     assert_eq!(render(e), "(1 + 2) * 3");
     // comparisons are non-associative
     let e = call(
         SqlFn::Equal,
         vec![
             call(SqlFn::Equal, vec![int_lit(1), int_lit(1)]),
-            SqlExpr::BoolLit { value: true, r#type: TypeFact::Unknown },
+            SqlExpr::BoolLit {
+                value: true,
+                r#type: TypeFact::Unknown,
+            },
         ],
     );
     assert_eq!(render(e), "(1 = 1) = TRUE");
@@ -376,7 +489,10 @@ fn an_outer_joins_condition_drops_the_not_null_tests_a_comparison_makes() {
         SqlFn::And,
         vec![
             call(SqlFn::IsNotNull, vec![col("t0", "ID", Origin::Physical)]),
-            call(SqlFn::Equal, vec![col("t0", "ID", Origin::Physical), col("t1", "PID", Origin::Physical)]),
+            call(
+                SqlFn::Equal,
+                vec![col("t0", "ID", Origin::Physical), col("t1", "PID", Origin::Physical)],
+            ),
             call(SqlFn::IsNotNull, vec![col("t1", "X", Origin::Physical)]),
         ],
     );
@@ -388,7 +504,10 @@ fn an_outer_joins_condition_drops_the_not_null_tests_a_comparison_makes() {
         outputs: Vec::new(),
     };
     let left = SqlDialect::render(&d, query(select(Vec::new(), join(JoinKind::Left)))).unwrap();
-    assert_eq!(left, "SELECT *\nFROM A AS t0\nLEFT OUTER JOIN B AS t1 ON t0.ID = t1.PID AND t1.X IS NOT NULL");
+    assert_eq!(
+        left,
+        "SELECT *\nFROM A AS t0\nLEFT OUTER JOIN B AS t1 ON t0.ID = t1.PID AND t1.X IS NOT NULL"
+    );
     let inner = SqlDialect::render(&d, query(select(Vec::new(), join(JoinKind::Inner)))).unwrap();
     assert_eq!(
         inner,
@@ -399,7 +518,10 @@ fn an_outer_joins_condition_drops_the_not_null_tests_a_comparison_makes() {
 #[test]
 fn a_plan_parameter_is_bound_and_a_date_time_typed_by_its_value() {
     let d = DuckDb::new();
-    let by_value = ValueTyping { kinds: vec![ValueKind::DateTime, ValueKind::Date], absent: ValueKind::DateTime };
+    let by_value = ValueTyping {
+        kinds: vec![ValueKind::DateTime, ValueKind::Date],
+        absent: ValueKind::DateTime,
+    };
     let s = select(
         vec![
             proj(param("n", typed(Scalar::Varchar), None), Some("n")),
@@ -416,21 +538,34 @@ fn a_plan_parameter_is_bound_and_a_date_time_typed_by_its_value() {
          DATE_TIME=TypeSpelling[name=TIMESTAMP, digits=NONE, fraction=null]}, absent=DATE_TIME]]]]"
     );
     let r = SqlDialect::render(&d, query(s)).unwrap_err();
-    assert!(r.message.starts_with("a statement with bound parameters [Bind[parameter=n"), "{}", r.message);
+    assert!(
+        r.message
+            .starts_with("a statement with bound parameters [Bind[parameter=n"),
+        "{}",
+        r.message
+    );
 }
 
 #[test]
 fn a_list_parameter_is_bound_whole_and_refused_as_one_value() {
     let d = DuckDb::new();
     let list = TypeFact::Typed {
-        r#type: SqlType::Array { element: Box::new(SqlType::Scalar(Scalar::Bigint)) },
+        r#type: SqlType::Array {
+            element: Box::new(SqlType::Scalar(Scalar::Bigint)),
+        },
         nullable: false,
     };
     let mut s = select(Vec::new(), table("T", "t0"));
-    s.r#where = Some(call(SqlFn::In, vec![col("t0", "ID", Origin::Physical), param("ids", list.clone(), None)]));
+    s.r#where = Some(call(
+        SqlFn::In,
+        vec![col("t0", "ID", Origin::Physical), param("ids", list.clone(), None)],
+    ));
     let st = SqlDialect::render_statement(&d, query(s)).unwrap();
     assert_eq!(st.sql, "SELECT *\nFROM T AS t0\nWHERE t0.ID = ANY(?)");
-    assert_eq!(list_text(&st.binds), "[Bind[parameter=ids, binding=Array[elementSqlType=BIGINT]]]");
+    assert_eq!(
+        list_text(&st.binds),
+        "[Bind[parameter=ids, binding=Array[elementSqlType=BIGINT]]]"
+    );
     let one = select(vec![proj(param("ids", list, None), None)], SqlSource::Dual);
     let r = SqlDialect::render_statement(&d, query(one)).unwrap_err();
     assert_eq!(
@@ -448,9 +583,18 @@ fn a_per_key_run_is_one_region_written_last() {
         nullable: true,
         origin: Origin::PerKey,
     };
-    let per_key =
-        Projection { expr: SqlExpr::KeyCell { cell: 0, r#type: TypeFact::Unknown }, alias: None, out: Some(out) };
-    let s = select(vec![proj(col("t0", "ID", Origin::Physical), Some("ID")), per_key], table("T", "t0"));
+    let per_key = Projection {
+        expr: SqlExpr::KeyCell {
+            cell: 0,
+            r#type: TypeFact::Unknown,
+        },
+        alias: None,
+        out: Some(out),
+    };
+    let s = select(
+        vec![proj(col("t0", "ID", Origin::Physical), Some("ID")), per_key],
+        table("T", "t0"),
+    );
     let st = SqlDialect::render_statement(&d, query(s)).unwrap();
     assert_eq!(st.sql, "SELECT t0.ID AS ID? AS \"_pk__u0\"\nFROM T AS t0");
     assert_eq!(
@@ -481,26 +625,36 @@ fn ddl_and_dml_spell_the_stores_names() {
     let ddl = SqlDdl::CreateTable {
         schema: Some("hr".into()),
         table: "Orders".into(),
-        quoting: NameQuoting { schema: false, table: true },
+        quoting: NameQuoting {
+            schema: false,
+            table: true,
+        },
         columns: vec![
             DdlColumn {
                 name: "id".into(),
                 declared_quoted: false,
-                r#type: ColumnType::Plain { kind: ColumnKind::Integer },
+                r#type: ColumnType::Plain {
+                    kind: ColumnKind::Integer,
+                },
                 not_null: true,
                 primary_key: true,
             },
             DdlColumn {
                 name: "Amt".into(),
                 declared_quoted: true,
-                r#type: ColumnType::Plain { kind: ColumnKind::Float },
+                r#type: ColumnType::Plain {
+                    kind: ColumnKind::Float,
+                },
                 not_null: false,
                 primary_key: false,
             },
             DdlColumn {
                 name: "name".into(),
                 declared_quoted: false,
-                r#type: ColumnType::Sized { kind: "VARCHAR".into(), size: 20 },
+                r#type: ColumnType::Sized {
+                    kind: "VARCHAR".into(),
+                    size: 20,
+                },
                 not_null: false,
                 primary_key: false,
             },
@@ -517,7 +671,10 @@ fn ddl_and_dml_spell_the_stores_names() {
         quoting: NameQuoting::default(),
         columns: vec!["a".into(), "b".into()],
         quoted_columns: vec!["b".into()],
-        rows: vec![vec![int_lit(1), string_lit("x")], vec![int_lit(2), param("p", typed(Scalar::Varchar), None)]],
+        rows: vec![
+            vec![int_lit(1), string_lit("x")],
+            vec![int_lit(2), param("p", typed(Scalar::Varchar), None)],
+        ],
     };
     let r = SqlDialect::render_dml(&d, &insert).unwrap_err();
     assert_eq!(
@@ -536,7 +693,10 @@ fn ddl_and_dml_spell_the_stores_names() {
         quoted_columns: vec!["b".into()],
         rows: vec![vec![int_lit(1), string_lit("x")]],
     };
-    assert_eq!(SqlDialect::render_dml(&d, &plain).unwrap(), "INSERT INTO T (a, \"b\") VALUES (1, 'x');");
+    assert_eq!(
+        SqlDialect::render_dml(&d, &plain).unwrap(),
+        "INSERT INTO T (a, \"b\") VALUES (1, 'x');"
+    );
 }
 
 #[test]
@@ -549,16 +709,33 @@ fn the_engines_h2_text_is_translated_for_duckdb() {
     );
     assert_eq!(translated("select 1 as A", &same, &bare), "select 1 as A");
     assert_eq!(
-        translated("create table T(id INT, float FLOAT, b BIT, PRIMARY KEY(id))", &same, &bare),
+        translated(
+            "create table T(id INT, float FLOAT, b BIT, PRIMARY KEY(id))",
+            &same,
+            &bare
+        ),
         "create table T(\"id\" INT, \"float\" DOUBLE, \"b\" BOOLEAN, PRIMARY KEY(id))"
     );
     assert_eq!(
-        translated("insert into T (id, \"x\", name) values (1, 2, CURRENT_TIMESTAMP())", &same, &bare),
+        translated(
+            "insert into T (id, \"x\", name) values (1, 2, CURRENT_TIMESTAMP())",
+            &same,
+            &bare
+        ),
         "insert into T (\"id\", \"x\", \"name\") values (1, 2, CURRENT_TIMESTAMP)"
     );
-    assert_eq!(translated("Drop schema S if exists cascade", &same, &bare), "Drop schema if exists S cascade");
-    assert_eq!(translated("create schema S", &same, &bare), "Create schema if not exists S");
-    assert_eq!(translated("create schema if not exists S", &same, &bare), "create schema if not exists S");
+    assert_eq!(
+        translated("Drop schema S if exists cascade", &same, &bare),
+        "Drop schema if exists S cascade"
+    );
+    assert_eq!(
+        translated("create schema S", &same, &bare),
+        "Create schema if not exists S"
+    );
+    assert_eq!(
+        translated("create schema if not exists S", &same, &bare),
+        "create schema if not exists S"
+    );
     assert_eq!(translated("SELECT H2VERSION( )", &same, &bare), "SELECT '2.1.214'");
 }
 
@@ -573,7 +750,10 @@ fn a_data_url_inlines_its_payload_and_a_file_url_reads_its_path() {
         d.source_url("file:///tmp/a%20b//c.json").unwrap(),
         "SELECT json AS data FROM read_json_objects('/tmp/a b/c.json')"
     );
-    assert_eq!(d.source_url("http://x").unwrap_err().message, "unsupported sourceUrl scheme: http://x");
+    assert_eq!(
+        d.source_url("http://x").unwrap_err().message,
+        "unsupported sourceUrl scheme: http://x"
+    );
 }
 
 #[test]
@@ -581,10 +761,16 @@ fn a_subquery_is_written_on_one_line_and_inline_mode_is_restored() {
     let d = DuckDb::new();
     let inner = query(select(vec![proj(int_lit(1), None)], table("T", "t1")));
     let mut s = select(Vec::new(), table("A", "t0"));
-    s.r#where = Some(SqlExpr::Exists { subquery: Box::new(inner), r#type: TypeFact::Unknown });
+    s.r#where = Some(SqlExpr::Exists {
+        subquery: Box::new(inner),
+        r#type: TypeFact::Unknown,
+    });
     s.limit = Some(1);
     let text = SqlDialect::render(&d, query(s.clone())).unwrap();
-    assert_eq!(text, "SELECT *\nFROM A AS t0\nWHERE EXISTS (SELECT 1 FROM T AS t1)\nLIMIT 1");
+    assert_eq!(
+        text,
+        "SELECT *\nFROM A AS t0\nWHERE EXISTS (SELECT 1 FROM T AS t1)\nLIMIT 1"
+    );
     assert_eq!(
         SqlDialect::render_inline(&d, query(s)).unwrap(),
         "SELECT * FROM A AS t0 WHERE EXISTS (SELECT 1 FROM T AS t1) LIMIT 1"

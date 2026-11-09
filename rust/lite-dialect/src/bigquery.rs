@@ -172,8 +172,12 @@ pub const RESERVED: &[&str] = &[
 static LEXICON: LazyLock<Lexicon> = LazyLock::new(|| Lexicon::new('`', RESERVED));
 
 /// Java's `BigQuery.CAPS`: the portable strategies, as on Postgres: arrays native but lambda-less; FULL OUTER native.
-pub const CAPS: carrier::Caps =
-    carrier::Caps { native_lists: false, correlated_explode: true, json_carrier: true, native_full_outer: true };
+pub const CAPS: carrier::Caps = carrier::Caps {
+    native_lists: false,
+    correlated_explode: true,
+    json_carrier: true,
+    native_full_outer: true,
+};
 
 // ==================================================================
 // Pieces and the type facts the arms read
@@ -303,7 +307,12 @@ fn null_valued(e: &SqlExpr) -> bool {
 /// Java's `textual(e)`: a string literal, or a text type.
 fn textual(e: &SqlExpr) -> bool {
     matches!(e, SqlExpr::StringLit { .. })
-        || matches!(type_of(e), Some(SqlType::Scalar(Scalar::Varchar | Scalar::TemporalText | Scalar::DecimalText)))
+        || matches!(
+            type_of(e),
+            Some(SqlType::Scalar(
+                Scalar::Varchar | Scalar::TemporalText | Scalar::DecimalText
+            ))
+        )
 }
 
 /// The capability a list plan parameter meets (Java's `listParameter`).
@@ -356,7 +365,9 @@ fn lambda_body(xs: &SqlExpr, l: &Lambda) -> Result<SqlExpr, Refusal> {
     // the empty list [] has no element to apply the body to: the body is a NULL of its own type
     if null_list(xs) && list_element(xs).is_none() && bottom(xs) {
         let Some(t) = type_of(&body) else {
-            return Err(Refusal::capability("a lambda of no known type over the empty list reached BigQuery"));
+            return Err(Refusal::capability(
+                "a lambda of no known type over the empty list reached BigQuery",
+            ));
         };
         return Ok(build::cast(build::null_lit(), t.clone()));
     }
@@ -368,7 +379,10 @@ fn lambda_body(xs: &SqlExpr, l: &Lambda) -> Result<SqlExpr, Refusal> {
     if l.params.len() < 2 {
         return Ok(body);
     }
-    let index = build::call(SqlFn::Plus, vec![build::derived(None, &offset_of(l)), build::int_lit(1)]);
+    let index = build::call(
+        SqlFn::Plus,
+        vec![build::derived(None, &offset_of(l)), build::int_lit(1)],
+    );
     substituted(body, &l.params[1], &index)
 }
 
@@ -463,7 +477,9 @@ impl BigQuery {
     fn elements<'a>(&'a self, xs: &'a SqlExpr, e: &str, o: &str) -> Result<P<'a>, Refusal> {
         let known = list_element(xs);
         if null_list(xs) && known.is_none() && !bottom(xs) {
-            return Err(Refusal::capability("a NULL list of unknown element type reached BigQuery"));
+            return Err(Refusal::capability(
+                "a NULL list of unknown element type reached BigQuery",
+            ));
         }
         let element = known.cloned().unwrap_or(SqlType::Scalar(Scalar::Varchar));
         let tail = format!(") AS {} WITH OFFSET AS {}", self.param(e), self.param(o));
@@ -471,7 +487,12 @@ impl BigQuery {
         Ok(pc(move |w| {
             w.append("UNNEST(");
             if null {
-                let t = cast_type_name(self, &SqlType::Array { element: Box::new(element.clone()) })?;
+                let t = cast_type_name(
+                    self,
+                    &SqlType::Array {
+                        element: Box::new(element.clone()),
+                    },
+                )?;
                 w.append(&format!("CAST(NULL AS {t})"));
             } else {
                 w.expr(self, xs, 0)?;
@@ -484,7 +505,10 @@ impl BigQuery {
     /// `body`, or NULL for a NULL list (Java's `unlessNull`).
     fn unless_null<'a>(&'a self, xs: &'a SqlExpr, body: P<'a>) -> P<'a> {
         pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, xs, 4)?.append(" IS NULL THEN NULL ELSE ").piece(&*body)?;
+            w.append("(CASE WHEN ")
+                .expr(self, xs, 4)?
+                .append(" IS NULL THEN NULL ELSE ")
+                .piece(&*body)?;
             w.append(" END)");
             Ok(())
         })
@@ -529,11 +553,17 @@ impl BigQuery {
                 w.append(&format!("(SELECT {e} FROM "));
                 let elements = self.elements(xs, "__e", "__o")?;
                 w.piece(&*elements)?;
-                w.append(&format!(" WHERE {e} IS NOT NULL GROUP BY {e} ORDER BY COUNT(*) DESC, MIN({o}) LIMIT 1)"));
+                w.append(&format!(
+                    " WHERE {e} IS NOT NULL GROUP BY {e} ORDER BY COUNT(*) DESC, MIN({o}) LIMIT 1)"
+                ));
                 Ok(())
             }));
         }
-        let el = if list_element(xs).is_none() { build::derived(None, "__e") } else { column_param("__e", xs) };
+        let el = if list_element(xs).is_none() {
+            build::derived(None, "__e")
+        } else {
+            column_param("__e", xs)
+        };
         let mut args = vec![el];
         args.extend(extras.iter().cloned());
         let order = if matches!(f, AggFn::StringAgg | AggFn::List) {
@@ -555,7 +585,9 @@ impl BigQuery {
 
     /// A list literal, typed when its element type is known (Java's `arrayLiteral`).
     fn array_literal(&self, w: &mut SqlWriter, a: &SqlExpr) -> Result<(), Refusal> {
-        let SqlExpr::ArrayLit { elements, .. } = a else { unreachable!("a list literal") };
+        let SqlExpr::ArrayLit { elements, .. } = a else {
+            unreachable!("a list literal")
+        };
         let el = list_element(a);
         for x in elements {
             if matches!(x, SqlExpr::ArrayLit { .. }) || matches!(type_of(x), Some(SqlType::Array { .. })) {
@@ -571,7 +603,11 @@ impl BigQuery {
         }
         let cells: Vec<&SqlExpr> = elements.iter().collect();
         let held = self.held_type(el, &cells)?;
-        w.append("ARRAY<").append(&held).append(">[").list(self, elements)?.append("]");
+        w.append("ARRAY<")
+            .append(&held)
+            .append(">[")
+            .list(self, elements)?
+            .append("]");
         Ok(())
     }
 
@@ -588,12 +624,19 @@ impl BigQuery {
         let any = quantifier == Quantifier::Any;
         w.append("(SELECT CASE WHEN ");
         if any {
-            w.append("COUNTIF(").expr(self, &cmp, 0)?.append(") > 0 THEN TRUE WHEN COUNT(*) = 0 THEN FALSE");
+            w.append("COUNTIF(")
+                .expr(self, &cmp, 0)?
+                .append(") > 0 THEN TRUE WHEN COUNT(*) = 0 THEN FALSE");
         } else {
-            w.append("COUNT(*) = 0 THEN TRUE WHEN COUNTIF(NOT (").expr(self, &cmp, 0)?.append(")) > 0 THEN FALSE");
+            w.append("COUNT(*) = 0 THEN TRUE WHEN COUNTIF(NOT (")
+                .expr(self, &cmp, 0)?
+                .append(")) > 0 THEN FALSE");
         }
-        w.append(" WHEN COUNTIF((").expr(self, &cmp, 0)?.append(") IS NULL) > 0 THEN NULL ELSE ");
-        w.append(if any { "FALSE" } else { "TRUE" }).append(" END FROM UNNEST(ARRAY(");
+        w.append(" WHEN COUNTIF((")
+            .expr(self, &cmp, 0)?
+            .append(") IS NULL) > 0 THEN NULL ELSE ");
+        w.append(if any { "FALSE" } else { "TRUE" })
+            .append(" END FROM UNNEST(ARRAY(");
         ansi::inline(self, w, subquery)?;
         w.append(")) AS ").append(&self.param("__qc")).append(")");
         Ok(())
@@ -613,8 +656,10 @@ impl BigQuery {
                     }
                 }
                 None => {
-                    let owners: Vec<&(String, Vec<(String, SqlExpr)>)> =
-                        scope.iter().filter(|(_, cols)| cols.iter().any(|(name, _)| *name == c.name)).collect();
+                    let owners: Vec<&(String, Vec<(String, SqlExpr)>)> = scope
+                        .iter()
+                        .filter(|(_, cols)| cols.iter().any(|(name, _)| *name == c.name))
+                        .collect();
                     if owners.len() == 1 {
                         let (alias, cols) = owners[0];
                         let xs = &cols.iter().find(|(name, _)| *name == c.name).expect("an owner").1;
@@ -660,7 +705,9 @@ impl BigQuery {
                 w.append("0");
             }
             1 => {
-                w.append("IFNULL(ARRAY_LENGTH(").expr(self, lists[0], 0)?.append("), 0)");
+                w.append("IFNULL(ARRAY_LENGTH(")
+                    .expr(self, lists[0], 0)?
+                    .append("), 0)");
             }
             _ => {
                 w.append("GREATEST(").join(&lists, ", ", |v, l| {
@@ -685,7 +732,10 @@ impl BigQuery {
         depth: usize,
     ) -> Result<(), Refusal> {
         let SqlSource::Subselect { inner, alias, .. } = right else {
-            return Err(Refusal::capability(format!("a lateral join over a {} reached BigQuery", source_class(right))));
+            return Err(Refusal::capability(format!(
+                "a lateral join over a {} reached BigQuery",
+                source_class(right)
+            )));
         };
         let trivial = on.is_none_or(|on| matches!(on, SqlExpr::BoolLit { value: true, .. }));
         let is_left = kind == JoinKind::LeftLateral;
@@ -765,10 +815,14 @@ impl BigQuery {
     fn mode_arm(&self, w: &mut SqlWriter, mode: Mode<'_>) -> Result<(), Refusal> {
         let count = {
             let counts = self.mode_counts.borrow();
-            counts.last().and_then(|top| top.iter().find(|(k, _)| mode.is(k)).map(|(_, c)| c.clone()))
+            counts
+                .last()
+                .and_then(|top| top.iter().find(|(k, _)| mode.is(k)).map(|(_, c)| c.clone()))
         };
         let Some(count) = count else {
-            return Err(Refusal::illegal_state("a MODE reached BigQuery's writer uncounted: modesCounted did not run"));
+            return Err(Refusal::illegal_state(
+                "a MODE reached BigQuery's writer uncounted: modesCounted did not run",
+            ));
         };
         let r = match mode {
             Mode::Grouped(r) => r,
@@ -778,20 +832,33 @@ impl BigQuery {
             },
         };
         if r.args.len() != 1 || r.distinct {
-            return Err(Refusal::capability(format!("a mode of {} arguments reached BigQuery", r.args.len())));
+            return Err(Refusal::capability(format!(
+                "a mode of {} arguments reached BigQuery",
+                r.args.len()
+            )));
         }
         let v = &r.args[0];
         if let Mode::Window { partition_by, .. } = mode {
-            w.append("FIRST_VALUE(").expr(self, v, 0)?.append(" IGNORE NULLS) OVER (");
+            w.append("FIRST_VALUE(")
+                .expr(self, v, 0)?
+                .append(" IGNORE NULLS) OVER (");
             if !partition_by.is_empty() {
                 w.append("PARTITION BY ").list(self, partition_by)?.append(" ");
             }
-            w.append("ORDER BY ").expr(self, &count, 0)?.append(" DESC, ").expr(self, v, 0)?;
+            w.append("ORDER BY ")
+                .expr(self, &count, 0)?
+                .append(" DESC, ")
+                .expr(self, v, 0)?;
             w.append(" ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)");
             return Ok(());
         }
-        w.append("ARRAY_AGG(").expr(self, v, 0)?.append(" IGNORE NULLS ORDER BY ").expr(self, &count, 0)?;
-        w.append(" DESC, ").expr(self, v, 0)?.append(" LIMIT 1)[SAFE_OFFSET(0)]");
+        w.append("ARRAY_AGG(")
+            .expr(self, v, 0)?
+            .append(" IGNORE NULLS ORDER BY ")
+            .expr(self, &count, 0)?;
+        w.append(" DESC, ")
+            .expr(self, v, 0)?
+            .append(" LIMIT 1)[SAFE_OFFSET(0)]");
         Ok(())
     }
 
@@ -840,7 +907,12 @@ impl BigQuery {
 #[derive(Clone, Copy)]
 enum Mode<'a> {
     Grouped(&'a Reducer),
-    Window { r#fn: &'a SqlAgg, partition_by: &'a [SqlExpr], order_by: &'a [SortKey], frame: Option<&'a Frame> },
+    Window {
+        r#fn: &'a SqlAgg,
+        partition_by: &'a [SqlExpr],
+        order_by: &'a [SortKey],
+        frame: Option<&'a Frame>,
+    },
 }
 
 impl Mode<'_> {
@@ -850,8 +922,19 @@ impl Mode<'_> {
         match (self, key) {
             (Mode::Grouped(r), SqlExpr::Reducer(k)) => *r == k,
             (
-                Mode::Window { r#fn, partition_by, order_by, frame },
-                SqlExpr::WindowCall { r#fn: kf, partition_by: kp, order_by: ko, frame: kr, .. },
+                Mode::Window {
+                    r#fn,
+                    partition_by,
+                    order_by,
+                    frame,
+                },
+                SqlExpr::WindowCall {
+                    r#fn: kf,
+                    partition_by: kp,
+                    order_by: ko,
+                    frame: kr,
+                    ..
+                },
             ) => {
                 **r#fn == **kf && *partition_by == kp.as_slice() && *order_by == ko.as_slice() && *frame == kr.as_ref()
             }
@@ -877,12 +960,20 @@ fn collect_modes(e: &SqlExpr, group_by: &[SqlExpr], out: &mut Vec<(SqlExpr, Vec<
         put_modes(out, e.clone(), group_by.to_vec());
         return Ok(());
     }
-    if let SqlExpr::WindowCall { r#fn, partition_by, order_by, frame, .. } = e
+    if let SqlExpr::WindowCall {
+        r#fn,
+        partition_by,
+        order_by,
+        frame,
+        ..
+    } = e
         && let SqlAgg::Reducer(r) = r#fn.as_ref()
         && r.r#fn == AggFn::Mode
     {
         if !order_by.is_empty() || frame.is_some() {
-            return Err(Refusal::capability("a MODE over an ordered or framed window reached BigQuery"));
+            return Err(Refusal::capability(
+                "a MODE over an ordered or framed window reached BigQuery",
+            ));
         }
         put_modes(out, e.clone(), partition_by.clone());
         return Ok(());
@@ -911,7 +1002,10 @@ fn mode_value(mode: &SqlExpr) -> Result<&SqlExpr, Refusal> {
         _ => unreachable!("a MODE"),
     };
     if r.args.len() != 1 || r.distinct {
-        return Err(Refusal::capability(format!("a mode of {} arguments reached BigQuery", r.args.len())));
+        return Err(Refusal::capability(format!(
+            "a mode of {} arguments reached BigQuery",
+            r.args.len()
+        )));
     }
     Ok(&r.args[0])
 }
@@ -919,7 +1013,10 @@ fn mode_value(mode: &SqlExpr) -> Result<&SqlExpr, Refusal> {
 /// `key` as a window partitions by it: a FLOAT64 by its JSON text (Java's `partitionKey`).
 fn partition_key(key: &SqlExpr) -> SqlExpr {
     if is_scalar(key, Scalar::Double) {
-        build::cast(build::cast(key.clone(), SqlType::Scalar(Scalar::Json)), SqlType::Scalar(Scalar::Varchar))
+        build::cast(
+            build::cast(key.clone(), SqlType::Scalar(Scalar::Json)),
+            SqlType::Scalar(Scalar::Varchar),
+        )
     } else {
         key.clone()
     }
@@ -964,7 +1061,9 @@ fn spell(src: &SqlSource, table: Option<&str>, into: &mut Vec<Projection>) -> Re
             spell(right, table, into)
         }
         SqlSource::Subselect { inner, alias, .. } if is_marker(inner) && table.is_none_or(|t| t == alias) => {
-            let SqlQuery::Select(m) = inner.as_ref() else { unreachable!("a marker is a select") };
+            let SqlQuery::Select(m) = inner.as_ref() else {
+                unreachable!("a marker is a select")
+            };
             for p in &m.projections {
                 let read = exploded_read(alias, p, p.out.as_ref().map(|o| &o.r#type))?;
                 into.push(build::projection(read, Some(marker_column(p)?), p.out.clone())?);
@@ -1022,7 +1121,10 @@ impl AnsiSqlRenderer for BigQuery {
     /// A DELETE needs a WHERE clause in GoogleSQL.
     fn render_dml(&self, dml: &SqlDml) -> Result<String, Refusal> {
         if let SqlDml::DeleteAll { schema, table, quoting } = dml {
-            return Ok(format!("DELETE FROM {} WHERE TRUE;", self.qualified(schema.as_deref(), table, *quoting)));
+            return Ok(format!(
+                "DELETE FROM {} WHERE TRUE;",
+                self.qualified(schema.as_deref(), table, *quoting)
+            ));
         }
         ansi::render_dml(self, dml)
     }
@@ -1030,7 +1132,9 @@ impl AnsiSqlRenderer for BigQuery {
     /// The engine's H2 text is refused here: BigQuery has no translation of it.
     fn from_engine_text(&self, statement: &str) -> Result<String, Refusal> {
         let _ = statement;
-        Err(Refusal::capability("the engine's H2 text reached BigQuery, which has no translation of it"))
+        Err(Refusal::capability(
+            "the engine's H2 text reached BigQuery, which has no translation of it",
+        ))
     }
 
     /// A Float's literal spelling over the double's text bound once.
@@ -1077,7 +1181,9 @@ impl AnsiSqlRenderer for BigQuery {
     }
 
     fn row_order_column(&self) -> Result<String, Refusal> {
-        Err(Refusal::capability("row order reached BigQuery, which has no row-order column"))
+        Err(Refusal::capability(
+            "row order reached BigQuery, which has no row-order column",
+        ))
     }
 
     fn as_of_join_clause(&self) -> Result<String, Refusal> {
@@ -1130,7 +1236,11 @@ impl AnsiSqlRenderer for BigQuery {
             let aligned = s.outputs.len() == s.projections.len();
             let mut ps = Vec::with_capacity(s.projections.len());
             for (i, p) in s.projections.iter().enumerate() {
-                let slot = if aligned { Some(&s.outputs[i].r#type) } else { p.out.as_ref().map(|o| &o.r#type) };
+                let slot = if aligned {
+                    Some(&s.outputs[i].r#type)
+                } else {
+                    p.out.as_ref().map(|o| &o.r#type)
+                };
                 let read = exploded_read(&alias, p, slot)?;
                 ps.push(build::projection(read, Some(marker_column(p)?), p.out.clone())?);
             }
@@ -1157,8 +1267,10 @@ impl AnsiSqlRenderer for BigQuery {
                 SqlSource::Dual,
                 Vec::new(),
             )?;
-            let over =
-                build::select(SqlSelect { from: build::subselect(build::query(one), "__dual", None), ..s.clone() })?;
+            let over = build::select(SqlSelect {
+                from: build::subselect(build::query(one), "__dual", None),
+                ..s.clone()
+            })?;
             return self.select(w, &over, depth);
         }
         let mut counts = Vec::new();
@@ -1186,7 +1298,11 @@ impl AnsiSqlRenderer for BigQuery {
     fn source(&self, w: &mut SqlWriter, src: &SqlSource, depth: usize) -> Result<(), Refusal> {
         match src {
             SqlSource::Join {
-                left, right, kind: kind @ (JoinKind::CrossLateral | JoinKind::LeftLateral), on, ..
+                left,
+                right,
+                kind: kind @ (JoinKind::CrossLateral | JoinKind::LeftLateral),
+                on,
+                ..
             } => {
                 if let SqlSource::Subselect { inner, alias, .. } = right.as_ref()
                     && let SqlQuery::Select(m) = inner.as_ref()
@@ -1195,7 +1311,9 @@ impl AnsiSqlRenderer for BigQuery {
                     if let Some(on) = on
                         && !matches!(on.as_ref(), SqlExpr::BoolLit { value: true, .. })
                     {
-                        return Err(Refusal::capability("a lateral explosion with a join condition reached BigQuery"));
+                        return Err(Refusal::capability(
+                            "a lateral explosion with a join condition reached BigQuery",
+                        ));
                     }
                     self.source(w, left, depth)?;
                     self.nl(w, depth);
@@ -1212,7 +1330,9 @@ impl AnsiSqlRenderer for BigQuery {
                 self.lateral(w, left, right, *kind, on.as_deref(), depth)
             }
             SqlSource::Subselect { inner, alias, .. } if is_marker(inner) => {
-                let SqlQuery::Select(m) = inner.as_ref() else { unreachable!("a marker is a select") };
+                let SqlQuery::Select(m) = inner.as_ref() else {
+                    unreachable!("a marker is a select")
+                };
                 self.positions(w, m)?;
                 let a = self.alias_ident(alias);
                 w.append(" AS ").append(&a);
@@ -1232,18 +1352,26 @@ impl AnsiSqlRenderer for BigQuery {
         outputs: &[OutputCol],
     ) -> Result<(), Refusal> {
         if outputs.len() != columns.len() {
-            return Err(Refusal::capability("a VALUES source without a declared type per column reached BigQuery"));
+            return Err(Refusal::capability(
+                "a VALUES source without a declared type per column reached BigQuery",
+            ));
         }
         w.append("(SELECT * FROM UNNEST(ARRAY<STRUCT<");
         for (i, column) in columns.iter().enumerate() {
             let cells = rows.iter().map(|r| arg(r, i)).collect::<Result<Vec<_>, _>>()?;
             let name = self.ident(column);
             let held = self.held_type(&outputs[i].r#type, &cells)?;
-            w.append(if i > 0 { ", " } else { "" }).append(&name).append(" ").append(&held);
+            w.append(if i > 0 { ", " } else { "" })
+                .append(&name)
+                .append(" ")
+                .append(&held);
         }
         w.append(">>[");
         for (r, row) in rows.iter().enumerate() {
-            w.append(if r > 0 { ", " } else { "" }).append("STRUCT(").list(self, row)?.append(")");
+            w.append(if r > 0 { ", " } else { "" })
+                .append("STRUCT(")
+                .list(self, row)?
+                .append(")");
         }
         let a = self.alias_ident(alias);
         w.append("])) AS ").append(&a);
@@ -1295,7 +1423,10 @@ impl AnsiSqlRenderer for BigQuery {
         let units: Vec<u16> = t.encode_utf16().collect();
         let t = match units.iter().rposition(|&u| u == u16::from(b'.')) {
             Some(dot) => {
-                let digits = units[dot + 1..].iter().take_while(|&&u| lite_javacompat::character::is_digit(u)).count();
+                let digits = units[dot + 1..]
+                    .iter()
+                    .take_while(|&&u| lite_javacompat::character::is_digit(u))
+                    .count();
                 if digits > 6 {
                     let kept = String::from_utf16_lossy(&units[..dot + 7]);
                     let rest = String::from_utf16_lossy(&units[dot + 1 + digits..]);
@@ -1315,7 +1446,12 @@ impl AnsiSqlRenderer for BigQuery {
             return Ok("CAST('nan' AS FLOAT64)".to_owned());
         }
         if v.is_infinite() {
-            return Ok(if v > 0.0 { "CAST('inf' AS FLOAT64)" } else { "CAST('-inf' AS FLOAT64)" }.to_owned());
+            return Ok(if v > 0.0 {
+                "CAST('inf' AS FLOAT64)"
+            } else {
+                "CAST('-inf' AS FLOAT64)"
+            }
+            .to_owned());
         }
         if let Some(plain) = crate::java::float_decimal(v)?
             && fits_big_numeric(&plain)
@@ -1335,7 +1471,11 @@ impl AnsiSqlRenderer for BigQuery {
 
     /// A map is its entries in order, `ARRAY<STRUCT<key K, value V>>`.
     fn map_type_name(&self, key: &str, value: &str) -> String {
-        format!("ARRAY<STRUCT<{} {key}, {} {value}>>", self.ident("key"), self.ident("value"))
+        format!(
+            "ARRAY<STRUCT<{} {key}, {} {value}>>",
+            self.ident("key"),
+            self.ident("value")
+        )
     }
 
     fn struct_type_name(&self, fields: &[StructField]) -> Result<String, Refusal> {
@@ -1362,7 +1502,11 @@ impl AnsiSqlRenderer for BigQuery {
     /// A projection that IS error() is raised in its column's type.
     fn projection_value(&self, w: &mut SqlWriter, p: &Projection) -> Result<(), Refusal> {
         if let Some(out) = &p.out
-            && let SqlExpr::Call { r#fn: SqlFn::Error, args, .. } = &p.expr
+            && let SqlExpr::Call {
+                r#fn: SqlFn::Error,
+                args,
+                ..
+            } = &p.expr
         {
             let t = self.bq_type(&out.r#type)?;
             let datetime = t == "DATETIME";
@@ -1382,7 +1526,10 @@ impl AnsiSqlRenderer for BigQuery {
     fn projection(&self, w: &mut SqlWriter, p: &Projection) -> Result<(), Refusal> {
         if let SqlExpr::NullLit { .. } = p.expr
             && let Some(out) = &p.out
-            && matches!(out.r#type, SqlType::Array { .. } | SqlType::Struct { .. } | SqlType::Decimal { .. })
+            && matches!(
+                out.r#type,
+                SqlType::Array { .. } | SqlType::Struct { .. } | SqlType::Decimal { .. }
+            )
         {
             let t = self.bq_type(&out.r#type)?;
             w.append("CAST(NULL AS ").append(&t).append(")");
@@ -1409,16 +1556,23 @@ impl AnsiSqlRenderer for BigQuery {
             // DuckDB's list(v ORDER BY k): ascending, NULLs last
             SqlExpr::OrderedListAgg { value, order_by, .. } => {
                 w.append("ARRAY_AGG(").expr(self, value, 0)?.append(" ORDER BY ");
-                w.piece(&*aggregates::order_key(self.ex(order_by, 0), true, false))?.append(")");
+                w.piece(&*aggregates::order_key(self.ex(order_by, 0), true, false))?
+                    .append(")");
                 Ok(())
             }
             SqlExpr::Membership { collection, .. } if matches!(collection.as_ref(), SqlExpr::PlanParam { .. }) => {
-                let SqlExpr::PlanParam { name, .. } = collection.as_ref() else { unreachable!("a plan parameter") };
+                let SqlExpr::PlanParam { name, .. } = collection.as_ref() else {
+                    unreachable!("a plan parameter")
+                };
                 Err(list_parameter(name))
             }
-            SqlExpr::Quantified { value, comparison, quantifier, subquery, .. } => {
-                self.quantified(w, value, *comparison, *quantifier, subquery)
-            }
+            SqlExpr::Quantified {
+                value,
+                comparison,
+                quantifier,
+                subquery,
+                ..
+            } => self.quantified(w, value, *comparison, *quantifier, subquery),
             SqlExpr::Column(c) => match self.exploded_column(c) {
                 Some((xs, position)) => self.element(w, c, &xs, &position),
                 None => ansi::expr(self, w, e, parent_prec),
@@ -1437,7 +1591,10 @@ impl AnsiSqlRenderer for BigQuery {
     ) -> Result<(), Refusal> {
         let branches: Vec<&SqlExpr> = whens.iter().map(|w| &w.then).chain(otherwise).collect();
         let text = branches.iter().any(|b| textual(b));
-        let mixed = text && branches.iter().any(|b| !textual(b) && !matches!(b, SqlExpr::NullLit { .. }));
+        let mixed = text
+            && branches
+                .iter()
+                .any(|b| !textual(b) && !matches!(b, SqlExpr::NullLit { .. }));
         if !mixed {
             let _ = r#type;
             return ansi::case_expr(self, w, whens, otherwise);
@@ -1451,7 +1608,10 @@ impl AnsiSqlRenderer for BigQuery {
         };
         w.append("CASE");
         for wh in whens {
-            w.append(" WHEN ").expr(self, &wh.condition, 0)?.append(" THEN ").expr(self, &as_text(&wh.then), 0)?;
+            w.append(" WHEN ")
+                .expr(self, &wh.condition, 0)?
+                .append(" THEN ")
+                .expr(self, &as_text(&wh.then), 0)?;
         }
         if let Some(o) = otherwise {
             w.append(" ELSE ").expr(self, &as_text(o), 0)?;
@@ -1469,7 +1629,10 @@ impl AnsiSqlRenderer for BigQuery {
 
     /// Typed when declared, so a NULL field has its type.
     fn struct_lit(&self, w: &mut SqlWriter, fields: &[StructLitField]) -> Result<(), Refusal> {
-        if let TypeFact::Typed { r#type: st @ SqlType::Struct { .. }, .. } = typing::struct_lit_type(fields)
+        if let TypeFact::Typed {
+            r#type: st @ SqlType::Struct { .. },
+            ..
+        } = typing::struct_lit_type(fields)
             && let SqlType::Struct { fields: declared } = &st
             && declared.len() == fields.len()
         {
@@ -1512,12 +1675,20 @@ impl AnsiSqlRenderer for BigQuery {
                 continue;
             }
             let n = self.ident(&f.name);
-            w.append(if first { "" } else { ", " }).append("(").expr(self, &args[0], 0)?.append(").").append(&n);
+            w.append(if first { "" } else { ", " })
+                .append("(")
+                .expr(self, &args[0], 0)?
+                .append(").")
+                .append(&n);
             w.append(" AS ").append(&n);
             first = false;
         }
         let n = self.ident(name);
-        w.append(if first { "" } else { ", " }).expr(self, arg(args, 2)?, 0)?.append(" AS ").append(&n).append(")");
+        w.append(if first { "" } else { ", " })
+            .expr(self, arg(args, 2)?, 0)?
+            .append(" AS ")
+            .append(&n)
+            .append(")");
         Ok(())
     }
 
@@ -1542,9 +1713,15 @@ impl AnsiSqlRenderer for BigQuery {
     /// DuckDB's list_contains: NULL for a NULL list or needle; else found or not.
     fn membership(&self, w: &mut SqlWriter, needle: &SqlExpr, collection: &SqlExpr) -> Result<(), Refusal> {
         let e = self.param("__e");
-        w.append("(CASE WHEN ").expr(self, collection, 4)?.append(" IS NULL OR ").expr(self, needle, 4)?;
-        w.append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM UNNEST(").expr(self, collection, 0)?;
-        w.append(&format!(") AS {e} WHERE {e} = ")).expr(self, needle, 5)?.append(") END)");
+        w.append("(CASE WHEN ")
+            .expr(self, collection, 4)?
+            .append(" IS NULL OR ")
+            .expr(self, needle, 4)?;
+        w.append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM UNNEST(")
+            .expr(self, collection, 0)?;
+        w.append(&format!(") AS {e} WHERE {e} = "))
+            .expr(self, needle, 5)?
+            .append(") END)");
         Ok(())
     }
 
@@ -1580,9 +1757,13 @@ impl AnsiSqlRenderer for BigQuery {
     fn split_part_call(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let t = self.param("__t");
         let to = self.param("__to");
-        w.append(&format!("ARRAY(SELECT {t} FROM UNNEST(SPLIT(")).expr(self, arg(a, 0)?, 0)?.append(", ");
+        w.append(&format!("ARRAY(SELECT {t} FROM UNNEST(SPLIT("))
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ");
         w.expr(self, arg(a, 1)?, 0)?;
-        w.append(&format!(")) AS {t} WITH OFFSET AS {to} WHERE {t} <> '' ORDER BY {to})[SAFE_ORDINAL(CAST("));
+        w.append(&format!(
+            ")) AS {t} WITH OFFSET AS {to} WHERE {t} <> '' ORDER BY {to})[SAFE_ORDINAL(CAST("
+        ));
         w.expr(self, arg(a, 2)?, 0)?.append(" AS INT64))]");
         Ok(())
     }
@@ -1591,7 +1772,10 @@ impl AnsiSqlRenderer for BigQuery {
 
     fn variant_construct(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() != 1 {
-            return Err(Refusal::capability(format!("toVariant of {} arguments reached BigQuery", a.len())));
+            return Err(Refusal::capability(format!(
+                "toVariant of {} arguments reached BigQuery",
+                a.len()
+            )));
         }
         if is_json(&a[0]) {
             w.expr(self, &a[0], 0)?;
@@ -1611,12 +1795,24 @@ impl AnsiSqlRenderer for BigQuery {
             return Ok(());
         }
         if is_text(key) {
-            w.append("(").expr(self, arg(args, 0)?, 0)?.append(")[").expr(self, key, 0)?.append("]");
+            w.append("(")
+                .expr(self, arg(args, 0)?, 0)?
+                .append(")[")
+                .expr(self, key, 0)?
+                .append("]");
             return Ok(());
         }
-        w.append("(").expr(self, arg(args, 0)?, 0)?.append(")[CASE WHEN ").expr(self, key, 4)?;
-        w.append(" < 0 THEN ARRAY_LENGTH(JSON_QUERY_ARRAY(").expr(self, &args[0], 0)?.append(")) + CAST(");
-        w.expr(self, key, 0)?.append(" AS INT64) ELSE CAST(").expr(self, key, 0)?.append(" AS INT64) END]");
+        w.append("(")
+            .expr(self, arg(args, 0)?, 0)?
+            .append(")[CASE WHEN ")
+            .expr(self, key, 4)?;
+        w.append(" < 0 THEN ARRAY_LENGTH(JSON_QUERY_ARRAY(")
+            .expr(self, &args[0], 0)?
+            .append(")) + CAST(");
+        w.expr(self, key, 0)?
+            .append(" AS INT64) ELSE CAST(")
+            .expr(self, key, 0)?
+            .append(" AS INT64) END]");
         Ok(())
     }
 
@@ -1653,7 +1849,9 @@ impl AnsiSqlRenderer for BigQuery {
     /// Pure's hashCode: FARM_FINGERPRINT of the value's text as JSON.
     fn hash_signed(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() == 1 {
-            w.append("FARM_FINGERPRINT(TO_JSON_STRING(").piece(&*self.as_text(&a[0]))?.append("))");
+            w.append("FARM_FINGERPRINT(TO_JSON_STRING(")
+                .piece(&*self.as_text(&a[0]))?
+                .append("))");
             return Ok(());
         }
         w.append("FARM_FINGERPRINT(TO_JSON_STRING([").join(a, ", ", |w, x| {
@@ -1666,7 +1864,9 @@ impl AnsiSqlRenderer for BigQuery {
 
     /// Pure round is half-EVEN: ROUND(x, n, 'ROUND_HALF_EVEN') over a BIGNUMERIC.
     fn round_half_even(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("ROUND(CAST(").expr(self, arg(a, 0)?, 0)?.append(" AS BIGNUMERIC), ");
+        w.append("ROUND(CAST(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(" AS BIGNUMERIC), ");
         if a.len() > 1 {
             w.append("CAST(").expr(self, &a[1], 0)?.append(" AS INT64)");
         } else {
@@ -1712,7 +1912,9 @@ impl AnsiSqlRenderer for BigQuery {
         value: &SqlExpr,
         order_keys: &[JsonArrayAggKey],
     ) -> Result<(), Refusal> {
-        w.append("TO_JSON(IFNULL(ARRAY_AGG(TO_JSON(").expr(self, value, 0)?.append(")");
+        w.append("TO_JSON(IFNULL(ARRAY_AGG(TO_JSON(")
+            .expr(self, value, 0)?
+            .append(")");
         if !order_keys.is_empty() {
             w.append(" ORDER BY ").join(order_keys, ", ", |w, k| {
                 w.piece(&*aggregates::order_key(self.ex(&k.expr, 0), !k.desc, false))?;
@@ -1732,9 +1934,11 @@ impl AnsiSqlRenderer for BigQuery {
         match kind {
             ValueKind::Date => Ok(TypeSpelling::new("DATE", Digits::None)),
             ValueKind::DateTime => Ok(TypeSpelling::new("DATETIME", Digits::None)),
-            ValueKind::DateTimeNanos => {
-                Ok(TypeSpelling { name: "DATETIME".to_owned(), digits: Digits::None, fraction: Some(6) })
-            }
+            ValueKind::DateTimeNanos => Ok(TypeSpelling {
+                name: "DATETIME".to_owned(),
+                digits: Digits::None,
+                fraction: Some(6),
+            }),
             ValueKind::Integer | ValueKind::Decimal | ValueKind::Floating => ansi::hole_type(kind),
         }
     }
@@ -1753,7 +1957,9 @@ impl AnsiSqlRenderer for BigQuery {
             Scalar::Json => "JSON",
             Scalar::Time => "TIME",
             Scalar::DecimalText => {
-                return Err(Refusal::illegal_state(format!("{s} cast reached a dialect without {s} support")));
+                return Err(Refusal::illegal_state(format!(
+                    "{s} cast reached a dialect without {s} support"
+                )));
             }
         }
         .to_owned())
@@ -1785,7 +1991,9 @@ impl AnsiSqlRenderer for BigQuery {
     /// Refused, as TYPEOF is here (its type names are BigQuery's).
     fn typeof_name(&self, scalar: Scalar) -> Result<String, Refusal> {
         let _ = scalar;
-        Err(Refusal::capability("typeof reached BigQuery: its type names are BigQuery's"))
+        Err(Refusal::capability(
+            "typeof reached BigQuery: its type names are BigQuery's",
+        ))
     }
 }
 

@@ -180,7 +180,9 @@ pub fn datasource_spec(b: &mut Buf, d: &PDatasourceSpec) -> Em {
         }
         // a lite backend with no engine wire shape: refused, never an invented _type
         PDatasourceSpec::PSQLiteSpec(_) => {
-            return Err(illegal_state(JStr::from("SQLite datasource specs have no engine wire shape (lite backend)")));
+            return Err(illegal_state(JStr::from(
+                "SQLite datasource specs have no engine wire shape (lite backend)",
+            )));
         }
         PDatasourceSpec::PH2EmbeddedSpec(eh) => {
             b.a("{\"_type\":\"h2Embedded\",\"autoServerMode\":");
@@ -493,7 +495,10 @@ fn vendor_datasource_spec(b: &mut Buf, d: &PDatasourceSpec) -> Em {
             b.ch(b'}');
         }
         other => {
-            return Err(illegal_state(jcat!("not a vendor datasource spec: ", datasource_simple_name(other))));
+            return Err(illegal_state(jcat!(
+                "not a vendor datasource spec: ",
+                datasource_simple_name(other)
+            )));
         }
     }
     Ok(())

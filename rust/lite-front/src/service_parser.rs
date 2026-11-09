@@ -17,9 +17,7 @@
 // The generated records hold their record-typed list elements boxed (`Vec<Box<T>>`), so the readers build that.
 #![allow(clippy::vec_box)]
 
-use crate::cursor::{
-    Cursor, ElementCursor, R, is_identifier_token, throw_at, ty_or_slack, unquote_path_iae,
-};
+use crate::cursor::{Cursor, ElementCursor, R, is_identifier_token, throw_at, ty_or_slack, unquote_path_iae};
 use crate::jcat;
 use crate::jnum::{parse_double, parse_long};
 use crate::jtypes::{JStr, JValue, base64_of_utf8};
@@ -89,7 +87,9 @@ fn is_plain_identifier(s: &[u16]) -> bool {
     if !ascii(h).is_some_and(|b| b.is_ascii_alphabetic()) && h != u16::from(b'_') {
         return false;
     }
-    s[1..].iter().all(|&ch| ascii(ch).is_some_and(|b| b.is_ascii_alphanumeric() || b == b'_'))
+    s[1..]
+        .iter()
+        .all(|&ch| ascii(ch).is_some_and(|b| b.is_ascii_alphanumeric() || b == b'_'))
 }
 
 /// `parseService`: `Service <<...>> {...} qn { key: value; ... }` -- `execution`, `pattern` and `documentation`
@@ -119,7 +119,11 @@ fn parse_service<'s>(c: &mut impl Cursor<'s>) -> R<PService> {
         let key = c.parse_identifier()?;
         c.expect(T::COLON)?;
         if !seen.insert(key.clone()) {
-            return Err(throw_at(c.tokens(), decl_start, jcat!("Field '", key, "' should be specified only once")));
+            return Err(throw_at(
+                c.tokens(),
+                decl_start,
+                jcat!("Field '", key, "' should be specified only once"),
+            ));
         }
         match key_name(&key).as_str() {
             "pattern" => {
@@ -206,13 +210,25 @@ fn parse_service<'s>(c: &mut impl Cursor<'s>) -> R<PService> {
     }
     c.expect(T::BRACE_CLOSE)?;
     let Some(execution) = execution else {
-        return Err(throw_at(c.tokens(), decl_start, JStr::from("Field 'execution' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            decl_start,
+            JStr::from("Field 'execution' is required"),
+        ));
     };
     if pattern.is_none() {
-        return Err(throw_at(c.tokens(), decl_start, JStr::from("Field 'pattern' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            decl_start,
+            JStr::from("Field 'pattern' is required"),
+        ));
     }
     if documentation.is_none() {
-        return Err(throw_at(c.tokens(), decl_start, JStr::from("Field 'documentation' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            decl_start,
+            JStr::from("Field 'documentation' is required"),
+        ));
     }
     Ok(PService {
         pkg: JStr(pkg),
@@ -253,7 +269,10 @@ fn byte_array_param<'s>(c: &mut impl Cursor<'s>, name: &[u16]) -> R<Option<PServ
         value: JStr::from(base64_of_utf8(&decoded)),
         pos: c.span(vs, c.pos() - 1),
     }));
-    Ok(Some(PServiceTestSuitePSuiteParam { name: JStr(name.to_vec()), value }))
+    Ok(Some(PServiceTestSuitePSuiteParam {
+        name: JStr(name.to_vec()),
+        value,
+    }))
 }
 
 /// `legacyParamValue(c, from)`: one legacy-test parameter value, the tokens `[from, cursor)`, in the engine's
@@ -271,11 +290,18 @@ fn legacy_param_value<'s>(c: &impl Cursor<'s>, from: usize) -> R<ValueSpecificat
         if lt == T::INTEGER {
             // past a long: the engine's walker parses it uncaught too, so its section catch-all answers (PARITY row 37)
             let v = parse_long(&negative.0).map_err(|m| c.section_refusal(m))?;
-            return Ok(VS::CInteger(Box::new(CInteger { value: JValue::Long(v), pos: span })));
+            return Ok(VS::CInteger(Box::new(CInteger {
+                value: JValue::Long(v),
+                pos: span,
+            })));
         }
         if lt == T::FLOAT {
             let v = parse_double(&negative.0).map_err(|m| c.section_refusal(m))?;
-            return Ok(VS::CFloat(Box::new(CFloat { value: v, exact: None, pos: span })));
+            return Ok(VS::CFloat(Box::new(CFloat {
+                value: v,
+                exact: None,
+                pos: span,
+            })));
         }
     }
     let dot = (from..pos).rev().find(|&i| ts.ty(i) == T::DOT);
@@ -305,7 +331,11 @@ fn legacy_param_value<'s>(c: &impl Cursor<'s>, from: usize) -> R<ValueSpecificat
         && ts.ty(pos - 1) == T::PAREN_CLOSE
     {
         let inner = slice_spec(c, from + 2, pos - 1)?;
-        let call = applied(JStr::from("list"), vec![fold_signed_literals(inner)?.0], c.span(from, pos - 1));
+        let call = applied(
+            JStr::from("list"),
+            vec![fold_signed_literals(inner)?.0],
+            c.span(from, pos - 1),
+        );
         return Ok(vs_fn(call));
     }
     Ok(fold_signed_literals(slice_spec(c, from, pos)?)?.0)
@@ -335,8 +365,14 @@ fn negated_long(v: &JValue) -> i64 {
                 Some(m) => (true, m),
                 None => (false, digits.as_str()),
             };
-            let low = mag.bytes().fold(0u64, |acc, d| acc.wrapping_mul(10).wrapping_add(u64::from(d - b'0')));
-            let long_value = if negative { (low as i64).wrapping_neg() } else { low as i64 };
+            let low = mag
+                .bytes()
+                .fold(0u64, |acc, d| acc.wrapping_mul(10).wrapping_add(u64::from(d - b'0')));
+            let long_value = if negative {
+                (low as i64).wrapping_neg()
+            } else {
+                low as i64
+            };
             long_value.wrapping_neg()
         }
         other => unreachable!("an integer literal holds a Long or a BigInteger, not {other:?}"),
@@ -365,7 +401,13 @@ fn fold_lambda(mut lf: LambdaFunction) -> R<(LambdaFunction, bool)> {
 fn fold_all(values: &mut [ValueSpecification]) -> R<bool> {
     let mut changed = false;
     for v in values.iter_mut() {
-        let old = std::mem::replace(v, VS::CByteArray(Box::new(CByteArray { value: JStr::default(), pos: None })));
+        let old = std::mem::replace(
+            v,
+            VS::CByteArray(Box::new(CByteArray {
+                value: JStr::default(),
+                pos: None,
+            })),
+        );
         let (f, c) = fold_signed_literals(old)?;
         *v = f;
         changed |= c;
@@ -418,7 +460,14 @@ fn fold_signed_literals(v: ValueSpecification) -> R<(ValueSpecification, bool)> 
                     }
                     VS::CFloat(cf) => {
                         let pos = signed_span(&af.pos, &cf.pos);
-                        return Ok((VS::CFloat(Box::new(CFloat { value: -cf.value, exact: None, pos })), true));
+                        return Ok((
+                            VS::CFloat(Box::new(CFloat {
+                                value: -cf.value,
+                                exact: None,
+                                pos,
+                            })),
+                            true,
+                        ));
                     }
                     _ => {}
                 }
@@ -429,7 +478,10 @@ fn fold_signed_literals(v: ValueSpecification) -> R<(ValueSpecification, bool)> 
         VS::AppliedProperty(mut ap) => {
             let receiver = std::mem::replace(
                 &mut ap.receiver,
-                VS::CByteArray(Box::new(CByteArray { value: JStr::default(), pos: None })),
+                VS::CByteArray(Box::new(CByteArray {
+                    value: JStr::default(),
+                    pos: None,
+                })),
             );
             let (r, changed) = fold_signed_literals(receiver)?;
             ap.receiver = r;
@@ -459,7 +511,10 @@ fn fold_signed_literals(v: ValueSpecification) -> R<(ValueSpecification, bool)> 
             q.original = Box::new(o);
             let tree = std::mem::replace(
                 &mut q.tree,
-                VS::CByteArray(Box::new(CByteArray { value: JStr::default(), pos: None })),
+                VS::CByteArray(Box::new(CByteArray {
+                    value: JStr::default(),
+                    pos: None,
+                })),
             );
             let (t, c2) = fold_signed_literals(tree)?;
             q.tree = t;
@@ -487,7 +542,10 @@ fn fold_signed_literals(v: ValueSpecification) -> R<(ValueSpecification, bool)> 
             for kb in ni.properties.iter_mut() {
                 let value = std::mem::replace(
                     &mut kb.expression.value,
-                    VS::CByteArray(Box::new(CByteArray { value: JStr::default(), pos: None })),
+                    VS::CByteArray(Box::new(CByteArray {
+                        value: JStr::default(),
+                        pos: None,
+                    })),
                 );
                 let (f, c) = fold_signed_literals(value)?;
                 kb.expression.value = f;
@@ -498,7 +556,10 @@ fn fold_signed_literals(v: ValueSpecification) -> R<(ValueSpecification, bool)> 
         VS::NewInstanceCast(mut nc) => {
             let src = std::mem::replace(
                 &mut nc.src,
-                VS::CByteArray(Box::new(CByteArray { value: JStr::default(), pos: None })),
+                VS::CByteArray(Box::new(CByteArray {
+                    value: JStr::default(),
+                    pos: None,
+                })),
             );
             let (s, changed) = fold_signed_literals(src)?;
             nc.src = s;
@@ -637,7 +698,12 @@ fn parse_post_validation<'s>(c: &mut impl Cursor<'s>) -> R<PPostValidation> {
     if !seen.contains(&u("assertions")) {
         return Err(throw_at(c.tokens(), e_s, JStr::from("Field 'assertions' is required")));
     }
-    Ok(PPostValidation { description, parameters: params, assertions, source_information: c.span(e_s, close) })
+    Ok(PPostValidation {
+        description,
+        parameters: params,
+        assertions,
+        source_information: c.span(e_s, close),
+    })
 }
 
 /// `parseLegacyBody`: a legacy test's `data:` and `asserts: [ { [params], <assertion> }, ... ];`, a duplicate refused
@@ -653,7 +719,11 @@ fn parse_legacy_body<'s>(
         let key = c.parse_identifier()?;
         c.expect(T::COLON)?;
         if !seen.insert(key.clone()) {
-            return Err(throw_at(c.tokens(), entry_anchor, jcat!("Field '", key, "' should be specified only once")));
+            return Err(throw_at(
+                c.tokens(),
+                entry_anchor,
+                jcat!("Field '", key, "' should be specified only once"),
+            ));
         }
         if eq(&key, "data") {
             data = Some(string(c)?);
@@ -909,7 +979,13 @@ fn parse_compact_suite<'s>(c: &mut impl Cursor<'s>, ss: usize, id: Vec<u16>) -> 
             source_information: c.span(doc_tok, close),
         }))
     };
-    Ok(PServiceTestSuite { id: JStr(id), doc, test_data, tests, source_information: c.span(ss, close) })
+    Ok(PServiceTestSuite {
+        id: JStr(id),
+        doc,
+        test_data,
+        tests,
+        source_information: c.span(ss, close),
+    })
 }
 
 /// `parseSuiteData`: `[ connections: [ id: <embedded value>, ... ] ]`, its span the `data` key through the close.
@@ -1054,7 +1130,11 @@ fn parse_legacy_test<'s>(c: &mut impl Cursor<'s>) -> R<PLegacyServiceTest> {
             c.expect(T::BRACE_CLOSE)?;
             c.match_tok(T::SEMI_COLON)?;
             let Some(kd) = kd else {
-                return Err(throw_at(c.tokens(), es, jcat!("Multi test '", key_value, "' needs data")));
+                return Err(throw_at(
+                    c.tokens(),
+                    es,
+                    jcat!("Multi test '", key_value, "' needs data"),
+                ));
             };
             keyed.push(Box::new(PLegacyServiceTestPKeyedLegacyTest {
                 key: key_value,
@@ -1121,7 +1201,11 @@ fn parse_execution<'s>(c: &mut impl Cursor<'s>, qn: &[u16]) -> R<PServiceExecuti
             let key = c.parse_identifier()?;
             c.expect(T::COLON)?;
             if !seen.insert(key.clone()) {
-                return Err(throw_at(c.tokens(), exec_start, jcat!("Field '", key, "' should be specified only once")));
+                return Err(throw_at(
+                    c.tokens(),
+                    exec_start,
+                    jcat!("Field '", key, "' should be specified only once"),
+                ));
             }
             match key_name(&key).as_str() {
                 "query" => query = Some(parse_query(c, qn)?),
@@ -1140,15 +1224,27 @@ fn parse_execution<'s>(c: &mut impl Cursor<'s>, qn: &[u16]) -> R<PServiceExecuti
         }
         c.expect(T::BRACE_CLOSE)?;
         let Some(query) = query else {
-            return Err(throw_at(c.tokens(), exec_start, JStr::from("Field 'query' is required")));
+            return Err(throw_at(
+                c.tokens(),
+                exec_start,
+                JStr::from("Field 'query' is required"),
+            ));
         };
         let has_mapping = mapping.is_some();
         let has_runtime = runtime.is_some() || embedded.is_some();
         if has_mapping && !has_runtime {
-            return Err(throw_at(c.tokens(), exec_start, JStr::from("Field 'runtime' is required")));
+            return Err(throw_at(
+                c.tokens(),
+                exec_start,
+                JStr::from("Field 'runtime' is required"),
+            ));
         }
         if has_runtime && !has_mapping {
-            return Err(throw_at(c.tokens(), exec_start, JStr::from("Field 'mapping' is required")));
+            return Err(throw_at(
+                c.tokens(),
+                exec_start,
+                JStr::from("Field 'mapping' is required"),
+            ));
         }
         return Ok(PServiceExecution::PSingleExecution(Box::new(PSingleExecution {
             query,
@@ -1171,7 +1267,11 @@ fn parse_execution<'s>(c: &mut impl Cursor<'s>, qn: &[u16]) -> R<PServiceExecuti
             let key = c.parse_identifier()?;
             let is_executions = eq(&key, "executions");
             if !is_executions && !seen.insert(key.clone()) {
-                return Err(throw_at(c.tokens(), exec_start, jcat!("Field '", key, "' should be specified only once")));
+                return Err(throw_at(
+                    c.tokens(),
+                    exec_start,
+                    jcat!("Field '", key, "' should be specified only once"),
+                ));
             }
             if is_executions {
                 // `executions['QA']: { mapping; runtime; }`, its span from the key
@@ -1196,7 +1296,11 @@ fn parse_execution<'s>(c: &mut impl Cursor<'s>, qn: &[u16]) -> R<PServiceExecuti
         }
         c.expect(T::BRACE_CLOSE)?;
         let Some(query) = query else {
-            return Err(throw_at(c.tokens(), exec_start, JStr::from("Field 'query' is required")));
+            return Err(throw_at(
+                c.tokens(),
+                exec_start,
+                JStr::from("Field 'query' is required"),
+            ));
         };
         if executions.as_ref().is_some_and(|e| !e.is_empty()) && execution_key.is_none() {
             return Err(throw_at(c.tokens(), exec_start, JStr::from("Field 'key' is required")));
@@ -1208,7 +1312,11 @@ fn parse_execution<'s>(c: &mut impl Cursor<'s>, qn: &[u16]) -> R<PServiceExecuti
             source_information: c.span(exec_start, c.pos() - 1),
         })));
     }
-    Err(c.error(jcat!("unsupported execution kind: ", kind, " (expected Single or Multi)")))
+    Err(c.error(jcat!(
+        "unsupported execution kind: ",
+        kind,
+        " (expected Single or Multi)"
+    )))
 }
 
 /// `parseKeyedBody(c, keyValue, start, requireRuntime)`: one keyed environment `{ mapping; runtime |
@@ -1236,7 +1344,11 @@ fn parse_keyed_body<'s>(
         let key = c.parse_identifier()?;
         c.expect(T::COLON)?;
         if !seen.insert(key.clone()) {
-            return Err(throw_at(c.tokens(), start, jcat!("Field '", key, "' should be specified only once")));
+            return Err(throw_at(
+                c.tokens(),
+                start,
+                jcat!("Field '", key, "' should be specified only once"),
+            ));
         }
         match key_name(&key).as_str() {
             "mapping" => {
@@ -1292,7 +1404,11 @@ fn parse_runtime_components<'s>(c: &mut impl Cursor<'s>) -> R<PRuntimeComponents
         c.expect(T::SEMI_COLON)?;
         let span = c.span(rk_s, c.pos() - 1);
         let pointer = |kind: &str, path: Vec<u16>, span: Span| {
-            Box::new(PPointer { r#type: JStr::from(kind), path: JStr(path), source_information: span })
+            Box::new(PPointer {
+                r#type: JStr::from(kind),
+                path: JStr(path),
+                source_information: span,
+            })
         };
         match key_name(&rk).as_str() {
             "class" => clazz = Some(pointer("CLASS", path, span)),
@@ -1311,7 +1427,12 @@ fn parse_runtime_components<'s>(c: &mut impl Cursor<'s>) -> R<PRuntimeComponents
     let Some((runtime, runtime_span)) = rc_runtime else {
         return Err(c.error_str("Field 'runtime' is required"));
     };
-    Ok(PRuntimeComponents { binding, clazz, runtime, runtime_span })
+    Ok(PRuntimeComponents {
+        binding,
+        clazz,
+        runtime,
+        runtime_span,
+    })
 }
 
 /// `parseEmbeddedRuntime`: an anonymous runtime island read by the Runtime grammar's body loop, re-lexed; an island
@@ -1320,7 +1441,10 @@ fn parse_embedded_runtime<'s>(c: &mut impl Cursor<'s>) -> R<PEmbeddedRuntime> {
     let (emb_start, end) = scan_island(c)?;
     let emb = c.reconstruct_text(emb_start, end);
     if emb_start >= c.tokens().count() {
-        return Err(crate::cursor::refused_at_eof(c.tokens(), jcat!("expected ", T::ISLAND_END, " but found EOF ('<EOF>')")));
+        return Err(crate::cursor::refused_at_eof(
+            c.tokens(),
+            jcat!("expected ", T::ISLAND_END, " but found EOF ('<EOF>')"),
+        ));
     }
     let base_line = c.tokens().start_line(emb_start) as i32;
     let base_column = c.tokens().start_column(emb_start) as i32;
@@ -1385,10 +1509,12 @@ pub fn parse_execution_environment<'s>(c: &mut impl Cursor<'s>) -> R<PExecutionE
                     c.match_tok(T::COMMA)?;
                 }
                 c.expect(T::BRACKET_CLOSE)?;
-                executions.push(PExecutionParameters::PMultiKeyedExecution(Box::new(PMultiKeyedExecution {
-                    master_key: JStr(key_value),
-                    singles,
-                })));
+                executions.push(PExecutionParameters::PMultiKeyedExecution(Box::new(
+                    PMultiKeyedExecution {
+                        master_key: JStr(key_value),
+                        singles,
+                    },
+                )));
             } else {
                 executions.push(PExecutionParameters::PKeyedExecution(Box::new(parse_keyed_body(
                     c, &key_value, key_tok, false,
@@ -1434,10 +1560,16 @@ mod tests {
             "{HEAD}{EXEC}  test: Single\n  {{\n    data: 'x';\n    asserts: [ {{ [ [-99999999999999999999], {{x|[-1]}} ], |true }} ];\n  }}\n}}\n"
         ));
         let params = &s.test.expect("a legacy test").asserts[0].parameters_values;
-        let VS::PureCollection(pc) = &params[0] else { panic!("a collection") };
-        let VS::CInteger(ci) = &pc.values[0] else { panic!("the folded literal") };
+        let VS::PureCollection(pc) = &params[0] else {
+            panic!("a collection")
+        };
+        let VS::CInteger(ci) = &pc.values[0] else {
+            panic!("the folded literal")
+        };
         assert_eq!(ci.value, JValue::Long(-7766279631452241919));
-        let VS::LambdaFunction(lf) = &params[1] else { panic!("a lambda") };
+        let VS::LambdaFunction(lf) = &params[1] else {
+            panic!("a lambda")
+        };
         assert!(lf.pos.is_none(), "a lambda rebuilt by withChildren loses its span");
     }
 
@@ -1447,7 +1579,10 @@ mod tests {
         let e = parse(&u(&text), Dialect::LegendLite).unwrap_err().placed();
         assert!(e.is_parse_exception(), "{e:?}");
         assert_eq!(e.position, Some((6, 60)));
-        assert_eq!(e.message.expect("a message").lossy(), "[6:60] expected ISLAND_END but found EOF ('<EOF>')");
+        assert_eq!(
+            e.message.expect("a message").lossy(),
+            "[6:60] expected ISLAND_END but found EOF ('<EOF>')"
+        );
         let empty = format!("{HEAD}  execution: Single {{ query: |1; mapping: m::M; runtime: #{{ }}#; }}\n}}\n");
         let e = parse(&u(&empty), Dialect::LegendLite).unwrap_err();
         assert_eq!(
@@ -1458,11 +1593,22 @@ mod tests {
 
     #[test]
     fn a_service_admits_no_documentation_and_wraps_a_bare_query() {
-        let e = parse(&u("###Service\n'''\n  doc\n  ''' Service s::S\n{\n}\n"), Dialect::LegendLite).unwrap_err();
+        let e = parse(
+            &u("###Service\n'''\n  doc\n  ''' Service s::S\n{\n}\n"),
+            Dialect::LegendLite,
+        )
+        .unwrap_err();
         assert_eq!(e.position, Some((2, 1)));
         let s = service(&format!("{HEAD}  execution: Single {{ query: 1 + 2; }}\n}}\n"));
-        let PServiceExecution::PSingleExecution(single) = &s.execution else { panic!("a single execution") };
-        let VS::LambdaFunction(lf) = &single.query else { panic!("a lambda") };
-        assert!(lf.pos.is_none() && lf.parameters.is_empty(), "a bare query is a span-less parameterless lambda");
+        let PServiceExecution::PSingleExecution(single) = &s.execution else {
+            panic!("a single execution")
+        };
+        let VS::LambdaFunction(lf) = &single.query else {
+            panic!("a lambda")
+        };
+        assert!(
+            lf.pos.is_none() && lf.parameters.is_empty(),
+            "a bare query is a span-less parameterless lambda"
+        );
     }
 }

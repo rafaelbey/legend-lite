@@ -103,35 +103,58 @@ impl MariaDb {
             }
             // the NULL-safe comparison is <=> here (no IS [NOT] DISTINCT FROM)
             F::NullSafeEqual => {
-                w.append("(").expr(self, arg(a, 0)?, 4)?.append(" <=> ").expr(self, arg(a, 1)?, 4)?.append(")");
+                w.append("(")
+                    .expr(self, arg(a, 0)?, 4)?
+                    .append(" <=> ")
+                    .expr(self, arg(a, 1)?, 4)?
+                    .append(")");
                 Ok(())
             }
             F::IsDistinctFrom | F::NullSafeNotEqual => {
-                w.append("(NOT (").expr(self, arg(a, 0)?, 4)?.append(" <=> ").expr(self, arg(a, 1)?, 4)?.append("))");
+                w.append("(NOT (")
+                    .expr(self, arg(a, 0)?, 4)?
+                    .append(" <=> ")
+                    .expr(self, arg(a, 1)?, 4)?
+                    .append("))");
                 Ok(())
             }
             // no hyperbolic functions: their definitions
             F::Cosh => {
                 let x = arg(a, 0)?;
-                w.append("((EXP(").expr(self, x, 0)?.append(") + EXP(-(").expr(self, x, 0)?.append("))) / 2)");
+                w.append("((EXP(")
+                    .expr(self, x, 0)?
+                    .append(") + EXP(-(")
+                    .expr(self, x, 0)?
+                    .append("))) / 2)");
                 Ok(())
             }
             F::Sinh => {
                 let x = arg(a, 0)?;
-                w.append("((EXP(").expr(self, x, 0)?.append(") - EXP(-(").expr(self, x, 0)?.append("))) / 2)");
+                w.append("((EXP(")
+                    .expr(self, x, 0)?
+                    .append(") - EXP(-(")
+                    .expr(self, x, 0)?
+                    .append("))) / 2)");
                 Ok(())
             }
             F::Tanh => {
                 let x = arg(a, 0)?;
-                w.append("((EXP(2 * (").expr(self, x, 0)?.append(")) - 1) / (EXP(2 * (").expr(self, x, 0)?;
+                w.append("((EXP(2 * (")
+                    .expr(self, x, 0)?
+                    .append(")) - 1) / (EXP(2 * (")
+                    .expr(self, x, 0)?;
                 w.append(")) + 1))");
                 Ok(())
             }
             // DuckDB's ascii: the first character's code point, 0 for ''
             F::AsciiCode => {
                 let x = arg(a, 0)?;
-                w.append("(CASE WHEN ").expr(self, x, 4)?.append(" IS NULL THEN NULL WHEN CHAR_LENGTH(");
-                w.expr(self, x, 0)?.append(") = 0 THEN 0 ELSE CAST(CONV(HEX(CONVERT(LEFT(").expr(self, x, 0)?;
+                w.append("(CASE WHEN ")
+                    .expr(self, x, 4)?
+                    .append(" IS NULL THEN NULL WHEN CHAR_LENGTH(");
+                w.expr(self, x, 0)?
+                    .append(") = 0 THEN 0 ELSE CAST(CONV(HEX(CONVERT(LEFT(")
+                    .expr(self, x, 0)?;
                 w.append(", 1) USING utf32)), 16, 10) AS SIGNED) END)");
                 Ok(())
             }
@@ -158,11 +181,10 @@ impl MariaDb {
             // ---- arithmetic
             // Pure's divide is a DOUBLE division; x / 0 is NULL here
             F::Divide => {
-                w.append("(CAST(").expr(self, arg(a, 0)?, 0)?.append(" AS DOUBLE) / CAST(").expr(
-                    self,
-                    arg(a, 1)?,
-                    0,
-                )?;
+                w.append("(CAST(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(" AS DOUBLE) / CAST(")
+                    .expr(self, arg(a, 1)?, 0)?;
                 w.append(" AS DOUBLE))");
                 Ok(())
             }
@@ -176,14 +198,23 @@ impl MariaDb {
                 if a.iter().any(is_double) {
                     return Err(self.wall(f, "an integer division of a Float"));
                 }
-                w.append("(").expr(self, arg(a, 0)?, 6)?.append(" DIV ").expr(self, arg(a, 1)?, 7)?.append(")");
+                w.append("(")
+                    .expr(self, arg(a, 0)?, 6)?
+                    .append(" DIV ")
+                    .expr(self, arg(a, 1)?, 7)?
+                    .append(")");
                 Ok(())
             }
             F::RoundHalfUp => self.round_half_up(w, a),
             F::Cbrt => {
                 let x = arg(a, 0)?;
-                w.append("(CASE WHEN ").expr(self, x, 4)?.append(" < 0 THEN -POW(-(").expr(self, x, 0)?;
-                w.append("), 1.0E0 / 3) ELSE POW(").expr(self, x, 0)?.append(", 1.0E0 / 3) END)");
+                w.append("(CASE WHEN ")
+                    .expr(self, x, 4)?
+                    .append(" < 0 THEN -POW(-(")
+                    .expr(self, x, 0)?;
+                w.append("), 1.0E0 / 3) ELSE POW(")
+                    .expr(self, x, 0)?
+                    .append(", 1.0E0 / 3) END)");
                 Ok(())
             }
             F::BitNot => wrapped7(self, w, "CAST(~ ", arg(a, 0)?, " AS SIGNED)"),
@@ -263,12 +294,18 @@ impl MariaDb {
                 Ok(())
             }
             F::StartsWith => {
-                w.append("(LEFT(").expr(self, arg(a, 0)?, 0)?.append(", CHAR_LENGTH(").expr(self, arg(a, 1)?, 0)?;
+                w.append("(LEFT(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", CHAR_LENGTH(")
+                    .expr(self, arg(a, 1)?, 0)?;
                 w.append(")) = ").expr(self, arg(a, 1)?, 5)?.append(")");
                 Ok(())
             }
             F::EndsWith => {
-                w.append("(RIGHT(").expr(self, arg(a, 0)?, 0)?.append(", CHAR_LENGTH(").expr(self, arg(a, 1)?, 0)?;
+                w.append("(RIGHT(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", CHAR_LENGTH(")
+                    .expr(self, arg(a, 1)?, 0)?;
                 w.append(")) = ").expr(self, arg(a, 1)?, 5)?.append(")");
                 Ok(())
             }
@@ -290,16 +327,28 @@ impl MariaDb {
             // DuckDB's split_part: 1-based, negative from the end, out of range ''
             F::SplitPart => {
                 let (s, d) = (arg(a, 0)?, arg(a, 1)?);
-                w.append("(CASE WHEN ").expr(self, s, 4)?.append(" IS NULL OR ").expr(self, d, 4)?;
-                w.append(" IS NULL THEN NULL WHEN ").expr(self, arg(a, 2)?, 4)?.append(" = 0 THEN '' ELSE coalesce(");
+                w.append("(CASE WHEN ")
+                    .expr(self, s, 4)?
+                    .append(" IS NULL OR ")
+                    .expr(self, d, 4)?;
+                w.append(" IS NULL THEN NULL WHEN ")
+                    .expr(self, arg(a, 2)?, 4)?
+                    .append(" = 0 THEN '' ELSE coalesce(");
                 let n = arg(a, 2)?;
                 let index = pc(move |w| {
-                    w.append("CASE WHEN ").expr(self, n, 4)?.append(" < 0 THEN ").expr(self, n, 0)?.append(" ELSE ");
+                    w.append("CASE WHEN ")
+                        .expr(self, n, 4)?
+                        .append(" < 0 THEN ")
+                        .expr(self, n, 0)?
+                        .append(" ELSE ");
                     w.expr(self, n, 6)?.append(" - 1 END");
                     Ok(())
                 });
-                let at =
-                    self.value_at(self.split(s, d), self.index_path(index), Some(&SqlType::Scalar(Scalar::Varchar)));
+                let at = self.value_at(
+                    self.split(s, d),
+                    self.index_path(index),
+                    Some(&SqlType::Scalar(Scalar::Varchar)),
+                );
                 w.piece(&*at)?.append(", '') END)");
                 Ok(())
             }
@@ -332,7 +381,13 @@ impl MariaDb {
                 Ok(())
             }
             // TO_BASE64 breaks its lines every 76 characters; FROM_BASE64 wants the padding
-            F::EncodeBase64 => wrapped(self, w, "REPLACE(TO_BASE64(", arg(a, 0)?, "), CHAR(10 USING utf8mb4), '')"),
+            F::EncodeBase64 => wrapped(
+                self,
+                w,
+                "REPLACE(TO_BASE64(",
+                arg(a, 0)?,
+                "), CHAR(10 USING utf8mb4), '')",
+            ),
             F::DecodeBase64 => {
                 let x = arg(a, 0)?;
                 w.append("CONVERT(FROM_BASE64(CONCAT(")
@@ -395,18 +450,25 @@ impl MariaDb {
                 Ok(())
             }
             F::MakeDate => {
-                w.append("STR_TO_DATE(CONCAT_WS('-', ").list(self, a)?.append("), '%Y-%m-%d')");
+                w.append("STR_TO_DATE(CONCAT_WS('-', ")
+                    .list(self, a)?
+                    .append("), '%Y-%m-%d')");
                 Ok(())
             }
             F::MakeTimestamp => self.make_timestamp(w, a, f),
             // past the years 1000-9999 a date function answers NULL: raised, never a NULL value
             F::AddInterval | F::AddIntervalTemporal => {
-                w.append("(CASE WHEN ").expr(self, arg(a, 1)?, 4)?.append(" IS NULL OR ").expr(self, arg(a, 2)?, 4)?;
+                w.append("(CASE WHEN ")
+                    .expr(self, arg(a, 1)?, 4)?
+                    .append(" IS NULL OR ")
+                    .expr(self, arg(a, 2)?, 4)?;
                 w.append(" IS NULL THEN NULL ELSE coalesce(");
                 let added = self.add_interval(a)?;
                 w.piece(&*added)?.append(", ");
-                let message =
-                    [build::string_lit(&format!("a date past the year 9999 has no {} value", self.product()))];
+                let message = [build::string_lit(&format!(
+                    "a date past the year 9999 has no {} value",
+                    self.product()
+                ))];
                 let raise = self.raise(&message, call_type);
                 w.piece(&*raise)?.append(") END)");
                 Ok(())
@@ -427,7 +489,10 @@ impl MariaDb {
                 if !utc {
                     return Err(self.wall(
                         f,
-                        &format!("{} knows no named time zone but UTC without its zone tables", self.product()),
+                        &format!(
+                            "{} knows no named time zone but UTC without its zone tables",
+                            self.product()
+                        ),
                     ));
                 }
                 w.expr(self, arg(a, 1)?, parent_prec)?;
@@ -449,12 +514,14 @@ impl MariaDb {
                 Ok(())
             }
             F::FromEpochSeconds => {
-                w.append("(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (").expr(self, arg(a, 0)?, 0)?;
+                w.append("(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (")
+                    .expr(self, arg(a, 0)?, 0)?;
                 w.append(") * 1000000 MICROSECOND)");
                 Ok(())
             }
             F::FromEpochMs => {
-                w.append("(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (").expr(self, arg(a, 0)?, 0)?;
+                w.append("(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (")
+                    .expr(self, arg(a, 0)?, 0)?;
                 w.append(") * 1000 MICROSECOND)");
                 Ok(())
             }
@@ -468,10 +535,13 @@ impl MariaDb {
                 w.piece(&*p)?;
                 Ok(())
             }
-            F::Strptime => {
-                Err(self
-                    .wall(f, &format!("a date parsed by a DuckDB format has no measured {} spelling", self.product())))
-            }
+            F::Strptime => Err(self.wall(
+                f,
+                &format!(
+                    "a date parsed by a DuckDB format has no measured {} spelling",
+                    self.product()
+                ),
+            )),
 
             // ---- lists (JSON arrays; lambdas as correlated subqueries)
             F::ListFilter
@@ -532,7 +602,10 @@ impl MariaDb {
     /// Java's `domainGuarded`: ACOS and ASIN, undefined outside [-1, 1], raised.
     fn domain_guarded(&self, w: &mut SqlWriter, f: SqlFn, a: &[SqlExpr], name: &str) -> Result<(), Refusal> {
         let x = arg(a, 0)?;
-        w.append("(CASE WHEN ").expr(self, x, 4)?.append(" IS NULL THEN NULL ELSE coalesce(").append(name);
+        w.append("(CASE WHEN ")
+            .expr(self, x, 4)?
+            .append(" IS NULL THEN NULL ELSE coalesce(")
+            .append(name);
         w.append("(").expr(self, x, 0)?.append("), ");
         let message = [build::string_lit(&format!("{f} is undefined outside [-1,1]"))];
         let raise = self.raise(&message, Some(&SqlType::Scalar(Scalar::Double)));
@@ -542,7 +615,12 @@ impl MariaDb {
 
     /// Java's `pad`: LPAD and RPAD, a space by default.
     fn pad(&self, w: &mut SqlWriter, name: &str, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append(name).append("(").expr(self, arg(a, 0)?, 0)?.append(", ").expr(self, arg(a, 1)?, 0)?.append(", ");
+        w.append(name)
+            .append("(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ")
+            .expr(self, arg(a, 1)?, 0)?
+            .append(", ");
         if a.len() > 2 {
             w.expr(self, &a[2], 0)?;
         } else {
@@ -557,7 +635,10 @@ impl MariaDb {
         if a.len() == 2 && (composite(&a[0]) || composite(&a[1])) {
             let left = self.compact(self.ex(&a[0], 0));
             let right = self.compact(self.ex(&a[1], 0));
-            w.append("(").piece(&*left)?.append(if f == SqlFn::Equal { " = " } else { " <> " }).piece(&*right)?;
+            w.append("(")
+                .piece(&*left)?
+                .append(if f == SqlFn::Equal { " = " } else { " <> " })
+                .piece(&*right)?;
             w.append(")");
             return Ok(());
         }
@@ -578,7 +659,12 @@ impl MariaDb {
 
     /// Java's `branch`: a CASE branch, error() raised in the CASE's own type.
     pub(super) fn branch<'a>(&'a self, e: &'a SqlExpr, slot: Option<&SqlType>) -> Result<P<'a>, Refusal> {
-        if let SqlExpr::Call { r#fn: SqlFn::Error, args, r#type } = e {
+        if let SqlExpr::Call {
+            r#fn: SqlFn::Error,
+            args,
+            r#type,
+        } = e
+        {
             return Ok(self.raise(args, slot.or(fact_type(r#type))));
         }
         Ok(self.ex(e, 0))
@@ -599,14 +685,22 @@ impl MariaDb {
     /// Java's `remainder`: Pure's mod (the divisor's sign) and rem (the dividend's).
     fn remainder<'a>(&'a self, f: SqlFn, a: &'a [SqlExpr]) -> P<'a> {
         let rem = pc(move |w| {
-            w.append("MOD(").expr(self, arg(a, 0)?, 0)?.append(", ").expr(self, arg(a, 1)?, 0)?.append(")");
+            w.append("MOD(")
+                .expr(self, arg(a, 0)?, 0)?
+                .append(", ")
+                .expr(self, arg(a, 1)?, 0)?
+                .append(")");
             Ok(())
         });
         if f == SqlFn::Rem {
             return rem;
         }
         pc(move |w| {
-            w.append("MOD(").piece(&*rem)?.append(" + ").expr(self, arg(a, 1)?, 6)?.append(", ");
+            w.append("MOD(")
+                .piece(&*rem)?
+                .append(" + ")
+                .expr(self, arg(a, 1)?, 6)?
+                .append(", ");
             w.expr(self, arg(a, 1)?, 0)?.append(")");
             Ok(())
         })
@@ -620,7 +714,11 @@ impl MariaDb {
             return Ok(());
         }
         let scale = self.scale(a);
-        w.append("(SIGN(").expr(self, x, 0)?.append(") * FLOOR(ABS(").expr(self, x, 0)?.append(") * ");
+        w.append("(SIGN(")
+            .expr(self, x, 0)?
+            .append(") * FLOOR(ABS(")
+            .expr(self, x, 0)?
+            .append(") * ");
         w.piece(&*scale)?.append(" + 0.5) / ").piece(&*scale)?.append(")");
         Ok(())
     }
@@ -640,11 +738,20 @@ impl MariaDb {
     /// Java's `parseInt`: DuckDB's 64-bit parse, else an error.
     fn parse_int<'a>(&'a self, s: &'a SqlExpr) -> P<'a> {
         pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, s, 4)?.append(" IS NULL THEN NULL WHEN TRIM(").expr(self, s, 0)?;
-            w.append(") REGEXP '^[+-]?[0-9]+$' THEN CAST(TRIM(").expr(self, s, 0)?.append(") AS SIGNED) ELSE ");
+            w.append("(CASE WHEN ")
+                .expr(self, s, 4)?
+                .append(" IS NULL THEN NULL WHEN TRIM(")
+                .expr(self, s, 0)?;
+            w.append(") REGEXP '^[+-]?[0-9]+$' THEN CAST(TRIM(")
+                .expr(self, s, 0)?
+                .append(") AS SIGNED) ELSE ");
             let message = [build::call(
                 SqlFn::Concat,
-                vec![build::string_lit("Could not convert string '"), s.clone(), build::string_lit("' to INT64")],
+                vec![
+                    build::string_lit("Could not convert string '"),
+                    s.clone(),
+                    build::string_lit("' to INT64"),
+                ],
             )];
             let raise = self.raise(&message, Some(&SqlType::Scalar(Scalar::Bigint)));
             w.piece(&*raise)?.append(" END)");
@@ -660,7 +767,8 @@ impl MariaDb {
         pc(move |w| {
             w.append(name).append("(");
             for i in 0..a.len() {
-                w.append(if i > 0 { ", coalesce(" } else { "coalesce(" }).expr(self, &a[i], 0)?;
+                w.append(if i > 0 { ", coalesce(" } else { "coalesce(" })
+                    .expr(self, &a[i], 0)?;
                 for (j, other) in a.iter().enumerate() {
                     if j != i {
                         w.append(", ").expr(self, other, 0)?;
@@ -680,9 +788,19 @@ impl MariaDb {
             // Java reads the count first
             let n = arg(a, 1)?;
             let s = arg(a, 0)?;
-            w.append("(CASE WHEN ").expr(self, n, 4)?.append(&format!(" < 0 THEN {name}(")).expr(self, s, 0)?;
-            w.append(", GREATEST(CHAR_LENGTH(").expr(self, s, 0)?.append(") + ").expr(self, n, 6)?;
-            w.append(&format!(", 0)) ELSE {name}(")).expr(self, s, 0)?.append(", ").expr(self, n, 0)?.append(") END)");
+            w.append("(CASE WHEN ")
+                .expr(self, n, 4)?
+                .append(&format!(" < 0 THEN {name}("))
+                .expr(self, s, 0)?;
+            w.append(", GREATEST(CHAR_LENGTH(")
+                .expr(self, s, 0)?
+                .append(") + ")
+                .expr(self, n, 6)?;
+            w.append(&format!(", 0)) ELSE {name}("))
+                .expr(self, s, 0)?
+                .append(", ")
+                .expr(self, n, 0)?
+                .append(") END)");
             Ok(())
         })
     }
@@ -720,14 +838,20 @@ impl MariaDb {
         let literal = self.string_literal(&p);
         let x = arg(a, 0)?;
         Ok(pc(move |w| {
-            w.append("REGEXP_REPLACE(").expr(self, x, 0)?.append(&format!(", {literal}, '')"));
+            w.append("REGEXP_REPLACE(")
+                .expr(self, x, 0)?
+                .append(&format!(", {literal}, '')"));
             Ok(())
         }))
     }
 
     /// Java's `format`: printf -- MariaDB's through SFORMAT, MySQL's written out piece by piece.
     pub(super) fn format(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        if self.mysql { self.format_mysql(w, a) } else { self.format_mariadb(w, a) }
+        if self.mysql {
+            self.format_mysql(w, a)
+        } else {
+            self.format_mariadb(w, a)
+        }
     }
 
     /// MariaDB's printf (Java's `MariaDb.format`): SFORMAT's fmt codes, a literal brace doubled, a `%s` argument its
@@ -751,7 +875,10 @@ impl MariaDb {
                 'e' | 'E' | 'g' | 'G' | 'x' | 'X' | 'o' => m.conversion.to_string(),
                 's' => String::new(),
                 other => {
-                    return Err(Refusal::capability(format!("printf conversion %{other} reached {}", self.product())));
+                    return Err(Refusal::capability(format!(
+                        "printf conversion %{other} reached {}",
+                        self.product()
+                    )));
                 }
             };
             let spec = format!(
@@ -769,7 +896,11 @@ impl MariaDb {
             }
             if next < a.len() {
                 let x = &a[next];
-                args.push(if m.conversion == 's' { self.as_text(x) } else { self.ex(x, 0) });
+                args.push(if m.conversion == 's' {
+                    self.as_text(x)
+                } else {
+                    self.ex(x, 0)
+                });
             }
             next += 1;
         }
@@ -798,7 +929,9 @@ impl MariaDb {
                 continue;
             }
             if next >= a.len() {
-                return Err(Refusal::capability("a format with more conversions than arguments reached MySQL"));
+                return Err(Refusal::capability(
+                    "a format with more conversions than arguments reached MySQL",
+                ));
             }
             parts.push(text(self.string_literal(&literal)));
             literal.clear();
@@ -835,9 +968,15 @@ impl MariaDb {
             'f' | 'F' => {
                 let scale = precision.unwrap_or("6").to_owned();
                 pc(move |w| {
-                    w.append("CONCAT(CASE WHEN ").expr(self, x, 4)?.append(" < 0 AND CAST(").expr(self, x, 0)?;
-                    w.append(&format!(" AS DECIMAL(65,{scale})) = 0 THEN '-' ELSE '' END, CAST(CAST("));
-                    w.expr(self, x, 0)?.append(&format!(" AS DECIMAL(65,{scale})) AS CHAR))"));
+                    w.append("CONCAT(CASE WHEN ")
+                        .expr(self, x, 4)?
+                        .append(" < 0 AND CAST(")
+                        .expr(self, x, 0)?;
+                    w.append(&format!(
+                        " AS DECIMAL(65,{scale})) = 0 THEN '-' ELSE '' END, CAST(CAST("
+                    ));
+                    w.expr(self, x, 0)?
+                        .append(&format!(" AS DECIMAL(65,{scale})) AS CHAR))"));
                     Ok(())
                 })
             }
@@ -874,7 +1013,10 @@ impl MariaDb {
         let n = width.to_owned();
         if flags.contains('-') {
             return Ok(pc(move |w| {
-                w.append("RPAD(").piece(&*signed)?.append(&format!(", GREATEST({n}, CHAR_LENGTH(")).piece(&*signed)?;
+                w.append("RPAD(")
+                    .piece(&*signed)?
+                    .append(&format!(", GREATEST({n}, CHAR_LENGTH("))
+                    .piece(&*signed)?;
                 w.append(")), ' ')");
                 Ok(())
             }));
@@ -882,16 +1024,24 @@ impl MariaDb {
         if flags.contains('0') && conversion != 's' {
             // the zeros after the sign: -5 as %05d is -0005
             return Ok(pc(move |w| {
-                w.append("(CASE WHEN LEFT(").piece(&*signed)?.append(", 1) IN ('-', '+') THEN CONCAT(LEFT(");
+                w.append("(CASE WHEN LEFT(")
+                    .piece(&*signed)?
+                    .append(", 1) IN ('-', '+') THEN CONCAT(LEFT(");
                 w.piece(&*signed)?.append(", 1), LPAD(SUBSTRING(").piece(&*signed)?;
-                w.append(&format!(", 2), GREATEST({n} - 1, CHAR_LENGTH(")).piece(&*signed)?;
-                w.append(") - 1), '0')) ELSE LPAD(").piece(&*signed)?.append(&format!(", GREATEST({n}, CHAR_LENGTH("));
+                w.append(&format!(", 2), GREATEST({n} - 1, CHAR_LENGTH("))
+                    .piece(&*signed)?;
+                w.append(") - 1), '0')) ELSE LPAD(")
+                    .piece(&*signed)?
+                    .append(&format!(", GREATEST({n}, CHAR_LENGTH("));
                 w.piece(&*signed)?.append(")), '0') END)");
                 Ok(())
             }));
         }
         Ok(pc(move |w| {
-            w.append("LPAD(").piece(&*signed)?.append(&format!(", GREATEST({n}, CHAR_LENGTH(")).piece(&*signed)?;
+            w.append("LPAD(")
+                .piece(&*signed)?
+                .append(&format!(", GREATEST({n}, CHAR_LENGTH("))
+                .piece(&*signed)?;
             w.append(")), ' ')");
             Ok(())
         }))
@@ -924,9 +1074,10 @@ impl MariaDb {
         }
         match &a[2] {
             SqlExpr::IntLit { value, .. } if (0..=9).contains(value) => Ok(*value),
-            _ => {
-                Err(Refusal::capability(format!("a regexp group that is not a literal 0-9 reached {}", self.product())))
-            }
+            _ => Err(Refusal::capability(format!(
+                "a regexp group that is not a literal 0-9 reached {}",
+                self.product()
+            ))),
         }
     }
 
@@ -938,7 +1089,9 @@ impl MariaDb {
         if g == 0 {
             let literal = self.string_literal(p);
             return Ok(pc(move |w| {
-                w.append("(CASE WHEN ").expr(self, x, 4)?.append(" IS NULL THEN NULL ELSE REGEXP_SUBSTR(");
+                w.append("(CASE WHEN ")
+                    .expr(self, x, 4)?
+                    .append(" IS NULL THEN NULL ELSE REGEXP_SUBSTR(");
                 w.expr(self, x, 0)?.append(&format!(", {literal}) END)"));
                 Ok(())
             }));
@@ -947,8 +1100,12 @@ impl MariaDb {
         let anchored = self.string_literal(&format!("^[\\s\\S]*?(?:{p})[\\s\\S]*\\z"));
         let group = self.string_literal(&self.group_ref(g));
         Ok(pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, x, 4)?.append(" IS NULL THEN NULL WHEN ").expr(self, x, 4)?;
-            w.append(&format!(" REGEXP {literal} THEN REGEXP_REPLACE(")).expr(self, x, 0)?;
+            w.append("(CASE WHEN ")
+                .expr(self, x, 4)?
+                .append(" IS NULL THEN NULL WHEN ")
+                .expr(self, x, 4)?;
+            w.append(&format!(" REGEXP {literal} THEN REGEXP_REPLACE("))
+                .expr(self, x, 0)?;
             w.append(&format!(", {anchored}, {group}) ELSE '' END)"));
             Ok(())
         }))
@@ -976,7 +1133,10 @@ impl MariaDb {
             let k = k.clone();
             let repeat = repeat.clone();
             pc(move |w| {
-                w.append("REGEXP_REPLACE(").expr(self, x, 0)?.append(&format!(", CONCAT({repeat}, ")).piece(&*k)?;
+                w.append("REGEXP_REPLACE(")
+                    .expr(self, x, 0)?
+                    .append(&format!(", CONCAT({repeat}, "))
+                    .piece(&*k)?;
                 w.append(&format!(" - 1, {kth_tail}), {group})"));
                 Ok(())
             })
@@ -993,7 +1153,9 @@ impl MariaDb {
                 .append(" IS NULL THEN NULL ELSE coalesce((SELECT ")
                 .piece(&*agg)?;
             w.append(" FROM ").piece(&*rows)?.append(" WHERE ").expr(self, x, 4)?;
-            w.append(&format!(" REGEXP CONCAT({repeat}, ")).piece(&*k)?.append(", '}')), JSON_ARRAY()) END)");
+            w.append(&format!(" REGEXP CONCAT({repeat}, "))
+                .piece(&*k)?
+                .append(", '}')), JSON_ARRAY()) END)");
             Ok(())
         }))
     }
@@ -1003,7 +1165,11 @@ impl MariaDb {
     fn regexp_replace<'a>(&'a self, a: &'a [SqlExpr]) -> Result<P<'a>, Refusal> {
         let p = self.literal(arg(a, 1)?, "a regexp_replace pattern")?;
         let r = self.literal(arg(a, 2)?, "a regexp_replace replacement")?;
-        let options = if a.len() > 3 { self.literal(&a[3], "regexp_replace options")? } else { "" };
+        let options = if a.len() > 3 {
+            self.literal(&a[3], "regexp_replace options")?
+        } else {
+            ""
+        };
         let mut global = false;
         let mut flags = "";
         for o in options.encode_utf16() {
@@ -1036,7 +1202,9 @@ impl MariaDb {
             let pattern = self.string_literal(&format!("{flags}{p}"));
             let replacement = self.string_literal(r);
             return Ok(pc(move |w| {
-                w.append("REGEXP_REPLACE(").expr(self, x, 0)?.append(&format!(", {pattern}, {replacement})"));
+                w.append("REGEXP_REPLACE(")
+                    .expr(self, x, 0)?
+                    .append(&format!(", {pattern}, {replacement})"));
                 Ok(())
             }));
         }
@@ -1044,7 +1212,9 @@ impl MariaDb {
         let pattern = self.string_literal(&format!("{flags}^([\\s\\S]*?)({p})"));
         let replacement = self.string_literal(&shifted);
         Ok(pc(move |w| {
-            w.append("REGEXP_REPLACE(").expr(self, x, 0)?.append(&format!(", {pattern}, {replacement})"));
+            w.append("REGEXP_REPLACE(")
+                .expr(self, x, 0)?
+                .append(&format!(", {pattern}, {replacement})"));
             Ok(())
         }))
     }
@@ -1129,11 +1299,15 @@ impl MariaDb {
             F::ListConcat => {
                 w.append("(CASE WHEN ");
                 for (i, x) in a.iter().enumerate() {
-                    w.append(if i > 0 { " AND " } else { "" }).expr(self, x, 4)?.append(" IS NULL");
+                    w.append(if i > 0 { " AND " } else { "" })
+                        .expr(self, x, 4)?
+                        .append(" IS NULL");
                 }
                 w.append(" THEN NULL ELSE JSON_MERGE_PRESERVE(");
                 for (i, x) in a.iter().enumerate() {
-                    w.append(if i > 0 { ", " } else { "" }).append("coalesce(").expr(self, x, 0)?;
+                    w.append(if i > 0 { ", " } else { "" })
+                        .append("coalesce(")
+                        .expr(self, x, 0)?;
                     w.append(", JSON_ARRAY())");
                 }
                 w.append(") END)");
@@ -1144,13 +1318,21 @@ impl MariaDb {
                 let xs = arg(a, 0)?;
                 let n = arg(a, 1)?;
                 let index = pc(move |w| {
-                    w.append("CASE WHEN ").expr(self, n, 4)?.append(" < 0 THEN ").expr(self, n, 0)?.append(" ELSE ");
+                    w.append("CASE WHEN ")
+                        .expr(self, n, 4)?
+                        .append(" < 0 THEN ")
+                        .expr(self, n, 0)?
+                        .append(" ELSE ");
                     w.expr(self, n, 6)?.append(" - 1 END");
                     Ok(())
                 });
                 let at = self.element_at(xs, index);
                 // a list whose elements claim no type: the element cast to the call's own type
-                let r#type = if list_element(xs).is_none() { cast_target(self, call_type) } else { None };
+                let r#type = if list_element(xs).is_none() {
+                    cast_target(self, call_type)
+                } else {
+                    None
+                };
                 w.append("(CASE WHEN ").expr(self, n, 4)?.append(" = 0 THEN NULL ELSE ");
                 match r#type {
                     None => {
@@ -1167,7 +1349,10 @@ impl MariaDb {
             F::ListPosition => {
                 w.append(&format!("(SELECT min({o}) FROM "));
                 let elements = self.elements(arg(a, 0)?, "__e", "__o", None);
-                w.piece(&*elements)?.append(&format!(" WHERE {e} <=> ")).expr(self, arg(a, 1)?, 5)?.append(")");
+                w.piece(&*elements)?
+                    .append(&format!(" WHERE {e} <=> "))
+                    .expr(self, arg(a, 1)?, 5)?
+                    .append(")");
                 Ok(())
             }
             // DuckDB's list_distinct drops NULLs; the first occurrence's order
@@ -1180,7 +1365,8 @@ impl MariaDb {
                 let r#where = pc(move |w| {
                     w.append(&format!("{e} IS NOT NULL AND NOT EXISTS(SELECT 1 FROM "));
                     let elements = self.elements(xs, "__e2", "__o2", None);
-                    w.piece(&*elements)?.append(&format!(" WHERE {e2} = {e} AND {o2} < {o})"));
+                    w.piece(&*elements)?
+                        .append(&format!(" WHERE {e2} = {e} AND {o2} < {o})"));
                     Ok(())
                 });
                 let over = self.over_elements(xs, "__e".to_owned(), "__o".to_owned(), None, select, Some(r#where));
@@ -1189,7 +1375,9 @@ impl MariaDb {
             }
             // list_append(NULL, v) is [v]
             F::ListAppend => {
-                w.append("JSON_ARRAY_APPEND(coalesce(").expr(self, arg(a, 0)?, 0)?.append(", JSON_ARRAY()), '$', ");
+                w.append("JSON_ARRAY_APPEND(coalesce(")
+                    .expr(self, arg(a, 0)?, 0)?
+                    .append(", JSON_ARRAY()), '$', ");
                 let json = self.json(arg(a, 1)?);
                 w.piece(&*json)?.append(")");
                 Ok(())
@@ -1273,7 +1461,10 @@ impl MariaDb {
                 let r#where = pc(move |w| {
                     let lo = self.slice_end(xs, arg(a, 1)?);
                     let hi = self.slice_end(xs, arg(a, 2)?);
-                    w.append(&format!("{o} >= ")).piece(&*lo)?.append(&format!(" AND {o} <= ")).piece(&*hi)?;
+                    w.append(&format!("{o} >= "))
+                        .piece(&*lo)?
+                        .append(&format!(" AND {o} <= "))
+                        .piece(&*hi)?;
                     Ok(())
                 });
                 let over = self.over_elements(xs, "__e".to_owned(), "__o".to_owned(), None, select, Some(r#where));
@@ -1299,7 +1490,10 @@ impl MariaDb {
                 );
                 let table = self.json_table(self.ex(xs, 0), spec, "__f".to_owned());
                 let body = pc(move |w| {
-                    w.append("coalesce((SELECT ").piece(&*agg)?.append(" FROM ").piece(&*table)?;
+                    w.append("coalesce((SELECT ")
+                        .piece(&*agg)?
+                        .append(" FROM ")
+                        .piece(&*table)?;
                     w.append(" WHERE __f.\"i\" IS NOT NULL), JSON_ARRAY())");
                     Ok(())
                 });
@@ -1317,14 +1511,17 @@ impl MariaDb {
                 w.piece(&*p)?;
                 Ok(())
             }
-            F::ListProduct => {
-                Err(self.wall(f, &format!("a list's cartesian product has no {} spelling", self.product())))
-            }
+            F::ListProduct => Err(self.wall(
+                f,
+                &format!("a list's cartesian product has no {} spelling", self.product()),
+            )),
             // DuckDB's range: [start, stop) by step (start 0, step 1 by default)
             F::RangeFn => self.range(w, a),
             F::RepeatValue => {
                 let n = arg(a, 1)?;
-                w.append("(CASE WHEN ").expr(self, n, 4)?.append(" > 0 THEN (SELECT JSON_ARRAYAGG(");
+                w.append("(CASE WHEN ")
+                    .expr(self, n, 4)?
+                    .append(" > 0 THEN (SELECT JSON_ARRAYAGG(");
                 let json = self.json(arg(a, 0)?);
                 w.piece(&*json)?.append(") FROM ");
                 let rows = self.rows(self.ex(n, 0), "__g");
@@ -1370,7 +1567,11 @@ impl MariaDb {
         if compacted {
             return self.compact(value);
         }
-        let t = if boolean { Some(SqlType::Scalar(Scalar::Boolean)) } else { t };
+        let t = if boolean {
+            Some(SqlType::Scalar(Scalar::Boolean))
+        } else {
+            t
+        };
         self.json_of(value, t.as_ref())
     }
 
@@ -1383,7 +1584,9 @@ impl MariaDb {
         let object = pc(move |w| {
             w.append("JSON_OBJECT(");
             for (i, x) in a.iter().enumerate() {
-                w.append(if i > 0 { ", " } else { "" }).append(&self.string_literal(&fields[i].name)).append(", ");
+                w.append(if i > 0 { ", " } else { "" })
+                    .append(&self.string_literal(&fields[i].name))
+                    .append(", ");
                 let at = self.element_at(x, text("__z.\"__n\" - 1"));
                 let json = self.json_of(at, Some(&fields[i].r#type));
                 w.piece(&*json)?;
@@ -1405,7 +1608,10 @@ impl MariaDb {
         });
         let rows = self.rows(longest, "__z");
         Ok(pc(move |w| {
-            w.append("coalesce((SELECT ").piece(&*agg)?.append(" FROM ").piece(&*rows)?;
+            w.append("coalesce((SELECT ")
+                .piece(&*agg)?
+                .append(" FROM ")
+                .piece(&*rows)?;
             w.append(" WHERE __z.\"__n\" <= GREATEST(");
             for (i, x) in a.iter().enumerate() {
                 w.append(if i > 0 { ", " } else { "" })
@@ -1420,14 +1626,23 @@ impl MariaDb {
 
     /// Java's `range`: DuckDB's range, [start, stop) by step, a row per value.
     fn range(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        let start = if a.len() == 1 { text("0") } else { self.ex(arg(a, 0)?, 0) };
+        let start = if a.len() == 1 {
+            text("0")
+        } else {
+            self.ex(arg(a, 0)?, 0)
+        };
         let last = arg(a, if a.len() == 1 { 0 } else { 1 })?;
         let stop = self.ex(last, 0);
         let step = if a.len() > 2 { self.ex(&a[2], 0) } else { text("1") };
         let count = {
             let (start, stop, step) = (start.clone(), stop.clone(), step.clone());
             pc(move |w| {
-                w.append("CEIL(((").piece(&*stop)?.append(") - (").piece(&*start)?.append(")) / (").piece(&*step)?;
+                w.append("CEIL(((")
+                    .piece(&*stop)?
+                    .append(") - (")
+                    .piece(&*start)?
+                    .append(")) / (")
+                    .piece(&*step)?;
                 w.append("))");
                 Ok(())
             })
@@ -1435,11 +1650,20 @@ impl MariaDb {
         let value = {
             let (start, step) = (start.clone(), step.clone());
             pc(move |v| {
-                v.append("(").piece(&*start)?.append(") + (__g.\"__n\" - 1) * (").piece(&*step)?.append(")");
+                v.append("(")
+                    .piece(&*start)?
+                    .append(") + (__g.\"__n\" - 1) * (")
+                    .piece(&*step)?
+                    .append(")");
                 Ok(())
             })
         };
-        w.append("(CASE WHEN ((").piece(&*stop)?.append(") - (").piece(&*start)?.append(")) * (").piece(&*step)?;
+        w.append("(CASE WHEN ((")
+            .piece(&*stop)?
+            .append(") - (")
+            .piece(&*start)?
+            .append(")) * (")
+            .piece(&*step)?;
         w.append(") > 0 THEN (SELECT ");
         let agg = self.array_agg(false, value, Some(text("__g.\"__n\"")), false);
         w.piece(&*agg)?.append(" FROM ");
@@ -1451,8 +1675,15 @@ impl MariaDb {
     /// Java's `sliceEnd`: a slice bound, 1-based, a negative one from the end.
     fn slice_end<'a>(&'a self, xs: &'a SqlExpr, i: &'a SqlExpr) -> P<'a> {
         pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, i, 4)?.append(" < 0 THEN JSON_LENGTH(").expr(self, xs, 0)?;
-            w.append(") + ").expr(self, i, 6)?.append(" + 1 ELSE ").expr(self, i, 0)?.append(" END)");
+            w.append("(CASE WHEN ")
+                .expr(self, i, 4)?
+                .append(" < 0 THEN JSON_LENGTH(")
+                .expr(self, xs, 0)?;
+            w.append(") + ")
+                .expr(self, i, 6)?
+                .append(" + 1 ELSE ")
+                .expr(self, i, 0)?
+                .append(" END)");
             Ok(())
         })
     }
@@ -1463,7 +1694,10 @@ impl MariaDb {
             let mut keys = Vec::with_capacity(fields.len());
             for f in fields {
                 let field = self.json_text_of(x, &self.member_path(&f.name));
-                keys.push(super::aggregates::element_sort_of(self.scalar_of_text(text(field), Some(&f.r#type)), asc));
+                keys.push(super::aggregates::element_sort_of(
+                    self.scalar_of_text(text(field), Some(&f.r#type)),
+                    asc,
+                ));
             }
             return pc(move |w| {
                 for (i, k) in keys.iter().enumerate() {
@@ -1498,12 +1732,20 @@ impl MariaDb {
                 );
                 let values = self.json_table(
                     self.ex(arg(a, 1)?, 0),
-                    format!("'$[*]' COLUMNS (\"o\" FOR ORDINALITY, \"v\" {} PATH '$')", self.column_type(v)),
+                    format!(
+                        "'$[*]' COLUMNS (\"o\" FOR ORDINALITY, \"v\" {} PATH '$')",
+                        self.column_type(v)
+                    ),
                     "__v".to_owned(),
                 );
                 let value = self.json_of(text("__v.\"v\""), v);
-                w.append("(SELECT JSON_OBJECTAGG(__k.\"k\", ").piece(&*value)?.append(") FROM ").piece(&*keys)?;
-                w.append(" LEFT JOIN ").piece(&*values)?.append(" ON __v.\"o\" = __k.\"o\")");
+                w.append("(SELECT JSON_OBJECTAGG(__k.\"k\", ")
+                    .piece(&*value)?
+                    .append(") FROM ")
+                    .piece(&*keys)?;
+                w.append(" LEFT JOIN ")
+                    .piece(&*values)?
+                    .append(" ON __v.\"o\" = __k.\"o\")");
                 Ok(())
             }
             // DuckDB's map_from_entries: each entry a struct of (key, value), by position whatever their names
@@ -1525,19 +1767,26 @@ impl MariaDb {
                 );
                 let table = self.json_table(self.ex(xs, 0), spec, "__e".to_owned());
                 let value = self.json_of(text("__e.\"v\""), Some(vt));
-                w.append("(SELECT JSON_OBJECTAGG(__e.\"k\", ").piece(&*value)?.append(") FROM ").piece(&*table)?;
+                w.append("(SELECT JSON_OBJECTAGG(__e.\"k\", ")
+                    .piece(&*value)?
+                    .append(") FROM ")
+                    .piece(&*table)?;
                 w.append(")");
                 Ok(())
             }
             // DuckDB's map_extract: a list of the key's value, empty when absent
             F::MapExtract => {
                 let (m, k) = (arg(a, 0)?, arg(a, 1)?);
-                w.append("(CASE WHEN ").expr(self, m, 4)?.append(" IS NULL THEN NULL WHEN");
+                w.append("(CASE WHEN ")
+                    .expr(self, m, 4)?
+                    .append(" IS NULL THEN NULL WHEN");
                 w.append(" JSON_CONTAINS_PATH(")
                     .expr(self, m, 0)?
                     .append(", 'one', CONCAT('$.\"', ")
                     .expr(self, k, 0)?;
-                w.append(", '\"')) THEN JSON_ARRAY(JSON_EXTRACT(").expr(self, m, 0)?.append(", CONCAT('$.\"', ");
+                w.append(", '\"')) THEN JSON_ARRAY(JSON_EXTRACT(")
+                    .expr(self, m, 0)?
+                    .append(", CONCAT('$.\"', ");
                 w.expr(self, k, 0)?.append(", '\"'))) ELSE JSON_ARRAY() END)");
                 Ok(())
             }
@@ -1554,7 +1803,9 @@ impl MariaDb {
             F::MapValues => {
                 let m = arg(a, 0)?;
                 let body = pc(move |w| {
-                    w.append("coalesce(JSON_EXTRACT(").expr(self, m, 0)?.append(", '$.*'), JSON_ARRAY())");
+                    w.append("coalesce(JSON_EXTRACT(")
+                        .expr(self, m, 0)?
+                        .append(", '$.*'), JSON_ARRAY())");
                     Ok(())
                 });
                 let p = self.unless_null(m, body);
@@ -1578,12 +1829,18 @@ impl MariaDb {
     /// Java's `parsedDate`: Pure's parseDate of a text, a text that is no date raised.
     fn parsed_date<'a>(&'a self, x: &'a SqlExpr) -> P<'a> {
         pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, x, 4)?.append(" IS NULL THEN NULL ELSE coalesce(");
+            w.append("(CASE WHEN ")
+                .expr(self, x, 4)?
+                .append(" IS NULL THEN NULL ELSE coalesce(");
             let utc = utc_of(self.ex(x, 0));
             w.piece(&*utc)?.append(", ");
             let message = [build::call(
                 SqlFn::Concat,
-                vec![build::string_lit("Could not parse '"), x.clone(), build::string_lit("' as a date")],
+                vec![
+                    build::string_lit("Could not parse '"),
+                    x.clone(),
+                    build::string_lit("' as a date"),
+                ],
             )];
             let raise = self.raise(&message, Some(&SqlType::Scalar(Scalar::Timestamp)));
             w.piece(&*raise)?.append(") END)");
@@ -1594,7 +1851,9 @@ impl MariaDb {
     /// Java's `micros(t)`: a date-time's microseconds since the epoch.
     fn micros<'a>(&'a self, t: &'a SqlExpr) -> P<'a> {
         pc(move |w| {
-            w.append("TIMESTAMPDIFF(MICROSECOND, TIMESTAMP '1970-01-01 00:00:00', ").expr(self, t, 0)?.append(")");
+            w.append("TIMESTAMPDIFF(MICROSECOND, TIMESTAMP '1970-01-01 00:00:00', ")
+                .expr(self, t, 0)?
+                .append(")");
             Ok(())
         })
     }
@@ -1650,17 +1909,27 @@ impl MariaDb {
         Ok(match p {
             DatePart::Year => wrapped_piece(self, "MAKEDATE(YEAR(", t, "), 1)"),
             DatePart::Quarter => pc(move |w| {
-                w.append("(MAKEDATE(YEAR(").expr(self, t, 0)?.append("), 1) + INTERVAL (QUARTER(").expr(self, t, 0)?;
+                w.append("(MAKEDATE(YEAR(")
+                    .expr(self, t, 0)?
+                    .append("), 1) + INTERVAL (QUARTER(")
+                    .expr(self, t, 0)?;
                 w.append(") - 1) QUARTER)");
                 Ok(())
             }),
             DatePart::Month => pc(move |w| {
-                w.append("(DATE(").expr(self, t, 0)?.append(") - INTERVAL (DAYOFMONTH(").expr(self, t, 0)?;
+                w.append("(DATE(")
+                    .expr(self, t, 0)?
+                    .append(") - INTERVAL (DAYOFMONTH(")
+                    .expr(self, t, 0)?;
                 w.append(") - 1) DAY)");
                 Ok(())
             }),
             DatePart::Week => pc(move |w| {
-                w.append("(DATE(").expr(self, t, 0)?.append(") - INTERVAL WEEKDAY(").expr(self, t, 0)?.append(") DAY)");
+                w.append("(DATE(")
+                    .expr(self, t, 0)?
+                    .append(") - INTERVAL WEEKDAY(")
+                    .expr(self, t, 0)?
+                    .append(") DAY)");
                 Ok(())
             }),
             DatePart::Day => wrapped_piece(self, "CAST(DATE(", t, ") AS DATETIME(6))"),
@@ -1668,7 +1937,9 @@ impl MariaDb {
             DatePart::Minute => wrapped_piece(self, "CAST(DATE_FORMAT(", t, ", '%Y-%m-%d %H:%i:00') AS DATETIME(6))"),
             DatePart::Second => wrapped_piece(self, "CAST(DATE_FORMAT(", t, ", '%Y-%m-%d %H:%i:%s') AS DATETIME(6))"),
             DatePart::Millisecond => pc(move |w| {
-                w.append("(CAST(").expr(self, t, 0)?.append(" AS DATETIME(6)) - INTERVAL MOD(MICROSECOND(");
+                w.append("(CAST(")
+                    .expr(self, t, 0)?
+                    .append(" AS DATETIME(6)) - INTERVAL MOD(MICROSECOND(");
                 w.expr(self, t, 0)?.append("), 1000) MICROSECOND)");
                 Ok(())
             }),
@@ -1698,12 +1969,26 @@ impl MariaDb {
             DatePart::Millisecond => ("MICROSECOND", "1000"),
             DatePart::Microsecond => ("MICROSECOND", "1"),
             DatePart::Quarter | DatePart::Nanosecond | DatePart::DayOfYear | DatePart::IsoDayOfWeek => {
-                return Err(Refusal::capability(format!("interval unit {unit} has no {} spelling", self.product())));
+                return Err(Refusal::capability(format!(
+                    "interval unit {unit} has no {} spelling",
+                    self.product()
+                )));
             }
         };
-        let tail = format!("){} {name})", if times == "1" { String::new() } else { format!(" * {times}") });
+        let tail = format!(
+            "){} {name})",
+            if times == "1" {
+                String::new()
+            } else {
+                format!(" * {times}")
+            }
+        );
         Ok(pc(move |w| {
-            w.append("(").expr(self, t, 6)?.append(" + INTERVAL (").expr(self, n, 0)?.append(&tail);
+            w.append("(")
+                .expr(self, t, 6)?
+                .append(" + INTERVAL (")
+                .expr(self, n, 0)?
+                .append(&tail);
             Ok(())
         }))
     }
@@ -1715,27 +2000,51 @@ impl MariaDb {
         let to = arg(a, 2)?;
         Ok(match p {
             DatePart::Year => pc(move |w| {
-                w.append("(YEAR(").expr(self, to, 0)?.append(") - YEAR(").expr(self, from, 0)?.append("))");
+                w.append("(YEAR(")
+                    .expr(self, to, 0)?
+                    .append(") - YEAR(")
+                    .expr(self, from, 0)?
+                    .append("))");
                 Ok(())
             }),
             DatePart::Quarter => pc(move |w| {
-                w.append("((YEAR(").expr(self, to, 0)?.append(") * 4 + QUARTER(").expr(self, to, 0)?;
-                w.append(")) - (YEAR(").expr(self, from, 0)?.append(") * 4 + QUARTER(").expr(self, from, 0)?;
+                w.append("((YEAR(")
+                    .expr(self, to, 0)?
+                    .append(") * 4 + QUARTER(")
+                    .expr(self, to, 0)?;
+                w.append(")) - (YEAR(")
+                    .expr(self, from, 0)?
+                    .append(") * 4 + QUARTER(")
+                    .expr(self, from, 0)?;
                 w.append(")))");
                 Ok(())
             }),
             DatePart::Month => pc(move |w| {
-                w.append("((YEAR(").expr(self, to, 0)?.append(") * 12 + MONTH(").expr(self, to, 0)?;
-                w.append(")) - (YEAR(").expr(self, from, 0)?.append(") * 12 + MONTH(").expr(self, from, 0)?;
+                w.append("((YEAR(")
+                    .expr(self, to, 0)?
+                    .append(") * 12 + MONTH(")
+                    .expr(self, to, 0)?;
+                w.append(")) - (YEAR(")
+                    .expr(self, from, 0)?
+                    .append(") * 12 + MONTH(")
+                    .expr(self, from, 0)?;
                 w.append(")))");
                 Ok(())
             }),
             DatePart::Week => pc(move |w| {
-                w.append("(DATEDIFF(").expr(self, to, 0)?.append(", ").expr(self, from, 0)?.append(") DIV 7)");
+                w.append("(DATEDIFF(")
+                    .expr(self, to, 0)?
+                    .append(", ")
+                    .expr(self, from, 0)?
+                    .append(") DIV 7)");
                 Ok(())
             }),
             DatePart::Day => pc(move |w| {
-                w.append("DATEDIFF(").expr(self, to, 0)?.append(", ").expr(self, from, 0)?.append(")");
+                w.append("DATEDIFF(")
+                    .expr(self, to, 0)?
+                    .append(", ")
+                    .expr(self, from, 0)?
+                    .append(")");
                 Ok(())
             }),
             DatePart::Hour => self.boundaries(from, to, 3_600_000_000),
@@ -1757,7 +2066,10 @@ impl MariaDb {
     fn boundaries<'a>(&'a self, from: &'a SqlExpr, to: &'a SqlExpr, unit: i64) -> P<'a> {
         let (to_micros, from_micros) = (self.micros(to), self.micros(from));
         pc(move |w| {
-            w.append("(FLOOR(").piece(&*to_micros)?.append(&format!(" / {unit}) - FLOOR(")).piece(&*from_micros)?;
+            w.append("(FLOOR(")
+                .piece(&*to_micros)?
+                .append(&format!(" / {unit}) - FLOOR("))
+                .piece(&*from_micros)?;
             w.append(&format!(" / {unit}))"));
             Ok(())
         })
@@ -1781,7 +2093,12 @@ impl MariaDb {
             });
             return Ok(pc(move |w| {
                 w.append("(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (");
-                w.append("(FLOOR(").piece(&*m)?.append(" / ").piece(&*size)?.append(") * ").piece(&*size)?;
+                w.append("(FLOOR(")
+                    .piece(&*m)?
+                    .append(" / ")
+                    .piece(&*size)?
+                    .append(") * ")
+                    .piece(&*size)?;
                 w.append(&format!(" + ({origin}))"));
                 w.append(") MICROSECOND)");
                 Ok(())
@@ -1793,10 +2110,17 @@ impl MariaDb {
             _ => 0,
         };
         if months == 0 {
-            return Err(Refusal::capability(format!("a {unit} time bucket has no {} spelling", self.product())));
+            return Err(Refusal::capability(format!(
+                "a {unit} time bucket has no {} spelling",
+                self.product()
+            )));
         }
         let k = pc(move |w| {
-            w.append("((YEAR(").expr(self, t, 0)?.append(") - 1970) * 12 + MONTH(").expr(self, t, 0)?.append(") - 1)");
+            w.append("((YEAR(")
+                .expr(self, t, 0)?
+                .append(") - 1970) * 12 + MONTH(")
+                .expr(self, t, 0)?
+                .append(") - 1)");
             Ok(())
         });
         let size = pc(move |w| {
@@ -1804,7 +2128,10 @@ impl MariaDb {
             Ok(())
         });
         Ok(pc(move |w| {
-            w.append("CAST(DATE '1970-01-01' + INTERVAL (FLOOR(").piece(&*k)?.append(" / ").piece(&*size)?;
+            w.append("CAST(DATE '1970-01-01' + INTERVAL (FLOOR(")
+                .piece(&*k)?
+                .append(" / ")
+                .piece(&*size)?;
             w.append(") * ").piece(&*size)?.append(") MONTH AS DATETIME(6))");
             Ok(())
         }))
@@ -1815,8 +2142,13 @@ impl MariaDb {
         if a.len() != 6 {
             return Err(self.wall(f, &format!("make_timestamp of {} arguments", a.len())));
         }
-        w.append("(STR_TO_DATE(CONCAT_WS('-', ").list(self, &a[0..3])?.append("), '%Y-%m-%d') + INTERVAL ");
-        w.expr(self, &a[3], 6)?.append(" HOUR + INTERVAL ").expr(self, &a[4], 6)?.append(" MINUTE + INTERVAL ROUND((");
+        w.append("(STR_TO_DATE(CONCAT_WS('-', ")
+            .list(self, &a[0..3])?
+            .append("), '%Y-%m-%d') + INTERVAL ");
+        w.expr(self, &a[3], 6)?
+            .append(" HOUR + INTERVAL ")
+            .expr(self, &a[4], 6)?
+            .append(" MINUTE + INTERVAL ROUND((");
         w.expr(self, &a[5], 0)?.append(") * 1000000) MICROSECOND)");
         Ok(())
     }
@@ -1877,7 +2209,9 @@ impl MariaDb {
     fn date_format<'a>(&'a self, value: &'a SqlExpr, codes: &str) -> P<'a> {
         let f = self.string_literal(codes);
         pc(move |w| {
-            w.append("DATE_FORMAT(").expr(self, value, 0)?.append(&format!(", {f})"));
+            w.append("DATE_FORMAT(")
+                .expr(self, value, 0)?
+                .append(&format!(", {f})"));
             Ok(())
         })
     }
@@ -2031,7 +2365,14 @@ pub(super) fn directives(f: &str) -> Vec<Directive<'_>> {
             precision = Some(&f[p0..j]);
         }
         if j < b.len() && (b[j].is_ascii_alphabetic() || b[j] == b'%') {
-            out.push(Directive { start: i, end: j + 1, flags, width, precision, conversion: b[j] as char });
+            out.push(Directive {
+                start: i,
+                end: j + 1,
+                flags,
+                width,
+                precision,
+                conversion: b[j] as char,
+            });
             i = j + 1;
         } else {
             i += 1;

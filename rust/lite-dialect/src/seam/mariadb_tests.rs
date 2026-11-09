@@ -119,23 +119,37 @@ fn ddl_and_dml_render_and_a_session_table_is_a_temporary_table() {
         // the interface's default: the table, then its INSERT
         let temporary = r#""Create Temporary Table \"legend_rows\"(\"ID\" BIGINT NOT NULL, PRIMARY KEY(\"ID\"));""#;
         assert_eq!(
-            ok(spec, "sessionTable", &format!(r#"{{"table":{SESSION_TABLE},"rows":{INSERT_VALUES}}}"#)),
+            ok(
+                spec,
+                "sessionTable",
+                &format!(r#"{{"table":{SESSION_TABLE},"rows":{INSERT_VALUES}}}"#)
+            ),
             format!("[{temporary},{insert}]")
         );
         assert_eq!(
-            ok(spec, "sessionTable", &format!(r#"{{"table":{SESSION_TABLE},"rows":null}}"#)),
+            ok(
+                spec,
+                "sessionTable",
+                &format!(r#"{{"table":{SESSION_TABLE},"rows":null}}"#)
+            ),
             format!("[{temporary}]")
         );
         let delete =
             r#"{"dml":{"_type":"deleteAll","schema":"default","table":"T","quoting":{"schema":false,"table":true}}}"#;
         assert_eq!(ok(spec, "dml.render", delete), r#""DELETE FROM \"T\";""#);
-        assert_eq!(ok(spec, "dml.renderStatement", delete), r#"{"sql":"DELETE FROM \"T\";","binds":[],"regions":[]}"#);
+        assert_eq!(
+            ok(spec, "dml.renderStatement", delete),
+            r#"{"sql":"DELETE FROM \"T\";","binds":[],"regions":[]}"#
+        );
         // a nanosecond date-time column: MariaDB's DATETIME keeps microseconds
         let ns = CREATE_TABLE.replace(r#""kind":"TINYINT""#, r#""kind":"TIMESTAMP_NS""#);
         let r = refused(spec, "ddl.render", &wrap("ddl", &ns));
         assert_eq!(
             (r.kind(), r.message.as_str()),
-            ("DIALECT_CAPABILITY", "a TIMESTAMP_NS column: MariaDB keeps microseconds")
+            (
+                "DIALECT_CAPABILITY",
+                "a TIMESTAMP_NS column: MariaDB keeps microseconds"
+            )
         );
     }
 }
@@ -147,21 +161,45 @@ fn names_are_each_databases() {
         assert_eq!(answer("physicalName", r#"{"name":"Trades"}"#), r#""\"Trades\"""#);
         // a quote-bearing declaration is already its own spelling
         assert_eq!(answer("physicalName", r#"{"name":"\"date\""}"#), r#""\"date\"""#);
-        assert_eq!(answer("storedName", r#"{"name":"a\"b","declaredQuoted":true}"#), r#""\"a\"\"b\"""#);
-        assert_eq!(answer("storedName", r#"{"name":"select","declaredQuoted":false}"#), r#""\"select\"""#);
-        assert_eq!(answer("insertColumnName", r#"{"name":"x","declaredQuoted":false}"#), r#""\"x\"""#);
+        assert_eq!(
+            answer("storedName", r#"{"name":"a\"b","declaredQuoted":true}"#),
+            r#""\"a\"\"b\"""#
+        );
+        assert_eq!(
+            answer("storedName", r#"{"name":"select","declaredQuoted":false}"#),
+            r#""\"select\"""#
+        );
+        assert_eq!(
+            answer("insertColumnName", r#"{"name":"x","declaredQuoted":false}"#),
+            r#""\"x\"""#
+        );
         // the engine's H2 text: no translation (the refusal names MariaDB on MySQL too, as Java's)
         let r = refused(spec, "fromEngineText", r#"{"statement":"CREATE TABLE T (X DOUBLE)"}"#);
         assert_eq!(
             (r.kind(), r.message.as_str()),
-            ("DIALECT_CAPABILITY", "the engine's H2 text reached MariaDB, which has no translation of it")
+            (
+                "DIALECT_CAPABILITY",
+                "the engine's H2 text reached MariaDB, which has no translation of it"
+            )
         );
-        assert_eq!(answer("raw", &format!(r#"{{"statement":"select 1","writtenFor":"{name}"}}"#)), r#""select 1""#);
-        assert_eq!(answer("raw", r#"{"statement":"select 1","writtenFor":null}"#), r#""select 1""#);
-        let r = refused(spec, "raw", r#"{"statement":"select 1","writtenFor":"H2"}"#);
-        assert_eq!(r.message, "the engine's H2 text reached MariaDB, which has no translation of it");
         assert_eq!(
-            answer("tableName", r#"{"name":"Sales.Orders","quoting":{"schema":false,"table":false}}"#),
+            answer("raw", &format!(r#"{{"statement":"select 1","writtenFor":"{name}"}}"#)),
+            r#""select 1""#
+        );
+        assert_eq!(
+            answer("raw", r#"{"statement":"select 1","writtenFor":null}"#),
+            r#""select 1""#
+        );
+        let r = refused(spec, "raw", r#"{"statement":"select 1","writtenFor":"H2"}"#);
+        assert_eq!(
+            r.message,
+            "the engine's H2 text reached MariaDB, which has no translation of it"
+        );
+        assert_eq!(
+            answer(
+                "tableName",
+                r#"{"name":"Sales.Orders","quoting":{"schema":false,"table":false}}"#
+            ),
             r#""\"Sales\".\"Orders\"""#
         );
     }
@@ -172,9 +210,15 @@ fn the_interface_answers_as_each_database() {
     for (spec, name) in BOTH {
         let answer = |op: &str, args: &str| ok(spec, op, args);
         // its text types and a UUID are text, its DATETIME the naive date-time; every other name the wire's fold
-        assert_eq!(answer("wireTypeName", r#"{"driverTypeName":"LONGTEXT"}"#), r#""VARCHAR""#);
+        assert_eq!(
+            answer("wireTypeName", r#"{"driverTypeName":"LONGTEXT"}"#),
+            r#""VARCHAR""#
+        );
         assert_eq!(answer("wireTypeName", r#"{"driverTypeName":"UUID"}"#), r#""VARCHAR""#);
-        assert_eq!(answer("wireTypeName", r#"{"driverTypeName":"DATETIME"}"#), r#""TIMESTAMP""#);
+        assert_eq!(
+            answer("wireTypeName", r#"{"driverTypeName":"DATETIME"}"#),
+            r#""TIMESTAMP""#
+        );
         assert_eq!(answer("wireTypeName", r#"{"driverTypeName":"BIGINT"}"#), r#""BIGINT""#);
         assert_eq!(answer("typingWireName", r#"{"driverTypeName":"CHAR"}"#), r#""VARCHAR""#);
         assert_eq!(answer("wireTypeName", r#"{"driverTypeName":null}"#), r#""""#);
@@ -194,27 +238,47 @@ fn the_interface_answers_as_each_database() {
         assert_eq!(delivers(list, "VARCHAR"), "true");
         assert_eq!(delivers(bigint, "NULL"), "true");
         assert_eq!(answer("script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-        assert_eq!(answer("failingStatement", r#"{"message":"x","statements":["a"]}"#), "null");
+        assert_eq!(
+            answer("failingStatement", r#"{"message":"x","statements":["a"]}"#),
+            "null"
+        );
         let r = refused(spec, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
         assert_eq!(
             (r.kind(), r.message.clone()),
-            ("UNSUPPORTED_OPERATION", format!("the platform asks no catalog question of {name}"))
+            (
+                "UNSUPPORTED_OPERATION",
+                format!("the platform asks no catalog question of {name}")
+            )
         );
         let r = refused(spec, "bareNameReaches", r#"{"catalogName":"t"}"#);
-        assert_eq!(r.message, format!("reading this database's catalog names is not implemented for {name}"));
+        assert_eq!(
+            r.message,
+            format!("reading this database's catalog names is not implemented for {name}")
+        );
         let column = r#"{"column":{"name":"n","dataType":"BIGINT","logicalType":null,"precision":19,"scale":0,"notNull":false}}"#;
         let r = refused(spec, "catalogType", column);
-        assert_eq!(r.message, format!("reading this database's catalog type 'BIGINT' is not implemented for {name}"));
+        assert_eq!(
+            r.message,
+            format!("reading this database's catalog type 'BIGINT' is not implemented for {name}")
+        );
         assert_eq!(answer("copySelectList", r#"{"conversions":[]}"#), r#""*""#);
         let r = refused(spec, "copySelectList", r#"{"conversions":[{"column":"c","sql":"x"}]}"#);
-        assert_eq!(r.message, format!("a copy that converts columns in its star select is not implemented for {name}"));
+        assert_eq!(
+            r.message,
+            format!("a copy that converts columns in its star select is not implemented for {name}")
+        );
         for op in ["host.openDatabase", "host.useDatabase", "host.closeDatabase"] {
             let r = refused(spec, op, r#"{"name":"p"}"#);
             assert!(r.message.contains(&format!("on {name}")), "{op}: {r}");
         }
         let r = refused(spec, "host.statements", r#"{"operation":{"op":"platform"}}"#);
         assert!(r.message.contains(&format!(" on {name} is not built")), "{r}");
-        let reads = |kind: &str| answer("readsStored", &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#));
+        let reads = |kind: &str| {
+            answer(
+                "readsStored",
+                &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#),
+            )
+        };
         assert_eq!(reads("OTHER"), "true");
         assert_eq!(reads("DISTINCT"), "true");
         assert_eq!(reads("JSON"), "false");

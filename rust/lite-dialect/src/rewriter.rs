@@ -105,7 +105,11 @@ pub fn rewrite<R: SqlRewriter + ?Sized>(r: &mut R, q: SqlQuery) -> Result<Rw<Sql
                     ch = true;
                     projections.push(build::projection(e2.into_inner(), p.alias, p.out)?);
                 } else {
-                    projections.push(Projection { expr: e2.into_inner(), alias: p.alias, out: p.out });
+                    projections.push(Projection {
+                        expr: e2.into_inner(),
+                        alias: p.alias,
+                        out: p.out,
+                    });
                 }
             }
             let from = rewrite_source(r, s.from)?.take(&mut ch);
@@ -114,7 +118,16 @@ pub fn rewrite<R: SqlRewriter + ?Sized>(r: &mut R, q: SqlQuery) -> Result<Rw<Sql
             let having = opt(r, s.having, &mut ch)?;
             let qualify = opt(r, s.qualify, &mut ch)?;
             let order_by = keys(r, s.order_by, &mut ch)?;
-            let out = SqlSelect { projections, from, r#where, group_by, having, qualify, order_by, ..s };
+            let out = SqlSelect {
+                projections,
+                from,
+                r#where,
+                group_by,
+                having,
+                qualify,
+                order_by,
+                ..s
+            };
             let out = if ch { build::select(out)? } else { out };
             Ok(r.select(out)?.after(ch))
         }
@@ -124,17 +137,28 @@ pub fn rewrite<R: SqlRewriter + ?Sized>(r: &mut R, q: SqlQuery) -> Result<Rw<Sql
             for b in u.branches {
                 branches.push(rewrite(r, b)?.take(&mut ch));
             }
-            let out = if ch { build::union(branches, u.all, u.outputs)? } else { SqlUnion { branches, ..u } };
+            let out = if ch {
+                build::union(branches, u.all, u.outputs)?
+            } else {
+                SqlUnion { branches, ..u }
+            };
             Ok(r.union(out)?.after(ch))
         }
         SqlQuery::With(w) => {
             let mut ch = false;
             let mut ctes = Vec::with_capacity(w.ctes.len());
             for c in w.ctes {
-                ctes.push(Cte { query: rewrite(r, c.query)?.take(&mut ch), ..c });
+                ctes.push(Cte {
+                    query: rewrite(r, c.query)?.take(&mut ch),
+                    ..c
+                });
             }
             let body = Box::new(rewrite(r, *w.body)?.take(&mut ch));
-            let out = SqlQuery::With(SqlWith { ctes, body, recursive: w.recursive });
+            let out = SqlQuery::With(SqlWith {
+                ctes,
+                body,
+                recursive: w.recursive,
+            });
             Ok(if ch { Rw::New(out) } else { Rw::Same(out) })
         }
     }
@@ -149,20 +173,38 @@ fn exprs<R: SqlRewriter + ?Sized>(r: &mut R, es: Vec<SqlExpr>, ch: &mut bool) ->
 }
 
 fn keys<R: SqlRewriter + ?Sized>(r: &mut R, ks: Vec<SortKey>, ch: &mut bool) -> Result<Vec<SortKey>, Refusal> {
-    ks.into_iter().map(|k| Ok(SortKey { expr: rewrite_expr(r, k.expr)?.take(ch), ..k })).collect()
+    ks.into_iter()
+        .map(|k| {
+            Ok(SortKey {
+                expr: rewrite_expr(r, k.expr)?.take(ch),
+                ..k
+            })
+        })
+        .collect()
 }
 
 /// A boxed child rewritten in its box.
 fn boxed<R: SqlRewriter + ?Sized>(r: &mut R, mut e: Box<SqlExpr>, ch: &mut bool) -> Result<Box<SqlExpr>, Refusal> {
-    let child = std::mem::replace(&mut *e, SqlExpr::NullLit { r#type: TypeFact::Bottom });
+    let child = std::mem::replace(
+        &mut *e,
+        SqlExpr::NullLit {
+            r#type: TypeFact::Bottom,
+        },
+    );
     *e = rewrite_expr(r, child)?.take(ch);
     Ok(e)
 }
 
 /// A boxed subquery rewritten in its box.
 fn subquery<R: SqlRewriter + ?Sized>(r: &mut R, mut q: Box<SqlQuery>, ch: &mut bool) -> Result<Box<SqlQuery>, Refusal> {
-    let child =
-        std::mem::replace(&mut *q, SqlQuery::Union(SqlUnion { branches: Vec::new(), all: false, outputs: Vec::new() }));
+    let child = std::mem::replace(
+        &mut *q,
+        SqlQuery::Union(SqlUnion {
+            branches: Vec::new(),
+            all: false,
+            outputs: Vec::new(),
+        }),
+    );
     *q = rewrite(r, child)?.take(ch);
     Ok(q)
 }
@@ -171,26 +213,62 @@ fn subquery<R: SqlRewriter + ?Sized>(r: &mut R, mut q: Box<SqlQuery>, ch: &mut b
 pub fn rewrite_source<R: SqlRewriter + ?Sized>(r: &mut R, s: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
     let mut ch = false;
     let out = match s {
-        SqlSource::Subselect { inner, alias, frame_name } => {
-            SqlSource::Subselect { inner: subquery(r, inner, &mut ch)?, alias, frame_name }
-        }
-        SqlSource::Values { rows, columns, alias, outputs } => SqlSource::Values {
-            rows: rows.into_iter().map(|row| exprs(r, row, &mut ch)).collect::<Result<_, _>>()?,
+        SqlSource::Subselect {
+            inner,
+            alias,
+            frame_name,
+        } => SqlSource::Subselect {
+            inner: subquery(r, inner, &mut ch)?,
+            alias,
+            frame_name,
+        },
+        SqlSource::Values {
+            rows,
+            columns,
+            alias,
+            outputs,
+        } => SqlSource::Values {
+            rows: rows
+                .into_iter()
+                .map(|row| exprs(r, row, &mut ch))
+                .collect::<Result<_, _>>()?,
             columns,
             alias,
             outputs,
         },
-        SqlSource::Join { left, right, kind, on, outputs } => {
+        SqlSource::Join {
+            left,
+            right,
+            kind,
+            on,
+            outputs,
+        } => {
             let left = rewrite_source(r, *left)?.take(&mut ch);
             let right = rewrite_source(r, *right)?.take(&mut ch);
-            let on = on.map(|e| Ok::<_, Refusal>(rewrite_expr(r, *e)?.take(&mut ch))).transpose()?;
+            let on = on
+                .map(|e| Ok::<_, Refusal>(rewrite_expr(r, *e)?.take(&mut ch)))
+                .transpose()?;
             if ch {
                 build::join(left, right, kind, on)?
             } else {
-                SqlSource::Join { left: Box::new(left), right: Box::new(right), kind, on: on.map(Box::new), outputs }
+                SqlSource::Join {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    kind,
+                    on: on.map(Box::new),
+                    outputs,
+                }
             }
         }
-        SqlSource::Pivot { source, on, r#in, named, usings, alias, outputs } => {
+        SqlSource::Pivot {
+            source,
+            on,
+            r#in,
+            named,
+            usings,
+            alias,
+            outputs,
+        } => {
             let source = Box::new(rewrite_source(r, *source)?.take(&mut ch));
             let on = exprs(r, on, &mut ch)?;
             let r#in = exprs(r, r#in, &mut ch)?;
@@ -216,7 +294,15 @@ pub fn rewrite_source<R: SqlRewriter + ?Sized>(r: &mut R, s: SqlSource) -> Resul
                     }
                 }
             }
-            SqlSource::Pivot { source, on, r#in, named, usings: us, alias, outputs }
+            SqlSource::Pivot {
+                source,
+                on,
+                r#in,
+                named,
+                usings: us,
+                alias,
+                outputs,
+            }
         }
         // the leaves: a table, a CTE reference, a URL, a plan variable, carried text, a catalog grid, Dual
         leaf => leaf,
@@ -242,48 +328,91 @@ pub fn rewrite_expr<R: SqlRewriter + ?Sized>(r: &mut R, e: SqlExpr) -> Result<Rw
                 )));
             }
         },
-        SqlExpr::Membership { needle, collection, r#type } => {
+        SqlExpr::Membership {
+            needle,
+            collection,
+            r#type,
+        } => {
             let needle = boxed(r, needle, c)?;
             let collection = boxed(r, collection, c)?;
             if *c {
                 build::membership(*needle, *collection)
             } else {
-                SqlExpr::Membership { needle, collection, r#type }
+                SqlExpr::Membership {
+                    needle,
+                    collection,
+                    r#type,
+                }
             }
         }
-        SqlExpr::ReduceCollection { reducer, collection, extras, r#type } => {
+        SqlExpr::ReduceCollection {
+            reducer,
+            collection,
+            extras,
+            r#type,
+        } => {
             let collection = boxed(r, collection, c)?;
             let extras = exprs(r, extras, c)?;
             if *c {
                 build::reduce_collection(reducer, *collection, extras)
             } else {
-                SqlExpr::ReduceCollection { reducer, collection, extras, r#type }
+                SqlExpr::ReduceCollection {
+                    reducer,
+                    collection,
+                    extras,
+                    r#type,
+                }
             }
         }
         SqlExpr::Group { inner, r#type } => {
             let inner = boxed(r, inner, c)?;
-            if *c { build::group(*inner) } else { SqlExpr::Group { inner, r#type } }
+            if *c {
+                build::group(*inner)
+            } else {
+                SqlExpr::Group { inner, r#type }
+            }
         }
-        SqlExpr::OrderedListAgg { value, order_by, r#type } => {
+        SqlExpr::OrderedListAgg {
+            value,
+            order_by,
+            r#type,
+        } => {
             let value = boxed(r, value, c)?;
             let order_by = boxed(r, order_by, c)?;
             if *c {
                 build::ordered_list_agg(*value, *order_by)
             } else {
-                SqlExpr::OrderedListAgg { value, order_by, r#type }
+                SqlExpr::OrderedListAgg {
+                    value,
+                    order_by,
+                    r#type,
+                }
             }
         }
         SqlExpr::ArrayLit { elements, r#type } => {
             let elements = exprs(r, elements, c)?;
             // the one-argument constructor: the given type is gone
-            if *c { build::array_lit(elements) } else { SqlExpr::ArrayLit { elements, r#type } }
+            if *c {
+                build::array_lit(elements)
+            } else {
+                SqlExpr::ArrayLit { elements, r#type }
+            }
         }
         SqlExpr::StructLit { fields, r#type } => {
             let fields = fields
                 .into_iter()
-                .map(|f| Ok(StructLitField { value: rewrite_expr(r, f.value)?.take(c), ..f }))
+                .map(|f| {
+                    Ok(StructLitField {
+                        value: rewrite_expr(r, f.value)?.take(c),
+                        ..f
+                    })
+                })
                 .collect::<Result<Vec<_>, Refusal>>()?;
-            if *c { build::struct_lit(fields) } else { SqlExpr::StructLit { fields, r#type } }
+            if *c {
+                build::struct_lit(fields)
+            } else {
+                SqlExpr::StructLit { fields, r#type }
+            }
         }
         SqlExpr::StructGet { source, field, r#type } => {
             let source = boxed(r, source, c)?;
@@ -296,9 +425,17 @@ pub fn rewrite_expr<R: SqlRewriter + ?Sized>(r: &mut R, e: SqlExpr) -> Result<Rw
         }
         SqlExpr::Call { r#fn, args, r#type } => {
             let args = exprs(r, args, c)?;
-            if *c { build::call(r#fn, args) } else { SqlExpr::Call { r#fn, args, r#type } }
+            if *c {
+                build::call(r#fn, args)
+            } else {
+                SqlExpr::Call { r#fn, args, r#type }
+            }
         }
-        SqlExpr::Case { whens, otherwise, r#type } => {
+        SqlExpr::Case {
+            whens,
+            otherwise,
+            r#type,
+        } => {
             let whens = whens
                 .into_iter()
                 .map(|w| {
@@ -308,111 +445,246 @@ pub fn rewrite_expr<R: SqlRewriter + ?Sized>(r: &mut R, e: SqlExpr) -> Result<Rw
                 })
                 .collect::<Result<Vec<_>, Refusal>>()?;
             let otherwise = otherwise.map(|o| boxed(r, o, c)).transpose()?;
-            if *c { build::case(whens, otherwise.map(|o| *o)) } else { SqlExpr::Case { whens, otherwise, r#type } }
+            if *c {
+                build::case(whens, otherwise.map(|o| *o))
+            } else {
+                SqlExpr::Case {
+                    whens,
+                    otherwise,
+                    r#type,
+                }
+            }
         }
         SqlExpr::Exists { subquery: q, r#type } => {
             let q = subquery(r, q, c)?;
-            if *c { build::exists(*q) } else { SqlExpr::Exists { subquery: q, r#type } }
+            if *c {
+                build::exists(*q)
+            } else {
+                SqlExpr::Exists { subquery: q, r#type }
+            }
         }
-        SqlExpr::InSubquery { value, subquery: q, r#type } => {
+        SqlExpr::InSubquery {
+            value,
+            subquery: q,
+            r#type,
+        } => {
             let value = boxed(r, value, c)?;
             let q = subquery(r, q, c)?;
-            if *c { build::in_subquery(*value, *q) } else { SqlExpr::InSubquery { value, subquery: q, r#type } }
+            if *c {
+                build::in_subquery(*value, *q)
+            } else {
+                SqlExpr::InSubquery {
+                    value,
+                    subquery: q,
+                    r#type,
+                }
+            }
         }
-        SqlExpr::Quantified { value, comparison, quantifier, subquery: q, r#type } => {
+        SqlExpr::Quantified {
+            value,
+            comparison,
+            quantifier,
+            subquery: q,
+            r#type,
+        } => {
             let value = boxed(r, value, c)?;
             let q = subquery(r, q, c)?;
             if *c {
                 build::quantified(*value, comparison, quantifier, *q)
             } else {
-                SqlExpr::Quantified { value, comparison, quantifier, subquery: q, r#type }
+                SqlExpr::Quantified {
+                    value,
+                    comparison,
+                    quantifier,
+                    subquery: q,
+                    r#type,
+                }
             }
         }
         SqlExpr::CheckedDefects { own, hoists, r#type } => {
             let own = boxed(r, own, c)?;
             let hoists = hoists
                 .into_iter()
-                .map(|h| Ok(Hoist { envelope: rewrite_expr(r, h.envelope)?.take(c), ..h }))
+                .map(|h| {
+                    Ok(Hoist {
+                        envelope: rewrite_expr(r, h.envelope)?.take(c),
+                        ..h
+                    })
+                })
                 .collect::<Result<Vec<_>, Refusal>>()?;
-            if *c { build::checked_defects(*own, hoists) } else { SqlExpr::CheckedDefects { own, hoists, r#type } }
+            if *c {
+                build::checked_defects(*own, hoists)
+            } else {
+                SqlExpr::CheckedDefects { own, hoists, r#type }
+            }
         }
-        SqlExpr::CheckedChildValue { envelope, to_many, r#type } => {
+        SqlExpr::CheckedChildValue {
+            envelope,
+            to_many,
+            r#type,
+        } => {
             let envelope = boxed(r, envelope, c)?;
             if *c {
                 build::checked_child_value(*envelope, to_many)
             } else {
-                SqlExpr::CheckedChildValue { envelope, to_many, r#type }
+                SqlExpr::CheckedChildValue {
+                    envelope,
+                    to_many,
+                    r#type,
+                }
             }
         }
         // rewriteExpr, not the hook alone: a pass reaches the calls nested under the wrapper
-        SqlExpr::CheckedOne { list, scalar_carrier, at_least_only, r#type } => {
+        SqlExpr::CheckedOne {
+            list,
+            scalar_carrier,
+            at_least_only,
+            r#type,
+        } => {
             let list = boxed(r, list, c)?;
             if *c {
                 build::checked_one(*list, scalar_carrier, at_least_only)
             } else {
-                SqlExpr::CheckedOne { list, scalar_carrier, at_least_only, r#type }
+                SqlExpr::CheckedOne {
+                    list,
+                    scalar_carrier,
+                    at_least_only,
+                    r#type,
+                }
             }
         }
         SqlExpr::CompactList { list, r#type } => {
             let list = boxed(r, list, c)?;
-            if *c { build::compact_list(*list) } else { SqlExpr::CompactList { list, r#type } }
+            if *c {
+                build::compact_list(*list)
+            } else {
+                SqlExpr::CompactList { list, r#type }
+            }
         }
         SqlExpr::ScalarSubquery { subquery: q, r#type } => {
             let q = subquery(r, q, c)?;
-            if *c { build::scalar_subquery(*q) } else { SqlExpr::ScalarSubquery { subquery: q, r#type } }
-        }
-        SqlExpr::DeferredTdsString { inner, alias, id, form, render_tds_null, r#type } => {
-            match rewrite(r, SqlQuery::Select(inner))?.take(c) {
-                SqlQuery::Select(inner) => {
-                    SqlExpr::DeferredTdsString { inner, alias, id, form, render_tds_null, r#type }
-                }
-                _ => return Err(Refusal::class_cast("SqlUnion", "SqlSelect")),
+            if *c {
+                build::scalar_subquery(*q)
+            } else {
+                SqlExpr::ScalarSubquery { subquery: q, r#type }
             }
         }
+        SqlExpr::DeferredTdsString {
+            inner,
+            alias,
+            id,
+            form,
+            render_tds_null,
+            r#type,
+        } => match rewrite(r, SqlQuery::Select(inner))?.take(c) {
+            SqlQuery::Select(inner) => SqlExpr::DeferredTdsString {
+                inner,
+                alias,
+                id,
+                form,
+                render_tds_null,
+                r#type,
+            },
+            _ => return Err(Refusal::class_cast("SqlUnion", "SqlSelect")),
+        },
         SqlExpr::JsonObject { kv, r#type } => {
             let kv = exprs(r, kv, c)?;
-            if *c { build::json_object(kv) } else { SqlExpr::JsonObject { kv, r#type } }
+            if *c {
+                build::json_object(kv)
+            } else {
+                SqlExpr::JsonObject { kv, r#type }
+            }
         }
         SqlExpr::JsonArray { elements, r#type } => {
             let elements = exprs(r, elements, c)?;
-            if *c { build::json_array(elements) } else { SqlExpr::JsonArray { elements, r#type } }
+            if *c {
+                build::json_array(elements)
+            } else {
+                SqlExpr::JsonArray { elements, r#type }
+            }
         }
-        SqlExpr::JsonArrayAgg { value, order_keys, r#type } => {
+        SqlExpr::JsonArrayAgg {
+            value,
+            order_keys,
+            r#type,
+        } => {
             let value = boxed(r, value, c)?;
             let order_keys = order_keys
                 .into_iter()
-                .map(|k| Ok(JsonArrayAggKey { expr: rewrite_expr(r, k.expr)?.take(c), desc: k.desc }))
+                .map(|k| {
+                    Ok(JsonArrayAggKey {
+                        expr: rewrite_expr(r, k.expr)?.take(c),
+                        desc: k.desc,
+                    })
+                })
                 .collect::<Result<Vec<_>, Refusal>>()?;
             if *c {
                 build::json_array_agg(*value, order_keys)
             } else {
-                SqlExpr::JsonArrayAgg { value, order_keys, r#type }
+                SqlExpr::JsonArrayAgg {
+                    value,
+                    order_keys,
+                    r#type,
+                }
             }
         }
-        SqlExpr::WindowCall { r#fn, partition_by, order_by, frame, r#type } => {
+        SqlExpr::WindowCall {
+            r#fn,
+            partition_by,
+            order_by,
+            frame,
+            r#type,
+        } => {
             let f = rewrite_agg(r, *r#fn)?.take(c);
             let partition_by = exprs(r, partition_by, c)?;
             let order_by = keys(r, order_by, c)?;
             if *c {
                 build::window_call(f, partition_by, order_by, frame)
             } else {
-                SqlExpr::WindowCall { r#fn: Box::new(f), partition_by, order_by, frame, r#type }
+                SqlExpr::WindowCall {
+                    r#fn: Box::new(f),
+                    partition_by,
+                    order_by,
+                    frame,
+                    r#type,
+                }
             }
         }
         SqlExpr::Lambda(mut l) => {
             l.body = boxed(r, l.body, c)?;
             // the two-argument constructor: a rebuilt lambda's fact is UNKNOWN
-            if *c { SqlExpr::Lambda(build::lambda_of(l.params, *l.body)) } else { SqlExpr::Lambda(l) }
+            if *c {
+                SqlExpr::Lambda(build::lambda_of(l.params, *l.body))
+            } else {
+                SqlExpr::Lambda(l)
+            }
         }
-        SqlExpr::Cast { value, target, conform, r#type } => {
+        SqlExpr::Cast {
+            value,
+            target,
+            conform,
+            r#type,
+        } => {
             let value = boxed(r, value, c)?;
             if *c {
                 build::cast_conform(*value, target, conform)
             } else {
-                SqlExpr::Cast { value, target, conform, r#type }
+                SqlExpr::Cast {
+                    value,
+                    target,
+                    conform,
+                    r#type,
+                }
             }
         }
-        SqlExpr::FoldCall { source, lambda, init, acc_is_list, homogeneous, r#type } => {
+        SqlExpr::FoldCall {
+            source,
+            lambda,
+            init,
+            acc_is_list,
+            homogeneous,
+            r#type,
+        } => {
             let source = boxed(r, source, c)?;
             let lambda = match rewrite_expr(r, SqlExpr::Lambda(lambda))? {
                 Rw::Same(SqlExpr::Lambda(l)) => l,
@@ -426,7 +698,14 @@ pub fn rewrite_expr<R: SqlRewriter + ?Sized>(r: &mut R, e: SqlExpr) -> Result<Rw
             if *c {
                 build::fold_call(*source, lambda, *init, acc_is_list, homogeneous)
             } else {
-                SqlExpr::FoldCall { source, lambda, init, acc_is_list, homogeneous, r#type }
+                SqlExpr::FoldCall {
+                    source,
+                    lambda,
+                    init,
+                    acc_is_list,
+                    homogeneous,
+                    r#type,
+                }
             }
         }
         SqlExpr::Reducer(red) => SqlExpr::Reducer(rewrite_reducer(r, red, c)?),
@@ -441,7 +720,11 @@ fn rewrite_reducer<R: SqlRewriter + ?Sized>(r: &mut R, red: Reducer, c: &mut boo
     let args = exprs(r, red.args, &mut ch)?;
     let order_by = keys(r, red.order_by, &mut ch)?;
     *c |= ch;
-    Ok(if ch { build::reducer(red.r#fn, args, red.distinct, order_by) } else { Reducer { args, order_by, ..red } })
+    Ok(if ch {
+        build::reducer(red.r#fn, args, red.distinct, order_by)
+    } else {
+        Reducer { args, order_by, ..red }
+    })
 }
 
 /// Java's `rewriteAgg`: a reducer, a ranking or a value function, its arguments rewritten (no hook sees it).
@@ -449,8 +732,14 @@ pub fn rewrite_agg<R: SqlRewriter + ?Sized>(r: &mut R, a: SqlAgg) -> Result<Rw<S
     let mut ch = false;
     let out = match a {
         SqlAgg::Reducer(red) => SqlAgg::Reducer(rewrite_reducer(r, red, &mut ch)?),
-        SqlAgg::RankingFn { r#fn, args } => SqlAgg::RankingFn { r#fn, args: exprs(r, args, &mut ch)? },
-        SqlAgg::ValueFn { r#fn, args } => SqlAgg::ValueFn { r#fn, args: exprs(r, args, &mut ch)? },
+        SqlAgg::RankingFn { r#fn, args } => SqlAgg::RankingFn {
+            r#fn,
+            args: exprs(r, args, &mut ch)?,
+        },
+        SqlAgg::ValueFn { r#fn, args } => SqlAgg::ValueFn {
+            r#fn,
+            args: exprs(r, args, &mut ch)?,
+        },
     };
     Ok(if ch { Rw::New(out) } else { Rw::Same(out) })
 }

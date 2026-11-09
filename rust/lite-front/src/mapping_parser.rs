@@ -89,7 +89,13 @@ pub(crate) fn span_info(line: usize, column: usize, end_line: i32, end_column: i
 impl<'t, 's> MappingCursor<'t, 's> {
     /// `new MappingProtocolParser(tokens, pos, dialect)`: no section start line, no lambda shift.
     pub fn at(tokens: &'t TokenStream<'s>, pos: usize, dialect: Dialect) -> MappingCursor<'t, 's> {
-        MappingCursor { tokens, pos, dialect, section_start_line: -1, agg_lambda_shift: 0 }
+        MappingCursor {
+            tokens,
+            pos,
+            dialect,
+            section_start_line: -1,
+            agg_lambda_shift: 0,
+        }
     }
 
     /// `expectText(want)`: the token's text is `want`, else `expected 'want' but found '...'`.
@@ -124,7 +130,10 @@ impl<'t, 's> MappingCursor<'t, 's> {
                     let r_span = self.span(r_s, self.pos - 1);
                     self.expect(T::SEMI_COLON)?;
                     resolvers.push(Box::new(PDataResolver {
-                        element_pointer: Box::new(PElementRef { path: JStr(path), source_information: r_span.clone() }),
+                        element_pointer: Box::new(PElementRef {
+                            path: JStr(path),
+                            source_information: r_span.clone(),
+                        }),
                         data: None,
                         source_information: r_span,
                     }));
@@ -177,7 +186,10 @@ impl<'t, 's> MappingCursor<'t, 's> {
         let v_span = embedded_span(&value);
         self.expect(T::SEMI_COLON)?;
         Ok(PDataResolver {
-            element_pointer: Box::new(PElementRef { path: JStr(store), source_information: boxed(store_span.clone()) }),
+            element_pointer: Box::new(PElementRef {
+                path: JStr(store),
+                source_information: boxed(store_span.clone()),
+            }),
             data: Some(value),
             source_information: boxed(SourceInfo {
                 source_id: JStr::default(),
@@ -193,11 +205,15 @@ impl<'t, 's> MappingCursor<'t, 's> {
     /// `DataspaceTestData`, `Relation`, `ModelStore` or `ServiceStore`, each `Kind #{...}#`.
     pub fn parse_embedded_value(&mut self) -> R<PEmbeddedDataValue> {
         if self.peek() == T::RELATIONAL {
-            return Ok(PEmbeddedDataValue::PRelationalCsvData(Box::new(self.parse_relational_csv()?)));
+            return Ok(PEmbeddedDataValue::PRelationalCsvData(Box::new(
+                self.parse_relational_csv()?,
+            )));
         }
         let kind = self.slack_text();
         if eq(kind, "ExternalFormat") {
-            return Ok(PEmbeddedDataValue::PExternalFormatData(Box::new(self.parse_external_format()?)));
+            return Ok(PEmbeddedDataValue::PExternalFormatData(Box::new(
+                self.parse_external_format()?,
+            )));
         }
         if eq(kind, "Reference") || eq(kind, "DataspaceTestData") {
             let r_tok = self.pos;
@@ -205,8 +221,12 @@ impl<'t, 's> MappingCursor<'t, 's> {
             let ri = self.read_island()?;
             let mut rp = MappingCursor::at(&ri.tokens, 0, self.dialect);
             let data_path = unquote_path_iae(&rp.parse_qualified_name()?)?;
-            let si =
-                span_info(self.tokens.start_line(r_tok), self.tokens.start_column(r_tok), ri.end_line, ri.end_column);
+            let si = span_info(
+                self.tokens.start_line(r_tok),
+                self.tokens.start_column(r_tok),
+                ri.end_line,
+                ri.end_column,
+            );
             return Ok(PEmbeddedDataValue::PDataReference(Box::new(PDataReference {
                 data_element: Box::new(PPointer {
                     r#type: JStr::from(if eq(kind, "Reference") { "DATA" } else { "DATASPACE" }),
@@ -222,7 +242,11 @@ impl<'t, 's> MappingCursor<'t, 's> {
             let rels = self.parse_relation_elements(&ri, true)?;
             let first = match rels.first() {
                 None => self.span_of(self.pos - 1, self.pos - 1),
-                Some(r) => r.source_information.as_deref().expect("a parsed node always carries its span").clone(),
+                Some(r) => r
+                    .source_information
+                    .as_deref()
+                    .expect("a parsed node always carries its span")
+                    .clone(),
             };
             return Ok(PEmbeddedDataValue::PRelationData(Box::new(PRelationData {
                 relation_elements: rels,
@@ -341,9 +365,10 @@ impl<'t, 's> MappingCursor<'t, 's> {
                 return Err(self.error_str("model instance data must be ONE collection"));
             }
             let instances = match vs.remove(0) {
-                ValueSpecification::PureCollection(c) => {
-                    ValueSpecification::PureCollection(Box::new(PureCollection { values: c.values, pos: None }))
-                }
+                ValueSpecification::PureCollection(c) => ValueSpecification::PureCollection(Box::new(PureCollection {
+                    values: c.values,
+                    pos: None,
+                })),
                 v => v,
             };
             return Ok(PModelData::PModelInstanceData(Box::new(PModelInstanceData {
@@ -418,7 +443,11 @@ impl<'t, 's> MappingCursor<'t, 's> {
             }
         }
         let (Some(content_type), Some(data)) = (content_type, data) else {
-            return Err(throw_at(self.tokens, ef_tok, JStr::from("external format needs contentType AND data")));
+            return Err(throw_at(
+                self.tokens,
+                ef_tok,
+                JStr::from("external format needs contentType AND data"),
+            ));
         };
         Ok(PExternalFormatData {
             content_type: JStr(content_type),
@@ -455,7 +484,9 @@ impl<'t, 's> MappingCursor<'t, 's> {
         let content_end = slack_start(end_tok);
         self.expect(T::ISLAND_END)?;
         // past `expect(ISLAND_END)` both offsets are token starts of this stream, in order
-        let tokens = ts.lex_range(content_start, content_end).expect("an island's content lies inside its source");
+        let tokens = ts
+            .lex_range(content_start, content_end)
+            .expect("an island's content lies inside its source");
         Ok(IslandBlock {
             tokens,
             end_line: ts.end_line(end_tok) as i32,
@@ -666,10 +697,18 @@ impl<'t, 's> MappingCursor<'t, 's> {
             return Err(throw_at(self.tokens, s_tok, JStr::from("Field 'response' is required")));
         }
         if !method_spelled {
-            return Err(throw_at(self.tokens, request_key_tok, JStr::from("Field 'method' is required")));
+            return Err(throw_at(
+                self.tokens,
+                request_key_tok,
+                JStr::from("Field 'method' is required"),
+            ));
         }
         let Some(body_value) = body_value else {
-            return Err(throw_at(self.tokens, response_key_tok, JStr::from("Field 'body' is required")));
+            return Err(throw_at(
+                self.tokens,
+                response_key_tok,
+                JStr::from("Field 'body' is required"),
+            ));
         };
         let PEmbeddedDataValue::PExternalFormatData(body) = body_value else {
             return Err(throw_at(
@@ -719,7 +758,10 @@ impl<'t, 's> MappingCursor<'t, 's> {
                     jcat!(flavor, " : '", pname, "' value should be defined only once"),
                 ));
             }
-            out.push(Box::new(PStubParam { name: JStr(pname), pattern: Box::new(pattern) }));
+            out.push(Box::new(PStubParam {
+                name: JStr(pname),
+                pattern: Box::new(pattern),
+            }));
             if !self.match_tok(T::COMMA)? {
                 break;
             }
@@ -737,7 +779,11 @@ impl<'t, 's> MappingCursor<'t, 's> {
         } else if eq(&kind, "EqualToJson") {
             "equalToJson"
         } else {
-            return Err(throw_at(self.tokens, kind_tok, jcat!("Unknown contentPattern pattern type: ", kind)));
+            return Err(throw_at(
+                self.tokens,
+                kind_tok,
+                jcat!("Unknown contentPattern pattern type: ", kind),
+            ));
         };
         let island = self.read_island()?;
         let mut inner = MappingCursor::at(&island.tokens, 0, self.dialect);
@@ -748,7 +794,10 @@ impl<'t, 's> MappingCursor<'t, 's> {
         inner.expect(T::COLON)?;
         let expected = inner.consume_string_literal("'expected'")?;
         inner.match_tok(T::SEMI_COLON)?;
-        Ok(PStringValuePattern { r#type: JStr::from(r#type), expected_value: JStr(expected) })
+        Ok(PStringValuePattern {
+            r#type: JStr::from(r#type),
+            expected_value: JStr(expected),
+        })
     }
 }
 
@@ -784,8 +833,15 @@ pub(crate) fn embedded_span(v: &PEmbeddedDataValue) -> SourceInfo {
         PEmbeddedDataValue::PRelationalCsvData(c) => &c.source_information,
         PEmbeddedDataValue::PServiceStoreData(ss) => &ss.source_information,
         PEmbeddedDataValue::PRelationData(d) => {
-            let s = d.source_information.as_deref().expect("a parsed node always carries its span");
-            return SourceInfo { end_column: s.end_column - 3, source_id: JStr::default(), ..s.clone() };
+            let s = d
+                .source_information
+                .as_deref()
+                .expect("a parsed node always carries its span");
+            return SourceInfo {
+                end_column: s.end_column - 3,
+                source_id: JStr::default(),
+                ..s.clone()
+            };
         }
     };
     s.as_deref().expect("a parsed node always carries its span").clone()

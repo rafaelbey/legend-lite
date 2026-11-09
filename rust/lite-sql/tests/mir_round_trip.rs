@@ -25,8 +25,19 @@ fn every_dumped_statement_round_trips() {
     let paths: Vec<String> = paths.split_whitespace().map(str::to_owned).collect();
     assert!(!paths.is_empty(), "LITE_ORACLES names no file");
     // the reader and the writer recurse with the tree, which nests thousands deep
-    let run = std::thread::Builder::new().stack_size(256 << 20).spawn(move || round_trip_all(&paths)).unwrap();
-    let Tally { lines, read, repeated, strings, ops, tags, failures } = run.join().unwrap();
+    let run = std::thread::Builder::new()
+        .stack_size(256 << 20)
+        .spawn(move || round_trip_all(&paths))
+        .unwrap();
+    let Tally {
+        lines,
+        read,
+        repeated,
+        strings,
+        ops,
+        tags,
+        failures,
+    } = run.join().unwrap();
     assert!(lines > 0, "the oracles hold no MirJson");
     eprintln!(
         "{lines} distinct MirJson texts read back (lines by file: {read:?}; {repeated} repeated, {strings} string \
@@ -93,7 +104,8 @@ fn round_trip_all(paths: &[String]) -> Tally {
 
 /// The MirJson text as the probe wrote it, between `"mir":` and `,"answer":`.
 fn raw_mir(line: &str) -> Option<&str> {
-    line.find(",\"mir\":").and_then(|start| line.rfind(",\"answer\":").map(|end| &line[start + 7..end]))
+    line.find(",\"mir\":")
+        .and_then(|start| line.rfind(",\"answer\":").map(|end| &line[start + 7..end]))
 }
 
 fn text_hash(text: &str) -> (u64, u64) {
@@ -147,15 +159,26 @@ fn round_trip(line: &str, tally: &mut Tally) -> Result<(), String> {
     let raw = raw_mir(line).ok_or_else(|| format!("{at}: no MirJson text in the line"))?;
     let reread = to_compact(mir);
     if reread != raw {
-        return Err(format!("{at}: lite-json does not write Java's text back: {}", difference(raw, &reread)));
+        return Err(format!(
+            "{at}: lite-json does not write Java's text back: {}",
+            difference(raw, &reread)
+        ));
     }
     let got = to_compact(&back);
-    if raw == got { Ok(()) } else { Err(format!("{at}: {}", difference(raw, &got))) }
+    if raw == got {
+        Ok(())
+    } else {
+        Err(format!("{at}: {}", difference(raw, &got)))
+    }
 }
 
 /// Where two texts first differ, with the text around it in each.
 fn difference(want: &str, got: &str) -> String {
-    let at = want.bytes().zip(got.bytes()).position(|(a, b)| a != b).unwrap_or(want.len().min(got.len()));
+    let at = want
+        .bytes()
+        .zip(got.bytes())
+        .position(|(a, b)| a != b)
+        .unwrap_or(want.len().min(got.len()));
     format!(
         "differs at byte {at} (lengths {} and {})\n  java: ...{}...\n  rust: ...{}...",
         want.len(),

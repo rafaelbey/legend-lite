@@ -12,7 +12,9 @@ use crate::cursor::{Cursor, R, is_identifier_token, once, unquote_path_iae};
 use crate::jcat;
 use crate::jtypes::JStr;
 use crate::lexer::TokenType;
-use crate::records::{PDatabaseMapper, PRelationalMapper, PSchemaMapper2, PSchemaPointer, PTableMapper2, PTablePointer2};
+use crate::records::{
+    PDatabaseMapper, PRelationalMapper, PSchemaMapper2, PSchemaPointer, PTableMapper2, PTablePointer2,
+};
 use crate::sections::{split_last, string_value};
 use crate::ustr::eq;
 use std::collections::HashSet;
@@ -50,21 +52,30 @@ pub fn parse_relational_mapper<'s>(c: &mut impl Cursor<'s>) -> R<PRelationalMapp
                 c.expect(T::BRACKET_CLOSE)?;
                 c.expect(T::ARROW)?;
                 let to = string_value(c)?;
-                db_mappers.push(Box::new(PDatabaseMapper { database_name: JStr(to), schemas }));
+                db_mappers.push(Box::new(PDatabaseMapper {
+                    database_name: JStr(to),
+                    schemas,
+                }));
                 c.match_tok(T::COMMA)?;
             }
         } else if eq(&key, "SchemaMappers") {
             while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                 let from = schema_pointer(c)?;
                 c.expect(T::ARROW)?;
-                schema_mappers.push(Box::new(PSchemaMapper2 { from: Box::new(from), to: JStr(string_value(c)?) }));
+                schema_mappers.push(Box::new(PSchemaMapper2 {
+                    from: Box::new(from),
+                    to: JStr(string_value(c)?),
+                }));
                 c.match_tok(T::COMMA)?;
             }
         } else if eq(&key, "TableMappers") {
             while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                 let from = table_pointer(c)?;
                 c.expect(T::ARROW)?;
-                table_mappers.push(Box::new(PTableMapper2 { from: Box::new(from), to: JStr(string_value(c)?) }));
+                table_mappers.push(Box::new(PTableMapper2 {
+                    from: Box::new(from),
+                    to: JStr(string_value(c)?),
+                }));
                 c.match_tok(T::COMMA)?;
             }
         } else {
@@ -91,7 +102,11 @@ fn schema_pointer<'s>(c: &mut impl Cursor<'s>) -> R<PSchemaPointer> {
     let db = unquote_path_iae(&c.parse_qualified_name()?)?;
     c.expect(T::DOT)?;
     let schema = c.parse_identifier()?;
-    Ok(PSchemaPointer { database: JStr(db), schema: JStr(schema), source_information: c.span(s, c.pos() - 1) })
+    Ok(PSchemaPointer {
+        database: JStr(db),
+        schema: JStr(schema),
+        source_information: c.span(s, c.pos() - 1),
+    })
 }
 
 /// `tablePointer`: `db::path.Schema.Table`.

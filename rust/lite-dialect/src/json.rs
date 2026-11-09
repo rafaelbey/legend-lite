@@ -38,7 +38,10 @@ struct Reader {
 
 /// `Json.parse(json)`: one value, whitespace around it, nothing after.
 pub fn parse(json: &str) -> Result<Json, Refusal> {
-    let mut p = Reader { s: json.encode_utf16().collect(), i: 0 };
+    let mut p = Reader {
+        s: json.encode_utf16().collect(),
+        i: 0,
+    };
     p.ws();
     let v = p.value()?;
     p.ws();
@@ -166,7 +169,10 @@ impl Reader {
 
 /// `Json.integer`: a `Long`, or a `BigInteger` past a long's range.
 fn integer(t: &str) -> Result<Json, Refusal> {
-    let bad = || Refusal { class: Refusal::NUMBER_FORMAT, message: format!("For input string: \"{t}\"") };
+    let bad = || Refusal {
+        class: Refusal::NUMBER_FORMAT,
+        message: format!("For input string: \"{t}\""),
+    };
     let unsigned = t.strip_prefix(['-', '+']).unwrap_or(t);
     if unsigned.is_empty() || !unsigned.bytes().all(|b| b.is_ascii_digit()) {
         return Err(bad());
@@ -354,7 +360,10 @@ mod tests {
                 Json::Str("aAq".to_owned()),
                 Json::Bool(true),
                 Json::Null,
-                Json::Map(vec![("k".to_owned(), Json::Long(2)), ("j".to_owned(), Json::List(vec![]))]),
+                Json::Map(vec![
+                    ("k".to_owned(), Json::Long(2)),
+                    ("j".to_owned(), Json::List(vec![]))
+                ]),
                 Json::BigInteger("12345678901234567890".to_owned()),
             ])
         );
@@ -382,6 +391,9 @@ mod tests {
 
     #[test]
     fn canonical_sorts_keys() {
-        assert_eq!(canonical(&parse("{\"b\": 1.0, \"a\": [\"x\\n\"]}").unwrap()), "{\"a\":[\"x\\n\"],\"b\":1.0}");
+        assert_eq!(
+            canonical(&parse("{\"b\": 1.0, \"a\": [\"x\\n\"]}").unwrap()),
+            "{\"a\":[\"x\\n\"],\"b\":1.0}"
+        );
     }
 }

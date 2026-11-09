@@ -101,8 +101,18 @@ impl TypeCode {
 /// The grid's query (`catalog` the `SqlSource::Catalog` node), written by `d` (its string literals), its types named
 /// by `types`.
 pub fn write<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, catalog: &SqlSource, types: &Types) -> Result<(), Refusal> {
-    let SqlSource::Catalog { grid, schema_pattern, table_pattern, column_pattern, outputs, .. } = catalog else {
-        return Err(Refusal::illegal_state("a catalog grid's query of a source that is no catalog grid"));
+    let SqlSource::Catalog {
+        grid,
+        schema_pattern,
+        table_pattern,
+        column_pattern,
+        outputs,
+        ..
+    } = catalog
+    else {
+        return Err(Refusal::illegal_state(
+            "a catalog grid's query of a source that is no catalog grid",
+        ));
     };
     let projections: Vec<String> = match grid {
         CatalogGrid::Schemas => vec!["upper(schema_name)".into(), "upper(catalog_name)".into()],
@@ -154,18 +164,21 @@ pub fn write<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, catalog: &SqlSource, 
     };
     match grid {
         CatalogGrid::Schemas => {
-            w.append(" FROM information_schema.schemata WHERE schema_name").append(NOT_SYSTEM);
+            w.append(" FROM information_schema.schemata WHERE schema_name")
+                .append(NOT_SYSTEM);
             pattern(w, "upper(schema_name)", schema_pattern)?;
             w.append(" ORDER BY 1");
         }
         CatalogGrid::Tables => {
-            w.append(" FROM information_schema.tables WHERE table_schema").append(NOT_SYSTEM);
+            w.append(" FROM information_schema.tables WHERE table_schema")
+                .append(NOT_SYSTEM);
             pattern(w, "upper(table_schema)", schema_pattern)?;
             pattern(w, "upper(table_name)", table_pattern)?;
             w.append(" ORDER BY 2, 3");
         }
         CatalogGrid::Columns => {
-            w.append(" FROM information_schema.columns WHERE table_schema").append(NOT_SYSTEM);
+            w.append(" FROM information_schema.columns WHERE table_schema")
+                .append(NOT_SYSTEM);
             pattern(w, "upper(table_schema)", schema_pattern)?;
             pattern(w, "upper(table_name)", table_pattern)?;
             pattern(w, "upper(column_name)", column_pattern)?;

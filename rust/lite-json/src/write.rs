@@ -89,16 +89,28 @@ mod tests {
             let again = to_compact(&parse(&written).expect(&written));
             assert_eq!(written, again, "{text}");
         }
-        assert_eq!(to_compact(&parse(r#"{"n":1.0E10,"m":1.50}"#).unwrap()), r#"{"n":1.0E10,"m":1.50}"#);
-        assert_eq!(to_compact(&parse(r#"["\u0001\u001f"]"#).unwrap()), r#"["\u0001\u001f"]"#);
+        assert_eq!(
+            to_compact(&parse(r#"{"n":1.0E10,"m":1.50}"#).unwrap()),
+            r#"{"n":1.0E10,"m":1.50}"#
+        );
+        assert_eq!(
+            to_compact(&parse(r#"["\u0001\u001f"]"#).unwrap()),
+            r#"["\u0001\u001f"]"#
+        );
         assert_eq!(to_compact(&parse(r#""\ud83d\ude00""#).unwrap()), "\"\u{1F600}\"");
     }
 
     #[test]
     fn an_integer_is_written_from_its_value() {
         assert_eq!(to_compact(&parse("-0").unwrap()), "0");
-        assert_eq!(to_compact(&parse("[9223372036854775807]").unwrap()), "[9223372036854775807]");
-        assert_eq!(to_compact(&parse("9223372036854775808").unwrap()), "9223372036854775808");
+        assert_eq!(
+            to_compact(&parse("[9223372036854775807]").unwrap()),
+            "[9223372036854775807]"
+        );
+        assert_eq!(
+            to_compact(&parse("9223372036854775808").unwrap()),
+            "9223372036854775808"
+        );
     }
 
     #[test]
@@ -120,23 +132,44 @@ mod tests {
         o.insert("a", Node::Num(Num::from_i64(2)));
         o.insert("b", Node::Num(Num::from_i64(3)));
         assert_eq!(to_compact(&Node::Obj(o)), r#"{"b":3,"a":2}"#);
-        assert_eq!(to_compact(&parse(r#"{"x":1,"y":2,"x":3}"#).unwrap()), r#"{"x":3,"y":2}"#);
+        assert_eq!(
+            to_compact(&parse(r#"{"x":1,"y":2,"x":3}"#).unwrap()),
+            r#"{"x":3,"y":2}"#
+        );
     }
 
     #[test]
     fn refuses_as_java_does() {
         let refusal = |text: &str| parse(text).unwrap_err().0;
-        assert_eq!(refusal("01"), "Leading zeros are not permitted in JSON numbers at line 1 col 2");
-        assert_eq!(refusal("1."), "Number fraction requires at least one digit after '.' at line 1 col 3");
-        assert_eq!(refusal("1e"), "Number exponent requires at least one digit at line 1 col 3");
-        assert_eq!(refusal("[1,]"), "Invalid number: expected digit, got ']' at line 1 col 4");
+        assert_eq!(
+            refusal("01"),
+            "Leading zeros are not permitted in JSON numbers at line 1 col 2"
+        );
+        assert_eq!(
+            refusal("1."),
+            "Number fraction requires at least one digit after '.' at line 1 col 3"
+        );
+        assert_eq!(
+            refusal("1e"),
+            "Number exponent requires at least one digit at line 1 col 3"
+        );
+        assert_eq!(
+            refusal("[1,]"),
+            "Invalid number: expected digit, got ']' at line 1 col 4"
+        );
         assert_eq!(refusal("{\"a\":1} x"), "Unexpected trailing content at line 1 col 9");
         // Java reads the character before refusing it, so a newline is counted
-        assert_eq!(refusal("\"a\nb\""), "Unescaped control character in string: 0xa at line 2 col 1");
+        assert_eq!(
+            refusal("\"a\nb\""),
+            "Unescaped control character in string: 0xa at line 2 col 1"
+        );
         assert_eq!(refusal("\"\\x\""), "Invalid escape: \\x at line 1 col 4");
         assert_eq!(refusal("tru"), "Expected boolean literal at line 1 col 1");
         assert_eq!(refusal(""), "Unexpected end of input at line 1 col 1");
-        assert_eq!(parse_with_depth("[[[]]]", 2).unwrap_err().0, "Nesting depth exceeds limit of 2 at line 1 col 4");
+        assert_eq!(
+            parse_with_depth("[[[]]]", 2).unwrap_err().0,
+            "Nesting depth exceeds limit of 2 at line 1 col 4"
+        );
         assert!(parse_with_depth("[[[]]]", 3).is_ok());
     }
 

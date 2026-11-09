@@ -15,7 +15,13 @@ pub fn parse(text: &str) -> Result<Node, Error> {
 
 /// A whole document, nested at most `max_depth` deep (a plan reads with 4096: its own text, deeply nested).
 pub fn parse_with_depth(text: &str, max_depth: usize) -> Result<Node, Error> {
-    let mut p = Parser { src: text.as_bytes(), text, pos: 0, depth: 0, max_depth };
+    let mut p = Parser {
+        src: text.as_bytes(),
+        text,
+        pos: 0,
+        depth: 0,
+        max_depth,
+    };
     p.skip_ws();
     let n = p.value()?;
     p.skip_ws();
@@ -182,7 +188,10 @@ impl Parser<'_> {
                 }
                 _ => {
                     // one whole character: the source is UTF-8 text
-                    let ch = self.text[self.pos..].chars().next().expect("a character at a char boundary");
+                    let ch = self.text[self.pos..]
+                        .chars()
+                        .next()
+                        .expect("a character at a char boundary");
                     out.push(ch);
                     self.pos += ch.len_utf8();
                 }

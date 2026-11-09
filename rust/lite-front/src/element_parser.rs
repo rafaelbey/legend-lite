@@ -70,7 +70,11 @@ fn java_case(s: &[u16], upper: bool) -> Vec<u16> {
             .collect();
     }
     let text = String::from_utf16_lossy(s);
-    u(&if upper { text.to_uppercase() } else { text.to_lowercase() })
+    u(&if upper {
+        text.to_uppercase()
+    } else {
+        text.to_lowercase()
+    })
 }
 
 impl<'s> ElementCursor<'_, 's> {
@@ -128,10 +132,12 @@ impl<'s> ElementCursor<'_, 's> {
         }
         self.advance()?; // 'native'
         match self.peek() {
-            T::CLASS => Ok(Element::PClass(Box::new(self.parse_class_definition_at(true, decl_start, doc)?))),
-            T::FUNCTION => {
-                Ok(Element::PNativeFunction(Box::new(self.parse_native_function_protocol(decl_start, doc)?)))
-            }
+            T::CLASS => Ok(Element::PClass(Box::new(
+                self.parse_class_definition_at(true, decl_start, doc)?,
+            ))),
+            T::FUNCTION => Ok(Element::PNativeFunction(Box::new(
+                self.parse_native_function_protocol(decl_start, doc)?,
+            ))),
             other => Err(self.error(jcat!(
                 "expected 'Class' or 'function' after 'native', got ",
                 other,
@@ -207,13 +213,20 @@ impl<'s> ElementCursor<'_, 's> {
                 {
                     st = name_ref(g.name.clone(), span.clone());
                 }
-                super_types.push(Box::new(PSuperType { r#type: st, source_information: span }));
+                super_types.push(Box::new(PSuperType {
+                    r#type: st,
+                    source_information: span,
+                }));
                 if !self.match_tok(T::COMMA)? {
                     break;
                 }
             }
         }
-        let constraints = if self.peek() == T::BRACKET_OPEN { self.parse_constraints()? } else { Vec::new() };
+        let constraints = if self.peek() == T::BRACKET_OPEN {
+            self.parse_constraints()?
+        } else {
+            Vec::new()
+        };
         self.expect(T::BRACE_OPEN)?;
         let mut properties = Vec::new();
         let mut derived_properties = Vec::new();
@@ -396,7 +409,12 @@ impl<'s> ElementCursor<'_, 's> {
         self.expect(T::COLON)?;
         let r#type = self.parse_type()?;
         let multiplicity = self.parse_multiplicity()?;
-        Ok(ParameterDefinition { name: JStr(name), r#type, multiplicity, pos: self.span(p_start, self.pos - 1) })
+        Ok(ParameterDefinition {
+            name: JStr(name),
+            r#type,
+            multiplicity,
+            pos: self.span(p_start, self.pos - 1),
+        })
     }
 
     // ================================================================ constraints
@@ -475,8 +493,11 @@ impl<'s> ElementCursor<'_, 's> {
             while !self.at_end() && self.peek() == T::TILDE {
                 self.expect(T::TILDE)?;
                 let kw2 = self.parse_identifier()?;
-                let refused =
-                    if eq(&kw2, "enforcementLevel") { saw_level || saw_message } else { !eq(&kw2, "message") };
+                let refused = if eq(&kw2, "enforcementLevel") {
+                    saw_level || saw_message
+                } else {
+                    !eq(&kw2, "message")
+                };
                 if refused {
                     return Err(self.error(jcat!(
                         "unexpected constraint clause '~",
@@ -747,7 +768,10 @@ impl<'s> ElementCursor<'_, 's> {
     fn parse_profile_entry(&mut self) -> R<PProfileEntry> {
         let name_tok = self.pos;
         let value = self.parse_identifier()?;
-        Ok(PProfileEntry { value: JStr(value), source_information: self.span(name_tok, self.pos - 1) })
+        Ok(PProfileEntry {
+            value: JStr(value),
+            source_information: self.span(name_tok, self.pos - 1),
+        })
     }
 
     // ================================================================ functions
@@ -904,7 +928,11 @@ impl<'s> ElementCursor<'_, 's> {
         let decl_start = self.pos;
         let doc = self.parse_documentation()?;
         let sig = self.parse_function_signature(decl_start, doc)?;
-        let mut constraints = if self.peek() == T::BRACKET_OPEN { self.parse_constraints()? } else { Vec::new() };
+        let mut constraints = if self.peek() == T::BRACKET_OPEN {
+            self.parse_constraints()?
+        } else {
+            Vec::new()
+        };
         if self.dialect.refuses_lite_extensions() {
             constraints = Vec::new();
         }
@@ -926,7 +954,11 @@ impl<'s> ElementCursor<'_, 's> {
             return Err(self.error_str("Unexpected token '}'"));
         }
         self.expect(T::BRACE_CLOSE)?;
-        let test_suites = if self.peek() == T::BRACE_OPEN { self.parse_function_test_block(&sig)? } else { Vec::new() };
+        let test_suites = if self.peek() == T::BRACE_OPEN {
+            self.parse_function_test_block(&sig)?
+        } else {
+            Vec::new()
+        };
         let mut pre = Vec::new();
         let mut post = Vec::new();
         for c in constraints {
@@ -1039,7 +1071,10 @@ impl<'s> ElementCursor<'_, 's> {
             let mut payload = self.parse_test_payload()?;
             self.expect(T::SEMI_COLON)?;
             if let PTestPayload::PTestPayloadRelationElements(re) = &mut payload {
-                let s = re.source_information.as_deref().expect("a parsed node always carries its span");
+                let s = re
+                    .source_information
+                    .as_deref()
+                    .expect("a parsed node always carries its span");
                 let end = self.pos - 1;
                 re.source_information = boxed(SourceInfo {
                     source_id: JStr::default(),
@@ -1059,7 +1094,11 @@ impl<'s> ElementCursor<'_, 's> {
             return Ok(());
         }
         if let Some(pt) = pointer_type {
-            return Err(self.error(jcat!("a (", java_case(&pt, false), ") marker introduces test DATA, not a test")));
+            return Err(self.error(jcat!(
+                "a (",
+                java_case(&pt, false),
+                ") marker introduces test DATA, not a test"
+            )));
         }
         tests.push(Box::new(self.parse_function_test(sig, entry_start, head)?));
         Ok(())
@@ -1080,11 +1119,13 @@ impl<'s> ElementCursor<'_, 's> {
             self.advance()?;
             let content_type = self.format_content_type(&fmt)?;
             let data = self.unquote_and_unescape(raw)?;
-            return Ok(PTestPayload::PTestPayloadExternalFormat(Box::new(PTestPayloadExternalFormat {
-                content_type: JStr(content_type),
-                data: JStr(data),
-                source_information: self.span(fmt_start, self.pos - 1),
-            })));
+            return Ok(PTestPayload::PTestPayloadExternalFormat(Box::new(
+                PTestPayloadExternalFormat {
+                    content_type: JStr(content_type),
+                    data: JStr(data),
+                    source_information: self.span(fmt_start, self.pos - 1),
+                },
+            )));
         }
         if eq(self.peek_text(0), "DataspaceTestData") && self.peek_at(1) == T::ISLAND_OPEN {
             let kind_tok = self.pos;
@@ -1109,16 +1150,22 @@ impl<'s> ElementCursor<'_, 's> {
                 None => self.span(self.pos - 1, self.pos - 1),
                 Some(e) => e.source_information.clone(),
             };
-            return Ok(PTestPayload::PTestPayloadRelationElements(Box::new(PTestPayloadRelationElements {
-                elements: els,
-                source_information: first,
-            })));
+            return Ok(PTestPayload::PTestPayloadRelationElements(Box::new(
+                PTestPayloadRelationElements {
+                    elements: els,
+                    source_information: first,
+                },
+            )));
         }
         if eq(self.peek_text(0), "ModelStore") && self.peek_at(1) == T::ISLAND_OPEN {
-            return Ok(PTestPayload::PTestPayloadModelStoreData(Box::new(self.parse_model_store_island()?)));
+            return Ok(PTestPayload::PTestPayloadModelStoreData(Box::new(
+                self.parse_model_store_island()?,
+            )));
         }
         if eq(self.peek_text(0), "Relational") && self.peek_at(1) == T::ISLAND_OPEN {
-            return Ok(PTestPayload::PTestPayloadRelationalCsv(Box::new(self.parse_relational_csv_island()?)));
+            return Ok(PTestPayload::PTestPayloadRelationalCsv(Box::new(
+                self.parse_relational_csv_island()?,
+            )));
         }
         let ref_start = self.pos;
         let reference = self.parse_qualified_name()?;
@@ -1220,7 +1267,10 @@ impl<'s> ElementCursor<'_, 's> {
             }
         }
         self.expect(T::ISLAND_END)?;
-        Ok(PTestPayloadModelStoreData { model_data: models, source_information: self.span(kw, self.pos - 1) })
+        Ok(PTestPayloadModelStoreData {
+            model_data: models,
+            source_information: self.span(kw, self.pos - 1),
+        })
     }
 
     /// `parseExternalFormatKv`: `contentType: '...'; data: '...';`, quote-aware, THE shared escape decoder.
@@ -1360,7 +1410,10 @@ impl<'s> ElementCursor<'_, 's> {
                 }),
             }));
         }
-        Ok(PTestPayloadRelationalCsv { tables, source_information: self.span(kw, self.pos - 1) })
+        Ok(PTestPayloadRelationalCsv {
+            tables,
+            source_information: self.span(kw, self.pos - 1),
+        })
     }
 
     /// `parseFunctionTest`: `id 'doc'? | call(args) => expected;` -- the call's name checked against the function's,
@@ -1414,7 +1467,11 @@ impl<'s> ElementCursor<'_, 's> {
             let idx = params.len();
             let name = sig.params.get(idx).map(|p| p.name.clone());
             let value = self.slice_spec(v_start, self.pos)?;
-            params.push(Box::new(PTestParam { name, value, source_information: self.span(v_start, self.pos - 1) }));
+            params.push(Box::new(PTestParam {
+                name,
+                value,
+                source_information: self.span(v_start, self.pos - 1),
+            }));
         }
         self.expect(T::PAREN_CLOSE)?;
         self.expect(T::EQUAL)?;
@@ -1439,7 +1496,10 @@ impl<'s> ElementCursor<'_, 's> {
             self.advance()?;
             let mut els = self.parse_relation_island_elements(true)?;
             if els.len() != 1 {
-                return Err(self.error(jcat!("an equalTo Relation assertion needs exactly one block, got ", els.len())));
+                return Err(self.error(jcat!(
+                    "an equalTo Relation assertion needs exactly one block, got ",
+                    els.len()
+                )));
             }
             PAssertion::PAssertionEqualToRelation(Box::new(PAssertionEqualToRelation {
                 expected: els.remove(0),
@@ -1486,8 +1546,11 @@ impl<'s> ElementCursor<'_, 's> {
         self.expect(T::ISLAND_END)?;
         let source = self.tokens.source();
         let (from, to) = (self.tokens.end(open_tok), self.tokens.start(end_tok));
-        let assert_span =
-            if assertion_spans { Some(self.island_reparse_span(source, from, to, open_tok)) } else { None };
+        let assert_span = if assertion_spans {
+            Some(self.island_reparse_span(source, from, to, open_tok))
+        } else {
+            None
+        };
         let mut out = Vec::new();
         let mut block_start = from;
         let mut in_quotes = false;
@@ -1535,7 +1598,11 @@ impl<'s> ElementCursor<'_, 's> {
             i += 1;
         }
         let e_line = if new_lines == 0 { line } else { line + new_lines };
-        let e_col = if new_lines == 0 { (t1 - t0 as isize + 1) as i32 + col + 3 } else { (t1 - last_nl) as i32 };
+        let e_col = if new_lines == 0 {
+            (t1 - t0 as isize + 1) as i32 + col + 3
+        } else {
+            (t1 - last_nl) as i32
+        };
         SourceInfo {
             source_id: JStr::default(),
             start_line: line,
@@ -1560,7 +1627,9 @@ impl<'s> ElementCursor<'_, 's> {
             let mut seg_start = 0;
             while seg_start <= path_part.len() {
                 let dot = index_of(path_part, u16::from(b'.'), seg_start);
-                paths.push(JStr(trim(&path_part[seg_start..dot.unwrap_or(path_part.len())]).to_vec()));
+                paths.push(JStr(
+                    trim(&path_part[seg_start..dot.unwrap_or(path_part.len())]).to_vec(),
+                ));
                 match dot {
                     None => break,
                     Some(d) => seg_start = d + 1,
@@ -1594,7 +1663,12 @@ impl<'s> ElementCursor<'_, 's> {
                 end_column: ts.column_of(semi) as i32,
             },
         };
-        PTestPayloadRelationElement { columns, paths, rows, source_information: boxed(span) }
+        PTestPayloadRelationElement {
+            columns,
+            paths,
+            rows,
+            source_information: boxed(span),
+        }
     }
 
     // ================================================================ properties
@@ -1653,7 +1727,10 @@ impl<'s> ElementCursor<'_, 's> {
             } else {
                 self.span(def_start, last)
             };
-            default_value = Some(Box::new(PDefaultValue { value: Some(value), source_information: def_span }));
+            default_value = Some(Box::new(PDefaultValue {
+                value: Some(value),
+                source_information: def_span,
+            }));
         }
         self.expect(T::SEMI_COLON)?;
         Ok(PProperty {
@@ -1772,7 +1849,10 @@ mod tests {
         assert_eq!(path_colon_of(&u("a,b\n1,10:30")), None);
         assert_eq!(path_colon_of(&u("time\n10:30")), None);
         assert_eq!(path_colon_of(&u("\"x:y\",b\nv,w")), None);
-        assert_eq!(path_colon_of(&u("  default.T:\n a,b\n 1,2")), Some("default.T".len() + 2));
+        assert_eq!(
+            path_colon_of(&u("  default.T:\n a,b\n 1,2")),
+            Some("default.T".len() + 2)
+        );
         assert_eq!(path_colon_of(&u("a,b\n1,2")), None);
     }
 

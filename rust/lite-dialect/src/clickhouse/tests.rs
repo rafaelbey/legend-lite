@@ -16,7 +16,10 @@ use crate::build::{call, float_lit, int_lit, null_lit, string_lit};
 use lite_sql::{BigDecimal, DateFmtPart, DatePart};
 
 fn typed(s: Scalar) -> TypeFact {
-    TypeFact::Typed { r#type: SqlType::Scalar(s), nullable: true }
+    TypeFact::Typed {
+        r#type: SqlType::Scalar(s),
+        nullable: true,
+    }
 }
 
 fn col(name: &str, t: TypeFact) -> SqlExpr {
@@ -29,7 +32,15 @@ fn col(name: &str, t: TypeFact) -> SqlExpr {
 }
 
 fn list(name: &str, s: Scalar) -> SqlExpr {
-    col(name, TypeFact::Typed { r#type: SqlType::Array { element: Box::new(SqlType::Scalar(s)) }, nullable: true })
+    col(
+        name,
+        TypeFact::Typed {
+            r#type: SqlType::Array {
+                element: Box::new(SqlType::Scalar(s)),
+            },
+            nullable: true,
+        },
+    )
 }
 
 fn render_result(e: &SqlExpr) -> Result<String, Refusal> {
@@ -51,8 +62,16 @@ fn list_call(f: SqlFn, args: &[SqlExpr]) -> Result<String, Refusal> {
 /// `SELECT <e> AS "v"`, rendered as a root statement.
 fn select_of(e: SqlExpr) -> SqlQuery {
     build::query(
-        build::select_of(vec![Projection { expr: e, alias: Some("v".into()), out: None }], SqlSource::Dual, vec![])
-            .unwrap(),
+        build::select_of(
+            vec![Projection {
+                expr: e,
+                alias: Some("v".into()),
+                out: None,
+            }],
+            SqlSource::Dual,
+            vec![],
+        )
+        .unwrap(),
     )
 }
 
@@ -60,27 +79,49 @@ fn select_of(e: SqlExpr) -> SqlQuery {
 fn the_list_calls_no_call_arm_reaches_answer_as_java() {
     let xs = list("xs", Scalar::Bigint);
     // LIST_REVERSE: `call` spells it `arrayReverse(...)` itself; listCall's own arm reads the empty collection too
-    assert_eq!(list_call(SqlFn::ListReverse, std::slice::from_ref(&xs)).unwrap(), r#"arrayReverse("t0"."xs")"#);
+    assert_eq!(
+        list_call(SqlFn::ListReverse, std::slice::from_ref(&xs)).unwrap(),
+        r#"arrayReverse("t0"."xs")"#
+    );
     assert_eq!(
         list_call(SqlFn::ListReverse, &[null_lit()]).unwrap(),
         "arrayReverse(CAST([] AS Array(Nullable(Nothing))))"
     );
     for f in [SqlFn::RangeFn, SqlFn::RepeatValue] {
         let r = list_call(f, std::slice::from_ref(&xs)).unwrap_err();
-        assert_eq!((r.class, r.message), (Refusal::ILLEGAL_STATE, format!("{f} is rendered by call")));
+        assert_eq!(
+            (r.class, r.message),
+            (Refusal::ILLEGAL_STATE, format!("{f} is rendered by call"))
+        );
     }
     let r = list_call(SqlFn::Abs, std::slice::from_ref(&xs)).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::ILLEGAL_STATE, "not a list call: ABS"));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_STATE, "not a list call: ABS")
+    );
     let r = list_call(SqlFn::ListSort, &[]).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::INDEX_OUT_OF_BOUNDS, "Index 0 out of bounds for length 0"));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::INDEX_OUT_OF_BOUNDS, "Index 0 out of bounds for length 0")
+    );
     // bitOp's default: its one caller passes the five bit operators only
     let mut w = SqlWriter::new();
-    let r = ClickHouse::new().bit_op(&mut w, SqlFn::Plus, &[int_lit(1), int_lit(2)]).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::ILLEGAL_STATE, "not a bit op: PLUS"));
+    let r = ClickHouse::new()
+        .bit_op(&mut w, SqlFn::Plus, &[int_lit(1), int_lit(2)])
+        .unwrap_err();
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_STATE, "not a bit op: PLUS")
+    );
     // temporal's default: its one caller passes the temporal functions only
     let mut w = SqlWriter::new();
-    let r = ClickHouse::new().temporal(&mut w, SqlFn::Abs, &[], &TypeFact::Unknown).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::ILLEGAL_STATE, "not a temporal call: ABS"));
+    let r = ClickHouse::new()
+        .temporal(&mut w, SqlFn::Abs, &[], &TypeFact::Unknown)
+        .unwrap_err();
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_STATE, "not a temporal call: ABS")
+    );
 }
 
 #[test]
@@ -89,7 +130,12 @@ fn a_list_lambda_that_is_no_lambda_is_javas_class_cast() {
     // the JVM's class-loader clause (the arms oracle dropped the answer for that clause)
     let xs = list("xs", Scalar::Bigint);
     let not_a_lambda = col("f", typed(Scalar::Bigint));
-    for f in [SqlFn::ListTransform, SqlFn::ListFilter, SqlFn::ListExists, SqlFn::ListForAll] {
+    for f in [
+        SqlFn::ListTransform,
+        SqlFn::ListFilter,
+        SqlFn::ListExists,
+        SqlFn::ListForAll,
+    ] {
         let r = render_result(&call(f, vec![xs.clone(), not_a_lambda.clone()])).unwrap_err();
         assert_eq!(
             (r.class, r.message.as_str()),
@@ -100,7 +146,10 @@ fn a_list_lambda_that_is_no_lambda_is_javas_class_cast() {
             "{f}"
         );
     }
-    let lambda = SqlExpr::Lambda(build::lambda_of(vec!["x".into(), "i".into()], build::derived(None, "x")));
+    let lambda = SqlExpr::Lambda(build::lambda_of(
+        vec!["x".into(), "i".into()],
+        build::derived(None, "x"),
+    ));
     assert_eq!(
         render(&call(SqlFn::ListTransform, vec![xs, lambda])),
         r#"arrayMap(("x", "i") -> "x", "t0"."xs", arrayEnumerate("t0"."xs"))"#
@@ -111,22 +160,37 @@ fn a_list_lambda_that_is_no_lambda_is_javas_class_cast() {
 fn the_helpers_walls_no_caller_reaches_answer_as_java() {
     let d = ClickHouse::new();
     let date = col("d", typed(Scalar::Date));
-    for unit in [DatePart::Quarter, DatePart::Nanosecond, DatePart::DayOfYear, DatePart::IsoDayOfWeek] {
+    for unit in [
+        DatePart::Quarter,
+        DatePart::Nanosecond,
+        DatePart::DayOfYear,
+        DatePart::IsoDayOfWeek,
+    ] {
         let r = d.outside_dates(unit, &date, &date).err().expect("refused");
         assert_eq!(
             (r.class, r.message),
-            (Refusal::ILLEGAL_STATE, format!("the unit {unit} reached the date range check: refused before it"))
+            (
+                Refusal::ILLEGAL_STATE,
+                format!("the unit {unit} reached the date range check: refused before it")
+            )
         );
     }
     for part in [DateFmtPart::SubsecMin, DateFmtPart::SubsecNano] {
         let r = joda_text(&[DateFmt::Part(part)]).unwrap_err();
         assert_eq!(
             (r.class, r.message),
-            (Refusal::ILLEGAL_STATE, format!("a {part} field reached a Joda format: formatted() writes it"))
+            (
+                Refusal::ILLEGAL_STATE,
+                format!("a {part} field reached a Joda format: formatted() writes it")
+            )
         );
     }
     assert_eq!(
-        joda_text(&[DateFmt::Text { s: "o'clock ".into() }, DateFmt::Part(DateFmtPart::Hour12Nopad)]).unwrap(),
+        joda_text(&[
+            DateFmt::Text { s: "o'clock ".into() },
+            DateFmt::Part(DateFmtPart::Hour12Nopad)
+        ])
+        .unwrap(),
         "'o''clock 'h"
     );
     // a descending key of a type arraySort cannot negate
@@ -155,20 +219,32 @@ fn literals_answer_as_java() {
     let r = d.date_lit("-0005-01-01").unwrap_err();
     assert!(r.message.starts_with("the date -0005-01-01 reached ClickHouse"), "{r}");
     let r = d.date_lit("12345678901-01-01").unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::NUMBER_FORMAT, "For input string: \"12345678901\""));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::NUMBER_FORMAT, "For input string: \"12345678901\"")
+    );
     let r = d.date_lit("x2024").unwrap_err();
     assert_eq!(
         (r.class, r.message.as_str()),
-        (Refusal::ILLEGAL_STATE, "a date literal with no year reached ClickHouse: x2024")
+        (
+            Refusal::ILLEGAL_STATE,
+            "a date literal with no year reached ClickHouse: x2024"
+        )
     );
     // a date-time's T a space, its fraction cut to six digits
     assert_eq!(
         d.timestamp_lit("2024-01-02T03:04:05.123456789").unwrap(),
         "toDateTime64('2024-01-02 03:04:05.123456', 6, 'UTC')"
     );
-    assert_eq!(d.timestamp_lit("2024-01-02T03:04:05").unwrap(), "toDateTime64('2024-01-02 03:04:05', 6, 'UTC')");
+    assert_eq!(
+        d.timestamp_lit("2024-01-02T03:04:05").unwrap(),
+        "toDateTime64('2024-01-02 03:04:05', 6, 'UTC')"
+    );
     let r = d.timestamp_lit("9999-12-31T23:59:59.9999999").unwrap_err();
-    assert!(r.message.starts_with("the date 9999-12-31 23:59:59.999999 reached"), "{r}");
+    assert!(
+        r.message.starts_with("the date 9999-12-31 23:59:59.999999 reached"),
+        "{r}"
+    );
     // a Float literal an exact Decimal of its digits; NaN and the infinities Float64; an extreme one its text
     assert_eq!(d.float_literal(1.5).unwrap(), "CAST('1.5' AS Decimal(2, 1))");
     assert_eq!(d.float_literal(0.001).unwrap(), "CAST('0.001' AS Decimal(4, 3))");
@@ -181,8 +257,14 @@ fn literals_answer_as_java() {
     // a DECIMAL literal past 76 digits is refused; a HUGEINT-typed one is an Int128
     let big = format!("1.{}", "0".repeat(76));
     let r = render_result(&build::decimal_lit(BigDecimal::parse(&big).unwrap())).unwrap_err();
-    assert_eq!(r.message, "a decimal literal of 77 digits reached ClickHouse, whose Decimal holds 76");
-    let huge = SqlExpr::DecimalLit { value: BigDecimal::parse("1E+20").unwrap(), r#type: typed(Scalar::Hugeint) };
+    assert_eq!(
+        r.message,
+        "a decimal literal of 77 digits reached ClickHouse, whose Decimal holds 76"
+    );
+    let huge = SqlExpr::DecimalLit {
+        value: BigDecimal::parse("1E+20").unwrap(),
+        r#type: typed(Scalar::Hugeint),
+    };
     assert_eq!(render(&huge), "toInt128('100000000000000000000')");
     assert_eq!(render(&int_lit(7)), "toInt64(7)");
     let r = d.time_lit("10:00:00").unwrap_err();
@@ -198,13 +280,22 @@ fn identifiers_and_types_answer_as_java() {
     assert_eq!(d.ident(r#""a""b""#), r#""a""b""#);
     assert_eq!(d.ident(r#"a"b"#), r#""a""b""#);
     assert_eq!(d.ident(r#"""#), r#""""""#);
-    assert_eq!(d.map_type_name("Nullable(String)", "Nullable(Int64)"), "Map(String, Nullable(Int64))");
+    assert_eq!(
+        d.map_type_name("Nullable(String)", "Nullable(Int64)"),
+        "Map(String, Nullable(Int64))"
+    );
     let st = vec![
-        lite_sql::StructField { name: "a".into(), r#type: SqlType::Scalar(Scalar::Bigint) },
+        lite_sql::StructField {
+            name: "a".into(),
+            r#type: SqlType::Scalar(Scalar::Bigint),
+        },
         lite_sql::StructField {
             name: "b".into(),
             r#type: SqlType::Struct {
-                fields: vec![lite_sql::StructField { name: "c".into(), r#type: SqlType::Scalar(Scalar::Varchar) }],
+                fields: vec![lite_sql::StructField {
+                    name: "c".into(),
+                    r#type: SqlType::Scalar(Scalar::Varchar),
+                }],
             },
         },
     ];
@@ -223,7 +314,10 @@ fn the_root_carries_its_settings_and_the_correlated_flag_is_the_roots_own() {
     assert_eq!(AnsiSqlRenderer::render(&d, q.clone()).unwrap(), plain);
     // a subquery written inline carries none; a second render on the same object starts its flag over
     assert_eq!(AnsiSqlRenderer::render(&d, q.clone()).unwrap(), plain);
-    assert_eq!(ansi::render_inline(&d, q).unwrap(), format!("SELECT toInt64(1) AS \"v\" {SETTINGS}{UNCORRELATED}"));
+    assert_eq!(
+        ansi::render_inline(&d, q).unwrap(),
+        format!("SELECT toInt64(1) AS \"v\" {SETTINGS}{UNCORRELATED}")
+    );
     assert_eq!(d.nesting.get(), 0);
 }
 
@@ -244,14 +338,21 @@ fn the_wire_names_answer_as_java() {
         ("Nothing", "NULL"),
         ("String", "VARCHAR"),
     ] {
-        assert_eq!(wire_type_name(Some(driver)), crate::wire_names::fold(Some(wire)), "{driver}");
+        assert_eq!(
+            wire_type_name(Some(driver)),
+            crate::wire_names::fold(Some(wire)),
+            "{driver}"
+        );
     }
     assert_eq!(wire_type_name(None), crate::wire_names::fold(None));
     let d = ClickHouse::new();
     assert!(d.delivers_own(&SqlType::Scalar(Scalar::Json), "VARCHAR"));
     assert!(!d.delivers_own(&SqlType::Scalar(Scalar::Json), "JSON"));
     assert!(!d.delivers_own(&SqlType::Scalar(Scalar::Varchar), "VARCHAR"));
-    assert_eq!(d.typing_wire_name(Some("Nullable(Int32)")), Some(crate::wire_names::fold(Some("INTEGER"))));
+    assert_eq!(
+        d.typing_wire_name(Some("Nullable(Int32)")),
+        Some(crate::wire_names::fold(Some("INTEGER")))
+    );
 }
 
 #[test]
@@ -297,7 +398,12 @@ fn a_residual_outer_join_is_its_matches_numbered_per_render() {
     let on = call(SqlFn::Less, vec![a.clone(), b]);
     let join = build::join(table("t0", "a"), table("t1", "b"), JoinKind::Left, Some(on)).unwrap();
     let q = build::query(
-        build::select_of(vec![build::projection(a, Some("a".into()), None).unwrap()], join, vec![]).unwrap(),
+        build::select_of(
+            vec![build::projection(a, Some("a".into()), None).unwrap()],
+            join,
+            vec![],
+        )
+        .unwrap(),
     );
     let d = ClickHouse::new();
     let sql = AnsiSqlRenderer::render(&d, q.clone()).unwrap();
@@ -306,16 +412,29 @@ fn a_residual_outer_join_is_its_matches_numbered_per_render() {
     // a second render numbers from 0 again
     assert_eq!(AnsiSqlRenderer::render(&d, q).unwrap(), sql);
     // a right side that is a join has no single alias: Java's `j.right().alias()` refuses
-    let nested = build::join(table("t1", "b"), table("t2", "c"), JoinKind::Inner, Some(build::bool_lit(true))).unwrap();
+    let nested = build::join(
+        table("t1", "b"),
+        table("t2", "c"),
+        JoinKind::Inner,
+        Some(build::bool_lit(true)),
+    )
+    .unwrap();
     let outer = build::join(table("t0", "a"), nested, JoinKind::Inner, Some(build::bool_lit(true))).unwrap();
     let q = build::query(
-        build::select_of(vec![build::projection(string_lit("x"), Some("x".into()), None).unwrap()], outer, vec![])
-            .unwrap(),
+        build::select_of(
+            vec![build::projection(string_lit("x"), Some("x".into()), None).unwrap()],
+            outer,
+            vec![],
+        )
+        .unwrap(),
     );
     let r = AnsiSqlRenderer::render(&d, q).unwrap_err();
     assert_eq!(
         (r.class, r.message.as_str()),
-        (Refusal::ILLEGAL_STATE, "a nested join has no single alias — resolve per side")
+        (
+            Refusal::ILLEGAL_STATE,
+            "a nested join has no single alias — resolve per side"
+        )
     );
 }
 
@@ -323,12 +442,19 @@ fn a_residual_outer_join_is_its_matches_numbered_per_render() {
 fn a_from_less_subquery_has_no_alias_to_check_its_correlation() {
     // Java's `aliasesOf` asks the subquery's FROM for its alias: a FROM-less one is Dual's IllegalStateException
     let one = build::query(
-        build::select_of(vec![build::projection(int_lit(1), Some("one".into()), None).unwrap()], SqlSource::Dual, vec![])
-            .unwrap(),
+        build::select_of(
+            vec![build::projection(int_lit(1), Some("one".into()), None).unwrap()],
+            SqlSource::Dual,
+            vec![],
+        )
+        .unwrap(),
     );
     let r = render_result(&build::exists(one)).unwrap_err();
     assert_eq!(
         (r.class, r.message.as_str()),
-        (Refusal::ILLEGAL_STATE, "a Dual (FROM-less) source has no alias — caller bug")
+        (
+            Refusal::ILLEGAL_STATE,
+            "a Dual (FROM-less) source has no alias — caller bug"
+        )
     );
 }

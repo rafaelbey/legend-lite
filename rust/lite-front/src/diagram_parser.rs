@@ -98,7 +98,10 @@ impl Raw<'_> {
     }
 
     fn mark(&self) -> Mark {
-        Mark { line: self.line, col: self.col }
+        Mark {
+            line: self.line,
+            col: self.col,
+        }
     }
 
     /// `spanFrom(mark)`: from the mark to the last consumed character (a column of 1 stays 1).
@@ -201,9 +204,19 @@ impl Raw<'_> {
         }
         let run = &self.t[s..self.i];
         parse_double(run).map_err(|m| {
-            let second_point =
-                run.iter().enumerate().filter(|(_, c)| **c == ch('.')).map(|(i, _)| i as i32).nth(1).filter(|_| m == "multiple points");
-            JavaError::parse(jcat!("Unexpected token '", run, "'"), line, col + second_point.unwrap_or(0)).as_refusal()
+            let second_point = run
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| **c == ch('.'))
+                .map(|(i, _)| i as i32)
+                .nth(1)
+                .filter(|_| m == "multiple points");
+            JavaError::parse(
+                jcat!("Unexpected token '", run, "'"),
+                line,
+                col + second_point.unwrap_or(0),
+            )
+            .as_refusal()
         })
     }
 
@@ -294,7 +307,12 @@ fn fail_at(m: Mark, message: JStr) -> JavaError {
 
 /// `DiagramSectionGrammar.parseRaw(src, dialect)`: a section's raw text, its first line `start_line`.
 pub fn parse_raw(text: &[u16], start_line: i32, dialect: Dialect) -> R<ParsedDiagrams> {
-    let mut r = Raw { t: text, i: 0, line: start_line, col: 1 };
+    let mut r = Raw {
+        t: text,
+        i: 0,
+        line: start_line,
+        col: 1,
+    };
     let mut elements = Vec::new();
     let mut imports = Vec::new();
     loop {
@@ -437,7 +455,10 @@ fn parse_class_view(r: &mut Raw<'_>, start: Mark) -> R<PClassView> {
     }
     r.expect('}')?;
     let (Some((class_path, class_span)), Some(position), Some(rectangle)) = (class, position, rectangle) else {
-        return Err(fail_at(start, jcat!("classView '", id, "' needs class, position and rectangle")));
+        return Err(fail_at(
+            start,
+            jcat!("classView '", id, "' needs class, position and rectangle"),
+        ));
     };
     Ok(PClassView {
         id: JStr(id),
@@ -503,7 +524,10 @@ fn parse_property_view(r: &mut Raw<'_>, start: Mark) -> R<PPropertyView> {
     let (Some(prop_class), Some(prop_name), Some(source), Some(target), Some(points)) =
         (prop_class, prop_name, source, target, points)
     else {
-        return Err(fail_at(start, JStr::from("propertyView needs property, source, target and points")));
+        return Err(fail_at(
+            start,
+            JStr::from("propertyView needs property, source, target and points"),
+        ));
     };
     Ok(PPropertyView {
         property_class: JStr(prop_class),
@@ -547,7 +571,10 @@ fn parse_generalization_view(r: &mut Raw<'_>, start: Mark) -> R<PGeneralizationV
     }
     r.expect('}')?;
     let (Some(source), Some(target), Some(points)) = (source, target, points) else {
-        return Err(fail_at(start, JStr::from("generalizationView needs source, target and points")));
+        return Err(fail_at(
+            start,
+            JStr::from("generalizationView needs source, target and points"),
+        ));
     };
     Ok(PGeneralizationView {
         source_view: JStr(source.0),

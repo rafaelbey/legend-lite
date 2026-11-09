@@ -35,7 +35,10 @@ fn facts_are_databricks() {
     );
     // every server version is spelled alike; a spec's server keeps Databricks
     assert_eq!(ok(DB, "forServer", r#"{"version":"15.4"}"#), r#""Databricks""#);
-    assert_eq!(dispatch(r#"{"dialect":"Databricks","server":"14"}"#, "facts", "{}").unwrap(), ok(DB, "facts", "{}"));
+    assert_eq!(
+        dispatch(r#"{"dialect":"Databricks","server":"14"}"#, "facts", "{}").unwrap(),
+        ok(DB, "facts", "{}")
+    );
     assert_eq!(
         refused(r#"{"dialect":"Databricks","quoteIdentifiers":true}"#, "facts", "{}").message,
         "quoteIdentifiers and timeZone configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not Databricks"
@@ -66,7 +69,10 @@ fn queries_render_as_databricks_writes_them() {
     let r = refused(DB, "query.render", &wrap("query", RAW_SELECT));
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("DIALECT_CAPABILITY", "the engine's H2 text reached Databricks, which has no translation of it")
+        (
+            "DIALECT_CAPABILITY",
+            "the engine's H2 text reached Databricks, which has no translation of it"
+        )
     );
 }
 
@@ -85,15 +91,30 @@ fn ddl_and_dml_render_and_a_session_table_is_a_temporary_view() {
     assert_eq!(ok(DB, "dml.render", &wrap("dml", INSERT_VALUES)), insert);
     // a session's table is one statement: a temporary view over its rows, each column cast to its declared type
     assert_eq!(
-        ok(DB, "sessionTable", &format!(r#"{{"table":{SESSION_TABLE},"rows":{INSERT_VALUES}}}"#)),
+        ok(
+            DB,
+            "sessionTable",
+            &format!(r#"{{"table":{SESSION_TABLE},"rows":{INSERT_VALUES}}}"#)
+        ),
         r#"["CREATE TEMPORARY VIEW `legend_rows` AS SELECT CAST(`c0` AS BIGINT) AS `ID`, CAST(`c1` AS DOUBLE) AS `Amt` FROM VALUES (1L, NULL) AS `t`(`c0`, `c1`)"]"#
     );
     assert_eq!(
-        ok(DB, "sessionTable", &format!(r#"{{"table":{SESSION_TABLE},"rows":null}}"#)),
+        ok(
+            DB,
+            "sessionTable",
+            &format!(r#"{{"table":{SESSION_TABLE},"rows":null}}"#)
+        ),
         r#"["CREATE TEMPORARY VIEW `legend_rows` AS SELECT CAST(NULL AS BIGINT) AS `ID`, CAST(NULL AS DOUBLE) AS `Amt` WHERE FALSE"]"#
     );
-    let r = refused(DB, "sessionTable", &format!(r#"{{"table":{CREATE_TABLE},"rows":null}}"#));
-    assert_eq!((r.kind(), r.message.as_str()), ("ILLEGAL_ARGUMENT", "a session table is temporary: Trades"));
+    let r = refused(
+        DB,
+        "sessionTable",
+        &format!(r#"{{"table":{CREATE_TABLE},"rows":null}}"#),
+    );
+    assert_eq!(
+        (r.kind(), r.message.as_str()),
+        ("ILLEGAL_ARGUMENT", "a session table is temporary: Trades")
+    );
     let delete = r#"{"dml":{"_type":"deleteWhere","schema":null,"table":"T","quoting":{"schema":false,"table":false},"alias":"t","storedTypes":{},"where":null}}"#;
     assert_eq!(
         refused(DB, "dml.render", delete).message,
@@ -108,16 +129,31 @@ fn names_are_databricks() {
     assert_eq!(name("physicalName", r#"{"name":"Trades"}"#), r#""`Trades`""#);
     // a double-quoted declaration is its inner name
     assert_eq!(name("physicalName", r#"{"name":"\"date\""}"#), r#""`date`""#);
-    assert_eq!(name("storedName", r#"{"name":"Trades","declaredQuoted":true}"#), r#""`Trades`""#);
-    assert_eq!(name("insertColumnName", r#"{"name":"a`b","declaredQuoted":false}"#), r#""`a``b`""#);
+    assert_eq!(
+        name("storedName", r#"{"name":"Trades","declaredQuoted":true}"#),
+        r#""`Trades`""#
+    );
+    assert_eq!(
+        name("insertColumnName", r#"{"name":"a`b","declaredQuoted":false}"#),
+        r#""`a``b`""#
+    );
     let r = refused(DB, "fromEngineText", r#"{"statement":"CREATE TABLE T (X DOUBLE)"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("DIALECT_CAPABILITY", "the engine's H2 text reached Databricks, which has no translation of it")
+        (
+            "DIALECT_CAPABILITY",
+            "the engine's H2 text reached Databricks, which has no translation of it"
+        )
     );
-    assert_eq!(name("raw", r#"{"statement":"select 1","writtenFor":"Databricks"}"#), r#""select 1""#);
     assert_eq!(
-        name("tableName", r#"{"name":"Sales.Orders","quoting":{"schema":false,"table":false}}"#),
+        name("raw", r#"{"statement":"select 1","writtenFor":"Databricks"}"#),
+        r#""select 1""#
+    );
+    assert_eq!(
+        name(
+            "tableName",
+            r#"{"name":"Sales.Orders","quoting":{"schema":false,"table":false}}"#
+        ),
         r#""`Sales`.`Orders`""#
     );
 }
@@ -127,26 +163,47 @@ fn the_interface_answers_as_databricks() {
     assert_eq!(ok(DB, "wireTypeName", r#"{"driverTypeName":"STRING"}"#), r#""VARCHAR""#);
     assert_eq!(ok(DB, "typingWireName", r#"{"driverTypeName":"INT"}"#), r#""INTEGER""#);
     let row = r#"{"_type":"struct","fields":[{"name":"a","type":{"_type":"scalar","name":"BIGINT"}}]}"#;
-    assert_eq!(ok(DB, "deliversOwn", &format!(r#"{{"label":{row},"wire":"JSON"}}"#)), "false");
+    assert_eq!(
+        ok(DB, "deliversOwn", &format!(r#"{{"label":{row},"wire":"JSON"}}"#)),
+        "false"
+    );
     assert_eq!(ok(DB, "script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-    assert_eq!(ok(DB, "failingStatement", r#"{"message":"x","statements":["a"]}"#), "null");
+    assert_eq!(
+        ok(DB, "failingStatement", r#"{"message":"x","statements":["a"]}"#),
+        "null"
+    );
     let r = refused(DB, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("UNSUPPORTED_OPERATION", "the platform asks no catalog question of Databricks")
+        (
+            "UNSUPPORTED_OPERATION",
+            "the platform asks no catalog question of Databricks"
+        )
     );
     let r = refused(DB, "bareNameReaches", r#"{"catalogName":"t"}"#);
-    assert_eq!(r.message, "reading this database's catalog names is not implemented for Databricks");
+    assert_eq!(
+        r.message,
+        "reading this database's catalog names is not implemented for Databricks"
+    );
     let r = refused(DB, "host.openDatabase", r#"{"name":"p"}"#);
     assert_eq!(
         r.message,
         "a project's own database on Databricks is not built: only DuckDB makes one so far \
          (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5)"
     );
-    let reads = |kind: &str| ok(DB, "readsStored", &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#));
+    let reads = |kind: &str| {
+        ok(
+            DB,
+            "readsStored",
+            &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#),
+        )
+    };
     assert_eq!(reads("OTHER"), "true");
     assert_eq!(reads("JSON"), "false");
-    assert_eq!(refused(DB, "duckdb.tables", "{}").message, "'duckdb.tables' is DuckDb's op, not Databricks's");
+    assert_eq!(
+        refused(DB, "duckdb.tables", "{}").message,
+        "'duckdb.tables' is DuckDb's op, not Databricks's"
+    );
     assert_eq!(
         refused(DB, "engine.inTempTableSelect", r#"{"table":"t"}"#).message,
         "'engine.inTempTableSelect' is an engine-text dialect's op (EngineStyleH2, EngineStyleDB2, \

@@ -12,7 +12,10 @@ use super::*;
 use crate::build::{call, float_lit, int_lit, string_lit};
 
 fn typed(s: Scalar) -> TypeFact {
-    TypeFact::Typed { r#type: SqlType::Scalar(s), nullable: true }
+    TypeFact::Typed {
+        r#type: SqlType::Scalar(s),
+        nullable: true,
+    }
 }
 
 fn col(name: &str, t: TypeFact) -> SqlExpr {
@@ -25,7 +28,15 @@ fn col(name: &str, t: TypeFact) -> SqlExpr {
 }
 
 fn list(name: &str, s: Scalar) -> SqlExpr {
-    col(name, TypeFact::Typed { r#type: SqlType::Array { element: Box::new(SqlType::Scalar(s)) }, nullable: true })
+    col(
+        name,
+        TypeFact::Typed {
+            r#type: SqlType::Array {
+                element: Box::new(SqlType::Scalar(s)),
+            },
+            nullable: true,
+        },
+    )
 }
 
 fn render_result(e: &SqlExpr) -> Result<String, Refusal> {
@@ -48,24 +59,41 @@ fn list_call(f: SqlFn, args: &[SqlExpr]) -> Result<String, Refusal> {
 fn the_list_calls_no_call_arm_reaches_answer_as_java() {
     let xs = list("xs", Scalar::Bigint);
     // LIST_REVERSE: `call` spells it `reverse(xs)` itself; listCall's own arm reads the empty collection too
-    assert_eq!(list_call(SqlFn::ListReverse, std::slice::from_ref(&xs)).unwrap(), "reverse(\"t0\".\"xs\")");
+    assert_eq!(
+        list_call(SqlFn::ListReverse, std::slice::from_ref(&xs)).unwrap(),
+        "reverse(\"t0\".\"xs\")"
+    );
     assert_eq!(
         list_call(SqlFn::ListReverse, &[crate::build::null_lit()]).unwrap(),
         "reverse(CAST(NULL AS ARRAY(UNKNOWN)))"
     );
     for f in [SqlFn::RangeFn, SqlFn::RepeatValue] {
         let r = list_call(f, std::slice::from_ref(&xs)).unwrap_err();
-        assert_eq!((r.class, r.message), (Refusal::ILLEGAL_STATE, format!("{f} is rendered by call")));
+        assert_eq!(
+            (r.class, r.message),
+            (Refusal::ILLEGAL_STATE, format!("{f} is rendered by call"))
+        );
     }
     let r = list_call(SqlFn::Abs, std::slice::from_ref(&xs)).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::ILLEGAL_STATE, "not a list call: ABS"));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_STATE, "not a list call: ABS")
+    );
     // the first argument is read first, as Java's `args.get(0)`
     let r = list_call(SqlFn::ListSort, &[]).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::INDEX_OUT_OF_BOUNDS, "Index 0 out of bounds for length 0"));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::INDEX_OUT_OF_BOUNDS, "Index 0 out of bounds for length 0")
+    );
     // bitOp's default: its one caller passes only its five operators
     let mut w = SqlWriter::new();
-    let r = Trino::new().bit_op(&mut w, SqlFn::Abs, &[int_lit(1), int_lit(2)]).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::ILLEGAL_STATE, "not a bit op: ABS"));
+    let r = Trino::new()
+        .bit_op(&mut w, SqlFn::Abs, &[int_lit(1), int_lit(2)])
+        .unwrap_err();
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_STATE, "not a bit op: ABS")
+    );
 }
 
 #[test]
@@ -84,8 +112,15 @@ fn a_list_lambda_that_is_no_lambda_is_javas_class_cast() {
             "{f}"
         );
     }
-    let r = render_result(&call(SqlFn::ListExists, vec![xs.clone(), col("c", typed(Scalar::Boolean))])).unwrap_err();
-    assert_eq!(r.message, "class com.legend.sql.SqlExpr$Column cannot be cast to class com.legend.sql.SqlExpr$Lambda");
+    let r = render_result(&call(
+        SqlFn::ListExists,
+        vec![xs.clone(), col("c", typed(Scalar::Boolean))],
+    ))
+    .unwrap_err();
+    assert_eq!(
+        r.message,
+        "class com.legend.sql.SqlExpr$Column cannot be cast to class com.legend.sql.SqlExpr$Lambda"
+    );
     // a lambda of the element and its index: DuckDB's form over zip_with; LIST_EXISTS takes the element alone
     let pair = crate::build::lambda(&["x", "i"], col("b", typed(Scalar::Boolean)));
     assert_eq!(
@@ -94,7 +129,10 @@ fn a_list_lambda_that_is_no_lambda_is_javas_class_cast() {
          (\"x\", \"i\") -> \"t0\".\"b\")"
     );
     let r = render_result(&call(SqlFn::ListExists, vec![xs, pair])).unwrap_err();
-    assert_eq!(r.message, "LIST_EXISTS with an element index reached Trino: its lambdas take the element alone");
+    assert_eq!(
+        r.message,
+        "LIST_EXISTS with an element index reached Trino: its lambdas take the element alone"
+    );
 }
 
 #[test]
@@ -106,9 +144,15 @@ fn a_frame_offset_is_a_trino_interval() {
     assert_eq!(interval(1, "months").unwrap(), "INTERVAL '1' MONTH");
     // Math.multiplyExact's overflow
     let r = interval(i64::MAX / 2, "WEEKS").unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), ("java.lang.ArithmeticException", "long overflow"));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        ("java.lang.ArithmeticException", "long overflow")
+    );
     let r = interval(1, "QUARTERS").unwrap_err();
-    assert_eq!(r, Refusal::capability("a QUARTERS window frame offset has no Trino interval"));
+    assert_eq!(
+        r,
+        Refusal::capability("a QUARTERS window frame offset has no Trino interval")
+    );
 }
 
 #[test]
@@ -130,11 +174,20 @@ fn literals_are_trinos() {
     assert_eq!(render(&float_lit(1e20)), "1.0E20");
     // past a DECIMAL's 38 digits a decimal literal is a DOUBLE; a big integer a DECIMAL
     let big = lite_sql::BigDecimal::parse("1234567890123456789012345678901234567890.5").unwrap();
-    assert_eq!(render(&crate::build::decimal_lit(big)), "DOUBLE '1234567890123456789012345678901234567890.5'");
+    assert_eq!(
+        render(&crate::build::decimal_lit(big)),
+        "DOUBLE '1234567890123456789012345678901234567890.5'"
+    );
     let huge = lite_sql::BigDecimal::parse("99999999999999999999").unwrap();
-    assert_eq!(render(&crate::build::decimal_lit(huge)), "DECIMAL '99999999999999999999'");
+    assert_eq!(
+        render(&crate::build::decimal_lit(huge)),
+        "DECIMAL '99999999999999999999'"
+    );
     // a timestamp's first T is its space
-    assert_eq!(Trino::new().timestamp_lit("2024-01-02T03:04:05.123").unwrap(), "TIMESTAMP '2024-01-02 03:04:05.123'");
+    assert_eq!(
+        Trino::new().timestamp_lit("2024-01-02T03:04:05.123").unwrap(),
+        "TIMESTAMP '2024-01-02 03:04:05.123'"
+    );
     assert_eq!(render(&string_lit("it's")), "'it''s'");
     // the signed hash of no argument hashes an empty concat_ws, as Java writes it
     assert_eq!(
@@ -154,7 +207,10 @@ fn identifiers_types_and_names_are_trinos() {
     let r = d.scalar_type_name(Scalar::DecimalText).unwrap_err();
     assert_eq!(
         (r.class, r.message.as_str()),
-        (Refusal::ILLEGAL_STATE, "DECIMAL_TEXT cast reached a dialect without DECIMAL_TEXT support")
+        (
+            Refusal::ILLEGAL_STATE,
+            "DECIMAL_TEXT cast reached a dialect without DECIMAL_TEXT support"
+        )
     );
     assert_eq!(d.typeof_name(Scalar::Date).unwrap(), "date");
     assert_eq!(
@@ -164,18 +220,29 @@ fn identifiers_types_and_names_are_trinos() {
     assert_eq!(d.json_kind_name(JsonKind::UnsignedInteger).unwrap(), "UBIGINT");
     let row = SqlType::Struct {
         fields: vec![
-            StructField { name: "a".into(), r#type: SqlType::Scalar(Scalar::Bigint) },
+            StructField {
+                name: "a".into(),
+                r#type: SqlType::Scalar(Scalar::Bigint),
+            },
             StructField {
                 name: "b".into(),
-                r#type: SqlType::Array { element: Box::new(SqlType::Scalar(Scalar::Date)) },
+                r#type: SqlType::Array {
+                    element: Box::new(SqlType::Scalar(Scalar::Date)),
+                },
             },
         ],
     };
-    assert_eq!(cast_type_name(&d, &row).unwrap(), "ROW(\"a\" BIGINT, \"b\" ARRAY(DATE))");
+    assert_eq!(
+        cast_type_name(&d, &row).unwrap(),
+        "ROW(\"a\" BIGINT, \"b\" ARRAY(DATE))"
+    );
     // the two writers no pass leaves a node for
     let r = d.as_of_join_clause().unwrap_err();
     assert_eq!(r.class, Refusal::ILLEGAL_STATE);
-    assert_eq!(r.message, "an as-of join reached the join clause: Trino writes it as a pick (AsOfAsPick)");
+    assert_eq!(
+        r.message,
+        "an as-of join reached the join clause: Trino writes it as a pick (AsOfAsPick)"
+    );
 }
 
 #[test]

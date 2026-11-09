@@ -180,7 +180,11 @@ fn is_span(key: &[u16]) -> bool {
     let named = |s: &str| key.iter().copied().eq(s.bytes().map(u16::from));
     let suffix = "SourceInformation";
     named("sourceInformation")
-        || (key.len() >= suffix.len() && key[key.len() - suffix.len()..].iter().copied().eq(suffix.bytes().map(u16::from)))
+        || (key.len() >= suffix.len()
+            && key[key.len() - suffix.len()..]
+                .iter()
+                .copied()
+                .eq(suffix.bytes().map(u16::from)))
 }
 
 /// The index after the string literal that opens at `start`.
@@ -220,7 +224,10 @@ fn value_end(json: &[u16], start: usize) -> usize {
     }
     let mut j = start;
     while j < json.len()
-        && !(json[j] == u16::from(b',') || json[j] == u16::from(b'}') || json[j] == u16::from(b']') || is_space(json[j]))
+        && !(json[j] == u16::from(b',')
+            || json[j] == u16::from(b'}')
+            || json[j] == u16::from(b']')
+            || is_space(json[j]))
     {
         j += 1;
     }
@@ -249,12 +256,17 @@ mod tests {
 
     #[test]
     fn spans_go_and_the_kept_ones_stay() {
-        assert_eq!(cut(r#"{"_type":"a","sourceInformation":{"x":1},"b":2}"#), r#"{"_type":"a","b":2}"#);
+        assert_eq!(
+            cut(r#"{"_type":"a","sourceInformation":{"x":1},"b":2}"#),
+            r#"{"_type":"a","b":2}"#
+        );
         assert_eq!(cut(r#"{"sourceInformation":{"x":1},"b":2}"#), r#"{"b":2}"#);
         assert_eq!(cut(r#"{"b":2,"classSourceInformation":null}"#), r#"{"b":2}"#);
         // an equalTo's expected keeps its spans
         assert_eq!(
-            cut(r#"{"_type":"equalTo","expected":{"_type":"s","sourceInformation":{"x":1}},"sourceInformation":{"y":2}}"#),
+            cut(
+                r#"{"_type":"equalTo","expected":{"_type":"s","sourceInformation":{"x":1}},"sourceInformation":{"y":2}}"#
+            ),
             r#"{"_type":"equalTo","expected":{"_type":"s","sourceInformation":{"x":1}}}"#
         );
         // the doubled _type survives

@@ -213,7 +213,9 @@ pub trait SqlDialect {
 
     /// This database's host operations. Default: each refused, naming the dialect.
     fn host_operations(&self) -> Box<dyn HostOperations> {
-        Box::new(Refused { database: self.dialect_name().to_owned() })
+        Box::new(Refused {
+            database: self.dialect_name().to_owned(),
+        })
     }
 
     /// An effect segment's statements as one script. Default: joined by `;\n`, a `;` last.

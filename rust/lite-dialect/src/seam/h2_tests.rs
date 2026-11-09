@@ -35,9 +35,15 @@ const MODERN_REFUSES_SERVERS: &str = r#"{"refused":{"kind":"DIALECT_CAPABILITY",
 
 #[test]
 fn facts_are_h2s_and_h2moderns() {
-    assert_eq!(ok(H2, "facts", "{}"), format!(r#"{SHARED_FACTS}["2.1","2.2"]{SHARED_TAIL}"#));
+    assert_eq!(
+        ok(H2, "facts", "{}"),
+        format!(r#"{SHARED_FACTS}["2.1","2.2"]{SHARED_TAIL}"#)
+    );
     // H2Modern is chosen at run time, never planned with: its server versions are refused, not null
-    assert_eq!(ok(H2_MODERN, "facts", "{}"), format!("{SHARED_FACTS}{MODERN_REFUSES_SERVERS}{SHARED_TAIL}"));
+    assert_eq!(
+        ok(H2_MODERN, "facts", "{}"),
+        format!("{SHARED_FACTS}{MODERN_REFUSES_SERVERS}{SHARED_TAIL}")
+    );
 }
 
 #[test]
@@ -56,15 +62,26 @@ fn a_server_chooses_h2_or_h2modern_by_its_versions_prefix() {
     assert_eq!(for_server(H2_MODERN, "2.4.240"), r#""H2Modern""#);
     assert_eq!(for_server(r#"{"dialect":"DuckDb"}"#, "1.4.1"), r#""DuckDb""#);
     assert_eq!(refused(H2, "forServer", "{}").message, "missing field 'version'");
-    assert_eq!(refused(H2, "forServer", r#"{"version":null}"#).message, "field 'version' is null, not a string");
+    assert_eq!(
+        refused(H2, "forServer", r#"{"version":null}"#).message,
+        "field 'version' is null, not a string"
+    );
     // a spec naming a server opens the dialect for it
     assert_eq!(
         dispatch(r#"{"dialect":"H2","server":"2.3.232"}"#, "facts", "{}").unwrap(),
         ok(H2_MODERN, "facts", "{}")
     );
-    assert_eq!(dispatch(r#"{"dialect":"H2","server":"2.1.214"}"#, "facts", "{}").unwrap(), ok(H2, "facts", "{}"));
     assert_eq!(
-        dispatch(r#"{"dialect":"H2","server":"2.3.232"}"#, "forServer", r#"{"version":"2.1"}"#).unwrap(),
+        dispatch(r#"{"dialect":"H2","server":"2.1.214"}"#, "facts", "{}").unwrap(),
+        ok(H2, "facts", "{}")
+    );
+    assert_eq!(
+        dispatch(
+            r#"{"dialect":"H2","server":"2.3.232"}"#,
+            "forServer",
+            r#"{"version":"2.1"}"#
+        )
+        .unwrap(),
         r#""H2Modern""#
     );
 }
@@ -101,7 +118,12 @@ fn queries_render_as_h2_writes_them() {
     );
     let r = refused(H2, "query.render", &wrap("query", PARAM_SELECT));
     assert_eq!(r.class, Refusal::ILLEGAL_STATE);
-    assert!(r.message.starts_with("a statement with bound parameters [Bind[parameter=#at"), "{}", r.message);
+    assert!(
+        r.message
+            .starts_with("a statement with bound parameters [Bind[parameter=#at"),
+        "{}",
+        r.message
+    );
 }
 
 const CREATE_TABLE: &str = r#"{"_type":"createTable","schema":"S","table":"T","quoting":{"schema":false,"table":false},"columns":[{"name":"ID","declaredQuoted":false,"type":{"_type":"plain","kind":"TIME"},"notNull":true,"primaryKey":true},{"name":"value","declaredQuoted":true,"type":{"_type":"scaled","kind":"DECIMAL","precision":10,"scale":2},"notNull":false,"primaryKey":false}],"temporary":false}"#;
@@ -112,9 +134,16 @@ const INSERT_VALUES: &str = r#"{"_type":"insertValues","schema":null,"table":"T"
 fn ddl_and_dml_render_and_a_session_table_is_its_table_then_its_rows() {
     let create = r#""Create Table S.T(ID TIME(9) NOT NULL, \"value\" DECIMAL(10, 2) NULL, PRIMARY KEY(ID));""#;
     assert_eq!(ok(H2, "ddl.render", &wrap("ddl", CREATE_TABLE)), create);
-    assert_eq!(ok(H2_MODERN, "dml.render", &wrap("dml", INSERT_VALUES)), r#""INSERT INTO T (ID) VALUES ('2');""#);
     assert_eq!(
-        ok(H2, "sessionTable", &format!(r#"{{"table":{CREATE_TABLE},"rows":{INSERT_VALUES}}}"#)),
+        ok(H2_MODERN, "dml.render", &wrap("dml", INSERT_VALUES)),
+        r#""INSERT INTO T (ID) VALUES ('2');""#
+    );
+    assert_eq!(
+        ok(
+            H2,
+            "sessionTable",
+            &format!(r#"{{"table":{CREATE_TABLE},"rows":{INSERT_VALUES}}}"#)
+        ),
         format!(r#"[{create},"INSERT INTO T (ID) VALUES ('2');"]"#)
     );
     let unspelled = CREATE_TABLE.replace(r#""kind":"TIME""#, r#""kind":"ARRAY""#);
@@ -128,8 +157,13 @@ fn ddl_and_dml_render_and_a_session_table_is_its_table_then_its_rows() {
 #[test]
 fn names_are_spelled_by_h2s_rules() {
     for spec in [H2, H2_MODERN] {
-        let physical =
-            |name: &str| ok(spec, "physicalName", &format!(r#"{{"name":{}}}"#, to_compact(&Node::Str(name.into()))));
+        let physical = |name: &str| {
+            ok(
+                spec,
+                "physicalName",
+                &format!(r#"{{"name":{}}}"#, to_compact(&Node::Str(name.into()))),
+            )
+        };
         // bare unless it is no plain word, or a reserved one (the engine's list and `right`); `$` is plain
         assert_eq!(physical("Orders"), r#""Orders""#);
         assert_eq!(physical("a$b"), r#""a$b""#);
@@ -140,12 +174,27 @@ fn names_are_spelled_by_h2s_rules() {
         assert_eq!(physical("1a"), r#""\"1a\"""#);
         // a pre-quoted name is its own spelling
         assert_eq!(physical("\"date\""), r#""\"date\"""#);
-        assert_eq!(ok(spec, "storedName", r#"{"name":"Orders","declaredQuoted":true}"#), r#""\"Orders\"""#);
-        assert_eq!(ok(spec, "storedName", r#"{"name":"select","declaredQuoted":false}"#), r#""\"select\"""#);
+        assert_eq!(
+            ok(spec, "storedName", r#"{"name":"Orders","declaredQuoted":true}"#),
+            r#""\"Orders\"""#
+        );
+        assert_eq!(
+            ok(spec, "storedName", r#"{"name":"select","declaredQuoted":false}"#),
+            r#""\"select\"""#
+        );
         // the DDL's identifier rule: bare unless needed (no `$`), a declared-quoted one delimited
-        assert_eq!(ok(spec, "insertColumnName", r#"{"name":"id","declaredQuoted":false}"#), r#""id""#);
-        assert_eq!(ok(spec, "insertColumnName", r#"{"name":"a$b","declaredQuoted":false}"#), r#""\"a$b\"""#);
-        assert_eq!(ok(spec, "insertColumnName", r#"{"name":"Amt","declaredQuoted":true}"#), r#""\"Amt\"""#);
+        assert_eq!(
+            ok(spec, "insertColumnName", r#"{"name":"id","declaredQuoted":false}"#),
+            r#""id""#
+        );
+        assert_eq!(
+            ok(spec, "insertColumnName", r#"{"name":"a$b","declaredQuoted":false}"#),
+            r#""\"a$b\"""#
+        );
+        assert_eq!(
+            ok(spec, "insertColumnName", r#"{"name":"Amt","declaredQuoted":true}"#),
+            r#""\"Amt\"""#
+        );
     }
 }
 
@@ -154,18 +203,41 @@ fn the_engines_h2_text_is_h2s_own() {
     for spec in [H2, H2_MODERN] {
         let text = r#""insert into T (id, name) values (1, CURRENT_TIMESTAMP())""#;
         assert_eq!(ok(spec, "fromEngineText", &format!(r#"{{"statement":{text}}}"#)), text);
-        assert_eq!(ok(spec, "raw", r#"{"statement":"create schema S","writtenFor":"H2"}"#), r#""create schema S""#);
-        assert_eq!(ok(spec, "raw", r#"{"statement":"create schema S","writtenFor":null}"#), r#""create schema S""#);
+        assert_eq!(
+            ok(spec, "raw", r#"{"statement":"create schema S","writtenFor":"H2"}"#),
+            r#""create schema S""#
+        );
+        assert_eq!(
+            ok(spec, "raw", r#"{"statement":"create schema S","writtenFor":null}"#),
+            r#""create schema S""#
+        );
     }
 }
 
 #[test]
 fn wire_names_and_scripts_are_the_interfaces_defaults() {
-    assert_eq!(ok(H2, "wireTypeName", r#"{"driverTypeName":"CHARACTER VARYING"}"#), r#""VARCHAR""#);
-    assert_eq!(ok(H2, "typingWireName", r#"{"driverTypeName":"INTEGER"}"#), r#""INTEGER""#);
-    assert_eq!(ok(H2, "deliversOwn", r#"{"label":{"_type":"scalar","name":"BIGINT"},"wire":"BIGINT"}"#), "false");
     assert_eq!(
-        ok(H2, "script", r#"{"statements":["CREATE TABLE a(x INT)","INSERT INTO a VALUES (1)"]}"#),
+        ok(H2, "wireTypeName", r#"{"driverTypeName":"CHARACTER VARYING"}"#),
+        r#""VARCHAR""#
+    );
+    assert_eq!(
+        ok(H2, "typingWireName", r#"{"driverTypeName":"INTEGER"}"#),
+        r#""INTEGER""#
+    );
+    assert_eq!(
+        ok(
+            H2,
+            "deliversOwn",
+            r#"{"label":{"_type":"scalar","name":"BIGINT"},"wire":"BIGINT"}"#
+        ),
+        "false"
+    );
+    assert_eq!(
+        ok(
+            H2,
+            "script",
+            r#"{"statements":["CREATE TABLE a(x INT)","INSERT INTO a VALUES (1)"]}"#
+        ),
         r#""CREATE TABLE a(x INT);\nINSERT INTO a VALUES (1);""#
     );
     assert_eq!(ok(H2_MODERN, "script", r#"{"statements":[]}"#), r#"";""#);
@@ -176,16 +248,30 @@ fn h2_names_the_failing_statement_of_a_script() {
     let failing = |spec: &str, message: &str, statements: &[&str]| {
         let mut args = Obj::new();
         args.insert("message", Node::Str(message.into()));
-        args.insert("statements", Node::Arr(statements.iter().map(|s| Node::Str((*s).into())).collect()));
+        args.insert(
+            "statements",
+            Node::Arr(statements.iter().map(|s| Node::Str((*s).into())).collect()),
+        );
         ok(spec, "failingStatement", &to_compact(&Node::Obj(args)))
     };
     let script = [" CREATE TABLE a(x INT) ", "INSERT INTO a VALUES (1)", "SELECT 2"];
     // the quote from the failing statement on, each statement stripped
     assert_eq!(
-        failing(H2, "Unique index violated; SQL statement: INSERT INTO a VALUES (1);\nSELECT 2 [23505-214]", &script),
+        failing(
+            H2,
+            "Unique index violated; SQL statement: INSERT INTO a VALUES (1);\nSELECT 2 [23505-214]",
+            &script
+        ),
         "1"
     );
-    assert_eq!(failing(H2_MODERN, "boom; SQL statement:   CREATE TABLE a(x INT); [42000-214]", &script), "0");
+    assert_eq!(
+        failing(
+            H2_MODERN,
+            "boom; SQL statement:   CREATE TABLE a(x INT); [42000-214]",
+            &script
+        ),
+        "0"
+    );
     // no marker (a newline is no space), or a quote no statement starts
     assert_eq!(failing(H2, "boom; SQL statement:\nSELECT 2", &script), "null");
     assert_eq!(failing(H2, "boom; SQL statement: DROP TABLE a", &script), "null");
@@ -213,13 +299,22 @@ fn the_catalog_and_the_host_are_the_interfaces_refusals_naming_the_dialect() {
         let r = refused(spec, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
         assert_eq!(
             (r.class, r.message),
-            (Refusal::UNSUPPORTED_OPERATION, format!("the platform asks no catalog question of {name}"))
+            (
+                Refusal::UNSUPPORTED_OPERATION,
+                format!("the platform asks no catalog question of {name}")
+            )
         );
         let r = refused(spec, "bareNameReaches", r#"{"catalogName":"T"}"#);
-        assert_eq!(r.message, format!("reading this database's catalog names is not implemented for {name}"));
+        assert_eq!(
+            r.message,
+            format!("reading this database's catalog names is not implemented for {name}")
+        );
         assert_eq!(ok(spec, "copySelectList", r#"{"conversions":[]}"#), r#""*""#);
         let r = refused(spec, "copySelectList", r#"{"conversions":[{"column":"a","sql":"b"}]}"#);
-        assert_eq!(r.message, format!("a copy that converts columns in its star select is not implemented for {name}"));
+        assert_eq!(
+            r.message,
+            format!("a copy that converts columns in its star select is not implemented for {name}")
+        );
         for op in ["host.openDatabase", "host.useDatabase", "host.closeDatabase"] {
             let r = refused(spec, op, r#"{"name":"p1"}"#);
             assert_eq!(
@@ -242,9 +337,16 @@ fn the_catalog_and_the_host_are_the_interfaces_refusals_naming_the_dialect() {
         let r = refused(spec, "duckdb.tables", "{}");
         assert_eq!(
             (r.class, r.message),
-            (Refusal::ILLEGAL_ARGUMENT, format!("'duckdb.tables' is DuckDb's op, not {name}'s"))
+            (
+                Refusal::ILLEGAL_ARGUMENT,
+                format!("'duckdb.tables' is DuckDb's op, not {name}'s")
+            )
         );
-        let r = refused(spec, "duckdb.readsStored", r#"{"type":{"_type":"plain","kind":"OTHER"}}"#);
+        let r = refused(
+            spec,
+            "duckdb.readsStored",
+            r#"{"type":{"_type":"plain","kind":"OTHER"}}"#,
+        );
         assert_eq!(r.message, format!("'duckdb.readsStored' is DuckDb's op, not {name}'s"));
     }
 }
@@ -259,7 +361,10 @@ fn the_seam_opens_the_h2_family_and_names_every_dialect_it_answers() {
          MongoDb"
     );
     // the engine's scan order is DuckDB's switch: read as a boolean, ignored by H2
-    assert_eq!(dispatch(r#"{"dialect":"H2","engineScanOrder":true}"#, "facts", "{}").unwrap(), ok(H2, "facts", "{}"));
+    assert_eq!(
+        dispatch(r#"{"dialect":"H2","engineScanOrder":true}"#, "facts", "{}").unwrap(),
+        ok(H2, "facts", "{}")
+    );
     for op in OPS {
         assert_eq!(dispatch(H2, op, "[]").unwrap_err().kind(), "ILLEGAL_ARGUMENT", "{op}");
     }

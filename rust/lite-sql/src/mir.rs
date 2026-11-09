@@ -603,7 +603,10 @@ impl Double {
     /// `text` read as Java's `Double.parseDouble` reads the text `Double.toString` writes.
     pub fn parse(text: &str) -> Result<Double, Error> {
         match text.parse::<f64>() {
-            Ok(value) => Ok(Double { text: text.to_owned(), value }),
+            Ok(value) => Ok(Double {
+                text: text.to_owned(),
+                value,
+            }),
             Err(_) => Err(Error(format!("not a Java double: '{text}'"))),
         }
     }

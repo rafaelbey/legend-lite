@@ -37,8 +37,12 @@ pub struct DuckDb {
 }
 
 /// Java's `DuckDb.CAPS`: every collection capability.
-pub const CAPS: crate::carrier::Caps =
-    crate::carrier::Caps { native_lists: true, correlated_explode: true, json_carrier: true, native_full_outer: true };
+pub const CAPS: crate::carrier::Caps = crate::carrier::Caps {
+    native_lists: true,
+    correlated_explode: true,
+    json_carrier: true,
+    native_full_outer: true,
+};
 
 impl DuckDb {
     pub fn new() -> DuckDb {
@@ -204,14 +208,19 @@ static CATALOG_GRID_TYPES: Types = Types {
 /// Into `out`, `e`'s conjuncts under AND.
 fn conjuncts<'e>(e: &'e SqlExpr, out: &mut Vec<&'e SqlExpr>) {
     match e {
-        SqlExpr::Call { r#fn: SqlFn::And, args, .. } => args.iter().for_each(|a| conjuncts(a, out)),
+        SqlExpr::Call {
+            r#fn: SqlFn::And, args, ..
+        } => args.iter().for_each(|a| conjuncts(a, out)),
         other => out.push(other),
     }
 }
 
 /// The comparisons that are never TRUE for a NULL operand.
 fn is_comparison(f: SqlFn) -> bool {
-    matches!(f, SqlFn::Equal | SqlFn::NotEqual | SqlFn::Less | SqlFn::LessEqual | SqlFn::Greater | SqlFn::GreaterEqual)
+    matches!(
+        f,
+        SqlFn::Equal | SqlFn::NotEqual | SqlFn::Less | SqlFn::LessEqual | SqlFn::Greater | SqlFn::GreaterEqual
+    )
 }
 
 /// A stored Variant column: navigation reads it as it is, a whole value used as-is is read as JSON.
@@ -224,7 +233,13 @@ fn stored_variant(e: &SqlExpr) -> bool {
 
 fn stored_variant_column(c: &Column) -> bool {
     matches!(c.origin, Some(Origin::Physical | Origin::PhysicalQuoted))
-        && matches!(c.r#type, TypeFact::Typed { r#type: SqlType::Scalar(Scalar::Json), .. })
+        && matches!(
+            c.r#type,
+            TypeFact::Typed {
+                r#type: SqlType::Scalar(Scalar::Json),
+                ..
+            }
+        )
 }
 
 /// `Path.of(URI.create(url)).toString()` for a `file:` URL on a POSIX file system: the URI's path, its escapes
@@ -256,8 +271,9 @@ fn file_url_path(url: &str) -> Result<String, Refusal> {
     while i < raw.len() {
         if raw[i] == b'%'
             && i + 2 < raw.len() + 1
-            && let Some(v) =
-                raw.get(i + 1..i + 3).and_then(|h| u8::from_str_radix(std::str::from_utf8(h).ok()?, 16).ok())
+            && let Some(v) = raw
+                .get(i + 1..i + 3)
+                .and_then(|h| u8::from_str_radix(std::str::from_utf8(h).ok()?, 16).ok())
         {
             bytes.push(v);
             i += 3;
@@ -290,7 +306,10 @@ impl DuckDb {
             && nano < parts.len() - 1
         {
             let tail = &parts[nano + 1..];
-            let format = |parts: &[DateFmt]| SqlExpr::FormatLit { parts: parts.to_vec(), r#type: TypeFact::Unknown };
+            let format = |parts: &[DateFmt]| SqlExpr::FormatLit {
+                parts: parts.to_vec(),
+                r#type: TypeFact::Unknown,
+            };
             w.append("(");
             w.function(self, "strftime", &[args[0].clone(), format(&parts[..=nano])])?;
             w.append(" || ");
@@ -308,7 +327,11 @@ impl DuckDb {
 
     /// The `ACOS` and `ASIN` arms: NaN outside the domain, as the engine's H2.
     fn domain_guarded(&self, w: &mut SqlWriter, f: &str, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("(CASE WHEN (").expr(self, arg(a, 0)?, 0)?.append(") BETWEEN -1 AND 1 THEN ").append(f).append("(");
+        w.append("(CASE WHEN (")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(") BETWEEN -1 AND 1 THEN ")
+            .append(f)
+            .append("(");
         w.expr(self, arg(a, 0)?, 0)?.append(") ELSE 'NaN'::DOUBLE END)");
         Ok(())
     }
@@ -318,7 +341,9 @@ impl DuckDb {
         if matches!(arg(args, 0)?, SqlExpr::StringLit { .. }) {
             w.function(self, "length", args)?;
         } else {
-            w.append("length(CAST(").expr(self, &args[0], 0)?.append(" AS VARCHAR))");
+            w.append("length(CAST(")
+                .expr(self, &args[0], 0)?
+                .append(" AS VARCHAR))");
         }
         Ok(())
     }
@@ -343,7 +368,11 @@ impl DuckDb {
         agg: &str,
         empty_default: bool,
     ) -> Result<(), Refusal> {
-        w.append("coalesce(").append(agg).append("(").function(self, "list_transform", args)?.append("), ");
+        w.append("coalesce(")
+            .append(agg)
+            .append("(")
+            .function(self, "list_transform", args)?
+            .append("), ");
         let default = self.bool_lit(empty_default);
         w.append(&default).append(")");
         Ok(())
@@ -449,7 +478,9 @@ impl AnsiSqlRenderer for DuckDb {
             Scalar::Json => "JSON",
             Scalar::Time => "TIME",
             Scalar::DecimalText => {
-                return Err(Refusal::illegal_state(format!("{s} cast reached a dialect without {s} support")));
+                return Err(Refusal::illegal_state(format!(
+                    "{s} cast reached a dialect without {s} support"
+                )));
             }
         }
         .to_owned())
@@ -457,7 +488,10 @@ impl AnsiSqlRenderer for DuckDb {
 
     /// A struct type: `STRUCT(a T, ...)`.
     fn struct_type_name(&self, fields: &[StructField]) -> Result<String, Refusal> {
-        let fs: Vec<String> = ansi::struct_fields(self, fields)?.into_iter().map(|(n, t)| format!("{n} {t}")).collect();
+        let fs: Vec<String> = ansi::struct_fields(self, fields)?
+            .into_iter()
+            .map(|(n, t)| format!("{n} {t}"))
+            .collect();
         Ok(format!("STRUCT({})", fs.join(", ")))
     }
 
@@ -558,7 +592,9 @@ impl AnsiSqlRenderer for DuckDb {
                 ColumnKind::Json => "JSON",
                 ColumnKind::Varchar => "VARCHAR",
                 ColumnKind::Other | ColumnKind::Distinct | ColumnKind::Array | ColumnKind::Object => {
-                    return Err(Refusal::illegal_state(format!("no DDL spelling for declared column type {kind}")));
+                    return Err(Refusal::illegal_state(format!(
+                        "no DDL spelling for declared column type {kind}"
+                    )));
                 }
             }
             .to_owned(),
@@ -764,13 +800,21 @@ impl AnsiSqlRenderer for DuckDb {
             F::Sha256 => self.plain(w, "sha256", a),
             F::Extract => {
                 let p = self.string_lit(spellings::date_part(part(arg(a, 0)?)?))?;
-                w.append("date_part(").append(&p).append(", ").list(self, tail(a, 1)?)?.append(")");
+                w.append("date_part(")
+                    .append(&p)
+                    .append(", ")
+                    .list(self, tail(a, 1)?)?
+                    .append(")");
                 Ok(())
             }
             F::MakeDate => self.plain(w, "make_date", a),
             F::DateDiff => {
                 let p = self.string_lit(spellings::date_part(part(arg(a, 0)?)?))?;
-                w.append("date_diff(").append(&p).append(", ").list(self, tail(a, 1)?)?.append(")");
+                w.append("date_diff(")
+                    .append(&p)
+                    .append(", ")
+                    .list(self, tail(a, 1)?)?
+                    .append(")");
                 Ok(())
             }
             F::Timezone => self.plain(w, "timezone", a),
@@ -804,7 +848,11 @@ impl AnsiSqlRenderer for DuckDb {
     /// DuckDB DDL identifier identity: an unquoted identifier spelled folded (as the standard reports it), a
     /// declared-quoted one keeps its case.
     fn ddl_identifier(&self, name: &str, declared_quoted: bool) -> String {
-        if declared_quoted { format!("\"{name}\"") } else { self.ident(&name.to_uppercase()) }
+        if declared_quoted {
+            format!("\"{name}\"")
+        } else {
+            self.ident(&name.to_uppercase())
+        }
     }
 
     /// DuckDB's native list carrier: `list_aggregate(list, 'name', extras...)`.
@@ -826,7 +874,11 @@ impl AnsiSqlRenderer for DuckDb {
 
     /// DuckDB's native membership.
     fn membership(&self, w: &mut SqlWriter, needle: &SqlExpr, collection: &SqlExpr) -> Result<(), Refusal> {
-        w.append("list_contains(").expr(self, collection, 0)?.append(", ").expr(self, needle, 0)?.append(")");
+        w.append("list_contains(")
+            .expr(self, collection, 0)?
+            .append(", ")
+            .expr(self, needle, 0)?
+            .append(")");
         Ok(())
     }
 
@@ -849,7 +901,15 @@ impl AnsiSqlRenderer for DuckDb {
 
     /// Native PIVOT; its ON columns quote unconditionally, its arguments arrive unqualified.
     fn pivot_source(&self, w: &mut SqlWriter, pivot: &SqlSource, depth: usize) -> Result<(), Refusal> {
-        let SqlSource::Pivot { source, on, r#in, usings, alias, .. } = pivot else {
+        let SqlSource::Pivot {
+            source,
+            on,
+            r#in,
+            usings,
+            alias,
+            ..
+        } = pivot
+        else {
             return Err(Refusal::illegal_state("a PIVOT of a source that is no pivot"));
         };
         w.append("(PIVOT ");
@@ -901,11 +961,17 @@ impl AnsiSqlRenderer for DuckDb {
                 return Err(Refusal::illegal_state(format!("invalid data: URI (no comma): {url}")));
             };
             let content = &url[comma + 1..];
-            return Ok(format!("SELECT unnest(CAST({} AS JSON[])) AS data", self.string_lit(content)?));
+            return Ok(format!(
+                "SELECT unnest(CAST({} AS JSON[])) AS data",
+                self.string_lit(content)?
+            ));
         }
         if url.starts_with("file:") {
             let path = file_url_path(url)?;
-            return Ok(format!("SELECT json AS data FROM read_json_objects({})", self.string_lit(&path)?));
+            return Ok(format!(
+                "SELECT json AS data FROM read_json_objects({})",
+                self.string_lit(&path)?
+            ));
         }
         Err(Refusal::illegal_state(format!("unsupported sourceUrl scheme: {url}")))
     }
@@ -921,7 +987,9 @@ impl AnsiSqlRenderer for DuckDb {
 
     /// len(list_distinct(x)) = len(x); NULL (empty) coalesces to true.
     fn all_distinct(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("coalesce(len(list_distinct(").expr(self, arg(args, 0)?, 0)?.append(")) = len(");
+        w.append("coalesce(len(list_distinct(")
+            .expr(self, arg(args, 0)?, 0)?
+            .append(")) = len(");
         w.expr(self, arg(args, 0)?, 0)?.append("), TRUE)");
         Ok(())
     }
@@ -929,7 +997,11 @@ impl AnsiSqlRenderer for DuckDb {
     fn list_call(&self, w: &mut SqlWriter, f: SqlFn, args: &[SqlExpr]) -> Result<(), Refusal> {
         use SqlFn as F;
         let aggregate = |w: &mut SqlWriter, name: &str| -> Result<(), Refusal> {
-            w.append("list_aggregate(").expr(self, arg(args, 0)?, 0)?.append(", '").append(name).append("')");
+            w.append("list_aggregate(")
+                .expr(self, arg(args, 0)?, 0)?
+                .append(", '")
+                .append(name)
+                .append("')");
             Ok(())
         };
         match f {
@@ -968,7 +1040,9 @@ impl AnsiSqlRenderer for DuckDb {
             }
             F::RangeFn => self.plain(w, "range", args),
             F::RepeatValue => {
-                w.append("list_transform(range(").expr(self, arg(args, 1)?, 0)?.append("), _i -> ");
+                w.append("list_transform(range(")
+                    .expr(self, arg(args, 1)?, 0)?
+                    .append("), _i -> ");
                 w.expr(self, arg(args, 0)?, 0)?.append(")");
                 Ok(())
             }
@@ -987,7 +1061,13 @@ impl AnsiSqlRenderer for DuckDb {
     /// neighbour; anything else is `ROUND_EVEN`.
     fn round_half_even(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() == 2
-            && matches!(a[0].r#type(), TypeFact::Typed { r#type: SqlType::Decimal { .. }, .. })
+            && matches!(
+                a[0].r#type(),
+                TypeFact::Typed {
+                    r#type: SqlType::Decimal { .. },
+                    ..
+                }
+            )
             && let SqlExpr::IntLit { value: n, .. } = &a[1]
             && (0..=37).contains(n)
         {
@@ -1000,8 +1080,14 @@ impl AnsiSqlRenderer for DuckDb {
                 w.append("ROUND(").piece(&x)?.append(&format!(", {n})"));
                 Ok(())
             };
-            w.append("(CASE WHEN abs(").piece(&x)?.append(&format!(" % {u}) = {h} AND ")).piece(&rounded)?;
-            w.append(&format!(" % {twice} <> 0 THEN ")).piece(&rounded)?.append(" - sign(").piece(&x)?;
+            w.append("(CASE WHEN abs(")
+                .piece(&x)?
+                .append(&format!(" % {u}) = {h} AND "))
+                .piece(&rounded)?;
+            w.append(&format!(" % {twice} <> 0 THEN "))
+                .piece(&rounded)?
+                .append(" - sign(")
+                .piece(&x)?;
             w.append(&format!(") * {u} ELSE ")).piece(&rounded)?.append(" END)");
             return Ok(());
         }
@@ -1016,7 +1102,11 @@ impl AnsiSqlRenderer for DuckDb {
 
     fn bit_op(&self, w: &mut SqlWriter, f: SqlFn, a: &[SqlExpr]) -> Result<(), Refusal> {
         let binary = |w: &mut SqlWriter, op: &str| -> Result<(), Refusal> {
-            w.append("(").expr(self, arg(a, 0)?, 6)?.append(op).expr(self, arg(a, 1)?, 6)?.append(")");
+            w.append("(")
+                .expr(self, arg(a, 0)?, 6)?
+                .append(op)
+                .expr(self, arg(a, 1)?, 6)?
+                .append(")");
             Ok(())
         };
         match f {
@@ -1066,7 +1156,11 @@ impl AnsiSqlRenderer for DuckDb {
         w.append("struct_extract(").expr(self, source, 0)?.append(", ");
         // Java's `field.chars().allMatch(Character::isDigit)`: every UTF-16 unit a digit of any script
         let positional = field.encode_utf16().all(lite_javacompat::character::is_digit);
-        let f = if positional { field.to_owned() } else { self.string_lit(field)? };
+        let f = if positional {
+            field.to_owned()
+        } else {
+            self.string_lit(field)?
+        };
         w.append(&f).append(")");
         Ok(())
     }
@@ -1082,7 +1176,11 @@ impl AnsiSqlRenderer for DuckDb {
     /// A stored Variant column reference is read as JSON: `CAST(col AS JSON)`.
     fn column_ref(&self, c: &Column) -> Result<String, Refusal> {
         let r = ansi::column_ref(self, c)?;
-        Ok(if stored_variant_column(c) { format!("CAST({r} AS JSON)") } else { r })
+        Ok(if stored_variant_column(c) {
+            format!("CAST({r} AS JSON)")
+        } else {
+            r
+        })
     }
 
     fn implicit_label(&self, p: &Projection) -> Result<Option<String>, Refusal> {
@@ -1106,10 +1204,18 @@ impl AnsiSqlRenderer for DuckDb {
             w.append(" AS JSON)");
             Ok(())
         };
-        w.append("(CASE WHEN json_type(").piece(&json)?.append(") = 'ARRAY' THEN CAST(json_extract(").piece(&json)?;
-        w.append(", '$[*]') AS JSON[]) WHEN ").piece(&json)?.append(" IS NULL OR json_type(").piece(&json)?;
+        w.append("(CASE WHEN json_type(")
+            .piece(&json)?
+            .append(") = 'ARRAY' THEN CAST(json_extract(")
+            .piece(&json)?;
+        w.append(", '$[*]') AS JSON[]) WHEN ")
+            .piece(&json)?
+            .append(" IS NULL OR json_type(")
+            .piece(&json)?;
         w.append(") = 'NULL' THEN NULL ELSE error('Expect variant that contains an ''ARRAY'',");
-        w.append(" but got ''' || json_type(").piece(&json)?.append(") || '''') END)");
+        w.append(" but got ''' || json_type(")
+            .piece(&json)?
+            .append(") || '''') END)");
         Ok(())
     }
 
@@ -1119,7 +1225,10 @@ impl AnsiSqlRenderer for DuckDb {
             other => return Err(Refusal::class_cast(crate::java::simple_name(other), "StringLit")),
         };
         w.append("struct_insert(").expr(self, arg(args, 0)?, 0)?.append(", \"");
-        w.append(&name.replace('"', "\"\"")).append("\" := ").expr(self, arg(args, 2)?, 0)?.append(")");
+        w.append(&name.replace('"', "\"\""))
+            .append("\" := ")
+            .expr(self, arg(args, 2)?, 0)?
+            .append(")");
         Ok(())
     }
 
@@ -1133,7 +1242,11 @@ impl AnsiSqlRenderer for DuckDb {
         conform: bool,
     ) -> Result<(), Refusal> {
         if !matches!(target, SqlType::Array { .. })
-            && let SqlExpr::Call { r#fn: SqlFn::VariantGet, args, .. } = value
+            && let SqlExpr::Call {
+                r#fn: SqlFn::VariantGet,
+                args,
+                ..
+            } = value
         {
             w.append("CAST((");
             self.navigated(w, arg(args, 0)?)?;
@@ -1143,7 +1256,10 @@ impl AnsiSqlRenderer for DuckDb {
             return Ok(());
         }
         if stored_variant(value)
-            && !matches!(target, SqlType::Scalar(Scalar::Varchar | Scalar::TemporalText | Scalar::DecimalText))
+            && !matches!(
+                target,
+                SqlType::Scalar(Scalar::Varchar | Scalar::TemporalText | Scalar::DecimalText)
+            )
         {
             w.append("CAST(");
             self.navigated(w, value)?;
@@ -1161,7 +1277,10 @@ impl AnsiSqlRenderer for DuckDb {
         let parts = call(SqlFn::Split, vec![arg(a, 0)?.clone(), arg(a, 1)?.clone()]);
         let non_empty = call(
             SqlFn::ListFilter,
-            vec![parts, lambda(&["x"], call(SqlFn::NotEqual, vec![derived(None, "x"), string_lit("")]))],
+            vec![
+                parts,
+                lambda(&["x"], call(SqlFn::NotEqual, vec![derived(None, "x"), string_lit("")])),
+            ],
         );
         self.expr(w, &call(SqlFn::ListGet, vec![non_empty, arg(a, 2)?.clone()]), 0)
     }
@@ -1186,7 +1305,9 @@ impl AnsiSqlRenderer for DuckDb {
         if scalar == Scalar::Date {
             return Ok("DATE".to_owned());
         }
-        Err(Refusal::capability(format!("a TYPEOF compared with {scalar}'s name reached DuckDB")))
+        Err(Refusal::capability(format!(
+            "a TYPEOF compared with {scalar}'s name reached DuckDB"
+        )))
     }
 
     /// Measured on DuckDB 1.4: the standard spellings of the store writes.
@@ -1241,8 +1362,14 @@ pub fn catalog_types() -> Vec<(&'static str, CatalogType)> {
         ("UTINYINT", CatalogType::as_stored("SMALLINT")),
         ("USMALLINT", CatalogType::as_stored("INTEGER")),
         ("UINTEGER", CatalogType::as_stored("BIGINT")),
-        ("UBIGINT", CatalogType::converted("DECIMAL(20,0)", "CAST(%s AS DECIMAL(20,0))")),
-        ("HUGEINT", CatalogType::converted("DECIMAL(38,0)", "CAST(%s AS DECIMAL(38,0))")),
+        (
+            "UBIGINT",
+            CatalogType::converted("DECIMAL(20,0)", "CAST(%s AS DECIMAL(20,0))"),
+        ),
+        (
+            "HUGEINT",
+            CatalogType::converted("DECIMAL(38,0)", "CAST(%s AS DECIMAL(38,0))"),
+        ),
         ("FLOAT", CatalogType::as_stored("REAL")),
         ("DOUBLE", CatalogType::as_stored("DOUBLE")),
         ("DATE", CatalogType::as_stored("DATE")),
@@ -1410,7 +1537,10 @@ impl crate::dialect::SqlDialect for DuckDb {
         if conversions.is_empty() {
             return Ok("*".to_owned());
         }
-        let items: Vec<String> = conversions.iter().map(|c| format!("{} AS {}", c.sql, sql_ident(&c.column))).collect();
+        let items: Vec<String> = conversions
+            .iter()
+            .map(|c| format!("{} AS {}", c.sql, sql_ident(&c.column)))
+            .collect();
         Ok(format!("* REPLACE ({})", items.join(", ")))
     }
 
@@ -1421,7 +1551,11 @@ impl crate::dialect::SqlDialect for DuckDb {
         const TABLE: &str = "{table}";
         let (s, t) = match (CATALOG_COLUMNS_SQL.find(SCHEMA), CATALOG_COLUMNS_SQL.find(TABLE)) {
             (Some(s), Some(t)) => (s, t),
-            _ => return Err(Refusal::illegal_state("the catalog question's template names no {schema} or {table}")),
+            _ => {
+                return Err(Refusal::illegal_state(
+                    "the catalog question's template names no {schema} or {table}",
+                ));
+            }
         };
         Ok(format!(
             "{}{}{}{}{}",

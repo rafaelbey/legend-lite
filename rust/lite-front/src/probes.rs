@@ -26,8 +26,8 @@
 use crate::cursor::ElementCursor;
 use crate::database_parser::parse_database;
 use crate::doors::{Answer, Dialect, JavaError};
-use crate::jcat;
 use crate::emitter::emit_element;
+use crate::jcat;
 use crate::lexer::{TokenStream, TokenType, tokenize};
 use crate::protocol::qualified_name;
 use crate::records::Element;
@@ -37,7 +37,11 @@ use TokenType as T;
 /// `Lexer.tokenize(text).sectionHeaders()`: every `###Section` header the lexer saw, in order -- its name, and the
 /// offset (a UTF-16 index) its content starts at.
 pub fn section_headers(text: &[u16]) -> Vec<(Vec<u16>, usize)> {
-    tokenize(text).section_headers.into_iter().map(|h| (h.name, h.content_start_offset)).collect()
+    tokenize(text)
+        .section_headers
+        .into_iter()
+        .map(|h| (h.name, h.content_start_offset))
+        .collect()
 }
 
 /// `ElementParser.topLevelIndexes(ts, marker)`: the indexes of `marker` tokens at bracket, brace and paren depth 0
@@ -171,7 +175,11 @@ fn declaration_extents_walk(text: &[u16], dialect: Dialect) -> Answer<Vec<Declar
         } else if t == T::BRACE_CLOSE {
             depth -= 1;
         }
-        let decl = if k > 0 && ts.ty(k - 1) == T::DOC_STRING { k - 1 } else { k };
+        let decl = if k > 0 && ts.ty(k - 1) == T::DOC_STRING {
+            k - 1
+        } else {
+            k
+        };
         let at_start = decl == 0 || matches!(ts.ty(decl - 1), T::SEMI_COLON | T::BRACE_CLOSE);
         if depth != 0 || !at_start {
             k += 1;
@@ -188,7 +196,11 @@ fn declaration_extents_walk(text: &[u16], dialect: Dialect) -> Answer<Vec<Declar
                     jcat!("a native declaration without ';' at token ", k),
                 ));
             }
-            out.push(DeclarationExtent { kind: "native function", start: ts.start(decl), end: ts.end(semi) });
+            out.push(DeclarationExtent {
+                kind: "native function",
+                start: ts.start(decl),
+                end: ts.end(semi),
+            });
             k = semi + 1;
             continue;
         }
@@ -210,7 +222,11 @@ fn declaration_extents_walk(text: &[u16], dialect: Dialect) -> Answer<Vec<Declar
             T::PROFILE => drop(p.parse_profile_definition()?),
             _ => drop(p.parse_function_protocol()?),
         }
-        out.push(DeclarationExtent { kind, start: ts.start(decl), end: ts.end(p.pos - 1) });
+        out.push(DeclarationExtent {
+            kind,
+            start: ts.start(decl),
+            end: ts.end(p.pos - 1),
+        });
         k += 1;
     }
     Ok(out)
@@ -229,7 +245,10 @@ mod tests {
     fn section_headers_name_each_header_and_where_its_content_starts() {
         let text = u("Class a::A {}\n###Relational\nDatabase a::D ()\n###Pure\nEnum a::E { X }\n");
         // a content starts after its header's line
-        assert_eq!(names(&section_headers(&text)), vec![("Relational".to_owned(), 28), ("Pure".to_owned(), 53)]);
+        assert_eq!(
+            names(&section_headers(&text)),
+            vec![("Relational".to_owned(), 28), ("Pure".to_owned(), 53)]
+        );
         assert!(section_headers(&u("Class a::A {}")).is_empty());
     }
 
@@ -237,8 +256,10 @@ mod tests {
     fn a_marker_is_a_declaration_only_where_one_can_start() {
         // the first `function` starts the stream; the one inside the class's braces is nested; `function::x` after the
         // class's `}` is a path; the last follows a `;`
-        let text = u("function a::f(): Integer[1] { 1 }\nClass a::A { function: String[1]; }\nfunction::x;\n\
-                      function a::g(): Integer[1] { 2 }");
+        let text = u(
+            "function a::f(): Integer[1] { 1 }\nClass a::A { function: String[1]; }\nfunction::x;\n\
+                      function a::g(): Integer[1] { 2 }",
+        );
         let ts = tokenize(&text);
         let sites = top_level_indexes(&ts, T::FUNCTION);
         assert_eq!(sites.len(), 2, "{sites:?}");
@@ -270,7 +291,11 @@ mod tests {
         assert_eq!(names, vec!["a::D", "b::E"]);
         assert!(String::from_utf16_lossy(&sites[0].1).starts_with("{\"_type\":\"relational\""));
         // a Database word inside a body is no site
-        assert!(database_sites(&u("Class a::A { x: Database[1]; }"), Dialect::LegendEngine).unwrap().is_empty());
+        assert!(
+            database_sites(&u("Class a::A { x: Database[1]; }"), Dialect::LegendEngine)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     fn extents(text: &str) -> Vec<(&'static str, String)> {
@@ -294,13 +319,25 @@ mod tests {
         assert_eq!(
             extents(text),
             vec![
-                ("Class", "Class <<doc.deprecated>> {doc.doc = 'x'} a::A extends B\n[ c: $this.x > 0 ]\n{ x: Integer[1]; }"
-                    .to_owned()),
+                (
+                    "Class",
+                    "Class <<doc.deprecated>> {doc.doc = 'x'} a::A extends B\n[ c: $this.x > 0 ]\n{ x: Integer[1]; }"
+                        .to_owned()
+                ),
                 ("Enum", "'''\nthe doc\n''' Enum a::E { X, Y }".to_owned()),
                 ("Profile", "Profile a::P { stereotypes: [s]; tags: [t]; }".to_owned()),
-                ("native function", "native function a::n(x: String[1]): String[1];".to_owned()),
-                ("function", "function <<test.Test>> a::f(): Integer[1] { 1 }\n{ suite ( t | f() => 1; ) }".to_owned()),
-                ("function", "'''\ndoc\n''' function a::g(): Integer[1] { let x = {| 2}; $x->eval(); }".to_owned()),
+                (
+                    "native function",
+                    "native function a::n(x: String[1]): String[1];".to_owned()
+                ),
+                (
+                    "function",
+                    "function <<test.Test>> a::f(): Integer[1] { 1 }\n{ suite ( t | f() => 1; ) }".to_owned()
+                ),
+                (
+                    "function",
+                    "'''\ndoc\n''' function a::g(): Integer[1] { let x = {| 2}; $x->eval(); }".to_owned()
+                ),
             ]
         );
     }
@@ -325,15 +362,27 @@ mod tests {
         let open = u("native function a::n(): String[1]");
         let e = declaration_extents(&open, Dialect::LegendPlatform).unwrap_err();
         assert_eq!(e.class, "java.lang.IllegalStateException");
-        assert_eq!(e.message.map(|m| String::from_utf16_lossy(m.units())).as_deref(),
-            Some("a native declaration without ';' at token 0"));
+        assert_eq!(
+            e.message.map(|m| String::from_utf16_lossy(m.units())).as_deref(),
+            Some("a native declaration without ';' at token 0")
+        );
     }
 
     #[test]
     fn known_sections_are_the_registry_s_built_in_half() {
         let known = known_sections();
         assert_eq!(known.len(), 25, "{known:?}");
-        for s in ["Pure", "Mapping", "Relational", "Data", "Connection", "Runtime", "Service", "Diagram", "Text"] {
+        for s in [
+            "Pure",
+            "Mapping",
+            "Relational",
+            "Data",
+            "Connection",
+            "Runtime",
+            "Service",
+            "Diagram",
+            "Text",
+        ] {
             assert!(known.contains(&s), "{s}");
         }
         assert!(!known.contains(&"Toy"));

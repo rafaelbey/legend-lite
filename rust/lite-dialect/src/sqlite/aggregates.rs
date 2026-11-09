@@ -49,8 +49,12 @@ fn frame_micros(unit: &str) -> Option<i64> {
 fn interval_days(n: i64, unit: &str, days: bool) -> Result<String, Refusal> {
     let micros = frame_micros(&unit.to_uppercase());
     match micros {
-        Some(m) if days => Ok(lite_javacompat::double_to_string(n as f64 * m as f64 / 86_400_000_000.0)),
-        _ => Err(Refusal::capability(format!("a {unit} window frame offset over this key reached SQLite"))),
+        Some(m) if days => Ok(lite_javacompat::double_to_string(
+            n as f64 * m as f64 / 86_400_000_000.0,
+        )),
+        _ => Err(Refusal::capability(format!(
+            "a {unit} window frame offset over this key reached SQLite"
+        ))),
     }
 }
 
@@ -86,7 +90,8 @@ impl Sqlite {
     /// `[DISTINCT ]args` (Java's `aggregateArgs`).
     fn aggregate_args<'a>(&'a self, r: &'a Reducer) -> P<'a> {
         pc(move |w| {
-            w.append(if r.distinct { "DISTINCT " } else { "" }).list(self, &r.args)?;
+            w.append(if r.distinct { "DISTINCT " } else { "" })
+                .list(self, &r.args)?;
             Ok(())
         })
     }
@@ -231,7 +236,8 @@ impl Sqlite {
                         r.args.len()
                     )));
                 }
-                w.append("json_group_array(").append(if r.distinct { "DISTINCT " } else { "" });
+                w.append("json_group_array(")
+                    .append(if r.distinct { "DISTINCT " } else { "" });
                 self.json(&r.args[0])(w)?;
                 self.aggregate_order(w, &r.order_by)?;
                 w.append(")");
@@ -301,8 +307,14 @@ impl Sqlite {
     fn population_variance<'a>(&'a self, r: &'a Reducer) -> Result<P<'a>, Refusal> {
         let x = arg(&r.args, 0)?;
         Ok(pc(move |w| {
-            w.append("(CASE count(").expr(self, x, 0)?.append(") WHEN 0 THEN NULL WHEN 1 THEN 0.0 ELSE variance(");
-            w.expr(self, x, 0)?.append(") * (count(").expr(self, x, 0)?.append(") - 1) / count(").expr(self, x, 0)?;
+            w.append("(CASE count(")
+                .expr(self, x, 0)?
+                .append(") WHEN 0 THEN NULL WHEN 1 THEN 0.0 ELSE variance(");
+            w.expr(self, x, 0)?
+                .append(") * (count(")
+                .expr(self, x, 0)?
+                .append(") - 1) / count(")
+                .expr(self, x, 0)?;
             w.append(") END)");
             Ok(())
         }))
@@ -316,7 +328,11 @@ impl Sqlite {
         let (v, k) = (&r.args[0], &r.args[1]);
         w.append("((json_group_array(");
         self.json(v)(w)?;
-        w.append(" ORDER BY ").expr(self, k, 0)?.append(direction).append(") FILTER (WHERE ").expr(self, k, 4)?;
+        w.append(" ORDER BY ")
+            .expr(self, k, 0)?
+            .append(direction)
+            .append(") FILTER (WHERE ")
+            .expr(self, k, 4)?;
         w.append(" IS NOT NULL)) ->> 0)");
         Ok(())
     }
@@ -326,28 +342,52 @@ impl Sqlite {
         let y = arg(&r.args, 0)?;
         let x = arg(&r.args, 1)?;
         let n = pc(move |w: &mut SqlWriter| {
-            w.append("count(").expr(self, x, 6)?.append(" * ").expr(self, y, 6)?.append(")");
+            w.append("count(")
+                .expr(self, x, 6)?
+                .append(" * ")
+                .expr(self, y, 6)?
+                .append(")");
             Ok(())
         });
         let sxy = pc(move |w: &mut SqlWriter| {
-            w.append("sum(").expr(self, x, 6)?.append(" * ").expr(self, y, 6)?.append(")");
+            w.append("sum(")
+                .expr(self, x, 6)?
+                .append(" * ")
+                .expr(self, y, 6)?
+                .append(")");
             Ok(())
         });
         let sx = pc(move |w: &mut SqlWriter| {
-            w.append("sum(").expr(self, x, 0)?.append(") FILTER (WHERE ").expr(self, y, 4)?.append(" IS NOT NULL)");
+            w.append("sum(")
+                .expr(self, x, 0)?
+                .append(") FILTER (WHERE ")
+                .expr(self, y, 4)?
+                .append(" IS NOT NULL)");
             Ok(())
         });
         let sy = pc(move |w: &mut SqlWriter| {
-            w.append("sum(").expr(self, y, 0)?.append(") FILTER (WHERE ").expr(self, x, 4)?.append(" IS NOT NULL)");
+            w.append("sum(")
+                .expr(self, y, 0)?
+                .append(") FILTER (WHERE ")
+                .expr(self, x, 4)?
+                .append(" IS NOT NULL)");
             Ok(())
         });
         let sxx = pc(move |w: &mut SqlWriter| {
-            w.append("sum(").expr(self, x, 6)?.append(" * ").expr(self, x, 6)?.append(") FILTER (WHERE ");
+            w.append("sum(")
+                .expr(self, x, 6)?
+                .append(" * ")
+                .expr(self, x, 6)?
+                .append(") FILTER (WHERE ");
             w.expr(self, y, 4)?.append(" IS NOT NULL)");
             Ok(())
         });
         let syy = pc(move |w: &mut SqlWriter| {
-            w.append("sum(").expr(self, y, 6)?.append(" * ").expr(self, y, 6)?.append(") FILTER (WHERE ");
+            w.append("sum(")
+                .expr(self, y, 6)?
+                .append(" * ")
+                .expr(self, y, 6)?
+                .append(") FILTER (WHERE ");
             w.expr(self, x, 4)?.append(" IS NOT NULL)");
             Ok(())
         });
@@ -428,7 +468,9 @@ impl Sqlite {
         let sorted = pc(move |w: &mut SqlWriter| {
             w.append("json_group_array(");
             held(w)?;
-            w.append(" ORDER BY ").expr(self, x, 0)?.append(if desc { " DESC)" } else { " ASC)" });
+            w.append(" ORDER BY ")
+                .expr(self, x, 0)?
+                .append(if desc { " DESC)" } else { " ASC)" });
             w.append(" FILTER (WHERE ").expr(self, x, 4)?.append(" IS NOT NULL)");
             Ok(())
         });
@@ -526,7 +568,11 @@ impl Sqlite {
                 }
                 let plain = build::reducer(r.r#fn, r.args.clone(), r.distinct, Vec::new());
                 self.reducer(w, &plain)?;
-                let whole = Frame { kind: FrameKind::Rows, from: Bound::UnboundedPreceding, to: Bound::UnboundedFollowing };
+                let whole = Frame {
+                    kind: FrameKind::Rows,
+                    from: Bound::UnboundedPreceding,
+                    to: Bound::UnboundedFollowing,
+                };
                 return self.window_over(w, partition_by, &r.order_by, Some(&whole));
             }
             SqlAgg::Reducer(r) => self.reducer(w, r)?,
@@ -551,9 +597,16 @@ impl Sqlite {
         let pair = r.args.len() == 2;
         let y = arg(&r.args, 0)?;
         let x = if pair { &r.args[1] } else { y };
-        let window = Window { partition_by, order_by, frame };
+        let window = Window {
+            partition_by,
+            order_by,
+            frame,
+        };
         let both = pc(move |v: &mut SqlWriter| {
-            v.append("(CASE WHEN ").expr(self, x, 4)?.append(" IS NOT NULL AND ").expr(self, y, 4)?;
+            v.append("(CASE WHEN ")
+                .expr(self, x, 4)?
+                .append(" IS NOT NULL AND ")
+                .expr(self, y, 4)?;
             v.append(" IS NOT NULL THEN 1 END)");
             Ok(())
         });
@@ -673,7 +726,10 @@ impl Sqlite {
                     Some(o) => o == NullOrder::NullsFirst,
                     None => !k.ascending,
                 };
-                w.append("julianday(").expr(self, &k.expr, 0)?.append(")").append(if k.ascending { "" } else { " DESC" });
+                w.append("julianday(")
+                    .expr(self, &k.expr, 0)?
+                    .append(")")
+                    .append(if k.ascending { "" } else { " DESC" });
                 w.append(if nulls_first { " NULLS FIRST" } else { " NULLS LAST" });
             } else {
                 w.join(order_by, ", ", |w, k| self.sort_key(w, k))?;
@@ -683,7 +739,10 @@ impl Sqlite {
         if let Some(f) = frame {
             let from = self.frame_bound(&f.from, days)?;
             let to = self.frame_bound(&f.to, days)?;
-            w.append(if any { " " } else { "" }).append(f.kind.as_str()).append(" BETWEEN ").append(&from);
+            w.append(if any { " " } else { "" })
+                .append(f.kind.as_str())
+                .append(" BETWEEN ")
+                .append(&from);
             w.append(" AND ").append(&to);
         }
         w.append(")");

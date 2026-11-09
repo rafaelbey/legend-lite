@@ -24,7 +24,11 @@ fn runs() -> Vec<(u32, u32, u32)> {
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     let mut lines = text.lines();
     let header = lines.next().expect("a header");
-    assert_eq!(header, format!("# first\tlast\t{}", PREDICATES.join(",")), "the TSV's columns are the predicates'");
+    assert_eq!(
+        header,
+        format!("# first\tlast\t{}", PREDICATES.join(",")),
+        "the TSV's columns are the predicates'"
+    );
     lines
         .map(|line| {
             let mut f = line.split('\t');
@@ -32,7 +36,10 @@ fn runs() -> Vec<(u32, u32, u32)> {
             let last = u32::from_str_radix(f.next().expect("last"), 16).expect("hex");
             let flags = f.next().expect("flags");
             assert_eq!(flags.len(), PREDICATES.len(), "{line}");
-            let bits = flags.bytes().enumerate().fold(0, |b, (i, c)| if c == b'1' { b | 1 << i } else { b });
+            let bits = flags
+                .bytes()
+                .enumerate()
+                .fold(0, |b, (i, c)| if c == b'1' { b | 1 << i } else { b });
             (first, last, bits)
         })
         .collect()
@@ -94,7 +101,12 @@ fn the_packed_runs_are_the_tsvs() {
 fn source(packed: &[u32]) -> String {
     let rows: Vec<String> = packed
         .chunks(8)
-        .map(|c| format!("    {},", c.iter().map(|r| format!("0x{r:08X}")).collect::<Vec<_>>().join(", ")))
+        .map(|c| {
+            format!(
+                "    {},",
+                c.iter().map(|r| format!("0x{r:08X}")).collect::<Vec<_>>().join(", ")
+            )
+        })
         .collect();
     format!(
         "// Copyright 2026 Legend Contributors\n// SPDX-License-Identifier: Apache-2.0\n\n// GENERATED from \

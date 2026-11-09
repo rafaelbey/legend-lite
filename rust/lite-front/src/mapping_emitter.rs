@@ -8,8 +8,8 @@
 //! order (`emitter`'s module comment).
 
 use crate::emitter::{
-    Buf, Em, comma_each, element_ptr, illegal_state, instances_collection, join_ptr, lambda, npe, placeless,
-    pointer, rel_op, src_info, str, strs_each, table_ptr, value_spec,
+    Buf, Em, comma_each, element_ptr, illegal_state, instances_collection, join_ptr, lambda, npe, placeless, pointer,
+    rel_op, src_info, str, strs_each, table_ptr, value_spec,
 };
 use crate::jtypes::{JStr, JValue};
 use crate::records::*;
@@ -540,7 +540,11 @@ pub fn mapping_include(b: &mut Buf, inc: &PMappingInclude) -> Em {
     let Some(included) = &inc.included_mapping else {
         return Err(npe(None));
     };
-    placeless(inc.substitutions.len() <= 1, "an include's several store substitutions", &included.0)?;
+    placeless(
+        inc.substitutions.len() <= 1,
+        "an include's several store substitutions",
+        &included.0,
+    )?;
     b.a("{\"_type\":\"mappingIncludeMapping\",\"includedMapping\":");
     str(b, included);
     if let Some(s) = &inc.source_database_path {
@@ -1007,9 +1011,7 @@ fn class_mapping_class(cm: &PClassMapping) -> &'static str {
         PClassMapping::PClassMappingOperation(_) => "com.legend.protocol.Protocol$PClassMappingOperation",
         PClassMapping::PClassMappingRelation(_) => "com.legend.protocol.Protocol$PClassMappingRelation",
         PClassMapping::PClassMappingMergeOperation(_) => "com.legend.protocol.Protocol$PClassMappingMergeOperation",
-        PClassMapping::PClassMappingAggregationAware(_) => {
-            "com.legend.protocol.Protocol$PClassMappingAggregationAware"
-        }
+        PClassMapping::PClassMappingAggregationAware(_) => "com.legend.protocol.Protocol$PClassMappingAggregationAware",
         PClassMapping::PClassMappingFunction(_) => "com.legend.protocol.Protocol$PClassMappingFunction",
         PClassMapping::PServiceStoreClassMapping(_) => "com.legend.protocol.Protocol$PServiceStoreClassMapping",
         PClassMapping::PClassMappingMongoDb(_) => "com.legend.protocol.Protocol$PClassMappingMongoDb",
@@ -1339,7 +1341,12 @@ pub fn rel_property_mapping(b: &mut Buf, pmi: &PPropertyMapping) -> Em {
                 local_prop(b, lp);
                 b.ch(b',');
             }
-            property_ref(b, pm.owner_class.as_ref(), &pm.property, pm.property_source_information.as_deref());
+            property_ref(
+                b,
+                pm.owner_class.as_ref(),
+                &pm.property,
+                pm.property_source_information.as_deref(),
+            );
             b.a(",\"relationalOperation\":");
             rel_op(b, &pm.relational_operation, true);
             if let Some(s) = &pm.source {
@@ -1378,7 +1385,12 @@ pub fn rel_property_mapping(b: &mut Buf, pmi: &PPropertyMapping) -> Em {
                 str(b, id);
             }
             b.ch(b',');
-            property_ref(b, em.owner_class.as_ref(), &em.property, em.property_source_information.as_deref());
+            property_ref(
+                b,
+                em.owner_class.as_ref(),
+                &em.property,
+                em.property_source_information.as_deref(),
+            );
             b.a(",\"sourceInformation\":");
             src_info(b, em.source_information.as_deref());
             if let Some(id) = &em.id {
@@ -1394,7 +1406,12 @@ pub fn rel_property_mapping(b: &mut Buf, pmi: &PPropertyMapping) -> Em {
                 str(b, id);
             }
             b.ch(b',');
-            property_ref(b, ie.owner_class.as_ref(), &ie.property, ie.property_source_information.as_deref());
+            property_ref(
+                b,
+                ie.owner_class.as_ref(),
+                &ie.property,
+                ie.property_source_information.as_deref(),
+            );
             b.a(",\"setImplementationId\":");
             str(b, &ie.set_implementation_id);
             b.a(",\"sourceInformation\":");
@@ -1420,7 +1437,12 @@ pub fn rel_property_mapping(b: &mut Buf, pmi: &PPropertyMapping) -> Em {
             b.a("],\"root\":false,\"sourceInformation\":");
             src_info(b, oe.class_mapping_source_information.as_deref());
             b.a("},\"otherwisePropertyMapping\":{\"_type\":\"relationalPropertyMapping\",");
-            property_ref(b, oe.owner_class.as_ref(), &oe.property, oe.property_source_information.as_deref());
+            property_ref(
+                b,
+                oe.owner_class.as_ref(),
+                &oe.property,
+                oe.property_source_information.as_deref(),
+            );
             b.a(",\"relationalOperation\":");
             rel_op(b, &oe.otherwise_op, true);
             b.a(",\"sourceInformation\":");
@@ -1428,7 +1450,12 @@ pub fn rel_property_mapping(b: &mut Buf, pmi: &PPropertyMapping) -> Em {
             b.a(",\"target\":");
             str(b, &oe.otherwise_target);
             b.a("},");
-            property_ref(b, oe.owner_class.as_ref(), &oe.property, oe.property_source_information.as_deref());
+            property_ref(
+                b,
+                oe.owner_class.as_ref(),
+                &oe.property,
+                oe.property_source_information.as_deref(),
+            );
             b.a(",\"sourceInformation\":");
             src_info(b, oe.source_information.as_deref());
             b.ch(b'}');

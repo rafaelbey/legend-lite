@@ -47,8 +47,14 @@ pub fn source_expr(e: &SqlExpr) -> Option<&SqlExpr> {
 /// The shared left side of an equality, or of an OR-tree of equalities over the same left side.
 fn condition_source(cond: &SqlExpr) -> Option<&SqlExpr> {
     match cond {
-        SqlExpr::Call { r#fn: SqlFn::Equal, args, .. } if args.len() == 2 => Some(&args[0]),
-        SqlExpr::Call { r#fn: SqlFn::Or, args, .. } => {
+        SqlExpr::Call {
+            r#fn: SqlFn::Equal,
+            args,
+            ..
+        } if args.len() == 2 => Some(&args[0]),
+        SqlExpr::Call {
+            r#fn: SqlFn::Or, args, ..
+        } => {
             let mut src: Option<&SqlExpr> = None;
             for arm in args {
                 let a = condition_source(arm)?;
@@ -75,7 +81,10 @@ mod tests {
     #[test]
     fn a_decode_chain_flattens_through_its_otherwise_and_names_its_one_source() {
         // CASE WHEN t.c = 1 THEN 'A' ELSE CASE WHEN t.c = 2 OR t.c = 3 THEN 'B' ELSE NULL END END
-        let inner = case(vec![when(call(SqlFn::Or, vec![eq("c", 2), eq("c", 3)]), string_lit("B"))], Some(null_lit()));
+        let inner = case(
+            vec![when(call(SqlFn::Or, vec![eq("c", 2), eq("c", 3)]), string_lit("B"))],
+            Some(null_lit()),
+        );
         let chain = case(vec![when(eq("c", 1), string_lit("A"))], Some(inner));
         assert_eq!(flatten_decode(&chain).map(|ws| ws.len()), Some(2));
         assert_eq!(source_expr(&chain), Some(&derived(Some("t"), "c")));
@@ -85,7 +94,10 @@ mod tests {
         // a branch that is no string literal, a terminal that is no NULL, two sources: not a decode over one source
         assert!(flatten_decode(&case(vec![when(eq("c", 1), int_lit(1))], None)).is_none());
         assert!(flatten_decode(&case(vec![when(eq("c", 1), string_lit("A"))], Some(string_lit("Z")))).is_none());
-        let two = case(vec![when(eq("c", 1), string_lit("A")), when(eq("d", 2), string_lit("B"))], None);
+        let two = case(
+            vec![when(eq("c", 1), string_lit("A")), when(eq("d", 2), string_lit("B"))],
+            None,
+        );
         assert!(flatten_decode(&two).is_some());
         assert_eq!(source_expr(&two), None);
         // any other expression is no chain

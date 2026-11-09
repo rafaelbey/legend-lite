@@ -144,7 +144,11 @@ fn activator_kinds(section: &str) -> Option<&'static [&'static str]> {
         "Snowflake" => &["SnowflakeApp", "SnowflakeM2MUdf", "SnowflakeAppDeploymentConfiguration"],
         "MemSql" => &["MemSqlFunction", "MemSqlFunctionDeploymentConfiguration"],
         "BigQuery" => &["BigQueryFunction", "BigQueryFunctionDeploymentConfiguration"],
-        "HostedService" => &["HostedService", "ExecutionEnvironment", "HostedServiceDeploymentConfiguration"],
+        "HostedService" => &[
+            "HostedService",
+            "ExecutionEnvironment",
+            "HostedServiceDeploymentConfiguration",
+        ],
         "FunctionJar" => &["FunctionJar"],
         _ => return None,
     })
@@ -189,7 +193,11 @@ struct DocSection {
 /// `PmcdParser.requireCleanHeader`: residue after a section name is the engine's refusal.
 fn require_clean_header(h: &SectionHeader) -> R<()> {
     if let Some(r) = &h.residue_token {
-        return Err(JavaError::parse(jcat!("Unexpected token '", r, "'"), h.residue_line, h.residue_col));
+        return Err(JavaError::parse(
+            jcat!("Unexpected token '", r, "'"),
+            h.residue_line,
+            h.residue_col,
+        ));
     }
     Ok(())
 }
@@ -232,7 +240,11 @@ fn parse_into(
         sections: p_sections,
     })));
     Ok(PmcdParserParsed {
-        model: Box::new(PureModelContextData { elements, serializer: None, origin: None }),
+        model: Box::new(PureModelContextData {
+            elements,
+            serializer: None,
+            origin: None,
+        }),
         unclaimed: unclaimed.into_iter().map(Box::new).collect(),
     })
 }
@@ -255,7 +267,12 @@ fn parse_sections(
     met: &mut Vec<OverlaySection>,
 ) -> R<Vec<DocSection>> {
     let ts = tokenize(source);
-    let mut bounds = vec![Bounds { name: u("Pure"), header_start: -1, content_start: 0, name_offset: -1 }];
+    let mut bounds = vec![Bounds {
+        name: u("Pure"),
+        header_start: -1,
+        content_start: 0,
+        name_offset: -1,
+    }];
     for h in &ts.section_headers {
         require_clean_header(h)?;
         bounds.push(Bounds {
@@ -268,7 +285,11 @@ fn parse_sections(
     let mut out = Vec::new();
     for i in 0..bounds.len() {
         let bd = &bounds[i];
-        let content_end = if i + 1 < bounds.len() { bounds[i + 1].header_start - 1 } else { source.len() as isize };
+        let content_end = if i + 1 < bounds.len() {
+            bounds[i + 1].header_start - 1
+        } else {
+            source.len() as isize
+        };
         let span = section_span(&ts, &bd.name, bd.header_start, content_end);
         let range = (bd.content_start as isize, content_end);
         let name = String::from_utf16_lossy(&bd.name);
@@ -311,7 +332,13 @@ fn parse_sections(
             })();
             // PARITY's ruling-4 rows that legend-engine answers from its section catch-all: the section's start
             let (elements, imports) = walked.map_err(|e: JavaError| e.at_section(&span))?;
-            DocSection { parser_name: bd.name.clone(), elements, imports, span, overlay: None }
+            DocSection {
+                parser_name: bd.name.clone(),
+                elements,
+                imports,
+                span,
+                overlay: None,
+            }
         };
         out.push(section);
     }
@@ -328,7 +355,11 @@ fn registered(
     overlays: &[OverlayGrammar<'_>],
     unclaimed: &mut Vec<PmcdParserUnclaimedSection>,
 ) -> R<Option<(usize, usize, usize)>> {
-    let skipped = ts.skipped_sections.iter().rev().find(|sk| sk.name_offset as isize == bd.name_offset);
+    let skipped = ts
+        .skipped_sections
+        .iter()
+        .rev()
+        .find(|sk| sk.name_offset as isize == bd.name_offset);
     let name_offset = bd.name_offset as usize;
     let grammar = overlays.iter().rev().find(|g| g.name == bd.name.as_slice());
     let Some(grammar) = grammar else {
@@ -388,9 +419,17 @@ fn section_span(ts: &TokenStream<'_>, name: &[u16], header_start: isize, content
         (ts.line_of(nl) as i32 + 2, ts.column_of(nl) as i32)
     };
     let last_content = content_end - 1;
-    let first_content = if header_start < 0 { 0 } else { header_start + 3 + name.len() as isize };
+    let first_content = if header_start < 0 {
+        0
+    } else {
+        header_start + 3 + name.len() as isize
+    };
     if header_start < 0 && last_content < 0 {
-        return if last_content == -1 { si(1, 1, 2, 8) } else { si(1, 1, 1, 8) };
+        return if last_content == -1 {
+            si(1, 1, 2, 8)
+        } else {
+            si(1, 1, 1, 8)
+        };
     }
     if last_content < first_content {
         let len = 4 + name.len() as i32;
@@ -400,7 +439,12 @@ fn section_span(ts: &TokenStream<'_>, name: &[u16], header_start: isize, content
         return si(start_line, start_col, start_line, start_col + len - 1);
     }
     let lc = last_content as usize;
-    si(start_line, start_col, ts.line_of(lc) as i32 + 2, ts.column_of(lc) as i32)
+    si(
+        start_line,
+        start_col,
+        ts.line_of(lc) as i32 + 2,
+        ts.column_of(lc) as i32,
+    )
 }
 
 /// `skipTo`: the first token starting at or after `offset` (a binary search; token starts are sorted).
@@ -561,7 +605,11 @@ fn domain_head(ts: &TokenStream<'_>, cursor: usize) -> i32 {
     if ts.ty(cursor) == T::NATIVE {
         return NATIVE_SITE;
     }
-    if is_identifier_token(ts.ty(cursor)) && eq(ts.text(cursor), "Primitive") { PRIMITIVE_SITE } else { -1 }
+    if is_identifier_token(ts.ty(cursor)) && eq(ts.text(cursor), "Primitive") {
+        PRIMITIVE_SITE
+    } else {
+        -1
+    }
 }
 
 /// `platformHead`: any declaration lite's compiler reads, in any of its built-in sections.
@@ -617,7 +665,11 @@ fn section_elements(
         strict_walk(ts, r, rule, imports_ok, line, heads, name, dialect)
     };
     if !dialect.refuses_platform_dialect() && PLATFORM_OPEN_SECTIONS.contains(&name) {
-        return walk(HeadRule::Platform, None, if name == "Mapping" { header_line } else { -1 });
+        return walk(
+            HeadRule::Platform,
+            None,
+            if name == "Mapping" { header_line } else { -1 },
+        );
     }
     match name {
         "Pure" => walk(HeadRule::Domain, None, -1),
@@ -656,7 +708,11 @@ fn section_elements(
 /// `diagramElements`' and `diagramImports`' shared head: the raw grammar over the section's content
 /// (`source.substring(r[0], r[1])`, its `StringIndexOutOfBoundsException` when an empty section's end precedes its
 /// start), its first line counted from the source's newlines.
-fn diagram_parse(ts: &TokenStream<'_>, r: (isize, isize), dialect: Dialect) -> R<crate::diagram_parser::ParsedDiagrams> {
+fn diagram_parse(
+    ts: &TokenStream<'_>,
+    r: (isize, isize),
+    dialect: Dialect,
+) -> R<crate::diagram_parser::ParsedDiagrams> {
     let source = ts.source();
     let nl = u16::from(b'\n');
     let start_line = 1 + source[..r.0 as usize].iter().filter(|&&c| c == nl).count() as i32;
@@ -762,7 +818,11 @@ fn strict_walk(
                 ts.start_column(cursor) as i32,
             ));
         }
-        let head = if t == T::DOC_STRING && cursor + 1 < n { cursor + 1 } else { cursor };
+        let head = if t == T::DOC_STRING && cursor + 1 < n {
+            cursor + 1
+        } else {
+            cursor
+        };
         let kind = rule.kind_of(ts, head);
         if kind == SKIP {
             let mut p = ElementCursor::at(ts, cursor, dialect);
@@ -863,7 +923,13 @@ fn parse_one_at(
         8 => {
             let (db, end) = parse_database(ts, site, dialect)?;
             let path = qualified_name(&db.pkg.0, &db.name.0);
-            return Ok((Some(DocElement { path: Some(JStr(path)), element: Element::PDatabase(Box::new(db)) }), end));
+            return Ok((
+                Some(DocElement {
+                    path: Some(JStr(path)),
+                    element: Element::PDatabase(Box::new(db)),
+                }),
+                end,
+            ));
         }
         9 => {
             // a headerless mapping (the platform dialect) anchors to its enclosing ###Mapping header, if any
@@ -874,12 +940,24 @@ fn parse_one_at(
             };
             let (m, end) = parse_mapping(ts, site, line, dialect)?;
             let path = qualified_name(&m.pkg.0, &m.name.0);
-            return Ok((Some(DocElement { path: Some(JStr(path)), element: Element::PMapping(Box::new(m)) }), end));
+            return Ok((
+                Some(DocElement {
+                    path: Some(JStr(path)),
+                    element: Element::PMapping(Box::new(m)),
+                }),
+                end,
+            ));
         }
         10 => {
             let (d, end) = parse_data(ts, site, dialect)?;
             let path = qualified_name(&d.pkg.0, &d.name.0);
-            return Ok((Some(DocElement { path: Some(JStr(path)), element: Element::PDataElement(Box::new(d)) }), end));
+            return Ok((
+                Some(DocElement {
+                    path: Some(JStr(path)),
+                    element: Element::PDataElement(Box::new(d)),
+                }),
+                end,
+            ));
         }
         11 => {
             let kinds = activator_kinds(section).expect("an activator section has its kinds");
@@ -896,12 +974,24 @@ fn parse_one_at(
                             || fa.kind == "MemSqlFunctionDeploymentConfiguration"
                             || fa.kind == "HostedServiceDeploymentConfiguration";
                         let path = (!unnamed).then(|| JStr(qualified_name(&fa.pkg.0, &fa.name.0)));
-                        (Some(DocElement { path, element: Element::PFunctionActivator(fa) }), end)
+                        (
+                            Some(DocElement {
+                                path,
+                                element: Element::PFunctionActivator(fa),
+                            }),
+                            end,
+                        )
                     }
                 }
                 Element::PExecutionEnvironment(ee) => {
                     let path = Some(JStr(qualified_name(&ee.pkg.0, &ee.name.0)));
-                    (Some(DocElement { path, element: Element::PExecutionEnvironment(ee) }), end)
+                    (
+                        Some(DocElement {
+                            path,
+                            element: Element::PExecutionEnvironment(ee),
+                        }),
+                        end,
+                    )
                 }
                 _ => unreachable!("an activator section's element is an activator or an execution environment"),
             });
@@ -913,7 +1003,13 @@ fn parse_one_at(
         // the kinds are this file's constants, each with an arm above
         _ => unreachable!("unknown site kind {kind}"),
     };
-    Ok((Some(DocElement { path: Some(JStr(path)), element }), p.pos))
+    Ok((
+        Some(DocElement {
+            path: Some(JStr(path)),
+            element,
+        }),
+        p.pos,
+    ))
 }
 
 #[cfg(test)]
@@ -926,14 +1022,27 @@ mod tests {
     fn an_overlay_section_is_handed_back_where_its_elements_go() {
         let text = u(TOY);
         let toy = u("Toy");
-        let a = parse_with_overlays(&text, Dialect::LegendLite, &[OverlayGrammar { name: &toy, lexable: false }]);
+        let a = parse_with_overlays(
+            &text,
+            Dialect::LegendLite,
+            &[OverlayGrammar {
+                name: &toy,
+                lexable: false,
+            }],
+        );
         let parsed = a.parsed.expect("parses");
-        assert_eq!(parsed.model.elements.len(), 2, "the class and the section index; no opaque element");
+        assert_eq!(
+            parsed.model.elements.len(),
+            2,
+            "the class and the section index; no opaque element"
+        );
         let o = &a.overlays[..];
         assert_eq!(o.len(), 1);
         assert_eq!((o[0].element_index, o[0].section_index, o[0].start_line), (1, 1, 4));
         assert_eq!(&text[o[0].start_offset..o[0].end_offset], &u("Toy my::toys::T1;\n")[..]);
-        let Element::PSectionIndex(index) = &parsed.model.elements[1] else { panic!("the index is last") };
+        let Element::PSectionIndex(index) = &parsed.model.elements[1] else {
+            panic!("the index is last")
+        };
         assert!(index.sections[1].elements.is_empty() && index.sections[1].parser_name == "Toy");
     }
 
@@ -941,7 +1050,10 @@ mod tests {
     fn an_unknown_section_is_each_dialect_s_own() {
         let text = u(TOY);
         let engine = parse(&text, Dialect::LegendEngine).unwrap_err();
-        assert_eq!(engine.message, Some(JStr::from("[4:1] 'Toy' is not a known section parser")));
+        assert_eq!(
+            engine.message,
+            Some(JStr::from("[4:1] 'Toy' is not a known section parser"))
+        );
         let lite = parse(&text, Dialect::LegendLite).unwrap_err();
         assert_eq!(lite.position, Some((3, 4)));
         let platform = parse(&text, Dialect::LegendPlatform).expect("records it unclaimed");
@@ -972,20 +1084,32 @@ mod tests {
         let text = u("Class A {}\n###Persistence\nPersistence p::P\n{\n}\n");
         let refused = parse(&text, Dialect::LegendLite).unwrap_err();
         assert_eq!(refused.message, Some(JStr::from("[3:1] Field 'doc' is required")));
-        assert!(parse(&u("###Persistence\n"), Dialect::LegendLite).is_ok(), "an empty section parses");
+        assert!(
+            parse(&u("###Persistence\n"), Dialect::LegendLite).is_ok(),
+            "an empty section parses"
+        );
     }
 
     #[test]
     fn a_diagram_section_is_its_raw_grammar_s() {
         let text = u("###Diagram\nimport a::b::*;\nimport a::b::*;\nDiagram d::D\n{\n}\n");
         let parsed = parse(&text, Dialect::LegendEngine).expect("parses");
-        let Element::PSectionIndex(index) = &parsed.model.elements[1] else { panic!("the index is last") };
-        assert_eq!(index.sections[1].imports, vec![JStr::from("a::b")], "the wildcard dropped, each once");
+        let Element::PSectionIndex(index) = &parsed.model.elements[1] else {
+            panic!("the index is last")
+        };
+        assert_eq!(
+            index.sections[1].imports,
+            vec![JStr::from("a::b")],
+            "the wildcard dropped, each once"
+        );
         assert_eq!(index.sections[1].elements, vec![Some(JStr::from("d::D"))]);
         // an empty section followed by another: its content ends before it starts, and `substring` refuses
         let empty = parse(&u("###Diagram\n###Pure\nClass A {}\n"), Dialect::LegendEngine).unwrap_err();
         assert_eq!(empty.class, "java.lang.StringIndexOutOfBoundsException");
-        assert_eq!(empty.message, Some(JStr::from("Range [11, 10) out of bounds for length 30")));
+        assert_eq!(
+            empty.message,
+            Some(JStr::from("Range [11, 10) out of bounds for length 30"))
+        );
     }
 
     #[test]
@@ -995,9 +1119,19 @@ mod tests {
             "###BigQuery\nBigQueryFunctionDeploymentConfiguration c::D\n{\n  activationConnection: a::C;\n}\n"
         ));
         let parsed = parse(&text, Dialect::LegendEngine).expect("parses");
-        assert_eq!(parsed.model.elements.len(), 2, "the Snowflake configuration dropped; the BigQuery one and the index");
-        let Element::PSectionIndex(index) = &parsed.model.elements[1] else { panic!("the index is last") };
+        assert_eq!(
+            parsed.model.elements.len(),
+            2,
+            "the Snowflake configuration dropped; the BigQuery one and the index"
+        );
+        let Element::PSectionIndex(index) = &parsed.model.elements[1] else {
+            panic!("the index is last")
+        };
         assert!(index.sections[1].elements.is_empty());
-        assert_eq!(index.sections[2].elements, vec![None], "a configuration's walker registers no path");
+        assert_eq!(
+            index.sections[2].elements,
+            vec![None],
+            "a configuration's walker registers no path"
+        );
     }
 }

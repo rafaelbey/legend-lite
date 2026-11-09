@@ -14,7 +14,9 @@ use crate::doors::JavaError;
 use crate::jcat;
 use crate::jtypes::JStr;
 use crate::lexer::TokenType;
-use crate::records::{PServiceStoreDefinition, PServiceStoreElement, PSsParam, PSsService, PSsServiceGroup, PSsTypeRef};
+use crate::records::{
+    PServiceStoreDefinition, PServiceStoreElement, PSsParam, PSsService, PSsServiceGroup, PSsTypeRef,
+};
 use crate::sections::{head, string_value};
 use crate::ustr::{ends_with, eq, index_of_units, starts_with, u};
 use std::collections::HashSet;
@@ -67,10 +69,17 @@ pub fn parse_service_store<'s>(c: &mut impl Cursor<'s>) -> R<PServiceStoreDefini
         return Err(throw_at(
             c.tokens(),
             h.decl_start,
-            jcat!("Service Store Elements should have unique ids. Multiple elements found with ids - ", list),
+            jcat!(
+                "Service Store Elements should have unique ids. Multiple elements found with ids - ",
+                list
+            ),
         ));
     }
-    let description = if c.dialect().refuses_lite_extensions() { None } else { description };
+    let description = if c.dialect().refuses_lite_extensions() {
+        None
+    } else {
+        description
+    };
     Ok(PServiceStoreDefinition {
         pkg: JStr(h.pkg),
         name: JStr(h.name),
@@ -107,7 +116,12 @@ fn parse_group<'s>(c: &mut impl Cursor<'s>) -> R<PSsServiceGroup> {
     let Some(path) = path else {
         return Err(c.error(jcat!("ServiceGroup '", id, "' needs a path")));
     };
-    Ok(PSsServiceGroup { id: JStr(id), path: JStr(path), elements, source_information: c.span(start, c.pos() - 1) })
+    Ok(PSsServiceGroup {
+        id: JStr(id),
+        path: JStr(path),
+        elements,
+        source_information: c.span(start, c.pos() - 1),
+    })
 }
 
 fn id_of(e: &PServiceStoreElement) -> &[u16] {
@@ -146,7 +160,11 @@ fn parse_service<'s>(c: &mut impl Cursor<'s>) -> R<PSsService> {
             }
             let m = c.parse_identifier()?;
             if !eq(&m, "GET") && !eq(&m, "POST") {
-                return Err(c.error(jcat!("Unsupported HTTP Method type - ", m, ". Supported types are - GET,POST")));
+                return Err(c.error(jcat!(
+                    "Unsupported HTTP Method type - ",
+                    m,
+                    ". Supported types are - GET,POST"
+                )));
             }
             method = Some(m);
         } else if eq(&key, "parameters") {
@@ -170,14 +188,21 @@ fn parse_service<'s>(c: &mut impl Cursor<'s>) -> R<PSsService> {
         return Err(c.error(jcat!("Service '", id, "' needs path, method and response")));
     };
     if eq(&method, "GET") && request_body.is_some() {
-        return Err(throw_at(c.tokens(), start, JStr::from("Request Body should not be specified for GET end point")));
+        return Err(throw_at(
+            c.tokens(),
+            start,
+            JStr::from("Request Body should not be specified for GET end point"),
+        ));
     }
     if let Some(params) = &parameters {
         let mut missing: Vec<&[u16]> = Vec::new();
         for pm in params {
             if pm.location == "PATH" {
                 if pm.required == Some(false) {
-                    let s = pm.source_information.as_deref().expect("a parsed node always carries its span");
+                    let s = pm
+                        .source_information
+                        .as_deref()
+                        .expect("a parsed node always carries its span");
                     return Err(JavaError::parse(
                         JStr::from("Path parameters cannot be optional"),
                         s.start_line,
@@ -258,7 +283,11 @@ fn parse_parameter<'s>(c: &mut impl Cursor<'s>) -> R<PSsParam> {
         let raw = c.text();
         if raw.len() < 2 {
             // a `"` left open at the end of the input: refused at the quote (PARITY row 52)
-            return Err(crate::cursor::refused_at(c.tokens(), start, jcat!("Unexpected token '", raw, "'")));
+            return Err(crate::cursor::refused_at(
+                c.tokens(),
+                start,
+                jcat!("Unexpected token '", raw, "'"),
+            ));
         }
         c.advance()?;
         raw[1..raw.len() - 1].to_vec()
@@ -331,8 +360,10 @@ fn parse_parameter<'s>(c: &mut impl Cursor<'s>) -> R<PSsParam> {
         }
     }
     // the location is one of three ASCII words, so `toUpperCase(Locale.ROOT)` is ASCII's
-    let location: Vec<u16> =
-        location.iter().map(|&ch| if (0x61..=0x7A).contains(&ch) { ch - 32 } else { ch }).collect();
+    let location: Vec<u16> = location
+        .iter()
+        .map(|&ch| if (0x61..=0x7A).contains(&ch) { ch - 32 } else { ch })
+        .collect();
     Ok(PSsParam {
         name: JStr(name),
         r#type: Box::new(ty),
@@ -366,7 +397,19 @@ fn parse_type_ref<'s>(c: &mut impl Cursor<'s>) -> R<PSsTypeRef> {
     }
     let span = c.span(start, c.pos() - 1);
     Ok(match complex_type {
-        Some(ct) => PSsTypeRef { primitive: None, complex_type: Some(JStr(ct)), binding, list, source_information: span },
-        None => PSsTypeRef { primitive: Some(JStr(head)), complex_type: None, binding: None, list, source_information: span },
+        Some(ct) => PSsTypeRef {
+            primitive: None,
+            complex_type: Some(JStr(ct)),
+            binding,
+            list,
+            source_information: span,
+        },
+        None => PSsTypeRef {
+            primitive: Some(JStr(head)),
+            complex_type: None,
+            binding: None,
+            list,
+            source_information: span,
+        },
     })
 }

@@ -28,14 +28,21 @@ pub(super) fn element_sort_of<'a>(x: P<'a>, asc: bool) -> P<'a> {
         });
     }
     pc(move |w| {
-        w.append("(").piece(&*x)?.append(" IS NOT NULL) DESC, ").piece(&*x)?.append(" DESC");
+        w.append("(")
+            .piece(&*x)?
+            .append(" IS NOT NULL) DESC, ")
+            .piece(&*x)?
+            .append(" DESC");
         Ok(())
     })
 }
 
 /// Java's `ORDERED_SETS`.
 fn ordered_set(f: AggFn) -> bool {
-    matches!(f, AggFn::Median | AggFn::Mode | AggFn::QuantileCont | AggFn::QuantileDisc)
+    matches!(
+        f,
+        AggFn::Median | AggFn::Mode | AggFn::QuantileCont | AggFn::QuantileDisc
+    )
 }
 
 /// Java's `PAIRS`.
@@ -45,7 +52,10 @@ fn pair(f: AggFn) -> bool {
 
 /// Java's `MOMENTS`.
 fn moment(f: AggFn) -> bool {
-    matches!(f, AggFn::StddevSamp | AggFn::Stddev | AggFn::StddevPop | AggFn::VarSamp | AggFn::Variance | AggFn::VarPop)
+    matches!(
+        f,
+        AggFn::StddevSamp | AggFn::Stddev | AggFn::StddevPop | AggFn::VarSamp | AggFn::Variance | AggFn::VarPop
+    )
 }
 
 fn quantile_fn(f: AggFn) -> bool {
@@ -93,7 +103,11 @@ impl MariaDb {
         let scaled = {
             let scale = scale.clone();
             pc(move |w| {
-                w.append("(").expr(self, x, 6)?.append(" * ").piece(&*scale)?.append(")");
+                w.append("(")
+                    .expr(self, x, 6)?
+                    .append(" * ")
+                    .piece(&*scale)?
+                    .append(")");
                 Ok(())
             })
         };
@@ -104,9 +118,21 @@ impl MariaDb {
                 Ok(())
             })
         };
-        w.append("((CASE WHEN ABS(").piece(&*scaled)?.append(" - TRUNCATE(").piece(&*scaled)?;
-        w.append(", 0)) = 0.5 AND MOD(").piece(&*r)?.append(", 2) <> 0 THEN ").piece(&*r)?.append(" - SIGN(");
-        w.piece(&*scaled)?.append(") ELSE ").piece(&*r)?.append(" END) / ").piece(&*scale)?.append(")");
+        w.append("((CASE WHEN ABS(")
+            .piece(&*scaled)?
+            .append(" - TRUNCATE(")
+            .piece(&*scaled)?;
+        w.append(", 0)) = 0.5 AND MOD(")
+            .piece(&*r)?
+            .append(", 2) <> 0 THEN ")
+            .piece(&*r)?
+            .append(" - SIGN(");
+        w.piece(&*scaled)?
+            .append(") ELSE ")
+            .piece(&*r)?
+            .append(" END) / ")
+            .piece(&*scale)?
+            .append(")");
         Ok(())
     }
 
@@ -127,7 +153,11 @@ impl MariaDb {
             SqlFn::BitShiftLeft => " << ",
             // a floor division by 2^y in integers
             SqlFn::BitShiftRight => {
-                w.append("(CASE WHEN ").piece(&*x)?.append(" >= 0 THEN ").piece(&*x)?.append(" DIV CAST(1 << ");
+                w.append("(CASE WHEN ")
+                    .piece(&*x)?
+                    .append(" >= 0 THEN ")
+                    .piece(&*x)?
+                    .append(" DIV CAST(1 << ");
                 w.piece(&*y)?
                     .append(" AS SIGNED) ELSE -((-(")
                     .piece(&*x)?
@@ -138,7 +168,11 @@ impl MariaDb {
             }
             other => return Err(Refusal::illegal_state(format!("not a bit op: {other}"))),
         };
-        w.append("CAST(").piece(&*x)?.append(op).piece(&*y)?.append(" AS SIGNED)");
+        w.append("CAST(")
+            .piece(&*x)?
+            .append(op)
+            .piece(&*y)?
+            .append(" AS SIGNED)");
         Ok(())
     }
 
@@ -154,7 +188,9 @@ impl MariaDb {
             A::Max => ansi::aggregate(self, w, "MAX", r),
             // DuckDB's avg is a DOUBLE
             A::Avg => {
-                w.append("AVG(").append(if r.distinct { "DISTINCT " } else { "" }).append("CAST(");
+                w.append("AVG(")
+                    .append(if r.distinct { "DISTINCT " } else { "" })
+                    .append("CAST(");
                 w.expr(self, arg(&r.args, 0)?, 0)?.append(" AS DOUBLE))");
                 Ok(())
             }
@@ -176,7 +212,10 @@ impl MariaDb {
             A::List => self.list_of_values(w, r),
             A::Median => {
                 if r.args.len() != 1 || r.distinct {
-                    return Err(Refusal::capability(format!("a median of this shape reached {}", self.product())));
+                    return Err(Refusal::capability(format!(
+                        "a median of this shape reached {}",
+                        self.product()
+                    )));
                 }
                 let q = self.quantile(A::QuantileCont, &r.args[0], text("0.5"), r);
                 w.piece(&*q)?;
@@ -184,7 +223,11 @@ impl MariaDb {
             }
             A::QuantileCont | A::QuantileDisc => {
                 if r.args.len() != 2 || r.distinct || r.order_by.len() > 1 {
-                    return Err(Refusal::capability(format!("{} of this shape reached {}", r.r#fn, self.product())));
+                    return Err(Refusal::capability(format!(
+                        "{} of this shape reached {}",
+                        r.r#fn,
+                        self.product()
+                    )));
                 }
                 let q = self.quantile(r.r#fn, &r.args[0], self.ex(&r.args[1], 0), r);
                 w.piece(&*q)?;
@@ -219,7 +262,11 @@ impl MariaDb {
 
     /// `name([DISTINCT ]args)` (Java's `aggregateArgs` in a name).
     fn aggregate_of(&self, w: &mut SqlWriter, name: &str, r: &Reducer) -> Result<(), Refusal> {
-        w.append(name).append("(").append(if r.distinct { "DISTINCT " } else { "" }).list(self, &r.args)?.append(")");
+        w.append(name)
+            .append("(")
+            .append(if r.distinct { "DISTINCT " } else { "" })
+            .list(self, &r.args)?
+            .append(")");
         Ok(())
     }
 
@@ -227,11 +274,13 @@ impl MariaDb {
     fn group_concat(&self, w: &mut SqlWriter, r: &Reducer) -> Result<(), Refusal> {
         let comma = crate::build::string_lit(",");
         let sep = if r.args.len() > 1 { &r.args[1] } else { &comma };
-        w.append("GROUP_CONCAT(").append(if r.distinct { "DISTINCT " } else { "" });
+        w.append("GROUP_CONCAT(")
+            .append(if r.distinct { "DISTINCT " } else { "" });
         let t = self.as_text(arg(&r.args, 0)?);
         w.piece(&*t)?;
         if !r.order_by.is_empty() {
-            w.append(" ORDER BY ").join(&r.order_by, ", ", |w, k| self.sort_key(w, k))?;
+            w.append(" ORDER BY ")
+                .join(&r.order_by, ", ", |w, k| self.sort_key(w, k))?;
         }
         let separator = self.literal(sep, "a string_agg separator")?;
         w.append(&format!(" SEPARATOR {})", self.string_literal(separator)));
@@ -267,7 +316,9 @@ impl MariaDb {
         w.append("(SELECT __m.\"v\" FROM JSON_TABLE(JSON_ARRAYAGG(");
         let json = self.json(x);
         w.piece(&*json)?;
-        w.append(&format!("), '$[*]' COLUMNS (\"v\" {type} PATH '$')) AS __m WHERE __m.\"v\" IS NOT NULL"));
+        w.append(&format!(
+            "), '$[*]' COLUMNS (\"v\" {type} PATH '$')) AS __m WHERE __m.\"v\" IS NOT NULL"
+        ));
         w.append(" GROUP BY __m.\"v\" ORDER BY count(*) DESC, __m.\"v\" LIMIT 1)");
         Ok(())
     }
@@ -275,12 +326,18 @@ impl MariaDb {
     /// Java's `argExtreme`: the value at the key's greatest (`asc` false) or least row.
     fn arg_extreme(&self, w: &mut SqlWriter, r: &Reducer, asc: bool) -> Result<(), Refusal> {
         if r.args.len() != 2 || r.distinct || !r.order_by.is_empty() {
-            return Err(Refusal::capability(format!("{} of this shape reached {}", r.r#fn, self.product())));
+            return Err(Refusal::capability(format!(
+                "{} of this shape reached {}",
+                r.r#fn,
+                self.product()
+            )));
         }
         let v = &r.args[0];
         let k = &r.args[1];
         let first = self.array_agg(false, self.json(v), Some(element_sort_of(self.ex(k, 0), asc)), true);
-        w.append("(CASE WHEN count(").expr(self, k, 0)?.append(") = 0 THEN NULL ELSE ");
+        w.append("(CASE WHEN count(")
+            .expr(self, k, 0)?
+            .append(") = 0 THEN NULL ELSE ");
         let at = self.value_at(first, text("'$[0]'"), type_of(v));
         w.piece(&*at)?.append(" END)");
         Ok(())
@@ -291,21 +348,36 @@ impl MariaDb {
         let y = arg(&r.args, 0)?;
         let x = arg(&r.args, 1)?;
         let both = pc(move |w| {
-            w.append("(").expr(self, x, 4)?.append(" IS NOT NULL AND ").expr(self, y, 4)?.append(" IS NOT NULL)");
+            w.append("(")
+                .expr(self, x, 4)?
+                .append(" IS NOT NULL AND ")
+                .expr(self, y, 4)?
+                .append(" IS NOT NULL)");
             Ok(())
         });
         let n = pc(move |w| {
-            w.append("count(").expr(self, x, 6)?.append(" * ").expr(self, y, 6)?.append(")");
+            w.append("count(")
+                .expr(self, x, 6)?
+                .append(" * ")
+                .expr(self, y, 6)?
+                .append(")");
             Ok(())
         });
         let sxy = pc(move |w| {
-            w.append("sum(CAST(").expr(self, x, 0)?.append(" AS DOUBLE) * ").expr(self, y, 6)?.append(")");
+            w.append("sum(CAST(")
+                .expr(self, x, 0)?
+                .append(" AS DOUBLE) * ")
+                .expr(self, y, 6)?
+                .append(")");
             Ok(())
         });
         let sum_of = |v: &'a SqlExpr| {
             let both = both.clone();
             pc(move |w| {
-                w.append("sum(CASE WHEN ").piece(&*both)?.append(" THEN CAST(").expr(self, v, 0)?;
+                w.append("sum(CASE WHEN ")
+                    .piece(&*both)?
+                    .append(" THEN CAST(")
+                    .expr(self, v, 0)?;
                 w.append(" AS DOUBLE) END)");
                 Ok(())
             })
@@ -313,7 +385,10 @@ impl MariaDb {
         let squares_of = |v: &'a SqlExpr| {
             let both = both.clone();
             pc(move |w| {
-                w.append("sum(CASE WHEN ").piece(&*both)?.append(" THEN CAST(").expr(self, v, 0)?;
+                w.append("sum(CASE WHEN ")
+                    .piece(&*both)?
+                    .append(" THEN CAST(")
+                    .expr(self, v, 0)?;
                 w.append(" AS DOUBLE) * ").expr(self, v, 6)?.append(" END)");
                 Ok(())
             })
@@ -322,26 +397,58 @@ impl MariaDb {
         let cxy = {
             let (sxy, sx, sy, n) = (sxy.clone(), sx.clone(), sy.clone(), n.clone());
             pc(move |w| {
-                w.append("(").piece(&*sxy)?.append(" - ").piece(&*sx)?.append(" * ").piece(&*sy)?.append(" / ");
+                w.append("(")
+                    .piece(&*sxy)?
+                    .append(" - ")
+                    .piece(&*sx)?
+                    .append(" * ")
+                    .piece(&*sy)?
+                    .append(" / ");
                 w.piece(&*n)?.append(")");
                 Ok(())
             })
         };
         Ok(match r.r#fn {
             AggFn::CovarPop => pc(move |w| {
-                w.append("(CASE WHEN ").piece(&*n)?.append(" > 0 THEN ").piece(&*cxy)?.append(" / ").piece(&*n)?;
+                w.append("(CASE WHEN ")
+                    .piece(&*n)?
+                    .append(" > 0 THEN ")
+                    .piece(&*cxy)?
+                    .append(" / ")
+                    .piece(&*n)?;
                 w.append(" END)");
                 Ok(())
             }),
             AggFn::CovarSamp => pc(move |w| {
-                w.append("(CASE WHEN ").piece(&*n)?.append(" > 1 THEN ").piece(&*cxy)?.append(" / (").piece(&*n)?;
+                w.append("(CASE WHEN ")
+                    .piece(&*n)?
+                    .append(" > 1 THEN ")
+                    .piece(&*cxy)?
+                    .append(" / (")
+                    .piece(&*n)?;
                 w.append(" - 1) END)");
                 Ok(())
             }),
             _ => pc(move |w| {
-                w.append("(CASE WHEN ").piece(&*n)?.append(" > 1 THEN ").piece(&*cxy)?.append(" / SQRT((");
-                w.piece(&*sxx)?.append(" - ").piece(&*sx)?.append(" * ").piece(&*sx)?.append(" / ").piece(&*n)?;
-                w.append(") * (").piece(&*syy)?.append(" - ").piece(&*sy)?.append(" * ").piece(&*sy)?.append(" / ");
+                w.append("(CASE WHEN ")
+                    .piece(&*n)?
+                    .append(" > 1 THEN ")
+                    .piece(&*cxy)?
+                    .append(" / SQRT((");
+                w.piece(&*sxx)?
+                    .append(" - ")
+                    .piece(&*sx)?
+                    .append(" * ")
+                    .piece(&*sx)?
+                    .append(" / ")
+                    .piece(&*n)?;
+                w.append(") * (")
+                    .piece(&*syy)?
+                    .append(" - ")
+                    .piece(&*sy)?
+                    .append(" * ")
+                    .piece(&*sy)?
+                    .append(" / ");
                 w.piece(&*n)?.append(")) END)");
                 Ok(())
             }),
@@ -363,7 +470,11 @@ impl MariaDb {
         if f == AggFn::QuantileDisc {
             let (n, q) = (n.clone(), q.clone());
             return at(pc(move |w| {
-                w.append("GREATEST(CEIL(").piece(&*n)?.append(" * (").piece(&*q)?.append(")) - 1, 0)");
+                w.append("GREATEST(CEIL(")
+                    .piece(&*n)?
+                    .append(" * (")
+                    .piece(&*q)?
+                    .append(")) - 1, 0)");
                 Ok(())
             }));
         }
@@ -414,7 +525,11 @@ impl MariaDb {
         let at = |i: P<'a>| -> P<'a> {
             let (rank, over) = (rank.clone(), over.clone());
             pc(move |v| {
-                v.append("MAX(CASE WHEN ").expr(self, &rank, 0)?.append(" = ").piece(&*i)?.append(" + 1 THEN ");
+                v.append("MAX(CASE WHEN ")
+                    .expr(self, &rank, 0)?
+                    .append(" = ")
+                    .piece(&*i)?
+                    .append(" + 1 THEN ");
                 if disc {
                     v.expr(self, x, 0)?;
                 } else {
@@ -427,14 +542,22 @@ impl MariaDb {
         if disc {
             let (n, q) = (n.clone(), q.clone());
             return Ok(at(pc(move |v| {
-                v.append("GREATEST(CEIL(").expr(self, &n, 0)?.append(" * (").piece(&*q)?.append(")) - 1, 0)");
+                v.append("GREATEST(CEIL(")
+                    .expr(self, &n, 0)?
+                    .append(" * (")
+                    .piece(&*q)?
+                    .append(")) - 1, 0)");
                 Ok(())
             })));
         }
         let pos = {
             let (n, q) = (n.clone(), q.clone());
             pc(move |v| {
-                v.append("((").piece(&*q)?.append(") * (").expr(self, &n, 0)?.append(" - 1))");
+                v.append("((")
+                    .piece(&*q)?
+                    .append(") * (")
+                    .expr(self, &n, 0)?
+                    .append(" - 1))");
                 Ok(())
             })
         };
@@ -454,7 +577,12 @@ impl MariaDb {
         order_by: &[SortKey],
         frame: Option<&Frame>,
     ) -> Result<(), Refusal> {
-        let window = Counted::Window { r#fn: f, partition_by, order_by, frame };
+        let window = Counted::Window {
+            r#fn: f,
+            partition_by,
+            order_by,
+            frame,
+        };
         let whole = order_by.is_empty() && frame.is_none();
         match f {
             SqlAgg::Reducer(r) if !self.window_quantiles_native() && quantile_fn(r.r#fn) && whole => {
@@ -465,13 +593,19 @@ impl MariaDb {
             SqlAgg::Reducer(r) if quantile_fn(r.r#fn) && whole => {
                 let x = arg(&r.args, 0)?;
                 let desc = r.order_by.first().is_some_and(|k| !k.ascending);
-                w.append(if r.r#fn == AggFn::QuantileDisc { "PERCENTILE_DISC(" } else { "PERCENTILE_CONT(" });
+                w.append(if r.r#fn == AggFn::QuantileDisc {
+                    "PERCENTILE_DISC("
+                } else {
+                    "PERCENTILE_CONT("
+                });
                 if r.r#fn == AggFn::Median {
                     w.append("0.5");
                 } else {
                     w.expr(self, arg(&r.args, 1)?, 0)?;
                 }
-                w.append(") WITHIN GROUP (ORDER BY ").expr(self, x, 0)?.append(if desc { " DESC)" } else { ")" });
+                w.append(") WITHIN GROUP (ORDER BY ")
+                    .expr(self, x, 0)?
+                    .append(if desc { " DESC)" } else { ")" });
                 return self.window_over(w, partition_by, order_by, frame);
             }
             SqlAgg::Reducer(r) if r.r#fn == AggFn::Mode && whole => {
@@ -511,8 +645,11 @@ impl MariaDb {
                 }
                 let unordered = crate::build::reducer(r.r#fn, r.args.clone(), r.distinct, Vec::new());
                 self.reducer(w, &unordered)?;
-                let whole_partition =
-                    Frame { kind: FrameKind::Rows, from: Bound::UnboundedPreceding, to: Bound::UnboundedFollowing };
+                let whole_partition = Frame {
+                    kind: FrameKind::Rows,
+                    from: Bound::UnboundedPreceding,
+                    to: Bound::UnboundedFollowing,
+                };
                 return self.window_over(w, partition_by, &r.order_by, Some(&whole_partition));
             }
             SqlAgg::Reducer(r) => self.reducer(w, r)?,
@@ -548,16 +685,28 @@ impl MariaDb {
             Ok(())
         }));
         let sxx = over(pc(move |v| {
-            v.append("sum(CAST(").expr(self, x, 0)?.append(" AS DECIMAL(65,0)) * CAST(").expr(self, x, 0)?;
+            v.append("sum(CAST(")
+                .expr(self, x, 0)?
+                .append(" AS DECIMAL(65,0)) * CAST(")
+                .expr(self, x, 0)?;
             v.append(" AS DECIMAL(65,0)))");
             Ok(())
         }));
-        let sample = matches!(r.r#fn, AggFn::StddevSamp | AggFn::Stddev | AggFn::VarSamp | AggFn::Variance);
+        let sample = matches!(
+            r.r#fn,
+            AggFn::StddevSamp | AggFn::Stddev | AggFn::VarSamp | AggFn::Variance
+        );
         let root = matches!(r.r#fn, AggFn::StddevSamp | AggFn::Stddev | AggFn::StddevPop);
         let variance = {
             let n = n.clone();
             pc(move |v| {
-                v.append("CAST((").piece(&*sxx)?.append(" * ").piece(&*n)?.append(" - ").piece(&*sx)?.append(" * ");
+                v.append("CAST((")
+                    .piece(&*sxx)?
+                    .append(" * ")
+                    .piece(&*n)?
+                    .append(" - ")
+                    .piece(&*sx)?
+                    .append(" * ");
                 v.piece(&*sx)?.append(") / (").piece(&*n)?.append(" * ");
                 if sample {
                     v.append("(").piece(&*n)?.append(" - 1)");
@@ -569,7 +718,10 @@ impl MariaDb {
             })
         };
         Ok(pc(move |v| {
-            v.append("(CASE WHEN ").piece(&*n)?.append(if sample { " > 1" } else { " > 0" }).append(" THEN ");
+            v.append("(CASE WHEN ")
+                .piece(&*n)?
+                .append(if sample { " > 1" } else { " > 0" })
+                .append(" THEN ");
             if root {
                 v.append("SQRT(").piece(&*variance)?.append(")");
             } else {
@@ -597,7 +749,10 @@ impl MariaDb {
             })
         };
         let both = pc(move |v| {
-            v.append("(CASE WHEN ").expr(self, x, 4)?.append(" IS NOT NULL AND ").expr(self, y, 4)?;
+            v.append("(CASE WHEN ")
+                .expr(self, x, 4)?
+                .append(" IS NOT NULL AND ")
+                .expr(self, y, 4)?;
             v.append(" IS NOT NULL THEN 1 END)");
             Ok(())
         });
@@ -605,14 +760,21 @@ impl MariaDb {
         let times = |a: &'a SqlExpr| {
             let both = both.clone();
             over(pc(move |v| {
-                v.append("CAST(").expr(self, a, 0)?.append(" AS DOUBLE) * ").piece(&*both)?;
+                v.append("CAST(")
+                    .expr(self, a, 0)?
+                    .append(" AS DOUBLE) * ")
+                    .piece(&*both)?;
                 Ok(())
             }))
         };
         let product = |a: &'a SqlExpr, b: &'a SqlExpr| {
             let both = both.clone();
             over(pc(move |v| {
-                v.append("CAST(").expr(self, a, 0)?.append(" AS DOUBLE) * ").expr(self, b, 6)?.append(" * ");
+                v.append("CAST(")
+                    .expr(self, a, 0)?
+                    .append(" AS DOUBLE) * ")
+                    .expr(self, b, 6)?
+                    .append(" * ");
                 v.piece(&*both)?;
                 Ok(())
             }))
@@ -622,7 +784,13 @@ impl MariaDb {
         let cxy = {
             let (sx, sy, n) = (sx.clone(), sy.clone(), n.clone());
             pc(move |v| {
-                v.append("(").piece(&*sxy)?.append(" - ").piece(&*sx)?.append(" * ").piece(&*sy)?.append(" / ");
+                v.append("(")
+                    .piece(&*sxy)?
+                    .append(" - ")
+                    .piece(&*sx)?
+                    .append(" * ")
+                    .piece(&*sy)?
+                    .append(" / ");
                 v.piece(&*n)?.append(")");
                 Ok(())
             })
@@ -630,7 +798,13 @@ impl MariaDb {
         let spread = |ss: P<'a>, s: P<'a>| -> P<'a> {
             let n = n.clone();
             pc(move |v| {
-                v.append("GREATEST(").piece(&*ss)?.append(" - ").piece(&*s)?.append(" * ").piece(&*s)?.append(" / ");
+                v.append("GREATEST(")
+                    .piece(&*ss)?
+                    .append(" - ")
+                    .piece(&*s)?
+                    .append(" * ")
+                    .piece(&*s)?
+                    .append(" / ");
                 v.piece(&*n)?.append(", 0.0E0)");
                 Ok(())
             })
@@ -638,17 +812,31 @@ impl MariaDb {
         let (cxx, cyy) = (spread(sxx, sx), spread(syy, sy));
         Ok(match r.r#fn {
             AggFn::CovarPop => pc(move |v| {
-                v.append("(CASE WHEN ").piece(&*n)?.append(" > 0 THEN ").piece(&*cxy)?.append(" / ").piece(&*n)?;
+                v.append("(CASE WHEN ")
+                    .piece(&*n)?
+                    .append(" > 0 THEN ")
+                    .piece(&*cxy)?
+                    .append(" / ")
+                    .piece(&*n)?;
                 v.append(" END)");
                 Ok(())
             }),
             AggFn::CovarSamp => pc(move |v| {
-                v.append("(CASE WHEN ").piece(&*n)?.append(" > 1 THEN ").piece(&*cxy)?.append(" / (").piece(&*n)?;
+                v.append("(CASE WHEN ")
+                    .piece(&*n)?
+                    .append(" > 1 THEN ")
+                    .piece(&*cxy)?
+                    .append(" / (")
+                    .piece(&*n)?;
                 v.append(" - 1) END)");
                 Ok(())
             }),
             _ => pc(move |v| {
-                v.append("(CASE WHEN ").piece(&*n)?.append(" > 1 THEN ").piece(&*cxy)?.append(" / SQRT(");
+                v.append("(CASE WHEN ")
+                    .piece(&*n)?
+                    .append(" > 1 THEN ")
+                    .piece(&*cxy)?
+                    .append(" / SQRT(");
                 v.piece(&*cxx)?.append(" * ").piece(&*cyy)?.append(") END)");
                 Ok(())
             }),
@@ -692,8 +880,10 @@ impl MariaDb {
                     )));
                 }
                 days = true;
-                w.append("(TIMESTAMPDIFF(MICROSECOND, TIMESTAMP '1970-01-01 00:00:00', ").expr(self, &k.expr, 0)?;
-                w.append(") / 86400000000)").append(if k.ascending { "" } else { " DESC" });
+                w.append("(TIMESTAMPDIFF(MICROSECOND, TIMESTAMP '1970-01-01 00:00:00', ")
+                    .expr(self, &k.expr, 0)?;
+                w.append(") / 86400000000)")
+                    .append(if k.ascending { "" } else { " DESC" });
             } else if range {
                 // a RANGE frame's one key carries no NULL placement key beside it: a NULL is the key past either end
                 w.join(order_by, ", ", |x, k| {
@@ -702,7 +892,11 @@ impl MariaDb {
                         None => !k.ascending,
                     };
                     x.append("coalesce(").expr(self, &k.expr, 0)?;
-                    x.append(if nulls_first == k.ascending { ", -1.0E308)" } else { ", 1.0E308)" });
+                    x.append(if nulls_first == k.ascending {
+                        ", -1.0E308)"
+                    } else {
+                        ", 1.0E308)"
+                    });
                     x.append(if k.ascending { "" } else { " DESC" });
                     Ok(())
                 })?;
@@ -714,7 +908,10 @@ impl MariaDb {
         if let Some(f) = frame {
             let from = self.frame_bound(&f.from, days)?;
             let to = self.frame_bound(&f.to, days)?;
-            w.append(if any { " " } else { "" }).append(f.kind.as_str()).append(" BETWEEN ").append(&from);
+            w.append(if any { " " } else { "" })
+                .append(f.kind.as_str())
+                .append(" BETWEEN ")
+                .append(&from);
             w.append(" AND ").append(&to);
         }
         w.append(")");
@@ -739,7 +936,9 @@ impl MariaDb {
                 self.product()
             )));
         };
-        Ok(lite_javacompat::double_to_string(n as f64 * micros as f64 / 86_400_000_000.0))
+        Ok(lite_javacompat::double_to_string(
+            n as f64 * micros as f64 / 86_400_000_000.0,
+        ))
     }
 }
 
@@ -763,7 +962,13 @@ fn interpolated<'a>(at: &dyn Fn(P<'a>) -> P<'a>, pos: P<'a>) -> P<'a> {
     let lo = at(floor);
     let hi = at(ceil);
     pc(move |w| {
-        w.append("(").piece(&*lo)?.append(" + (").piece(&*hi)?.append(" - ").piece(&*lo)?.append(") * (");
+        w.append("(")
+            .piece(&*lo)?
+            .append(" + (")
+            .piece(&*hi)?
+            .append(" - ")
+            .piece(&*lo)?
+            .append(") * (");
         w.piece(&*pos)?.append(" - FLOOR(").piece(&*pos)?.append(")))");
         Ok(())
     })
@@ -840,7 +1045,10 @@ pub(super) fn wire_type_name(driver_type_name: Option<&str>) -> String {
 /// Java's `deliversOwn`: a comparison and a boolean are integers; a list, struct, map or Variant JSON text; an
 /// integer sum a DECIMAL of scale 0 or an unsigned BIGINT; a NULL literal's column claims no type.
 pub(super) fn delivers_own(label: &SqlType, wire: &str) -> bool {
-    let integral = matches!(label, SqlType::Scalar(Scalar::Bigint | Scalar::Integer | Scalar::Hugeint));
+    let integral = matches!(
+        label,
+        SqlType::Scalar(Scalar::Bigint | Scalar::Integer | Scalar::Hugeint)
+    );
     let composite = matches!(
         label,
         SqlType::Array { .. } | SqlType::Struct { .. } | SqlType::Map { .. } | SqlType::Scalar(Scalar::Json)

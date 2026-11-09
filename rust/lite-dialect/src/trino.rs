@@ -143,8 +143,12 @@ static LEXICON: LazyLock<Lexicon> = LazyLock::new(|| Lexicon::new('"', RESERVED)
 
 /// Java's `Trino.CAPS`: typed native arrays with lambdas -- the strategies stand aside, as on Databricks; the dialect
 /// writes the static pivot and the as-of join itself (Trino has neither); FULL OUTER is native.
-pub const CAPS: carrier::Caps =
-    carrier::Caps { native_lists: true, correlated_explode: true, json_carrier: true, native_full_outer: true };
+pub const CAPS: carrier::Caps = carrier::Caps {
+    native_lists: true,
+    correlated_explode: true,
+    json_carrier: true,
+    native_full_outer: true,
+};
 
 // ==================================================================
 // Pieces and the type facts the arms read
@@ -268,7 +272,10 @@ fn rows_as_json(s: &SqlSelect) -> Result<Cow<'_, SqlSelect>, Refusal> {
     if !changed {
         return Ok(Cow::Borrowed(s));
     }
-    Ok(Cow::Owned(build::select(SqlSelect { projections: ps, ..s.clone() })?))
+    Ok(Cow::Owned(build::select(SqlSelect {
+        projections: ps,
+        ..s.clone()
+    })?))
 }
 
 // ==================================================================
@@ -297,7 +304,9 @@ impl Trino {
     fn present<'a>(&'a self, xs: &'a SqlExpr) -> P<'a> {
         let list = self.list(xs);
         pc(move |w| {
-            w.append("filter(").piece(&*list)?.append(", \"__x\" -> \"__x\" IS NOT NULL)");
+            w.append("filter(")
+                .piece(&*list)?
+                .append(", \"__x\" -> \"__x\" IS NOT NULL)");
             Ok(())
         })
     }
@@ -316,7 +325,9 @@ impl Trino {
     fn positions<'a>(&'a self, xs: &'a SqlExpr) -> P<'a> {
         let list = self.list(xs);
         pc(move |w| {
-            w.append("slice(sequence(1, cardinality(").piece(&*list)?.append(") + 1), 1, cardinality(");
+            w.append("slice(sequence(1, cardinality(")
+                .piece(&*list)?
+                .append(") + 1), 1, cardinality(");
             w.piece(&*list)?.append("))");
             Ok(())
         })
@@ -325,7 +336,11 @@ impl Trino {
     /// `(SELECT agg FROM UNNEST(xs) AS u(e))`: a list reduced as rows (a correlated scalar subquery); an empty or NULL
     /// list reduces over no rows (Java's `overRows`).
     fn over_rows<'a>(&'a self, xs: &'a SqlExpr, f: AggFn, extras: &[SqlExpr]) -> P<'a> {
-        let e = if list_element(xs).is_none() { build::derived(None, "__e") } else { column_param("__e", xs) };
+        let e = if list_element(xs).is_none() {
+            build::derived(None, "__e")
+        } else {
+            column_param("__e", xs)
+        };
         let mut args = vec![e];
         args.extend(extras.iter().cloned());
         let r = build::reducer(f, args, false, Vec::new());
@@ -364,7 +379,11 @@ impl Trino {
                     Some(out) => Some(&out.r#type),
                     None => type_of(&p.expr),
                 };
-                let element = if null_list(xs) || list_element(xs).is_none() { declared } else { list_element(xs) };
+                let element = if null_list(xs) || list_element(xs).is_none() {
+                    declared
+                } else {
+                    list_element(xs)
+                };
                 let array: P<'_> = if null_list(xs) {
                     pc(move |a| {
                         match declared {
@@ -393,19 +412,23 @@ impl Trino {
                 if is_struct(element) {
                     // UNNEST spreads a ROW element over one column per field: each wrapped in a one-field row stays
                     // one column, the row itself
-                    v.append("transform(").piece(&*array)?.append(", \"__e\" -> ROW(\"__e\"))");
+                    v.append("transform(")
+                        .piece(&*array)?
+                        .append(", \"__e\" -> ROW(\"__e\"))");
                 } else {
                     v.piece(&*array)?;
                 }
                 Ok(())
             })?;
             let a = self.alias_ident(alias);
-            w.append(if ordinal { ") WITH ORDINALITY AS " } else { ") AS " }).append(&a).append("(");
-            let columns =
-                marker.projections.iter().map(|p| Ok(self.alias_ident(&marker_column(p)?))).collect::<Result<
-                    Vec<_>,
-                    Refusal,
-                >>()?;
+            w.append(if ordinal { ") WITH ORDINALITY AS " } else { ") AS " })
+                .append(&a)
+                .append("(");
+            let columns = marker
+                .projections
+                .iter()
+                .map(|p| Ok(self.alias_ident(&marker_column(p)?)))
+                .collect::<Result<Vec<_>, Refusal>>()?;
             w.append(&columns.join(", "));
             if ordinal {
                 let ord = self.alias_ident("__ord");
@@ -460,7 +483,11 @@ impl Trino {
         {
             let t = cast_type_name(self, slot)?;
             return Ok(pc(move |w| {
-                w.append("CAST(").expr(self, e, 0)?.append(" AS ").append(&t).append(")");
+                w.append("CAST(")
+                    .expr(self, e, 0)?
+                    .append(" AS ")
+                    .append(&t)
+                    .append(")");
                 Ok(())
             }));
         }
@@ -498,7 +525,9 @@ impl AnsiSqlRenderer for Trino {
     /// The engine's H2 text is refused here: Trino has no translation of it.
     fn from_engine_text(&self, statement: &str) -> Result<String, Refusal> {
         let _ = statement;
-        Err(Refusal::capability("the engine's H2 text reached Trino, which has no translation of it"))
+        Err(Refusal::capability(
+            "the engine's H2 text reached Trino, which has no translation of it",
+        ))
     }
 
     /// Native lists (the carrier strategies stand aside); a static pivot as a grouped CASE aggregation and an as-of
@@ -569,8 +598,13 @@ impl AnsiSqlRenderer for Trino {
     /// An explosion MARKER is one `UNNEST` of its lists, which Trino pads to the longest with NULL; a lateral one joins
     /// its row (`CROSS JOIN UNNEST`, or `LEFT JOIN UNNEST ... ON TRUE` keeping an empty list's row).
     fn source(&self, w: &mut SqlWriter, src: &SqlSource, depth: usize) -> Result<(), Refusal> {
-        if let SqlSource::Join { left, right, kind: kind @ (JoinKind::CrossLateral | JoinKind::LeftLateral), on, .. } =
-            src
+        if let SqlSource::Join {
+            left,
+            right,
+            kind: kind @ (JoinKind::CrossLateral | JoinKind::LeftLateral),
+            on,
+            ..
+        } = src
             && let SqlSource::Subselect { inner, alias, .. } = right.as_ref()
             && let SqlQuery::Select(m) = inner.as_ref()
             && is_marker_select(m)
@@ -578,7 +612,9 @@ impl AnsiSqlRenderer for Trino {
             if let Some(on) = on
                 && !matches!(on.as_ref(), SqlExpr::BoolLit { value: true, .. })
             {
-                return Err(Refusal::capability("a lateral explosion with a join condition reached Trino"));
+                return Err(Refusal::capability(
+                    "a lateral explosion with a join condition reached Trino",
+                ));
             }
             self.source(w, left, depth)?;
             self.nl(w, depth);
@@ -596,7 +632,14 @@ impl AnsiSqlRenderer for Trino {
         {
             return self.unnest(m, alias, false)(w);
         }
-        if let SqlSource::Join { left, right, kind: JoinKind::LeftLateral, on: None, .. } = src {
+        if let SqlSource::Join {
+            left,
+            right,
+            kind: JoinKind::LeftLateral,
+            on: None,
+            ..
+        } = src
+        {
             self.source(w, left, depth)?;
             self.nl(w, depth);
             w.append("LEFT JOIN LATERAL ");
@@ -615,11 +658,15 @@ impl AnsiSqlRenderer for Trino {
     }
 
     fn row_order_column(&self) -> Result<String, Refusal> {
-        Err(Refusal::capability("row order reached Trino, which has no row-order column"))
+        Err(Refusal::capability(
+            "row order reached Trino, which has no row-order column",
+        ))
     }
 
     fn as_of_join_clause(&self) -> Result<String, Refusal> {
-        Err(Refusal::illegal_state("an as-of join reached the join clause: Trino writes it as a pick (AsOfAsPick)"))
+        Err(Refusal::illegal_state(
+            "an as-of join reached the join clause: Trino writes it as a pick (AsOfAsPick)",
+        ))
     }
 
     fn pivot_source(&self, w: &mut SqlWriter, pivot: &SqlSource, depth: usize) -> Result<(), Refusal> {
@@ -732,7 +779,11 @@ impl AnsiSqlRenderer for Trino {
     fn float_literal(&self, v: f64) -> Result<String, Refusal> {
         let plain = crate::java::plain_float(v)?;
         let digits = plain.replace(['-', '.'], "");
-        Ok(if digits.trim_start_matches('0').len() > 38 { lite_javacompat::double_to_string(v) } else { plain })
+        Ok(if digits.trim_start_matches('0').len() > 38 {
+            lite_javacompat::double_to_string(v)
+        } else {
+            plain
+        })
     }
 
     /// An integer past a signed BIGINT: a bare one is refused; a DECIMAL's holds 38 digits.
@@ -753,7 +804,10 @@ impl AnsiSqlRenderer for Trino {
                 Ok(())
             }
             SqlExpr::OrderedListAgg { value, order_by, .. } => {
-                w.append("array_agg(").expr(self, value, 0)?.append(" ORDER BY ").expr(self, order_by, 0)?;
+                w.append("array_agg(")
+                    .expr(self, value, 0)?
+                    .append(" ORDER BY ")
+                    .expr(self, order_by, 0)?;
                 w.append(" NULLS LAST)");
                 Ok(())
             }
@@ -778,7 +832,9 @@ impl AnsiSqlRenderer for Trino {
                 }
             }
             w.append("ARRAY[").join(elements, ", ", |w, e| {
-                let SqlExpr::StructLit { fields, .. } = e else { unreachable!("every element is a struct literal") };
+                let SqlExpr::StructLit { fields, .. } = e else {
+                    unreachable!("every element is a struct literal")
+                };
                 self.struct_lit_with(w, fields, &types)
             })?;
             w.append("]");
@@ -847,7 +903,11 @@ impl AnsiSqlRenderer for Trino {
     }
 
     fn membership(&self, w: &mut SqlWriter, needle: &SqlExpr, collection: &SqlExpr) -> Result<(), Refusal> {
-        w.append("contains(").piece(&*self.list(collection))?.append(", ").expr(self, needle, 0)?.append(")");
+        w.append("contains(")
+            .piece(&*self.list(collection))?
+            .append(", ")
+            .expr(self, needle, 0)?
+            .append(")");
         Ok(())
     }
 
@@ -864,8 +924,12 @@ impl AnsiSqlRenderer for Trino {
         match reducer {
             // NULL over no present element, as string_agg over no row
             AggFn::StringAgg if extras.len() == 1 => {
-                w.append("(CASE WHEN cardinality(").piece(&*present)?.append(") = 0 THEN NULL ELSE array_join(");
-                w.append("transform(").piece(&*present)?.append(", \"__x\" -> CAST(\"__x\" AS VARCHAR)), ");
+                w.append("(CASE WHEN cardinality(")
+                    .piece(&*present)?
+                    .append(") = 0 THEN NULL ELSE array_join(");
+                w.append("transform(")
+                    .piece(&*present)?
+                    .append(", \"__x\" -> CAST(\"__x\" AS VARCHAR)), ");
                 w.expr(self, &extras[0], 0)?.append(") END)");
             }
             AggFn::Min => {
@@ -895,7 +959,14 @@ impl AnsiSqlRenderer for Trino {
     /// Pure's fold, `(element, acc)`, as Trino's `reduce(xs, init, (acc, x) -> ..., acc -> acc)`: its accumulator may
     /// be any type, a list included; an empty or NULL list folds to the init.
     fn fold_call(&self, w: &mut SqlWriter, fold: &SqlExpr) -> Result<(), Refusal> {
-        let SqlExpr::FoldCall { source, lambda, init, r#type, .. } = fold else {
+        let SqlExpr::FoldCall {
+            source,
+            lambda,
+            init,
+            r#type,
+            ..
+        } = fold
+        else {
             unreachable!("a fold")
         };
         let TypeFact::Typed { r#type: t, .. } = r#type else {
@@ -904,26 +975,39 @@ impl AnsiSqlRenderer for Trino {
         let ty = cast_type_name(self, t)?;
         let elem = self.param(param_name(&lambda.params, 0)?)?;
         let acc = self.param(param_name(&lambda.params, 1)?)?;
-        w.append("reduce(coalesce(").piece(&*self.list(source))?.append(", ARRAY[]), CAST(").expr(self, init, 0)?;
-        w.append(&format!(" AS {ty}), ({acc}, {elem}) -> CAST(")).expr(self, &lambda.body, 0)?;
+        w.append("reduce(coalesce(")
+            .piece(&*self.list(source))?
+            .append(", ARRAY[]), CAST(")
+            .expr(self, init, 0)?;
+        w.append(&format!(" AS {ty}), ({acc}, {elem}) -> CAST("))
+            .expr(self, &lambda.body, 0)?;
         w.append(&format!(" AS {ty}), {acc} -> {acc})"));
         Ok(())
     }
 
     /// Pure's splitPart: the non-empty tokens, 1-based, NULL past the end (split takes the delimiter as text).
     fn split_part_call(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("element_at(filter(split(").expr(self, arg(a, 0)?, 0)?.append(", ").expr(self, arg(a, 1)?, 0)?;
-        w.append("), \"__t\" -> \"__t\" <> ''), ").expr(self, arg(a, 2)?, 0)?.append(")");
+        w.append("element_at(filter(split(")
+            .expr(self, arg(a, 0)?, 0)?
+            .append(", ")
+            .expr(self, arg(a, 1)?, 0)?;
+        w.append("), \"__t\" -> \"__t\" <> ''), ")
+            .expr(self, arg(a, 2)?, 0)?
+            .append(")");
         Ok(())
     }
 
     fn struct_insert(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let st = type_of(arg(args, 0)?);
         let (Some(SqlType::Struct { fields }), SqlExpr::StringLit { value: name, .. }) = (st, arg(args, 1)?) else {
-            return Err(Refusal::capability("struct_insert over an untyped struct reached Trino"));
+            return Err(Refusal::capability(
+                "struct_insert over an untyped struct reached Trino",
+            ));
         };
         let Some(added) = type_of(arg(args, 2)?) else {
-            return Err(Refusal::capability("struct_insert of a value of unknown type reached Trino"));
+            return Err(Refusal::capability(
+                "struct_insert of a value of unknown type reached Trino",
+            ));
         };
         let kept: Vec<&StructField> = fields.iter().filter(|f| f.name != *name).collect();
         w.append("CAST(ROW(");
@@ -948,7 +1032,10 @@ impl AnsiSqlRenderer for Trino {
 
     fn variant_construct(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() != 1 {
-            return Err(Refusal::capability(format!("toVariant of {} arguments reached Trino", a.len())));
+            return Err(Refusal::capability(format!(
+                "toVariant of {} arguments reached Trino",
+                a.len()
+            )));
         }
         self.to_variant(&a[0])(w)
     }
@@ -964,12 +1051,20 @@ impl AnsiSqlRenderer for Trino {
             return Ok(());
         }
         if is_text(key) || matches!(key, SqlExpr::StringLit { .. }) {
-            w.append("element_at(TRY_CAST(").expr(self, arg(args, 0)?, 0)?.append(" AS MAP(VARCHAR, JSON)), ");
+            w.append("element_at(TRY_CAST(")
+                .expr(self, arg(args, 0)?, 0)?
+                .append(" AS MAP(VARCHAR, JSON)), ");
             w.expr(self, key, 0)?.append(")");
             return Ok(());
         }
-        w.append("element_at(TRY_CAST(").expr(self, arg(args, 0)?, 0)?.append(" AS ARRAY(JSON)), CASE WHEN ");
-        w.expr(self, key, 0)?.append(" >= 0 THEN ").expr(self, key, 6)?.append(" + 1 ELSE ").expr(self, key, 0)?;
+        w.append("element_at(TRY_CAST(")
+            .expr(self, arg(args, 0)?, 0)?
+            .append(" AS ARRAY(JSON)), CASE WHEN ");
+        w.expr(self, key, 0)?
+            .append(" >= 0 THEN ")
+            .expr(self, key, 6)?
+            .append(" + 1 ELSE ")
+            .expr(self, key, 0)?;
         w.append(" END)");
         Ok(())
     }
@@ -1002,7 +1097,9 @@ impl AnsiSqlRenderer for Trino {
         }
         // a timestamp from text: DuckDB's cast takes ISO 8601's T between the date and the time, Trino's only a space
         if target_is(Scalar::Timestamp) && is_text(value) {
-            w.append("CAST(replace(").expr(self, value, 0)?.append(", 'T', ' ') AS ");
+            w.append("CAST(replace(")
+                .expr(self, value, 0)?
+                .append(", 'T', ' ') AS ");
             let t = cast_type_name(self, target)?;
             w.append(&t).append(")");
             return Ok(());
@@ -1016,14 +1113,25 @@ impl AnsiSqlRenderer for Trino {
         }
         if is_json(value) {
             // a member's value as text is its text (a JSON string casts unquoted); the whole value as text is its JSON
-            let member = matches!(value, SqlExpr::Call { r#fn: SqlFn::VariantGet, .. });
+            let member = matches!(
+                value,
+                SqlExpr::Call {
+                    r#fn: SqlFn::VariantGet,
+                    ..
+                }
+            );
             if target_is(Scalar::Varchar) {
                 if !member {
                     w.append("json_format(").expr(self, value, 0)?.append(")");
                     return Ok(());
                 }
-                w.append("(CASE WHEN is_json_scalar(").expr(self, value, 0)?.append(") THEN CAST(");
-                w.expr(self, value, 0)?.append(" AS VARCHAR) ELSE json_format(").expr(self, value, 0)?.append(") END)");
+                w.append("(CASE WHEN is_json_scalar(")
+                    .expr(self, value, 0)?
+                    .append(") THEN CAST(");
+                w.expr(self, value, 0)?
+                    .append(" AS VARCHAR) ELSE json_format(")
+                    .expr(self, value, 0)?
+                    .append(") END)");
                 return Ok(());
             }
             if matches!(target, SqlType::Array { .. } | SqlType::Map { .. }) {
@@ -1037,7 +1145,9 @@ impl AnsiSqlRenderer for Trino {
         // marked 'e' as DuckDB's
         if target_is(Scalar::Varchar) && (is_scalar(value, Scalar::Double) || matches!(value, SqlExpr::FloatLit { .. }))
         {
-            w.append("replace(json_format(CAST(").expr(self, value, 0)?.append(" AS JSON)), 'E', 'e')");
+            w.append("replace(json_format(CAST(")
+                .expr(self, value, 0)?
+                .append(" AS JSON)), 'E', 'e')");
             return Ok(());
         }
         ansi::variant_aware_cast(self, w, value, target, conform)
@@ -1101,7 +1211,9 @@ impl AnsiSqlRenderer for Trino {
     }
 
     fn json_array(&self, w: &mut SqlWriter, elements: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("CAST(ARRAY[").join(elements, ", ", |w, e| self.to_variant(e)(w))?.append("] AS JSON)");
+        w.append("CAST(ARRAY[")
+            .join(elements, ", ", |w, e| self.to_variant(e)(w))?
+            .append("] AS JSON)");
         Ok(())
     }
 
@@ -1114,7 +1226,9 @@ impl AnsiSqlRenderer for Trino {
         w.append("coalesce(CAST(array_agg(").piece(&*self.to_variant(value))?;
         if !order_keys.is_empty() {
             w.append(" ORDER BY ").join(order_keys, ", ", |w, k| {
-                w.expr(self, &k.expr, 0)?.append(if k.desc { " DESC" } else { " ASC" }).append(" NULLS LAST");
+                w.expr(self, &k.expr, 0)?
+                    .append(if k.desc { " DESC" } else { " ASC" })
+                    .append(" NULLS LAST");
                 Ok(())
             })?;
         }
@@ -1141,7 +1255,9 @@ impl AnsiSqlRenderer for Trino {
             Scalar::Json => "JSON",
             Scalar::Time => "TIME(6)",
             Scalar::DecimalText => {
-                return Err(Refusal::illegal_state(format!("{s} cast reached a dialect without {s} support")));
+                return Err(Refusal::illegal_state(format!(
+                    "{s} cast reached a dialect without {s} support"
+                )));
             }
         }
         .to_owned())
@@ -1171,7 +1287,9 @@ impl AnsiSqlRenderer for Trino {
                 ColumnKind::Json => "JSON",
                 ColumnKind::Varchar => "VARCHAR",
                 ColumnKind::Other | ColumnKind::Distinct | ColumnKind::Array | ColumnKind::Object => {
-                    return Err(Refusal::illegal_state(format!("no DDL spelling for declared column type {kind}")));
+                    return Err(Refusal::illegal_state(format!(
+                        "no DDL spelling for declared column type {kind}"
+                    )));
                 }
             }
             .to_owned(),
@@ -1202,7 +1320,9 @@ impl AnsiSqlRenderer for Trino {
         if scalar == Scalar::Date {
             return Ok("date".to_owned());
         }
-        Err(Refusal::capability(format!("a TYPEOF compared with {scalar}'s name reached Trino")))
+        Err(Refusal::capability(format!(
+            "a TYPEOF compared with {scalar}'s name reached Trino"
+        )))
     }
 }
 
@@ -1287,7 +1407,9 @@ impl crate::dialect::SqlDialect for Trino {
             SqlDdl::CreateTable { table, .. } => table.as_str(),
             _ => unreachable!("the seam hands a session table a createTable"),
         };
-        Err(Refusal::capability(format!("a session's own table reached Trino, which has no temporary tables: {name}")))
+        Err(Refusal::capability(format!(
+            "a session's own table reached Trino, which has no temporary tables: {name}"
+        )))
     }
 
     /// No transaction across a session's statements for its connectors.

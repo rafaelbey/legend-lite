@@ -35,7 +35,9 @@ impl Buf {
     }
 
     pub fn with_capacity(n: usize) -> Buf {
-        Buf { u: Vec::with_capacity(n) }
+        Buf {
+            u: Vec::with_capacity(n),
+        }
     }
 
     /// `append(String)` of Rust text (the emitter's own literals).
@@ -115,7 +117,11 @@ pub fn illegal_state(message: JStr) -> JavaError {
 
 /// `Objects.requireNonNull(x)` (no message) or `requireNonNull(x, message)`.
 pub fn npe(message: Option<JStr>) -> JavaError {
-    JavaError { class: "java.lang.NullPointerException".to_owned(), message, position: None }
+    JavaError {
+        class: "java.lang.NullPointerException".to_owned(),
+        message,
+        position: None,
+    }
 }
 
 /// `ProtocolEmitter.require`: a construct the emitter cannot put on the wire stops it, by name.
@@ -416,17 +422,22 @@ pub(crate) fn element(b: &mut Buf, e: &Element) -> Em {
             relational_mapper(b, rm);
             Ok(())
         }
-        Element::PNativeFunction(n) => {
-            Err(lite_only(&crate::ustr::u("a native function declaration"), &n.qualified_name.0))
-        }
-        Element::PPrimitive(p) => Err(lite_only(&crate::ustr::u("a Primitive declaration"), &p.qualified_name.0)),
+        Element::PNativeFunction(n) => Err(lite_only(
+            &crate::ustr::u("a native function declaration"),
+            &n.qualified_name.0,
+        )),
+        Element::PPrimitive(p) => Err(lite_only(
+            &crate::ustr::u("a Primitive declaration"),
+            &p.qualified_name.0,
+        )),
         Element::POpaqueElement(o) => Err(lite_only(
             &jcat!("an element of the foreign section '", o.section_name, "'").0,
             &o.qualified_name.0,
         )),
-        Element::PAssociationProjection(a) => {
-            Err(lite_only(&crate::ustr::u("a projection association"), &a.qualified_name.0))
-        }
+        Element::PAssociationProjection(a) => Err(lite_only(
+            &crate::ustr::u("a projection association"),
+            &a.qualified_name.0,
+        )),
         Element::PDataElement(de) => {
             b.a("{\"_type\":\"dataElement\"");
             if let Some(v) = &de.body.value {
@@ -465,7 +476,14 @@ pub(crate) fn runtime(b: &mut Buf, r: &PRuntime) -> Em {
     b.a(",\"package\":");
     str(b, &r.pkg);
     b.a(",\"runtimeValue\":{\"_type\":");
-    strs(b, if r.single { "localEngineRuntime" } else { "engineRuntime" });
+    strs(
+        b,
+        if r.single {
+            "localEngineRuntime"
+        } else {
+            "engineRuntime"
+        },
+    );
     runtime_arrays(b, &r.connection_stores, &r.connections, &r.mappings)?;
     b.a(",\"sourceInformation\":");
     src_info(b, r.source_information.as_deref());
@@ -1117,7 +1135,11 @@ pub fn append_value(b: &mut Buf, v: &JValue) {
 
 /// `PDateTimeLit.wireType`.
 pub(crate) fn date_time_wire_type(value: &[u16]) -> &'static str {
-    if value.contains(&u16::from(b'T')) { "dateTime" } else { "strictDate" }
+    if value.contains(&u16::from(b'T')) {
+        "dateTime"
+    } else {
+        "strictDate"
+    }
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -1479,7 +1501,11 @@ pub(crate) fn function_activator(b: &mut Buf, fa: &PFunctionActivator) -> Em {
             "MemSqlFunction" => "memSqlFunctionConfig",
             "BigQueryFunction" => "bigQueryFunctionConfig",
             _ => {
-                return Err(unsupported(jcat!("activationConfiguration wire for ", fa.kind, " is unprobed")));
+                return Err(unsupported(jcat!(
+                    "activationConfiguration wire for ",
+                    fa.kind,
+                    " is unprobed"
+                )));
             }
         };
         b.a(",\"activationConfiguration\":{\"_type\":\"");
@@ -1569,7 +1595,11 @@ pub(crate) fn sql_island(b: &mut Buf, si: &SqlIsland, span: Option<&SourceInfo>)
     src_info(b, span.or(si.pos.as_deref()));
     b.a(",\"type\":");
     str(b, &si.language);
-    b.a(if si.language == "Cypher" { ",\"value\":{\"cypher\":" } else { ",\"value\":{\"sql\":" });
+    b.a(if si.language == "Cypher" {
+        ",\"value\":{\"cypher\":"
+    } else {
+        ",\"value\":{\"sql\":"
+    });
     str(b, &si.sql);
     if let Some(p) = &si.profile {
         b.a(",\"profile\":");
@@ -2085,12 +2115,21 @@ pub(crate) fn generic_type(b: &mut Buf, t: &TypeExpression) -> Em {
         TypeExpression::TypeExpressionGeneric(g) => {
             // the engine's grammar has no schema algebra (`List<A-B>`): it refuses at the `<` (PARITY row 87)
             if let Some(at) = g.pos.as_deref()
-                && g.arguments.iter().any(|a| matches!(a, TypeExpression::TypeExpressionSchemaAlgebra(_)))
+                && g.arguments
+                    .iter()
+                    .any(|a| matches!(a, TypeExpression::TypeExpressionSchemaAlgebra(_)))
             {
                 let column = at.start_column + g.name.0.len() as i32;
                 return Err(JavaError::parse(JStr::from("Unexpected token '<'"), at.start_line, column).as_refusal());
             }
-            generic_type_of(b, &g.name, &g.arguments, &g.multiplicity_arguments, &g.type_variable_values, g.pos.as_deref())
+            generic_type_of(
+                b,
+                &g.name,
+                &g.arguments,
+                &g.multiplicity_arguments,
+                &g.type_variable_values,
+                g.pos.as_deref(),
+            )
         }
         TypeExpression::TypeExpressionRelationType(rt) => {
             b.a("{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"relationType\",\"columns\":[");
@@ -2175,7 +2214,10 @@ pub(crate) fn concrete(lower: i32, upper: Option<i32>) -> Result<Multiplicity, J
     if lower < 0 {
         return Err(illegal_argument(jcat!("lowerBound must be >= 0, got ", lower)));
     }
-    Ok(Multiplicity::MultiplicityConcrete(Box::new(MultiplicityConcrete { lower_bound: lower, upper_bound: upper })))
+    Ok(Multiplicity::MultiplicityConcrete(Box::new(MultiplicityConcrete {
+        lower_bound: lower,
+        upper_bound: upper,
+    })))
 }
 
 /// `ProtocolEmitter.parseMultArg`: a multiplicity argument as the grammar spells it (`*`, `1`, `0..1`, `1..*`); a
@@ -2223,7 +2265,12 @@ pub(crate) fn function_constraints(b: &mut Buf, f: &PFunction, post: bool, cs: &
         condition_parameter(&mut params, &p.name, &p.r#type, &p.multiplicity)?;
     }
     if post {
-        condition_parameter(&mut params, &JStr::from("return"), &f.return_type, &f.return_multiplicity)?;
+        condition_parameter(
+            &mut params,
+            &JStr::from("return"),
+            &f.return_type,
+            &f.return_multiplicity,
+        )?;
     }
     for (i, c) in cs.iter().enumerate() {
         if i > 0 {
@@ -2423,7 +2470,11 @@ pub(crate) fn c_float(b: &mut Buf, value: f64, pos: Option<&SourceInfo>) {
 }
 
 pub(crate) fn variable(b: &mut Buf, var: &Variable, pos: Option<&SourceInfo>) -> Em {
-    require(var.r#type.is_none() == var.multiplicity.is_none(), "variable reference with a type or a multiplicity alone", &var.name.0)?;
+    require(
+        var.r#type.is_none() == var.multiplicity.is_none(),
+        "variable reference with a type or a multiplicity alone",
+        &var.name.0,
+    )?;
     b.a("{\"_type\":\"var\"");
     if let Some(t) = &var.r#type {
         b.a(",\"genericType\":");
@@ -2670,7 +2721,10 @@ pub(crate) fn lambda_at(b: &mut Buf, lam: &LambdaFunction, pos: Option<&SourceIn
                 generic_type(b, t)?;
                 b.a(",\"multiplicity\":");
                 let Some(m) = &p.multiplicity else {
-                    return Err(npe(Some(jcat!("typed lambda parameter without multiplicity: ", p.name))));
+                    return Err(npe(Some(jcat!(
+                        "typed lambda parameter without multiplicity: ",
+                        p.name
+                    ))));
                 };
                 multiplicity(b, m)?;
                 b.a(",\"name\":");
@@ -2811,7 +2865,11 @@ pub(crate) fn applied_function(b: &mut Buf, f: &AppliedFunction, top_span_overri
             Some(V::CString(s)) if f.parameters.len() == 2 => Some(s),
             _ => None,
         };
-        require(first.is_some(), "malformed letFunction", &crate::ustr::u(&f.parameters.len().to_string()))?;
+        require(
+            first.is_some(),
+            "malformed letFunction",
+            &crate::ustr::u(&f.parameters.len().to_string()),
+        )?;
         let name = first.expect("checked above");
         let let_span = f.pos.as_deref();
         b.a("{\"_type\":\"func\"");
@@ -2895,10 +2953,18 @@ pub(crate) fn written_detail(b: &mut Buf, key: &str, value: Option<&JStr>) {
 /// `^X(k=v,…)` on the wire: `func "new"` with its `Class<X>` instance, an empty name and the key expressions; the
 /// caret specials (`^Pair`, `^BasicColumnSpecification`, `^TdsOlapRank`) as their calls.
 pub(crate) fn new_instance(b: &mut Buf, ni: &NewInstance, span: Option<&SourceInfo>, f_control: Option<&JStr>) -> Em {
-    require(!ni.class_name.is_empty(), "new-instance on a variable receiver", &crate::ustr::u("^$x(...)"))?;
+    require(
+        !ni.class_name.is_empty(),
+        "new-instance on a variable receiver",
+        &crate::ustr::u("^$x(...)"),
+    )?;
     let special = crate::spec_parser::caret_special(ni).map_err(unsupported)?;
     if let Some(special) = special {
-        require(f_control.is_none(), "a special class's new with an fControl", &ni.class_name.0)?;
+        require(
+            f_control.is_none(),
+            "a special class's new with an fControl",
+            &ni.class_name.0,
+        )?;
         return applied_function(b, &special, span);
     }
     b.a("{\"_type\":\"func\"");
@@ -3032,7 +3098,11 @@ pub fn path_value(b: &mut Buf, pl: &PathLiteral) -> Em {
         if i > 0 {
             b.ch(b',');
         }
-        require(!seg.unsupported_arg, "dated path segment with a non-%latest argument", &seg.name.0)?;
+        require(
+            !seg.unsupported_arg,
+            "dated path segment with a non-%latest argument",
+            &seg.name.0,
+        )?;
         b.a("{\"_type\":\"propertyPath\",\"parameters\":[");
         path_args(b, &seg.args, pl);
         b.a("],\"property\":");
@@ -3341,7 +3411,11 @@ pub(crate) fn quoted_written(written: Option<&JStr>, what: &str) -> Result<Buf, 
 
 /// `~name` on the wire: a classInstance of type `colSpec`; the outer span the let's when one overrides it.
 pub(crate) fn col_spec(b: &mut Buf, cs: &ColSpec, outer_override: Option<&SourceInfo>) -> Em {
-    require(cs.alias.is_none() && cs.args.is_empty() && !cs.qualified, "colSpec with alias/args", &cs.name.0)?;
+    require(
+        cs.alias.is_none() && cs.args.is_empty() && !cs.qualified,
+        "colSpec with alias/args",
+        &cs.name.0,
+    )?;
     let pos = cs.pos.as_deref();
     b.a("{\"_type\":\"classInstance\",\"sourceInformation\":");
     src_info(b, outer_override.or(pos));
@@ -3448,12 +3522,24 @@ pub(crate) fn data_leaf(b: &mut Buf, v: &ValueSpecification) -> Em {
     use ValueSpecification as V;
     match v {
         V::EnumValue(e) => {
-            enum_value_node(b, &e.full_path, &e.value, join_spans(e.enumeration_pos.as_deref(), e.pos.as_deref()));
+            enum_value_node(
+                b,
+                &e.full_path,
+                &e.value,
+                join_spans(e.enumeration_pos.as_deref(), e.pos.as_deref()),
+            );
             Ok(())
         }
         V::AppliedProperty(p) if matches!(p.receiver, V::PackageableElementPtr(_)) => {
-            let V::PackageableElementPtr(ptr) = &p.receiver else { unreachable!("matched above") };
-            enum_value_node(b, &ptr.full_path, &p.property, join_spans(ptr.pos.as_deref(), p.pos.as_deref()));
+            let V::PackageableElementPtr(ptr) = &p.receiver else {
+                unreachable!("matched above")
+            };
+            enum_value_node(
+                b,
+                &ptr.full_path,
+                &p.property,
+                join_spans(ptr.pos.as_deref(), p.pos.as_deref()),
+            );
             Ok(())
         }
         _ => value_spec(b, v),
@@ -3544,7 +3630,11 @@ pub(crate) fn section_index(b: &mut Buf, s: &PSectionIndex) {
 }
 
 pub(crate) fn section(b: &mut Buf, s: &PSection) {
-    b.a(if s.import_aware { "{\"_type\":\"importAware\"" } else { "{\"_type\":\"default\"" });
+    b.a(if s.import_aware {
+        "{\"_type\":\"importAware\""
+    } else {
+        "{\"_type\":\"default\""
+    });
     b.a(",\"elements\":[");
     for (i, e) in s.elements.iter().enumerate() {
         if i > 0 {

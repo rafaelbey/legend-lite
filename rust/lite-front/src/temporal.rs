@@ -194,7 +194,15 @@ impl DateParser<'_> {
             self.pos += 1;
         }
         if self.pos == start {
-            return iae(jcat!("expected digits for ", component, " at position ", start, " in '", self.src, "'"));
+            return iae(jcat!(
+                "expected digits for ",
+                component,
+                " at position ",
+                start,
+                " in '",
+                self.src,
+                "'"
+            ));
         }
         let digits = &self.src[start..self.pos];
         parse_int(digits).or_else(|_| iae(jcat!(component, " value out of int range: '", digits, "'")))
@@ -209,7 +217,11 @@ impl DateParser<'_> {
         if c == u16::from(b'Z') {
             self.pos += 1;
             if !self.at_end() {
-                return iae(jcat!("unexpected trailing text after 'Z': '", &self.src[self.pos..], "'"));
+                return iae(jcat!(
+                    "unexpected trailing text after 'Z': '",
+                    &self.src[self.pos..],
+                    "'"
+                ));
             }
             return Ok(0);
         }
@@ -225,7 +237,11 @@ impl DateParser<'_> {
         let sign = if c == u16::from(b'+') { 1 } else { -1 };
         self.pos += 1;
         if self.src.len() - self.pos != 4 {
-            return iae(jcat!("timezone offset must be exactly 4 digits (HHMM) in '", self.src, "'"));
+            return iae(jcat!(
+                "timezone offset must be exactly 4 digits (HHMM) in '",
+                self.src,
+                "'"
+            ));
         }
         if self.src[self.pos..].iter().any(|&d| !is_digit(d)) {
             return iae(jcat!("non-digit in timezone offset: '", &self.src[self.pos..], "'"));
@@ -258,20 +274,28 @@ fn shift(lit: PureDateLiteral, offset_minutes: i32) -> R<PureDateLiteral> {
         }
         PureDateLiteral::PureDateLiteralDateWithSubsecond(d) => {
             let s = LocalDateTime::of(d.year, d.month, d.day, d.hour, d.minute)?.minus_minutes(offset_minutes)?;
-            Ok(with_subsecond(s.year, s.month, s.day, s.hour, s.minute, d.second, d.subsecond))
+            Ok(with_subsecond(
+                s.year,
+                s.month,
+                s.day,
+                s.hour,
+                s.minute,
+                d.second,
+                d.subsecond,
+            ))
         }
-        PureDateLiteral::PureDateLiteralYear(_) => {
-            Err(TemporalError::IllegalState(JStr::from("timezone on Year is unreachable (grammar forbids)")))
-        }
-        PureDateLiteral::PureDateLiteralYearMonth(_) => {
-            Err(TemporalError::IllegalState(JStr::from("timezone on YearMonth is unreachable (grammar forbids)")))
-        }
-        PureDateLiteral::PureDateLiteralStrictDate(_) => {
-            Err(TemporalError::IllegalState(JStr::from("timezone on StrictDate is unreachable (grammar forbids)")))
-        }
-        PureDateLiteral::PureDateLiteralDateWithHour(_) => {
-            Err(TemporalError::IllegalState(JStr::from("timezone on DateWithHour is unreachable (grammar forbids)")))
-        }
+        PureDateLiteral::PureDateLiteralYear(_) => Err(TemporalError::IllegalState(JStr::from(
+            "timezone on Year is unreachable (grammar forbids)",
+        ))),
+        PureDateLiteral::PureDateLiteralYearMonth(_) => Err(TemporalError::IllegalState(JStr::from(
+            "timezone on YearMonth is unreachable (grammar forbids)",
+        ))),
+        PureDateLiteral::PureDateLiteralStrictDate(_) => Err(TemporalError::IllegalState(JStr::from(
+            "timezone on StrictDate is unreachable (grammar forbids)",
+        ))),
+        PureDateLiteral::PureDateLiteralDateWithHour(_) => Err(TemporalError::IllegalState(JStr::from(
+            "timezone on DateWithHour is unreachable (grammar forbids)",
+        ))),
     }
 }
 
@@ -354,7 +378,13 @@ impl LocalDateTime {
         if minute != 0 {
             check("MinuteOfHour", "0 - 59", 0, 59, i64::from(minute))?;
         }
-        Ok(LocalDateTime { year, month, day, hour, minute })
+        Ok(LocalDateTime {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+        })
     }
 
     /// `minusMinutes(m)` for |m| under a day (`plusWithOverflow`): the minute of the day moved, the date by at most
@@ -364,7 +394,13 @@ impl LocalDateTime {
         let days = total.div_euclid(1440);
         let of_day = total.rem_euclid(1440) as i32;
         let (year, month, day) = self.plus_days(days)?;
-        Ok(LocalDateTime { year, month, day, hour: of_day / 60, minute: of_day % 60 })
+        Ok(LocalDateTime {
+            year,
+            month,
+            day,
+            hour: of_day / 60,
+            minute: of_day % 60,
+        })
     }
 
     fn plus_days(&self, days: i64) -> R<(i32, i32, i32)> {
@@ -383,7 +419,13 @@ impl LocalDateTime {
                 } else if self.month < 12 {
                     return Ok((self.year, self.month + 1, (dom - len) as i32));
                 }
-                check("Year", "-999999999 - 999999999", YEAR_MIN, YEAR_MAX, i64::from(self.year) + 1)?;
+                check(
+                    "Year",
+                    "-999999999 - 999999999",
+                    YEAR_MIN,
+                    YEAR_MAX,
+                    i64::from(self.year) + 1,
+                )?;
                 return Ok((self.year + 1, 1, (dom - len) as i32));
             }
         }
@@ -414,7 +456,13 @@ fn to_epoch_day(year: i32, month: i32, day: i32) -> i64 {
 
 /// `LocalDate.ofEpochDay`.
 fn of_epoch_day(epoch_day: i64) -> R<(i32, i32, i32)> {
-    check("EpochDay", "-365243219162 - 365241780471", EPOCH_DAY_MIN, EPOCH_DAY_MAX, epoch_day)?;
+    check(
+        "EpochDay",
+        "-365243219162 - 365241780471",
+        EPOCH_DAY_MIN,
+        EPOCH_DAY_MAX,
+        epoch_day,
+    )?;
     let mut zero_day = epoch_day + 719_528 - 60;
     let mut adjust = 0;
     if zero_day < 0 {
@@ -447,15 +495,33 @@ fn validate_components(d: &PureDateLiteral) -> R<()> {
         PureDateLiteral::PureDateLiteralDateWithHour(x) => {
             (x.year, Some(x.month), Some(x.day), Some(x.hour), None, None, None)
         }
-        PureDateLiteral::PureDateLiteralDateWithMinute(x) => {
-            (x.year, Some(x.month), Some(x.day), Some(x.hour), Some(x.minute), None, None)
-        }
-        PureDateLiteral::PureDateLiteralDateWithSecond(x) => {
-            (x.year, Some(x.month), Some(x.day), Some(x.hour), Some(x.minute), Some(x.second), None)
-        }
-        PureDateLiteral::PureDateLiteralDateWithSubsecond(x) => {
-            (x.year, Some(x.month), Some(x.day), Some(x.hour), Some(x.minute), Some(x.second), Some(&x.subsecond))
-        }
+        PureDateLiteral::PureDateLiteralDateWithMinute(x) => (
+            x.year,
+            Some(x.month),
+            Some(x.day),
+            Some(x.hour),
+            Some(x.minute),
+            None,
+            None,
+        ),
+        PureDateLiteral::PureDateLiteralDateWithSecond(x) => (
+            x.year,
+            Some(x.month),
+            Some(x.day),
+            Some(x.hour),
+            Some(x.minute),
+            Some(x.second),
+            None,
+        ),
+        PureDateLiteral::PureDateLiteralDateWithSubsecond(x) => (
+            x.year,
+            Some(x.month),
+            Some(x.day),
+            Some(x.hour),
+            Some(x.minute),
+            Some(x.second),
+            Some(&x.subsecond),
+        ),
     };
     if i64::from(y) < YEAR_MIN || i64::from(y) > YEAR_MAX {
         return iae(jcat!("invalid year: ", y));
@@ -522,7 +588,15 @@ pub fn parse_time(source: &[u16]) -> R<PureTimeLiteral> {
     let read_digits = |from: usize, component: &str| -> R<i32> {
         let end = after_digits(from);
         if end == from {
-            return iae(jcat!("expected digits for ", component, " at position ", from, " in '", source, "'"));
+            return iae(jcat!(
+                "expected digits for ",
+                component,
+                " at position ",
+                from,
+                " in '",
+                source,
+                "'"
+            ));
         }
         parse_int(&source[from..end])
             .or_else(|_| iae(jcat!(component, " value out of int range: '", &source[from..end], "'")))
@@ -538,27 +612,36 @@ pub fn parse_time(source: &[u16]) -> R<PureTimeLiteral> {
     pos = after_digits(pos);
     if pos == source.len() {
         validate_time(hour, minute, None, None)?;
-        return Ok(PureTimeLiteral::PureTimeLiteralTimeWithMinute(Box::new(PureTimeLiteralTimeWithMinute {
-            hour,
-            minute,
-        })));
+        return Ok(PureTimeLiteral::PureTimeLiteralTimeWithMinute(Box::new(
+            PureTimeLiteralTimeWithMinute { hour, minute },
+        )));
     }
     if source[pos] != u16::from(b':') {
-        return iae(jcat!("unexpected character after minute at position ", pos, " in '", source, "'"));
+        return iae(jcat!(
+            "unexpected character after minute at position ",
+            pos,
+            " in '",
+            source,
+            "'"
+        ));
     }
     pos += 1;
     let second = read_digits(pos, "second")?;
     pos = after_digits(pos);
     if pos == source.len() {
         validate_time(hour, minute, Some(second), None)?;
-        return Ok(PureTimeLiteral::PureTimeLiteralTimeWithSecond(Box::new(PureTimeLiteralTimeWithSecond {
-            hour,
-            minute,
-            second,
-        })));
+        return Ok(PureTimeLiteral::PureTimeLiteralTimeWithSecond(Box::new(
+            PureTimeLiteralTimeWithSecond { hour, minute, second },
+        )));
     }
     if source[pos] != u16::from(b'.') {
-        return iae(jcat!("unexpected character after second at position ", pos, " in '", source, "'"));
+        return iae(jcat!(
+            "unexpected character after second at position ",
+            pos,
+            " in '",
+            source,
+            "'"
+        ));
     }
     pos += 1;
     let sub_start = pos;
@@ -573,12 +656,14 @@ pub fn parse_time(source: &[u16]) -> R<PureTimeLiteral> {
     }
     let subsecond = JStr::from(&source[sub_start..pos]);
     validate_time(hour, minute, Some(second), Some(&subsecond))?;
-    Ok(PureTimeLiteral::PureTimeLiteralTimeWithSubsecond(Box::new(PureTimeLiteralTimeWithSubsecond {
-        hour,
-        minute,
-        second,
-        subsecond,
-    })))
+    Ok(PureTimeLiteral::PureTimeLiteralTimeWithSubsecond(Box::new(
+        PureTimeLiteralTimeWithSubsecond {
+            hour,
+            minute,
+            second,
+            subsecond,
+        },
+    )))
 }
 
 /// The time records' compact constructors: hour, minute, second, subsecond, in that order.
@@ -612,20 +697,36 @@ mod tests {
 
     #[test]
     fn dates_read_as_java_reads_them() {
-        assert_eq!(parse_date(&u("2024-01-15T10:30+0500"), true), Ok(with_minute(2024, 1, 15, 5, 30)));
-        assert_eq!(parse_date(&u("2024-01-01T01:30+0200"), true), Ok(with_minute(2023, 12, 31, 23, 30)));
+        assert_eq!(
+            parse_date(&u("2024-01-15T10:30+0500"), true),
+            Ok(with_minute(2024, 1, 15, 5, 30))
+        );
+        assert_eq!(
+            parse_date(&u("2024-01-01T01:30+0200"), true),
+            Ok(with_minute(2023, 12, 31, 23, 30))
+        );
         assert_eq!(parse_date(&u("2024-02-30"), false), Ok(strict_date(2024, 2, 30)));
-        assert!(matches!(parse_date(&u("2024-02-30"), true), Err(TemporalError::IllegalArgument(_))));
+        assert!(matches!(
+            parse_date(&u("2024-02-30"), true),
+            Err(TemporalError::IllegalArgument(_))
+        ));
         assert_eq!(
             parse_date(&u("2023-02-29T10:30+0100"), false),
-            Err(TemporalError::DateTime(JStr::from("Invalid date 'February 29' as '2023' is not a leap year")))
+            Err(TemporalError::DateTime(JStr::from(
+                "Invalid date 'February 29' as '2023' is not a leap year"
+            )))
         );
         assert_eq!(
             parse_date(&u("2023-13-01T10:30+0100"), false),
-            Err(TemporalError::DateTime(JStr::from("Invalid value for MonthOfYear (valid values 1 - 12): 13")))
+            Err(TemporalError::DateTime(JStr::from(
+                "Invalid value for MonthOfYear (valid values 1 - 12): 13"
+            )))
         );
         assert_eq!(to_epoch_day(1970, 1, 1), 0);
         assert_eq!(of_epoch_day(-1), Ok((1969, 12, 31)));
-        assert!(matches!(parse_time(&u("24:00")), Err(TemporalError::IllegalArgument(_))));
+        assert!(matches!(
+            parse_time(&u("24:00")),
+            Err(TemporalError::IllegalArgument(_))
+        ));
     }
 }

@@ -16,7 +16,10 @@ use crate::build::{call, int_lit, string_lit};
 use lite_sql::{BigDecimal, DateFmtPart, DatePart, NameQuoting, SqlDml};
 
 fn typed(s: Scalar) -> TypeFact {
-    TypeFact::Typed { r#type: SqlType::Scalar(s), nullable: true }
+    TypeFact::Typed {
+        r#type: SqlType::Scalar(s),
+        nullable: true,
+    }
 }
 
 fn col(name: &str, t: TypeFact) -> SqlExpr {
@@ -29,7 +32,15 @@ fn col(name: &str, t: TypeFact) -> SqlExpr {
 }
 
 fn list(name: &str, s: Scalar) -> SqlExpr {
-    col(name, TypeFact::Typed { r#type: SqlType::Array { element: Box::new(SqlType::Scalar(s)) }, nullable: true })
+    col(
+        name,
+        TypeFact::Typed {
+            r#type: SqlType::Array {
+                element: Box::new(SqlType::Scalar(s)),
+            },
+            nullable: true,
+        },
+    )
 }
 
 fn render_result(e: &SqlExpr) -> Result<String, Refusal> {
@@ -43,13 +54,21 @@ fn render(e: &SqlExpr) -> String {
 }
 
 fn part(p: DatePart) -> SqlExpr {
-    SqlExpr::DatePartLit { part: p, r#type: TypeFact::Unknown }
+    SqlExpr::DatePartLit {
+        part: p,
+        r#type: TypeFact::Unknown,
+    }
 }
 
 /// `SELECT e AS "v"` over no source.
 fn select_one(e: SqlExpr) -> SqlQuery {
     build::query(
-        build::select_of(vec![build::projection(e, Some("v".into()), None).unwrap()], SqlSource::Dual, vec![]).unwrap(),
+        build::select_of(
+            vec![build::projection(e, Some("v".into()), None).unwrap()],
+            SqlSource::Dual,
+            vec![],
+        )
+        .unwrap(),
     )
 }
 
@@ -57,14 +76,23 @@ fn select_one(e: SqlExpr) -> SqlQuery {
 fn the_helpers_defaults_no_caller_reaches_answer_as_java() {
     let d = Snowflake::new();
     let mut w = SqlWriter::new();
-    let r = d.list_call(&mut w, SqlFn::Abs, &[list("xs", Scalar::Bigint)]).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::ILLEGAL_STATE, "not a list call: ABS"));
+    let r = d
+        .list_call(&mut w, SqlFn::Abs, &[list("xs", Scalar::Bigint)])
+        .unwrap_err();
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_STATE, "not a list call: ABS")
+    );
     let mut w = SqlWriter::new();
     let r = d.bit_op(&mut w, SqlFn::Plus, &[int_lit(1), int_lit(2)]).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::ILLEGAL_STATE, "not a bit op: PLUS"));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::ILLEGAL_STATE, "not a bit op: PLUS")
+    );
     // the bit operators over NUMBER(38,0)
     let mut w = SqlWriter::new();
-    d.bit_op(&mut w, SqlFn::BitShiftLeft, &[int_lit(1), int_lit(63)]).unwrap();
+    d.bit_op(&mut w, SqlFn::BitShiftLeft, &[int_lit(1), int_lit(63)])
+        .unwrap();
     assert_eq!(w.into_text().unwrap(), "BITSHIFTLEFT(1, 63)");
 }
 
@@ -72,7 +100,12 @@ fn the_helpers_defaults_no_caller_reaches_answer_as_java() {
 fn a_list_lambda_that_is_no_lambda_is_javas_class_cast() {
     // Java's `(SqlExpr.Lambda) a.get(1)`: a ClassCastException, its message less the JVM's class loader
     let xs = list("xs", Scalar::Bigint);
-    for f in [SqlFn::ListTransform, SqlFn::ListFilter, SqlFn::ListExists, SqlFn::ListForAll] {
+    for f in [
+        SqlFn::ListTransform,
+        SqlFn::ListFilter,
+        SqlFn::ListExists,
+        SqlFn::ListForAll,
+    ] {
         let r = render_result(&call(f, vec![xs.clone(), int_lit(1)])).unwrap_err();
         assert_eq!(
             (r.class, r.message.as_str(), r.kind()),
@@ -85,8 +118,10 @@ fn a_list_lambda_that_is_no_lambda_is_javas_class_cast() {
         );
     }
     // a lambda of the element and its index ranges over the positions, the element and index read off each
-    let pair =
-        build::lambda(&["x", "i"], call(SqlFn::Plus, vec![build::derived(None, "x"), build::derived(None, "i")]));
+    let pair = build::lambda(
+        &["x", "i"],
+        call(SqlFn::Plus, vec![build::derived(None, "x"), build::derived(None, "i")]),
+    );
     assert_eq!(
         render(&call(SqlFn::ListTransform, vec![xs.clone(), pair])),
         "TRANSFORM(ARRAY_GENERATE_RANGE(0, ARRAY_SIZE(\"t0\".\"xs\")), \"__i0\" INTEGER -> CAST(GET(\"t0\".\"xs\", \
@@ -196,9 +231,17 @@ fn snowflakes_own_pivot_pass_leaves_an_argumentless_using_to_the_writer() {
         "a pivot reached the Snowflake writer: PivotAsGroupBy emulates a static one; this one has 1 pivot columns"
     );
     // a value of no literal text, in Snowflake's words
-    let date = SqlExpr::DateLit { iso: "2024-01-01".into(), r#type: TypeFact::Unknown };
-    let r = pass.source(pivot(vec![date], vec![col("x", typed(Scalar::Bigint))])).unwrap_err();
-    assert_eq!(r, Refusal::capability("a pivot value DateLit reached Snowflake without a column name"));
+    let date = SqlExpr::DateLit {
+        iso: "2024-01-01".into(),
+        r#type: TypeFact::Unknown,
+    };
+    let r = pass
+        .source(pivot(vec![date], vec![col("x", typed(Scalar::Bigint))]))
+        .unwrap_err();
+    assert_eq!(
+        r,
+        Refusal::capability("a pivot value DateLit reached Snowflake without a column name")
+    );
 }
 
 #[test]
@@ -208,7 +251,10 @@ fn the_outermost_render_starts_the_fresh_names_over() {
     // Java's `fresh = 0` at each outermost render: the same names twice on one dialect
     for _ in 0..2 {
         let sql = AnsiSqlRenderer::render(&d, select_one(jw())).unwrap();
-        assert!(sql.contains("\"__o0\" OBJECT -> ") && sql.contains("\"__i6\" INTEGER"), "{sql}");
+        assert!(
+            sql.contains("\"__o0\" OBJECT -> ") && sql.contains("\"__i6\" INTEGER"),
+            "{sql}"
+        );
     }
     let statement = AnsiSqlRenderer::render_statement(&d, select_one(jw())).unwrap();
     assert!(statement.sql.contains("\"__o0\" OBJECT -> "), "{}", statement.sql);
@@ -249,20 +295,38 @@ fn printf_is_unrolled_as_java_reads_its_directives() {
          NUMBER(38, 2)))) || '|%|' || \"t0\".\"s\")"
     );
     // a width pads with blanks; a value's own text through TO_VARCHAR; a literal format with no directive is its text
-    assert_eq!(render(&format("%3s", vec![x.clone()])), "(LPAD(TO_VARCHAR(\"t0\".\"x\"), 3, ' '))");
+    assert_eq!(
+        render(&format("%3s", vec![x.clone()])),
+        "(LPAD(TO_VARCHAR(\"t0\".\"x\"), 3, ' '))"
+    );
     assert_eq!(render(&format("", Vec::new())), "('')");
     // a directive other than s, d and f is text: refused where the '%' count says so
     let r = render_result(&format("a%e", vec![])).unwrap_err();
-    assert_eq!(r.message, "a format directive other than %s, %d and %f reached Snowflake: a%e");
+    assert_eq!(
+        r.message,
+        "a format directive other than %s, %d and %f reached Snowflake: a%e"
+    );
     let r = render_result(&format("%s %s", vec![x.clone()])).unwrap_err();
-    assert_eq!(r.message, "a format with more directives than arguments reached Snowflake");
+    assert_eq!(
+        r.message,
+        "a format with more directives than arguments reached Snowflake"
+    );
     // ... but taken as text where the count balances, an argument dropped (Java's check counts every '%')
-    assert_eq!(render(&format("%e %s", vec![s.clone(), x.clone()])), "('%e ' || \"t0\".\"s\")");
+    assert_eq!(
+        render(&format("%e %s", vec![s.clone(), x.clone()])),
+        "('%e ' || \"t0\".\"s\")"
+    );
     // Integer.parseInt of a width past an int
     let r = render_result(&format("%99999999999d", vec![x])).unwrap_err();
-    assert_eq!((r.class, r.message.as_str()), (Refusal::NUMBER_FORMAT, "For input string: \"99999999999\""));
+    assert_eq!(
+        (r.class, r.message.as_str()),
+        (Refusal::NUMBER_FORMAT, "For input string: \"99999999999\"")
+    );
     let r = render_result(&call(SqlFn::Format, vec![s])).unwrap_err();
-    assert_eq!(r.message, "a computed format reached Snowflake, which has no printf: only a literal one is unrolled");
+    assert_eq!(
+        r.message,
+        "a computed format reached Snowflake, which has no printf: only a literal one is unrolled"
+    );
 }
 
 #[test]
@@ -270,12 +334,18 @@ fn the_regular_expressions_read_as_java_reads_them() {
     let s = col("s", typed(Scalar::Varchar));
     // inline flags as parameters; a non-capturing group a plain one
     assert_eq!(
-        render(&call(SqlFn::RegexpFullMatch, vec![s.clone(), string_lit("(?is)a(?:b|c)\\d")])),
+        render(&call(
+            SqlFn::RegexpFullMatch,
+            vec![s.clone(), string_lit("(?is)a(?:b|c)\\d")]
+        )),
         "REGEXP_LIKE(\"t0\".\"s\", 'a(b|c)\\\\d', 'cis')"
     );
     // a non-capturing group before a read group renumbers it: refused
-    let r =
-        render_result(&call(SqlFn::RegexpExtract, vec![s.clone(), string_lit("(?:x)(y)"), int_lit(1)])).unwrap_err();
+    let r = render_result(&call(
+        SqlFn::RegexpExtract,
+        vec![s.clone(), string_lit("(?:x)(y)"), int_lit(1)],
+    ))
+    .unwrap_err();
     assert_eq!(
         r.message,
         "a non-capturing group in a pattern whose groups are numbered reached Snowflake (no (?: here, measured): \
@@ -292,20 +362,32 @@ fn the_regular_expressions_read_as_java_reads_them() {
     // the text before a match (the lowering's whole match after its lazy prefix), or before a group opening the rest
     // (^((?:.*?)B)F): the lazy prefix read as REGEXP_INSTR's position; any other prefix is the pattern as it is
     assert_eq!(
-        render(&call(SqlFn::RegexpExtract, vec![s.clone(), string_lit("^((?:.*?))(?:b+)"), int_lit(1)])),
+        render(&call(
+            SqlFn::RegexpExtract,
+            vec![s.clone(), string_lit("^((?:.*?))(?:b+)"), int_lit(1)]
+        )),
         "COALESCE(LEFT(\"t0\".\"s\", NULLIF(REGEXP_INSTR(\"t0\".\"s\", 'b+', 1, 1, 0, 'c'), 0) - 1), '')"
     );
     assert_eq!(
-        render(&call(SqlFn::RegexpExtract, vec![s.clone(), string_lit("(?i)^((?:.*?)a)(b)"), int_lit(1)])),
+        render(&call(
+            SqlFn::RegexpExtract,
+            vec![s.clone(), string_lit("(?i)^((?:.*?)a)(b)"), int_lit(1)]
+        )),
         "COALESCE(LEFT(\"t0\".\"s\", NULLIF(REGEXP_INSTR(\"t0\".\"s\", 'a(b)', 1, 1, 0, 'ci', 1), 0) - 1), '')"
     );
     // a replacement reading no group reads none of the pattern's numbering; 'g' replaces every match
     assert_eq!(
-        render(&call(SqlFn::RegexpReplace, vec![s.clone(), string_lit("(?:a)(b)"), string_lit("x"), string_lit("gi")])),
+        render(&call(
+            SqlFn::RegexpReplace,
+            vec![s.clone(), string_lit("(?:a)(b)"), string_lit("x"), string_lit("gi")]
+        )),
         "REGEXP_REPLACE(\"t0\".\"s\", '(a)(b)', 'x', 1, 0, 'ci')"
     );
-    let r =
-        render_result(&call(SqlFn::RegexpReplace, vec![s.clone(), string_lit("a"), string_lit("x"), s])).unwrap_err();
+    let r = render_result(&call(
+        SqlFn::RegexpReplace,
+        vec![s.clone(), string_lit("a"), string_lit("x"), s],
+    ))
+    .unwrap_err();
     assert_eq!(r.message, "REGEXP_REPLACE reached Snowflake: computed regexp options");
 }
 
@@ -322,13 +404,19 @@ fn literals_identifiers_and_types_answer_as_java() {
     assert_eq!(d.float_literal(f64::NEG_INFINITY).unwrap(), "CAST('-inf' AS DOUBLE)");
     let typed_decimal = build::decimal_lit(BigDecimal::parse("1.50").unwrap());
     assert_eq!(render(&typed_decimal), "CAST(1.50 AS DECIMAL(3, 2))");
-    let untyped = SqlExpr::DecimalLit { value: BigDecimal::parse("1.50").unwrap(), r#type: TypeFact::Unknown };
+    let untyped = SqlExpr::DecimalLit {
+        value: BigDecimal::parse("1.50").unwrap(),
+        r#type: TypeFact::Unknown,
+    };
     assert_eq!(render(&untyped), "CAST(1.50 AS NUMBER(3,2))");
     assert_eq!(render(&build::decimal_lit(BigDecimal::parse("1.25").unwrap())), "1.25");
     // a backslash escaped, a quote doubled, NUL spliced
     assert_eq!(d.string_lit("a'b\\c").unwrap(), "'a''b\\\\c'");
     assert_eq!(d.string_lit("a\0b'").unwrap(), "('a' || chr(0) || 'b''')");
-    assert_eq!(d.timestamp_lit("2024-01-02 03:04:05.123456789").unwrap(), "TIMESTAMP '2024-01-02 03:04:05.123456'");
+    assert_eq!(
+        d.timestamp_lit("2024-01-02 03:04:05.123456789").unwrap(),
+        "TIMESTAMP '2024-01-02 03:04:05.123456'"
+    );
     assert_eq!(
         d.timestamp_lit("2024-01-02 03:04:05.1234567+01:00").unwrap(),
         "TIMESTAMP '2024-01-02 03:04:05.123456+01:00'"
@@ -337,23 +425,49 @@ fn literals_identifiers_and_types_answer_as_java() {
     assert_eq!(d.ident("\"da\"\"te\""), "\"da\"\"te\"");
     assert_eq!(d.ident("a\"b"), "\"a\"\"b\"");
     assert_eq!(d.cte_name("__se"), "\"__se\"");
-    assert_eq!(d.hole_type(ValueKind::Date).unwrap(), TypeSpelling::new("DATE", Digits::None));
+    assert_eq!(
+        d.hole_type(ValueKind::Date).unwrap(),
+        TypeSpelling::new("DATE", Digits::None)
+    );
     assert_eq!(
         d.hole_type(ValueKind::DateTimeNanos).unwrap(),
-        TypeSpelling { name: "TIMESTAMP_NTZ".into(), digits: Digits::None, fraction: Some(6) }
+        TypeSpelling {
+            name: "TIMESTAMP_NTZ".into(),
+            digits: Digits::None,
+            fraction: Some(6)
+        }
     );
     assert!(d.hole_type(ValueKind::Integer).is_err());
-    let r = d.ddl_type(&ColumnType::Plain { kind: ColumnKind::Distinct }).unwrap_err();
+    let r = d
+        .ddl_type(&ColumnType::Plain {
+            kind: ColumnKind::Distinct,
+        })
+        .unwrap_err();
     assert_eq!(
         (r.class, r.message.as_str()),
-        (Refusal::ILLEGAL_STATE, "no DDL spelling for declared column type DISTINCT")
+        (
+            Refusal::ILLEGAL_STATE,
+            "no DDL spelling for declared column type DISTINCT"
+        )
     );
-    assert_eq!(d.ddl_type(&ColumnType::Plain { kind: ColumnKind::TimestampNs }).unwrap(), "TIMESTAMP_NTZ(9)");
+    assert_eq!(
+        d.ddl_type(&ColumnType::Plain {
+            kind: ColumnKind::TimestampNs
+        })
+        .unwrap(),
+        "TIMESTAMP_NTZ(9)"
+    );
     // a struct's fields are spelled before its OBJECT: a field Snowflake cannot spell refuses the struct
-    let field = |t: Scalar| lite_sql::StructField { name: "f".into(), r#type: SqlType::Scalar(t) };
+    let field = |t: Scalar| lite_sql::StructField {
+        name: "f".into(),
+        r#type: SqlType::Scalar(t),
+    };
     assert_eq!(d.struct_type_name(&[field(Scalar::Bigint)]).unwrap(), "OBJECT");
     let r = d.struct_type_name(&[field(Scalar::DecimalText)]).unwrap_err();
-    assert_eq!(r.message, "DECIMAL_TEXT cast reached a dialect without DECIMAL_TEXT support");
+    assert_eq!(
+        r.message,
+        "DECIMAL_TEXT cast reached a dialect without DECIMAL_TEXT support"
+    );
     // a date format's text: double quotes refused, a weekday name refused
     assert_eq!(
         format_text(&[
@@ -366,7 +480,9 @@ fn literals_identifiers_and_types_answer_as_java() {
     );
     assert!(format_text(&[DateFmt::Text { s: "\"".into() }]).is_err());
     assert_eq!(
-        format_text(&[DateFmt::Part(DateFmtPart::WeekdayName)]).unwrap_err().message,
+        format_text(&[DateFmt::Part(DateFmtPart::WeekdayName)])
+            .unwrap_err()
+            .message,
         "a full weekday name in a Snowflake date format (DY is three letters)"
     );
 }
@@ -381,16 +497,28 @@ fn a_raise_takes_its_slots_type() {
         w.piece(&*p)?;
         w.into_text()
     };
-    assert_eq!(raised(None).unwrap(), "CAST(CAST(CHR(31) || ('boom') || CHR(31) AS INTEGER) AS VARCHAR)");
-    assert_eq!(raised(Some(&SqlType::Scalar(Scalar::Date))).unwrap(), "CAST(CHR(31) || ('boom') || CHR(31) AS DATE)");
     assert_eq!(
-        raised(Some(&SqlType::Array { element: Box::new(SqlType::Scalar(Scalar::Bigint)) })).unwrap(),
+        raised(None).unwrap(),
+        "CAST(CAST(CHR(31) || ('boom') || CHR(31) AS INTEGER) AS VARCHAR)"
+    );
+    assert_eq!(
+        raised(Some(&SqlType::Scalar(Scalar::Date))).unwrap(),
+        "CAST(CHR(31) || ('boom') || CHR(31) AS DATE)"
+    );
+    assert_eq!(
+        raised(Some(&SqlType::Array {
+            element: Box::new(SqlType::Scalar(Scalar::Bigint))
+        }))
+        .unwrap(),
         "TO_ARRAY(CAST(CHR(31) || ('boom') || CHR(31) AS INTEGER))"
     );
     let r = raised(Some(&SqlType::Tagged { slots: Vec::new() })).unwrap_err();
     assert_eq!(
         (r.class, r.message.as_str()),
-        (Refusal::ILLEGAL_STATE, "a tagged value is never raised as: its tag and slots are its query's columns")
+        (
+            Refusal::ILLEGAL_STATE,
+            "a tagged value is never raised as: its tag and slots are its query's columns"
+        )
     );
 }
 
@@ -400,8 +528,14 @@ fn the_wire_and_the_facts_answer_as_java() {
     assert_eq!(d.wire_type_name(Some("NUMBER")), "DECIMAL");
     assert_eq!(d.wire_type_name(Some(" number ")), "DECIMAL");
     assert_eq!(d.typing_wire_name(Some("NUMBER")), None);
-    assert_eq!(d.wire_type_name(Some("VARCHAR")), crate::wire_names::fold(Some("VARCHAR")));
-    assert_eq!(d.typing_wire_name(Some("TIMESTAMP_NTZ")), Some(crate::wire_names::fold(Some("TIMESTAMP_NTZ"))));
+    assert_eq!(
+        d.wire_type_name(Some("VARCHAR")),
+        crate::wire_names::fold(Some("VARCHAR"))
+    );
+    assert_eq!(
+        d.typing_wire_name(Some("TIMESTAMP_NTZ")),
+        Some(crate::wire_names::fold(Some("TIMESTAMP_NTZ")))
+    );
     assert_eq!(d.wire_type_name(None), crate::wire_names::fold(None));
     let st = SqlType::Struct { fields: Vec::new() };
     assert!(d.delivers_own(&SqlType::Scalar(Scalar::Bigint), "DECIMAL(38,0)"));

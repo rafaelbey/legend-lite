@@ -54,7 +54,9 @@ fn interval_unit(unit: DatePart) -> Result<&'static str, Refusal> {
         DatePart::Millisecond => "MILLISECOND",
         DatePart::Microsecond => "MICROSECOND",
         DatePart::Quarter | DatePart::Nanosecond | DatePart::DayOfYear | DatePart::IsoDayOfWeek => {
-            return Err(Refusal::capability(format!("interval unit {unit} has no Databricks spelling")));
+            return Err(Refusal::capability(format!(
+                "interval unit {unit} has no Databricks spelling"
+            )));
         }
     })
 }
@@ -73,7 +75,9 @@ fn trunc_unit(unit: DatePart) -> Result<&'static str, Refusal> {
         DatePart::Millisecond => "millisecond",
         DatePart::Microsecond => "microsecond",
         DatePart::DayOfYear | DatePart::IsoDayOfWeek | DatePart::Nanosecond => {
-            return Err(Refusal::capability(format!("date_trunc to {unit} has no Databricks spelling")));
+            return Err(Refusal::capability(format!(
+                "date_trunc to {unit} has no Databricks spelling"
+            )));
         }
     })
 }
@@ -145,8 +149,12 @@ fn has_back_reference(p: &str) -> bool {
 /// The floored epoch (in microseconds per unit) of `to` less `from`'s (Java's `epochBoundaries`).
 fn epoch_boundaries<'a>(from: P<'a>, to: P<'a>, per_unit: i64) -> P<'a> {
     pc(move |w| {
-        w.append("(floor(unix_micros(CAST(").piece(&*to)?.append(&format!(" AS TIMESTAMP)) / {per_unit}) - floor("));
-        w.append("unix_micros(CAST(").piece(&*from)?.append(&format!(" AS TIMESTAMP)) / {per_unit}))"));
+        w.append("(floor(unix_micros(CAST(")
+            .piece(&*to)?
+            .append(&format!(" AS TIMESTAMP)) / {per_unit}) - floor("));
+        w.append("unix_micros(CAST(")
+            .piece(&*from)?
+            .append(&format!(" AS TIMESTAMP)) / {per_unit}))"));
         Ok(())
     })
 }
@@ -194,7 +202,10 @@ fn jaro_winkler<'a>(d: &'a Databricks, p: &'a SqlExpr, t: &'a SqlExpr) -> P<'a> 
          {take}, {s} -> {counted}) END"
     );
     pc(move |w| {
-        w.append("element_at(transform(array(named_struct('p', ").expr(d, p, 0)?.append(", 't', ").expr(d, t, 0)?;
+        w.append("element_at(transform(array(named_struct('p', ")
+            .expr(d, p, 0)?
+            .append(", 't', ")
+            .expr(d, t, 0)?;
         w.append(&format!(")), {o} -> {body}), 1)"));
         Ok(())
     })
@@ -249,11 +260,15 @@ impl Databricks {
             DatePart::DayOfYear => "DOY",
             DatePart::IsoDayOfWeek => "DOW_ISO",
             DatePart::Millisecond | DatePart::Microsecond | DatePart::Nanosecond => {
-                return Err(Refusal::capability(format!("date part {part} has no probed Databricks spelling")));
+                return Err(Refusal::capability(format!(
+                    "date part {part} has no probed Databricks spelling"
+                )));
             }
         };
         Ok(pc(move |w| {
-            w.append(&format!("CAST(floor(extract({field} FROM ")).expr(self, arg(a, 1)?, 0)?.append(")) AS BIGINT)");
+            w.append(&format!("CAST(floor(extract({field} FROM "))
+                .expr(self, arg(a, 1)?, 0)?
+                .append(")) AS BIGINT)");
             Ok(())
         }))
     }
@@ -266,7 +281,11 @@ impl Databricks {
         let y = {
             let (from, to) = (from.clone(), to.clone());
             pc(move |w| {
-                w.append("(year(").piece(&*to)?.append(") - year(").piece(&*from)?.append("))");
+                w.append("(year(")
+                    .piece(&*to)?
+                    .append(") - year(")
+                    .piece(&*from)?
+                    .append("))");
                 Ok(())
             })
         };
@@ -275,7 +294,11 @@ impl Databricks {
             DatePart::Quarter => {
                 let (from, to) = (from.clone(), to.clone());
                 pc(move |w| {
-                    w.piece(&*y)?.append(" * 4 + (quarter(").piece(&*to)?.append(") - quarter(").piece(&*from)?;
+                    w.piece(&*y)?
+                        .append(" * 4 + (quarter(")
+                        .piece(&*to)?
+                        .append(") - quarter(")
+                        .piece(&*from)?;
                     w.append("))");
                     Ok(())
                 })
@@ -283,7 +306,11 @@ impl Databricks {
             DatePart::Month => {
                 let (from, to) = (from.clone(), to.clone());
                 pc(move |w| {
-                    w.piece(&*y)?.append(" * 12 + (month(").piece(&*to)?.append(") - month(").piece(&*from)?;
+                    w.piece(&*y)?
+                        .append(" * 12 + (month(")
+                        .piece(&*to)?
+                        .append(") - month(")
+                        .piece(&*from)?;
                     w.append("))");
                     Ok(())
                 })
@@ -291,7 +318,10 @@ impl Databricks {
             DatePart::Day => {
                 let (from, to) = (from.clone(), to.clone());
                 pc(move |w| {
-                    w.append("datediff(CAST(").piece(&*to)?.append(" AS DATE), CAST(").piece(&*from)?;
+                    w.append("datediff(CAST(")
+                        .piece(&*to)?
+                        .append(" AS DATE), CAST(")
+                        .piece(&*from)?;
                     w.append(" AS DATE))");
                     Ok(())
                 })
@@ -303,13 +333,17 @@ impl Databricks {
             DatePart::Microsecond => {
                 let (from, to) = (from.clone(), to.clone());
                 pc(move |w| {
-                    w.append("(unix_micros(CAST(").piece(&*to)?.append(" AS TIMESTAMP)) - unix_micros(CAST(");
+                    w.append("(unix_micros(CAST(")
+                        .piece(&*to)?
+                        .append(" AS TIMESTAMP)) - unix_micros(CAST(");
                     w.piece(&*from)?.append(" AS TIMESTAMP)))");
                     Ok(())
                 })
             }
             DatePart::Week | DatePart::Nanosecond | DatePart::DayOfYear | DatePart::IsoDayOfWeek => {
-                return Err(Refusal::capability(format!("date_diff part {part} has no probed Databricks spelling")));
+                return Err(Refusal::capability(format!(
+                    "date_diff part {part} has no probed Databricks spelling"
+                )));
             }
         };
         Ok(pc(move |w| {
@@ -343,7 +377,11 @@ impl Databricks {
         let months = match unit {
             DatePart::Month => 1,
             DatePart::Year => 12,
-            _ => return Err(Refusal::capability(format!("a {unit} time bucket has no Databricks spelling"))),
+            _ => {
+                return Err(Refusal::capability(format!(
+                    "a {unit} time bucket has no Databricks spelling"
+                )));
+            }
         };
         let size: P<'a> = {
             let n = n.clone();
@@ -353,8 +391,13 @@ impl Databricks {
             })
         };
         Ok(pc(move |w| {
-            w.append("CAST(add_months(DATE '1970-01-01', CAST(floor(((year(").piece(&*t)?;
-            w.append(") - 1970) * 12 + month(").piece(&*t)?.append(") - 1) / ").piece(&*size)?.append(") * ");
+            w.append("CAST(add_months(DATE '1970-01-01', CAST(floor(((year(")
+                .piece(&*t)?;
+            w.append(") - 1970) * 12 + month(")
+                .piece(&*t)?
+                .append(") - 1) / ")
+                .piece(&*size)?
+                .append(") * ");
             w.piece(&*size)?.append(" AS INT)) AS TIMESTAMP)");
             Ok(())
         }))
@@ -367,7 +410,11 @@ impl Databricks {
             return Err(wall(SqlFn::RegexpReplace, "a computed regexp replacement"));
         };
         if global {
-            w.append("regexp_replace(").expr(self, &a[0], 0)?.append(", ").expr(self, &a[1], 0)?.append(", ");
+            w.append("regexp_replace(")
+                .expr(self, &a[0], 0)?
+                .append(", ")
+                .expr(self, &a[1], 0)?
+                .append(", ");
             let lit = self.string_lit(&java_replacement(r, 0))?;
             w.append(&lit).append(")");
             return Ok(());
@@ -375,14 +422,19 @@ impl Databricks {
         if let SqlExpr::StringLit { value: p, .. } = &a[1]
             && has_back_reference(p)
         {
-            return Err(wall(SqlFn::RegexpReplace, "a first-match replacement whose pattern has a back reference"));
+            return Err(wall(
+                SqlFn::RegexpReplace,
+                "a first-match replacement whose pattern has a back reference",
+            ));
         }
         w.append("regexp_replace(").expr(self, &a[0], 0)?.append(", ");
         if let SqlExpr::StringLit { value: p, .. } = &a[1] {
             let lit = self.string_lit(&format!("^(?s:(.*?))(?:{p})"))?;
             w.append(&lit);
         } else {
-            w.append("concat('^(?s:(.*?))(?:', ").expr(self, &a[1], 0)?.append(", ')')");
+            w.append("concat('^(?s:(.*?))(?:', ")
+                .expr(self, &a[1], 0)?
+                .append(", ')')");
         }
         let lit = self.string_lit(&format!("$1{}", java_replacement(r, 1)))?;
         w.append(", ").append(&lit).append(")");
@@ -406,7 +458,10 @@ impl Databricks {
             SqlFn::Ltrim => "LEADING",
             _ => "TRAILING",
         };
-        w.append(&format!("TRIM({side} ")).expr(self, arg(a, 1)?, 0)?.append(" FROM ").expr(self, arg(a, 0)?, 0)?;
+        w.append(&format!("TRIM({side} "))
+            .expr(self, arg(a, 1)?, 0)?
+            .append(" FROM ")
+            .expr(self, arg(a, 0)?, 0)?;
         w.append(")");
         Ok(())
     }
@@ -414,9 +469,15 @@ impl Databricks {
     /// The `MAKE_TIMESTAMP` arm.
     fn make_timestamp(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() != 6 {
-            return Err(wall(SqlFn::MakeTimestamp, &format!("make_timestamp of {} arguments", a.len())));
+            return Err(wall(
+                SqlFn::MakeTimestamp,
+                &format!("make_timestamp of {} arguments", a.len()),
+            ));
         }
-        w.append("make_timestamp(").list(self, &a[..5])?.append(", CAST(").expr(self, &a[5], 0)?;
+        w.append("make_timestamp(")
+            .list(self, &a[..5])?
+            .append(", CAST(")
+            .expr(self, &a[5], 0)?;
         w.append(" AS DECIMAL(16,6)))");
         Ok(())
     }
@@ -425,9 +486,16 @@ impl Databricks {
     fn format_run(&self, w: &mut SqlWriter, value: &SqlExpr, parts: Vec<DateFmt>) -> Result<(), Refusal> {
         let format = SqlExpr::FormatLit {
             parts,
-            r#type: TypeFact::Typed { r#type: SqlType::Scalar(Scalar::Varchar), nullable: false },
+            r#type: TypeFact::Typed {
+                r#type: SqlType::Scalar(Scalar::Varchar),
+                nullable: false,
+            },
         };
-        w.append("date_format(").expr(self, value, 0)?.append(", ").expr(self, &format, 0)?.append(")");
+        w.append("date_format(")
+            .expr(self, value, 0)?
+            .append(", ")
+            .expr(self, &format, 0)?
+            .append(")");
         Ok(())
     }
 
@@ -435,11 +503,18 @@ impl Databricks {
     /// it bare: the year is formatted alone with that sign removed, each other run of the format as it is, in order.
     fn strftime(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let SqlExpr::FormatLit { parts, .. } = arg(a, 1)? else {
-            return Err(wall(SqlFn::Strftime, "a date format that is not a format literal: its codes are DuckDB's"));
+            return Err(wall(
+                SqlFn::Strftime,
+                "a date format that is not a format literal: its codes are DuckDB's",
+            ));
         };
         let year = DateFmt::Part(DateFmtPart::Year4);
         if !parts.contains(&year) {
-            w.append("date_format(").expr(self, &a[0], 0)?.append(", ").expr(self, &a[1], 0)?.append(")");
+            w.append("date_format(")
+                .expr(self, &a[0], 0)?
+                .append(", ")
+                .expr(self, &a[1], 0)?
+                .append(")");
             return Ok(());
         }
         w.append("concat(");
@@ -471,9 +546,16 @@ impl Databricks {
     /// The `STRPTIME` arm.
     fn strptime(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if !matches!(arg(a, 1)?, SqlExpr::FormatLit { .. }) {
-            return Err(wall(SqlFn::Strptime, "a date format that is not a format literal: its codes are DuckDB's"));
+            return Err(wall(
+                SqlFn::Strptime,
+                "a date format that is not a format literal: its codes are DuckDB's",
+            ));
         }
-        w.append("to_timestamp(").expr(self, &a[0], 0)?.append(", ").expr(self, &a[1], 0)?.append(")");
+        w.append("to_timestamp(")
+            .expr(self, &a[0], 0)?
+            .append(", ")
+            .expr(self, &a[1], 0)?
+            .append(")");
         Ok(())
     }
 
@@ -488,7 +570,9 @@ impl Databricks {
             })
         };
         let stop: P<'_> = pc(move |w| {
-            w.append("CAST(").expr(self, arg(a, if a.len() == 1 { 0 } else { 1 })?, 0)?.append(" AS BIGINT)");
+            w.append("CAST(")
+                .expr(self, arg(a, if a.len() == 1 { 0 } else { 1 })?, 0)?
+                .append(" AS BIGINT)");
             Ok(())
         });
         let step: P<'_> = if a.len() > 2 {
@@ -499,8 +583,17 @@ impl Databricks {
         } else {
             text("1L")
         };
-        w.append("(CASE WHEN (").piece(&*stop)?.append(" - ").piece(&*start)?.append(") * ").piece(&*step)?;
-        w.append(" > 0 THEN filter(sequence(").piece(&*start)?.append(", ").piece(&*stop)?.append(", ");
+        w.append("(CASE WHEN (")
+            .piece(&*stop)?
+            .append(" - ")
+            .piece(&*start)?
+            .append(") * ")
+            .piece(&*step)?;
+        w.append(" > 0 THEN filter(sequence(")
+            .piece(&*start)?
+            .append(", ")
+            .piece(&*stop)?
+            .append(", ");
         w.piece(&*step)?.append("), `__g` -> `__g` <> ").piece(&*stop)?;
         w.append(") ELSE CAST(array() AS ARRAY<BIGINT>) END)");
         Ok(())
@@ -516,9 +609,12 @@ impl Databricks {
                 w.expr(self, m, 0)?;
                 continue;
             }
-            w.append("map_filter(").expr(self, m, 0)?.append(", (`__k`, `__v`) -> NOT (");
+            w.append("map_filter(")
+                .expr(self, m, 0)?
+                .append(", (`__k`, `__v`) -> NOT (");
             for (j, later) in a.iter().enumerate().skip(i + 1) {
-                w.append(if j > i + 1 { " OR " } else { "" }).append("coalesce(map_contains_key(");
+                w.append(if j > i + 1 { " OR " } else { "" })
+                    .append("coalesce(map_contains_key(");
                 w.expr(self, later, 0)?.append(", `__k`), FALSE)");
             }
             w.append("))");
@@ -534,12 +630,20 @@ impl Databricks {
             w.append("schema_of_variant(").expr(self, x, 0)?.append(")");
             Ok(())
         };
-        w.append("(CASE WHEN ").expr(self, x, 0)?.append(" IS NULL THEN NULL WHEN ").piece(&s)?;
-        w.append(" = 'VOID' THEN 'NULL' WHEN ").piece(&s)?.append(" = 'STRING' THEN 'VARCHAR' WHEN ");
-        w.piece(&s)?.append(" = 'BOOLEAN' THEN 'BOOLEAN' WHEN startswith(").piece(&s)?;
+        w.append("(CASE WHEN ")
+            .expr(self, x, 0)?
+            .append(" IS NULL THEN NULL WHEN ")
+            .piece(&s)?;
+        w.append(" = 'VOID' THEN 'NULL' WHEN ")
+            .piece(&s)?
+            .append(" = 'STRING' THEN 'VARCHAR' WHEN ");
+        w.piece(&s)?
+            .append(" = 'BOOLEAN' THEN 'BOOLEAN' WHEN startswith(")
+            .piece(&s)?;
         w.append(", 'ARRAY') THEN 'ARRAY' WHEN startswith(").piece(&s)?;
         w.append(", 'OBJECT') THEN 'OBJECT' WHEN ").piece(&s)?;
-        w.append(" IN ('BIGINT', 'INT', 'SMALLINT', 'TINYINT') OR regexp_like(").piece(&s)?;
+        w.append(" IN ('BIGINT', 'INT', 'SMALLINT', 'TINYINT') OR regexp_like(")
+            .piece(&s)?;
         w.append(r", '^DECIMAL\\([0-9]+,0\\)$') THEN 'BIGINT' ELSE 'DOUBLE' END)");
         Ok(())
     }
@@ -714,15 +818,23 @@ impl Databricks {
 
             // NULL-ignoring, as DuckDB's concat (Spark's concat is NULL if any argument is)
             SqlFn::Concat => {
-                w.append("concat_ws('', ").join(&ansi::flatten_concat(a), ", ", |w, e| self.as_text(w, e))?.append(")");
+                w.append("concat_ws('', ")
+                    .join(&ansi::flatten_concat(a), ", ", |w, e| self.as_text(w, e))?
+                    .append(")");
                 Ok(())
             }
             SqlFn::ConcatJoin => {
-                w.append("concat_ws('', ").join(a, ", ", |w, e| self.as_text(w, e))?.append(")");
+                w.append("concat_ws('', ")
+                    .join(a, ", ", |w, e| self.as_text(w, e))?
+                    .append(")");
                 Ok(())
             }
             SqlFn::IntDivide => {
-                w.append("(").expr(self, a0()?, 6)?.append(" div ").expr(self, a1()?, 6)?.append(")");
+                w.append("(")
+                    .expr(self, a0()?, 6)?
+                    .append(" div ")
+                    .expr(self, a1()?, 6)?
+                    .append(")");
                 Ok(())
             }
             // the base spells VARCHAR, which needs a length here
@@ -736,14 +848,23 @@ impl Databricks {
             }
             // floor without the BIGINT conversion (Spark's floor of a double is a BIGINT: past 2^63 it overflows)
             SqlFn::FloorRaw => {
-                w.append("(CASE WHEN abs(").expr(self, a0()?, 0)?.append(") >= 4503599627370496 THEN ");
-                w.expr(self, a0()?, 0)?.append(" ELSE CAST(floor(").expr(self, a0()?, 0)?.append(") AS DOUBLE) END)");
+                w.append("(CASE WHEN abs(")
+                    .expr(self, a0()?, 0)?
+                    .append(") >= 4503599627370496 THEN ");
+                w.expr(self, a0()?, 0)?
+                    .append(" ELSE CAST(floor(")
+                    .expr(self, a0()?, 0)?
+                    .append(") AS DOUBLE) END)");
                 Ok(())
             }
 
             // ---- strings
             SqlFn::Matches => {
-                w.append("regexp_like(").expr(self, a0()?, 0)?.append(", ").expr(self, a1()?, 0)?.append(")");
+                w.append("regexp_like(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?
+                    .append(")");
                 Ok(())
             }
             SqlFn::RegexpFullMatch => {
@@ -754,8 +875,16 @@ impl Databricks {
             }
             // group 0 (the whole match) unless one is named: Spark's default is group 1
             SqlFn::RegexpExtract | SqlFn::RegexpExtractAll => {
-                let name = if f == SqlFn::RegexpExtract { "regexp_extract(" } else { "regexp_extract_all(" };
-                w.append(name).expr(self, a0()?, 0)?.append(", ").expr(self, a1()?, 0)?.append(", ");
+                let name = if f == SqlFn::RegexpExtract {
+                    "regexp_extract("
+                } else {
+                    "regexp_extract_all("
+                };
+                w.append(name)
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?
+                    .append(", ");
                 w.piece(&*self.group(a))?.append(")");
                 Ok(())
             }
@@ -817,7 +946,12 @@ impl Databricks {
             SqlFn::AddInterval | SqlFn::AddIntervalTemporal => {
                 w.append("timestampadd(");
                 let unit = interval_unit(part(a0()?)?)?;
-                w.append(unit).append(", ").expr(self, a1()?, 0)?.append(", ").expr(self, arg(a, 2)?, 0)?.append(")");
+                w.append(unit)
+                    .append(", ")
+                    .expr(self, a1()?, 0)?
+                    .append(", ")
+                    .expr(self, arg(a, 2)?, 0)?
+                    .append(")");
                 Ok(())
             }
             SqlFn::DateDiff => self.date_diff(a)?(w),
@@ -825,12 +959,18 @@ impl Databricks {
             SqlFn::DateAtTime => Err(Refusal::capability("a time of day: Databricks has no TIME type")),
             // the zone's wall time of the instant t (the platform's timestamps are UTC instants)
             SqlFn::Timezone => {
-                w.append("from_utc_timestamp(").expr(self, a1()?, 0)?.append(", ").expr(self, a0()?, 0)?.append(")");
+                w.append("from_utc_timestamp(")
+                    .expr(self, a1()?, 0)?
+                    .append(", ")
+                    .expr(self, a0()?, 0)?
+                    .append(")");
                 Ok(())
             }
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             SqlFn::EpochSeconds => {
-                w.append("(CAST(unix_micros(").expr(self, a0()?, 0)?.append(") AS DOUBLE) / 1000000)");
+                w.append("(CAST(unix_micros(")
+                    .expr(self, a0()?, 0)?
+                    .append(") AS DOUBLE) / 1000000)");
                 Ok(())
             }
             SqlFn::EpochNs | SqlFn::FromEpochNs => Err(Refusal::capability(
@@ -845,7 +985,9 @@ impl Databricks {
                 Ok(())
             }
             SqlFn::FromEpochMs => {
-                w.append("timestamp_millis(CAST(").expr(self, a0()?, 0)?.append(" AS BIGINT))");
+                w.append("timestamp_millis(CAST(")
+                    .expr(self, a0()?, 0)?
+                    .append(" AS BIGINT))");
                 Ok(())
             }
             SqlFn::Dayname => {
@@ -867,7 +1009,10 @@ impl Databricks {
             // DuckDB's range: [start, stop) by step (start 0, step 1 by default)
             SqlFn::RangeFn => self.range_fn(w, a),
             SqlFn::RepeatValue => {
-                w.append("array_repeat(").expr(self, a0()?, 0)?.append(", CAST(").expr(self, a1()?, 0)?;
+                w.append("array_repeat(")
+                    .expr(self, a0()?, 0)?
+                    .append(", CAST(")
+                    .expr(self, a1()?, 0)?;
                 w.append(" AS INT))");
                 Ok(())
             }
@@ -879,8 +1024,14 @@ impl Databricks {
             }
             // DuckDB's map_extract: a list of the key's value, empty when absent
             SqlFn::MapExtract => {
-                w.append("(CASE WHEN map_contains_key(").expr(self, a0()?, 0)?.append(", ").expr(self, a1()?, 0)?;
-                w.append(") THEN array(element_at(").expr(self, a0()?, 0)?.append(", ").expr(self, a1()?, 0)?;
+                w.append("(CASE WHEN map_contains_key(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?;
+                w.append(") THEN array(element_at(")
+                    .expr(self, a0()?, 0)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?;
                 w.append(")) ELSE array() END)");
                 Ok(())
             }
@@ -889,7 +1040,9 @@ impl Databricks {
             // ---- variant
             SqlFn::JsonType => self.json_type(w, a),
             SqlFn::JsonArrayLength => {
-                w.append("array_size(try_cast(").expr(self, a0()?, 0)?.append(" AS ARRAY<VARIANT>))");
+                w.append("array_size(try_cast(")
+                    .expr(self, a0()?, 0)?
+                    .append(" AS ARRAY<VARIANT>))");
                 Ok(())
             }
             SqlFn::JsonPretty => Err(wall(f, "Databricks has no JSON pretty-printer")),
@@ -903,7 +1056,11 @@ impl Databricks {
         let list = self.list(xs);
         match f {
             SqlFn::ListFilter | SqlFn::ListTransform => {
-                let name = if f == SqlFn::ListFilter { "filter(" } else { "transform(" };
+                let name = if f == SqlFn::ListFilter {
+                    "filter("
+                } else {
+                    "transform("
+                };
                 w.append(name).piece(&*list)?.append(", ");
                 let l = arg(args, 1)?;
                 match one_based_index(lambda_arg(l)?)? {
@@ -922,22 +1079,39 @@ impl Databricks {
             }
             // 1-based, negative from the end, out of range NULL; 0 is out of range
             SqlFn::ListGet => {
-                w.append("(CASE WHEN ").expr(self, arg(args, 1)?, 0)?.append(" = 0 THEN NULL ELSE try_element_at(");
-                w.piece(&*list)?.append(", CAST(").expr(self, &args[1], 0)?.append(" AS INT)) END)");
+                w.append("(CASE WHEN ")
+                    .expr(self, arg(args, 1)?, 0)?
+                    .append(" = 0 THEN NULL ELSE try_element_at(");
+                w.piece(&*list)?
+                    .append(", CAST(")
+                    .expr(self, &args[1], 0)?
+                    .append(" AS INT)) END)");
             }
             // DuckDB's list_position: NULL when absent (array_position answers 0)
             SqlFn::ListPosition => {
-                w.append("nullif(array_position(").piece(&*list)?.append(", ").expr(self, arg(args, 1)?, 0)?;
+                w.append("nullif(array_position(")
+                    .piece(&*list)?
+                    .append(", ")
+                    .expr(self, arg(args, 1)?, 0)?;
                 w.append("), 0)");
             }
             // DuckDB's list_distinct drops NULLs; array_distinct keeps the first occurrence's order
             SqlFn::ListDistinct => {
                 let x = self.param("__x")?;
-                w.append("array_distinct(filter(").piece(&*list)?.append(", ").append(&x).append(" -> ").append(&x);
+                w.append("array_distinct(filter(")
+                    .piece(&*list)?
+                    .append(", ")
+                    .append(&x)
+                    .append(" -> ")
+                    .append(&x);
                 w.append(" IS NOT NULL))");
             }
             SqlFn::ListAppend => {
-                w.append("array_append(").piece(&*list)?.append(", ").expr(self, arg(args, 1)?, 0)?.append(")");
+                w.append("array_append(")
+                    .piece(&*list)?
+                    .append(", ")
+                    .expr(self, arg(args, 1)?, 0)?
+                    .append(")");
             }
             SqlFn::ListSum => {
                 w.piece(&*self.over_rows(xs, AggFn::Sum, &[]))?;
@@ -949,7 +1123,9 @@ impl Databricks {
                 w.append("array_max(").piece(&*list)?.append(")");
             }
             SqlFn::ListAvg => {
-                w.append("CAST(").piece(&*self.over_rows(xs, AggFn::Avg, &[]))?.append(" AS DOUBLE)");
+                w.append("CAST(")
+                    .piece(&*self.over_rows(xs, AggFn::Avg, &[]))?
+                    .append(" AS DOUBLE)");
             }
             SqlFn::ListMedian => {
                 w.piece(&*self.over_rows(xs, AggFn::Median, &[]))?;
@@ -978,24 +1154,42 @@ impl Databricks {
                 w.append("reverse(").piece(&*list)?.append(")");
             }
             SqlFn::ListTail => {
-                w.append("filter(").piece(&*list)?.append(", (`__x`, `__i`) -> `__i` > 0)");
+                w.append("filter(")
+                    .piece(&*list)?
+                    .append(", (`__x`, `__i`) -> `__i` > 0)");
             }
             SqlFn::ListInit => {
-                w.append("filter(").piece(&*list)?.append(", (`__x`, `__i`) -> `__i` < array_size(").piece(&*list)?;
+                w.append("filter(")
+                    .piece(&*list)?
+                    .append(", (`__x`, `__i`) -> `__i` < array_size(")
+                    .piece(&*list)?;
                 w.append(") - 1)");
             }
             // DuckDB's list_slice: 1-based, both ends inclusive
             SqlFn::ListSlice => {
-                w.append("filter(").piece(&*list)?.append(", (`__x`, `__i`) -> `__i` + 1 >= ");
-                w.expr(self, arg(args, 1)?, 6)?.append(" AND `__i` + 1 <= ").expr(self, arg(args, 2)?, 6)?.append(")");
+                w.append("filter(")
+                    .piece(&*list)?
+                    .append(", (`__x`, `__i`) -> `__i` + 1 >= ");
+                w.expr(self, arg(args, 1)?, 6)?
+                    .append(" AND `__i` + 1 <= ")
+                    .expr(self, arg(args, 2)?, 6)?
+                    .append(")");
             }
             SqlFn::ListZip => {
-                return Err(Refusal::capability("list_zip reached Databricks: arrays_zip names its fields"));
+                return Err(Refusal::capability(
+                    "list_zip reached Databricks: arrays_zip names its fields",
+                ));
             }
             // DuckDB's list_reduce: the first element is the accumulator's start, the lambda (acc, x) over the rest
             SqlFn::ListReduce => {
-                w.append("aggregate(filter(").piece(&*list)?.append(", (`__x`, `__i`) -> `__i` > 0), ");
-                w.append("element_at(").piece(&*list)?.append(", 1), ").expr(self, arg(args, 1)?, 0)?.append(")");
+                w.append("aggregate(filter(")
+                    .piece(&*list)?
+                    .append(", (`__x`, `__i`) -> `__i` > 0), ");
+                w.append("element_at(")
+                    .piece(&*list)?
+                    .append(", 1), ")
+                    .expr(self, arg(args, 1)?, 0)?
+                    .append(")");
             }
             // Spark's own name of the value's type, compared only with typeofName's
             SqlFn::Typeof => {

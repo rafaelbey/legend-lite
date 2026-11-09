@@ -60,10 +60,14 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
         return Err(c.error(jcat!("unsupported ###", section, " element: ", kind)));
     }
     if eq(&kind, "ExecutionEnvironment") {
-        return Ok(Element::PExecutionEnvironment(Box::new(parse_execution_environment(c)?)));
+        return Ok(Element::PExecutionEnvironment(Box::new(parse_execution_environment(
+            c,
+        )?)));
     }
     if listed(DEPLOYMENT_CONFIG_KINDS, &kind) {
-        return Ok(Element::PFunctionActivator(Box::new(parse_deployment_config(c, &kind)?)));
+        return Ok(Element::PFunctionActivator(Box::new(parse_deployment_config(
+            c, &kind,
+        )?)));
     }
     c.advance()?;
     let dec = c.parse_decorations()?;
@@ -160,10 +164,18 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
     }
     c.expect(T::BRACE_CLOSE)?;
     let Some((function_path, function_span)) = function else {
-        return Err(throw_at(c.tokens(), decl_start, jcat!(kind, " '", qn, "' needs a function")));
+        return Err(throw_at(
+            c.tokens(),
+            decl_start,
+            jcat!(kind, " '", qn, "' needs a function"),
+        ));
     };
     if owner_id.is_none() && user_list_users.is_none() && !eq(&kind, "BigQueryFunction") {
-        return Err(throw_at(c.tokens(), decl_start, JStr::from("Field 'ownership' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            decl_start,
+            JStr::from("Field 'ownership' is required"),
+        ));
     }
     let has = |k: &str| scalars.iter().any(|(s, _)| *s == k);
     let required = |f: &str| throw_at(c.tokens(), decl_start, jcat!("Field '", f, "' is required"));
@@ -202,7 +214,10 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
 /// `PFunctionActivator`'s compact constructor: the ownership is a Deployment or a UserList, never both.
 fn activator(a: PFunctionActivator) -> R<PFunctionActivator> {
     // both would take a second `ownership`, which `once` refuses first, and a deployment configuration writes neither
-    assert!(a.owner_id.is_none() || a.user_list_users.is_none(), "ownership is Deployment OR UserList, not both");
+    assert!(
+        a.owner_id.is_none() || a.user_list_users.is_none(),
+        "ownership is Deployment OR UserList, not both"
+    );
     Ok(a)
 }
 
@@ -230,7 +245,11 @@ fn parse_deployment_config<'s>(c: &mut impl Cursor<'s>, kind: &[u16]) -> R<PFunc
     }
     c.expect(T::BRACE_CLOSE)?;
     if conn.is_none() && !hosted {
-        return Err(throw_at(c.tokens(), decl_start, JStr::from("Field 'activationConnection' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            decl_start,
+            JStr::from("Field 'activationConnection' is required"),
+        ));
     }
     let span = c.span(decl_start, c.pos() - 1);
     activator(PFunctionActivator {

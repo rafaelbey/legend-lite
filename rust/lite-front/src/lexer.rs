@@ -276,7 +276,11 @@ impl<'a> TokenStream<'a> {
             let ls = self.line_starts();
             let n = self.tokens.len();
             let mut out = Vec::with_capacity(n);
-            let mut line = if n > 0 { self.line_of(self.tokens[0].start) - 1 } else { 0 };
+            let mut line = if n > 0 {
+                self.line_of(self.tokens[0].start) - 1
+            } else {
+                0
+            };
             for t in &self.tokens {
                 let s = t.start;
                 while line + 1 < ls.len() && ls[line + 1] <= s {
@@ -315,7 +319,11 @@ impl<'a> TokenStream<'a> {
     /// The tokens `[from, to)` of this stream as a stream of their own (Java's `slice`): a window over the same file,
     /// its offsets the source's, its section headers and skipped sections the file's, its line index this stream's.
     pub fn slice(&self, from: usize, to: usize) -> TokenStream<'a> {
-        assert!(from <= to && to <= self.tokens.len(), "slice({from}, {to}) out of bounds for count={}", self.count());
+        assert!(
+            from <= to && to <= self.tokens.len(),
+            "slice({from}, {to}) out of bounds for count={}",
+            self.count()
+        );
         let line_starts = OnceCell::new();
         let _ = line_starts.set(Rc::clone(self.shared_line_starts()));
         TokenStream {
@@ -1180,7 +1188,13 @@ mod tests {
 
     #[test]
     fn a_lone_surrogate_is_one_unit_and_one_code_point() {
-        let src = vec![u16::from(b'\''), 0xD800, u16::from(b'\''), u16::from(b' '), u16::from(b'z')];
+        let src = vec![
+            u16::from(b'\''),
+            0xD800,
+            u16::from(b'\''),
+            u16::from(b' '),
+            u16::from(b'z'),
+        ];
         let ts = tokenize(&src);
         assert_eq!(ts.ty(0), T::STRING);
         assert_eq!(ts.end(0), 3);

@@ -136,7 +136,9 @@ pub fn read_query(o: &Obj) -> Result<SqlQuery, Error> {
     match tag(o)? {
         "select" => read_select(o).map(|s| SqlQuery::Select(Box::new(s))),
         "union" => Ok(SqlQuery::Union(SqlUnion {
-            branches: objs(o.arr("branches")?).map(|b| read_query(b?)).collect::<Result<_, _>>()?,
+            branches: objs(o.arr("branches")?)
+                .map(|b| read_query(b?))
+                .collect::<Result<_, _>>()?,
             all: o.bool("all")?,
             outputs: output_cols(o.arr("outputs")?)?,
         })),
@@ -151,7 +153,11 @@ pub fn read_query(o: &Obj) -> Result<SqlQuery, Error> {
                     })
                 })
                 .collect::<Result<_, Error>>()?;
-            Ok(SqlQuery::With(SqlWith { ctes, body: subquery(o, "body")?, recursive: o.bool("recursive")? }))
+            Ok(SqlQuery::With(SqlWith {
+                ctes,
+                body: subquery(o, "body")?,
+                recursive: o.bool("recursive")?,
+            }))
         }
         other => Err(unknown_tag("query", other)),
     }
@@ -159,7 +165,9 @@ pub fn read_query(o: &Obj) -> Result<SqlQuery, Error> {
 
 fn read_select(o: &Obj) -> Result<SqlSelect, Error> {
     Ok(SqlSelect {
-        projections: objs(o.arr("projections")?).map(|p| projection(p?)).collect::<Result<_, _>>()?,
+        projections: objs(o.arr("projections")?)
+            .map(|p| projection(p?))
+            .collect::<Result<_, _>>()?,
         distinct: o.bool("distinct")?,
         from: read_source(o.obj("from")?)?,
         r#where: expr_or_null(o, "where")?,
@@ -212,15 +220,22 @@ fn output_col(o: &Obj) -> Result<OutputCol, Error> {
 }
 
 fn origin_or_null(o: &Obj) -> Result<Option<Origin>, Error> {
-    o.str_or_null("origin")?.map(|n| named(Origin::from_name, n, "output origin")).transpose()
+    o.str_or_null("origin")?
+        .map(|n| named(Origin::from_name, n, "output origin"))
+        .transpose()
 }
 
 fn quoting(q: &Obj) -> Result<NameQuoting, Error> {
-    Ok(NameQuoting { schema: q.bool("schema")?, table: q.bool("table")? })
+    Ok(NameQuoting {
+        schema: q.bool("schema")?,
+        table: q.bool("table")?,
+    })
 }
 
 fn stored_types(o: &Obj) -> Result<Vec<(String, ColumnType)>, Error> {
-    o.iter().map(|(k, v)| Ok((k.to_owned(), read_column_type(v.as_obj()?)?))).collect()
+    o.iter()
+        .map(|(k, v)| Ok((k.to_owned(), read_column_type(v.as_obj()?)?)))
+        .collect()
 }
 
 /// Java's `readSource`.
@@ -241,7 +256,11 @@ pub fn read_source(o: &Obj) -> Result<SqlSource, Error> {
             alias: alias()?,
             frame_name: string_or_null(o, "frameName")?,
         },
-        "cte" => SqlSource::Cte { name: string(o, "name")?, alias: alias()?, outputs: outputs()? },
+        "cte" => SqlSource::Cte {
+            name: string(o, "name")?,
+            alias: alias()?,
+            outputs: outputs()?,
+        },
         "join" => SqlSource::Join {
             left: Box::new(read_source(o.obj("left")?)?),
             right: Box::new(read_source(o.obj("right")?)?),
@@ -254,18 +273,28 @@ pub fn read_source(o: &Obj) -> Result<SqlSource, Error> {
             on: exprs(o.arr("on")?)?,
             r#in: exprs(o.arr("in")?)?,
             named: exprs(o.arr("named")?)?,
-            usings: objs(o.arr("usings")?).map(|u| pivot_using(u?)).collect::<Result<_, _>>()?,
+            usings: objs(o.arr("usings")?)
+                .map(|u| pivot_using(u?))
+                .collect::<Result<_, _>>()?,
             alias: alias()?,
             outputs: outputs()?,
         },
         "values" => SqlSource::Values {
-            rows: o.arr("rows")?.iter().map(|r| exprs(r.as_arr()?)).collect::<Result<_, _>>()?,
+            rows: o
+                .arr("rows")?
+                .iter()
+                .map(|r| exprs(r.as_arr()?))
+                .collect::<Result<_, _>>()?,
             columns: strings(o.arr("columns")?)?,
             alias: alias()?,
             outputs: outputs()?,
         },
         "dual" => SqlSource::Dual,
-        "sourceUrl" => SqlSource::SourceUrl { url: string(o, "url")?, alias: alias()?, outputs: outputs()? },
+        "sourceUrl" => SqlSource::SourceUrl {
+            url: string(o, "url")?,
+            alias: alias()?,
+            outputs: outputs()?,
+        },
         "rawSql" => SqlSource::RawSql {
             sql: string(o, "sql")?,
             alias: alias()?,
@@ -280,9 +309,11 @@ pub fn read_source(o: &Obj) -> Result<SqlSource, Error> {
             alias: alias()?,
             outputs: outputs()?,
         },
-        "varSet" => {
-            SqlSource::VarSetPlaceholder { var_name: string(o, "varName")?, alias: alias()?, outputs: outputs()? }
-        }
+        "varSet" => SqlSource::VarSetPlaceholder {
+            var_name: string(o, "varName")?,
+            alias: alias()?,
+            outputs: outputs()?,
+        },
         other => return Err(unknown_tag("source", other)),
     })
 }
@@ -292,7 +323,11 @@ fn pivot_using(u: &Obj) -> Result<PivotUsing, Error> {
         SqlAgg::Reducer(r) => r,
         _ => return Err(Error("a pivot's aggregate is not a reducer".to_owned())),
     };
-    Ok(PivotUsing { agg, alias: string(u, "alias")?, r#type: u.obj_or_null("type")?.map(read_type).transpose()? })
+    Ok(PivotUsing {
+        agg,
+        alias: string(u, "alias")?,
+        r#type: u.obj_or_null("type")?.map(read_type).transpose()?,
+    })
 }
 
 /// Java's `readExpr`.
@@ -303,7 +338,10 @@ pub fn read_expr(o: &Obj) -> Result<SqlExpr, Error> {
     }
     let r#type = read_fact(o.obj("type")?)?;
     Ok(match t {
-        "rowOrder" => SqlExpr::RowOrder { table: string_or_null(o, "table")?, r#type },
+        "rowOrder" => SqlExpr::RowOrder {
+            table: string_or_null(o, "table")?,
+            r#type,
+        },
         "storedRead" => SqlExpr::StoredRead {
             column: match read_expr(o.obj("column")?)? {
                 SqlExpr::Column(c) => c,
@@ -318,49 +356,102 @@ pub fn read_expr(o: &Obj) -> Result<SqlExpr, Error> {
             extras: exprs(o.arr("extras")?)?,
             r#type,
         },
-        "membership" => {
-            SqlExpr::Membership { needle: boxed(o, "needle")?, collection: boxed(o, "collection")?, r#type }
-        }
+        "membership" => SqlExpr::Membership {
+            needle: boxed(o, "needle")?,
+            collection: boxed(o, "collection")?,
+            r#type,
+        },
         "column" => SqlExpr::Column(Column {
             table: string_or_null(o, "table")?,
             name: string(o, "name")?,
             r#type,
             origin: origin_or_null(o)?,
         }),
-        "starExcept" => {
-            SqlExpr::StarExcept { table: string_or_null(o, "table")?, except: strings(o.arr("except")?)?, r#type }
-        }
-        "star" => SqlExpr::Star { table: string_or_null(o, "table")?, r#type },
-        "stringLit" => SqlExpr::StringLit { value: string(o, "value")?, r#type },
-        "intLit" => SqlExpr::IntLit { value: o.i64("value")?, r#type },
-        "floatLit" => SqlExpr::FloatLit { value: Double::parse(o.str("value")?)?, r#type },
-        "decimalLit" => SqlExpr::DecimalLit { value: BigDecimal::parse(o.str("value")?)?, r#type },
-        "boolLit" => SqlExpr::BoolLit { value: o.bool("value")?, r#type },
+        "starExcept" => SqlExpr::StarExcept {
+            table: string_or_null(o, "table")?,
+            except: strings(o.arr("except")?)?,
+            r#type,
+        },
+        "star" => SqlExpr::Star {
+            table: string_or_null(o, "table")?,
+            r#type,
+        },
+        "stringLit" => SqlExpr::StringLit {
+            value: string(o, "value")?,
+            r#type,
+        },
+        "intLit" => SqlExpr::IntLit {
+            value: o.i64("value")?,
+            r#type,
+        },
+        "floatLit" => SqlExpr::FloatLit {
+            value: Double::parse(o.str("value")?)?,
+            r#type,
+        },
+        "decimalLit" => SqlExpr::DecimalLit {
+            value: BigDecimal::parse(o.str("value")?)?,
+            r#type,
+        },
+        "boolLit" => SqlExpr::BoolLit {
+            value: o.bool("value")?,
+            r#type,
+        },
         "nullLit" => SqlExpr::NullLit { r#type },
-        "dateLit" => SqlExpr::DateLit { iso: string(o, "iso")?, r#type },
-        "group" => SqlExpr::Group { inner: boxed(o, "inner")?, r#type },
-        "keyCell" => SqlExpr::KeyCell { cell: int(o, "cell")?, r#type },
+        "dateLit" => SqlExpr::DateLit {
+            iso: string(o, "iso")?,
+            r#type,
+        },
+        "group" => SqlExpr::Group {
+            inner: boxed(o, "inner")?,
+            r#type,
+        },
+        "keyCell" => SqlExpr::KeyCell {
+            cell: int(o, "cell")?,
+            r#type,
+        },
         "planParam" => plan_param(o, r#type)?,
-        "formatLit" => {
-            SqlExpr::FormatLit { parts: objs(o.arr("parts")?).map(|p| fmt(p?)).collect::<Result<_, _>>()?, r#type }
-        }
-        "datePartLit" => {
-            SqlExpr::DatePartLit { part: named(DatePart::from_name, o.str("part")?, "date part")?, r#type }
-        }
-        "jsonKindLit" => {
-            SqlExpr::JsonKindLit { kind: named(JsonKind::from_name, o.str("kind")?, "JSON kind")?, r#type }
-        }
-        "typeNameLit" => {
-            SqlExpr::TypeNameLit { scalar: named(Scalar::from_name, o.str("scalar")?, "scalar type")?, r#type }
-        }
-        "timestampLit" => SqlExpr::TimestampLit { iso: string(o, "iso")?, r#type },
-        "timeLit" => SqlExpr::TimeLit { iso: string(o, "iso")?, r#type },
-        "orderedListAgg" => {
-            SqlExpr::OrderedListAgg { value: boxed(o, "value")?, order_by: boxed(o, "orderBy")?, r#type }
-        }
-        "arrayLit" => SqlExpr::ArrayLit { elements: exprs(o.arr("elements")?)?, r#type },
-        "structLit" => SqlExpr::StructLit { fields: struct_lit_fields(o.arr("fields")?)?, r#type },
-        "structGet" => SqlExpr::StructGet { source: boxed(o, "source")?, field: string(o, "field")?, r#type },
+        "formatLit" => SqlExpr::FormatLit {
+            parts: objs(o.arr("parts")?).map(|p| fmt(p?)).collect::<Result<_, _>>()?,
+            r#type,
+        },
+        "datePartLit" => SqlExpr::DatePartLit {
+            part: named(DatePart::from_name, o.str("part")?, "date part")?,
+            r#type,
+        },
+        "jsonKindLit" => SqlExpr::JsonKindLit {
+            kind: named(JsonKind::from_name, o.str("kind")?, "JSON kind")?,
+            r#type,
+        },
+        "typeNameLit" => SqlExpr::TypeNameLit {
+            scalar: named(Scalar::from_name, o.str("scalar")?, "scalar type")?,
+            r#type,
+        },
+        "timestampLit" => SqlExpr::TimestampLit {
+            iso: string(o, "iso")?,
+            r#type,
+        },
+        "timeLit" => SqlExpr::TimeLit {
+            iso: string(o, "iso")?,
+            r#type,
+        },
+        "orderedListAgg" => SqlExpr::OrderedListAgg {
+            value: boxed(o, "value")?,
+            order_by: boxed(o, "orderBy")?,
+            r#type,
+        },
+        "arrayLit" => SqlExpr::ArrayLit {
+            elements: exprs(o.arr("elements")?)?,
+            r#type,
+        },
+        "structLit" => SqlExpr::StructLit {
+            fields: struct_lit_fields(o.arr("fields")?)?,
+            r#type,
+        },
+        "structGet" => SqlExpr::StructGet {
+            source: boxed(o, "source")?,
+            field: string(o, "field")?,
+            r#type,
+        },
         "call" => SqlExpr::Call {
             r#fn: named(SqlFn::from_name, o.str("fn")?, "function")?,
             args: exprs(o.arr("args")?)?,
@@ -370,14 +461,24 @@ pub fn read_expr(o: &Obj) -> Result<SqlExpr, Error> {
             whens: objs(o.arr("whens")?)
                 .map(|w| {
                     let w = w?;
-                    Ok(When { condition: read_expr(w.obj("condition")?)?, then: read_expr(w.obj("then")?)? })
+                    Ok(When {
+                        condition: read_expr(w.obj("condition")?)?,
+                        then: read_expr(w.obj("then")?)?,
+                    })
                 })
                 .collect::<Result<_, Error>>()?,
             otherwise: expr_or_null(o, "otherwise")?.map(Box::new),
             r#type,
         },
-        "exists" => SqlExpr::Exists { subquery: subquery(o, "subquery")?, r#type },
-        "inSubquery" => SqlExpr::InSubquery { value: boxed(o, "value")?, subquery: subquery(o, "subquery")?, r#type },
+        "exists" => SqlExpr::Exists {
+            subquery: subquery(o, "subquery")?,
+            r#type,
+        },
+        "inSubquery" => SqlExpr::InSubquery {
+            value: boxed(o, "value")?,
+            subquery: subquery(o, "subquery")?,
+            r#type,
+        },
         "checkedDefects" => SqlExpr::CheckedDefects {
             own: boxed(o, "own")?,
             hoists: objs(o.arr("hoists")?)
@@ -392,9 +493,11 @@ pub fn read_expr(o: &Obj) -> Result<SqlExpr, Error> {
                 .collect::<Result<_, Error>>()?,
             r#type,
         },
-        "checkedChildValue" => {
-            SqlExpr::CheckedChildValue { envelope: boxed(o, "envelope")?, to_many: o.bool("toMany")?, r#type }
-        }
+        "checkedChildValue" => SqlExpr::CheckedChildValue {
+            envelope: boxed(o, "envelope")?,
+            to_many: o.bool("toMany")?,
+            r#type,
+        },
         "quantified" => SqlExpr::Quantified {
             value: boxed(o, "value")?,
             comparison: named(SqlFn::from_name, o.str("comparison")?, "function")?,
@@ -402,14 +505,20 @@ pub fn read_expr(o: &Obj) -> Result<SqlExpr, Error> {
             subquery: subquery(o, "subquery")?,
             r#type,
         },
-        "scalarSubquery" => SqlExpr::ScalarSubquery { subquery: subquery(o, "subquery")?, r#type },
+        "scalarSubquery" => SqlExpr::ScalarSubquery {
+            subquery: subquery(o, "subquery")?,
+            r#type,
+        },
         "checkedOne" => SqlExpr::CheckedOne {
             list: boxed(o, "list")?,
             scalar_carrier: o.bool("scalarCarrier")?,
             at_least_only: o.bool("atLeastOnly")?,
             r#type,
         },
-        "compactList" => SqlExpr::CompactList { list: boxed(o, "list")?, r#type },
+        "compactList" => SqlExpr::CompactList {
+            list: boxed(o, "list")?,
+            r#type,
+        },
         "deferredTdsString" => SqlExpr::DeferredTdsString {
             inner: match read_query(o.obj("inner")?)? {
                 SqlQuery::Select(s) => s,
@@ -421,15 +530,27 @@ pub fn read_expr(o: &Obj) -> Result<SqlExpr, Error> {
             render_tds_null: o.bool("renderTdsNull")?,
             r#type,
         },
-        "tempTableInSplice" => SqlExpr::TempTableInSplice { temp_table_name: string(o, "tempTableName")?, r#type },
-        "jsonObject" => SqlExpr::JsonObject { kv: exprs(o.arr("kv")?)?, r#type },
-        "jsonArray" => SqlExpr::JsonArray { elements: exprs(o.arr("elements")?)?, r#type },
+        "tempTableInSplice" => SqlExpr::TempTableInSplice {
+            temp_table_name: string(o, "tempTableName")?,
+            r#type,
+        },
+        "jsonObject" => SqlExpr::JsonObject {
+            kv: exprs(o.arr("kv")?)?,
+            r#type,
+        },
+        "jsonArray" => SqlExpr::JsonArray {
+            elements: exprs(o.arr("elements")?)?,
+            r#type,
+        },
         "jsonArrayAgg" => SqlExpr::JsonArrayAgg {
             value: boxed(o, "value")?,
             order_keys: objs(o.arr("orderKeys")?)
                 .map(|k| {
                     let k = k?;
-                    Ok(JsonArrayAggKey { expr: read_expr(k.obj("expr")?)?, desc: k.bool("desc")? })
+                    Ok(JsonArrayAggKey {
+                        expr: read_expr(k.obj("expr")?)?,
+                        desc: k.bool("desc")?,
+                    })
                 })
                 .collect::<Result<_, Error>>()?,
             r#type,
@@ -441,7 +562,11 @@ pub fn read_expr(o: &Obj) -> Result<SqlExpr, Error> {
             frame: o.obj_or_null("frame")?.map(frame).transpose()?,
             r#type,
         },
-        "lambda" => SqlExpr::Lambda(Lambda { params: strings(o.arr("params")?)?, body: boxed(o, "body")?, r#type }),
+        "lambda" => SqlExpr::Lambda(Lambda {
+            params: strings(o.arr("params")?)?,
+            body: boxed(o, "body")?,
+            r#type,
+        }),
         "cast" => SqlExpr::Cast {
             value: boxed(o, "value")?,
             target: read_type(o.obj("target")?)?,
@@ -522,8 +647,14 @@ pub fn read_agg(o: &Obj) -> Result<SqlAgg, Error> {
     let r#fn = || named(AggFn::from_name, o.str("fn")?, "aggregate");
     Ok(match tag(o)? {
         "reducer" => SqlAgg::Reducer(reducer(o, read_fact(o.obj("type")?)?)?),
-        "rankingFn" => SqlAgg::RankingFn { r#fn: r#fn()?, args: exprs(o.arr("args")?)? },
-        "valueFn" => SqlAgg::ValueFn { r#fn: r#fn()?, args: exprs(o.arr("args")?)? },
+        "rankingFn" => SqlAgg::RankingFn {
+            r#fn: r#fn()?,
+            args: exprs(o.arr("args")?)?,
+        },
+        "valueFn" => SqlAgg::ValueFn {
+            r#fn: r#fn()?,
+            args: exprs(o.arr("args")?)?,
+        },
         other => return Err(unknown_tag("aggregate", other)),
     })
 }
@@ -535,8 +666,14 @@ fn bound(o: &Obj) -> Result<Bound, Error> {
         "currentRow" => Bound::CurrentRow,
         "following" => Bound::Following { n: number(o)? },
         "unboundedFollowing" => Bound::UnboundedFollowing,
-        "intervalPreceding" => Bound::IntervalPreceding { n: o.i64("n")?, unit: string(o, "unit")? },
-        "intervalFollowing" => Bound::IntervalFollowing { n: o.i64("n")?, unit: string(o, "unit")? },
+        "intervalPreceding" => Bound::IntervalPreceding {
+            n: o.i64("n")?,
+            unit: string(o, "unit")?,
+        },
+        "intervalFollowing" => Bound::IntervalFollowing {
+            n: o.i64("n")?,
+            unit: string(o, "unit")?,
+        },
         other => return Err(unknown_tag("window bound", other)),
     })
 }
@@ -558,16 +695,25 @@ fn number(o: &Obj) -> Result<JavaNumber, Error> {
 pub fn read_type(o: &Obj) -> Result<SqlType, Error> {
     Ok(match tag(o)? {
         "scalar" => SqlType::Scalar(named(Scalar::from_name, o.str("name")?, "scalar type")?),
-        "decimal" => SqlType::Decimal { precision: int(o, "precision")?, scale: int(o, "scale")? },
-        "array" => SqlType::Array { element: Box::new(read_type(o.obj("element")?)?) },
-        "map" => {
-            SqlType::Map { key: Box::new(read_type(o.obj("key")?)?), value: Box::new(read_type(o.obj("value")?)?) }
-        }
+        "decimal" => SqlType::Decimal {
+            precision: int(o, "precision")?,
+            scale: int(o, "scale")?,
+        },
+        "array" => SqlType::Array {
+            element: Box::new(read_type(o.obj("element")?)?),
+        },
+        "map" => SqlType::Map {
+            key: Box::new(read_type(o.obj("key")?)?),
+            value: Box::new(read_type(o.obj("value")?)?),
+        },
         "struct" => SqlType::Struct {
             fields: objs(o.arr("fields")?)
                 .map(|f| {
                     let f = f?;
-                    Ok(StructField { name: string(f, "name")?, r#type: read_type(f.obj("type")?)? })
+                    Ok(StructField {
+                        name: string(f, "name")?,
+                        r#type: read_type(f.obj("type")?)?,
+                    })
                 })
                 .collect::<Result<_, Error>>()?,
         },
@@ -575,7 +721,10 @@ pub fn read_type(o: &Obj) -> Result<SqlType, Error> {
             slots: objs(o.arr("slots")?)
                 .map(|s| {
                     let s = s?;
-                    Ok(TaggedSlot { kind: string(s, "kind")?, r#type: read_type(s.obj("type")?)? })
+                    Ok(TaggedSlot {
+                        kind: string(s, "kind")?,
+                        r#type: read_type(s.obj("type")?)?,
+                    })
                 })
                 .collect::<Result<_, Error>>()?,
         },
@@ -586,7 +735,10 @@ pub fn read_type(o: &Obj) -> Result<SqlType, Error> {
 /// Java's `readFact`.
 pub fn read_fact(o: &Obj) -> Result<TypeFact, Error> {
     Ok(match tag(o)? {
-        "typed" => TypeFact::Typed { r#type: read_type(o.obj("sqlType")?)?, nullable: o.bool("nullable")? },
+        "typed" => TypeFact::Typed {
+            r#type: read_type(o.obj("sqlType")?)?,
+            nullable: o.bool("nullable")?,
+        },
         "bottom" => TypeFact::Bottom,
         "raises" => TypeFact::Raises,
         "unknown" => TypeFact::Unknown,
@@ -605,11 +757,18 @@ fn fmt(o: &Obj) -> Result<DateFmt, Error> {
 /// Java's `readColumnType`.
 pub fn read_column_type(o: &Obj) -> Result<ColumnType, Error> {
     Ok(match tag(o)? {
-        "plain" => ColumnType::Plain { kind: named(ColumnKind::from_name, o.str("kind")?, "column kind")? },
-        "sized" => ColumnType::Sized { kind: string(o, "kind")?, size: int(o, "size")? },
-        "scaled" => {
-            ColumnType::Scaled { kind: string(o, "kind")?, precision: int(o, "precision")?, scale: int(o, "scale")? }
-        }
+        "plain" => ColumnType::Plain {
+            kind: named(ColumnKind::from_name, o.str("kind")?, "column kind")?,
+        },
+        "sized" => ColumnType::Sized {
+            kind: string(o, "kind")?,
+            size: int(o, "size")?,
+        },
+        "scaled" => ColumnType::Scaled {
+            kind: string(o, "kind")?,
+            precision: int(o, "precision")?,
+            scale: int(o, "scale")?,
+        },
         other => return Err(unknown_tag("column type", other)),
     })
 }
@@ -640,8 +799,14 @@ pub fn read_ddl(o: &Obj) -> Result<SqlDdl, Error> {
             table: string(o, "table")?,
             quoting: quoting(o.obj("quoting")?)?,
         },
-        "createSchema" => SqlDdl::CreateSchema { schema: string(o, "schema")?, quoted: o.bool("quoted")? },
-        "dropSchema" => SqlDdl::DropSchema { schema: string(o, "schema")?, quoted: o.bool("quoted")? },
+        "createSchema" => SqlDdl::CreateSchema {
+            schema: string(o, "schema")?,
+            quoted: o.bool("quoted")?,
+        },
+        "dropSchema" => SqlDdl::DropSchema {
+            schema: string(o, "schema")?,
+            quoted: o.bool("quoted")?,
+        },
         other => return Err(unknown_tag("DDL statement", other)),
     })
 }
@@ -660,7 +825,11 @@ pub fn read_dml(o: &Obj) -> Result<SqlDml, Error> {
             quoting: name_quoting()?,
             columns: columns()?,
             quoted_columns: quoted_columns()?,
-            rows: o.arr("rows")?.iter().map(|r| exprs(r.as_arr()?)).collect::<Result<_, _>>()?,
+            rows: o
+                .arr("rows")?
+                .iter()
+                .map(|r| exprs(r.as_arr()?))
+                .collect::<Result<_, _>>()?,
         },
         "insertFromTable" => SqlDml::InsertFromTable {
             schema: schema()?,
@@ -670,7 +839,11 @@ pub fn read_dml(o: &Obj) -> Result<SqlDml, Error> {
             quoted_columns: quoted_columns()?,
             source: string(o, "source")?,
         },
-        "deleteAll" => SqlDml::DeleteAll { schema: schema()?, table: table()?, quoting: name_quoting()? },
+        "deleteAll" => SqlDml::DeleteAll {
+            schema: schema()?,
+            table: table()?,
+            quoting: name_quoting()?,
+        },
         "createTempTableAs" => SqlDml::CreateTempTableAs {
             table: table()?,
             query: read_query(o.obj("query")?)?,

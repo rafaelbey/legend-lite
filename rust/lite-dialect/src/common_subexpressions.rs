@@ -37,8 +37,13 @@ use std::collections::{HashMap, HashSet};
 const MIN_SIZE: u64 = 40;
 
 /// The calls written as a regular expression's walk: a statement of its own (SqliteRegex: two kilobytes).
-const WALKS: &[SqlFn] =
-    &[SqlFn::RegexpExtract, SqlFn::RegexpExtractAll, SqlFn::RegexpReplace, SqlFn::RegexpFullMatch, SqlFn::Matches];
+const WALKS: &[SqlFn] = &[
+    SqlFn::RegexpExtract,
+    SqlFn::RegexpExtractAll,
+    SqlFn::RegexpReplace,
+    SqlFn::RegexpFullMatch,
+    SqlFn::Matches,
+];
 
 /// The calls written as a subquery over a list's elements.
 const SUBQUERIES: &[SqlFn] = &[
@@ -91,7 +96,11 @@ impl CommonSubexpressions {
         let mut ps = Vec::with_capacity(s.projections.len());
         let mut changed = false;
         for p in &s.projections {
-            let e = if is_unnest(&p.expr) || grouped(&p.expr) { None } else { self.shared(&p.expr)? };
+            let e = if is_unnest(&p.expr) || grouped(&p.expr) {
+                None
+            } else {
+                self.shared(&p.expr)?
+            };
             match e {
                 Some(e) => {
                     changed = true;
@@ -113,7 +122,11 @@ impl CommonSubexpressions {
         if !changed {
             return Ok(None);
         }
-        Ok(Some(build::select(SqlSelect { projections: ps, r#where, ..s.clone() })?))
+        Ok(Some(build::select(SqlSelect {
+            projections: ps,
+            r#where,
+            ..s.clone()
+        })?))
     }
 
     /// Java's `shared`: `e` with its repeated large nodes bound; none when nothing was.
@@ -146,11 +159,16 @@ impl CommonSubexpressions {
         let Some(best) = best else {
             return Ok(lambdas);
         };
-        let best = dag.nodes[best].expr.clone().expect("a node of the binding size keeps its expression");
+        let best = dag.nodes[best]
+            .expr
+            .clone()
+            .expect("a node of the binding size keeps its expression");
         let alias = format!("__cse{}", self.fresh);
         self.fresh += 1;
         let reference = match best.r#type() {
-            TypeFact::Typed { r#type, .. } => build::typed_column(Some(&alias), "v", r#type.clone(), true, Origin::Derived),
+            TypeFact::Typed { r#type, .. } => {
+                build::typed_column(Some(&alias), "v", r#type.clone(), true, Origin::Derived)
+            }
             _ => build::derived(Some(&alias), "v"),
         };
         let replaced = replace(e, &best, &reference)?.unwrap_or_else(|| e.clone());
@@ -453,7 +471,14 @@ impl Dag {
         };
         let expr = (size >= MIN_SIZE).then(|| e.clone());
         let id = self.nodes.len();
-        self.nodes.push(Node { kids, size, movable, names, params, expr });
+        self.nodes.push(Node {
+            kids,
+            size,
+            movable,
+            names,
+            params,
+            expr,
+        });
         self.ids.insert(key, id);
         Ok(id)
     }
@@ -480,7 +505,12 @@ fn shallow(e: &SqlExpr) -> String {
     use SqlExpr as E;
     match e {
         E::StoredRead { stored, r#type, .. } => format!("StoredRead {stored:?} {type:?}"),
-        E::ReduceCollection { reducer, extras, r#type, .. } => {
+        E::ReduceCollection {
+            reducer,
+            extras,
+            r#type,
+            ..
+        } => {
             format!("ReduceCollection {reducer:?} {} {type:?}", extras.len())
         }
         E::Membership { r#type, .. } => format!("Membership {type:?}"),
@@ -493,32 +523,65 @@ fn shallow(e: &SqlExpr) -> String {
         }
         E::StructGet { field, r#type, .. } => format!("StructGet {field:?} {type:?}"),
         E::Call { r#fn, args, r#type } => format!("Call {fn:?} {} {type:?}", args.len()),
-        E::Case { whens, otherwise, r#type } => format!("Case {} {} {type:?}", whens.len(), otherwise.is_some()),
+        E::Case {
+            whens,
+            otherwise,
+            r#type,
+        } => format!("Case {} {} {type:?}", whens.len(), otherwise.is_some()),
         E::InSubquery { subquery, r#type, .. } => format!("InSubquery {subquery:?} {type:?}"),
         E::CheckedDefects { hoists, r#type, .. } => {
             let own: Vec<(&Vec<String>, bool)> = hoists.iter().map(|h| (&h.path, h.to_many)).collect();
             format!("CheckedDefects {own:?} {type:?}")
         }
         E::CheckedChildValue { to_many, r#type, .. } => format!("CheckedChildValue {to_many} {type:?}"),
-        E::Quantified { comparison, quantifier, subquery, r#type, .. } => {
+        E::Quantified {
+            comparison,
+            quantifier,
+            subquery,
+            r#type,
+            ..
+        } => {
             format!("Quantified {comparison:?} {quantifier:?} {subquery:?} {type:?}")
         }
-        E::CheckedOne { scalar_carrier, at_least_only, r#type, .. } => {
+        E::CheckedOne {
+            scalar_carrier,
+            at_least_only,
+            r#type,
+            ..
+        } => {
             format!("CheckedOne {scalar_carrier} {at_least_only} {type:?}")
         }
         E::CompactList { r#type, .. } => format!("CompactList {type:?}"),
-        E::WindowCall { r#fn, partition_by, order_by, frame, r#type } => {
+        E::WindowCall {
+            r#fn,
+            partition_by,
+            order_by,
+            frame,
+            r#type,
+        } => {
             let f = match r#fn.as_ref() {
                 lite_sql::SqlAgg::Reducer(_) => "Reducer".to_owned(),
                 other => format!("{other:?}"),
             };
-            let keys: Vec<(bool, &Option<lite_sql::NullOrder>, &Option<String>)> =
-                order_by.iter().map(|k| (k.ascending, &k.null_order, &k.output_name)).collect();
+            let keys: Vec<(bool, &Option<lite_sql::NullOrder>, &Option<String>)> = order_by
+                .iter()
+                .map(|k| (k.ascending, &k.null_order, &k.output_name))
+                .collect();
             format!("WindowCall {f} {} {keys:?} {frame:?} {type:?}", partition_by.len())
         }
         E::Lambda(l) => format!("Lambda {:?} {:?}", l.params, l.r#type),
-        E::Cast { target, conform, r#type, .. } => format!("Cast {target:?} {conform} {type:?}"),
-        E::FoldCall { acc_is_list, homogeneous, r#type, .. } => {
+        E::Cast {
+            target,
+            conform,
+            r#type,
+            ..
+        } => format!("Cast {target:?} {conform} {type:?}"),
+        E::FoldCall {
+            acc_is_list,
+            homogeneous,
+            r#type,
+            ..
+        } => {
             format!("FoldCall {acc_is_list} {homogeneous} {type:?}")
         }
         E::JsonObject { kv, r#type } => format!("JsonObject {} {type:?}", kv.len()),
@@ -528,9 +591,18 @@ fn shallow(e: &SqlExpr) -> String {
             format!("JsonArrayAgg {own:?} {type:?}")
         }
         E::Reducer(r) => {
-            let keys: Vec<(bool, &Option<lite_sql::NullOrder>, &Option<String>)> =
-                r.order_by.iter().map(|k| (k.ascending, &k.null_order, &k.output_name)).collect();
-            format!("Reducer {:?} {} {} {keys:?} {:?}", r.r#fn, r.args.len(), r.distinct, r.r#type)
+            let keys: Vec<(bool, &Option<lite_sql::NullOrder>, &Option<String>)> = r
+                .order_by
+                .iter()
+                .map(|k| (k.ascending, &k.null_order, &k.output_name))
+                .collect();
+            format!(
+                "Reducer {:?} {} {} {keys:?} {:?}",
+                r.r#fn,
+                r.args.len(),
+                r.distinct,
+                r.r#type
+            )
         }
         // a leaf, or a node whose only children are queries: the whole node
         E::Column(_)

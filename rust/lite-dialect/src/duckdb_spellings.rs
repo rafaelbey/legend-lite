@@ -40,7 +40,11 @@ pub fn decode_base64<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, a: &[SqlExpr]
 /// make_timestamp wants DOUBLE seconds; (part, value) otherwise.
 pub fn make_timestamp<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
     if a.len() == 6 {
-        w.append("make_timestamp(").list(d, &a[..5])?.append(", CAST(").expr(d, &a[5], 0)?.append(" AS DOUBLE))");
+        w.append("make_timestamp(")
+            .list(d, &a[..5])?
+            .append(", CAST(")
+            .expr(d, &a[5], 0)?
+            .append(" AS DOUBLE))");
     } else {
         w.function(d, "make_timestamp", a)?;
     }
@@ -51,7 +55,12 @@ pub fn make_timestamp<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, a: &[SqlExpr
 pub fn time_bucket<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
     let unit = part(arg(a, 0)?)?;
     let f = interval_function(unit)?;
-    w.append("time_bucket(").append(f).append("(").expr(d, arg(a, 1)?, 0)?.append("), ").expr(d, arg(a, 2)?, 0)?;
+    w.append("time_bucket(")
+        .append(f)
+        .append("(")
+        .expr(d, arg(a, 1)?, 0)?
+        .append("), ")
+        .expr(d, arg(a, 2)?, 0)?;
     w.append(if unit == DatePart::Week {
         ", TIMESTAMP '1969-12-29 00:00:00'"
     } else {
@@ -101,11 +110,17 @@ pub fn interval_function(p: DatePart) -> Result<&'static str, Refusal> {
 }
 
 pub fn from_epoch_ms<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("epoch_ms(CAST(").expr(d, arg(a, 0)?, 0)?.append(" AS BIGINT))");
+    w.append("epoch_ms(CAST(")
+        .expr(d, arg(a, 0)?, 0)?
+        .append(" AS BIGINT))");
     Ok(())
 }
 
 pub fn int_divide<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("(").expr(d, arg(a, 0)?, 6)?.append(" // ").expr(d, arg(a, 1)?, 6)?.append(")");
+    w.append("(")
+        .expr(d, arg(a, 0)?, 6)?
+        .append(" // ")
+        .expr(d, arg(a, 1)?, 6)?
+        .append(")");
     Ok(())
 }

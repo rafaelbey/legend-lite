@@ -27,7 +27,9 @@ fn wall(f: SqlFn, why: &str) -> Refusal {
 fn literal<'a>(e: &'a SqlExpr, what: &str) -> Result<&'a str, Refusal> {
     match e {
         SqlExpr::StringLit { value, .. } => Ok(value),
-        _ => Err(Refusal::capability(format!("{what} that is not a literal reached BigQuery"))),
+        _ => Err(Refusal::capability(format!(
+            "{what} that is not a literal reached BigQuery"
+        ))),
     }
 }
 
@@ -38,7 +40,9 @@ fn group(a: &[SqlExpr]) -> Result<i64, Refusal> {
     }
     match &a[2] {
         SqlExpr::IntLit { value, .. } if (0..=99).contains(value) => Ok(*value),
-        _ => Err(Refusal::capability("a regexp group that is not a literal reached BigQuery")),
+        _ => Err(Refusal::capability(
+            "a regexp group that is not a literal reached BigQuery",
+        )),
     }
 }
 
@@ -197,7 +201,9 @@ fn unit(p: DatePart) -> Result<&'static str, Refusal> {
 
 fn interval_unit(p: DatePart) -> Result<&'static str, Refusal> {
     if p == DatePart::Quarter {
-        return Err(Refusal::capability(format!("interval unit {p} has no BigQuery spelling")));
+        return Err(Refusal::capability(format!(
+            "interval unit {p} has no BigQuery spelling"
+        )));
     }
     unit(p)
 }
@@ -223,7 +229,11 @@ fn bucket_micros(unit: DatePart) -> Option<i64> {
 
 /// Whether a timestamp is an instant: TIMESTAMPTZ-typed, or a timezone() of a naive one (Java's `isInstant`).
 fn is_instant(e: &SqlExpr) -> bool {
-    if let SqlExpr::Call { r#fn: SqlFn::Timezone, args, .. } = e
+    if let SqlExpr::Call {
+        r#fn: SqlFn::Timezone,
+        args,
+        ..
+    } = e
         && args.len() == 2
     {
         return !is_instant(&args[1]);
@@ -314,8 +324,13 @@ impl BigQuery {
             w.append("TO_JSON_STRING(").expr(self, v, 0)?.append(")");
             return Ok(());
         }
-        w.append("(CASE WHEN JSON_TYPE(").expr(self, v, 0)?.append(") IN ('object', 'array') THEN TO_JSON_STRING(");
-        w.expr(self, v, 0)?.append(") ELSE JSON_VALUE(").expr(self, v, 0)?.append(") END)");
+        w.append("(CASE WHEN JSON_TYPE(")
+            .expr(self, v, 0)?
+            .append(") IN ('object', 'array') THEN TO_JSON_STRING(");
+        w.expr(self, v, 0)?
+            .append(") ELSE JSON_VALUE(")
+            .expr(self, v, 0)?
+            .append(") END)");
         Ok(())
     }
 
@@ -341,7 +356,13 @@ impl BigQuery {
             return Ok(());
         }
         if is_json(v) {
-            let member = matches!(v, SqlExpr::Call { r#fn: SqlFn::VariantGet, .. });
+            let member = matches!(
+                v,
+                SqlExpr::Call {
+                    r#fn: SqlFn::VariantGet,
+                    ..
+                }
+            );
             if target_is(Scalar::Varchar) {
                 return self.json_as_text(w, v, member);
             }
@@ -356,9 +377,19 @@ impl BigQuery {
                 } else {
                     self.cast_from_text(text(format!("JSON_VALUE({j})")), element)
                 };
-                w.append("(CASE WHEN JSON_TYPE(").expr(self, v, 0)?.append(") = 'array' THEN ARRAY(SELECT ");
-                w.piece(&*each)?.append(" FROM UNNEST(JSON_QUERY_ARRAY(").expr(self, v, 0)?.append(")) AS ");
-                w.append(&j).append(" WITH OFFSET AS ").append(&jo).append(" ORDER BY ").append(&jo).append(") END)");
+                w.append("(CASE WHEN JSON_TYPE(")
+                    .expr(self, v, 0)?
+                    .append(") = 'array' THEN ARRAY(SELECT ");
+                w.piece(&*each)?
+                    .append(" FROM UNNEST(JSON_QUERY_ARRAY(")
+                    .expr(self, v, 0)?
+                    .append(")) AS ");
+                w.append(&j)
+                    .append(" WITH OFFSET AS ")
+                    .append(&jo)
+                    .append(" ORDER BY ")
+                    .append(&jo)
+                    .append(") END)");
                 return Ok(());
             }
             if let SqlType::Map { key, value } = target {
@@ -381,7 +412,9 @@ impl BigQuery {
         }
         if let SqlType::Decimal { scale, .. } = target {
             // DuckDB's decimal cast rounds to the scale
-            w.append("ROUND(CAST(").expr(self, v, 0)?.append(&format!(" AS BIGNUMERIC), {scale})"));
+            w.append("ROUND(CAST(")
+                .expr(self, v, 0)?
+                .append(&format!(" AS BIGNUMERIC), {scale})"));
             return Ok(());
         }
         if let SqlType::Array { element } = target {
@@ -397,7 +430,10 @@ impl BigQuery {
             let co = self.param("__co");
             let each = self.cast_to(text(e.clone()), from, element);
             let body: P<'_> = pc(move |w| {
-                w.append("ARRAY(SELECT ").piece(&*each)?.append(" FROM UNNEST(").expr(self, v, 0)?;
+                w.append("ARRAY(SELECT ")
+                    .piece(&*each)?
+                    .append(" FROM UNNEST(")
+                    .expr(self, v, 0)?;
                 w.append(&format!(") AS {e} WITH OFFSET AS {co} ORDER BY {co})"));
                 Ok(())
             });
@@ -427,7 +463,9 @@ impl BigQuery {
         if let SqlType::Decimal { scale, .. } = to {
             let scale = *scale;
             return pc(move |w| {
-                w.append("ROUND(CAST(").piece(&*value)?.append(&format!(" AS BIGNUMERIC), {scale})"));
+                w.append("ROUND(CAST(")
+                    .piece(&*value)?
+                    .append(&format!(" AS BIGNUMERIC), {scale})"));
                 Ok(())
             });
         }
@@ -468,11 +506,15 @@ impl BigQuery {
         match t {
             Some(SqlType::Scalar(Scalar::Double)) => self.float_text(value),
             Some(SqlType::Scalar(Scalar::Timestamp)) => pc(move |w| {
-                w.append("FORMAT_DATETIME('%Y-%m-%d %H:%M:%E*S', ").piece(&*value)?.append(")");
+                w.append("FORMAT_DATETIME('%Y-%m-%d %H:%M:%E*S', ")
+                    .piece(&*value)?
+                    .append(")");
                 Ok(())
             }),
             Some(SqlType::Scalar(Scalar::Timestamptz)) => pc(move |w| {
-                w.append("FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%E*S+00', ").piece(&*value)?.append(", 'UTC')");
+                w.append("FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%E*S+00', ")
+                    .piece(&*value)?
+                    .append(", 'UTC')");
                 Ok(())
             }),
             Some(SqlType::Scalar(Scalar::Json) | SqlType::Array { .. } | SqlType::Struct { .. }) => pc(move |w| {
@@ -508,7 +550,9 @@ impl BigQuery {
             w.append("CASE");
             for digits in 15..=16 {
                 let round = format!("ROUND({n}, {} - {e}, 'ROUND_HALF_EVEN')", digits - 1);
-                w.append(&format!(" WHEN SAFE_CAST(CAST({round} AS STRING) AS FLOAT64) = {v} THEN {round}"));
+                w.append(&format!(
+                    " WHEN SAFE_CAST(CAST({round} AS STRING) AS FLOAT64) = {v} THEN {round}"
+                ));
             }
             w.append(&format!(" ELSE ROUND({n}, 16 - {e}, 'ROUND_HALF_EVEN') END"));
             let zeros = self.string_lit(r"^0\.(0*)")?;
@@ -563,16 +607,24 @@ impl BigQuery {
                 let vs = arg(a, 1)?;
                 let (e2, o2, key2, value2) = (e.clone(), o.clone(), key.clone(), value.clone());
                 let zipped: P<'_> = pc(move |w| {
-                    w.append(&format!("ARRAY(SELECT AS STRUCT {e2} AS {key2}, ")).expr(self, vs, 0)?;
-                    w.append(&format!("[OFFSET({o2})] AS {value2} FROM UNNEST(")).expr(self, ks, 0)?;
+                    w.append(&format!("ARRAY(SELECT AS STRUCT {e2} AS {key2}, "))
+                        .expr(self, vs, 0)?;
+                    w.append(&format!("[OFFSET({o2})] AS {value2} FROM UNNEST("))
+                        .expr(self, ks, 0)?;
                     w.append(&format!(") AS {e2} WITH OFFSET AS {o2} ORDER BY {o2})"));
                     Ok(())
                 });
-                w.append("(CASE WHEN ").expr(self, ks, 4)?.append(" IS NULL OR ").expr(self, vs, 4)?;
-                w.append(" IS NULL THEN NULL WHEN ARRAY_LENGTH(").expr(self, ks, 0)?.append(") <> ARRAY_LENGTH(");
+                w.append("(CASE WHEN ")
+                    .expr(self, ks, 4)?
+                    .append(" IS NULL OR ")
+                    .expr(self, vs, 4)?;
+                w.append(" IS NULL THEN NULL WHEN ARRAY_LENGTH(")
+                    .expr(self, ks, 0)?
+                    .append(") <> ARRAY_LENGTH(");
                 w.expr(self, vs, 0)?;
                 w.append(") THEN ERROR('The map key list does not align with the map value list.') ELSE ");
-                w.piece(&*self.keys_checked(ks, e.clone(), e.clone(), zipped))?.append(" END)");
+                w.piece(&*self.keys_checked(ks, e.clone(), e.clone(), zipped))?
+                    .append(" END)");
             }
             // the entries of every map, each key at its first place with the last map's value
             SqlFn::MapConcat => {
@@ -598,7 +650,8 @@ impl BigQuery {
                 let xs = arg(a, 0)?;
                 let field = if f == SqlFn::MapKeys { key } else { value };
                 let body: P<'_> = pc(move |w| {
-                    w.append(&format!("ARRAY(SELECT {e}.{field} FROM UNNEST(")).expr(self, xs, 0)?;
+                    w.append(&format!("ARRAY(SELECT {e}.{field} FROM UNNEST("))
+                        .expr(self, xs, 0)?;
                     w.append(&format!(") AS {e} WITH OFFSET AS {o} ORDER BY {o})"));
                     Ok(())
                 });
@@ -607,8 +660,10 @@ impl BigQuery {
             SqlFn::MapExtract => {
                 let xs = arg(a, 0)?;
                 let body: P<'_> = pc(move |w| {
-                    w.append(&format!("ARRAY(SELECT {e}.{value} FROM UNNEST(")).expr(self, xs, 0)?;
-                    w.append(&format!(") AS {e} WITH OFFSET AS {o} WHERE {e}.{key} = ")).expr(self, arg(a, 1)?, 5)?;
+                    w.append(&format!("ARRAY(SELECT {e}.{value} FROM UNNEST("))
+                        .expr(self, xs, 0)?;
+                    w.append(&format!(") AS {e} WITH OFFSET AS {o} WHERE {e}.{key} = "))
+                        .expr(self, arg(a, 1)?, 5)?;
                     w.append(&format!(" ORDER BY {o})"));
                     Ok(())
                 });
@@ -622,12 +677,17 @@ impl BigQuery {
     /// `then` when the keys are each non-NULL and distinct; DuckDB's error otherwise (Java's `keysChecked`).
     fn keys_checked<'a>(&'a self, xs: &'a SqlExpr, e: String, k: String, then: P<'a>) -> P<'a> {
         pc(move |w| {
-            w.append(&format!("(CASE WHEN (SELECT COUNTIF({k} IS NULL) FROM UNNEST(")).expr(self, xs, 0)?;
+            w.append(&format!("(CASE WHEN (SELECT COUNTIF({k} IS NULL) FROM UNNEST("))
+                .expr(self, xs, 0)?;
             w.append(&format!(
                 ") AS {e}) > 0 THEN ERROR('Map keys can not be NULL.') WHEN (SELECT COUNT(DISTINCT {k}) "
             ));
-            w.append("FROM UNNEST(").expr(self, xs, 0)?.append(&format!(") AS {e}) < ARRAY_LENGTH("));
-            w.expr(self, xs, 0)?.append(") THEN ERROR('Map keys must be unique.') ELSE ").piece(&*then)?;
+            w.append("FROM UNNEST(")
+                .expr(self, xs, 0)?
+                .append(&format!(") AS {e}) < ARRAY_LENGTH("));
+            w.expr(self, xs, 0)?
+                .append(") THEN ERROR('Map keys must be unique.') ELSE ")
+                .piece(&*then)?;
             w.append(" END)");
             Ok(())
         })
@@ -635,8 +695,17 @@ impl BigQuery {
 
     /// A map cast to another map's key and value types, entry by entry (Java's `mapAs`).
     fn map_as<'a>(&'a self, m: &'a SqlExpr, to_key: &'a SqlType, to_value: &'a SqlType) -> Result<P<'a>, Refusal> {
-        let to = SqlType::Map { key: Box::new(to_key.clone()), value: Box::new(to_value.clone()) };
-        if matches!(m, SqlExpr::Call { r#fn: SqlFn::MapEmpty, .. }) {
+        let to = SqlType::Map {
+            key: Box::new(to_key.clone()),
+            value: Box::new(to_value.clone()),
+        };
+        if matches!(
+            m,
+            SqlExpr::Call {
+                r#fn: SqlFn::MapEmpty,
+                ..
+            }
+        ) {
             return Ok(pc(move |w| {
                 let t = self.bq_type(&to)?;
                 w.append(&format!("{t}[]"));
@@ -650,8 +719,17 @@ impl BigQuery {
                 Ok(())
             }));
         }
-        let Some(from @ SqlType::Map { key: from_key, value: from_value }) = type_of(m) else {
-            return Err(Refusal::capability(format!("a cast of {} to a map reached BigQuery", type_text(type_of(m)))));
+        let Some(
+            from @ SqlType::Map {
+                key: from_key,
+                value: from_value,
+            },
+        ) = type_of(m)
+        else {
+            return Err(Refusal::capability(format!(
+                "a cast of {} to a map reached BigQuery",
+                type_text(type_of(m))
+            )));
         };
         if *from == to {
             return Ok(self.ex(m, 0));
@@ -663,7 +741,10 @@ impl BigQuery {
         let k = self.cast_to(text(format!("{e}.{key}")), Some(from_key), to_key);
         let v = self.cast_to(text(format!("{e}.{value}")), Some(from_value), to_value);
         let body: P<'a> = pc(move |w| {
-            w.append("ARRAY(SELECT AS STRUCT ").piece(&*k)?.append(&format!(" AS {key}, ")).piece(&*v)?;
+            w.append("ARRAY(SELECT AS STRUCT ")
+                .piece(&*k)?
+                .append(&format!(" AS {key}, "))
+                .piece(&*v)?;
             w.append(&format!(" AS {value} FROM UNNEST(")).expr(self, m, 0)?;
             w.append(&format!(") AS {e} WITH OFFSET AS {o} ORDER BY {o})"));
             Ok(())
@@ -696,14 +777,18 @@ impl BigQuery {
             self.cast_from_text(json_value, to_value)
         };
         let key_text = self.cast_to(text(k.clone()), Some(&SqlType::Scalar(Scalar::Varchar)), to_key);
-        w.append("(CASE WHEN JSON_TYPE(").expr(self, v, 0)?.append(") = 'object' THEN ARRAY(SELECT AS STRUCT ");
+        w.append("(CASE WHEN JSON_TYPE(")
+            .expr(self, v, 0)?
+            .append(") = 'object' THEN ARRAY(SELECT AS STRUCT ");
         let key = self.ident("key");
         let value = self.ident("value");
         w.piece(&*key_text)?
             .append(&format!(" AS {key}, "))
             .piece(&*read)?
             .append(&format!(" AS {value} FROM UNNEST("));
-        w.append("JSON_KEYS(").expr(self, v, 0)?.append(&format!(", 1)) AS {k} WITH OFFSET AS {o} ORDER BY {o}) END)"));
+        w.append("JSON_KEYS(")
+            .expr(self, v, 0)?
+            .append(&format!(", 1)) AS {k} WITH OFFSET AS {o} ORDER BY {o}) END)"));
         Ok(())
     }
 
@@ -743,9 +828,14 @@ impl BigQuery {
             // = between structs or arrays: their JSON texts compared
             SqlFn::Equal | SqlFn::NotEqual => {
                 if a.len() == 2 && (composite(&a[0]) || composite(&a[1])) {
-                    w.append("(CASE WHEN ").expr(self, &a[0], 4)?.append(" IS NULL OR ").expr(self, &a[1], 4)?;
-                    w.append(" IS NULL THEN NULL ELSE TO_JSON_STRING(").expr(self, &a[0], 0)?;
-                    w.append(if f == SqlFn::Equal { ") = " } else { ") <> " }).append("TO_JSON_STRING(");
+                    w.append("(CASE WHEN ")
+                        .expr(self, &a[0], 4)?
+                        .append(" IS NULL OR ")
+                        .expr(self, &a[1], 4)?;
+                    w.append(" IS NULL THEN NULL ELSE TO_JSON_STRING(")
+                        .expr(self, &a[0], 0)?;
+                    w.append(if f == SqlFn::Equal { ") = " } else { ") <> " })
+                        .append("TO_JSON_STRING(");
                     w.expr(self, &a[1], 0)?.append(") END)");
                     return Ok(());
                 }
@@ -759,11 +849,17 @@ impl BigQuery {
             SqlFn::IsDistinctFrom | SqlFn::NullSafeNotEqual | SqlFn::NullSafeEqual => {
                 let equal = f == SqlFn::NullSafeEqual;
                 if a.len() == 2 && (composite(&a[0]) || composite(&a[1])) {
-                    w.append("(TO_JSON_STRING(").expr(self, &a[0], 0)?.append(if equal { ") = " } else { ") <> " });
+                    w.append("(TO_JSON_STRING(")
+                        .expr(self, &a[0], 0)?
+                        .append(if equal { ") = " } else { ") <> " });
                     w.append("TO_JSON_STRING(").expr(self, &a[1], 0)?.append("))");
                     return Ok(());
                 }
-                if equal { ansi::not_distinct_from(self, w, a) } else { ansi::distinct_from(self, w, a) }
+                if equal {
+                    ansi::not_distinct_from(self, w, a)
+                } else {
+                    ansi::distinct_from(self, w, a)
+                }
             }
             SqlFn::Xor => ansi::xor_as_and_or(self, w, a, parent_prec),
             SqlFn::Lpad => ansi::pad_with_space(self, w, "lpad", a),
@@ -852,11 +948,10 @@ impl BigQuery {
             SqlFn::Negate => wrap(w, "-(", a0()?, ")"),
             // ---- arithmetic: Pure's divide is a DOUBLE division, x / 0 +-Infinity or NaN
             SqlFn::Divide => {
-                w.append("IEEE_DIVIDE(CAST(").expr(self, a0()?, 0)?.append(" AS FLOAT64), CAST(").expr(
-                    self,
-                    a1()?,
-                    0,
-                )?;
+                w.append("IEEE_DIVIDE(CAST(")
+                    .expr(self, a0()?, 0)?
+                    .append(" AS FLOAT64), CAST(")
+                    .expr(self, a1()?, 0)?;
                 w.append(" AS FLOAT64))");
                 Ok(())
             }
@@ -866,11 +961,10 @@ impl BigQuery {
                 if a.iter().any(is_double) {
                     return Err(wall(f, "DIV takes no FLOAT64"));
                 }
-                w.append("(CASE WHEN ").expr(self, a1()?, 4)?.append(" = 0 THEN NULL ELSE DIV(").expr(
-                    self,
-                    a0()?,
-                    0,
-                )?;
+                w.append("(CASE WHEN ")
+                    .expr(self, a1()?, 4)?
+                    .append(" = 0 THEN NULL ELSE DIV(")
+                    .expr(self, a0()?, 0)?;
                 w.append(", ").expr(self, a1()?, 0)?.append(") END)");
                 Ok(())
             }
@@ -885,7 +979,10 @@ impl BigQuery {
             SqlFn::Ln => wrap(w, "LN(CAST(", a0()?, " AS FLOAT64))"),
             SqlFn::Log10 => wrap(w, "LOG10(CAST(", a0()?, " AS FLOAT64))"),
             SqlFn::Pow => {
-                w.append("POW(CAST(").expr(self, a0()?, 0)?.append(" AS FLOAT64), CAST(").expr(self, a1()?, 0)?;
+                w.append("POW(CAST(")
+                    .expr(self, a0()?, 0)?
+                    .append(" AS FLOAT64), CAST(")
+                    .expr(self, a1()?, 0)?;
                 w.append(" AS FLOAT64))");
                 Ok(())
             }
@@ -945,7 +1042,9 @@ impl BigQuery {
             SqlFn::RegexpExtractAll => self.regexp_extract_all(w, a),
             SqlFn::RegexpReplace => self.regexp_replace(w, a),
             SqlFn::EncodeBase64 => {
-                w.append("TO_BASE64(CAST(").piece(&*self.as_text(a0()?))?.append(" AS BYTES))");
+                w.append("TO_BASE64(CAST(")
+                    .piece(&*self.as_text(a0()?))?
+                    .append(" AS BYTES))");
                 Ok(())
             }
             // invalid UTF-8 raises, as DuckDB's decode does
@@ -956,7 +1055,9 @@ impl BigQuery {
                     SqlFn::Sha1 => "SHA1",
                     _ => "SHA256",
                 };
-                w.append(&format!("TO_HEX({name}(")).piece(&*self.as_text(a0()?))?.append("))");
+                w.append(&format!("TO_HEX({name}("))
+                    .piece(&*self.as_text(a0()?))?
+                    .append("))");
                 Ok(())
             }
             SqlFn::Guid => {
@@ -981,7 +1082,11 @@ impl BigQuery {
             }
             SqlFn::Now => {
                 let zoned = is_type(fact_type(t), Scalar::Timestamptz);
-                w.append(if zoned { "CURRENT_TIMESTAMP()" } else { "CURRENT_DATETIME()" });
+                w.append(if zoned {
+                    "CURRENT_TIMESTAMP()"
+                } else {
+                    "CURRENT_DATETIME()"
+                });
                 Ok(())
             }
             // an offset or a 'Z' converts to UTC, a naive text reads as UTC
@@ -1005,12 +1110,17 @@ impl BigQuery {
                     w.append("CAST(").expr(self, x, 0)?.append(" AS INT64)");
                     Ok(())
                 })?;
-                w.append(", 0), INTERVAL CAST(").expr(self, &a[5], 6)?.append(" * 1000000 AS INT64) MICROSECOND)");
+                w.append(", 0), INTERVAL CAST(")
+                    .expr(self, &a[5], 6)?
+                    .append(" * 1000000 AS INT64) MICROSECOND)");
                 Ok(())
             }
             // a month past the month's end clamps; a date plus an interval is a DATETIME here
             SqlFn::AddInterval | SqlFn::AddIntervalTemporal => {
-                w.append("(").expr(self, arg(a, 2)?, 5)?.append(" + INTERVAL CAST(").expr(self, a1()?, 0)?;
+                w.append("(")
+                    .expr(self, arg(a, 2)?, 5)?
+                    .append(" + INTERVAL CAST(")
+                    .expr(self, a1()?, 0)?;
                 w.append(" AS INT64) ").append(interval_unit(part(a0()?)?)?).append(")");
                 Ok(())
             }
@@ -1021,9 +1131,16 @@ impl BigQuery {
             // DuckDB's timezone(zone, t): a naive t read in the zone; an instant to the zone's time
             SqlFn::Timezone => {
                 if is_instant(a1()?) {
-                    w.append("DATETIME(").expr(self, a1()?, 0)?.append(", ").expr(self, a0()?, 0)?.append(")");
+                    w.append("DATETIME(")
+                        .expr(self, a1()?, 0)?
+                        .append(", ")
+                        .expr(self, a0()?, 0)?
+                        .append(")");
                 } else {
-                    w.append("TIMESTAMP(CAST(").expr(self, a1()?, 0)?.append(" AS DATETIME), ").expr(self, a0()?, 0)?;
+                    w.append("TIMESTAMP(CAST(")
+                        .expr(self, a1()?, 0)?
+                        .append(" AS DATETIME), ")
+                        .expr(self, a0()?, 0)?;
                     w.append(")");
                 }
                 Ok(())
@@ -1050,9 +1167,13 @@ impl BigQuery {
                     w.append("DATETIME(");
                 }
                 if f == SqlFn::FromEpochSeconds {
-                    w.append("TIMESTAMP_MICROS(CAST(").expr(self, a0()?, 6)?.append(" * 1000000 AS INT64))");
+                    w.append("TIMESTAMP_MICROS(CAST(")
+                        .expr(self, a0()?, 6)?
+                        .append(" * 1000000 AS INT64))");
                 } else {
-                    w.append("TIMESTAMP_MILLIS(CAST(").expr(self, a0()?, 0)?.append(" AS INT64))");
+                    w.append("TIMESTAMP_MILLIS(CAST(")
+                        .expr(self, a0()?, 0)?
+                        .append(" AS INT64))");
                 }
                 if !zoned {
                     w.append(")");
@@ -1063,7 +1184,10 @@ impl BigQuery {
             SqlFn::Monthname => wrap(w, "FORMAT_DATETIME('%B', CAST(", a0()?, " AS DATETIME))"),
             SqlFn::Strftime => {
                 let SqlExpr::FormatLit { parts, .. } = a1()? else {
-                    return Err(wall(f, "a date format that is not a format literal: its codes are DuckDB's"));
+                    return Err(wall(
+                        f,
+                        "a date format that is not a format literal: its codes are DuckDB's",
+                    ));
                 };
                 let formatted = self.strftime(a0()?, parts)?;
                 w.piece(&*formatted)?;
@@ -1071,10 +1195,15 @@ impl BigQuery {
             }
             SqlFn::Strptime => {
                 let SqlExpr::FormatLit { parts, .. } = a1()? else {
-                    return Err(wall(f, "a date format that is not a format literal: its codes are DuckDB's"));
+                    return Err(wall(
+                        f,
+                        "a date format that is not a format literal: its codes are DuckDB's",
+                    ));
                 };
                 let lit = self.string_lit(&format_codes(parts)?)?;
-                w.append(&format!("PARSE_DATETIME({lit}, ")).expr(self, a0()?, 0)?.append(")");
+                w.append(&format!("PARSE_DATETIME({lit}, "))
+                    .expr(self, a0()?, 0)?
+                    .append(")");
                 Ok(())
             }
             // ---- lists (ARRAY<T>; lambdas as correlated subqueries)
@@ -1106,7 +1235,11 @@ impl BigQuery {
             // NULL ++ xs is xs, as DuckDB's list_concat
             SqlFn::ListConcat => {
                 w.append("ARRAY_CONCAT(").join(a, ", ", |w, x| {
-                    let element = if list_element(x).is_some() { list_element(x) } else { fact_element(t) };
+                    let element = if list_element(x).is_some() {
+                        list_element(x)
+                    } else {
+                        fact_element(t)
+                    };
                     w.append("IFNULL(").expr(self, x, 0)?.append(", ");
                     let empty = self.empty_list(element)?;
                     w.append(&empty).append(")");
@@ -1123,9 +1256,17 @@ impl BigQuery {
                     w.append(&null);
                     return Ok(());
                 }
-                w.append("(").expr(self, xs, 0)?.append(")[SAFE_OFFSET(CASE WHEN ").expr(self, a1()?, 4)?;
-                w.append(" < 0 THEN ARRAY_LENGTH(").expr(self, xs, 0)?.append(") + CAST(").expr(self, a1()?, 0)?;
-                w.append(" AS INT64) ELSE CAST(").expr(self, a1()?, 0)?.append(" AS INT64) - 1 END)]");
+                w.append("(")
+                    .expr(self, xs, 0)?
+                    .append(")[SAFE_OFFSET(CASE WHEN ")
+                    .expr(self, a1()?, 4)?;
+                w.append(" < 0 THEN ARRAY_LENGTH(")
+                    .expr(self, xs, 0)?
+                    .append(") + CAST(")
+                    .expr(self, a1()?, 0)?;
+                w.append(" AS INT64) ELSE CAST(")
+                    .expr(self, a1()?, 0)?
+                    .append(" AS INT64) - 1 END)]");
                 Ok(())
             }
             // DuckDB's list_position: 1-based, NULL when absent, a NULL needle found by IS NOT DISTINCT FROM
@@ -1134,7 +1275,9 @@ impl BigQuery {
                 let e = self.param("__e");
                 w.append(&format!("(SELECT MIN({o}) + 1 FROM "));
                 let elements = self.elements(a0()?, "__e", "__o")?;
-                w.piece(&*elements)?.append(&format!(" WHERE {e} IS NOT DISTINCT FROM ")).expr(self, a1()?, 4)?;
+                w.piece(&*elements)?
+                    .append(&format!(" WHERE {e} IS NOT DISTINCT FROM "))
+                    .expr(self, a1()?, 4)?;
                 w.append(")");
                 Ok(())
             }
@@ -1188,7 +1331,11 @@ impl BigQuery {
             }
             // ascending / descending, NULLs last both ways; a struct by its fields in declared order
             SqlFn::ListSort | SqlFn::ListSortDesc => {
-                let dir = if f == SqlFn::ListSort { " ASC NULLS LAST" } else { " DESC NULLS LAST" };
+                let dir = if f == SqlFn::ListSort {
+                    " ASC NULLS LAST"
+                } else {
+                    " DESC NULLS LAST"
+                };
                 let xs = a0()?;
                 let e = self.param("__e");
                 let order = self.element_sort(&e, list_element(xs), dir);
@@ -1207,12 +1354,16 @@ impl BigQuery {
                 let r#where: P<'_> = match f {
                     SqlFn::ListTail => text(format!("{o} > 0")),
                     SqlFn::ListInit => pc(move |w| {
-                        w.append(&format!("{o} < ARRAY_LENGTH(")).expr(self, xs, 0)?.append(") - 1");
+                        w.append(&format!("{o} < ARRAY_LENGTH("))
+                            .expr(self, xs, 0)?
+                            .append(") - 1");
                         Ok(())
                     }),
                     _ => pc(move |w| {
-                        w.append(&format!("{o} + 1 >= ")).piece(&*self.slice_end(xs, arg(a, 1)?))?;
-                        w.append(&format!(" AND {o} + 1 <= ")).piece(&*self.slice_end(xs, arg(a, 2)?))?;
+                        w.append(&format!("{o} + 1 >= "))
+                            .piece(&*self.slice_end(xs, arg(a, 1)?))?;
+                        w.append(&format!(" AND {o} + 1 <= "))
+                            .piece(&*self.slice_end(xs, arg(a, 2)?))?;
                         Ok(())
                     }),
                 };
@@ -1226,7 +1377,9 @@ impl BigQuery {
                     return Err(nested_list());
                 }
                 let g = self.param("__g");
-                w.append("ARRAY(SELECT ").expr(self, a0()?, 0)?.append(" FROM UNNEST(GENERATE_ARRAY(1, CAST(");
+                w.append("ARRAY(SELECT ")
+                    .expr(self, a0()?, 0)?
+                    .append(" FROM UNNEST(GENERATE_ARRAY(1, CAST(");
                 w.expr(self, a1()?, 0)?.append(&format!(" AS INT64))) AS {g})"));
                 Ok(())
             }
@@ -1310,7 +1463,8 @@ impl BigQuery {
         }
         w.append(name).append("(");
         for i in 0..a.len() {
-            w.append(if i > 0 { ", COALESCE(" } else { "COALESCE(" }).expr(self, &a[i], 0)?;
+            w.append(if i > 0 { ", COALESCE(" } else { "COALESCE(" })
+                .expr(self, &a[i], 0)?;
             for (j, x) in a.iter().enumerate() {
                 if j != i {
                     w.append(", ").expr(self, x, 0)?;
@@ -1327,18 +1481,32 @@ impl BigQuery {
         if let SqlExpr::IntLit { value, .. } = arg(a, 1)?
             && *value >= 0
         {
-            w.append(name).append("(").expr(self, &a[0], 0)?.append(", ").expr(self, &a[1], 0)?.append(")");
+            w.append(name)
+                .append("(")
+                .expr(self, &a[0], 0)?
+                .append(", ")
+                .expr(self, &a[1], 0)?
+                .append(")");
             return Ok(());
         }
         w.append("(CASE WHEN ").expr(self, &a[1], 4)?.append(" < 0 THEN ");
         if f == SqlFn::Left {
-            w.append("SUBSTR(").expr(self, arg(a, 0)?, 0)?.append(", 1, GREATEST(LENGTH(").expr(self, &a[0], 0)?;
+            w.append("SUBSTR(")
+                .expr(self, arg(a, 0)?, 0)?
+                .append(", 1, GREATEST(LENGTH(")
+                .expr(self, &a[0], 0)?;
             w.append(") + CAST(").expr(self, &a[1], 0)?.append(" AS INT64), 0))");
         } else {
-            w.append("SUBSTR(").expr(self, arg(a, 0)?, 0)?.append(", 1 - CAST(").expr(self, &a[1], 0)?;
+            w.append("SUBSTR(")
+                .expr(self, arg(a, 0)?, 0)?
+                .append(", 1 - CAST(")
+                .expr(self, &a[1], 0)?;
             w.append(" AS INT64))");
         }
-        w.append(&format!(" ELSE {name}(")).expr(self, &a[0], 0)?.append(", CAST(").expr(self, &a[1], 0)?;
+        w.append(&format!(" ELSE {name}("))
+            .expr(self, &a[0], 0)?
+            .append(", CAST(")
+            .expr(self, &a[1], 0)?;
         w.append(" AS INT64)) END)");
         Ok(())
     }
@@ -1346,8 +1514,15 @@ impl BigQuery {
     /// A slice bound, 1-based: a negative one counts from the end (Java's `sliceEnd`).
     fn slice_end<'a>(&'a self, xs: &'a SqlExpr, i: &'a SqlExpr) -> P<'a> {
         pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, i, 4)?.append(" < 0 THEN ARRAY_LENGTH(").expr(self, xs, 0)?;
-            w.append(") + ").expr(self, i, 6)?.append(" + 1 ELSE ").expr(self, i, 0)?.append(" END)");
+            w.append("(CASE WHEN ")
+                .expr(self, i, 4)?
+                .append(" < 0 THEN ARRAY_LENGTH(")
+                .expr(self, xs, 0)?;
+            w.append(") + ")
+                .expr(self, i, 6)?
+                .append(" + 1 ELSE ")
+                .expr(self, i, 0)?
+                .append(" END)");
             Ok(())
         })
     }
@@ -1366,13 +1541,27 @@ impl BigQuery {
 
     fn split_part(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         let parts = |w: &mut SqlWriter| -> Result<(), Refusal> {
-            w.append("SPLIT(").expr(self, arg(a, 0)?, 0)?.append(", ").expr(self, arg(a, 1)?, 0)?.append(")");
+            w.append("SPLIT(")
+                .expr(self, arg(a, 0)?, 0)?
+                .append(", ")
+                .expr(self, arg(a, 1)?, 0)?
+                .append(")");
             Ok(())
         };
-        w.append("(CASE WHEN ").expr(self, arg(a, 0)?, 4)?.append(" IS NULL OR ").expr(self, arg(a, 1)?, 4)?;
-        w.append(" IS NULL THEN NULL ELSE COALESCE((").piece(&parts)?.append(")[SAFE_OFFSET(CASE WHEN ");
-        w.expr(self, arg(a, 2)?, 4)?.append(" < 0 THEN ARRAY_LENGTH(").piece(&parts)?.append(") + CAST(");
-        w.expr(self, &a[2], 0)?.append(" AS INT64) ELSE CAST(").expr(self, &a[2], 0)?;
+        w.append("(CASE WHEN ")
+            .expr(self, arg(a, 0)?, 4)?
+            .append(" IS NULL OR ")
+            .expr(self, arg(a, 1)?, 4)?;
+        w.append(" IS NULL THEN NULL ELSE COALESCE((")
+            .piece(&parts)?
+            .append(")[SAFE_OFFSET(CASE WHEN ");
+        w.expr(self, arg(a, 2)?, 4)?
+            .append(" < 0 THEN ARRAY_LENGTH(")
+            .piece(&parts)?
+            .append(") + CAST(");
+        w.expr(self, &a[2], 0)?
+            .append(" AS INT64) ELSE CAST(")
+            .expr(self, &a[2], 0)?;
         w.append(" AS INT64) - 1 END)], '') END)");
         Ok(())
     }
@@ -1392,8 +1581,17 @@ impl BigQuery {
                 w.append("POW(10, -").piece(&places)?.append(")");
                 Ok(())
             };
-            w.append("(CASE WHEN ").piece(&places)?.append(" >= 0 THEN ROUND(").expr(self, &a[0], 6)?.append(" * ");
-            w.piece(&up)?.append(") / ").piece(&up)?.append(" ELSE ROUND(").expr(self, &a[0], 6)?.append(" / ");
+            w.append("(CASE WHEN ")
+                .piece(&places)?
+                .append(" >= 0 THEN ROUND(")
+                .expr(self, &a[0], 6)?
+                .append(" * ");
+            w.piece(&up)?
+                .append(") / ")
+                .piece(&up)?
+                .append(" ELSE ROUND(")
+                .expr(self, &a[0], 6)?
+                .append(" / ");
             w.piece(&down)?.append(") * ").piece(&down)?.append(" END)");
             return Ok(());
         }
@@ -1429,10 +1627,21 @@ impl BigQuery {
         };
         let g = self.param("__g");
         let go = self.param("__go");
-        w.append("(CASE WHEN (").piece(&stop)?.append(" - ").piece(&start)?.append(") * ").piece(&step)?;
-        w.append(&format!(" > 0 THEN ARRAY(SELECT {g} FROM UNNEST(GENERATE_ARRAY(")).piece(&start)?.append(", ");
-        w.piece(&stop)?.append(", ").piece(&step)?.append(&format!(")) AS {g} WITH OFFSET AS {go} WHERE {g} <> "));
-        w.piece(&stop)?.append(&format!(" ORDER BY {go}) ELSE ARRAY<INT64>[] END)"));
+        w.append("(CASE WHEN (")
+            .piece(&stop)?
+            .append(" - ")
+            .piece(&start)?
+            .append(") * ")
+            .piece(&step)?;
+        w.append(&format!(" > 0 THEN ARRAY(SELECT {g} FROM UNNEST(GENERATE_ARRAY("))
+            .piece(&start)?
+            .append(", ");
+        w.piece(&stop)?
+            .append(", ")
+            .piece(&step)?
+            .append(&format!(")) AS {g} WITH OFFSET AS {go} WHERE {g} <> "));
+        w.piece(&stop)?
+            .append(&format!(" ORDER BY {go}) ELSE ARRAY<INT64>[] END)"));
         Ok(())
     }
 
@@ -1440,13 +1649,16 @@ impl BigQuery {
         let g = group(a)?;
         let pattern = self.string_lit(&only_group(literal(arg(a, 1)?, "a regexp_extract_all pattern")?, g))?;
         if g == 0 {
-            w.append("REGEXP_EXTRACT_ALL(").expr(self, arg(a, 0)?, 0)?.append(&format!(", {pattern})"));
+            w.append("REGEXP_EXTRACT_ALL(")
+                .expr(self, arg(a, 0)?, 0)?
+                .append(&format!(", {pattern})"));
             return Ok(());
         }
         // a group that took no part in a match is '', never a NULL element
         let m = self.param("__m");
         let mo = self.param("__mo");
-        w.append(&format!("ARRAY(SELECT IFNULL({m}, '') FROM UNNEST(REGEXP_EXTRACT_ALL(")).expr(self, &a[0], 0)?;
+        w.append(&format!("ARRAY(SELECT IFNULL({m}, '') FROM UNNEST(REGEXP_EXTRACT_ALL("))
+            .expr(self, &a[0], 0)?;
         w.append(&format!(", {pattern})) AS {m} WITH OFFSET AS {mo} ORDER BY {mo})"));
         Ok(())
     }
@@ -1458,14 +1670,20 @@ impl BigQuery {
         }
         Ok(pc(move |w| {
             let open = self.string_lit("^(?:")?;
-            w.append(&format!("CONCAT({open}, ")).expr(self, p, 0)?.append(", ')$')");
+            w.append(&format!("CONCAT({open}, "))
+                .expr(self, p, 0)?
+                .append(", ')$')");
             Ok(())
         }))
     }
 
     /// DuckDB's regexp_replace(s, p, r[, options]): the FIRST match unless 'g' (Java's `regexpReplace`).
     fn regexp_replace(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        let options = if a.len() > 3 { literal(&a[3], "regexp_replace options")? } else { "" };
+        let options = if a.len() > 3 {
+            literal(&a[3], "regexp_replace options")?
+        } else {
+            ""
+        };
         let mut global = false;
         let mut caseless = false;
         for o in options.chars() {
@@ -1474,7 +1692,9 @@ impl BigQuery {
                 'i' => caseless = true,
                 'c' => caseless = false,
                 other => {
-                    return Err(Refusal::capability(format!("regexp_replace option '{other}' reached BigQuery")));
+                    return Err(Refusal::capability(format!(
+                        "regexp_replace option '{other}' reached BigQuery"
+                    )));
                 }
             }
         }
@@ -1498,8 +1718,10 @@ impl BigQuery {
             w.append(", ").expr(self, arg(a, 2)?, 0)?.append(")");
             return Ok(());
         }
-        let replacement =
-            format!(r"\1{}", shift_groups(literal(arg(a, 2)?, "a first-match regexp_replace replacement")?)?);
+        let replacement = format!(
+            r"\1{}",
+            shift_groups(literal(arg(a, 2)?, "a first-match regexp_replace replacement")?)?
+        );
         w.append("REGEXP_REPLACE(").expr(self, s, 0)?.append(", ");
         match p {
             SqlExpr::StringLit { value, .. } => {
@@ -1565,10 +1787,16 @@ impl BigQuery {
             DatePart::DayOfYear => ("EXTRACT(DAYOFYEAR FROM ".to_owned(), ")"),
             DatePart::IsoDayOfWeek => ("(MOD(EXTRACT(DAYOFWEEK FROM ".to_owned(), ") + 5, 7) + 1)"),
             DatePart::Millisecond | DatePart::Microsecond | DatePart::Nanosecond => {
-                return Err(Refusal::capability(format!("date part {p} has no measured BigQuery spelling")));
+                return Err(Refusal::capability(format!(
+                    "date part {p} has no measured BigQuery spelling"
+                )));
             }
         };
-        w.append(&open).append("CAST(").expr(self, arg(a, 1)?, 0)?.append(" AS DATETIME)").append(close);
+        w.append(&open)
+            .append("CAST(")
+            .expr(self, arg(a, 1)?, 0)?
+            .append(" AS DATETIME)")
+            .append(close);
         Ok(())
     }
 
@@ -1592,7 +1820,9 @@ impl BigQuery {
                 w.append(&format!(" AS DATETIME), {})", unit(p)?));
             }
             DatePart::DayOfYear | DatePart::IsoDayOfWeek | DatePart::Nanosecond => {
-                return Err(Refusal::capability(format!("date_trunc part {p} has no measured BigQuery spelling")));
+                return Err(Refusal::capability(format!(
+                    "date_trunc part {p} has no measured BigQuery spelling"
+                )));
             }
         }
         Ok(())
@@ -1611,15 +1841,22 @@ impl BigQuery {
             | DatePart::Second
             | DatePart::Millisecond
             | DatePart::Microsecond => {
-                w.append("DATETIME_DIFF(CAST(").expr(self, arg(a, 2)?, 0)?.append(" AS DATETIME), CAST(");
-                w.expr(self, arg(a, 1)?, 0)?.append(&format!(" AS DATETIME), {})", unit(p)?));
+                w.append("DATETIME_DIFF(CAST(")
+                    .expr(self, arg(a, 2)?, 0)?
+                    .append(" AS DATETIME), CAST(");
+                w.expr(self, arg(a, 1)?, 0)?
+                    .append(&format!(" AS DATETIME), {})", unit(p)?));
             }
             DatePart::Week => {
-                w.append("DIV(DATE_DIFF(CAST(").expr(self, arg(a, 2)?, 0)?.append(" AS DATE), CAST(");
+                w.append("DIV(DATE_DIFF(CAST(")
+                    .expr(self, arg(a, 2)?, 0)?
+                    .append(" AS DATE), CAST(");
                 w.expr(self, arg(a, 1)?, 0)?.append(" AS DATE), DAY), 7)");
             }
             DatePart::DayOfYear | DatePart::IsoDayOfWeek | DatePart::Nanosecond => {
-                return Err(Refusal::capability(format!("date_diff part {p} has no measured BigQuery spelling")));
+                return Err(Refusal::capability(format!(
+                    "date_diff part {p} has no measured BigQuery spelling"
+                )));
             }
         }
         Ok(())
@@ -1640,7 +1877,9 @@ impl BigQuery {
         if let Some(micros) = bucket_micros(u) {
             let origin: i64 = if u == DatePart::Week { -3 * 86_400_000_000 } else { 0 };
             let m = |w: &mut SqlWriter| -> Result<(), Refusal> {
-                w.append("(UNIX_MICROS(TIMESTAMP(").piece(&t)?.append(&format!(")) - ({origin}))"));
+                w.append("(UNIX_MICROS(TIMESTAMP(")
+                    .piece(&t)?
+                    .append(&format!(")) - ({origin}))"));
                 Ok(())
             };
             let size = |w: &mut SqlWriter| -> Result<(), Refusal> {
@@ -1655,10 +1894,17 @@ impl BigQuery {
         let months = match u {
             DatePart::Month => 1,
             DatePart::Year => 12,
-            other => return Err(Refusal::capability(format!("a {other} time bucket has no BigQuery spelling"))),
+            other => {
+                return Err(Refusal::capability(format!(
+                    "a {other} time bucket has no BigQuery spelling"
+                )));
+            }
         };
         let k = |w: &mut SqlWriter| -> Result<(), Refusal> {
-            w.append("((EXTRACT(YEAR FROM ").piece(&t)?.append(") - 1970) * 12 + EXTRACT(MONTH FROM ").piece(&t)?;
+            w.append("((EXTRACT(YEAR FROM ")
+                .piece(&t)?
+                .append(") - 1970) * 12 + EXTRACT(MONTH FROM ")
+                .piece(&t)?;
             w.append(") - 1)");
             Ok(())
         };
@@ -1734,7 +1980,9 @@ impl BigQuery {
             return Ok(pieces.pop().expect("one piece"));
         }
         Ok(pc(move |w| {
-            w.append("CONCAT(").join(&pieces, ", ", |x, piece| piece(x))?.append(")");
+            w.append("CONCAT(")
+                .join(&pieces, ", ", |x, piece| piece(x))?
+                .append(")");
             Ok(())
         }))
     }
@@ -1754,7 +2002,14 @@ fn floor_div(
     a: &dyn Fn(&mut SqlWriter) -> Result<(), Refusal>,
     b: &dyn Fn(&mut SqlWriter) -> Result<(), Refusal>,
 ) -> Result<(), Refusal> {
-    w.append("(DIV(").piece(a)?.append(", ").piece(b)?.append(") - IF(MOD(").piece(a)?.append(", ").piece(b)?;
+    w.append("(DIV(")
+        .piece(a)?
+        .append(", ")
+        .piece(b)?
+        .append(") - IF(MOD(")
+        .piece(a)?
+        .append(", ")
+        .piece(b)?;
     w.append(") < 0, 1, 0))");
     Ok(())
 }

@@ -22,7 +22,13 @@ pub fn canon_of(v: SqlExpr) -> SqlExpr {
 /// The exponent unfolded to fixed point where the text `base` carries one, else the text as it is
 /// (`FloatCanonText.fixedPoint`).
 pub fn fixed_point(base: SqlExpr) -> SqlExpr {
-    case(vec![when(call(SqlFn::Or, vec![has(&base, "e"), has(&base, "E")]), exponent_unfold(&base))], Some(base))
+    case(
+        vec![when(
+            call(SqlFn::Or, vec![has(&base, "e"), has(&base, "E")]),
+            exponent_unfold(&base),
+        )],
+        Some(base),
+    )
 }
 
 /// Pure's literal spelling of a double over `base`, the database's text of it (`FloatCanonText.ofText`).
@@ -31,10 +37,16 @@ pub fn of_text(base: SqlExpr) -> SqlExpr {
     case(
         vec![
             // every zero is '0.0', detected textually
-            when(call(SqlFn::RegexpFullMatch, vec![base.clone(), string_lit("-?0+(\\.0+)?")]), string_lit("0.0")),
+            when(
+                call(SqlFn::RegexpFullMatch, vec![base.clone(), string_lit("-?0+(\\.0+)?")]),
+                string_lit("0.0"),
+            ),
             // both wire spellings of the exponent
             when(call(SqlFn::Or, vec![has(&base, "e"), has(&base, "E")]), unfolded),
-            when(call(SqlFn::Not, vec![has(&base, ".")]), call(SqlFn::Concat, vec![base.clone(), string_lit(".0")])),
+            when(
+                call(SqlFn::Not, vec![has(&base, ".")]),
+                call(SqlFn::Concat, vec![base.clone(), string_lit(".0")]),
+            ),
         ],
         Some(base),
     )
@@ -43,19 +55,37 @@ pub fn of_text(base: SqlExpr) -> SqlExpr {
 /// The complete textual exponent unfold: the mantissa's digits shifted by the exponent, as text.
 fn exponent_unfold(base: &SqlExpr) -> SqlExpr {
     let sign = case(
-        vec![when(call(SqlFn::StartsWith, vec![base.clone(), string_lit("-")]), string_lit("-"))],
+        vec![when(
+            call(SqlFn::StartsWith, vec![base.clone(), string_lit("-")]),
+            string_lit("-"),
+        )],
         Some(string_lit("")),
     );
-    let mant = call(SqlFn::RegexpExtract, vec![base.clone(), string_lit("-?([0-9]+(?:\\.[0-9]+)?)[eE]"), int_lit(1)]);
+    let mant = call(
+        SqlFn::RegexpExtract,
+        vec![base.clone(), string_lit("-?([0-9]+(?:\\.[0-9]+)?)[eE]"), int_lit(1)],
+    );
     let digits = call(SqlFn::Replace, vec![mant.clone(), string_lit("."), string_lit("")]);
     let dot_pos = call(SqlFn::Strpos, vec![mant.clone(), string_lit(".")]);
     let int_len = case(
-        vec![when(call(SqlFn::Equal, vec![dot_pos.clone(), int_lit(0)]), call(SqlFn::Length, vec![mant]))],
+        vec![when(
+            call(SqlFn::Equal, vec![dot_pos.clone(), int_lit(0)]),
+            call(SqlFn::Length, vec![mant]),
+        )],
         Some(call(SqlFn::Minus, vec![dot_pos, int_lit(1)])),
     );
-    let exp_text = call(SqlFn::RegexpExtract, vec![base.clone(), string_lit("[eE]([+-]?[0-9]+)$"), int_lit(1)]);
+    let exp_text = call(
+        SqlFn::RegexpExtract,
+        vec![base.clone(), string_lit("[eE]([+-]?[0-9]+)$"), int_lit(1)],
+    );
     let exp = cast(
-        case(vec![when(call(SqlFn::Equal, vec![exp_text.clone(), string_lit("")]), null_lit())], Some(exp_text)),
+        case(
+            vec![when(
+                call(SqlFn::Equal, vec![exp_text.clone(), string_lit("")]),
+                null_lit(),
+            )],
+            Some(exp_text),
+        ),
         SqlType::Scalar(Scalar::Integer),
     );
     let point_pos = call(SqlFn::Plus, vec![int_len, exp]);
@@ -63,7 +93,13 @@ fn exponent_unfold(base: &SqlExpr) -> SqlExpr {
     let tiny = call(
         SqlFn::Concat,
         vec![
-            call(SqlFn::Concat, vec![string_lit("0."), zeros(call(SqlFn::Minus, vec![int_lit(0), point_pos.clone()]))]),
+            call(
+                SqlFn::Concat,
+                vec![
+                    string_lit("0."),
+                    zeros(call(SqlFn::Minus, vec![int_lit(0), point_pos.clone()])),
+                ],
+            ),
             digits.clone(),
         ],
     );
@@ -72,7 +108,10 @@ fn exponent_unfold(base: &SqlExpr) -> SqlExpr {
         vec![
             call(
                 SqlFn::Concat,
-                vec![digits.clone(), zeros(call(SqlFn::Minus, vec![point_pos.clone(), d_len.clone()]))],
+                vec![
+                    digits.clone(),
+                    zeros(call(SqlFn::Minus, vec![point_pos.clone(), d_len.clone()])),
+                ],
             ),
             string_lit(".0"),
         ],
@@ -82,9 +121,15 @@ fn exponent_unfold(base: &SqlExpr) -> SqlExpr {
         vec![
             call(
                 SqlFn::Concat,
-                vec![call(SqlFn::Substring, vec![digits.clone(), int_lit(1), point_pos.clone()]), string_lit(".")],
+                vec![
+                    call(SqlFn::Substring, vec![digits.clone(), int_lit(1), point_pos.clone()]),
+                    string_lit("."),
+                ],
             ),
-            call(SqlFn::Substring, vec![digits, call(SqlFn::Plus, vec![point_pos.clone(), int_lit(1)])]),
+            call(
+                SqlFn::Substring,
+                vec![digits, call(SqlFn::Plus, vec![point_pos.clone(), int_lit(1)])],
+            ),
         ],
     );
     let body = case(
@@ -103,14 +148,20 @@ fn zeros(n: SqlExpr) -> SqlExpr {
         SqlFn::Rpad,
         vec![
             string_lit(""),
-            cast(call(SqlFn::Greatest, vec![n, int_lit(0)]), SqlType::Scalar(Scalar::Integer)),
+            cast(
+                call(SqlFn::Greatest, vec![n, int_lit(0)]),
+                SqlType::Scalar(Scalar::Integer),
+            ),
             string_lit("0"),
         ],
     )
 }
 
 fn has(text: &SqlExpr, needle: &str) -> SqlExpr {
-    call(SqlFn::Greater, vec![call(SqlFn::Strpos, vec![text.clone(), string_lit(needle)]), int_lit(0)])
+    call(
+        SqlFn::Greater,
+        vec![call(SqlFn::Strpos, vec![text.clone(), string_lit(needle)]), int_lit(0)],
+    )
 }
 
 /// Pure's print form of the double `x`, as SQL over its text (`FloatPrintText.of`).
@@ -123,7 +174,13 @@ pub fn print_of(x: SqlExpr) -> SqlExpr {
 pub fn print(x: SqlExpr, s: SqlExpr) -> SqlExpr {
     let has_exp = call(
         SqlFn::Greater,
-        vec![call(SqlFn::Strpos, vec![call(SqlFn::Lower, vec![s.clone()]), string_lit("e")]), int_lit(0)],
+        vec![
+            call(
+                SqlFn::Strpos,
+                vec![call(SqlFn::Lower, vec![s.clone()]), string_lit("e")],
+            ),
+            int_lit(0),
+        ],
     );
     let fraction_free = call(
         SqlFn::And,
@@ -135,21 +192,42 @@ pub fn print(x: SqlExpr, s: SqlExpr) -> SqlExpr {
     let in_range = call(
         SqlFn::And,
         vec![
-            call(SqlFn::GreaterEqual, vec![call(SqlFn::Abs, vec![x.clone()]), float_lit(1e-17)]),
-            call(SqlFn::Less, vec![call(SqlFn::Abs, vec![x.clone()]), float_lit(9.007199254740992e15)]),
+            call(
+                SqlFn::GreaterEqual,
+                vec![call(SqlFn::Abs, vec![x.clone()]), float_lit(1e-17)],
+            ),
+            call(
+                SqlFn::Less,
+                vec![call(SqlFn::Abs, vec![x.clone()]), float_lit(9.007199254740992e15)],
+            ),
         ],
     );
     let int_plain = call(
         SqlFn::Concat,
         vec![
-            cast(cast(only_where(fraction_free.clone(), x.clone()), SqlType::Scalar(Scalar::Hugeint)), varchar()),
+            cast(
+                cast(
+                    only_where(fraction_free.clone(), x.clone()),
+                    SqlType::Scalar(Scalar::Hugeint),
+                ),
+                varchar(),
+            ),
             string_lit(".0"),
         ],
     );
     let plain = call(
         SqlFn::Rtrim,
         vec![
-            cast(cast(only_where(in_range.clone(), x), SqlType::Decimal { precision: 38, scale: 18 }), varchar()),
+            cast(
+                cast(
+                    only_where(in_range.clone(), x),
+                    SqlType::Decimal {
+                        precision: 38,
+                        scale: 18,
+                    },
+                ),
+                varchar(),
+            ),
             string_lit("0"),
         ],
     );
@@ -164,7 +242,10 @@ pub fn print(x: SqlExpr, s: SqlExpr) -> SqlExpr {
         SqlFn::And,
         vec![
             call(SqlFn::Not, vec![has_exp.clone()]),
-            call(SqlFn::Equal, vec![call(SqlFn::Strpos, vec![s.clone(), string_lit(".")]), int_lit(0)]),
+            call(
+                SqlFn::Equal,
+                vec![call(SqlFn::Strpos, vec![s.clone(), string_lit(".")]), int_lit(0)],
+            ),
         ],
     );
     let mut whens = non_finite(&s);
@@ -183,11 +264,25 @@ fn only_where(guard: SqlExpr, x: SqlExpr) -> SqlExpr {
 fn non_finite(s: &SqlExpr) -> Vec<lite_sql::When> {
     let lower = call(SqlFn::Lower, vec![s.clone()]);
     vec![
-        when(call(SqlFn::In, vec![lower.clone(), string_lit("nan"), string_lit("-nan")]), string_lit("NaN")),
         when(
-            call(SqlFn::In, vec![lower.clone(), string_lit("inf"), string_lit("+inf"), string_lit("infinity")]),
+            call(SqlFn::In, vec![lower.clone(), string_lit("nan"), string_lit("-nan")]),
+            string_lit("NaN"),
+        ),
+        when(
+            call(
+                SqlFn::In,
+                vec![
+                    lower.clone(),
+                    string_lit("inf"),
+                    string_lit("+inf"),
+                    string_lit("infinity"),
+                ],
+            ),
             string_lit("Infinity"),
         ),
-        when(call(SqlFn::In, vec![lower, string_lit("-inf"), string_lit("-infinity")]), string_lit("-Infinity")),
+        when(
+            call(SqlFn::In, vec![lower, string_lit("-inf"), string_lit("-infinity")]),
+            string_lit("-Infinity"),
+        ),
     ]
 }

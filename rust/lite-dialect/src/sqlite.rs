@@ -33,7 +33,9 @@ pub mod regex;
 use crate::ansi::{self, query_outputs};
 use crate::build;
 use crate::dialect::KeysSnapshot;
-use crate::explosion_markers::{self, exploded_read, is_marker, is_marker_select, marker_column, null_list, unnest_list};
+use crate::explosion_markers::{
+    self, exploded_read, is_marker, is_marker_select, marker_column, null_list, unnest_list,
+};
 use crate::java::{big_decimal_plain, sql_type_text};
 use crate::pieces::{Ex, P, pc, text};
 use crate::refusal::{Refusal, arg};
@@ -184,8 +186,12 @@ static LEXICON: LazyLock<Lexicon> = LazyLock::new(|| Lexicon::new('"', RESERVED)
 
 /// Java's `SQLite.CAPS`: the portable carrier strategies over its JSON lists (`json_each` correlates); FULL OUTER is
 /// native (3.39).
-pub const CAPS: crate::carrier::Caps =
-    crate::carrier::Caps { native_lists: false, correlated_explode: true, json_carrier: true, native_full_outer: true };
+pub const CAPS: crate::carrier::Caps = crate::carrier::Caps {
+    native_lists: false,
+    correlated_explode: true,
+    json_carrier: true,
+    native_full_outer: true,
+};
 
 /// One select's explosion markers (Java's `LinkedHashMap<String, Map<String, SqlExpr>>`): each marker's alias, then
 /// each exploded column's list, in insertion order.
@@ -251,8 +257,10 @@ fn scalar_is(t: Option<&SqlType>, s: Scalar) -> bool {
 
 /// A list, a struct, a map or a Variant: a value held as JSON text.
 fn nested(t: Option<&SqlType>) -> bool {
-    matches!(t, Some(SqlType::Array { .. } | SqlType::Struct { .. } | SqlType::Map { .. }))
-        || scalar_is(t, Scalar::Json)
+    matches!(
+        t,
+        Some(SqlType::Array { .. } | SqlType::Struct { .. } | SqlType::Map { .. })
+    ) || scalar_is(t, Scalar::Json)
 }
 
 fn is_json(e: &SqlExpr) -> bool {
@@ -287,7 +295,11 @@ fn type_text(t: Option<&SqlType>) -> String {
 /// The element read by `json_each`'s columns as a value of type `t`, of the `json_each` aliased `alias` (Java's
 /// `elementRead`): a Variant element is its JSON text, anything else the `value` column.
 fn element_read(t: Option<&SqlType>, alias: &str) -> String {
-    let q = if alias.is_empty() { String::new() } else { format!("{alias}.") };
+    let q = if alias.is_empty() {
+        String::new()
+    } else {
+        format!("{alias}.")
+    };
     if scalar_is(t, Scalar::Json) {
         format!(
             "CASE {q}type WHEN 'true' THEN 'true' WHEN 'false' THEN 'false' WHEN 'null' THEN 'null' WHEN 'array' THEN \
@@ -324,7 +336,9 @@ fn json_of<'a>(v: P<'a>, t: Option<&SqlType>) -> P<'a> {
 
 /// A refusal of a list plan parameter: SQLite binds no array (Java's `listParameter`).
 fn list_parameter(name: &str) -> Refusal {
-    Refusal::capability(format!("list plan parameter '{name}' reached SQLite, which binds no array"))
+    Refusal::capability(format!(
+        "list plan parameter '{name}' reached SQLite, which binds no array"
+    ))
 }
 
 fn wall(f: SqlFn, why: &str) -> Refusal {
@@ -335,7 +349,9 @@ fn wall(f: SqlFn, why: &str) -> Refusal {
 fn literal<'e>(e: &'e SqlExpr, what: &str) -> Result<&'e str, Refusal> {
     match e {
         SqlExpr::StringLit { value, .. } => Ok(value),
-        _ => Err(Refusal::capability(format!("{what} that is not a literal reached SQLite"))),
+        _ => Err(Refusal::capability(format!(
+            "{what} that is not a literal reached SQLite"
+        ))),
     }
 }
 
@@ -526,7 +542,11 @@ impl Sqlite {
                 _ => k.clone(),
             })
             .collect();
-        Ok(Cow::Owned(build::select(SqlSelect { projections: ps, order_by, ..s.clone() })?))
+        Ok(Cow::Owned(build::select(SqlSelect {
+            projections: ps,
+            order_by,
+            ..s.clone()
+        })?))
     }
 
     /// The select `s` written: its markers and lateral subqueries in scope, a star over one spelled out, a root
@@ -536,8 +556,11 @@ impl Sqlite {
         laterals_of(&s.from, &mut scope)?;
         let mut rows = Vec::new();
         row_laterals_of(&s.from, &mut rows);
-        let spelled: Cow<'_, SqlSelect> =
-            if scope.is_empty() && rows.is_empty() { self.delivered(s)? } else { Cow::Owned(stars_spelled(s)?) };
+        let spelled: Cow<'_, SqlSelect> = if scope.is_empty() && rows.is_empty() {
+            self.delivered(s)?
+        } else {
+            Cow::Owned(stars_spelled(s)?)
+        };
         self.laterals.borrow_mut().push(scope);
         self.row_laterals.borrow_mut().push(rows);
         let _scope = LateralScope(self);
@@ -556,7 +579,11 @@ impl Sqlite {
         let row_laterals = self.row_laterals.borrow();
         for scope in row_laterals.iter().rev() {
             if let Some((_, outs)) = scope.iter().find(|(alias, _)| alias == table) {
-                let t = outs.iter().find(|oc| oc.name == c.name).map(|oc| &oc.r#type).or_else(|| type_of_column(c));
+                let t = outs
+                    .iter()
+                    .find(|oc| oc.name == c.name)
+                    .map(|oc| &oc.r#type)
+                    .or_else(|| type_of_column(c));
                 return Some((table.clone(), scalar_is(t, Scalar::Json)));
             }
         }
@@ -568,7 +595,9 @@ impl Sqlite {
     fn lateral_rows<'a>(&'a self, inner: &'a SqlQuery, depth: usize) -> Result<P<'a>, Refusal> {
         let outs = query_outputs(inner);
         if outs.is_empty() {
-            return Err(Refusal::capability("a lateral subquery of undeclared columns reached SQLite"));
+            return Err(Refusal::capability(
+                "a lateral subquery of undeclared columns reached SQLite",
+            ));
         }
         Ok(pc(move |w| {
             w.append("json_each((SELECT json_group_array(json_object(");
@@ -601,8 +630,10 @@ impl Sqlite {
                     }
                 }
                 None => {
-                    let owners: Vec<&(String, Vec<(String, SqlExpr)>)> =
-                        scope.iter().filter(|(_, cols)| cols.iter().any(|(name, _)| *name == c.name)).collect();
+                    let owners: Vec<&(String, Vec<(String, SqlExpr)>)> = scope
+                        .iter()
+                        .filter(|(_, cols)| cols.iter().any(|(name, _)| *name == c.name))
+                        .collect();
                     if owners.len() == 1 {
                         let (alias, cols) = owners[0];
                         let list = cols.iter().find(|(name, _)| *name == c.name).map(|(_, l)| l.clone());
@@ -628,7 +659,8 @@ impl Sqlite {
     fn element_at<'a>(&'a self, xs: Cow<'a, SqlExpr>, index: P<'a>) -> P<'a> {
         let variant = scalar_is(list_element(&xs), Scalar::Json);
         pc(move |w| {
-            w.append(if variant { "(" } else { "json_extract(" }).expr(self, &xs, if variant { 9 } else { 0 })?;
+            w.append(if variant { "(" } else { "json_extract(" })
+                .expr(self, &xs, if variant { 9 } else { 0 })?;
             w.append(if variant { " -> ('$[' || (" } else { ", '$[' || (" });
             index(w)?;
             w.append(if variant { ") || ']'))" } else { ") || ']')" });
@@ -661,7 +693,9 @@ impl Sqlite {
                         if j != i {
                             w.append(if j > if i == 0 { 1 } else { 0 } { " AND " } else { "" });
                             w.append("coalesce(json_array_length(").expr(self, xs, 0)?;
-                            w.append("), 0) >= coalesce(json_array_length(").expr(self, other, 0)?.append("), 0)");
+                            w.append("), 0) >= coalesce(json_array_length(")
+                                .expr(self, other, 0)?
+                                .append("), 0)");
                         }
                     }
                     w.append(" THEN ").expr(self, xs, 0)?;
@@ -713,11 +747,13 @@ impl Sqlite {
                 w.append("count(CASE WHEN ").expr(self, &cmp, 0)?;
                 w.append(" THEN 1 END) > 0 THEN 1 WHEN count(*) = 0 THEN 0");
             } else {
-                w.append("count(*) = 0 THEN 1 WHEN count(CASE WHEN NOT (").expr(self, &cmp, 0)?;
+                w.append("count(*) = 0 THEN 1 WHEN count(CASE WHEN NOT (")
+                    .expr(self, &cmp, 0)?;
                 w.append(") THEN 1 END) > 0 THEN 0");
             }
             w.append(" WHEN count(CASE WHEN (").expr(self, &cmp, 0)?;
-            w.append(") IS NULL THEN 1 END) > 0 THEN NULL ELSE ").append(if any { "0" } else { "1" });
+            w.append(") IS NULL THEN 1 END) > 0 THEN NULL ELSE ")
+                .append(if any { "0" } else { "1" });
             w.append(" END FROM __q)");
             Ok(())
         })
@@ -764,7 +800,12 @@ impl Sqlite {
 
     /// A lambda parameter (or an element's or index's name) as its references spell it (Java's `param`).
     fn param(&self, name: &str) -> Result<String, Refusal> {
-        self.column_ref(&Column { table: None, name: name.to_owned(), r#type: TypeFact::Unknown, origin: Some(Origin::Derived) })
+        self.column_ref(&Column {
+            table: None,
+            name: name.to_owned(),
+            r#type: TypeFact::Unknown,
+            origin: Some(Origin::Derived),
+        })
     }
 
     /// `(SELECT <element> AS e, key AS o [, key + 1 AS i] FROM json_each(xs)) AS e__t` (Java's `elements`).
@@ -778,11 +819,19 @@ impl Sqlite {
         };
         let pt = self.param(&format!("{e}__t"))?;
         Ok(pc(move |w| {
-            w.append("(SELECT ").append(&read).append(" AS ").append(&pe).append(", key AS ").append(&po);
+            w.append("(SELECT ")
+                .append(&read)
+                .append(" AS ")
+                .append(&pe)
+                .append(", key AS ")
+                .append(&po);
             if let Some(pi) = &pi {
                 w.append(", key + 1 AS ").append(pi);
             }
-            w.append(" FROM json_each(").expr(self, xs, 0)?.append(")) AS ").append(&pt);
+            w.append(" FROM json_each(")
+                .expr(self, xs, 0)?
+                .append(")) AS ")
+                .append(&pt);
             Ok(())
         }))
     }
@@ -790,7 +839,9 @@ impl Sqlite {
     /// `body`, or NULL for a NULL list (Java's `unlessNull`).
     fn unless_null<'a>(&'a self, xs: &'a SqlExpr, body: P<'a>) -> P<'a> {
         pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, xs, 4)?.append(" IS NULL THEN NULL ELSE ");
+            w.append("(CASE WHEN ")
+                .expr(self, xs, 4)?
+                .append(" IS NULL THEN NULL ELSE ");
             body(w)?;
             w.append(" END)");
             Ok(())
@@ -927,7 +978,10 @@ impl Sqlite {
         }
         if scalar_is(t, Scalar::Boolean) || matches!(x, SqlExpr::BoolLit { .. }) {
             return pc(move |w| {
-                w.append("(CASE WHEN ").expr(self, x, 0)?.append(" THEN 'true' WHEN NOT (").expr(self, x, 0)?;
+                w.append("(CASE WHEN ")
+                    .expr(self, x, 0)?
+                    .append(" THEN 'true' WHEN NOT (")
+                    .expr(self, x, 0)?;
                 w.append(") THEN 'false' END)");
                 Ok(())
             });
@@ -941,23 +995,38 @@ impl Sqlite {
     /// A Variant's value as `to` (Java's `fromVariant`, its name kept).
     #[allow(clippy::wrong_self_convention)]
     fn from_variant<'a>(&'a self, v: &'a SqlExpr, to: &SqlType) -> Result<P<'a>, Refusal> {
-        let member = matches!(v, SqlExpr::Call { r#fn: SqlFn::VariantGet, .. });
+        let member = matches!(
+            v,
+            SqlExpr::Call {
+                r#fn: SqlFn::VariantGet,
+                ..
+            }
+        );
         let varchar = SqlType::Scalar(Scalar::Varchar);
         if *to == varchar && !member {
             return Ok(self.ex(v, 0));
         }
         if *to == varchar {
             return Ok(pc(move |w| {
-                w.append("(CASE WHEN json_type(").expr(self, v, 0)?.append(") = 'text' THEN (").expr(self, v, 9)?;
+                w.append("(CASE WHEN json_type(")
+                    .expr(self, v, 0)?
+                    .append(") = 'text' THEN (")
+                    .expr(self, v, 9)?;
                 w.append(" ->> '$') ELSE ").expr(self, v, 0)?.append(" END)");
                 Ok(())
             }));
         }
         if *to == SqlType::Scalar(Scalar::Boolean) {
             return Ok(pc(move |w| {
-                w.append("(CASE json_type(").expr(self, v, 0)?.append(") WHEN 'true' THEN 1 WHEN 'false' THEN 0");
-                w.append(" WHEN 'text' THEN CASE lower(").expr(self, v, 9)?.append(" ->> '$') WHEN 'true' THEN 1 WHEN");
-                w.append(" 'false' THEN 0 END WHEN 'integer' THEN (").expr(self, v, 9)?.append(" ->> '$') <> 0 END)");
+                w.append("(CASE json_type(")
+                    .expr(self, v, 0)?
+                    .append(") WHEN 'true' THEN 1 WHEN 'false' THEN 0");
+                w.append(" WHEN 'text' THEN CASE lower(")
+                    .expr(self, v, 9)?
+                    .append(" ->> '$') WHEN 'true' THEN 1 WHEN");
+                w.append(" 'false' THEN 0 END WHEN 'integer' THEN (")
+                    .expr(self, v, 9)?
+                    .append(" ->> '$') <> 0 END)");
                 Ok(())
             }));
         }
@@ -972,11 +1041,21 @@ impl Sqlite {
             let held = json_of(each, Some(element));
             let read = element_read(Some(&json_type()), "");
             return Ok(pc(move |w| {
-                w.append("(CASE WHEN json_type(").expr(self, v, 0)?.append(") = 'array' THEN (SELECT ");
+                w.append("(CASE WHEN json_type(")
+                    .expr(self, v, 0)?
+                    .append(") = 'array' THEN (SELECT ");
                 w.append("json_group_array(");
                 held(w)?;
-                w.append(" ORDER BY ").append(&jo).append(") FROM (SELECT ").append(&read).append(" AS ");
-                w.append(&j).append(", key AS ").append(&jo).append(" FROM json_each(").expr(self, v, 0)?;
+                w.append(" ORDER BY ")
+                    .append(&jo)
+                    .append(") FROM (SELECT ")
+                    .append(&read)
+                    .append(" AS ");
+                w.append(&j)
+                    .append(", key AS ")
+                    .append(&jo)
+                    .append(" FROM json_each(")
+                    .expr(self, v, 0)?;
                 w.append("))) END)");
                 Ok(())
             }));
@@ -1172,7 +1251,10 @@ fn param_at(l: &Lambda, i: usize) -> Result<&str, Refusal> {
 
 /// A root select's value as its label delivers it, or none when it is delivered as it is (Java's `deliveredValue`).
 fn delivered_value(e: &SqlExpr, label: &SqlType) -> Option<SqlExpr> {
-    if matches!(e, SqlExpr::NullLit { .. } | SqlExpr::Star { .. } | SqlExpr::StarExcept { .. }) {
+    if matches!(
+        e,
+        SqlExpr::NullLit { .. } | SqlExpr::Star { .. } | SqlExpr::StarExcept { .. }
+    ) {
         return None;
     }
     if let SqlType::Decimal { scale, .. } = label {
@@ -1182,7 +1264,10 @@ fn delivered_value(e: &SqlExpr, label: &SqlType) -> Option<SqlExpr> {
                 build::call(SqlFn::IsNull, vec![e.clone()]),
                 build::cast(build::null_lit(), SqlType::Scalar(Scalar::Double)),
             )],
-            Some(build::call(SqlFn::Format, vec![build::string_lit(&format!("%.{scale}f")), e.clone()])),
+            Some(build::call(
+                SqlFn::Format,
+                vec![build::string_lit(&format!("%.{scale}f")), e.clone()],
+            )),
         ));
     }
     if *label == SqlType::Scalar(Scalar::Double) {
@@ -1207,7 +1292,10 @@ fn hugeint_raised(e: &SqlExpr) -> SqlExpr {
                     build::call(SqlFn::Less, vec![e.clone(), build::int_lit(i64::MIN)]),
                 ],
             ),
-            build::call(SqlFn::Error, vec![build::string_lit("an integer past 64 bits has no SQLite value")]),
+            build::call(
+                SqlFn::Error,
+                vec![build::string_lit("an integer past 64 bits has no SQLite value")],
+            ),
         )],
         Some(e.clone()),
     )
@@ -1225,7 +1313,10 @@ fn stars_spelled(s: &SqlSelect) -> Result<SqlSelect, Refusal> {
             _ => ps.push(p.clone()),
         }
     }
-    build::select(SqlSelect { projections: ps, ..s.clone() })
+    build::select(SqlSelect {
+        projections: ps,
+        ..s.clone()
+    })
 }
 
 fn spell(src: &SqlSource, table: Option<&str>, into: &mut Vec<Projection>) -> Result<(), Refusal> {
@@ -1251,10 +1342,16 @@ fn spell(src: &SqlSource, table: Option<&str>, into: &mut Vec<Projection>) -> Re
         && is_marker(inner)
         && (table.is_none() || table == Some(alias.as_str()))
     {
-        let SqlQuery::Select(m) = inner.as_ref() else { unreachable!("a marker is a select") };
+        let SqlQuery::Select(m) = inner.as_ref() else {
+            unreachable!("a marker is a select")
+        };
         for p in &m.projections {
             let slot = p.out.as_ref().map(|o| &o.r#type);
-            into.push(build::projection(exploded_read(alias, p, slot)?, Some(marker_column(p)?), p.out.clone())?);
+            into.push(build::projection(
+                exploded_read(alias, p, slot)?,
+                Some(marker_column(p)?),
+                p.out.clone(),
+            )?);
         }
         return Ok(());
     }
@@ -1271,7 +1368,11 @@ fn spell(src: &SqlSource, table: Option<&str>, into: &mut Vec<Projection>) -> Re
 /// `rowLateral`).
 fn row_lateral(src: &SqlSource) -> Option<(&SqlQuery, &str)> {
     match src {
-        SqlSource::Join { right, kind: JoinKind::CrossLateral | JoinKind::LeftLateral, .. } => match right.as_ref() {
+        SqlSource::Join {
+            right,
+            kind: JoinKind::CrossLateral | JoinKind::LeftLateral,
+            ..
+        } => match right.as_ref() {
             SqlSource::Subselect { inner, alias, .. } if !is_marker(inner) => Some((inner, alias)),
             _ => None,
         },
@@ -1473,8 +1574,18 @@ impl AnsiSqlRenderer for Sqlite {
     fn render_ddl(&self, ddl: &SqlDdl) -> Result<String, Refusal> {
         Ok(match ddl {
             SqlDdl::CreateSchema { .. } | SqlDdl::DropSchema { .. } => "SELECT 1;".to_owned(),
-            SqlDdl::CreateTable { schema, table, quoting, columns, temporary } => {
-                let mut sb = String::from(if *temporary { "Create Temporary Table " } else { "Create Table " });
+            SqlDdl::CreateTable {
+                schema,
+                table,
+                quoting,
+                columns,
+                temporary,
+            } => {
+                let mut sb = String::from(if *temporary {
+                    "Create Temporary Table "
+                } else {
+                    "Create Table "
+                });
                 sb.push_str(&self.qualified(schema.as_deref(), table, *quoting));
                 sb.push('(');
                 let mut keys = Vec::new();
@@ -1485,7 +1596,11 @@ impl AnsiSqlRenderer for Sqlite {
                     sb.push_str(&self.ddl_identifier(&col.name, col.declared_quoted));
                     sb.push(' ');
                     sb.push_str(&self.ddl_type(&col.r#type)?);
-                    sb.push_str(if col.primary_key || col.not_null { " NOT NULL" } else { " NULL" });
+                    sb.push_str(if col.primary_key || col.not_null {
+                        " NOT NULL"
+                    } else {
+                        " NULL"
+                    });
                     if col.primary_key {
                         keys.push(self.ddl_key_identifier(&col.name, col.declared_quoted));
                     }
@@ -1499,7 +1614,10 @@ impl AnsiSqlRenderer for Sqlite {
                 sb
             }
             SqlDdl::DropTable { schema, table, quoting } => {
-                format!("Drop table if exists {};", self.qualified(schema.as_deref(), table, *quoting))
+                format!(
+                    "Drop table if exists {};",
+                    self.qualified(schema.as_deref(), table, *quoting)
+                )
             }
         })
     }
@@ -1508,7 +1626,14 @@ impl AnsiSqlRenderer for Sqlite {
     /// spelling is measured.
     fn render_dml(&self, dml: &SqlDml) -> Result<String, Refusal> {
         match dml {
-            SqlDml::InsertValues { schema, table, quoting, columns, quoted_columns, rows } => {
+            SqlDml::InsertValues {
+                schema,
+                table,
+                quoting,
+                columns,
+                quoted_columns,
+                rows,
+            } => {
                 let mut w = SqlWriter::new();
                 let head = format!(
                     "INSERT INTO {}{} VALUES ",
@@ -1529,15 +1654,23 @@ impl AnsiSqlRenderer for Sqlite {
                 }
                 Ok(insert.sql)
             }
-            SqlDml::InsertFromTable { schema, table, quoting, columns, quoted_columns, source } => Ok(format!(
+            SqlDml::InsertFromTable {
+                schema,
+                table,
+                quoting,
+                columns,
+                quoted_columns,
+                source,
+            } => Ok(format!(
                 "INSERT INTO {}{} SELECT * FROM {};",
                 self.qualified(schema.as_deref(), table, *quoting),
                 self.columns(columns, quoted_columns),
                 self.ident(source)
             )),
-            SqlDml::DeleteAll { schema, table, quoting } => {
-                Ok(format!("DELETE FROM {};", self.qualified(schema.as_deref(), table, *quoting)))
-            }
+            SqlDml::DeleteAll { schema, table, quoting } => Ok(format!(
+                "DELETE FROM {};",
+                self.qualified(schema.as_deref(), table, *quoting)
+            )),
             SqlDml::CreateTempTableAs { .. } => self.temp_table_as(dml)?.into_text(),
             SqlDml::InsertSelect { .. } | SqlDml::Update { .. } | SqlDml::DeleteWhere { .. } | SqlDml::Merge { .. } => {
                 ansi::render_dml(self, dml)
@@ -1548,7 +1681,9 @@ impl AnsiSqlRenderer for Sqlite {
     /// The engine's H2 text is refused here: SQLite has no translation of it.
     fn from_engine_text(&self, statement: &str) -> Result<String, Refusal> {
         let _ = statement;
-        Err(Refusal::capability("the engine's H2 text reached SQLite, which has no translation of it"))
+        Err(Refusal::capability(
+            "the engine's H2 text reached SQLite, which has no translation of it",
+        ))
     }
 
     /// The portable carrier strategies, star exclusions spelled out, the substring start clamp, whole-partition
@@ -1619,8 +1754,16 @@ impl AnsiSqlRenderer for Sqlite {
             let aligned = s.outputs.len() == s.projections.len();
             let mut ps = Vec::with_capacity(s.projections.len());
             for (i, p) in s.projections.iter().enumerate() {
-                let slot = if aligned { Some(&s.outputs[i].r#type) } else { p.out.as_ref().map(|o| &o.r#type) };
-                ps.push(build::projection(exploded_read(&alias, p, slot)?, Some(marker_column(p)?), p.out.clone())?);
+                let slot = if aligned {
+                    Some(&s.outputs[i].r#type)
+                } else {
+                    p.out.as_ref().map(|o| &o.r#type)
+                };
+                ps.push(build::projection(
+                    exploded_read(&alias, p, slot)?,
+                    Some(marker_column(p)?),
+                    p.out.clone(),
+                )?);
             }
             let position = build::sort_key(build::derived(Some(&alias), "key"), true, None, None);
             let over = build::select(SqlSelect {
@@ -1645,8 +1788,13 @@ impl AnsiSqlRenderer for Sqlite {
     /// A marker's positions: `json_each` over its longest list, a lateral one joining its left side correlated; a
     /// lateral subquery read as JSON rows; any other source the base's.
     fn source(&self, w: &mut SqlWriter, src: &SqlSource, depth: usize) -> Result<(), Refusal> {
-        if let SqlSource::Join { left, right, kind: kind @ (JoinKind::CrossLateral | JoinKind::LeftLateral), on, .. } =
-            src
+        if let SqlSource::Join {
+            left,
+            right,
+            kind: kind @ (JoinKind::CrossLateral | JoinKind::LeftLateral),
+            on,
+            ..
+        } = src
             && let SqlSource::Subselect { inner, alias, .. } = right.as_ref()
             && let SqlQuery::Select(m) = inner.as_ref()
             && is_marker_select(m)
@@ -1654,7 +1802,9 @@ impl AnsiSqlRenderer for Sqlite {
             if let Some(on) = on
                 && !matches!(on.as_ref(), SqlExpr::BoolLit { value: true, .. })
             {
-                return Err(Refusal::capability("a lateral explosion with a join condition reached SQLite"));
+                return Err(Refusal::capability(
+                    "a lateral explosion with a join condition reached SQLite",
+                ));
             }
             self.source(w, left, depth)?;
             self.nl(w, depth);
@@ -1758,7 +1908,9 @@ impl AnsiSqlRenderer for Sqlite {
 
     fn pivot_source(&self, w: &mut SqlWriter, pivot: &SqlSource, depth: usize) -> Result<(), Refusal> {
         let _ = (w, pivot, depth);
-        Err(Refusal::capability("a pivot reached SQLite unemulated: it has no PIVOT"))
+        Err(Refusal::capability(
+            "a pivot reached SQLite unemulated: it has no PIVOT",
+        ))
     }
 
     fn as_of_join_clause(&self) -> Result<String, Refusal> {
@@ -1768,7 +1920,9 @@ impl AnsiSqlRenderer for Sqlite {
     }
 
     fn star_except_keyword(&self) -> Result<String, Refusal> {
-        Err(Refusal::capability("a star exclusion reached SQLite unexpanded (StarExceptToColumns)"))
+        Err(Refusal::capability(
+            "a star exclusion reached SQLite unexpanded (StarExceptToColumns)",
+        ))
     }
 
     /// Alias-less projections label EXPLICITLY from the declared output: SQLite labels an expression by its text.
@@ -1814,12 +1968,18 @@ impl AnsiSqlRenderer for Sqlite {
                 Ok(())
             }
             SqlExpr::Membership { collection, .. } if matches!(collection.as_ref(), SqlExpr::PlanParam { .. }) => {
-                let SqlExpr::PlanParam { name, .. } = collection.as_ref() else { unreachable!("matched above") };
+                let SqlExpr::PlanParam { name, .. } = collection.as_ref() else {
+                    unreachable!("matched above")
+                };
                 Err(list_parameter(name))
             }
-            SqlExpr::Quantified { value, comparison, quantifier, subquery, .. } => {
-                self.quantified(value, *comparison, *quantifier, subquery)(w)
-            }
+            SqlExpr::Quantified {
+                value,
+                comparison,
+                quantifier,
+                subquery,
+                ..
+            } => self.quantified(value, *comparison, *quantifier, subquery)(w),
             SqlExpr::Column(c) => {
                 if let Some((list, position)) = self.exploded_column(c) {
                     return self.element(list, &position)(w);
@@ -1827,7 +1987,10 @@ impl AnsiSqlRenderer for Sqlite {
                 if let Some((table, json)) = self.row_lateral_field(c) {
                     let a = self.alias_ident(&table);
                     let name = self.lit(&c.name);
-                    w.append("(").append(&a).append(".value ").append(if json { "->" } else { "->>" });
+                    w.append("(")
+                        .append(&a)
+                        .append(".value ")
+                        .append(if json { "->" } else { "->>" });
                     w.append(" ").append(&name).append(")");
                     return Ok(());
                 }
@@ -1861,13 +2024,19 @@ impl AnsiSqlRenderer for Sqlite {
     /// A Float literal is a REAL; the infinities are REALs past the range; NaN has no SQLite value.
     fn float_literal(&self, v: f64) -> Result<String, Refusal> {
         if v.is_nan() {
-            return Err(Refusal::capability("a NaN literal reached SQLite, which has no NaN (0.0 / 0 is NULL)"));
+            return Err(Refusal::capability(
+                "a NaN literal reached SQLite, which has no NaN (0.0 / 0 is NULL)",
+            ));
         }
         if v.is_infinite() {
             return Ok(if v > 0.0 { "9e999" } else { "-9e999" }.to_owned());
         }
         let s = crate::java::plain_float(v)?;
-        Ok(if s.contains('.') || s.contains('E') || s.contains('e') { s } else { format!("{s}.0") })
+        Ok(if s.contains('.') || s.contains('E') || s.contains('e') {
+            s
+        } else {
+            format!("{s}.0")
+        })
     }
 
     fn array_type_name(&self, element: &str) -> Result<String, Refusal> {
@@ -1892,7 +2061,9 @@ impl AnsiSqlRenderer for Sqlite {
             | Scalar::Json
             | Scalar::TemporalText => "TEXT",
             Scalar::DecimalText => {
-                return Err(Refusal::illegal_state(format!("{s} cast reached a dialect without {s} support")));
+                return Err(Refusal::illegal_state(format!(
+                    "{s} cast reached a dialect without {s} support"
+                )));
             }
         }
         .to_owned())
@@ -1901,7 +2072,9 @@ impl AnsiSqlRenderer for Sqlite {
     /// No STRUCT type here: a struct cast is refused.
     fn struct_type_name(&self, fields: &[StructField]) -> Result<String, Refusal> {
         let _ = fields;
-        Err(Refusal::capability("a STRUCT type reached a dialect without struct support"))
+        Err(Refusal::capability(
+            "a STRUCT type reached a dialect without struct support",
+        ))
     }
 
     /// A date format's parts: the base's strftime codes.
@@ -1951,7 +2124,9 @@ impl AnsiSqlRenderer for Sqlite {
     /// DuckDB's struct_insert: the struct with the field set (a new one last).
     fn struct_insert(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let SqlExpr::StringLit { value: name, .. } = arg(args, 1)? else {
-            return Err(Refusal::capability("struct_insert of a field that is not a literal reached SQLite"));
+            return Err(Refusal::capability(
+                "struct_insert of a field that is not a literal reached SQLite",
+            ));
         };
         w.append("json_set(").expr(self, arg(args, 0)?, 0)?.append(", ");
         let path = self.lit(&format!("$.\"{}\"", name.replace('"', "\\\"")));
@@ -1973,7 +2148,8 @@ impl AnsiSqlRenderer for Sqlite {
 
     /// No duplicates iff the distinct count is the count; an empty or NULL list is distinct.
     fn all_distinct(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("coalesce((SELECT count(*) = count(DISTINCT value) FROM json_each(").expr(self, arg(args, 0)?, 0)?;
+        w.append("coalesce((SELECT count(*) = count(DISTINCT value) FROM json_each(")
+            .expr(self, arg(args, 0)?, 0)?;
         w.append(")), 1)");
         Ok(())
     }
@@ -1994,7 +2170,10 @@ impl AnsiSqlRenderer for Sqlite {
         let el = list_element(collection);
         let e = self.param("__e")?;
         let nested_el = nested(el);
-        w.append("(CASE WHEN ").expr(self, collection, 4)?.append(" IS NULL OR ").expr(self, needle, 4)?;
+        w.append("(CASE WHEN ")
+            .expr(self, collection, 4)?
+            .append(" IS NULL OR ")
+            .expr(self, needle, 4)?;
         w.append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM ");
         self.elements(collection, "__e", "__eo", None)?(w)?;
         let read = if nested_el { format!("json({e})") } else { e };
@@ -2028,7 +2207,13 @@ impl AnsiSqlRenderer for Sqlite {
 
     /// Pure's fold, `(element, acc)`, as a correlated `WITH RECURSIVE` over the elements in order.
     fn fold_call(&self, w: &mut SqlWriter, fold: &SqlExpr) -> Result<(), Refusal> {
-        let SqlExpr::FoldCall { source, lambda: l, init, .. } = fold else {
+        let SqlExpr::FoldCall {
+            source,
+            lambda: l,
+            init,
+            ..
+        } = fold
+        else {
             return Err(Refusal::class_cast(crate::java::simple_name(fold), "FoldCall"));
         };
         let x = param_at(l, 0)?;
@@ -2036,7 +2221,10 @@ impl AnsiSqlRenderer for Sqlite {
         let body = lambda_body(l, list_element(source))?;
         let pacc = self.param(acc)?;
         let px = self.param(x)?;
-        w.append("(WITH RECURSIVE __f(__i, ").append(&pacc).append(") AS (SELECT 0, ").expr(self, init, 0)?;
+        w.append("(WITH RECURSIVE __f(__i, ")
+            .append(&pacc)
+            .append(") AS (SELECT 0, ")
+            .expr(self, init, 0)?;
         w.append(" UNION ALL SELECT __f.__i + 1, ").expr(self, &body, 0)?;
         w.append(" FROM __f JOIN (SELECT key AS __k, ");
         w.append(&element_read(list_element(source), "")).append(" AS ");
@@ -2048,16 +2236,22 @@ impl AnsiSqlRenderer for Sqlite {
 
     /// Pure's splitPart: the non-empty tokens, 1-based, NULL past the end.
     fn split_part_call(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("(CASE WHEN ").expr(self, arg(a, 2)?, 4)?.append(" > 0 THEN (SELECT value FROM json_each(");
+        w.append("(CASE WHEN ")
+            .expr(self, arg(a, 2)?, 4)?
+            .append(" > 0 THEN (SELECT value FROM json_each(");
         self.split(arg(a, 0)?, arg(a, 1)?)(w)?;
-        w.append(") WHERE value <> '' ORDER BY key LIMIT 1 OFFSET ").expr(self, arg(a, 2)?, 6)?;
+        w.append(") WHERE value <> '' ORDER BY key LIMIT 1 OFFSET ")
+            .expr(self, arg(a, 2)?, 6)?;
         w.append(" - 1) END)");
         Ok(())
     }
 
     fn variant_construct(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() != 1 {
-            return Err(Refusal::capability(format!("toVariant of {} arguments reached SQLite", a.len())));
+            return Err(Refusal::capability(format!(
+                "toVariant of {} arguments reached SQLite",
+                a.len()
+            )));
         }
         self.variant_of(&a[0])(w)
     }
@@ -2072,19 +2266,30 @@ impl AnsiSqlRenderer for Sqlite {
             return Ok(());
         }
         if is_text(key) {
-            w.append("(").expr(self, arg(args, 0)?, 9)?.append(" -> ('$.\"' || replace(").expr(self, key, 0)?;
+            w.append("(")
+                .expr(self, arg(args, 0)?, 9)?
+                .append(" -> ('$.\"' || replace(")
+                .expr(self, key, 0)?;
             w.append(", '\"', '\\\"') || '\"'))");
             return Ok(());
         }
-        w.append("(").expr(self, arg(args, 0)?, 9)?.append(" -> (CASE WHEN ").expr(self, key, 4)?;
-        w.append(" < 0 THEN '$[#' || ").expr(self, key, 6)?.append(" || ']' ELSE '$[' || ").expr(self, key, 6)?;
+        w.append("(")
+            .expr(self, arg(args, 0)?, 9)?
+            .append(" -> (CASE WHEN ")
+            .expr(self, key, 4)?;
+        w.append(" < 0 THEN '$[#' || ")
+            .expr(self, key, 6)?
+            .append(" || ']' ELSE '$[' || ")
+            .expr(self, key, 6)?;
         w.append(" || ']' END))");
         Ok(())
     }
 
     /// A Variant array's elements, each a Variant: the array's JSON is the list (NULL for a non-array).
     fn variant_elements(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
-        w.append("(CASE WHEN json_type(").expr(self, arg(args, 0)?, 0)?.append(") = 'array' THEN ");
+        w.append("(CASE WHEN json_type(")
+            .expr(self, arg(args, 0)?, 0)?
+            .append(") = 'array' THEN ");
         w.expr(self, arg(args, 0)?, 0)?.append(" END)");
         Ok(())
     }
@@ -2177,7 +2382,9 @@ impl AnsiSqlRenderer for Sqlite {
     /// Refused, as TYPEOF is here (its type names are SQLite's storage classes).
     fn typeof_name(&self, scalar: Scalar) -> Result<String, Refusal> {
         let _ = scalar;
-        Err(Refusal::capability("typeof reached SQLite: its type names are SQLite's storage classes"))
+        Err(Refusal::capability(
+            "typeof reached SQLite: its type names are SQLite's storage classes",
+        ))
     }
 
     fn hash_signed(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
@@ -2229,13 +2436,20 @@ impl AnsiSqlRenderer for Sqlite {
     }
 
     /// A JSON array of the values, NULLs kept as JSON nulls; over no rows the empty array.
-    fn json_array_agg(&self, w: &mut SqlWriter, value: &SqlExpr, order_keys: &[JsonArrayAggKey]) -> Result<(), Refusal> {
+    fn json_array_agg(
+        &self,
+        w: &mut SqlWriter,
+        value: &SqlExpr,
+        order_keys: &[JsonArrayAggKey],
+    ) -> Result<(), Refusal> {
         w.append("json_group_array(");
         self.json(value)(w)?;
         if !order_keys.is_empty() {
             w.append(" ORDER BY ");
             w.join(order_keys, ", ", |w, k| {
-                w.expr(self, &k.expr, 0)?.append(if k.desc { " DESC" } else { " ASC" }).append(" NULLS LAST");
+                w.expr(self, &k.expr, 0)?
+                    .append(if k.desc { " DESC" } else { " ASC" })
+                    .append(" NULLS LAST");
                 Ok(())
             })?;
         }
@@ -2264,7 +2478,9 @@ impl AnsiSqlRenderer for Sqlite {
     /// SQLite runs the standard spelling, its query a root as `render` writes one.
     fn temp_table_as(&self, dml: &SqlDml) -> Result<SqlWriter, Refusal> {
         let SqlDml::CreateTempTableAs { query, .. } = dml else {
-            return Err(Refusal::illegal_state("a temporary table from a query: not the statement this writer renders"));
+            return Err(Refusal::illegal_state(
+                "a temporary table from a query: not the statement this writer renders",
+            ));
         };
         let _root = self.enter(query_outputs(query).to_vec());
         ansi::create_temporary_table_as(self, dml, false, "CREATE TEMPORARY TABLE ", "")
@@ -2273,9 +2489,11 @@ impl AnsiSqlRenderer for Sqlite {
     fn ddl_type(&self, t: &ColumnType) -> Result<String, Refusal> {
         Ok(match t {
             ColumnType::Plain { kind } => match kind {
-                ColumnKind::Bigint | ColumnKind::Smallint | ColumnKind::Tinyint | ColumnKind::Integer | ColumnKind::Bit => {
-                    "INTEGER"
-                }
+                ColumnKind::Bigint
+                | ColumnKind::Smallint
+                | ColumnKind::Tinyint
+                | ColumnKind::Integer
+                | ColumnKind::Bit => "INTEGER",
                 ColumnKind::Float | ColumnKind::Double | ColumnKind::Real => "REAL",
                 ColumnKind::Timestamp
                 | ColumnKind::Date
@@ -2315,17 +2533,29 @@ impl Sqlite {
         if columns.is_empty() {
             return String::new();
         }
-        let names: Vec<String> = columns.iter().map(|c| self.stored_name(c, quoted.contains(c))).collect();
+        let names: Vec<String> = columns
+            .iter()
+            .map(|c| self.stored_name(c, quoted.contains(c)))
+            .collect();
         format!(" ({})", names.join(", "))
     }
 
     /// `coalesce((SELECT agg(CASE WHEN body THEN 1 WHEN NOT (body) THEN 0 END) FROM elements), empty)` (Java's
     /// `listPredicate`).
-    fn list_predicate(&self, w: &mut SqlWriter, args: &[SqlExpr], agg: &str, empty: &str, f: SqlFn) -> Result<(), Refusal> {
+    fn list_predicate(
+        &self,
+        w: &mut SqlWriter,
+        args: &[SqlExpr],
+        agg: &str,
+        empty: &str,
+        f: SqlFn,
+    ) -> Result<(), Refusal> {
         let l = lambda_of(arg(args, 1)?, f)?;
         let xs = arg(args, 0)?;
         let body = lambda_body(l, list_element(xs))?;
-        w.append(&format!("coalesce((SELECT {agg}(CASE WHEN ")).expr(self, &body, 0)?.append(" THEN 1 WHEN NOT (");
+        w.append(&format!("coalesce((SELECT {agg}(CASE WHEN "))
+            .expr(self, &body, 0)?
+            .append(" THEN 1 WHEN NOT (");
         w.expr(self, &body, 0)?.append(") THEN 0 END) FROM ");
         let index = l.params.get(1).map(String::as_str);
         self.elements(xs, param_at(l, 0)?, &Sqlite::offset_of(l)?, index)?(w)?;
@@ -2337,14 +2567,28 @@ impl Sqlite {
     /// `split`).
     fn split<'a>(&'a self, s: &'a SqlExpr, d: &'a SqlExpr) -> P<'a> {
         pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, s, 4)?.append(" IS NULL OR ").expr(self, d, 4)?;
-            w.append(" IS NULL THEN NULL WHEN ").expr(self, s, 4)?.append(" = '' THEN json_array() WHEN ").expr(self, d, 4)?;
-            w.append(" = '' THEN (WITH RECURSIVE __s(__n, __p, __r) AS (SELECT 0, NULL, ").expr(self, s, 0)?;
+            w.append("(CASE WHEN ")
+                .expr(self, s, 4)?
+                .append(" IS NULL OR ")
+                .expr(self, d, 4)?;
+            w.append(" IS NULL THEN NULL WHEN ")
+                .expr(self, s, 4)?
+                .append(" = '' THEN json_array() WHEN ")
+                .expr(self, d, 4)?;
+            w.append(" = '' THEN (WITH RECURSIVE __s(__n, __p, __r) AS (SELECT 0, NULL, ")
+                .expr(self, s, 0)?;
             w.append(" UNION ALL SELECT __n + 1, substr(__r, 1, 1), substr(__r, 2) FROM __s WHERE __r <> '')");
             w.append(" SELECT json_group_array(__p ORDER BY __n) FROM __s WHERE __n > 0)");
-            w.append(" ELSE (WITH RECURSIVE __s(__n, __p, __r) AS (SELECT 0, NULL, ").expr(self, s, 6)?.append(" || ");
-            w.expr(self, d, 6)?.append(" UNION ALL SELECT __n + 1, substr(__r, 1, instr(__r, ").expr(self, d, 0)?;
-            w.append(") - 1), substr(__r, instr(__r, ").expr(self, d, 0)?.append(") + length(").expr(self, d, 0)?;
+            w.append(" ELSE (WITH RECURSIVE __s(__n, __p, __r) AS (SELECT 0, NULL, ")
+                .expr(self, s, 6)?
+                .append(" || ");
+            w.expr(self, d, 6)?
+                .append(" UNION ALL SELECT __n + 1, substr(__r, 1, instr(__r, ")
+                .expr(self, d, 0)?;
+            w.append(") - 1), substr(__r, instr(__r, ")
+                .expr(self, d, 0)?
+                .append(") + length(")
+                .expr(self, d, 0)?;
             w.append(")) FROM __s WHERE __r <> '') SELECT json_group_array(__p ORDER BY __n) FROM __s");
             w.append(" WHERE __n > 0) END)");
             Ok(())
@@ -2491,11 +2735,13 @@ impl crate::dialect::SqlDialect for Sqlite {
             "NULL" => true,
             "INTEGER" => matches!(label, SqlType::Scalar(Scalar::Boolean | Scalar::Hugeint)),
             "VARCHAR" => {
-                matches!(label, SqlType::Scalar(Scalar::Date | Scalar::Timestamp | Scalar::Timestamptz | Scalar::Json))
-                    || matches!(
-                        label,
-                        SqlType::Array { .. } | SqlType::Struct { .. } | SqlType::Map { .. } | SqlType::Decimal { .. }
-                    )
+                matches!(
+                    label,
+                    SqlType::Scalar(Scalar::Date | Scalar::Timestamp | Scalar::Timestamptz | Scalar::Json)
+                ) || matches!(
+                    label,
+                    SqlType::Array { .. } | SqlType::Struct { .. } | SqlType::Map { .. } | SqlType::Decimal { .. }
+                )
             }
             _ => false,
         }

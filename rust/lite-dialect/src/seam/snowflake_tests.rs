@@ -37,7 +37,10 @@ fn facts_are_snowflakes() {
     );
     // every server version is spelled alike; a spec's server keeps Snowflake
     assert_eq!(ok(SF, "forServer", r#"{"version":"10.36.101"}"#), r#""Snowflake""#);
-    assert_eq!(dispatch(r#"{"dialect":"Snowflake","server":"9"}"#, "facts", "{}").unwrap(), ok(SF, "facts", "{}"));
+    assert_eq!(
+        dispatch(r#"{"dialect":"Snowflake","server":"9"}"#, "facts", "{}").unwrap(),
+        ok(SF, "facts", "{}")
+    );
     assert_eq!(
         refused(r#"{"dialect":"Snowflake","timeZone":"UTC"}"#, "facts", "{}").message,
         "quoteIdentifiers and timeZone configure an engine-text dialect (EngineStyleH2, EngineStyleDB2), not Snowflake"
@@ -66,7 +69,10 @@ fn queries_render_as_snowflake_writes_them() {
         r#"{"sql":"SELECT 1 AS \"b\", 'it''s' AS \"s\"\nLIMIT 5\nOFFSET 3","binds":[],"regions":[]}"#
     );
     // OFFSET needs a LIMIT: LIMIT NULL
-    assert_eq!(ok(SF, "query.render", &wrap("query", OFFSET_ONLY)), r#""SELECT 1 AS \"b\"\nLIMIT NULL\nOFFSET 3""#);
+    assert_eq!(
+        ok(SF, "query.render", &wrap("query", OFFSET_ONLY)),
+        r#""SELECT 1 AS \"b\"\nLIMIT NULL\nOFFSET 3""#
+    );
 }
 
 const CREATE_TABLE: &str = r#"{"_type":"createTable","schema":"S","table":"Trades","quoting":{"schema":false,"table":false},"columns":[{"name":"ID","declaredQuoted":false,"type":{"_type":"plain","kind":"TINYINT"},"notNull":true,"primaryKey":true},{"name":"Amt","declaredQuoted":true,"type":{"_type":"scaled","kind":"DECIMAL","precision":40,"scale":2},"notNull":false,"primaryKey":false},{"name":"J","declaredQuoted":false,"type":{"_type":"plain","kind":"JSON"},"notNull":false,"primaryKey":false}],"temporary":false}"#;
@@ -85,14 +91,28 @@ fn ddl_and_dml_render_and_a_session_table_is_a_temporary_table() {
     // the interface's default: the table, then its INSERT
     let temporary = r#""Create Temporary Table \"legend_rows\"(\"ID\" BIGINT NOT NULL, PRIMARY KEY(\"ID\"));""#;
     assert_eq!(
-        ok(SF, "sessionTable", &format!(r#"{{"table":{SESSION_TABLE},"rows":{INSERT_VALUES}}}"#)),
+        ok(
+            SF,
+            "sessionTable",
+            &format!(r#"{{"table":{SESSION_TABLE},"rows":{INSERT_VALUES}}}"#)
+        ),
         format!("[{temporary},{insert}]")
     );
-    assert_eq!(ok(SF, "sessionTable", &format!(r#"{{"table":{SESSION_TABLE},"rows":null}}"#)), format!("[{temporary}]"));
+    assert_eq!(
+        ok(
+            SF,
+            "sessionTable",
+            &format!(r#"{{"table":{SESSION_TABLE},"rows":null}}"#)
+        ),
+        format!("[{temporary}]")
+    );
     let delete =
         r#"{"dml":{"_type":"deleteAll","schema":"default","table":"T","quoting":{"schema":false,"table":true}}}"#;
     assert_eq!(ok(SF, "dml.render", delete), r#""DELETE FROM \"T\";""#);
-    assert_eq!(ok(SF, "dml.renderStatement", delete), r#"{"sql":"DELETE FROM \"T\";","binds":[],"regions":[]}"#);
+    assert_eq!(
+        ok(SF, "dml.renderStatement", delete),
+        r#"{"sql":"DELETE FROM \"T\";","binds":[],"regions":[]}"#
+    );
     let drop = r#"{"ddl":{"_type":"dropSchema","schema":"S","quoted":true}}"#;
     assert_eq!(ok(SF, "ddl.render", drop), r#""Drop schema if exists \"S\" cascade;""#);
 }
@@ -103,18 +123,36 @@ fn names_are_snowflakes() {
     assert_eq!(name("physicalName", r#"{"name":"Trades"}"#), r#""\"Trades\"""#);
     // a quote-bearing declaration is already its own spelling
     assert_eq!(name("physicalName", r#"{"name":"\"date\""}"#), r#""\"date\"""#);
-    assert_eq!(name("storedName", r#"{"name":"a\"b","declaredQuoted":true}"#), r#""\"a\"\"b\"""#);
-    assert_eq!(name("insertColumnName", r#"{"name":"x","declaredQuoted":false}"#), r#""\"x\"""#);
+    assert_eq!(
+        name("storedName", r#"{"name":"a\"b","declaredQuoted":true}"#),
+        r#""\"a\"\"b\"""#
+    );
+    assert_eq!(
+        name("insertColumnName", r#"{"name":"x","declaredQuoted":false}"#),
+        r#""\"x\"""#
+    );
     let r = refused(SF, "fromEngineText", r#"{"statement":"CREATE TABLE T (X DOUBLE)"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("DIALECT_CAPABILITY", "the engine's H2 text reached Snowflake, which has no translation of it")
+        (
+            "DIALECT_CAPABILITY",
+            "the engine's H2 text reached Snowflake, which has no translation of it"
+        )
     );
-    assert_eq!(name("raw", r#"{"statement":"select 1","writtenFor":"Snowflake"}"#), r#""select 1""#);
-    let r = refused(SF, "raw", r#"{"statement":"select 1","writtenFor":"H2"}"#);
-    assert_eq!(r.message, "the engine's H2 text reached Snowflake, which has no translation of it");
     assert_eq!(
-        name("tableName", r#"{"name":"Sales.Orders","quoting":{"schema":false,"table":false}}"#),
+        name("raw", r#"{"statement":"select 1","writtenFor":"Snowflake"}"#),
+        r#""select 1""#
+    );
+    let r = refused(SF, "raw", r#"{"statement":"select 1","writtenFor":"H2"}"#);
+    assert_eq!(
+        r.message,
+        "the engine's H2 text reached Snowflake, which has no translation of it"
+    );
+    assert_eq!(
+        name(
+            "tableName",
+            r#"{"name":"Sales.Orders","quoting":{"schema":false,"table":false}}"#
+        ),
         r#""\"Sales\".\"Orders\"""#
     );
 }
@@ -123,36 +161,84 @@ fn names_are_snowflakes() {
 fn the_interface_answers_as_snowflake() {
     // its driver names every fixed-point number NUMBER: DECIMAL at the wire, nothing to type by
     assert_eq!(ok(SF, "wireTypeName", r#"{"driverTypeName":"NUMBER"}"#), r#""DECIMAL""#);
-    assert_eq!(ok(SF, "wireTypeName", r#"{"driverTypeName":" number "}"#), r#""DECIMAL""#);
+    assert_eq!(
+        ok(SF, "wireTypeName", r#"{"driverTypeName":" number "}"#),
+        r#""DECIMAL""#
+    );
     assert_eq!(ok(SF, "typingWireName", r#"{"driverTypeName":"NUMBER"}"#), "null");
-    assert_eq!(ok(SF, "wireTypeName", r#"{"driverTypeName":"VARCHAR"}"#), r#""VARCHAR""#);
-    assert_eq!(ok(SF, "typingWireName", r#"{"driverTypeName":"VARCHAR"}"#), r#""VARCHAR""#);
+    assert_eq!(
+        ok(SF, "wireTypeName", r#"{"driverTypeName":"VARCHAR"}"#),
+        r#""VARCHAR""#
+    );
+    assert_eq!(
+        ok(SF, "typingWireName", r#"{"driverTypeName":"VARCHAR"}"#),
+        r#""VARCHAR""#
+    );
     assert_eq!(ok(SF, "wireTypeName", r#"{"driverTypeName":null}"#), r#""""#);
     let bigint = r#"{"_type":"scalar","name":"BIGINT"}"#;
-    assert_eq!(ok(SF, "deliversOwn", &format!(r#"{{"label":{bigint},"wire":"DECIMAL(38,0)"}}"#)), "true");
-    assert_eq!(ok(SF, "deliversOwn", &format!(r#"{{"label":{bigint},"wire":"DECIMAL(38,2)"}}"#)), "false");
+    assert_eq!(
+        ok(
+            SF,
+            "deliversOwn",
+            &format!(r#"{{"label":{bigint},"wire":"DECIMAL(38,0)"}}"#)
+        ),
+        "true"
+    );
+    assert_eq!(
+        ok(
+            SF,
+            "deliversOwn",
+            &format!(r#"{{"label":{bigint},"wire":"DECIMAL(38,2)"}}"#)
+        ),
+        "false"
+    );
     let map = r#"{"_type":"map","key":{"_type":"scalar","name":"VARCHAR"},"value":{"_type":"scalar","name":"BIGINT"}}"#;
-    assert_eq!(ok(SF, "deliversOwn", &format!(r#"{{"label":{map},"wire":"OBJECT"}}"#)), "true");
+    assert_eq!(
+        ok(SF, "deliversOwn", &format!(r#"{{"label":{map},"wire":"OBJECT"}}"#)),
+        "true"
+    );
     assert_eq!(ok(SF, "script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-    assert_eq!(ok(SF, "failingStatement", r#"{"message":"x","statements":["a"]}"#), "null");
+    assert_eq!(
+        ok(SF, "failingStatement", r#"{"message":"x","statements":["a"]}"#),
+        "null"
+    );
     let r = refused(SF, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),
-        ("UNSUPPORTED_OPERATION", "the platform asks no catalog question of Snowflake")
+        (
+            "UNSUPPORTED_OPERATION",
+            "the platform asks no catalog question of Snowflake"
+        )
     );
     let r = refused(SF, "bareNameReaches", r#"{"catalogName":"t"}"#);
-    assert_eq!(r.message, "reading this database's catalog names is not implemented for Snowflake");
-    let column = r#"{"column":{"name":"n","dataType":"NUMBER","logicalType":null,"precision":38,"scale":0,"notNull":false}}"#;
+    assert_eq!(
+        r.message,
+        "reading this database's catalog names is not implemented for Snowflake"
+    );
+    let column =
+        r#"{"column":{"name":"n","dataType":"NUMBER","logicalType":null,"precision":38,"scale":0,"notNull":false}}"#;
     let r = refused(SF, "catalogType", column);
-    assert_eq!(r.message, "reading this database's catalog type 'NUMBER' is not implemented for Snowflake");
+    assert_eq!(
+        r.message,
+        "reading this database's catalog type 'NUMBER' is not implemented for Snowflake"
+    );
     assert_eq!(ok(SF, "copySelectList", r#"{"conversions":[]}"#), r#""*""#);
     let r = refused(SF, "copySelectList", r#"{"conversions":[{"column":"c","sql":"x"}]}"#);
-    assert_eq!(r.message, "a copy that converts columns in its star select is not implemented for Snowflake");
+    assert_eq!(
+        r.message,
+        "a copy that converts columns in its star select is not implemented for Snowflake"
+    );
     for op in ["host.openDatabase", "host.useDatabase", "host.closeDatabase"] {
         let r = refused(SF, op, r#"{"name":"p"}"#);
         assert!(r.message.contains("on Snowflake"), "{op}: {r}");
     }
-    let reads = |kind: &str| ok(SF, "readsStored", &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#));
+    let reads = |kind: &str| {
+        ok(
+            SF,
+            "readsStored",
+            &format!(r#"{{"type":{{"_type":"plain","kind":"{kind}"}}}}"#),
+        )
+    };
     assert_eq!(reads("OTHER"), "true");
     assert_eq!(reads("JSON"), "false");
     assert_eq!(

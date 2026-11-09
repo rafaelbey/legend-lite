@@ -25,7 +25,12 @@ type R<T> = Result<T, JavaError>;
 
 /// `GqlParser.parseDocument(content, baseLine, baseCol)`.
 pub fn parse_document(content: &[u16], base_line: i32, base_col: i32) -> R<GqlDocument> {
-    let mut p = Gql { src: content, pos: 0, base_line, base_col };
+    let mut p = Gql {
+        src: content,
+        pos: 0,
+        base_line,
+        base_col,
+    };
     let mut defs = Vec::new();
     p.ws();
     while !p.at_end() {
@@ -45,8 +50,15 @@ struct Gql<'a> {
     base_col: i32,
 }
 
-const EXEC_LOCATIONS: &[&str] =
-    &["QUERY", "MUTATION", "SUBSCRIPTION", "FIELD", "FRAGMENT_DEFINITION", "FRAGMENT_SPREAD", "INLINE_FRAGMENT"];
+const EXEC_LOCATIONS: &[&str] = &[
+    "QUERY",
+    "MUTATION",
+    "SUBSCRIPTION",
+    "FIELD",
+    "FRAGMENT_DEFINITION",
+    "FRAGMENT_SPREAD",
+    "INLINE_FRAGMENT",
+];
 const TYPE_SYSTEM_LOCATIONS: &[&str] = &[
     "SCHEMA",
     "SCALAR",
@@ -118,14 +130,20 @@ impl Gql<'_> {
             self.expect(b':')?;
             self.ws();
             let r#type = self.ident("root type name")?;
-            roots.push(Box::new(GqlRootOp { operation_type: op, r#type }));
+            roots.push(Box::new(GqlRootOp {
+                operation_type: op,
+                r#type,
+            }));
             self.ws();
         }
         self.expect(b'}')?;
         if roots.is_empty() {
             return Err(self.fail("empty schema body"));
         }
-        Ok(GqlSchemaDef { directives, root_ops: roots })
+        Ok(GqlSchemaDef {
+            directives,
+            root_ops: roots,
+        })
     }
 
     fn directive_definition(&mut self) -> R<GqlDirectiveDef> {
@@ -133,7 +151,11 @@ impl Gql<'_> {
         self.expect(b'@')?;
         let name = self.name("directive name")?;
         self.ws();
-        let args = if self.peekc() == c(b'(') { self.input_value_list(c(b')'))? } else { Vec::new() };
+        let args = if self.peekc() == c(b'(') {
+            self.input_value_list(c(b')'))?
+        } else {
+            Vec::new()
+        };
         self.ws();
         if self.name("'on'")? != "on" {
             return Err(self.fail("directive definition needs 'on <locations>'"));
@@ -162,13 +184,21 @@ impl Gql<'_> {
             self.pos += 1;
             self.ws();
         }
-        Ok(GqlDirectiveDef { name, args, exec_locations: exec, type_system_locations: type_system })
+        Ok(GqlDirectiveDef {
+            name,
+            args,
+            exec_locations: exec,
+            type_system_locations: type_system,
+        })
     }
 
     fn scalar_definition(&mut self) -> R<GqlScalarType> {
         self.ws();
         let name = self.name("scalar name")?;
-        Ok(GqlScalarType { name, directives: self.directives()? })
+        Ok(GqlScalarType {
+            name,
+            directives: self.directives()?,
+        })
     }
 
     fn interface_definition(&mut self) -> R<GqlInterfaceType> {
@@ -177,7 +207,12 @@ impl Gql<'_> {
         let implements_list = self.implements_clause()?;
         let directives = self.directives()?;
         let fields = self.field_definitions()?;
-        Ok(GqlInterfaceType { name, directives, fields, implements_list })
+        Ok(GqlInterfaceType {
+            name,
+            directives,
+            fields,
+            implements_list,
+        })
     }
 
     fn union_definition(&mut self) -> R<GqlUnionType> {
@@ -201,7 +236,11 @@ impl Gql<'_> {
             self.pos += 1;
             self.ws();
         }
-        Ok(GqlUnionType { name, directives, members })
+        Ok(GqlUnionType {
+            name,
+            directives,
+            members,
+        })
     }
 
     fn enum_definition(&mut self) -> R<GqlEnumType> {
@@ -221,7 +260,11 @@ impl Gql<'_> {
         if values.is_empty() {
             return Err(self.fail("empty enum body"));
         }
-        Ok(GqlEnumType { name, directives, values })
+        Ok(GqlEnumType {
+            name,
+            directives,
+            values,
+        })
     }
 
     fn input_definition(&mut self) -> R<GqlInputObjectType> {
@@ -231,7 +274,11 @@ impl Gql<'_> {
         self.ws();
         self.expect(b'{')?;
         let fields = self.input_value_body()?;
-        Ok(GqlInputObjectType { name, directives, fields })
+        Ok(GqlInputObjectType {
+            name,
+            directives,
+            fields,
+        })
     }
 
     /// `implements A & B` or `implements A, B`.
@@ -316,7 +363,12 @@ impl Gql<'_> {
             self.ws();
         }
         let directives = self.directives()?;
-        Ok(GqlInputValueDef { name, r#type, default_value, directives })
+        Ok(GqlInputValueDef {
+            name,
+            r#type,
+            default_value,
+            directives,
+        })
     }
 
     fn field_definitions(&mut self) -> R<Vec<Box<GqlFieldDef>>> {
@@ -327,12 +379,21 @@ impl Gql<'_> {
         while self.peekc() != c(b'}') {
             let name = self.name("field name")?;
             self.ws();
-            let args = if self.peekc() == c(b'(') { self.input_value_list(c(b')'))? } else { Vec::new() };
+            let args = if self.peekc() == c(b'(') {
+                self.input_value_list(c(b')'))?
+            } else {
+                Vec::new()
+            };
             self.ws();
             self.expect(b':')?;
             let r#type = self.type_reference()?;
             let directives = self.directives()?;
-            fields.push(Box::new(GqlFieldDef { name, r#type, args, directives }));
+            fields.push(Box::new(GqlFieldDef {
+                name,
+                r#type,
+                args,
+                directives,
+            }));
             self.ws();
         }
         self.expect(b'}')?;
@@ -344,12 +405,26 @@ impl Gql<'_> {
 
     fn operation(&mut self, op_type: JStr) -> R<GqlOperation> {
         self.ws();
-        let name = if is_name_start(self.peekc()) { Some(self.ident("operation name")?) } else { None };
+        let name = if is_name_start(self.peekc()) {
+            Some(self.ident("operation name")?)
+        } else {
+            None
+        };
         self.ws();
-        let variables = if self.peekc() == c(b'(') { self.variable_definitions()? } else { Vec::new() };
+        let variables = if self.peekc() == c(b'(') {
+            self.variable_definitions()?
+        } else {
+            Vec::new()
+        };
         let directives = self.directives()?;
         let selection_set = self.selection_set()?;
-        Ok(GqlOperation { r#type: Some(op_type), name, variables, directives, selection_set })
+        Ok(GqlOperation {
+            r#type: Some(op_type),
+            name,
+            variables,
+            directives,
+            selection_set,
+        })
     }
 
     fn fragment_definition(&mut self) -> R<GqlFragment> {
@@ -364,7 +439,12 @@ impl Gql<'_> {
         // the engine's walker never reads fragment-level directives: parsed and dropped
         self.directives()?;
         let selection_set = self.selection_set()?;
-        Ok(GqlFragment { name, type_condition, directives: Vec::new(), selection_set })
+        Ok(GqlFragment {
+            name,
+            type_condition,
+            directives: Vec::new(),
+            selection_set,
+        })
     }
 
     fn object_type_definition(&mut self) -> R<GqlObjectType> {
@@ -372,7 +452,11 @@ impl Gql<'_> {
         let name = self.name("type name")?;
         let implements_list = self.implements_clause()?;
         let fields = self.field_definitions()?;
-        Ok(GqlObjectType { name, fields, implements_list })
+        Ok(GqlObjectType {
+            name,
+            fields,
+            implements_list,
+        })
     }
 
     fn selection_set(&mut self) -> R<Vec<GqlSelection>> {
@@ -419,11 +503,25 @@ impl Gql<'_> {
             field_name = self.ident("aliased field name")?;
             self.ws();
         }
-        let arguments = if self.peekc() == c(b'(') { self.arguments()? } else { Vec::new() };
+        let arguments = if self.peekc() == c(b'(') {
+            self.arguments()?
+        } else {
+            Vec::new()
+        };
         let directives = self.directives()?;
         self.ws();
-        let selection_set = if self.peekc() == c(b'{') { self.selection_set()? } else { Vec::new() };
-        Ok(GqlSelection::GqlField(Box::new(GqlField { alias, name: field_name, arguments, directives, selection_set })))
+        let selection_set = if self.peekc() == c(b'{') {
+            self.selection_set()?
+        } else {
+            Vec::new()
+        };
+        Ok(GqlSelection::GqlField(Box::new(GqlField {
+            alias,
+            name: field_name,
+            arguments,
+            directives,
+            selection_set,
+        })))
     }
 
     fn arguments(&mut self) -> R<Vec<Box<GqlArgument>>> {
@@ -452,7 +550,11 @@ impl Gql<'_> {
             self.pos += 1;
             let name = self.name("directive name")?;
             self.ws();
-            let arguments = if self.peekc() == c(b'(') { self.arguments()? } else { Vec::new() };
+            let arguments = if self.peekc() == c(b'(') {
+                self.arguments()?
+            } else {
+                Vec::new()
+            };
             out.push(Box::new(GqlDirective { name, arguments }));
             self.ws();
         }
@@ -476,7 +578,11 @@ impl Gql<'_> {
                 default_value = Some(self.value()?);
                 self.ws();
             }
-            out.push(Box::new(GqlVariableDef { dollar_name: jcat!("$", name), r#type, default_value }));
+            out.push(Box::new(GqlVariableDef {
+                dollar_name: jcat!("$", name),
+                r#type,
+                default_value,
+            }));
             self.ws();
         }
         self.expect(b')')?;

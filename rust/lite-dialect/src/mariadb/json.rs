@@ -40,7 +40,10 @@ impl MariaDb {
     pub(super) fn json_of<'a>(&self, v: P<'a>, t: Option<&SqlType>) -> P<'a> {
         if t == Some(&SqlType::Scalar(Scalar::Boolean)) {
             return pc(move |w| {
-                w.append("JSON_EXTRACT(CASE WHEN ").piece(&*v)?.append(" THEN 'true' WHEN NOT (").piece(&*v)?;
+                w.append("JSON_EXTRACT(CASE WHEN ")
+                    .piece(&*v)?
+                    .append(" THEN 'true' WHEN NOT (")
+                    .piece(&*v)?;
                 w.append(") THEN 'false' END, '$')");
                 Ok(())
             });
@@ -77,12 +80,19 @@ impl MariaDb {
 
     /// Java's `valueAt(json, path, t)`: a JSON text's value at `path` as a value of type `t`.
     pub(super) fn value_at<'a>(&self, json: P<'a>, path: P<'a>, t: Option<&SqlType>) -> P<'a> {
-        if matches!(t, Some(SqlType::Array { .. } | SqlType::Struct { .. } | SqlType::Map { .. })) {
+        if matches!(
+            t,
+            Some(SqlType::Array { .. } | SqlType::Struct { .. } | SqlType::Map { .. })
+        ) {
             return self.json_member(json, path);
         }
         if nested(t) {
             return pc(move |w| {
-                w.append("JSON_EXTRACT(").piece(&*json)?.append(", ").piece(&*path)?.append(")");
+                w.append("JSON_EXTRACT(")
+                    .piece(&*json)?
+                    .append(", ")
+                    .piece(&*path)?
+                    .append(")");
                 Ok(())
             });
         }
@@ -153,15 +163,21 @@ impl MariaDb {
     pub(super) fn elements<'a>(&'a self, xs: &'a SqlExpr, e: &str, o: &str, i: Option<&str>) -> P<'a> {
         let r#type = self.column_type(list_element(xs));
         let index = i.map_or_else(String::new, |i| format!(", {} FOR ORDINALITY", self.param(i)));
-        let spec =
-            format!("'$[*]' COLUMNS ({} FOR ORDINALITY{index}, {} {type} PATH '$')", self.param(o), self.param(e));
+        let spec = format!(
+            "'$[*]' COLUMNS ({} FOR ORDINALITY{index}, {} {type} PATH '$')",
+            self.param(o),
+            self.param(e)
+        );
         self.json_table(self.ex(xs, 0), spec, self.param(&format!("{e}__t")))
     }
 
     /// Java's `unlessNull(xs, body)`: `body`, or NULL for a NULL list.
     pub(super) fn unless_null<'a>(&'a self, xs: &'a SqlExpr, body: P<'a>) -> P<'a> {
         pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, xs, 4)?.append(" IS NULL THEN NULL ELSE ").piece(&*body)?;
+            w.append("(CASE WHEN ")
+                .expr(self, xs, 4)?
+                .append(" IS NULL THEN NULL ELSE ")
+                .piece(&*body)?;
             w.append(" END)");
             Ok(())
         })
@@ -171,7 +187,10 @@ impl MariaDb {
     pub(super) fn lambda_of<'e>(&self, e: &'e SqlExpr, f: SqlFn) -> Result<&'e Lambda, Refusal> {
         match e {
             SqlExpr::Lambda(l) if !l.params.is_empty() => Ok(l),
-            _ => Err(Refusal::capability(format!("{f} without a lambda reached {}", self.product()))),
+            _ => Err(Refusal::capability(format!(
+                "{f} without a lambda reached {}",
+                self.product()
+            ))),
         }
     }
 
@@ -210,17 +229,26 @@ impl MariaDb {
         let o = self.param("__o");
         if f == AggFn::Mode {
             if !extras.is_empty() {
-                return Err(Refusal::capability(format!("a mode with arguments reached {}", self.product())));
+                return Err(Refusal::capability(format!(
+                    "a mode with arguments reached {}",
+                    self.product()
+                )));
             }
             return Ok(pc(move |w| {
                 w.append(&format!("(SELECT {e} FROM "));
                 let elements = self.elements(xs, "__e", "__o", None);
                 w.piece(&*elements)?;
-                w.append(&format!(" WHERE {e} IS NOT NULL GROUP BY {e} ORDER BY count(*) DESC, min({o}) LIMIT 1)"));
+                w.append(&format!(
+                    " WHERE {e} IS NOT NULL GROUP BY {e} ORDER BY count(*) DESC, min({o}) LIMIT 1)"
+                ));
                 Ok(())
             }));
         }
-        let el = if list_element(xs).is_none() { build::derived(None, "__e") } else { column_param("__e", xs) };
+        let el = if list_element(xs).is_none() {
+            build::derived(None, "__e")
+        } else {
+            column_param("__e", xs)
+        };
         let mut args = vec![el];
         args.extend(extras.iter().cloned());
         let order: Vec<SortKey> = if matches!(f, AggFn::StringAgg | AggFn::List) {
@@ -249,7 +277,11 @@ impl MariaDb {
     ) -> Result<P<'a>, Refusal> {
         let xs = arg(a, 0)?;
         let r = self.over_rows(xs, f, &[])?;
-        let r#type = if list_element(xs).is_none() { cast_target(self, call_type) } else { None };
+        let r#type = if list_element(xs).is_none() {
+            cast_target(self, call_type)
+        } else {
+            None
+        };
         Ok(match r#type {
             None => r,
             Some(t) => pc(move |w| {
@@ -272,7 +304,11 @@ impl MariaDb {
                 self.product()
             )));
         };
-        w.append("JSON_SET(").expr(self, arg(args, 0)?, 0)?.append(", ").append(&self.member_path(name)).append(", ");
+        w.append("JSON_SET(")
+            .expr(self, arg(args, 0)?, 0)?
+            .append(", ")
+            .append(&self.member_path(name))
+            .append(", ");
         let json = self.json(arg(args, 2)?);
         w.piece(&*json)?.append(")");
         Ok(())
@@ -290,8 +326,11 @@ impl MariaDb {
         let l = self.lambda_of(arg(args, 1)?, f)?;
         let xs = arg(args, 0)?;
         let body = lambda_body(l, list_element(xs))?;
-        w.append(&format!("coalesce((SELECT {agg}(CASE WHEN ")).expr(self, &body, 0)?;
-        w.append(" THEN 1 WHEN NOT (").expr(self, &body, 0)?.append(") THEN 0 END) FROM ");
+        w.append(&format!("coalesce((SELECT {agg}(CASE WHEN "))
+            .expr(self, &body, 0)?;
+        w.append(" THEN 1 WHEN NOT (")
+            .expr(self, &body, 0)?
+            .append(") THEN 0 END) FROM ");
         let elements = self.elements(xs, &l.params[0], &offset_of(l), index_of(l));
         w.piece(&*elements)?.append(&format!("), {empty})"));
         Ok(())
@@ -316,12 +355,27 @@ impl MariaDb {
     ) -> Result<(), Refusal> {
         let el = list_element(collection);
         let e = self.param("__e");
-        let needle_piece = if nested(el) { self.compact(self.ex(needle, 0)) } else { self.ex(needle, 5) };
-        let element = if nested(el) { self.compact(text(e.clone())) } else { text(e) };
-        w.append("(CASE WHEN ").expr(self, collection, 4)?.append(" IS NULL OR ").expr(self, needle, 4)?;
+        let needle_piece = if nested(el) {
+            self.compact(self.ex(needle, 0))
+        } else {
+            self.ex(needle, 5)
+        };
+        let element = if nested(el) {
+            self.compact(text(e.clone()))
+        } else {
+            text(e)
+        };
+        w.append("(CASE WHEN ")
+            .expr(self, collection, 4)?
+            .append(" IS NULL OR ")
+            .expr(self, needle, 4)?;
         w.append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM ");
         let elements = self.elements(collection, "__e", "__eo", None);
-        w.piece(&*elements)?.append(" WHERE ").piece(&*element)?.append(" = ").piece(&*needle_piece)?;
+        w.piece(&*elements)?
+            .append(" WHERE ")
+            .piece(&*element)?
+            .append(" = ")
+            .piece(&*needle_piece)?;
         w.append(") END)");
         Ok(())
     }
@@ -330,7 +384,16 @@ impl MariaDb {
 
     /// Java's `foldCall`: Pure's fold as a `WITH RECURSIVE` over the elements in order.
     pub(super) fn fold_arm(&self, w: &mut SqlWriter, fold: &SqlExpr) -> Result<(), Refusal> {
-        let SqlExpr::FoldCall { source, lambda, init, r#type, .. } = fold else { unreachable!("a fold call") };
+        let SqlExpr::FoldCall {
+            source,
+            lambda,
+            init,
+            r#type,
+            ..
+        } = fold
+        else {
+            unreachable!("a fold call")
+        };
         if !self.correlates_derived()
             && (!closed_alone(source) || !closed_alone(init) || !closed_alone(&SqlExpr::Lambda(lambda.clone())))
         {
@@ -417,9 +480,16 @@ impl MariaDb {
         let acc_param = self.param(&acc);
         let table = self.json_table(self.ex(xs, 0), spec, "\"__x\"".to_owned());
         pc(move |w| {
-            w.append("(WITH RECURSIVE \"__f\"(\"__i\", ").append(&acc_param).append(") AS (").piece(&*anchor)?;
-            w.append(" UNION ALL SELECT \"__f\".\"__i\" + 1, ").expr(self, &body, 0)?.append(" FROM \"__f\" JOIN ");
-            w.piece(&*table)?.append(" ON \"__x\".\"__k\" = \"__f\".\"__i\" + 1) SELECT ").append(&acc_param);
+            w.append("(WITH RECURSIVE \"__f\"(\"__i\", ")
+                .append(&acc_param)
+                .append(") AS (")
+                .piece(&*anchor)?;
+            w.append(" UNION ALL SELECT \"__f\".\"__i\" + 1, ")
+                .expr(self, &body, 0)?
+                .append(" FROM \"__f\" JOIN ");
+            w.piece(&*table)?
+                .append(" ON \"__x\".\"__k\" = \"__f\".\"__i\" + 1) SELECT ")
+                .append(&acc_param);
             w.append(" FROM \"__f\" ORDER BY \"__i\" DESC LIMIT 1)");
             Ok(())
         })
@@ -433,11 +503,16 @@ impl MariaDb {
             self.column_type(Some(&SqlType::Scalar(Scalar::Varchar)))
         );
         let n = arg(a, 2)?;
-        w.append("(CASE WHEN ").expr(self, n, 4)?.append(" > 0 THEN (SELECT __t.\"__v\" FROM ");
+        w.append("(CASE WHEN ")
+            .expr(self, n, 4)?
+            .append(" > 0 THEN (SELECT __t.\"__v\" FROM ");
         let t = self.json_table(parts.clone(), cols.clone(), "__t".to_owned());
-        w.piece(&*t)?.append(" WHERE __t.\"__v\" <> '' AND (SELECT count(*) FROM ");
+        w.piece(&*t)?
+            .append(" WHERE __t.\"__v\" <> '' AND (SELECT count(*) FROM ");
         let u = self.json_table(parts, cols, "__u".to_owned());
-        w.piece(&*u)?.append(" WHERE __u.\"__v\" <> '' AND __u.\"__o\" < __t.\"__o\") = ").expr(self, n, 6)?;
+        w.piece(&*u)?
+            .append(" WHERE __u.\"__v\" <> '' AND __u.\"__o\" < __t.\"__o\") = ")
+            .expr(self, n, 6)?;
         w.append(" - 1) END)");
         Ok(())
     }
@@ -531,7 +606,11 @@ impl MariaDb {
              DOUBLE) - {jaro}) ELSE {jaro} END FROM __jx WHERE __jx.\"k\" > CHAR_LENGTH(__jx.\"p\"))"
         );
         Ok(pc(move |w| {
-            w.append(&head).expr(self, x, 0)?.append(", ").expr(self, y, 0)?.append(&tail);
+            w.append(&head)
+                .expr(self, x, 0)?
+                .append(", ")
+                .expr(self, y, 0)?
+                .append(&tail);
             Ok(())
         }))
     }
@@ -539,18 +618,29 @@ impl MariaDb {
     /// Java's `rows(n, alias)`: `JSON_TABLE` over `n` rows, its ordinal `alias."__n"`.
     pub(super) fn rows<'a>(&self, n: P<'a>, alias: &str) -> P<'a> {
         let json = pc(move |w| {
-            w.append("CONCAT('[', REPEAT('0,', (").piece(&*n)?.append(") - 1), '0]')");
+            w.append("CONCAT('[', REPEAT('0,', (")
+                .piece(&*n)?
+                .append(") - 1), '0]')");
             Ok(())
         });
-        self.json_table(json, "'$[*]' COLUMNS (\"__n\" FOR ORDINALITY)".to_owned(), alias.to_owned())
+        self.json_table(
+            json,
+            "'$[*]' COLUMNS (\"__n\" FOR ORDINALITY)".to_owned(),
+            alias.to_owned(),
+        )
     }
 
     /// Java's `split(s, d)`: DuckDB's string_split as a JSON array of the parts.
     pub(super) fn split<'a>(&'a self, s: &'a SqlExpr, d: &'a SqlExpr) -> P<'a> {
         pc(move |w| {
-            w.append("(CASE WHEN ").expr(self, s, 4)?.append(" IS NULL OR ").expr(self, d, 4)?;
+            w.append("(CASE WHEN ")
+                .expr(self, s, 4)?
+                .append(" IS NULL OR ")
+                .expr(self, d, 4)?;
             w.append(" IS NULL THEN NULL WHEN CHAR_LENGTH(").expr(self, s, 0)?;
-            w.append(") = 0 THEN JSON_ARRAY() WHEN CHAR_LENGTH(").expr(self, d, 0)?.append(") = 0 THEN (SELECT ");
+            w.append(") = 0 THEN JSON_ARRAY() WHEN CHAR_LENGTH(")
+                .expr(self, d, 0)?
+                .append(") = 0 THEN (SELECT ");
             let chars = pc(move |v| {
                 v.append("SUBSTRING(").expr(self, s, 0)?.append(", __g.\"__n\", 1)");
                 Ok(())
@@ -564,8 +654,12 @@ impl MariaDb {
             let rows = self.rows(length, "__g");
             w.piece(&*rows)?.append(") ELSE ");
             let parts = pc(move |v| {
-                v.append("CONCAT('[', REPLACE(JSON_QUOTE(").expr(self, s, 0)?.append("), SUBSTRING(JSON_QUOTE(");
-                v.expr(self, d, 0)?.append("), 2, CHAR_LENGTH(JSON_QUOTE(").expr(self, d, 0)?;
+                v.append("CONCAT('[', REPLACE(JSON_QUOTE(")
+                    .expr(self, s, 0)?
+                    .append("), SUBSTRING(JSON_QUOTE(");
+                v.expr(self, d, 0)?
+                    .append("), 2, CHAR_LENGTH(JSON_QUOTE(")
+                    .expr(self, d, 0)?;
                 v.append(")) - 2), '\",\"'), ']')");
                 Ok(())
             });
@@ -590,7 +684,9 @@ impl MariaDb {
             return self.json_of(self.ex(x, 0), Some(&SqlType::Scalar(Scalar::Boolean)));
         }
         pc(move |w| {
-            w.append("JSON_EXTRACT(JSON_ARRAY(").expr(self, x, 0)?.append("), '$[0]')");
+            w.append("JSON_EXTRACT(JSON_ARRAY(")
+                .expr(self, x, 0)?
+                .append("), '$[0]')");
             Ok(())
         })
     }
@@ -605,7 +701,9 @@ impl MariaDb {
             return Ok(());
         }
         if is_text(key) {
-            w.append("JSON_EXTRACT(").expr(self, arg(args, 0)?, 0)?.append(", CONCAT('$.\"', REPLACE(");
+            w.append("JSON_EXTRACT(")
+                .expr(self, arg(args, 0)?, 0)?
+                .append(", CONCAT('$.\"', REPLACE(");
             w.expr(self, key, 0)?.append(", '\"', '\\\"'), '\"'))");
             return Ok(());
         }
@@ -672,14 +770,22 @@ impl MariaDb {
     /// Java's `fromVariant(v, to)`: a Variant's value as `to`.
     fn variant_as<'a>(&'a self, v: &'a SqlExpr, to: &SqlType) -> P<'a> {
         // a member read as text is its scalar text (a string unquoted); a whole value as text is its JSON
-        let member = matches!(v, SqlExpr::Call { r#fn: SqlFn::VariantGet, .. });
+        let member = matches!(
+            v,
+            SqlExpr::Call {
+                r#fn: SqlFn::VariantGet,
+                ..
+            }
+        );
         if *to == SqlType::Scalar(Scalar::Varchar) && !member {
             return self.json_as_text(self.ex(v, 0));
         }
         if *to == SqlType::Scalar(Scalar::Varchar) {
             let as_text = self.json_as_text(self.ex(v, 0));
             return pc(move |w| {
-                w.append("(CASE WHEN JSON_TYPE(").expr(self, v, 0)?.append(") = 'STRING' THEN JSON_UNQUOTE(");
+                w.append("(CASE WHEN JSON_TYPE(")
+                    .expr(self, v, 0)?
+                    .append(") = 'STRING' THEN JSON_UNQUOTE(");
                 w.expr(self, v, 0)?.append(") ELSE ").piece(&*as_text)?.append(" END)");
                 Ok(())
             });
@@ -688,9 +794,14 @@ impl MariaDb {
             // a JSON boolean's JSON_VALUE is '1' or '0' (MySQL's 'true' or 'false')
             let text = self.json_text(self.ex(v, 0), text("'$'"));
             return pc(move |w| {
-                w.append("(CASE JSON_TYPE(").expr(self, v, 0)?.append(") WHEN 'BOOLEAN' THEN ").piece(&*text)?;
-                w.append(" IN ('1', 'true') WHEN 'STRING' THEN CASE lower(JSON_UNQUOTE(").expr(self, v, 0)?;
-                w.append(")) WHEN 'true' THEN TRUE WHEN 'false' THEN FALSE END WHEN 'INTEGER' THEN ").piece(&*text)?;
+                w.append("(CASE JSON_TYPE(")
+                    .expr(self, v, 0)?
+                    .append(") WHEN 'BOOLEAN' THEN ")
+                    .piece(&*text)?;
+                w.append(" IN ('1', 'true') WHEN 'STRING' THEN CASE lower(JSON_UNQUOTE(")
+                    .expr(self, v, 0)?;
+                w.append(")) WHEN 'true' THEN TRUE WHEN 'false' THEN FALSE END WHEN 'INTEGER' THEN ")
+                    .piece(&*text)?;
                 w.append(" <> 0 END)");
                 Ok(())
             });
@@ -701,13 +812,26 @@ impl MariaDb {
             } else {
                 self.scalar_of_text(text(self.json_text_of(&self.param("__j"), "'$'")), Some(element))
             };
-            let agg = self.array_agg(false, self.json_of(each, Some(element)), Some(text(self.param("__jo"))), false);
-            let spec =
-                format!("'$[*]' COLUMNS ({} FOR ORDINALITY, {} JSON PATH '$')", self.param("__jo"), self.param("__j"));
+            let agg = self.array_agg(
+                false,
+                self.json_of(each, Some(element)),
+                Some(text(self.param("__jo"))),
+                false,
+            );
+            let spec = format!(
+                "'$[*]' COLUMNS ({} FOR ORDINALITY, {} JSON PATH '$')",
+                self.param("__jo"),
+                self.param("__j")
+            );
             let table = self.json_table(self.ex(v, 0), spec, "__jt".to_owned());
             return pc(move |w| {
-                w.append("(CASE WHEN JSON_TYPE(").expr(self, v, 0)?.append(") = 'ARRAY' THEN coalesce((SELECT ");
-                w.piece(&*agg)?.append(" FROM ").piece(&*table)?.append("), JSON_ARRAY()) END)");
+                w.append("(CASE WHEN JSON_TYPE(")
+                    .expr(self, v, 0)?
+                    .append(") = 'ARRAY' THEN coalesce((SELECT ");
+                w.piece(&*agg)?
+                    .append(" FROM ")
+                    .piece(&*table)?
+                    .append("), JSON_ARRAY()) END)");
                 Ok(())
             });
         }
@@ -756,7 +880,10 @@ impl MariaDb {
             Scalar::Integer | Scalar::Bigint => {
                 if from == Some(&SqlType::Scalar(Scalar::Double)) {
                     pc(move |w| {
-                        w.append("CAST(sign(").piece(&*value)?.append(") * floor(abs(").piece(&*value)?;
+                        w.append("CAST(sign(")
+                            .piece(&*value)?
+                            .append(") * floor(abs(")
+                            .piece(&*value)?;
                         w.append(") + 0.5) AS SIGNED)");
                         Ok(())
                     })
@@ -770,7 +897,9 @@ impl MariaDb {
             Scalar::Timestamp => {
                 if from == Some(&SqlType::Scalar(Scalar::Varchar)) {
                     pc(move |w| {
-                        w.append("CAST(REPLACE(").piece(&*value)?.append(", 'T', ' ') AS DATETIME(6))");
+                        w.append("CAST(REPLACE(")
+                            .piece(&*value)?
+                            .append(", 'T', ' ') AS DATETIME(6))");
                         Ok(())
                     })
                 } else {
@@ -786,7 +915,9 @@ impl MariaDb {
                 }
             }
             Scalar::Json => pc(move |w| {
-                w.append("JSON_EXTRACT(JSON_ARRAY(").piece(&*value)?.append("), '$[0]')");
+                w.append("JSON_EXTRACT(JSON_ARRAY(")
+                    .piece(&*value)?
+                    .append("), '$[0]')");
                 Ok(())
             }),
             Scalar::Time => cast("TIME(6)"),
@@ -816,15 +947,22 @@ impl MariaDb {
         }
         if r#type == Some(&SqlType::Scalar(Scalar::Boolean)) {
             return pc(move |w| {
-                w.append("(CASE WHEN ").piece(&*value)?.append(" THEN 'true' WHEN NOT (").piece(&*value)?;
+                w.append("(CASE WHEN ")
+                    .piece(&*value)?
+                    .append(" THEN 'true' WHEN NOT (")
+                    .piece(&*value)?;
                 w.append(") THEN 'false' END)");
                 Ok(())
             });
         }
         if matches!(r#type, Some(SqlType::Scalar(Scalar::Timestamp | Scalar::Timestamptz))) {
             return pc(move |w| {
-                w.append("(CASE WHEN MICROSECOND(").piece(&*value)?.append(") = 0 THEN DATE_FORMAT(").piece(&*value)?;
-                w.append(", '%Y-%m-%d %H:%i:%s') ELSE TRIM(TRAILING '0' FROM DATE_FORMAT(").piece(&*value)?;
+                w.append("(CASE WHEN MICROSECOND(")
+                    .piece(&*value)?
+                    .append(") = 0 THEN DATE_FORMAT(")
+                    .piece(&*value)?;
+                w.append(", '%Y-%m-%d %H:%i:%s') ELSE TRIM(TRAILING '0' FROM DATE_FORMAT(")
+                    .piece(&*value)?;
                 w.append(", '%Y-%m-%d %H:%i:%s.%f')) END)");
                 Ok(())
             });
@@ -862,25 +1000,44 @@ impl MariaDb {
             "CONCAT(LEFT({d}, 1), CASE WHEN CHAR_LENGTH({d}) > 1 THEN CONCAT('.', SUBSTRING({d}, 2)) ELSE '' END, \
              'e', CASE WHEN {x} < 0 THEN '-' ELSE '+' END, LPAD(ABS({x}), 2, '0'))"
         );
-        let zero = if canon { "'0.0'".to_owned() } else { "CASE WHEN __f.\"n\" THEN '-0.0' ELSE '0.0' END".to_owned() };
-        let layout = if canon { fixed } else { format!("CASE WHEN {x} BETWEEN -4 AND 15 THEN {fixed} ELSE {sci} END") };
+        let zero = if canon {
+            "'0.0'".to_owned()
+        } else {
+            "CASE WHEN __f.\"n\" THEN '-0.0' ELSE '0.0' END".to_owned()
+        };
+        let layout = if canon {
+            fixed
+        } else {
+            format!("CASE WHEN {x} BETWEEN -4 AND 15 THEN {fixed} ELSE {sci} END")
+        };
         let inner = self.json_table(
             text(format!("JSON_ARRAY({digits}, {exp})")),
             "'$' COLUMNS (\"d\" VARCHAR(64) PATH '$[0]', \"x\" INT PATH '$[1]')".to_owned(),
             "__g".to_owned(),
         );
         let held = pc(move |v| {
-            v.append("JSON_ARRAY(CAST(ABS(").piece(&*value)?.append(") AS CHAR), ").piece(&*value)?.append(" < 0)");
+            v.append("JSON_ARRAY(CAST(ABS(")
+                .piece(&*value)?
+                .append(") AS CHAR), ")
+                .piece(&*value)?
+                .append(" < 0)");
             Ok(())
         });
         let outer = self.json_table(
             held,
-            format!("'$' COLUMNS (\"t\" VARCHAR(64) PATH '$[0]', \"n\" {} PATH '$[1]')", self.boolean_column()),
+            format!(
+                "'$' COLUMNS (\"t\" VARCHAR(64) PATH '$[0]', \"n\" {} PATH '$[1]')",
+                self.boolean_column()
+            ),
             "__f".to_owned(),
         );
         pc(move |w| {
-            w.append(&format!("(SELECT CASE WHEN __f.\"t\" IS NULL THEN NULL WHEN __f.\"t\" = '0' THEN {zero}"));
-            w.append(&format!(" ELSE CONCAT(CASE WHEN __f.\"n\" THEN '-' ELSE '' END, (SELECT {layout} FROM "));
+            w.append(&format!(
+                "(SELECT CASE WHEN __f.\"t\" IS NULL THEN NULL WHEN __f.\"t\" = '0' THEN {zero}"
+            ));
+            w.append(&format!(
+                " ELSE CONCAT(CASE WHEN __f.\"n\" THEN '-' ELSE '' END, (SELECT {layout} FROM "
+            ));
             w.piece(&*inner)?.append(")) END FROM ").piece(&*outer)?.append(")");
             Ok(())
         })
@@ -942,8 +1099,12 @@ pub(super) fn utc_of<'a>(text: P<'a>) -> P<'a> {
         pc(move |w| {
             w.append("(CAST(LEFT(").piece(&*t)?.append(", ").piece(&*len)?;
             w.append(&format!(" - {cut}) AS DATETIME(6)) - INTERVAL"));
-            w.append(" (CASE LEFT(").piece(&*off)?.append(", 1) WHEN '-' THEN -1 ELSE 1 END) * (CAST(SUBSTRING(");
-            w.piece(&*off)?.append(", 2, 2) AS SIGNED) * 60 + CAST(RIGHT(").piece(&*off)?;
+            w.append(" (CASE LEFT(")
+                .piece(&*off)?
+                .append(", 1) WHEN '-' THEN -1 ELSE 1 END) * (CAST(SUBSTRING(");
+            w.piece(&*off)?
+                .append(", 2, 2) AS SIGNED) * 60 + CAST(RIGHT(")
+                .piece(&*off)?;
             w.append(", 2) AS SIGNED)) MINUTE)");
             Ok(())
         })
@@ -965,10 +1126,20 @@ pub(super) fn utc_of<'a>(text: P<'a>) -> P<'a> {
     let six = shifted(off6, 6);
     let five = shifted(off5, 5);
     pc(move |w| {
-        w.append("(CASE WHEN ").piece(&*t)?.append(" LIKE '%Z' THEN CAST(LEFT(").piece(&*t)?.append(", ");
+        w.append("(CASE WHEN ")
+            .piece(&*t)?
+            .append(" LIKE '%Z' THEN CAST(LEFT(")
+            .piece(&*t)?
+            .append(", ");
         w.piece(&*len)?.append(" - 1) AS DATETIME(6)) WHEN ").piece(&*t)?;
-        w.append(" REGEXP '[+-][0-9]{2}:[0-9]{2}$' THEN ").piece(&*six)?.append(" WHEN ").piece(&*len)?;
-        w.append(" > 10 AND ").piece(&*t)?.append(" REGEXP '[0-9][+-][0-9]{4}$' THEN ").piece(&*five)?;
+        w.append(" REGEXP '[+-][0-9]{2}:[0-9]{2}$' THEN ")
+            .piece(&*six)?
+            .append(" WHEN ")
+            .piece(&*len)?;
+        w.append(" > 10 AND ")
+            .piece(&*t)?
+            .append(" REGEXP '[0-9][+-][0-9]{4}$' THEN ")
+            .piece(&*five)?;
         w.append(" ELSE CAST(").piece(&*t)?.append(" AS DATETIME(6)) END)");
         Ok(())
     })

@@ -276,8 +276,16 @@ fn oracles() -> Vec<String> {
 /// The test thread's stack: the renderer recurses with the tree, which nests thousands deep (`LITE_DIALECT_STACK_MB`
 /// measures how deep).
 fn on_a_big_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
-    let stack_mb: usize = std::env::var("LITE_DIALECT_STACK_MB").ok().and_then(|v| v.parse().ok()).unwrap_or(256);
-    std::thread::Builder::new().stack_size(stack_mb << 20).spawn(f).unwrap().join().unwrap()
+    let stack_mb: usize = std::env::var("LITE_DIALECT_STACK_MB")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(256);
+    std::thread::Builder::new()
+        .stack_size(stack_mb << 20)
+        .spawn(f)
+        .unwrap()
+        .join()
+        .unwrap()
 }
 
 /// One distinct oracle line: where it was first read, and the line.
@@ -380,8 +388,16 @@ fn renders_as_java_does(dialect: &'static str) {
     eprintln!("{report}");
     if let Ok(dir) = std::env::var("LITE_DIALECT_MISMATCHES") {
         let out = format!("{dir}/{dialect}.txt");
-        std::fs::write(&out, tally.mismatches.iter().map(|m| m.full.as_str()).collect::<Vec<_>>().join("\n"))
-            .unwrap_or_else(|e| panic!("cannot write {out}: {e}"));
+        std::fs::write(
+            &out,
+            tally
+                .mismatches
+                .iter()
+                .map(|m| m.full.as_str())
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+        .unwrap_or_else(|e| panic!("cannot write {out}: {e}"));
     }
     assert!(tally.statements > 0, "the oracles hold no {dialect} statement");
     assert!(
@@ -401,7 +417,10 @@ fn floor(dialect: &str) -> usize {
             .find(|p| p.rsplit(['/', '\\']).next() == Some(file.as_str()))
             .unwrap_or_else(|| panic!("LITE_DIALECT_FLOORS names no {file}"))
             .to_owned(),
-        Err(_) => format!("{}/tests/{file}", option_env!("CARGO_MANIFEST_DIR").unwrap_or("rust/lite-dialect")),
+        Err(_) => format!(
+            "{}/tests/{file}",
+            option_env!("CARGO_MANIFEST_DIR").unwrap_or("rust/lite-dialect")
+        ),
     };
     let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read the floor {path}: {e}"));
     text.lines()
@@ -477,8 +496,11 @@ impl Tally {
             self.statements_with_binds, self.refusals
         );
         let table = |out: &mut String, title: &str, rows: &BTreeMap<String, [usize; 4]>| {
-            let _ =
-                writeln!(out, "\n{title:<24} {:>9} {:>9} {:>9} {:>9}", "identical", "different", "refused", "accepted");
+            let _ = writeln!(
+                out,
+                "\n{title:<24} {:>9} {:>9} {:>9} {:>9}",
+                "identical", "different", "refused", "accepted"
+            );
             for (k, v) in rows {
                 let _ = writeln!(out, "{k:<24} {:>9} {:>9} {:>9} {:>9}", v[0], v[1], v[2], v[3]);
             }
@@ -489,7 +511,10 @@ impl Tally {
             out,
             "\n(refused = Rust refused where Java rendered; accepted = Rust rendered where Java refused)"
         );
-        let _ = writeln!(out, "\nmismatches by likely cause (the pass whose signature the first difference carries):");
+        let _ = writeln!(
+            out,
+            "\nmismatches by likely cause (the pass whose signature the first difference carries):"
+        );
         let mut causes: Vec<_> = self.causes.iter().collect();
         causes.sort_by(|a, b| b.1.cmp(a.1));
         for (cause, n) in causes {
@@ -512,7 +537,10 @@ impl Tally {
 
 fn compare_all(dialect: &'static str) -> Tally {
     let (entries, read) = distinct(dialect);
-    let mut tally = Tally { read, ..Tally::default() };
+    let mut tally = Tally {
+        read,
+        ..Tally::default()
+    };
     for e in entries {
         compare(dialect, &e, &mut tally);
     }
@@ -529,7 +557,10 @@ fn compare(dialect: &str, e: &Entry, tally: &mut Tally) {
     let mir = doc.get("mir").unwrap_or_else(|| panic!("{at}: no mir"));
     let java = java_answer(doc.obj("answer").unwrap_or_else(|e| panic!("{at}: {e}")));
     if let Answer::Throws { class, .. } = &java {
-        *tally.refusals.entry(class.rsplit('.').next().unwrap_or(class).to_owned()).or_default() += 1;
+        *tally
+            .refusals
+            .entry(class.rsplit('.').next().unwrap_or(class).to_owned())
+            .or_default() += 1;
     }
     let d = fresh(dialect, config);
     let (rust, query) =
@@ -593,13 +624,17 @@ fn java_answer(a: &Obj) -> Answer {
 
 /// An engine-text dialect's surface, refused (a test's failure) on any other.
 fn engine(d: &dyn SqlDialect) -> &dyn EngineTextDialect {
-    d.engine_text().unwrap_or_else(|| panic!("{} is no engine-text dialect", d.dialect_name()))
+    d.engine_text()
+        .unwrap_or_else(|| panic!("{} is no engine-text dialect", d.dialect_name()))
 }
 
 /// Rust's answer for the op, and the query the passes would have seen (a DML statement's own, or its expressions in
 /// a select; none for DDL and for text).
 fn answer(d: &dyn SqlDialect, op: &str, mir: &Node) -> Result<(Answer, Option<SqlQuery>), lite_sql::Error> {
-    let input = |what: &str| mir.as_str().map_err(|e| lite_sql::Error(format!("{what}'s input: {e}")));
+    let input = |what: &str| {
+        mir.as_str()
+            .map_err(|e| lite_sql::Error(format!("{what}'s input: {e}")))
+    };
     match op {
         "fromEngineText" => return Ok((text(d.from_engine_text(input(op)?)), None)),
         "engine.renderedAlias" => return Ok((Answer::Text(engine(d).rendered_alias(input(op)?)), None)),
@@ -634,7 +669,10 @@ fn answer(d: &dyn SqlDialect, op: &str, mir: &Node) -> Result<(Answer, Option<Sq
             let list = match engine(d).select_list(q.clone()) {
                 Ok(Some(s)) => Answer::Text(s),
                 Ok(None) => Answer::Null,
-                Err(e) => Answer::Throws { class: e.class.to_owned(), message: e.message },
+                Err(e) => Answer::Throws {
+                    class: e.class.to_owned(),
+                    message: e.message,
+                },
             };
             (list, Some(q))
         }
@@ -651,7 +689,14 @@ fn answer(d: &dyn SqlDialect, op: &str, mir: &Node) -> Result<(Answer, Option<Sq
 fn dml_query(dml: &SqlDml) -> Option<SqlQuery> {
     let select = |exprs: Vec<SqlExpr>, r#where: Option<SqlExpr>| {
         SqlQuery::Select(Box::new(SqlSelect {
-            projections: exprs.into_iter().map(|expr| Projection { expr, alias: None, out: None }).collect(),
+            projections: exprs
+                .into_iter()
+                .map(|expr| Projection {
+                    expr,
+                    alias: None,
+                    out: None,
+                })
+                .collect(),
             distinct: false,
             from: SqlSource::Dual,
             r#where,
@@ -668,9 +713,12 @@ fn dml_query(dml: &SqlDml) -> Option<SqlQuery> {
         SqlDml::CreateTempTableAs { query, .. } | SqlDml::InsertSelect { query, .. } | SqlDml::Merge { query, .. } => {
             Some(query.clone())
         }
-        SqlDml::Update { assignments, r#where, .. } => {
-            Some(select(assignments.iter().map(|a| a.value.clone()).collect(), r#where.clone()))
-        }
+        SqlDml::Update {
+            assignments, r#where, ..
+        } => Some(select(
+            assignments.iter().map(|a| a.value.clone()).collect(),
+            r#where.clone(),
+        )),
         SqlDml::DeleteWhere { r#where, .. } => Some(select(Vec::new(), r#where.clone())),
         SqlDml::InsertValues { rows, .. } => Some(select(rows.concat(), None)),
         SqlDml::InsertFromTable { .. } | SqlDml::DeleteAll { .. } => None,
@@ -680,14 +728,24 @@ fn dml_query(dml: &SqlDml) -> Option<SqlQuery> {
 fn text(r: Result<String, Refusal>) -> Answer {
     match r {
         Ok(s) => Answer::Text(s),
-        Err(e) => Answer::Throws { class: e.class.to_owned(), message: e.message },
+        Err(e) => Answer::Throws {
+            class: e.class.to_owned(),
+            message: e.message,
+        },
     }
 }
 
 fn statement(r: Result<RenderedStatement, Refusal>) -> Answer {
     match r {
-        Ok(s) => Answer::Statement { sql: s.sql, binds: list_text(&s.binds), regions: list_text(&s.regions) },
-        Err(e) => Answer::Throws { class: e.class.to_owned(), message: e.message },
+        Ok(s) => Answer::Statement {
+            sql: s.sql,
+            binds: list_text(&s.binds),
+            regions: list_text(&s.regions),
+        },
+        Err(e) => Answer::Throws {
+            class: e.class.to_owned(),
+            message: e.message,
+        },
     }
 }
 
@@ -703,7 +761,11 @@ fn flat(a: &Answer) -> String {
 
 /// The byte where two texts first differ.
 fn first_difference(j: &str, r: &str) -> usize {
-    let mut at = j.bytes().zip(r.bytes()).position(|(a, b)| a != b).unwrap_or(j.len().min(r.len()));
+    let mut at = j
+        .bytes()
+        .zip(r.bytes())
+        .position(|(a, b)| a != b)
+        .unwrap_or(j.len().min(r.len()));
     while !j.is_char_boundary(at) || !r.is_char_boundary(at) {
         at -= 1;
     }
@@ -714,7 +776,11 @@ fn first_difference(j: &str, r: &str) -> usize {
 fn difference(java: &Answer, rust: &Answer, width: usize) -> String {
     let (j, r) = (flat(java), flat(rust));
     let at = first_difference(&j, &r);
-    format!("at byte {at}\n    java: ...{}...\n    rust: ...{}...", around(&j, at, width), around(&r, at, width))
+    format!(
+        "at byte {at}\n    java: ...{}...\n    rust: ...{}...",
+        around(&j, at, width),
+        around(&r, at, width)
+    )
 }
 
 fn around(s: &str, at: usize, width: usize) -> String {
@@ -774,7 +840,10 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
         }
         // a PIVOT's argument still qualified
         if before.contains("(PIVOT ")
-            && rust_rest.split([' ', ')', ',', '(']).next().is_some_and(|tok| tok.contains('.'))
+            && rust_rest
+                .split([' ', ')', ',', '('])
+                .next()
+                .is_some_and(|tok| tok.contains('.'))
         {
             return "UnqualifyPivotArgs";
         }
@@ -787,8 +856,14 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             return "StoredReads";
         }
         vec![
-            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
-            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (
+                t.float_print,
+                "FloatPrintText.Expansion (later passes see the expansion)",
+            ),
+            (
+                t.float_canon,
+                "FloatCanonText.Expansion (later passes see the expansion)",
+            ),
             (t.carrier, "CarrierStrategies"),
             (t.quantile, "QuantileOrder"),
             (t.pivot, "UnqualifyPivotArgs"),
@@ -806,8 +881,14 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             return "RootNumericTypes";
         }
         vec![
-            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
-            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (
+                t.float_print,
+                "FloatPrintText.Expansion (later passes see the expansion)",
+            ),
+            (
+                t.float_canon,
+                "FloatCanonText.Expansion (later passes see the expansion)",
+            ),
             (t.carrier || t.pivot, "CarrierStrategies"),
             (t.star_except, "StarExceptToColumns"),
             (t.ordered_set_window, "WholePartitionOrderedSets"),
@@ -821,8 +902,14 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
     } else if dialect == "SQLite" {
         // SQLite's passes (SQLite.passes()), in their order
         vec![
-            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
-            (t.float_canon, "FloatCanonText.Expansion, bound (later passes see the expansion)"),
+            (
+                t.float_print,
+                "FloatPrintText.Expansion (later passes see the expansion)",
+            ),
+            (
+                t.float_canon,
+                "FloatCanonText.Expansion, bound (later passes see the expansion)",
+            ),
             (t.carrier || t.pivot, "CarrierStrategies"),
             (t.star_except, "StarExceptToColumns"),
             (t.substring, "SubstringClamp"),
@@ -838,8 +925,14 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             return "RootNumericTypes";
         }
         vec![
-            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
-            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (
+                t.float_print,
+                "FloatPrintText.Expansion (later passes see the expansion)",
+            ),
+            (
+                t.float_canon,
+                "FloatCanonText.Expansion (later passes see the expansion)",
+            ),
             (t.pivot, "PivotAsGroupBy"),
             (t.as_of, "AsOfAsPick"),
             (t.star_except, "StarExceptToColumns"),
@@ -856,8 +949,14 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             return "RootNumericTypes";
         }
         vec![
-            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
-            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (
+                t.float_print,
+                "FloatPrintText.Expansion (later passes see the expansion)",
+            ),
+            (
+                t.float_canon,
+                "FloatCanonText.Expansion (later passes see the expansion)",
+            ),
             (t.pivot, "UnqualifyPivotArgs"),
             (t.checked_defects, "CheckedDefectsToLists"),
             (t.substring, "SubstringClamp"),
@@ -870,8 +969,14 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             return "RootNumericTypes";
         }
         vec![
-            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
-            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (
+                t.float_print,
+                "FloatPrintText.Expansion (later passes see the expansion)",
+            ),
+            (
+                t.float_canon,
+                "FloatCanonText.Expansion (later passes see the expansion)",
+            ),
             (t.pivot, "PivotAsGroupBy"),
             (t.outer_join, "OuterJoinResidualsAsMatches"),
             (t.lateral, "ExplosionMarkers, then ArrayJoinColumnsNamed"),
@@ -883,8 +988,14 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
     } else if dialect == "BigQuery" {
         // BigQuery's passes (BigQuery.passes()), in their order
         vec![
-            (t.float_print, "FloatPrintText.Expansion, bound (later passes see the expansion)"),
-            (t.float_canon, "FloatCanonText.Expansion, bound (later passes see the expansion)"),
+            (
+                t.float_print,
+                "FloatPrintText.Expansion, bound (later passes see the expansion)",
+            ),
+            (
+                t.float_canon,
+                "FloatCanonText.Expansion, bound (later passes see the expansion)",
+            ),
             (t.carrier || t.pivot || t.as_of, "CarrierStrategies"),
             (t.fold, "FoldsAsRecursiveCtes"),
             (t.substring, "SubstringClamp"),
@@ -907,7 +1018,10 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
     } else if dialect == "MariaDb" || dialect == "MySql" {
         // MariaDB's passes (MariaDb.passes()), in their order; MySQL's adds WindowsComputedBelow last
         vec![
-            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
+            (
+                t.float_print,
+                "FloatPrintText.Expansion (later passes see the expansion)",
+            ),
             (t.carrier || t.pivot || t.as_of, "CarrierStrategies"),
             (t.star_except, "StarExceptToColumns"),
             (t.substring, "SubstringClamp"),
@@ -921,16 +1035,28 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
     } else if dialect == "MongoDb" {
         // MongoDB's one pass (MongoDb.passes()): the carrier strategies under native lists
         vec![
-            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
-            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (
+                t.float_print,
+                "FloatPrintText.Expansion (later passes see the expansion)",
+            ),
+            (
+                t.float_canon,
+                "FloatCanonText.Expansion (later passes see the expansion)",
+            ),
             (t.carrier || t.pivot, "CarrierStrategies"),
             (t.stored_reads, "StoredReads"),
         ]
     } else if dialect.starts_with("EngineStyle") {
         // the engine text's passes (EngineStyleH2.passes()): the carrier strategies, the lateral explode
         vec![
-            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
-            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (
+                t.float_print,
+                "FloatPrintText.Expansion (later passes see the expansion)",
+            ),
+            (
+                t.float_canon,
+                "FloatCanonText.Expansion (later passes see the expansion)",
+            ),
             (t.carrier || t.pivot, "CarrierStrategies"),
             (t.lateral, "LateralExplodeToUnion"),
         ]
@@ -943,8 +1069,14 @@ fn cause(dialect: &str, q: Option<&SqlQuery>, java: &Answer, rust: &Answer) -> &
             return "SourceSpelling";
         }
         vec![
-            (t.float_print, "FloatPrintText.Expansion (later passes see the expansion)"),
-            (t.float_canon, "FloatCanonText.Expansion (later passes see the expansion)"),
+            (
+                t.float_print,
+                "FloatPrintText.Expansion (later passes see the expansion)",
+            ),
+            (
+                t.float_canon,
+                "FloatCanonText.Expansion (later passes see the expansion)",
+            ),
             (t.carrier || t.pivot, "CarrierStrategies"),
             (t.lateral, "ConstantLateralsAsRows or LateralExplodeToUnion"),
             (t.avg, "AggregatesDeliverDouble"),
@@ -1001,7 +1133,9 @@ impl Triggers {
 
     fn root_select(&mut self, s: &SqlSelect) {
         let starred = s.projections.is_empty()
-            || s.projections.iter().any(|p| matches!(p.expr, SqlExpr::Star { .. } | SqlExpr::StarExcept { .. }));
+            || s.projections
+                .iter()
+                .any(|p| matches!(p.expr, SqlExpr::Star { .. } | SqlExpr::StarExcept { .. }));
         if starred && holds_variant(&s.from) {
             self.variant_egress = true;
         }
@@ -1059,15 +1193,34 @@ impl SqlRewriter for Triggers {
     fn source(&mut self, s: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
         match &s {
             SqlSource::Pivot { .. } => self.pivot = true,
-            SqlSource::Join { kind: JoinKind::AsofLeft, .. } => self.as_of = true,
-            SqlSource::Join { kind: JoinKind::Left, on: Some(on), .. } if holds_scalar_subquery(on) => {
+            SqlSource::Join {
+                kind: JoinKind::AsofLeft,
+                ..
+            } => self.as_of = true,
+            SqlSource::Join {
+                kind: JoinKind::Left,
+                on: Some(on),
+                ..
+            } if holds_scalar_subquery(on) => {
                 self.outer_join_subquery = true;
             }
-            SqlSource::Join { kind: JoinKind::Left, on: Some(_), .. } => self.outer_join = true,
-            SqlSource::Join { kind: JoinKind::LeftLateral | JoinKind::CrossLateral, .. } => self.lateral = true,
+            SqlSource::Join {
+                kind: JoinKind::Left,
+                on: Some(_),
+                ..
+            } => self.outer_join = true,
+            SqlSource::Join {
+                kind: JoinKind::LeftLateral | JoinKind::CrossLateral,
+                ..
+            } => self.lateral = true,
             SqlSource::Table { stored_types, .. }
                 if stored_types.iter().any(|(_, t)| {
-                    matches!(t, ColumnType::Plain { kind: ColumnKind::Other | ColumnKind::Distinct })
+                    matches!(
+                        t,
+                        ColumnType::Plain {
+                            kind: ColumnKind::Other | ColumnKind::Distinct
+                        }
+                    )
                 }) =>
             {
                 self.stored_reads = true;
@@ -1079,14 +1232,25 @@ impl SqlRewriter for Triggers {
 
     fn expr(&mut self, e: SqlExpr) -> Result<Rw<SqlExpr>, Refusal> {
         match &e {
-            SqlExpr::Call { r#fn: SqlFn::FloatPrint, .. } => self.float_print = true,
-            SqlExpr::Call { r#fn: SqlFn::FloatCanon, .. } => self.float_canon = true,
-            SqlExpr::Call { r#fn: SqlFn::Substring, .. } => self.substring = true,
+            SqlExpr::Call {
+                r#fn: SqlFn::FloatPrint,
+                ..
+            } => self.float_print = true,
+            SqlExpr::Call {
+                r#fn: SqlFn::FloatCanon,
+                ..
+            } => self.float_canon = true,
+            SqlExpr::Call {
+                r#fn: SqlFn::Substring, ..
+            } => self.substring = true,
             SqlExpr::Membership { .. }
             | SqlExpr::ReduceCollection { .. }
             | SqlExpr::CompactList { .. }
             | SqlExpr::CheckedOne { .. }
-            | SqlExpr::Call { r#fn: SqlFn::Unnest | SqlFn::ListFilter, .. } => self.carrier = true,
+            | SqlExpr::Call {
+                r#fn: SqlFn::Unnest | SqlFn::ListFilter,
+                ..
+            } => self.carrier = true,
             SqlExpr::Reducer(r) if matches!(r.r#fn, AggFn::QuantileCont | AggFn::QuantileDisc) => self.quantile = true,
             SqlExpr::Reducer(r) if r.r#fn == AggFn::Avg => self.avg = true,
             SqlExpr::WindowCall { r#fn, .. }
@@ -1148,7 +1312,11 @@ fn the_seam_answers_as_the_renderer_does(dialect: &'static str) {
     }
     eprintln!("{report}");
     assert!(tally.ops > 0, "the oracles hold no {dialect} statement");
-    assert!(tally.different.is_empty(), "{} answers differ:\n{report}", tally.different.len());
+    assert!(
+        tally.different.is_empty(),
+        "{} answers differ:\n{report}",
+        tally.different.len()
+    );
     assert_eq!(tally.same, tally.ops + tally.inline + tally.aliases);
 }
 
@@ -1205,14 +1373,17 @@ fn rendered_aliases(at: &str, spec: &str, input: (&Node, &str), tally: &mut Seam
     }
     for alias in aliases {
         tally.aliases += 1;
-        let args = format!("{{\"alias\":{},\"rendered\":{raw}}}", to_compact(&Node::Str(alias.clone())));
+        let args = format!(
+            "{{\"alias\":{},\"rendered\":{raw}}}",
+            to_compact(&Node::Str(alias.clone()))
+        );
         let seam = dispatch(spec, "engine.renderedAlias", &args);
         let direct = engine(d.as_ref()).rendered_alias(&alias);
         match seam {
             Ok(json) if json == to_compact(&Node::Str(direct.clone())) => tally.same += 1,
-            other => {
-                tally.different.push(format!("{at} engine.renderedAlias {alias}: seam {other:?}, direct {direct}"))
-            }
+            other => tally.different.push(format!(
+                "{at} engine.renderedAlias {alias}: seam {other:?}, direct {direct}"
+            )),
         }
     }
 }
@@ -1279,16 +1450,22 @@ fn seam_one(at: &str, spec: &str, op: &str, input: (&Node, &str), java: Option<&
         "dml.render" => d.render_dml(&read_dml(obj()).unwrap()).map(Direct::Text),
         "dml.renderStatement" => d.render_dml_statement(&read_dml(obj()).unwrap()).map(Direct::Statement),
         "fromEngineText" => d.from_engine_text(mir.as_str().unwrap()).map(Direct::Text),
-        "engine.renderAsAliased" => engine(d.as_ref()).render_as_aliased(read_query(obj()).unwrap()).map(Direct::Text),
-        "engine.selectList" => {
-            engine(d.as_ref()).select_list(read_query(obj()).unwrap()).map(|s| s.map_or(Direct::Null, Direct::Text))
-        }
+        "engine.renderAsAliased" => engine(d.as_ref())
+            .render_as_aliased(read_query(obj()).unwrap())
+            .map(Direct::Text),
+        "engine.selectList" => engine(d.as_ref())
+            .select_list(read_query(obj()).unwrap())
+            .map(|s| s.map_or(Direct::Null, Direct::Text)),
         "engine.collectionSplice" => {
             let param = read_expr(obj()).unwrap();
-            engine(d.as_ref()).collection_splice(&PlanParam::of(&param).unwrap()).map(Direct::Text)
+            engine(d.as_ref())
+                .collection_splice(&PlanParam::of(&param).unwrap())
+                .map(Direct::Text)
         }
         "engine.renderedAlias" => Ok(Direct::Text(engine(d.as_ref()).rendered_alias(mir.as_str().unwrap()))),
-        "engine.inTempTableSelect" => Ok(Direct::Text(engine(d.as_ref()).in_temp_table_select(mir.as_str().unwrap()))),
+        "engine.inTempTableSelect" => Ok(Direct::Text(
+            engine(d.as_ref()).in_temp_table_select(mir.as_str().unwrap()),
+        )),
         other => panic!("unknown op {other}"),
     };
     let differs = match (&seam, &direct) {
@@ -1347,7 +1524,11 @@ enum Direct {
 fn typing_reproduces_javas_facts() {
     let facts = on_a_big_stack(check_all_facts);
     let mut report = String::new();
-    let _ = writeln!(report, "typing: {} distinct statements, {} facts checked", facts.statements, facts.checked);
+    let _ = writeln!(
+        report,
+        "typing: {} distinct statements, {} facts checked",
+        facts.statements, facts.checked
+    );
     for (kind, [checked, wrong]) in &facts.by_kind {
         let _ = writeln!(report, "  {kind:<28} {checked:>9} checked {wrong:>6} different");
     }
@@ -1377,7 +1558,8 @@ impl Facts {
         if computed != *stored {
             tally[1] += 1;
             if self.examples.len() < SHOWN {
-                self.examples.push(format!("{at} {kind}:\n    java: {stored:?}\n    rust: {computed:?}"));
+                self.examples
+                    .push(format!("{at} {kind}:\n    java: {stored:?}\n    rust: {computed:?}"));
             }
         }
     }
@@ -1390,7 +1572,10 @@ fn holds_a_query(op: &str) -> bool {
 
 fn check_all_facts() -> Facts {
     let keep = |line: &str| {
-        let op = line.find(",\"op\":\"").map(|at| &line[at + 7..]).and_then(|rest| rest.split('"').next());
+        let op = line
+            .find(",\"op\":\"")
+            .map(|at| &line[at + 7..])
+            .and_then(|rest| rest.split('"').next());
         op.is_some_and(holds_a_query)
     };
     let mut facts = Facts::default();
@@ -1428,10 +1613,20 @@ fn query_facts(at: &str, q: &SqlQuery, f: &mut Facts) {
                 expr_facts(at, &p.expr, f);
             }
             source_facts(at, &s.from, f);
-            s.r#where.iter().chain(&s.group_by).chain(&s.having).chain(&s.qualify).for_each(|e| expr_facts(at, e, f));
+            s.r#where
+                .iter()
+                .chain(&s.group_by)
+                .chain(&s.having)
+                .chain(&s.qualify)
+                .for_each(|e| expr_facts(at, e, f));
             s.order_by.iter().for_each(|k| expr_facts(at, &k.expr, f));
             if !s.projections.is_empty() {
-                f.check(at, "SqlSelect.outputs", typing::outputs_from(s).ok(), &Some(s.outputs.clone()));
+                f.check(
+                    at,
+                    "SqlSelect.outputs",
+                    typing::outputs_from(s).ok(),
+                    &Some(s.outputs.clone()),
+                );
             } else if let (SqlSource::Join { .. }, Some(w)) = (&s.from, &s.r#where)
                 && !s.outputs.is_empty()
             {
@@ -1456,16 +1651,31 @@ fn source_facts(at: &str, s: &SqlSource, f: &mut Facts) {
     match s {
         SqlSource::Subselect { inner, .. } => query_facts(at, inner, f),
         SqlSource::Values { rows, .. } => rows.iter().flatten().for_each(|e| expr_facts(at, e, f)),
-        SqlSource::Join { left, right, kind, on, outputs } => {
+        SqlSource::Join {
+            left,
+            right,
+            kind,
+            on,
+            outputs,
+        } => {
             source_facts(at, left, f);
             source_facts(at, right, f);
             on.iter().for_each(|e| expr_facts(at, e, f));
             f.check(at, "Join.outputs", typing::join_delivered(left, right, *kind), outputs);
         }
-        SqlSource::Pivot { source, on, r#in, named, usings, .. } => {
+        SqlSource::Pivot {
+            source,
+            on,
+            r#in,
+            named,
+            usings,
+            ..
+        } => {
             source_facts(at, source, f);
             on.iter().chain(r#in).chain(named).for_each(|e| expr_facts(at, e, f));
-            usings.iter().for_each(|u| expr_facts(at, &SqlExpr::Reducer(u.agg.clone()), f));
+            usings
+                .iter()
+                .for_each(|u| expr_facts(at, &SqlExpr::Reducer(u.agg.clone()), f));
         }
         _ => {}
     }
@@ -1496,7 +1706,9 @@ fn expr_facts(at: &str, e: &SqlExpr, f: &mut Facts) {
         SqlExpr::Case { whens, otherwise, .. } => typing::case_type(whens, otherwise.as_deref()),
         SqlExpr::Cast { value, target, .. } => typing::cast_type(value, target),
         SqlExpr::Membership { needle, collection, .. } => typing::membership_type(needle, collection),
-        SqlExpr::ReduceCollection { reducer, collection, .. } => typing::reduce_collection_type(*reducer, collection),
+        SqlExpr::ReduceCollection {
+            reducer, collection, ..
+        } => typing::reduce_collection_type(*reducer, collection),
         SqlExpr::Group { inner, .. } | SqlExpr::CompactList { list: inner, .. } => inner.r#type().clone(),
         SqlExpr::OrderedListAgg { value, .. } => typing::reducer_type(AggFn::List, value.r#type()),
         SqlExpr::ArrayLit { elements, .. } => match typing::array_lit_type(elements) {
@@ -1509,7 +1721,9 @@ fn expr_facts(at: &str, e: &SqlExpr, f: &mut Facts) {
             proven => proven,
         },
         SqlExpr::ScalarSubquery { subquery, .. } => typing::scalar_subquery_type(subquery),
-        SqlExpr::CheckedOne { list, at_least_only, .. } => {
+        SqlExpr::CheckedOne {
+            list, at_least_only, ..
+        } => {
             if *at_least_only {
                 list.r#type().clone()
             } else {
@@ -1517,9 +1731,13 @@ fn expr_facts(at: &str, e: &SqlExpr, f: &mut Facts) {
             }
         }
         SqlExpr::WindowCall { r#fn, .. } => typing::window_type(r#fn),
-        SqlExpr::FoldCall { source, lambda, init, acc_is_list, .. } => {
-            typing::fold_type(source, lambda, init, *acc_is_list)
-        }
+        SqlExpr::FoldCall {
+            source,
+            lambda,
+            init,
+            acc_is_list,
+            ..
+        } => typing::fold_type(source, lambda, init, *acc_is_list),
         SqlExpr::Reducer(r) => typing::reducer_fact(r),
         SqlExpr::StoredRead { column, .. } => column.r#type.clone(),
         SqlExpr::StringLit { .. }
@@ -1607,7 +1825,11 @@ fn the_zone_shift_answers_as_java_does() {
         eprintln!("{d}");
     }
     assert!(counts.values().sum::<usize>() > 0, "the zone oracles hold no line");
-    assert!(different.is_empty(), "{} zone answers differ from Java's", different.len());
+    assert!(
+        different.is_empty(),
+        "{} zone answers differ from Java's",
+        different.len()
+    );
 }
 
 /// The embedded tzdb is the build JDK's (`LITE_TZDB_GENERATED`: `//rust/oracles/tzdb:tzdb_data`'s `out/tzdb.bin`,
@@ -1645,8 +1867,14 @@ fn zone_instant(f: &[&str]) -> (Option<String>, bool) {
     let epoch: i64 = f[2].parse().unwrap();
     let offset = zone.offset_at(epoch);
     let standard = zone.standard_offset_at(epoch);
-    let local = offset.and_then(|o| LocalDateTime::at_offset(epoch, o)).map(|l| l.to_java_string());
-    let java = (Some(f[3].parse::<i32>().unwrap()), Some(f[4].parse::<i32>().unwrap()), Some(f[5].to_owned()));
+    let local = offset
+        .and_then(|o| LocalDateTime::at_offset(epoch, o))
+        .map(|l| l.to_java_string());
+    let java = (
+        Some(f[3].parse::<i32>().unwrap()),
+        Some(f[4].parse::<i32>().unwrap()),
+        Some(f[5].to_owned()),
+    );
     if (offset, standard, local.clone()) != java {
         return (Some(format!("{offset:?} {standard:?} {local:?}")), false);
     }
@@ -1655,14 +1883,19 @@ fn zone_instant(f: &[&str]) -> (Option<String>, bool) {
     if !(0..=9999).contains(&utc.year) {
         return (None, false);
     }
-    let iso =
-        format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", utc.year, utc.month, utc.day, utc.hour, utc.minute, utc.second);
+    let iso = format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        utc.year, utc.month, utc.day, utc.hour, utc.minute, utc.second
+    );
     let mut expected = f[5].replace('T', " ");
     if expected.len() == 16 {
         expected.push_str(":00");
     }
     let shifted = shift_to_zone(&iso, f[1]);
-    ((shifted.as_deref() != Some(expected.as_str())).then(|| format!("shift {iso}: {shifted:?}")), true)
+    (
+        (shifted.as_deref() != Some(expected.as_str())).then(|| format!("shift {iso}: {shifted:?}")),
+        true,
+    )
 }
 
 /// `L <zone> <local date-time> <valid offsets> <transition epoch second or -> <resolved local> <its offset> <its epoch
@@ -1671,12 +1904,22 @@ fn zone_local(f: &[&str]) -> Option<String> {
     use lite_dialect::java_time::{LocalDateTime, zone_of};
     let zone = zone_of(f[1]);
     let ldt = LocalDateTime::parse(f[2]).unwrap_or_else(|| panic!("an unreadable local date-time {}", f[2]));
-    let valid: Vec<i32> = f[3].split(',').filter(|s| !s.is_empty()).map(|s| s.parse().unwrap()).collect();
+    let valid: Vec<i32> = f[3]
+        .split(',')
+        .filter(|s| !s.is_empty())
+        .map(|s| s.parse().unwrap())
+        .collect();
     let transition = (f[4] != "-").then(|| f[4].parse::<i64>().unwrap());
-    let resolved = (f[5].to_owned(), f[6].parse::<i32>().unwrap(), f[7].parse::<i64>().unwrap());
+    let resolved = (
+        f[5].to_owned(),
+        f[6].parse::<i32>().unwrap(),
+        f[7].parse::<i64>().unwrap(),
+    );
     let rust_valid = zone.valid_offsets(&ldt);
     let rust_transition = zone.transition(&ldt).map(|t| t.map(|t| t.epoch_second));
-    let rust_resolved = zone.resolve(&ldt).map(|(l, o)| (l.to_java_string(), o, l.to_epoch_second(o)));
+    let rust_resolved = zone
+        .resolve(&ldt)
+        .map(|(l, o)| (l.to_java_string(), o, l.to_epoch_second(o)));
     (rust_valid.as_ref() != Some(&valid) || rust_transition != Some(transition) || rust_resolved != Some(resolved))
         .then(|| format!("{rust_valid:?} {rust_transition:?} {rust_resolved:?}"))
 }
@@ -1690,10 +1933,17 @@ fn engine_text_zone(f: &[&str]) -> Option<String> {
     let d = open(&to_compact(&Node::Obj(spec))).unwrap();
     let literal = SqlExpr::TimestampLit {
         iso: f[1].to_owned(),
-        r#type: TypeFact::Typed { r#type: SqlType::Scalar(Scalar::Timestamp), nullable: false },
+        r#type: TypeFact::Typed {
+            r#type: SqlType::Scalar(Scalar::Timestamp),
+            nullable: false,
+        },
     };
     let select = SqlSelect {
-        projections: vec![Projection { expr: literal, alias: Some("t".to_owned()), out: None }],
+        projections: vec![Projection {
+            expr: literal,
+            alias: Some("t".to_owned()),
+            out: None,
+        }],
         distinct: false,
         from: SqlSource::Dual,
         r#where: None,

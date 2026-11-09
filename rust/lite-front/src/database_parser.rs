@@ -17,8 +17,8 @@
 use crate::cursor::{Cursor, R, base_parse_identifier, is_identifier_token, throw_at, ty_or_slack, unquote_path_iae};
 use crate::doors::Dialect;
 use crate::jcat;
-use crate::jtypes::{JStr, JValue};
 use crate::jnum::parse_double;
+use crate::jtypes::{JStr, JValue};
 use crate::lexer::{TokenStream, TokenType};
 use crate::nodes::boxed;
 use crate::records::{
@@ -104,7 +104,12 @@ pub fn operation_at(
 }
 
 /// `DatabaseProtocolParser.scopedOperationAt`: one operation under an active `scope(...)` header with a table.
-pub fn scoped_operation_at(ts: &TokenStream<'_>, start: usize, scope: &ScopeCtx, dialect: Dialect) -> R<(PRelOp, usize)> {
+pub fn scoped_operation_at(
+    ts: &TokenStream<'_>,
+    start: usize,
+    scope: &ScopeCtx,
+    dialect: Dialect,
+) -> R<(PRelOp, usize)> {
     let mut p = DbCursor::new(ts, start, scope.db.clone(), Some(scope.clone()), dialect);
     let op = p.parse_operation(&u("default"))?;
     Ok((op, p.pos))
@@ -210,7 +215,10 @@ pub(crate) fn to_upper_root(s: &[u16]) -> Vec<u16> {
 
 /// `Boolean.parseBoolean`: `"true"`, ignoring case.
 fn parse_boolean(s: &[u16]) -> bool {
-    s.len() == 4 && s.iter().zip("true".bytes()).all(|(&c, b)| c < 128 && (c as u8).eq_ignore_ascii_case(&b))
+    s.len() == 4
+        && s.iter()
+            .zip("true".bytes())
+            .all(|(&c, b)| c < 128 && (c as u8).eq_ignore_ascii_case(&b))
 }
 
 /// The milestoning block's arguments in Java's `LinkedHashMap` order (a repeated key keeps its first place, takes the
@@ -242,7 +250,15 @@ impl<'t, 's> DbCursor<'t, 's> {
         scope: Option<ScopeCtx>,
         dialect: Dialect,
     ) -> DbCursor<'t, 's> {
-        DbCursor { tokens, pos, db_fqn, scope, current_schema_decl_span: None, schema_stretch_span: None, dialect }
+        DbCursor {
+            tokens,
+            pos,
+            db_fqn,
+            scope,
+            current_schema_decl_span: None,
+            schema_stretch_span: None,
+            dialect,
+        }
     }
 
     /// `parseDatabase`: `documentation? Database <<st>> {tags} qn ( body )`, the body read by a cursor under `qn`.
@@ -283,7 +299,11 @@ impl<'t, 's> DbCursor<'t, 's> {
         let mut joins = Vec::new();
         let mut filters = Vec::new();
         while !self.at_end() && self.peek() != T::PAREN_CLOSE {
-            let head = if self.peek() == T::DOC_STRING { self.peek_at(1) } else { self.peek() };
+            let head = if self.peek() == T::DOC_STRING {
+                self.peek_at(1)
+            } else {
+                self.peek()
+            };
             match head {
                 T::INCLUDE => {
                     let s = self.pos;
@@ -331,7 +351,11 @@ impl<'t, 's> DbCursor<'t, 's> {
                 }
                 T::FILTER | T::MULTIGRAIN_FILTER => {
                     let s = self.pos;
-                    let ft = if self.peek() == T::MULTIGRAIN_FILTER { "multigrain" } else { "filter" };
+                    let ft = if self.peek() == T::MULTIGRAIN_FILTER {
+                        "multigrain"
+                    } else {
+                        "filter"
+                    };
                     self.advance()?;
                     let fname = self.parse_identifier()?;
                     self.expect(T::PAREN_OPEN)?;
@@ -397,7 +421,11 @@ impl<'t, 's> DbCursor<'t, 's> {
         let mut views = Vec::new();
         let mut tab_fns = Vec::new();
         while !self.at_end() && self.peek() != T::PAREN_CLOSE {
-            let head = if self.peek() == T::DOC_STRING { self.peek_at(1) } else { self.peek() };
+            let head = if self.peek() == T::DOC_STRING {
+                self.peek_at(1)
+            } else {
+                self.peek()
+            };
             if head == T::TABLE {
                 tables.push(Box::new(self.parse_table()?));
             } else if head == T::VIEW {
@@ -548,7 +576,11 @@ impl<'t, 's> DbCursor<'t, 's> {
             "DECIMAL" => "Decimal",
             "NUMERIC" => "Numeric",
             _ => {
-                return Err(throw_at(self.tokens, type_start, jcat!("unsupported column datatype: ", kind_word)));
+                return Err(throw_at(
+                    self.tokens,
+                    type_start,
+                    jcat!("unsupported column datatype: ", kind_word),
+                ));
             }
         };
         // (a lossy decode matches no kind it should not: every kind is ASCII, and a lone surrogate decodes to U+FFFD)
@@ -573,7 +605,12 @@ impl<'t, 's> DbCursor<'t, 's> {
         } else if sized || precise {
             return Err(self.db_type_arity_error(col_name, &kind_word, sized, type_start));
         }
-        Ok(PDbType { kind: JStr::from(kind), size, precision, scale })
+        Ok(PDbType {
+            kind: JStr::from(kind),
+            size,
+            precision,
+            scale,
+        })
     }
 
     /// `dbTypeArityError`: the engine's refusal, the declaration quoted as ANTLR's `getText()` (the column name and
@@ -649,10 +686,12 @@ impl<'t, 's> DbCursor<'t, 's> {
             self.match_tok(T::COMMA)?;
             if eq(&kind, "business") {
                 if kv.contains_key("BUS_SNAPSHOT_DATE") {
-                    out.push(PMilestoning::PBusinessSnapshotMilestoning(Box::new(PBusinessSnapshotMilestoning {
-                        snapshot_date: JStr(self.req(&kv, "BUS_SNAPSHOT_DATE")?),
-                        source_information: boxed(span),
-                    })));
+                    out.push(PMilestoning::PBusinessSnapshotMilestoning(Box::new(
+                        PBusinessSnapshotMilestoning {
+                            snapshot_date: JStr(self.req(&kv, "BUS_SNAPSHOT_DATE")?),
+                            source_information: boxed(span),
+                        },
+                    )));
                     continue;
                 }
                 let from = self.req(&kv, "BUS_FROM")?;
@@ -666,10 +705,12 @@ impl<'t, 's> DbCursor<'t, 's> {
                 })));
             } else if eq(&kind, "processing") {
                 if kv.contains_key("PROCESSING_SNAPSHOT_DATE") {
-                    out.push(PMilestoning::PProcessingSnapshotMilestoning(Box::new(PProcessingSnapshotMilestoning {
-                        snapshot_date: JStr(self.req(&kv, "PROCESSING_SNAPSHOT_DATE")?),
-                        source_information: boxed(span),
-                    })));
+                    out.push(PMilestoning::PProcessingSnapshotMilestoning(Box::new(
+                        PProcessingSnapshotMilestoning {
+                            snapshot_date: JStr(self.req(&kv, "PROCESSING_SNAPSHOT_DATE")?),
+                            source_information: boxed(span),
+                        },
+                    )));
                     continue;
                 }
                 let r#in = self.req(&kv, "PROCESSING_IN")?;
@@ -694,8 +735,16 @@ impl<'t, 's> DbCursor<'t, 's> {
         let business = eq(kind, "business");
         let from = if business { "BUS_FROM" } else { "PROCESSING_IN" };
         let thru = if business { "BUS_THRU" } else { "PROCESSING_OUT" };
-        let incl = if business { "THRU_IS_INCLUSIVE" } else { "OUT_IS_INCLUSIVE" };
-        let snap = if business { "BUS_SNAPSHOT_DATE" } else { "PROCESSING_SNAPSHOT_DATE" };
+        let incl = if business {
+            "THRU_IS_INCLUSIVE"
+        } else {
+            "OUT_IS_INCLUSIVE"
+        };
+        let snap = if business {
+            "BUS_SNAPSHOT_DATE"
+        } else {
+            "PROCESSING_SNAPSHOT_DATE"
+        };
         if keys.len() == 1 && eq(&keys[0], snap) {
             return Ok(());
         }
@@ -704,8 +753,18 @@ impl<'t, 's> DbCursor<'t, 's> {
         for k in keys {
             if i < 2 {
                 if !eq(k, expected[i]) {
-                    let alternatives = if i == 0 { format!("{from}', '{snap}") } else { thru.to_owned() };
-                    return Err(self.error(jcat!("Unexpected token '", k, "'. Valid alternatives: ['", alternatives, "']")));
+                    let alternatives = if i == 0 {
+                        format!("{from}', '{snap}")
+                    } else {
+                        thru.to_owned()
+                    };
+                    return Err(self.error(jcat!(
+                        "Unexpected token '",
+                        k,
+                        "'. Valid alternatives: ['",
+                        alternatives,
+                        "']"
+                    )));
                 }
                 i += 1;
                 continue;
@@ -875,7 +934,9 @@ impl<'t, 's> DbCursor<'t, 's> {
         if let PRelOp::PDynaFunc(df) = &rest
             && eq(&df.func_name.0, op)
         {
-            let PRelOp::PDynaFunc(df) = rest else { unreachable!("matched above") };
+            let PRelOp::PDynaFunc(df) = rest else {
+                unreachable!("matched above")
+            };
             let mut params = Vec::with_capacity(df.parameters.len() + 1);
             params.push(left);
             params.extend(df.parameters);
@@ -919,7 +980,11 @@ impl<'t, 's> DbCursor<'t, 's> {
     fn parse_comparison(&mut self, schema_ctx: &[u16]) -> R<PRelOp> {
         let mut left = self.parse_atom(schema_ctx)?;
         while self.peek() == T::IS_NULL || self.peek() == T::IS_NOT_NULL {
-            let nf = if self.peek() == T::IS_NULL { "isNull" } else { "isNotNull" };
+            let nf = if self.peek() == T::IS_NULL {
+                "isNull"
+            } else {
+                "isNotNull"
+            };
             let n_tok = self.pos;
             self.advance()?;
             let op_span = self.span_of(n_tok, n_tok);
@@ -953,7 +1018,11 @@ impl<'t, 's> DbCursor<'t, 's> {
 
     /// `dbOrNull`: no database outside one (a mapping's bare references).
     fn db_or_null(&self) -> Option<JStr> {
-        if self.db_fqn.is_empty() { None } else { Some(JStr(self.db_fqn.clone())) }
+        if self.db_fqn.is_empty() {
+            None
+        } else {
+            Some(JStr(self.db_fqn.clone()))
+        }
     }
 
     /// `operationUnder(db, schemaCtx)`: a whole operation resolved under `db` -- a join navigation's terminal.
@@ -964,14 +1033,26 @@ impl<'t, 's> DbCursor<'t, 's> {
     /// `under(db, schemaCtx, whole)`: in place when `db` is this cursor's and no schema stretch applies, else by a
     /// cursor under `db` that inherits the scope and the current schema's declaration, its stretch anchor that one.
     fn under(&mut self, db: &[u16], schema_ctx: &[u16], whole: bool) -> R<PRelOp> {
-        let stretch = if eq(schema_ctx, "default") { None } else { self.current_schema_decl_span.clone() };
+        let stretch = if eq(schema_ctx, "default") {
+            None
+        } else {
+            self.current_schema_decl_span.clone()
+        };
         if db == self.db_fqn.as_slice() && stretch.is_none() {
-            return if whole { self.parse_operation(schema_ctx) } else { self.parse_atom(schema_ctx) };
+            return if whole {
+                self.parse_operation(schema_ctx)
+            } else {
+                self.parse_atom(schema_ctx)
+            };
         }
         let mut p = DbCursor::new(self.tokens, self.pos, db.to_vec(), self.scope.clone(), self.dialect);
         p.schema_stretch_span = stretch;
         p.current_schema_decl_span = self.current_schema_decl_span.clone();
-        let e = if whole { p.parse_operation(schema_ctx)? } else { p.parse_atom(schema_ctx)? };
+        let e = if whole {
+            p.parse_operation(schema_ctx)?
+        } else {
+            p.parse_atom(schema_ctx)?
+        };
         self.pos = p.pos;
         Ok(e)
     }
@@ -1000,13 +1081,7 @@ impl<'t, 's> DbCursor<'t, 's> {
     /// `parseJoinNav(db, schemaCtx, s, firstType)`: `@J [> (TYPE)? [db2]? @K]* [| operation]` -- each pointer spanning
     /// its `@` through its name, a type riding the next pointer, the terminal a whole operation under the last
     /// pointer's database.
-    fn parse_join_nav(
-        &mut self,
-        db: &[u16],
-        schema_ctx: &[u16],
-        s: usize,
-        first_type: Option<Vec<u16>>,
-    ) -> R<PRelOp> {
+    fn parse_join_nav(&mut self, db: &[u16], schema_ctx: &[u16], s: usize, first_type: Option<Vec<u16>>) -> R<PRelOp> {
         let mut join_ptrs = Vec::new();
         let mut cur_db = db.to_vec();
         let mut pending_type = first_type;
@@ -1015,7 +1090,11 @@ impl<'t, 's> DbCursor<'t, 's> {
             self.advance()?;
             let jn = self.parse_identifier()?;
             join_ptrs.push(Box::new(PJoinPtr {
-                db: if cur_db.is_empty() { None } else { Some(JStr(cur_db.clone())) },
+                db: if cur_db.is_empty() {
+                    None
+                } else {
+                    Some(JStr(cur_db.clone()))
+                },
                 join_type: pending_type.take().map(JStr),
                 name: JStr(jn),
                 source_information: self.span(j_s, self.pos - 1),
@@ -1112,13 +1191,7 @@ impl<'t, 's> DbCursor<'t, 's> {
         self.parse_operation(schema_ctx)
     }
 
-    fn table_ptr(
-        &self,
-        database: Option<JStr>,
-        schema: Vec<u16>,
-        table: Vec<u16>,
-        span: SourceInfo,
-    ) -> Box<PTablePtr> {
+    fn table_ptr(&self, database: Option<JStr>, schema: Vec<u16>, table: Vec<u16>, span: SourceInfo) -> Box<PTablePtr> {
         Box::new(PTablePtr {
             main_table_db: database.clone(),
             database,
@@ -1163,7 +1236,15 @@ impl<'t, 's> DbCursor<'t, 's> {
                 return Err(crate::cursor::refused_at(
                     self.tokens,
                     s,
-                    jcat!("expected ", T::FLOAT, " but found ", self.peek(), " ('", self.safe_text(), "')"),
+                    jcat!(
+                        "expected ",
+                        T::FLOAT,
+                        " but found ",
+                        self.peek(),
+                        " ('",
+                        self.safe_text(),
+                        "')"
+                    ),
                 ));
             }
             let v = -parse_double(self.text()).map_err(|_| crate::cursor::refused_exponent(self.tokens, num_tok))?;
@@ -1192,7 +1273,12 @@ impl<'t, 's> DbCursor<'t, 's> {
             self.expect(T::DOT)?;
             let col = self.parse_identifier()?;
             let span = self.span(s, self.pos - 1);
-            let table = self.table_ptr(self.db_or_null(), schema_ctx.to_vec(), u("{target}"), self.span_of(s, s));
+            let table = self.table_ptr(
+                self.db_or_null(),
+                schema_ctx.to_vec(),
+                u("{target}"),
+                self.span_of(s, s),
+            );
             return Ok(PRelOp::PColumnRef(Box::new(PColumnRef {
                 column: JStr(col),
                 table,
@@ -1225,7 +1311,9 @@ impl<'t, 's> DbCursor<'t, 's> {
                 p.schema_stretch_span = self.schema_stretch_span.clone();
                 let f = p.parse_atom(schema_ctx)?;
                 self.pos = p.pos;
-                let PRelOp::PDynaFunc(f) = f else { unreachable!("a name and '(' parse as a dynaFunc") };
+                let PRelOp::PDynaFunc(f) = f else {
+                    unreachable!("a name and '(' parse as a dynaFunc")
+                };
                 let br = self.span_of(s, s);
                 let end = f.source_information.as_deref().expect("a parsed node's span");
                 let span = stretch(&br, end);
@@ -1268,7 +1356,12 @@ impl<'t, 's> DbCursor<'t, 's> {
                 tbl_end_tok = self.pos - 2;
                 column = self.parse_identifier()?;
             }
-            let ptr = self.table_ptr(Some(JStr(db)), schema, table.clone(), self.span_of(first_tok, tbl_end_tok));
+            let ptr = self.table_ptr(
+                Some(JStr(db)),
+                schema,
+                table.clone(),
+                self.span_of(first_tok, tbl_end_tok),
+            );
             return Ok(PRelOp::PColumnRef(Box::new(PColumnRef {
                 column: JStr(column),
                 table: ptr,
@@ -1375,7 +1468,10 @@ impl<'t, 's> DbCursor<'t, 's> {
 }
 
 fn literal(value: JValue, span: Option<Box<SourceInfo>>) -> PRelOp {
-    PRelOp::PRelLiteral(Box::new(PRelLiteral { value, source_information: span }))
+    PRelOp::PRelLiteral(Box::new(PRelLiteral {
+        value,
+        source_information: span,
+    }))
 }
 
 #[cfg(test)]
@@ -1390,7 +1486,9 @@ mod tests {
         let (db, end) = parse_database(&ts, 0, Dialect::LegendLite).expect("parses");
         assert_eq!(end, ts.count());
         assert_eq!(db.schemas.len(), 1, "the implicit default schema");
-        let PRelOp::PDynaFunc(f) = &db.joins[0].operation else { panic!("a comparison") };
+        let PRelOp::PDynaFunc(f) = &db.joins[0].operation else {
+            panic!("a comparison")
+        };
         assert_eq!(f.func_name, "equal");
         let left = rel_op_span(&f.parameters[0]);
         let node = f.source_information.as_deref().unwrap();
@@ -1402,6 +1500,9 @@ mod tests {
         let text = u("Database d ( Table T (ID WIBBLE) )");
         let ts = tokenize(&text);
         let e = parse_database(&ts, 0, Dialect::LegendLite).unwrap_err();
-        assert_eq!(e.message, Some(JStr::from("[1:26] unsupported column datatype: WIBBLE")));
+        assert_eq!(
+            e.message,
+            Some(JStr::from("[1:26] unsupported column datatype: WIBBLE"))
+        );
     }
 }

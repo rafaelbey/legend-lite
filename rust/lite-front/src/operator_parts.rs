@@ -45,12 +45,24 @@ pub fn boolean_part(parts: Vec<BoolPart>, input: ValueSpecification) -> AppliedF
         acc = Some(match acc {
             None => {
                 let f = p.function;
-                Acc { node: build_boolean(p, input.take().expect("the input is used once")), op: f }
+                Acc {
+                    node: build_boolean(p, input.take().expect("the input is used once")),
+                    op: f,
+                }
             }
             Some(a) if a.op == "or" && p.function == "and" => {
-                let AppliedFunction { function, mut parameters, referents, pos, .. } = a.node;
+                let AppliedFunction {
+                    function,
+                    mut parameters,
+                    referents,
+                    pos,
+                    ..
+                } = a.node;
                 let last = parameters.pop().expect("a boolean call has two parameters");
-                let first = parameters.into_iter().next().expect("a boolean call has two parameters");
+                let first = parameters
+                    .into_iter()
+                    .next()
+                    .expect("a boolean call has two parameters");
                 let new_af = build_boolean(p, last);
                 let mut node = infix(function, vec![first, vs_fn(new_af)], pos);
                 node.referents = referents;
@@ -58,7 +70,10 @@ pub fn boolean_part(parts: Vec<BoolPart>, input: ValueSpecification) -> AppliedF
             }
             Some(a) => {
                 let f = p.function;
-                Acc { node: build_boolean(p, vs_fn(a.node)), op: f }
+                Acc {
+                    node: build_boolean(p, vs_fn(a.node)),
+                    op: f,
+                }
             }
         });
     }
@@ -80,7 +95,10 @@ pub fn arithmetic_part(parts: Vec<ArithPart>, initial: ValueSpecification) -> Ap
                 Some(a) => vs_fn(a.node),
             };
             let f = p.function;
-            acc = Some(Acc { node: build_comparison(p, input), op: f });
+            acc = Some(Acc {
+                node: build_comparison(p, input),
+                op: f,
+            });
         } else {
             acc = Some(process_op(p, acc.take(), &mut initial));
         }
@@ -93,10 +111,19 @@ pub fn arithmetic_part(parts: Vec<ArithPart>, initial: ValueSpecification) -> Ap
 fn process_op(p: ArithPart, acc: Option<Acc>, initial: &mut Option<ValueSpecification>) -> Acc {
     let Some(a) = acc else {
         let f = p.function;
-        return Acc { node: build_arith(p, initial.take().expect("the initial value is used once")), op: f };
+        return Acc {
+            node: build_arith(p, initial.take().expect("the initial value is used once")),
+            op: f,
+        };
     };
     if is_strictly_lower_precedence(a.op, p.function) {
-        let AppliedFunction { function, mut parameters, referents, pos, .. } = a.node;
+        let AppliedFunction {
+            function,
+            mut parameters,
+            referents,
+            pos,
+            ..
+        } = a.node;
         if a.op == "divide" || (RELATIONAL_ARITH_MISASSOCIATION && is_relational_comparison(a.op)) {
             let last = parameters.pop().expect("a binary call has two parameters");
             let first = parameters.into_iter().next().expect("a binary call has two parameters");
@@ -122,7 +149,10 @@ fn process_op(p: ArithPart, acc: Option<Acc>, initial: &mut Option<ValueSpecific
         return Acc { node, op: a.op };
     }
     let f = p.function;
-    Acc { node: build_arith(p, vs_fn(a.node)), op: f }
+    Acc {
+        node: build_arith(p, vs_fn(a.node)),
+        op: f,
+    }
 }
 
 /// `buildArithmeticOp`/`buildDivide`: plus/minus/times wrap every operand in one collection; divide left-folds
@@ -141,7 +171,11 @@ fn build_arith(p: ArithPart, initial: ValueSpecification) -> AppliedFunction {
     let mut vals = Vec::with_capacity(1 + p.operands.len());
     vals.push(initial);
     vals.extend(p.operands);
-    infix(JStr::from(p.function), vec![collection(vals, p.ctx_span.clone())], p.ctx_span)
+    infix(
+        JStr::from(p.function),
+        vec![collection(vals, p.ctx_span.clone())],
+        p.ctx_span,
+    )
 }
 
 fn build_comparison(p: ArithPart, initial: ValueSpecification) -> AppliedFunction {

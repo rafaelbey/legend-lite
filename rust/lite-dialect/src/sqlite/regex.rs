@@ -166,7 +166,11 @@ impl Rx {
             self.next();
             branches.push(self.sequence(depth)?);
         }
-        Ok(if branches.len() == 1 { branches.pop().expect("one branch") } else { Node::Alt(branches) })
+        Ok(if branches.len() == 1 {
+            branches.pop().expect("one branch")
+        } else {
+            Node::Alt(branches)
+        })
     }
 
     fn sequence(&mut self, depth: usize) -> Result<Node, Refusal> {
@@ -174,7 +178,11 @@ impl Rx {
         while self.more() && self.peek() != unit('|') && self.peek() != unit(')') {
             items.push(self.repetition(depth)?);
         }
-        Ok(if items.len() == 1 { items.pop().expect("one item") } else { Node::Seq(items) })
+        Ok(if items.len() == 1 {
+            items.pop().expect("one item")
+        } else {
+            Node::Seq(items)
+        })
     }
 
     fn repetition(&mut self, depth: usize) -> Result<Node, Refusal> {
@@ -230,7 +238,10 @@ impl Rx {
         }
         let body = &self.pattern[self.at + 1..close];
         // [0-9]+(,[0-9]*)?
-        let digits = body.iter().take_while(|&&u| (unit('0')..=unit('9')).contains(&u)).count();
+        let digits = body
+            .iter()
+            .take_while(|&&u| (unit('0')..=unit('9')).contains(&u))
+            .count();
         if digits == 0 {
             return false;
         }
@@ -256,7 +267,10 @@ impl Rx {
                             // inside the group, and again, until the JVM's stack overflows
                             self.at = 0;
                             if depth > 64 {
-                                return Err(Refusal { class: STACK_OVERFLOW, message: String::new() });
+                                return Err(Refusal {
+                                    class: STACK_OVERFLOW,
+                                    message: String::new(),
+                                });
                             }
                             return self.capture(depth + 1);
                         }
@@ -277,9 +291,15 @@ impl Rx {
             }
             Some('[') => Ok(Node::Lit(self.char_class()?)),
             Some('.') => Ok(Node::Lit(if self.flags[DOTALL] {
-                CharSet { ranges: Vec::new(), negated: true }
+                CharSet {
+                    ranges: Vec::new(),
+                    negated: true,
+                }
             } else {
-                CharSet { ranges: vec![(10, 10)], negated: true }
+                CharSet {
+                    ranges: vec![(10, 10)],
+                    negated: true,
+                }
             })),
             Some('^') => Ok(Node::Anchor(true)),
             Some('$') => Ok(Node::Anchor(false)),
@@ -330,9 +350,18 @@ impl Rx {
         let space = vec![(i32::from(b'\t'), i32::from(b'\r')), (i32::from(b' '), i32::from(b' '))];
         let shown = String::from_utf16_lossy(&[e]);
         Ok(match char::from_u32(u32::from(e)) {
-            Some('d') => CharSet { ranges: digits, negated: false },
-            Some('w') => CharSet { ranges: word, negated: false },
-            Some('s') => CharSet { ranges: space, negated: false },
+            Some('d') => CharSet {
+                ranges: digits,
+                negated: false,
+            },
+            Some('w') => CharSet {
+                ranges: word,
+                negated: false,
+            },
+            Some('s') => CharSet {
+                ranges: space,
+                negated: false,
+            },
             Some(n @ ('D' | 'W' | 'S')) => {
                 if in_class {
                     return Err(self.refused("a negated class escape inside a class"));
@@ -392,7 +421,11 @@ impl Rx {
             {
                 self.next();
                 let h = self.next();
-                hi = if h == unit('\\') { self.escape(true)?.ranges[0].0 } else { i32::from(h) };
+                hi = if h == unit('\\') {
+                    self.escape(true)?.ranges[0].0
+                } else {
+                    i32::from(h)
+                };
             }
             ranges.push((lo, hi));
         }
@@ -417,7 +450,11 @@ impl Rx {
             Node::Lit(set) => {
                 let e = self.state();
                 let label = self.predicate(set);
-                self.chars.push(Edge { from: start, label, to: e });
+                self.chars.push(Edge {
+                    from: start,
+                    label,
+                    to: e,
+                });
                 e
             }
             Node::Seq(items) => {
@@ -459,7 +496,11 @@ impl Rx {
             }
             Node::Anchor(at_start) => {
                 let e = self.state();
-                self.anchors.push(Edge { from: start, label: if *at_start { 0 } else { 1 }, to: e });
+                self.anchors.push(Edge {
+                    from: start,
+                    label: if *at_start { 0 } else { 1 },
+                    to: e,
+                });
                 e
             }
             Node::Group(number, inner) => {
@@ -468,10 +509,18 @@ impl Rx {
                 };
                 // its span's ends set as the walk passes them: open (2k), close (2k + 1)
                 let open = self.state();
-                self.marks.push(Edge { from: start, label: 2 * k, to: open });
+                self.marks.push(Edge {
+                    from: start,
+                    label: 2 * k,
+                    to: open,
+                });
                 let e = self.state();
                 let exit = self.build(inner, open);
-                self.marks.push(Edge { from: exit, label: 2 * k + 1, to: e });
+                self.marks.push(Edge {
+                    from: exit,
+                    label: 2 * k + 1,
+                    to: e,
+                });
                 e
             }
         }
@@ -542,7 +591,11 @@ impl Rx {
     }
 
     fn start_rows(&self, start: usize) -> String {
-        self.closure(start).iter().map(|u| format!("({u})")).collect::<Vec<_>>().join(", ")
+        self.closure(start)
+            .iter()
+            .map(|u| format!("({u})"))
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 
     fn tests(&self, ch: &str) -> String {
@@ -570,8 +623,15 @@ impl Rx {
         let start = self.state();
         let entry = self.state();
         self.epsilons.push((start, entry));
-        let any = self.predicate(&CharSet { ranges: Vec::new(), negated: true });
-        self.chars.push(Edge { from: start, label: any, to: start });
+        let any = self.predicate(&CharSet {
+            ranges: Vec::new(),
+            negated: true,
+        });
+        self.chars.push(Edge {
+            from: start,
+            label: any,
+            to: start,
+        });
         (start, entry)
     }
 
@@ -622,7 +682,9 @@ impl Rx {
                  __k.column1 = __rx.s"
             ));
         }
-        body.push_str(&format!(") SELECT {result} FROM __rx WHERE s = {accept} ORDER BY {order} LIMIT 1)"));
+        body.push_str(&format!(
+            ") SELECT {result} FROM __rx WHERE s = {accept} ORDER BY {order} LIMIT 1)"
+        ));
         pc(move |w: &mut SqlWriter| {
             w.append("(WITH RECURSIVE __in(t) AS (SELECT ");
             input(w)?;
@@ -669,7 +731,10 @@ impl Rx {
 pub const STACK_OVERFLOW: &str = "java.lang.StackOverflowError";
 
 fn literal(cp: i32) -> CharSet {
-    CharSet { ranges: vec![(cp, cp)], negated: false }
+    CharSet {
+        ranges: vec![(cp, cp)],
+        negated: false,
+    }
 }
 
 /// A range's part within `[lo, hi]`, shifted to the other case.
@@ -683,8 +748,10 @@ fn fold(r: (i32, i32), lo: char, hi: char, shift: i32, into: &mut Vec<(i32, i32)
 
 /// Java's `Integer.parseInt` of digits: a value past an int refused in its words.
 fn parse_int(s: &str) -> Result<i32, Refusal> {
-    s.parse::<i32>()
-        .map_err(|_| Refusal { class: Refusal::NUMBER_FORMAT, message: format!("For input string: \"{s}\"") })
+    s.parse::<i32>().map_err(|_| Refusal {
+        class: Refusal::NUMBER_FORMAT,
+        message: format!("For input string: \"{s}\""),
+    })
 }
 
 /// Java's `Character.isLetterOrDigit(char)` of one UTF-16 unit, as the build JDK answers it.
@@ -704,8 +771,15 @@ pub fn matches<'a>(input: P<'a>, pattern: &str, full: bool) -> Result<P<'a>, Ref
         // a search: any prefix first
         entry = rx.state();
         rx.epsilons.push((start, entry));
-        let any = rx.predicate(&CharSet { ranges: Vec::new(), negated: true });
-        rx.chars.push(Edge { from: start, label: any, to: start });
+        let any = rx.predicate(&CharSet {
+            ranges: Vec::new(),
+            negated: true,
+        });
+        rx.chars.push(Edge {
+            from: start,
+            label: any,
+            to: start,
+        });
     }
     let accept = rx.build(&n, entry);
     Ok(rx.match_sql(input, start, accept, full))
@@ -765,7 +839,10 @@ mod tests {
         let sql = text(matches(input(), "a", false).unwrap());
         assert!(sql.contains("FROM (VALUES (0), (1))"), "{sql}");
         assert!(sql.contains("(VALUES (0, 0, 0), (0, 0, 1), (1, 1, 2))"), "{sql}");
-        assert!(sql.contains("WHEN 0 THEN NOT (0) WHEN 1 THEN (unicode(substr(__in.t, __rx.p + 1, 1)) = 97)"), "{sql}");
+        assert!(
+            sql.contains("WHEN 0 THEN NOT (0) WHEN 1 THEN (unicode(substr(__in.t, __rx.p + 1, 1)) = 97)"),
+            "{sql}"
+        );
         assert!(sql.ends_with("WHERE __rx.s = 2) END)"), "{sql}");
     }
 
@@ -780,24 +857,45 @@ mod tests {
             ),
             "{sql}"
         );
-        assert!(sql.contains("WHERE CASE __a.column2 WHEN 0 THEN __rx.p = 0 ELSE __rx.p = length(__in.t) END"), "{sql}");
+        assert!(
+            sql.contains("WHERE CASE __a.column2 WHEN 0 THEN __rx.p = 0 ELSE __rx.p = length(__in.t) END"),
+            "{sql}"
+        );
         let bounded = text(matches(input(), "a{2,3}", true).unwrap());
         // a{2}, then an optional third a: the second a reaches the exit state 3 by its epsilon
-        assert!(bounded.contains("(VALUES (0, 0, 1), (1, 0, 2), (1, 0, 3), (2, 0, 3), (2, 0, 4))"), "{bounded}");
+        assert!(
+            bounded.contains("(VALUES (0, 0, 1), (1, 0, 2), (1, 0, 3), (2, 0, 3), (2, 0, 4))"),
+            "{bounded}"
+        );
         let dotall = text(matches(input(), "(?s).", true).unwrap());
         assert!(dotall.contains("WHEN 0 THEN NOT (0)"), "{dotall}");
         let dot = text(matches(input(), ".", true).unwrap());
-        assert!(dot.contains("WHEN 0 THEN NOT (unicode(substr(__in.t, __rx.p + 1, 1)) = 10)"), "{dot}");
+        assert!(
+            dot.contains("WHEN 0 THEN NOT (unicode(substr(__in.t, __rx.p + 1, 1)) = 10)"),
+            "{dot}"
+        );
         let multiline = text(matches(input(), "(?m)^a", true).unwrap());
-        assert!(multiline.contains("WHEN 0 THEN (__rx.p = 0 OR substr(__in.t, __rx.p, 1) = char(10))"), "{multiline}");
+        assert!(
+            multiline.contains("WHEN 0 THEN (__rx.p = 0 OR substr(__in.t, __rx.p, 1) = char(10))"),
+            "{multiline}"
+        );
     }
 
     #[test]
     fn a_find_tracks_its_groups_and_prefers_the_longest() {
         let sql = text(find(input(), "a(b+)", &[1]).unwrap());
-        assert!(sql.contains("__rx(p, s, m, g0, g1) AS (SELECT 0, column1, 0, NULL, NULL FROM (VALUES (0), (1))"), "{sql}");
-        assert!(sql.contains("ORDER BY m ASC, p DESC, g0 DESC, g1 DESC LIMIT 1)"), "{sql}");
-        assert!(sql.contains("CASE WHEN __k.column2 = 0 THEN __rx.p ELSE __rx.g0 END"), "{sql}");
+        assert!(
+            sql.contains("__rx(p, s, m, g0, g1) AS (SELECT 0, column1, 0, NULL, NULL FROM (VALUES (0), (1))"),
+            "{sql}"
+        );
+        assert!(
+            sql.contains("ORDER BY m ASC, p DESC, g0 DESC, g1 DESC LIMIT 1)"),
+            "{sql}"
+        );
+        assert!(
+            sql.contains("CASE WHEN __k.column2 = 0 THEN __rx.p ELSE __rx.g0 END"),
+            "{sql}"
+        );
         let lazy = text(find(input(), "a+?", &[]).unwrap());
         assert!(lazy.contains("ORDER BY m ASC, p ASC LIMIT 1)"), "{lazy}");
     }
@@ -824,9 +922,16 @@ mod tests {
         assert!(refused("*").contains("a misplaced '*'"));
         assert!(refused("\\q").contains("the escape '\\q'"));
         let big = matches(input(), "a{99999999999}", true).err().unwrap();
-        assert_eq!((big.class, big.message.as_str()), (Refusal::NUMBER_FORMAT, "For input string: \"99999999999\""));
+        assert_eq!(
+            (big.class, big.message.as_str()),
+            (Refusal::NUMBER_FORMAT, "For input string: \"99999999999\"")
+        );
         let group = find(input(), "a(b)", &[2]).err().unwrap();
-        assert!(group.message.contains("with no group 2 reached SQLite"), "{}", group.message);
+        assert!(
+            group.message.contains("with no group 2 reached SQLite"),
+            "{}",
+            group.message
+        );
         // a named group whose name is never closed: Java parses the pattern again inside it until the stack overflows
         let overflow = matches(input(), "(?P<n", true).err().unwrap();
         assert_eq!(overflow.class, STACK_OVERFLOW);

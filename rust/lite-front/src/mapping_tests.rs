@@ -25,11 +25,21 @@ use crate::ustr::{eq, u};
 use TokenType as T;
 
 fn si(start_line: i32, start_column: i32, end_line: i32, end_column: i32) -> SourceInfo {
-    SourceInfo { source_id: JStr::default(), start_line, start_column, end_line, end_column }
+    SourceInfo {
+        source_id: JStr::default(),
+        start_line,
+        start_column,
+        end_line,
+        end_column,
+    }
 }
 
 fn store_pointer(path: &[u16], span: &SourceInfo) -> Box<PPointer> {
-    Box::new(PPointer { r#type: JStr::from("STORE"), path: JStr(path.to_vec()), source_information: boxed(span.clone()) })
+    Box::new(PPointer {
+        r#type: JStr::from("STORE"),
+        path: JStr(path.to_vec()),
+        source_information: boxed(span.clone()),
+    })
 }
 
 /// Java's `String.replace(target, replacement)` over UTF-16 units, left to right.
@@ -66,7 +76,11 @@ impl MappingCursor<'_, '_> {
             }
             self.advance()?;
         }
-        parse_code_block_tokens(&self.tokens.slice(f_s, self.pos), JStr(mapping_fqn.to_vec()), self.dialect)
+        parse_code_block_tokens(
+            &self.tokens.slice(f_s, self.pos),
+            JStr(mapping_fqn.to_vec()),
+            self.dialect,
+        )
     }
 
     /// `parseTestSuite(mappingFqn)`: `id: { doc: '...'; function: |...; tests: [...]; }`, its span the id through the
@@ -122,9 +136,19 @@ impl MappingCursor<'_, '_> {
         let close = self.pos;
         self.expect(T::BRACE_CLOSE)?;
         let Some(func) = func else {
-            return Err(throw_at(self.tokens, s_s, JStr::from("mapping test suite without a function")));
+            return Err(throw_at(
+                self.tokens,
+                s_s,
+                JStr::from("mapping test suite without a function"),
+            ));
         };
-        Ok(PMappingTestSuite { id: JStr(suite_id), doc, func, tests, source_information: self.span(s_s, close) })
+        Ok(PMappingTestSuite {
+            id: JStr(suite_id),
+            doc,
+            func,
+            tests,
+            source_information: self.span(s_s, close),
+        })
     }
 
     /// `parseLegacyTest(mappingFqn)`: `name ( query: |...; data: [<Kind, FORMAT, path, 'data' + ...>]; assert:
@@ -142,7 +166,11 @@ impl MappingCursor<'_, '_> {
             let key = self.text();
             if eq(key, "query") || self.peek() == T::MAPPING_TESTS_QUERY {
                 if query.is_some() {
-                    return Err(throw_at(self.tokens, t_s, JStr::from("Field 'query' should be specified only once")));
+                    return Err(throw_at(
+                        self.tokens,
+                        t_s,
+                        JStr::from("Field 'query' should be specified only once"),
+                    ));
                 }
                 self.advance()?;
                 self.expect(T::COLON)?;
@@ -156,7 +184,11 @@ impl MappingCursor<'_, '_> {
             }
             if eq(key, "data") {
                 if seen_data {
-                    return Err(throw_at(self.tokens, t_s, JStr::from("Field 'data' should be specified only once")));
+                    return Err(throw_at(
+                        self.tokens,
+                        t_s,
+                        JStr::from("Field 'data' should be specified only once"),
+                    ));
                 }
                 seen_data = true;
                 self.advance()?;
@@ -212,7 +244,9 @@ impl MappingCursor<'_, '_> {
                         } else {
                             if raw.len() < 2 {
                                 // as `assert`'s below (PARITY row 85)
-                                return Err(throw_at(self.tokens, self.pos, jcat!("Unexpected token '", raw, "'")).as_refusal());
+                                return Err(
+                                    throw_at(self.tokens, self.pos, jcat!("Unexpected token '", raw, "'")).as_refusal()
+                                );
                             }
                             data_buf.extend_from_slice(&raw[1..raw.len() - 1]);
                         }
@@ -276,7 +310,11 @@ impl MappingCursor<'_, '_> {
             return Err(throw_at(self.tokens, t_s, JStr::from("Field 'data' is required")));
         }
         let (Some(query), Some(expected), Some(_)) = (query, expected, &assert_span) else {
-            return Err(throw_at(self.tokens, t_s, JStr::from("legacy mapping test needs query AND assert")));
+            return Err(throw_at(
+                self.tokens,
+                t_s,
+                JStr::from("legacy mapping test needs query AND assert"),
+            ));
         };
         Ok(PLegacyMappingTest {
             name: JStr(name),
@@ -392,7 +430,11 @@ impl MappingCursor<'_, '_> {
             let rels = self.parse_relation_elements(&ri, true)?;
             let first = match rels.first() {
                 None => self.span_of(self.pos - 1, self.pos - 1),
-                Some(r) => r.source_information.as_deref().expect("a parsed node always carries its span").clone(),
+                Some(r) => r
+                    .source_information
+                    .as_deref()
+                    .expect("a parsed node always carries its span")
+                    .clone(),
             };
             let accessor = si(first.start_line, first.start_column, ri.end_line, ri.end_column + 3);
             return Ok(PStoreTestData {
@@ -441,7 +483,12 @@ impl MappingCursor<'_, '_> {
             model_data.push(entry);
             inner.match_tok(T::COMMA)?;
         }
-        let ms_span = si(ts.start_line(ms_tok) as i32, ts.start_column(ms_tok) as i32, island.end_line, island.end_column);
+        let ms_span = si(
+            ts.start_line(ms_tok) as i32,
+            ts.start_column(ms_tok) as i32,
+            island.end_line,
+            island.end_column,
+        );
         Ok(PStoreTestData {
             store: store_pointer(&store_path, &store_span),
             model_data: Some(model_data),
@@ -491,7 +538,11 @@ impl MappingCursor<'_, '_> {
             }
             self.match_tok(T::SEMI_COLON)?;
             let re = rels.remove(0);
-            let es = re.source_information.as_deref().expect("a parsed node always carries its span").clone();
+            let es = re
+                .source_information
+                .as_deref()
+                .expect("a parsed node always carries its span")
+                .clone();
             let shifted = PRelationElement {
                 columns: re.columns,
                 paths: re.paths,

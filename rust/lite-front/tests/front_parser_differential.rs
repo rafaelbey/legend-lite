@@ -57,8 +57,11 @@ fn toy(text: &[u16]) -> Vec<(Vec<u16>, Vec<u16>)> {
 /// on each overlay section's text, in section order, before the door's own error is raised; its elements spliced where
 /// the door says, as `POpaqueElement`s with no span, their paths, each once, the section's index entry.
 fn toy_splice(text: &[u16], answer: PmcdAnswer) -> Answer<PmcdParserParsed> {
-    let called: Vec<Vec<(Vec<u16>, Vec<u16>)>> =
-        answer.overlays.iter().map(|o| toy(&text[o.start_offset..o.end_offset])).collect();
+    let called: Vec<Vec<(Vec<u16>, Vec<u16>)>> = answer
+        .overlays
+        .iter()
+        .map(|o| toy(&text[o.start_offset..o.end_offset]))
+        .collect();
     let mut parsed = answer.parsed?;
     for (o, elements) in answer.overlays.iter().zip(called).rev() {
         let Some(Element::PSectionIndex(index)) = parsed.model.elements.last_mut() else {
@@ -92,7 +95,10 @@ fn form(door: &str, dialect: Dialect, text: &[u16]) -> Vec<u16> {
         return answer_form(door, dialect, text);
     }
     let toy_name = u("Toy");
-    let overlays = [OverlayGrammar { name: &toy_name, lexable: false }];
+    let overlays = [OverlayGrammar {
+        name: &toy_name,
+        lexable: false,
+    }];
     pmcd_answer_form(dialect, text, &overlays, &toy_splice)
 }
 
@@ -127,8 +133,10 @@ fn differential(door: &str) {
         for a in q.get("asks").and_then(wire::Json::as_array).unwrap() {
             let pair = a.as_array().unwrap();
             let (ask_door, dialect_name) = (pair[0].as_string().unwrap(), pair[1].as_string().unwrap());
-            let java_line =
-                java.next().unwrap_or_else(|| panic!("Java answered no {ask_door} {dialect_name} {sha}")).unwrap();
+            let java_line = java
+                .next()
+                .unwrap_or_else(|| panic!("Java answered no {ask_door} {dialect_name} {sha}"))
+                .unwrap();
             let f: Vec<&str> = java_line.split('\t').collect();
             assert!(
                 f.len() == 4 && f[0] == ask_door && f[1] == dialect_name,
@@ -141,7 +149,11 @@ fn differential(door: &str) {
             let dialect = Dialect::from_java(&dialect_name).unwrap();
             asked += 1;
             let form = form(door, dialect, text);
-            let rust_kind = if form.first() == Some(&u16::from(b'A')) { "A" } else { "E" };
+            let rust_kind = if form.first() == Some(&u16::from(b'A')) {
+                "A"
+            } else {
+                "E"
+            };
             let c = counts.entry(format!("{dialect_name} {java_kind}")).or_default();
             c.0 += 1;
             if let Err(raw) = deliberate.raw_answer(door, &dialect_name, &sha, &form) {
@@ -150,7 +162,9 @@ fn differential(door: &str) {
             if let Some(expected) = deliberate.expected(door, &dialect_name, &sha) {
                 listed += 1;
                 if sha256_utf16le(&form) == *java_hash {
-                    wrong.push(format!("{door} {dialect_name} {sha}: listed, yet identical to Java's frozen answer"));
+                    wrong.push(format!(
+                        "{door} {dialect_name} {sha}: listed, yet identical to Java's frozen answer"
+                    ));
                 }
                 if let Err(m) = is_the_new_answer(&form, expected) {
                     wrong.push(format!("{door} {dialect_name} {sha}: {m}"));
@@ -160,7 +174,9 @@ fn differential(door: &str) {
                 c.1 += 1;
             } else {
                 let head: String = String::from_utf16_lossy(&form[..form.len().min(160)]);
-                differ.push(format!("{dialect_name} {sha}: Java {java_kind}, Rust {rust_kind}: {head}"));
+                differ.push(format!(
+                    "{dialect_name} {sha}: Java {java_kind}, Rust {rust_kind}: {head}"
+                ));
                 if let Some(dir) = &dump {
                     let path = format!("{dir}/{door}.{dialect_name}.{sha}.rust.txt");
                     std::fs::write(path, String::from_utf16_lossy(&form)).unwrap();
@@ -178,15 +194,35 @@ fn differential(door: &str) {
     for d in differ.iter().take(SHOWN) {
         println!("[front-{door}]   {d}");
     }
-    assert!(java.next().is_none(), "Java answered every question of the set, and only those");
-    assert!(wrong.is_empty(), "{door}: the deliberate differences and the raw-answer pin: {wrong:#?}");
-    assert_eq!(listed, deliberate.listed(door), "{door}: every listed question was asked");
+    assert!(
+        java.next().is_none(),
+        "Java answered every question of the set, and only those"
+    );
+    assert!(
+        wrong.is_empty(),
+        "{door}: the deliberate differences and the raw-answer pin: {wrong:#?}"
+    );
+    assert_eq!(
+        listed,
+        deliberate.listed(door),
+        "{door}: every listed question was asked"
+    );
     let stale = deliberate.stale_left(door);
-    assert!(stale.is_empty(), "{door}: left-for-the-user lines that no longer hold: {stale:?}");
-    assert!(differ.is_empty(), "{door}: {} questions neither identical nor listed", differ.len());
+    assert!(
+        stale.is_empty(),
+        "{door}: left-for-the-user lines that no longer hold: {stale:?}"
+    );
+    assert!(
+        differ.is_empty(),
+        "{door}: {} questions neither identical nor listed",
+        differ.len()
+    );
     assert_eq!(matched + listed, asked, "{door}: identical + listed == total");
     let floor = floor(door);
-    assert!(matched + listed >= floor, "{door}: {matched} identical and {listed} listed, below its floor of {floor}");
+    assert!(
+        matched + listed >= floor,
+        "{door}: {matched} identical and {listed} listed, below its floor of {floor}"
+    );
 }
 
 #[test]

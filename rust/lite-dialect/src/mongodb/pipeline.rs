@@ -100,9 +100,9 @@ fn base_of(src: &SqlSource) -> Result<Option<String>, Refusal> {
         SqlSource::Catalog { .. } => Err(Refusal::capability(
             "a catalog grid reached MongoDb: its catalog (listCollections) is not read as a grid yet",
         )),
-        SqlSource::SourceUrl { .. } => {
-            Err(Refusal::capability("sourceUrl reached MongoDb: no external source encoding"))
-        }
+        SqlSource::SourceUrl { .. } => Err(Refusal::capability(
+            "sourceUrl reached MongoDb: no external source encoding",
+        )),
         SqlSource::Pivot { source, .. } => base_of(source),
     }
 }
@@ -110,7 +110,9 @@ fn base_of(src: &SqlSource) -> Result<Option<String>, Refusal> {
 /// A collection's name: a table's bare name; a schema-qualified or tabular-function table is refused.
 fn collection_name(name: &str, call: bool) -> Result<String, Refusal> {
     if call {
-        return Err(Refusal::capability(format!("a tabular function ({name}) reached MongoDb, which has none")));
+        return Err(Refusal::capability(format!(
+            "a tabular function ({name}) reached MongoDb, which has none"
+        )));
     }
     if name.contains('.') {
         return Err(Refusal::capability(format!(
@@ -165,14 +167,25 @@ fn select(d: &MongoDb, w: &mut SqlWriter, s: &SqlSelect, st: &mut Stages) -> Res
     source(d, w, &s.from, st, Shape::Wrapped)?;
     // the row wrapped under one alias: an unqualified column reads under it until the projection flattens it
     let aliases = aliases(&s.from)?;
-    let sole =
-        if aliases.len() == 1 && !matches!(s.from, SqlSource::Join { .. }) { Some(aliases[0].clone()) } else { None };
+    let sole = if aliases.len() == 1 && !matches!(s.from, SqlSource::Join { .. }) {
+        Some(aliases[0].clone())
+    } else {
+        None
+    };
     d.sole_alias(sole)?;
     let clauses = subqueries(d, w, s, st)?;
     if let Some(wh) = &clauses.r#where {
         match_stage(d, w, st, wh)?;
     }
-    let g = group(d, w, &s.group_by, clauses.projections, clauses.having, clauses.order_by, st)?;
+    let g = group(
+        d,
+        w,
+        &s.group_by,
+        clauses.projections,
+        clauses.having,
+        clauses.order_by,
+        st,
+    )?;
     if let Some(h) = &g.having {
         match_stage(d, w, st, h)?;
     }
@@ -190,8 +203,13 @@ fn select(d: &MongoDb, w: &mut SqlWriter, s: &SqlSelect, st: &mut Stages) -> Res
             if i > 0 {
                 w.append(", ");
             }
-            w.append(&json::string(&c.null_field)).append(": ").append(if c.nulls_first { "-1" } else { "1" });
-            w.append(", ").append(&json::string(&c.field)).append(": ").append(if c.ascending { "1" } else { "-1" });
+            w.append(&json::string(&c.null_field))
+                .append(": ")
+                .append(if c.nulls_first { "-1" } else { "1" });
+            w.append(", ")
+                .append(&json::string(&c.field))
+                .append(": ")
+                .append(if c.ascending { "1" } else { "-1" });
         }
         w.append("}}");
         st.begin(w).append("{\"$unset\": [");
@@ -199,7 +217,9 @@ fn select(d: &MongoDb, w: &mut SqlWriter, s: &SqlSelect, st: &mut Stages) -> Res
             if i > 0 {
                 w.append(", ");
             }
-            w.append(&json::string(&c.field)).append(", ").append(&json::string(&c.null_field));
+            w.append(&json::string(&c.field))
+                .append(", ")
+                .append(&json::string(&c.null_field));
         }
         w.append("]}");
     }
@@ -259,12 +279,21 @@ impl Subqueries {
                 let v = self.applied(value)?;
                 Some(build::membership(v, self.marker(e)))
             }
-            SqlExpr::Quantified { value, comparison, quantifier, .. } => {
+            SqlExpr::Quantified {
+                value,
+                comparison,
+                quantifier,
+                ..
+            } => {
                 let v = self.applied(value)?;
                 let rows = self.marker(e);
                 let row = format!("__q{}", self.found.len() - 1);
                 let compared = build::call(*comparison, vec![v, build::derived(None, &row)]);
-                let f = if *quantifier == Quantifier::Any { SqlFn::ListExists } else { SqlFn::ListForAll };
+                let f = if *quantifier == Quantifier::Any {
+                    SqlFn::ListExists
+                } else {
+                    SqlFn::ListForAll
+                };
                 Some(build::call(f, vec![rows, build::lambda(&[row.as_str()], compared)]))
             }
             _ => carrier::map_children(e, &mut |c| self.apply(c))?,
@@ -300,7 +329,12 @@ fn subqueries(d: &MongoDb, w: &mut SqlWriter, s: &SqlSelect, st: &mut Stages) ->
     };
     let mut keys = Vec::with_capacity(s.order_by.len());
     for k in &s.order_by {
-        keys.push(build::sort_key(sub.applied(&k.expr)?, k.ascending, k.null_order, k.output_name.clone()));
+        keys.push(build::sort_key(
+            sub.applied(&k.expr)?,
+            k.ascending,
+            k.null_order,
+            k.output_name.clone(),
+        ));
     }
     if !sub.found.is_empty() {
         let outer = aliases(&s.from)?;
@@ -313,7 +347,10 @@ fn subqueries(d: &MongoDb, w: &mut SqlWriter, s: &SqlSelect, st: &mut Stages) ->
                 | SqlExpr::InSubquery { subquery, .. }
                 | SqlExpr::Quantified { subquery, .. } => subquery,
                 other => {
-                    return Err(Refusal::illegal_state(format!("not a subquery: {}", java_text::expr(other))));
+                    return Err(Refusal::illegal_state(format!(
+                        "not a subquery: {}",
+                        java_text::expr(other)
+                    )));
                 }
             };
             let base = base_collection(inner)?;
@@ -323,7 +360,8 @@ fn subqueries(d: &MongoDb, w: &mut SqlWriter, s: &SqlSelect, st: &mut Stages) ->
             }
             w.append("\"let\": {");
             for (a, alias) in outer.iter().enumerate() {
-                w.append(if a > 0 { ", " } else { "" }).append(&json::string(&json::variable(alias)));
+                w.append(if a > 0 { ", " } else { "" })
+                    .append(&json::string(&json::variable(alias)));
                 w.append(": ").append(&json::path(&[alias]));
             }
             w.append("}, \"pipeline\": [");
@@ -337,7 +375,12 @@ fn subqueries(d: &MongoDb, w: &mut SqlWriter, s: &SqlSelect, st: &mut Stages) ->
         }
         d.subquery_reads(reads)?;
     }
-    Ok(Clauses { r#where, projections: ps, having, order_by: keys })
+    Ok(Clauses {
+        r#where,
+        projections: ps,
+        having,
+        order_by: keys,
+    })
 }
 
 fn subquery_read(
@@ -369,7 +412,12 @@ fn subquery_read(
             ]
             .concat(),
         ),
-        other => return Err(Refusal::illegal_state(format!("not a subquery: {}", java_text::expr(other)))),
+        other => {
+            return Err(Refusal::illegal_state(format!(
+                "not a subquery: {}",
+                java_text::expr(other)
+            )));
+        }
     })
 }
 
@@ -397,7 +445,10 @@ fn field_name(p: &Projection, i: usize) -> String {
 }
 
 fn match_stage(d: &MongoDb, w: &mut SqlWriter, st: &mut Stages, condition: &SqlExpr) -> Result<(), Refusal> {
-    st.begin(w).append("{\"$match\": {\"$expr\": ").expr(d, condition, 0)?.append("}}");
+    st.begin(w)
+        .append("{\"$match\": {\"$expr\": ")
+        .expr(d, condition, 0)?
+        .append("}}");
     Ok(())
 }
 
@@ -407,8 +458,16 @@ fn match_stage(d: &MongoDb, w: &mut SqlWriter, st: &mut Stages, condition: &SqlE
 
 fn source(d: &MongoDb, w: &mut SqlWriter, src: &SqlSource, st: &mut Stages, shape: Shape) -> Result<(), Refusal> {
     match src {
-        SqlSource::Table { name, alias, outputs, call, .. } => scan(w, name, *call, alias, outputs, st, shape),
-        SqlSource::Values { rows, columns, alias, .. } => values(d, w, rows, columns, alias, st, shape),
+        SqlSource::Table {
+            name,
+            alias,
+            outputs,
+            call,
+            ..
+        } => scan(w, name, *call, alias, outputs, st, shape),
+        SqlSource::Values {
+            rows, columns, alias, ..
+        } => values(d, w, rows, columns, alias, st, shape),
         SqlSource::Dual => {
             st.begin(w).append("{\"$documents\": [{}]}");
             Ok(())
@@ -416,7 +475,10 @@ fn source(d: &MongoDb, w: &mut SqlWriter, src: &SqlSource, st: &mut Stages, shap
         SqlSource::Subselect { inner, alias, .. } => {
             query(d, w, inner, st)?;
             if shape == Shape::Wrapped {
-                st.begin(w).append("{\"$replaceWith\": {").append(&json::key(alias)?).append(": \"$$ROOT\"}}");
+                st.begin(w)
+                    .append("{\"$replaceWith\": {")
+                    .append(&json::key(alias)?)
+                    .append(": \"$$ROOT\"}}");
             }
             Ok(())
         }
@@ -463,7 +525,16 @@ fn substring_refused(begin: i64, end: i64, length: usize) -> Refusal {
 /// each USING aggregate accumulated; the groups regrouped by the keys alone, the ON value and the aggregates pushed;
 /// each pivot column projected as the pushed aggregate of its value.
 fn pivot(d: &MongoDb, w: &mut SqlWriter, src: &SqlSource, st: &mut Stages, shape: Shape) -> Result<(), Refusal> {
-    let SqlSource::Pivot { source: inner, on, r#in, named, usings, alias, outputs } = src else {
+    let SqlSource::Pivot {
+        source: inner,
+        on,
+        r#in,
+        named,
+        usings,
+        alias,
+        outputs,
+    } = src
+    else {
         return Err(Refusal::illegal_state("pivot is handed a Pivot"));
     };
     let values = if r#in.is_empty() { named } else { r#in };
@@ -482,7 +553,11 @@ fn pivot(d: &MongoDb, w: &mut SqlWriter, src: &SqlSource, st: &mut Stages, shape
     // the source's row wrapped under its alias
     source(d, w, inner, st, Shape::Wrapped)?;
     let keys: Vec<&OutputCol> = outputs.iter().filter(|c| !c.name.contains(PIVOT_SEPARATOR)).collect();
-    let mut pivoted: Vec<OutputCol> = outputs.iter().filter(|c| c.name.contains(PIVOT_SEPARATOR)).cloned().collect();
+    let mut pivoted: Vec<OutputCol> = outputs
+        .iter()
+        .filter(|c| c.name.contains(PIVOT_SEPARATOR))
+        .cloned()
+        .collect();
     if pivoted.is_empty() && r#in.is_empty() {
         // a dynamic pivot a cast names: its columns are the named values' by each USING
         let mut generated = Vec::new();
@@ -498,7 +573,11 @@ fn pivot(d: &MongoDb, w: &mut SqlWriter, src: &SqlSource, st: &mut Stages, shape
     st.begin(w).append("{\"$group\": {\"_id\": {");
     for (i, k) in keys.iter().enumerate() {
         let path = json::path(&[source_alias(inner)?, &k.name]);
-        w.append("\"k").append_long(i as i64).append("\": ").append(&path).append(", ");
+        w.append("\"k")
+            .append_long(i as i64)
+            .append("\": ")
+            .append(&path)
+            .append(", ");
     }
     w.append("\"on\": ").expr(d, &on[0], 0)?.append("}");
     let mut reads: Vec<Pc<'static>> = Vec::new();
@@ -516,7 +595,10 @@ fn pivot(d: &MongoDb, w: &mut SqlWriter, src: &SqlSource, st: &mut Stages, shape
     d.aggregate_reads(by_field)?;
     st.begin(w).append("{\"$group\": {\"_id\": {");
     for i in 0..keys.len() {
-        w.append(if i > 0 { ", " } else { "" }).append("\"k").append_long(i as i64).append("\": \"$_id.k");
+        w.append(if i > 0 { ", " } else { "" })
+            .append("\"k")
+            .append_long(i as i64)
+            .append("\": \"$_id.k");
         w.append_long(i as i64).append("\"");
     }
     w.append("}, \"__p\": {\"$push\": {\"on\": \"$_id.on\"");
@@ -531,14 +613,20 @@ fn pivot(d: &MongoDb, w: &mut SqlWriter, src: &SqlSource, st: &mut Stages, shape
         w.append(&json::key(alias)?).append(": {");
     }
     for (i, k) in keys.iter().enumerate() {
-        w.append(if i > 0 { ", " } else { "" }).append(&json::key(&k.name)?).append(": \"$_id.k");
+        w.append(if i > 0 { ", " } else { "" })
+            .append(&json::key(&k.name)?)
+            .append(": \"$_id.k");
         w.append_long(i as i64).append("\"");
     }
     for c in &pivoted {
         let name = c.name.as_str();
         let bare = if name.starts_with('\'') && name.ends_with('\'') {
             if name.len() < 2 {
-                return Err(substring_refused(1, name.encode_utf16().count() as i64 - 1, name.encode_utf16().count()));
+                return Err(substring_refused(
+                    1,
+                    name.encode_utf16().count() as i64 - 1,
+                    name.encode_utf16().count(),
+                ));
             }
             &name[1..name.len() - 1]
         } else {
@@ -565,12 +653,15 @@ fn pivot(d: &MongoDb, w: &mut SqlWriter, src: &SqlSource, st: &mut Stages, shape
             )));
         };
         let first = pivoted.iter().position(|x| x == c) == Some(0);
-        w.append(if keys.is_empty() && first { "" } else { ", " }).append(&json::key(name)?);
+        w.append(if keys.is_empty() && first { "" } else { ", " })
+            .append(&json::key(name)?);
         w.append(concat!(
             ": {\"$let\": {\"vars\": {\"m\": {\"$arrayElemAt\": [{\"$filter\": {\"input\": \"$__p\",",
             " \"cond\": {\"$eq\": [\"$$this.on\", "
         ));
-        w.expr(d, value, 0)?.append("]}}}, 0]}}, \"in\": {\"$ifNull\": [\"$$m.a").append_long(using as i64);
+        w.expr(d, value, 0)?
+            .append("]}}}, 0]}}, \"in\": {\"$ifNull\": [\"$$m.a")
+            .append_long(using as i64);
         w.append("\", null]}}}");
     }
     if shape == Shape::Wrapped {
@@ -595,7 +686,8 @@ fn scan(
     let declares_id = outputs.iter().any(|c| c.name == "_id");
     st.begin(w).append("{\"$project\": {");
     if !declares_id {
-        w.append("\"_id\": 0").append(if outputs.is_empty() { "" } else { ", " });
+        w.append("\"_id\": 0")
+            .append(if outputs.is_empty() { "" } else { ", " });
     }
     if shape == Shape::Wrapped {
         w.append(&json::key(alias)?).append(": {");
@@ -604,7 +696,10 @@ fn scan(
         if i > 0 {
             w.append(", ");
         }
-        w.append(&json::key(&c.name)?).append(": {\"$ifNull\": [").append(&json::path(&[&c.name])).append(", null]}");
+        w.append(&json::key(&c.name)?)
+            .append(": {\"$ifNull\": [")
+            .append(&json::path(&[&c.name]))
+            .append(", null]}");
     }
     if shape == Shape::Wrapped {
         w.append("}");
@@ -667,7 +762,10 @@ fn aliases(src: &SqlSource) -> Result<Vec<String>, Refusal> {
 /// A join as a `$lookup` and an `$unwind`; an as-of join keeps the nearest right row; a right join looks the left side
 /// up from the right; a full join appends the right rows no left row matched.
 fn join(d: &MongoDb, w: &mut SqlWriter, j: &SqlSource, st: &mut Stages) -> Result<(), Refusal> {
-    let SqlSource::Join { left, right, kind, on, .. } = j else {
+    let SqlSource::Join {
+        left, right, kind, on, ..
+    } = j
+    else {
         return Err(Refusal::illegal_state("join is handed a Join"));
     };
     let on = on.as_deref();
@@ -701,10 +799,18 @@ fn join(d: &MongoDb, w: &mut SqlWriter, j: &SqlSource, st: &mut Stages) -> Resul
             source(d, w, right, &mut inner, Shape::Wrapped)?;
             lookup(d, w, &mut inner, &aliases(right)?, left, on, None)?;
             let left_alias = json::key(source_alias(left)?)?;
-            inner.begin(w).append("{\"$match\": {").append(&left_alias).append(": {\"$size\": 0}}}");
+            inner
+                .begin(w)
+                .append("{\"$match\": {")
+                .append(&left_alias)
+                .append(": {\"$size\": 0}}}");
             // the left side (an empty array here) replaced by its null columns -- under $literal
             let left_alias = json::key(source_alias(left)?)?;
-            inner.begin(w).append("{\"$addFields\": {").append(&left_alias).append(": {\"$literal\": ");
+            inner
+                .begin(w)
+                .append("{\"$addFields\": {")
+                .append(&left_alias)
+                .append(": {\"$literal\": ");
             nulls(w, left)?;
             w.append("}}}");
             w.append("]}}");
@@ -738,7 +844,10 @@ fn lookup_join(
     source(d, w, outer, st, Shape::Wrapped)?;
     lookup(d, w, st, &aliases(outer)?, inner, on, nearest)?;
     let path = json::path(&[source_alias(inner)?]);
-    st.begin(w).append("{\"$unwind\": {\"path\": ").append(&path).append(", \"preserveNullAndEmptyArrays\": ");
+    st.begin(w)
+        .append("{\"$unwind\": {\"path\": ")
+        .append(&path)
+        .append(", \"preserveNullAndEmptyArrays\": ");
     w.append(if preserve { "true" } else { "false" }).append("}}");
     if preserve {
         pad(w, st, inner)?;
@@ -767,7 +876,9 @@ fn lookup(
         if i > 0 {
             w.append(", ");
         }
-        w.append(&json::string(&json::variable(o))).append(": ").append(&json::path(&[o]));
+        w.append(&json::string(&json::variable(o)))
+            .append(": ")
+            .append(&json::path(&[o]));
     }
     w.append("}, \"pipeline\": [");
     d.push_lookup_scope(outer, Some(&r#as));
@@ -797,7 +908,10 @@ fn lookup(
 /// A missed row: the side's columns, each null, so every later read finds the field.
 fn pad(w: &mut SqlWriter, st: &mut Stages, side: &SqlSource) -> Result<(), Refusal> {
     let alias = source_alias(side)?;
-    st.begin(w).append("{\"$addFields\": {").append(&json::key(alias)?).append(": {\"$ifNull\": [");
+    st.begin(w)
+        .append("{\"$addFields\": {")
+        .append(&json::key(alias)?)
+        .append(": {\"$ifNull\": [");
     w.append(&json::path(&[alias])).append(", ");
     nulls(w, side)?;
     w.append("]}}}");
@@ -821,7 +935,10 @@ fn nulls(w: &mut SqlWriter, side: &SqlSource) -> Result<(), Refusal> {
 /// first.
 fn as_of_key(on: Option<&SqlExpr>, right: &str) -> Result<SortKey, Refusal> {
     let mut m = on;
-    while let Some(SqlExpr::Call { r#fn: SqlFn::And, args, .. }) = m {
+    while let Some(SqlExpr::Call {
+        r#fn: SqlFn::And, args, ..
+    }) = m
+    {
         m = Some(args.last().ok_or_else(|| Refusal {
             class: Refusal::INDEX_OUT_OF_BOUNDS,
             message: "Index -1 out of bounds for length 0".to_owned(),
@@ -853,7 +970,9 @@ fn as_of_key(on: Option<&SqlExpr>, right: &str) -> Result<SortKey, Refusal> {
         SqlFn::Greater | SqlFn::GreaterEqual => !right_first,
         SqlFn::Less | SqlFn::LessEqual => right_first,
         other => {
-            return Err(Refusal::illegal_state(format!("an as-of join's match is not an inequality: {other}")));
+            return Err(Refusal::illegal_state(format!(
+                "an as-of join's match is not an inequality: {other}"
+            )));
         }
     };
     Ok(build::sort_key(SqlExpr::Column(key.clone()), !left_greater, None, None))
@@ -889,7 +1008,10 @@ struct Rewrite<'k> {
 
 impl Rewrite<'_> {
     fn apply(&mut self, e: &SqlExpr) -> Result<Option<SqlExpr>, Refusal> {
-        if matches!(e, SqlExpr::Reducer(_) | SqlExpr::OrderedListAgg { .. } | SqlExpr::JsonArrayAgg { .. }) {
+        if matches!(
+            e,
+            SqlExpr::Reducer(_) | SqlExpr::OrderedListAgg { .. } | SqlExpr::JsonArrayAgg { .. }
+        ) {
             let at = match self.aggregates.iter().position(|a| a == e) {
                 Some(at) => at,
                 None => {
@@ -929,14 +1051,25 @@ fn group(
         || having0.as_ref().is_some_and(aggregates_select)
         || order_by.iter().any(|k| aggregates_select(&k.expr));
     if group_by.is_empty() && !aggregates {
-        return Ok(Grouping { projections, having: having0, order_by });
+        return Ok(Grouping {
+            projections,
+            having: having0,
+            order_by,
+        });
     }
-    let mut rewrite = Rewrite { keys: group_by, aggregates: Vec::new() };
+    let mut rewrite = Rewrite {
+        keys: group_by,
+        aggregates: Vec::new(),
+    };
     let mut ps = Vec::with_capacity(projections.len());
     for p in &projections {
         // the output keeps its name: a key projected bare reads the group's _id, under the column's own name
         let e = rewrite.applied(&p.expr)?;
-        ps.push(build::projection(e, p.alias.clone().or_else(|| output_name(p)), p.out.clone())?);
+        ps.push(build::projection(
+            e,
+            p.alias.clone().or_else(|| output_name(p)),
+            p.out.clone(),
+        )?);
     }
     let having = match &having0 {
         None => None,
@@ -944,7 +1077,12 @@ fn group(
     };
     let mut keys = Vec::with_capacity(order_by.len());
     for k in &order_by {
-        keys.push(build::sort_key(rewrite.applied(&k.expr)?, k.ascending, k.null_order, k.output_name.clone()));
+        keys.push(build::sort_key(
+            rewrite.applied(&k.expr)?,
+            k.ascending,
+            k.null_order,
+            k.output_name.clone(),
+        ));
     }
     st.begin(w).append("{\"$group\": {\"_id\": ");
     if group_by.is_empty() {
@@ -989,10 +1127,13 @@ fn group(
     w.append("}}");
     if group_by.is_empty() {
         // SQL's one row over no input: the empty row is unioned in and the first of the two kept
-        st.begin(w).append("{\"$unionWith\": {\"pipeline\": [{\"$documents\": [{\"_id\": null");
+        st.begin(w)
+            .append("{\"$unionWith\": {\"pipeline\": [{\"$documents\": [{\"_id\": null");
         for (i, agg) in rewrite.aggregates.iter().enumerate() {
             if !per_key.contains(&i) {
-                w.append(", ").append(&json::string(&format!("{AGGREGATE_MARKER}{i}"))).append(": ");
+                w.append(", ")
+                    .append(&json::string(&format!("{AGGREGATE_MARKER}{i}")))
+                    .append(": ");
                 w.append(aggregates::empty_input(agg)?);
             }
         }
@@ -1013,7 +1154,11 @@ fn group(
         st.begin(w).append("{\"$unset\": \"__none\"}");
     }
     d.aggregate_reads(reads)?;
-    Ok(Grouping { projections: ps, having, order_by: keys })
+    Ok(Grouping {
+        projections: ps,
+        having,
+        order_by: keys,
+    })
 }
 
 /// Java's `LinkedHashMap.put`: a new key last, a present one's value replaced in place.
@@ -1074,9 +1219,18 @@ struct Call<'a> {
 
 fn parts(e: &SqlExpr) -> Call<'_> {
     match e {
-        SqlExpr::WindowCall { r#fn, partition_by, order_by, frame, .. } => {
-            Call { r#fn, partition_by, order_by, frame: frame.as_ref() }
-        }
+        SqlExpr::WindowCall {
+            r#fn,
+            partition_by,
+            order_by,
+            frame,
+            ..
+        } => Call {
+            r#fn,
+            partition_by,
+            order_by,
+            frame: frame.as_ref(),
+        },
         _ => unreachable!("Windows finds window calls alone"),
     }
 }
@@ -1103,16 +1257,27 @@ fn need(c: &Call<'_>) -> Need {
 
 fn framed(c: &Call<'_>) -> Need {
     let Some(f) = c.frame else {
-        return if c.order_by.is_empty() { Need::Any } else { Need::ToCurrent };
+        return if c.order_by.is_empty() {
+            Need::Any
+        } else {
+            Need::ToCurrent
+        };
     };
     if f.kind == FrameKind::Rows {
         return Need::Sorted;
     }
-    if offset(&f.from) || offset(&f.to) { Need::RangeKey } else { Need::ToCurrent }
+    if offset(&f.from) || offset(&f.to) {
+        Need::RangeKey
+    } else {
+        Need::ToCurrent
+    }
 }
 
 fn offset(b: &Bound) -> bool {
-    !matches!(b, Bound::UnboundedPreceding | Bound::UnboundedFollowing | Bound::CurrentRow)
+    !matches!(
+        b,
+        Bound::UnboundedPreceding | Bound::UnboundedFollowing | Bound::CurrentRow
+    )
 }
 
 fn nulls_first(k: &SortKey) -> bool {
@@ -1143,7 +1308,12 @@ fn windows(
     };
     let mut keys = Vec::with_capacity(g.order_by.len());
     for k in &g.order_by {
-        keys.push(build::sort_key(rewrite.applied(&k.expr)?, k.ascending, k.null_order, k.output_name.clone()));
+        keys.push(build::sort_key(
+            rewrite.applied(&k.expr)?,
+            k.ascending,
+            k.null_order,
+            k.output_name.clone(),
+        ));
     }
     if rewrite.found.is_empty() {
         return Ok(g);
@@ -1196,17 +1366,27 @@ fn windows(
                     }
                     // the flag that puts the nulls where the key asks, in the one field's direction
                     let null_flag: i64 = if nulls_first(k) == k.ascending { 0 } else { 1 };
-                    w.append(if i > 0 { ", " } else { "" }).append("\"k").append_long(i as i64);
-                    w.append("\": {\"n\": {\"$cond\": [{\"$eq\": [").expr(d, &k.expr, 0)?.append(", null]}, ");
+                    w.append(if i > 0 { ", " } else { "" })
+                        .append("\"k")
+                        .append_long(i as i64);
+                    w.append("\": {\"n\": {\"$cond\": [{\"$eq\": [")
+                        .expr(d, &k.expr, 0)?
+                        .append(", null]}, ");
                     w.append_long(null_flag).append(", ").append_long(1 - null_flag);
-                    w.append("]}, \"v\": {\"$ifNull\": [").expr(d, &k.expr, 0)?.append(", null]}}");
+                    w.append("]}, \"v\": {\"$ifNull\": [")
+                        .expr(d, &k.expr, 0)?
+                        .append(", null]}}");
                 }
                 w.append("}");
             } else {
                 for (i, k) in spec.order_by.iter().enumerate() {
                     let field = format!("__wk{serial}_{i}");
-                    w.append(if i > 0 { ", " } else { "" }).append(&json::string(&field)).append(": ");
-                    w.expr(d, &k.expr, 0)?.append(", ").append(&json::string(&format!("{field}n")));
+                    w.append(if i > 0 { ", " } else { "" })
+                        .append(&json::string(&field))
+                        .append(": ");
+                    w.expr(d, &k.expr, 0)?
+                        .append(", ")
+                        .append(&json::string(&format!("{field}n")));
                     w.append(": {\"$eq\": [").expr(d, &k.expr, 0)?.append(", null]}");
                     key_fields.push(field);
                     key_directions.push(if k.ascending { 1 } else { -1 });
@@ -1233,8 +1413,12 @@ fn windows(
                 } else {
                     for (i, kf) in key_fields.iter().enumerate() {
                         let k = &spec.order_by[i];
-                        w.append(if i > 0 { ", " } else { "" }).append(&json::string(&format!("{kf}n"))).append(": ");
-                        w.append(if nulls_first(k) { "-1" } else { "1" }).append(", ").append(&json::string(kf));
+                        w.append(if i > 0 { ", " } else { "" })
+                            .append(&json::string(&format!("{kf}n")))
+                            .append(": ");
+                        w.append(if nulls_first(k) { "-1" } else { "1" })
+                            .append(", ")
+                            .append(&json::string(kf));
                         w.append(": ").append_long(key_directions[i]);
                     }
                 }
@@ -1261,7 +1445,9 @@ fn windows(
         if ranks_for_range {
             st.begin(w).append("{\"$setWindowFields\": {");
             partition_by(d, w, &spec)?;
-            w.append("\"sortBy\": {").append(&json::string(&rank_field)).append(": 1}, \"output\": {");
+            w.append("\"sortBy\": {")
+                .append(&json::string(&rank_field))
+                .append(": 1}, \"output\": {");
             let mut comma = false;
             for &i in by_need.get(&Need::ToCurrent).map_or(&[][..], Vec::as_slice) {
                 let c = parts(&rewrite.found[i]);
@@ -1298,15 +1484,26 @@ fn windows(
                 }
             }
             let infinity = if dates {
-                format!("{{\"$date\": \"{}-01-01T00:00:00Z\"}}", if nulls_last { "9000" } else { "1000" })
+                format!(
+                    "{{\"$date\": \"{}-01-01T00:00:00Z\"}}",
+                    if nulls_last { "9000" } else { "1000" }
+                )
             } else {
-                format!("{{\"$numberDouble\": \"{}Infinity\"}}", if nulls_last { "" } else { "-" })
+                format!(
+                    "{{\"$numberDouble\": \"{}Infinity\"}}",
+                    if nulls_last { "" } else { "-" }
+                )
             };
-            st.begin(w).append("{\"$addFields\": {").append(&json::string(&key_field)).append(": {\"$ifNull\": [");
+            st.begin(w)
+                .append("{\"$addFields\": {")
+                .append(&json::string(&key_field))
+                .append(": {\"$ifNull\": [");
             w.expr(d, &k.expr, 0)?.append(", ").append(&infinity).append("]}}}");
             st.begin(w).append("{\"$setWindowFields\": {");
             partition_by(d, w, &spec)?;
-            w.append("\"sortBy\": {").append(&json::string(&key_field)).append(": 1}, \"output\": {");
+            w.append("\"sortBy\": {")
+                .append(&json::string(&key_field))
+                .append(": 1}, \"output\": {");
             let mut comma = false;
             for &i in range_key {
                 let c = parts(&rewrite.found[i]);
@@ -1329,7 +1526,11 @@ fn windows(
     if let Some(q) = &qualified {
         match_stage(d, w, st, q)?;
     }
-    Ok(Grouping { projections: ps, having: g.having, order_by: keys })
+    Ok(Grouping {
+        projections: ps,
+        having: g.having,
+        order_by: keys,
+    })
 }
 
 /// `"partitionBy": ...,` -- the one key's expression or the keys' document -- or nothing.
@@ -1343,7 +1544,11 @@ fn partition_by(d: &MongoDb, w: &mut SqlWriter, spec: &Call<'_>) -> Result<(), R
     } else {
         w.append("{");
         for (i, p) in spec.partition_by.iter().enumerate() {
-            w.append(if i > 0 { ", " } else { "" }).append("\"p").append_long(i as i64).append("\": ").expr(d, p, 0)?;
+            w.append(if i > 0 { ", " } else { "" })
+                .append("\"p")
+                .append_long(i as i64)
+                .append("\": ")
+                .expr(d, p, 0)?;
         }
         w.append("}");
     }
@@ -1354,9 +1559,16 @@ fn partition_by(d: &MongoDb, w: &mut SqlWriter, spec: &Call<'_>) -> Result<(), R
 /// A sorted-stage call's `, "window": {"documents": [...]}` for a ROWS frame; nothing otherwise.
 fn documents_window(c: &Call<'_>) -> Pc<'static> {
     match c.frame {
-        Some(f) if f.kind == FrameKind::Rows => {
-            text([", \"window\": {\"documents\": [", &bound(&f.from, false), ", ", &bound(&f.to, false), "]}"].concat())
-        }
+        Some(f) if f.kind == FrameKind::Rows => text(
+            [
+                ", \"window\": {\"documents\": [",
+                &bound(&f.from, false),
+                ", ",
+                &bound(&f.to, false),
+                "]}",
+            ]
+            .concat(),
+        ),
         _ => text(""),
     }
 }
@@ -1401,13 +1613,17 @@ fn offset_window(f: &Frame, ascending: bool) -> Result<Pc<'static>, Refusal> {
         None => String::new(),
         Some(u) => format!(", \"unit\": {}", json::string(u)),
     };
-    Ok(text([", \"window\": {\"range\": [", &from, ", ", &to, "]", &unit_text, "}"].concat()))
+    Ok(text(
+        [", \"window\": {\"range\": [", &from, ", ", &to, "]", &unit_text, "}"].concat(),
+    ))
 }
 
 /// Java's `Long.parseLong`, refused as it words a text that is no number.
 fn parse_long(s: &str) -> Result<i64, Refusal> {
-    s.parse::<i64>()
-        .map_err(|_| Refusal { class: Refusal::NUMBER_FORMAT, message: format!("For input string: \"{s}\"") })
+    s.parse::<i64>().map_err(|_| Refusal {
+        class: Refusal::NUMBER_FORMAT,
+        message: format!("For input string: \"{s}\""),
+    })
 }
 
 /// The milliseconds of each unit of fixed length.
@@ -1503,9 +1719,20 @@ fn sort_carries(d: &MongoDb, w: &mut SqlWriter, st: &mut Stages, g: &Grouping) -
         if i > 0 {
             w.append(", ");
         }
-        w.append(&json::string(&field)).append(": ").expr(d, &k.expr, 0)?.append(", ");
-        w.append(&json::string(&null_field)).append(": {\"$eq\": [").expr(d, &k.expr, 0)?.append(", null]}");
-        out.push(SortCarry { field, null_field, ascending: k.ascending, nulls_first: nulls_first(k) });
+        w.append(&json::string(&field))
+            .append(": ")
+            .expr(d, &k.expr, 0)?
+            .append(", ");
+        w.append(&json::string(&null_field))
+            .append(": {\"$eq\": [")
+            .expr(d, &k.expr, 0)?
+            .append(", null]}");
+        out.push(SortCarry {
+            field,
+            null_field,
+            ascending: k.ascending,
+            nulls_first: nulls_first(k),
+        });
     }
     w.append("}}");
     Ok(out)
@@ -1579,7 +1806,12 @@ fn projection(
             _ => {
                 let name = field_name(p, i);
                 names.push(name.clone());
-                if let SqlExpr::Call { r#fn: SqlFn::Unnest, args, .. } = &p.expr {
+                if let SqlExpr::Call {
+                    r#fn: SqlFn::Unnest,
+                    args,
+                    ..
+                } = &p.expr
+                {
                     // the list is projected whole and exploded after ($unwind): a collection result's rows
                     unnested.push(name);
                     exprs.push(arg(args, 0)?);
@@ -1607,8 +1839,13 @@ fn projection(
                 if !names.is_empty() || i > 0 {
                     x.append(", ");
                 }
-                x.append(&json::string(&c.field)).append(": ").append(&json::path(&[&c.field])).append(", ");
-                x.append(&json::string(&c.null_field)).append(": ").append(&json::path(&[&c.null_field]));
+                x.append(&json::string(&c.field))
+                    .append(": ")
+                    .append(&json::path(&[&c.field]))
+                    .append(", ");
+                x.append(&json::string(&c.null_field))
+                    .append(": ")
+                    .append(&json::path(&[&c.null_field]));
             }
             if !key_stems.is_empty() {
                 // the per-key run: written once per key by the runner, each field named by the key's position
@@ -1634,7 +1871,11 @@ fn projection(
     }
     w.append("}");
     unwind(w, st, &unnested)?;
-    Ok(if merged.is_empty() && key_stems.is_empty() { Some(names.clone()) } else { None })
+    Ok(if merged.is_empty() && key_stems.is_empty() {
+        Some(names.clone())
+    } else {
+        None
+    })
 }
 
 /// The exploded lists of a projection: one list unwound; several zipped by position to the longest, null-padded,
@@ -1644,18 +1885,27 @@ fn unwind(w: &mut SqlWriter, st: &mut Stages, unnested: &[String]) -> Result<(),
         return Ok(());
     }
     if unnested.len() == 1 {
-        st.begin(w).append("{\"$unwind\": ").append(&json::path(&[&unnested[0]])).append("}");
+        st.begin(w)
+            .append("{\"$unwind\": ")
+            .append(&json::path(&[&unnested[0]]))
+            .append("}");
         return Ok(());
     }
-    st.begin(w).append("{\"$addFields\": {\"__zip\": {\"$zip\": {\"inputs\": [");
+    st.begin(w)
+        .append("{\"$addFields\": {\"__zip\": {\"$zip\": {\"inputs\": [");
     for (i, u) in unnested.iter().enumerate() {
-        w.append(if i > 0 { ", " } else { "" }).append("{\"$ifNull\": [").append(&json::path(&[u])).append(", []]}");
+        w.append(if i > 0 { ", " } else { "" })
+            .append("{\"$ifNull\": [")
+            .append(&json::path(&[u]))
+            .append(", []]}");
     }
     w.append("], \"useLongestLength\": true}}}}");
     st.begin(w).append("{\"$unwind\": \"$__zip\"}");
     st.begin(w).append("{\"$addFields\": {");
     for (i, u) in unnested.iter().enumerate() {
-        w.append(if i > 0 { ", " } else { "" }).append(&json::key(u)?).append(": {\"$arrayElemAt\": [\"$__zip\", ");
+        w.append(if i > 0 { ", " } else { "" })
+            .append(&json::key(u)?)
+            .append(": {\"$arrayElemAt\": [\"$__zip\", ");
         w.append_long(i as i64).append("]}");
     }
     w.append("}}");

@@ -78,7 +78,10 @@ fn differential(door: &str) {
             let Some(ask_door) = engine_door(a.as_array().unwrap()) else {
                 continue;
             };
-            let java_line = java.next().unwrap_or_else(|| panic!("Java answered no {ask_door} {sha}")).unwrap();
+            let java_line = java
+                .next()
+                .unwrap_or_else(|| panic!("Java answered no {ask_door} {sha}"))
+                .unwrap();
             let f: Vec<&str> = java_line.split('\t').collect();
             assert!(
                 f.len() == 4 && f[0] == ask_door,
@@ -90,7 +93,11 @@ fn differential(door: &str) {
             let (java_spans, java_bare, java_kind) = (f[1], f[2], f[3]);
             asked += 1;
             let (spans, bare) = engine_forms(door, text);
-            let rust_kind = if spans.first() == Some(&u16::from(b'A')) { "A" } else { "E" };
+            let rust_kind = if spans.first() == Some(&u16::from(b'A')) {
+                "A"
+            } else {
+                "E"
+            };
             let spans_same = sha256_utf16le(&spans) == *java_spans;
             let bare_same = sha256_utf16le(&bare) == *java_bare;
             let c = counts.entry(format!("Java {java_kind}")).or_default();
@@ -103,7 +110,9 @@ fn differential(door: &str) {
             if let Some(expected) = deliberate.expected(door, "-", &sha) {
                 listed += 1;
                 if spans_same || bare_same {
-                    wrong.push(format!("{door} {sha}: listed, yet a form is identical to Java's frozen answer"));
+                    wrong.push(format!(
+                        "{door} {sha}: listed, yet a form is identical to Java's frozen answer"
+                    ));
                 }
                 for form in [&spans, &bare] {
                     if let Err(m) = is_the_new_answer(form, expected) {
@@ -120,12 +129,20 @@ fn differential(door: &str) {
                     (false, true) => "the spans form",
                     _ => "the bare form",
                 };
-                differ.push(format!("{sha}: Java {java_kind}, Rust {rust_kind}, {which} differ: {head}"));
+                differ.push(format!(
+                    "{sha}: Java {java_kind}, Rust {rust_kind}, {which} differ: {head}"
+                ));
                 if let Some(dir) = &dump {
-                    std::fs::write(format!("{dir}/{door}.{sha}.rust.spans.txt"), String::from_utf16_lossy(&spans))
-                        .unwrap();
-                    std::fs::write(format!("{dir}/{door}.{sha}.rust.bare.txt"), String::from_utf16_lossy(&bare))
-                        .unwrap();
+                    std::fs::write(
+                        format!("{dir}/{door}.{sha}.rust.spans.txt"),
+                        String::from_utf16_lossy(&spans),
+                    )
+                    .unwrap();
+                    std::fs::write(
+                        format!("{dir}/{door}.{sha}.rust.bare.txt"),
+                        String::from_utf16_lossy(&bare),
+                    )
+                    .unwrap();
                 }
             }
         }
@@ -140,15 +157,35 @@ fn differential(door: &str) {
     for d in differ.iter().take(SHOWN) {
         println!("[front-{door}]   {d}");
     }
-    assert!(java.next().is_none(), "Java answered every engine question of the set, and only those");
-    assert!(wrong.is_empty(), "{door}: the deliberate differences and the raw-answer pin: {wrong:#?}");
-    assert_eq!(listed, deliberate.listed(door), "{door}: every listed question was asked");
+    assert!(
+        java.next().is_none(),
+        "Java answered every engine question of the set, and only those"
+    );
+    assert!(
+        wrong.is_empty(),
+        "{door}: the deliberate differences and the raw-answer pin: {wrong:#?}"
+    );
+    assert_eq!(
+        listed,
+        deliberate.listed(door),
+        "{door}: every listed question was asked"
+    );
     let stale = deliberate.stale_left(door);
-    assert!(stale.is_empty(), "{door}: left-for-the-user lines that no longer hold: {stale:?}");
-    assert!(differ.is_empty(), "{door}: {} questions neither identical nor listed", differ.len());
+    assert!(
+        stale.is_empty(),
+        "{door}: left-for-the-user lines that no longer hold: {stale:?}"
+    );
+    assert!(
+        differ.is_empty(),
+        "{door}: {} questions neither identical nor listed",
+        differ.len()
+    );
     assert_eq!(matched + listed, asked, "{door}: identical + listed == total");
     let floor = floor(door);
-    assert!(matched + listed >= floor, "{door}: {matched} identical and {listed} listed, below its floor of {floor}");
+    assert!(
+        matched + listed >= floor,
+        "{door}: {matched} identical and {listed} listed, below its floor of {floor}"
+    );
 }
 
 #[test]

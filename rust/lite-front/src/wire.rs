@@ -48,7 +48,11 @@ impl Json {
 
 /// Parse one JSON document; nesting deeper than `max_depth` is refused.
 pub fn parse(text: &str, max_depth: usize) -> Result<Json, String> {
-    let mut p = Parser { s: text.as_bytes(), i: 0, max_depth };
+    let mut p = Parser {
+        s: text.as_bytes(),
+        i: 0,
+        max_depth,
+    };
     p.ws();
     let v = p.value(0)?;
     p.ws();
@@ -210,7 +214,10 @@ mod tests {
     #[test]
     fn a_lone_surrogate_survives() {
         let v = parse(r#"{"text":"a\ud800b😀é"}"#, 8).unwrap();
-        assert_eq!(v.get("text").unwrap().as_units().unwrap(), &[0x61, 0xD800, 0x62, 0xD83D, 0xDE00, 0xE9]);
+        assert_eq!(
+            v.get("text").unwrap().as_units().unwrap(),
+            &[0x61, 0xD800, 0x62, 0xD83D, 0xDE00, 0xE9]
+        );
     }
 
     #[test]

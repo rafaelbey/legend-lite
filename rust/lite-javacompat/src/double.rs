@@ -57,7 +57,10 @@ fn split(scientific: &str) -> (String, i32) {
     while digits.len() > 1 && digits.ends_with('0') {
         digits.pop();
     }
-    (digits, exponent.parse().expect("Rust's {:e} writes an integer exponent"))
+    (
+        digits,
+        exponent.parse().expect("Rust's {:e} writes an integer exponent"),
+    )
 }
 
 /// `ddd.ddd`: the digits around the point, at least one digit after it.

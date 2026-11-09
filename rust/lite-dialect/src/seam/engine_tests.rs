@@ -13,8 +13,11 @@ const DB2_TEXT: &str = r#"{"dialect":"EngineStyleDB2","server":null}"#;
 const COMPOSITE_TEXT: &str = r#"{"dialect":"EngineStyleComposite","server":null}"#;
 
 /// The three, with their simple names.
-const ENGINE_TEXTS: [(&str, &str); 3] =
-    [(H2_TEXT, "EngineStyleH2"), (DB2_TEXT, "EngineStyleDB2"), (COMPOSITE_TEXT, "EngineStyleComposite")];
+const ENGINE_TEXTS: [(&str, &str); 3] = [
+    (H2_TEXT, "EngineStyleH2"),
+    (DB2_TEXT, "EngineStyleDB2"),
+    (COMPOSITE_TEXT, "EngineStyleComposite"),
+];
 
 fn ok(spec: &str, op: &str, args: &str) -> String {
     dispatch(spec, op, args).unwrap_or_else(|r| panic!("{spec} {op} {args}: {r}"))
@@ -51,7 +54,12 @@ fn the_seam_opens_the_three_with_their_configuration() {
     // quoteIdentifiers and timeZone: the plan text's connection (Java's two-argument constructors)
     let quoted = r#"{"dialect":"EngineStyleH2","quoteIdentifiers":true}"#;
     // (in the answer's JSON a quote is \")
-    assert_eq!(ok(quoted, "query.render", &wrap("query", SELF_JOIN)).matches(r#"\"ID\""#).count(), 3);
+    assert_eq!(
+        ok(quoted, "query.render", &wrap("query", SELF_JOIN))
+            .matches(r#"\"ID\""#)
+            .count(),
+        3
+    );
     let zoned = r#"{"dialect":"EngineStyleDB2","quoteIdentifiers":false,"timeZone":"EST"}"#;
     assert!(ok(zoned, "query.render", &wrap("query", SELF_JOIN)).contains("GMTtoTZ( \\\"[EST]\\\" d![])"));
     // refused: a malformed field, a configured Composite, a configured dialect of any other family
@@ -73,11 +81,20 @@ fn the_seam_opens_the_three_with_their_configuration() {
         )
     );
     assert_eq!(
-        refused(r#"{"dialect":"EngineStyleComposite","quoteIdentifiers":true}"#, "facts", "{}").class,
+        refused(
+            r#"{"dialect":"EngineStyleComposite","quoteIdentifiers":true}"#,
+            "facts",
+            "{}"
+        )
+        .class,
         Refusal::ILLEGAL_ARGUMENT
     );
     for name in ["DuckDb", "H2", "H2Modern"] {
-        let r = refused(&format!(r#"{{"dialect":"{name}","quoteIdentifiers":false}}"#), "facts", "{}");
+        let r = refused(
+            &format!(r#"{{"dialect":"{name}","quoteIdentifiers":false}}"#),
+            "facts",
+            "{}",
+        );
         assert_eq!(
             r.message,
             format!(
@@ -111,8 +128,9 @@ fn queries_render_as_the_engines_text_and_bind_nothing() {
     assert_eq!(ok(H2_TEXT, "query.renderInline", &wrap("query", SELF_JOIN)), h2);
     // DB2: no IS NOT DISTINCT FROM, the OR form
     assert!(
-        ok(DB2_TEXT, "query.render", &wrap("query", SELF_JOIN))
-            .ends_with(&format!(r#"where (\"root\".D = {holder} or (\"root\".D is null and {holder} is null))""#))
+        ok(DB2_TEXT, "query.render", &wrap("query", SELF_JOIN)).ends_with(&format!(
+            r#"where (\"root\".D = {holder} or (\"root\".D is null and {holder} is null))""#
+        ))
     );
     for (spec, _) in ENGINE_TEXTS {
         let r = refused(spec, "query.renderStatement", &wrap("query", SELF_JOIN));
@@ -143,7 +161,11 @@ fn ddl_and_seed_rows_are_the_engines_text() {
             format!(r#"{{"sql":{insert},"binds":[],"regions":[]}}"#)
         );
         assert_eq!(
-            ok(spec, "sessionTable", &format!(r#"{{"table":{CREATE_TABLE},"rows":{INSERT_VALUES}}}"#)),
+            ok(
+                spec,
+                "sessionTable",
+                &format!(r#"{{"table":{CREATE_TABLE},"rows":{INSERT_VALUES}}}"#)
+            ),
             format!("[{create},{insert}]")
         );
     }
@@ -167,23 +189,61 @@ fn names_raw_text_and_the_interfaces_defaults() {
         // a stored name as the store wrote it, quoted only where the base's identifier rule needs it
         assert_eq!(ok(spec, "physicalName", r#"{"name":"Orders"}"#), r#""Orders""#);
         assert_eq!(ok(spec, "physicalName", r#"{"name":"order"}"#), r#""order""#);
-        assert_eq!(ok(spec, "storedName", r#"{"name":"Orders","declaredQuoted":true}"#), r#""Orders""#);
-        assert_eq!(ok(spec, "insertColumnName", r#"{"name":"order","declaredQuoted":false}"#), r#""\"order\"""#);
-        assert_eq!(ok(spec, "insertColumnName", r#"{"name":"a$b","declaredQuoted":false}"#), r#""\"a$b\"""#);
-        assert_eq!(ok(spec, "insertColumnName", r#"{"name":"Amt","declaredQuoted":true}"#), r#""\"Amt\"""#);
+        assert_eq!(
+            ok(spec, "storedName", r#"{"name":"Orders","declaredQuoted":true}"#),
+            r#""Orders""#
+        );
+        assert_eq!(
+            ok(spec, "insertColumnName", r#"{"name":"order","declaredQuoted":false}"#),
+            r#""\"order\"""#
+        );
+        assert_eq!(
+            ok(spec, "insertColumnName", r#"{"name":"a$b","declaredQuoted":false}"#),
+            r#""\"a$b\"""#
+        );
+        assert_eq!(
+            ok(spec, "insertColumnName", r#"{"name":"Amt","declaredQuoted":true}"#),
+            r#""\"Amt\"""#
+        );
         // the engine's H2 text is this text's own language
-        assert_eq!(ok(spec, "fromEngineText", r#"{"statement":"select 1"}"#), r#""select 1""#);
-        assert_eq!(ok(spec, "raw", r#"{"statement":"select 1","writtenFor":"H2"}"#), r#""select 1""#);
-        assert_eq!(ok(spec, "wireTypeName", r#"{"driverTypeName":"CHARACTER VARYING"}"#), r#""VARCHAR""#);
+        assert_eq!(
+            ok(spec, "fromEngineText", r#"{"statement":"select 1"}"#),
+            r#""select 1""#
+        );
+        assert_eq!(
+            ok(spec, "raw", r#"{"statement":"select 1","writtenFor":"H2"}"#),
+            r#""select 1""#
+        );
+        assert_eq!(
+            ok(spec, "wireTypeName", r#"{"driverTypeName":"CHARACTER VARYING"}"#),
+            r#""VARCHAR""#
+        );
         assert_eq!(ok(spec, "typingWireName", r#"{"driverTypeName":null}"#), r#""""#);
-        assert_eq!(ok(spec, "deliversOwn", r#"{"label":{"_type":"scalar","name":"BIGINT"},"wire":"BIGINT"}"#), "false");
+        assert_eq!(
+            ok(
+                spec,
+                "deliversOwn",
+                r#"{"label":{"_type":"scalar","name":"BIGINT"},"wire":"BIGINT"}"#
+            ),
+            "false"
+        );
         assert_eq!(ok(spec, "script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-        assert_eq!(ok(spec, "failingStatement", r#"{"message":"SQL statement: a","statements":["a"]}"#), "null");
+        assert_eq!(
+            ok(
+                spec,
+                "failingStatement",
+                r#"{"message":"SQL statement: a","statements":["a"]}"#
+            ),
+            "null"
+        );
         // the catalog and the host: the interface's refusals, naming the dialect by its own simple name
         let r = refused(spec, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
         assert_eq!(
             (r.class, r.message),
-            (Refusal::UNSUPPORTED_OPERATION, format!("the platform asks no catalog question of {name}"))
+            (
+                Refusal::UNSUPPORTED_OPERATION,
+                format!("the platform asks no catalog question of {name}")
+            )
         );
         let column = r#"{"column":{"name":"c","dataType":"INTEGER","notNull":true}}"#;
         assert_eq!(
@@ -200,7 +260,10 @@ fn names_raw_text_and_the_interfaces_defaults() {
         );
         assert_eq!(ok(spec, "copySelectList", r#"{"conversions":[]}"#), r#""*""#);
         let r = refused(spec, "copySelectList", r#"{"conversions":[{"column":"a","sql":"b"}]}"#);
-        assert_eq!(r.message, format!("a copy that converts columns in its star select is not implemented for {name}"));
+        assert_eq!(
+            r.message,
+            format!("a copy that converts columns in its star select is not implemented for {name}")
+        );
         for op in ["host.openDatabase", "host.useDatabase", "host.closeDatabase"] {
             let r = refused(spec, op, r#"{"name":"p1"}"#);
             assert_eq!(
@@ -223,7 +286,10 @@ fn names_raw_text_and_the_interfaces_defaults() {
             let r = refused(spec, op, r#"{"type":{"_type":"plain","kind":"OTHER"}}"#);
             assert_eq!(
                 (r.class, r.message),
-                (Refusal::ILLEGAL_ARGUMENT, format!("'{op}' is DuckDb's op, not {name}'s"))
+                (
+                    Refusal::ILLEGAL_ARGUMENT,
+                    format!("'{op}' is DuckDb's op, not {name}'s")
+                )
             );
         }
         // the process's scan-order firings, every dialect's: a count
@@ -258,27 +324,48 @@ fn the_engine_text_ops_answer_as_engine_text_dialect_does() {
         refused(H2_TEXT, "engine.collectionSplice", &wrap("param", &raw)),
         Refusal::illegal_state("RAW plan params are bare splices, never collections")
     );
-    let r = refused(H2_TEXT, "engine.collectionSplice", r#"{"param":{"_type":"nullLit","type":{"_type":"bottom"}}}"#);
+    let r = refused(
+        H2_TEXT,
+        "engine.collectionSplice",
+        r#"{"param":{"_type":"nullLit","type":{"_type":"bottom"}}}"#,
+    );
     assert_eq!(
         (r.class, r.message.as_str()),
-        (Refusal::ILLEGAL_ARGUMENT, "engine.collectionSplice's param is a planParam, not nullLit")
+        (
+            Refusal::ILLEGAL_ARGUMENT,
+            "engine.collectionSplice's param is a planParam, not nullLit"
+        )
     );
     // renderedAlias: the alias itself on a dialect that rendered nothing; after a render, that render's plan
     assert_eq!(ok(H2_TEXT, "engine.renderedAlias", r#"{"alias":"t1"}"#), r#""t1""#);
-    assert_eq!(ok(H2_TEXT, "engine.renderedAlias", r#"{"alias":"t1","rendered":null}"#), r#""t1""#);
+    assert_eq!(
+        ok(H2_TEXT, "engine.renderedAlias", r#"{"alias":"t1","rendered":null}"#),
+        r#""t1""#
+    );
     let after = |alias: &str| format!(r#"{{"alias":"{alias}","rendered":{SELF_JOIN}}}"#);
     assert_eq!(ok(H2_TEXT, "engine.renderedAlias", &after("t0")), r#""root""#);
     assert_eq!(ok(DB2_TEXT, "engine.renderedAlias", &after("t1")), r#""persontable_1""#);
     assert_eq!(ok(H2_TEXT, "engine.renderedAlias", &after("t7")), r#""t7""#);
-    assert_eq!(refused(H2_TEXT, "engine.renderedAlias", r#"{"rendered":null}"#).message, "missing field 'alias'");
+    assert_eq!(
+        refused(H2_TEXT, "engine.renderedAlias", r#"{"rendered":null}"#).message,
+        "missing field 'alias'"
+    );
     // inTempTableSelect: the table's own lowercase alias
     assert_eq!(
-        ok(DB2_TEXT, "engine.inTempTableSelect", r#"{"table":"SESSION.tempTableForIn_x"}"#),
+        ok(
+            DB2_TEXT,
+            "engine.inTempTableSelect",
+            r#"{"table":"SESSION.tempTableForIn_x"}"#
+        ),
         r#""select \"session.temptableforin_x_0\".ColumnForStoringInCollection as ColumnForStoringInCollection from SESSION.tempTableForIn_x as \"session.temptableforin_x_0\"""#
     );
     // every other dialect refuses the engine ops by name
     for name in ["DuckDb", "H2", "H2Modern"] {
-        let r = refused(&format!(r#"{{"dialect":"{name}"}}"#), "engine.inTempTableSelect", r#"{"table":"t"}"#);
+        let r = refused(
+            &format!(r#"{{"dialect":"{name}"}}"#),
+            "engine.inTempTableSelect",
+            r#"{"table":"t"}"#,
+        );
         assert_eq!(
             (r.class, r.message),
             (

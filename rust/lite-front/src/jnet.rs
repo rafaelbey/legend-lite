@@ -100,7 +100,11 @@ impl Parser<'_> {
     }
 
     fn scan_char(&self, start: usize, end: usize, c: char) -> usize {
-        if start < end && self.ch(start) == c as u16 { start + 1 } else { start }
+        if start < end && self.ch(start) == c as u16 {
+            start + 1
+        } else {
+            start
+        }
     }
 
     /// `scan(start, end, err, stop)`: -1 at a char of `err`, else the first char of `stop` or the end.
@@ -345,7 +349,11 @@ impl Parser<'_> {
         // byte '.' byte '.' byte '.' byte, the whole run
         'address: {
             for i in 0..7 {
-                let q = if i % 2 == 0 { self.scan_byte(p, m)? } else { self.scan_char(p, m, '.') };
+                let q = if i % 2 == 0 {
+                    self.scan_byte(p, m)?
+                } else {
+                    self.scan_char(p, m, '.')
+                };
                 if q <= p {
                     break 'address;
                 }
@@ -524,7 +532,12 @@ fn parse_int(digits: &[u16]) -> Option<i32> {
 
 /// Whether `new java.net.URI(text)` parses (else it throws `URISyntaxException`).
 pub fn uri_parses(text: &[u16]) -> bool {
-    Parser { input: text, ipv6_byte_count: 0 }.parse().is_ok()
+    Parser {
+        input: text,
+        ipv6_byte_count: 0,
+    }
+    .parse()
+    .is_ok()
 }
 
 #[cfg(test)]

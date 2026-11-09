@@ -32,7 +32,15 @@ use TokenType as T;
 /// The engine's own enum names (`DataSpaceRegion`, `DataSpaceDeliveryFrequency`), in order: a value is validated as
 /// written, the list printed as Java's `List.toString` prints it.
 const REGIONS: &[&str] = &["APAC", "EMEA", "LAMR", "NAMR"];
-const FREQUENCIES: &[&str] = &["INTRADAY", "DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY", "ON_DEMAND"];
+const FREQUENCIES: &[&str] = &[
+    "INTRADAY",
+    "DAILY",
+    "WEEKLY",
+    "MONTHLY",
+    "QUARTERLY",
+    "YEARLY",
+    "ON_DEMAND",
+];
 
 fn listed(list: &[&str], v: &[u16]) -> bool {
     list.iter().any(|s| eq(v, s))
@@ -222,7 +230,12 @@ fn parse_operational_metadata<'s>(c: &mut impl Cursor<'s>, key_start: usize) -> 
                 return Err(throw_at(
                     c.tokens(),
                     v_tok,
-                    jcat!("Unknown update frequency '", f, "'. Valid values: ", list_text(FREQUENCIES)),
+                    jcat!(
+                        "Unknown update frequency '",
+                        f,
+                        "'. Valid values: ",
+                        list_text(FREQUENCIES)
+                    ),
                 ));
             }
             frequency = Some(JStr(f));
@@ -288,21 +301,25 @@ fn parse_support_info<'s>(c: &mut impl Cursor<'s>) -> R<PDataSpaceSupport> {
         let Some(address) = address else {
             return Err(throw_at(c.tokens(), start, JStr::from("Field 'address' is required")));
         };
-        return Ok(PDataSpaceSupport::PDataSpaceSupportPSupportEmail(Box::new(PDataSpaceSupportPSupportEmail {
-            address,
-            documentation_url,
-            source_information: span,
-        })));
+        return Ok(PDataSpaceSupport::PDataSpaceSupportPSupportEmail(Box::new(
+            PDataSpaceSupportPSupportEmail {
+                address,
+                documentation_url,
+                source_information: span,
+            },
+        )));
     }
     if eq(&kind, "Combined") {
-        return Ok(PDataSpaceSupport::PDataSpaceSupportPSupportCombined(Box::new(PDataSpaceSupportPSupportCombined {
-            documentation_url,
-            website,
-            faq_url,
-            support_url,
-            emails,
-            source_information: span,
-        })));
+        return Ok(PDataSpaceSupport::PDataSpaceSupportPSupportCombined(Box::new(
+            PDataSpaceSupportPSupportCombined {
+                documentation_url,
+                website,
+                faq_url,
+                support_url,
+                emails,
+                source_information: span,
+            },
+        )));
     }
     Err(c.error(jcat!("unknown supportInfo kind '", kind, "'")))
 }
@@ -357,15 +374,17 @@ fn parse_support_full<'s>(c: &mut impl Cursor<'s>) -> R<PDataSpaceSupport> {
         c.expect(T::SEMI_COLON)?;
     }
     c.expect(T::BRACE_CLOSE)?;
-    Ok(PDataSpaceSupport::PDataSpaceSupportPSupportFull(Box::new(PDataSpaceSupportPSupportFull {
-        documentation,
-        website,
-        faq_url,
-        support_url,
-        emails,
-        expertise,
-        source_information: c.span(start, c.pos() - 1),
-    })))
+    Ok(PDataSpaceSupport::PDataSpaceSupportPSupportFull(Box::new(
+        PDataSpaceSupportPSupportFull {
+            documentation,
+            website,
+            faq_url,
+            support_url,
+            emails,
+            expertise,
+            source_information: c.span(start, c.pos() - 1),
+        },
+    )))
 }
 
 /// `parseLink`: `{ label: '..'; url: '..'; }`, the url required.
@@ -392,7 +411,11 @@ fn parse_link<'s>(c: &mut impl Cursor<'s>) -> R<PDataSpaceLink> {
     let Some(url) = url else {
         return Err(throw_at(c.tokens(), start, JStr::from("Field 'url' is required")));
     };
-    Ok(PDataSpaceLink { label, url, source_information: c.span(start, c.pos() - 1) })
+    Ok(PDataSpaceLink {
+        label,
+        url,
+        source_information: c.span(start, c.pos() - 1),
+    })
 }
 
 /// `parseEmail`: `{ title: '..'; address: '..'; }`, both required.
@@ -422,7 +445,11 @@ fn parse_email<'s>(c: &mut impl Cursor<'s>) -> R<PDataSpaceEmail> {
     let Some(address) = address else {
         return Err(throw_at(c.tokens(), start, JStr::from("Field 'address' is required")));
     };
-    Ok(PDataSpaceEmail { title, address, source_information: c.span(start, c.pos() - 1) })
+    Ok(PDataSpaceEmail {
+        title,
+        address,
+        source_information: c.span(start, c.pos() - 1),
+    })
 }
 
 /// `parseExpertise`: `{ description: '..'; expertIds: ['..', '..']; }`, both optional.
@@ -455,7 +482,11 @@ fn parse_expertise<'s>(c: &mut impl Cursor<'s>) -> R<PDataSpaceExpertise> {
         c.expect(T::SEMI_COLON)?;
     }
     c.expect(T::BRACE_CLOSE)?;
-    Ok(PDataSpaceExpertise { description, expert_ids, source_information: c.span(start, c.pos() - 1) })
+    Ok(PDataSpaceExpertise {
+        description,
+        expert_ids,
+        source_information: c.span(start, c.pos() - 1),
+    })
 }
 
 /// `parseContexts`: `[ { name; title?; description?; mapping | mappingProvider; defaultRuntime?; testData?; }, ... ];`
@@ -678,7 +709,11 @@ fn parse_diagrams<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDataSpaceDiagr
         }
         c.expect(T::BRACE_CLOSE)?;
         let (Some(title), Some(diagram)) = (title, diagram) else {
-            return Err(throw_at(c.tokens(), entry_start, JStr::from("a diagram entry needs title and diagram")));
+            return Err(throw_at(
+                c.tokens(),
+                entry_start,
+                JStr::from("a diagram entry needs title and diagram"),
+            ));
         };
         out.push(Box::new(PDataSpaceDiagram {
             title,
@@ -740,12 +775,19 @@ pub fn parse_standalone_relation_at<'s>(host: &mut impl Cursor<'s>) -> R<PRelati
         let island = p.read_island()?;
         let mut rels = p.parse_relation_elements(&island, false)?;
         if rels.len() != 1 {
-            return Err(throw_at(host.tokens(), kind_tok, JStr::from("sampleValues must be ONE relation element")));
+            return Err(throw_at(
+                host.tokens(),
+                kind_tok,
+                JStr::from("sampleValues must be ONE relation element"),
+            ));
         }
         (rels.remove(0), brace_tok, p.pos)
     };
     host.set_pos(end);
-    let es = re.source_information.as_deref().expect("a parsed node always carries its span");
+    let es = re
+        .source_information
+        .as_deref()
+        .expect("a parsed node always carries its span");
     let ts = host.tokens();
     let source_information = Some(Box::new(SourceInfo {
         source_id: JStr::default(),
@@ -754,7 +796,12 @@ pub fn parse_standalone_relation_at<'s>(host: &mut impl Cursor<'s>) -> R<PRelati
         end_line: es.end_line - 1,
         end_column: es.end_column,
     }));
-    Ok(PRelationElement { columns: re.columns, paths: re.paths, rows: re.rows, source_information })
+    Ok(PRelationElement {
+        columns: re.columns,
+        paths: re.paths,
+        rows: re.rows,
+        source_information,
+    })
 }
 
 #[cfg(test)]
@@ -779,9 +826,23 @@ mod tests {
             "###DataSpace\nDataSpace d::D\n{\n  featuredDiagrams: [ x::F ];\n  diagrams: [ { title: 't'; diagram: x::D; } ];\n  \
              executables: [ { id: 'a' b 3; title: 't'; query: |1; } ];\n}\n",
         );
-        assert_eq!(d.executables.expect("executables")[0].id.as_ref().expect("an id").lossy(), "'a'b3");
+        assert_eq!(
+            d.executables.expect("executables")[0]
+                .id
+                .as_ref()
+                .expect("an id")
+                .lossy(),
+            "'a'b3"
+        );
         let diagrams = d.diagrams.expect("diagrams");
-        assert_eq!((diagrams[0].diagram.lossy().as_str(), diagrams[1].title.lossy().as_str()), ("x::D", ""));
-        assert_eq!(d.execution_contexts.map(|c| c.len()), Some(0), "an unspelled list is an empty one");
+        assert_eq!(
+            (diagrams[0].diagram.lossy().as_str(), diagrams[1].title.lossy().as_str()),
+            ("x::D", "")
+        );
+        assert_eq!(
+            d.execution_contexts.map(|c| c.len()),
+            Some(0),
+            "an unspelled list is an empty one"
+        );
     }
 }

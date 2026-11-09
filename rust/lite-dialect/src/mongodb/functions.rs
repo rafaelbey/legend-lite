@@ -19,7 +19,15 @@ use super::Pc;
 use super::aggregates::{array_reduction, non_null};
 
 /// The day names `$dayOfWeek` numbers from Sunday.
-const DAY_NAMES: &[&str] = &["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAY_NAMES: &[&str] = &[
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+];
 /// The month names `$month` numbers from January.
 const MONTH_NAMES: &[&str] = &[
     "January",
@@ -90,7 +98,9 @@ pub fn call(
         }
         SqlFn::Abs => op1(d, w, "$abs", arg(a, 0)?),
         SqlFn::IntDivide => {
-            w.append("{\"$toLong\": {\"$trunc\": [{\"$divide\": [").expr(d, arg(a, 0)?, 0)?.append(", ");
+            w.append("{\"$toLong\": {\"$trunc\": [{\"$divide\": [")
+                .expr(d, arg(a, 0)?, 0)?
+                .append(", ");
             w.expr(d, arg(a, 1)?, 0)?.append("]}, 0]}}");
             Ok(())
         }
@@ -136,7 +146,12 @@ pub fn call(
         SqlFn::Ln => op1(d, w, "$ln", arg(a, 0)?),
         SqlFn::Log10 => op1(d, w, "$log10", arg(a, 0)?),
         // a power is a Float, as Pure's pow is
-        SqlFn::Pow => guarded(d, w, a, &text(["{\"$pow\": [{\"$toDouble\": ", G0, "}, ", G1, "]}"].concat())),
+        SqlFn::Pow => guarded(
+            d,
+            w,
+            a,
+            &text(["{\"$pow\": [{\"$toDouble\": ", G0, "}, ", G1, "]}"].concat()),
+        ),
         SqlFn::Pi => {
             w.append("{\"$numberDouble\": \"3.141592653589793\"}");
             Ok(())
@@ -152,7 +167,9 @@ pub fn call(
         SqlFn::Cosh => op1(d, w, "$cosh", arg(a, 0)?),
         SqlFn::Tanh => op1(d, w, "$tanh", arg(a, 0)?),
         SqlFn::Cot => {
-            w.append("{\"$divide\": [1, {\"$tan\": ").expr(d, arg(a, 0)?, 0)?.append("}]}");
+            w.append("{\"$divide\": [1, {\"$tan\": ")
+                .expr(d, arg(a, 0)?, 0)?
+                .append("}]}");
             Ok(())
         }
         SqlFn::Radians => op1(d, w, "$degreesToRadians", arg(a, 0)?),
@@ -167,8 +184,15 @@ pub fn call(
             w,
             a,
             &text(
-                ["{\"$cond\": [{\"$gt\": [", G0, ", 0]}, 1, {\"$cond\":", " [{\"$lt\": [", G0, ", 0]}, -1, 0]}]}"]
-                    .concat(),
+                [
+                    "{\"$cond\": [{\"$gt\": [",
+                    G0,
+                    ", 0]}, 1, {\"$cond\":",
+                    " [{\"$lt\": [",
+                    G0,
+                    ", 0]}, -1, 0]}]}",
+                ]
+                .concat(),
             ),
         ),
         SqlFn::Greatest => op(d, w, "$max", a),
@@ -183,10 +207,18 @@ pub fn call(
         SqlFn::Upper => guarded_op(d, w, "$toUpper", a),
         SqlFn::Lower => guarded_op(d, w, "$toLower", a),
         SqlFn::Substring => substring(d, w, a),
-        SqlFn::Strpos => guarded(d, w, a, &text(["{\"$add\": [{\"$indexOfCP\": [", G0, ", ", G1, "]}, 1]}"].concat())),
-        SqlFn::StartsWith => {
-            guarded(d, w, a, &text(["{\"$eq\": [{\"$indexOfCP\": [", G0, ", ", G1, "]}, 0]}"].concat()))
-        }
+        SqlFn::Strpos => guarded(
+            d,
+            w,
+            a,
+            &text(["{\"$add\": [{\"$indexOfCP\": [", G0, ", ", G1, "]}, 1]}"].concat()),
+        ),
+        SqlFn::StartsWith => guarded(
+            d,
+            w,
+            a,
+            &text(["{\"$eq\": [{\"$indexOfCP\": [", G0, ", ", G1, "]}, 0]}"].concat()),
+        ),
         SqlFn::EndsWith => ends_with(d, w, a),
         SqlFn::Matches => regex_match(d, w, a, false),
         SqlFn::RegexpFullMatch => regex_match(d, w, a, true),
@@ -218,14 +250,21 @@ pub fn call(
         SqlFn::Ltrim => trim(d, w, "$ltrim", a),
         SqlFn::Rtrim => trim(d, w, "$rtrim", a),
         SqlFn::Replace => {
-            w.append("{\"$replaceAll\": {\"input\": ").expr(d, arg(a, 0)?, 0)?.append(", \"find\": ");
-            w.expr(d, arg(a, 1)?, 0)?.append(", \"replacement\": ").expr(d, arg(a, 2)?, 0)?.append("}}");
+            w.append("{\"$replaceAll\": {\"input\": ")
+                .expr(d, arg(a, 0)?, 0)?
+                .append(", \"find\": ");
+            w.expr(d, arg(a, 1)?, 0)?
+                .append(", \"replacement\": ")
+                .expr(d, arg(a, 2)?, 0)?
+                .append("}}");
             Ok(())
         }
         SqlFn::Split => op(d, w, "$split", a),
         SqlFn::SplitPart => split_part(d, w, a, false),
         SqlFn::PureSplitPart => d.split_part_call(w, a),
-        SqlFn::Translate => Err(Refusal::capability("translate reached MongoDb, which has no character-map operator")),
+        SqlFn::Translate => Err(Refusal::capability(
+            "translate reached MongoDb, which has no character-map operator",
+        )),
         SqlFn::ReverseString => guarded(
             d,
             w,
@@ -367,10 +406,12 @@ pub fn call(
             Ok(())
         }
         SqlFn::Format => texts::format(d, w, a),
-        SqlFn::Md5 | SqlFn::Sha1 | SqlFn::Sha256 => {
-            Err(Refusal::capability(format!("{f} reached MongoDb, which has no digest operator")))
-        }
-        SqlFn::CurrentUserFn => Err(Refusal::capability("currentUserId reached MongoDb, whose pipeline names no user")),
+        SqlFn::Md5 | SqlFn::Sha1 | SqlFn::Sha256 => Err(Refusal::capability(format!(
+            "{f} reached MongoDb, which has no digest operator"
+        ))),
+        SqlFn::CurrentUserFn => Err(Refusal::capability(
+            "currentUserId reached MongoDb, whose pipeline names no user",
+        )),
         // ---- dates
         SqlFn::Extract => extract(d, w, a),
         SqlFn::Today => {
@@ -391,19 +432,23 @@ pub fn call(
         SqlFn::DateDiff => date_diff(d, w, a),
         SqlFn::TimeBucket => time_bucket(d, w, a),
         SqlFn::Timezone => timezone(d, w, a),
-        SqlFn::DateAtTime => {
-            Err(Refusal::capability("a date at a time of day reached MongoDb, which has no time type"))
-        }
-        SqlFn::EpochNs | SqlFn::FromEpochNs => {
-            Err(Refusal::capability(format!("{f} reached MongoDb, whose date holds milliseconds")))
-        }
+        SqlFn::DateAtTime => Err(Refusal::capability(
+            "a date at a time of day reached MongoDb, which has no time type",
+        )),
+        SqlFn::EpochNs | SqlFn::FromEpochNs => Err(Refusal::capability(format!(
+            "{f} reached MongoDb, whose date holds milliseconds"
+        ))),
         SqlFn::EpochSeconds => {
-            w.append("{\"$divide\": [{\"$toLong\": ").expr(d, arg(a, 0)?, 0)?.append("}, 1000]}");
+            w.append("{\"$divide\": [{\"$toLong\": ")
+                .expr(d, arg(a, 0)?, 0)?
+                .append("}, 1000]}");
             Ok(())
         }
         SqlFn::EpochMs => op1(d, w, "$toLong", arg(a, 0)?),
         SqlFn::FromEpochSeconds => {
-            w.append("{\"$toDate\": {\"$multiply\": [").expr(d, arg(a, 0)?, 0)?.append(", 1000]}}");
+            w.append("{\"$toDate\": {\"$multiply\": [")
+                .expr(d, arg(a, 0)?, 0)?
+                .append(", 1000]}}");
             Ok(())
         }
         SqlFn::FromEpochMs => op1(d, w, "$toDate", arg(a, 0)?),
@@ -411,12 +456,16 @@ pub fn call(
         SqlFn::Monthname => calendar_name(d, w, a, MONTH_NAMES, "$month"),
         SqlFn::Strftime => texts::strftime(d, w, a),
         SqlFn::Strptime => {
-            w.append("{\"$dateFromString\": {\"dateString\": ").expr(d, arg(a, 0)?, 0)?.append(", \"format\": ");
+            w.append("{\"$dateFromString\": {\"dateString\": ")
+                .expr(d, arg(a, 0)?, 0)?
+                .append(", \"format\": ");
             w.expr(d, arg(a, 1)?, 0)?.append("}}");
             Ok(())
         }
         SqlFn::ParseDate => {
-            w.append("{\"$dateFromString\": {\"dateString\": ").expr(d, arg(a, 0)?, 0)?.append("}}");
+            w.append("{\"$dateFromString\": {\"dateString\": ")
+                .expr(d, arg(a, 0)?, 0)?
+                .append("}}");
             Ok(())
         }
         // ---- lists (BSON arrays)
@@ -425,12 +474,16 @@ pub fn call(
         SqlFn::ListConcat => list_concat(d, w, a),
         // an element past the end is null, where $arrayElemAt answers nothing
         SqlFn::ListGet => {
-            w.append("{\"$ifNull\": [{\"$arrayElemAt\": [").expr(d, arg(a, 0)?, 0)?.append(", {\"$subtract\": [");
+            w.append("{\"$ifNull\": [{\"$arrayElemAt\": [")
+                .expr(d, arg(a, 0)?, 0)?
+                .append(", {\"$subtract\": [");
             w.expr(d, arg(a, 1)?, 0)?.append(", 1]}]}, null]}");
             Ok(())
         }
         SqlFn::ListPosition => {
-            w.append("{\"$let\": {\"vars\": {\"i\": {\"$indexOfArray\": [").expr(d, arg(a, 0)?, 0)?.append(", ");
+            w.append("{\"$let\": {\"vars\": {\"i\": {\"$indexOfArray\": [")
+                .expr(d, arg(a, 0)?, 0)?
+                .append(", ");
             w.expr(d, arg(a, 1)?, 0)?;
             w.append("]}}, \"in\": {\"$cond\": [{\"$lt\": [\"$$i\", 0]}, null, {\"$add\": [\"$$i\", 1]}]}}}");
             Ok(())
@@ -440,7 +493,16 @@ pub fn call(
         SqlFn::ListLength | SqlFn::JsonArrayLength => guarded_op(d, w, "$size", a),
         SqlFn::ListFlatten => {
             w.append("{\"$reduce\": {\"input\": ").expr(d, arg(a, 0)?, 0)?;
-            w.append(&[", \"initialValue\": [], \"in\": {\"$concatArrays\": [", VALUE, ", ", THIS, "]}}}"].concat());
+            w.append(
+                &[
+                    ", \"initialValue\": [], \"in\": {\"$concatArrays\": [",
+                    VALUE,
+                    ", ",
+                    THIS,
+                    "]}}}",
+                ]
+                .concat(),
+            );
             Ok(())
         }
         SqlFn::AllDistinct => d.all_distinct(w, a),
@@ -470,12 +532,15 @@ pub fn call(
         SqlFn::StructInsert => d.struct_insert(w, a),
         // ---- maps (documents)
         SqlFn::MapFromLists => {
-            w.append("{\"$arrayToObject\": {\"$zip\": {\"inputs\": [").list(d, a)?.append("]}}}");
+            w.append("{\"$arrayToObject\": {\"$zip\": {\"inputs\": [")
+                .list(d, a)?
+                .append("]}}}");
             Ok(())
         }
         // the entries' pairs (first, second) as the document's fields (k, v); no entry, an empty document
         SqlFn::MapFromEntries => {
-            w.append("{\"$arrayToObject\": {\"$map\": {\"input\": {\"$ifNull\": [").expr(d, arg(a, 0)?, 0)?;
+            w.append("{\"$arrayToObject\": {\"$map\": {\"input\": {\"$ifNull\": [")
+                .expr(d, arg(a, 0)?, 0)?;
             w.append(", []]}, \"in\": {\"k\": \"$$this.first\", \"v\": \"$$this.second\"}}}}");
             Ok(())
         }
@@ -498,9 +563,9 @@ pub fn call(
             w.append("]}}, \"cond\": {\"$ne\": [\"$$this.v\", null]}}}}");
             Ok(())
         }
-        SqlFn::JsonPretty => {
-            Err(Refusal::capability("a pretty-printed JSON text reached MongoDb, which has no JSON text operator"))
-        }
+        SqlFn::JsonPretty => Err(Refusal::capability(
+            "a pretty-printed JSON text reached MongoDb, which has no JSON text operator",
+        )),
         SqlFn::BoolToText => op1(d, w, "$toString", arg(a, 0)?),
         SqlFn::FloatCanon => ansi::float_canon_by_text(d, w, a, parent_prec),
         SqlFn::FloatPrint => ansi::float_print_by_text(d, w, a, parent_prec),
@@ -514,7 +579,9 @@ pub fn call(
 /// `((a mod b) + b) mod b`: the always-positive modulus.
 fn floored_mod(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
     let b = unfolded(arg(a, 1)?);
-    w.append("{\"$mod\": [{\"$add\": [{\"$mod\": [").expr(d, arg(a, 0)?, 0)?.append(", ");
+    w.append("{\"$mod\": [{\"$add\": [{\"$mod\": [")
+        .expr(d, arg(a, 0)?, 0)?
+        .append(", ");
     b(d, w)?;
     w.append("]}, ");
     b(d, w)?;
@@ -527,9 +594,14 @@ fn floored_mod(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refu
 /// A literal operand of an operator that raises on its value read through the row ([`UNFOLDED`], its length 0
 /// added), so the server's optimizer cannot fold it; any other operand as it is.
 pub(crate) fn unfolded(x: &SqlExpr) -> Pc<'_> {
-    if matches!(x, SqlExpr::IntLit { .. } | SqlExpr::FloatLit { .. } | SqlExpr::DecimalLit { .. }) {
+    if matches!(
+        x,
+        SqlExpr::IntLit { .. } | SqlExpr::FloatLit { .. } | SqlExpr::DecimalLit { .. }
+    ) {
         return pc(move |d, w| {
-            w.append("{\"$add\": [").expr(d, x, 0)?.append(&[", {\"$strLenCP\": ", UNFOLDED, "}]}"].concat());
+            w.append("{\"$add\": [")
+                .expr(d, x, 0)?
+                .append(&[", {\"$strLenCP\": ", UNFOLDED, "}]}"].concat());
             Ok(())
         });
     }
@@ -538,7 +610,9 @@ pub(crate) fn unfolded(x: &SqlExpr) -> Pc<'_> {
 
 /// Whether `x` is null or missing, by its type: `$eq` compares a missing value unequal to null, and `x` is read once.
 fn null_test(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr], is_null: bool) -> Result<(), Refusal> {
-    w.append(if is_null { "" } else { "{\"$not\": [" }).append("{\"$in\": [{\"$type\": ").expr(d, arg(a, 0)?, 0)?;
+    w.append(if is_null { "" } else { "{\"$not\": [" })
+        .append("{\"$in\": [{\"$type\": ")
+        .expr(d, arg(a, 0)?, 0)?;
     w.append("}, [\"missing\", \"null\"]]}");
     w.append(if is_null { "" } else { "]}" });
     Ok(())
@@ -549,7 +623,9 @@ fn in_list(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal>
     let rest = tail(a, 1)?;
     let needle = arg(a, 0)?;
     let body = pc(move |d, x| {
-        x.append(&["{\"$in\": [", G0, ", ["].concat()).list(d, rest)?.append("]]}");
+        x.append(&["{\"$in\": [", G0, ", ["].concat())
+            .list(d, rest)?
+            .append("]]}");
         Ok(())
     });
     guarded(d, w, std::slice::from_ref(needle), &body)
@@ -575,7 +651,11 @@ fn domain_guarded(d: &MongoDb, w: &mut SqlWriter, op: &str, a: &[SqlExpr]) -> Re
 
 /// `ceil`/`floor` as an integer.
 fn long_of(d: &MongoDb, w: &mut SqlWriter, op: &str, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("{\"$toLong\": {\"").append(op).append("\": ").expr(d, arg(a, 0)?, 0)?.append("}}");
+    w.append("{\"$toLong\": {\"")
+        .append(op)
+        .append("\": ")
+        .expr(d, arg(a, 0)?, 0)?
+        .append("}}");
     Ok(())
 }
 
@@ -598,7 +678,9 @@ fn scale_or_zero(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Re
 
 /// Half away from zero at a scale: `trunc(x * 10^s + sign(x) / 2) / 10^s`.
 fn round_half_up(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("{\"$let\": {\"vars\": {\"x\": ").expr(d, arg(a, 0)?, 0)?.append(", \"f\": {\"$pow\": [10, ");
+    w.append("{\"$let\": {\"vars\": {\"x\": ")
+        .expr(d, arg(a, 0)?, 0)?
+        .append(", \"f\": {\"$pow\": [10, ");
     scale_or_zero(d, w, a)?;
     w.append(concat!(
         "]}}, \"in\": {\"$divide\": [{\"$trunc\": [{\"$add\": [{\"$multiply\": [\"$$x\",",
@@ -680,7 +762,10 @@ fn list_slice(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refus
 fn list_concat(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
     w.append("{\"$concatArrays\": [");
     for (i, x) in a.iter().enumerate() {
-        w.append(if i > 0 { ", " } else { "" }).append("{\"$ifNull\": [").expr(d, x, 0)?.append(", []]}");
+        w.append(if i > 0 { ", " } else { "" })
+            .append("{\"$ifNull\": [")
+            .expr(d, x, 0)?
+            .append(", []]}");
     }
     w.append("]}");
     Ok(())
@@ -708,7 +793,12 @@ fn length(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> 
     } else {
         ["{\"$strLenCP\": {\"$toString\": ", G0, "}}"].concat()
     };
-    guarded(d, w, a, &text(["{\"$cond\": [{\"$eq\": [", G0, ", null]}, null, ", &len, "]}"].concat()))
+    guarded(
+        d,
+        w,
+        a,
+        &text(["{\"$cond\": [{\"$eq\": [", G0, ", null]}, null, ", &len, "]}"].concat()),
+    )
 }
 
 /// `timeBucket(unit, quantity, date)`: the engine's bucket by arithmetic, from the origin 1970-01-01 (a week's
@@ -737,9 +827,10 @@ fn time_bucket(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refu
     // a literal finer than a millisecond is bucketed at the millisecond
     let a2 = arg(a, 2)?;
     let date = match a2 {
-        SqlExpr::TimestampLit { iso, .. } => {
-            SqlExpr::TimestampLit { iso: to_millisecond(iso), r#type: crate::typing::scalar(Scalar::Timestamp) }
-        }
+        SqlExpr::TimestampLit { iso, .. } => SqlExpr::TimestampLit {
+            iso: to_millisecond(iso),
+            r#type: crate::typing::scalar(Scalar::Timestamp),
+        },
         other => other.clone(),
     };
     let args = vec![arg(a, 1)?.clone(), date];
@@ -766,7 +857,11 @@ fn time_bucket(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refu
         DatePart::Year => 12,
         DatePart::Quarter => 3,
         DatePart::Month => 1,
-        other => return Err(Refusal::illegal_state(format!("a time bucket by {other} counts no months"))),
+        other => {
+            return Err(Refusal::illegal_state(format!(
+                "a time bucket by {other} counts no months"
+            )));
+        }
     };
     let body = [
         "{\"$let\": {\"vars\": {\"w\": {\"$multiply\": [",
@@ -814,9 +909,16 @@ fn timezone(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal
         return Ok(());
     }
     let instant = instant_valued(arg(a, 1)?);
-    let parts =
-        ["{\"$dateToParts\": {\"date\": \"$$d\"", if instant { ", \"timezone\": \"$$z\"" } else { "" }, "}}"].concat();
-    w.append("{\"$let\": {\"vars\": {\"d\": ").expr(d, arg(a, 1)?, 0)?.append(", \"z\": ").expr(d, arg(a, 0)?, 0)?;
+    let parts = [
+        "{\"$dateToParts\": {\"date\": \"$$d\"",
+        if instant { ", \"timezone\": \"$$z\"" } else { "" },
+        "}}",
+    ]
+    .concat();
+    w.append("{\"$let\": {\"vars\": {\"d\": ")
+        .expr(d, arg(a, 1)?, 0)?
+        .append(", \"z\": ")
+        .expr(d, arg(a, 0)?, 0)?;
     w.append(
         &[
             "}, \"in\": {\"$let\": {\"vars\": {\"p\": ",
@@ -836,16 +938,35 @@ fn timezone(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal
 /// Whether the value is an instant: typed as a zoned timestamp, cast to one, or a value UTC is pinned on.
 fn instant_valued(e: &SqlExpr) -> bool {
     super::typed_as(e, Scalar::Timestamptz)
-        || matches!(e, SqlExpr::Cast { target: SqlType::Scalar(Scalar::Timestamptz), .. })
+        || matches!(
+            e,
+            SqlExpr::Cast {
+                target: SqlType::Scalar(Scalar::Timestamptz),
+                ..
+            }
+        )
         || matches!(e, SqlExpr::Call { r#fn: SqlFn::Timezone, args, .. }
             if matches!(args.first(), Some(SqlExpr::StringLit { value, .. }) if value == "UTC"))
 }
 
 /// 1-based SQL substring, its start and length clamped at zero as the engine's substring is.
 fn substring(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    let len = if a.len() > 2 { ["{\"$max\": [0, ", G2, "]}"].concat() } else { ["{\"$strLenCP\": ", G0, "}"].concat() };
-    let body =
-        ["{\"$substrCP\": [", G0, ", {\"$max\": [0,", " {\"$subtract\": [", G1, ", 1]}]}, ", &len, "]}"].concat();
+    let len = if a.len() > 2 {
+        ["{\"$max\": [0, ", G2, "]}"].concat()
+    } else {
+        ["{\"$strLenCP\": ", G0, "}"].concat()
+    };
+    let body = [
+        "{\"$substrCP\": [",
+        G0,
+        ", {\"$max\": [0,",
+        " {\"$subtract\": [",
+        G1,
+        ", 1]}]}, ",
+        &len,
+        "]}",
+    ]
+    .concat();
     guarded(d, w, a, &text(body))
 }
 
@@ -868,8 +989,17 @@ fn ends_with(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusa
 
 /// `$regexMatch`; a full match anchors the pattern.
 fn regex_match(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr], full: bool) -> Result<(), Refusal> {
-    let regex = if full { ["{\"$concat\": [\"^(?:\", ", G1, ", \")$\"]}"].concat() } else { G1.to_owned() };
-    guarded(d, w, a, &text(["{\"$regexMatch\": {\"input\": ", G0, ", \"regex\": ", &regex, "}}"].concat()))
+    let regex = if full {
+        ["{\"$concat\": [\"^(?:\", ", G1, ", \")$\"]}"].concat()
+    } else {
+        G1.to_owned()
+    };
+    guarded(
+        d,
+        w,
+        a,
+        &text(["{\"$regexMatch\": {\"input\": ", G0, ", \"regex\": ", &regex, "}}"].concat()),
+    )
 }
 
 /// `regexp_extract(s, pattern[, group])`: the group's capture, the whole match for group 0 or none; the empty string
@@ -1046,7 +1176,10 @@ fn pad(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr], left: bool) -> Result<(), 
 }
 
 fn trim(d: &MongoDb, w: &mut SqlWriter, op: &str, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("{\"").append(op).append("\": {\"input\": ").expr(d, arg(a, 0)?, 0)?;
+    w.append("{\"")
+        .append(op)
+        .append("\": {\"input\": ")
+        .expr(d, arg(a, 0)?, 0)?;
     if a.len() > 1 {
         w.append(", \"chars\": ").expr(d, &a[1], 0)?;
     }
@@ -1057,8 +1190,17 @@ fn trim(d: &MongoDb, w: &mut SqlWriter, op: &str, a: &[SqlExpr]) -> Result<(), R
 /// The n-th (1-based) part of a split; dropping empty parts for Pure's splitPart.
 pub fn split_part(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr], drop_empty: bool) -> Result<(), Refusal> {
     let parts = if drop_empty {
-        ["{\"$filter\": {\"input\": {\"$split\": [", G0, ", ", G1, "]}, \"cond\":", " {\"$ne\": [", THIS, ", \"\"]}}}"]
-            .concat()
+        [
+            "{\"$filter\": {\"input\": {\"$split\": [",
+            G0,
+            ", ",
+            G1,
+            "]}, \"cond\":",
+            " {\"$ne\": [",
+            THIS,
+            ", \"\"]}}}",
+        ]
+        .concat()
     } else {
         ["{\"$split\": [", G0, ", ", G1, "]}"].concat()
     };
@@ -1111,7 +1253,9 @@ fn extract(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal>
     match p {
         DatePart::Year => op1(d, w, "$year", date),
         DatePart::Quarter => {
-            w.append("{\"$toLong\": {\"$ceil\": {\"$divide\": [{\"$month\": ").expr(d, date, 0)?.append("}, 3]}}}");
+            w.append("{\"$toLong\": {\"$ceil\": {\"$divide\": [{\"$month\": ")
+                .expr(d, date, 0)?
+                .append("}, 3]}}}");
             Ok(())
         }
         DatePart::Month => op1(d, w, "$month", date),
@@ -1123,9 +1267,9 @@ fn extract(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal>
         DatePart::Millisecond => op1(d, w, "$millisecond", date),
         DatePart::DayOfYear => op1(d, w, "$dayOfYear", date),
         DatePart::IsoDayOfWeek => op1(d, w, "$isoDayOfWeek", date),
-        DatePart::Microsecond | DatePart::Nanosecond => {
-            Err(Refusal::capability(format!("a {p} reached MongoDb, whose date holds milliseconds")))
-        }
+        DatePart::Microsecond | DatePart::Nanosecond => Err(Refusal::capability(format!(
+            "a {p} reached MongoDb, whose date holds milliseconds"
+        ))),
     }
 }
 
@@ -1142,40 +1286,58 @@ fn unit(p: DatePart) -> Result<&'static str, Refusal> {
         DatePart::Second => "second",
         DatePart::Millisecond => "millisecond",
         DatePart::Microsecond | DatePart::Nanosecond | DatePart::DayOfYear | DatePart::IsoDayOfWeek => {
-            return Err(Refusal::capability(format!("a {p} unit reached MongoDb, which has no such date unit")));
+            return Err(Refusal::capability(format!(
+                "a {p} unit reached MongoDb, which has no such date unit"
+            )));
         }
     })
 }
 
 fn date_trunc(d: &MongoDb, w: &mut SqlWriter, date: &SqlExpr, p: DatePart) -> Result<(), Refusal> {
-    w.append("{\"$dateTrunc\": {\"date\": ").expr(d, date, 0)?.append(", \"unit\": \"");
+    w.append("{\"$dateTrunc\": {\"date\": ")
+        .expr(d, date, 0)?
+        .append(", \"unit\": \"");
     w.append(unit(p)?).append("\", \"startOfWeek\": \"monday\"}}");
     Ok(())
 }
 
 /// `(unit, amount, date)`: `$dateAdd`.
 fn date_add(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("{\"$dateAdd\": {\"startDate\": ").expr(d, arg(a, 2)?, 0)?.append(", \"unit\": \"");
-    w.append(unit(part(arg(a, 0)?)?)?).append("\", \"amount\": {\"$toLong\": ").expr(d, arg(a, 1)?, 0)?;
+    w.append("{\"$dateAdd\": {\"startDate\": ")
+        .expr(d, arg(a, 2)?, 0)?
+        .append(", \"unit\": \"");
+    w.append(unit(part(arg(a, 0)?)?)?)
+        .append("\", \"amount\": {\"$toLong\": ")
+        .expr(d, arg(a, 1)?, 0)?;
     w.append("}}}");
     Ok(())
 }
 
 /// `(unit, start, end)`: `$dateDiff`, the unit boundaries crossed.
 fn date_diff(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("{\"$dateDiff\": {\"startDate\": ").expr(d, arg(a, 1)?, 0)?.append(", \"endDate\": ");
-    w.expr(d, arg(a, 2)?, 0)?.append(", \"unit\": \"").append(unit(part(arg(a, 0)?)?)?);
+    w.append("{\"$dateDiff\": {\"startDate\": ")
+        .expr(d, arg(a, 1)?, 0)?
+        .append(", \"endDate\": ");
+    w.expr(d, arg(a, 2)?, 0)?
+        .append(", \"unit\": \"")
+        .append(unit(part(arg(a, 0)?)?)?);
     w.append("\", \"startOfWeek\": \"monday\"}}");
     Ok(())
 }
 
 /// `(year, month, day[, hour, minute, second])`: `$dateFromParts`, a fractional second split into its milliseconds.
 fn date_from_parts(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("{\"$dateFromParts\": {\"year\": ").expr(d, arg(a, 0)?, 0)?.append(", \"month\": ");
+    w.append("{\"$dateFromParts\": {\"year\": ")
+        .expr(d, arg(a, 0)?, 0)?
+        .append(", \"month\": ");
     w.expr(d, arg(a, 1)?, 0)?.append(", \"day\": ").expr(d, arg(a, 2)?, 0)?;
     if a.len() == 6 {
-        w.append(", \"hour\": ").expr(d, &a[3], 0)?.append(", \"minute\": ").expr(d, &a[4], 0)?;
-        w.append(", \"second\": {\"$toLong\": {\"$floor\": ").expr(d, &a[5], 0)?;
+        w.append(", \"hour\": ")
+            .expr(d, &a[3], 0)?
+            .append(", \"minute\": ")
+            .expr(d, &a[4], 0)?;
+        w.append(", \"second\": {\"$toLong\": {\"$floor\": ")
+            .expr(d, &a[5], 0)?;
         w.append("}}, \"millisecond\": {\"$toLong\": {\"$round\": [{\"$multiply\": [{\"$mod\": [");
         w.expr(d, &a[5], 0)?.append(", 1]}, 1000]}, 0]}}");
     } else if a.len() != 3 {
@@ -1191,7 +1353,11 @@ fn calendar_name(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr], names: &[&str], 
     for (i, n) in names.iter().enumerate() {
         w.append(if i > 0 { ", " } else { "" }).append(&json::string(n));
     }
-    w.append("], {\"$subtract\": [{\"").append(op).append("\": ").expr(d, arg(a, 0)?, 0)?.append("}, 1]}]}");
+    w.append("], {\"$subtract\": [{\"")
+        .append(op)
+        .append("\": ")
+        .expr(d, arg(a, 0)?, 0)?
+        .append("}, 1]}]}");
     Ok(())
 }
 
@@ -1228,7 +1394,10 @@ fn list_filter(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refu
         return Ok(());
     }
     let v = json::variable(param(l, 0)?);
-    w.append("{\"$filter\": {\"input\": ").expr(d, arg(a, 0)?, 0)?.append(", \"as\": ").append(&json::string(&v));
+    w.append("{\"$filter\": {\"input\": ")
+        .expr(d, arg(a, 0)?, 0)?
+        .append(", \"as\": ")
+        .append(&json::string(&v));
     w.append(", \"cond\": ");
     d.with_lambda(w, l, &[v], &of(&l.body))?;
     w.append("}}");
@@ -1248,11 +1417,17 @@ fn indexed(
     let e = json::variable(param(l, 0)?);
     let i = json::variable(param(l, 1)?);
     // a null list stays null, as the SQL engines' list lambdas answer
-    w.append("{\"$let\": {\"vars\": {\"l\": ").expr(d, list, 0)?.append("}, \"in\": {\"$cond\": [{\"$eq\":");
-    w.append(" [\"$$l\", null]}, null, {\"").append(op).append("\": {\"input\": {\"$zip\": {\"inputs\": [\"$$l\",");
-    w.append(" {\"$range\": [1, {\"$add\": [{\"$size\": \"$$l\"}, 1]}]}]}}, \"as\": \"p\", \"").append(body_key);
+    w.append("{\"$let\": {\"vars\": {\"l\": ")
+        .expr(d, list, 0)?
+        .append("}, \"in\": {\"$cond\": [{\"$eq\":");
+    w.append(" [\"$$l\", null]}, null, {\"")
+        .append(op)
+        .append("\": {\"input\": {\"$zip\": {\"inputs\": [\"$$l\",");
+    w.append(" {\"$range\": [1, {\"$add\": [{\"$size\": \"$$l\"}, 1]}]}]}}, \"as\": \"p\", \"")
+        .append(body_key);
     w.append("\": {\"$let\": {\"vars\": {").append(&json::string(&e));
-    w.append(": {\"$arrayElemAt\": [\"$$p\", 0]}, ").append(&json::string(&i));
+    w.append(": {\"$arrayElemAt\": [\"$$p\", 0]}, ")
+        .append(&json::string(&i));
     w.append(": {\"$arrayElemAt\": [\"$$p\", 1]}}, \"in\": ");
     d.with_lambda(w, l, &[e, i], &of(&l.body))?;
     w.append("}}}}]}}}");
@@ -1266,7 +1441,10 @@ fn list_map(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal
         return indexed(d, w, "$map", "in", arg(a, 0)?, l);
     }
     let v = json::variable(param(l, 0)?);
-    w.append("{\"$map\": {\"input\": ").expr(d, arg(a, 0)?, 0)?.append(", \"as\": ").append(&json::string(&v));
+    w.append("{\"$map\": {\"input\": ")
+        .expr(d, arg(a, 0)?, 0)?
+        .append(", \"as\": ")
+        .append(&json::string(&v));
     w.append(", \"in\": ");
     d.with_lambda(w, l, &[v], &of(&l.body))?;
     w.append("}}");
@@ -1277,8 +1455,13 @@ fn list_map(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal
 pub fn quantified(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr], op: &str) -> Result<(), Refusal> {
     let l = lambda_of(arg(a, 1)?)?;
     let v = json::variable(param(l, 0)?);
-    w.append("{\"").append(op).append("\": [{\"$map\": {\"input\": {\"$ifNull\": [").expr(d, arg(a, 0)?, 0)?;
-    w.append(", []]}, \"as\": ").append(&json::string(&v)).append(", \"in\": ");
+    w.append("{\"")
+        .append(op)
+        .append("\": [{\"$map\": {\"input\": {\"$ifNull\": [")
+        .expr(d, arg(a, 0)?, 0)?;
+    w.append(", []]}, \"as\": ")
+        .append(&json::string(&v))
+        .append(", \"in\": ");
     d.with_lambda(w, l, &[v], &of(&l.body))?;
     w.append("}}]}");
     Ok(())
@@ -1296,7 +1479,10 @@ pub fn list_call(d: &MongoDb, w: &mut SqlWriter, f: SqlFn, a: &[SqlExpr]) -> Res
             Ok(())
         }
         SqlFn::ListAppend => {
-            w.append("{\"$concatArrays\": [").expr(d, arg(a, 0)?, 0)?.append(", [").expr(d, arg(a, 1)?, 0)?;
+            w.append("{\"$concatArrays\": [")
+                .expr(d, arg(a, 0)?, 0)?
+                .append(", [")
+                .expr(d, arg(a, 1)?, 0)?;
             w.append("]]}");
             Ok(())
         }
@@ -1307,11 +1493,15 @@ pub fn list_call(d: &MongoDb, w: &mut SqlWriter, f: SqlFn, a: &[SqlExpr]) -> Res
         SqlFn::ListMedian => list_reduced(d, w, a, AggFn::Median),
         SqlFn::ListMode => list_reduced(d, w, a, AggFn::Mode),
         SqlFn::ListSort => {
-            w.append("{\"$sortArray\": {\"input\": ").expr(d, arg(a, 0)?, 0)?.append(", \"sortBy\": 1}}");
+            w.append("{\"$sortArray\": {\"input\": ")
+                .expr(d, arg(a, 0)?, 0)?
+                .append(", \"sortBy\": 1}}");
             Ok(())
         }
         SqlFn::ListSortDesc => {
-            w.append("{\"$sortArray\": {\"input\": ").expr(d, arg(a, 0)?, 0)?.append(", \"sortBy\": -1}}");
+            w.append("{\"$sortArray\": {\"input\": ")
+                .expr(d, arg(a, 0)?, 0)?
+                .append(", \"sortBy\": -1}}");
             Ok(())
         }
         SqlFn::ListTail => {
@@ -1348,7 +1538,11 @@ pub fn list_call(d: &MongoDb, w: &mut SqlWriter, f: SqlFn, a: &[SqlExpr]) -> Res
                 w.append("{\"$range\": [0, ").expr(d, &a[0], 0)?.append("]}");
                 Ok(())
             } else if a.len() == 3 {
-                w.append("{\"$range\": [").expr(d, &a[0], 0)?.append(", ").expr(d, &a[1], 0)?.append(", ");
+                w.append("{\"$range\": [")
+                    .expr(d, &a[0], 0)?
+                    .append(", ")
+                    .expr(d, &a[1], 0)?
+                    .append(", ");
                 unfolded(&a[2])(d, w)?;
                 w.append("]}");
                 Ok(())
@@ -1358,18 +1552,31 @@ pub fn list_call(d: &MongoDb, w: &mut SqlWriter, f: SqlFn, a: &[SqlExpr]) -> Res
         }
         SqlFn::ListProduct => {
             w.append("{\"$reduce\": {\"input\": ").expr(d, arg(a, 0)?, 0)?;
-            w.append(&[", \"initialValue\": 1, \"in\": {\"$multiply\": [", VALUE, ", ", THIS, "]}}}"].concat());
+            w.append(
+                &[
+                    ", \"initialValue\": 1, \"in\": {\"$multiply\": [",
+                    VALUE,
+                    ", ",
+                    THIS,
+                    "]}}}",
+                ]
+                .concat(),
+            );
             Ok(())
         }
         SqlFn::ListReduce => list_reduce(d, w, a),
         SqlFn::ListSlice => list_slice(d, w, a),
         SqlFn::RepeatValue => {
-            w.append("{\"$map\": {\"input\": {\"$range\": [0, ").expr(d, arg(a, 1)?, 0)?.append("]}, \"in\": ");
+            w.append("{\"$map\": {\"input\": {\"$range\": [0, ")
+                .expr(d, arg(a, 1)?, 0)?
+                .append("]}, \"in\": ");
             w.expr(d, arg(a, 0)?, 0)?.append("}}");
             Ok(())
         }
         SqlFn::ListBoolAnd => {
-            w.append("{\"$allElementsTrue\": [").expr(d, arg(a, 0)?, 0)?.append("]}");
+            w.append("{\"$allElementsTrue\": [")
+                .expr(d, arg(a, 0)?, 0)?
+                .append("]}");
             Ok(())
         }
         SqlFn::ListBoolOr => {
@@ -1409,7 +1616,9 @@ fn list_reduce(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refu
     }
     let variables = ["value".to_owned(), "this".to_owned()];
     if a.len() > 2 {
-        w.append("{\"$reduce\": {\"input\": ").expr(d, &a[0], 0)?.append(", \"initialValue\": ");
+        w.append("{\"$reduce\": {\"input\": ")
+            .expr(d, &a[0], 0)?
+            .append(", \"initialValue\": ");
         w.expr(d, &a[2], 0)?.append(", \"in\": ");
         d.with_lambda(w, l, &variables, &of(&l.body))?;
         w.append("}}");
@@ -1429,14 +1638,17 @@ fn list_reduce(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refu
 
 /// The values under a key: a list of one, or none (the map-extract contract).
 fn map_extract(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("{\"$map\": {\"input\": {\"$filter\": {\"input\": {\"$objectToArray\": ").expr(d, arg(a, 0)?, 0)?;
-    w.append("}, \"cond\": {\"$eq\": [\"$$this.k\", ").expr(d, arg(a, 1)?, 0)?;
+    w.append("{\"$map\": {\"input\": {\"$filter\": {\"input\": {\"$objectToArray\": ")
+        .expr(d, arg(a, 0)?, 0)?;
+    w.append("}, \"cond\": {\"$eq\": [\"$$this.k\", ")
+        .expr(d, arg(a, 1)?, 0)?;
     w.append("]}}}, \"in\": \"$$this.v\"}}");
     Ok(())
 }
 
 fn map_side(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr], side: &str) -> Result<(), Refusal> {
-    w.append("{\"$map\": {\"input\": {\"$objectToArray\": ").expr(d, arg(a, 0)?, 0)?;
+    w.append("{\"$map\": {\"input\": {\"$objectToArray\": ")
+        .expr(d, arg(a, 0)?, 0)?;
     w.append("}, \"in\": \"$$this.").append(side).append("\"}}");
     Ok(())
 }
@@ -1452,12 +1664,18 @@ pub fn variant_get(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), 
         return Ok(());
     }
     if let SqlExpr::StringLit { value, .. } = a1 {
-        w.append("{\"$getField\": {\"field\": ").append(&json::key(value)?).append(", \"input\": ");
+        w.append("{\"$getField\": {\"field\": ")
+            .append(&json::key(value)?)
+            .append(", \"input\": ");
         w.expr(d, arg(a, 0)?, 0)?.append("}}");
         return Ok(());
     }
     if matches!(a1, SqlExpr::IntLit { .. }) {
-        w.append("{\"$arrayElemAt\": [").expr(d, arg(a, 0)?, 0)?.append(", ").expr(d, a1, 0)?.append("]}");
+        w.append("{\"$arrayElemAt\": [")
+            .expr(d, arg(a, 0)?, 0)?
+            .append(", ")
+            .expr(d, a1, 0)?
+            .append("]}");
         return Ok(());
     }
     w.append("{\"$arrayElemAt\": [");
@@ -1468,7 +1686,8 @@ pub fn variant_get(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), 
 
 /// The JSON kind of a value, by the names `jsonKindName` answers.
 fn json_type(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("{\"$let\": {\"vars\": {\"t\": {\"$type\": ").expr(d, arg(a, 0)?, 0)?;
+    w.append("{\"$let\": {\"vars\": {\"t\": {\"$type\": ")
+        .expr(d, arg(a, 0)?, 0)?;
     w.append(concat!(
         "}}, \"in\":",
         " {\"$switch\": {\"branches\": [{\"case\": {\"$in\": [\"$$t\", [\"int\", \"long\"]]}, \"then\":",
@@ -1484,11 +1703,19 @@ fn json_type(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusa
 /// A raise: a conversion that cannot succeed, whose error carries its input -- the message between the platform's
 /// U+001F sentinels, an optional source position ahead of it behind U+001E.
 fn raise(d: &MongoDb, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
-    w.append("{\"$convert\": {\"input\": {\"$concat\": [").append(&json::string(RAISE_SENTINEL)).append(", ");
+    w.append("{\"$convert\": {\"input\": {\"$concat\": [")
+        .append(&json::string(RAISE_SENTINEL))
+        .append(", ");
     if a.len() > 1 {
-        w.expr(d, &a[1], 0)?.append(", ").append(&json::string(POSITION_DIVIDER)).append(", ");
+        w.expr(d, &a[1], 0)?
+            .append(", ")
+            .append(&json::string(POSITION_DIVIDER))
+            .append(", ");
     }
-    w.append("{\"$toString\": ").expr(d, arg(a, 0)?, 0)?.append("}, ").append(&json::string(RAISE_SENTINEL));
+    w.append("{\"$toString\": ")
+        .expr(d, arg(a, 0)?, 0)?
+        .append("}, ")
+        .append(&json::string(RAISE_SENTINEL));
     w.append(", ").append(UNFOLDED).append("]}, \"to\": \"int\"}}");
     Ok(())
 }

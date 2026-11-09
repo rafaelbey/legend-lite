@@ -17,15 +17,28 @@ use lite_sql::{CatalogGrid, JavaNumber, OutputCol, SqlSelect, SqlSource};
 // ---- builders
 
 fn typed(s: Scalar) -> TypeFact {
-    TypeFact::Typed { r#type: SqlType::Scalar(s), nullable: true }
+    TypeFact::Typed {
+        r#type: SqlType::Scalar(s),
+        nullable: true,
+    }
 }
 
 fn list_of(s: Scalar) -> TypeFact {
-    TypeFact::Typed { r#type: SqlType::Array { element: Box::new(SqlType::Scalar(s)) }, nullable: true }
+    TypeFact::Typed {
+        r#type: SqlType::Array {
+            element: Box::new(SqlType::Scalar(s)),
+        },
+        nullable: true,
+    }
 }
 
 fn column(name: &str, t: TypeFact, origin: Option<Origin>) -> SqlExpr {
-    SqlExpr::Column(Column { table: Some("t0".into()), name: name.into(), r#type: t, origin })
+    SqlExpr::Column(Column {
+        table: Some("t0".into()),
+        name: name.into(),
+        r#type: t,
+        origin,
+    })
 }
 
 /// A physical column of `t0`, typed.
@@ -39,7 +52,10 @@ fn list(name: &str, s: Scalar) -> SqlExpr {
 }
 
 fn part(p: DatePart) -> SqlExpr {
-    SqlExpr::DatePartLit { part: p, r#type: TypeFact::Unknown }
+    SqlExpr::DatePartLit {
+        part: p,
+        r#type: TypeFact::Unknown,
+    }
 }
 
 fn lambda(params: &[&str], body: SqlExpr) -> SqlExpr {
@@ -69,7 +85,12 @@ fn reducer(f: AggFn, args: Vec<SqlExpr>, distinct: bool, order_by: Vec<SortKey>)
 }
 
 fn key(e: SqlExpr, ascending: bool) -> SortKey {
-    SortKey { expr: e, ascending, null_order: None, output_name: None }
+    SortKey {
+        expr: e,
+        ascending,
+        null_order: None,
+        output_name: None,
+    }
 }
 
 fn select(projections: Vec<Projection>, from: SqlSource) -> SqlSelect {
@@ -92,7 +113,12 @@ fn projection(expr: SqlExpr, alias: Option<&str>, out: Option<(&str, SqlType)>) 
     Projection {
         expr,
         alias: alias.map(str::to_owned),
-        out: out.map(|(name, t)| OutputCol { name: name.into(), r#type: t, nullable: true, origin: Origin::Derived }),
+        out: out.map(|(name, t)| OutputCol {
+            name: name.into(),
+            r#type: t,
+            nullable: true,
+            origin: Origin::Derived,
+        }),
     }
 }
 
@@ -129,9 +155,18 @@ fn every_name_the_query_writes_is_quoted_and_a_stores_bare_name_is_folded() {
     assert_eq!(AnsiSqlRenderer::insert_column_name(&d, "ORDER", false), "\"order\"");
     // each part of a stored table a stored name (TempTableAsTest: the staged table a query reads)
     let bare = NameQuoting::default();
-    let quoted = NameQuoting { schema: true, table: true };
-    assert_eq!(AnsiSqlRenderer::table_name(&d, "legend_stage_rowsA", bare), "legend_stage_rowsa");
-    assert_eq!(AnsiSqlRenderer::table_name(&d, "Sales.Orders", quoted), "\"Sales\".\"Orders\"");
+    let quoted = NameQuoting {
+        schema: true,
+        table: true,
+    };
+    assert_eq!(
+        AnsiSqlRenderer::table_name(&d, "legend_stage_rowsA", bare),
+        "legend_stage_rowsa"
+    );
+    assert_eq!(
+        AnsiSqlRenderer::table_name(&d, "Sales.Orders", quoted),
+        "\"Sales\".\"Orders\""
+    );
     assert_eq!(AnsiSqlRenderer::table_name(&d, "s.User", bare), "s.\"user\"");
     // a leading dot names no schema (Java's `dot <= 0`): the whole name one stored name
     assert_eq!(AnsiSqlRenderer::table_name(&d, ".T", bare), "\".t\"");
@@ -145,14 +180,27 @@ fn every_name_the_query_writes_is_quoted_and_a_stores_bare_name_is_folded() {
 fn a_reference_spells_by_its_origin() {
     assert_eq!(render(&col("SYM", Scalar::Varchar)), "\"t0\".sym");
     assert_eq!(render(&col("user", Scalar::Varchar)), "\"t0\".\"user\"");
-    assert_eq!(render(&column("Sym", typed(Scalar::Varchar), Some(Origin::PhysicalQuoted))), "\"t0\".\"Sym\"");
-    assert_eq!(render(&column("sym", typed(Scalar::Varchar), Some(Origin::Derived))), "\"t0\".\"sym\"");
+    assert_eq!(
+        render(&column("Sym", typed(Scalar::Varchar), Some(Origin::PhysicalQuoted))),
+        "\"t0\".\"Sym\""
+    );
+    assert_eq!(
+        render(&column("sym", typed(Scalar::Varchar), Some(Origin::Derived))),
+        "\"t0\".\"sym\""
+    );
     assert_eq!(render(&column("sym", typed(Scalar::Varchar), None)), "\"t0\".\"sym\"");
     assert_eq!(
-        refusal(&SqlExpr::RowOrder { table: None, r#type: typed(Scalar::Bigint) }),
+        refusal(&SqlExpr::RowOrder {
+            table: None,
+            r#type: typed(Scalar::Bigint)
+        }),
         capability("row order reached Postgres, which has no stable row-order column (ctid moves on update)")
     );
-    let except = SqlExpr::StarExcept { table: None, except: vec!["a".into()], r#type: TypeFact::Unknown };
+    let except = SqlExpr::StarExcept {
+        table: None,
+        except: vec!["a".into()],
+        r#type: TypeFact::Unknown,
+    };
     assert_eq!(
         refusal(&except),
         capability(
@@ -169,39 +217,76 @@ fn literals_postgres_cannot_hold_are_refused_and_finer_digits_cut() {
     assert_eq!(d.string_lit("it's"), Ok("'it''s'".to_owned()));
     assert_eq!(
         d.string_lit("a\0b"),
-        Err(capability("a string holding NUL reached Postgres, whose text type cannot hold it"))
+        Err(capability(
+            "a string holding NUL reached Postgres, whose text type cannot hold it"
+        ))
     );
     // finer digits than a microsecond truncated (PostgresDialectTest: the 9999-12-31 sentinel)
-    assert_eq!(d.timestamp_lit("9999-12-31T23:59:59.999999999").unwrap(), "TIMESTAMP '9999-12-31T23:59:59.999999'");
-    assert_eq!(d.timestamp_lit("2024-01-02T03:04:05.123456789+01:00").unwrap(), "TIMESTAMP '2024-01-02T03:04:05.123456+01:00'");
-    assert_eq!(d.timestamp_lit("2024-01-02T03:04:05.123").unwrap(), "TIMESTAMP '2024-01-02T03:04:05.123'");
+    assert_eq!(
+        d.timestamp_lit("9999-12-31T23:59:59.999999999").unwrap(),
+        "TIMESTAMP '9999-12-31T23:59:59.999999'"
+    );
+    assert_eq!(
+        d.timestamp_lit("2024-01-02T03:04:05.123456789+01:00").unwrap(),
+        "TIMESTAMP '2024-01-02T03:04:05.123456+01:00'"
+    );
+    assert_eq!(
+        d.timestamp_lit("2024-01-02T03:04:05.123").unwrap(),
+        "TIMESTAMP '2024-01-02T03:04:05.123'"
+    );
     assert_eq!(d.timestamp_lit("2024-01-02").unwrap(), "TIMESTAMP '2024-01-02'");
     // a fraction's digits are Character.isDigit's, any script's, counted by UTF-16 unit
-    assert_eq!(d.timestamp_lit("2024-01-02T03:04:05.١٢٣٤٥٦٧Z").unwrap(), "TIMESTAMP '2024-01-02T03:04:05.١٢٣٤٥٦Z'");
+    assert_eq!(
+        d.timestamp_lit("2024-01-02T03:04:05.١٢٣٤٥٦٧Z").unwrap(),
+        "TIMESTAMP '2024-01-02T03:04:05.١٢٣٤٥٦Z'"
+    );
     assert_eq!(
         d.hole_type(ValueKind::DateTimeNanos),
-        Ok(TypeSpelling { name: "TIMESTAMP".into(), digits: Digits::None, fraction: Some(6) })
+        Ok(TypeSpelling {
+            name: "TIMESTAMP".into(),
+            digits: Digits::None,
+            fraction: Some(6)
+        })
     );
-    assert_eq!(d.hole_type(ValueKind::DateTime), Ok(TypeSpelling::new("TIMESTAMP", Digits::None)));
+    assert_eq!(
+        d.hole_type(ValueKind::DateTime),
+        Ok(TypeSpelling::new("TIMESTAMP", Digits::None))
+    );
     // a list literal is typed, its elements held as the list holds them
-    let ints = SqlExpr::ArrayLit { elements: vec![int_lit(1), int_lit(2)], r#type: list_of(Scalar::Bigint) };
+    let ints = SqlExpr::ArrayLit {
+        elements: vec![int_lit(1), int_lit(2)],
+        r#type: list_of(Scalar::Bigint),
+    };
     assert_eq!(render(&ints), "CAST(ARRAY[1, 2] AS BIGINT[])");
     let nested = SqlExpr::ArrayLit {
-        elements: vec![SqlExpr::ArrayLit { elements: vec![int_lit(1)], r#type: list_of(Scalar::Bigint) }],
+        elements: vec![SqlExpr::ArrayLit {
+            elements: vec![int_lit(1)],
+            r#type: list_of(Scalar::Bigint),
+        }],
         r#type: TypeFact::Typed {
-            r#type: SqlType::Array { element: Box::new(list_of_type(Scalar::Bigint)) },
+            r#type: SqlType::Array {
+                element: Box::new(list_of_type(Scalar::Bigint)),
+            },
             nullable: true,
         },
     };
-    assert_eq!(render(&nested), "CAST(ARRAY[to_jsonb(CAST(ARRAY[1] AS BIGINT[]))] AS JSONB[])");
     assert_eq!(
-        refusal(&SqlExpr::ArrayLit { elements: vec![], r#type: TypeFact::Unknown }),
+        render(&nested),
+        "CAST(ARRAY[to_jsonb(CAST(ARRAY[1] AS BIGINT[]))] AS JSONB[])"
+    );
+    assert_eq!(
+        refusal(&SqlExpr::ArrayLit {
+            elements: vec![],
+            r#type: TypeFact::Unknown
+        }),
         capability("a list literal of Unknown[] reached Postgres: a list of unknown element type")
     );
 }
 
 fn list_of_type(s: Scalar) -> SqlType {
-    SqlType::Array { element: Box::new(SqlType::Scalar(s)) }
+    SqlType::Array {
+        element: Box::new(SqlType::Scalar(s)),
+    }
 }
 
 // ---- the calls the oracles hold none of
@@ -214,7 +299,10 @@ fn the_list_calls_the_oracles_do_not_hold() {
         "(CASE WHEN \"t0\".xs IS NULL THEN NULL ELSE ARRAY(SELECT \"__x\" FROM unnest((SELECT \"t0\".xs)) WITH \
          ORDINALITY AS __u(\"__x\", __o) WHERE \"__x\" IS NOT NULL GROUP BY \"__x\" ORDER BY min(__o)) END)"
     );
-    assert_eq!(render(&call(SqlFn::ListInit, vec![xs.clone()])), "(\"t0\".xs)[:cardinality(\"t0\".xs) - 1]");
+    assert_eq!(
+        render(&call(SqlFn::ListInit, vec![xs.clone()])),
+        "(\"t0\".xs)[:cardinality(\"t0\".xs) - 1]"
+    );
     assert_eq!(render(&call(SqlFn::ListTail, vec![xs.clone()])), "(\"t0\".xs)[2:]");
     // no duplicates iff the distinct count is the count; an empty or NULL list is distinct
     assert_eq!(
@@ -239,7 +327,10 @@ fn the_list_calls_the_oracles_do_not_hold() {
         render(&call(SqlFn::RepeatValue, vec![string_lit("a"), int_lit(3)])),
         "array_fill('a', ARRAY[CAST(3 AS INTEGER)])"
     );
-    assert_eq!(render(&call(SqlFn::ListAppend, vec![xs.clone(), int_lit(4)])), "array_append(\"t0\".xs, 4)");
+    assert_eq!(
+        render(&call(SqlFn::ListAppend, vec![xs.clone(), int_lit(4)])),
+        "array_append(\"t0\".xs, 4)"
+    );
     // a list of no known element type is refused by name, at once
     let untyped = column("u", TypeFact::Unknown, Some(Origin::Physical));
     assert_eq!(
@@ -249,7 +340,13 @@ fn the_list_calls_the_oracles_do_not_hold() {
     // a filter's lambda: the kept element, ordered by position
     let filter = call(
         SqlFn::ListFilter,
-        vec![xs.clone(), lambda(&["x"], call(SqlFn::Greater, vec![crate::build::derived(None, "x"), int_lit(1)]))],
+        vec![
+            xs.clone(),
+            lambda(
+                &["x"],
+                call(SqlFn::Greater, vec![crate::build::derived(None, "x"), int_lit(1)]),
+            ),
+        ],
     );
     assert_eq!(
         render(&filter),
@@ -257,13 +354,22 @@ fn the_list_calls_the_oracles_do_not_hold() {
          ORDINALITY AS __u(\"x\", __o) WHERE \"x\" > 1 ORDER BY __o) END)"
     );
     // a lambda argument that is no lambda: Java's cast
-    assert_eq!(refusal(&call(SqlFn::ListFilter, vec![xs.clone(), int_lit(1)])).class, Refusal::CLASS_CAST);
+    assert_eq!(
+        refusal(&call(SqlFn::ListFilter, vec![xs.clone(), int_lit(1)])).class,
+        Refusal::CLASS_CAST
+    );
     // the empty collection: an element or a rearrangement of it, which the IR types Bottom, is the empty collection
     // itself; nested too
     let empty = call(SqlFn::ListMax, vec![null_lit()]);
     assert_eq!(empty.r#type(), &TypeFact::Bottom);
     assert_eq!(render(&empty), "NULL");
-    assert_eq!(render(&call(SqlFn::ListGet, vec![crate::build::compact_list(empty), int_lit(1)])), "NULL");
+    assert_eq!(
+        render(&call(
+            SqlFn::ListGet,
+            vec![crate::build::compact_list(empty), int_lit(1)]
+        )),
+        "NULL"
+    );
     // a sum over it is typed Unknown, so it is no empty collection: its list of no element type is refused by name
     assert_eq!(
         refusal(&call(SqlFn::ListSum, vec![null_lit()])),
@@ -271,9 +377,15 @@ fn the_list_calls_the_oracles_do_not_hold() {
     );
     // exists over the empty collection is false, forAll true
     let pred = lambda(&["x"], crate::build::bool_lit(true));
-    assert_eq!(render(&call(SqlFn::ListExists, vec![null_lit(), pred.clone()])), "FALSE");
+    assert_eq!(
+        render(&call(SqlFn::ListExists, vec![null_lit(), pred.clone()])),
+        "FALSE"
+    );
     assert_eq!(render(&call(SqlFn::ListForAll, vec![null_lit(), pred])), "TRUE");
-    assert_eq!(render(&call(SqlFn::Unnest, vec![null_lit()])), "unnest(CAST(NULL AS TEXT[]))");
+    assert_eq!(
+        render(&call(SqlFn::Unnest, vec![null_lit()])),
+        "unnest(CAST(NULL AS TEXT[]))"
+    );
 }
 
 #[test]
@@ -286,7 +398,10 @@ fn the_scalar_calls_the_oracles_do_not_hold() {
         render(&call(SqlFn::StructInsert, vec![j.clone(), string_lit("k"), int_lit(1)])),
         "(\"t0\".j || jsonb_build_object('k', 1))"
     );
-    assert_eq!(render(&call(SqlFn::JsonArrayLength, vec![j.clone()])), "jsonb_array_length(\"t0\".j)");
+    assert_eq!(
+        render(&call(SqlFn::JsonArrayLength, vec![j.clone()])),
+        "jsonb_array_length(\"t0\".j)"
+    );
     assert_eq!(render(&call(SqlFn::JsonPretty, vec![j])), "jsonb_pretty(\"t0\".j)");
     assert_eq!(
         render(&call(SqlFn::EpochSeconds, vec![ts.clone()])),
@@ -297,28 +412,52 @@ fn the_scalar_calls_the_oracles_do_not_hold() {
         "TIMESTAMP '1970-01-01 00:00:00' + \"t0\".n * INTERVAL '1 second'"
     );
     // wrapped under an operator
-    let plus = call(SqlFn::Plus, vec![int_lit(1), call(SqlFn::FromEpochMs, vec![col("n", Scalar::Bigint)])]);
+    let plus = call(
+        SqlFn::Plus,
+        vec![int_lit(1), call(SqlFn::FromEpochMs, vec![col("n", Scalar::Bigint)])],
+    );
     assert_eq!(
         render(&plus),
         "1 + (TIMESTAMP '1970-01-01 00:00:00' + CAST(\"t0\".n AS BIGINT) * INTERVAL '1 millisecond')"
     );
     // a date is read as a naive timestamp, a timestamp as itself
-    assert_eq!(render(&call(SqlFn::Dayname, vec![d.clone()])), "to_char(CAST(\"t0\".d AS TIMESTAMP), 'FMDay')");
-    assert_eq!(render(&call(SqlFn::Monthname, vec![ts])), "to_char(\"t0\".ts, 'FMMonth')");
-    assert_eq!(render(&call(SqlFn::ConcatJoin, vec![s.clone(), string_lit(",")])), "concat(\"t0\".s, ',')");
-    assert_eq!(render(&call(SqlFn::FloorRaw, vec![col("f", Scalar::Double)])), "floor(\"t0\".f)");
+    assert_eq!(
+        render(&call(SqlFn::Dayname, vec![d.clone()])),
+        "to_char(CAST(\"t0\".d AS TIMESTAMP), 'FMDay')"
+    );
+    assert_eq!(
+        render(&call(SqlFn::Monthname, vec![ts])),
+        "to_char(\"t0\".ts, 'FMMonth')"
+    );
+    assert_eq!(
+        render(&call(SqlFn::ConcatJoin, vec![s.clone(), string_lit(",")])),
+        "concat(\"t0\".s, ',')"
+    );
+    assert_eq!(
+        render(&call(SqlFn::FloorRaw, vec![col("f", Scalar::Double)])),
+        "floor(\"t0\".f)"
+    );
     // the shared spellings: the null-safe comparison, the negation
     assert_eq!(
         render(&call(SqlFn::IsDistinctFrom, vec![s.clone(), string_lit("x")])),
         "(\"t0\".s IS DISTINCT FROM 'x')"
     );
-    assert_eq!(render(&call(SqlFn::Negate, vec![col("n", Scalar::Bigint)])), "-\"t0\".n");
+    assert_eq!(
+        render(&call(SqlFn::Negate, vec![col("n", Scalar::Bigint)])),
+        "-\"t0\".n"
+    );
     // a temporal amount: amount times a one-unit interval, as ADD_INTERVAL
     assert_eq!(
-        render(&call(SqlFn::AddIntervalTemporal, vec![part(DatePart::Week), int_lit(2), d.clone()])),
+        render(&call(
+            SqlFn::AddIntervalTemporal,
+            vec![part(DatePart::Week), int_lit(2), d.clone()]
+        )),
         "\"t0\".d + 2 * INTERVAL '1 week'"
     );
-    assert_eq!(render(&call(SqlFn::Chr, vec![col("n", Scalar::Bigint)])), "chr(CAST(\"t0\".n AS INTEGER))");
+    assert_eq!(
+        render(&call(SqlFn::Chr, vec![col("n", Scalar::Bigint)])),
+        "chr(CAST(\"t0\".n AS INTEGER))"
+    );
     assert_eq!(render(&call(SqlFn::BitNot, vec![int_lit(5)])), "(~ CAST(5 AS BIGINT))");
     assert_eq!(
         render(&call(SqlFn::BitShiftRight, vec![col("n", Scalar::Bigint), int_lit(2)])),
@@ -335,7 +474,10 @@ fn the_scalar_calls_the_oracles_do_not_hold() {
     );
     // Pure's splitPart: the non-empty tokens, 1-based
     assert_eq!(
-        render(&call(SqlFn::PureSplitPart, vec![s.clone(), string_lit(","), int_lit(2)])),
+        render(&call(
+            SqlFn::PureSplitPart,
+            vec![s.clone(), string_lit(","), int_lit(2)]
+        )),
         "(array_remove(string_to_array(\"t0\".s, ','), ''))[2]"
     );
     // a computed text is no literal format
@@ -349,14 +491,20 @@ fn the_scalar_calls_the_oracles_do_not_hold() {
 fn every_wall_is_refused_by_name() {
     let x = col("x", Scalar::Varchar);
     for (f, why) in [
-        (SqlFn::Strptime, "to_timestamp(text, fmt) is lenient and zone-bound; not yet probed against the reference"),
+        (
+            SqlFn::Strptime,
+            "to_timestamp(text, fmt) is lenient and zone-bound; not yet probed against the reference",
+        ),
         (SqlFn::JsonMergePatch, "variant over jsonb is leg P4"),
         (SqlFn::ListFlatten, "collections over the jsonb carrier are leg P4"),
         (SqlFn::ListZip, "collections over the jsonb carrier are leg P4"),
         (SqlFn::ListProduct, "collections over the jsonb carrier are leg P4"),
         (SqlFn::Typeof, "collections over the jsonb carrier are leg P4"),
     ] {
-        assert_eq!(refusal(&call(f, vec![x.clone()])), capability(&format!("{f} reached Postgres: {why}")));
+        assert_eq!(
+            refusal(&call(f, vec![x.clone()])),
+            capability(&format!("{f} reached Postgres: {why}"))
+        );
     }
     for f in [SqlFn::EpochNs, SqlFn::FromEpochNs] {
         assert_eq!(
@@ -401,7 +549,10 @@ fn every_wall_is_refused_by_name() {
         capability("date_diff part 'week' has no probed Postgres spelling")
     );
     assert_eq!(
-        refusal(&call(SqlFn::AddInterval, vec![part(DatePart::Quarter), int_lit(1), ts.clone()])),
+        refusal(&call(
+            SqlFn::AddInterval,
+            vec![part(DatePart::Quarter), int_lit(1), ts.clone()]
+        )),
         capability("interval unit 'QUARTER' has no Postgres spelling")
     );
     assert_eq!(
@@ -445,7 +596,10 @@ fn format_unrolls_a_literal_template() {
     assert_eq!(render(&call(SqlFn::Format, vec![string_lit("100%%")])), "('100%')");
     assert_eq!(render(&call(SqlFn::Format, vec![string_lit("")])), "('')");
     assert_eq!(
-        render(&call(SqlFn::Format, vec![string_lit("a %s b %d"), s.clone(), n.clone()])),
+        render(&call(
+            SqlFn::Format,
+            vec![string_lit("a %s b %d"), s.clone(), n.clone()]
+        )),
         "('a ' || \"t0\".s || ' b ' || CAST(\"t0\".n AS VARCHAR))"
     );
     // a width pads on the left, never cuts; a 0 pads with zeros after the sign
@@ -495,7 +649,10 @@ fn a_floats_remainder_is_exact_and_rounding_is_half_even() {
     let f8 = col("f", Scalar::Double);
     let n = col("n", Scalar::Bigint);
     // integers take the base's MOD forms
-    assert_eq!(render(&call(SqlFn::Rem, vec![n.clone(), int_lit(3)])), "MOD(\"t0\".n, 3)");
+    assert_eq!(
+        render(&call(SqlFn::Rem, vec![n.clone(), int_lit(3)])),
+        "MOD(\"t0\".n, 3)"
+    );
     let rem = render(&call(SqlFn::Rem, vec![f8.clone(), float_lit(1.5)]));
     assert!(
         rem.starts_with(
@@ -503,8 +660,14 @@ fn a_floats_remainder_is_exact_and_rounding_is_half_even() {
         ),
         "{rem}"
     );
-    assert!(rem.contains("power(CAST(2 AS NUMERIC), greatest(CASE WHEN abs("), "{rem}");
-    assert_eq!(render(&call(SqlFn::Round, vec![f8.clone()])), "round(CAST(\"t0\".f AS DOUBLE PRECISION))");
+    assert!(
+        rem.contains("power(CAST(2 AS NUMERIC), greatest(CASE WHEN abs("),
+        "{rem}"
+    );
+    assert_eq!(
+        render(&call(SqlFn::Round, vec![f8.clone()])),
+        "round(CAST(\"t0\".f AS DOUBLE PRECISION))"
+    );
     assert_eq!(
         render(&call(SqlFn::Round, vec![f8.clone(), int_lit(2)])),
         "(round(CAST(\"t0\".f AS DOUBLE PRECISION) * power(CAST(10 AS DOUBLE PRECISION), CAST(2 AS INTEGER))) / \
@@ -523,7 +686,10 @@ fn a_floats_remainder_is_exact_and_rounding_is_half_even() {
         render(&call(SqlFn::RoundHalfUp, vec![f8, int_lit(2)])),
         "CAST(round(CAST(\"t0\".f AS NUMERIC), CAST(2 AS INTEGER)) AS DOUBLE PRECISION)"
     );
-    assert_eq!(render(&call(SqlFn::RoundHalfUp, vec![n])), "round(CAST(\"t0\".n AS NUMERIC))");
+    assert_eq!(
+        render(&call(SqlFn::RoundHalfUp, vec![n])),
+        "round(CAST(\"t0\".n AS NUMERIC))"
+    );
 }
 
 // ---- aggregates and windows
@@ -538,12 +704,27 @@ fn every_aggregate_is_decided_here() {
     let b = col("b", Scalar::Boolean);
     let j = col("j", Scalar::Json);
     let s = col("s", Scalar::Varchar);
-    assert_eq!(agg(reducer(AggFn::AnyValue, vec![n.clone()], false, vec![])), Ok("ANY_VALUE(\"t0\".n)".into()));
-    assert_eq!(agg(reducer(AggFn::Variance, vec![n.clone()], false, vec![])), Ok("VARIANCE(\"t0\".n)".into()));
-    assert_eq!(agg(reducer(AggFn::Stddev, vec![n.clone()], true, vec![])), Ok("STDDEV(DISTINCT \"t0\".n)".into()));
+    assert_eq!(
+        agg(reducer(AggFn::AnyValue, vec![n.clone()], false, vec![])),
+        Ok("ANY_VALUE(\"t0\".n)".into())
+    );
+    assert_eq!(
+        agg(reducer(AggFn::Variance, vec![n.clone()], false, vec![])),
+        Ok("VARIANCE(\"t0\".n)".into())
+    );
+    assert_eq!(
+        agg(reducer(AggFn::Stddev, vec![n.clone()], true, vec![])),
+        Ok("STDDEV(DISTINCT \"t0\".n)".into())
+    );
     // no max/min over boolean (bool_or/bool_and), nor over jsonb (the first in jsonb's order)
-    assert_eq!(agg(reducer(AggFn::Max, vec![b.clone()], false, vec![])), Ok("bool_or(\"t0\".b)".into()));
-    assert_eq!(agg(reducer(AggFn::Min, vec![b], false, vec![])), Ok("bool_and(\"t0\".b)".into()));
+    assert_eq!(
+        agg(reducer(AggFn::Max, vec![b.clone()], false, vec![])),
+        Ok("bool_or(\"t0\".b)".into())
+    );
+    assert_eq!(
+        agg(reducer(AggFn::Min, vec![b], false, vec![])),
+        Ok("bool_and(\"t0\".b)".into())
+    );
     assert_eq!(
         agg(reducer(AggFn::Max, vec![j.clone()], false, vec![])),
         Ok("(array_agg(\"t0\".j ORDER BY \"t0\".j DESC NULLS LAST))[1]".into())
@@ -554,7 +735,9 @@ fn every_aggregate_is_decided_here() {
     );
     assert_eq!(
         agg(reducer(AggFn::Median, vec![s.clone()], false, vec![])),
-        Err(capability("median of a non-number reached Postgres, whose percentile_cont interpolates numbers only"))
+        Err(capability(
+            "median of a non-number reached Postgres, whose percentile_cont interpolates numbers only"
+        ))
     );
     assert_eq!(
         agg(reducer(AggFn::Mode, vec![n.clone()], true, vec![])),
@@ -565,7 +748,12 @@ fn every_aggregate_is_decided_here() {
         Err(capability("QUANTILE_CONT of this shape reached Postgres"))
     );
     assert_eq!(
-        agg(reducer(AggFn::QuantileDisc, vec![n.clone(), float_lit(0.5)], false, vec![key(n.clone(), false)])),
+        agg(reducer(
+            AggFn::QuantileDisc,
+            vec![n.clone(), float_lit(0.5)],
+            false,
+            vec![key(n.clone(), false)]
+        )),
         Ok("percentile_disc(0.5) WITHIN GROUP (ORDER BY \"t0\".n DESC)".into())
     );
     assert_eq!(
@@ -573,7 +761,12 @@ fn every_aggregate_is_decided_here() {
         Err(capability("a LIST aggregate of this shape reached Postgres"))
     );
     assert_eq!(
-        agg(reducer(AggFn::List, vec![list("xs", Scalar::Bigint)], false, vec![key(n.clone(), true)])),
+        agg(reducer(
+            AggFn::List,
+            vec![list("xs", Scalar::Bigint)],
+            false,
+            vec![key(n.clone(), true)]
+        )),
         Ok("array_agg(to_jsonb(\"t0\".xs) ORDER BY \"t0\".n ASC)".into())
     );
     assert_eq!(
@@ -586,7 +779,9 @@ fn every_aggregate_is_decided_here() {
     );
     assert_eq!(
         agg(reducer(AggFn::RowNumber, vec![], false, vec![])),
-        Err(Refusal::illegal_state("ROW_NUMBER is a window function: windowCall writes it"))
+        Err(Refusal::illegal_state(
+            "ROW_NUMBER is a window function: windowCall writes it"
+        ))
     );
 }
 
@@ -626,12 +821,21 @@ fn a_window_casts_its_float_aggregates_and_refuses_an_ordered_set() {
     // Math.multiplyExact
     assert_eq!(
         refusal(&window(AggFn::Sum, Some(frame("WEEKS", i64::MAX / 2)))),
-        Refusal { class: "java.lang.ArithmeticException", message: "long overflow".into() }
+        Refusal {
+            class: "java.lang.ArithmeticException",
+            message: "long overflow".into()
+        }
     );
     let d = Postgres::new();
-    assert_eq!(d.bound(&Bound::Preceding { n: JavaNumber::Long(3) }), Ok("3 PRECEDING".into()));
     assert_eq!(
-        d.bound(&Bound::IntervalFollowing { n: 3, unit: "Hours".into() }),
+        d.bound(&Bound::Preceding { n: JavaNumber::Long(3) }),
+        Ok("3 PRECEDING".into())
+    );
+    assert_eq!(
+        d.bound(&Bound::IntervalFollowing {
+            n: 3,
+            unit: "Hours".into()
+        }),
         Ok("INTERVAL '3' HOUR FOLLOWING".into())
     );
 }
@@ -649,7 +853,10 @@ fn each_cast_is_the_carriers_own() {
     assert_eq!(to(int_lit(1), SqlType::Scalar(Scalar::Json)), "to_jsonb(1)");
     assert_eq!(to(null_lit(), SqlType::Scalar(Scalar::Json)), "CAST(NULL AS JSONB)");
     // a whole value to a scalar reads its text; to text it is its compact JSON text
-    assert_eq!(to(j.clone(), SqlType::Scalar(Scalar::Bigint)), "CAST((\"t0\".j #>> '{}') AS BIGINT)");
+    assert_eq!(
+        to(j.clone(), SqlType::Scalar(Scalar::Bigint)),
+        "CAST((\"t0\".j #>> '{}') AS BIGINT)"
+    );
     assert_eq!(
         to(j.clone(), SqlType::Scalar(Scalar::Varchar)),
         r#"regexp_replace(CAST("t0".j AS VARCHAR), '("(?:[^"\\]|\\.)*")|([,:]) ', '\1\2', 'g')"#
@@ -660,8 +867,14 @@ fn each_cast_is_the_carriers_own() {
         r"regexp_replace(CAST(&quot;t0&quot;.f AS VARCHAR), '^(-?[0-9]+)$', '\1.0')".replace("&quot;", "\"")
     );
     // a text literal under a cast is spelled as a text first
-    assert_eq!(to(string_lit("7"), SqlType::Scalar(Scalar::Bigint)), "CAST(CAST('7' AS VARCHAR) AS BIGINT)");
-    assert_eq!(to(string_lit("7"), SqlType::Scalar(Scalar::Varchar)), "CAST('7' AS VARCHAR)");
+    assert_eq!(
+        to(string_lit("7"), SqlType::Scalar(Scalar::Bigint)),
+        "CAST(CAST('7' AS VARCHAR) AS BIGINT)"
+    );
+    assert_eq!(
+        to(string_lit("7"), SqlType::Scalar(Scalar::Varchar)),
+        "CAST('7' AS VARCHAR)"
+    );
     // the marker casts never render
     assert_eq!(to(s.clone(), SqlType::Scalar(Scalar::TemporalText)), "\"t0\".s");
     // a map: a Variant's members as entries; NULL typed as the carrier; any other value refused
@@ -681,10 +894,19 @@ fn each_cast_is_the_carriers_own() {
     let ints = list_of_type(Scalar::Bigint);
     assert_eq!(to(null_lit(), ints.clone()), "CAST(NULL AS BIGINT[])");
     assert_eq!(
-        to(SqlExpr::ArrayLit { elements: vec![], r#type: TypeFact::Unknown }, ints.clone()),
+        to(
+            SqlExpr::ArrayLit {
+                elements: vec![],
+                r#type: TypeFact::Unknown
+            },
+            ints.clone()
+        ),
         "CAST(ARRAY[] AS BIGINT[])"
     );
-    assert_eq!(to(list("xs", Scalar::Integer), ints.clone()), "CAST(\"t0\".xs AS BIGINT[])");
+    assert_eq!(
+        to(list("xs", Scalar::Integer), ints.clone()),
+        "CAST(\"t0\".xs AS BIGINT[])"
+    );
     assert_eq!(
         to(j, ints.clone()),
         "(CASE WHEN \"t0\".j IS NULL OR jsonb_typeof(\"t0\".j) = 'null' THEN NULL ELSE ARRAY(SELECT \
@@ -701,35 +923,63 @@ fn each_cast_is_the_carriers_own() {
 fn variants_and_structs_are_jsonb() {
     let j = col("j", Scalar::Json);
     let n = col("n", Scalar::Bigint);
-    assert_eq!(render(&call(SqlFn::VariantGet, vec![j.clone(), string_lit("$")])), "\"t0\".j");
-    assert_eq!(render(&call(SqlFn::VariantGet, vec![j.clone(), string_lit("k")])), "(\"t0\".j -> 'k')");
-    assert_eq!(render(&call(SqlFn::VariantGet, vec![j.clone(), int_lit(0)])), "(\"t0\".j -> 0)");
-    // a computed index: -> takes an int, never a bigint
-    assert_eq!(render(&call(SqlFn::VariantGet, vec![j.clone(), n.clone()])), "(\"t0\".j -> CAST(\"t0\".n AS INTEGER))");
     assert_eq!(
-        render(&cast(call(SqlFn::VariantGet, vec![j.clone(), n.clone()]), SqlType::Scalar(Scalar::Bigint))),
+        render(&call(SqlFn::VariantGet, vec![j.clone(), string_lit("$")])),
+        "\"t0\".j"
+    );
+    assert_eq!(
+        render(&call(SqlFn::VariantGet, vec![j.clone(), string_lit("k")])),
+        "(\"t0\".j -> 'k')"
+    );
+    assert_eq!(
+        render(&call(SqlFn::VariantGet, vec![j.clone(), int_lit(0)])),
+        "(\"t0\".j -> 0)"
+    );
+    // a computed index: -> takes an int, never a bigint
+    assert_eq!(
+        render(&call(SqlFn::VariantGet, vec![j.clone(), n.clone()])),
+        "(\"t0\".j -> CAST(\"t0\".n AS INTEGER))"
+    );
+    assert_eq!(
+        render(&cast(
+            call(SqlFn::VariantGet, vec![j.clone(), n.clone()]),
+            SqlType::Scalar(Scalar::Bigint)
+        )),
         "CAST((\"t0\".j ->> CAST(\"t0\".n AS INTEGER)) AS BIGINT)"
     );
-    assert_eq!(render(&call(SqlFn::ToVariant, vec![string_lit("x")])), "to_jsonb(CAST('x' AS VARCHAR))");
+    assert_eq!(
+        render(&call(SqlFn::ToVariant, vec![string_lit("x")])),
+        "to_jsonb(CAST('x' AS VARCHAR))"
+    );
     assert_eq!(
         render(&call(SqlFn::ToVariant, vec![col("f", Scalar::Double)])),
         "(CASE WHEN \"t0\".f = trunc(\"t0\".f) AND abs(\"t0\".f) < CAST('Infinity' AS DOUBLE PRECISION) THEN \
          to_jsonb(round(CAST(\"t0\".f AS NUMERIC), 1)) ELSE to_jsonb(\"t0\".f) END)"
     );
     // a struct literal and its field read
-    let st = crate::build::struct_lit(vec![StructLitField { name: "a".into(), value: int_lit(1), declared: None }]);
+    let st = crate::build::struct_lit(vec![StructLitField {
+        name: "a".into(),
+        value: int_lit(1),
+        declared: None,
+    }]);
     assert_eq!(render(&st), "jsonb_build_object('a', 1)");
     let source = column(
         "o",
         TypeFact::Typed {
             r#type: SqlType::Struct {
-                fields: vec![StructField { name: "a".into(), r#type: SqlType::Scalar(Scalar::Bigint) }],
+                fields: vec![StructField {
+                    name: "a".into(),
+                    r#type: SqlType::Scalar(Scalar::Bigint),
+                }],
             },
             nullable: true,
         },
         Some(Origin::Physical),
     );
-    assert_eq!(render(&crate::build::struct_get(source.clone(), "a")), "CAST(((\"t0\".o -> 'a') #>> '{}') AS BIGINT)");
+    assert_eq!(
+        render(&crate::build::struct_get(source.clone(), "a")),
+        "CAST(((\"t0\".o -> 'a') #>> '{}') AS BIGINT)"
+    );
     assert_eq!(
         refusal(&crate::build::struct_get_given(j, "b".into(), TypeFact::Unknown)),
         capability("a field 'b' of unknown type reached Postgres")
@@ -747,26 +997,41 @@ fn a_projection_labels_from_its_output_and_types_its_nulls_and_raises() {
     );
     // an alias-less projection labelled explicitly from its declared output
     assert_eq!(
-        written(&projection(col("n", Scalar::Bigint), None, Some(("N", SqlType::Scalar(Scalar::Bigint))))),
+        written(&projection(
+            col("n", Scalar::Bigint),
+            None,
+            Some(("N", SqlType::Scalar(Scalar::Bigint)))
+        )),
         Ok("\"t0\".n AS \"N\"".into())
     );
     // error() projected under a slot is typed as the slot
     let raise = call(SqlFn::Error, vec![string_lit("boom")]);
     assert_eq!(
-        written(&projection(raise, Some("d"), Some(("d", SqlType::Scalar(Scalar::Date))))),
+        written(&projection(
+            raise,
+            Some("d"),
+            Some(("d", SqlType::Scalar(Scalar::Date)))
+        )),
         Ok("CAST(CAST(CAST(chr(31) || ('boom') || chr(31) AS TIMESTAMPTZ) AS VARCHAR) AS DATE) AS \"d\"".into())
     );
     // the empty collection in a scalar slot is written typed as the slot
     let empty = call(SqlFn::ListMax, vec![null_lit()]);
     assert_eq!(
-        written(&projection(empty, Some("m"), Some(("m", SqlType::Scalar(Scalar::Bigint))))),
+        written(&projection(
+            empty,
+            Some("m"),
+            Some(("m", SqlType::Scalar(Scalar::Bigint)))
+        )),
         Ok("CAST(NULL AS BIGINT) AS \"m\"".into())
     );
     // a raise whose value is a list carries an empty volatile term
     let raise_list = SqlExpr::Call {
         r#fn: SqlFn::Error,
         args: vec![string_lit("e"), string_lit("1:2")],
-        r#type: TypeFact::Typed { r#type: list_of_type(Scalar::Bigint), nullable: true },
+        r#type: TypeFact::Typed {
+            r#type: list_of_type(Scalar::Bigint),
+            nullable: true,
+        },
     };
     assert_eq!(
         render(&raise_list),
@@ -802,7 +1067,11 @@ fn the_ddl_and_the_store_writes() {
     assert_eq!(d.ddl_type(&plain(ColumnKind::Bit)), Ok("BOOLEAN".into()));
     assert_eq!(d.ddl_type(&plain(ColumnKind::Json)), Ok("JSONB".into()));
     assert_eq!(
-        d.ddl_type(&ColumnType::Scaled { kind: "DECIMAL".into(), precision: 18, scale: 6 }),
+        d.ddl_type(&ColumnType::Scaled {
+            kind: "DECIMAL".into(),
+            precision: 18,
+            scale: 6
+        }),
         Ok("DECIMAL(18, 6)".into())
     );
     assert_eq!(
@@ -865,7 +1134,10 @@ fn the_ddl_and_the_store_writes() {
         staged: true,
     };
     let text = AnsiSqlRenderer::render_dml(&d, &staged).unwrap();
-    assert!(text.starts_with("CREATE TEMPORARY TABLE legend_stage_rowsa (\"v0\") AS SELECT "), "{text}");
+    assert!(
+        text.starts_with("CREATE TEMPORARY TABLE legend_stage_rowsa (\"v0\") AS SELECT "),
+        "{text}"
+    );
     assert_eq!(
         d.cte_as(&Cte {
             name: "c".into(),
@@ -884,9 +1156,14 @@ fn the_type_tables() {
     assert_eq!(d.scalar_type_name(Scalar::Time), Ok("TIME".into()));
     assert_eq!(
         d.scalar_type_name(Scalar::DecimalText),
-        Err(Refusal::illegal_state("DECIMAL_TEXT cast reached a dialect without DECIMAL_TEXT support"))
+        Err(Refusal::illegal_state(
+            "DECIMAL_TEXT cast reached a dialect without DECIMAL_TEXT support"
+        ))
     );
-    assert_eq!(d.struct_type_name(&[]), Err(capability("a STRUCT type reached a dialect without struct support")));
+    assert_eq!(
+        d.struct_type_name(&[]),
+        Err(capability("a STRUCT type reached a dialect without struct support"))
+    );
     assert_eq!(d.map_type_name("VARCHAR", "BIGINT"), "JSONB[]");
     assert_eq!(d.json_kind_name(JsonKind::UnsignedInteger), Ok("UBIGINT".into()));
     assert_eq!(d.json_kind_name(JsonKind::String), Ok("VARCHAR".into()));
@@ -914,8 +1191,13 @@ fn a_nested_store_column_is_read_as_jsonb() {
     assert!(<Postgres as AnsiSqlRenderer>::reads_stored(&plain(ColumnKind::Array)));
     assert!(<Postgres as AnsiSqlRenderer>::reads_stored(&plain(ColumnKind::Object)));
     assert!(<Postgres as AnsiSqlRenderer>::reads_stored(&plain(ColumnKind::Other)));
-    assert!(!<Postgres as AnsiSqlRenderer>::reads_stored(&plain(ColumnKind::Varchar)));
-    assert!(!<Postgres as AnsiSqlRenderer>::reads_stored(&ColumnType::Sized { kind: "VARCHAR".into(), size: 3 }));
+    assert!(!<Postgres as AnsiSqlRenderer>::reads_stored(&plain(
+        ColumnKind::Varchar
+    )));
+    assert!(!<Postgres as AnsiSqlRenderer>::reads_stored(&ColumnType::Sized {
+        kind: "VARCHAR".into(),
+        size: 3
+    }));
     let read = |kind: ColumnKind| {
         render(&crate::build::stored_read(
             Column {
@@ -949,11 +1231,23 @@ fn the_engines_h2_text_is_read_with_postgres_types_and_folded_bare_names() {
         t("create table t (a double  precision, b doubles, c tinyint2, d Double)"),
         "create table t (\"a\" double  precision, \"b\" doubles, \"c\" tinyint2, \"d\" DOUBLE PRECISION)"
     );
-    assert_eq!(t("insert into T (ID, \"Name\") values (1, 'x')"), "insert into T (\"id\", \"Name\") values (1, 'x')");
-    assert_eq!(t("select CURRENT_TIMESTAMP() from dual"), "select CURRENT_TIMESTAMP from dual");
+    assert_eq!(
+        t("insert into T (ID, \"Name\") values (1, 'x')"),
+        "insert into T (\"id\", \"Name\") values (1, 'x')"
+    );
+    assert_eq!(
+        t("select CURRENT_TIMESTAMP() from dual"),
+        "select CURRENT_TIMESTAMP from dual"
+    );
     assert_eq!(d.raw("select 1", Some("H2")), Ok("select 1".into()));
-    assert_eq!(d.raw("CREATE TABLE T (A TINYINT)", Some("H2")), Ok("CREATE TABLE T (\"a\" SMALLINT)".into()));
-    assert_eq!(d.raw("CREATE TABLE T (A TINYINT)", Some("Postgres")), Ok("CREATE TABLE T (A TINYINT)".into()));
+    assert_eq!(
+        d.raw("CREATE TABLE T (A TINYINT)", Some("H2")),
+        Ok("CREATE TABLE T (\"a\" SMALLINT)".into())
+    );
+    assert_eq!(
+        d.raw("CREATE TABLE T (A TINYINT)", Some("Postgres")),
+        Ok("CREATE TABLE T (A TINYINT)".into())
+    );
 }
 
 // ---- the catalog, the interface
@@ -972,7 +1266,11 @@ fn each_catalog_column_is_declared_by_postgres_rules() {
     };
     let declared = |c: CatalogColumn| {
         let t = d.catalog_type(&c).unwrap();
-        if t.read == Read::LeftOut { "left out".to_owned() } else { t.declared.unwrap() }
+        if t.read == Read::LeftOut {
+            "left out".to_owned()
+        } else {
+            t.declared.unwrap()
+        }
     };
     for (logical, expected) in [
         ("int4", "INTEGER"),
@@ -996,10 +1294,18 @@ fn each_catalog_column_is_declared_by_postgres_rules() {
     ] {
         assert_eq!(declared(col("c", logical, logical, None, None)), expected, "{logical}");
     }
-    assert_eq!(declared(col("n12", "numeric(12,3)", "numeric", Some(12), Some(3))), "DECIMAL(12,3)");
-    let tstz = d.catalog_type(&col("tstz", "timestamp with time zone", "timestamptz", None, None)).unwrap();
+    assert_eq!(
+        declared(col("n12", "numeric(12,3)", "numeric", Some(12), Some(3))),
+        "DECIMAL(12,3)"
+    );
+    let tstz = d
+        .catalog_type(&col("tstz", "timestamp with time zone", "timestamptz", None, None))
+        .unwrap();
     assert_eq!(tstz.read, Read::CopyConverted);
-    assert_eq!(tstz.conversion.as_deref(), Some("CAST(timezone('UTC', %s) AS TIMESTAMP)"));
+    assert_eq!(
+        tstz.conversion.as_deref(),
+        Some("CAST(timezone('UTC', %s) AS TIMESTAMP)")
+    );
     assert_eq!(
         d.catalog_type(&col("g", "geometry", "geometry", None, None)),
         Err(capability(
@@ -1017,7 +1323,10 @@ fn each_catalog_column_is_declared_by_postgres_rules() {
 fn the_interface_as_postgres_answers_it() {
     let d = Postgres::new();
     assert_eq!(d.session_setup(), vec!["SET TimeZone='UTC'".to_owned()]);
-    assert_eq!(d.script(&["a".into(), "b".into()]), "BEGIN TRANSACTION;\na;\nb;\nCOMMIT;");
+    assert_eq!(
+        d.script(&["a".into(), "b".into()]),
+        "BEGIN TRANSACTION;\na;\nb;\nCOMMIT;"
+    );
     assert_eq!(d.script_abort().as_deref(), Some("ROLLBACK"));
     assert_eq!(d.keys_snapshot(), Ok(KeysSnapshot::RepeatableRead));
     assert_eq!(d.result_column_limit(), Ok(Some(1664)));
@@ -1052,7 +1361,9 @@ fn the_interface_as_postgres_answers_it() {
     let mut w = SqlWriter::new();
     assert_eq!(
         d.catalog(&mut w, &grid),
-        Err(capability("a TABLES catalog grid (fetchDb*MetaData) reached a dialect without a catalog reading"))
+        Err(capability(
+            "a TABLES catalog grid (fetchDb*MetaData) reached a dialect without a catalog reading"
+        ))
     );
 }
 

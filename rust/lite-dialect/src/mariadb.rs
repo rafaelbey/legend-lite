@@ -95,7 +95,10 @@ impl MariaDb {
 
     /// Java's `new MySql()`.
     pub fn mysql() -> MariaDb {
-        MariaDb { mysql: true, ..MariaDb::default() }
+        MariaDb {
+            mysql: true,
+            ..MariaDb::default()
+        }
     }
 
     /// Whether this is MySQL's dialect.
@@ -307,8 +310,12 @@ static LEXICON: LazyLock<Lexicon> = LazyLock::new(|| Lexicon::new('"', RESERVED)
 
 /// Java's `MariaDb.CAPS`: the portable strategies over its JSON lists (a JSON_TABLE argument correlates); no FULL
 /// OUTER JOIN, so it is emulated.
-pub const CAPS: carrier::Caps =
-    carrier::Caps { native_lists: false, correlated_explode: true, json_carrier: true, native_full_outer: false };
+pub const CAPS: carrier::Caps = carrier::Caps {
+    native_lists: false,
+    correlated_explode: true,
+    json_carrier: true,
+    native_full_outer: false,
+};
 
 // ==================================================================
 // The type facts the arms read
@@ -367,12 +374,18 @@ fn is_double(e: &SqlExpr) -> bool {
 
 /// Java's `composite(e)`: a struct, a list or a map.
 fn composite(e: &SqlExpr) -> bool {
-    matches!(type_of(e), Some(SqlType::Struct { .. } | SqlType::Array { .. } | SqlType::Map { .. }))
+    matches!(
+        type_of(e),
+        Some(SqlType::Struct { .. } | SqlType::Array { .. } | SqlType::Map { .. })
+    )
 }
 
 /// Java's `integral(e)`.
 fn integral(e: &SqlExpr) -> bool {
-    matches!(type_of(e), Some(SqlType::Scalar(Scalar::Bigint | Scalar::Integer | Scalar::Hugeint)))
+    matches!(
+        type_of(e),
+        Some(SqlType::Scalar(Scalar::Bigint | Scalar::Integer | Scalar::Hugeint))
+    )
 }
 
 /// A `SqlType`'s `toString`, or `null` for none (Java's string concatenation of a nullable type).
@@ -506,7 +519,8 @@ impl MariaDb {
                 });
             }
             return pc(move |w| {
-                w.append("JSON_EXTRACT(CAST(CONCAT('[', GROUP_CONCAT(").append(if distinct { "DISTINCT " } else { "" });
+                w.append("JSON_EXTRACT(CAST(CONCAT('[', GROUP_CONCAT(")
+                    .append(if distinct { "DISTINCT " } else { "" });
                 w.append("JSON_ARRAY(").piece(&*value)?.append(")");
                 if let Some(order) = &order {
                     w.append(" ORDER BY ").piece(&**order)?;
@@ -516,7 +530,9 @@ impl MariaDb {
             });
         }
         pc(move |w| {
-            w.append("JSON_ARRAYAGG(").append(if distinct { "DISTINCT " } else { "" }).piece(&*value)?;
+            w.append("JSON_ARRAYAGG(")
+                .append(if distinct { "DISTINCT " } else { "" })
+                .piece(&*value)?;
             if let Some(order) = &order {
                 w.append(" ORDER BY ").piece(&**order)?;
                 if first_only {
@@ -532,8 +548,13 @@ impl MariaDb {
     fn index_path<'a>(&self, index: P<'a>) -> P<'a> {
         if self.mysql {
             return pc(move |w| {
-                w.append("(CASE WHEN (").piece(&*index)?.append(") < 0 THEN CONCAT('$[last-', -(").piece(&*index)?;
-                w.append(") - 1, ']') ELSE CONCAT('$[', ").piece(&*index)?.append(", ']') END)");
+                w.append("(CASE WHEN (")
+                    .piece(&*index)?
+                    .append(") < 0 THEN CONCAT('$[last-', -(")
+                    .piece(&*index)?;
+                w.append(") - 1, ']') ELSE CONCAT('$[', ")
+                    .piece(&*index)?
+                    .append(", ']') END)");
                 Ok(())
             });
         }
@@ -560,12 +581,16 @@ impl MariaDb {
             let bound = self.ident(&format!("{}__j", alias.replace('"', "")));
             return pc(move |w| {
                 w.append("(LATERAL (SELECT ").piece(&*json)?;
-                w.append(&format!(" AS \"j\") AS {bound} CROSS JOIN JSON_TABLE({bound}.\"j\", {spec}) AS {alias})"));
+                w.append(&format!(
+                    " AS \"j\") AS {bound} CROSS JOIN JSON_TABLE({bound}.\"j\", {spec}) AS {alias})"
+                ));
                 Ok(())
             });
         }
         pc(move |w| {
-            w.append("JSON_TABLE(").piece(&*json)?.append(&format!(", {spec}) AS {alias}"));
+            w.append("JSON_TABLE(")
+                .piece(&*json)?
+                .append(&format!(", {spec}) AS {alias}"));
             Ok(())
         })
     }
@@ -575,14 +600,23 @@ impl MariaDb {
     fn json_text<'a>(&self, json: P<'a>, path: P<'a>) -> P<'a> {
         if self.mysql {
             return pc(move |w| {
-                w.append("(CASE WHEN JSON_TYPE(JSON_EXTRACT(").piece(&*json)?.append(", ").piece(&*path)?;
-                w.append(")) = 'NULL' THEN NULL ELSE JSON_UNQUOTE(JSON_EXTRACT(").piece(&*json)?.append(", ");
+                w.append("(CASE WHEN JSON_TYPE(JSON_EXTRACT(")
+                    .piece(&*json)?
+                    .append(", ")
+                    .piece(&*path)?;
+                w.append(")) = 'NULL' THEN NULL ELSE JSON_UNQUOTE(JSON_EXTRACT(")
+                    .piece(&*json)?
+                    .append(", ");
                 w.piece(&*path)?.append(")) END)");
                 Ok(())
             });
         }
         pc(move |w| {
-            w.append("JSON_VALUE(").piece(&*json)?.append(", ").piece(&*path)?.append(")");
+            w.append("JSON_VALUE(")
+                .piece(&*json)?
+                .append(", ")
+                .piece(&*path)?
+                .append(")");
             Ok(())
         })
     }
@@ -602,14 +636,24 @@ impl MariaDb {
     fn json_member<'a>(&self, json: P<'a>, path: P<'a>) -> P<'a> {
         if self.mysql {
             return pc(move |w| {
-                w.append("(CASE WHEN JSON_TYPE(JSON_EXTRACT(").piece(&*json)?.append(", ").piece(&*path)?;
-                w.append(")) = 'NULL' THEN NULL ELSE JSON_EXTRACT(").piece(&*json)?.append(", ").piece(&*path)?;
+                w.append("(CASE WHEN JSON_TYPE(JSON_EXTRACT(")
+                    .piece(&*json)?
+                    .append(", ")
+                    .piece(&*path)?;
+                w.append(")) = 'NULL' THEN NULL ELSE JSON_EXTRACT(")
+                    .piece(&*json)?
+                    .append(", ")
+                    .piece(&*path)?;
                 w.append(") END)");
                 Ok(())
             });
         }
         pc(move |w| {
-            w.append("NULLIF(JSON_EXTRACT(").piece(&*json)?.append(", ").piece(&*path)?.append("), 'null')");
+            w.append("NULLIF(JSON_EXTRACT(")
+                .piece(&*json)?
+                .append(", ")
+                .piece(&*path)?
+                .append("), 'null')");
             Ok(())
         })
     }
@@ -645,7 +689,10 @@ impl MariaDb {
         if self.mysql {
             let pattern = self.string_literal("(\"(?:[^\"\\\\]|\\\\.)*\")|([,:]) ");
             return pc(move |w| {
-                w.append("REGEXP_REPLACE(CAST(").piece(&*json)?.append(" AS CHAR), ").append(&pattern);
+                w.append("REGEXP_REPLACE(CAST(")
+                    .piece(&*json)?
+                    .append(" AS CHAR), ")
+                    .append(&pattern);
                 w.append(", '$1$2')");
                 Ok(())
             });
@@ -661,12 +708,15 @@ impl MariaDb {
     fn two_rows<'a>(&self, message: P<'a>) -> P<'a> {
         if self.mysql {
             return pc(move |w| {
-                w.append("(SELECT @legend_raise := ").piece(&*message)?.append(" UNION ALL SELECT 0)");
+                w.append("(SELECT @legend_raise := ")
+                    .piece(&*message)?
+                    .append(" UNION ALL SELECT 0)");
                 Ok(())
             });
         }
         pc(move |w| {
-            w.append("(SELECT 1 FROM JSON_TABLE(JSON_ARRAY(@legend_raise := ").piece(&*message)?;
+            w.append("(SELECT 1 FROM JSON_TABLE(JSON_ARRAY(@legend_raise := ")
+                .piece(&*message)?;
             w.append(", 0), '$[*]' COLUMNS (\"x\" LONGTEXT PATH '$')) AS __r)");
             Ok(())
         })
@@ -688,7 +738,11 @@ impl MariaDb {
 
     /// Java's `stringLit` (MariaDb's and MySql's): never refused.
     fn string_literal(&self, value: &str) -> String {
-        if self.mysql { mysql_string_lit(value) } else { mariadb_string_lit(value) }
+        if self.mysql {
+            mysql_string_lit(value)
+        } else {
+            mariadb_string_lit(value)
+        }
     }
 }
 
@@ -742,7 +796,11 @@ fn mysql_string_lit(value: &str) -> String {
                 sb.push('\'');
                 piece.clear();
             }
-            sb.push_str(if ch == '\'' { ", CHAR(39 USING utf8mb4)" } else { ", CHAR(92 USING utf8mb4)" });
+            sb.push_str(if ch == '\'' {
+                ", CHAR(39 USING utf8mb4)"
+            } else {
+                ", CHAR(92 USING utf8mb4)"
+            });
         } else {
             piece.push(ch);
         }
@@ -796,7 +854,12 @@ fn put<V>(into: &mut Vec<(SqlExpr, V)>, key: SqlExpr, value: V) {
 #[derive(Clone, Copy)]
 enum Counted<'a> {
     Grouped(&'a Reducer),
-    Window { r#fn: &'a SqlAgg, partition_by: &'a [SqlExpr], order_by: &'a [SortKey], frame: Option<&'a Frame> },
+    Window {
+        r#fn: &'a SqlAgg,
+        partition_by: &'a [SqlExpr],
+        order_by: &'a [SortKey],
+        frame: Option<&'a Frame>,
+    },
 }
 
 impl Counted<'_> {
@@ -806,8 +869,19 @@ impl Counted<'_> {
         match (self, key) {
             (Counted::Grouped(r), SqlExpr::Reducer(k)) => *r == k,
             (
-                Counted::Window { r#fn, partition_by, order_by, frame },
-                SqlExpr::WindowCall { r#fn: kf, partition_by: kp, order_by: ko, frame: kr, .. },
+                Counted::Window {
+                    r#fn,
+                    partition_by,
+                    order_by,
+                    frame,
+                },
+                SqlExpr::WindowCall {
+                    r#fn: kf,
+                    partition_by: kp,
+                    order_by: ko,
+                    frame: kr,
+                    ..
+                },
             ) => {
                 **r#fn == **kf && *partition_by == kp.as_slice() && *order_by == ko.as_slice() && *frame == kr.as_ref()
             }
@@ -866,7 +940,9 @@ impl MariaDb {
     /// The columns counting `mode` in the select being written (Java's `modeCounts.peek().get(mode)`).
     fn counted(&self, mode: Counted<'_>) -> Option<Vec<SqlExpr>> {
         let counts = self.mode_counts.borrow();
-        counts.last().and_then(|top| top.iter().find(|(k, _)| mode.is(k)).map(|(_, c)| c.clone()))
+        counts
+            .last()
+            .and_then(|top| top.iter().find(|(k, _)| mode.is(k)).map(|(_, c)| c.clone()))
     }
 
     /// Java's `modesCounted`: `s`, its FROM given a count per MODE (and a rank and a count per quantile where they are
@@ -906,7 +982,10 @@ impl MariaDb {
                 let v = arg(&r.args, 0)?.clone();
                 let desc = r.order_by.first().is_some_and(|k| !k.ascending);
                 let rank = build::window_call(
-                    SqlAgg::RankingFn { r#fn: AggFn::RowNumber, args: Vec::new() },
+                    SqlAgg::RankingFn {
+                        r#fn: AggFn::RowNumber,
+                        args: Vec::new(),
+                    },
                     partition_by.clone(),
                     vec![build::sort_key(v.clone(), !desc, Some(NullOrder::NullsLast), None)],
                     None,
@@ -942,7 +1021,10 @@ impl MariaDb {
         // a star of the select reads the source as it was, its own columns, never the counts beside them
         let spelled = ansi::stars_as_source_columns(s, outputs, &alias, self.product())?;
         let s = build::with_projections(s.clone(), spelled)?;
-        Ok(Some(build::with_from(s, build::subselect(build::query(counted_rows), &alias, None))?))
+        Ok(Some(build::with_from(
+            s,
+            build::subselect(build::query(counted_rows), &alias, None),
+        )?))
     }
 
     /// Java's `collectModes`: each MODE under `e` to count -- a grouped reducer with the select's keys (where grouped
@@ -957,7 +1039,13 @@ impl MariaDb {
             }
             return;
         }
-        if let SqlExpr::WindowCall { r#fn, partition_by, order_by, frame, .. } = e
+        if let SqlExpr::WindowCall {
+            r#fn,
+            partition_by,
+            order_by,
+            frame,
+            ..
+        } = e
             && let SqlAgg::Reducer(r) = r#fn.as_ref()
         {
             if r.r#fn == AggFn::Mode {
@@ -996,7 +1084,10 @@ impl MariaDb {
             if !partition_by.is_empty() {
                 w.append("PARTITION BY ").list(self, partition_by)?.append(" ");
             }
-            w.append("ORDER BY ").expr(self, &count, 0)?.append(" DESC, ").expr(self, v, 0)?;
+            w.append("ORDER BY ")
+                .expr(self, &count, 0)?
+                .append(" DESC, ")
+                .expr(self, v, 0)?;
             w.append(" ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)");
             return Ok(());
         }
@@ -1058,13 +1149,20 @@ impl MariaDb {
                 _ => None,
             };
             match original {
-                Some((_, original)) => {
-                    order.push(build::sort_key(original.clone(), k.ascending, k.null_order, k.output_name.clone()))
-                }
+                Some((_, original)) => order.push(build::sort_key(
+                    original.clone(),
+                    k.ascending,
+                    k.null_order,
+                    k.output_name.clone(),
+                )),
                 None => order.push(k.clone()),
             }
         }
-        let s = build::select(SqlSelect { projections: ps, order_by: order, ..s })?;
+        let s = build::select(SqlSelect {
+            projections: ps,
+            order_by: order,
+            ..s
+        })?;
         Ok((s, as_text))
     }
 
@@ -1082,8 +1180,10 @@ impl MariaDb {
                     }
                 }
                 None => {
-                    let owners: Vec<&(String, Vec<(String, SqlExpr)>)> =
-                        scope.iter().filter(|(_, cols)| cols.iter().any(|(name, _)| *name == c.name)).collect();
+                    let owners: Vec<&(String, Vec<(String, SqlExpr)>)> = scope
+                        .iter()
+                        .filter(|(_, cols)| cols.iter().any(|(name, _)| *name == c.name))
+                        .collect();
                     if owners.len() == 1 {
                         let (alias, cols) = owners[0];
                         let xs = &cols.iter().find(|(name, _)| *name == c.name).expect("an owner").1;
@@ -1134,7 +1234,9 @@ impl MariaDb {
                             if j != i {
                                 w.append(if j > usize::from(i == 0) { " AND " } else { "" });
                                 w.append("coalesce(JSON_LENGTH(").expr(self, xs, 0)?;
-                                w.append("), 0) >= coalesce(JSON_LENGTH(").expr(self, other, 0)?.append("), 0)");
+                                w.append("), 0) >= coalesce(JSON_LENGTH(")
+                                    .expr(self, other, 0)?
+                                    .append("), 0)");
                             }
                         }
                         w.append(" THEN ").expr(self, xs, 0)?;
@@ -1170,7 +1272,9 @@ impl MariaDb {
                 }
                 _ => {
                     for (i, oc) in outs.iter().enumerate() {
-                        w.append(if i > 0 { ", " } else { "" }).append(&self.string_literal(&oc.name)).append(", ");
+                        w.append(if i > 0 { ", " } else { "" })
+                            .append(&self.string_literal(&oc.name))
+                            .append(", ");
                         let read = self.column_ref(&build::column_of(Some("__l"), oc))?;
                         let v = self.json_of(text(read), Some(&oc.r#type));
                         w.piece(&*v)?;
@@ -1210,13 +1314,16 @@ impl MariaDb {
         let values = self.lateral_values(s, outs)?;
         for (i, oc) in outs.iter().enumerate() {
             let v = &values[i];
-            w.append(if i > 0 { ", " } else { "" }).append(&self.string_literal(&oc.name)).append(", ");
+            w.append(if i > 0 { ", " } else { "" })
+                .append(&self.string_literal(&oc.name))
+                .append(", ");
             let json = self.json_of(self.ex(v, 0), Some(&oc.r#type));
             w.piece(&*json)?;
         }
         w.append(")");
         if !s.order_by.is_empty() {
-            w.append(" ORDER BY ").join(&s.order_by, ", ", |w, k| self.sort_key(w, k))?;
+            w.append(" ORDER BY ")
+                .join(&s.order_by, ", ", |w, k| self.sort_key(w, k))?;
         }
         w.append(") FROM ");
         self.source(w, &s.from, depth + 1)?;
@@ -1229,8 +1336,15 @@ impl MariaDb {
     /// Java's `lateralValues`: each output's value in `s` -- its projection's, or a star's column.
     fn lateral_values(&self, s: &SqlSelect, outs: &[OutputCol]) -> Result<Vec<SqlExpr>, Refusal> {
         if s.projections.is_empty() {
-            let table = if matches!(s.from, SqlSource::Join { .. }) { None } else { Some(source_alias(&s.from)?) };
-            return Ok(outs.iter().map(|oc| SqlExpr::Column(build::column_of(table, oc))).collect());
+            let table = if matches!(s.from, SqlSource::Join { .. }) {
+                None
+            } else {
+                Some(source_alias(&s.from)?)
+            };
+            return Ok(outs
+                .iter()
+                .map(|oc| SqlExpr::Column(build::column_of(table, oc)))
+                .collect());
         }
         let aligned =
             s.projections.len() == outs.len() && s.projections.iter().all(|p| !matches!(p.expr, SqlExpr::Star { .. }));
@@ -1240,7 +1354,10 @@ impl MariaDb {
         if s.projections.len() == 1
             && let SqlExpr::Star { table, .. } = &s.projections[0].expr
         {
-            return Ok(outs.iter().map(|oc| SqlExpr::Column(build::column_of(table.as_deref(), oc))).collect());
+            return Ok(outs
+                .iter()
+                .map(|oc| SqlExpr::Column(build::column_of(table.as_deref(), oc)))
+                .collect());
         }
         Err(Refusal::capability(format!(
             "a lateral subquery whose projections do not match its outputs reached {}",
@@ -1251,7 +1368,10 @@ impl MariaDb {
 
 /// Java's `deliveredValue`: `None` where the value is delivered as it is.
 fn delivered_value(e: &SqlExpr, label: &SqlType) -> Option<SqlExpr> {
-    if matches!(e, SqlExpr::NullLit { .. } | SqlExpr::Star { .. } | SqlExpr::StarExcept { .. }) {
+    if matches!(
+        e,
+        SqlExpr::NullLit { .. } | SqlExpr::Star { .. } | SqlExpr::StarExcept { .. }
+    ) {
         return None;
     }
     let t = type_of(e);
@@ -1303,7 +1423,9 @@ fn spell(src: &SqlSource, table: Option<&str>, into: &mut Vec<Projection>) -> Re
             spell(right, table, into)
         }
         SqlSource::Subselect { inner, alias, .. } if is_marker(inner) && table.is_none_or(|t| t == alias) => {
-            let SqlQuery::Select(m) = inner.as_ref() else { unreachable!("a marker is a select") };
+            let SqlQuery::Select(m) = inner.as_ref() else {
+                unreachable!("a marker is a select")
+            };
             for p in &m.projections {
                 let read = exploded_read(alias, p, p.out.as_ref().map(|o| &o.r#type))?;
                 into.push(build::projection(read, Some(marker_column(p)?), p.out.clone())?);
@@ -1402,7 +1524,9 @@ impl AnsiSqlRenderer for MariaDb {
     /// The engine's H2 text is refused here: MariaDB has no translation of it.
     fn from_engine_text(&self, statement: &str) -> Result<String, Refusal> {
         let _ = statement;
-        Err(Refusal::capability("the engine's H2 text reached MariaDB, which has no translation of it"))
+        Err(Refusal::capability(
+            "the engine's H2 text reached MariaDB, which has no translation of it",
+        ))
     }
 
     /// A Float's literal spelling is this dialect's own, the value read once.
@@ -1455,7 +1579,10 @@ impl AnsiSqlRenderer for MariaDb {
 
     fn pivot_source(&self, w: &mut SqlWriter, pivot: &SqlSource, depth: usize) -> Result<(), Refusal> {
         let _ = (w, pivot, depth);
-        Err(Refusal::capability(format!("a pivot reached {} unemulated: it has no PIVOT", self.product())))
+        Err(Refusal::capability(format!(
+            "a pivot reached {} unemulated: it has no PIVOT",
+            self.product()
+        )))
     }
 
     /// Every identifier quoted (ANSI_QUOTES): a double-quoted declaration is its own spelling.
@@ -1523,7 +1650,11 @@ impl AnsiSqlRenderer for MariaDb {
             let aligned = s.outputs.len() == s.projections.len();
             let mut ps = Vec::with_capacity(s.projections.len());
             for (i, p) in s.projections.iter().enumerate() {
-                let slot = if aligned { Some(&s.outputs[i].r#type) } else { p.out.as_ref().map(|o| &o.r#type) };
+                let slot = if aligned {
+                    Some(&s.outputs[i].r#type)
+                } else {
+                    p.out.as_ref().map(|o| &o.r#type)
+                };
                 let read = exploded_read(&alias, p, slot)?;
                 ps.push(build::projection(read, Some(marker_column(p)?), p.out.clone())?);
             }
@@ -1559,8 +1690,11 @@ impl AnsiSqlRenderer for MariaDb {
         let mut scope = Vec::new();
         laterals_of(&s.from, &mut scope)?;
         // a select whose stars are spelled is made anew: no root select, so its values are delivered as they are
-        let (spelled, as_text) =
-            if scope.is_empty() { self.delivered(s, rooted)? } else { (stars_spelled(s)?, Vec::new()) };
+        let (spelled, as_text) = if scope.is_empty() {
+            self.delivered(s, rooted)?
+        } else {
+            (stars_spelled(s)?, Vec::new())
+        };
         self.laterals.borrow_mut().push(scope);
         self.mode_counts.borrow_mut().push(counts);
         let written = (|| {
@@ -1585,7 +1719,11 @@ impl AnsiSqlRenderer for MariaDb {
     /// back by `JSON_TABLE` (MySQL has LATERAL).
     fn source(&self, w: &mut SqlWriter, src: &SqlSource, depth: usize) -> Result<(), Refusal> {
         if let SqlSource::Join {
-            left, right, kind: kind @ (JoinKind::CrossLateral | JoinKind::LeftLateral), on, ..
+            left,
+            right,
+            kind: kind @ (JoinKind::CrossLateral | JoinKind::LeftLateral),
+            on,
+            ..
         } = src
             && let SqlSource::Subselect { inner, alias, .. } = right.as_ref()
             && let SqlQuery::Select(m) = inner.as_ref()
@@ -1619,7 +1757,11 @@ impl AnsiSqlRenderer for MariaDb {
             return Ok(());
         }
         if let SqlSource::Join {
-            left, right, kind: kind @ (JoinKind::CrossLateral | JoinKind::LeftLateral), on, ..
+            left,
+            right,
+            kind: kind @ (JoinKind::CrossLateral | JoinKind::LeftLateral),
+            on,
+            ..
         } = src
         {
             if self.correlates_derived() {
@@ -1634,7 +1776,9 @@ impl AnsiSqlRenderer for MariaDb {
                 )));
             };
             let is_left = *kind == JoinKind::LeftLateral;
-            let always = on.as_deref().is_none_or(|on| matches!(on, SqlExpr::BoolLit { value: true, .. }));
+            let always = on
+                .as_deref()
+                .is_none_or(|on| matches!(on, SqlExpr::BoolLit { value: true, .. }));
             self.source(w, left, depth)?;
             self.nl(w, depth);
             w.append(if is_left {
@@ -1674,7 +1818,9 @@ impl AnsiSqlRenderer for MariaDb {
         if rows.is_empty() {
             w.append("SELECT ");
             for (i, c) in columns.iter().enumerate() {
-                w.append(if i > 0 { ", " } else { "" }).append("NULL AS ").append(&self.alias_ident(c));
+                w.append(if i > 0 { ", " } else { "" })
+                    .append("NULL AS ")
+                    .append(&self.alias_ident(c));
             }
             w.append(" FROM DUAL WHERE FALSE) AS ").append(&self.alias_ident(alias));
             return Ok(());
@@ -1736,7 +1882,9 @@ impl AnsiSqlRenderer for MariaDb {
     /// No STRUCT type here: a struct cast is refused.
     fn struct_type_name(&self, fields: &[StructField]) -> Result<String, Refusal> {
         let _ = fields;
-        Err(Refusal::capability("a STRUCT type reached a dialect without struct support"))
+        Err(Refusal::capability(
+            "a STRUCT type reached a dialect without struct support",
+        ))
     }
 
     /// Every scalar's name (MySql's, by its exhaustive switch, MariaDb's).
@@ -1750,7 +1898,9 @@ impl AnsiSqlRenderer for MariaDb {
             Scalar::Timestamp | Scalar::Timestamptz => "DATETIME(6)",
             Scalar::Time => "TIME(6)",
             Scalar::DecimalText => {
-                return Err(Refusal::illegal_state(format!("{s} cast reached a dialect without {s} support")));
+                return Err(Refusal::illegal_state(format!(
+                    "{s} cast reached a dialect without {s} support"
+                )));
             }
         }
         .to_owned())
@@ -1779,7 +1929,11 @@ impl AnsiSqlRenderer for MariaDb {
         let dir = if k.ascending { "" } else { " DESC" };
         if !matches!(k.expr, SqlExpr::IntLit { .. } | SqlExpr::StringLit { .. }) {
             w.append("(").expr(self, &k.expr, 4)?;
-            w.append(if nulls_first == k.ascending { " IS NOT NULL)" } else { " IS NULL)" });
+            w.append(if nulls_first == k.ascending {
+                " IS NOT NULL)"
+            } else {
+                " IS NULL)"
+            });
             w.append(dir).append(", ");
         }
         w.expr(self, &k.expr, 0)?.append(dir);
@@ -1824,7 +1978,9 @@ impl AnsiSqlRenderer for MariaDb {
                 Ok(())
             }
             SqlExpr::Membership { collection, .. } if matches!(collection.as_ref(), SqlExpr::PlanParam { .. }) => {
-                let SqlExpr::PlanParam { name, .. } = collection.as_ref() else { unreachable!("a plan parameter") };
+                let SqlExpr::PlanParam { name, .. } = collection.as_ref() else {
+                    unreachable!("a plan parameter")
+                };
                 Err(self.list_parameter(name))
             }
             SqlExpr::Column(c) => match self.exploded_column(c) {
@@ -1925,7 +2081,11 @@ impl AnsiSqlRenderer for MariaDb {
 
     fn variant_construct(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
         if a.len() != 1 {
-            return Err(Refusal::capability(format!("toVariant of {} arguments reached {}", a.len(), self.product())));
+            return Err(Refusal::capability(format!(
+                "toVariant of {} arguments reached {}",
+                a.len(),
+                self.product()
+            )));
         }
         let v = self.variant_of(&a[0]);
         w.piece(&*v)?;
@@ -1938,7 +2098,10 @@ impl AnsiSqlRenderer for MariaDb {
 
     fn variant_elements(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
         let x = arg(args, 0)?;
-        w.append("(CASE WHEN JSON_TYPE(").expr(self, x, 0)?.append(") = 'ARRAY' THEN ").expr(self, x, 0)?;
+        w.append("(CASE WHEN JSON_TYPE(")
+            .expr(self, x, 0)?
+            .append(") = 'ARRAY' THEN ")
+            .expr(self, x, 0)?;
         w.append(" END)");
         Ok(())
     }
@@ -2078,14 +2241,19 @@ impl AnsiSqlRenderer for MariaDb {
     /// Refused, as TYPEOF is here (its type names are DuckDB's).
     fn typeof_name(&self, scalar: Scalar) -> Result<String, Refusal> {
         let _ = scalar;
-        Err(Refusal::capability("typeof reached MariaDB: its type names are DuckDB's"))
+        Err(Refusal::capability(
+            "typeof reached MariaDB: its type names are DuckDB's",
+        ))
     }
 }
 
 impl MariaDb {
     /// Java's `listParameter`: a list plan parameter, which MariaDB binds no array of.
     fn list_parameter(&self, name: &str) -> Refusal {
-        Refusal::capability(format!("list plan parameter '{name}' reached {}, which binds no array", self.product()))
+        Refusal::capability(format!(
+            "list plan parameter '{name}' reached {}, which binds no array",
+            self.product()
+        ))
     }
 
     /// Java's `wall`.
@@ -2097,7 +2265,10 @@ impl MariaDb {
     fn literal<'e>(&self, e: &'e SqlExpr, what: &str) -> Result<&'e str, Refusal> {
         match e {
             SqlExpr::StringLit { value, .. } => Ok(value),
-            _ => Err(Refusal::capability(format!("{what} that is not a literal reached {}", self.product()))),
+            _ => Err(Refusal::capability(format!(
+                "{what} that is not a literal reached {}",
+                self.product()
+            ))),
         }
     }
 

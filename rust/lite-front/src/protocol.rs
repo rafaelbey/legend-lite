@@ -83,7 +83,12 @@ fn mangle_type(t: &TypeExpression) -> Result<Vec<u16>, String> {
     let full = match t {
         TypeExpression::TypeExpressionNameRef(n) => &n.name.0,
         TypeExpression::TypeExpressionGeneric(g) => &g.name.0,
-        _ => return Err(format!("no mangle rule for parameter type {}", type_expression_simple_name(t))),
+        _ => {
+            return Err(format!(
+                "no mangle rule for parameter type {}",
+                type_expression_simple_name(t)
+            ));
+        }
     };
     Ok(match last_index_of_str(full, "::") {
         None => full.clone(),
@@ -191,5 +196,7 @@ fn col_spec_reads_return(cs: &crate::records::ColSpec) -> bool {
 }
 
 fn nodes_read_return(nodes: &[Box<GraphFetchLiteralNode>]) -> bool {
-    nodes.iter().any(|n| n.parameters.iter().any(reads_return) || nodes_read_return(&n.sub_trees))
+    nodes
+        .iter()
+        .any(|n| n.parameters.iter().any(reads_return) || nodes_read_return(&n.sub_trees))
 }

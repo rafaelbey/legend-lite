@@ -64,7 +64,11 @@ fn parse_schema_set<'s>(c: &mut impl Cursor<'s>) -> R<PSchemaSet> {
         return Err(c.error_str("SchemaSet needs a format"));
     };
     if !eq(&format, "FlatData") && !eq(&format, "JSON") && !eq(&format, "XSD") {
-        return Err(throw_at(c.tokens(), format_tok, jcat!("Unknown schema format: ", format)));
+        return Err(throw_at(
+            c.tokens(),
+            format_tok,
+            jcat!("Unknown schema format: ", format),
+        ));
     }
     Ok(PSchemaSet {
         pkg: JStr(h.pkg),
@@ -161,7 +165,11 @@ fn parse_binding<'s>(c: &mut impl Cursor<'s>) -> R<PBinding> {
         return Err(c.error_str("Binding needs a contentType"));
     };
     if includes.is_empty() {
-        return Err(throw_at(c.tokens(), h.decl_start, JStr::from("Field 'modelIncludes' is required")));
+        return Err(throw_at(
+            c.tokens(),
+            h.decl_start,
+            JStr::from("Field 'modelIncludes' is required"),
+        ));
     }
     Ok(PBinding {
         pkg: JStr(h.pkg),
