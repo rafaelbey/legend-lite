@@ -737,3 +737,21 @@ exists, and the committed oracle after.
 Reported to the user at the phase's end and not ruled on separately: step 5's oracle hash over raw UTF-16 units, its
 unreachable overlay path at the `document` door and its 6 warm-JVM mismatches; 6a's dropped question-hash column; 6b's
 keeping `PlatformSurfaceGuardrailTest` and `TextSurgeryPinTest`'s witness-prefix test.
+
+**Ruled after the post-6b fixes (the user, 2026-11-09), one at a time on the fixes' report:**
+
+11. **The inputs legend-engine accepts and lite answered with a raw JDK exception are refused with a placed parse
+    error** (not as recommended, which was to accept them): rows 3 (an impossible date with a zone), 7 (`1e999` at lite's
+    and the platform's dialects), 8's rest (`1.ed`, `1.e+d`, `1.ef`, a huge exponent at those dialects), 46 (an empty
+    `###Diagram` before another header), 50's rest (a non-string `title`, `description` or `required`, an integer past a
+    long), 72 (an AggregationAware main mapping's local property) and 73's rest (`platform: Default #{ x: 1; }#`). Lite
+    is deliberately stricter on these; each is its own row of `docs/SEMANTICS_REGISTER.md`.
+12. **The six `UnsupportedOperationException` rows the list of 21 missed: only where the engine refuses** (not as
+    recommended, which included the rest). Rows 70, 71, 81 and 69's positional cast and wildcard relation columns become
+    placed parse errors at the engine's place. Row 68 and 69's `let` forms, which the engine accepts, keep today's raw
+    answer, listed; row 74's raw answer was not reached by any probe and stays.
+13. **Row 63 is refused at the model door at the engine's dialect and at the `lambda` door**, as the engine refuses it;
+    `pmcd` at lite's and the platform's dialects keeps accepting. If lite's own tests rely on the `lambda` door
+    accepting it, that comes back to the user.
+14. **The 23 register rows S128 to S150 are ratified as they stand**, the four that differ from the engine past the
+    line (PARITY rows 63, 73, 76, 83) included.
