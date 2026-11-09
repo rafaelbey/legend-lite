@@ -5,7 +5,6 @@ package com.legend.parser;
 
 import com.legend.protocol.Protocol;
 import com.legend.protocol.ProtocolEmitter;
-import com.legend.protocol.SourceInfo;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,18 +32,6 @@ public final class PmcdParser {
     /** THE level the drop-in surface ({@link #parseDocument}, {@link #parseModel}) exists for, named once. */
     private static final Dialect LEVEL = Dialect.LEGEND_ENGINE;
 
-    /** One parsed element: the path the sectionIndex lists (functions use their MANGLED path, like the engine), the
-     *  PROTOCOL type, and the parsed RECORD itself, the protocol program's hub. */
-    public record DocElement(@com.legend.base.Nullable String path,
-            Class<? extends Protocol.Element> kind, Protocol.Element element) {
-
-        /** Its wire JSON, emitted from the record when asked -- never on the compiler's path, which takes the record
-         *  (leg 8: one parser, and the compile does not pay for JSON it does not read). */
-        public String json() {
-            return ProtocolEmitter.emitElement(element);
-        }
-    }
-
     /**
      * A text parsed at a dialect: its records (every element in section order, then the section index), and the
      * sections no grammar claims, which the platform dialect records instead of refusing (the engine's and lite's
@@ -56,11 +43,6 @@ public final class PmcdParser {
     /** A {@code ###} section no registered grammar claims, recorded and counted (the platform dialect), never
      *  silently skipped. */
     public record UnclaimedSection(String name, int startOffset, int endOffset) {
-    }
-
-    /** One document section with its parsed elements and imports. */
-    public record DocSection(String parserName, List<DocElement> elements,
-                             List<String> imports, SourceInfo span) {
     }
 
     /** Parse {@code source} into the engine's full PMCD JSON: the records of {@link #parseModel}, emitted. */

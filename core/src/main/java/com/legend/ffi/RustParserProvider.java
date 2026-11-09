@@ -23,17 +23,17 @@ public final class RustParserProvider implements RustParsers {
 
     @Override
     public ValueSpecification spec(String text, Dialect dialect) {
-        return FrontReader.spec(call("spec", dialect, text));
+        return FrontReader.spec(answered("spec", dialect, text), ANSWER_START);
     }
 
     @Override
     public LambdaFunction lambda(String text) {
-        return FrontReader.lambda(call("lambda", Dialect.LEGEND_ENGINE, text));
+        return FrontReader.lambda(answered("lambda", Dialect.LEGEND_ENGINE, text), ANSWER_START);
     }
 
     @Override
     public List<ValueSpecification> block(String text, Dialect dialect) {
-        return FrontReader.block(call("block", dialect, text));
+        return FrontReader.block(answered("block", dialect, text), ANSWER_START);
     }
 
     @Override
@@ -97,10 +97,10 @@ public final class RustParserProvider implements RustParsers {
             sections.add(new OverlaySection(((Json.Str) f.get(0)).value(), integer(f.get(1)), integer(f.get(2)),
                     integer(f.get(3)), integer(f.get(4)), integer(f.get(5))));
         }
-        String rest = answer.substring(lineEnd + 1);
         return answer.charAt(0) == 'A'
-                ? new ModelAnswer(FrontReader.pmcd(rest), null, List.copyOf(sections))
-                : new ModelAnswer(null, raised((Json.Obj) Json.parse(rest)), List.copyOf(sections));
+                ? new ModelAnswer(FrontReader.pmcd(answer, lineEnd + 1), null, List.copyOf(sections))
+                : new ModelAnswer(null, raised((Json.Obj) Json.parse(answer.substring(lineEnd + 1))),
+                        List.copyOf(sections));
     }
 
     private static int integer(Json.Node n) {
@@ -156,11 +156,20 @@ public final class RustParserProvider implements RustParsers {
         return List.copyOf(out);
     }
 
-    /** One door's answer: the records' codec JSON, or the error thrown. */
+    /** A probe's answer: its JSON text, or the error thrown. */
     private static String call(String door, Dialect dialect, String text) {
+        return answered(door, dialect, text).substring(ANSWER_START);
+    }
+
+    /** Where the answer proper starts, past its {@code A\n}. */
+    private static final int ANSWER_START = 2;
+
+    /** One door's answer, whole (a records door reads it from {@link #ANSWER_START} where it lies), or the error
+     *  thrown. */
+    private static String answered(String door, Dialect dialect, String text) {
         String answer = Lite.shared().front(door, dialect.name(), jsonString(text));
         if (answer.startsWith("A\n")) {
-            return answer.substring(2);
+            return answer;
         }
         if (answer.startsWith("E\n")) {
             throw raised((Json.Obj) Json.parse(answer.substring(2)));

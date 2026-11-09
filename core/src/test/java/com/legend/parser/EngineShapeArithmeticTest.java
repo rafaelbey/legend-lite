@@ -111,7 +111,7 @@ final class EngineShapeArithmeticTest {
 
     @Test
     void relationalThenArithmeticReproducesEngineMisassociation() {
-        // 1 < 2 + 3 * 4 — EngineQuirks.RELATIONAL_ARITH_MISASSOCIATION
+        // 1 < 2 + 3 * 4 — operator_parts.rs's RELATIONAL_ARITH_MISASSOCIATION
         // (audit §1.2, decided in writing: reproduce byte-for-byte).
         // Once the accumulator is lessThan, processOp rewrites its LAST
         // parameter whole, so '* 4' grabs plus[2,3] instead of 3:

@@ -60,19 +60,19 @@ class FrontReaderRoundTripTest {
                     Type declared;
                     switch (door) {
                         case "spec" -> {
-                            back = FrontReader.spec(json);
+                            back = FrontReader.spec(json, 0);
                             declared = ValueSpecification.class;
                         }
                         case "lambda" -> {
-                            back = FrontReader.lambda(json);
+                            back = FrontReader.lambda(json, 0);
                             declared = LambdaFunction.class;
                         }
                         case "block" -> {
-                            back = FrontReader.block(json);
+                            back = FrontReader.block(json, 0);
                             declared = List.class;
                         }
                         case "pmcd" -> {
-                            back = FrontReader.pmcd(json);
+                            back = FrontReader.pmcd(json, 0);
                             declared = PmcdParser.Parsed.class;
                         }
                         default -> throw new IllegalArgumentException("no door " + door);

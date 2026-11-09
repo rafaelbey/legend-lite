@@ -40,8 +40,10 @@ final class FrontRead {
         private int pos;
         private int depth;
 
-        Cursor(String text) {
+        /** The answer that starts at {@code start} of {@code text}: the shim's answer is read where it lies, no copy. */
+        Cursor(String text, int start) {
             this.text = text;
+            this.pos = start;
         }
 
         /** The answer read whole: nothing after its value. */

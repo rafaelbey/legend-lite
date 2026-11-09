@@ -528,7 +528,7 @@ final class SpecParserTest {
 
     @Test
     void arrowWithoutFunctionNameRejected() {
-        // After the FQN parser was consolidated onto TokenStreamCursor,
+        // After the FQN parser was consolidated onto the shared cursor (rust/lite-front's cursor.rs),
         // the missing-identifier message comes from the shared default:
         // 'expected type name, got EOF'. Pin the new (still descriptive,
         // still source-located) phrase.
@@ -1266,7 +1266,7 @@ final class SpecParserTest {
         // it, but parseCombinedExpression / parsePrimary do not. So
         // 'let' nested in an arithmetic expression must error.
         //
-        // SUBTLETY: LET is in TokenStreamCursor.IDENTIFIER_TOKENS (so that
+        // SUBTLETY: LET is an identifier token in cursor.rs (so that
         // '$let' parses as a variable with that name). As a result,
         // mid-expression 'let' is silently absorbed as
         // PackageableElementPtr("let"), and the subsequent
@@ -1874,7 +1874,7 @@ final class SpecParserTest {
     void variableNameMayBeAKeyword() {
         // Pure permits identifiers that lex as keyword tokens (let,
         // class, all, etc.) in any position where an identifier is
-        // expected. SpecParser borrows TokenStreamCursor.IDENTIFIER_TOKENS
+        // expected. The expression parser borrows cursor.rs's identifier tokens
         // for this. Pin the bridge so a future tightening of the
         // keyword list doesn't silently break variable parsing.
         assertEquals(new Variable("let"), com.legend.testing.Platform.spec("$let"));

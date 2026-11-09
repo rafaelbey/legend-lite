@@ -14,8 +14,8 @@ import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-/** Review #14: spans count UTF-16 units (TokenStream.startColumn) while error columns count code points
- *  (TokenStream.columnOf via TokenStreamCursor.throwAt). The plan (H4) chose UTF-16 everywhere. */
+/** Review #14: spans count UTF-16 units (lexer.rs's start_column) while error columns count code points
+ *  (lexer.rs's column_of via cursor.rs's throw_at). The plan (H4) chose UTF-16 everywhere. */
 class Utf16ColumnKnownDefectTest {
 
     /** U+1F600, one code point, two UTF-16 units. */

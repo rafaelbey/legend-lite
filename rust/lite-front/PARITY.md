@@ -333,7 +333,7 @@ Every other site is a refusal or an `unreachable!` naming why. `//rust/lite-fron
 
 ## What Java does that this does not reproduce
 
-The emitter's callers over records that are not a text's (step 5): `PmcdParser.DocElement.json()`, the `*Reader` round
+The emitter's callers over records that are not a text's (step 5): the `*Reader` round
 trips (`ModelReader.read(json)` emitted again), `PureV1Api`'s connection export, `ProtocolEmitterTest` -- they stay on
 Java's `ProtocolEmitter` until phase 3. `emitter::emit_element` and the arms only JSON-read records reach (`origin`,
 `serializer`, `sdlcInfo`, a typed variable reference, a written `fControl` or `class`, a table pointer's written type)

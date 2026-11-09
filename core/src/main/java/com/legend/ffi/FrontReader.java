@@ -13,7 +13,8 @@ import java.util.List;
  * the lossless codec's JSON ({@link FrontRecords}, generated), pulled through a cursor in the order the writer wrote
  * it, so no tree of the answer is built beside the records. Each door's declared type decides the form: a
  * {@code ValueSpecification} and a block's elements carry their record's tag, a {@code LambdaFunction} and a
- * {@code PmcdParser.Parsed} do not. The whole answer is read: text after it is refused.
+ * {@code PmcdParser.Parsed} do not. The whole answer is read, from {@code start} of the string that holds it: text after
+ * it is refused.
  */
 public final class FrontReader {
 
@@ -21,32 +22,32 @@ public final class FrontReader {
     }
 
     /** {@code SpecParser.parse}'s answer. */
-    public static ValueSpecification spec(String json) {
-        FrontRead.Cursor r = new FrontRead.Cursor(json);
+    public static ValueSpecification spec(String answer, int start) {
+        FrontRead.Cursor r = new FrontRead.Cursor(answer, start);
         ValueSpecification v = FrontRecords.readValueSpecification(r);
         r.end();
         return v;
     }
 
     /** {@code SpecParser.parseLambda}'s answer. */
-    public static LambdaFunction lambda(String json) {
-        FrontRead.Cursor r = new FrontRead.Cursor(json);
+    public static LambdaFunction lambda(String answer, int start) {
+        FrontRead.Cursor r = new FrontRead.Cursor(answer, start);
         LambdaFunction v = FrontRecords.readLambdaFunction(r, false);
         r.end();
         return v;
     }
 
     /** {@code SpecParser.parseCodeBlock}'s answer. */
-    public static List<ValueSpecification> block(String json) {
-        FrontRead.Cursor r = new FrontRead.Cursor(json);
+    public static List<ValueSpecification> block(String answer, int start) {
+        FrontRead.Cursor r = new FrontRead.Cursor(answer, start);
         List<ValueSpecification> v = FrontRead.list(r, FrontRecords::readValueSpecification);
         r.end();
         return v;
     }
 
     /** {@code PmcdParser.parse}'s answer. */
-    public static PmcdParser.Parsed pmcd(String json) {
-        FrontRead.Cursor r = new FrontRead.Cursor(json);
+    public static PmcdParser.Parsed pmcd(String answer, int start) {
+        FrontRead.Cursor r = new FrontRead.Cursor(answer, start);
         PmcdParser.Parsed v = FrontRecords.readPmcdParserParsed(r, false);
         r.end();
         return v;

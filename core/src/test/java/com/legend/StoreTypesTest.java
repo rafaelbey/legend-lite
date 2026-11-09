@@ -70,7 +70,7 @@ class StoreTypesTest {
     void aTypePureCannotNameIsAStringAndANestedValueIsAVariant() {
         Map<String, String> types = columnTypes("#>{s::DB.HOSTS}#");
         assertEquals("String", types.get("ADDR"), types.toString());
-        // the grammar's ARRAY keyword parses to OTHER, as upstream's does (DatabaseProtocolParser,
+        // the grammar's ARRAY keyword parses to OTHER, as upstream's does (rust/lite-front's database_parser.rs,
         // RelationalParseTreeWalker): written in a model it is a type Pure cannot name. A typed
         // Array -- what a database's own catalog yields -- is a Variant (StoreCompilerTypesTest).
         assertEquals("String", types.get("TAGS"), types.toString());

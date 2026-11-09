@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * native function declarations.
  *
  * <p>The class-load contract is the headline guarantee: if {@link Pure}
- * loads at all, every declared signature parsed through {@code ElementParser}.
+ * loads at all, every declared signature parsed through the model door.
  * The tests below pin <em>shape</em> for representative natives covering
  * every non-trivial grammar form the parser must support, so a regression
  * that changes the parsed AST (rather than rejecting the source outright)
@@ -1537,7 +1537,7 @@ class NativeFunctionTest {
     //
     // Engine declares several stdlib types as {@code Enum} rather than
     // {@code Class} (DurationUnit, JoinKind, ...). They round-trip
-    // through {@link ElementParser} the same way native classes do.
+    // through the model door the same way native classes do.
     // ===============================================================
 
     @Test

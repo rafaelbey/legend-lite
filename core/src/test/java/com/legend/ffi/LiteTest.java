@@ -30,6 +30,34 @@ class LiteTest {
 
     private static final Lite LITE = Lite.load(library());
 
+    @Test
+    void theJarsLibraryIsWrittenOnceAtAStablePathNamedByItsHash(@org.junit.jupiter.api.io.TempDir Path home) throws Exception {
+        byte[] library = "the library".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String hash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(library));
+        Path expected = home.resolve(".cache/legend-lite/lib/" + hash + "/liblite_ffi.so");
+
+        assertEquals(expected, Lite.writtenOut(library, "liblite_ffi.so", home.toString()));
+        assertEquals(List.of("liblite_ffi.so"), List.of(expected.getParent().toFile().list()), "no temp file left");
+        var first = Files.getLastModifiedTime(expected);
+        Files.setLastModifiedTime(expected, java.nio.file.attribute.FileTime.fromMillis(first.toMillis() - 60_000));
+        var aged = Files.getLastModifiedTime(expected);
+        assertEquals(expected, Lite.writtenOut(library, "liblite_ffi.so", home.toString()));
+        assertEquals(aged, Files.getLastModifiedTime(expected), "a file that hashes to its name is reused, not rewritten");
+
+        Files.writeString(expected, "corrupt");
+        assertEquals(expected, Lite.writtenOut(library, "liblite_ffi.so", home.toString()));
+        org.junit.jupiter.api.Assertions.assertArrayEquals(library, Files.readAllBytes(expected), "the file is replaced");
+    }
+
+    @Test
+    void anUnwritableCacheFallsBackToAPrivateTempFile(@org.junit.jupiter.api.io.TempDir Path home) throws Exception {
+        Files.writeString(home.resolve(".cache"), "a file where the cache directory goes");
+        byte[] library = "the library".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Path written = Lite.writtenOut(library, "liblite_ffi.so", home.toString());
+        org.junit.jupiter.api.Assertions.assertFalse(written.startsWith(home), written.toString());
+        org.junit.jupiter.api.Assertions.assertArrayEquals(library, Files.readAllBytes(written));
+    }
+
     /** The shared library among the target's outputs (on Windows its import library comes with it). */
     private static Path library() {
         List<Path> outputs = Runfile.envList("LEGEND_FFI_LIBRARY");

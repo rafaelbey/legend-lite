@@ -136,13 +136,10 @@ public final class Lite {
             }
         }
         // a self-contained jar (//core:server_deploy.jar, run as java -jar) carries the library its build made, as the
-        // DuckDB driver beside it carries its own: written to a file of this process's, deleted when it exits
+        // DuckDB driver beside it carries its own: written out once per build of it, under the user's cache
         try (java.io.InputStream bundled = Lite.class.getResourceAsStream(JAR_DIR + file)) {
             if (bundled != null) {
-                Path written = java.nio.file.Files.createTempFile("lite_ffi", file.substring(file.lastIndexOf('.')));
-                written.toFile().deleteOnExit();
-                java.nio.file.Files.copy(bundled, written, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                return written;
+                return writtenOut(bundled.readAllBytes(), file, System.getProperty("user.home", ""));
             }
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException("the Rust library this jar carries could not be written out", e);
@@ -150,6 +147,54 @@ public final class Lite {
         throw new IllegalStateException("the Rust library (" + file + ") is not found: set -Dlegend.lite.library, run"
                 + " under Bazel with //core:ffi's data in the runfiles (looked in " + tried + "), or run a jar that"
                 + " carries it");
+    }
+
+    /**
+     * The jar's library on disk, at {@code <home>/.cache/legend-lite/lib/<sha256 of its bytes>/<file>}: reused only when
+     * the file there hashes to its name, else written through a temp file in that directory and an atomic move, so two
+     * JVMs starting together do not race. When that directory cannot be written (a read-only home in a container),
+     * and only then, the library goes to a process-private temp file, deleted when the process exits.
+     */
+    static Path writtenOut(byte[] library, String file, String home) throws java.io.IOException {
+        String name = sha256(library);
+        try {
+            Path directory = Path.of(home, ".cache", "legend-lite", "lib", name);
+            Path target = directory.resolve(file);
+            if (holds(target, name)) {
+                return target;
+            }
+            java.nio.file.Files.createDirectories(directory);
+            Path temp = java.nio.file.Files.createTempFile(directory, "lite_ffi", ".part");
+            try {
+                java.nio.file.Files.write(temp, library);
+                java.nio.file.Files.move(temp, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.io.IOException e) {
+                // the other JVM's move may have won (Windows refuses to replace a loaded file): its file is as good
+                if (!holds(target, name)) {
+                    throw e;
+                }
+            } finally {
+                java.nio.file.Files.deleteIfExists(temp);
+            }
+            return target;
+        } catch (java.io.IOException | java.nio.file.InvalidPathException | SecurityException unwritable) {
+            Path written = java.nio.file.Files.createTempFile("lite_ffi", file.substring(file.lastIndexOf('.')));
+            written.toFile().deleteOnExit();
+            java.nio.file.Files.write(written, library);
+            return written;
+        }
+    }
+
+    private static boolean holds(Path target, String name) throws java.io.IOException {
+        return java.nio.file.Files.isRegularFile(target) && name.equals(sha256(java.nio.file.Files.readAllBytes(target)));
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("the JDK guarantees SHA-256", e);
+        }
     }
 
     /** The library's file name on this platform: what Bazel builds, and what a package ships beside libcompiler. */

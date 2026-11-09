@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code NameResolver.resolve(ParsedModel)} — compileModel's first step —
  * exactly like the engine-era canary asserted. The RAW parse layer keeps them
  * as written by design (resolution is a separate pass); consumers that read
- * {@code ElementParser.parse} output directly (DiagramService, NlqModel)
+ * the model door's records directly (DiagramService, NlqModel)
  * currently compensate with simple-name fallbacks instead of resolving first
  * — a layering smell worth fixing at those call sites, not a missing pass.
  */

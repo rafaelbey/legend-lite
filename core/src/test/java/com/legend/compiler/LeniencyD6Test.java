@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the database refused (ghost join columns, out-of-range dates).
  *
  * <p>The one deliberately KEPT leniency this batch adjudicated: the
- * ElementParser stray-paren skip is bounded ("skip exactly this token")
+ * parser's stray-paren skip is bounded ("skip exactly this token")
  * and corpus-witnessed — engine tolerance, not a hole.
  */
 class LeniencyD6Test {

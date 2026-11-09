@@ -26,9 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * no token positions. Byte parity is a property of the token parser; every
  * regex is surface that property does not cover.
  *
- * <p>Three rules, all ratcheted DOWN only:
+ * <p>Two rules, all ratcheted DOWN only:
  * <ol>
- *   <li>{@code com.legend.lexer}: ZERO regex-family calls. Unconditional.</li>
  *   <li>{@code com.legend.parser} + {@code com.legend.protocol}: regex-family
  *       calls confined to the NAMED whitelist below, frozen at the 2026-08-07
  *       census; the target is an empty whitelist (then rule 1 covers all

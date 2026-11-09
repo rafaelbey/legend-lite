@@ -14,7 +14,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /** Review #13: import scopes were keyed by element FQN, so overloads of one FQN declared in different sections all
- *  resolved with the first section's imports (ElementParser's putIfAbsent; NameResolver's lookup). Fixed 2026-10-09
+ *  resolved with the first section's imports (the parser's putIfAbsent; NameResolver's lookup). Fixed 2026-10-09
  *  (build rebuild Phase 3b, item 5b): the side maps are keyed per element ({@code ParsedModel.keyOf}, a function's id),
  *  so each overload carries its own section's scope; the pin came off and this is the regression. */
 class SectionImportScopeKnownDefectTest {

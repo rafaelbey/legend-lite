@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * THE PLATFORM-SURFACE QUARANTINE (Dialect levels, user directive
- * 2026-08-12): {@code ElementParser.parsePlatform} — legend-lite's own
+ * 2026-08-12): the platform dialect's parse — legend-lite's own
  * legend-pure dialect superset — may be referenced ONLY by the
  * whitelisted platform/bootstrap call sites below. User-facing code
  * routes through {@code parseLegendLite} (product surface) or
