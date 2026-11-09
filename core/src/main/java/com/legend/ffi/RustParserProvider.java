@@ -189,7 +189,6 @@ public final class RustParserProvider implements RustParsers {
                     (int) ((Json.Num) e.get("line")).longValue(), (int) ((Json.Num) e.get("column")).longValue());
             case "java.lang.IllegalStateException" -> new IllegalStateException(message);
             case "java.lang.IllegalArgumentException" -> new IllegalArgumentException(message);
-            case "java.lang.NumberFormatException" -> new NumberFormatException(message);
             case "java.lang.UnsupportedOperationException" -> new UnsupportedOperationException(message);
             case "java.lang.IndexOutOfBoundsException" -> new IndexOutOfBoundsException(message);
             case "java.lang.StringIndexOutOfBoundsException" -> new StringIndexOutOfBoundsException(message);

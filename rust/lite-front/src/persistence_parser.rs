@@ -518,7 +518,7 @@ fn content_anchored_island_node<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNo
         start_line(c.tokens(), emb_start)? - 1,
         start_column(c.tokens(), emb_start)? - 1,
     );
-    parse_entries(&mut island_cursor(&island, off, c.dialect()), off, &mut entries, None)?;
+    island_entries(&island, off, c.dialect(), &mut entries)?;
     let cs = c.span_of(emb_start, emb_start);
     let open_line = start_line(c.tokens(), emb_start - 1)?;
     let end_tok = c.pos();
@@ -548,6 +548,20 @@ fn island_cursor<'t, 's>(
         line_offset: off.0,
         col_offset: off.1,
         runtime: false,
+    }
+}
+
+/// An island's entries, read on a cursor of its own: legend-engine's walk reads them, so the reading for a later syntax
+/// error passes them by.
+fn island_entries(
+    island: &TokenStream<'_>,
+    off: (i32, i32),
+    level: crate::doors::Dialect,
+    entries: &mut Vec<PPersistenceEntry>,
+) -> R<()> {
+    match parse_entries(&mut island_cursor(island, off, level), off, entries, None) {
+        Err(_) if level.reads_for_syntax() => Ok(()),
+        answer => answer,
     }
 }
 
@@ -592,12 +606,7 @@ fn parse_node<'s>(c: &mut impl Cursor<'s>, off: (i32, i32)) -> R<PPersistenceNod
         let island = tokenize(&emb);
         let ic_off = (base_line, base_col);
         c.expect(T::ISLAND_END)?;
-        parse_entries(
-            &mut island_cursor(&island, ic_off, c.dialect()),
-            ic_off,
-            &mut entries,
-            None,
-        )?;
+        island_entries(&island, ic_off, c.dialect(), &mut entries)?;
     } else {
         return Ok(node(JStr(kind), None, entries, c.span(s, s)));
     }
@@ -971,6 +980,9 @@ fn parse_test_batches<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PPersistenc
                     let aid = c.parse_identifier()?;
                     c.expect(T::COLON)?;
                     let a_s = c.pos();
+                    if c.dialect().answers_engine_json() {
+                        refuse_what_equal_to_json_reads(c)?;
+                    }
                     let an = parse_node(c, (0, 0))?;
                     asserts.push(Box::new(PPersistenceAssert {
                         id: JStr(aid),
@@ -1005,6 +1017,82 @@ fn parse_test_batches<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PPersistenc
         c.match_tok(T::COMMA)?;
     }
     c.expect(T::BRACKET_CLOSE)
+}
+
+/// What legend-engine's grammar reads of an `EqualToJson` assertion's island: `expected: <identifier> #{ ... }#;` and nothing
+/// after it. The emitter has no wire for the other entries the generic walker takes (a list, a path, a pointer); read at an
+/// engine-JSON door after the emitter refused them, each is refused where the engine's parser stops, lite's wording (the
+/// user's ruling 15 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 74).
+fn refuse_what_equal_to_json_reads<'s>(c: &mut impl Cursor<'s>) -> R<()> {
+    let head = c.pos();
+    if !eq(c.text(), "EqualToJson") {
+        return Ok(());
+    }
+    if c.peek_at(1) == T::BRACE_OPEN {
+        return Err(refused_at(c.tokens(), head + 1, JStr::from("Unexpected token '{'")));
+    }
+    if !is_island(c.peek_at(1)) {
+        return Ok(());
+    }
+    c.advance()?;
+    let emb_start = scan_island(c)?;
+    let at_end = c.at_end();
+    let emb = c.reconstruct_text(emb_start, c.pos());
+    let island = tokenize(&emb);
+    let (line_off, col_off) = if at_end || emb_start >= c.tokens().count() {
+        (0, 0)
+    } else {
+        (
+            start_line(c.tokens(), emb_start)? - 1,
+            start_column(c.tokens(), emb_start)? - 1,
+        )
+    };
+    c.set_pos(head);
+    let refused = |i: usize| {
+        let line = island.start_line(i) as i32;
+        let column = island.start_column(i) as i32 + if line == 1 { col_off } else { 0 };
+        JavaError::parse(
+            jcat!("Unexpected token '", island.text(i), "'"),
+            line + line_off,
+            column,
+        )
+        .as_refusal()
+    };
+    let n = island.count();
+    let ty = |i: usize| (i < n).then(|| island.ty(i));
+    if n == 0 {
+        return Ok(());
+    }
+    if !eq(island.text(0), "expected") {
+        return Err(refused(0));
+    }
+    if n > 1 && ty(1) != Some(T::COLON) {
+        return Err(refused(1));
+    }
+    if n > 2 && !is_identifier_token(island.ty(2)) {
+        return Err(refused(2));
+    }
+    if n > 3 && !ty(3).is_some_and(is_island) {
+        return Err(refused(3));
+    }
+    let mut i = 4;
+    let mut depth = 0i64;
+    while i < n {
+        match island.ty(i) {
+            T::ISLAND_START => depth += 1,
+            T::ISLAND_END if depth == 0 => break,
+            T::ISLAND_END => depth -= 1,
+            _ => {}
+        }
+        i += 1;
+    }
+    if i + 1 < n && island.ty(i + 1) != T::SEMI_COLON {
+        return Err(refused(i + 1));
+    }
+    if i + 2 < n {
+        return Err(refused(i + 2));
+    }
+    Ok(())
 }
 
 /// `parseContext`: `PersistenceContext <<dec>> qn { persistence: qn; platform: ...; serviceParameters: [...];
@@ -1089,11 +1177,15 @@ fn parse_platform<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNode> {
     let platform_tok = c.pos();
     let kind = c.parse_identifier()?;
     let aws = eq(&kind, "AwsGlue");
-    if !eq(&kind, "Default") && !aws {
+    let syntax = c.dialect().reads_for_syntax();
+    if c.dialect().holds_to_the_engines_walk() && is_island(c.peek()) {
+        refuse_a_one_character_island(c, &kind)?;
+    }
+    if !eq(&kind, "Default") && !aws && !syntax {
         return Err(c.error(jcat!("Unsupported persistence platform type '", kind, "'")));
     }
     if c.peek() == T::SEMI_COLON {
-        if aws {
+        if aws && !syntax {
             return Err(c.error_str("Persistence platform 'AwsGlue' must have a non-empty body"));
         }
         let kind_tok = c.pos() - 1;
@@ -1103,7 +1195,11 @@ fn parse_platform<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNode> {
     if !is_island(c.peek()) {
         return Err(c.error(jcat!("platform '", kind, "' needs an island body")));
     }
+    let open = c.pos();
     let emb_start = scan_island(c)?;
+    if aws && c.dialect().holds_to_the_engines_walk() {
+        refuse_what_aws_glue_reads(c, open, platform_tok)?;
+    }
     let emb = c.reconstruct_text(emb_start, c.pos());
     let mut entries = Vec::new();
     let island = tokenize(&emb);
@@ -1111,7 +1207,7 @@ fn parse_platform<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNode> {
         start_line(c.tokens(), emb_start)? - 1,
         start_column(c.tokens(), emb_start)? - 1,
     );
-    parse_entries(&mut island_cursor(&island, off, c.dialect()), off, &mut entries, None)?;
+    island_entries(&island, off, c.dialect(), &mut entries)?;
     // deliberately stricter than the engine, which reads the body and writes a default platform: the emitter has no wire
     // for one (the user's ruling 11 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 73, register S158)
     if !aws && !entries.is_empty() && c.dialect().answers_engine_json() {
@@ -1170,6 +1266,88 @@ fn parse_platform<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNode> {
     Ok(platform)
 }
 
+/// The text between an island's `#{` at `open` and its `}#`, the cursor on it; none when the input ends first.
+fn island_text<'s>(c: &impl Cursor<'s>, open: usize) -> Option<Vec<u16>> {
+    if c.at_end() {
+        return None;
+    }
+    let ts = c.tokens();
+    Some(ts.source()[ts.end(open)..ts.start(c.pos())].to_vec())
+}
+
+/// legend-engine's walker cuts two characters off a platform island's text before it looks at the platform's kind (its
+/// rule has left the `}#` out already): one character is its `substring` failing, which its section catch-all answers
+/// (the user's ruling 16 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 73). Lite's wording.
+fn refuse_a_one_character_island<'s>(c: &mut impl Cursor<'s>, kind: &[u16]) -> R<()> {
+    let open = c.pos();
+    scan_island(c)?;
+    let text = island_text(c, open);
+    c.set_pos(open);
+    if text.is_some_and(|t| t.len() == 1) {
+        return Err(c.section_refusal(jcat!(
+            "Persistence platform '",
+            kind,
+            "' must not have a one-character body"
+        )));
+    }
+    Ok(())
+}
+
+/// What legend-engine's cloud grammar reads of an `AwsGlue` island, its walker having cut the text's last two characters:
+/// `(dataProcessingUnits: <integer>;)*` to the end (the user's ruling 16 of 2026-11-09, docs/rust-port/PHASE2.md section 6;
+/// PARITY row 73). Refused where its parser stops, in the document's place: the text's first line is shifted past the
+/// `#{`. A `;` the cut left out is ANTLR's missing token, which the engine places a column before the end of the text.
+fn refuse_what_aws_glue_reads<'s>(c: &impl Cursor<'s>, open: usize, platform_tok: usize) -> R<()> {
+    let Some(text) = island_text(c, open) else {
+        return Ok(());
+    };
+    let cut = &text[..text.len().saturating_sub(2)];
+    if cut.is_empty() {
+        return Err(refused_at(
+            c.tokens(),
+            platform_tok,
+            JStr::from("Persistence platform 'AwsGlue' must have a non-empty body"),
+        ));
+    }
+    let island = tokenize(cut);
+    let (open_line, open_column) = (c.tokens().start_line(open) as i32, c.tokens().start_column(open) as i32);
+    let refused = |message: JStr, line: i32, column: i32| {
+        let shift = if line == 1 { open_column + 1 } else { 0 };
+        JavaError::parse(message, line + open_line - 1, column + shift).as_refusal()
+    };
+    let unexpected = |i: usize| {
+        refused(
+            jcat!("Unexpected token '", island.text(i), "'"),
+            island.start_line(i) as i32,
+            island.start_column(i) as i32,
+        )
+    };
+    let end = (island.line_of(cut.len()) as i32, island.column_of(cut.len()) as i32);
+    let n = island.count();
+    let mut i = 0;
+    while i < n {
+        if !eq(island.text(i), "dataProcessingUnits") {
+            return Err(unexpected(i));
+        }
+        for (offset, wanted) in [(1, T::COLON), (2, T::INTEGER)] {
+            if i + offset >= n {
+                return Err(refused(JStr::from("Unexpected token '<EOF>'"), end.0, end.1));
+            }
+            if island.ty(i + offset) != wanted {
+                return Err(unexpected(i + offset));
+            }
+        }
+        if i + 3 >= n {
+            return Err(refused(JStr::from("Unexpected token"), end.0, end.1 - 1));
+        }
+        if island.ty(i + 3) != T::SEMI_COLON {
+            return Err(unexpected(i + 3));
+        }
+        i += 4;
+    }
+    Ok(())
+}
+
 /// `parseCtxParams`: `[ name = value, ... ]` -- a connection island, a connection pointer (an identifier that is not a
 /// quoted string), or a primitive read by the expression parser to the next top-level `,` or the list's own `]`.
 fn parse_ctx_params<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PCtxParam>>) -> R<()> {
@@ -1223,12 +1401,21 @@ fn parse_ctx_params<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PCtxParam>>) 
 fn parse_connection_island<'s>(c: &mut impl Cursor<'s>) -> R<PConnectionValue> {
     let emb_start = scan_island(c)?;
     let emb = c.reconstruct_text(emb_start, c.pos());
+    let level = c.dialect();
     let value = parse_island_value(
         &emb,
         start_line(c.tokens(), emb_start)?,
         start_column(c.tokens(), emb_start)?,
-        c.dialect(),
-    )?;
+        level,
+    );
+    let value = match value {
+        // legend-engine's walk reads the island: the reading for a later syntax error passes it by
+        Err(_) if level.reads_for_syntax() => PConnectionValue::PConnectionPointer(Box::new(PConnectionPointer {
+            connection: JStr::default(),
+            source_information: None,
+        })),
+        answer => answer?,
+    };
     c.expect(T::ISLAND_END)?;
     Ok(value)
 }

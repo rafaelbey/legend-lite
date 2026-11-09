@@ -310,14 +310,18 @@ fn node_span(v: &ValueSpecification) -> Option<&SourceInfo> {
 
 /// `(line, column)` of island index `i`.
 pub(crate) fn island_position(pl: &PathLiteral, lit: &SourceInfo, i: i32) -> (i32, i32) {
+    island_place(&pl.line_starts, pl.literal_length, lit, i)
+}
+
+/// [`island_position`] of a literal `literal_length` long, its later lines starting at `starts`.
+pub(crate) fn island_place(starts: &[i32], literal_length: i32, lit: &SourceInfo, i: i32) -> (i32, i32) {
     let offset = i + 1;
-    let starts = &pl.line_starts;
     let mut line = 0usize;
     while line < starts.len() && starts[line] <= offset {
         line += 1;
     }
     if line == 0 {
-        (lit.start_line, lit.start_column + pl.literal_length + i)
+        (lit.start_line, lit.start_column + literal_length + i)
     } else {
         (lit.start_line + line as i32, offset - starts[line - 1] + 1)
     }

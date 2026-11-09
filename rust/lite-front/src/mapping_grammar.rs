@@ -200,6 +200,16 @@ fn span_from(start: &SourceInfo, op: &PRelOp) -> SourceInfo {
     }
 }
 
+/// A mapping element's head, past its `:`.
+struct ElementHead<'h> {
+    target: &'h [u16],
+    target_span: &'h SourceInfo,
+    member_start: usize,
+    id: Option<JStr>,
+    extends_id: Option<JStr>,
+    root: bool,
+}
+
 impl MappingCursor<'_, '_> {
     /// `parseMapping`: `Mapping qn ( includes* elements* MappingTests? testSuites? )`, each section in its order.
     fn parse_mapping(&mut self) -> R<PMapping> {
@@ -345,34 +355,111 @@ impl MappingCursor<'_, '_> {
             self.expect(T::BRACKET_CLOSE)?;
         }
         self.expect(T::COLON)?;
+        let body_start = self.pos;
+        let mut read_body = |this: &mut Self| {
+            this.parse_element_body(
+                assoc_mappings,
+                class_mappings,
+                enums,
+                ElementHead {
+                    target: &target,
+                    target_span: &target_span,
+                    member_start,
+                    id: id.clone(),
+                    extends_id: extends_id.clone(),
+                    root,
+                },
+            )
+        };
+        // the engine's section parse takes an element's body whole, its walk parses the body and then walks it: inside the
+        // body, too, a syntax error comes before what the walk refuses (the user's ruling 16 of 2026-11-09,
+        // docs/rust-port/PHASE2.md section 6; PARITY row 63)
+        let read = read_body(self);
+        if self.dialect.reads_for_syntax() {
+            return match (read, self.past_the_element_body(body_start)) {
+                (Err(_), Some(past)) => {
+                    self.pos = past;
+                    Ok(())
+                }
+                (read, _) => read,
+            };
+        }
+        read.map_err(|e| {
+            let level = self.dialect;
+            let raised_by_the_walk = e.is_in_flight();
+            let answer = e.syntax_first(level, || {
+                self.pos = body_start;
+                self.dialect = Dialect::LegendEngineSyntax;
+                let again = read_body(self);
+                self.dialect = level;
+                again
+            });
+            if raised_by_the_walk && answer.is_parse_exception() {
+                answer.as_refusal()
+            } else {
+                answer
+            }
+        })
+    }
+
+    /// The token after a mapping element's `{ ... }`, from the token before its kind; none if the body is left open.
+    fn past_the_element_body(&self, from: usize) -> Option<usize> {
+        let mut depth = 0i64;
+        for t in from..self.tokens.count() {
+            match self.tokens.ty(t) {
+                T::BRACE_OPEN => depth += 1,
+                T::BRACE_CLOSE if depth == 1 => return Some(t + 1),
+                T::BRACE_CLOSE => depth -= 1,
+                _ => {}
+            }
+        }
+        None
+    }
+
+    /// A mapping element past its `:`, by its kind.
+    fn parse_element_body(
+        &mut self,
+        assoc_mappings: &mut Vec<PAssociationMapping>,
+        class_mappings: &mut Vec<PClassMapping>,
+        enums: &mut Vec<Box<PEnumerationMapping>>,
+        head: ElementHead<'_>,
+    ) -> R<()> {
+        let ElementHead {
+            target,
+            target_span,
+            member_start,
+            id,
+            extends_id,
+            root,
+        } = head;
         let kind = self.safe_text();
         if self.peek() == T::ENUMERATION_MAPPING {
             self.advance()?;
             enums.push(Box::new(self.parse_enumeration_mapping(
-                &target,
+                target,
                 member_start,
-                &target_span,
+                target_span,
             )?));
             return Ok(());
         }
         if self.peek() == T::ASSOCIATION_MAPPING && self.clean_sheet_ahead_at(1)? {
             self.advance()?;
-            let m = self.parse_function_association_mapping(&target, member_start, &target_span)?;
+            let m = self.parse_function_association_mapping(target, member_start, target_span)?;
             assoc_mappings.push(PAssociationMapping::PFunctionAssociationMapping(Box::new(m)));
             return Ok(());
         }
         if self.peek() == T::RELATIONAL {
             self.advance()?;
             if self.peek_is_association_body() {
-                let m = self.parse_rel_association_mapping(&target, member_start, &target_span, id)?;
+                let m = self.parse_rel_association_mapping(target, member_start, target_span, id)?;
                 assoc_mappings.push(PAssociationMapping::PRelAssociationMapping(Box::new(m)));
                 return Ok(());
             }
             if self.peek_at(1) != T::BRACE_OPEN && self.clean_sheet_ahead()? {
                 let m = self.parse_function_class_mapping(
-                    &target,
+                    target,
                     member_start,
-                    &target_span,
+                    target_span,
                     id,
                     extends_id,
                     root,
@@ -381,59 +468,52 @@ impl MappingCursor<'_, '_> {
                 class_mappings.push(PClassMapping::PClassMappingFunction(Box::new(m)));
                 return Ok(());
             }
-            let m = self.parse_relational_class_mapping(&target, member_start, &target_span, id, root, extends_id)?;
+            let m = self.parse_relational_class_mapping(target, member_start, target_span, id, root, extends_id)?;
             class_mappings.push(PClassMapping::PClassMappingRel(Box::new(m)));
             return Ok(());
         }
         if self.peek() == T::VALID_STRING && eq(self.text(), "XStore") {
             self.advance()?;
-            let m = self.parse_xstore_association_mapping(&target, member_start, &target_span, id)?;
+            let m = self.parse_xstore_association_mapping(target, member_start, target_span, id)?;
             assoc_mappings.push(PAssociationMapping::PXStoreAssociationMapping(Box::new(m)));
             return Ok(());
         }
         if self.peek() == T::PURE_MAPPING {
             self.advance()?;
             if self.clean_sheet_ahead()? {
-                let m = self.parse_function_class_mapping(
-                    &target,
-                    member_start,
-                    &target_span,
-                    id,
-                    extends_id,
-                    root,
-                    "PURE",
-                )?;
+                let m =
+                    self.parse_function_class_mapping(target, member_start, target_span, id, extends_id, root, "PURE")?;
                 class_mappings.push(PClassMapping::PClassMappingFunction(Box::new(m)));
                 return Ok(());
             }
-            let m = self.parse_pure_class_mapping(&target, member_start, &target_span, id, root, extends_id)?;
+            let m = self.parse_pure_class_mapping(target, member_start, target_span, id, root, extends_id)?;
             class_mappings.push(PClassMapping::PClassMappingPure(Box::new(m)));
             return Ok(());
         }
         if self.peek() == T::VALID_STRING && eq(self.text(), "AggregationAware") {
             self.advance()?;
-            let m = self.parse_aggregation_aware(&target, member_start, &target_span, id, root, extends_id)?;
+            let m = self.parse_aggregation_aware(target, member_start, target_span, id, root, extends_id)?;
             class_mappings.push(PClassMapping::PClassMappingAggregationAware(Box::new(m)));
             return Ok(());
         }
         if self.peek() == T::VALID_STRING && eq(self.text(), "ModelJoin") {
             self.advance()?;
-            let m = self.parse_model_join(&target, member_start, &target_span, id)?;
+            let m = self.parse_model_join(target, member_start, target_span, id)?;
             assoc_mappings.push(PAssociationMapping::PModelJoinAssociationMapping(Box::new(m)));
             return Ok(());
         }
         if self.peek() == T::VALID_STRING && eq(self.text(), "Relation") {
             self.advance()?;
-            let m = self.parse_relation_class_mapping(&target, member_start, &target_span, id, extends_id, root)?;
+            let m = self.parse_relation_class_mapping(target, member_start, target_span, id, extends_id, root)?;
             class_mappings.push(PClassMapping::PClassMappingRelation(Box::new(m)));
             return Ok(());
         }
         if self.peek() == T::VALID_STRING && eq(self.text(), "Operation") {
             self.advance()?;
             class_mappings.push(self.parse_operation_class_mapping(
-                &target,
+                target,
                 member_start,
-                &target_span,
+                target_span,
                 id,
                 extends_id,
                 root,
@@ -445,13 +525,13 @@ impl MappingCursor<'_, '_> {
                 return Err(self.error_str("Service Store Mapping does not support extends"));
             }
             self.advance()?;
-            let m = self.parse_service_store_class_mapping(&target, member_start, &target_span, id, root)?;
+            let m = self.parse_service_store_class_mapping(target, member_start, target_span, id, root)?;
             class_mappings.push(PClassMapping::PServiceStoreClassMapping(Box::new(m)));
             return Ok(());
         }
         if self.peek() == T::VALID_STRING && eq(&kind, "MongoDB") {
             self.advance()?;
-            let m = self.parse_mongo_db_class_mapping(&target, id, root)?;
+            let m = self.parse_mongo_db_class_mapping(target, id, root)?;
             class_mappings.push(PClassMapping::PClassMappingMongoDb(Box::new(m)));
             return Ok(());
         }

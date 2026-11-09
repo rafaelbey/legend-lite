@@ -318,20 +318,24 @@ fn parse_sections(
                 }
             }
         } else {
-            let walked = (|| {
-                let elements = section_elements(&ts, &name, range, bd.header_start, dialect)?;
+            let walked = |level: Dialect| -> R<_> {
+                let elements = section_elements(&ts, &name, range, bd.header_start, level)?;
                 let imports = if name == "Diagram" {
                     // a raw section has no tokens: its own parse carries the imports (`diagramImports`, a second parse)
-                    diagram_imports(&ts, range, dialect)?
+                    diagram_imports(&ts, range, level)?
                 } else if listed(IMPORT_AWARE, &bd.name) {
                     section_imports(&ts, range)?
                 } else {
                     Vec::new()
                 };
                 Ok((elements, imports))
-            })();
-            // PARITY's ruling-4 rows that legend-engine answers from its section catch-all: the section's start
-            let (elements, imports) = walked.map_err(|e: JavaError| e.at_section(&span))?;
+            };
+            // a refusal of the engine's walk comes after a later syntax error of its section; PARITY's ruling-4 rows that
+            // legend-engine answers from its section catch-all: the section's start
+            let (elements, imports) = walked(dialect).map_err(|e: JavaError| {
+                e.syntax_first(dialect, || walked(Dialect::LegendEngineSyntax).map(|_| ()))
+                    .at_section(&span)
+            })?;
             DocSection {
                 parser_name: bd.name.clone(),
                 elements,

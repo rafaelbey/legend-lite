@@ -1,8 +1,9 @@
-# The front oracle's deliberate differences (2026-11-09; docs/rust-port/PHASE2.md section 6, rulings 4, 11 and 13): the
-# questions where Rust answers differently from the frozen Java answers (answers.tsv.zst, engine.tsv.zst), which stay
+# The front oracle's deliberate differences (2026-11-09; docs/rust-port/PHASE2.md section 6, rulings 4, 11, 13 and 16):
+# the questions where Rust answers differently from the frozen Java answers (answers.tsv.zst, engine.tsv.zst), which stay
 # Java's, on purpose. A raw JDK exception on malformed input became a placed parse error at legend-engine's place for
 # the same text; ruling 11 refuses what the engine accepts (row 3); ruling 13 refuses row 63 at the model door at the
-# engine's dialect. The three differentials and //core:front_shim read this file: identical + listed == total, each
+# engine's dialect; ruling 16 reads an AwsGlue island as the engine reads it, at the engine's place (row 73).
+# The three differentials and //core:front_shim read this file: identical + listed == total, each
 # listed question really differs from Java's frozen answer and answers exactly the new answer named here.
 # door	dialect (- at an engine-JSON door)	the text's sha	PARITY row	class	line	column	sha-256 of the message's UTF-16 units
 pmcd	LEGEND_ENGINE	109b58da270c19f6366c9bdb5cd6c40740fa149d7daab0ed6e31184e49087610	9	com.legend.parser.ParseException	1	1	f381f26866f1f8ad575a308c1f43c4088a1f95be79d94377e1e017454b90dc2a
@@ -12,3 +13,5 @@ document	-	109b58da270c19f6366c9bdb5cd6c40740fa149d7daab0ed6e31184e49087610	9	co
 document	-	00dc41c74559ce19781649fbc10e3deef10af00458a456add9b977f73339cc9f	63	com.legend.parser.ParseException	3	20	15b59109c373f076d5949b546eaf17f06ab96282000c534de8af5562632427c2
 pmcd	LEGEND_ENGINE	00dc41c74559ce19781649fbc10e3deef10af00458a456add9b977f73339cc9f	63	com.legend.parser.ParseException	3	20	15b59109c373f076d5949b546eaf17f06ab96282000c534de8af5562632427c2
 spec	LEGEND_ENGINE	672e812e3b9061b6bc86321e4c49c8b8b0be334a5f5b8966594ea893d7c80b04	3	com.legend.parser.ParseException	1	1	87a22b0bb2c37a9d7c59e11c0ae3257850c00704d9da338ef29b1baffd7fb38d
+pmcd	LEGEND_ENGINE	1680d307c06eb2907434e7e53b9f8ec8740d63c5ecc0e0e2b290bf9e5de41795	73	com.legend.parser.ParseException	34	0	9cb45baaa9870c60801900356e95629c3fae59347015259cc6a9f93be263170e
+document	-	1680d307c06eb2907434e7e53b9f8ec8740d63c5ecc0e0e2b290bf9e5de41795	73	com.legend.parser.ParseException	34	0	9cb45baaa9870c60801900356e95629c3fae59347015259cc6a9f93be263170e

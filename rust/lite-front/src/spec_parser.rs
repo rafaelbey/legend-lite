@@ -67,6 +67,7 @@ pub fn parse_tokens(tokens: &TokenStream<'_>, dialect: Dialect) -> Answer<ValueS
 pub fn parse_lambda(text: &[u16], dialect: Dialect) -> Answer<LambdaFunction> {
     let tokens = tokenize(text);
     let mut parser = SpecParser::new(&tokens, JStr::default(), dialect, false);
+    parser.lambda_text = true;
     match parser.whole_line()? {
         VS::LambdaFunction(lf) => Ok(*lf),
         v => Ok(lambda(Vec::new(), vec![v], parser.span(0, parser.pos - 1))),
@@ -121,6 +122,8 @@ pub struct SpecParser<'t, 's> {
     instance_data: bool,
     const_strings: Vec<HashMap<Vec<u16>, Option<Vec<u16>>>>,
     owing_statement: Option<usize>,
+    /// The text is a `lambda` door's: the engine's wrapper writes its closing token on the line below it.
+    lambda_text: bool,
 }
 
 impl<'s> Cursor<'s> for SpecParser<'_, 's> {
@@ -241,6 +244,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             instance_data,
             const_strings: vec![HashMap::new()],
             owing_statement: None,
+            lambda_text: false,
         }
     }
 
@@ -624,8 +628,8 @@ impl<'t, 's> SpecParser<'t, 's> {
             }
             T::AT => self.parse_type_annotation().map(VS::TypeAnnotation),
             T::TDS_LITERAL => self.parse_tds_literal(),
-            T::PATH_LITERAL => self.parse_path_literal(),
-            T::ISLAND_OPEN => self.parse_dsl(),
+            T::PATH_LITERAL => self.parse_island(Self::parse_path_literal),
+            T::ISLAND_OPEN => self.parse_island(Self::parse_dsl),
             _ => {
                 if is_identifier_token(t) {
                     // single-param shorthand 'x | body' (never across '::')
@@ -679,6 +683,12 @@ impl<'t, 's> SpecParser<'t, 's> {
                 pos: span,
             }),
             Err(_) => {
+                if self.dialect.reads_for_syntax() {
+                    return Ok(CInteger {
+                        value: JValue::Long(0),
+                        pos: span,
+                    });
+                }
                 if self.dialect.refuses_lite_extensions() {
                     return Err(throw_at(self.tokens, tok, jcat!("Unexpected token '", text, "'")));
                 }
@@ -697,10 +707,25 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
     }
 
-    /// Whether a number that will not read keeps the JDK's answer: `1.ed`, `1.e+d`, `1.ef` at the engine's dialect, which
-    /// the ruling that refuses them left alone (ruling 11, PARITY row 8). The engine reads `1`, `.` and a name there.
-    fn keeps_raw_exponent(&self, text: &[u16]) -> bool {
-        point_before_exponent(text) && self.dialect.refuses_lite_extensions()
+    /// A number whose exponent has no digits, refused at the exponent's letter (PARITY row 8), `1.ed` and its kin at every
+    /// dialect (the user's ruling 11 of 2026-11-09, corrected in docs/rust-port/PHASE2.md section 6: the engine reads `1`,
+    /// `.` and a name). `1.e+` with nothing after its sign is one the engine refuses too, at the sign, which is the place
+    /// at the engine's dialect.
+    fn refused_number(&self, tok: usize) -> JavaError {
+        let text = self.tokens.text(tok);
+        if self.dialect.refuses_lite_extensions()
+            && point_before_exponent(text)
+            && matches!(text.last(), Some(&c) if c == ch(b'+') || c == ch(b'-'))
+        {
+            let sign = self.tokens.start(tok) + text.len() - 1;
+            return JavaError::parse(
+                jcat!("Unexpected token '", &text[text.len() - 1..], "'"),
+                self.tokens.line_of(sign) as i32,
+                self.tokens.column_of(sign) as i32,
+            )
+            .as_refusal();
+        }
+        crate::cursor::refused_exponent(self.tokens, tok)
     }
 
     /// `NumberLiterals.floating`: a float; at lite's and the platform's dialects its exact digits kept when the double
@@ -717,10 +742,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         let d = match parse_double(text) {
             Ok(d) => d,
-            Err(m) if self.keeps_raw_exponent(text) => {
-                return Err(JavaError::java("java.lang.NumberFormatException", m));
-            }
-            Err(_) => return Err(crate::cursor::refused_exponent(self.tokens, tok)),
+            Err(_) => return Err(self.refused_number(tok)),
         };
         if !self.dialect.refuses_lite_extensions() {
             // deliberately stricter than the engine, which reads a name or the float `Infinity` (the user's ruling 11 of
@@ -732,12 +754,13 @@ impl<'t, 's> SpecParser<'t, 's> {
                     jcat!("float literal out of range: '", self.tokens.text(tok), "'"),
                 )
             };
-            let exact = java_big_decimal(text).map_err(|_| refused())?;
+            let exact = BigDecimal::parse_units(text).map_err(|_| refused())?;
             // BigDecimal.valueOf(d): refuses an infinite or NaN double, else Double.toString's digits
             if !d.is_finite() {
                 return Err(refused());
             }
-            let shown = java_big_decimal(&u(&lite_javacompat::double_to_string(d)))?;
+            let shown = BigDecimal::parse_units(&u(&lite_javacompat::double_to_string(d)))
+                .expect("a finite double's text is a decimal");
             if exact.compare_to(&shown) != std::cmp::Ordering::Equal {
                 return Ok(VS::CFloat(Box::new(CFloat {
                     value: d,
@@ -763,16 +786,15 @@ impl<'t, 's> SpecParser<'t, 's> {
         {
             text = &text[..text.len() - 1];
         }
-        let value = match java_big_decimal(text) {
+        let value = match BigDecimal::parse_units(text) {
             Ok(value) => value,
             // an exponent past an int: the engine's `new BigDecimal` raises it uncaught too, so its section catch-all
             // answers (PARITY row 8), in the JDK's words
-            Err(e) if e.message.is_some() => {
+            Err(Some(message)) => {
                 let at = throw_at(self.tokens, tok, JStr::default()).position.unwrap_or((0, 0));
-                return Err(JavaError::refused_at_section(e.message.unwrap_or_default(), at));
+                return Err(JavaError::refused_at_section(message, at));
             }
-            Err(e) if self.keeps_raw_exponent(text) => return Err(e),
-            Err(_) => return Err(crate::cursor::refused_exponent(self.tokens, tok)),
+            Err(None) => return Err(self.refused_number(tok)),
         };
         Ok(CDecimal {
             value,
@@ -1382,11 +1404,20 @@ impl<'t, 's> SpecParser<'t, 's> {
         {
             let first = self.pos;
             let src = self.parse_combined_expression()?;
+            // refused where the engine stops, at its dialect (the user's ruling 16 of 2026-11-09,
+            // docs/rust-port/PHASE2.md section 6; PARITY row 69), when that is not the token the parser stops at
+            if !self.at_end() && self.peek() != T::PAREN_CLOSE && self.dialect.places_as_the_engine() {
+                let stop = self.positional_cast_stop(first);
+                if stop != self.pos {
+                    return Err(self.refused_positional_cast(stop, &class_name).placed());
+                }
+            }
             self.expect_with(T::PAREN_CLOSE, || {
                 jcat!("expected ')' to close ^", class_name, "($src) positional cast")
             })?;
             if self.dialect.answers_engine_json() {
-                return Err(self.refused_positional_cast(first, &class_name));
+                let stop = self.positional_cast_stop(first);
+                return Err(self.refused_positional_cast(stop, &class_name));
             }
             let cast = NewInstanceCast {
                 class_name: JStr(class_name),
@@ -1412,22 +1443,42 @@ impl<'t, 's> SpecParser<'t, 's> {
         self.wrap_new_instance(receiver, class_name, type_args, type_mult_args, properties)
     }
 
-    /// A positional cast refused where legend-engine refuses it (the user's ruling 12 of 2026-11-09; PARITY row 69). Its
-    /// grammar reads a first literal, signed or not, as the type's variable values and wants the properties' `(` after
-    /// the group: past the group's `)` when the literal fills it, at the next token when it does not. Anything else
-    /// is refused where it starts, past a sign.
-    fn refused_positional_cast(&self, first: usize, class_name: &[u16]) -> JavaError {
-        let signed = matches!(self.tokens.ty(first), T::PLUS | T::MINUS);
-        let start = if signed { first + 1 } else { first };
-        let literal = matches!(
-            self.tokens.ty(start),
-            T::STRING | T::TRUE | T::FALSE | T::INTEGER | T::FLOAT | T::DECIMAL | T::DATE | T::STRICTTIME
-        );
-        let at = match (literal, self.tokens.ty(start + 1)) {
-            (true, T::PAREN_CLOSE) => start + 2,
-            (true, _) => start + 1,
-            (false, _) => start,
+    /// Where legend-engine's grammar stops in a positional cast from its first argument's token (the user's rulings 12 and
+    /// 16 of 2026-11-09; PARITY row 69). It reads literals, signed or not and separated by commas, as the type's variable
+    /// values and wants the properties' `(` after the group: past the group's `)` when literals fill it, else at the token
+    /// that is no literal or comma. A string before a `+` is a key's `+=`, so it stops at what follows the `+`. Anything
+    /// else is refused where it starts, past a sign.
+    fn positional_cast_stop(&self, first: usize) -> usize {
+        let ty = |t: usize| (t < self.tokens.count()).then(|| self.tokens.ty(t));
+        // past one literal from `t`, or the token it is not
+        let past_literal = |t: usize| match ty(t) {
+            Some(T::PLUS | T::MINUS) => match ty(t + 1) {
+                Some(T::INTEGER | T::FLOAT | T::DECIMAL) => Ok(t + 2),
+                _ => Err(t + 1),
+            },
+            Some(T::STRING | T::TRUE | T::FALSE | T::INTEGER | T::FLOAT | T::DECIMAL | T::DATE | T::STRICTTIME) => {
+                Ok(t + 1)
+            }
+            _ => Err(t),
         };
+        if ty(first) == Some(T::STRING) && ty(first + 1) == Some(T::PLUS) {
+            return first + 2;
+        }
+        let mut t = match past_literal(first) {
+            Ok(past) => past,
+            Err(stop) => return stop,
+        };
+        while ty(t) == Some(T::COMMA) {
+            t = match past_literal(t + 1) {
+                Ok(past) => past,
+                Err(stop) => return stop,
+            };
+        }
+        if ty(t) == Some(T::PAREN_CLOSE) { t + 1 } else { t }
+    }
+
+    /// A positional cast refused at the token `at` ([`Self::positional_cast_stop`]).
+    fn refused_positional_cast(&self, at: usize, class_name: &[u16]) -> JavaError {
         let message = jcat!(
             "a positional cast ^",
             class_name,
@@ -1439,8 +1490,9 @@ impl<'t, 's> SpecParser<'t, 's> {
         self.refused_past_the_slice(message)
     }
 
-    /// A refusal at the token after this parser's last: a body's slice ends before the `}` that closes it, a text's
-    /// last token before the one the engine's lambda wrapper writes on the line below it.
+    /// A refusal at the token after this parser's last: a body's slice ends before the `}` that closes it, a `lambda`
+    /// door's text before the token the engine's wrapper writes on the line below it, an expression door's before the
+    /// `;` the engine's reader writes after it.
     fn refused_past_the_slice(&self, message: JStr) -> JavaError {
         let source = self.tokens.source();
         let mut i = self.tokens.end(self.tokens.count() - 1);
@@ -1451,7 +1503,11 @@ impl<'t, 's> SpecParser<'t, 's> {
             return JavaError::parse(message, self.tokens.line_of(i) as i32, self.tokens.column_of(i) as i32)
                 .as_refusal();
         }
-        JavaError::parse(message, self.tokens.line_of(source.len()) as i32 + 1, 1).as_refusal()
+        let line = self.tokens.line_of(source.len()) as i32;
+        if self.lambda_text {
+            return JavaError::parse(message, line + 1, 1).as_refusal();
+        }
+        JavaError::parse(message, line, self.tokens.column_of(source.len()) as i32).as_refusal()
     }
 
     fn wrap_new_instance(
@@ -2331,9 +2387,14 @@ impl<'t, 's> SpecParser<'t, 's> {
                 return Err(self.error_str("Unexpected token"));
             }
         }
+        let line_starts: Vec<i32> = text
+            .iter()
+            .enumerate()
+            .filter(|&(_, &c)| c == ch(b'\n'))
+            .map(|(k, _)| k as i32 + 1)
+            .collect();
         let mut pieces: Vec<Box<PathLiteralSegment>> = Vec::new();
         let mut has_dated = false;
-        let mut refused_argument: Option<i32> = None;
         let mut cursor: isize = 2; // the current segment's first char within the literal
         let mut body = vs_var(variable(JStr::from("_path")));
         let mut alias: Option<JStr> = None;
@@ -2373,6 +2434,28 @@ impl<'t, 's> SpecParser<'t, 's> {
                     body = property(body, name, None);
                     continue;
                 }
+                // the argument scan indexes rawSeg, which starts at the cursor
+                let from = index_of(raw_seg, ch(b'('), 0).map_or(-1, |v| v as isize) + 1;
+                let to = last_index_of(raw_seg, ch(b')')).map_or(-1, |v| v as isize);
+                // the engine re-lexes the literal, a first line's columns shifted by its own; every door at its dialect
+                // refuses what its grammar stops at (the user's rulings 12 and 16 of 2026-11-09,
+                // docs/rust-port/PHASE2.md section 6; PARITY row 81)
+                if self.dialect.holds_to_the_engines_walk()
+                    && let Some(at) = path_args_refused(raw_seg, from, to, false)
+                {
+                    let (line, column) = crate::protocol::island_place(
+                        &line_starts,
+                        text.len() as i32,
+                        &self.span_of(lit_tok, lit_tok),
+                        (cursor + at) as i32 - 1,
+                    );
+                    return Err(JavaError::parse(
+                        JStr::from("this argument of a dated path segment is not supported in Legend Engine"),
+                        line,
+                        column,
+                    )
+                    .as_refusal());
+                }
                 let dated_name = JStr::from(&seg[..o]);
                 let dated_args = &seg[o + 1..seg.len() - 1];
                 has_dated = true;
@@ -2391,13 +2474,7 @@ impl<'t, 's> SpecParser<'t, 's> {
                 }
                 let mut wire_args = Vec::new();
                 let mut unsupported = false;
-                // the argument scan indexes rawSeg, which starts at the cursor
-                let from = index_of(raw_seg, ch(b'('), 0).map_or(-1, |v| v as isize) + 1;
-                let to = last_index_of(raw_seg, ch(b')')).map_or(-1, |v| v as isize);
                 self.scan_path_args(raw_seg, from, to, cursor, &mut wire_args, &mut unsupported, false)?;
-                if unsupported && self.dialect.answers_engine_json() && refused_argument.is_none() {
-                    refused_argument = path_args_refused(raw_seg, from, to, false).map(|at| (cursor + at) as i32);
-                }
                 pieces.push(Box::new(PathLiteralSegment {
                     name: dated_name.clone(),
                     inner_start: cursor as i32,
@@ -2433,13 +2510,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             pos: None,
         };
         let desugared = lambda(vec![param], vec![body], None);
-        let line_starts: Vec<i32> = text
-            .iter()
-            .enumerate()
-            .filter(|&(_, &c)| c == ch(b'\n'))
-            .map(|(k, _)| k as i32 + 1)
-            .collect();
-        let literal = PathLiteral {
+        Ok(VS::PathLiteral(Box::new(PathLiteral {
             start_type,
             segments: pieces,
             desugared: Box::new(desugared),
@@ -2448,19 +2519,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             pos: self.span(lit_tok, lit_tok),
             literal_length: text.len() as i32,
             line_starts,
-        };
-        // the engine re-lexes the literal, a first line's columns shifted by its own: the emitter's spans are placed so
-        // (the user's ruling 12 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 81)
-        if let (Some(at), Some(lit)) = (refused_argument, literal.pos.as_deref()) {
-            let (line, column) = crate::protocol::island_position(&literal, lit, at - 1);
-            return Err(JavaError::parse(
-                JStr::from("this argument of a dated path segment is not supported in Legend Engine"),
-                line,
-                column,
-            )
-            .as_refusal());
-        }
-        Ok(VS::PathLiteral(Box::new(literal)))
+        })))
     }
 
     /// A dated segment's argument list `raw_seg[from, to)` scanned charwise; a collection recurses one level; a kind
@@ -2690,6 +2749,21 @@ impl<'t, 's> SpecParser<'t, 's> {
     }
 
     // -------------------------------------------------------------------- DSL islands
+
+    /// An island: legend-engine's section parse takes it whole, its walk reads it.
+    fn parse_island(&mut self, read: fn(&mut Self) -> R<ValueSpecification>) -> R<ValueSpecification> {
+        let answer = read(self);
+        let last = self.pos - 1;
+        let closed = match self.tokens.ty(last) {
+            T::ISLAND_END => true,
+            T::PATH_LITERAL => self.tokens.text(last).len() > 2,
+            _ => false,
+        };
+        match answer {
+            Err(_) if closed && self.dialect.reads_for_syntax() => Ok(vs_var(variable(JStr::default()))),
+            answer => answer,
+        }
+    }
 
     /// `#{...}#` (a graph-fetch tree), `#>{...}#` (a table reference), `#SQL{...}#`, `#GQL{...}#`, lite's `#IQ{...}#`
     /// and `#Cypher{...}#`, the platform's legacy `#Class{...}#`: the content collected to the island's `}#` (nested
@@ -2981,9 +3055,9 @@ impl<'t, 's> SpecParser<'t, 's> {
                 }
                 t += 1;
             }
-            // an argument the engine's grammar has no rule for, at the model door and the `lambda` door (the user's
-            // ruling 13 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 63)
-            if self.dialect.refuses_graph_fetch_arguments() {
+            // an argument the engine's grammar has no rule for, at every door at the engine's dialect (the user's rulings 13
+            // and 16 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 63)
+            if self.dialect.holds_to_the_engines_walk() {
                 let first_argument = throw_at(self.tokens, open + 1, JStr::default())
                     .position
                     .unwrap_or((0, 0));
@@ -3175,15 +3249,6 @@ pub(crate) fn caret_special(ni: &NewInstance) -> Result<Option<AppliedFunction>,
     Ok(Some(applied(JStr::from(function), params, None)))
 }
 
-/// `NumberLiterals`' `new BigDecimal(text)` over a number token's text.
-fn java_big_decimal(text: &[u16]) -> R<BigDecimal> {
-    BigDecimal::parse_units(text).map_err(|m| JavaError {
-        class: "java.lang.NumberFormatException".to_owned(),
-        message: m,
-        position: None,
-    })
-}
-
 /// `signedLiteral`: a model store's signed number as one literal -- an integer that fits a long a long, a float its
 /// exact digits negated too.
 fn signed_literal(n: ValueSpecification, negative: bool, span: Span) -> ValueSpecification {
@@ -3330,6 +3395,11 @@ fn path_arg_end(raw: &[u16], i: isize, to: isize) -> Result<isize, isize> {
         if starts_with(&raw[(i + 1) as usize..to as usize], "latest") {
             return Ok(i + 7);
         }
+        // a date alone: `%` and no digits, or digits before a `:` (a time), is one token the grammar has no rule for
+        let hours = digits(i + 1);
+        if !(is_digit(at(i + 1)) || at(i + 1) == ch(b'-')) || at(hours) == ch(b':') {
+            return Err(i);
+        }
         let mut k = i + 1;
         while is_letter_or_digit(at(k)) || u("-T:.Z+").contains(&at(k)) {
             k += 1;
@@ -3344,6 +3414,10 @@ fn path_arg_end(raw: &[u16], i: isize, to: isize) -> Result<isize, isize> {
             return Err(if unsigned > i { whole } else { word_end(raw, whole, to) });
         }
         let mut k = whole;
+        // `1.` is an integer and a point to the engine's lexer: it stops at the point
+        if at(k) == ch(b'.') && !is_digit(at(k + 1)) {
+            return Ok(k);
+        }
         if at(k) == ch(b'.') {
             k = digits(k + 1);
             if at(k) == ch(b'e') || at(k) == ch(b'E') {
@@ -3360,8 +3434,21 @@ fn path_arg_end(raw: &[u16], i: isize, to: isize) -> Result<isize, isize> {
     }
     if is_letter(c) || c == ch(b'_') {
         let k = word_end(raw, i, to);
-        if at(k) == ch(b'.') && is_graph_ident_char(at(k + 1)) {
-            return Ok(word_end(raw, k + 1, to));
+        // `name.value`, with blanks around the point if the text has them
+        let blanks = |mut b: isize| {
+            while is_whitespace(at(b)) {
+                b += 1;
+            }
+            b
+        };
+        let point = blanks(k);
+        if at(point) == ch(b'.') {
+            let value = blanks(point + 1);
+            return if is_graph_ident_char(at(value)) {
+                Ok(word_end(raw, value, to))
+            } else {
+                Err(value)
+            };
         }
         return Err(k);
     }
