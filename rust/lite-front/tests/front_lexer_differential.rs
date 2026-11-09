@@ -8,6 +8,11 @@
 //! lexer was deleted, step 6a -- one line per text, in the questions file's order; rust/oracles/front/MANIFEST.tsv).
 //! Every text's id is recomputed from its units too, which holds the UTF-16 reading of the oracle to Java's.
 
+#[allow(dead_code)]
+#[path = "support/deliberate.rs"]
+mod deliberate;
+
+use deliberate::Deliberate;
 use lite_front::lexer::tokenize;
 use lite_front::sha256::sha256_utf16le;
 use lite_front::{canonical_tokens, wire};
@@ -54,4 +59,8 @@ fn every_text_lexes_as_the_java_lexer_lexes_it() {
     }
     assert!(java.next().is_none(), "Java lexed every text of the question set, and only those");
     assert!(differ.is_empty(), "{} texts lex differently from Java", differ.len());
+    // the ruling's deliberate differences are answers, never tokens: the list names none here
+    let listed = Deliberate::load().listed("tokens");
+    assert_eq!(matched + listed, texts, "identical + listed == total");
+    assert_eq!(listed, 0, "the lexer's answers are Java's, every one");
 }

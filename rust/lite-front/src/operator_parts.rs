@@ -110,7 +110,9 @@ fn process_op(p: ArithPart, acc: Option<Acc>, initial: &mut Option<ValueSpecific
         let ctx_span = p.ctx_span.clone();
         let mut vals = match parameters.into_iter().next() {
             Some(ValueSpecification::PureCollection(c)) => c.values,
-            _ => panic!("ClassCastException: an arithmetic run's parameter is its collection"),
+            // `a.node` is built by `build_arith` or the arm below, a collection carrier unless `a.op` is `divide` or
+            // a comparison (the arm above)
+            _ => unreachable!("an arithmetic run's parameter is its collection"),
         };
         let last = vals.pop().expect("an arithmetic run has operands");
         let new_af = build_arith(p, last);

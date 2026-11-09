@@ -82,6 +82,8 @@ public final class FrontAnswers {
         MessageDigest md = MessageDigest.getInstance("SHA-256");
         RecordCodec codec = new RecordCodec();
         long asks = 0;
+        long listed = 0;
+        Deliberate deliberate = Deliberate.load();
         List<String> differ = new ArrayList<>();
         try (BufferedReader in = Files.newBufferedReader(questions, StandardCharsets.UTF_8);
                 BufferedReader java = Files.newBufferedReader(frozen, StandardCharsets.UTF_8)) {
@@ -108,7 +110,15 @@ public final class FrontAnswers {
                                 + sha + " (" + door + " " + dialect + "): " + theirs);
                     }
                     asks++;
-                    if (!mine.equals(theirs)) {
+                    Deliberate.Expected expected = deliberate.expected(door, dialect.name(), sha);
+                    if (expected != null) {
+                        listed++;
+                        String wrong = mine.equals(theirs) ? "listed, yet identical to Java's frozen answer"
+                                : expected.wrong(canonical(answer), md);
+                        if (wrong != null) {
+                            differ.add(door + " " + dialect.name() + " " + sha + ": " + wrong);
+                        }
+                    } else if (!mine.equals(theirs)) {
                         differ.add(door + " " + dialect.name() + " " + sha);
                     }
                 }
@@ -118,8 +128,8 @@ public final class FrontAnswers {
                         + frozen);
             }
         }
-        System.out.printf("[front-shim] the four doors: %d asks, %d identical to Java's frozen answers, %d differ%n",
-                asks, asks - differ.size(), differ.size());
+        System.out.printf("[front-shim] the four doors: %d asks, %d identical to Java's frozen answers, %d listed"
+                + " differences, %d differ%n", asks, asks - listed - differ.size(), listed, differ.size());
         differ.stream().limit(20).forEach(d -> System.out.println("[front-shim]   differs: " + d));
         return differ.size();
     }

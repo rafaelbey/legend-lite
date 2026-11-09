@@ -15,7 +15,6 @@
 #![allow(clippy::vec_box)]
 
 use crate::cursor::{Cursor, Documentation, ElementCursor, R, is_identifier_token, unquote_path_iae};
-use crate::doors::JavaError;
 use crate::escapes::unescape_java_like;
 use crate::jcat;
 use crate::jtypes::JStr;
@@ -1249,7 +1248,7 @@ impl<'s> ElementCursor<'_, 's> {
                 q2 += if body[q2] == bs && q2 + 1 < n { 2 } else { 1 };
             }
             let v = unescape_java_like(&body[q1 + 1..q2.min(n)])
-                .map_err(|m| JavaError::java("java.lang.IllegalArgumentException", JStr::from(m)))?;
+                .map_err(|m| crate::cursor::malformed_escape("string literal", m))?;
             if eq(&key, "contentType") {
                 content_type = Some(v);
             } else if eq(&key, "data") {
@@ -1343,7 +1342,7 @@ impl<'s> ElementCursor<'_, 's> {
                 }
                 values.extend(
                     unescape_java_like(&source[start..close.min(source.len())])
-                        .map_err(|m| JavaError::java("java.lang.IllegalArgumentException", JStr::from(m)))?,
+                        .map_err(|m| crate::cursor::malformed_escape("string literal", m))?,
                 );
                 val_end = close;
                 i = close + 1;

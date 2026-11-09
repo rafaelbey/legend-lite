@@ -21,6 +21,10 @@
 //! A form is hashed as its UTF-16 units, little-endian, each as it is (`sha256_utf16le`), as Java's
 //! `FrontEngineAnswers.hash` hashes them: a lone surrogate the emitter writes raw hashes as itself.
 
+#[path = "support/deliberate.rs"]
+mod deliberate;
+
+use deliberate::{Deliberate, is_the_new_answer};
 use lite_front::doors::engine_forms;
 use lite_front::sha256::sha256_utf16le;
 use lite_front::wire;
@@ -61,8 +65,10 @@ fn differential(door: &str) {
     let mut java = BufReader::new(File::open(env("LITE_FRONT_ENGINE")).unwrap()).lines();
     let dump = std::env::var("LITE_FRONT_MISMATCHES").ok();
     let mut counts: BTreeMap<String, (usize, usize, usize, usize)> = BTreeMap::new();
-    let (mut asked, mut matched) = (0usize, 0usize);
+    let (mut asked, mut matched, mut listed) = (0usize, 0usize, 0usize);
     let mut differ: Vec<String> = Vec::new();
+    let mut deliberate = Deliberate::load();
+    let mut wrong: Vec<String> = Vec::new();
     for line in BufReader::new(File::open(env("LITE_FRONT_QUESTIONS")).unwrap()).lines() {
         let line = line.unwrap();
         let q = wire::parse(&line, 64).unwrap();
@@ -91,7 +97,20 @@ fn differential(door: &str) {
             c.0 += 1;
             c.1 += usize::from(spans_same);
             c.2 += usize::from(bare_same);
-            if spans_same && bare_same {
+            if let Err(raw) = deliberate.raw_answer(door, "-", &sha, &spans) {
+                wrong.push(raw);
+            }
+            if let Some(expected) = deliberate.expected(door, "-", &sha) {
+                listed += 1;
+                if spans_same || bare_same {
+                    wrong.push(format!("{door} {sha}: listed, yet a form is identical to Java's frozen answer"));
+                }
+                for form in [&spans, &bare] {
+                    if let Err(m) = is_the_new_answer(form, expected) {
+                        wrong.push(format!("{door} {sha}: {m}"));
+                    }
+                }
+            } else if spans_same && bare_same {
                 matched += 1;
                 c.3 += 1;
             } else {
@@ -111,7 +130,10 @@ fn differential(door: &str) {
             }
         }
     }
-    println!("[front-{door}] {asked} questions: {matched} answered as Java answers them, {} differ", differ.len());
+    println!(
+        "[front-{door}] {asked} questions: {matched} answered as Java answers them, {listed} listed differences, {} differ",
+        differ.len()
+    );
     for (k, (n, s, b, m)) in &counts {
         println!("[front-{door}]   {k}: {m} of {n} identical (the spans form {s}, the bare form {b})");
     }
@@ -119,8 +141,14 @@ fn differential(door: &str) {
         println!("[front-{door}]   {d}");
     }
     assert!(java.next().is_none(), "Java answered every engine question of the set, and only those");
+    assert!(wrong.is_empty(), "{door}: the deliberate differences and the raw-answer pin: {wrong:#?}");
+    assert_eq!(listed, deliberate.listed(door), "{door}: every listed question was asked");
+    let stale = deliberate.stale_left(door);
+    assert!(stale.is_empty(), "{door}: left-for-the-user lines that no longer hold: {stale:?}");
+    assert!(differ.is_empty(), "{door}: {} questions neither identical nor listed", differ.len());
+    assert_eq!(matched + listed, asked, "{door}: identical + listed == total");
     let floor = floor(door);
-    assert!(matched >= floor, "{door}: {matched} identical, below its floor of {floor}");
+    assert!(matched + listed >= floor, "{door}: {matched} identical and {listed} listed, below its floor of {floor}");
 }
 
 #[test]

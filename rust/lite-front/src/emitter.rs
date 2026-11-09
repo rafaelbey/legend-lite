@@ -2082,14 +2082,16 @@ pub fn tagged_values(b: &mut Buf, ts: &[Box<PTaggedValue>]) {
 pub(crate) fn generic_type(b: &mut Buf, t: &TypeExpression) -> Em {
     match t {
         TypeExpression::TypeExpressionNameRef(n) => generic_type_of(b, &n.name, &[], &[], &[], n.pos.as_deref()),
-        TypeExpression::TypeExpressionGeneric(g) => generic_type_of(
-            b,
-            &g.name,
-            &g.arguments,
-            &g.multiplicity_arguments,
-            &g.type_variable_values,
-            g.pos.as_deref(),
-        ),
+        TypeExpression::TypeExpressionGeneric(g) => {
+            // the engine's grammar has no schema algebra (`List<A-B>`): it refuses at the `<` (PARITY row 87)
+            if let Some(at) = g.pos.as_deref()
+                && g.arguments.iter().any(|a| matches!(a, TypeExpression::TypeExpressionSchemaAlgebra(_)))
+            {
+                let column = at.start_column + g.name.0.len() as i32;
+                return Err(JavaError::parse(JStr::from("Unexpected token '<'"), at.start_line, column).as_refusal());
+            }
+            generic_type_of(b, &g.name, &g.arguments, &g.multiplicity_arguments, &g.type_variable_values, g.pos.as_deref())
+        }
         TypeExpression::TypeExpressionRelationType(rt) => {
             b.a("{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"relationType\",\"columns\":[");
             for (i, col) in rt.columns.iter().enumerate() {
@@ -3150,7 +3152,11 @@ pub(crate) fn graph_nodes(b: &mut Buf, nodes: &[Box<GraphFetchLiteralNode>]) -> 
             b.ch(b',');
         }
         b.a("\"parameters\":[");
-        comma_each(b, &n.parameters, gft_param)?;
+        // a node with no span of its own is refused where the first argument stands
+        let first_argument = n.pos.as_deref().map_or((0, 0), |at| {
+            (at.start_line, at.start_column + n.property.0.len() as i32 + 1)
+        });
+        comma_each(b, &n.parameters, |b, p| gft_param(b, p, first_argument))?;
         b.a("],\"property\":");
         str(b, &n.property);
         b.a(",\"sourceInformation\":");
@@ -3168,7 +3174,7 @@ pub(crate) fn graph_nodes(b: &mut Buf, nodes: &[Box<GraphFetchLiteralNode>]) -> 
 }
 
 /// A graph-fetch property argument in its graph-position wire spelling.
-pub(crate) fn gft_param(b: &mut Buf, p: &ValueSpecification) -> Em {
+pub(crate) fn gft_param(b: &mut Buf, p: &ValueSpecification, first_argument: (i32, i32)) -> Em {
     use ValueSpecification as V;
     match p {
         V::CDate(d) => {
@@ -3210,7 +3216,7 @@ pub(crate) fn gft_param(b: &mut Buf, p: &ValueSpecification) -> Em {
             b.a(",\"upperBound\":");
             b.int(col.values.len() as i64);
             b.a("},\"values\":[");
-            comma_each(b, &col.values, gft_param)?;
+            comma_each(b, &col.values, |b, v| gft_param(b, v, first_argument))?;
             b.a("]}");
         }
         V::CString(_) | V::CInteger(_) | V::CBoolean(_) | V::CFloat(_) => value_spec(b, p)?,
@@ -3224,15 +3230,95 @@ pub(crate) fn gft_param(b: &mut Buf, p: &ValueSpecification) -> Em {
             });
             variable(b, v, at.as_ref())?;
         }
-        other => {
-            return Err(unsupported(jcat!(
-                "ProtocolEmitter has no rule for graph-fetch argument ",
-                simple_name(other),
-                " \u{2014} probe, do not guess."
-            )));
-        }
+        other => return Err(graph_fetch_argument_refusal(other, first_argument)),
     }
     Ok(())
+}
+
+const GRAPH_FETCH_ARGUMENT: &str =
+    "a graph-fetch argument must be a literal, an enumeration value, a variable or a collection of them";
+
+/// An argument the engine's grammar has no rule for (PARITY row 63), refused where the engine refuses it: a `-` or a
+/// decimal its walker fails on, so its section catch-all answers; a prefix form at its first token; anything else at
+/// the first token that cannot continue the literal, name or variable it starts with.
+fn graph_fetch_argument_refusal(v: &ValueSpecification, first_argument: (i32, i32)) -> JavaError {
+    use ValueSpecification as V;
+    let message = JStr::from(GRAPH_FETCH_ARGUMENT);
+    let start = node_span(v).map_or(first_argument, |at| {
+        // a column specification's span starts past its `~`
+        let tilde = i32::from(matches!(v, V::ColumnInstance(_)));
+        (at.start_line, at.start_column - tilde)
+    });
+    let refused_at = |(line, column): (i32, i32)| JavaError::parse(message.clone(), line, column).as_refusal();
+    match v {
+        V::CDecimal(_) => JavaError::refused_at_section(message, start),
+        // a sign before a literal; `2015-10-16` is a `minus` over a collection
+        V::AppliedFunction(f)
+            if f.function == "minus" && f.parameters.len() == 1 && !matches!(f.parameters[0], V::PureCollection(_)) =>
+        {
+            JavaError::refused_at_section(message, start)
+        }
+        V::AppliedFunction(f) if f.function == "not" || f.function == "new" => refused_at(start),
+        V::AppliedFunction(_) | V::AppliedProperty(_) | V::PackageableElementPtr(_) | V::EnumValue(_) => {
+            refused_at(first_primary_end(v).map_or(start, |(line, column)| (line, column + 1)))
+        }
+        _ => refused_at(start),
+    }
+}
+
+/// Where the first primary of an expression ends: a left operand's, a receiver's, a call's name.
+fn first_primary_end(v: &ValueSpecification) -> Option<(i32, i32)> {
+    use ValueSpecification as V;
+    match v {
+        V::AppliedFunction(f) => {
+            let at = f.pos.as_deref()?;
+            // an operator's or an arrow's first operand starts no later than the span of its name
+            match f.parameters.first().filter(|p| first_starts_by(p, at)) {
+                Some(first) => first_primary_end(first),
+                None => Some((at.start_line, at.start_column + f.function.0.len() as i32 - 1)),
+            }
+        }
+        V::PureCollection(c) => first_primary_end(c.values.first()?),
+        V::AppliedProperty(p) => first_primary_end(&p.receiver),
+        other => node_span(other).map(|at| (at.end_line, at.end_column)),
+    }
+}
+
+/// Whether an expression starts no later than `at`: a collection carrier by its first element.
+fn first_starts_by(v: &ValueSpecification, at: &SourceInfo) -> bool {
+    use ValueSpecification as V;
+    let span = match v {
+        V::PureCollection(c) => c.values.first().and_then(node_span),
+        other => node_span(other),
+    };
+    span.is_some_and(|s| (s.start_line, s.start_column) <= (at.start_line, at.start_column))
+}
+
+/// A node's span.
+fn node_span(v: &ValueSpecification) -> Option<&SourceInfo> {
+    use ValueSpecification as V;
+    match v {
+        V::AppliedFunction(n) => n.pos.as_deref(),
+        V::AppliedProperty(n) => n.pos.as_deref(),
+        V::CBoolean(n) => n.pos.as_deref(),
+        V::CDate(n) => n.pos.as_deref(),
+        V::CDecimal(n) => n.pos.as_deref(),
+        V::CFloat(n) => n.pos.as_deref(),
+        V::CInteger(n) => n.pos.as_deref(),
+        V::CString(n) => n.pos.as_deref(),
+        V::CTime(n) => n.pos.as_deref(),
+        V::EnumValue(n) => n.pos.as_deref(),
+        V::LambdaFunction(n) => n.pos.as_deref(),
+        V::PackageableElementPtr(n) => n.pos.as_deref(),
+        V::PathLiteral(n) => n.pos.as_deref(),
+        V::PureCollection(n) => n.pos.as_deref(),
+        V::Variable(n) => n.pos.as_deref(),
+        V::ColumnInstance(ColumnInstance::ColSpec(n)) => n.pos.as_deref(),
+        V::ColumnInstance(ColumnInstance::ColSpecArray(n)) => n.pos.as_deref(),
+        V::TypeAnnotation(TypeAnnotation::TypeAnnotationNamed(n)) => n.pos.as_deref(),
+        V::TypeAnnotation(TypeAnnotation::TypeAnnotationRelationShape(n)) => n.pos.as_deref(),
+        _ => None,
+    }
 }
 
 /// A literal's required written form, quoted for the wire.

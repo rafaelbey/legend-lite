@@ -1,0 +1,6 @@
+# The frozen questions that still answer a raw JDK class (2026-11-09; docs/rust-port/PHASE2.md section 6, ruling 4):
+# legend-engine ACCEPTS each of these inputs, so the ruling's carve-out leaves Rust's answer unchanged and the input
+# comes back to the user. The three differentials fail on any other java.* answer over the frozen questions, and on a
+# line here whose question no longer answers it.
+# door	dialect	the text's sha	PARITY row	class	what
+spec	LEGEND_ENGINE	672e812e3b9061b6bc86321e4c49c8b8b0be334a5f5b8966594ea893d7c80b04	3	java.time.DateTimeException	%2024-02-30T10:00+0500: a time-zone shift of an impossible date; the engine reads the literal as text

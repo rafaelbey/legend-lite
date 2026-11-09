@@ -9,7 +9,6 @@
 //! answers reproduced, each refusal at Java's position.
 
 use crate::cursor::{Cursor, R, is_identifier_token, once, throw_at, unquote_path_iae};
-use crate::doors::JavaError;
 use crate::jcat;
 use crate::jtypes::JStr;
 use crate::lexer::TokenType;
@@ -202,12 +201,8 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
 
 /// `PFunctionActivator`'s compact constructor: the ownership is a Deployment or a UserList, never both.
 fn activator(a: PFunctionActivator) -> R<PFunctionActivator> {
-    if a.owner_id.is_some() && a.user_list_users.is_some() {
-        return Err(JavaError::java(
-            "java.lang.IllegalArgumentException",
-            JStr::from("ownership is Deployment OR UserList, not both"),
-        ));
-    }
+    // both would take a second `ownership`, which `once` refuses first, and a deployment configuration writes neither
+    assert!(a.owner_id.is_none() || a.user_list_users.is_none(), "ownership is Deployment OR UserList, not both");
     Ok(a)
 }
 

@@ -454,9 +454,8 @@ impl<'t, 's> MappingCursor<'t, 's> {
         let end_tok = self.pos;
         let content_end = slack_start(end_tok);
         self.expect(T::ISLAND_END)?;
-        let tokens = ts
-            .lex_range(content_start, content_end)
-            .map_err(|m| JavaError::java("java.lang.IndexOutOfBoundsException", JStr::from(m)))?;
+        // past `expect(ISLAND_END)` both offsets are token starts of this stream, in order
+        let tokens = ts.lex_range(content_start, content_end).expect("an island's content lies inside its source");
         Ok(IslandBlock {
             tokens,
             end_line: ts.end_line(end_tok) as i32,

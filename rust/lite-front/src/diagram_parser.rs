@@ -182,10 +182,12 @@ impl Raw<'_> {
         Ok(false)
     }
 
-    /// `number()`: a run of digits (any script's), signs, points and exponent letters, read by `Double.parseDouble`
-    /// (its `NumberFormatException` unplaced).
+    /// `number()`: a run of digits (any script's), signs, points and exponent letters, read by `Double.parseDouble`;
+    /// a run that is no number the engine's lexer ends where its own number ends, and refuses there: at the run's
+    /// start, or at a second point (PARITY row 49).
     fn number(&mut self) -> R<f64> {
         let s = self.i;
+        let (line, col) = (self.line, self.col);
         while !self.at_end() {
             let c = self.t[self.i];
             if is_digit(c) || c == ch('-') || c == ch('+') || c == ch('.') || c == ch('E') || c == ch('e') {
@@ -197,7 +199,12 @@ impl Raw<'_> {
         if self.i == s {
             return Err(self.fail("expected a number"));
         }
-        parse_double(&self.t[s..self.i]).map_err(|m| JavaError::java("java.lang.NumberFormatException", m))
+        let run = &self.t[s..self.i];
+        parse_double(run).map_err(|m| {
+            let second_point =
+                run.iter().enumerate().filter(|(_, c)| **c == ch('.')).map(|(i, _)| i as i32).nth(1).filter(|_| m == "multiple points");
+            JavaError::parse(jcat!("Unexpected token '", run, "'"), line, col + second_point.unwrap_or(0)).as_refusal()
+        })
     }
 
     /// `(x,y)`.

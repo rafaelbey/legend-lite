@@ -10,7 +10,6 @@
 #![allow(clippy::vec_box)]
 
 use crate::cursor::{Cursor, R, throw_at, unquote_path_iae};
-use crate::doors::JavaError;
 use crate::jcat;
 use crate::jtypes::JStr;
 use crate::lexer::TokenType;
@@ -211,6 +210,10 @@ impl MappingCursor<'_, '_> {
                             let guarded = replace_units(raw, &u("\\;"), &u("\\\\;"));
                             data_buf.extend(self.unquote_and_unescape(&guarded)?);
                         } else {
+                            if raw.len() < 2 {
+                                // as `assert`'s below (PARITY row 85)
+                                return Err(throw_at(self.tokens, self.pos, jcat!("Unexpected token '", raw, "'")).as_refusal());
+                            }
                             data_buf.extend_from_slice(&raw[1..raw.len() - 1]);
                         }
                         self.advance()?;
@@ -248,12 +251,17 @@ impl MappingCursor<'_, '_> {
                     return Err(self.error_str("expected a string literal for 'assert'"));
                 }
                 let raw = self.text();
+                if raw.len() < 2 {
+                    // a `'` left open by the end of the input: refused at the quote (PARITY row 85)
+                    return Err(throw_at(self.tokens, self.pos, jcat!("Unexpected token '", raw, "'")).as_refusal());
+                }
                 expected = Some(raw[1..raw.len() - 1].to_vec());
                 self.advance()?;
                 if self.pos >= self.tokens.count() {
-                    return Err(JavaError::java(
-                        "java.lang.ArrayIndexOutOfBoundsException",
-                        jcat!("Index ", self.pos, " out of bounds for length ", self.tokens.count()),
+                    // the engine's place for the missing `;`: the end of the input (PARITY row 29)
+                    return Err(crate::cursor::refused_at_eof(
+                        self.tokens,
+                        jcat!("expected ", T::SEMI_COLON, " but found EOF ('<EOF>')"),
                     ));
                 }
                 assert_span = self.span(a_s, self.pos);

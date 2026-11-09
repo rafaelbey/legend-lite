@@ -1307,9 +1307,33 @@ enum EntryRef<'a> {
     HeadPath(&'a ValueSpecification),
 }
 
+/// A node kind the emitter's tables do not name: the engine's grammar names the kinds too, and refuses the word at the
+/// node's place (PARITY row 73). A platform written with an island is the exception: the engine accepts it, so the
+/// answer stays (the user's list, ruling 4 of docs/rust-port/PHASE2.md section 6).
+fn unknown_persistence_kind(raw: JavaError, slot: &[u16], n: &PPersistenceNode, outer: Option<&SourceInfo>) -> JavaError {
+    match n.source_information.as_deref().or(outer) {
+        Some(at) if !eq(slot, "platform") => {
+            JavaError::parse(jcat!("Unexpected token '", n.kind, "'"), at.start_line, at.start_column).as_refusal()
+        }
+        _ => raw,
+    }
+}
+
 /// The generic node walk: `_type` first, entries alphabetical by wire key with `sourceInformation` merged into sorted
 /// position. `gf`: inside a graphFetch service output; `tgt`: inside a persistenceTarget.
 fn persistence_node(b: &mut Buf, slot: &[u16], n: &PPersistenceNode, gf: bool, tgt: bool) -> Em {
+    persistence_node_in(b, slot, n, gf, tgt, None)
+}
+
+/// [`persistence_node`], `outer` the span of the nearest enclosing node that keeps one (the walker writes few).
+fn persistence_node_in(
+    b: &mut Buf,
+    slot: &[u16],
+    n: &PPersistenceNode,
+    gf: bool,
+    tgt: bool,
+    outer: Option<&SourceInfo>,
+) -> Em {
     let part = n.kind == "__part__";
     let path_head = n.kind == "#path";
     let gf = gf || path_head;
@@ -1319,7 +1343,7 @@ fn persistence_node(b: &mut Buf, slot: &[u16], n: &PPersistenceNode, gf: bool, t
     } else if path_head {
         Some("graphFetchServiceOutput")
     } else {
-        Some(persistence_type(slot, &n.kind, gf, tgt)?)
+        Some(persistence_type(slot, &n.kind, gf, tgt).map_err(|e| unknown_persistence_kind(e, slot, n, outer))?)
     };
     b.ch(b'{');
     let mut first = true;
@@ -1385,7 +1409,9 @@ fn persistence_node(b: &mut Buf, slot: &[u16], n: &PPersistenceNode, gf: bool, t
                     str(b, &s.value);
                 }
             }
-            PPersistenceEntry::PPersistenceEntryNode(nd) => persistence_node(b, &nd.key.0, &nd.node, gf, tgt)?,
+            PPersistenceEntry::PPersistenceEntryNode(nd) => {
+                persistence_node_in(b, &nd.key.0, &nd.node, gf, tgt, n.source_information.as_deref().or(outer))?
+            }
             PPersistenceEntry::PPersistenceEntryPointer(pt) => {
                 if pt.key == "binding" {
                     // binding pointers carry no type tag
@@ -1416,7 +1442,8 @@ fn persistence_node(b: &mut Buf, slot: &[u16], n: &PPersistenceNode, gf: bool, t
             }
             PPersistenceEntry::PPersistenceEntryNodeList(nl) => {
                 b.ch(b'[');
-                comma_each(b, &nl.nodes, |b, node| persistence_node(b, &nl.key.0, node, gf, tgt))?;
+                let within = n.source_information.as_deref().or(outer);
+                comma_each(b, &nl.nodes, |b, node| persistence_node_in(b, &nl.key.0, node, gf, tgt, within))?;
                 b.ch(b']');
             }
         }
@@ -1588,7 +1615,18 @@ fn persistence_asserts(b: &mut Buf, asserts: &[Box<PPersistenceAssert>]) -> Em {
             b.ch(b',');
         }
         b.a("{\"_type\":\"");
-        b.a(persistence_type(&crate::ustr::u("assertion"), &as_.assertion.kind, false, false)?);
+        b.a(persistence_type(&crate::ustr::u("assertion"), &as_.assertion.kind, false, false).map_err(|raw| {
+            // the engine's walker refuses a test assertion kind it does not know, at the kind (PARITY row 73)
+            match as_.assertion.source_information.as_deref().or(as_.source_information.as_deref()) {
+                Some(at) => JavaError::parse(
+                    jcat!("Unknown test assertion type: ", as_.assertion.kind),
+                    at.start_line,
+                    at.start_column,
+                )
+                .as_refusal(),
+                None => raw,
+            }
+        })?);
         b.ch(b'"');
         for e in &as_.assertion.entries {
             b.a(",\"");
@@ -2135,23 +2173,34 @@ fn dq_context(b: &mut Buf, v: &PDataQualityValidation) -> Em {
         pointer(b, &v.context_path, v.context_path_span.as_deref(), "MAPPING");
         b.a(",\"runtime\":");
         let Some(second) = &v.context_second else {
-            return Err(npe(None));
+            return Err(missing_second_context_argument(v));
         };
         pointer(b, second, v.context_second_span.as_deref(), "RUNTIME");
         b.ch(b'}');
     } else if v.context_kind == "fromDataSpace" {
         b.a("{\"_type\":\"dataSpaceDataQualityExecutionContext\",\"_type\":\"dataSpaceDataQualityExecutionContext\",\"context\":");
         let Some(second) = &v.context_second else {
-            return Err(npe(None));
+            return Err(missing_second_context_argument(v));
         };
         str(b, second);
         b.a(",\"dataSpace\":");
         pointer(b, &v.context_path, v.context_path_span.as_deref(), "DATASPACE");
         b.ch(b'}');
     } else {
-        return Err(illegal_state(jcat!("unmapped DataQuality context kind: ", v.context_kind)));
+        // the engine's grammar names the two contexts, and refuses the word, one `(` before the first argument
+        let (line, column) = v.context_path_span.as_deref().map_or((0, 0), |at| {
+            (at.start_line, at.start_column - crate::ustr::u(&v.context_kind.lossy()).len() as i32 - 1)
+        });
+        return Err(JavaError::parse(jcat!("Unexpected token '", v.context_kind, "'"), line, column).as_refusal());
     }
     Ok(())
+}
+
+/// A context with one argument where the engine's grammar wants two: it refuses the `)`, just after the first (PARITY
+/// row 76).
+fn missing_second_context_argument(v: &PDataQualityValidation) -> JavaError {
+    let (line, column) = v.context_path_span.as_deref().map_or((0, 0), |at| (at.end_line, at.end_column + 1));
+    JavaError::parse(JStr::from("Unexpected token ')'"), line, column).as_refusal()
 }
 
 /// `TailEmitter.pointer(b, path, span, type)`: a typed element pointer.

@@ -18,7 +18,7 @@
 #![allow(clippy::vec_box)]
 
 use crate::cursor::{
-    Cursor, R, is_identifier_token, start_line_checked, strip_double_quotes, throw_at, ty_or_slack, unquote_path_iae,
+    Cursor, R, is_identifier_token, strip_double_quotes, throw_at, ty_or_slack, unquote_path_iae,
 };
 use crate::database_parser::{ScopeCtx, operation_at, rel_op_span, scoped_operation_at, with_rel_op_span};
 use crate::doors::{Dialect, JavaError};
@@ -453,15 +453,11 @@ impl MappingCursor<'_, '_> {
                 let lp_type = self.parse_identifier()?;
                 let mult = match self.parse_multiplicity()? {
                     Multiplicity::MultiplicityConcrete(c) => c,
+                    // the engine's walker fails on the parameter uncaught: its section catch-all answers (PARITY row 28)
                     Multiplicity::MultiplicityParameter(_) => {
-                        return Err(JavaError::java(
-                            "java.lang.ClassCastException",
-                            JStr::from(
-                                "class com.legend.protocol.Multiplicity$Parameter cannot be cast to class \
-                                 com.legend.protocol.Multiplicity$Concrete (com.legend.protocol.Multiplicity$Parameter \
-                                 and com.legend.protocol.Multiplicity$Concrete are in unnamed module of loader 'app')",
-                            ),
-                        ));
+                        return Err(self.section_refusal(JStr::from(
+                            "a ServiceStore local property's multiplicity must be concrete, not a parameter",
+                        )));
                     }
                 };
                 self.expect(T::SEMI_COLON)?;
@@ -1942,7 +1938,10 @@ impl MappingCursor<'_, '_> {
                     }
                     self.advance()?;
                 }
-                let delta = start_line_checked(self.tokens, e_s)? - brace_line;
+                if e_s >= self.tokens.count() {
+                    return Err(end_of_embedded_lambda(self.tokens, "~src expression must be ONE expression"));
+                }
+                let delta = self.tokens.start_line(e_s) as i64 - brace_line;
                 let mut e_body =
                     parse_code_block_tokens(&self.tokens.slice(e_s, self.pos), JStr::default(), self.dialect)?;
                 if e_body.len() != 1 {
@@ -2424,7 +2423,10 @@ impl MappingCursor<'_, '_> {
             self.advance()?;
         }
         let ts = self.tokens;
-        let start_line = start_line_checked(ts, e_s)?;
+        if e_s >= ts.count() {
+            return Err(end_of_embedded_lambda(ts, "aggregate lambda must be ONE expression"));
+        }
+        let start_line = ts.start_line(e_s) as i64;
         let mut padded: Vec<u16> = Vec::new();
         let mut i = 1;
         while i < start_line - self.agg_lambda_shift {
@@ -2436,10 +2438,8 @@ impl MappingCursor<'_, '_> {
         }
         let (from, to) = (ts.start(e_s), if self.pos == 0 { 0 } else { ts.end(self.pos - 1) });
         if from > to {
-            return Err(JavaError::java(
-                "java.lang.IndexOutOfBoundsException",
-                jcat!("Range [", from, ", ", to, ") out of bounds for length ", ts.source().len()),
-            ));
+            // an empty lambda with blanks before its `,` or `)`: refused at that token, as the engine does (PARITY row 32)
+            return Err(self.error_str("aggregate lambda must be ONE expression").as_refusal());
         }
         padded.extend_from_slice(&ts.source()[from..to]);
         let mut body = parse_code_block(&padded, self.dialect)?;
@@ -2612,6 +2612,13 @@ fn path_offset_of(segs: Vec<JStr>) -> PPathOffset {
 /// `Boolean.parseBoolean`: `"true"`, ignoring case.
 fn parse_boolean(s: &[u16]) -> bool {
     s.len() == 4 && s.iter().zip("true".bytes()).all(|(&c, b)| c < 128 && (c as u8).eq_ignore_ascii_case(&b))
+}
+
+/// An embedded lambda (`~src`, an aggregate's) cut off by the end of the input: the engine re-parses it on its own, and
+/// its parser's `<EOF>` lands one column before the end of the text (PARITY rows 29 and 32).
+fn end_of_embedded_lambda(tokens: &TokenStream<'_>, message: &str) -> JavaError {
+    let (line, column) = crate::cursor::eof_place(tokens);
+    JavaError::parse(JStr::from(message), line, column - 1).as_refusal()
 }
 
 #[cfg(test)]

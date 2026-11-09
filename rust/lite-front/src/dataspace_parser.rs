@@ -13,7 +13,6 @@
 #![allow(clippy::vec_box)]
 
 use crate::cursor::{Cursor, R, is_identifier_token, once, once_at, throw_at, unquote_path_iae};
-use crate::doors::JavaError;
 use crate::jcat;
 use crate::jtypes::JStr;
 use crate::lexer::TokenType;
@@ -746,12 +745,7 @@ pub fn parse_standalone_relation_at<'s>(host: &mut impl Cursor<'s>) -> R<PRelati
         (rels.remove(0), brace_tok, p.pos)
     };
     host.set_pos(end);
-    let Some(es) = re.source_information.as_deref() else {
-        return Err(JavaError::java(
-            "java.lang.NullPointerException",
-            JStr::from("a parsed node always carries its span"),
-        ));
-    };
+    let es = re.source_information.as_deref().expect("a parsed node always carries its span");
     let ts = host.tokens();
     let source_information = Some(Box::new(SourceInfo {
         source_id: JStr::default(),

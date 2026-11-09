@@ -13,7 +13,7 @@
 #![allow(clippy::vec_box)]
 
 use crate::connection_parser::parse_island_value;
-use crate::cursor::{Cursor, IslandCursor, R, is_identifier_token, throw_at, unquote_path_iae};
+use crate::cursor::{Cursor, IslandCursor, R, is_identifier_token, refused_at_eof, throw_at, unquote_path_iae};
 use crate::doors::JavaError;
 use crate::jcat;
 use crate::jtypes::JStr;
@@ -74,32 +74,24 @@ fn bool_or_fqn_segment_text<'s>(c: &mut impl Cursor<'s>) -> R<Vec<u16>> {
     c.fqn_segment_text()
 }
 
-/// `tokens.startLine(i)` and `startColumn(i)` read unguarded: past `count` the positions arrays'
-/// `ArrayIndexOutOfBoundsException` (a cold JVM's message; HotSpot's fast throw may drop it, PARITY row 29).
-fn aioobe(ts: &TokenStream<'_>, i: usize) -> JavaError {
-    JavaError::java(
-        "java.lang.ArrayIndexOutOfBoundsException",
-        jcat!("Index ", i, " out of bounds for length ", ts.count()),
-    )
+/// An island open at the end of the input, refused there as the engine refuses it (PARITY row 55).
+fn open_island(ts: &TokenStream<'_>) -> JavaError {
+    refused_at_eof(ts, jcat!("expected ", T::ISLAND_END, " but found EOF ('<EOF>')"))
 }
 
 fn start_line(ts: &TokenStream<'_>, i: usize) -> R<i32> {
-    if i < ts.count() { Ok(ts.start_line(i) as i32) } else { Err(aioobe(ts, i)) }
+    if i < ts.count() { Ok(ts.start_line(i) as i32) } else { Err(open_island(ts)) }
 }
 
 fn start_column(ts: &TokenStream<'_>, i: usize) -> R<i32> {
-    if i < ts.count() { Ok(ts.start_column(i) as i32) } else { Err(aioobe(ts, i)) }
+    if i < ts.count() { Ok(ts.start_column(i) as i32) } else { Err(open_island(ts)) }
 }
 
-/// `SpecParser.parse(tokens.slice(at, at + 1), dialect)`: one token's expression, the slice's own
-/// `IndexOutOfBoundsException` past the stream's end.
+/// `SpecParser.parse(tokens.slice(at, at + 1), dialect)`: one token's expression; at the end of the input refused
+/// there, where a path literal was to come (PARITY row 56).
 fn one_token_spec<'s>(c: &impl Cursor<'s>, at: usize) -> R<ValueSpecification> {
-    let n = c.tokens().count();
-    if at + 1 > n {
-        return Err(JavaError::java(
-            "java.lang.IndexOutOfBoundsException",
-            jcat!("slice(", at, ", ", at + 1, ") out of bounds for count=", n),
-        ));
+    if at >= c.tokens().count() {
+        return Err(refused_at_eof(c.tokens(), jcat!("expected ", T::PATH_LITERAL, " but found EOF ('<EOF>')")));
     }
     parse_tokens(&c.tokens().slice(at, at + 1), c.dialect())
 }
@@ -521,7 +513,15 @@ fn parse_node<'s>(c: &mut impl Cursor<'s>, off: (i32, i32)) -> R<PPersistenceNod
         parse_entries(c, off, &mut entries, Some(T::BRACE_CLOSE))?;
         c.expect(T::BRACE_CLOSE)?;
     } else if is_island(c.peek()) {
+        let open = c.pos();
         let emb_start = scan_island(c)?;
+        if emb_start >= c.tokens().count() && !admits_island(&kind) {
+            // the engine's grammar admits no island after this kind: it refuses the `#{`, in the text's own place
+            let ts = c.tokens();
+            let line = ts.start_line(open) as i32;
+            let column = ts.start_column(open) as i32 + if line == 1 { off.1 } else { 0 };
+            return Err(JavaError::parse(jcat!("Unexpected token '", ts.text(open), "'"), line + off.0, column).as_refusal());
+        }
         let emb = c.reconstruct_text(emb_start, c.pos());
         let base_line = start_line(c.tokens(), emb_start)? - 1 + off.0;
         let base_col = start_column(c.tokens(), emb_start)? - 1 + off.1;
@@ -533,6 +533,11 @@ fn parse_node<'s>(c: &mut impl Cursor<'s>, off: (i32, i32)) -> R<PPersistenceNod
         return Ok(node(JStr(kind), None, entries, c.span(s, s)));
     }
     Ok(node(JStr(kind), None, entries, c.span(s, c.pos() - 1)))
+}
+
+/// The kinds the engine's grammar writes with an island: a test's data and its assertions.
+fn admits_island(kind: &[u16]) -> bool {
+    eq(kind, "ExternalFormat") || eq(kind, "Reference") || starts_with(kind, "EqualTo")
 }
 
 /// `withFlatDefaults`: a flat target's (and each multi-flat part's) entries with the engine protocol's defaults where

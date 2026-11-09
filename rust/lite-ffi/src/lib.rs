@@ -839,9 +839,9 @@ mod tests {
         let error = engine("document", "true", "Class a::B {");
         assert!(error.starts_with("OK\nE\n{\"class\":\"com.legend.parser.ParseException\""), "{error}");
         // the emitter's refusal of a model the parser accepts (the oracle's one: a graph-fetch argument it has no
-        // rule for)
+        // rule for), a placed parse error since 2026-11-09 (ruling 4 of docs/rust-port/PHASE2.md section 6)
         let refused = engine("document", "false", "function f::g():Any[*]{#{a::B{c(f())}}#}");
-        assert!(refused.starts_with("OK\nE\n{\"class\":\"java.lang.UnsupportedOperationException\""), "{refused}");
+        assert!(refused.starts_with("OK\nE\n{\"class\":\"com.legend.parser.ParseException\""), "{refused}");
         // a lone surrogate in a string literal: the JSON crosses as a JSON string, its surrogate escaped
         let surrogate = engine("lambdaJson", "false", "|'a\\uD800b'");
         assert!(surrogate.starts_with("OK\nU\n\"{\\\"_type\\\":\\\"lambda\\\""), "{surrogate}");

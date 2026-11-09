@@ -21,7 +21,6 @@
 
 use crate::cursor::{Cursor, ElementCursor, R, is_fqn_segment_token, is_identifier_token, throw_at};
 use crate::doors::{Answer, Dialect, JavaError};
-use crate::escapes::unquote_path;
 use crate::jcat;
 use crate::jnum::{parse_double, parse_long};
 use crate::jtypes::{BigDecimal, JStr, JValue};
@@ -211,13 +210,19 @@ fn is_quoted(raw: &[u16]) -> bool {
     raw.len() >= 2 && raw[0] == ch(b'\'') && raw[raw.len() - 1] == ch(b'\'')
 }
 
-fn iae(m: &'static str) -> JavaError {
-    JavaError::java("java.lang.IllegalArgumentException", JStr::from(m))
+/// `Protocol.unquotePath`, its short unicode escape PARITY row 9's refusal.
+fn unquoted(path: &[u16]) -> R<JStr> {
+    crate::cursor::unquote_path_iae(path).map(JStr)
 }
 
-/// `Protocol.unquotePath`, its short unicode escape Java's uncaught `IllegalArgumentException`.
-fn unquoted(path: &[u16]) -> R<JStr> {
-    unquote_path(path).map(JStr).map_err(iae)
+/// Whether a number's exponent letter comes straight after a point (`1.ed`, `1.e+d`): the engine reads `1`, `.` and a
+/// property name there and accepts the text, so the row 8 refusal does not apply and the answer stays (the user's list
+/// of inputs the engine accepts, ruling 4).
+fn point_before_exponent(text: &[u16]) -> bool {
+    match text.iter().position(|&c| c == ch(b'e') || c == ch(b'E')) {
+        Some(e) => e > 0 && text[e - 1] == ch(b'.'),
+        None => false,
+    }
 }
 
 impl<'t, 's> SpecParser<'t, 's> {
@@ -500,12 +505,8 @@ impl<'t, 's> SpecParser<'t, 's> {
             T::LESS_OR_EQUAL => "lessThanEqual",
             T::GREATER_THAN => "greaterThan",
             T::GREATER_OR_EQUAL => "greaterThanEqual",
-            _ => {
-                return Err(JavaError::java(
-                    "java.lang.IllegalStateException",
-                    jcat!("parseArithmeticPartContext on non-arithmetic token: ", op),
-                ));
-            }
+            // the one caller loops while `is_arithmetic_op(self.peek())`, these eight tokens
+            _ => unreachable!("parseArithmeticPartContext on a token is_arithmetic_op refuses"),
         };
         if matches!(op, T::LESS_THAN | T::LESS_OR_EQUAL | T::GREATER_THAN | T::GREATER_OR_EQUAL) {
             self.pos += 1;
@@ -649,7 +650,11 @@ impl<'t, 's> SpecParser<'t, 's> {
         {
             text = &text[..text.len() - 1];
         }
-        let d = parse_double(text).map_err(|m| JavaError::java("java.lang.NumberFormatException", m))?;
+        let d = match parse_double(text) {
+            Ok(d) => d,
+            Err(_) if !point_before_exponent(text) => return Err(crate::cursor::refused_exponent(self.tokens, tok)),
+            Err(m) => return Err(JavaError::java("java.lang.NumberFormatException", m)),
+        };
         if !self.dialect.refuses_lite_extensions() {
             let exact = java_big_decimal(text)?;
             // BigDecimal.valueOf(d): refuses an infinite or NaN double, else Double.toString's digits
@@ -674,7 +679,18 @@ impl<'t, 's> SpecParser<'t, 's> {
         {
             text = &text[..text.len() - 1];
         }
-        Ok(CDecimal { value: java_big_decimal(text)?, pos: self.span(tok, tok) })
+        let value = match java_big_decimal(text) {
+            Ok(value) => value,
+            // an exponent past an int: the engine's `new BigDecimal` raises it uncaught too, so its section catch-all
+            // answers (PARITY row 8), in the JDK's words
+            Err(e) if e.message.is_some() => {
+                let at = throw_at(self.tokens, tok, JStr::default()).position.unwrap_or((0, 0));
+                return Err(JavaError::refused_at_section(e.message.unwrap_or_default(), at));
+            }
+            Err(e) if point_before_exponent(text) => return Err(e),
+            Err(_) => return Err(crate::cursor::refused_exponent(self.tokens, tok)),
+        };
+        Ok(CDecimal { value, pos: self.span(tok, tok) })
     }
 
     // -------------------------------------------------------------------- strings, booleans, temporals
@@ -696,7 +712,8 @@ impl<'t, 's> SpecParser<'t, 's> {
         let tok = self.pos;
         let raw = self.text();
         self.pos += 1;
-        let value = crate::cursor::doc_string_value(raw)?;
+        let at = throw_at(self.tokens, tok, JStr::default()).position.unwrap_or((0, 0));
+        let value = crate::cursor::doc_string_value(raw, at)?;
         Ok(VS::CString(Box::new(CString {
             value: JStr(value),
             pos: boxed(self.doc_string_span(tok)),
@@ -732,8 +749,9 @@ impl<'t, 's> SpecParser<'t, 's> {
             Err(TemporalError::IllegalArgument(m)) => {
                 Err(throw_at(self.tokens, date_pos, jcat!("invalid date literal '%", value, "': ", m)))
             }
+            // the engine does not read the date: it accepts the text (PARITY row 3, the user's list, ruling 4)
             Err(TemporalError::DateTime(m)) => Err(JavaError::java("java.time.DateTimeException", m)),
-            Err(TemporalError::IllegalState(m)) => Err(JavaError::java("java.lang.IllegalStateException", m)),
+            Err(TemporalError::IllegalState(m)) => unreachable!("{}", m.lossy()),
         }
     }
 
@@ -749,8 +767,9 @@ impl<'t, 's> SpecParser<'t, 's> {
         let parsed = match parse_time(value) {
             Ok(t) => Some(t),
             Err(TemporalError::IllegalArgument(_)) => None,
-            Err(TemporalError::DateTime(m)) => return Err(JavaError::java("java.time.DateTimeException", m)),
-            Err(TemporalError::IllegalState(m)) => return Err(JavaError::java("java.lang.IllegalStateException", m)),
+            Err(e @ (TemporalError::DateTime(_) | TemporalError::IllegalState(_))) => {
+                unreachable!("a time literal has no date or zone to shift: {e:?}")
+            }
         };
         Ok(VS::CTime(Box::new(CTime {
             value: parsed,
@@ -899,7 +918,8 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         if !self.at_end() && self.peek() == T::PAREN_OPEN {
             let args = self.parse_arg_list()?;
-            let call = applied(unquoted(&fqn)?, args, self.span(fqn_start, fqn_end));
+            let at = throw_at(self.tokens, fqn_start, JStr::default()).position.unwrap_or((0, 0));
+            let call = applied(unquoted(&fqn).map_err(|e| e.held_at(at))?, args, self.span(fqn_start, fqn_end));
             if let Some(folded) = self.fold_tree(&call)? {
                 return Ok(folded);
             }
@@ -1072,7 +1092,8 @@ impl<'t, 's> SpecParser<'t, 's> {
         let mut params = Vec::with_capacity(1 + args.len());
         params.push(receiver);
         params.extend(args);
-        Ok(applied(unquoted(&f)?, params, self.span(fn_start, fn_end)))
+        let at = throw_at(self.tokens, fn_start, JStr::default()).position.unwrap_or((0, 0));
+        Ok(applied(unquoted(&f).map_err(|e| e.held_at(at))?, params, self.span(fn_start, fn_end)))
     }
 
     /// `(args)`: no trailing comma.
@@ -1989,6 +2010,10 @@ impl<'t, 's> SpecParser<'t, 's> {
         let text = self.text();
         let lit_tok = self.pos;
         self.pos += 1;
+        // `#/` as the last token, no closing `#` to cut: the engine refuses at the literal (PARITY row 84)
+        if text.len() < 3 {
+            return Err(throw_at(self.tokens, lit_tok, jcat!("Unexpected token '", text, "'")).as_refusal());
+        }
         let inner = ustr::substring(text, 2, text.len() as isize - 1)?;
         let segs = split_char(inner, ch(b'/'));
         // the TYPE segment is a well-formed qualified name: no single or triple colons
@@ -2461,10 +2486,12 @@ impl<'t, 's> SpecParser<'t, 's> {
 
     /// A graph-fetch tree: its source slice re-lexed in place (absolute spans) and read by a parser of its own.
     fn parse_graph_fetch_tree(&self, from: usize, to: usize, island_start: usize) -> R<GraphFetchLiteral> {
-        let inner_tokens = self
-            .tokens
-            .lex_range(from, to)
-            .map_err(|m| JavaError::java("java.lang.IndexOutOfBoundsException", JStr::from(m)))?;
+        // `#{` as the last token: an empty tree, past the end (the raw `lexRange` refusal until 2026-11-09, ruling 4 of
+        // docs/rust-port/PHASE2.md section 6; PARITY row 83)
+        if from > to {
+            return Err(throw_at(self.tokens, island_start, JStr::from("Graph fetch tree must not be empty")).as_refusal());
+        }
+        let inner_tokens = self.tokens.lex_range(from, to).expect("an island's content lies inside its source");
         if inner_tokens.count() == 0 {
             return Err(JavaError::parse(
                 JStr::from("Graph fetch tree must not be empty"),
@@ -2782,7 +2809,8 @@ fn signed_literal(n: ValueSpecification, negative: bool, span: Span) -> ValueSpe
         VS::CDecimal(c) => {
             VS::CDecimal(Box::new(CDecimal { value: if negative { c.value.negate() } else { c.value }, pos: span }))
         }
-        other => panic!("IllegalStateException: a number literal is an integer, a float or a decimal: {other:?}"),
+        // the one caller hands it what parse_number built, one of the three above
+        other => unreachable!("a number literal is an integer, a float or a decimal: {other:?}"),
     }
 }
 

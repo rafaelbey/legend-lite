@@ -297,15 +297,20 @@ fn parse_sections(
                 }
             }
         } else {
-            let elements = section_elements(&ts, &name, range, bd.header_start, dialect)?;
-            let imports = if name == "Diagram" {
-                // a raw section has no tokens: its own parse carries the imports (`diagramImports`, a second parse)
-                diagram_imports(&ts, range, dialect)?
-            } else if listed(IMPORT_AWARE, &bd.name) {
-                section_imports(&ts, range)?
-            } else {
-                Vec::new()
-            };
+            let walked = (|| {
+                let elements = section_elements(&ts, &name, range, bd.header_start, dialect)?;
+                let imports = if name == "Diagram" {
+                    // a raw section has no tokens: its own parse carries the imports (`diagramImports`, a second parse)
+                    diagram_imports(&ts, range, dialect)?
+                } else if listed(IMPORT_AWARE, &bd.name) {
+                    section_imports(&ts, range)?
+                } else {
+                    Vec::new()
+                };
+                Ok((elements, imports))
+            })();
+            // PARITY's ruling-4 rows that legend-engine answers from its section catch-all: the section's start
+            let (elements, imports) = walked.map_err(|e: JavaError| e.at_section(&span))?;
             DocSection { parser_name: bd.name.clone(), elements, imports, span, overlay: None }
         };
         out.push(section);
@@ -345,13 +350,9 @@ fn registered(
         });
         return Ok(None);
     };
-    let Some(sk) = skipped else {
-        // an SPI grammar is never one of the parser's own lexable grammars
-        return Err(JavaError::java(
-            "java.lang.IllegalStateException",
-            jcat!("section '", bd.name, "' was lexed but its grammar is not lexable"),
-        ));
-    };
+    // this path takes a section the walk has no grammar of its own for (its one caller checks), and the lexer skips
+    // every such section
+    let sk = skipped.expect("the lexer skips a section with no built-in grammar");
     if grammar.lexable {
         return Err(JavaError::parse(
             jcat!(
@@ -909,9 +910,8 @@ fn parse_one_at(
             let grammar = TailGrammar::of(section).expect("a tail section has its grammar");
             grammar.parse_one(&mut p)?
         }
-        _ => {
-            return Err(JavaError::java("java.lang.IllegalStateException", jcat!("unknown site kind ", kind)));
-        }
+        // the kinds are this file's constants, each with an arm above
+        _ => unreachable!("unknown site kind {kind}"),
     };
     Ok((Some(DocElement { path: Some(JStr(path)), element }), p.pos))
 }

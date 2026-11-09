@@ -1733,6 +1733,7 @@ legend_java_binary(
     name = "front_shim",
     testonly = True,
     data = [
+        "//rust/oracles:front/deliberate-differences.tsv",
         "//rust/oracles:front_answers",
         "//rust/oracles:front_engine",
         "//rust/oracles:front_questions",
@@ -1742,6 +1743,7 @@ legend_java_binary(
         "-Dfront.questions=$(rlocationpath //rust/oracles:front_questions)",
         "-Dfront.answers=$(rlocationpath //rust/oracles:front_answers)",
         "-Dfront.engine=$(rlocationpath //rust/oracles:front_engine)",
+        "-Dfront.deliberate=$(rlocationpath //rust/oracles:front/deliberate-differences.tsv)",
     ],
     main_class = "com.legend.frontoracle.FrontAnswers",
     tags = ["manual"],

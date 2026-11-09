@@ -115,11 +115,55 @@ pub fn throw_at(tokens: &TokenStream<'_>, token_pos: usize, message: JStr) -> Ja
     JavaError::parse(message, tokens.line_of(char_pos) as i32, tokens.column_of(char_pos) as i32)
 }
 
-/// `TokenStreamCursor.docStringValue`: the `'''` literal's text-block layout, then Java-unescaped (an
-/// `IllegalArgumentException` for a short unicode escape, uncaught by its callers).
-pub fn doc_string_value(raw: &[u16]) -> R<Vec<u16>> {
-    let layout = text_block_layout(raw)?;
-    unescape_java_like(&layout).map_err(|m| JavaError::java("java.lang.IllegalArgumentException", JStr::from(m)))
+/// A refusal at the end of the input, where ANTLR places `<EOF>` in the engine's parse: one past the text's last
+/// character, trailing blanks and line breaks counted (`throw_at`'s place is the end of the last token).
+pub fn refused_at_eof(tokens: &TokenStream<'_>, message: JStr) -> JavaError {
+    let (line, column) = eof_place(tokens);
+    JavaError::parse(message, line, column).as_refusal()
+}
+
+/// A refusal at a token, or at the end of the input past the last one.
+pub fn refused_at(tokens: &TokenStream<'_>, token_pos: usize, message: JStr) -> JavaError {
+    if token_pos < tokens.count() { throw_at(tokens, token_pos, message).as_refusal() } else { refused_at_eof(tokens, message) }
+}
+
+/// A number token whose exponent has no digits (`1.5ed`, `1.5e+`): the engine's lexer ends the number before its
+/// exponent, so its parser refuses at the exponent's letter (PARITY row 8).
+pub fn refused_exponent(tokens: &TokenStream<'_>, token_pos: usize) -> JavaError {
+    let text = tokens.text(token_pos);
+    let e = text.iter().position(|&c| c == u16::from(b'e') || c == u16::from(b'E')).unwrap_or(0);
+    let start = tokens.start(token_pos) + e;
+    JavaError::parse(
+        jcat!("Unexpected token '", &text[e..], "'"),
+        tokens.line_of(start) as i32,
+        tokens.column_of(start) as i32,
+    )
+    .as_refusal()
+}
+
+/// One past the text's last character: its line and column.
+pub fn eof_place(tokens: &TokenStream<'_>) -> (i32, i32) {
+    let end = tokens.source().len();
+    (tokens.line_of(end) as i32, tokens.column_of(end) as i32)
+}
+
+/// A short unicode escape in a `'''` text block or a quoted name: legend-engine's walkers unescape uncaught, so its
+/// section catch-all answers (ruling 4 of docs/rust-port/PHASE2.md section 6; PARITY row 9). Lite's wording.
+pub fn malformed_escape(what: &str, m: &str) -> JavaError {
+    JavaError::refused_at_section(jcat!("malformed ", what, ": ", m), (0, 0))
+}
+
+/// `TokenStreamCursor.docStringValue`: the `'''` literal at `at` (its token's line and column), its text-block layout,
+/// then Java-unescaped. Left open by the end of the input the engine reads `''` and refuses the third quote (PARITY
+/// row 86); a short unicode escape is PARITY row 9's refusal, in a literal of one line (no text block to the engine)
+/// also at that third quote.
+pub fn doc_string_value(raw: &[u16], at: (i32, i32)) -> R<Vec<u16>> {
+    let third_quote = |message: JStr| JavaError::parse(message, at.0, at.1 + 2).as_refusal();
+    let layout = text_block_layout(raw).map_err(|_| third_quote(JStr::from("unterminated ''' literal")))?;
+    unescape_java_like(&layout).map_err(|m| {
+        let refusal = malformed_escape("string literal", m);
+        if is_text_block(raw) { refusal.held_at(at) } else { third_quote(refusal.message.unwrap_or_default()) }
+    })
 }
 
 /// `TokenStreamCursor.isTextBlock`: a `'''` literal whose opening delimiter is followed, after blanks and tabs, by a
@@ -347,6 +391,11 @@ pub trait Cursor<'s> {
         throw_at(self.tokens(), self.pos(), message)
     }
 
+    /// A refusal the engine answers from its section catch-all ([`JavaError::refused_at_section`]), held at this token.
+    fn section_refusal(&self, message: JStr) -> JavaError {
+        JavaError::refused_at_section(message, self.error(JStr::default()).position.unwrap_or((0, 0)))
+    }
+
     fn error_str(&self, message: &str) -> JavaError {
         self.error(JStr::from(message))
     }
@@ -527,8 +576,9 @@ pub trait Cursor<'s> {
             }
             let p = self.pos();
             if self.peek() == T::INTEGER {
-                let value =
-                    java_parse_long(self.text()).map_err(|m| JavaError::java("java.lang.NumberFormatException", m))?;
+                // past a long: the engine's walker parses it uncaught too, so its section catch-all answers (PARITY
+                // row 6), in the JDK's words
+                let value = java_parse_long(self.text()).map_err(|m| self.section_refusal(m))?;
                 tvv.push(ValueSpecification::CInteger(Box::new(CInteger {
                     value: JValue::Long(value),
                     pos: self.span(p, p),
@@ -879,7 +929,7 @@ pub trait Cursor<'s> {
                     }
                     let d_tok = self.pos();
                     let raw = self.text();
-                    let value = doc_string_value(raw)?;
+                    let value = doc_string_value(raw, self.error(JStr::default()).position.unwrap_or((0, 0)))?;
                     let multi_line = is_text_block(raw);
                     self.advance()?;
                     let d = self.doc_string_span(d_tok);
@@ -1121,19 +1171,6 @@ impl<'s> Cursor<'s> for IslandCursor<'_, 's> {
     }
 }
 
-/// `TokenStream.startLine(i)` where Java reads it unguarded: past `count` the positions array's
-/// `ArrayIndexOutOfBoundsException`.
-pub fn start_line_checked(ts: &TokenStream<'_>, i: usize) -> R<i64> {
-    if i < ts.count() {
-        Ok(ts.start_line(i) as i64)
-    } else {
-        Err(JavaError::java(
-            "java.lang.ArrayIndexOutOfBoundsException",
-            jcat!("Index ", i, " out of bounds for length ", ts.count()),
-        ))
-    }
-}
-
 /// `TokenStreamCursor.parseIdentifier`'s own body (Java's `TokenStreamCursor.super.parseIdentifier()`): a single
 /// identifier, a quoted one unquoted and unescaped.
 pub fn base_parse_identifier<'s, C: Cursor<'s> + ?Sized>(c: &mut C) -> R<Vec<u16>> {
@@ -1251,11 +1288,11 @@ impl<'t, 's> ElementCursor<'t, 's> {
         })
     }
 
-    /// `Protocol.unquotePath(parseQualifiedName())`: a short unicode escape in a quoted segment is Java's uncaught
-    /// `IllegalArgumentException`.
+    /// `Protocol.unquotePath(parseQualifiedName())`: a short unicode escape in a quoted segment is PARITY row 9's
+    /// refusal.
     fn unquoted_path(&mut self) -> R<Vec<u16>> {
         let raw = self.parse_qualified_name()?;
-        unquote_path(&raw).map_err(|m| JavaError::java("java.lang.IllegalArgumentException", JStr::from(m)))
+        unquote_path_iae(&raw)
     }
 
     /// `ElementParser.parseTaggedValues`: `{ profile.tag = 'value', ... }`, empty when the brace opens none.
@@ -1291,7 +1328,7 @@ impl<'t, 's> ElementCursor<'t, 's> {
             }
             let d_tok = self.pos;
             let raw = self.text();
-            let value = doc_string_value(raw)?;
+            let value = doc_string_value(raw, self.error(JStr::default()).position.unwrap_or((0, 0)))?;
             self.advance()?;
             let d = self.doc_string_span(d_tok);
             let s = self.span_of(start, start);
@@ -1412,9 +1449,9 @@ pub fn canonicalize_documentation(raw: &[u16]) -> R<Vec<u16>> {
     Ok(layout[start..end].to_vec())
 }
 
-/// `Protocol.unquotePath`, its short-unicode-escape failure Java's uncaught `IllegalArgumentException`.
+/// `Protocol.unquotePath`, its short unicode escape PARITY row 9's refusal.
 pub fn unquote_path_iae(path: &[u16]) -> R<Vec<u16>> {
-    unquote_path(path).map_err(|m| JavaError::java("java.lang.IllegalArgumentException", JStr::from(m)))
+    unquote_path(path).map_err(|m| malformed_escape("quoted name", m))
 }
 
 /// `TokenStreamCursor.once(seen, key, at)`: a key-dispatch loop's once-only rule, refused at the cursor.

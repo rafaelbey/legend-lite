@@ -11,7 +11,7 @@
 // The generated records hold their record-typed list elements boxed (`Vec<Box<T>>`), so the readers build that.
 #![allow(clippy::vec_box)]
 
-use crate::cursor::{Cursor, R, once};
+use crate::cursor::{Cursor, R, once, refused_at};
 use crate::doors::JavaError;
 use crate::jcat;
 use crate::jnum::parse_long;
@@ -19,7 +19,7 @@ use crate::jtypes::JStr;
 use crate::lexer::TokenType;
 use crate::records::{PBsonSchema, PMongoDatabase, PMongoDatabasePMongoCollection};
 use crate::sections::{head, linked_put};
-use crate::ustr::{eq, substring};
+use crate::ustr::eq;
 use std::collections::HashSet;
 
 use TokenType as T;
@@ -183,36 +183,107 @@ fn parse_collection<'s>(c: &mut impl Cursor<'s>) -> R<PMongoDatabasePMongoCollec
 
 /// `parseSchemaIsland`: the JSON value at the cursor, an object whose root `bsonType` (if any) is `object`.
 fn parse_schema_island<'s>(c: &mut impl Cursor<'s>) -> R<PBsonSchema> {
-    let parsed = parse_json_value(c)?;
+    let mut past_long = None;
+    let parsed = parse_json_value(c, &mut past_long)?;
     let Json::Map(m) = &parsed else {
         return Err(c.error_str("jsonSchema is not a JSON object"));
     };
+    if let Some(digits) = past_long {
+        return Err(judged(m, c, JavaError::java("java.lang.NumberFormatException", digits)));
+    }
     if let Some(root_type) = get(m, "bsonType")
         && !matches!(root_type, Json::Str(s) if eq(s, "object"))
     {
         return Err(c.error_str("jsonSchema root must be an object"));
     }
-    schema_of(m, true, c)
+    schema_of(m, true, c).map_err(|e| if e.class.starts_with("java.") { judged(m, c, e) } else { e })
 }
 
-/// A `"quoted"` token's text with its first and last unit off (`raw.substring(1, raw.length() - 1)`).
-fn inner(raw: &[u16]) -> R<Vec<u16>> {
-    Ok(substring(raw, 1, raw.len() as isize - 1)?.to_vec())
+/// A JDK exception `schema_of` raised (PARITY row 50) against what legend-engine's reader does with the same schema: a
+/// refusal where it refuses, placed by its section catch-all; where it accepts, the answer stays (the user's list,
+/// ruling 4 of docs/rust-port/PHASE2.md section 6).
+fn judged<'s>(root: &[(Vec<u16>, Json)], at: &impl Cursor<'s>, raw: JavaError) -> JavaError {
+    match engine_refusal(root) {
+        Some(message) => at.section_refusal(message),
+        None => raw,
+    }
+}
+
+const NOT_A_SCHEMA_NODE: &str = "a jsonSchema node must be an object with a bsonType";
+
+/// The refusal of legend-engine's `MongoDBSchemaDeserializer.getSchema` for a schema, read from its source: the root
+/// node needs a `bsonType` of `object`, and every node it visits (a property's, an array's items, each visited only
+/// under an object or an array) a `bsonType` it knows. Lite's wording for the engine's `NullPointerException`.
+fn engine_refusal(root: &[(Vec<u16>, Json)]) -> Option<JStr> {
+    match get(root, "bsonType") {
+        None => Some(JStr::from(NOT_A_SCHEMA_NODE)),
+        Some(Json::Str(s)) if eq(s, "object") => object_fields_refusal(root),
+        Some(_) => Some(JStr::from("Expected jsonSchema bsonType should be of object type")),
+    }
+}
+
+/// `processObjectTypeFields`: the properties, and `additionalProperties` when it is a schema of its own.
+fn object_fields_refusal(m: &[(Vec<u16>, Json)]) -> Option<JStr> {
+    if let Some(Json::Map(properties)) = get(m, "properties") {
+        for (_, value) in properties {
+            if let Some(refusal) = node_refusal(value) {
+                return Some(refusal);
+            }
+        }
+    }
+    match get(m, "additionalProperties") {
+        Some(Json::Map(additional)) => object_fields_refusal(additional),
+        _ => None,
+    }
+}
+
+/// `getBsonNodeType`.
+fn node_refusal(v: &Json) -> Option<JStr> {
+    let Json::Map(m) = v else {
+        return Some(JStr::from(NOT_A_SCHEMA_NODE));
+    };
+    let Some(bson_type) = get(m, "bsonType") else {
+        return Some(JStr::from(NOT_A_SCHEMA_NODE));
+    };
+    let Json::Str(name) = bson_type else {
+        return Some(JStr::from("Type not supported in jsonSchema model yet: null"));
+    };
+    match String::from_utf16_lossy(name).as_str() {
+        "object" => object_fields_refusal(m),
+        "array" => match get(m, "items") {
+            None => None,
+            Some(Json::List(items)) => items.iter().find_map(node_refusal),
+            Some(item) => node_refusal(item),
+        },
+        "double" | "string" | "binData" | "objectId" | "bool" | "date" | "int" | "timestamp" | "long" | "decimal"
+        | "minKey" | "maxKey" => None,
+        _ => Some(jcat!("Type not supported in jsonSchema model yet: ", name)),
+    }
+}
+
+/// A `"quoted"` token's text with its first and last unit off (`raw.substring(1, raw.length() - 1)`); a `"` left open
+/// at the end of the input refused there, at the quote (PARITY row 52).
+fn inner<'s>(raw: &[u16], c: &impl Cursor<'s>, at: usize) -> R<Vec<u16>> {
+    if raw.len() < 2 {
+        return Err(refused_at(c.tokens(), at, jcat!("Unexpected token '", raw, "'")));
+    }
+    Ok(raw[1..raw.len() - 1].to_vec())
 }
 
 /// `parseJsonValue`: an object, an array, a `"string"`, an integer (`Long.valueOf`, unguarded), a negative one, a
 /// boolean or `null`.
-fn parse_json_value<'s>(c: &mut impl Cursor<'s>) -> R<Json> {
+fn parse_json_value<'s>(c: &mut impl Cursor<'s>, past_long: &mut Option<JStr>) -> R<Json> {
     match c.peek() {
         T::BRACE_OPEN => {
             c.advance()?;
             let mut m: Vec<(Vec<u16>, Json)> = Vec::new();
             while c.peek() != T::BRACE_CLOSE {
                 let raw = c.slack_text();
+                let key_at = c.pos();
                 c.expect(T::QUOTED_STRING)?;
                 c.expect(T::COLON)?;
-                let key = inner(raw)?;
-                let v = parse_json_value(c)?;
+                let key = inner(raw, c, key_at)?;
+                let v = parse_json_value(c, past_long)?;
                 linked_put(&mut m, key, v);
                 if !c.match_tok(T::COMMA)? {
                     break;
@@ -225,7 +296,7 @@ fn parse_json_value<'s>(c: &mut impl Cursor<'s>) -> R<Json> {
             c.advance()?;
             let mut l = Vec::new();
             while c.peek() != T::BRACKET_CLOSE {
-                l.push(parse_json_value(c)?);
+                l.push(parse_json_value(c, past_long)?);
                 if !c.match_tok(T::COMMA)? {
                     break;
                 }
@@ -235,13 +306,14 @@ fn parse_json_value<'s>(c: &mut impl Cursor<'s>) -> R<Json> {
         }
         T::QUOTED_STRING => {
             let raw = c.text();
+            let at = c.pos();
             c.advance()?;
-            Ok(Json::Str(inner(raw)?))
+            Ok(Json::Str(inner(raw, c, at)?))
         }
         T::INTEGER => {
             let t = c.text();
             c.advance()?;
-            Ok(Json::Long(long_value_of(t)?))
+            Ok(Json::Long(long_value_of(t, past_long)))
         }
         T::MINUS => {
             c.advance()?;
@@ -249,7 +321,7 @@ fn parse_json_value<'s>(c: &mut impl Cursor<'s>) -> R<Json> {
             c.expect(T::INTEGER)?;
             let mut s = crate::ustr::u("-");
             s.extend_from_slice(t);
-            Ok(Json::Long(long_value_of(&s)?))
+            Ok(Json::Long(long_value_of(&s, past_long)))
         }
         T::TRUE => {
             c.advance()?;
@@ -269,9 +341,13 @@ fn parse_json_value<'s>(c: &mut impl Cursor<'s>) -> R<Json> {
     }
 }
 
-/// `Long.valueOf(s)`: its `NumberFormatException`, unplaced.
-fn long_value_of(s: &[u16]) -> R<i64> {
-    parse_long(s).map_err(|m| JavaError::java("java.lang.NumberFormatException", m))
+/// `Long.valueOf(s)`, its failure (the first one met, as Java's) kept for [`judged`]: the whole schema is read first,
+/// since the engine's verdict on it is the schema's.
+fn long_value_of(s: &[u16], past_long: &mut Option<JStr>) -> i64 {
+    parse_long(s).unwrap_or_else(|m| {
+        past_long.get_or_insert(m);
+        0
+    })
 }
 
 /// `schemaOf(m, root, at)`: a JSON object as a BSON schema node -- its type by `bsonType` (`object` when absent), its

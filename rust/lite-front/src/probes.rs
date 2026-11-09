@@ -73,6 +73,10 @@ pub fn top_level_indexes(ts: &TokenStream<'_>, marker: TokenType) -> Vec<usize> 
 /// sites were parsed, or the first one's error. On the caller's thread, which needs a big stack
 /// (`doors::PARSE_STACK`).
 pub fn element_sites(text: &[u16], dialect: Dialect) -> Answer<usize> {
+    element_sites_walk(text, dialect).map_err(JavaError::placed)
+}
+
+fn element_sites_walk(text: &[u16], dialect: Dialect) -> Answer<usize> {
     let ts = tokenize(text);
     let mut parsed = 0;
     for marker in [T::CLASS, T::ENUM, T::PROFILE, T::ASSOCIATION, T::FUNCTION] {
@@ -97,6 +101,10 @@ pub fn element_sites(text: &[u16], dialect: Dialect) -> Answer<usize> {
 /// UTF-16 units), or the first error -- the parser's, or the emitter's refusal. On the caller's thread, which needs a
 /// big stack (`doors::PARSE_STACK`).
 pub fn database_sites(text: &[u16], dialect: Dialect) -> Answer<Vec<(Vec<u16>, Vec<u16>)>> {
+    database_sites_walk(text, dialect).map_err(JavaError::placed)
+}
+
+fn database_sites_walk(text: &[u16], dialect: Dialect) -> Answer<Vec<(Vec<u16>, Vec<u16>)>> {
     let ts = tokenize(text);
     let mut out = Vec::new();
     for i in 0..ts.count() {
@@ -147,6 +155,10 @@ pub struct DeclarationExtent {
 /// Each read at `dialect` where it stands (`ElementParser.at(tokens, i, dialect)`); the first reader's error is the
 /// answer. On the caller's thread, which needs a big stack (`doors::PARSE_STACK`).
 pub fn declaration_extents(text: &[u16], dialect: Dialect) -> Answer<Vec<DeclarationExtent>> {
+    declaration_extents_walk(text, dialect).map_err(JavaError::placed)
+}
+
+fn declaration_extents_walk(text: &[u16], dialect: Dialect) -> Answer<Vec<DeclarationExtent>> {
     let ts = tokenize(text);
     let n = ts.count();
     let mut out = Vec::new();

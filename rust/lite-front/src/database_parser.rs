@@ -1158,8 +1158,15 @@ impl<'t, 's> DbCursor<'t, 's> {
                 let v = -self.consume_long()?;
                 return Ok(literal(JValue::Long(v), self.span(s, num_tok)));
             }
-            let v = -parse_double(self.slack_text())
-                .map_err(|m| crate::doors::JavaError::java("java.lang.NumberFormatException", m))?;
+            if self.peek() != T::FLOAT {
+                // the engine's grammar has no sign before anything else: it refuses at the `-` (PARITY row 26)
+                return Err(crate::cursor::refused_at(
+                    self.tokens,
+                    s,
+                    jcat!("expected ", T::FLOAT, " but found ", self.peek(), " ('", self.safe_text(), "')"),
+                ));
+            }
+            let v = -parse_double(self.text()).map_err(|_| crate::cursor::refused_exponent(self.tokens, num_tok))?;
             self.expect(T::FLOAT)?;
             return Ok(literal(JValue::Double(v), self.span(s, num_tok)));
         }
@@ -1168,8 +1175,7 @@ impl<'t, 's> DbCursor<'t, 's> {
             return Ok(literal(JValue::Long(v), self.span(s, s)));
         }
         if self.peek() == T::FLOAT {
-            let v = parse_double(self.text())
-                .map_err(|m| crate::doors::JavaError::java("java.lang.NumberFormatException", m))?;
+            let v = parse_double(self.text()).map_err(|_| crate::cursor::refused_exponent(self.tokens, s))?;
             self.advance()?;
             return Ok(literal(JValue::Double(v), self.span(s, s)));
         }

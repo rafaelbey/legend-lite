@@ -18,9 +18,8 @@
 #![allow(clippy::vec_box)]
 
 use crate::cursor::{
-    Cursor, ElementCursor, R, is_identifier_token, start_line_checked, throw_at, ty_or_slack, unquote_path_iae,
+    Cursor, ElementCursor, R, is_identifier_token, throw_at, ty_or_slack, unquote_path_iae,
 };
-use crate::doors::JavaError;
 use crate::jcat;
 use crate::jnum::{parse_double, parse_long};
 use crate::jtypes::{JStr, JValue, base64_of_utf8};
@@ -270,11 +269,12 @@ fn legacy_param_value<'s>(c: &impl Cursor<'s>, from: usize) -> R<ValueSpecificat
         let span = c.span(from, from + 1);
         let negative = jcat!("-", txt);
         if lt == T::INTEGER {
-            let v = parse_long(&negative.0).map_err(|m| JavaError::java("java.lang.NumberFormatException", m))?;
+            // past a long: the engine's walker parses it uncaught too, so its section catch-all answers (PARITY row 37)
+            let v = parse_long(&negative.0).map_err(|m| c.section_refusal(m))?;
             return Ok(VS::CInteger(Box::new(CInteger { value: JValue::Long(v), pos: span })));
         }
         if lt == T::FLOAT {
-            let v = parse_double(&negative.0).map_err(|m| JavaError::java("java.lang.NumberFormatException", m))?;
+            let v = parse_double(&negative.0).map_err(|m| c.section_refusal(m))?;
             return Ok(VS::CFloat(Box::new(CFloat { value: v, exact: None, pos: span })));
         }
     }
@@ -343,35 +343,12 @@ fn negated_long(v: &JValue) -> i64 {
     }
 }
 
-/// A rebuilt node's class name, for the `ClassCastException` Java's `withChildren` raises when a folded child is no
-/// longer the class its slot casts to.
-fn class_cast(child: &ValueSpecification, to: &str) -> JavaError {
-    let from = match child {
-        VS::CInteger(_) => "CInteger",
-        VS::CFloat(_) => "CFloat",
-        _ => "ValueSpecification",
-    };
-    JavaError::java(
-        "java.lang.ClassCastException",
-        jcat!(
-            "class com.legend.protocol.spec.",
-            from,
-            " cannot be cast to class com.legend.protocol.spec.",
-            to,
-            " (com.legend.protocol.spec.",
-            from,
-            " and com.legend.protocol.spec.",
-            to,
-            " are in unnamed module of loader 'app')"
-        ),
-    )
-}
-
-/// Folds a child that Java's `withChildren` casts to `AppliedFunction`.
+/// Folds a child that Java's `withChildren` casts to `AppliedFunction`: a quoted form's original and a TDS literal's
+/// desugaring are named calls, and a fold turns only a sign over a literal into another node.
 fn fold_applied(af: crate::records::AppliedFunction) -> R<(crate::records::AppliedFunction, bool)> {
     match fold_signed_literals(VS::AppliedFunction(Box::new(af)))? {
         (VS::AppliedFunction(f), changed) => Ok((*f, changed)),
-        (other, _) => Err(class_cast(&other, "AppliedFunction")),
+        (other, _) => unreachable!("a named call folded into {other:?}"),
     }
 }
 
@@ -1337,13 +1314,15 @@ fn parse_runtime_components<'s>(c: &mut impl Cursor<'s>) -> R<PRuntimeComponents
     Ok(PRuntimeComponents { binding, clazz, runtime, runtime_span })
 }
 
-/// `parseEmbeddedRuntime`: an anonymous runtime island read by the Runtime grammar's body loop, re-lexed -- before
-/// its `}#` is expected, its first content token's line read unguarded (past the end, Java's
-/// `ArrayIndexOutOfBoundsException`).
+/// `parseEmbeddedRuntime`: an anonymous runtime island read by the Runtime grammar's body loop, re-lexed; an island
+/// open at the end of the input refused there (PARITY row 35).
 fn parse_embedded_runtime<'s>(c: &mut impl Cursor<'s>) -> R<PEmbeddedRuntime> {
     let (emb_start, end) = scan_island(c)?;
     let emb = c.reconstruct_text(emb_start, end);
-    let base_line = start_line_checked(c.tokens(), emb_start)? as i32;
+    if emb_start >= c.tokens().count() {
+        return Err(crate::cursor::refused_at_eof(c.tokens(), jcat!("expected ", T::ISLAND_END, " but found EOF ('<EOF>')")));
+    }
+    let base_line = c.tokens().start_line(emb_start) as i32;
     let base_column = c.tokens().start_column(emb_start) as i32;
     let value = parse_embedded_body(&emb, base_line, base_column, c.dialect())?;
     c.expect(T::ISLAND_END)?;
@@ -1463,11 +1442,12 @@ mod tests {
     }
 
     #[test]
-    fn an_unterminated_embedded_runtime_reads_past_the_positions() {
+    fn an_unterminated_embedded_runtime_is_refused_at_the_end_of_the_input() {
         let text = format!("{HEAD}  execution: Single {{ query: |1; mapping: m::M; runtime: #{{");
-        let e = parse(&u(&text), Dialect::LegendLite).unwrap_err();
-        assert_eq!(e.class, "java.lang.ArrayIndexOutOfBoundsException");
-        assert_eq!(e.message.expect("a message").lossy(), "Index 31 out of bounds for length 31");
+        let e = parse(&u(&text), Dialect::LegendLite).unwrap_err().placed();
+        assert!(e.is_parse_exception(), "{e:?}");
+        assert_eq!(e.position, Some((6, 60)));
+        assert_eq!(e.message.expect("a message").lossy(), "[6:60] expected ISLAND_END but found EOF ('<EOF>')");
         let empty = format!("{HEAD}  execution: Single {{ query: |1; mapping: m::M; runtime: #{{ }}#; }}\n}}\n");
         let e = parse(&u(&empty), Dialect::LegendLite).unwrap_err();
         assert_eq!(

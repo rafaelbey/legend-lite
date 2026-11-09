@@ -256,8 +256,12 @@ fn parse_parameter<'s>(c: &mut impl Cursor<'s>) -> R<PSsParam> {
     let start = c.pos();
     let name = if c.peek() == T::QUOTED_STRING {
         let raw = c.text();
+        if raw.len() < 2 {
+            // a `"` left open at the end of the input: refused at the quote (PARITY row 52)
+            return Err(crate::cursor::refused_at(c.tokens(), start, jcat!("Unexpected token '", raw, "'")));
+        }
         c.advance()?;
-        crate::ustr::substring(raw, 1, raw.len() as isize - 1)?.to_vec()
+        raw[1..raw.len() - 1].to_vec()
     } else {
         c.parse_identifier()?
     };

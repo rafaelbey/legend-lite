@@ -203,7 +203,8 @@ fn parse_config_value<'s>(c: &mut impl Cursor<'s>) -> R<PConfigValue> {
             Ok(PConfigValue::PConfigValuePCBoolean(Box::new(PConfigValuePCBoolean { value: false })))
         }
         T::INTEGER => {
-            let v = parse_long(c.text()).map_err(|m| JavaError::java("java.lang.NumberFormatException", m))?;
+            // past a long: the engine's walker parses it uncaught too, so its section catch-all answers
+            let v = parse_long(c.text()).map_err(|m| c.section_refusal(m))?;
             c.advance()?;
             Ok(PConfigValue::PConfigValuePCInteger(Box::new(PConfigValuePCInteger { value: v })))
         }

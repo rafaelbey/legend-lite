@@ -18,6 +18,10 @@
 //! (core/src/test/java/com/legend/parser/ToySectionGrammar.java); the model door's questions are asked with it
 //! registered too, its part played here as the shim plays an overlay's ([`toy_splice`]).
 
+#[path = "support/deliberate.rs"]
+mod deliberate;
+
+use deliberate::{Deliberate, is_the_new_answer};
 use lite_front::doors::{Answer, Dialect, answer_form, pmcd_answer_form};
 use lite_front::element_parser::lines_of;
 use lite_front::jtypes::JStr;
@@ -111,8 +115,10 @@ fn differential(door: &str) {
     let mut java = BufReader::new(File::open(env("LITE_FRONT_ANSWERS")).unwrap()).lines();
     let dump = std::env::var("LITE_FRONT_MISMATCHES").ok();
     let mut counts: BTreeMap<String, (usize, usize)> = BTreeMap::new();
-    let (mut asked, mut matched) = (0usize, 0usize);
+    let (mut asked, mut matched, mut listed) = (0usize, 0usize, 0usize);
     let mut differ: Vec<String> = Vec::new();
+    let mut deliberate = Deliberate::load();
+    let mut wrong: Vec<String> = Vec::new();
     for line in BufReader::new(File::open(env("LITE_FRONT_QUESTIONS")).unwrap()).lines() {
         let line = line.unwrap();
         let q = wire::parse(&line, 64).unwrap();
@@ -138,7 +144,18 @@ fn differential(door: &str) {
             let rust_kind = if form.first() == Some(&u16::from(b'A')) { "A" } else { "E" };
             let c = counts.entry(format!("{dialect_name} {java_kind}")).or_default();
             c.0 += 1;
-            if sha256_utf16le(&form) == *java_hash {
+            if let Err(raw) = deliberate.raw_answer(door, &dialect_name, &sha, &form) {
+                wrong.push(raw);
+            }
+            if let Some(expected) = deliberate.expected(door, &dialect_name, &sha) {
+                listed += 1;
+                if sha256_utf16le(&form) == *java_hash {
+                    wrong.push(format!("{door} {dialect_name} {sha}: listed, yet identical to Java's frozen answer"));
+                }
+                if let Err(m) = is_the_new_answer(&form, expected) {
+                    wrong.push(format!("{door} {dialect_name} {sha}: {m}"));
+                }
+            } else if sha256_utf16le(&form) == *java_hash {
                 matched += 1;
                 c.1 += 1;
             } else {
@@ -151,7 +168,10 @@ fn differential(door: &str) {
             }
         }
     }
-    println!("[front-{door}] {asked} questions: {matched} answered as Java answers them, {} differ", differ.len());
+    println!(
+        "[front-{door}] {asked} questions: {matched} answered as Java answers them, {listed} listed differences, {} differ",
+        differ.len()
+    );
     for (k, (n, m)) in &counts {
         println!("[front-{door}]   {k}: {m} of {n}");
     }
@@ -159,8 +179,14 @@ fn differential(door: &str) {
         println!("[front-{door}]   {d}");
     }
     assert!(java.next().is_none(), "Java answered every question of the set, and only those");
+    assert!(wrong.is_empty(), "{door}: the deliberate differences and the raw-answer pin: {wrong:#?}");
+    assert_eq!(listed, deliberate.listed(door), "{door}: every listed question was asked");
+    let stale = deliberate.stale_left(door);
+    assert!(stale.is_empty(), "{door}: left-for-the-user lines that no longer hold: {stale:?}");
+    assert!(differ.is_empty(), "{door}: {} questions neither identical nor listed", differ.len());
+    assert_eq!(matched + listed, asked, "{door}: identical + listed == total");
     let floor = floor(door);
-    assert!(matched >= floor, "{door}: {matched} identical, below its floor of {floor}");
+    assert!(matched + listed >= floor, "{door}: {matched} identical and {listed} listed, below its floor of {floor}");
 }
 
 #[test]

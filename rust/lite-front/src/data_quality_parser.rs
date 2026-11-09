@@ -11,7 +11,6 @@
 #![allow(clippy::vec_box)]
 
 use crate::cursor::{Cursor, R, once, once_at, throw_at, unquote_path_iae};
-use crate::doors::JavaError;
 use crate::jcat;
 use crate::jnum::parse_double;
 use crate::jtypes::JStr;
@@ -393,10 +392,13 @@ fn parse_relation_comparison<'s>(c: &mut impl Cursor<'s>) -> R<PDataQualityRelat
         } else if eq(&key, "columnsToCompare") {
             identifier_list(c, &mut columns_to_compare)?;
         } else if eq(&key, "expectedMatch") {
+            let (at, shown) = (c.pos(), c.safe_text());
             let num = c.slack_text();
             c.advance()?;
-            expected_match =
-                Some(parse_double(num).map_err(|m| JavaError::java("java.lang.NumberFormatException", m))?);
+            // the engine's grammar takes a number alone here, and refuses the token (PARITY row 49)
+            expected_match = Some(parse_double(num).map_err(|_| {
+                crate::cursor::refused_at(c.tokens(), at, jcat!("Unexpected token '", shown, "'"))
+            })?);
         } else if eq(&key, "testSuites") {
             test_suites = Some(parse_test_suites(c)?);
             continue;
@@ -442,7 +444,12 @@ fn identifier_list<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<JStr>) -> R<()> {
 /// `parseReconStrategy`: `MD5Hash ( { sourceHashColumn: x; targetHashColumn: y; aggregatedHash: true; } )?`, the empty
 /// block refused at its `}`, each key once (at itself).
 fn parse_recon_strategy<'s>(c: &mut impl Cursor<'s>) -> R<PReconStrategy> {
+    let kind_at = c.pos();
     let kind = c.parse_identifier()?;
+    // the engine's grammar names one strategy; the record holds no place for its emitter to refuse at (PARITY row 76)
+    if c.dialect() == crate::doors::Dialect::LegendEngine && !eq(&kind, "MD5Hash") {
+        return Err(crate::cursor::refused_at(c.tokens(), kind_at, jcat!("Unexpected token '", kind, "'")));
+    }
     let mut source_hash = None;
     let mut target_hash = None;
     let mut aggregated = None;
