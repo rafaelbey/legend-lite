@@ -59,3 +59,10 @@ profile does not.
   `git apply` it, run any suite with `--test_env=LEGEND_MIRJSON_ROUNDTRIP=1 --nozip_undeclared_test_outputs`, and
   read `mirjson-roundtrip-*` in each test's outputs; never commit it to the sources. Phase 1's differential is the
   same probe with the second render made by Rust.
+- `oracles/identity/`: phase 3's oracle, frozen while the Java compiler exists (docs/rust-port/PHASE3.md step 0): per
+  question, the hits and misses of the identity tables and the outcomes of the identity comparisons
+  (`hits.tsv.zst`), and each lowering's `MirJson` (`mir-ids.tsv.zst`, `mir-store.tsv.zst`), the corpora's answer for a Rust
+  CLI. `MANIFEST.tsv` says what each column is.
+- `tools/identity-hits-probe.patch`: the probe that made it. `git apply` it to a clean tree (the patch is the switch), run,
+  read `identity-hits-*` and `identity-mir-*` from each test's outputs and each corpus pass's scratch directory,
+  `git apply -R` as soon as the run is over; never commit it to the sources.

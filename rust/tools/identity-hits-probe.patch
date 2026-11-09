@@ -1,0 +1,1669 @@
+diff --git a/core/src/main/java/com/legend/Compiler.java b/core/src/main/java/com/legend/Compiler.java
+index 09b2a4b12..73c9d245f 100644
+--- a/core/src/main/java/com/legend/Compiler.java
++++ b/core/src/main/java/com/legend/Compiler.java
+@@ -74,8 +74,11 @@ public final class Compiler {
+      */
+     public static ModelContext compileModel(@com.legend.base.Nullable String model) {
+         Objects.requireNonNull(model, "model");
+-        return buildPositioned(ModelFromText.parse(model,
+-                com.legend.parser.Dialect.LEGEND_LITE));
++        String __id = com.legend.base.IdentityProbe.textId(model);
++        try (var __p = com.legend.base.IdentityProbe.modelDoor(__id, "compileModel")) {
++            return com.legend.base.IdentityProbe.compiled(buildPositioned(ModelFromText.parse(model,
++                    com.legend.parser.Dialect.LEGEND_LITE)), __id);
++        }
+     }
+ 
+     /**
+@@ -86,6 +89,13 @@ public final class Compiler {
+      * its record carries source information.
+      */
+     public static ModelContext compileModel(com.legend.protocol.Protocol.PureModelContextData model) {
++        String __id = com.legend.base.IdentityProbe.protocolId(model);
++        try (var __p = com.legend.base.IdentityProbe.modelDoor(__id, "compileModel")) {
++            return com.legend.base.IdentityProbe.compiled(compileModel0(model), __id);
++        }
++    }
++
++    private static ModelContext compileModel0(com.legend.protocol.Protocol.PureModelContextData model) {
+         ParsedModel parsed;
+         try {
+             parsed = com.legend.model.ModelFromProtocol.of(Objects.requireNonNull(model, "model"));
+@@ -182,6 +192,7 @@ public final class Compiler {
+         java.util.Map<String, String> seen = new java.util.HashMap<>();   // key -> source
+         List<String> duplicates = new java.util.ArrayList<>();
+         for (ModelSource src : sources) {
++            com.legend.base.IdentityProbe.sourcesSeen(src.name(), src.text());
+             sourceTexts.put(src.name(), src.text());
+             ParsedModel unit;
+             try {
+@@ -246,12 +257,15 @@ public final class Compiler {
+      * per-unit texts).
+      */
+     public static ModelContext buildModel(ParsedModel parsed) {
++        String __id = com.legend.base.IdentityProbe.modelId(parsed);
++        try (var __p = com.legend.base.IdentityProbe.modelDoor(__id, "buildModel")) {
+         // the system metamodel store rides EVERY build (charter §4: one
+         // owner, parsed elements, no parallel lane)
+         Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
+                 bootFqns(), null), null);
+-        return PureModelContext.from(layer.model(), layer.index(), null, boot().checked().without(layer.adopted()),
+-                com.legend.lowering.PlatformRegistrations.current());
++        return com.legend.base.IdentityProbe.compiled(PureModelContext.from(layer.model(), layer.index(), null, boot().checked().without(layer.adopted()),
++                com.legend.lowering.PlatformRegistrations.current()), __id);
++        }
+     }
+ 
+     /** A normalized layer with THE index its Phase E read (T4.1 step 2):
+@@ -306,6 +320,7 @@ public final class Compiler {
+         // key; the prelude's elements keep their section imports (a
+         // derived body resolves through them), the system metamodel's
+         // resolve in the empty scope as before
++        try (var __b = com.legend.base.IdentityProbe.bootDoor()) {
+         return BOOT.getOrCompute(BootKey.HASH, () -> {
+             ParsedModel pre = com.legend.builtin.SystemMetamodel.requireNoSystemElementRedefined(
+                     com.legend.builtin.Prelude.parsedModel());
+@@ -370,6 +385,7 @@ public final class Compiler {
+                             com.legend.lowering.PlatformRegistrations.current()),
+                     java.util.Collections.unmodifiableMap(byId));
+         });
++        }
+     }
+ 
+     /** The boot source's content address: both sources are constants of
+@@ -530,12 +546,15 @@ public final class Compiler {
+      * still throw — a genuine bug must fail the build.
+      */
+     public static BuiltModule buildModule(ParsedModel parsed) {
++        String __id = com.legend.base.IdentityProbe.modelId(parsed);
++        try (var __p = com.legend.base.IdentityProbe.modelDoor(__id, "buildModule")) {
+         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
+         Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
+                 bootFqns(), walls), walls);
+-        PureModelContext ctx = PureModelContext.from(layer.model(), layer.index(), walls,
+-                boot().checked().without(layer.adopted()), com.legend.lowering.PlatformRegistrations.current());
++        PureModelContext ctx = com.legend.base.IdentityProbe.compiled(PureModelContext.from(layer.model(), layer.index(), walls,
++                boot().checked().without(layer.adopted()), com.legend.lowering.PlatformRegistrations.current()), __id);
+         return new BuiltModule(ctx, walls);
++        }
+     }
+ 
+     /**
+@@ -584,7 +603,7 @@ public final class Compiler {
+      * model is compiled once ({@link #compileModel}) and never again per question.
+      */
+     public static TypedQuery query(ModelContext ctx, String query) {
+-        return query(ctx, parseQuery(query));
++        return new TypedQuery(ctx, NameResolver.resolveQuery(parseQuery(query)), query);
+     }
+ 
+     /** {@link #query(ModelContext, String)} for a query that arrives ALREADY PARSED — an upstream {@code pure/v1}
+@@ -729,6 +748,14 @@ public final class Compiler {
+     public static ProgramFacts programFacts(
+             com.legend.protocol.spec.ValueSpecification resolved,
+             ModelContext ctx) {
++        try (var __p = com.legend.base.IdentityProbe.door(com.legend.base.IdentityProbe.queryScope(ctx, resolved, null), "programFacts")) {
++            return programFacts0(resolved, ctx);
++        }
++    }
++
++    private static ProgramFacts programFacts0(
++            com.legend.protocol.spec.ValueSpecification resolved,
++            ModelContext ctx) {
+         SpecCompiler specs = new SpecCompiler(ctx);
+         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
+         java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
+@@ -811,6 +838,16 @@ public final class Compiler {
+             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
+             String runtimeFqn, boolean relationalRootForm,
+             @com.legend.base.Nullable String explicitMappingFqn) {
++        try (var __p = com.legend.base.IdentityProbe.door(com.legend.base.IdentityProbe.queryScope(ctx, resolved, null),
++                "lowerResolved@" + runtimeFqn + "," + relationalRootForm + "," + explicitMappingFqn)) {
++            return lowerResolved0(resolved, ctx, runtimeFqn, relationalRootForm, explicitMappingFqn);
++        }
++    }
++
++    private static com.legend.sql.SqlQuery lowerResolved0(
++            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
++            String runtimeFqn, boolean relationalRootForm,
++            @com.legend.base.Nullable String explicitMappingFqn) {
+         SpecCompiler specs = new SpecCompiler(ctx);
+         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
+         body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);
+@@ -847,6 +884,12 @@ public final class Compiler {
+      * signature-broken walls under the plain FQN.
+      */
+     public static java.util.Map<String, String> compileAllBodies(ModelContext ctx) {
++        try (var __p = com.legend.base.IdentityProbe.door(com.legend.base.IdentityProbe.queryScope(ctx, null, "compileAllBodies"), "compileAllBodies")) {
++            return compileAllBodies0(ctx);
++        }
++    }
++
++    private static java.util.Map<String, String> compileAllBodies0(ModelContext ctx) {
+         SpecCompiler specs = new SpecCompiler(ctx);
+         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
+         // the MODULE's own bodies: the boot layer's (the system metamodel's
+diff --git a/core/src/main/java/com/legend/Execution.java b/core/src/main/java/com/legend/Execution.java
+index d8faa0080..e59bace61 100644
+--- a/core/src/main/java/com/legend/Execution.java
++++ b/core/src/main/java/com/legend/Execution.java
+@@ -68,6 +68,7 @@ public final class Execution {
+             com.legend.exec.PlanSessions.Source planSessions, Establish establish,
+             java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
+             int batchRows) throws java.io.IOException {
++        try (var __p = com.legend.base.IdentityProbe.door(typed.probeScope(), "run@" + runtimeFqn + "," + establish)) {
+         if (typed.writes()) {
+             com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn);
+             com.legend.result.ResultSink sink = sinkOf.apply(plan);
+@@ -86,6 +87,7 @@ public final class Execution {
+             com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), on, sink, batchRows);
+             return plan;
+         }
++        }
+     }
+ 
+     /** {@link #run(TypedQuery, String, Source, com.legend.exec.PlanSessions.Source,
+@@ -183,6 +185,9 @@ public final class Execution {
+             @com.legend.base.Nullable Answer answer) {
+         ModelContext ctx = typed.context();
+         com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session);
+-        BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
++        try (var __p = com.legend.base.IdentityProbe.door(typed.probeScope(), "runProgram@" + runtimeFqn + ","
++                + dialect.getClass().getSimpleName() + "," + options.judgeMode())) {
++            BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
++        }
+     }
+ }
+diff --git a/core/src/main/java/com/legend/TypedQuery.java b/core/src/main/java/com/legend/TypedQuery.java
+index 7ec10820e..8ad966556 100644
+--- a/core/src/main/java/com/legend/TypedQuery.java
++++ b/core/src/main/java/com/legend/TypedQuery.java
+@@ -25,11 +25,23 @@ public final class TypedQuery {
+     private final com.legend.protocol.spec.ValueSpecification resolved;
+     private final SpecCompiler specs;
+     private @com.legend.base.Nullable List<TypedSpec> body;
++    private final @com.legend.base.Nullable com.legend.base.IdentityProbe.Scope probe;
+ 
+     TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved) {
++        this(ctx, resolved, null);
++    }
++
++    TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved,
++            @com.legend.base.Nullable String text) {
+         this.ctx = ctx;
+         this.resolved = resolved;
+         this.specs = new SpecCompiler(ctx);
++        this.probe = com.legend.base.IdentityProbe.queryScope(ctx, resolved, text);
++    }
++
++    /** The probe's scope of this query. */
++    public @com.legend.base.Nullable com.legend.base.IdentityProbe.Scope probeScope() {
++        return probe;
+     }
+ 
+     /** The compiled model this query is typed against. */
+@@ -54,12 +66,14 @@ public final class TypedQuery {
+ 
+     /** The query's statements typed as a query body (Phase G), once. */
+     public List<TypedSpec> body() {
+-        List<TypedSpec> b = body;
+-        if (b == null) {
+-            b = List.copyOf(specs.typeQueryBody(resolved));
+-            body = b;
++        try (var __p = com.legend.base.IdentityProbe.door(probe, "body")) {
++            List<TypedSpec> b = body;
++            if (b == null) {
++                b = List.copyOf(specs.typeQueryBody(resolved));
++                body = b;
++            }
++            return b;
+         }
+-        return b;
+     }
+ 
+     /**
+@@ -76,6 +90,12 @@ public final class TypedQuery {
+      *  parameter is typed as a lambda VALUE ({@link SpecCompiler#typeQueryBody}), not as a query over parameters, and is
+      *  refused here by name. */
+     public List<QueryParameters.Declared> parameters() {
++        try (var __p = com.legend.base.IdentityProbe.door(probe, "parameters")) {
++            return parameters0();
++        }
++    }
++
++    private List<QueryParameters.Declared> parameters0() {
+         if (!(resolved instanceof com.legend.protocol.spec.LambdaFunction lf)) {
+             return List.of();
+         }
+@@ -93,7 +113,9 @@ public final class TypedQuery {
+ 
+     /** The query typed as ONE expression (Phase G): its typed HIR, the front half only. */
+     public TypedSpec expression() {
+-        return specs.typeExpression(resolved);
++        try (var __p = com.legend.base.IdentityProbe.door(probe, "expression")) {
++            return specs.typeExpression(resolved);
++        }
+     }
+ 
+     /** The {@link Compiler.Target} the query names: the runtime its {@code ->from(runtime)} binds and the database its
+@@ -129,9 +151,11 @@ public final class TypedQuery {
+      *  §9, step 2's landing 2). */
+     public Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming,
+             List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
+-        Resolved r = resolve(new java.util.ArrayList<>(body()), runtime);
+-        return new Compiler.LoweredQuery(lowerer(r.temporal(), streaming, slots, features).lower(r.body()), r.root(),
+-                ctx);
++        try (var __p = com.legend.base.IdentityProbe.door(probe, "lower@" + runtime + (streaming ? ",streaming" : ""))) {
++            Resolved r = resolve(new java.util.ArrayList<>(body()), runtime);
++            return new Compiler.LoweredQuery(lowerer(r.temporal(), streaming, slots, features).lower(r.body()), r.root(),
++                    ctx);
++        }
+     }
+ 
+     /** Statements inlined (G½) and resolved (H) for a runtime, every store they touch bound to it: what a lowering
+@@ -146,6 +170,12 @@ public final class TypedQuery {
+      *  docs/WRITES_DESIGN_2026_10_18.md §8, leg 7) inlined, resolved against {@code runtime}, every touched store
+      *  checked against its connections -- every planning step before the lowering, no database. */
+     public Resolved resolve(List<TypedSpec> statements, @com.legend.base.Nullable String runtime) {
++        try (var __p = com.legend.base.IdentityProbe.door(probe, "resolve@" + runtime)) {
++            return resolve0(statements, runtime);
++        }
++    }
++
++    private Resolved resolve0(List<TypedSpec> statements, @com.legend.base.Nullable String runtime) {
+         List<TypedSpec> b = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(
+                 new java.util.ArrayList<>(statements));   // Phase G½
+         boolean temporalRoot = com.legend.compiler.element.Temporal.anyTemporalGetAll(b, ctx);
+@@ -187,14 +217,16 @@ public final class TypedQuery {
+     /** Whether the query is a program that changes a store (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): a statement
+      *  writes a store table ({@code StatementEffects.writesStore}), or a let stages rows for the writes after it. */
+     public boolean writes() {
+-        java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
+-        for (TypedSpec s : body()) {
+-            if (com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo)
+-                    || com.legend.resolver.StagedRows.rowsOf(s) != null) {
+-                return true;
++        try (var __p = com.legend.base.IdentityProbe.door(probe, "writes")) {
++            java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
++            for (TypedSpec s : body()) {
++                if (com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo)
++                        || com.legend.resolver.StagedRows.rowsOf(s) != null) {
++                    return true;
++                }
+             }
++            return false;
+         }
+-        return false;
+     }
+ 
+     /** The query planned for {@code runtime}: the SQL in the runtime's dialect, the root's type and its result shape —
+@@ -212,7 +244,9 @@ public final class TypedQuery {
+      *  every statement final for its target, its answer typed rows read by the plan's column facts (a relation's rows,
+      *  a value's elements, a graph fetch's objects), no output format in it -- a writer at the edge spells them. */
+     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime) {
+-        return PlanMaker.plan(this, runtime, java.util.Set.of(), null);
++        try (var __p = com.legend.base.IdentityProbe.door(probe, "executionPlan@" + runtime)) {
++            return PlanMaker.plan(this, runtime, java.util.Set.of(), null);
++        }
+     }
+ 
+     /** {@link #executionPlan(String)} under the engine's execution feature flags ({@code features}: a lowering
+@@ -222,10 +256,18 @@ public final class TypedQuery {
+      *  the dialect's declared target (2026-10-19, the plan path program's step 9). */
+     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
+             java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
+-        return PlanMaker.plan(this, runtime, features, serverVersion);
++        try (var __p = com.legend.base.IdentityProbe.door(probe, "executionPlan@" + runtime + "," + features.stream().map(String::valueOf).sorted().toList())) {
++            return PlanMaker.plan(this, runtime, features, serverVersion);
++        }
+     }
+ 
+     private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {
++        try (var __p = com.legend.base.IdentityProbe.door(probe, "plan@" + runtime + (streaming ? ",streaming" : ""))) {
++            return plan0(runtime, streaming);
++        }
++    }
++
++    private com.legend.plan.QueryPlan plan0(@com.legend.base.Nullable String runtime, boolean streaming) {
+         Compiler.LoweredQuery l = lower(runtime, streaming);
+         String sql = Compiler.dialectOf(ctx, runtime).render(l.plan());
+         com.legend.plan.ResultShape shape = com.legend.plan.ResultShape.of(l.root());
+diff --git a/core/src/main/java/com/legend/compiler/ModelBuilder.java b/core/src/main/java/com/legend/compiler/ModelBuilder.java
+index d533f83c0..6a554fff1 100644
+--- a/core/src/main/java/com/legend/compiler/ModelBuilder.java
++++ b/core/src/main/java/com/legend/compiler/ModelBuilder.java
+@@ -377,29 +377,29 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
+             return false;
+         }
+         return switch (el) {
+-            case ClassDefinition cd -> idGet(classes, id) == cd;
+-            case AssociationDefinition ad -> idGet(associations, id) == ad;
+-            case EnumDefinition ed -> idGet(enums, id) == ed;
+-            case ProfileDefinition pd -> idGet(profiles, id) == pd;
+-            case com.legend.model.MeasureDefinition me -> idGet(measures, id) == me;
+-            case DatabaseDefinition db -> idGet(databases, id) == db;
+-            case LegacyMappingDefinition md -> idGet(legacyMappings, id) == md;
+-            case MappingDefinition md -> idGet(mappings, id) == md;
+-            case ServiceDefinition sd -> idGet(services, id) == sd;
+-            case com.legend.model.DataDefinition dd -> idGet(dataElements, id) == dd;
+-            case com.legend.model.DataSpaceDefinition ds -> idGet(dataSpaces, id) == ds;
+-            case ConnectionDefinition cd -> idGet(connections, id) == cd;
+-            case RuntimeDefinition rd -> idGet(runtimes, id) == rd;
++            case ClassDefinition cd -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.class", idGet(classes, id) == cd);
++            case AssociationDefinition ad -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.association", idGet(associations, id) == ad);
++            case EnumDefinition ed -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.enum", idGet(enums, id) == ed);
++            case ProfileDefinition pd -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.profile", idGet(profiles, id) == pd);
++            case com.legend.model.MeasureDefinition me -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.measure", idGet(measures, id) == me);
++            case DatabaseDefinition db -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.database", idGet(databases, id) == db);
++            case LegacyMappingDefinition md -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.legacyMapping", idGet(legacyMappings, id) == md);
++            case MappingDefinition md -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.mapping", idGet(mappings, id) == md);
++            case ServiceDefinition sd -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.service", idGet(services, id) == sd);
++            case com.legend.model.DataDefinition dd -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.data", idGet(dataElements, id) == dd);
++            case com.legend.model.DataSpaceDefinition ds -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.dataSpace", idGet(dataSpaces, id) == ds);
++            case ConnectionDefinition cd -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.connection", idGet(connections, id) == cd);
++            case RuntimeDefinition rd -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.runtime", idGet(runtimes, id) == rd);
+             case Function fn -> {
+                 List<Function> overloads = idGet(functions, id);
+-                yield overloads != null && overloads.stream().anyMatch(f -> f == fn);
++                yield overloads != null && overloads.stream().anyMatch(f -> com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.function", f == fn));
+             }
+             case com.legend.model.PrimitiveExtensionDefinition pe ->
+                     primitiveExtensions.containsKey(pe.qualifiedName());
+             case com.legend.model.ModelConnectionDefinition mc ->
+-                    modelConnections.get(mc.qualifiedName()) == mc;
++                    com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.modelConnection", modelConnections.get(mc.qualifiedName()) == mc);
+             case com.legend.model.ModelChainConnectionDefinition mcc ->
+-                    modelChainConnections.get(mcc.qualifiedName()) == mcc;
++                    com.legend.base.IdentityProbe.same("model.ModelBuilder.indexed.modelChainConnection", modelChainConnections.get(mcc.qualifiedName()) == mcc);
+             // the pre-E clean-sheet surface is Phase E's input only; the
+             // index holds nothing for it
+             case com.legend.model.CleanSheetMappingDefinition cs -> true;
+@@ -783,7 +783,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
+         java.util.List<AssociationDefinition> hits = new java.util.ArrayList<>();
+         for (InjectedEnd e : injectedEnds(ownerClassFqn, propName)) {
+             // a self-association naming both ends alike injects twice: one association
+-            if (hits.isEmpty() || hits.get(hits.size() - 1) != e.association()) {
++            if (hits.isEmpty() || !com.legend.base.IdentityProbe.same("model.ModelBuilder.findAssociationAtClass", hits.get(hits.size() - 1) == e.association())) {
+                 hits.add(e.association());
+             }
+         }
+diff --git a/core/src/main/java/com/legend/compiler/NameResolver.java b/core/src/main/java/com/legend/compiler/NameResolver.java
+index 7f13ac75c..da7877507 100644
+--- a/core/src/main/java/com/legend/compiler/NameResolver.java
++++ b/core/src/main/java/com/legend/compiler/NameResolver.java
+@@ -1390,7 +1390,7 @@ public final class NameResolver {
+                 (s, sc) -> resolveSchema(s, sc, resolvedViews), scope);
+         List<DatabaseDefinition.TableDefinition> tables = db.tables(); // column data types only; no FQN
+         List<ViewDefinition> views = resolveList(db.views(), (v, sc) -> {
+-            ViewDefinition shared = resolvedViews.get(v);
++            ViewDefinition shared = com.legend.base.IdentityProbe.got("model.NameResolver.resolvedViews", resolvedViews.get(v));
+             return shared != null ? shared : resolveView(v, sc);
+         }, scope);
+         List<JoinDefinition> joins = resolveJoins(db.joins(), scope);
+diff --git a/core/src/main/java/com/legend/compiler/TableIndex.java b/core/src/main/java/com/legend/compiler/TableIndex.java
+index 39fb4d701..fb9bc2176 100644
+--- a/core/src/main/java/com/legend/compiler/TableIndex.java
++++ b/core/src/main/java/com/legend/compiler/TableIndex.java
+@@ -66,7 +66,7 @@ final class TableIndex {
+         }
+         for (TableDefinition f : db.tabularFunctions()) {
+             ix.bare.putIfAbsent(f.name(), f);
+-            if (!inSchemas.contains(f)) {
++            if (!com.legend.base.IdentityProbe.has("model.TableIndex.inSchemas", inSchemas.contains(f))) {
+                 ix.top.putIfAbsent(f.name(), f);
+             }
+         }
+diff --git a/core/src/main/java/com/legend/compiler/element/PureModelContext.java b/core/src/main/java/com/legend/compiler/element/PureModelContext.java
+index db3a643f0..c9049a9ae 100644
+--- a/core/src/main/java/com/legend/compiler/element/PureModelContext.java
++++ b/core/src/main/java/com/legend/compiler/element/PureModelContext.java
+@@ -105,7 +105,7 @@ public final class PureModelContext implements ModelContext {
+         private final java.util.Set<com.legend.model.FunctionId> signatureKeys = new java.util.HashSet<>();
+ 
+         boolean contains(Object element) {
+-            return elements.contains(element);
++            return com.legend.base.IdentityProbe.has("model.PureModelContext.CheckedLayer", elements.contains(element));
+         }
+ 
+         java.util.Set<com.legend.model.FunctionId> signatureKeys() {
+@@ -610,7 +610,8 @@ public final class PureModelContext implements ModelContext {
+                         + "' names unknown mapping '" + m + "'");
+             }
+         }
+-        return new PureModelContext(this, runtime, connection);
++        return com.legend.base.IdentityProbe.overlay(this, new PureModelContext(this, runtime, connection),
++                String.valueOf(connection.databaseType()));
+     }
+ 
+     @Override
+diff --git a/core/src/main/java/com/legend/compiler/element/ViewSignatures.java b/core/src/main/java/com/legend/compiler/element/ViewSignatures.java
+index 45d1d97c8..c70899193 100644
+--- a/core/src/main/java/com/legend/compiler/element/ViewSignatures.java
++++ b/core/src/main/java/com/legend/compiler/element/ViewSignatures.java
+@@ -54,7 +54,7 @@ public final class ViewSignatures {
+     private static Type.RelationType of(StoreLookups store, String dbFqn,
+             DatabaseDefinition.ViewDefinition view,
+             Set<DatabaseDefinition.ViewDefinition> expanding) {
+-        if (!expanding.add(view)) {
++        if (!com.legend.base.IdentityProbe.added("model.ViewSignatures.expanding", expanding.add(view))) {
+             throw new com.legend.error.ModelException(
+                     com.legend.error.LegendCompileException.Phase.MODEL,
+                     "view '" + view.name() + "' of '" + dbFqn + "' reads its own columns"
+diff --git a/core/src/main/java/com/legend/compiler/spec/Overloads.java b/core/src/main/java/com/legend/compiler/spec/Overloads.java
+index 9a6365325..4ffc8ec0f 100644
+--- a/core/src/main/java/com/legend/compiler/spec/Overloads.java
++++ b/core/src/main/java/com/legend/compiler/spec/Overloads.java
+@@ -363,7 +363,7 @@ final class Overloads {
+             ValueSpecification arg = af.parameters().get(i);
+             TypedSpec typedArg = a.args().get(i);
+             subst.put(chosen.parameters().get(i).name(), arg);
+-            if (!(arg instanceof LambdaFunction) && Type.schemaView(typedArg.info().type()) != null) {
++            if (com.legend.base.IdentityProbe.has("Overloads.pretyped", !(arg instanceof LambdaFunction) && Type.schemaView(typedArg.info().type()) != null)) {
+                 typedArgs.put(arg, typedArg);
+             }
+         }
+diff --git a/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java b/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
+index b422c5bb1..01bb367d2 100644
+--- a/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
++++ b/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
+@@ -79,7 +79,7 @@ public final class SpecCompiler {
+      * variant built on top of it.
+      */
+     public CompiledFunction compile(TypedFunction fn) {
+-        CompiledFunction cached = memo.get(fn);
++        CompiledFunction cached = com.legend.base.IdentityProbe.got("SpecCompiler.memo", memo.get(fn));
+         if (cached != null) {
+             return cached;
+         }
+@@ -142,7 +142,7 @@ public final class SpecCompiler {
+         work.add(root);
+         while (!work.isEmpty()) {
+             TypedFunction fn = work.poll();
+-            if (memo.containsKey(fn)) {
++            if (com.legend.base.IdentityProbe.has("SpecCompiler.memo", memo.containsKey(fn))) {
+                 continue;                       // already compiled — dedup + cycle break
+             }
+             CompiledFunction cf = compile(fn);  // compiles fn's body (flat, signature-based)
+diff --git a/core/src/main/java/com/legend/compiler/spec/Typer.java b/core/src/main/java/com/legend/compiler/spec/Typer.java
+index df04157f9..a93c3cffb 100644
+--- a/core/src/main/java/com/legend/compiler/spec/Typer.java
++++ b/core/src/main/java/com/legend/compiler/spec/Typer.java
+@@ -109,14 +109,14 @@ final class Typer {
+ 
+     /** Whether {@code vs} is a node a call typed already ({@link #withPretyped}): the static fold keeps it as it is. */
+     boolean pretyped(ValueSpecification vs) {
+-        return !pretyped.isEmpty() && pretyped.containsKey(vs);
++        return !pretyped.isEmpty() && com.legend.base.IdentityProbe.has("Typer.pretyped", pretyped.containsKey(vs));
+     }
+ 
+     /** While {@code body} runs, each of {@code typed}'s nodes types as it was typed; after it, as it did before (a call
+      *  inlined within another's body, handed the outer's table, leaves the outer's typing of it in place). */
+     <R> R withPretyped(java.util.Map<ValueSpecification, TypedSpec> typed, java.util.function.Supplier<R> body) {
+         java.util.IdentityHashMap<ValueSpecification, TypedSpec> before = new java.util.IdentityHashMap<>();
+-        typed.forEach((node, typing) -> before.put(node, pretyped.put(node, typing)));
++        typed.forEach((node, typing) -> before.put(node, com.legend.base.IdentityProbe.got("Typer.withPretyped.shadowed", pretyped.put(node, typing))));
+         try {
+             return body.get();
+         } finally {
+@@ -174,7 +174,7 @@ final class Typer {
+     TypedSpec synth(ValueSpecification vs, Env env) {
+         // an argument of a generic call already typed, met again in the call's inlined body (Overloads.inlineNormalized):
+         // its typing, never typed again -- a chain of k calls typed once each, not 2^k times (2026-10-28)
+-        TypedSpec pre = pretyped.isEmpty() ? null : pretyped.get(vs);
++        TypedSpec pre = pretyped.isEmpty() ? null : com.legend.base.IdentityProbe.got("Typer.pretyped", pretyped.get(vs));
+         if (pre != null) {
+             return pre;
+         }
+diff --git a/core/src/main/java/com/legend/compiler/spec/UserCallInliner.java b/core/src/main/java/com/legend/compiler/spec/UserCallInliner.java
+index 4510e64b9..f6e5c9a42 100644
+--- a/core/src/main/java/com/legend/compiler/spec/UserCallInliner.java
++++ b/core/src/main/java/com/legend/compiler/spec/UserCallInliner.java
+@@ -133,7 +133,8 @@ public final class UserCallInliner {
+     private record CallInstantiation(Object frame, List<Integer> around, Object origin) {
+         @Override
+         public boolean equals(Object o) {
+-            return o instanceof CallInstantiation c && frame == c.frame && origin == c.origin
++            return o instanceof CallInstantiation c && com.legend.base.IdentityProbe.same("CallInstantiation.equals.frame", frame == c.frame)
++                    && com.legend.base.IdentityProbe.same("CallInstantiation.equals.origin", origin == c.origin)
+                     && around.equals(c.around);
+         }
+ 
+@@ -265,7 +266,7 @@ public final class UserCallInliner {
+ 
+     /** The places {@code term} stands in {@code t} (by reference), and whether one is under a lambda. */
+     private static void countReads(TypedSpec t, TypedSpec term, boolean underLambda, int[] reads, boolean[] perRow) {
+-        if (t == term) {
++        if (com.legend.base.IdentityProbe.same("UserCallInliner.countReads", t == term)) {
+             reads[0]++;
+             perRow[0] |= underLambda;
+             return;
+@@ -284,10 +285,15 @@ public final class UserCallInliner {
+ 
+     /** A call's body inlined: one instantiation per source node at this point of the frame (its copies one). */
+     private <T> T instantiated(TypedUserCall call, java.util.function.Supplier<T> reduction) {
+-        return instantiatedAs(call.origin() == null ? ++instantiations
++        int __before = callInstantiations.size();
++        int __number = call.origin() == null ? ++instantiations
+                 : callInstantiations.computeIfAbsent(
+                         new CallInstantiation(frame, List.copyOf(instantiation), call.origin()),
+-                        k -> ++instantiations), reduction);
++                        k -> ++instantiations);
++        if (call.origin() != null) {
++            com.legend.base.IdentityProbe.has("UserCallInliner.callInstantiations", callInstantiations.size() == __before);
++        }
++        return instantiatedAs(__number, reduction);
+     }
+ 
+     private <T> T instantiatedAs(int number, java.util.function.Supplier<T> reduction) {
+@@ -1330,7 +1336,7 @@ public final class UserCallInliner {
+     }
+ 
+     private TypedSpec rewrite(TypedSpec n) {
+-        if (reducedTerms.containsKey(n)) {
++        if (com.legend.base.IdentityProbe.has("UserCallInliner.reducedTerms", reducedTerms.containsKey(n))) {
+             return n;
+         }
+         if (hook != null) {
+diff --git a/core/src/main/java/com/legend/compiler/spec/typed/ContextReading.java b/core/src/main/java/com/legend/compiler/spec/typed/ContextReading.java
+index ed1727005..01e534fe8 100644
+--- a/core/src/main/java/com/legend/compiler/spec/typed/ContextReading.java
++++ b/core/src/main/java/com/legend/compiler/spec/typed/ContextReading.java
+@@ -475,14 +475,14 @@ final class ContextReading {
+     }
+ 
+     private TypedSpec chase(TypedSpec v) {
+-        if (v instanceof TypedVariable && lambdaBound.contains(v)) {
++        if (v instanceof TypedVariable && com.legend.base.IdentityProbe.has("ContextReading.lambdaBound", lambdaBound.contains(v))) {
+             return v;
+         }
+-        if (scoped.add(v)) {
++        if (com.legend.base.IdentityProbe.added("ContextReading.scoped", scoped.add(v))) {
+             scope(v, java.util.Set.of());
+         }
+         TypedSpec b = bind.apply(v);
+-        if (b != v && scoped.add(b)) {
++        if (b != v && com.legend.base.IdentityProbe.added("ContextReading.scoped", scoped.add(b))) {
+             scope(b, java.util.Set.of());
+         }
+         return b == null ? v : b;
+@@ -1061,7 +1061,7 @@ final class ContextReading {
+                 new java.util.IdentityHashMap<>());
+         while (!work.isEmpty()) {
+             TypedSpec t = work.poll();
+-            if (!seen.add(t)) {
++            if (!com.legend.base.IdentityProbe.added("ContextReading.timeZone.seen", seen.add(t))) {
+                 continue;
+             }
+             if (t instanceof TypedVariable) {
+diff --git a/core/src/main/java/com/legend/compiler/spec/typed/Evaluation.java b/core/src/main/java/com/legend/compiler/spec/typed/Evaluation.java
+index f4e8a4c79..add5372e2 100644
+--- a/core/src/main/java/com/legend/compiler/spec/typed/Evaluation.java
++++ b/core/src/main/java/com/legend/compiler/spec/typed/Evaluation.java
+@@ -66,13 +66,13 @@ public record Evaluation(Object origin, @com.legend.base.Nullable List<Integer>
+      *  body's let whose splice evaluates it apart). */
+     public static TypedSpec untrack(TypedSpec tree, java.util.Set<Object> origins) {
+         TypedSpec walked = tree.mapChildren(c -> untrack(c, origins));
+-        if (walked instanceof TypedNewInstance ni && origins.contains(ni.evaluation().origin())) {
++        if (walked instanceof TypedNewInstance ni && com.legend.base.IdentityProbe.has("SourceSubst.untrackedLetNodes", origins.contains(ni.evaluation().origin()))) {
+             return ni.withEvaluation(ni.evaluation().asUntracked());
+         }
+-        if (walked instanceof TypedCopyInstance cp && origins.contains(cp.evaluation().origin())) {
++        if (walked instanceof TypedCopyInstance cp && com.legend.base.IdentityProbe.has("SourceSubst.untrackedLetNodes", origins.contains(cp.evaluation().origin()))) {
+             return cp.withEvaluation(cp.evaluation().asUntracked());
+         }
+-        if (walked instanceof TypedUserCall uc && uc.origin() != null && origins.contains(uc.origin())) {
++        if (walked instanceof TypedUserCall uc && uc.origin() != null && com.legend.base.IdentityProbe.has("SourceSubst.untrackedLetNodes", origins.contains(uc.origin()))) {
+             return uc.asUntracked();
+         }
+         return walked;
+@@ -105,7 +105,7 @@ public record Evaluation(Object origin, @com.legend.base.Nullable List<Integer>
+     public record Site(Object origin, List<Integer> path) {
+         @Override
+         public boolean equals(Object o) {
+-            return o instanceof Site s && origin == s.origin && path.equals(s.path);
++            return o instanceof Site s && com.legend.base.IdentityProbe.same("Evaluation.Site.equals.origin", origin == s.origin) && path.equals(s.path);
+         }
+ 
+         @Override
+@@ -116,7 +116,7 @@ public record Evaluation(Object origin, @com.legend.base.Nullable List<Integer>
+ 
+     @Override
+     public boolean equals(Object o) {
+-        return o instanceof Evaluation e && origin == e.origin && java.util.Objects.equals(path, e.path)
++        return o instanceof Evaluation e && com.legend.base.IdentityProbe.same("Evaluation.equals.origin", origin == e.origin) && java.util.Objects.equals(path, e.path)
+                 && complete == e.complete && iterations.equals(e.iterations) && tracked == e.tracked;
+     }
+ 
+diff --git a/core/src/main/java/com/legend/compiler/spec/typed/TypedUserCall.java b/core/src/main/java/com/legend/compiler/spec/typed/TypedUserCall.java
+index 5cb1d30bb..01518a2d6 100644
+--- a/core/src/main/java/com/legend/compiler/spec/typed/TypedUserCall.java
++++ b/core/src/main/java/com/legend/compiler/spec/typed/TypedUserCall.java
+@@ -71,7 +71,8 @@ public record TypedUserCall(TypedFunction callee, List<TypedSpec> args, ExprType
+     @Override
+     public boolean equals(Object o) {
+         return o instanceof TypedUserCall c && callee.equals(c.callee) && args.equals(c.args) && info.equals(c.info)
+-                && java.util.Objects.equals(pos, c.pos) && origin == c.origin && untracked == c.untracked;
++                && java.util.Objects.equals(pos, c.pos) && com.legend.base.IdentityProbe.same("TypedUserCall.equals.origin", origin == c.origin)
++                && untracked == c.untracked;
+     }
+ 
+     @Override
+diff --git a/core/src/main/java/com/legend/exec/JdbcStatements.java b/core/src/main/java/com/legend/exec/JdbcStatements.java
+index 86b5f29ff..96ed21eee 100644
+--- a/core/src/main/java/com/legend/exec/JdbcStatements.java
++++ b/core/src/main/java/com/legend/exec/JdbcStatements.java
+@@ -126,7 +126,7 @@ final class JdbcStatements implements Statements {
+     @Override
+     public boolean execute(String statement) {
+         try (Statement st = c.createStatement()) {
+-            return st.execute(statement);
++            return st.execute(com.legend.base.SqlTap.sent(statement));
+         } catch (SQLException e) {
+             throw failed(e);
+         }
+@@ -135,7 +135,7 @@ final class JdbcStatements implements Statements {
+     @Override
+     public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
+             throws IOException {
+-        try (PreparedStatement st = c.prepareStatement(statement)) {
++        try (PreparedStatement st = c.prepareStatement(com.legend.base.SqlTap.sent(statement))) {
+             for (int i = 0; i < slots.size(); i++) {
+                 bind(st, i + 1, slots.get(i), values.get(i));
+             }
+@@ -201,7 +201,7 @@ final class JdbcStatements implements Statements {
+     @Override
+     public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+             Rows rows) throws IOException {
+-        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
++        try (PreparedStatement st = c.prepareStatement(stamped(com.legend.base.SqlTap.sent(statement)))) {
+             for (int i = 0; i < slots.size(); i++) {
+                 bind(st, i + 1, slots.get(i), values.get(i));
+             }
+@@ -221,7 +221,7 @@ final class JdbcStatements implements Statements {
+     @Override
+     public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
+-        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
++        try (PreparedStatement st = c.prepareStatement(stamped(com.legend.base.SqlTap.sent(statement)))) {
+             for (int i = 0; i < slots.size(); i++) {
+                 bind(st, i + 1, slots.get(i), values.get(i));
+             }
+diff --git a/core/src/main/java/com/legend/lineage/ScanRelations.java b/core/src/main/java/com/legend/lineage/ScanRelations.java
+index 4657ffa90..c5156de2e 100644
+--- a/core/src/main/java/com/legend/lineage/ScanRelations.java
++++ b/core/src/main/java/com/legend/lineage/ScanRelations.java
+@@ -1608,7 +1608,7 @@ public final class ScanRelations {
+         for (int jx = 0; jx < resolved.size(); jx++) {
+             Arm a = resolved.get(jx);
+             sb.append("_equal_").append(srcName).append(a.sCol()).append('_');
+-            sb.append(a.pm() == self
++            sb.append(com.legend.base.IdentityProbe.same("model.ScanRelations.pm", a.pm() == self)
+                     ? "unionAlias" + a.tCol() + "_" + jx : "SQLNull");
+         }
+         return sb.toString();
+diff --git a/core/src/main/java/com/legend/lowering/Lowerer.java b/core/src/main/java/com/legend/lowering/Lowerer.java
+index 93cdc7dfd..9741fc1f1 100644
+--- a/core/src/main/java/com/legend/lowering/Lowerer.java
++++ b/core/src/main/java/com/legend/lowering/Lowerer.java
+@@ -377,7 +377,9 @@ public final class Lowerer {
+     public SqlQuery lower(List<TypedSpec> body) {
+         // J-tail: demand-driven subselect column pruning (engine parity —
+         // isolated composites enumerate only consumed columns)
+-        return SubselectPrune.prune(lower(withQueryLets(body)));
++        SqlQuery __q = SubselectPrune.prune(lower(withQueryLets(body)));
++        com.legend.base.IdentityProbe.mir(__q);
++        return __q;
+     }
+ 
+     /**
+@@ -390,6 +392,12 @@ public final class Lowerer {
+      * ({@link com.legend.sql.SqlDml.Merge}). The statement's count is the database's (the executor's update count).
+      */
+     public com.legend.sql.SqlDml lowerStoreWrite(List<TypedSpec> body) {
++        com.legend.sql.SqlDml __d = lowerStoreWrite0(body);
++        com.legend.base.IdentityProbe.mirDml(__d);
++        return __d;
++    }
++
++    private com.legend.sql.SqlDml lowerStoreWrite0(List<TypedSpec> body) {
+         TypedSpec root = withQueryLets(body);
+         return switch (root) {
+             case TypedWrite w when w.destination().isPresent()
+@@ -1479,7 +1487,7 @@ public final class Lowerer {
+             List<OutputCol> contract) {
+         List<SqlSelect.Projection> ps = new ArrayList<>(aggs.size());
+         for (TypedAggCol a : aggs) {
+-            SqlExpr av = aggValue(base, a, cal == null ? null : cal.get(a));
++            SqlExpr av = aggValue(base, a, cal == null ? null : com.legend.base.IdentityProbe.got("Lowerer.calCtx", cal.get(a)));
+             // §3b: the obligation sees through wrapping Calls
+             if (Fold.orderUnionAggregateExpr(base, av)
+                     instanceof Fold.OrderedAggExpr oa) {
+@@ -1956,7 +1964,7 @@ public final class Lowerer {
+                         mergeWhere(src.where(), predicate, f.stamp()));
+                 yield engineExistsJoinForm
+                         ? ExistsJoinForm.rewrite(m, this::nextAlias,
+-                                whereZones::get)
++                                ez -> com.legend.base.IdentityProbe.got("whereZones[not-in-rust]", whereZones.get(ez)))
+                         : m;
+             }
+             case HAVING -> src.withHaving(src.having() == null ? predicate
+diff --git a/core/src/main/java/com/legend/lowering/ObjectSites.java b/core/src/main/java/com/legend/lowering/ObjectSites.java
+index a38318308..3890ef693 100644
+--- a/core/src/main/java/com/legend/lowering/ObjectSites.java
++++ b/core/src/main/java/com/legend/lowering/ObjectSites.java
+@@ -19,6 +19,9 @@ public final class ObjectSites {
+     public String idOf(Object key) {
+         var ids = key instanceof com.legend.compiler.spec.typed.Evaluation.Site ? sites : nodes;
+         String id = ids.get(key);
++        if (ids == nodes) {
++            com.legend.base.IdentityProbe.got("ObjectSites.nodes[class-e]", id);
++        }
+         if (id == null) {
+             id = "o" + (sites.size() + nodes.size() + 1);
+             ids.put(key, id);
+diff --git a/core/src/main/java/com/legend/lowering/WhereMerge.java b/core/src/main/java/com/legend/lowering/WhereMerge.java
+index 066396c05..3b53afccd 100644
+--- a/core/src/main/java/com/legend/lowering/WhereMerge.java
++++ b/core/src/main/java/com/legend/lowering/WhereMerge.java
+@@ -35,6 +35,9 @@ final class WhereMerge {
+             java.util.IdentityHashMap<SqlExpr, Zones> registry,
+             @com.legend.base.Nullable SqlExpr existing, SqlExpr predicate,
+             com.legend.compiler.spec.typed.TypedFilter.Stamp stamp) {
++        if (existing != null) {
++            com.legend.base.IdentityProbe.has("whereZones[not-in-rust]", registry.containsKey(existing));
++        }
+         Zones z = existing == null
+                 ? new Zones(null, null, null)
+                 : registry.getOrDefault(existing,
+diff --git a/core/src/main/java/com/legend/model/DatabaseDefinition.java b/core/src/main/java/com/legend/model/DatabaseDefinition.java
+index 7948cb157..04f9e7811 100644
+--- a/core/src/main/java/com/legend/model/DatabaseDefinition.java
++++ b/core/src/main/java/com/legend/model/DatabaseDefinition.java
+@@ -73,7 +73,7 @@ public record DatabaseDefinition(
+         }
+         List<TableDefinition> out = new java.util.ArrayList<>();
+         for (TableDefinition t : tables) {
+-            if (!owned.contains(t)) {
++            if (!com.legend.base.IdentityProbe.has("model.DatabaseDefinition.defaultSchemaTables", owned.contains(t))) {
+                 out.add(t);
+             }
+         }
+@@ -89,7 +89,7 @@ public record DatabaseDefinition(
+         }
+         List<ViewDefinition> out = new java.util.ArrayList<>();
+         for (ViewDefinition v : views) {
+-            if (!owned.contains(v)) {
++            if (!com.legend.base.IdentityProbe.has("model.DatabaseDefinition.defaultSchemaViews", owned.contains(v))) {
+                 out.add(v);
+             }
+         }
+diff --git a/core/src/main/java/com/legend/model/MappingDefinition.java b/core/src/main/java/com/legend/model/MappingDefinition.java
+index ca2828d6d..26c052927 100644
+--- a/core/src/main/java/com/legend/model/MappingDefinition.java
++++ b/core/src/main/java/com/legend/model/MappingDefinition.java
+@@ -221,6 +221,7 @@ public record MappingDefinition(
+             for (String c : classes) {
+                 hits.addAll(ofClass(c));
+             }
++            com.legend.base.IdentityProbe.hits("model.MappingDefinition.position", hits.size());   // per key: the comparator count is the JDK's
+             hits.sort(java.util.Comparator.comparingInt(position::get));
+             return hits;
+         }
+diff --git a/core/src/main/java/com/legend/normalizer/AssociationSynthesis.java b/core/src/main/java/com/legend/normalizer/AssociationSynthesis.java
+index 8a33c76da..bda0c0970 100644
+--- a/core/src/main/java/com/legend/normalizer/AssociationSynthesis.java
++++ b/core/src/main/java/com/legend/normalizer/AssociationSynthesis.java
+@@ -199,7 +199,7 @@ final class AssociationSynthesis {
+         // the members, so each arm's own function carries the navigation)
+         Set<String> hoisted = new HashSet<>();
+         for (LegacyMappingDefinition m : closure) {
+-            if (m == md) continue;
++            if (com.legend.base.IdentityProbe.same("model.AssociationSynthesis.self", m == md)) continue;
+             for (ClassMapping cm : m.classMappings()) {
+                 if (ownClasses.contains(cm.className())
+                         || ownSetIds.contains(ResolvedMapping.idOf(cm))
+diff --git a/core/src/main/java/com/legend/normalizer/LiftedViews.java b/core/src/main/java/com/legend/normalizer/LiftedViews.java
+index bf6480cf8..9697fbf34 100644
+--- a/core/src/main/java/com/legend/normalizer/LiftedViews.java
++++ b/core/src/main/java/com/legend/normalizer/LiftedViews.java
+@@ -74,20 +74,20 @@ final class LiftedViews {
+      *  computed once. Throws the view's own wall when it cannot be expanded
+      *  (the same exception at every site, the lift's or a mapping's). */
+     ValueSpecification body(DatabaseDefinition.ViewDefinition view) {
+-        FunctionDefinition fn = functions.get(view);
++        FunctionDefinition fn = com.legend.base.IdentityProbe.got("model.LiftedViews.functions", functions.get(view));
+         if (fn != null) {
+             return fn.body().get(0);
+         }
+-        RuntimeException wall = walls.get(view);
++        RuntimeException wall = com.legend.base.IdentityProbe.got("model.LiftedViews.walls", walls.get(view));
+         if (wall != null) {
+             throw wall;
+         }
+-        ModelBuilder.ViewLift owner = owners.get(view);
++        ModelBuilder.ViewLift owner = com.legend.base.IdentityProbe.got("model.LiftedViews.owners", owners.get(view));
+         if (owner == null) {
+             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                     "view '" + view.name() + "' is not declared by any database of this model");
+         }
+-        if (!expanding.add(view)) {
++        if (!com.legend.base.IdentityProbe.added("model.LiftedViews.expanding", expanding.add(view))) {
+             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                     "view '" + owner.spelling() + "' expands through itself (cyclic"
+                     + " view-on-view chain); store=" + owner.ownerDb());
+@@ -151,7 +151,7 @@ final class LiftedViews {
+                     throw e;
+                 }
+                 ModelBuilder.ViewLift owner = java.util.Objects.requireNonNull(
+-                        owners.get(v), "registered view");
++                        com.legend.base.IdentityProbe.got("model.LiftedViews.owners", owners.get(v)), "registered view");
+                 wallSink.putIfAbsent(owner.fqn(), String.valueOf(e.getMessage()));
+             }
+         }
+@@ -161,7 +161,7 @@ final class LiftedViews {
+     List<FunctionDefinition> functions() {
+         List<FunctionDefinition> out = new ArrayList<>(functions.size());
+         for (DatabaseDefinition.ViewDefinition v : order) {
+-            FunctionDefinition fn = functions.get(v);
++            FunctionDefinition fn = com.legend.base.IdentityProbe.got("model.LiftedViews.functions", functions.get(v));
+             if (fn != null) {
+                 out.add(fn);
+             }
+diff --git a/core/src/main/java/com/legend/normalizer/MappingClosures.java b/core/src/main/java/com/legend/normalizer/MappingClosures.java
+index 6997ea855..46d4d9568 100644
+--- a/core/src/main/java/com/legend/normalizer/MappingClosures.java
++++ b/core/src/main/java/com/legend/normalizer/MappingClosures.java
+@@ -294,7 +294,7 @@ final class MappingClosures {
+             for (ClassMapping cm : md.classMappings()) {
+                 String id = ResolvedMapping.idOf(cm);
+                 String prev = owner.get(id);
+-                if (prev != null && !prev.equals(mappingFqn) && first.get(id) != cm) {
++                if (prev != null && !prev.equals(mappingFqn) && !com.legend.base.IdentityProbe.same("model.MappingClosures.first", first.get(id) == cm)) {
+                     dups.add(id + " (" + prev + ", " + mappingFqn + ")");
+                 } else if (prev == null) {
+                     owner.put(id, mappingFqn);
+diff --git a/core/src/main/java/com/legend/normalizer/MappingPrePass.java b/core/src/main/java/com/legend/normalizer/MappingPrePass.java
+index 551d848bf..6c26ccfed 100644
+--- a/core/src/main/java/com/legend/normalizer/MappingPrePass.java
++++ b/core/src/main/java/com/legend/normalizer/MappingPrePass.java
+@@ -256,7 +256,7 @@ final class MappingPrePass {
+         // recursive route through the same set; a self-edge is a LEAF,
+         // not a cycle (the corpus compiles these; only multi-set loops
+         // are genuine ~src cycles)
+-        if (next != null && next != pcm) {
++        if (next != null && !com.legend.base.IdentityProbe.same("model.MappingPrePass.selfEdge", next == pcm)) {
+             walkM2MChain(next, pureByTarget, visiting, md);
+         }
+         visiting.remove(pcm.className());
+diff --git a/core/src/main/java/com/legend/normalizer/ModelNormalizer.java b/core/src/main/java/com/legend/normalizer/ModelNormalizer.java
+index aabe2a045..4b82cb2df 100644
+--- a/core/src/main/java/com/legend/normalizer/ModelNormalizer.java
++++ b/core/src/main/java/com/legend/normalizer/ModelNormalizer.java
+@@ -217,7 +217,7 @@ public final class ModelNormalizer {
+                 String owner = KnowledgeLayer.qualifiedPropertyOwner(ad, dp).orElseThrow(() -> MissProbe.neverFired("ModelNormalizer#1"));
+                 ClassDefinition cd = owner == null ? null : classes.get(owner);
+                 if (owner == null || (cd != null
+-                        && cd.derivedProperties().stream().noneMatch(d -> d == dp))) {
++                        && cd.derivedProperties().stream().noneMatch(d -> com.legend.base.IdentityProbe.same("model.ModelNormalizer.adopted", d == dp)))) {
+                     throw new IllegalStateException("normalize before the knowledge layer:"
+                             + " association '" + ad.qualifiedName() + "' qualified property '"
+                             + dp.name() + "' is not adopted by its owner"
+diff --git a/core/src/main/java/com/legend/resolver/Anchors.java b/core/src/main/java/com/legend/resolver/Anchors.java
+index 510c3b1cf..16020bb96 100644
+--- a/core/src/main/java/com/legend/resolver/Anchors.java
++++ b/core/src/main/java/com/legend/resolver/Anchors.java
+@@ -68,7 +68,7 @@ final class Anchors {
+ 
+     /** Unresolved store anchor beneath {@code n} (full descent, memoized). */
+     boolean anchored(TypedSpec n) {
+-        Boolean hit = memo.get(n);
++        Boolean hit = com.legend.base.IdentityProbe.got("Anchors.memo", memo.get(n));
+         if (hit != null) {
+             return hit;
+         }
+@@ -138,7 +138,7 @@ final class Anchors {
+      * node kinds — never re-deriving what the Typer decided.
+      */
+     Space spaceOf(TypedSpec n) {
+-        Space hit = spaceMemo.get(n);
++        Space hit = com.legend.base.IdentityProbe.got("Anchors.spaceMemo", spaceMemo.get(n));
+         if (hit != null) {
+             return hit;
+         }
+diff --git a/core/src/main/java/com/legend/resolver/ClassSources.java b/core/src/main/java/com/legend/resolver/ClassSources.java
+index e83e69a2d..4f4e89f77 100644
+--- a/core/src/main/java/com/legend/resolver/ClassSources.java
++++ b/core/src/main/java/com/legend/resolver/ClassSources.java
+@@ -298,9 +298,10 @@ public final class ClassSources {
+         // lookup for the step — materialization, substitution, predicates —
+         // reads the same bindings
+         String memoKey = mappingFqn + '\u0000' + classFqn + (scope == null ? "" : "\u0000scope=" + scope);
++        com.legend.base.IdentityProbe.has("ClassSources.routedSources", routedSources.containsKey(routes));
+         Map<String, ClassSource> perRoutes = routedSources.computeIfAbsent(routes,
+                 k -> new LinkedHashMap<>());
+-        ClassSource memo = perRoutes.get(memoKey);
++        ClassSource memo = com.legend.base.IdentityProbe.got("ClassSources.perRoutes", perRoutes.get(memoKey));
+         if (memo != null) {
+             return memo;
+         }
+diff --git a/core/src/main/java/com/legend/resolver/InnerDemand.java b/core/src/main/java/com/legend/resolver/InnerDemand.java
+index 05f4217cf..d6df2afa6 100644
+--- a/core/src/main/java/com/legend/resolver/InnerDemand.java
++++ b/core/src/main/java/com/legend/resolver/InnerDemand.java
+@@ -486,7 +486,7 @@ final class InnerDemand {
+         IdentityHashMap<TypedLambda, Boolean> seen = new IdentityHashMap<>();
+         List<TypedLambda> out = new ArrayList<>();
+         for (TypedLambda lam : found) {
+-            if (seen.put(lam, Boolean.TRUE) == null) {
++            if (com.legend.base.IdentityProbe.got("InnerDemand.lambdas.seen", seen.put(lam, Boolean.TRUE)) == null) {
+                 out.add(lam);
+             }
+         }
+diff --git a/core/src/main/java/com/legend/resolver/StackBuilder.java b/core/src/main/java/com/legend/resolver/StackBuilder.java
+index fb06f0c58..5edc4e6b2 100644
+--- a/core/src/main/java/com/legend/resolver/StackBuilder.java
++++ b/core/src/main/java/com/legend/resolver/StackBuilder.java
+@@ -106,7 +106,7 @@ final class StackBuilder {
+ 
+     /** The leaf arms of a stack source; null for a non-stack source. */
+     @com.legend.base.Nullable List<ClassSource> leavesOf(ClassSource cs) {
+-        return leaves.get(cs);
++        return com.legend.base.IdentityProbe.got("StackBuilder.leaves", leaves.get(cs));
+     }
+ 
+     /** An arm's pipeline WITHOUT its own navigate steps: those steps are the
+@@ -172,7 +172,7 @@ final class StackBuilder {
+ 
+     /** A copy of a stack source (re-scoped) keeps the stack's leaves. */
+     void alias(ClassSource original, ClassSource copy) {
+-        List<ClassSource> ls = leaves.get(original);
++        List<ClassSource> ls = com.legend.base.IdentityProbe.got("StackBuilder.leaves", leaves.get(original));
+         if (ls != null) {
+             leaves.put(copy, ls);
+         }
+@@ -454,7 +454,7 @@ final class StackBuilder {
+                 ROW_VAR, bindings, fullRow);
+         List<ClassSource> ls = new ArrayList<>();
+         for (ClassSource a : srcs) {
+-            List<ClassSource> al = leaves.get(a);
++            List<ClassSource> al = com.legend.base.IdentityProbe.got("StackBuilder.leaves", leaves.get(a));
+             if (al != null) {
+                 ls.addAll(al);
+             } else {
+diff --git a/core/src/main/java/com/legend/resolver/Substitution.java b/core/src/main/java/com/legend/resolver/Substitution.java
+index 8e68922fc..d0021c542 100644
+--- a/core/src/main/java/com/legend/resolver/Substitution.java
++++ b/core/src/main/java/com/legend/resolver/Substitution.java
+@@ -543,7 +543,7 @@ final class Substitution {
+         // cells; pure eq-over-empty is FALSE and the corpus seeds are
+         // non-null here, so plain equality is row-equal — revisit if
+         // a null-celled TDS fixture appears.
+-            InQueryRead tq = target.inQueryReads().get(n);
++            InQueryRead tq = com.legend.base.IdentityProbe.got("InnerDemand.inQueryReads", target.inQueryReads().get(n));
+             if (tq == null) {
+                 throw new NotImplementedException("tdsContains whose TDS"
+                         + " argument is not a resolvable relation chain"
+@@ -624,7 +624,7 @@ final class Substitution {
+      * rewrites into the EXISTS filter predicate over the tds relation. */
+     private TypedSpec rewriteTdsContainsCross(TypedNativeCall call,
+             TypedSpec n) {
+-        InQueryRead tq = target.inQueryReads().get(n);
++        InQueryRead tq = com.legend.base.IdentityProbe.got("InnerDemand.inQueryReads", target.inQueryReads().get(n));
+         if (tq == null) {
+             throw new NotImplementedException("tdsContains whose TDS"
+                     + " argument is not a resolvable relation chain"
+@@ -1091,7 +1091,7 @@ final class Substitution {
+             if (isContains || isIn) {
+                 TypedSpec coll = isContains ? mc.args().get(0) : mc.args().get(1);
+                 TypedSpec needle = isContains ? mc.args().get(1) : mc.args().get(0);
+-                InQueryRead q = target.inQueryReads().get(n);
++                InQueryRead q = com.legend.base.IdentityProbe.got("InnerDemand.inQueryReads", target.inQueryReads().get(n));
+                 if (q != null) {
+                     // scalar-subquery membership: EXISTS(SELECT 1 FROM
+                     // <resolved relation> WHERE col = needle) — the
+@@ -1901,7 +1901,7 @@ final class Substitution {
+      * become their reads BEFORE the param inlining rebuilds the body —
+      * the demand scan keyed them by IDENTITY on the original nodes. */
+     private TypedSpec withAggReads(TypedSpec n) {
+-        AggRead ar = target.aggReads().get(n);
++        AggRead ar = com.legend.base.IdentityProbe.got("StoreResolver.aggReads", target.aggReads().get(n));
+         if (ar != null) {
+             return aggReadExpr(n, ar);
+         }
+@@ -1912,7 +1912,7 @@ final class Substitution {
+         // AGGREGATE over a to-many navigation (identity-registered by the
+         // demand scan): the whole call reads its grouped-subselect column —
+         // same ExprType as the node it replaces (discipline, plan risk #1).
+-        AggRead aggRead = target.aggReads().get(n);
++        AggRead aggRead = com.legend.base.IdentityProbe.got("StoreResolver.aggReads", target.aggReads().get(n));
+         if (aggRead != null) {
+             return aggReadExpr(n, aggRead);
+         }
+diff --git a/core/src/main/java/com/legend/resolver/SyntheticHeads.java b/core/src/main/java/com/legend/resolver/SyntheticHeads.java
+index c01a62ce2..55b51cd65 100644
+--- a/core/src/main/java/com/legend/resolver/SyntheticHeads.java
++++ b/core/src/main/java/com/legend/resolver/SyntheticHeads.java
+@@ -745,8 +745,8 @@ final class SyntheticHeads {
+                                     new TypedFuncCol(
+                                             c.name(),
+                                             (TypedLambda) liftFilteredHeads(c.fn(),
+-                                                    enabled && !valuesLambdas
+-                                                            .contains(c.fn()))))
++                                                    enabled && !com.legend.base.IdentityProbe.has("SyntheticHeads.valuesLambdas", valuesLambdas
++                                                            .contains(c.fn())))))
+                                     .toList(),
+                             p.info());
+             case TypedFilter f -> {
+@@ -1773,13 +1773,13 @@ final class SyntheticHeads {
+     TypedSpec replaceDatedNodes(TypedSpec n,
+             IdentityHashMap<TypedSpec, String> renames,
+             IdentityHashMap<TypedSpec, Boolean> strips) {
+-        if (strips.containsKey(n)) {
++        if (com.legend.base.IdentityProbe.has("DateSplit.ctxStrips", strips.containsKey(n))) {
+             var ma = (TypedMilestonedAccess) n;
+             return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                     replaceDatedNodes(ma.source(), renames, strips),
+                     ma.property(), ma.info());
+         }
+-        String newName = renames.get(n);
++        String newName = com.legend.base.IdentityProbe.got("DateSplit.dateRenames", renames.get(n));
+         if (newName != null) {
+             var ma = (TypedMilestonedAccess) n;
+             return new TypedMilestonedAccess(
+diff --git a/core/src/main/java/com/legend/test/PureTestRunner.java b/core/src/main/java/com/legend/test/PureTestRunner.java
+index 2f9ab4d4b..6bab8aa33 100644
+--- a/core/src/main/java/com/legend/test/PureTestRunner.java
++++ b/core/src/main/java/com/legend/test/PureTestRunner.java
+@@ -221,8 +221,10 @@ public final class PureTestRunner implements AutoCloseable {
+         return setupPrograms.computeIfAbsent(fqn, f -> {
+             ValueSpecification resolved = Compiler.resolveQuery(
+                     List.of(new AppliedFunction(f, List.of())), new ImportScope(List.of()), ctx);
+-            if (Compiler.hasStatementEffects(resolved, ctx)) {
+-                return resolved;
++            try (var __l = com.legend.base.IdentityProbe.label("setup:" + f)) {
++                if (Compiler.hasStatementEffects(resolved, ctx)) {
++                    return resolved;
++                }
+             }
+             inertSetups.add(f);
+             return INERT_SETUP;
+@@ -245,7 +247,10 @@ public final class PureTestRunner implements AutoCloseable {
+                 if (program == INERT_SETUP) {
+                     continue;
+                 }
+-                Set<String> stores = Compiler.programFacts(program, ctx).seedsStores();
++                Set<String> stores;
++                try (var __l = com.legend.base.IdentityProbe.label("setup:" + fqn)) {
++                    stores = Compiler.programFacts(program, ctx).seedsStores();
++                }
+                 setupStores.put(fqn, stores);
+                 for (String store : stores) {
+                     index.computeIfAbsent(store, s -> new ArrayList<>()).add(fqn);
+@@ -351,7 +356,8 @@ public final class PureTestRunner implements AutoCloseable {
+             // as it always did — the declared-footprint guard above still
+             // refuses the known clashes
+         }
+-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
++        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED);
++                var __l = com.legend.base.IdentityProbe.label("fixture:" + fqn)) {
+             // the one entry for a program (track C, 2026-10-29): the setup's body typed once, run on the session
+             Execution.runProgram(Compiler.queryResolved(ctx, call), runtimeFqn,
+                     com.legend.Execution.Source.given(target), null, null, options);
+@@ -404,6 +410,12 @@ public final class PureTestRunner implements AutoCloseable {
+     /** Run one test: its package session (opened on demand), its setups once,
+      *  its body through the platform, one result. */
+     public Result run(PureTests.TestCase t) {
++        try (var __l = com.legend.base.IdentityProbe.label("test:" + t.fqn())) {
++            return run0(t);
++        }
++    }
++
++    private Result run0(PureTests.TestCase t) {
+         observer.testStarted(t);
+         if (!t.pkg().equals(sessionPkg)) {
+             beginSession(t.pkg());
+diff --git a/core/src/main/java/com/legend/test/ServiceTestRunner.java b/core/src/main/java/com/legend/test/ServiceTestRunner.java
+index 27a374393..d42bc0e69 100644
+--- a/core/src/main/java/com/legend/test/ServiceTestRunner.java
++++ b/core/src/main/java/com/legend/test/ServiceTestRunner.java
+@@ -192,7 +192,9 @@ public final class ServiceTestRunner implements AutoCloseable {
+                 long t0 = System.nanoTime();
+                 Result r;
+                 try {
+-                    r = runOne(svc, suite, test);
++                    try (var __l = com.legend.base.IdentityProbe.label("service:" + svc.qualifiedName() + "/" + suite.id() + "/" + test.id())) {
++                        r = runOne(svc, suite, test);
++                    }
+                 } catch (Skip s) {
+                     r = new Result(svc.qualifiedName(), suite.id(), test.id(), Status.SKIPPED,
+                             String.valueOf(s.getMessage()), 0);
+diff --git a/spec/corpus.bzl b/spec/corpus.bzl
+index 726532ef9..1fe2eedcf 100644
+--- a/spec/corpus.bzl
++++ b/spec/corpus.bzl
+@@ -22,6 +22,7 @@ def _pass_flags(golden):
+     return program_jvm_flags("spec") + [
+         # DuckDB's JDBC driver loads its library: allowed, so the JDK prints no warning on the build's console
+         "--enable-native-access=ALL-UNNAMED",
++        "-Dlegend.identity.run=1",
+         _SCAN_ORDER,
+     ] + (["-Drcorpus.measured.out={OUT_DIR}"] if golden else [])
+ 
+diff --git a/base/src/main/java/com/legend/base/IdentityProbe.java b/base/src/main/java/com/legend/base/IdentityProbe.java
+new file mode 100644
+--- /dev/null
++++ b/base/src/main/java/com/legend/base/IdentityProbe.java
+@@ -0,0 +1,458 @@
++// Copyright 2026 Legend Contributors
++// SPDX-License-Identifier: Apache-2.0
++
++package com.legend.base;
++
++import java.io.IOException;
++import java.lang.reflect.Method;
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.StandardOpenOption;
++import java.security.MessageDigest;
++import java.security.NoSuchAlgorithmException;
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.HashMap;
++import java.util.HexFormat;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++import java.util.TreeMap;
++import java.util.WeakHashMap;
++import java.util.concurrent.ConcurrentHashMap;
++
++/**
++ * TEMPORARY (Rust port, phase 3 step 0 -- never committed; rust/tools/identity-hits-probe.patch, docs/rust-port/PHASE3.md):
++ * counts, per question, the hits and misses of the identity tables and the outcomes of the identity comparisons that
++ * docs/rust-port/PHASE3_DESIGN.md section 1.1 lists, so that the Rust port can be held to them after the Java is gone. The
++ * patch being applied is the switch. It only observes: every entry point returns its argument, or the value the caller
++ * computed.
++ *
++ * <p>A SCOPE is one row: 'B' the boot layer (once per JVM), 'M' a model compile, 'Q' a query (one TypedQuery or one of
++ * Compiler's own typed passes). The running thread's current scope receives every count. Query ids: {@code t:<sha>} the
++ * query's text, {@code test:}/{@code fixture:}/{@code service:} the runner's name for it, else {@code vs:<sha>} of the
++ * resolved spec's toString. Model ids: {@code t:<sha>} a model text, {@code s:<sha>} the source list parseSources saw,
++ * {@code p:<sha>} the parsed records, {@code protocol:<sha>} a client's PureModelContextData. A text's sha is SHA-256 of its
++ * UTF-16 units, little-endian: rust/oracles/front's id.
++ *
++ * <p>A table named {@code model.*} is a model-tier table. Fired inside a query it is order-dependent on a shared context
++ * (the first query to touch a class pays for it), so it joins the query's row only when that context served exactly one
++ * query, and otherwise a row 'L' of the context, keyed by the hash of the queries that ran on it.
++ *
++ * <p>Written at JVM exit to the test's undeclared outputs, else java.io.tmpdir (a java_run action's declared scratch
++ * directory): {@code identity-hits-<pid>.tsv} and, for {@link #mir}, {@code identity-mir-<pid>.jsonl}.
++ */
++public final class IdentityProbe {
++
++    private IdentityProbe() {
++    }
++
++    public static final class Scope {
++        final char kind;
++        final String model;
++        final String query;
++        final @Nullable Use use;
++        final LinkedHashMap<String, Integer> doors = new LinkedHashMap<>();
++        final HashMap<String, long[]> counts = new HashMap<>(32);
++        final HashMap<String, long[]> lazy = new HashMap<>(8);
++        final ArrayList<String> mir = new ArrayList<>(2);
++
++        Scope(char kind, String model, String query, @Nullable Use use) {
++            this.kind = kind;
++            this.model = model;
++            this.query = query;
++            this.use = use;
++        }
++    }
++
++    /** A compiled model's use: its id and the query scopes that ran on it. */
++    private static final class Use {
++        final String model;
++        final List<Scope> scopes = Collections.synchronizedList(new ArrayList<>());
++
++        Use(String model) {
++            this.model = model;
++        }
++    }
++
++    private static final String PID = String.valueOf(ProcessHandle.current().pid());
++    private static final List<Scope> SCOPES = Collections.synchronizedList(new ArrayList<>());
++    private static final List<Use> ALL_USES = Collections.synchronizedList(new ArrayList<>());
++    private static final ThreadLocal<@Nullable Scope> CURRENT = new ThreadLocal<>();
++    private static final ThreadLocal<@Nullable String> LABEL = new ThreadLocal<>();
++    private static final ThreadLocal<@Nullable List<String>> SOURCES = new ThreadLocal<>();
++    private static final Map<Object, Use> USES = Collections.synchronizedMap(new WeakHashMap<>());
++    private static final Scope BOOT = register(new Scope('B', "boot", "-", null));
++    private static final Scope UNSCOPED = new Scope('U', "-", "-", null);
++    private static final Set<String> MIR_SEEN = ConcurrentHashMap.newKeySet();
++    private static final java.util.concurrent.atomic.AtomicLong UNKNOWN_CONTEXTS =
++            new java.util.concurrent.atomic.AtomicLong();
++
++    static {
++        Runtime.getRuntime().addShutdownHook(new Thread(IdentityProbe::dump, "identity-probe"));
++    }
++
++    private static Scope register(Scope s) {
++        SCOPES.add(s);
++        return s;
++    }
++
++    // ---- counts: each returns what the caller computed
++
++    /** A map's {@code get}: a hit when it found a value. */
++    public static <V> @Nullable V got(String table, @Nullable V value) {
++        bump(table, value != null);
++        return value;
++    }
++
++    /** A {@code contains}/{@code containsKey}, or any lookup whose answer is a boolean. */
++    public static boolean has(String table, boolean found) {
++        bump(table, found);
++        return found;
++    }
++
++    /** A set's {@code add}: a hit when the element was already there (the add answered false). */
++    public static boolean added(String table, boolean isNew) {
++        bump(table, !isNew);
++        return isNew;
++    }
++
++    /** {@code n} lookups known to hit (a sort's keys, whose comparator count is the JDK's, not the program's). */
++    public static void hits(String table, int n) {
++        for (int i = 0; i < n; i++) {
++            bump(table, true);
++        }
++    }
++
++    /** A reference comparison's outcome. */
++    public static boolean same(String site, boolean outcome) {
++        bump(site, outcome);
++        return outcome;
++    }
++
++    private static void bump(String table, boolean positive) {
++        Scope s = CURRENT.get();
++        if (s == null) {
++            synchronized (UNSCOPED) {
++                inc(UNSCOPED.counts, table, positive);
++            }
++            return;
++        }
++        inc(s.kind == 'Q' && table.startsWith("model.") ? s.lazy : s.counts, table, positive);
++    }
++
++    private static void inc(Map<String, long[]> into, String table, boolean positive) {
++        long[] c = into.get(table);
++        if (c == null) {
++            c = new long[2];
++            into.put(table, c);
++        }
++        c[positive ? 0 : 1]++;
++    }
++
++    // ---- scopes
++
++    public static final class Door implements AutoCloseable {
++        private final boolean active;
++        private final @Nullable Scope previous;
++
++        Door(boolean active, @Nullable Scope previous) {
++            this.active = active;
++            this.previous = previous;
++        }
++
++        @Override
++        public void close() {
++            if (active) {
++                if (previous == null) {
++                    CURRENT.remove();
++                } else {
++                    CURRENT.set(previous);
++                }
++            }
++        }
++    }
++
++    private static final Door NO_DOOR = new Door(false, null);
++
++    /** A question's scope, or null when this thread is already inside one (its counts stay there) or the context was
++     *  not compiled through a door the probe sees. */
++    public static @Nullable Scope queryScope(Object ctx, @Nullable Object resolved, @Nullable String text) {
++        Scope cur = CURRENT.get();
++        if (cur != null && cur.kind == 'Q') {
++            return null;
++        }
++        Use use = USES.get(ctx);
++        if (use == null) {
++            UNKNOWN_CONTEXTS.incrementAndGet();
++            return null;
++        }
++        String label = LABEL.get();
++        String query = text != null ? textId(text) : label != null ? label : specId(resolved);
++        Scope s = register(new Scope('Q', use.model, query, use));
++        use.scopes.add(s);
++        return s;
++    }
++
++    /** Enter a question's scope under a door of the given name. */
++    public static Door door(@Nullable Scope scope, String name) {
++        Scope cur = CURRENT.get();
++        if (scope == null || cur == scope || (cur != null && cur.kind == 'Q')) {
++            return NO_DOOR;
++        }
++        scope.doors.merge(name, 1, Integer::sum);
++        CURRENT.set(scope);
++        return new Door(true, cur);
++    }
++
++    /** Enter a model compile's scope; a nested door joins the open one. */
++    public static Door modelDoor(String model, String name) {
++        Scope cur = CURRENT.get();
++        if (cur != null && cur.kind == 'M') {
++            return NO_DOOR;
++        }
++        Scope s = register(new Scope('M', model, "-", null));
++        s.doors.merge(name, 1, Integer::sum);
++        CURRENT.set(s);
++        return new Door(true, cur);
++    }
++
++    /** The boot layer's scope, so that its one computation in a JVM is its own row, whichever test pays for it. */
++    public static Door bootDoor() {
++        Scope cur = CURRENT.get();
++        CURRENT.set(BOOT);
++        return new Door(true, cur);
++    }
++
++    /** The sticky name of the question a runner is about to ask (a test, a fixture, a service test). */
++    public static AutoCloseable0 label(String name) {
++        String before = LABEL.get();
++        LABEL.set(name);
++        return () -> {
++            if (before == null) {
++                LABEL.remove();
++            } else {
++                LABEL.set(before);
++            }
++        };
++    }
++
++    public interface AutoCloseable0 extends AutoCloseable {
++        @Override
++        void close();
++    }
++
++    public static <C> C compiled(C ctx, String model) {
++        Use use = new Use(model);
++        ALL_USES.add(use);
++        USES.put(ctx, use);
++        return ctx;
++    }
++
++    /** An overlay of a compiled model (a corpus's runtime and connection): a model of its own. */
++    public static <C> C overlay(Object parent, C child, String suffix) {
++        Use p = USES.get(parent);
++        return compiled(child, (p == null ? "?" : p.model) + "+" + suffix);
++    }
++
++    // ---- model ids
++
++    public static void sourcesSeen(String name, String text) {
++        List<String> l = SOURCES.get();
++        if (l == null) {
++            l = new ArrayList<>();
++            SOURCES.set(l);
++        }
++        l.add(name);
++        l.add(text);
++    }
++
++    /** The open model door's id, else the id of the sources this thread parsed since the last build, else of the
++     *  records. */
++    public static String modelId(Object parsed) {
++        Scope cur = CURRENT.get();
++        if (cur != null && cur.kind == 'M') {
++            return cur.model;
++        }
++        List<String> l = SOURCES.get();
++        if (l != null) {
++            SOURCES.remove();
++            return "s:" + sha(String.join("\u0000", l));
++        }
++        return "p:" + sha(String.valueOf(parsed));
++    }
++
++    public static String textId(String text) {
++        return "t:" + sha(text);
++    }
++
++    public static String protocolId(Object model) {
++        return "protocol:" + sha(String.valueOf(model));
++    }
++
++    private static String specId(@Nullable Object resolved) {
++        try {
++            return "vs:" + sha(String.valueOf(resolved));
++        } catch (StackOverflowError e) {
++            return "vs:too-deep";
++        }
++    }
++
++    private static String sha(String text) {
++        MessageDigest d;
++        try {
++            d = MessageDigest.getInstance("SHA-256");
++        } catch (NoSuchAlgorithmException e) {
++            throw new IllegalStateException(e);
++        }
++        byte[] b = new byte[text.length() * 2];
++        for (int i = 0; i < text.length(); i++) {
++            char c = text.charAt(i);
++            b[2 * i] = (byte) c;
++            b[2 * i + 1] = (byte) (c >> 8);
++        }
++        return HexFormat.of().formatHex(d.digest(b));
++    }
++
++    // ---- the lowering's answer, as MirJson
++
++    /** A lowered query (or DML), for "the corpora through a Rust CLI": its MirJson's id in the scope's row, its text in
++     *  the JSONL. By reflection: base reaches neither sql nor executionplan. */
++    public static void mir(Object loweredQuery) {
++        mirOf(loweredQuery, "query", "com.legend.sql.SqlQuery");
++    }
++
++    public static void mirDml(Object dml) {
++        mirOf(dml, "dml", "com.legend.sql.SqlDml");
++    }
++
++    private static void mirOf(Object value, String writer, String type) {
++        Scope s = CURRENT.get();
++        if (s == null) {
++            return;
++        }
++        String text;
++        try {
++            Class<?> mir = Class.forName("com.legend.executionplan.MirJson");
++            Class<?> json = Class.forName("com.legend.json.Json");
++            Method w = mir.getMethod(writer, Class.forName(type));
++            text = (String) json.getMethod("toCompact", Object.class).invoke(null, w.invoke(null, value));
++        } catch (ReflectiveOperationException | LinkageError | RuntimeException e) {
++            Throwable c = e.getCause() != null ? e.getCause() : e;
++            String said = String.valueOf(c.getMessage()).replaceAll("[,\\t\\n]", " ");
++            s.mir.add("!" + c.getClass().getSimpleName() + ":" + said.substring(0, Math.min(60, said.length())));
++            return;
++        } catch (StackOverflowError e) {
++            s.mir.add("!StackOverflowError");
++            return;
++        }
++        String id = sha(text);
++        s.mir.add(id);
++        if (MIR_SEEN.add(id)) {
++            append("identity-mir-" + PID + ".jsonl", "{\"sha\":\"" + id + "\",\"mir\":" + text + "}\n");
++        }
++    }
++
++    // ---- the output
++
++    private static void dump() {
++        StringBuilder out = new StringBuilder();
++        List<Scope> scopes;
++        synchronized (SCOPES) {
++            scopes = new ArrayList<>(SCOPES);
++        }
++        for (Scope s : scopes) {
++            boolean solo = s.use != null && s.use.scopes.size() == 1;
++            Map<String, long[]> counts = new TreeMap<>(s.counts);
++            if (solo) {
++                counts.putAll(s.lazy);
++            }
++            if (s.kind == 'Q' && s.doors.isEmpty() && counts.isEmpty()) {
++                continue;
++            }
++            if (s.kind != 'Q' && counts.isEmpty()) {
++                continue;
++            }
++            line(out, s.kind, s.model, s.query, doors(s), s.kind == 'Q' ? (solo ? "solo" : "shared") : "-", counts, s.mir);
++        }
++        List<Use> uses;
++        synchronized (ALL_USES) {
++            uses = new ArrayList<>(ALL_USES);
++        }
++        for (Use u : uses) {
++            if (u.scopes.size() < 2) {
++                continue;
++            }
++            Map<String, long[]> lazy = new TreeMap<>();
++            List<String> queries = new ArrayList<>();
++            synchronized (u.scopes) {
++                for (Scope s : u.scopes) {
++                    queries.add(s.query + "\u0000" + doors(s));
++                    s.lazy.forEach((k, v) -> {
++                        long[] c = lazy.computeIfAbsent(k, x -> new long[2]);
++                        c[0] += v[0];
++                        c[1] += v[1];
++                    });
++                }
++            }
++            if (lazy.isEmpty()) {
++                continue;
++            }
++            Collections.sort(queries);
++            line(out, 'L', u.model, "set:" + sha(String.join("\u0001", queries)), "-", "shared", lazy, List.of());
++        }
++        Map<String, long[]> unscoped;
++        synchronized (UNSCOPED) {
++            unscoped = new TreeMap<>(UNSCOPED.counts);
++        }
++        if (!unscoped.isEmpty() || UNKNOWN_CONTEXTS.get() != 0) {
++            unscoped.put("unknown-contexts", new long[] {UNKNOWN_CONTEXTS.get(), 0});
++            line(out, 'U', "-", "-", "-", "-", unscoped, List.of());
++        }
++        if (out.length() > 0) {
++            append("identity-hits-" + PID + ".tsv", out.toString());
++        }
++    }
++
++    private static String doors(Scope s) {
++        StringBuilder b = new StringBuilder();
++        s.doors.forEach((k, v) -> {
++            if (b.length() > 0) {
++                b.append(',');
++            }
++            b.append(k);
++            if (v > 1) {
++                b.append('*').append(v);
++            }
++        });
++        return b.length() == 0 ? "-" : b.toString();
++    }
++
++    private static void line(StringBuilder out, char kind, String model, String query, String doors, String use,
++            Map<String, long[]> counts, List<String> mir) {
++        out.append(kind).append('\t').append(model).append('\t').append(query).append('\t').append(doors).append('\t')
++                .append(use).append('\t');
++        boolean first = true;
++        for (Map.Entry<String, long[]> e : counts.entrySet()) {
++            if (!first) {
++                out.append(';');
++            }
++            first = false;
++            out.append(e.getKey()).append('=').append(e.getValue()[0]).append('/').append(e.getValue()[1]);
++        }
++        out.append('\t').append(String.join(",", mir)).append('\n');
++    }
++
++    private static synchronized void append(String file, String text) {
++        try {
++            String d = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
++            Path dir = Path.of(d != null ? d : System.getProperty("java.io.tmpdir"));
++            Files.writeString(dir.resolve(file), text, StandardCharsets.UTF_8, StandardOpenOption.CREATE,
++                    StandardOpenOption.APPEND);
++        } catch (IOException | RuntimeException e) {
++            // a probe that cannot write must not fail the test it rides on
++        }
++    }
++}
+diff --git a/base/src/main/java/com/legend/base/SqlTap.java b/base/src/main/java/com/legend/base/SqlTap.java
+new file mode 100644
+--- /dev/null
++++ b/base/src/main/java/com/legend/base/SqlTap.java
+@@ -0,0 +1,49 @@
++// Copyright 2026 Legend Contributors
++// SPDX-License-Identifier: Apache-2.0
++
++package com.legend.base;
++
++import java.io.IOException;
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.StandardOpenOption;
++
++/**
++ * TEMPORARY (Rust port, phase 3 step 0 -- never committed; rust/tools/identity-hits-probe.patch): every statement a JDBC
++ * session sends, in order, one line per statement (its length and a hash of its text), so a run with the identity probe can be compared with a run of this
++ * class alone ({@code git apply --include='*JdbcStatements.java' --include='*SqlTap.java'}): counting must not alter what
++ * is computed. Written to the test's undeclared outputs, else java.io.tmpdir.
++ */
++public final class SqlTap {
++
++    private SqlTap() {
++    }
++
++    private static final String FILE = "identity-sql-" + ProcessHandle.current().pid() + ".txt";
++
++    public static String sent(String statement) {
++        write(statement.length() + ":" + id(statement) + "\n");
++        return statement;
++    }
++
++    private static String id(String text) {
++        try {
++            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
++                    .digest(text.getBytes(StandardCharsets.UTF_8)), 0, 12);
++        } catch (java.security.NoSuchAlgorithmException e) {
++            throw new IllegalStateException(e);
++        }
++    }
++
++    private static synchronized void write(String line) {
++        try {
++            String d = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
++            Path dir = Path.of(d != null ? d : System.getProperty("java.io.tmpdir"));
++            Files.writeString(dir.resolve(FILE), line, StandardCharsets.UTF_8, StandardOpenOption.CREATE,
++                    StandardOpenOption.APPEND);
++        } catch (IOException | RuntimeException e) {
++            // a probe that cannot write must not fail the test it rides on
++        }
++    }
++}
