@@ -327,7 +327,7 @@ still answers a JDK class on text input, none of it refused by the ruling:
   parser refuses or drops at the engine's dialect, the `requireNonNull`s on fields the parser always fills): they are
   still Java's classes, for the records no door hands them yet.
 
-Every other site is a refusal or an `unreachable!` naming why. `//rust/lite-front:front_parser_differential_test` and
+Every other site is a refusal, or an `unreachable!`, `expect` or `assert!` naming why it cannot be reached. `//rust/lite-front:front_parser_differential_test` and
 `front_engine_differential_test` fail on any other raw JDK answer over the frozen questions, and the crate's
 `doors::refusal_tests` pin each row's place and each carve-out.
 

@@ -536,7 +536,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             T::LESS_OR_EQUAL => "lessThanEqual",
             T::GREATER_THAN => "greaterThan",
             T::GREATER_OR_EQUAL => "greaterThanEqual",
-            // the one caller loops while `is_arithmetic_op(self.peek())`, these eight tokens
+            // both callers test `is_arithmetic_op(self.peek())` first: these eight tokens
             _ => unreachable!("parseArithmeticPartContext on a token is_arithmetic_op refuses"),
         };
         if matches!(
@@ -3107,7 +3107,7 @@ fn signed_literal(n: ValueSpecification, negative: bool, span: Span) -> ValueSpe
             value: if negative { c.value.negate() } else { c.value },
             pos: span,
         })),
-        // the one caller hands it what parse_number built, one of the three above
+        // both callers hand it what parse_number built, one of the three above
         other => unreachable!("a number literal is an integer, a float or a decimal: {other:?}"),
     }
 }

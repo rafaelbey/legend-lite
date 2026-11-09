@@ -25,6 +25,15 @@ const STYLES = ['STANDARD', 'PRETTY'];
 
 const sha256 = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
 
+// 2026-11-09 (docs/rust-port/PHASE2.md section 6, ruling 4; PARITY row 9): the inputs where the JVM's parser refuses with
+// a placed parse error and this frozen module, TeaVM's last build of the Java parser (wasm/BUILD.bazel), still answers
+// the raw JDK exception. Held both ways: the module answers exactly this, and the JVM's answer differs. They go when the
+// Rust wasm32 build replaces the module.
+const FROZEN_MODULE_DIFFERS = new Map([
+  ['legend-pure-core/legend-pure-m3-core/src/test/java/org/finos/legend/pure/m3/tests/elements/profile/TestProfile.java#52',
+    'OK\n500\napplication/json\n{"code":-1,"message":"IllegalArgumentException: Less than 4 hex digits in unicode escape","status":"error"}'],
+]);
+
 /** A folded answer's body when it is a 200 (`OK\n200\n<type>\n<body>`), else undefined (TabRoundTripRequests.okBody). */
 function okBody(folded) {
   const prefix = 'OK\n200\n';
@@ -58,6 +67,7 @@ test('the tab round-trips every input as the JVM does', async () => {
   const counts = new Map();
   const diffs = [];
   const differing = [];
+  const listed = new Set();
   for (const line of lines) {
     const { from, id, text, answers } = JSON.parse(line);
     const c = counts.get(from) ?? { inputs: 0, converted: 0, matched: 0 };
@@ -65,6 +75,13 @@ test('the tab round-trips every input as the JVM does', async () => {
     c.inputs++;
     const toJson = ask(GRAMMAR_TO_JSON, 'returnSourceInformation=false', text);
     const asked = [sha256(toJson)];
+    const frozen = FROZEN_MODULE_DIFFERS.get(id);
+    if (frozen !== undefined) {
+      assert.equal(toJson, frozen, `${id}: the frozen module's answer moved`);
+      assert.notEqual(asked[0], answers[0], `${id}: listed, yet the JVM answers as the frozen module does`);
+      listed.add(id);
+      continue;
+    }
     const json = okBody(toJson);
     if (json !== undefined) {
       c.converted++;
@@ -91,4 +108,5 @@ test('the tab round-trips every input as the JVM does', async () => {
     assert.ok(c.converted > c.inputs / 2, `${from}: only ${c.converted} of ${c.inputs} converted`);
   }
   assert.deepEqual(diffs.slice(0, 40), [], `${diffs.length} inputs the module answered differently from the JVM`);
+  assert.deepEqual([...listed].sort(), [...FROZEN_MODULE_DIFFERS.keys()].sort(), 'every listed input was asked');
 });

@@ -307,6 +307,10 @@ The dated record of moved pins, rosters and ratchets (the rules: "Recording a mo
 Newest first, at most 20 lines. Seeded from the last entries of the cut log; "D<n>" is the decisions log of the
 landing's program.
 
+- 2026-11-09 — `wasm/round_trip.mjs` gains `FROZEN_MODULE_DIFFERS`, one input (`TestProfile.java#52`): the JVM's parser refuses
+  it with a placed parse error (docs/rust-port/PHASE2.md §6, ruling 4; PARITY row 9) and the frozen `//wasm:planner`, TeaVM's
+  last build of the Java parser, keeps the raw answer. Held both ways; it goes with the Rust wasm32 build. Branch
+  `worktree-rust-port-phase0`.
 - 2026-11-09 — `ArchitectureTest.parseMachineryIsUsedOnlyWhereSanctioned` (6i) pins `PmcdParser` beside `SpecParser`
   (docs/rust-port/PHASE2.md §6, ruling 2: both text doors pinned to the parse-entry packages), with the three classes
   outside those packages that are parse entries by role, the only dependents the widened rule found, named:
