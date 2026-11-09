@@ -686,6 +686,66 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      110,596, the engine-JSON doors 30,062 and 2 of 30,064. `cargo test --workspace`, `cargo clippy --workspace --all-targets
      -- -D warnings` and `cargo fmt --all -- --check` clean. Ledger: `rust/RETIRED_TESTS.md`.
 
+   **Rulings 11 to 13 done 2026-11-09** (from `b174584b7`, the rulings of §6; commit `1c9920466`). Every input was asked of
+   legend-engine's own parser on the parser-equivalence class path (`PureGrammarParser`, 4.145.0; the post-6b probe, 335
+   further inputs, not committed; each answered beside Rust at the model or lambda door and at the JSON door).
+   - **How.** Java's `LEGEND_ENGINE` is three levels inside the doors (`doors::Dialect`, set by the doors alone): the
+     expression doors' and the quoted folds', the model door's and the `lambda` door's (which refuse row 63, ruling 13),
+     and the one an engine-JSON door reads a text at when the emitter refused its records (ruling 12). The records do not
+     keep the tokens the engine's places need (the token after a cast's `)`, a dated argument's offset, an activator's
+     key), so the emitter's raw refusal stays the signal and the door answers what the second reading places; a text that
+     reading accepts keeps the emitter's raw answer. The happy path never reads twice. A graph-fetch argument is refused
+     in the parser, which moves the refusal before any later syntax error of the same section at the two JSON doors too.
+   - **Ruling 11** (refused, deliberately stricter than the engine, each its own register row):
+
+     | row | input | the engine | lite now | register |
+     |---|---|---|---|---|
+     | 3 | `%2023-02-29T10:30+0100`, every dialect and door | accepts, the literal as text | `invalid date literal ...` at the literal | S151 |
+     | 7 | `1e999`, `1.0e999`, `-1e999`, `1e999f`, lite's and the platform's dialects | accepts: a name, `1.0e999` the float `Infinity` | `float literal out of range: ...` at the number | S152 |
+     | 8 | `1.ed`, `1.e+d`, `1.ef`, those dialects | accepts: `1`, `.`, a name | `Unexpected token 'ed'` at the exponent's letter | S153 |
+     | 8 | `1.5e99999999999[f]`, those dialects | accepts: `Infinity` | `float literal out of range: ...` at the token | S154 |
+     | 46 | `###Diagram` with another header next | accepts: an empty section | `an empty ###Diagram section ...` at its header | S155 |
+     | 50 | a `title`, `description`, `required` element or length of the wrong kind, an integer past a long, under typed nodes | accepts: ignored or not visited | `a jsonSchema title must be a string` and its kin at the section's start | S156 |
+     | 72 | a local property under an AggregationAware Pure `~mainMapping` (`document`) | accepts | `the local property 'loc' is not supported ...` at its name | S157 |
+     | 73 | `platform: Default #{ x: 1; }#` (`document`) | accepts: a default platform | `Persistence platform 'Default' must not have a body` at the word | S158 |
+
+   - **Ruling 12** (at `document` and `lambdaJson`, only where the engine refuses; the columns are the engine's, 222 of the
+     probe's inputs exact, the differences named in PARITY):
+
+     | row | input | the engine | lite now | register |
+     |---|---|---|---|---|
+     | 69 | `^a::B($x)` | at the argument's first token | `a positional cast ...` there | S159 |
+     | 69 | `^a::B(1)` | a literal is the type's variable values: the token after the `)` | the same token (`[2:1]`, the line under a lambda's text) | S159 |
+     | 69 | `@(a:?)`, `@Relation<(a:?)>` | `Unexpected token '?'`, `'<'` | the same words and token | S160 |
+     | 70 | `p: String[m];`, a lambda's `x:String[m]` | section catch-all; raw at a lambda | section's start; a lambda's at the name | S161 |
+     | 71 | a `DeephavenApp`'s `activationConfiguration: a::K;` | at the key | at the key | S162 |
+     | 81 | `#/a::B/c($x)#` | at the token its grammar stops at, column shifted by the literal's | the same place (`[1:23]`) | S163 |
+     | 68, 69 | `letFunction(1, 2)`, `let y = %10:10:10`, `let y = @(a:Integer)` | accepts | the raw answer, kept | none |
+     | 81 | `c(1.5)`, `c(-1)`, `c([.5])`, `c(1.5f)` | accepts | the raw answer, kept | none |
+     | 74 | `EqualToJson #{ expected: ['a']; }#`, `[a, b]`, `#/a::B/c#`, `[#/a::B/c#]`, `[{x: 1;}]`, `database:`, `binding:` | refuses, at the value or the key | the raw answer, unchanged; **the ruling's premise does not hold, these reach it; it comes back to the user** | none |
+
+   - **Ruling 13.** `pmcd` at `LEGEND_ENGINE` and `lambda` refuse row 63's arguments with the JSON doors' error and place
+     (`graph_fetch_argument_refused`, shared with the emitter, moved to `protocol.rs`). Register S164. `pmcd` at lite's and
+     the platform's dialects keeps its records. The gap at `spec` and `block` at the engine's dialect is left, not ruled.
+     No lite test, PCT source, corpus or Pure model relied on the `lambda` door accepting such an argument; the one
+     snippet of lite's own the model door now refuses is the instrument's probe the engine refuses too.
+   - **The difference lists.** `deliberate-differences.tsv` 5 -> 7 asks: `00dc41c7` at `pmcd`/`LEGEND_ENGINE`, `672e812e` at
+     `spec`/`LEGEND_ENGINE`. `raw-left-for-user.tsv` and its readers are deleted: no frozen question answers a raw class,
+     and the differentials fail on any `java.*` answer. No floor lowered. `//core:front_shim`: the four doors 110,591
+     identical and 5 listed of 110,596, the engine-JSON doors 30,062 and 2 of 30,064. `FROZEN_MODULE_DIFFERS` is unchanged:
+     the full gate showed no new difference.
+   - **The Java side.** `RustParserProvider.raised` loses `java.time.DateTimeException`, which no Rust site raises; the
+     other arms each have a site; the native image's metadata named none of these classes. `OffsetDateLiteralKnownDefectTest`
+     retires with its defect, `OffsetDateLiteralRefusalTest` holds the refusal at every dialect.
+     `OwnDialectCensusTest.EXTENSION_HOST_PINS`' `ProbeWireShapes.java` 1 -> 2 (ruling 13, its probe
+     `#{I {product(2015-10-16){name}}}#`, which the engine refuses and the census had counted as accepted). Ledger:
+     `rust/RETIRED_TESTS.md`.
+   - **The gates.** `bazel test //core/... //spec/... //rust/... //parser-equivalence/... //tools/... //gates/...`: 525 targets,
+     523 pass and the same 2 skipped; `//wasm/...` built and its 5 tests pass. `//parser-equivalence:parser_parity`: 422 pins, 421
+     rejected, 0 missed, line agreement 415, column exact 337 (none moved); the sentinel 2,217 in scope, matched 2,216; the sweep
+     6,755 documents matched, seam 6,746/0; own corpus 2,943, `diffs=0`. `cargo test --workspace`, `cargo clippy --all-targets
+     -- -D warnings`, `cargo fmt --check` clean. 1,530,080 door answers over mutated oracle texts: no panic, no raw answer.
+
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
 exists, and the committed oracle after.
