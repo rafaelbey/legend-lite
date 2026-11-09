@@ -1,21 +1,17 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! The questions of the front oracle where Rust answers differently from the frozen Java on purpose, and the raw JDK
-//! answers kept on purpose (the user's ruling 4 of 2026-11-09, docs/rust-port/PHASE2.md section 6): the differentials
-//! read both files. The frozen oracle stays Java's.
+//! The questions of the front oracle where Rust answers differently from the frozen Java on purpose (the user's rulings
+//! 4, 11 and 13 of 2026-11-09, docs/rust-port/PHASE2.md section 6). The frozen oracle stays Java's.
 //!
 //! `LITE_FRONT_DELIBERATE` names `rust/oracles/front/deliberate-differences.tsv`: per question, the PARITY row and the
 //! new answer, its class, line, column and the SHA-256 of its message's UTF-16 units. Each differential holds that
 //! `identical + listed == total`, that every listed question really differs from Java's frozen answer and that each
-//! answers exactly its listed new answer. A question neither identical nor listed fails.
-//!
-//! `LITE_FRONT_RAW_LEFT` names `rust/oracles/front/raw-left-for-user.tsv`: the questions still answering a raw JDK class
-//! because legend-engine accepts the input (the ruling's carve-out: such an input comes back to the user). Any other
-//! `java.*` answer over the frozen questions fails, and so does a line of the file whose question no longer answers it.
+//! answers exactly its listed new answer. A question neither identical nor listed fails, and so does any `java.*`
+//! answer over the frozen questions ([`raw_answer`]).
 
 use lite_front::sha256::sha256_utf16le;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 /// A listed question's new answer.
 pub struct Expected {
@@ -30,8 +26,6 @@ type Key = (String, String, String);
 
 pub struct Deliberate {
     expected: BTreeMap<Key, Expected>,
-    left: BTreeMap<Key, String>,
-    left_seen: BTreeSet<Key>,
 }
 
 fn key(door: &str, dialect: &str, sha: &str) -> Key {
@@ -68,19 +62,7 @@ impl Deliberate {
                 "listed twice: {r:?}"
             );
         }
-        let mut left = BTreeMap::new();
-        for r in rows("LITE_FRONT_RAW_LEFT") {
-            assert_eq!(r.len(), 6, "door, dialect, sha, PARITY row, class, what: {r:?}");
-            assert!(
-                left.insert(key(&r[0], &r[1], &r[2]), r[4].clone()).is_none(),
-                "listed twice: {r:?}"
-            );
-        }
-        Deliberate {
-            expected,
-            left,
-            left_seen: BTreeSet::new(),
-        }
+        Deliberate { expected }
     }
 
     /// How many questions the list names at `door`.
@@ -91,27 +73,13 @@ impl Deliberate {
     pub fn expected(&self, door: &str, dialect: &str, sha: &str) -> Option<&Expected> {
         self.expected.get(&key(door, dialect, sha))
     }
+}
 
-    /// A raw JDK answer's verdict: `Err` unless the left-for-the-user list names exactly this question and class.
-    pub fn raw_answer(&mut self, door: &str, dialect: &str, sha: &str, form: &[u16]) -> Result<(), String> {
-        let Some(class) = raw_class(form) else {
-            return Ok(());
-        };
-        let k = key(door, dialect, sha);
-        if self.left.get(&k) == Some(&class) {
-            self.left_seen.insert(k);
-            return Ok(());
-        }
-        Err(format!("{door} {dialect} {sha}: a raw {class}"))
-    }
-
-    /// The left-for-the-user lines of `door` whose question no longer answers the raw class they name.
-    pub fn stale_left(&self, door: &str) -> Vec<String> {
-        self.left
-            .keys()
-            .filter(|k| k.0 == door && !self.left_seen.contains(*k))
-            .map(|k| format!("{k:?}"))
-            .collect()
+/// Any `java.*` answer over the frozen questions is a failure: the rulings left none.
+pub fn raw_answer(door: &str, dialect: &str, sha: &str, form: &[u16]) -> Result<(), String> {
+    match raw_class(form) {
+        None => Ok(()),
+        Some(class) => Err(format!("{door} {dialect} {sha}: a raw {class}")),
     }
 }
 

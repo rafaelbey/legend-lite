@@ -10,15 +10,23 @@
 use crate::codec;
 use crate::jtypes::JStr;
 use crate::model_parser::{OverlayGrammar, PmcdAnswer};
-use crate::records::{Element, LambdaFunction, PmcdParserParsed, SourceInfo, ValueSpecification};
+use crate::records::{LambdaFunction, PmcdParserParsed, SourceInfo, ValueSpecification};
 use crate::spec_parser;
 
-/// The parse's level (Java's `parser.Dialect`).
+/// The parse's level (Java's `parser.Dialect`), with two inner levels of Java's `LEGEND_ENGINE`, set by the doors alone
+/// (docs/rust-port/PHASE2.md section 6, the user's rulings of 2026-11-09).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Dialect {
     LegendPlatform,
     LegendLite,
+    /// `LEGEND_ENGINE` at the expression doors (`spec`, `block`) and in the quoted folds.
     LegendEngine,
+    /// `LEGEND_ENGINE` at the model door and the `lambda` door: held to the engine's grammar for a graph-fetch argument
+    /// as well (ruling 13).
+    LegendEngineModel,
+    /// `LEGEND_ENGINE` when an engine-JSON door reads a text again to place what the emitter would not write (ruling
+    /// 12; [`emitter_refusal`]).
+    LegendEngineJson,
 }
 
 impl Dialect {
@@ -35,7 +43,7 @@ impl Dialect {
         match self {
             Dialect::LegendPlatform => "LEGEND_PLATFORM",
             Dialect::LegendLite => "LEGEND_LITE",
-            Dialect::LegendEngine => "LEGEND_ENGINE",
+            Dialect::LegendEngine | Dialect::LegendEngineModel | Dialect::LegendEngineJson => "LEGEND_ENGINE",
         }
     }
 
@@ -46,7 +54,29 @@ impl Dialect {
 
     /// The declared lite-design extensions refuse here (Java's `refusesLiteExtensions`).
     pub fn refuses_lite_extensions(self) -> bool {
-        self == Dialect::LegendEngine
+        matches!(
+            self,
+            Dialect::LegendEngine | Dialect::LegendEngineModel | Dialect::LegendEngineJson
+        )
+    }
+
+    /// A graph-fetch argument the engine's grammar has no rule for is refused (ruling 13; PARITY row 63).
+    pub fn refuses_graph_fetch_arguments(self) -> bool {
+        matches!(self, Dialect::LegendEngineModel | Dialect::LegendEngineJson)
+    }
+
+    /// The constructs lite's records carry and legend-engine's grammar refuses are refused (ruling 12).
+    pub fn answers_engine_json(self) -> bool {
+        self == Dialect::LegendEngineJson
+    }
+
+    /// The level a quoted tree is read at: not the door's, since the text is a string to the engine.
+    pub fn quoted(self) -> Dialect {
+        if self.refuses_lite_extensions() {
+            Dialect::LegendEngine
+        } else {
+            self
+        }
     }
 }
 
@@ -221,7 +251,7 @@ pub fn spec(text: &[u16], dialect: Dialect) -> Answer<ValueSpecification> {
 
 /// `SpecParser.parseLambda(text)`: a lambda at the engine's dialect, a non-lambda wrapped as a parameterless one.
 pub fn lambda(text: &[u16]) -> Answer<LambdaFunction> {
-    spec_parser::parse_lambda(text).map_err(JavaError::placed)
+    spec_parser::parse_lambda(text, Dialect::LegendEngineModel).map_err(JavaError::placed)
 }
 
 /// `SpecParser.parseCodeBlock(text, dialect)`: a `;`-separated block.
@@ -233,7 +263,12 @@ pub fn block(text: &[u16], dialect: Dialect) -> Answer<Vec<ValueSpecification>> 
 /// the unclaimed sections -- with the shim's registered overlay grammars: beside the records, each overlay section
 /// the walk met, whose grammar the shim calls and whose elements it splices (`model_parser::OverlaySection`).
 pub fn pmcd(text: &[u16], dialect: Dialect, overlays: &[OverlayGrammar<'_>]) -> PmcdAnswer {
-    let answer = crate::model_parser::parse_with_overlays(text, dialect, overlays);
+    let level = if dialect == Dialect::LegendEngine {
+        Dialect::LegendEngineModel
+    } else {
+        dialect
+    };
+    let answer = crate::model_parser::parse_with_overlays(text, level, overlays);
     PmcdAnswer {
         parsed: answer.parsed.map_err(JavaError::placed),
         overlays: answer.overlays,
@@ -304,7 +339,8 @@ pub fn document_with_overlays(text: &[u16], spans: bool, overlays: &[OverlayGram
         return None;
     }
     Some(answer.parsed.and_then(|parsed| {
-        let json = crate::emitter::emit(&parsed.model).map_err(|e| emitter_refusal(e, &parsed))?;
+        let json = crate::emitter::emit(&parsed.model)
+            .map_err(|e| emitter_refusal(e, || pmcd(text, Dialect::LegendEngineJson, &[]).parsed.map(|_| ())))?;
         Ok(if spans {
             json
         } else {
@@ -313,24 +349,17 @@ pub fn document_with_overlays(text: &[u16], spans: bool, overlays: &[OverlayGram
     }))
 }
 
-/// The emitter's refusal as a door answers it: one the engine answers from its section catch-all at the section that
-/// holds the refused node. The section index's spans are in the engine's buffer (`"\n###Pure\n" + source`), a section's
-/// start one line below its header in the text.
-fn emitter_refusal(e: JavaError, parsed: &PmcdParserParsed) -> JavaError {
-    let line = e.position.map_or(0, |p| p.0);
-    let section = parsed.model.elements.iter().rev().find_map(|element| match element {
-        Element::PSectionIndex(index) => index
-            .sections
-            .iter()
-            .rev()
-            .filter_map(|s| s.source_information.as_deref())
-            .find(|s| s.start_line - 1 <= line),
-        _ => None,
-    });
-    match section {
-        Some(span) => e.at_section(span).placed(),
-        None => e.placed(),
+/// The emitter's refusal as an engine-JSON door answers it. A raw refusal of what the engine's grammar refuses (ruling
+/// 12 of docs/rust-port/PHASE2.md section 6; PARITY rows 69, 70, 71, 81) is placed by reading the text again at
+/// [`Dialect::LegendEngineJson`], where the parser has the tokens the records do not keep: what it answers is the door's
+/// answer. A text that reading accepts keeps the emitter's own refusal: the engine accepts it (rows 68 and 69's `let`).
+fn emitter_refusal(e: JavaError, read_again: impl FnOnce() -> Answer<()>) -> JavaError {
+    if e.class.starts_with("java.")
+        && let Err(placed) = read_again()
+    {
+        return placed;
     }
+    e.placed()
 }
 
 /// `SpecParser.lambdaJson(text, sourceInformation)`: a lambda at the engine's dialect (`parseLambda`), emitted as
@@ -338,7 +367,13 @@ fn emitter_refusal(e: JavaError, parsed: &PmcdParserParsed) -> JavaError {
 /// caller's thread, which needs a big stack ([`PARSE_STACK`]).
 pub fn lambda_json(text: &[u16], spans: bool) -> Answer<Vec<u16>> {
     let lam = lambda(text)?;
-    let json = crate::emitter::emit_lambda(&lam).map_err(JavaError::placed)?;
+    let json = crate::emitter::emit_lambda(&lam).map_err(|e| {
+        emitter_refusal(e, || {
+            spec_parser::parse_lambda(text, Dialect::LegendEngineJson)
+                .map(|_| ())
+                .map_err(JavaError::placed)
+        })
+    })?;
     Ok(if spans {
         json
     } else {
@@ -410,10 +445,10 @@ fn canonical(written: Answer<String>) -> Vec<u16> {
 
 #[cfg(test)]
 mod refusal_tests {
-    //! The user's ruling 4 of 2026-11-09 (docs/rust-port/PHASE2.md section 6): malformed input the engine refuses is a
-    //! placed `ParseException`, not a raw JDK exception; legend-engine's line and column for each input below were read
-    //! from its own parser (rust/lite-front/PARITY.md, the rows named). The inputs the engine accepts keep their answer
-    //! and come back to the user.
+    //! The user's rulings 4 and 11 to 13 of 2026-11-09 (docs/rust-port/PHASE2.md section 6): malformed input the engine
+    //! refuses is a placed `ParseException`, not a raw JDK exception, at legend-engine's line and column for each input
+    //! below, read from its own parser (rust/lite-front/PARITY.md, the rows named); the inputs ruling 11 names, which
+    //! the engine accepts, are refused all the same; what the rulings left keeps its raw answer.
     use super::*;
     use crate::ustr::u;
 
@@ -445,6 +480,36 @@ mod refusal_tests {
             assert!(pmcd(&units, d, &[]).parsed.is_ok(), "{text}");
         }
         let e = document(&units, true).expect_err(text);
+        assert!(e.is_parse_exception(), "{text}: {e:?}");
+        assert_eq!(e.position, Some(place), "{text}: {e:?}");
+    }
+
+    /// `text` refused at the model door at the engine's dialect and at the `document` door, at `place`; accepted at
+    /// lite's and the platform's dialects (ruling 13).
+    #[track_caller]
+    fn graph_fetch_argument_refused_at(text: &str, place: (i32, i32)) {
+        let units = u(text);
+        for d in [Dialect::LegendLite, Dialect::LegendPlatform] {
+            assert!(pmcd(&units, d, &[]).parsed.is_ok(), "{text}");
+        }
+        for e in [
+            pmcd(&units, Dialect::LegendEngine, &[])
+                .parsed
+                .map(|_| ())
+                .expect_err(text),
+            document(&units, true).map(|_| ()).expect_err(text),
+        ] {
+            assert!(e.is_parse_exception(), "{text}: {e:?}");
+            assert_eq!(e.position, Some(place), "{text}: {e:?}");
+        }
+    }
+
+    /// `text` accepted at the record door, refused at the JSON door at `place` (ruling 12).
+    #[track_caller]
+    fn lambda_json_refused_at(text: &str, place: (i32, i32)) {
+        let units = u(text);
+        assert!(lambda(&units).is_ok(), "{text}");
+        let e = lambda_json(&units, true).expect_err(text);
         assert!(e.is_parse_exception(), "{text}: {e:?}");
         assert_eq!(e.position, Some(place), "{text}: {e:?}");
     }
@@ -626,28 +691,48 @@ mod refusal_tests {
 
     #[test]
     fn a_graph_fetch_argument_is_refused_where_the_engine_refuses_it() {
-        // row 63, at the engine-JSON doors alone: the parser's doors keep their records
-        document_refused_at(
+        // row 63, at the model door at the engine's dialect, the `lambda` door and the two engine-JSON doors
+        graph_fetch_argument_refused_at(
             "function y4::b(): Any[*]\n{\n  #{I {product(2015-10-16){name}}}#;\n}\n",
             (3, 20),
         );
-        document_refused_at(&fun("#{a::B{c(f())}}#"), (3, 13));
-        document_refused_at(&fun("#{a::B{c(a::E)}}#"), (3, 16));
-        document_refused_at(&fun("#{a::B{c($x.y)}}#"), (3, 14));
-        document_refused_at(&fun("#{a::B{c(%10:10)}}#"), (3, 12));
-        document_refused_at(&fun("#{a::B{c(~a)}}#"), (3, 12));
-        document_refused_at(&fun("#{a::B{c(^a::B())}}#"), (3, 12));
-        document_refused_at(&fun("#{a::B{c(1+2)}}#"), (3, 13));
-        document_refused_at(&fun("#{a::B{c([f()])}}#"), (3, 14));
+        graph_fetch_argument_refused_at(&fun("#{a::B{c(f())}}#"), (3, 13));
+        graph_fetch_argument_refused_at(&fun("#{a::B{c(a::E)}}#"), (3, 16));
+        graph_fetch_argument_refused_at(&fun("#{a::B{c($x.y)}}#"), (3, 14));
+        graph_fetch_argument_refused_at(&fun("#{a::B{c(%10:10)}}#"), (3, 12));
+        graph_fetch_argument_refused_at(&fun("#{a::B{c(~a)}}#"), (3, 12));
+        graph_fetch_argument_refused_at(&fun("#{a::B{c(^a::B())}}#"), (3, 12));
+        graph_fetch_argument_refused_at(&fun("#{a::B{c(1+2)}}#"), (3, 13));
+        graph_fetch_argument_refused_at(&fun("#{a::B{c([f()])}}#"), (3, 14));
         // what the engine's walker fails on: its section catch-all
-        document_refused_at(&fun("#{a::B{c(1.5d)}}#"), (1, 1));
-        document_refused_at(&fun("#{a::B{c(-1)}}#"), (1, 1));
-        document_refused_at(
+        graph_fetch_argument_refused_at(&fun("#{a::B{c(1.5d)}}#"), (1, 1));
+        graph_fetch_argument_refused_at(&fun("#{a::B{c(-1)}}#"), (1, 1));
+        graph_fetch_argument_refused_at(
             "Class a::X {}\n###Pure\nfunction a::f():Any[*]\n{\n  #{a::B{c(1.5d)}}#\n}\n",
             (3, 14),
         );
-        let e = lambda_json(&u("|#{a::B{c(1.5d)}}#"), true).expect_err("a decimal");
-        assert!(e.is_parse_exception(), "{e:?}");
+        for (text, place) in [("|#{a::B{c(f())}}#", (1, 12)), ("|#{a::B{c(1.5d)}}#", (1, 11))] {
+            for e in [
+                lambda(&u(text)).map(|_| ()).expect_err(text),
+                lambda_json(&u(text), true).map(|_| ()).expect_err(text),
+            ] {
+                assert!(e.is_parse_exception(), "{text}: {e:?}");
+                assert_eq!(e.position, Some(place), "{text}: {e:?}");
+            }
+        }
+        // the expression doors were not ruled on: what the engine's dialect read there stays
+        assert!(spec(&u("#{a::B{c(f())}}#"), Dialect::LegendEngine).is_ok());
+        assert!(block(&u("#{a::B{c(f())}}#"), Dialect::LegendEngine).is_ok());
+        // a string to the engine: read at the expression level, whatever door the text came through
+        assert!(
+            pmcd(
+                &u(&fun("compileLegendValueSpecification('#{a::B{c(f())}}#')")),
+                Dialect::LegendEngine,
+                &[]
+            )
+            .parsed
+            .is_ok()
+        );
     }
 
     #[test]
@@ -702,6 +787,186 @@ mod refusal_tests {
         expression_refused_at("'''", (1, 3));
     }
 
+    #[test]
+    fn an_impossible_date_with_a_zone_is_refused_at_its_token() {
+        // row 3 (ruling 11): the engine reads the literal as text
+        for t in ["%2023-02-29T10:30+0100", "%2024-02-30T10:00+0500"] {
+            expression_refused_at(t, (1, 1));
+            model_refused_at(&fun(t), (3, 3));
+            let e = lambda(&u(t)).expect_err(t);
+            assert_eq!((e.is_parse_exception(), e.position), (true, Some((1, 1))), "{e:?}");
+        }
+    }
+
+    #[test]
+    fn a_float_past_a_double_is_refused_at_lite_and_the_platform_and_read_at_the_engine() {
+        // rows 7 and 8 (ruling 11): lite's and the platform's dialects alone
+        let refused = |t: &str, place: (i32, i32)| {
+            for d in [Dialect::LegendLite, Dialect::LegendPlatform] {
+                let e = spec(&u(t), d).expect_err(t);
+                assert_eq!((e.is_parse_exception(), e.position), (true, Some(place)), "{t}: {e:?}");
+            }
+            assert!(spec(&u(t), Dialect::LegendEngine).is_ok(), "{t}");
+        };
+        refused("1e999", (1, 1));
+        refused("1.0e999", (1, 1));
+        refused("-1e999", (1, 2));
+        refused("1e999f", (1, 1));
+        refused("1.5e99999999999", (1, 1));
+        refused("1.5e99999999999f", (1, 1));
+    }
+
+    #[test]
+    fn a_point_before_an_empty_exponent_is_refused_at_lite_and_the_platform() {
+        // row 8's rest (ruling 11); at the engine's dialect the JDK's answer stays, as the ruling's list leaves it
+        for (t, class_at_engine) in [
+            ("1.ed", "java.lang.NumberFormatException"),
+            ("1.e+d", "java.lang.NumberFormatException"),
+            ("1.ef", "java.lang.NumberFormatException"),
+        ] {
+            for d in [Dialect::LegendLite, Dialect::LegendPlatform] {
+                let e = spec(&u(t), d).expect_err(t);
+                assert_eq!((e.is_parse_exception(), e.position), (true, Some((1, 3))), "{t}: {e:?}");
+            }
+            assert_eq!(spec(&u(t), Dialect::LegendEngine).expect_err(t).class, class_at_engine);
+        }
+    }
+
+    #[test]
+    fn an_empty_diagram_section_before_another_header_is_refused_at_its_header() {
+        // row 46 (ruling 11)
+        model_refused_at("###Diagram\n###Pure\nClass a::B\n{\n}\n", (1, 1));
+        model_refused_at("Class a::X {}\n###Diagram\n###Mapping\nMapping a::M\n(\n)\n", (2, 1));
+        for accepted in [
+            "###Diagram",
+            "###Diagram\n",
+            "###Diagram\n\n###Pure\nClass a::B\n{\n}\n",
+        ] {
+            assert!(
+                pmcd(&u(accepted), Dialect::LegendLite, &[]).parsed.is_ok(),
+                "{accepted}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_json_schema_value_of_the_wrong_kind_is_refused_at_the_section() {
+        // row 50's rest (ruling 11): the engine ignores these or does not visit them
+        for schema in [
+            r#"{"bsonType": "object", "title": 1}"#,
+            r#"{"bsonType": "object", "description": true}"#,
+            r#"{"bsonType": "object", "required": [null]}"#,
+            r#"{"bsonType": "object", "minLength": 99999999999999999999}"#,
+            r#"{"bsonType": "object", "foo": -99999999999999999999}"#,
+            r#"{"bsonType": "object", "properties": {"a": {"bsonType": "string", "title": 1}}}"#,
+            r#"{"bsonType": "object", "properties": {"a": {"bsonType": "string", "minLength": "x"}}}"#,
+            r#"{"bsonType": "object", "properties": {"a": {"bsonType": "object", "required": [1]}}}"#,
+        ] {
+            model_refused_at(&mongo(schema), (2, 8));
+        }
+    }
+
+    #[test]
+    fn a_local_property_under_an_aggregation_aware_main_mapping_is_refused_at_it() {
+        // row 72 (ruling 11), at the `document` door: the records have a place for it
+        let aggregation = "###Mapping\nMapping a::M\n(\n  a::P[x]: AggregationAware\n  {\n    Views: [\n      (\n        ~modelOperation: {\n          ~canAggregate true,\n          ~groupByFunctions ($this.id),\n          ~aggregateValues (\n            ( ~mapFn:$this.p , ~aggregateFn: $mapped->sum() )\n          )\n        },\n        ~aggregateMapping: Pure\n        {\n          ~src a::S\n          p: $src.p\n        }\n      )\n    ],\n    ~mainMapping: Pure\n    {\n      ~src a::P\n      +loc: String[1]: $src.x\n    }\n  }\n)\n";
+        document_refused_at(aggregation, (25, 8));
+    }
+
+    #[test]
+    fn a_default_platform_with_a_body_is_refused_at_its_word() {
+        // row 73's rest (ruling 11), at the `document` door
+        let platform = |p: &str| {
+            format!("###Persistence\nPersistenceContext a::C\n{{\n  persistence: a::P;\n  platform: {p};\n}}\n")
+        };
+        document_refused_at(&platform("Default #{ x: 1; }#"), (5, 13));
+        document_refused_at(&platform("Default\n  #{\n    x: 1;\n  }#"), (5, 13));
+        assert!(document(&u(&platform("Default")), true).is_ok());
+    }
+
+    #[test]
+    fn a_positional_cast_is_refused_where_the_engine_refuses_it() {
+        // row 69 (ruling 12), at the two engine-JSON doors
+        lambda_json_refused_at("|^a::B($x)", (1, 8));
+        lambda_json_refused_at("|^a::B( $x)", (1, 9));
+        lambda_json_refused_at("|^a::B(\n  $x)", (2, 3));
+        lambda_json_refused_at("|^a::B([1,2])", (1, 8));
+        lambda_json_refused_at("|^a::B(-$x)", (1, 9));
+        // a literal is the type's variable values: the engine wants the properties after the group
+        lambda_json_refused_at("|^a::B(1)", (2, 1));
+        lambda_json_refused_at("|^a::B(1)\n", (3, 1));
+        lambda_json_refused_at("|\n^a::B(1)\n\n", (5, 1));
+        lambda_json_refused_at("|^a::B(-1)", (2, 1));
+        lambda_json_refused_at("|^a::B(1)->g()", (1, 10));
+        lambda_json_refused_at("|^a::B(1 + 2)", (1, 10));
+        lambda_json_refused_at("|f(^a::B(1), 2)", (1, 12));
+        document_refused_at(&fun("^a::B($x)"), (3, 9));
+        document_refused_at(&fun("^a::B(1)"), (4, 1));
+        document_refused_at("function a::f():Any[*]\n{\n  ^a::B(1)\n\n  ->g()\n}\n", (5, 3));
+        document_refused_at(
+            "Class a::X {}\n###Pure\nfunction a::f():Any[*]\n{\n  ^a::B($x)\n}\n",
+            (5, 9),
+        );
+    }
+
+    #[test]
+    fn a_wildcard_relation_column_is_refused_where_the_engine_refuses_it() {
+        // row 69 (ruling 12)
+        lambda_json_refused_at("|@(a:?)", (1, 6));
+        lambda_json_refused_at("|@(a : ?)", (1, 8));
+        lambda_json_refused_at("|@(?:Integer)", (1, 4));
+        lambda_json_refused_at("|@(a:Integer, b:?)", (1, 17));
+        lambda_json_refused_at("|@Relation<(a:?)>", (1, 11));
+        lambda_json_refused_at("|@Relation\n<(a:?)>", (2, 1));
+        document_refused_at(&fun("@(a:?)"), (3, 7));
+        assert!(lambda_json(&u("|@(a:Integer)"), true).is_ok());
+        assert!(lambda_json(&u("|@Relation<(a:Integer)>"), true).is_ok());
+    }
+
+    #[test]
+    fn a_multiplicity_parameter_is_the_section_catch_all_s() {
+        // row 70 (ruling 12): an expression has no section, the token
+        document_refused_at("Class a::B\n{\n  p: String[m];\n}\n", (1, 1));
+        document_refused_at("function a::f(x:String[m]):String[1]\n{\n  'a'\n}\n", (1, 1));
+        document_refused_at("Class a::X {}\n###Pure\nClass a::B\n{\n  p: String[m];\n}\n", (3, 14));
+        document_refused_at(
+            "###Mapping\nMapping a::M\n(\n)\n###Pure\nClass a::B\n{\n  p: String[m];\n}\n",
+            (6, 2),
+        );
+        lambda_json_refused_at("x:String[m]|1", (1, 10));
+        lambda_json_refused_at("|@(a:Integer[m])", (1, 14));
+    }
+
+    #[test]
+    fn a_deephaven_activation_configuration_is_refused_at_its_key() {
+        // row 71 (ruling 12)
+        let deephaven = |c: &str| {
+            format!(
+                "###Deephaven\nDeephavenApp a::A\n{{\n  applicationName: 'n';\n  function: a::f():Any[*];\n  ownership: Deployment {{ identifier: 'o' }};\n  {c}\n}}\n"
+            )
+        };
+        document_refused_at(&deephaven("activationConfiguration: a::K;"), (7, 3));
+        document_refused_at(&deephaven("activationConfiguration:\n    a::K;"), (7, 3));
+    }
+
+    #[test]
+    fn a_dated_segments_argument_is_refused_where_the_engine_refuses_it() {
+        // row 81 (ruling 12): a first line's columns shifted by the literal's own column and length, as the engine's
+        // island writes them
+        lambda_json_refused_at("|#/a::B/c($x)#", (1, 23));
+        lambda_json_refused_at("|#/a::B/d/c($x)#", (1, 27));
+        lambda_json_refused_at("|#/a::B/c(1, $x)#", (1, 29));
+        lambda_json_refused_at("|#/a::B/c( $x )#", (1, 26));
+        lambda_json_refused_at("|#/a::B/c([1, $x])#", (1, 32));
+        lambda_json_refused_at("|#/a::B/c(x)#", (1, 23));
+        lambda_json_refused_at("|#/a::B/c(true)#", (1, 29));
+        lambda_json_refused_at("|#/a::B/c(1+2)#", (1, 25));
+        lambda_json_refused_at("|#/a::B/c(1.5d)#", (1, 25));
+        lambda_json_refused_at("|\n\n#/a::B/c($x)#", (3, 22));
+        lambda_json_refused_at("|#/a::B\n/c($x)#", (2, 4));
+        document_refused_at(&fun("#/a::B/c($x)#"), (3, 24));
+    }
+
     #[track_caller]
     fn still_raw(text: &str, class: &str, door_answer: Answer<()>) {
         let e = door_answer.expect_err(text);
@@ -709,51 +974,25 @@ mod refusal_tests {
     }
 
     #[test]
-    fn what_the_engine_accepts_keeps_its_answer_and_comes_back_to_the_user() {
-        // the ruling's carve-out: rows 3, 7, 8 (a part), 46, 50 (a part), 72 and 73 (a part)
-        let m = |t: &str| pmcd(&u(t), Dialect::LegendLite, &[]).parsed.map(|_| ());
-        still_raw(
-            "row 3",
-            "java.time.DateTimeException",
-            spec(&u("%2024-02-30T10:00+0500"), Dialect::LegendEngine).map(|_| ()),
-        );
-        still_raw(
-            "row 7",
-            "java.lang.NumberFormatException",
-            spec(&u("1e999"), Dialect::LegendLite).map(|_| ()),
-        );
+    fn what_the_engine_accepts_and_no_ruling_refuses_keeps_its_answer() {
+        // rulings 11 and 12 leave these: rows 68 and 69's `let`, row 81's numbers, row 8 at the engine's dialect
+        const UNSUPPORTED: &str = "java.lang.UnsupportedOperationException";
+        for t in [
+            "|letFunction(1, 2)",
+            "|let y = %10:10:10",
+            "|let y = @(a:Integer)",
+            "|#/a::B/c(1.5)#",
+            "|#/a::B/c(-1)#",
+            "|#/a::B/c([.5])#",
+            "|#/a::B/c(1.5f)#",
+        ] {
+            assert!(lambda(&u(t)).is_ok(), "{t}");
+            still_raw(t, UNSUPPORTED, lambda_json(&u(t), true).map(|_| ()));
+        }
         still_raw(
             "row 8",
             "java.lang.NumberFormatException",
             spec(&u("1.ed"), Dialect::LegendEngine).map(|_| ()),
-        );
-        still_raw(
-            "row 46",
-            "java.lang.StringIndexOutOfBoundsException",
-            m("###Diagram\n###Pure\nClass a::B\n{\n}\n"),
-        );
-        still_raw(
-            "row 50",
-            "java.lang.ClassCastException",
-            m(&mongo(r#"{"bsonType": "object", "title": 1}"#)),
-        );
-        still_raw(
-            "row 50",
-            "java.lang.NumberFormatException",
-            m(&mongo(r#"{"bsonType": "object", "minLength": 99999999999999999999}"#)),
-        );
-        let aggregation = "###Mapping\nMapping a::M\n(\n  a::P[x]: AggregationAware\n  {\n    Views: [\n      (\n        ~modelOperation: {\n          ~canAggregate true,\n          ~groupByFunctions ($this.id),\n          ~aggregateValues (\n            ( ~mapFn:$this.p , ~aggregateFn: $mapped->sum() )\n          )\n        },\n        ~aggregateMapping: Pure\n        {\n          ~src a::S\n          p: $src.p\n        }\n      )\n    ],\n    ~mainMapping: Pure\n    {\n      ~src a::P\n      +loc: String[1]: $src.x\n    }\n  }\n)\n";
-        still_raw(
-            "row 72",
-            "java.lang.NullPointerException",
-            document(&u(aggregation), true).map(|_| ()),
-        );
-        let platform =
-            "###Persistence\nPersistenceContext a::C\n{\n  persistence: a::P;\n  platform: Default #{ x: 1; }#;\n}\n";
-        still_raw(
-            "row 73",
-            "java.lang.IllegalStateException",
-            document(&u(platform), true).map(|_| ()),
         );
     }
 

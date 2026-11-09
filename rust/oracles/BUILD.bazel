@@ -17,12 +17,11 @@ exports_files(
     visibility = ["//rust:__subpackages__"],
 )
 
-# The front oracle's deliberate differences and the raw answers left for the user (their headers say; ruling 4 of
-# docs/rust-port/PHASE2.md section 6): read by the three front differentials and by //core:front_shim.
+# The front oracle's deliberate differences (its header says; rulings 4, 11 and 13 of docs/rust-port/PHASE2.md section
+# 6): read by the three front differentials and by //core:front_shim.
 exports_files(
     [
         "front/deliberate-differences.tsv",
-        "front/raw-left-for-user.tsv",
     ],
     visibility = [
         "//core:__pkg__",

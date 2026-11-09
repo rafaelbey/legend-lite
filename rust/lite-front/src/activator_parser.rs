@@ -8,7 +8,7 @@
 //! boolean keys, a `function:` pointer keeping its signature's text, the ownership, an activation connection. Java's
 //! answers reproduced, each refusal at Java's position.
 
-use crate::cursor::{Cursor, R, is_identifier_token, once, throw_at, unquote_path_iae};
+use crate::cursor::{Cursor, R, is_identifier_token, once, refused_at, throw_at, unquote_path_iae};
 use crate::jcat;
 use crate::jtypes::JStr;
 use crate::lexer::TokenType;
@@ -84,6 +84,7 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
     let mut seen: HashSet<Vec<u16>> = HashSet::new();
     let hosted = section == "HostedService";
     while !c.at_end() && c.peek() != T::BRACE_CLOSE {
+        let key_tok = c.pos();
         let key = c.parse_identifier()?;
         if !(eq(&kind, "FunctionJar") && eq(&key, "activationConfiguration")) {
             once(&mut seen, &key, c)?;
@@ -143,6 +144,11 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
             }
             linked_put(&mut scalars, JStr(key), JStr(scheme));
         } else if eq(&key, "activationConfiguration") {
+            // the engine's DeephavenApp has no such key (the user's ruling 12 of 2026-11-09,
+            // docs/rust-port/PHASE2.md section 6; PARITY row 71)
+            if eq(&kind, "DeephavenApp") && c.dialect().answers_engine_json() {
+                return Err(refused_at(c.tokens(), key_tok, jcat!("Unexpected token '", key, "'")));
+            }
             let a_s = c.pos();
             act_conn = Some(JStr(unquote_path_iae(&c.parse_qualified_name()?)?));
             if starts_with(&kind, "Snowflake") {

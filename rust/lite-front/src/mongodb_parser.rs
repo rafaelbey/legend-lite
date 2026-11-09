@@ -41,58 +41,41 @@ enum Json {
     Null,
 }
 
-impl Json {
-    fn class(&self) -> &'static str {
-        match self {
-            Json::Map(_) => "java.util.LinkedHashMap",
-            Json::List(_) => "java.util.ArrayList",
-            Json::Str(_) => "java.lang.String",
-            Json::Long(_) => "java.lang.Long",
-            Json::Bool(_) => "java.lang.Boolean",
-            Json::Null => "java.lang.Object",
-        }
-    }
-}
-
 /// `Map.get(key)` over a `LinkedHashMap`'s entries.
 fn get<'a>(m: &'a [(Vec<u16>, Json)], key: &str) -> Option<&'a Json> {
     m.iter().find(|(k, _)| eq(k, key)).map(|(_, v)| v)
 }
 
-/// A checked cast's `ClassCastException`: both classes in `java.base`, of the bootstrap loader.
-fn class_cast(v: &Json, to: &str) -> JavaError {
-    let from = v.class();
-    JavaError::java(
-        "java.lang.ClassCastException",
-        JStr::from(format!(
-            "class {from} cannot be cast to class {to} ({from} and {to} are in module java.base of loader 'bootstrap')"
-        )),
-    )
+/// A schema's value of the wrong JSON kind, in flight to [`judged`]: its message lite's words for it.
+const WRONG_KIND: &str = "lite.front.JsonSchemaKind";
+
+fn wrong_kind(what: &str, kind: &str) -> JavaError {
+    JavaError::of(WRONG_KIND, Some(&format!("a jsonSchema {what} must be {kind}")))
 }
 
-/// `(String) v`.
-fn as_string(v: Option<&Json>) -> R<Option<Vec<u16>>> {
+/// A string value of the schema's `field`.
+fn as_string(v: Option<&Json>, field: &str) -> R<Option<Vec<u16>>> {
     match v {
         None => Ok(None),
         Some(Json::Str(s)) => Ok(Some(s.clone())),
-        Some(other) => Err(class_cast(other, "java.lang.String")),
+        Some(_) => Err(wrong_kind(field, "a string")),
     }
 }
 
-/// `(Long) v`.
-fn as_long(v: Option<&Json>) -> R<Option<i64>> {
+/// An integer value of the schema's `field`.
+fn as_long(v: Option<&Json>, field: &str) -> R<Option<i64>> {
     match v {
         None => Ok(None),
         Some(Json::Long(n)) => Ok(Some(*n)),
-        Some(other) => Err(class_cast(other, "java.lang.Long")),
+        Some(_) => Err(wrong_kind(field, "an integer")),
     }
 }
 
-/// `(Map<?, ?>) v` (never null where Java casts).
+/// A nested schema.
 fn as_map(v: &Json) -> R<&[(Vec<u16>, Json)]> {
     match v {
         Json::Map(m) => Ok(m),
-        other => Err(class_cast(other, "java.util.Map")),
+        _ => Err(wrong_kind("node", "an object")),
     }
 }
 
@@ -193,7 +176,7 @@ fn parse_schema_island<'s>(c: &mut impl Cursor<'s>) -> R<PBsonSchema> {
         return Err(c.error_str("jsonSchema is not a JSON object"));
     };
     if let Some(digits) = past_long {
-        return Err(judged(m, c, JavaError::java("java.lang.NumberFormatException", digits)));
+        return Err(judged(m, c, digits));
     }
     if let Some(root_type) = get(m, "bsonType")
         && !matches!(root_type, Json::Str(s) if eq(s, "object"))
@@ -201,22 +184,19 @@ fn parse_schema_island<'s>(c: &mut impl Cursor<'s>) -> R<PBsonSchema> {
         return Err(c.error_str("jsonSchema root must be an object"));
     }
     schema_of(m, true, c).map_err(|e| {
-        if e.class.starts_with("java.") {
-            judged(m, c, e)
+        if e.class == WRONG_KIND {
+            judged(m, c, e.message.unwrap_or_default())
         } else {
             e
         }
     })
 }
 
-/// A JDK exception `schema_of` raised (PARITY row 50) against what legend-engine's reader does with the same schema: a
-/// refusal where it refuses, placed by its section catch-all; where it accepts, the answer stays (the user's list,
-/// ruling 4 of docs/rust-port/PHASE2.md section 6).
-fn judged<'s>(root: &[(Vec<u16>, Json)], at: &impl Cursor<'s>, raw: JavaError) -> JavaError {
-    match engine_refusal(root) {
-        Some(message) => at.section_refusal(message),
-        None => raw,
-    }
+/// A value of the wrong kind (PARITY row 50), refused at the section's start, where legend-engine's reader answers: its
+/// words where it refuses the schema too; `lite`'s where it accepts it, deliberately stricter (the user's ruling 11 of
+/// 2026-11-09, docs/rust-port/PHASE2.md section 6; register S156).
+fn judged<'s>(root: &[(Vec<u16>, Json)], at: &impl Cursor<'s>, lite: JStr) -> JavaError {
+    at.section_refusal(engine_refusal(root).unwrap_or(lite))
 }
 
 const NOT_A_SCHEMA_NODE: &str = "a jsonSchema node must be an object with a bsonType";
@@ -351,8 +331,8 @@ fn parse_json_value<'s>(c: &mut impl Cursor<'s>, past_long: &mut Option<JStr>) -
     }
 }
 
-/// `Long.valueOf(s)`, its failure (the first one met, as Java's) kept for [`judged`]: the whole schema is read first,
-/// since the engine's verdict on it is the schema's.
+/// `Long.valueOf(s)`, its failure's message (the first one met, as Java's) kept for [`judged`]: the whole schema is read
+/// first, since the engine's verdict on it is the schema's.
 fn long_value_of(s: &[u16], past_long: &mut Option<JStr>) -> i64 {
     parse_long(s).unwrap_or_else(|m| {
         past_long.get_or_insert(m);
@@ -364,7 +344,7 @@ fn long_value_of(s: &[u16], past_long: &mut Option<JStr>) -> i64 {
 /// properties, required names, items, the object flag, title, description and lengths, each read by Java's cast in
 /// Java's order.
 fn schema_of<'s>(m: &[(Vec<u16>, Json)], root: bool, at: &impl Cursor<'s>) -> R<PBsonSchema> {
-    let bson_type = as_string(get(m, "bsonType"))?;
+    let bson_type = as_string(get(m, "bsonType"), "bsonType")?;
     let wire_type = match bson_type.as_deref().map(String::from_utf16_lossy).as_deref() {
         None | Some("object") => {
             if root {
@@ -396,7 +376,7 @@ fn schema_of<'s>(m: &[(Vec<u16>, Json)], root: bool, at: &impl Cursor<'s>) -> R<
         for r in rl {
             match r {
                 Json::Str(s) => required.push(JStr(s.clone())),
-                other => return Err(class_cast(other, "java.lang.String")),
+                _ => return Err(wrong_kind("required element", "a string")),
             }
         }
     }
@@ -413,10 +393,10 @@ fn schema_of<'s>(m: &[(Vec<u16>, Json)], root: bool, at: &impl Cursor<'s>) -> R<
         _ => None,
     };
     let object_node = wire_type == "schema" || wire_type == "objectType";
-    let title = as_string(get(m, "title"))?;
-    let description = as_string(get(m, "description"))?;
-    let min_length = as_long(get(m, "minLength"))?;
-    let max_length = as_long(get(m, "maxLength"))?;
+    let title = as_string(get(m, "title"), "title")?;
+    let description = as_string(get(m, "description"), "description")?;
+    let min_length = as_long(get(m, "minLength"), "minLength")?;
+    let max_length = as_long(get(m, "maxLength"), "maxLength")?;
     Ok(PBsonSchema {
         wire_type: JStr::from(wire_type),
         additional_properties_allowed: object_node && matches!(addl, Some(Json::Bool(true))),

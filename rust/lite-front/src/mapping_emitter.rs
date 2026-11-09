@@ -7,10 +7,12 @@
 //! tests -- and the embedded data values (`###Data` and the test data). Byte for byte Java's, its refusals in Java's
 //! order (`emitter`'s module comment).
 
+use crate::doors::JavaError;
 use crate::emitter::{
     Buf, Em, comma_each, element_ptr, illegal_state, instances_collection, join_ptr, lambda, npe, placeless, pointer,
     rel_op, src_info, str, strs_each, table_ptr, value_spec,
 };
+use crate::jcat;
 use crate::jtypes::{JStr, JValue};
 use crate::records::*;
 
@@ -846,8 +848,21 @@ pub fn aggregation_aware(b: &mut Buf, aa: &PClassMappingAggregationAware) -> Em 
                 b.ch(b',');
             }
             b.a("{\"_type\":\"AggregationAwarePropertyMapping\",\"property\":{\"class\":");
+            // a local property has no owner to write: deliberately stricter than the engine, which reads it (the user's
+            // ruling 11 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 72, register S157)
             let Some(owner) = &pm.owner_class else {
-                return Err(npe(None));
+                return Err(pm.property_source_information.as_deref().map_or(npe(None), |at| {
+                    JavaError::parse(
+                        jcat!(
+                            "the local property '",
+                            pm.property,
+                            "' is not supported in an AggregationAware mapping's Pure ~mainMapping"
+                        ),
+                        at.start_line,
+                        at.start_column,
+                    )
+                    .as_refusal()
+                }));
             };
             str(b, owner);
             b.a(",\"property\":");

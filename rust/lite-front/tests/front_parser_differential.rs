@@ -21,7 +21,7 @@
 #[path = "support/deliberate.rs"]
 mod deliberate;
 
-use deliberate::{Deliberate, is_the_new_answer};
+use deliberate::{Deliberate, is_the_new_answer, raw_answer};
 use lite_front::doors::{Answer, Dialect, answer_form, pmcd_answer_form};
 use lite_front::element_parser::lines_of;
 use lite_front::jtypes::JStr;
@@ -123,7 +123,7 @@ fn differential(door: &str) {
     let mut counts: BTreeMap<String, (usize, usize)> = BTreeMap::new();
     let (mut asked, mut matched, mut listed) = (0usize, 0usize, 0usize);
     let mut differ: Vec<String> = Vec::new();
-    let mut deliberate = Deliberate::load();
+    let deliberate = Deliberate::load();
     let mut wrong: Vec<String> = Vec::new();
     for line in BufReader::new(File::open(env("LITE_FRONT_QUESTIONS")).unwrap()).lines() {
         let line = line.unwrap();
@@ -156,7 +156,7 @@ fn differential(door: &str) {
             };
             let c = counts.entry(format!("{dialect_name} {java_kind}")).or_default();
             c.0 += 1;
-            if let Err(raw) = deliberate.raw_answer(door, &dialect_name, &sha, &form) {
+            if let Err(raw) = raw_answer(door, &dialect_name, &sha, &form) {
                 wrong.push(raw);
             }
             if let Some(expected) = deliberate.expected(door, &dialect_name, &sha) {
@@ -206,11 +206,6 @@ fn differential(door: &str) {
         listed,
         deliberate.listed(door),
         "{door}: every listed question was asked"
-    );
-    let stale = deliberate.stale_left(door);
-    assert!(
-        stale.is_empty(),
-        "{door}: left-for-the-user lines that no longer hold: {stale:?}"
     );
     assert!(
         differ.is_empty(),

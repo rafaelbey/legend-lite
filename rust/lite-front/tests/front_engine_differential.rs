@@ -24,7 +24,7 @@
 #[path = "support/deliberate.rs"]
 mod deliberate;
 
-use deliberate::{Deliberate, is_the_new_answer};
+use deliberate::{Deliberate, is_the_new_answer, raw_answer};
 use lite_front::doors::engine_forms;
 use lite_front::sha256::sha256_utf16le;
 use lite_front::wire;
@@ -67,7 +67,7 @@ fn differential(door: &str) {
     let mut counts: BTreeMap<String, (usize, usize, usize, usize)> = BTreeMap::new();
     let (mut asked, mut matched, mut listed) = (0usize, 0usize, 0usize);
     let mut differ: Vec<String> = Vec::new();
-    let mut deliberate = Deliberate::load();
+    let deliberate = Deliberate::load();
     let mut wrong: Vec<String> = Vec::new();
     for line in BufReader::new(File::open(env("LITE_FRONT_QUESTIONS")).unwrap()).lines() {
         let line = line.unwrap();
@@ -104,7 +104,7 @@ fn differential(door: &str) {
             c.0 += 1;
             c.1 += usize::from(spans_same);
             c.2 += usize::from(bare_same);
-            if let Err(raw) = deliberate.raw_answer(door, "-", &sha, &spans) {
+            if let Err(raw) = raw_answer(door, "-", &sha, &spans) {
                 wrong.push(raw);
             }
             if let Some(expected) = deliberate.expected(door, "-", &sha) {
@@ -169,11 +169,6 @@ fn differential(door: &str) {
         listed,
         deliberate.listed(door),
         "{door}: every listed question was asked"
-    );
-    let stale = deliberate.stale_left(door);
-    assert!(
-        stale.is_empty(),
-        "{door}: left-for-the-user lines that no longer hold: {stale:?}"
     );
     assert!(
         differ.is_empty(),

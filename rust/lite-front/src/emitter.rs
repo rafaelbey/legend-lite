@@ -16,6 +16,7 @@
 
 use crate::doors::JavaError;
 use crate::jtypes::{JStr, JValue};
+use crate::protocol::island_position;
 use crate::records::*;
 use crate::ustr::Part;
 use crate::{connection_emitters, gql_emitter, jcat, mapping_emitter, tail_emitter};
@@ -3069,21 +3070,6 @@ pub(crate) fn island_span(pl: &PathLiteral) -> Option<SourceInfo> {
     })
 }
 
-/// `(line, column)` of island index `i`.
-pub(crate) fn island_position(pl: &PathLiteral, lit: &SourceInfo, i: i32) -> (i32, i32) {
-    let offset = i + 1;
-    let starts = &pl.line_starts;
-    let mut line = 0usize;
-    while line < starts.len() && starts[line] <= offset {
-        line += 1;
-    }
-    if line == 0 {
-        (lit.start_line, lit.start_column + pl.literal_length + i)
-    } else {
-        (lit.start_line + line as i32, offset - starts[line - 1] + 1)
-    }
-}
-
 /// The path value object alone (no classInstance wrapper); persistence graphFetch slots embed it directly.
 pub fn path_value(b: &mut Buf, pl: &PathLiteral) -> Em {
     let outer = island_span(pl);
@@ -3300,95 +3286,9 @@ pub(crate) fn gft_param(b: &mut Buf, p: &ValueSpecification, first_argument: (i3
             });
             variable(b, v, at.as_ref())?;
         }
-        other => return Err(graph_fetch_argument_refusal(other, first_argument)),
+        other => return Err(crate::protocol::graph_fetch_argument_refusal(other, first_argument)),
     }
     Ok(())
-}
-
-const GRAPH_FETCH_ARGUMENT: &str =
-    "a graph-fetch argument must be a literal, an enumeration value, a variable or a collection of them";
-
-/// An argument the engine's grammar has no rule for (PARITY row 63), refused where the engine refuses it: a `-` or a
-/// decimal its walker fails on, so its section catch-all answers; a prefix form at its first token; anything else at
-/// the first token that cannot continue the literal, name or variable it starts with.
-fn graph_fetch_argument_refusal(v: &ValueSpecification, first_argument: (i32, i32)) -> JavaError {
-    use ValueSpecification as V;
-    let message = JStr::from(GRAPH_FETCH_ARGUMENT);
-    let start = node_span(v).map_or(first_argument, |at| {
-        // a column specification's span starts past its `~`
-        let tilde = i32::from(matches!(v, V::ColumnInstance(_)));
-        (at.start_line, at.start_column - tilde)
-    });
-    let refused_at = |(line, column): (i32, i32)| JavaError::parse(message.clone(), line, column).as_refusal();
-    match v {
-        V::CDecimal(_) => JavaError::refused_at_section(message, start),
-        // a sign before a literal; `2015-10-16` is a `minus` over a collection
-        V::AppliedFunction(f)
-            if f.function == "minus" && f.parameters.len() == 1 && !matches!(f.parameters[0], V::PureCollection(_)) =>
-        {
-            JavaError::refused_at_section(message, start)
-        }
-        V::AppliedFunction(f) if f.function == "not" || f.function == "new" => refused_at(start),
-        V::AppliedFunction(_) | V::AppliedProperty(_) | V::PackageableElementPtr(_) | V::EnumValue(_) => {
-            refused_at(first_primary_end(v).map_or(start, |(line, column)| (line, column + 1)))
-        }
-        _ => refused_at(start),
-    }
-}
-
-/// Where the first primary of an expression ends: a left operand's, a receiver's, a call's name.
-fn first_primary_end(v: &ValueSpecification) -> Option<(i32, i32)> {
-    use ValueSpecification as V;
-    match v {
-        V::AppliedFunction(f) => {
-            let at = f.pos.as_deref()?;
-            // an operator's or an arrow's first operand starts no later than the span of its name
-            match f.parameters.first().filter(|p| first_starts_by(p, at)) {
-                Some(first) => first_primary_end(first),
-                None => Some((at.start_line, at.start_column + f.function.0.len() as i32 - 1)),
-            }
-        }
-        V::PureCollection(c) => first_primary_end(c.values.first()?),
-        V::AppliedProperty(p) => first_primary_end(&p.receiver),
-        other => node_span(other).map(|at| (at.end_line, at.end_column)),
-    }
-}
-
-/// Whether an expression starts no later than `at`: a collection carrier by its first element.
-fn first_starts_by(v: &ValueSpecification, at: &SourceInfo) -> bool {
-    use ValueSpecification as V;
-    let span = match v {
-        V::PureCollection(c) => c.values.first().and_then(node_span),
-        other => node_span(other),
-    };
-    span.is_some_and(|s| (s.start_line, s.start_column) <= (at.start_line, at.start_column))
-}
-
-/// A node's span.
-fn node_span(v: &ValueSpecification) -> Option<&SourceInfo> {
-    use ValueSpecification as V;
-    match v {
-        V::AppliedFunction(n) => n.pos.as_deref(),
-        V::AppliedProperty(n) => n.pos.as_deref(),
-        V::CBoolean(n) => n.pos.as_deref(),
-        V::CDate(n) => n.pos.as_deref(),
-        V::CDecimal(n) => n.pos.as_deref(),
-        V::CFloat(n) => n.pos.as_deref(),
-        V::CInteger(n) => n.pos.as_deref(),
-        V::CString(n) => n.pos.as_deref(),
-        V::CTime(n) => n.pos.as_deref(),
-        V::EnumValue(n) => n.pos.as_deref(),
-        V::LambdaFunction(n) => n.pos.as_deref(),
-        V::PackageableElementPtr(n) => n.pos.as_deref(),
-        V::PathLiteral(n) => n.pos.as_deref(),
-        V::PureCollection(n) => n.pos.as_deref(),
-        V::Variable(n) => n.pos.as_deref(),
-        V::ColumnInstance(ColumnInstance::ColSpec(n)) => n.pos.as_deref(),
-        V::ColumnInstance(ColumnInstance::ColSpecArray(n)) => n.pos.as_deref(),
-        V::TypeAnnotation(TypeAnnotation::TypeAnnotationNamed(n)) => n.pos.as_deref(),
-        V::TypeAnnotation(TypeAnnotation::TypeAnnotationRelationShape(n)) => n.pos.as_deref(),
-        _ => None,
-    }
 }
 
 /// A literal's required written form, quoted for the wire.

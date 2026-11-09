@@ -735,6 +735,15 @@ pub trait Cursor<'s> {
                 concrete(lower, Some(lower))
             }
         } else if is_identifier_token(t) {
+            // the engine's walker fails on it, so its section catch-all answers (the user's ruling 12 of 2026-11-09,
+            // docs/rust-port/PHASE2.md section 6; PARITY row 70)
+            if self.dialect().answers_engine_json() {
+                return Err(self.section_refusal(jcat!(
+                    "the multiplicity parameter '",
+                    self.text(),
+                    "' is not supported in Legend Engine"
+                )));
+            }
             let name = JStr::from(self.text());
             self.advance()?;
             Multiplicity::MultiplicityParameter(Box::new(MultiplicityParameter { name }))

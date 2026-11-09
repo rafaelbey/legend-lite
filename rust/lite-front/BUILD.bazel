@@ -46,14 +46,12 @@ rust_test(
     crate_root = "tests/front_lexer_differential.rs",
     data = [
         "//rust/oracles:front/deliberate-differences.tsv",
-        "//rust/oracles:front/raw-left-for-user.tsv",
         "//rust/oracles:front_questions",
         "//rust/oracles:front_tokens",
     ],
     edition = "2024",
     env = {
         "LITE_FRONT_DELIBERATE": "$(rootpath //rust/oracles:front/deliberate-differences.tsv)",
-        "LITE_FRONT_RAW_LEFT": "$(rootpath //rust/oracles:front/raw-left-for-user.tsv)",
         "LITE_FRONT_QUESTIONS": "$(rootpath //rust/oracles:front_questions)",
         "LITE_FRONT_TOKENS": "$(rootpath //rust/oracles:front_tokens)",
     },
@@ -79,7 +77,6 @@ rust_test(
     crate_root = "tests/front_parser_differential.rs",
     data = [
         "//rust/oracles:front/deliberate-differences.tsv",
-        "//rust/oracles:front/raw-left-for-user.tsv",
         "tests/block-floor.txt",
         "tests/lambda-floor.txt",
         "tests/pmcd-floor.txt",
@@ -91,7 +88,6 @@ rust_test(
     env = {
         "LITE_FRONT_ANSWERS": "$(rootpath //rust/oracles:front_answers)",
         "LITE_FRONT_DELIBERATE": "$(rootpath //rust/oracles:front/deliberate-differences.tsv)",
-        "LITE_FRONT_RAW_LEFT": "$(rootpath //rust/oracles:front/raw-left-for-user.tsv)",
         "LITE_FRONT_FLOORS": " ".join([
             "$(rootpath tests/block-floor.txt)",
             "$(rootpath tests/lambda-floor.txt)",
@@ -121,7 +117,6 @@ rust_test(
     crate_root = "tests/front_engine_differential.rs",
     data = [
         "//rust/oracles:front/deliberate-differences.tsv",
-        "//rust/oracles:front/raw-left-for-user.tsv",
         "tests/document-floor.txt",
         "tests/lambdaJson-floor.txt",
         "//rust/oracles:front_engine",
@@ -136,7 +131,6 @@ rust_test(
             "$(rootpath tests/lambdaJson-floor.txt)",
         ]),
         "LITE_FRONT_QUESTIONS": "$(rootpath //rust/oracles:front_questions)",
-        "LITE_FRONT_RAW_LEFT": "$(rootpath //rust/oracles:front/raw-left-for-user.tsv)",
     },
     visibility = ["//gates:__pkg__"],
     deps = [":lite_front"],

@@ -1327,8 +1327,8 @@ enum EntryRef<'a> {
 }
 
 /// A node kind the emitter's tables do not name: the engine's grammar names the kinds too, and refuses the word at the
-/// node's place (PARITY row 73). A platform written with an island is the exception: the engine accepts it, so the
-/// answer stays (the user's list, ruling 4 of docs/rust-port/PHASE2.md section 6).
+/// node's place (PARITY row 73). A platform written with an island is the exception: the door refuses it from its
+/// tokens (`doors::emitter_refusal`, the user's ruling 11 of 2026-11-09, docs/rust-port/PHASE2.md section 6).
 fn unknown_persistence_kind(
     raw: JavaError,
     slot: &[u16],

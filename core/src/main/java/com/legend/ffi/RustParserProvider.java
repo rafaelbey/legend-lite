@@ -193,11 +193,10 @@ public final class RustParserProvider implements RustParsers {
             case "java.lang.UnsupportedOperationException" -> new UnsupportedOperationException(message);
             case "java.lang.IndexOutOfBoundsException" -> new IndexOutOfBoundsException(message);
             case "java.lang.StringIndexOutOfBoundsException" -> new StringIndexOutOfBoundsException(message);
-            // the emitter's (Objects.requireNonNull, its message null in the one-argument form) and the unchecked casts'
-            // the parser and the emitter reproduce where legend-engine accepts the text (rust/lite-front/PARITY.md)
+            // the emitter's guards (Objects.requireNonNull, its message null in the one-argument form; the unchecked casts)
+            // for what no text reaches (rust/lite-front/PARITY.md, "What the rulings left")
             case "java.lang.NullPointerException" -> new NullPointerException(message);
             case "java.lang.ClassCastException" -> new ClassCastException(message);
-            case "java.time.DateTimeException" -> new java.time.DateTimeException(message);
             default -> new IllegalStateException("the Rust parser raised a " + cls + ", which the shim has no class"
                     + " for: " + message);
         };

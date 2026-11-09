@@ -109,7 +109,11 @@ class OwnDialectCensusTest {
                     // platform dialect now reads legend-pure's unit literal
                     // (newUnit(M~u, n)); the engine grammar refuses it, so
                     // the row is extension grammar by definition
-                    java.util.Map.entry("ProbeWireShapes.java", 1),
+                    // 1 -> 2 (2026-11-09, REVIEWED, the user's ruling 13,
+                    // docs/rust-port/PHASE2.md section 6): the instrument's
+                    // probe `#{I {product(2015-10-16){name}}}#`, which the
+                    // engine refuses: LEGEND_ENGINE now refuses it too
+                    java.util.Map.entry("ProbeWireShapes.java", 2),
                     java.util.Map.entry("CleanSheetProtocolShapeTest.java", 6),
                     // 0 -> 1 (2026-09-13, REVIEWED, composition step 1):
                     // the routed-navigate witness's one model

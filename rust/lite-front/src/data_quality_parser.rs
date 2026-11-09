@@ -488,7 +488,7 @@ fn parse_recon_strategy<'s>(c: &mut impl Cursor<'s>) -> R<PReconStrategy> {
     let kind_at = c.pos();
     let kind = c.parse_identifier()?;
     // the engine's grammar names one strategy; the record holds no place for its emitter to refuse at (PARITY row 76)
-    if c.dialect() == crate::doors::Dialect::LegendEngine && !eq(&kind, "MD5Hash") {
+    if c.dialect().refuses_lite_extensions() && !eq(&kind, "MD5Hash") {
         return Err(crate::cursor::refused_at(
             c.tokens(),
             kind_at,

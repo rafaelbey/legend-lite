@@ -293,7 +293,7 @@ fn parse_sections(
         let span = section_span(&ts, &bd.name, bd.header_start, content_end);
         let range = (bd.content_start as isize, content_end);
         let name = String::from_utf16_lossy(&bd.name);
-        let section = if dialect != Dialect::LegendEngine
+        let section = if !dialect.refuses_lite_extensions()
             && !listed(BUILT_IN_SECTIONS, &bd.name)
             && TailGrammar::of(&name).is_none()
         {
@@ -706,13 +706,23 @@ fn section_elements(
 }
 
 /// `diagramElements`' and `diagramImports`' shared head: the raw grammar over the section's content
-/// (`source.substring(r[0], r[1])`, its `StringIndexOutOfBoundsException` when an empty section's end precedes its
-/// start), its first line counted from the source's newlines.
+/// (`source.substring(r[0], r[1])`), its first line counted from the source's newlines. An empty section with another
+/// header after it, whose end precedes its start, is refused at its header: deliberately stricter than the engine,
+/// which reads an empty section (the user's ruling 11 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 46,
+/// register S155).
 fn diagram_parse(
     ts: &TokenStream<'_>,
     r: (isize, isize),
     dialect: Dialect,
 ) -> R<crate::diagram_parser::ParsedDiagrams> {
+    if r.1 < r.0 {
+        return Err(JavaError::parse(
+            JStr::from("an empty ###Diagram section must not be followed by another section"),
+            ts.line_of(r.1 as usize) as i32,
+            1,
+        )
+        .as_refusal());
+    }
     let source = ts.source();
     let nl = u16::from(b'\n');
     let start_line = 1 + source[..r.0 as usize].iter().filter(|&&c| c == nl).count() as i32;
@@ -1103,13 +1113,12 @@ mod tests {
             "the wildcard dropped, each once"
         );
         assert_eq!(index.sections[1].elements, vec![Some(JStr::from("d::D"))]);
-        // an empty section followed by another: its content ends before it starts, and `substring` refuses
-        let empty = parse(&u("###Diagram\n###Pure\nClass A {}\n"), Dialect::LegendEngine).unwrap_err();
-        assert_eq!(empty.class, "java.lang.StringIndexOutOfBoundsException");
-        assert_eq!(
-            empty.message,
-            Some(JStr::from("Range [11, 10) out of bounds for length 30"))
-        );
+        // an empty section followed by another: its content ends before it starts, refused at its header
+        let empty = parse(&u("###Diagram\n###Pure\nClass A {}\n"), Dialect::LegendEngine)
+            .unwrap_err()
+            .placed();
+        assert!(empty.is_parse_exception(), "{empty:?}");
+        assert_eq!(empty.position, Some((1, 1)));
     }
 
     #[test]

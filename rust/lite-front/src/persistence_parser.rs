@@ -13,7 +13,9 @@
 #![allow(clippy::vec_box)]
 
 use crate::connection_parser::parse_island_value;
-use crate::cursor::{Cursor, IslandCursor, R, is_identifier_token, refused_at_eof, throw_at, unquote_path_iae};
+use crate::cursor::{
+    Cursor, IslandCursor, R, is_identifier_token, refused_at, refused_at_eof, throw_at, unquote_path_iae,
+};
 use crate::doors::JavaError;
 use crate::jcat;
 use crate::jtypes::JStr;
@@ -1084,6 +1086,7 @@ fn parse_context<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceContext> {
 /// content, the line after `#{` at the earliest, to one past the `}#`); `AwsGlue`'s `dataProcessingUnits` required and
 /// once, refused where the cloud extension's own parse of the island would place it.
 fn parse_platform<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNode> {
+    let platform_tok = c.pos();
     let kind = c.parse_identifier()?;
     let aws = eq(&kind, "AwsGlue");
     if !eq(&kind, "Default") && !aws {
@@ -1109,6 +1112,15 @@ fn parse_platform<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNode> {
         start_column(c.tokens(), emb_start)? - 1,
     );
     parse_entries(&mut island_cursor(&island, off, c.dialect()), off, &mut entries, None)?;
+    // deliberately stricter than the engine, which reads the body and writes a default platform: the emitter has no wire
+    // for one (the user's ruling 11 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 73, register S158)
+    if !aws && !entries.is_empty() && c.dialect().answers_engine_json() {
+        return Err(refused_at(
+            c.tokens(),
+            platform_tok,
+            JStr::from("Persistence platform 'Default' must not have a body"),
+        ));
+    }
     if aws {
         let (a_line, a_col) = if island.count() > 0 {
             let l = island.start_line(0) as i32;
