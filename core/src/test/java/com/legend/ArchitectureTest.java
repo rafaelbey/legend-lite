@@ -1248,11 +1248,19 @@ final class ArchitectureTest {
                     // a parse ENTRY like the driver (LSP diagnostics,
                     // diagram extraction, runtime->connection resolution)
                     "com.legend.server..")
+            // 2026-11-09 (docs/rust-port/PHASE2.md section 6, ruling 2, this rule widened to PmcdParser): three classes
+            // outside the listed packages are parse entries by role, the only dependents the widened rule found (11
+            // dependencies): door.ModelFromText calls the model door to make the compiler's ParsedModel, and the
+            // generated reader (ffi.FrontReader, FrontRecords) builds the door's result records. Named as classes so
+            // that a new class in either package still trips the rule
+            .and().haveNameNotMatching("com\\.legend\\.(door\\.ModelFromText|ffi\\.Front(Reader|Records))(\\$.*)?")
             // the pinned surface is the kept one since 2026-11-06 (the Rust port's phase 2 step 6b): ElementParser and
             // TokenStreamCursor deleted with the Java parser (MappingGrammarParser and RelationalGrammarParser were
             // gone before); SpecParser, the expression doors over the Rust parser, stays pinned
+            // PmcdParser joins it 2026-11-09 (docs/rust-port/PHASE2.md section 6, ruling 2): both text doors are pinned
+            // to the parse-entry packages, the model door as the expression door
             .should().dependOnClassesThat().haveNameMatching(
-                    "com\\.legend\\.parser\\.SpecParser(\\$.*)?")
+                    "com\\.legend\\.parser\\.(SpecParser|PmcdParser)(\\$.*)?")
             .as("Invariant 6i: grammar parsers/cursors live and die at parse"
               + " time (builtin's bootstrap parse + the driver are the two"
               + " sanctioned exceptions)")

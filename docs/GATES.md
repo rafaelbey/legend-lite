@@ -307,6 +307,10 @@ The dated record of moved pins, rosters and ratchets (the rules: "Recording a mo
 Newest first, at most 20 lines. Seeded from the last entries of the cut log; "D<n>" is the decisions log of the
 landing's program.
 
+- 2026-11-09 — `ArchitectureTest.parseMachineryIsUsedOnlyWhereSanctioned` (6i) pins `PmcdParser` beside `SpecParser`
+  (docs/rust-port/PHASE2.md §6, ruling 2: both text doors pinned to the parse-entry packages), with the three classes
+  outside those packages that are parse entries by role, the only dependents the widened rule found, named:
+  `door.ModelFromText`, `ffi.FrontReader`, `ffi.FrontRecords`. Branch `worktree-rust-port-phase0`.
 - 2026-11-06 — The Rust port deletes the Java lexer and parser (phase 2 step 6b): `ArchitectureTest` retires 7a
   (`lexerDependsOnNothingButTheJdk`) and 6f (`lexerIsPrivateToTheParser`), its lists lose `lexer` and `ide`, 6i pins
   `SpecParser` alone and 7c's surface loses `lexer`; `DialectBoundaryTest.DATABASE_NAME_DECISIONS` empties (the
