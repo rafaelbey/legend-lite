@@ -877,3 +877,9 @@ keeping `PlatformSurfaceGuardrailTest` and `TextSurgeryPinTest`'s witness-prefix
 
 Ruling 11 covers `1.ed`, `1.e+d`, `1.ef` at every dialect; the brief carrying it out wrongly limited them to lite's and
 the platform's, a mistake corrected with these.
+
+17. **The gap from the engine is measured once before anything more is fixed** (the user, 2026-11-09). Each round of
+    fixes found more differences near the last; the corpus and the mutated texts go through both parsers at the engine's
+    dialect, read-only, counting disagreements on accept/refuse and on place by grammar, and how far to go is ruled on
+    from that number (`docs/rust-port/ENGINE_GAP_2026_11_09.md`). The differences rulings 15 and 16's probes listed as
+    unchanged stay as they are until then.
