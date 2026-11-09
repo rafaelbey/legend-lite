@@ -636,3 +636,36 @@ exists, and the committed oracle after.
    `ModelIndexerTest` and `ModelOrchestratorTest` as ledger rows, or port them onto Rust's tokens.
 4. **The roadmap's gates**: replace "22,725 elements" with the live gates of §1, `//parser-equivalence:parser_parity`
    named whole.
+
+## 6. Rulings at the phase's end (the user, 2026-11-09)
+
+1. **`own_corpus.matched` 3009 → 2943: ratified.** A denominator change: 46 snippets left with the tests step 6b
+   retired; none joined; the parity differences are 0 before and after (6b's entry in §4).
+2. **`ArchitectureTest`'s rule 6i is widened to `PmcdParser`**, so both text doors are pinned to the parse-entry
+   packages.
+3. **The archive of Java's full answers** (`~/.local/legend-lite/oracle-archive/`) **is kept until phase 3 ends**, then
+   ruled on again.
+4. **Bad input never answers a raw JDK exception.** All 21 rows of `rust/lite-front/PARITY.md` where it did (28, 29,
+   35, 50, 55, and 3, 6, 7, 8, 9, 26, 32, 37, 46, 49, 52, 56, 63, 72, 73, 76) become placed parse errors, each matching
+   legend-engine's answer for the same input, read from the engine's parser. A row where the engine accepts the input
+   comes back to the user. The frozen oracle stays Java's: Rust's answers on these questions are listed as deliberate
+   differences, by row.
+5. **The generated reader's strictness is accepted as it stands** (whitespace, extra, missing or out-of-order keys and
+   a bad `\u` escape refused; the depth refusal naming the innermost component; an `int` overflow an
+   `ArithmeticException`), and with it the guard move for `FrontRead.pos` and `depth`.
+6. **`declaration_extents`' narrower lookup is accepted**: a wanted declaration not at a declaration position is
+   refused by name, which fails the generator loudly; the probe is widened if an upstream bump ever hits it.
+7. **The five probes stay in the product library.** Phase 4 redraws the library's exports and can split them off then.
+8. **Accepted as done:** the whole `com.legend.ide` package deleted (one step past §5's ruling 3); `ViewFilterParityTest`,
+   `ParserEquivalence` and `LegendLiteSectionParser` read through Rust; `front_shim` kept as a manual tool; the
+   diagnostics workflow triggered by `rust/lite-front/**`.
+9. **The leftovers are cleaned up before phase 3**: `DocElement` and `DocSection` deleted, comments and `lite-front`'s
+   description that name deleted Java corrected, `cargo fmt`, a stable path for the library written out of the jar, and
+   the reader's two whole-answer `substring` copies removed. (Step 4d's `ustr` wording and `jnum` port were already
+   landed; there is nothing to do for them.)
+10. **Phase 3 starts with two designs for review** -- node identity (TRIAGE's D1) and the shared model context (D5) --
+    and no port code until they are ruled on.
+
+Reported to the user at the phase's end and not ruled on separately: step 5's oracle hash over raw UTF-16 units, its
+unreachable overlay path at the `document` door and its 6 warm-JVM mismatches; 6a's dropped question-hash column; 6b's
+keeping `PlatformSurfaceGuardrailTest` and `TextSurgeryPinTest`'s witness-prefix test.
