@@ -307,6 +307,10 @@ The dated record of moved pins, rosters and ratchets (the rules: "Recording a mo
 Newest first, at most 20 lines. Seeded from the last entries of the cut log; "D<n>" is the decisions log of the
 landing's program.
 
+- 2026-11-09 — `rust/oracles/front/deliberate-differences.tsv` (5 asks: `109b58da`'s `pmcd` at three dialects and `document`,
+  `00dc41c7`'s `document`) and `raw-left-for-user.tsv` (`672e812e`) are new: the front differentials and `//core:front_shim`
+  hold identical + listed == total both ways, and fail on any other `java.*` answer over the frozen questions, which stay
+  Java's; no floor lowered (docs/rust-port/PHASE2.md §6, ruling 4). Commit `f5175c9c3`. Branch `worktree-rust-port-phase0`.
 - 2026-11-09 — `wasm/round_trip.mjs` gains `FROZEN_MODULE_DIFFERS`, one input (`TestProfile.java#52`): the JVM's parser refuses
   it with a placed parse error (docs/rust-port/PHASE2.md §6, ruling 4; PARITY row 9) and the frozen `//wasm:planner`, TeaVM's
   last build of the Java parser, keeps the raw answer. Held both ways; it goes with the Rust wasm32 build. Branch
