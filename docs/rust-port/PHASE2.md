@@ -883,3 +883,9 @@ the platform's, a mistake corrected with these.
     dialect, read-only, counting disagreements on accept/refuse and on place by grammar, and how far to go is ruled on
     from that number (`docs/rust-port/ENGINE_GAP_2026_11_09.md`). The differences rulings 15 and 16's probes listed as
     unchanged stay as they are until then.
+18. **On that number: never looser, plus the end of input** (the user, 2026-11-09). Every input lite accepts and the
+    engine refuses at the engine's dialect becomes a refusal at the engine's place, but where the user has ruled it
+    deliberately looser (S64's TIME columns and their kin). A refusal at the end of input lands at the engine's place,
+    about 17,000 of the 40,000 place differences and the case an editor meets while someone is typing. The inputs on
+    which lite is stricter and the remaining place differences are ledgered by family, not fixed. The measurement is
+    re-run to confirm.
