@@ -24,8 +24,8 @@ pub enum Dialect {
     /// `LEGEND_ENGINE` at the model door and the `lambda` door: held to the engine's grammar for a graph-fetch argument
     /// as well (ruling 13).
     LegendEngineModel,
-    /// `LEGEND_ENGINE` when an engine-JSON door reads a text again to place what the emitter would not write (ruling
-    /// 12; [`emitter_refusal`]).
+    /// `LEGEND_ENGINE` when an engine-JSON door reads a text again to place what the emitter would not write (rulings
+    /// 11 and 12; [`emitter_refusal`]).
     LegendEngineJson,
 }
 
@@ -65,7 +65,7 @@ impl Dialect {
         matches!(self, Dialect::LegendEngineModel | Dialect::LegendEngineJson)
     }
 
-    /// The constructs lite's records carry and legend-engine's grammar refuses are refused (ruling 12).
+    /// The constructs lite's records carry and legend-engine's JSON has no answer for are refused (rulings 11 and 12).
     pub fn answers_engine_json(self) -> bool {
         self == Dialect::LegendEngineJson
     }
@@ -349,10 +349,10 @@ pub fn document_with_overlays(text: &[u16], spans: bool, overlays: &[OverlayGram
     }))
 }
 
-/// The emitter's refusal as an engine-JSON door answers it. A raw refusal of what the engine's grammar refuses (ruling
-/// 12 of docs/rust-port/PHASE2.md section 6; PARITY rows 69, 70, 71, 81) is placed by reading the text again at
+/// The emitter's refusal as an engine-JSON door answers it. A raw refusal the rulings place (11 and 12 of
+/// docs/rust-port/PHASE2.md section 6; PARITY rows 69, 70, 71, 73 and 81) is placed by reading the text again at
 /// [`Dialect::LegendEngineJson`], where the parser has the tokens the records do not keep: what it answers is the door's
-/// answer. A text that reading accepts keeps the emitter's own refusal: the engine accepts it (rows 68 and 69's `let`).
+/// answer. A text that reading accepts keeps the emitter's own refusal: the rulings left it (rows 68, 69's `let`, 74).
 fn emitter_refusal(e: JavaError, read_again: impl FnOnce() -> Answer<()>) -> JavaError {
     if e.class.starts_with("java.")
         && let Err(placed) = read_again()
