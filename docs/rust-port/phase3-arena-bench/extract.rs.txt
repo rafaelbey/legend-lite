@@ -1,0 +1,105 @@
+// Throwaway: the shape of every real parse tree of the front oracle's questions, as text, for the Box / Arc / arena
+// benchmark. One JSON object of the record codec is one node. A tree starts with a line `T`; a node is a line
+// `kind children stringA stringB` in pre-order (the strings by length only).
+use lite_front::doors::{answer_form, Dialect};
+use lite_json::{parse_with_depth, Node, Obj};
+use std::fs::File;
+use std::io::{BufRead, BufReader, BufWriter, Write};
+
+fn kind_of(o: &Obj) -> u32 {
+    let mut h: u32 = 2166136261;
+    for (k, _) in o.iter() {
+        for b in k.bytes() {
+            h = (h ^ b as u32).wrapping_mul(16777619);
+        }
+    }
+    h & 0xffff
+}
+
+fn gather<'a>(v: &'a Node, kids: &mut Vec<&'a Obj>, strs: &mut Vec<usize>) {
+    match v {
+        Node::Obj(o) => kids.push(o),
+        Node::Arr(a) => a.iter().for_each(|x| gather(x, kids, strs)),
+        Node::Str(s) => strs.push(s.encode_utf16().count()),
+        _ => {}
+    }
+}
+
+fn emit(o: &Obj, out: &mut impl Write) -> u64 {
+    let mut kids = Vec::new();
+    let mut strs = Vec::new();
+    for (k, v) in o.iter() {
+        // the type tag is the node's kind, and a source position is a small inline value, not a node
+        if k == "@" || k == "pos" || k == "sourceInformation" {
+            continue;
+        }
+        if let Node::Obj(p) = v {
+            if p.get("startLine").is_some() {
+                continue;
+            }
+        }
+        gather(v, &mut kids, &mut strs);
+    }
+    let a = strs.first().copied().unwrap_or(0);
+    let b: usize = strs.iter().skip(1).sum();
+    writeln!(out, "{} {} {} {}", kind_of(o), kids.len(), a, b).unwrap();
+    1 + kids.iter().map(|k| emit(k, out)).sum::<u64>()
+}
+
+fn tree(answer: &[u16], out: &mut impl Write) -> Option<u64> {
+    if answer.first() != Some(&(b'A' as u16)) {
+        return None;
+    }
+    let json = String::from_utf16_lossy(&answer[2..]);
+    let root = parse_with_depth(&json, 1_000_000).expect("the codec's JSON");
+    writeln!(out, "T").unwrap();
+    match &root {
+        Node::Obj(o) => Some(emit(o, out)),
+        Node::Arr(a) => Some(a.iter().filter_map(|x| if let Node::Obj(o) = x { Some(emit(o, out)) } else { None }).sum()),
+        _ => None,
+    }
+}
+
+fn run() {
+    let args: Vec<String> = std::env::args().collect();
+    let questions = BufReader::new(File::open(&args[1]).unwrap());
+    let mut spec = BufWriter::new(File::create(format!("{}/spec.shapes", args[2])).unwrap());
+    let mut pmcd = BufWriter::new(File::create(format!("{}/pmcd.shapes", args[2])).unwrap());
+    let (mut ns, mut np, mut nodes_s, mut nodes_p) = (0u64, 0u64, 0u64, 0u64);
+    let mut first = true;
+    for line in questions.lines() {
+        let line = line.unwrap();
+        let q = parse_with_depth(&line, 1_000_000).expect("a question");
+        let Node::Obj(q) = q else { panic!("a question is an object") };
+        let text: Vec<u16> = q.str("text").unwrap().encode_utf16().collect();
+        let (mut did_s, mut did_p) = (false, false);
+        for ask in q.arr("asks").unwrap() {
+            let Node::Arr(ask) = ask else { panic!() };
+            let (Node::Str(door), Node::Str(dialect)) = (&ask[0], &ask[1]) else { panic!() };
+            let d = Dialect::from_java(dialect).unwrap();
+            if door == "spec" && !did_s {
+                did_s = true;
+                let a = answer_form("spec", d, &text);
+                if first {
+                    eprintln!("{}", String::from_utf16_lossy(&a[..a.len().min(600)]));
+                    first = false;
+                }
+                if let Some(n) = tree(&a, &mut spec) {
+                    ns += 1;
+                    nodes_s += n;
+                }
+            } else if door == "pmcd" && dialect == "LEGEND_ENGINE" && !did_p {
+                did_p = true;
+                if let Some(n) = tree(&answer_form("pmcd", d, &text), &mut pmcd) {
+                    np += 1;
+                    nodes_p += n;
+                }
+            }
+        }
+    }
+    println!("spec trees {ns} nodes {nodes_s}; pmcd trees {np} nodes {nodes_p}");
+}
+
+fn main() {
+    std::thread::Builder::new().stack_size(4 << 30).spawn(run).unwrap().join().unwrap();
+}

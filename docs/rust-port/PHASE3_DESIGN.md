@@ -1,7 +1,8 @@
 # Rust port — phase 3 design: node identity (D1) and the shared model context (D5)
 
-**Status: a draft for the owner to rule on (2026-11-09). No port code exists.** [`ROADMAP.md`](ROADMAP.md) phase 3
-requires these two designs settled first; [`TRIAGE.md`](TRIAGE.md) names them D1 and D5. §5 is the list of rulings.
+**Status: ruled by the owner on 2026-11-09 (§6). Where §6 differs from a recommendation below, §6 wins; §1.6 says what
+the arena ruling changes. No port code exists.** [`ROADMAP.md`](ROADMAP.md) phase 3 requires these two designs settled
+first; [`TRIAGE.md`](TRIAGE.md) names them D1 and D5.
 
 **Where the numbers come from.** Measured at `91db76618`; `core/src/main/java` is unchanged at `2a20d1cf9`, the tip when
 this was written. `==`, `equals`, map-key sites and field writes were found by a throwaway program over javac's Tree API
@@ -302,6 +303,59 @@ tests:**
 5. **The first measurement.** Port `TypedSpec` and the inliner first and compare allocation count and time against Java on
    the stress corpus, before the resolver and lowering are built on the tree.
 
+### 1.6 The measurement, and what the arena ruling changes
+
+**Measured 2026-11-09**, a throwaway benchmark (sources and full output in
+[`phase3-arena-bench/`](phase3-arena-bench/)): the shape of every real parse tree of the corpus's model documents (23,258
+trees, 4.1 million nodes; a record of the codec is a node, source positions inline; per tree median 36 nodes, largest
+341,872), through one pipeline: build, walk, alias 1 node in 16, six rewrite passes each changing 1 leaf in 8 and handing
+back what did not change, walk again, release.
+
+| | ns per node, whole pipeline | vs warm Java | allocations per node | peak bytes per node |
+|---|---|---|---|---|
+| `Box`, a new tree each pass (what Java's passes do) | 529 | 4.9× | 21.0 | 301 |
+| `Box`, rewriting in place (its best case; not line for line) | 190 | 1.7× | 6.1 | 301 |
+| `Arc` | 285 | 2.6× | 7.3 | 194 |
+| Index arena, one per tree | 84 | 0.8× | 0.15 | 210 |
+| Java 25, warm JIT, default GC | 109 | 1× | – | – |
+
+The gap is the rewrites (`Arc` 789 ms, arena 185 ms) and the release (150 ms, 2 ms); aliasing ties. The largest model:
+`Arc` about 97 ms, arena 29 ms, Java 37 ms; a median one, 10 µs against 3 µs. **Limits:** tree work only, not a whole
+compile, whose share of it is unknown; a synthetic rewrite pattern; macOS's system `malloc`; Java's heap was large enough
+that GC barely ran, and cold start is not represented; another agent's builds ran alongside (the main rows held within
+2%). A hand-written free-list allocator standing in for a fast `malloc` gave noisy results and is not relied on, so how
+much a fast `malloc` would narrow `Arc`'s gap is still open. Only an index arena was measured; the ruled shape is a bump
+arena handing out references, which has the same allocation pattern without bounds checks.
+
+**The ruling: the per-query typed tree goes in a bump arena; the model and the source tree are `Arc` (§1.4); the SQL tree
+stays `Box`.** Nearly all node churn is per query, and no `TypedSpec` lives on the model (§2.1), which is what makes a
+per-query arena possible. Moving to an arena after the port would touch nearly every query-tier signature, so it was
+decided before that code exists, without a spike. What changes from §1.4:
+
+1. **Query-tier nodes are `&'q` references to `Copy` records in the query's arena**: the `TypedSpec` family and the
+   resolver's per-query records (`TypedAggCol`, `ClassSource`, …). Java's `new` is `cx.alloc(record)`, an alias is a plain
+   copy, `==` is `std::ptr::eq`, `.equals` is a derived `==`, so the one-to-one mapping of §1.4 holds. The one thing that is
+   not line for line: a `cx` must be reachable where a node is built (about 1,450 `new Typed*` sites), so static helpers
+   gain a parameter.
+2. **One lifetime, `'q`, on every query-tier type and function.** It is independent of `&mut self`, so a pass can hold nodes
+   while it mutates itself, and the lowering closures are unaffected. (§1.3's `&mut Arena` objection is to an index arena.)
+3. **A node owns no heap.** `alloc<T: Copy>` makes that a compile error rather than a leak: text is `&'q str`, a list is
+   `&'q [T]`, and a Java field holding a `Map` or a `BigDecimal` needs an arena-held form. **Not yet censused**; the first
+   slice does it, and a field that resists is raised, not improvised around.
+4. **`IdMap`/`IdSet` are keyed by address** and need no keep-alive for arena nodes, since the arena outlives them. Still no
+   iteration API.
+5. **`Origin` is an address token, never dereferenced.** So that an address cannot be reused while the query lives, the
+   query context keeps a clone of each `Arc` source node an origin names, as Java's reference does.
+6. **The allocator is hand-written, about 100 lines** (§6): align, bump, grow by chunks; `alloc<T: Copy>`, slices, text. With
+   the FFI handle, the only `unsafe`, in one module; the rest of the crates can `forbid(unsafe_code)`.
+7. **The query handle holds its arena and roots.** `'q` is erased in one place at the FFI boundary and re-borrowed per call.
+   The arena is `Send`, not `Sync`: one call at a time per query handle, which `resultType` then `plan` already is.
+8. **Costs and gains that follow.** A failed overload candidate's nodes stay until the query ends (memory only), and every
+   pass's garbage does too (peak bytes above). Releasing a typed tree is one free, so the deep-chain drop hazard of §1.4
+   applies only to the `Arc` tiers.
+
+The measurement of §1.5 item 5 stays, against Java, as a check on the whole; it no longer chooses the mechanism.
+
 ## 2. D5: the shared model context
 
 ### 2.1 Measured
@@ -521,3 +575,22 @@ Each with my recommendation first.
 11. **Make the identity hit-count oracle before Java is deleted. Yes.** It cannot be made afterward.
 12. **Split `lite-core` along `tools/deps/core-layers.txt`, so F-cannot-trigger-G is a compile error. Yes.** The roadmap names one.
 13. **A short separate design for the `driver`/`judge` shim, before G½ and H are ported. Yes.** It could affect question 1.
+
+## 6. Rulings (the owner, 2026-11-09)
+
+1. **Identity (questions 1 and 3).** The per-query typed tree goes in a bump arena from the first line, without a spike
+   (§1.6). The model and the source tree are `Arc`, list fields `Arc<[T]>`, behind the `identity` module of §1.4; the
+   `ValueSpecification` family flips from `Box` to `Arc` in the `lite-front` generator once the parser work has landed.
+   Question 2 falls away: no node carries a stored id.
+2. **The arena's allocator is hand-written, about 100 lines**, over `Copy` records; no crates.io dependency.
+3. **The SQL tree stays `Box` with `Rw` (question 4), measured in the first lowering slice. `whereZones` does not survive
+   as a side table (question 5, not as recommended): lowering carries the zones with the WHERE**, so a miss cannot happen
+   and the silent fallback goes (AGENTS.md invariant 4).
+4. **D5 as recommended (questions 6, 7, 9):** a frozen `Arc<Model>`; Knowledge eager at freeze; element memos lazy in
+   `OnceLock` cells; open-key memos in a mutex-guarded map computed outside the lock; per-query state owned by the query;
+   `SystemDatabase` stays in Java on the shim's model object.
+5. **The per-model one-at-a-time rule is dropped in Rust (question 8)**, with the new stress test (N threads, one model,
+   every answer byte-equal to the single-threaded run) as a gate.
+6. **Questions 10 to 13 as recommended:** two handle kinds with a live-handle count as a gate (the query handle holding
+   its arena); the identity hit-count oracle made before Java is deleted; `lite-core` split along
+   `tools/deps/core-layers.txt`; a short separate design for the `driver`/`judge` shim before G½ and H are ported.

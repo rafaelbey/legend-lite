@@ -1,0 +1,610 @@
+// Throwaway: Box vs Arc vs an index arena on the shape of real parse trees. One node per record of the codec.
+// Per strategy, over the corpus in chunks of trees: build; walk; alias 1 node in 16 (a Java reference held twice);
+// six rewrite passes that each change 1 leaf in 8, handing back what did not change; walk again; release.
+// args: <shapes file> <rounds>
+use std::hint::black_box;
+use std::sync::Arc;
+use std::time::Instant;
+
+#[cfg(feature = "shared_str")]
+type S = Arc<str>;
+#[cfg(not(feature = "shared_str"))]
+type S = String;
+
+const CHUNK: usize = if cfg!(feature = "count") { 1 } else { 64 };
+const PASSES: u32 = 6;
+
+#[cfg(feature = "count")]
+mod counting {
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+    pub static ALLOCS: AtomicU64 = AtomicU64::new(0);
+    pub static LIVE: AtomicU64 = AtomicU64::new(0);
+    pub static PEAK: AtomicU64 = AtomicU64::new(0);
+    pub struct Counting;
+    fn add(n: u64) {
+        let l = LIVE.fetch_add(n, Relaxed) + n;
+        PEAK.fetch_max(l, Relaxed);
+    }
+    unsafe impl GlobalAlloc for Counting {
+        unsafe fn alloc(&self, l: Layout) -> *mut u8 {
+            ALLOCS.fetch_add(1, Relaxed);
+            add(l.size() as u64);
+            unsafe { System.alloc(l) }
+        }
+        unsafe fn dealloc(&self, p: *mut u8, l: Layout) {
+            LIVE.fetch_sub(l.size() as u64, Relaxed);
+            unsafe { System.dealloc(p, l) }
+        }
+        unsafe fn realloc(&self, p: *mut u8, l: Layout, n: usize) -> *mut u8 {
+            ALLOCS.fetch_add(1, Relaxed);
+            LIVE.fetch_sub(l.size() as u64, Relaxed);
+            add(n as u64);
+            unsafe { System.realloc(p, l, n) }
+        }
+    }
+    #[global_allocator]
+    static A: Counting = Counting;
+}
+
+// A minimal size-class free-list allocator: what a fast malloc (mimalloc, jemalloc) does on its single-threaded path,
+// standing in for one without a download. Not thread-safe: one thread allocates at a time in this program.
+#[cfg(feature = "fastalloc")]
+mod fast {
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::cell::UnsafeCell;
+    use std::ptr::null_mut;
+    const CLASSES: usize = 64; // 16-byte steps up to 1,024
+    const CHUNK: usize = 1 << 20;
+    struct State {
+        free: [*mut u8; CLASSES],
+        bump: *mut u8,
+        left: usize,
+    }
+    pub struct Fast(UnsafeCell<State>);
+    unsafe impl Sync for Fast {}
+    #[inline]
+    fn class(l: &Layout) -> Option<usize> {
+        (l.size() <= 1024 && l.align() <= 16 && l.size() > 0).then(|| (l.size() - 1) / 16)
+    }
+    unsafe impl GlobalAlloc for Fast {
+        #[inline]
+        unsafe fn alloc(&self, l: Layout) -> *mut u8 {
+            let Some(c) = class(&l) else { return unsafe { System.alloc(l) } };
+            let s = unsafe { &mut *self.0.get() };
+            let p = s.free[c];
+            if !p.is_null() {
+                s.free[c] = unsafe { *(p as *mut *mut u8) };
+                return p;
+            }
+            let size = (c + 1) * 16;
+            if s.left < size {
+                s.bump = unsafe { System.alloc(Layout::from_size_align_unchecked(CHUNK, 16)) };
+                s.left = CHUNK;
+            }
+            let p = s.bump;
+            s.bump = unsafe { p.add(size) };
+            s.left -= size;
+            p
+        }
+        #[inline]
+        unsafe fn dealloc(&self, p: *mut u8, l: Layout) {
+            let Some(c) = class(&l) else { return unsafe { System.dealloc(p, l) } };
+            let s = unsafe { &mut *self.0.get() };
+            unsafe { *(p as *mut *mut u8) = s.free[c] };
+            s.free[c] = p;
+        }
+    }
+    #[global_allocator]
+    static A: Fast = Fast(UnsafeCell::new(State { free: [null_mut(); CLASSES], bump: null_mut(), left: 0 }));
+}
+
+#[derive(Clone, Copy)]
+struct SNode {
+    k: u32,
+    n: u32,
+    a: u32,
+    b: u32,
+}
+
+static BUF: [u8; 65536] = [b'x'; 65536];
+fn text(n: u32) -> &'static str {
+    std::str::from_utf8(&BUF[..(n as usize).min(BUF.len())]).unwrap()
+}
+fn changes(pos0: u32, p: u32) -> bool {
+    pos0.wrapping_add(p) % 8 == 0
+}
+
+trait Strategy {
+    type T;
+    const NAME: &'static str;
+    fn build(s: &[SNode], i: &mut usize, next: &mut u32) -> Self::T;
+    fn walk(t: &Self::T) -> u64;
+    fn alias(t: &Self::T) -> usize;
+    fn pass(t: Self::T, p: u32) -> Self::T;
+}
+
+// ---- Box, a Java reference held twice is a deep copy; a pass that keeps the old tree copies what did not change.
+struct BR {
+    kind: u32,
+    pos: [u32; 4],
+    a: S,
+    b: S,
+    kids: Vec<BN>,
+}
+enum BN {
+    A(Box<BR>),
+    B(Box<BR>),
+    C(Box<BR>),
+}
+impl BN {
+    #[inline]
+    fn rec(&self) -> &BR {
+        match self {
+            BN::A(r) | BN::B(r) | BN::C(r) => r,
+        }
+    }
+    #[inline]
+    fn rec_mut(&mut self) -> &mut BR {
+        match self {
+            BN::A(r) | BN::B(r) | BN::C(r) => r,
+        }
+    }
+    #[inline]
+    fn wrap(r: BR) -> BN {
+        match r.kind % 3 {
+            0 => BN::A(Box::new(r)),
+            1 => BN::B(Box::new(r)),
+            _ => BN::C(Box::new(r)),
+        }
+    }
+    fn deep(&self) -> BN {
+        let r = self.rec();
+        BN::wrap(BR { kind: r.kind, pos: r.pos, a: r.a.clone(), b: r.b.clone(), kids: r.kids.iter().map(BN::deep).collect() })
+    }
+}
+fn b_build(s: &[SNode], i: &mut usize, next: &mut u32) -> BN {
+    let n = s[*i];
+    *i += 1;
+    let id = *next;
+    *next += 1;
+    let mut kids = Vec::with_capacity(n.n as usize);
+    for _ in 0..n.n {
+        kids.push(b_build(s, i, next));
+    }
+    BN::wrap(BR { kind: n.k, pos: [id, n.k, n.a, n.b], a: S::from(text(n.a)), b: S::from(text(n.b)), kids })
+}
+fn b_walk(n: &BN) -> u64 {
+    let r = n.rec();
+    r.kind as u64 + r.pos[1] as u64 + r.a.len() as u64 + r.kids.iter().map(b_walk).sum::<u64>()
+}
+fn b_alias(n: &BN, out: &mut Vec<BN>) {
+    let r = n.rec();
+    if r.pos[0] % 16 == 0 && !r.kids.is_empty() {
+        out.push(n.deep());
+    }
+    r.kids.iter().for_each(|k| b_alias(k, out));
+}
+fn b_keep(n: &BN, p: u32) -> BN {
+    let r = n.rec();
+    let a = if r.kids.is_empty() && changes(r.pos[0], p) { S::from(text(r.a.len() as u32)) } else { r.a.clone() };
+    BN::wrap(BR { kind: r.kind, pos: r.pos, a, b: r.b.clone(), kids: r.kids.iter().map(|k| b_keep(k, p)).collect() })
+}
+fn b_move(n: &mut BN, p: u32) {
+    let r = n.rec_mut();
+    if r.kids.is_empty() {
+        if changes(r.pos[0], p) {
+            r.a = S::from(text(r.a.len() as u32));
+        }
+    } else {
+        r.kids.iter_mut().for_each(|k| b_move(k, p));
+    }
+}
+
+/// `Box`, a pass building a new tree while the old one is alive (what Java's passes do).
+struct BoxKeep;
+impl Strategy for BoxKeep {
+    type T = BN;
+    const NAME: &'static str = "Box, keeps old tree";
+    fn build(s: &[SNode], i: &mut usize, next: &mut u32) -> BN {
+        b_build(s, i, next)
+    }
+    fn walk(t: &BN) -> u64 {
+        b_walk(t)
+    }
+    fn alias(t: &BN) -> usize {
+        let mut v = Vec::new();
+        b_alias(t, &mut v);
+        v.len()
+    }
+    fn pass(t: BN, p: u32) -> BN {
+        b_keep(&t, p)
+    }
+}
+/// `Box`, a pass that consumes its input in place (Box at its best; not how the Java reads).
+struct BoxMove;
+impl Strategy for BoxMove {
+    type T = BN;
+    const NAME: &'static str = "Box, rewrites in place";
+    fn build(s: &[SNode], i: &mut usize, next: &mut u32) -> BN {
+        b_build(s, i, next)
+    }
+    fn walk(t: &BN) -> u64 {
+        b_walk(t)
+    }
+    fn alias(t: &BN) -> usize {
+        let mut v = Vec::new();
+        b_alias(t, &mut v);
+        v.len()
+    }
+    fn pass(mut t: BN, p: u32) -> BN {
+        b_move(&mut t, p);
+        t
+    }
+}
+
+// ---- Arc
+struct AR {
+    kind: u32,
+    pos: [u32; 4],
+    a: S,
+    b: S,
+    kids: Option<Arc<[AN]>>,
+}
+#[derive(Clone)]
+enum AN {
+    A(Arc<AR>),
+    B(Arc<AR>),
+    C(Arc<AR>),
+}
+impl AN {
+    #[inline]
+    fn rec(&self) -> &AR {
+        match self {
+            AN::A(r) | AN::B(r) | AN::C(r) => r,
+        }
+    }
+    #[inline]
+    fn wrap(r: AR) -> AN {
+        match r.kind % 3 {
+            0 => AN::A(Arc::new(r)),
+            1 => AN::B(Arc::new(r)),
+            _ => AN::C(Arc::new(r)),
+        }
+    }
+}
+fn a_build(s: &[SNode], i: &mut usize, next: &mut u32) -> AN {
+    let n = s[*i];
+    *i += 1;
+    let id = *next;
+    *next += 1;
+    let kids: Option<Arc<[AN]>> = if n.n == 0 { None } else { Some((0..n.n).map(|_| a_build(s, i, next)).collect()) };
+    AN::wrap(AR { kind: n.k, pos: [id, n.k, n.a, n.b], a: S::from(text(n.a)), b: S::from(text(n.b)), kids })
+}
+fn a_walk(n: &AN) -> u64 {
+    let r = n.rec();
+    r.kind as u64 + r.pos[1] as u64 + r.a.len() as u64 + r.kids.iter().flat_map(|k| k.iter()).map(a_walk).sum::<u64>()
+}
+fn a_alias(n: &AN, out: &mut Vec<AN>) {
+    let r = n.rec();
+    if let Some(kids) = &r.kids {
+        if r.pos[0] % 16 == 0 {
+            out.push(n.clone());
+        }
+        kids.iter().for_each(|k| a_alias(k, out));
+    }
+}
+fn a_rw(n: &AN, p: u32) -> Option<AN> {
+    let r = n.rec();
+    match &r.kids {
+        None => changes(r.pos[0], p).then(|| {
+            AN::wrap(AR { kind: r.kind, pos: r.pos, a: S::from(text(r.a.len() as u32)), b: r.b.clone(), kids: None })
+        }),
+        Some(kids) => {
+            let mut out: Option<Vec<AN>> = None;
+            for (i, k) in kids.iter().enumerate() {
+                match a_rw(k, p) {
+                    Some(nk) => out
+                        .get_or_insert_with(|| {
+                            let mut v = Vec::with_capacity(kids.len());
+                            v.extend(kids[..i].iter().cloned());
+                            v
+                        })
+                        .push(nk),
+                    None => {
+                        if let Some(v) = &mut out {
+                            v.push(k.clone());
+                        }
+                    }
+                }
+            }
+            out.map(|v| AN::wrap(AR { kind: r.kind, pos: r.pos, a: r.a.clone(), b: r.b.clone(), kids: Some(Arc::from(v)) }))
+        }
+    }
+}
+struct ArcTree;
+impl Strategy for ArcTree {
+    type T = AN;
+    const NAME: &'static str = "Arc";
+    fn build(s: &[SNode], i: &mut usize, next: &mut u32) -> AN {
+        a_build(s, i, next)
+    }
+    fn walk(t: &AN) -> u64 {
+        a_walk(t)
+    }
+    fn alias(t: &AN) -> usize {
+        let mut v = Vec::new();
+        a_alias(t, &mut v);
+        v.len()
+    }
+    fn pass(t: AN, p: u32) -> AN {
+        a_rw(&t, p).unwrap_or(t)
+    }
+}
+
+// ---- an index arena: nodes, child lists and text in three vectors, one arena per tree (a `&mut Arena` to allocate).
+#[derive(Clone, Copy)]
+struct Rec {
+    kind: u32,
+    pos: [u32; 4],
+    a: (u32, u32),
+    b: (u32, u32),
+    kids: (u32, u32),
+}
+struct Arena {
+    nodes: Vec<Rec>,
+    kids: Vec<u32>,
+    text: String,
+    stack: Vec<u32>,
+    root: u32,
+}
+impl Arena {
+    fn intern(&mut self, n: u32) -> (u32, u32) {
+        let s = text(n);
+        let at = self.text.len() as u32;
+        self.text.push_str(s);
+        (at, s.len() as u32)
+    }
+    fn build(&mut self, s: &[SNode], i: &mut usize, next: &mut u32) -> u32 {
+        let n = s[*i];
+        *i += 1;
+        let id = *next;
+        *next += 1;
+        let sp = self.stack.len();
+        for _ in 0..n.n {
+            let k = self.build(s, i, next);
+            self.stack.push(k);
+        }
+        let at = self.kids.len() as u32;
+        self.kids.extend_from_slice(&self.stack[sp..]);
+        self.stack.truncate(sp);
+        let (a, b) = (self.intern(n.a), self.intern(n.b));
+        self.nodes.push(Rec { kind: n.k, pos: [id, n.k, n.a, n.b], a, b, kids: (at, n.n) });
+        (self.nodes.len() - 1) as u32
+    }
+    fn walk(&self, id: u32) -> u64 {
+        let r = &self.nodes[id as usize];
+        let mut s = r.kind as u64 + r.pos[1] as u64 + r.a.1 as u64;
+        for &k in &self.kids[r.kids.0 as usize..(r.kids.0 + r.kids.1) as usize] {
+            s += self.walk(k);
+        }
+        s
+    }
+    fn alias(&self, id: u32, out: &mut Vec<u32>) {
+        let r = &self.nodes[id as usize];
+        if r.pos[0] % 16 == 0 && r.kids.1 > 0 {
+            out.push(id);
+        }
+        for &k in &self.kids[r.kids.0 as usize..(r.kids.0 + r.kids.1) as usize] {
+            self.alias(k, out);
+        }
+    }
+    fn rw(&mut self, id: u32, p: u32) -> u32 {
+        let r = self.nodes[id as usize];
+        if r.kids.1 == 0 {
+            if !changes(r.pos[0], p) {
+                return id;
+            }
+            let a = self.intern(r.a.1);
+            self.nodes.push(Rec { a, ..r });
+            return (self.nodes.len() - 1) as u32;
+        }
+        let sp = self.stack.len();
+        let mut changed = false;
+        for i in 0..r.kids.1 {
+            let k = self.kids[(r.kids.0 + i) as usize];
+            let nk = self.rw(k, p);
+            changed |= nk != k;
+            self.stack.push(nk);
+        }
+        if !changed {
+            self.stack.truncate(sp);
+            return id;
+        }
+        let at = self.kids.len() as u32;
+        self.kids.extend_from_slice(&self.stack[sp..]);
+        self.stack.truncate(sp);
+        self.nodes.push(Rec { kids: (at, r.kids.1), ..r });
+        (self.nodes.len() - 1) as u32
+    }
+}
+struct ArenaTree;
+impl Strategy for ArenaTree {
+    type T = Arena;
+    const NAME: &'static str = "Arena (indexes, one per tree)";
+    fn build(s: &[SNode], i: &mut usize, next: &mut u32) -> Arena {
+        let mut a = Arena { nodes: Vec::new(), kids: Vec::new(), text: String::new(), stack: Vec::new(), root: 0 };
+        a.root = a.build(s, i, next);
+        a
+    }
+    fn walk(t: &Arena) -> u64 {
+        t.walk(t.root)
+    }
+    fn alias(t: &Arena) -> usize {
+        let mut v = Vec::new();
+        t.alias(t.root, &mut v);
+        v.len()
+    }
+    fn pass(mut t: Arena, p: u32) -> Arena {
+        t.root = t.rw(t.root, p);
+        t
+    }
+}
+
+// ---- the driver
+struct Corpus {
+    nodes: Vec<SNode>,
+    trees: Vec<usize>,
+}
+fn load(path: &str) -> Corpus {
+    let text = std::fs::read_to_string(path).unwrap();
+    let mut c = Corpus { nodes: Vec::new(), trees: Vec::new() };
+    for l in text.lines() {
+        if l == "T" {
+            c.trees.push(c.nodes.len());
+            continue;
+        }
+        let mut f = l.split(' ').map(|x| x.parse::<u32>().unwrap());
+        c.nodes.push(SNode { k: f.next().unwrap(), n: f.next().unwrap(), a: f.next().unwrap(), b: f.next().unwrap() });
+    }
+    c
+}
+const OPS: [&str; 6] = ["build", "walk", "alias", "rewrite x6", "walk again", "release"];
+
+#[derive(Default)]
+struct Mem {
+    allocs: u64,
+    peak_sum: u64,
+    peak_max: u64,
+}
+
+fn one_round<X: Strategy>(c: &Corpus, mem: &mut Mem) -> [f64; 6] {
+    let mut t = [0f64; 6];
+    let mut sum = 0u64;
+    let _ = &mem;
+    for chunk in c.trees.chunks(CHUNK) {
+        #[cfg(feature = "count")]
+        let base = {
+            use counting::*;
+            use std::sync::atomic::Ordering::Relaxed;
+            PEAK.store(LIVE.load(Relaxed), Relaxed);
+            (LIVE.load(Relaxed), ALLOCS.load(Relaxed))
+        };
+        let s = Instant::now();
+        let mut built = Vec::with_capacity(chunk.len());
+        for &at in chunk {
+            let (mut i, mut next) = (at, 0u32);
+            built.push(X::build(&c.nodes, &mut i, &mut next));
+        }
+        t[0] += s.elapsed().as_secs_f64();
+        let s = Instant::now();
+        for b in &built {
+            sum += X::walk(b);
+        }
+        t[1] += s.elapsed().as_secs_f64();
+        let s = Instant::now();
+        for b in &built {
+            sum += X::alias(b) as u64;
+        }
+        t[2] += s.elapsed().as_secs_f64();
+        let s = Instant::now();
+        for p in 0..PASSES {
+            built = built.into_iter().map(|b| X::pass(b, p)).collect();
+        }
+        t[3] += s.elapsed().as_secs_f64();
+        let s = Instant::now();
+        for b in &built {
+            sum += X::walk(b);
+        }
+        t[4] += s.elapsed().as_secs_f64();
+        let s = Instant::now();
+        drop(built);
+        t[5] += s.elapsed().as_secs_f64();
+        #[cfg(feature = "count")]
+        {
+            use counting::*;
+            use std::sync::atomic::Ordering::Relaxed;
+            let p = PEAK.load(Relaxed) - base.0;
+            mem.allocs += ALLOCS.load(Relaxed) - base.1;
+            mem.peak_sum += p;
+            mem.peak_max = mem.peak_max.max(p);
+        }
+    }
+    black_box(sum);
+    t
+}
+
+fn median(v: &mut [f64]) -> f64 {
+    v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    v[v.len() / 2]
+}
+
+fn report(name: &str, rounds: &[[f64; 6]], nodes: usize, mem: &Mem) {
+    let mut min = [f64::MAX; 6];
+    for r in rounds {
+        for i in 0..6 {
+            min[i] = min[i].min(r[i]);
+        }
+    }
+    let mut totals: Vec<f64> = rounds.iter().map(|r| r.iter().sum()).collect();
+    let med = median(&mut totals);
+    let mn = totals[0];
+    print!("{name:32}");
+    for m in min {
+        print!(" {:>10.1}", m * 1e3);
+    }
+    println!(" {:>10.1} {:>10.1} {:>8.0}", mn * 1e3, med * 1e3, mn * 1e9 / nodes as f64);
+    if cfg!(feature = "count") {
+        println!(
+            "    allocations per node {:.2}; peak bytes per node {:.0}; largest tree's peak {:.2} MB",
+            mem.allocs as f64 / nodes as f64,
+            mem.peak_sum as f64 / nodes as f64,
+            mem.peak_max as f64 / 1e6
+        );
+    }
+}
+
+fn run() {
+    let args: Vec<String> = std::env::args().collect();
+    let c = load(&args[1]);
+    let rounds: usize = args[2].parse().unwrap();
+    let n = c.nodes.len();
+    let mut sizes: Vec<usize> = c.trees.windows(2).map(|w| w[1] - w[0]).chain([n - c.trees.last().unwrap()]).collect();
+    sizes.sort();
+    println!(
+        "{}: {} trees, {} nodes; per tree median {}, p99 {}, max {}; rounds {}; strings {}",
+        args[1],
+        c.trees.len(),
+        n,
+        sizes[sizes.len() / 2],
+        sizes[sizes.len() * 99 / 100],
+        sizes[sizes.len() - 1],
+        rounds,
+        if cfg!(feature = "shared_str") { "Arc<str> (a clone is a count)" } else { "String (a clone copies)" }
+    );
+    print!("{:32}", "ms over the corpus (min of rounds)");
+    for o in OPS {
+        print!(" {o:>10}");
+    }
+    println!(" {:>10} {:>10} {:>8}", "total min", "total med", "ns/node");
+    let mut r: [Vec<[f64; 6]>; 4] = Default::default();
+    let mut m: [Mem; 4] = Default::default();
+    for round in 0..rounds {
+        for s in 0..4 {
+            match (round + s) % 4 {
+                0 => r[0].push(one_round::<BoxKeep>(&c, &mut m[0])),
+                1 => r[1].push(one_round::<BoxMove>(&c, &mut m[1])),
+                2 => r[2].push(one_round::<ArcTree>(&c, &mut m[2])),
+                _ => r[3].push(one_round::<ArenaTree>(&c, &mut m[3])),
+            }
+        }
+    }
+    report(BoxKeep::NAME, &r[0], n * rounds.max(1) / rounds.max(1), &m[0]);
+    report(BoxMove::NAME, &r[1], n, &m[1]);
+    report(ArcTree::NAME, &r[2], n, &m[2]);
+    report(ArenaTree::NAME, &r[3], n, &m[3]);
+}
+
+fn main() {
+    std::thread::Builder::new().stack_size(4 << 30).spawn(run).unwrap().join().unwrap();
+}

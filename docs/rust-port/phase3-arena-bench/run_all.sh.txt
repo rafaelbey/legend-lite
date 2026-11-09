@@ -1,0 +1,19 @@
+#!/bin/zsh
+# the measurement: timings (min of rounds), then allocations and peak memory, then Java; one after the other
+B=/private/tmp/claude-501/-Users-cocobey73-Projects/2feda7e8-66d0-45e8-a3e5-454aab85befc/scratchpad/arena_bench
+J=/Users/cocobey73/.local/graalvm/bazel-root/f070f5519c087d81641c074960507b6e/execroot/_main/external/rules_java++toolchains+remotejdk25_macos_aarch64/bin/java
+uptime
+for c in pmcd spec; do
+  echo "=== $c, timings"
+  $B/bench_plain $B/$c.shapes ${1:-9}
+  $B/bench_shared_str $B/$c.shapes ${1:-9}
+  echo "=== $c, timings with a fast allocator"
+  $B/bench_fastalloc $B/$c.shapes ${1:-9}
+  $B/bench_shared_str_fastalloc $B/$c.shapes ${1:-9}
+  echo "=== $c, allocations and peak memory"
+  $B/bench_count $B/$c.shapes 1
+  $B/bench_shared_str_count $B/$c.shapes 1
+  echo "=== $c, Java"
+  $J $B/java/Bench.java $B/$c.shapes ${2:-15}
+done
+uptime

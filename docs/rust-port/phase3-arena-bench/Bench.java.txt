@@ -1,0 +1,125 @@
+// Throwaway: the same workload as ../bench on Java's objects (records and lists; a pass hands back what did not change).
+// args: <shapes file> <rounds>
+import java.nio.file.*;
+import java.util.*;
+
+public class Bench {
+    record Rec(int kind, int p0, int p1, int p2, int p3, String a, String b, List<Rec> kids) {}
+
+    static final char[] BUF = new char[65536];
+    static int[][] S;       // k n a b
+    static int[] TREES;
+    static int I, NEXT;
+    static final int CHUNK = 64, PASSES = 6;
+
+    static String text(int n) { return new String(BUF, 0, Math.min(n, BUF.length)); }
+
+    static Rec build() {
+        int[] n = S[I++];
+        int id = NEXT++;
+        List<Rec> kids;
+        if (n[1] == 0) {
+            kids = List.of();
+        } else {
+            Rec[] k = new Rec[n[1]];
+            for (int i = 0; i < k.length; i++) k[i] = build();
+            kids = List.of(k);
+        }
+        return new Rec(n[0], id, n[0], n[2], n[3], text(n[2]), text(n[3]), kids);
+    }
+
+    static long walk(Rec r) {
+        long s = r.kind + r.p1 + r.a.length();
+        for (Rec k : r.kids) s += walk(k);
+        return s;
+    }
+
+    static void alias(Rec r, List<Rec> out) {
+        if (r.p0 % 16 == 0 && !r.kids.isEmpty()) out.add(r);
+        for (Rec k : r.kids) alias(k, out);
+    }
+
+    static Rec pass(Rec r, int p) {
+        if (r.kids.isEmpty()) {
+            if ((r.p0 + p) % 8 != 0) return r;
+            return new Rec(r.kind, r.p0, r.p1, r.p2, r.p3, text(r.a.length()), r.b, r.kids);
+        }
+        Rec[] out = null;
+        int n = r.kids.size();
+        for (int i = 0; i < n; i++) {
+            Rec k = r.kids.get(i);
+            Rec nk = pass(k, p);
+            if (nk != k && out == null) {
+                out = new Rec[n];
+                for (int j = 0; j < i; j++) out[j] = r.kids.get(j);
+            }
+            if (out != null) out[i] = nk;
+        }
+        return out == null ? r : new Rec(r.kind, r.p0, r.p1, r.p2, r.p3, r.a, r.b, List.of(out));
+    }
+
+    static long sink;
+
+    static double[] round() {
+        double[] t = new double[6];
+        long sum = 0;
+        for (int c = 0; c < TREES.length; c += CHUNK) {
+            int end = Math.min(c + CHUNK, TREES.length);
+            Rec[] built = new Rec[end - c];
+            long s = System.nanoTime();
+            for (int i = c; i < end; i++) { I = TREES[i]; NEXT = 0; built[i - c] = build(); }
+            t[0] += System.nanoTime() - s;
+            s = System.nanoTime();
+            for (Rec b : built) sum += walk(b);
+            t[1] += System.nanoTime() - s;
+            s = System.nanoTime();
+            for (Rec b : built) { List<Rec> v = new ArrayList<>(); alias(b, v); sum += v.size(); }
+            t[2] += System.nanoTime() - s;
+            s = System.nanoTime();
+            for (int p = 0; p < PASSES; p++) for (int i = 0; i < built.length; i++) built[i] = pass(built[i], p);
+            t[3] += System.nanoTime() - s;
+            s = System.nanoTime();
+            for (Rec b : built) sum += walk(b);
+            t[4] += System.nanoTime() - s;
+        }
+        sink += sum;
+        return t;
+    }
+
+    static void run(String[] args) throws Exception {
+        Arrays.fill(BUF, 'x');
+        List<int[]> nodes = new ArrayList<>();
+        List<Integer> trees = new ArrayList<>();
+        for (String l : Files.readAllLines(Path.of(args[0]))) {
+            if (l.equals("T")) { trees.add(nodes.size()); continue; }
+            String[] f = l.split(" ");
+            nodes.add(new int[] {Integer.parseInt(f[0]), Integer.parseInt(f[1]), Integer.parseInt(f[2]), Integer.parseInt(f[3])});
+        }
+        S = nodes.toArray(new int[0][]);
+        TREES = trees.stream().mapToInt(x -> x).toArray();
+        int rounds = Integer.parseInt(args[1]);
+        List<double[]> all = new ArrayList<>();
+        for (int r = 0; r < rounds; r++) all.add(round());
+        // warm-up: the first third of the rounds are not reported
+        List<double[]> kept = all.subList(rounds / 3, rounds);
+        double[] min = new double[6];
+        Arrays.fill(min, Double.MAX_VALUE);
+        double[] totals = new double[kept.size()];
+        for (int r = 0; r < kept.size(); r++) {
+            double total = 0;
+            for (int i = 0; i < 6; i++) { min[i] = Math.min(min[i], kept.get(r)[i]); total += kept.get(r)[i]; }
+            totals[r] = total;
+        }
+        Arrays.sort(totals);
+        System.out.printf("%-32s", "Java (records, warm JIT, GC in the ops)");
+        for (double m : min) System.out.printf(" %10.1f", m / 1e6);
+        System.out.printf(" %10.1f %10.1f %8.0f%n", totals[0] / 1e6, totals[totals.length / 2] / 1e6, totals[0] / nodes.size());
+        System.out.println("  first round total ms (cold JIT): " + String.format("%.1f", Arrays.stream(all.get(0)).sum() / 1e6) + "; sink " + sink);
+    }
+
+    public static void main(String[] args) throws Exception {
+        Thread t = new Thread(null, () -> { try { run(args); } catch (Exception e) { throw new RuntimeException(e); } }, "bench", 4L << 30);
+        t.start();
+        t.join();
+    }
+}
