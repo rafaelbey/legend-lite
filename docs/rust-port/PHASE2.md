@@ -815,3 +815,19 @@ keeping `PlatformSurfaceGuardrailTest` and `TextSurgeryPinTest`'s witness-prefix
     accepting it, that comes back to the user.
 14. **The 23 register rows S128 to S150 are ratified as they stand**, the four that differ from the engine past the
     line (PARITY rows 63, 73, 76, 83) included.
+
+**Ruled on what rulings 11 to 13 found (the user, 2026-11-09):**
+
+15. **Row 74 becomes a placed parse error at the engine's place.** Ruling 12 left it unchanged on the premise that no
+    input reaches its raw answer; that premise was wrong (`EqualToJson #{ expected: ['a']; }#` reaches it at the
+    `document` door), and the engine refuses each input.
+16. **Lite is never looser than the engine at its dialect, on the differences the probes found.** Refused at
+    `LEGEND_ENGINE`, the engine-JSON doors and the `lambda` door, at the engine's place: row 63's arguments at `spec` and
+    `block`; the dated path segments `c(a::E.X)`, `c(1,)`, `c(,1)`, `c(%10:10)`; persistence's `platform: Default #{ }#`
+    and `AwsGlue #{ dataProcessingUnits: 1; }#`. `^a::B(1)(x=1)`, which the engine accepts, stays refused, a register row.
+    These refusals move to the engine's exact place (beyond the recommendation, which ledgered them): `^a::B($x, $y)`,
+    `^a::B(1, 2)`, `^a::B('a'+'b')`, and row 63's refusal comes after a later syntax error in its section, as the engine
+    reports them.
+
+Ruling 11 covers `1.ed`, `1.e+d`, `1.ef` at every dialect; the brief carrying it out wrongly limited them to lite's and
+the platform's, a mistake corrected with these.
