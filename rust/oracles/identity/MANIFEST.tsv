@@ -6,7 +6,9 @@
 # A ROW is one question. kind: B the boot layer (one per JVM, identical in all 53), M a model compile, Q a query (a
 # TypedQuery, or one of Compiler's typed passes), L a shared context's lazy model-tier counts. Its key is (kind, model, query,
 # doors, use).
-#   model: t:<sha> a model text, s:<sha> the sources parseSources saw, in order (names and texts, each a NUL apart),
+#   model: t:<sha> a model text, s:<sha> every (name, text) parseSources saw on the thread since the last buildModel or
+#          buildModule, in order and each a NUL apart (the corpus: its sources, then one call per shape file; a parse that
+#          no build follows counts to the next build, so recompute it from that sequence, not from "the model's sources"),
 #          p:<sha> parsed records' toString, protocol:<sha> a client's PureModelContextData's toString, boot; an overlay
 #          of a compiled model (the corpus's runtime and connection) adds +<database type>.
 #   query: t:<sha> the query's text; test:<fqn>, fixture:<fqn>, setup:<fqn>, service:<fqn>/<suite>/<test> the runner's name
