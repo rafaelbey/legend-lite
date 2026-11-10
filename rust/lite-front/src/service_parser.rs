@@ -172,15 +172,8 @@ fn parse_service<'s>(c: &mut impl Cursor<'s>) -> R<PService> {
                 c.expect(T::SEMI_COLON)?;
             }
             "postValidations" => {
-                let mut list = Vec::new();
-                c.expect(T::BRACKET_OPEN)?;
-                while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
-                    list.push(Box::new(parse_post_validation(c)?));
-                    c.list_comma()?;
-                }
-                c.expect(T::BRACKET_CLOSE)?;
-                c.match_tok(T::SEMI_COLON)?;
-                post_validations = Some(list);
+                post_validations = Some(parse_post_validations(c)?);
+                no_semicolon_after_the_list(c)?;
             }
             "documentation" => {
                 documentation = Some(string(c)?);
@@ -203,7 +196,7 @@ fn parse_service<'s>(c: &mut impl Cursor<'s>) -> R<PService> {
             "test" => test = Some(Box::new(parse_legacy_test(c)?)),
             "testSuites" => {
                 test_suites = Some(parse_test_suites(c)?);
-                c.match_tok(T::SEMI_COLON)?;
+                no_semicolon_after_the_list(c)?;
             }
             _ => return Err(c.error(jcat!("unknown key '", key, "' inside Service '", qn, "'"))),
         }
@@ -627,6 +620,29 @@ fn scan_param<'s>(c: &mut impl Cursor<'s>, stops: &[TokenType]) -> R<()> {
 
 /// `parsePostValidation`: `{ description: '..'; params: [..]; assertions: [ id: <lambda>; ... ]; }`, all three
 /// required; an assertion's span (and its lambda's end) through its `;`.
+/// `postValidations: [ {...}, ... ]`, the list.
+pub(crate) fn parse_post_validations<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PPostValidation>>> {
+    let mut list = Vec::new();
+    c.expect(T::BRACKET_OPEN)?;
+    while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
+        list.push(Box::new(parse_post_validation(c)?));
+        c.list_comma()?;
+    }
+    c.expect(T::BRACKET_CLOSE)?;
+    Ok(list)
+}
+
+/// The `;` lite reads after a service's `postValidations` and `testSuites` lists, which the engine's rules end without
+/// (`... BRACKET_CLOSE`): refused at its dialect (the user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6;
+/// register S190), read as optional at lite's and the platform's.
+pub(crate) fn no_semicolon_after_the_list<'s>(c: &mut impl Cursor<'s>) -> R<()> {
+    if c.dialect().refuses_lite_extensions() && !c.at_end() && c.peek() == T::SEMI_COLON {
+        return Err(c.unexpected());
+    }
+    c.match_tok(T::SEMI_COLON)?;
+    Ok(())
+}
+
 fn parse_post_validation<'s>(c: &mut impl Cursor<'s>) -> R<PPostValidation> {
     let e_s = c.pos();
     c.expect(T::BRACE_OPEN)?;
@@ -737,6 +753,10 @@ fn parse_legacy_body<'s>(
                 let mut param_values = Vec::new();
                 while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                     let pv_s = c.pos();
+                    // `testListValueParam | testSingleValueParam` at the engine's dialect (ruling 20, register S191)
+                    if c.dialect().refuses_lite_extensions() {
+                        engines_primitive_value(c, T::BRACKET_CLOSE, true)?;
+                    }
                     scan_param(c, &[T::COMMA, T::BRACKET_CLOSE])?;
                     param_values.push(legacy_param_value(c, pv_s)?);
                     c.list_comma()?;
@@ -778,7 +798,7 @@ fn parse_legacy_body<'s>(
 }
 
 /// `parseTestSuites`: `[ id: { data?; tests }, ... ]` or 4.138's compact `id 'doc'? ( ... )`.
-fn parse_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PServiceTestSuite>>> {
+pub(crate) fn parse_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PServiceTestSuite>>> {
     let mut out = Vec::new();
     c.expect(T::BRACKET_OPEN)?;
     while !c.at_end() && c.peek() != T::BRACKET_CLOSE {
@@ -858,6 +878,112 @@ fn default_assertion_at<'s>(host: &mut impl Cursor<'s>) -> R<PTestAssertion> {
     Ok(v)
 }
 
+/// The engine's `primitiveValue` at the cursor (`STRING | INTEGER | FLOAT | DECIMAL | DATE | BOOLEAN | STRICTTIME`, a sign
+/// and a number, `toBytes('..')`, an enum's `qualifiedName DOT identifier`, or a `[...]` of those; a `%` literal as the
+/// engine's lexer ends it), and the `,` or `close` after it, refused where its grammar stops (the user's ruling 20 of
+/// 2026-11-10, docs/rust-port/PHASE2.md section 6; register S191): a service test's parameter, a legacy test's
+/// (`legacy_list`: or its `list([...])`). A stop at the end of the input is left to lite's own reading, which places it
+/// where the engine does. The cursor is left where it began.
+pub(crate) fn engines_primitive_value<'s, C: Cursor<'s>>(c: &mut C, close: TokenType, legacy_list: bool) -> R<()> {
+    fn atomic<'s, C: Cursor<'s>>(c: &mut C) -> R<()> {
+        match c.peek() {
+            T::DATE | T::STRICTTIME => {
+                if let Some(refused) =
+                    crate::cursor::refused_percent_rest(c.tokens(), c.pos(), crate::cursor::PercentAt::Value)
+                {
+                    return Err(refused);
+                }
+                c.advance()
+            }
+            T::STRING | T::INTEGER | T::FLOAT | T::DECIMAL | T::BOOLEAN | T::TRUE | T::FALSE => c.advance(),
+            T::PLUS | T::MINUS => {
+                c.advance()?;
+                if !matches!(c.peek(), T::INTEGER | T::FLOAT | T::DECIMAL) {
+                    return Err(c.unexpected());
+                }
+                c.advance()
+            }
+            t if is_identifier_token(t) && eq(c.text(), "toBytes") && c.peek_at(1) == T::PAREN_OPEN => {
+                c.advance()?;
+                c.advance()?;
+                if c.peek() != T::STRING {
+                    return Err(c.unexpected());
+                }
+                c.advance()?;
+                if c.peek() != T::PAREN_CLOSE {
+                    return Err(c.unexpected());
+                }
+                c.advance()
+            }
+            t if is_identifier_token(t) => {
+                c.parse_qualified_name()?;
+                if c.peek() != T::DOT {
+                    return Err(c.unexpected());
+                }
+                c.advance()?;
+                if !is_identifier_token(c.peek()) {
+                    return Err(c.unexpected());
+                }
+                c.advance()
+            }
+            _ => Err(c.unexpected()),
+        }
+    }
+    // `open item (COMMA item)* close`, the items optional
+    fn list<'s, C: Cursor<'s>>(c: &mut C, item: fn(&mut C) -> R<()>, close: TokenType) -> R<()> {
+        c.advance()?;
+        if c.peek() != close {
+            loop {
+                item(c)?;
+                if c.peek() != T::COMMA {
+                    break;
+                }
+                c.advance()?;
+            }
+        }
+        if c.peek() != close {
+            return Err(c.unexpected());
+        }
+        c.advance()
+    }
+    fn primitive<'s, C: Cursor<'s>>(c: &mut C) -> R<()> {
+        if c.peek() == T::BRACKET_OPEN {
+            list(c, atomic, T::BRACKET_CLOSE)
+        } else {
+            atomic(c)
+        }
+    }
+    fn value<'s, C: Cursor<'s>>(c: &mut C, close: TokenType, legacy_list: bool) -> R<()> {
+        if legacy_list && c.peek() == T::VALID_STRING && eq(c.text(), "list") && c.peek_at(1) == T::PAREN_OPEN {
+            // `PARAM_GROUP PAREN_OPEN BRACKET_OPEN (primitiveValue (COMMA primitiveValue)*)? BRACKET_CLOSE PAREN_CLOSE`
+            c.advance()?;
+            c.advance()?;
+            if c.peek() != T::BRACKET_OPEN {
+                return Err(c.unexpected());
+            }
+            list(c, primitive, T::BRACKET_CLOSE)?;
+            if c.peek() != T::PAREN_CLOSE {
+                return Err(c.unexpected());
+            }
+            c.advance()?;
+        } else {
+            primitive(c)?;
+        }
+        if !c.at_end() && c.peek() != T::COMMA && c.peek() != close {
+            return Err(c.unexpected());
+        }
+        Ok(())
+    }
+    let start = c.pos();
+    let read = value(c, close, legacy_list);
+    let at_the_end = c.at_end();
+    c.set_pos(start);
+    match read {
+        Err(_) if at_the_end => Ok(()),
+        other => other,
+    }
+}
+
 /// A suite parameter list's values: `name = toBytes('..')` or an expression to the next `,` (depth at most 0) or the
 /// list's own close (`close`, depth below 0).
 fn suite_params<'s>(c: &mut impl Cursor<'s>, close: TokenType) -> R<Vec<Box<PServiceTestSuitePSuiteParam>>> {
@@ -871,6 +997,10 @@ fn suite_params<'s>(c: &mut impl Cursor<'s>, close: TokenType) -> R<Vec<Box<PSer
             continue;
         }
         let vs = c.pos();
+        // `identifier EQUAL primitiveValue` at the engine's dialect (ruling 20, register S191)
+        if c.dialect().refuses_lite_extensions() {
+            engines_primitive_value(c, close, false)?;
+        }
         let mut d = 0i64;
         while !c.at_end() {
             let tk = c.peek();

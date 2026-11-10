@@ -20,6 +20,139 @@ use std::collections::HashSet;
 
 use TokenType as T;
 
+/// A HostedService's `testSuites` by the engine's grammar (`serviceTestSuites` and the rules under it: suites of `data`
+/// and `tests`, a test's `parameters`, `serializationFormat`, `keys` and `asserts`), an island taken whole, refused at the
+/// token where it stops; the cursor past the list (the user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6;
+/// register S190).
+fn engines_hosted_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<()> {
+    fn word<'s>(c: &mut impl Cursor<'s>, w: Option<&str>) -> R<()> {
+        if !is_identifier_token(c.peek()) || w.is_some_and(|w| !eq(c.text(), w)) {
+            return Err(c.unexpected());
+        }
+        c.advance()
+    }
+    fn token<'s>(c: &mut impl Cursor<'s>, t: TokenType) -> R<()> {
+        if c.at_end() || c.peek() != t {
+            return Err(c.unexpected());
+        }
+        c.advance()
+    }
+    // `open (item (COMMA item)*)? close`, the items optional when `empty`
+    fn list<'s, C: Cursor<'s>>(c: &mut C, item: fn(&mut C) -> R<()>, empty: bool) -> R<()> {
+        token(c, T::BRACKET_OPEN)?;
+        if empty && !c.at_end() && c.peek() == T::BRACKET_CLOSE {
+            return c.advance();
+        }
+        loop {
+            item(c)?;
+            if c.at_end() || c.peek() != T::COMMA {
+                break;
+            }
+            c.advance()?;
+        }
+        token(c, T::BRACKET_CLOSE)
+    }
+    // `identifier ISLAND_OPEN (content)*`, the island to its `}#`
+    fn island<'s, C: Cursor<'s>>(c: &mut C) -> R<()> {
+        word(c, None)?;
+        token(c, T::ISLAND_OPEN)?;
+        let mut depth = 0;
+        while !c.at_end() {
+            match c.peek() {
+                T::ISLAND_START => depth += 1,
+                T::ISLAND_END if depth == 0 => return c.advance(),
+                T::ISLAND_END => depth -= 1,
+                _ => {}
+            }
+            c.advance()?;
+        }
+        Err(c.unexpected())
+    }
+    fn connection<'s, C: Cursor<'s>>(c: &mut C) -> R<()> {
+        word(c, None)?;
+        token(c, T::COLON)?;
+        island(c)
+    }
+    fn parameter<'s, C: Cursor<'s>>(c: &mut C) -> R<()> {
+        word(c, None)?;
+        token(c, T::EQUAL)?;
+        crate::service_parser::engines_primitive_value(c, T::BRACKET_CLOSE, false)?;
+        let mut depth = 0i64;
+        while !c.at_end() {
+            match c.peek() {
+                T::COMMA | T::BRACKET_CLOSE if depth == 0 => return Ok(()),
+                T::BRACKET_OPEN | T::PAREN_OPEN => depth += 1,
+                T::BRACKET_CLOSE | T::PAREN_CLOSE => depth -= 1,
+                _ => {}
+            }
+            c.advance()?;
+        }
+        Ok(())
+    }
+    fn string<'s, C: Cursor<'s>>(c: &mut C) -> R<()> {
+        token(c, T::STRING)
+    }
+    fn block<'s, C: Cursor<'s>>(c: &mut C) -> R<()> {
+        word(c, None)?;
+        token(c, T::COLON)?;
+        token(c, T::BRACE_OPEN)?;
+        while !c.at_end() && c.peek() != T::BRACE_CLOSE {
+            if !is_identifier_token(c.peek()) {
+                return Err(c.unexpected());
+            }
+            let key = c.text().to_vec();
+            if eq(&key, "parameters") {
+                c.advance()?;
+                token(c, T::COLON)?;
+                list(c, parameter, true)?;
+            } else if eq(&key, "serializationFormat") {
+                c.advance()?;
+                token(c, T::COLON)?;
+                word(c, None)?;
+                token(c, T::SEMI_COLON)?;
+            } else if eq(&key, "keys") {
+                c.advance()?;
+                token(c, T::COLON)?;
+                list(c, string, false)?;
+                token(c, T::SEMI_COLON)?;
+            } else if eq(&key, "asserts") {
+                c.advance()?;
+                token(c, T::COLON)?;
+                list(c, connection, true)?;
+            } else {
+                return Err(c.unexpected());
+            }
+        }
+        token(c, T::BRACE_CLOSE)
+    }
+    fn suite<'s, C: Cursor<'s>>(c: &mut C) -> R<()> {
+        word(c, None)?;
+        token(c, T::COLON)?;
+        token(c, T::BRACE_OPEN)?;
+        while !c.at_end() && c.peek() != T::BRACE_CLOSE {
+            if is_identifier_token(c.peek()) && eq(c.text(), "data") {
+                c.advance()?;
+                token(c, T::COLON)?;
+                token(c, T::BRACKET_OPEN)?;
+                while !c.at_end() && c.peek() != T::BRACKET_CLOSE {
+                    word(c, Some("connections"))?;
+                    token(c, T::COLON)?;
+                    list(c, connection, true)?;
+                }
+                token(c, T::BRACKET_CLOSE)?;
+            } else if is_identifier_token(c.peek()) && eq(c.text(), "tests") {
+                c.advance()?;
+                token(c, T::COLON)?;
+                list(c, block, true)?;
+            } else {
+                return Err(c.unexpected());
+            }
+        }
+        token(c, T::BRACE_CLOSE)
+    }
+    list(c, suite, true)
+}
+
 /// `STRING_KEYS`.
 const STRING_KEYS: &[&str] = &[
     "applicationName",
@@ -83,6 +216,9 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
     let mut act_conn_span = None;
     let mut seen: HashSet<Vec<u16>> = HashSet::new();
     let hosted = section == "HostedService";
+    // the refusal of a HostedService list the engine's grammar reads and lite skips, behind every refusal lite's own
+    // reading of the element makes (ruling 20)
+    let mut engines_refusal: Option<crate::doors::JavaError> = None;
     while !c.at_end() && c.peek() != T::BRACE_CLOSE {
         let key_tok = c.pos();
         let key = c.parse_identifier()?;
@@ -130,7 +266,8 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
                 c.expect(T::BRACKET_OPEN)?;
                 while c.peek() != T::BRACKET_CLOSE {
                     users.push(JStr(string_value(c)?));
-                    if !c.match_tok(T::COMMA)? {
+                    // `item (COMMA item)*` at the engine's dialect, as ruling 18 holds every comma list (ruling 20, S169)
+                    if !c.match_list_comma()? {
                         break;
                     }
                 }
@@ -164,6 +301,22 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
             c.parse_qualified_name()?;
             c.expect(T::SEMI_COLON)?;
         } else if hosted && (eq(&key, "postValidations") || eq(&key, "testSuites")) {
+            // the engine's HostedService grammar has the Service's rules for both, at its dialect (the user's ruling 20 of
+            // 2026-11-10, docs/rust-port/PHASE2.md section 6; register S190): the post-validations read by the Service's
+            // reader, the test suites by their grammar alone (the engine's walker does not read their islands), each
+            // refused where it stops; the records as they were
+            if c.dialect().refuses_lite_extensions() && engines_refusal.is_none() {
+                let list = c.pos();
+                let read = if eq(&key, "postValidations") {
+                    crate::service_parser::parse_post_validations(c).map(|_| ())
+                } else {
+                    engines_hosted_test_suites(c)
+                };
+                engines_refusal = read
+                    .and_then(|()| crate::service_parser::no_semicolon_after_the_list(c))
+                    .err();
+                c.set_pos(list);
+            }
             c.skip_balanced_block()?;
             c.match_tok(T::SEMI_COLON)?;
             continue;
@@ -173,6 +326,9 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
         c.expect(T::SEMI_COLON)?;
     }
     c.expect(T::BRACE_CLOSE)?;
+    if let Some(refused) = engines_refusal {
+        return Err(refused);
+    }
     let Some((function_path, function_span)) = function else {
         return Err(throw_at(
             c.tokens(),

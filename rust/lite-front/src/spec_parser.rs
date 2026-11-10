@@ -218,6 +218,8 @@ pub struct SpecParser<'t, 's> {
     owing_statement: Option<usize>,
     /// The text is a `lambda` door's: the engine's wrapper writes its closing token on the line below it.
     lambda_text: bool,
+    /// A `~[...]` column spec array is being read (its specs are followed by `,` or `]` in the engine's grammar).
+    in_col_spec_array: bool,
 }
 
 impl<'s> Cursor<'s> for SpecParser<'_, 's> {
@@ -343,6 +345,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             const_strings: vec![HashMap::new()],
             owing_statement: None,
             lambda_text: false,
+            in_col_spec_array: false,
         }
     }
 
@@ -984,6 +987,13 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         let value = &raw[1..];
         let date_pos = self.pos;
+        // the engine's lexer ends the literal sooner: its next token is refused (ruling 20, register S186)
+        if self.dialect.refuses_lite_extensions()
+            && let Some(refused) =
+                crate::cursor::refused_percent_rest(self.tokens, date_pos, crate::cursor::PercentAt::Expression)
+        {
+            return Err(refused);
+        }
         self.pos += 1;
         if self.dialect.refuses_platform_dialect() && value.contains(&ch(b'Z')) {
             return Err(self.error(jcat!("Unexpected token '%", value, "'")));
@@ -1017,6 +1027,13 @@ impl<'t, 's> SpecParser<'t, 's> {
             return Err(self.error_str("malformed time literal: expected leading '%'"));
         }
         let time_pos = self.pos;
+        // the engine's lexer ends the literal sooner: its next token is refused (ruling 20, register S186)
+        if self.dialect.refuses_lite_extensions()
+            && let Some(refused) =
+                crate::cursor::refused_percent_rest(self.tokens, time_pos, crate::cursor::PercentAt::Expression)
+        {
+            return Err(refused);
+        }
         self.pos += 1;
         let value = &raw[1..];
         let parsed = match parse_time(value) {
@@ -2142,6 +2159,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         stereotypes: Vec<Box<PStereotype>>,
         tagged_values: Vec<Box<PTaggedValue>>,
     ) -> R<ColSpec> {
+        let in_array = std::mem::take(&mut self.in_col_spec_array);
         let mut function1: Option<LambdaFunction> = None;
         let mut function2: Option<LambdaFunction> = None;
         if !self.at_end() && self.peek() == T::COLON {
@@ -2165,8 +2183,34 @@ impl<'t, 's> SpecParser<'t, 's> {
                 }
                 self.pos = colon_mark;
             }
+            // a name that starts no lambda (`x|`, `x: T[m]|`) is a type to the engine's `oneColSpec`, and the column spec
+            // ends with it: in a `~[...]` only a `,` or `]` follows it, and no second function does (the user's ruling 20
+            // of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S195)
+            let engines_type = self.dialect.refuses_lite_extensions()
+                && is_identifier_token(self.peek())
+                && !(self.pos + 1 < self.tokens.count() && self.tokens.ty(self.pos + 1) == T::PIPE)
+                && !(self.pos + 1 < self.tokens.count()
+                    && self.tokens.ty(self.pos + 1) == T::COLON
+                    && self.looks_like_typed_lambda_param()?);
+            if engines_type && in_array {
+                let at = self.pos;
+                let read = self.parse_type().and_then(|_| {
+                    if !self.at_end() && self.peek() == T::BRACKET_OPEN {
+                        self.parse_multiplicity().map(|_| ())
+                    } else {
+                        Ok(())
+                    }
+                });
+                if read.is_ok() && !(self.at_end() || matches!(self.peek(), T::COMMA | T::BRACKET_CLOSE)) {
+                    return Err(self.unexpected());
+                }
+                self.pos = at;
+            }
             function1 = Some(self.column_lambda_at_the_engines(colon_mark)?);
             if !self.at_end() && self.peek() == T::COLON {
+                if engines_type {
+                    return Err(self.unexpected());
+                }
                 self.pos += 1;
                 function2 = Some(self.column_lambda_at_the_engines(self.pos)?);
             }
@@ -2301,6 +2345,21 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
     }
 
+    /// A `~[...]` array's specs, each read knowing it is one (`in_col_spec_array`, which its tail takes).
+    fn parse_col_spec_array_items(&mut self, specs: &mut Vec<Box<ColSpec>>) -> R<()> {
+        self.in_col_spec_array = true;
+        specs.push(Box::new(self.parse_one_col_spec()?));
+        while !self.at_end() && self.peek() == T::COMMA {
+            self.pos += 1;
+            if !self.at_end() && self.peek() == T::BRACKET_CLOSE {
+                return Err(self.error_str("trailing comma in ColSpec array"));
+            }
+            self.in_col_spec_array = true;
+            specs.push(Box::new(self.parse_one_col_spec()?));
+        }
+        Ok(())
+    }
+
     fn parse_col_spec_array(&mut self) -> R<ColSpecArray> {
         let open = self.pos;
         self.pos += 1;
@@ -2312,14 +2371,7 @@ impl<'t, 's> SpecParser<'t, 's> {
                 pos: self.span(open, self.pos - 1),
             });
         }
-        specs.push(Box::new(self.parse_one_col_spec()?));
-        while !self.at_end() && self.peek() == T::COMMA {
-            self.pos += 1;
-            if !self.at_end() && self.peek() == T::BRACKET_CLOSE {
-                return Err(self.error_str("trailing comma in ColSpec array"));
-            }
-            specs.push(Box::new(self.parse_one_col_spec()?));
-        }
+        self.parse_col_spec_array_items(&mut specs)?;
         self.expect_msg(T::BRACKET_CLOSE, "expected ']' to close ColSpec array")?;
         Ok(ColSpecArray {
             col_specs: specs,

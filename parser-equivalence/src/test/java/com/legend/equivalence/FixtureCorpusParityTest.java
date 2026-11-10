@@ -33,7 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *       the worse failure direction) and the two quarantined rows
  *       where the ENGINE crashes with an unpositioned NPE and lite
  *       parses cleanly (F23: matching parity would mean reproducing
- *       a crash).</li>
+ *       a crash). Empty since 2026-11-10: the user's rulings 18 and 20
+ *       (docs/rust-port/PHASE2.md section 6) hold the engine's dialect
+ *       to the engine's order and its NPE refusal.</li>
  * </ul>
  */
 class FixtureCorpusParityTest {
@@ -49,13 +51,12 @@ class FixtureCorpusParityTest {
                     // 2026-11-09 (the user's ruling 18, docs/rust-port/PHASE2.md section 6): seven rows left, the
                     // engine's dialect refusing them as the engine does (`%latest`, an import, `~mainMapping`, `~src`,
                     // an `include`, `milestoning` and a view's clauses, out of their place)
-                    "neg-connection-relationalmapper-section-order.pure",
-                    "neg-generation-node-id-after-element.pure",
-                    "neg-mongodbmapping-clause-order.pure",
-                    "neg-persistence-test-field-order.pure",
-                    // engine NPE crashes (lite is RIGHT — F23)
-                    "neg-persistence-graphfetch-keys-identifier.pure",
-                    "neg-persistence-tds-keys-navigation-path.pure");
+                    // 2026-11-10 (the user's ruling 20, docs/rust-port/PHASE2.md section 6): the last six rows left, the
+                    // engine's dialect refusing them as the engine does, at its place: a RelationalMapper's lists, a
+                    // generation node's id and a MongoDB mapping's `~filter` out of their order, a persistence test's
+                    // keys out of theirs (register S183, S185), and the two engine NPE rows (F23), whose arm of a
+                    // service output's value the engine's walker takes by the output's kind (register S184)
+                    );
 
     private static final PureGrammarParser REFEREE =
             PureGrammarParser.newInstance();

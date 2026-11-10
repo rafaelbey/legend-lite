@@ -540,6 +540,11 @@ fn parse_contexts<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDataSpaceConte
                         return Err(throw_at(c.tokens(), vs, JStr::from("Unexpected token")));
                     }
                     let path = trim(&raw_island(c)?).to_vec();
+                    if c.dialect().holds_to_the_engines_walk()
+                        && let Some(words) = engines_invalid_test_data_path(&path)
+                    {
+                        return Err(throw_at(c.tokens(), vs, words).as_refusal());
+                    }
                     test_data = Some(Box::new(PDataSpaceTestData {
                         kind: JStr(kind),
                         path: JStr(path),
@@ -634,6 +639,16 @@ fn parse_executables<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDataSpaceEx
                 "executable" => {
                     let mut e = unquote_path_iae(&c.parse_qualified_name()?)?;
                     if c.peek() == T::PAREN_OPEN {
+                        // the engine's `functionIdentifier` and its `;`, at its dialect (the user's ruling 20 of
+                        // 2026-11-10, docs/rust-port/PHASE2.md section 6; register S189)
+                        if c.dialect().refuses_lite_extensions() {
+                            let signature = c.pos();
+                            c.engine_function_signature()?;
+                            if c.peek() != T::SEMI_COLON {
+                                return Err(c.unexpected());
+                            }
+                            c.set_pos(signature);
+                        }
                         // a function pointer with its signature, kept as written
                         e.extend(raw_to_semicolon(c)?);
                     }
@@ -747,6 +762,29 @@ fn raw_to_semicolon<'s>(c: &mut impl Cursor<'s>) -> R<Vec<u16>> {
     Ok(c.reconstruct_text(bs, c.pos()))
 }
 
+/// What the engine's walker refuses in a data space's `testData` island (`Reference` or `DataspaceTestData`), its text
+/// trimmed and taken whole for a path, at its dialect (the user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section
+/// 6; register S189): no text at all, or a `::`-separated segment that is no identifier (a word of letters, digits, `_`
+/// and `$`, or a quoted one).
+fn engines_invalid_test_data_path(path: &[u16]) -> Option<JStr> {
+    if path.is_empty() {
+        return Some(JStr::from("Path should be provided for DataspaceDataElementReference"));
+    }
+    let word = |c: u16| c < 128 && ((c as u8).is_ascii_alphanumeric() || c == u16::from(b'_') || c == u16::from(b'$'));
+    let quote = u16::from(b'\'');
+    let mut from = 0;
+    loop {
+        let cut = (from..path.len().saturating_sub(1))
+            .find(|&i| path[i] == u16::from(b':') && path[i + 1] == u16::from(b':'));
+        let segment = &path[from..cut.unwrap_or(path.len())];
+        let quoted = segment.len() >= 2 && segment[0] == quote && segment[segment.len() - 1] == quote;
+        if segment.is_empty() || !(quoted || segment.iter().all(|&c| word(c))) {
+            return Some(jcat!("Invalid identifier: ", segment));
+        }
+        from = cut? + 2;
+    }
+}
+
 /// `rawIsland`: one `#{ ... }#` island's raw content, its `}#` expected after the text is taken.
 fn raw_island<'s>(c: &mut impl Cursor<'s>) -> R<Vec<u16>> {
     let (bs, end) = scan_island(c)?;
@@ -773,6 +811,17 @@ pub fn parse_standalone_relation_at<'s>(host: &mut impl Cursor<'s>) -> R<PRelati
         p.advance()?;
         let brace_tok = p.pos;
         let island = p.read_island()?;
+        // the engine's walker reparses the island at the `#{` (ruling 20, register S187)
+        if p.dialect.holds_to_the_engines_walk()
+            && let Some(refused) = crate::mapping_parser::relation_reparse_refusal(
+                host.tokens(),
+                brace_tok,
+                island.content_start,
+                island.content_end,
+            )
+        {
+            return Err(refused);
+        }
         let mut rels = p.parse_relation_elements(&island, false)?;
         if rels.len() != 1 {
             return Err(throw_at(

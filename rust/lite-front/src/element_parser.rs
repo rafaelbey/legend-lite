@@ -406,6 +406,153 @@ impl<'s> ElementCursor<'_, 's> {
         Ok(())
     }
 
+    /// Where a property's default stops at the engine's dialect, by its grammar's `defaultValueExpression`
+    /// (`instanceReference propertyExpression | expressionInstance | instanceLiteralToken | [ ... ]`) and the `;` after it:
+    /// a reference's required `.name`, what follows an element (the user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md
+    /// section 6, register S194). None where it reads to the `;`, or stops at the end of the input, which lite's own
+    /// reading places.
+    fn where_the_engines_default_stops(&self) -> Option<usize> {
+        if !self.dialect.refuses_lite_extensions() {
+            return None;
+        }
+        let ty = |p: usize| (p < self.tokens.count()).then(|| self.tokens.ty(p));
+        // past the group that opens at `p` (its brackets balanced), or the stream's end
+        let past_group = |mut p: usize| {
+            let mut depth = 0i64;
+            while let Some(t) = ty(p) {
+                if opens(t) {
+                    depth += 1;
+                } else if closes(t) {
+                    depth -= 1;
+                    if depth == 0 {
+                        return p + 1;
+                    }
+                }
+                p += 1;
+            }
+            p
+        };
+        fn value(
+            p: usize,
+            ty: &dyn Fn(usize) -> Option<TokenType>,
+            past_group: &dyn Fn(usize) -> usize,
+        ) -> Result<usize, usize> {
+            match ty(p) {
+                Some(T::BRACKET_OPEN) => {
+                    let mut q = p + 1;
+                    if ty(q) != Some(T::BRACKET_CLOSE) {
+                        loop {
+                            q = value(q, ty, past_group)?;
+                            if ty(q) != Some(T::COMMA) {
+                                break;
+                            }
+                            q += 1;
+                        }
+                    }
+                    if ty(q) != Some(T::BRACKET_CLOSE) {
+                        return Err(q);
+                    }
+                    Ok(q + 1)
+                }
+                // `expressionInstance`: `^` a variable or a name, its `<...>` and a name, then its `(...)` (a first one
+                // its type variable values when a second follows): the expression parser reads the inside
+                Some(T::NEW_SYMBOL) => {
+                    let mut q = p + 1;
+                    if ty(q) == Some(T::DOLLAR) {
+                        q += 2;
+                    } else {
+                        q += 1;
+                        while ty(q) == Some(T::PATH_SEPARATOR) && ty(q + 1).is_some_and(is_identifier_token) {
+                            q += 2;
+                        }
+                    }
+                    if ty(q) == Some(T::LESS_THAN) {
+                        let mut depth = 0i64;
+                        loop {
+                            match ty(q) {
+                                None => return Err(q),
+                                Some(T::LESS_THAN) => depth += 1,
+                                Some(T::GREATER_THAN) => depth -= 1,
+                                _ => {}
+                            }
+                            q += 1;
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                    }
+                    if ty(q).is_some_and(is_identifier_token) {
+                        q += 1;
+                    }
+                    if ty(q) != Some(T::PAREN_OPEN) {
+                        return Err(q);
+                    }
+                    q = past_group(q);
+                    if ty(q) == Some(T::PAREN_OPEN) {
+                        q = past_group(q);
+                    }
+                    Ok(q)
+                }
+                Some(
+                    T::STRING
+                    | T::INTEGER
+                    | T::FLOAT
+                    | T::DECIMAL
+                    | T::DATE
+                    | T::STRICTTIME
+                    | T::TRUE
+                    | T::FALSE
+                    | T::BOOLEAN
+                    | T::DOC_STRING,
+                ) => Ok(p + 1),
+                Some(t) if t == T::PATH_SEPARATOR || is_identifier_token(t) => {
+                    // `instanceReference`: `::`, or a qualified name (a unit's `~name` after it), `allOrFunction?`
+                    let mut q = p + 1;
+                    if t != T::PATH_SEPARATOR {
+                        while ty(q) == Some(T::PATH_SEPARATOR) && ty(q + 1).is_some_and(is_identifier_token) {
+                            q += 2;
+                        }
+                        if ty(q) == Some(T::TILDE) && ty(q + 1).is_some_and(is_identifier_token) {
+                            q += 2;
+                        }
+                    }
+                    if ty(q) == Some(T::DOT)
+                        && matches!(ty(q + 1), Some(T::ALL | T::ALL_VERSIONS | T::ALL_VERSIONS_IN_RANGE))
+                        && ty(q + 2) == Some(T::PAREN_OPEN)
+                    {
+                        // `.all()` is the `allOrFunction` when a `.name` follows it, else the `.name` itself
+                        let past = past_group(q + 2);
+                        if ty(past) != Some(T::DOT) {
+                            return Ok(past);
+                        }
+                        q = past;
+                    } else if ty(q) == Some(T::PAREN_OPEN) {
+                        q = past_group(q);
+                    }
+                    // `propertyExpression`, required: `.name` and its arguments, if any
+                    if ty(q) != Some(T::DOT) {
+                        return Err(q);
+                    }
+                    if !ty(q + 1).is_some_and(is_identifier_token) {
+                        return Err(q + 1);
+                    }
+                    q += 2;
+                    if ty(q) == Some(T::PAREN_OPEN) {
+                        q = past_group(q);
+                    }
+                    Ok(q)
+                }
+                _ => Err(p),
+            }
+        }
+        let stop = match value(self.pos, &ty, &past_group) {
+            Ok(end) if ty(end) == Some(T::SEMI_COLON) => return None,
+            Ok(end) => end,
+            Err(at) => at,
+        };
+        (stop < self.tokens.count()).then_some(stop)
+    }
+
     fn parse_derived_property(&mut self) -> R<DerivedPropertyDefinition> {
         let decl_start = self.pos;
         let doc = self.parse_documentation()?;
@@ -1604,11 +1751,39 @@ impl<'s> ElementCursor<'_, 's> {
         self.expect(T::ISLAND_END)?;
         let source = self.tokens.source();
         let (from, to) = (self.tokens.end(open_tok), self.tokens.start(end_tok));
+        // the engine's `RelationElementsData` grammar over the island, as the engine's walk reads it (the user's ruling 20 of
+        // 2026-11-10, docs/rust-port/PHASE2.md section 6; register S187): an assertion's reparsed at the `#{`, test data's
+        // where it stands; behind a later syntax error of the section
+        if self.dialect.holds_to_the_engines_walk() {
+            if assertion_spans {
+                if let Some(refused) = crate::mapping_parser::relation_reparse_refusal(self.tokens, open_tok, from, to)
+                {
+                    return Err(refused);
+                }
+            } else if let Some(at) = crate::mapping_parser::relation_elements_stop(source, from, to) {
+                return Err(crate::doors::JavaError::parse(
+                    JStr::from("Unexpected token"),
+                    self.tokens.line_of(at) as i32,
+                    self.tokens.column_of(at) as i32,
+                )
+                .as_refusal());
+            }
+        }
         let assert_span = if assertion_spans {
             Some(self.island_reparse_span(source, from, to, open_tok))
         } else {
             None
         };
+        // the reading for a later syntax error passes the island by, as the engine's section parse takes it whole
+        // (ruling 20): one block of the whole text, which nothing reads
+        if self.dialect.reads_for_syntax() {
+            return Ok(vec![Box::new(self.relation_block(
+                source,
+                from,
+                to,
+                assert_span.as_ref(),
+            ))]);
+        }
         let mut out = Vec::new();
         let mut block_start = from;
         let mut in_quotes = false;
@@ -1756,6 +1931,7 @@ impl<'s> ElementCursor<'_, 's> {
         if self.match_tok(T::EQUAL)? {
             let def_start = self.pos;
             self.refuse_a_default_the_engines_grammar_has_no_rule_for()?;
+            let engines_stop = self.where_the_engines_default_stops();
             let mut depth = 0i64;
             while !self.at_end() {
                 let t = self.peek();
@@ -1770,6 +1946,10 @@ impl<'s> ElementCursor<'_, 's> {
                 self.advance()?;
             }
             let value = self.slice_spec(def_start, self.pos)?;
+            // what lite's own reading takes and the engine's grammar does not, refused where that grammar stops
+            if let Some(stop) = engines_stop {
+                return Err(ElementCursor::at(self.tokens, stop, self.dialect).unexpected());
+            }
             if matches!(value, VS::LambdaFunction(_)) {
                 return Err(self.error_str("a lambda is not a legal property default value"));
             }

@@ -36,8 +36,22 @@ pub fn parse_relational_mapper<'s>(c: &mut impl Cursor<'s>) -> R<PRelationalMapp
     let mut schema_mappers = Vec::new();
     let mut table_mappers = Vec::new();
     let mut seen: HashSet<Vec<u16>> = HashSet::new();
+    let mut last_rank = None;
     while !c.at_end() && c.peek() != T::PAREN_CLOSE {
+        let key_start = c.pos();
         let key = c.parse_identifier()?;
+        // `DatabaseMappers? SchemaMappers? TableMappers?` in this order, at the engine's dialect, a repeat refused at its
+        // key as one out of order (the user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S185)
+        let rank = ["DatabaseMappers", "SchemaMappers", "TableMappers"]
+            .iter()
+            .position(|k| eq(&key, k));
+        if c.dialect().refuses_lite_extensions() && rank.is_some() {
+            if last_rank.is_some_and(|last| rank <= Some(last)) {
+                c.set_pos(key_start);
+                return Err(c.unexpected());
+            }
+            last_rank = rank;
+        }
         once(&mut seen, &key, c)?;
         c.expect(T::COLON)?;
         c.expect(T::BRACKET_OPEN)?;

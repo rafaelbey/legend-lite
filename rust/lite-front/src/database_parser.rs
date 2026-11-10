@@ -708,6 +708,26 @@ impl<'t, 's> DbCursor<'t, 's> {
                 let key = self.parse_identifier()?;
                 key_order.push(key.clone());
                 self.expect(T::EQUAL)?;
+                // the infinity date is the engine's DATE token, read as its lexer reads it, at the engine's dialect (the
+                // user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S186)
+                if self.dialect.refuses_lite_extensions() && eq(&key, "INFINITY_DATE") {
+                    let percent = matches!(self.peek(), T::DATE | T::STRICTTIME);
+                    let (date, strict) = if percent {
+                        crate::cursor::engine_percent_rules(self.text())
+                    } else {
+                        (0, 0)
+                    };
+                    if date == 0 || strict > date {
+                        return Err(self.unexpected());
+                    }
+                    if let Some(refused) = crate::cursor::refused_percent_rest(
+                        self.tokens,
+                        self.pos,
+                        crate::cursor::PercentAt::Milestoning,
+                    ) {
+                        return Err(refused);
+                    }
+                }
                 if self.peek() == T::DATE {
                     let d_s = self.pos;
                     let raw = self.text();

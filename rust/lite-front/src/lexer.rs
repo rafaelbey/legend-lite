@@ -561,12 +561,13 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// A line comment ends at the first `\r` or `\n`, as legend-pure's and legend-engine's own lexers end it
+    /// (`'//' ~[\r\n]*`): what follows a lone `\r` on the same line is read (the user's ruling 20 of 2026-11-10,
+    /// docs/rust-port/PHASE2.md section 6; Java's lexer read to the `\n`, and no frozen question holds a lone `\r` in a
+    /// comment; register S182).
     fn skip_line_comment(&mut self) {
         self.pos += 2;
-        while self.pos < self.length && self.at(self.pos) != u('\n') {
-            self.pos += 1;
-        }
-        if self.pos < self.length {
+        while self.pos < self.length && self.at(self.pos) != u('\n') && self.at(self.pos) != u('\r') {
             self.pos += 1;
         }
     }

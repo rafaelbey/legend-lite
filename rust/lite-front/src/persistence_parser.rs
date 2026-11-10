@@ -232,15 +232,15 @@ fn parse_persistence<'s>(c: &mut impl Cursor<'s>) -> R<PPersistence> {
             }
             "persister" => {
                 persister = Some(parse_node(c, (0, 0))?);
-                c.match_tok(T::SEMI_COLON)?;
+                engines_semicolon(c, Some(false))?;
             }
             "serviceOutputTargets" => {
                 output_targets = Some(parse_output_targets(c)?);
-                c.match_tok(T::SEMI_COLON)?;
+                engines_semicolon(c, Some(true))?;
             }
             "notifier" => {
                 notifier = Some(Box::new(parse_notifier(c, key_start)?));
-                c.match_tok(T::SEMI_COLON)?;
+                engines_semicolon(c, Some(false))?;
             }
             "tests" => tests = Some(parse_tests(c)?),
             _ => return Err(c.error(jcat!("unknown key '", key, "' inside Persistence '", qn, "'"))),
@@ -263,7 +263,14 @@ fn parse_persistence<'s>(c: &mut impl Cursor<'s>) -> R<PPersistence> {
         Some(spanned) => {
             let mut out = Vec::new();
             for t in spanned {
+                let engines_walk = c.dialect().holds_to_the_engines_walk();
+                if engines_walk {
+                    engines_graph_fetch_keys(&t.service_output)?;
+                }
                 validate_node("serviceOutput", &t.service_output)?;
+                if engines_walk {
+                    engines_service_output_arms(&t.service_output)?;
+                }
                 validate_node("target", &t.persistence_target)?;
                 out.push(Box::new(PServiceOutputTarget {
                     service_output: Box::new(wire_spans(*t.service_output, &u("serviceOutput"), false)),
@@ -290,6 +297,92 @@ fn parse_persistence<'s>(c: &mut impl Cursor<'s>) -> R<PPersistence> {
         tests,
         source_information: c.span(decl_start, c.pos() - 1),
     })
+}
+
+/// A `;` after a value, as the engine's persistence grammar spells it at its dialect (the user's ruling 20 of 2026-11-10,
+/// docs/rust-port/PHASE2.md section 6; register S183): `Some(true)` where its rule ends with one, `Some(false)` where it
+/// has none (a `Kind { ... }` body is never followed by one), `None` where lite has not read the rule; lite's and the
+/// platform's dialects read every one as optional, as they did.
+fn engines_semicolon<'s>(c: &mut impl Cursor<'s>, required: Option<bool>) -> R<()> {
+    match required {
+        Some(true) if c.dialect().refuses_lite_extensions() => c.expect(T::SEMI_COLON),
+        Some(false) if c.dialect().refuses_lite_extensions() && !c.at_end() && c.peek() == T::SEMI_COLON => {
+            Err(c.unexpected())
+        }
+        _ => c.match_tok(T::SEMI_COLON).map(|_| ()),
+    }
+}
+
+/// The `;` after a list's `]`, by its key in the engine's grammar: `partitionFields`, `deleteValues` and a multi-flat
+/// shape's `parts` end with one, a dataset's `keys` has none.
+fn list_semicolon<'s>(c: &mut impl Cursor<'s>, key: &[u16]) -> R<()> {
+    let required = if eq(key, "keys") {
+        Some(false)
+    } else if eq(key, "partitionFields") || eq(key, "deleteValues") || eq(key, "parts") {
+        Some(true)
+    } else {
+        None
+    };
+    engines_semicolon(c, required)
+}
+
+/// The keys whose value is the engine's `serviceOutputValue`, `identifier | dslNavigationPath`: a dataset's keys, a
+/// max-version deduplication's field, a delete indicator's field, a field-based partitioning's fields.
+const SERVICE_OUTPUT_VALUES: [&str; 4] = ["keys", "versionField", "deleteField", "partitionFields"];
+
+/// A graph-fetch service output's `keys`, which the engine's walker requires as a TDS output's (lite's tables, Java's,
+/// require them of a TDS output alone), at the engine's dialect, before the output's other fields are walked (the
+/// user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S184).
+fn engines_graph_fetch_keys(n: &PPersistenceNode) -> R<()> {
+    if eq(&n.kind.0, "#path")
+        && !n.entries.iter().any(|e| eq(entry_key(e), "keys"))
+        && let Some(span) = n.source_information.as_deref()
+    {
+        return Err(JavaError::parse(
+            JStr::from("Field 'keys' is required"),
+            span.start_line,
+            span.start_column,
+        )
+        .as_refusal());
+    }
+    Ok(())
+}
+
+/// The arm of each `serviceOutputValue` the engine's walker takes by the output's kind, at the engine's dialect (the
+/// user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S184): a TDS output's `.identifier()`, a
+/// graph-fetch output's `.dslNavigationPath()`, so the other arm is null to it and the walker fails uncaught, the section
+/// catch-all's `NullPointerException` at the section's start.
+fn engines_service_output_arms(n: &PPersistenceNode) -> R<()> {
+    let graph_fetch = eq(&n.kind.0, "#path");
+    if !graph_fetch && !eq(&n.kind.0, "TDS") {
+        return Ok(());
+    }
+    fn other_arm(entries: &[PPersistenceEntry], graph_fetch: bool) -> bool {
+        entries.iter().any(|e| {
+            let value = SERVICE_OUTPUT_VALUES.iter().any(|k| eq(entry_key(e), k));
+            match e {
+                PPersistenceEntry::PPersistenceEntryPathList(x) => value && !graph_fetch && !x.specs.is_empty(),
+                PPersistenceEntry::PPersistenceEntryPathValue(_) => value && !graph_fetch,
+                PPersistenceEntry::PPersistenceEntryStrings(x) => value && graph_fetch && !x.values.is_empty(),
+                PPersistenceEntry::PPersistenceEntryScalar(_) => value && graph_fetch,
+                PPersistenceEntry::PPersistenceEntryNode(x) => {
+                    (value && graph_fetch && x.node.entries.is_empty() && x.node.head_path.is_none())
+                        || other_arm(&x.node.entries, graph_fetch)
+                }
+                PPersistenceEntry::PPersistenceEntryNodeList(x) => {
+                    x.nodes.iter().any(|nd| other_arm(&nd.entries, graph_fetch))
+                }
+                PPersistenceEntry::PPersistenceEntryPointer(_) => false,
+            }
+        })
+    }
+    if other_arm(&n.entries, graph_fetch) {
+        return Err(JavaError::refused_at_section(
+            JStr::from("An exception of type 'NullPointerException' occurred, please notify developer"),
+            (0, 0),
+        ));
+    }
+    Ok(())
 }
 
 /// `REQUIRED_FIELDS`: the engine walker's required fields per `slot/kind`, in its order.
@@ -790,7 +883,7 @@ fn parse_entries<'s>(
                         }
                     }
                     c.expect(T::BRACKET_CLOSE)?;
-                    c.match_tok(T::SEMI_COLON)?;
+                    list_semicolon(c, &key)?;
                     out.push(PPersistenceEntry::PPersistenceEntryNodeList(Box::new(
                         PPersistenceEntryNodeList { key: JStr(key), nodes },
                     )));
@@ -806,7 +899,7 @@ fn parse_entries<'s>(
                         }
                     }
                     c.expect(T::BRACKET_CLOSE)?;
-                    c.match_tok(T::SEMI_COLON)?;
+                    list_semicolon(c, &key)?;
                     out.push(PPersistenceEntry::PPersistenceEntryPathList(Box::new(
                         PPersistenceEntryPathList { key: JStr(key), specs },
                     )));
@@ -826,7 +919,7 @@ fn parse_entries<'s>(
                     }
                 }
                 c.expect(T::BRACKET_CLOSE)?;
-                c.match_tok(T::SEMI_COLON)?;
+                list_semicolon(c, &key)?;
                 out.push(PPersistenceEntry::PPersistenceEntryStrings(Box::new(
                     PPersistenceEntryStrings {
                         key: JStr(key),
@@ -855,6 +948,7 @@ fn parse_entries<'s>(
                     head.extend(c.parse_identifier()?);
                 }
                 if c.peek() == T::BRACE_OPEN || is_island(c.peek()) {
+                    let braced = c.peek() == T::BRACE_OPEN;
                     c.set_pos(key_start);
                     c.parse_identifier()?;
                     c.expect(T::COLON)?;
@@ -868,7 +962,7 @@ fn parse_entries<'s>(
                             node: Box::new(n),
                         },
                     )));
-                    c.match_tok(T::SEMI_COLON)?;
+                    engines_semicolon(c, braced.then_some(false))?;
                 } else if eq(&key, "database") || eq(&key, "binding") {
                     c.expect(T::SEMI_COLON)?;
                     out.push(PPersistenceEntry::PPersistenceEntryPointer(Box::new(
@@ -997,8 +1091,27 @@ fn parse_tests<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PPersistenceTest>>> {
         let mut graph_fetch_path = None;
         let mut seen: HashSet<Vec<u16>> = HashSet::new();
         let mut spelled = false;
+        let mut previous: Option<Vec<u16>> = None;
         while !c.at_end() && c.peek() != T::BRACE_CLOSE {
+            let key_start = c.pos();
             let key = c.parse_identifier()?;
+            // `(testBatches isTestDataFromServiceOutput? graphFetchPath?)*`, at the engine's dialect (the user's ruling 20
+            // of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S183): a key out of its group's order is refused
+            if c.dialect().refuses_lite_extensions() {
+                let after = |k: &str| previous.as_deref().is_some_and(|p| eq(p, k));
+                let in_order = if eq(&key, "isTestDataFromServiceOutput") {
+                    after("testBatches")
+                } else if eq(&key, "graphFetchPath") {
+                    after("testBatches") || after("isTestDataFromServiceOutput")
+                } else {
+                    true
+                };
+                if !in_order {
+                    c.set_pos(key_start);
+                    return Err(c.unexpected());
+                }
+            }
+            previous = Some(key.clone());
             c.expect(T::COLON)?;
             if !seen.insert(key.clone()) {
                 return Err(c.error(jcat!("Field '", key, "' should be specified only once")));
@@ -1228,7 +1341,7 @@ fn parse_context<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceContext> {
             "platform" => platform = Some(Box::new(parse_platform(c)?)),
             "serviceParameters" => {
                 parse_ctx_params(c, &mut params)?;
-                c.match_tok(T::SEMI_COLON)?;
+                engines_semicolon(c, Some(true))?;
             }
             "sinkConnection" => {
                 sink_connection = Some(if is_island(c.peek()) {
@@ -1241,7 +1354,7 @@ fn parse_context<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceContext> {
                         source_information: c.span(vs, c.pos() - 1),
                     }))
                 });
-                c.match_tok(T::SEMI_COLON)?;
+                engines_semicolon(c, Some(true))?;
             }
             _ => return Err(c.error(jcat!("unknown key '", key, "' inside PersistenceContext '", qn, "'"))),
         }

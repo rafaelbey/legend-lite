@@ -161,6 +161,123 @@ pub fn refused_exponent(tokens: &TokenStream<'_>, token_pos: usize) -> JavaError
     .as_refusal()
 }
 
+/// How much of a `%` literal's text legend-engine's lexer takes: the longest of its `Date` rule, `'%' '-'? D+ ('-' D+ ('-'
+/// D+ ('T' DateTime TimeZone?)?)?)?`, and its `StrictTime` rule, `'%' D+ (':' D+ (':' D+ ('.' D+)?)?)?` (`DateTime` the same
+/// digits, a `TimeZone` a sign and four digits). Lite's lexer reads on through any digit, `-`, `:`, `T`, `.`, `+` or `Z`.
+pub fn engine_percent_literal_len(text: &[u16]) -> usize {
+    let (date, strict) = engine_percent_rules(text);
+    date.max(strict)
+}
+
+/// The lengths legend-engine's lexer's `Date` and `StrictTime` rules match of a `%` literal's text ([`engine_percent_literal_len`]),
+/// 0 where one does not: the longer is its token, a tie its `DATE`.
+pub fn engine_percent_rules(text: &[u16]) -> (usize, usize) {
+    let digit = |p: usize| {
+        text.get(p)
+            .is_some_and(|c| (u16::from(b'0')..=u16::from(b'9')).contains(c))
+    };
+    let at = |p: usize, c: u8| text.get(p) == Some(&u16::from(c));
+    let digits = |mut p: usize| {
+        while digit(p) {
+            p += 1;
+        }
+        p
+    };
+    // `D+ (':' D+ (':' D+ ('.' D+)?)?)?` from `p`, its first digit read
+    let time = |p: usize| {
+        let mut q = digits(p);
+        if at(q, b':') && digit(q + 1) {
+            q = digits(q + 1);
+            if at(q, b':') && digit(q + 1) {
+                q = digits(q + 1);
+                if at(q, b'.') && digit(q + 1) {
+                    q = digits(q + 1);
+                }
+            }
+        }
+        q
+    };
+    let strict = if digit(1) { time(1) } else { 0 };
+    let first = if at(1, b'-') { 2 } else { 1 };
+    let date = if digit(first) {
+        let mut q = digits(first);
+        if at(q, b'-') && digit(q + 1) {
+            q = digits(q + 1);
+            if at(q, b'-') && digit(q + 1) {
+                q = digits(q + 1);
+                if at(q, b'T') && digit(q + 1) {
+                    q = time(q + 1);
+                    if (at(q, b'+') || at(q, b'-')) && (1..=4).all(|k| digit(q + k)) {
+                        q += 5;
+                    }
+                }
+            }
+        }
+        q
+    } else {
+        0
+    };
+    (date, strict)
+}
+
+/// Where a `%` literal stands, for [`refused_percent_rest`].
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PercentAt {
+    /// An expression: the rest refused where it starts, but for a sign (the engine may read arithmetic there) or a lone
+    /// `.` (it reads a property's dot), which lite's own reading is left.
+    Expression,
+    /// A relational milestoning, whose first reading takes words, dates, commas, booleans and `=`s: a word the rest begins
+    /// with is read, and the refusal is at what follows it.
+    Milestoning,
+    /// A `primitiveValue` (a service test's parameter), which no arithmetic follows: the rest refused where it starts.
+    Value,
+}
+
+/// A `%` literal lite's lexer reads further than legend-engine's ([`engine_percent_literal_len`]): the engine's parser meets
+/// the rest as its next token, refused at the engine's dialect where it stops (the user's ruling 20 of 2026-11-10,
+/// docs/rust-port/PHASE2.md section 6; register S186), by where the literal stands. None when the engine reads the whole
+/// token.
+pub fn refused_percent_rest(tokens: &TokenStream<'_>, token_pos: usize, place: PercentAt) -> Option<JavaError> {
+    let text = tokens.text(token_pos);
+    let n = engine_percent_literal_len(text);
+    if n == 0 || n >= text.len() {
+        return None;
+    }
+    let first = text[n];
+    let mut at = n;
+    if place == PercentAt::Value {
+        // the rest is refused where it starts
+    } else if place == PercentAt::Milestoning {
+        if first < 128 && (first as u8).is_ascii_alphabetic() {
+            while at < text.len()
+                && text[at] < 128
+                && ((text[at] as u8).is_ascii_alphanumeric() || text[at] == u16::from(b'_'))
+            {
+                at += 1;
+            }
+        }
+    } else if first == u16::from(b'+') || first == u16::from(b'-') || (first == u16::from(b'.') && n + 1 == text.len())
+    {
+        return None;
+    }
+    let start = tokens.start(token_pos) + at;
+    let what = if at < text.len() {
+        text[at..].to_vec()
+    } else if token_pos + 1 < tokens.count() {
+        tokens.text(token_pos + 1).to_vec()
+    } else {
+        crate::ustr::u("<EOF>")
+    };
+    Some(
+        JavaError::parse(
+            jcat!("Unexpected token '", what, "'"),
+            tokens.line_of(start) as i32,
+            tokens.column_of(start) as i32,
+        )
+        .as_refusal(),
+    )
+}
+
 /// An element body the engine's lexer takes as an island counted by braces alone (a mapping element's, a connection's), its
 /// strings no strings to it: where that count ends the body other than where the tokens do, the refusal of what comes next
 /// (the user's ruling 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6). `open` is the body's `{` token.

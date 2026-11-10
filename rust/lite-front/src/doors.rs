@@ -395,10 +395,20 @@ pub fn lambda(text: &[u16]) -> Answer<LambdaFunction> {
     })
 }
 
-/// `SpecParser.parseCodeBlock(text, dialect)`: a `;`-separated block.
+/// `SpecParser.parseCodeBlock(text, dialect)`: a `;`-separated block. At the engine's dialect a block with no statement
+/// is refused, as the engine's `codeBlock` is at least one line, in the words and place of the `lambda` door's refusal of
+/// an empty text (the user's ruling 21 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S196: the engine's
+/// `parseLambda` places it on the line below the text, its wrapper's `}`).
 pub fn block(text: &[u16], dialect: Dialect) -> Answer<Vec<ValueSpecification>> {
     read_expression(text, dialect.at_a_door(), |level| {
-        spec_parser::parse_code_block(text, level)
+        spec_parser::parse_code_block(text, level).and_then(|statements| {
+            if statements.is_empty() && level.refuses_lite_extensions() {
+                return Err(JavaError::parse_unplaced(JStr::from(
+                    "expected expression, got end of input",
+                )));
+            }
+            Ok(statements)
+        })
     })
 }
 
@@ -1535,6 +1545,230 @@ mod refusal_tests {
         );
         // an error the engine's own section parse raises keeps its place
         model_refused_at_the_engines(&fun("1.5ed"), (3, 6));
+    }
+
+    /// Each family of the user's ruling 20 of 2026-11-10 (docs/rust-port/PHASE2.md section 6; register S182 to S195): refused
+    /// at the engine's dialect, at the place legend-engine's own parser gives (4.145.0, asked 2026-11-10), and read at lite's
+    /// and the platform's dialects as before but for the line comment, whose rule is the lexer's.
+    #[track_caller]
+    fn refused_at_the_engines_alone(kind: &str, text: &str, place: (i32, i32)) {
+        let units = u(text);
+        if kind == "spec" {
+            assert_eq!(
+                spec(&units, Dialect::LegendEngine).unwrap_err().position,
+                Some(place),
+                "{text}"
+            );
+            for d in [Dialect::LegendLite, Dialect::LegendPlatform] {
+                assert!(spec(&units, d).is_ok(), "{text} at {d:?}");
+            }
+            return;
+        }
+        model_refused_at_the_engines(text, place);
+        for d in [Dialect::LegendLite, Dialect::LegendPlatform] {
+            assert!(pmcd(&units, d, &[]).parsed.is_ok(), "{text} at {d:?}");
+        }
+    }
+
+    #[test]
+    fn a_line_comment_ends_at_a_lone_carriage_return() {
+        // a lone `\r` ends a line comment, as the engines' lexers end it
+        model_refused_at("// a\r@", (1, 6));
+        for d in DIALECTS {
+            assert!(pmcd(&u("Class a::B { // c\r}"), d, &[]).parsed.is_ok(), "{d:?}");
+        }
+    }
+
+    #[test]
+    fn persistence_is_held_to_the_engines_grammar_and_walk() {
+        // persistence: a test's key order, a service output's keys and the arm its kind takes, the `;` its grammar spells
+        refused_at_the_engines_alone(
+            "model",
+            "###Persistence\nPersistence a::P\n{\n  doc: 'd';\n  trigger: Manual;\n  service: a::S;\n  tests:\n  [\n    t1:\n    {\n      isTestDataFromServiceOutput: false;\n      testBatches:\n      [\n      ]\n    }\n  ]\n}\n",
+            (11, 7),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###Persistence\nPersistence a::P\n{\n  doc: 'd';\n  trigger: Manual;\n  service: a::S;\n  serviceOutputTargets:\n  [\n    #/a::T/p#\n    {\n      keys: [ foo ]\n    }\n    ->\n    {\n    }\n  ];\n}\n",
+            (2, 8),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###Persistence\nPersistence a::P\n{\n  doc: 'd';\n  trigger: Manual;\n  service: a::S;\n  serviceOutputTargets:\n  [\n    TDS\n    {\n      keys: [ #/a::T/q# ]\n    }\n    ->\n    {\n    }\n  ];\n}\n",
+            (2, 8),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###Persistence\nPersistence a::P\n{\n  doc: 'd';\n  trigger: Manual;\n  service: a::S;\n  serviceOutputTargets:\n  [\n    #/a::T/p#\n    {\n      datasetType: Delta { actionIndicator: None; }\n    }\n    ->\n    {\n    }\n  ];\n}\n",
+            (9, 5),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###Persistence\nPersistence a::P\n{\n  doc: 'd';\n  trigger: Manual;\n  service: a::S;\n  serviceOutputTargets:\n  [\n    TDS\n    {\n      keys: [ foo ];\n    }\n    ->\n    {\n    }\n  ];\n}\n",
+            (11, 20),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###Persistence\nPersistence a::P\n{\n  doc: 'd';\n  trigger: Manual;\n  service: a::S;\n  serviceOutputTargets:\n  [\n    TDS\n    {\n      keys: [ foo ]\n      datasetType: Delta { actionIndicator: None; };\n    }\n    ->\n    {\n    }\n  ];\n}\n",
+            (12, 52),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###Persistence\nPersistence a::P\n{\n  doc: 'd';\n  trigger: Manual;\n  service: a::S;\n  serviceOutputTargets:\n  [\n    TDS\n    {\n      keys: [ foo ]\n    }\n    ->\n    {\n    }\n  ]\n}\n",
+            (17, 1),
+        );
+    }
+
+    #[test]
+    fn element_orders_and_lists_are_the_engines() {
+        // element orders: a `RelationalMapper`'s lists, a generation node's id, a generation list's comma, a MongoDB mapping's `~filter`
+        // two comma lists ruling 18's helper had not reached: a DataQuality tree's, a HostedService's `UserList`
+        refused_at_the_engines_alone(
+            "model",
+            "###DataQualityValidation\nDataQualityValidation a::V\n{\n   context: fromMappingAndRuntime(a::M, a::R);\n   validationTree: $[\n      a::P{\n        name,\n      }\n    ]$;\n}\n",
+            (8, 7),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###HostedService\nHostedService a::H\n{\n   pattern: '/a';\n   ownership: UserList { users: ['a',] };\n   function: a::f():TabularDataSet[1];\n   documentation: '';\n   autoActivateUpdates: true;\n}\n",
+            (5, 38),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###QueryPostProcessor\nRelationalMapper a::R\n(\n   TableMappers:\n   [\n      a::DB.s1.t -> 'T'\n   ];\n   SchemaMappers:\n   [\n      a::DB.s1 -> 'S'\n   ];\n)\n",
+            (8, 4),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###GenerationSpecification\nGenerationSpecification a::G\n{\n   generationNodes: [\n      {\n         generationElement: a::E;\n         id: 'x';\n      }\n   ];\n}\n",
+            (7, 10),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###GenerationSpecification\nGenerationSpecification a::G\n{\n   fileGenerations: [a::F, ];\n}\n",
+            (4, 28),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###Mapping\nMapping a::M\n(\n  *a::Person[p]: MongoDB\n  {\n    ~mainCollection [a::Db] Person\n    ~filter [a::Db] f\n  }\n)\n",
+            (3, 5),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "Class a::B{}\n###Mapping\nMapping a::M\n(\n  *a::Person[p]: MongoDB { ~mainCollection [a::Db] Person ~filter [a::Db] f }\n)\n",
+            (2, 33),
+        );
+    }
+
+    #[test]
+    fn a_percent_literal_ends_where_the_engines_lexer_ends_it() {
+        // a `%` literal as the engine's lexer ends it, and a milestoning's infinity date
+        refused_at_the_engines_alone("spec", "%19:41:.21", (1, 7));
+        refused_at_the_engines_alone("spec", "%204T00:00:00", (1, 5));
+        refused_at_the_engines_alone(
+            "model",
+            "###Relational\nDatabase a::D\n(\n  Table t\n  (\n    milestoning\n    (\n      processing(PROCESSING_IN = i, PROCESSING_OUT = o, INFINITY_DATE = %9999-00:00.0000)\n    )\n    i INT, o INT\n  )\n)\n",
+            (8, 81),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###Relational\nDatabase a::D\n(\n  Table t\n  (\n    milestoning\n    (\n      processing(PROCESSING_IN = i, PROCESSING_OUT = o, INFINITY_DATE = %2020T)\n    )\n    i INT, o INT\n  )\n)\n",
+            (8, 79),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###Relational\nDatabase a::D\n(\n  Table t\n  (\n    milestoning\n    (\n      processing(PROCESSING_IN = i, PROCESSING_OUT = o, INFINITY_DATE = %10:10)\n    )\n    i INT, o INT\n  )\n)\n",
+            (8, 73),
+        );
+    }
+
+    #[test]
+    fn relation_data_is_read_by_the_engines_grammar() {
+        // relation data by the engine's grammar: a path's words, a reparsed assertion's place, a table cut by the end
+        refused_at_the_engines_alone(
+            "model",
+            "function a::f(): String[1]\n{\n  ''\n}\n{\n  a::DB:\n      Relation\n      #{\n        99 default.T:\n            id\n            1;\n      }#;\n  t1 | f() => Relation\n      #{\n        id\n        1;\n      }#;\n}\n",
+            (9, 9),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "function a::f(): String[1]\n{\n  ''\n}\n{\n  t1 | f() => Relation #{ name; 12 }#;\n}\n",
+            (6, 34),
+        );
+        // a table the end cuts, refused at every dialect, at the engine's at its place
+        model_refused_at_the_engines(
+            "function a::f(): String[1]\n{\n  ''\n}\n{\n  t1 | f() => Relation\n      #{\n        name\n        x\n        y\n      }#;\n}\n",
+            (9, 9),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###Data\nData a::D\n{\n  Relation\n  #{\n    default.F1.5x:\n      ID\n      1;\n  }#\n}\n",
+            (6, 15),
+        );
+    }
+
+    #[test]
+    fn embedded_and_element_text_is_read_by_the_engines_grammar() {
+        // embedded and element text: a ServiceStore data's end, a data space's test data and executable, a service test's values
+        refused_at_the_engines_alone(
+            "model",
+            "###Data\nData a::D\n{\n  ServiceStore\n  #{\n    [\n    ]\n    x\n  }#\n}\n",
+            (8, 5),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###DataSpace\nDataSpace a::DS\n{\n  executionContexts:\n  [\n    {\n      name: 'c';\n      mapping: a::M;\n      defaultRuntime: a::R;\n      testData:\n        DataspaceTestData #{ |a::b }#;\n    }\n  ];\n  defaultExecutionContext: 'c';\n}\n",
+            (11, 9),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###DataSpace\nDataSpace a::DS\n{\n  executionContexts:\n  [\n    {\n      name: 'c';\n      mapping: a::M;\n      defaultRuntime: a::R;\n    }\n  ];\n  defaultExecutionContext: 'c';\n  executables:\n  [\n    {\n      id: 1;\n      title: 't';\n      executable: a::f():T x;\n    }\n  ];\n}\n",
+            (18, 28),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###Service\nService a::S\n{\n   pattern: '/a';\n   documentation: '';\n   autoActivateUpdates: true;\n   execution: Single\n   {\n      query: |a::C.all();\n      mapping: a::M;\n      runtime: a::R;\n   }\n   test: Single\n   {\n      data: 'x';\n      asserts:\n      [\n         { [st([1])], |'e' }\n      ];\n   }\n}\n",
+            (18, 15),
+        );
+    }
+
+    #[test]
+    fn mapping_default_and_column_expressions_are_the_engines() {
+        // mapping, default value and column spec expressions
+        refused_at_the_engines_alone(
+            "model",
+            "###Mapping\nMapping a::M\n(\n  a::T: Pure\n  {\n    ~src a::S\n    nested[2]: $src\n  }\n)\n",
+            (7, 12),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "###Mapping\nMapping a::M\n(\n  a::C: XStore\n  {\n    p: a::b\n  }\n)\n",
+            (6, 12),
+        );
+        refused_at_the_engines_alone(
+            "model",
+            "Class a::C\n{\n  p: a::T[*] = [^a::B(), a::f()];\n}\n",
+            (3, 32),
+        );
+        refused_at_the_engines_alone("spec", "$t->extend(~new: x||$x.ied:y|1)", (1, 27));
+        refused_at_the_engines_alone("spec", "$t->groupBy(~[a], ~[new: x||$x.ied])", (1, 27));
+    }
+
+    #[test]
+    fn an_empty_block_is_refused_at_the_engines_dialect() {
+        // ruling 21 of 2026-11-10 (register S196): the `lambda` door's words and place for an empty text
+        for t in ["", "   ", "// c\n"] {
+            let e = block(&u(t), Dialect::LegendEngine).unwrap_err();
+            assert_eq!(
+                (e.position, e.message.map(|m| m.lossy())),
+                (Some((0, 0)), Some("expected expression, got end of input".to_owned())),
+                "{t:?}"
+            );
+            assert_eq!(e.position, lambda(&u(t)).unwrap_err().position, "{t:?}");
+            for d in [Dialect::LegendLite, Dialect::LegendPlatform] {
+                assert!(block(&u(t), d).unwrap().is_empty(), "{t:?} at {d:?}");
+            }
+        }
     }
 
     #[test]

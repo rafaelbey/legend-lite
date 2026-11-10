@@ -66,6 +66,11 @@ fn parse_nodes<'s>(c: &mut impl Cursor<'s>, nodes: &mut Vec<Box<PGenerationNode>
         let mut id = None;
         let mut element = None;
         while c.peek() != T::BRACE_CLOSE {
+            // `{ (nodeId)? generationElement }`, at the engine's dialect (the user's ruling 20 of 2026-11-10,
+            // docs/rust-port/PHASE2.md section 6; register S185): nothing after the element, one id before it
+            if c.dialect().refuses_lite_extensions() && (element.is_some() || (id.is_some() && eq(c.text(), "id"))) {
+                return Err(c.unexpected());
+            }
             let nk = c.parse_identifier()?;
             c.expect(T::COLON)?;
             if eq(&nk, "id") {
@@ -87,7 +92,7 @@ fn parse_nodes<'s>(c: &mut impl Cursor<'s>, nodes: &mut Vec<Box<PGenerationNode>
             id: JStr(id),
             source_information: c.span(node_start, c.pos() - 1),
         }));
-        if !c.match_tok(T::COMMA)? {
+        if !c.match_list_comma()? {
             break;
         }
     }
@@ -105,7 +110,7 @@ fn parse_pointers<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PPointer>>) -> 
             path: JStr(path),
             source_information: c.span(s, c.pos() - 1),
         }));
-        if !c.match_tok(T::COMMA)? {
+        if !c.match_list_comma()? {
             break;
         }
     }
@@ -165,7 +170,7 @@ pub fn parse_file_generation<'s>(c: &mut impl Cursor<'s>) -> R<PFileGeneration> 
             c.expect(T::BRACKET_OPEN)?;
             while c.peek() != T::BRACKET_CLOSE {
                 scope_elements.push(JStr(unquote_path_iae(&c.parse_qualified_name()?)?));
-                if !c.match_tok(T::COMMA)? {
+                if !c.match_list_comma()? {
                     break;
                 }
             }
@@ -234,7 +239,7 @@ fn parse_config_value<'s>(c: &mut impl Cursor<'s>) -> R<PConfigValue> {
             let mut vs = Vec::new();
             while c.peek() != T::BRACKET_CLOSE {
                 vs.push(JStr(string_value(c)?));
-                if !c.match_tok(T::COMMA)? {
+                if !c.match_list_comma()? {
                     break;
                 }
             }

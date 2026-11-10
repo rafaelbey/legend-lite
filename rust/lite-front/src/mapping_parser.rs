@@ -26,7 +26,7 @@ use crate::records::{
     PureCollection, SourceInfo, ValueSpecification,
 };
 use crate::spec_parser::parse_instance_data;
-use crate::ustr::{ends_with, eq, last_index_of, last_index_of_str, strip};
+use crate::ustr::{ends_with, eq, last_index_of, last_index_of_str, strip, u};
 use lite_javacompat::character::is_whitespace;
 use std::collections::HashSet;
 
@@ -298,6 +298,11 @@ impl<'t, 's> MappingCursor<'t, 's> {
                 inner.list_comma()?;
             }
             inner.expect(T::BRACKET_CLOSE)?;
+            // `serviceStubMappings EOF`, at the engine's dialect (the user's ruling 20 of 2026-11-10,
+            // docs/rust-port/PHASE2.md section 6; register S188)
+            if self.dialect.holds_to_the_engines_walk() && !inner.at_end() {
+                return Err(inner.unexpected());
+            }
             return Ok(PEmbeddedDataValue::PServiceStoreData(Box::new(PServiceStoreData {
                 stubs,
                 source_information: boxed(span_info(
@@ -809,7 +814,25 @@ impl<'t, 's> MappingCursor<'t, 's> {
         inner.advance()?;
         inner.expect(T::COLON)?;
         let expected = inner.consume_string_literal("'expected'")?;
-        inner.match_tok(T::SEMI_COLON)?;
+        if self.dialect.holds_to_the_engines_walk() {
+            // `EXPECTED COLON STRING SEMI_COLON EOF`, at the engine's dialect (the user's ruling 20 of 2026-11-10,
+            // docs/rust-port/PHASE2.md section 6; register S188): a `;` the island's end cuts off is `ParserErrorListener`'s
+            // empty span there, one column less
+            if inner.at_end() {
+                return Err(JavaError::parse(
+                    JStr::from("Unexpected token '<EOF>'"),
+                    self.tokens.line_of(island.content_end) as i32,
+                    self.tokens.column_of(island.content_end) as i32 - 1,
+                )
+                .as_refusal());
+            }
+            inner.expect(T::SEMI_COLON)?;
+            if !inner.at_end() {
+                return Err(inner.unexpected());
+            }
+        } else {
+            inner.match_tok(T::SEMI_COLON)?;
+        }
         Ok(PStringValuePattern {
             r#type: JStr::from(r#type),
             expected_value: JStr(expected),
@@ -895,13 +918,105 @@ fn split_on(s: &[u16], sep: u16, out: &mut Vec<JStr>) {
     }
 }
 
+/// A path-less relation island (a test's assertion, a data space's sample values: `Relation #{ ... }#` with no path),
+/// which the engine's walker reparses as `": " + trim(content)` with its `RelationElementsData` grammar at the `#{` (the
+/// user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S187): refused where that reading stops,
+/// the reparse's first line two columns past the `#{`, its later lines that many below the `#{`'s line. `from..to` is the
+/// island's content; at the engine's dialect.
+pub(crate) fn relation_reparse_refusal(
+    ts: &TokenStream<'_>,
+    open_tok: usize,
+    from: usize,
+    to: usize,
+) -> Option<JavaError> {
+    let src = ts.source();
+    let (mut t0, mut t1) = (from, to);
+    while t0 < t1 && is_whitespace(src[t0]) {
+        t0 += 1;
+    }
+    while t1 > t0 && is_whitespace(src[t1 - 1]) {
+        t1 -= 1;
+    }
+    let mut text = u(": ");
+    text.extend_from_slice(&src[t0..t1]);
+    let (stop, unterminated) = relation_elements_scan(&text, 0, text.len())?;
+    let (line, column) = (ts.start_line(open_tok) as i32, ts.start_column(open_tok) as i32);
+    let before = &text[..stop];
+    let (line, mut column) = match before.iter().rposition(|&c| c == u16::from(b'\n')) {
+        None => (line, column + 2 + stop as i32),
+        Some(nl) => {
+            let lines = before.iter().filter(|&&c| c == u16::from(b'\n')).count() as i32;
+            (line + lines, (stop - nl) as i32)
+        }
+    };
+    // a table the end of the input cuts: `ParserErrorListener`'s empty span, one column less
+    if unterminated {
+        column -= 1;
+    }
+    Some(JavaError::parse(JStr::from("Unexpected token"), line, column).as_refusal())
+}
+
+/// The end of the M3 lexer's `VALID_STRING` at `p` (`(Letter | Digit | '_') (Letter | Digit | '_' | '$')*`), none where its
+/// token there is another: a number (`INTEGER`, `FLOAT`, `DECIMAL`, which it prefers on a tie) or no word at all (the user's
+/// ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S187).
+fn m3_valid_string_end(src: &[u16], p: usize, end: usize) -> Option<usize> {
+    let ascii = |q: usize, f: fn(&u8) -> bool| q < end && src[q] < 128 && f(&(src[q] as u8));
+    let digit = |q: usize| ascii(q, u8::is_ascii_digit);
+    let word = |q: usize| ascii(q, |c| c.is_ascii_alphanumeric() || *c == b'_');
+    if !word(p) {
+        return None;
+    }
+    let mut valid = p + 1;
+    while word(valid) || (valid < end && src[valid] == u16::from(b'$')) {
+        valid += 1;
+    }
+    if !digit(p) {
+        return Some(valid);
+    }
+    // the longest number from `p`: `INTEGER` (digits), `FLOAT` (digits, `'.' digits`, an exponent, a `f`), `DECIMAL`
+    // (digits with or without `'.' digits`, an exponent, a required `d`)
+    let digits = |mut q: usize| {
+        while digit(q) {
+            q += 1;
+        }
+        q
+    };
+    let at = |q: usize, cs: &[u8]| q < end && cs.iter().any(|&c| src[q] == u16::from(c));
+    let exponent = |q: usize| {
+        let sign = usize::from(at(q + 1, b"+-"));
+        if at(q, b"eE") && digit(q + 1 + sign) {
+            digits(q + 1 + sign)
+        } else {
+            q
+        }
+    };
+    let integer = digits(p);
+    let fraction = (at(integer, b".") && digit(integer + 1)).then(|| digits(integer + 1));
+    let float = fraction.map(|f| {
+        let e = exponent(f);
+        if at(e, b"fF") { e + 1 } else { e }
+    });
+    let decimal = {
+        let e = exponent(fraction.unwrap_or(integer));
+        at(e, b"dD").then_some(e + 1)
+    };
+    let number = integer.max(float.unwrap_or(0)).max(decimal.unwrap_or(0));
+    (valid > number).then_some(valid)
+}
+
 /// Where the engine's `RelationElementsData` grammar stops in `src[start..end]`, none when it reads it all (the user's
 /// ruling 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6): `identifier (DOT identifier)* ':'` in the normal lexer's
-/// mode, then lines of cells (`~[",\r\n;]+`, or a `"..."` with `""` inside) to a `;`.
-fn relation_elements_stop(src: &[u16], start: usize, end: usize) -> Option<usize> {
+/// mode, or a `:` with no path before it, then lines of cells (`~[",\r\n;]+`, or a `"..."` with `""` inside) to a `;`. A
+/// path's words are the M3 lexer's: a number is no identifier, a `.` before a digit no dot (ruling 20 of 2026-11-10).
+pub(crate) fn relation_elements_stop(src: &[u16], start: usize, end: usize) -> Option<usize> {
+    relation_elements_scan(src, start, end).map(|(at, _)| at)
+}
+
+/// [`relation_elements_stop`]'s place, and whether it is the end of the input inside a table (a `;` missing).
+fn relation_elements_scan(src: &[u16], start: usize, end: usize) -> Option<(usize, bool)> {
     let is_nl = |c: u16| c == u16::from(b'\n') || c == u16::from(b'\r');
     let blank = |c: u16| c == u16::from(b' ') || c == u16::from(b'\t');
-    let word = |c: u16| c < 128 && ((c as u8).is_ascii_alphanumeric() || c == u16::from(b'_') || c == u16::from(b'$'));
+    let digit_at = |q: usize| q < end && (u16::from(b'0')..=u16::from(b'9')).contains(&src[q]);
     let mut p = start;
     loop {
         // the normal mode, between elements and through a path
@@ -911,42 +1026,50 @@ fn relation_elements_stop(src: &[u16], start: usize, end: usize) -> Option<usize
         if p >= end {
             return None;
         }
-        loop {
-            let from = p;
-            if src[p] == u16::from(b'\'') {
-                p += 1;
-                while p < end && src[p] != u16::from(b'\'') && !is_nl(src[p]) {
-                    p += if src[p] == u16::from(b'\\') { 2 } else { 1 };
-                }
-                if p >= end || src[p] != u16::from(b'\'') {
-                    return Some(from);
-                }
-                p += 1;
-            } else {
-                while p < end && word(src[p]) {
+        // a `::` is the M3 lexer's PATH_SEPARATOR, no TABLE_START
+        let separator = |q: usize| q + 1 < end && src[q] == u16::from(b':') && src[q + 1] == u16::from(b':');
+        // `TABLE_START tableCSV`: an element with no path
+        let pathless = src[p] == u16::from(b':') && !separator(p);
+        if !pathless {
+            loop {
+                let from = p;
+                if src[p] == u16::from(b'\'') {
                     p += 1;
+                    while p < end && src[p] != u16::from(b'\'') && !is_nl(src[p]) {
+                        p += if src[p] == u16::from(b'\\') { 2 } else { 1 };
+                    }
+                    if p >= end || src[p] != u16::from(b'\'') {
+                        return Some((from, false));
+                    }
+                    p += 1;
+                } else {
+                    match m3_valid_string_end(src, p, end) {
+                        Some(q) => p = q,
+                        None => return Some((from, false)),
+                    }
                 }
-                if p == from {
-                    return Some(from);
-                }
-            }
-            while p < end && (blank(src[p]) || is_nl(src[p])) {
-                p += 1;
-            }
-            if p < end && src[p] == u16::from(b'.') {
-                p += 1;
                 while p < end && (blank(src[p]) || is_nl(src[p])) {
                     p += 1;
                 }
-                if p >= end {
-                    return Some(p);
+                if p < end && src[p] == u16::from(b'.') {
+                    if digit_at(p + 1) {
+                        // a FLOAT to the M3 lexer, not a DOT
+                        return Some((p, false));
+                    }
+                    p += 1;
+                    while p < end && (blank(src[p]) || is_nl(src[p])) {
+                        p += 1;
+                    }
+                    if p >= end {
+                        return Some((p, false));
+                    }
+                    continue;
                 }
-                continue;
+                break;
             }
-            break;
         }
-        if p >= end || src[p] != u16::from(b':') {
-            return Some(p.min(end));
+        if p >= end || src[p] != u16::from(b':') || separator(p) {
+            return Some((p.min(end), false));
         }
         p += 1;
         while p < end && (blank(src[p]) || is_nl(src[p])) {
@@ -956,7 +1079,7 @@ fn relation_elements_stop(src: &[u16], start: usize, end: usize) -> Option<usize
         let mut cell_closed = false; // a cell has been read and only a separator may follow
         loop {
             if p >= end {
-                return Some(end);
+                return Some((end, true));
             }
             let c = src[p];
             if c == u16::from(b';') {
@@ -976,7 +1099,7 @@ fn relation_elements_stop(src: &[u16], start: usize, end: usize) -> Option<usize
                 continue;
             }
             if cell_closed {
-                return Some(p);
+                return Some((p, false));
             }
             // a quoted cell's leading blanks are its own
             let mut q = p;
@@ -1000,7 +1123,7 @@ fn relation_elements_stop(src: &[u16], start: usize, end: usize) -> Option<usize
                     q += 1;
                 }
                 if !closed {
-                    return Some(open);
+                    return Some((open, false));
                 }
                 while q < end && blank(src[q]) {
                     q += 1;

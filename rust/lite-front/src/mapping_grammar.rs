@@ -936,11 +936,14 @@ impl MappingCursor<'_, '_> {
         id: Option<JStr>,
         root: bool,
     ) -> R<PClassMappingMongoDb> {
+        let brace = self.pos;
         self.expect(T::BRACE_OPEN)?;
         let mut store = None;
         let mut coll = None;
         let mut binding = None;
+        let mut first = true;
         while !self.at_end() && (self.peek() == T::TILDE || self.peek() == T::FILTER_CMD) {
+            let kw_tok = self.pos;
             let kw = if self.peek() == T::FILTER_CMD {
                 self.advance()?;
                 u("filter")
@@ -948,6 +951,21 @@ impl MappingCursor<'_, '_> {
                 self.advance()?;
                 self.parse_identifier()?
             };
+            // `mappingFilter? (mappingMainCollection | mappingBinding)*`, at the engine's dialect (the user's ruling 20 of
+            // 2026-11-10, docs/rust-port/PHASE2.md section 6; register S185): `~filter` first or not at all, refused where
+            // the engine's MongoDB parser places it: the text after the `{` its own, its first line the `{`'s, its lines
+            // below the section's header line
+            if self.dialect.holds_to_the_engines_walk() && eq(&kw, "filter") && !first && self.section_start_line >= 0 {
+                let (kw_line, brace_line) = (self.tokens.start_line(kw_tok), self.tokens.start_line(brace));
+                let line = kw_line as i64 - brace_line as i64 + self.section_start_line - 1;
+                let mut column = self.tokens.start_column(kw_tok) as i32;
+                if kw_line == brace_line {
+                    column -= self.tokens.start_column(brace) as i32;
+                }
+                let text = self.tokens.text(kw_tok).to_vec();
+                return Err(JavaError::parse(jcat!("Unexpected token '", text, "'"), line as i32, column).as_refusal());
+            }
+            first = false;
             if eq(&kw, "mainCollection") {
                 self.expect(T::BRACKET_OPEN)?;
                 store = Some(JStr(unquote_path_iae(&self.parse_qualified_name()?)?));
@@ -1385,6 +1403,7 @@ impl MappingCursor<'_, '_> {
                     JStr::default(),
                     self.dialect,
                 )?);
+                self.engines_path_at_the_end(f_start, self.pos)?;
                 continue;
             }
             if self.peek() == T::TILDE {
@@ -1403,10 +1422,24 @@ impl MappingCursor<'_, '_> {
             let mut tgt_id = None;
             if self.peek() == T::BRACKET_OPEN {
                 self.advance()?;
+                // a set id is an identifier, no number or boolean, at the engine's dialect (the user's ruling 20 of 2026-11-10,
+                // docs/rust-port/PHASE2.md section 6; register S192)
+                if self.dialect.holds_to_the_engines_walk()
+                    && !local
+                    && matches!(self.peek(), T::INTEGER | T::BOOLEAN | T::TRUE | T::FALSE)
+                {
+                    return Err(self.unexpected());
+                }
                 // the walker reads the first bracketed id as the target and drops a second
                 tgt_id = Some(JStr(self.parse_set_id()?));
                 if self.peek() == T::COMMA {
                     self.advance()?;
+                    if self.dialect.holds_to_the_engines_walk()
+                        && !local
+                        && matches!(self.peek(), T::INTEGER | T::BOOLEAN | T::TRUE | T::FALSE)
+                    {
+                        return Err(self.unexpected());
+                    }
                     self.parse_set_id()?;
                 }
                 self.expect(T::BRACKET_CLOSE)?;
@@ -1449,6 +1482,7 @@ impl MappingCursor<'_, '_> {
             }
             let body =
                 parse_code_block_tokens(&self.tokens.slice(expr_start, self.pos), JStr::default(), self.dialect)?;
+            self.engines_path_at_the_end(expr_start, self.pos)?;
             if body.is_empty() {
                 return Err(self.error_str("a property mapping has an empty body"));
             }
@@ -1569,6 +1603,27 @@ impl MappingCursor<'_, '_> {
         })
     }
 
+    /// legend-engine reads a mapping expression's text alone, and its parser meets the end of that text right after a
+    /// path (`a::b`, the text's last token a name after `::`) and refuses it there (the user's ruling 20 of 2026-11-10,
+    /// docs/rust-port/PHASE2.md section 6; register S193): a Pure mapping's property or `~filter`, an XStore mapping's
+    /// property, at the engine's dialect, the expression's tokens `from..to`.
+    fn engines_path_at_the_end(&self, from: usize, to: usize) -> R<()> {
+        if self.dialect.holds_to_the_engines_walk()
+            && to >= from + 2
+            && is_identifier_token(self.tokens.ty(to - 1))
+            && self.tokens.ty(to - 2) == T::PATH_SEPARATOR
+        {
+            let end = self.tokens.end(to - 1);
+            return Err(JavaError::parse(
+                JStr::from("Unexpected token '<EOF>'"),
+                self.tokens.line_of(end) as i32,
+                self.tokens.column_of(end) as i32,
+            )
+            .as_refusal());
+        }
+        Ok(())
+    }
+
     /// `parseXStoreAssociationMapping`: `{ side[src, tgt]: <cross expression>, ... }` -- a missing comma refused at
     /// the platform-refusing dialects, else the entry ends there; after an entry, a missing comma ends the list and
     /// discards the rest (legend-pure's reading).
@@ -1625,6 +1680,7 @@ impl MappingCursor<'_, '_> {
             }
             let body =
                 parse_code_block_tokens(&self.tokens.slice(expr_start, self.pos), JStr::default(), self.dialect)?;
+            self.engines_path_at_the_end(expr_start, self.pos)?;
             props.push(Box::new(PXStorePropertyMapping {
                 owner_class: JStr(target.to_vec()),
                 property: JStr(prop),
