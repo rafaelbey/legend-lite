@@ -378,9 +378,6 @@ impl MappingCursor<'_, '_> {
         if asserts.is_empty() {
             return Err(throw_at(self.tokens, t_s, JStr::from("Field 'asserts' is required")));
         }
-        if self.dialect.refuses_lite_extensions() && data.is_empty() {
-            return Err(throw_at(self.tokens, t_s, JStr::from("Field 'data' is required")));
-        }
         let close = self.pos;
         self.expect(T::BRACE_CLOSE)?;
         Ok(PMappingTest {

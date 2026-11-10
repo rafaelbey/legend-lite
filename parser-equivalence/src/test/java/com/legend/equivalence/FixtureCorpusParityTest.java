@@ -46,17 +46,13 @@ class FixtureCorpusParityTest {
             java.util.Set.of(
                     // ordering/placement — engine encodes order in rule
                     // structure; wire is order-free (do-not-chase)
+                    // 2026-11-09 (the user's ruling 18, docs/rust-port/PHASE2.md section 6): seven rows left, the
+                    // engine's dialect refusing them as the engine does (`%latest`, an import, `~mainMapping`, `~src`,
+                    // an `include`, `milestoning` and a view's clauses, out of their place)
                     "neg-connection-relationalmapper-section-order.pure",
-                    "neg-core-latest-outside-milestoning.pure",
-                    "neg-diagram-import-after-elements.pure",
                     "neg-generation-node-id-after-element.pure",
-                    "neg-mapping-aggregationaware-mainmapping-first.pure",
-                    "neg-mapping-pure-src-after-property.pure",
                     "neg-mongodbmapping-clause-order.pure",
                     "neg-persistence-test-field-order.pure",
-                    "neg-relational-include-after-element.pure",
-                    "neg-relational-milestoning-after-columns.pure",
-                    "ordering-view-modifiers.pure",
                     // engine NPE crashes (lite is RIGHT — F23)
                     "neg-persistence-graphfetch-keys-identifier.pure",
                     "neg-persistence-tds-keys-navigation-path.pure");

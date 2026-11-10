@@ -53,6 +53,9 @@ class OwnDialectCensusTest {
      *  test exercises extension grammar. */
     private static final java.util.Set<String> EXTENSION_TEST_HOSTS =
             java.util.Set.of(
+                    // 2026-11-09 (the user's ruling 18, docs/rust-port/PHASE2.md section 6): a service's `query:` naming
+                    // a function is lite's; the engine refuses it, LEGEND_ENGINE now refuses it too
+                    "ModelNormalizerTest.java",
                     // LITE-DESIGN-function-types-generics (§11)
                     "UserFunctionIntegrationTest.java",
                     "UserCallInlinerTest.java", "CompileFunctionTest.java",
@@ -114,6 +117,10 @@ class OwnDialectCensusTest {
                     // probe `#{I {product(2015-10-16){name}}}#`, which the
                     // engine refuses: LEGEND_ENGINE now refuses it too
                     java.util.Map.entry("ProbeWireShapes.java", 2),
+                    // 0 -> 1 (2026-11-09, REVIEWED, the user's ruling 18,
+                    // docs/rust-port/PHASE2.md section 6): `query: my::funcs::peopleQuery;`,
+                    // which the engine refuses: LEGEND_ENGINE now refuses it too
+                    java.util.Map.entry("ModelNormalizerTest.java", 1),
                     java.util.Map.entry("CleanSheetProtocolShapeTest.java", 6),
                     // 0 -> 1 (2026-09-13, REVIEWED, composition step 1):
                     // the routed-navigate witness's one model
