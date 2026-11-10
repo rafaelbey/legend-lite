@@ -838,9 +838,13 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      and other place differences are ledgered by family, S171 to S179.
    - **The gates at `44012955b`.** `bazel test //core/... //spec/... //rust/... //parser-equivalence/... //tools/... //gates/...`: 525
      targets, 523 pass and the same 2 skipped; `//wasm/...` built and its 5 tests pass. `//parser-equivalence:parser_parity`: 422 pins,
-     line agreement 415, column exact 337 (none moved); the sentinel 2,217 in scope, matched 2,217; own corpus 2,943, `diffs=0`.
-     `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` clean. 153,008 door answers over
-     mutated oracle texts: no panic, no raw answer. Ledger check: no MISSING.
+     line agreement 415, column exact 337 (none moved); the sentinel 2,217 in scope, matched 2,217; the sweep's 6,755 sources;
+     own corpus 2,943, `diffs=0`. `//core:front_shim`: the four doors 110,056 identical and 540 listed of 110,596, the engine-JSON
+     doors 29,860 and 204 of 30,064. `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`
+     clean. 153,008 door answers over mutated oracle texts: no panic, no raw answer. Ledger check: no MISSING.
+   - **The Java side.** `RustParserProvider.raised` is unchanged: ruling 18 adds no raw class and removes no site that raised
+     one. No test source was re-expressed; the guard files that moved are above, each with its note. `block` changed through the
+     expression doors' shared reading and was not measured (the measurement has no `block` door).
 
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
