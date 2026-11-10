@@ -398,3 +398,12 @@ Each with my recommendation first.
     graph". Likewise `PHASE3.md`'s "`judge/InstanceIds` stays Java": no file of that name exists on `main`. **Recorded as withdrawn. Yes.**
 14. **`Model` gains an overlay form for `withExecutionOverlay` (§7.5). Yes.** Alternative: rebuild a model per overlay, if measured cheap.
 15. **Handles released by `Cleaner`, with a byte threshold and a forced collection before the live-handle gate (§7.6). Yes.** Alternative: add `close` and change the tests.
+
+## 10. Rulings (the owner)
+
+1. **Question 1, 2026-11-09: merge `main` before any porting.** Once the parser work of ruling 18 (PHASE2.md §6) lands, `main` is merged into this
+   branch, its dialect and lexer changes are replayed into the Rust crates, the oracles and `rust/BASELINE.tsv` are re-frozen, and phase 3 ports from there.
+2. **Question 2, 2026-11-10: the planning middle freezes on `main` at the merge.** From then on it takes only changes on a dated list the owner agrees;
+   anything else that lands is ported into Rust as a delta with its own row. The runner, server and test-execution code can keep moving.
+
+The other questions wait on the owner's review of what from the test path is worth porting.
