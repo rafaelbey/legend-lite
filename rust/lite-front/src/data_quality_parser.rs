@@ -170,7 +170,7 @@ fn parse_tree_node<'s>(c: &mut impl Cursor<'s>, root: bool) -> R<PDqTreeNode> {
     if c.match_tok(T::BRACE_OPEN)? {
         while c.peek() != T::BRACE_CLOSE {
             sub_trees.push(Box::new(parse_tree_node(c, false)?));
-            // `item (COMMA item)*` at the engine's dialect, as ruling 18 holds every comma list (ruling 20, register S169)
+            // `item (COMMA item)*` at the engine's dialect, as ruling 18 holds every comma list (ruling 20, register S341)
             if !c.match_list_comma()? {
                 break;
             }

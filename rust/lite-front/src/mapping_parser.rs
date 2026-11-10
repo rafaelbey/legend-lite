@@ -299,7 +299,7 @@ impl<'t, 's> MappingCursor<'t, 's> {
             }
             inner.expect(T::BRACKET_CLOSE)?;
             // `serviceStubMappings EOF`, at the engine's dialect (the user's ruling 20 of 2026-11-10,
-            // docs/rust-port/PHASE2.md section 6; register S188)
+            // docs/rust-port/PHASE2.md section 6; register S360)
             if self.dialect.holds_to_the_engines_walk() && !inner.at_end() {
                 return Err(inner.unexpected());
             }
@@ -816,7 +816,7 @@ impl<'t, 's> MappingCursor<'t, 's> {
         let expected = inner.consume_string_literal("'expected'")?;
         if self.dialect.holds_to_the_engines_walk() {
             // `EXPECTED COLON STRING SEMI_COLON EOF`, at the engine's dialect (the user's ruling 20 of 2026-11-10,
-            // docs/rust-port/PHASE2.md section 6; register S188): a `;` the island's end cuts off is `ParserErrorListener`'s
+            // docs/rust-port/PHASE2.md section 6; register S360): a `;` the island's end cuts off is `ParserErrorListener`'s
             // empty span there, one column less
             if inner.at_end() {
                 return Err(JavaError::parse(
@@ -920,7 +920,7 @@ fn split_on(s: &[u16], sep: u16, out: &mut Vec<JStr>) {
 
 /// A path-less relation island (a test's assertion, a data space's sample values: `Relation #{ ... }#` with no path),
 /// which the engine's walker reparses as `": " + trim(content)` with its `RelationElementsData` grammar at the `#{` (the
-/// user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S187): refused where that reading stops,
+/// user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S359): refused where that reading stops,
 /// the reparse's first line two columns past the `#{`, its later lines that many below the `#{`'s line. `from..to` is the
 /// island's content; at the engine's dialect.
 pub(crate) fn relation_reparse_refusal(
@@ -958,7 +958,7 @@ pub(crate) fn relation_reparse_refusal(
 
 /// The end of the M3 lexer's `VALID_STRING` at `p` (`(Letter | Digit | '_') (Letter | Digit | '_' | '$')*`), none where its
 /// token there is another: a number (`INTEGER`, `FLOAT`, `DECIMAL`, which it prefers on a tie) or no word at all (the user's
-/// ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S187).
+/// ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S359).
 fn m3_valid_string_end(src: &[u16], p: usize, end: usize) -> Option<usize> {
     let ascii = |q: usize, f: fn(&u8) -> bool| q < end && src[q] < 128 && f(&(src[q] as u8));
     let digit = |q: usize| ascii(q, u8::is_ascii_digit);

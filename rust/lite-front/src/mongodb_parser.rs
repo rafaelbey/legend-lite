@@ -194,7 +194,7 @@ fn parse_schema_island<'s>(c: &mut impl Cursor<'s>) -> R<PBsonSchema> {
 
 /// A value of the wrong kind (PARITY row 50), refused at the section's start, where legend-engine's reader answers: its
 /// words where it refuses the schema too; `lite`'s where it accepts it, deliberately stricter (the user's ruling 11 of
-/// 2026-11-09, docs/rust-port/PHASE2.md section 6; register S156).
+/// 2026-11-09, docs/rust-port/PHASE2.md section 6; register S328).
 fn judged<'s>(root: &[(Vec<u16>, Json)], at: &impl Cursor<'s>, lite: JStr) -> JavaError {
     at.section_refusal(engine_refusal(root).unwrap_or(lite))
 }

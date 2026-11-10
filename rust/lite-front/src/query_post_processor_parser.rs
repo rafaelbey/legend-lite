@@ -41,7 +41,7 @@ pub fn parse_relational_mapper<'s>(c: &mut impl Cursor<'s>) -> R<PRelationalMapp
         let key_start = c.pos();
         let key = c.parse_identifier()?;
         // `DatabaseMappers? SchemaMappers? TableMappers?` in this order, at the engine's dialect, a repeat refused at its
-        // key as one out of order (the user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S185)
+        // key as one out of order (the user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S357)
         let rank = ["DatabaseMappers", "SchemaMappers", "TableMappers"]
             .iter()
             .position(|k| eq(&key, k));

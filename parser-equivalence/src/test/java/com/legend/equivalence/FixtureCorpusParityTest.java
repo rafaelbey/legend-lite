@@ -54,8 +54,8 @@ class FixtureCorpusParityTest {
                     // 2026-11-10 (the user's ruling 20, docs/rust-port/PHASE2.md section 6): the last six rows left, the
                     // engine's dialect refusing them as the engine does, at its place: a RelationalMapper's lists, a
                     // generation node's id and a MongoDB mapping's `~filter` out of their order, a persistence test's
-                    // keys out of theirs (register S183, S185), and the two engine NPE rows (F23), whose arm of a
-                    // service output's value the engine's walker takes by the output's kind (register S184)
+                    // keys out of theirs (register S355, S357), and the two engine NPE rows (F23), whose arm of a
+                    // service output's value the engine's walker takes by the output's kind (register S356)
                     );
 
     private static final PureGrammarParser REFEREE =

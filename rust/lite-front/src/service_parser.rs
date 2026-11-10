@@ -634,7 +634,7 @@ pub(crate) fn parse_post_validations<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<P
 
 /// The `;` lite reads after a service's `postValidations` and `testSuites` lists, which the engine's rules end without
 /// (`... BRACKET_CLOSE`): refused at its dialect (the user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6;
-/// register S190), read as optional at lite's and the platform's.
+/// register S362), read as optional at lite's and the platform's.
 pub(crate) fn no_semicolon_after_the_list<'s>(c: &mut impl Cursor<'s>) -> R<()> {
     if c.dialect().refuses_lite_extensions() && !c.at_end() && c.peek() == T::SEMI_COLON {
         return Err(c.unexpected());
@@ -753,7 +753,7 @@ fn parse_legacy_body<'s>(
                 let mut param_values = Vec::new();
                 while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                     let pv_s = c.pos();
-                    // `testListValueParam | testSingleValueParam` at the engine's dialect (ruling 20, register S191)
+                    // `testListValueParam | testSingleValueParam` at the engine's dialect (ruling 20, register S363)
                     if c.dialect().refuses_lite_extensions() {
                         engines_primitive_value(c, T::BRACKET_CLOSE, true)?;
                     }
@@ -881,7 +881,7 @@ fn default_assertion_at<'s>(host: &mut impl Cursor<'s>) -> R<PTestAssertion> {
 /// The engine's `primitiveValue` at the cursor (`STRING | INTEGER | FLOAT | DECIMAL | DATE | BOOLEAN | STRICTTIME`, a sign
 /// and a number, `toBytes('..')`, an enum's `qualifiedName DOT identifier`, or a `[...]` of those; a `%` literal as the
 /// engine's lexer ends it), and the `,` or `close` after it, refused where its grammar stops (the user's ruling 20 of
-/// 2026-11-10, docs/rust-port/PHASE2.md section 6; register S191): a service test's parameter, a legacy test's
+/// 2026-11-10, docs/rust-port/PHASE2.md section 6; register S363): a service test's parameter, a legacy test's
 /// (`legacy_list`: or its `list([...])`). A stop at the end of the input is left to lite's own reading, which places it
 /// where the engine does. The cursor is left where it began.
 pub(crate) fn engines_primitive_value<'s, C: Cursor<'s>>(c: &mut C, close: TokenType, legacy_list: bool) -> R<()> {
@@ -997,7 +997,7 @@ fn suite_params<'s>(c: &mut impl Cursor<'s>, close: TokenType) -> R<Vec<Box<PSer
             continue;
         }
         let vs = c.pos();
-        // `identifier EQUAL primitiveValue` at the engine's dialect (ruling 20, register S191)
+        // `identifier EQUAL primitiveValue` at the engine's dialect (ruling 20, register S363)
         if c.dialect().refuses_lite_extensions() {
             engines_primitive_value(c, close, false)?;
         }

@@ -87,43 +87,43 @@ def rule(name, row, tier, kinds, lite=None, eng=None, pred=None, doors=None):
     R.append(dict(name=name, row=row, tier=tier, kinds=kinds, lite=re.compile(lite) if lite else None, eng=re.compile(eng) if eng else None, pred=pred, doors=doors))
 
 # ---- lite stricter: the rows that say lite refuses what the engine accepts
-rule("impossible date with a zone", "S151 / P3", "H", {STRICT, PLACE}, lite=r"invalid date literal .*Invalid date")
-rule("1.ed, 1.e+d, 1.ef", "S153 / P8", "H", {STRICT}, lite=r"Unexpected token '[eE][-+]?[dDfF]?'", pred=lambda r, t, c: re.search(r"\d\.$", before_lite(r, t, 8)) is not None)
-rule("empty ###Diagram before another", "S155 / P46", "H", {STRICT, PLACE}, lite=r"an empty ###Diagram section")
-rule("jsonSchema value of the wrong kind", "S156 / P50", "H", {STRICT, PLACE}, lite=r"a jsonSchema (title|description|required|minLength|maxLength)")
-rule("AggregationAware local property", "S157 / P72", "H", {STRICT, PLACE}, lite=r"the local property .* AggregationAware")
-rule("Default platform with a body", "S158 / P73", "H", {STRICT, PLACE}, lite=r"Persistence platform 'Default' must not have a body")
-rule("^a::B(1)(x=1)", "S166", "H", {STRICT}, lite=r"trailing tokens after .*PAREN_OPEN|a positional cast", pred=lambda r, t, c: before_lite(r, t, 3).rstrip().endswith(")"))
+rule("impossible date with a zone", "S323 / P3", "H", {STRICT, PLACE}, lite=r"invalid date literal .*Invalid date")
+rule("1.ed, 1.e+d, 1.ef", "S325 / P8", "H", {STRICT}, lite=r"Unexpected token '[eE][-+]?[dDfF]?'", pred=lambda r, t, c: re.search(r"\d\.$", before_lite(r, t, 8)) is not None)
+rule("empty ###Diagram before another", "S327 / P46", "H", {STRICT, PLACE}, lite=r"an empty ###Diagram section")
+rule("jsonSchema value of the wrong kind", "S328 / P50", "H", {STRICT, PLACE}, lite=r"a jsonSchema (title|description|required|minLength|maxLength)")
+rule("AggregationAware local property", "S329 / P72", "H", {STRICT, PLACE}, lite=r"the local property .* AggregationAware")
+rule("Default platform with a body", "S330 / P73", "H", {STRICT, PLACE}, lite=r"Persistence platform 'Default' must not have a body")
+rule("^a::B(1)(x=1)", "S338", "H", {STRICT}, lite=r"trailing tokens after .*PAREN_OPEN|a positional cast", pred=lambda r, t, c: before_lite(r, t, 3).rstrip().endswith(")"))
 rule("ModelStore's -9223372036854775808", "S96", "H", {STRICT}, lite=r"Unexpected token '9223372036854775808'")
 
 # ---- lite looser: a record door keeps what the rows refuse only at the engine-JSON doors
 for pat, row, name in [
-    (r"a positional cast", "S159 / P69", "positional cast at a record door"),
-    (r"the multiplicity parameter", "S161 / P70", "multiplicity parameter at a record door"),
-    (r"Unexpected token '\?'", "S160 / P69", "wildcard relation column at a record door"),
-    (r"Unexpected token 'activationConfiguration'", "S162 / P71", "DeephavenApp configuration at a record door"),
+    (r"a positional cast", "S331 / P69", "positional cast at a record door"),
+    (r"the multiplicity parameter", "S333 / P70", "multiplicity parameter at a record door"),
+    (r"Unexpected token '\?'", "S332 / P69", "wildcard relation column at a record door"),
+    (r"Unexpected token 'activationConfiguration'", "S334 / P71", "DeephavenApp configuration at a record door"),
 ]:
     rule(name, row, "H", {LOOSE}, doors={"pmcd", "spec", "lambda"}, pred=(lambda p: lambda r, t, c: json_says(r, c, p))(pat))
-rule("spelled @Relation<(a:?)> at a record door", "S160 / P69", "H", {LOOSE}, doors={"pmcd", "spec", "lambda"}, eng=r"Unexpected token '<'", pred=lambda r, t, c: "?" in t and "@Relation<" in t and json_says(r, c, r"Unexpected token '<'"))
-rule("schema algebra as a type argument at a record door", "S150 / P87", "H", {LOOSE}, doors={"pmcd", "spec", "lambda"}, eng=r"Unexpected token '<'", pred=lambda r, t, c: json_says(r, c, r"Unexpected token '<'") and re.match(r"\s*<[^>]*-", (lambda o: t[o:o + 200] if o is not None else "")(offset(t, r["eline"], r["ecol"]))) is not None)
-rule("EqualToJson entries at a record door", "S165 / P74", "H", {LOOSE}, doors={"pmcd"}, pred=lambda r, t, c: "EqualToJson" in before(r, t, 400) and json_refuses(r, c))
-rule("persistence node the emitter refuses, at a record door", "S143 / P73", "H", {LOOSE}, doors={"pmcd"}, pred=lambda r, t, c: r["grammar"] == "###Persistence" and json_refuses(r, c))
-rule("DataQuality context at a record door", "S144 / P76", "H", {LOOSE}, doors={"pmcd"}, pred=lambda r, t, c: r["grammar"] == "###DataQualityValidation" and json_refuses(r, c))
+rule("spelled @Relation<(a:?)> at a record door", "S332 / P69", "H", {LOOSE}, doors={"pmcd", "spec", "lambda"}, eng=r"Unexpected token '<'", pred=lambda r, t, c: "?" in t and "@Relation<" in t and json_says(r, c, r"Unexpected token '<'"))
+rule("schema algebra as a type argument at a record door", "S322 / P87", "H", {LOOSE}, doors={"pmcd", "spec", "lambda"}, eng=r"Unexpected token '<'", pred=lambda r, t, c: json_says(r, c, r"Unexpected token '<'") and re.match(r"\s*<[^>]*-", (lambda o: t[o:o + 200] if o is not None else "")(offset(t, r["eline"], r["ecol"]))) is not None)
+rule("EqualToJson entries at a record door", "S337 / P74", "H", {LOOSE}, doors={"pmcd"}, pred=lambda r, t, c: "EqualToJson" in before(r, t, 400) and json_refuses(r, c))
+rule("persistence node the emitter refuses, at a record door", "S315 / P73", "H", {LOOSE}, doors={"pmcd"}, pred=lambda r, t, c: r["grammar"] == "###Persistence" and json_refuses(r, c))
+rule("DataQuality context at a record door", "S316 / P76", "H", {LOOSE}, doors={"pmcd"}, pred=lambda r, t, c: r["grammar"] == "###DataQualityValidation" and json_refuses(r, c))
 rule("TIME and TIMESTAMP_NS columns", "S64", "H", {LOOSE}, eng=r"Unsupported column data type '(TIME|TIMESTAMP_NS)'")
 
 # ---- other place, rows that name the place
 rule("empty embedded runtime or connection, unplaced", "P33", "H", {PLACE}, lite=r"Embedded runtime must not be empty|unsupported connection flavor", pred=lambda r, t, c: r["lline"] == "0")
 rule("EqualTo #{ }# unplaced", "P31", "H", {PLACE}, lite=r"assertion key '<EOF>' is unbuilt", pred=lambda r, t, c: r["lline"] == "0")
-rule("#{ as the last token", "S146 / P83", "H", {PLACE}, lite=r"Graph fetch tree must not be empty", pred=lambda r, t, c: t.rstrip().endswith("#{"))
-rule("graph-fetch argument, column", "S142 / P63", "H", {PLACE}, lite=r"a graph-fetch argument must be", pred=lambda r, t, c: r["cat"] == "same line, other column")
-rule("graph-fetch argument, later syntax error", "S164 / P63", "M", {PLACE}, lite=r"a graph-fetch argument must be")
+rule("#{ as the last token", "S318 / P83", "H", {PLACE}, lite=r"Graph fetch tree must not be empty", pred=lambda r, t, c: t.rstrip().endswith("#{"))
+rule("graph-fetch argument, column", "S314 / P63", "H", {PLACE}, lite=r"a graph-fetch argument must be", pred=lambda r, t, c: r["cat"] == "same line, other column")
+rule("graph-fetch argument, later syntax error", "S336 / P63", "M", {PLACE}, lite=r"a graph-fetch argument must be")
 rule("platform Foo a token late", "P73", "H", {PLACE}, lite=r"Unsupported persistence platform type")
-rule("persistence kind at the node's span", "S143 / P73", "H", {PLACE}, doors={"document"}, lite=r"Unexpected token", pred=lambda r, t, c: r["grammar"] == "###Persistence" and c["pmcd_accepts"](r["id"]))
+rule("persistence kind at the node's span", "S315 / P73", "H", {PLACE}, doors={"document"}, lite=r"Unexpected token", pred=lambda r, t, c: r["grammar"] == "###Persistence" and c["pmcd_accepts"](r["id"]))
 rule("refusal in an island's own coordinates", "P33 / P57", "H", {PLACE}, pred=lambda r, t, c: island_relative(r, t))
 rule("column counts code points", "P2", "M", {PLACE}, pred=lambda r, t, c: r["cat"] == "same line, other column" and astral_before(r, t))
 rule("unknown ### section", "P17", "M", {PLACE}, lite=r"is not a known section parser")
 rule("documentation string before a keyword", "P13", "M", {PLACE}, lite=r"Documentation must be written as a multi-line")
-rule("multiplicity parameter in a lambda, unplaced by the engine", "S161 / P70", "H", {PLACE}, lite=r"the multiplicity parameter")
+rule("multiplicity parameter in a lambda, unplaced by the engine", "S333 / P70", "H", {PLACE}, lite=r"the multiplicity parameter")
 rule("documentation before a Database member", "P24", "M", {PLACE}, lite=r"unsupported Database member: '''")
 rule("graph-fetch subtype error, unplaced", "P11", "M", {PLACE}, pred=lambda r, t, c: r["lline"] == "0" and "subType" in t)
 rule("relational string with a bad escape", "P25", "M", {PLACE}, lite=r"malformed quoted name: Less than", pred=lambda r, t, c: r["grammar"] in ("###Relational", "###Mapping"))

@@ -662,7 +662,7 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      Rust; a `'''` left open; schema algebra as a type argument). Sites proven unreachable are `unreachable!` or `expect`
      with the reason (`operator_parts`' collection carrier, among them). The rows of the emitter's same
      `UnsupportedOperationException` the ruling does not name (68, 69, 70, 71, 74, 81) are unchanged and listed for the
-     user. PARITY's rows say each row's answer and date; `docs/SEMANTICS_REGISTER.md` S128 to S150 quote the engine's answer
+     user. PARITY's rows say each row's answer and date; `docs/SEMANTICS_REGISTER.md` S300 to S322 quote the engine's answer
      for each fixed row, no standing row covering parse wording. The frozen oracle stays Java's:
      `rust/oracles/front/deliberate-differences.tsv` lists the 5 asks, `raw-left-for-user.tsv` the 1 frozen question still
      raw, and the three differentials and `//core:front_shim` hold identical + listed == total both ways and fail on any
@@ -700,32 +700,32 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
 
      | row | input | the engine | lite now | register |
      |---|---|---|---|---|
-     | 3 | `%2023-02-29T10:30+0100`, every dialect and door | accepts, the literal as text | `invalid date literal ...` at the literal | S151 |
-     | 7 | `1e999`, `1.0e999`, `-1e999`, `1e999f`, lite's and the platform's dialects | accepts: a name, `1.0e999` the float `Infinity` | `float literal out of range: ...` at the number | S152 |
-     | 8 | `1.ed`, `1.e+d`, `1.ef`, those dialects | accepts: `1`, `.`, a name | `Unexpected token 'ed'` at the exponent's letter | S153 |
-     | 8 | `1.5e99999999999[f]`, those dialects | accepts: `Infinity` | `float literal out of range: ...` at the token | S154 |
-     | 46 | `###Diagram` with another header next | accepts: an empty section | `an empty ###Diagram section ...` at its header | S155 |
-     | 50 | a `title`, `description`, `required` element or length of the wrong kind, an integer past a long, under typed nodes | accepts: ignored or not visited | `a jsonSchema title must be a string` and its kin at the section's start | S156 |
-     | 72 | a local property under an AggregationAware Pure `~mainMapping` (`document`) | accepts | `the local property 'loc' is not supported ...` at its name | S157 |
-     | 73 | `platform: Default #{ x: 1; }#` (`document`) | accepts: a default platform | `Persistence platform 'Default' must not have a body` at the word | S158 |
+     | 3 | `%2023-02-29T10:30+0100`, every dialect and door | accepts, the literal as text | `invalid date literal ...` at the literal | S323 |
+     | 7 | `1e999`, `1.0e999`, `-1e999`, `1e999f`, lite's and the platform's dialects | accepts: a name, `1.0e999` the float `Infinity` | `float literal out of range: ...` at the number | S324 |
+     | 8 | `1.ed`, `1.e+d`, `1.ef`, those dialects | accepts: `1`, `.`, a name | `Unexpected token 'ed'` at the exponent's letter | S325 |
+     | 8 | `1.5e99999999999[f]`, those dialects | accepts: `Infinity` | `float literal out of range: ...` at the token | S326 |
+     | 46 | `###Diagram` with another header next | accepts: an empty section | `an empty ###Diagram section ...` at its header | S327 |
+     | 50 | a `title`, `description`, `required` element or length of the wrong kind, an integer past a long, under typed nodes | accepts: ignored or not visited | `a jsonSchema title must be a string` and its kin at the section's start | S328 |
+     | 72 | a local property under an AggregationAware Pure `~mainMapping` (`document`) | accepts | `the local property 'loc' is not supported ...` at its name | S329 |
+     | 73 | `platform: Default #{ x: 1; }#` (`document`) | accepts: a default platform | `Persistence platform 'Default' must not have a body` at the word | S330 |
 
    - **Ruling 12** (at `document` and `lambdaJson`, only where the engine refuses; the columns are the engine's, 222 of the
      probe's inputs exact, the differences named in PARITY):
 
      | row | input | the engine | lite now | register |
      |---|---|---|---|---|
-     | 69 | `^a::B($x)` | at the argument's first token | `a positional cast ...` there | S159 |
-     | 69 | `^a::B(1)` | a literal is the type's variable values: the token after the `)` | the same token (`[2:1]`, the line under a lambda's text) | S159 |
-     | 69 | `@(a:?)`, `@Relation<(a:?)>` | `Unexpected token '?'`, `'<'` | the same words and token | S160 |
-     | 70 | `p: String[m];`, a lambda's `x:String[m]` | section catch-all; raw at a lambda | section's start; a lambda's at the name | S161 |
-     | 71 | a `DeephavenApp`'s `activationConfiguration: a::K;` | at the key | at the key | S162 |
-     | 81 | `#/a::B/c($x)#` | at the token its grammar stops at, column shifted by the literal's | the same place (`[1:23]`) | S163 |
+     | 69 | `^a::B($x)` | at the argument's first token | `a positional cast ...` there | S331 |
+     | 69 | `^a::B(1)` | a literal is the type's variable values: the token after the `)` | the same token (`[2:1]`, the line under a lambda's text) | S331 |
+     | 69 | `@(a:?)`, `@Relation<(a:?)>` | `Unexpected token '?'`, `'<'` | the same words and token | S332 |
+     | 70 | `p: String[m];`, a lambda's `x:String[m]` | section catch-all; raw at a lambda | section's start; a lambda's at the name | S333 |
+     | 71 | a `DeephavenApp`'s `activationConfiguration: a::K;` | at the key | at the key | S334 |
+     | 81 | `#/a::B/c($x)#` | at the token its grammar stops at, column shifted by the literal's | the same place (`[1:23]`) | S335 |
      | 68, 69 | `letFunction(1, 2)`, `let y = %10:10:10`, `let y = @(a:Integer)` | accepts | the raw answer, kept | none |
      | 81 | `c(1.5)`, `c(-1)`, `c([.5])`, `c(1.5f)` | accepts | the raw answer, kept | none |
      | 74 | `EqualToJson #{ expected: ['a']; }#`, `[a, b]`, `#/a::B/c#`, `[#/a::B/c#]`, `[{x: 1;}]`, `database:`, `binding:` | refuses, at the value or the key | the raw answer, unchanged; **the ruling's premise does not hold, these reach it; it comes back to the user** | none |
 
    - **Ruling 13.** `pmcd` at `LEGEND_ENGINE` and `lambda` refuse row 63's arguments with the JSON doors' error and place
-     (`graph_fetch_argument_refused`, shared with the emitter, moved to `protocol.rs`). Register S164. `pmcd` at lite's and
+     (`graph_fetch_argument_refused`, shared with the emitter, moved to `protocol.rs`). Register S336. `pmcd` at lite's and
      the platform's dialects keeps its records. The gap at `spec` and `block` at the engine's dialect is left, not ruled.
      No lite test, PCT source, corpus or Pure model relied on the `lambda` door accepting such an argument; the one
      snippet of lite's own the model door now refuses is the instrument's probe the engine refuses too.
@@ -757,24 +757,24 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      meets is the answer unless it is one the engine raises while walking (`Field '...'`, `Unknown ...`, a section catch-all's).
      A mapping element's body does the same inside itself first. No new `java.*` answer; `NumberFormatException` has no Rust
      site left, and its arm has left `RustParserProvider.raised`.
-   - **Ruling 11, corrected (row 8).** `1.ed`, `1.e+d`, `1.ef` and their kin at every dialect, at the letter: register S153
+   - **Ruling 11, corrected (row 8).** `1.ed`, `1.e+d`, `1.ef` and their kin at every dialect, at the letter: register S325
      updated. `1.e+` with nothing after its sign is at the sign at the engine's dialect, as the engine refuses it. The huge
      exponent stays limited to lite's and the platform's dialects.
    - **The rows** (the engine's words differ, its token and column are lite's, except where said):
 
      | row | input | doors | the engine | lite now | register |
      |---|---|---|---|---|---|
-     | 74 | `EqualToJson #{ expected: ['a']; }#`, `[a, b]`, `[]`, `#/a::B/c#`, `[#/a::B/c#]`, `[{x: 1;}]` | `document` | at the value's first token | `Unexpected token '['` and kin there | S165 |
-     | 74 | `database: a::D;`, `binding: a::B;`, any other key, a key after a good `expected` | `document` | at the key | `Unexpected token 'database'` there | S165 |
-     | 74 | `EqualToJson { expected: ['a']; }` | `document` | at the `{` | `Unexpected token '{'` there | S165 |
-     | 63 | `#{a::B{c(f())}}#` and every other argument | `spec`, `block` at the engine's | as the other doors | the row's refusal at its place | S164 |
-     | 81 | `c(a::E.X)`, `c(1,)`, `c(,1)`, `c(1,,2)`, `c(%10:10)`, `c([a::E.X])`, `c([1,])`, `c([,1])`, `c(E.)`, `c(1.)`, `c(%x)`, the arguments of S163 | all six, at the engine's | where its grammar stops | `this argument of a dated path segment ...` there | S167 |
-     | 73 | `Default #{ }#`, `Foo #{ }#`, `AwsGlue #{ }#`, any one-character island | `pmcd`, `document` at the engine's | section catch-all | `... must not have a one-character body` at the section's start | S168 |
-     | 73 | `AwsGlue #{ dataProcessingUnits: 1; }#`, `foo: 10;`, a string or word value, a key after a good one, `dataProcessingUnits: 10` with no `;` | `pmcd`, `document` at the engine's | its cloud grammar over the text less two characters | `Unexpected token ...` where it stops | S168 |
-     | 69 | `^a::B($x, $y)` | all, at the engine's | at the first `$` | the row's refusal there | S159 |
-     | 69 | `^a::B(1, 2)` | all, at the engine's | past the group | the same; `[1:12]` at `spec`, `[2:1]` at `lambda`, the `}` in a function | S159 |
-     | 69 | `^a::B(1, $x)`, `^a::B(1,)`, `^a::B('a'+'b', 1)`, `^a::B('a'+'b')` | all (the last at the JSON doors) | at the stop | the same | S159 |
-     | 69 | `^a::B(1)(x=1)` | all | accepts | `trailing tokens ...` at the second `(`; stricter, no code change | S166 |
+     | 74 | `EqualToJson #{ expected: ['a']; }#`, `[a, b]`, `[]`, `#/a::B/c#`, `[#/a::B/c#]`, `[{x: 1;}]` | `document` | at the value's first token | `Unexpected token '['` and kin there | S337 |
+     | 74 | `database: a::D;`, `binding: a::B;`, any other key, a key after a good `expected` | `document` | at the key | `Unexpected token 'database'` there | S337 |
+     | 74 | `EqualToJson { expected: ['a']; }` | `document` | at the `{` | `Unexpected token '{'` there | S337 |
+     | 63 | `#{a::B{c(f())}}#` and every other argument | `spec`, `block` at the engine's | as the other doors | the row's refusal at its place | S336 |
+     | 81 | `c(a::E.X)`, `c(1,)`, `c(,1)`, `c(1,,2)`, `c(%10:10)`, `c([a::E.X])`, `c([1,])`, `c([,1])`, `c(E.)`, `c(1.)`, `c(%x)`, the arguments of S335 | all six, at the engine's | where its grammar stops | `this argument of a dated path segment ...` there | S339 |
+     | 73 | `Default #{ }#`, `Foo #{ }#`, `AwsGlue #{ }#`, any one-character island | `pmcd`, `document` at the engine's | section catch-all | `... must not have a one-character body` at the section's start | S340 |
+     | 73 | `AwsGlue #{ dataProcessingUnits: 1; }#`, `foo: 10;`, a string or word value, a key after a good one, `dataProcessingUnits: 10` with no `;` | `pmcd`, `document` at the engine's | its cloud grammar over the text less two characters | `Unexpected token ...` where it stops | S340 |
+     | 69 | `^a::B($x, $y)` | all, at the engine's | at the first `$` | the row's refusal there | S331 |
+     | 69 | `^a::B(1, 2)` | all, at the engine's | past the group | the same; `[1:12]` at `spec`, `[2:1]` at `lambda`, the `}` in a function | S331 |
+     | 69 | `^a::B(1, $x)`, `^a::B(1,)`, `^a::B('a'+'b', 1)`, `^a::B('a'+'b')` | all (the last at the JSON doors) | at the stop | the same | S331 |
+     | 69 | `^a::B(1)(x=1)` | all | accepts | `trailing tokens ...` at the second `(`; stricter, no code change | S338 |
 
    - **Row 63 and a later syntax error** (ruling 16 (c)), at every door it is refused: a syntax error later in the same function,
      section, expression or text comes first; the refusal stays first against a later section, the rest of its own island,
@@ -795,7 +795,7 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    **Ruling 18 done 2026-11-09** (from `8c7de71fc`, the rulings of §6; commits `1884e6ef7`, `52f66f7fd`, `2468f9f4c`, `44012955b`).
    Every input was asked of legend-engine's own parser on the parser-equivalence class path (`PureGrammarParser`, 4.145.0), the
    measurement's probes re-run on its pinned inputs (`docs/rust-port/ENGINE_GAP_2026_11_09.md`, "After ruling 18").
-   - **The end of the input (§2 of the brief; register S170), in the cursor.** `throw_at` past the last token of a stream that runs
+   - **The end of the input (§2 of the brief; register S342), in the cursor.** `throw_at` past the last token of a stream that runs
      to the end of its input stands one past the input's last character, blanks and line breaks counted (`TokenStream::input_end`:
      a whole text's length, a re-lexed range's end, none for a window short of its stream's last token). The expect family
      (`Cursor::missing`) places a missing closer one column less where ANTLR reports a token inserted or removed (the closer ends
@@ -803,7 +803,7 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      open. A quote left open at the end is refused at the quote. A construct only the walk refuses, cut by the end, is refused at
      the end (`JavaError::end_of_input_first`, the text read again at the platform's dialect, on the error path alone). A mapping
      element's or connection's body left open by the end is the outer parse's refusal, one column before the end.
-   - **Never looser (§1; register S169), by root cause, at `LEGEND_ENGINE`'s door levels alone:** imports by the engine's rule; every
+   - **Never looser (§1; register S341), by root cause, at `LEGEND_ENGINE`'s door levels alone:** imports by the engine's rule; every
      comma list as `item (COMMA item)*`, a helper for the 90-odd sites that wrote an optional comma; element bodies as islands
      counted by braces, strings no strings to them; clause orders (a Pure mapping's `~src`/`~filter` before its properties, a
      view's `~groupBy` before `~distinct`, an `include` before the elements, imports before a diagram's, `Views` first in an
@@ -812,14 +812,14 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      algebra and a unit's arguments in a type; a column spec's `:` followed by neither type nor lambda; `let` at the `spec` door;
      navigation paths by the engine's navigation grammar; embedded relation data by its grammar; a `Reference`'s text as a path;
      a persistence key its lexer does not name; a service-store parameter's scalar type; required `tests`. The record doors at the
-     engine's dialect now refuse what the JSON door places (`doors::pmcd` asks the emitter, and takes its placed refusals but S157's),
-     so S143, S144, S159, S160, S161 and S165 are refused at `pmcd`, `spec`, `block` and `lambda` too.
-   - **Named exclusions.** S64's TIME and TIMESTAMP_NS columns (571 corpus, 280 and 74 mutated texts at `pmcd` and `document`). S157
-     and S158, which the engine accepts, stay refused at the `document` door alone.
-   - **Lite's own relied on the acceptance: left, and back to the user (S180).** A `Diagram X(width=.., height=..)` argument list
+     engine's dialect now refuse what the JSON door places (`doors::pmcd` asks the emitter, and takes its placed refusals but S329's),
+     so S315, S316, S331, S332, S333 and S337 are refused at `pmcd`, `spec`, `block` and `lambda` too.
+   - **Named exclusions.** S64's TIME and TIMESTAMP_NS columns (571 corpus, 280 and 74 mutated texts at `pmcd` and `document`). S329
+     and S330, which the engine accepts, stay refused at the `document` door alone.
+   - **Lite's own relied on the acceptance: left, and back to the user (S352).** A `Diagram X(width=.., height=..)` argument list
      (`ModelReaderParityTest`'s and `//wasm:round_trip_test`'s inputs, three reviewed rows of `docs/refusal-allowlist.tsv`); a
      mapping test with no `data` (`ElementParserTest.mappingTestSuitesParsedOntoTheRecord`, `...InteriorBracesBalanced`).
-   - **Not reached: lite is still looser on 34 further texts** (of the pinned inputs; S180, the gap report lists them). Ruling 18
+   - **Not reached: lite is still looser on 34 further texts** (of the pinned inputs; S352, the gap report lists them). Ruling 18
      asked for 0; each is a rule not yet written (a persistence key out of order, a Mongo mapping's clauses, scattered mutations
      inside embedded data). `docs/refusal-allowlist.tsv`'s row for `relationMappingSetup.pure` called its `~func` a version skew
      of the oracle: the pinned 4.145.0 refuses it, so it is refused now, and the row left.
@@ -835,7 +835,7 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      two parity targets, the engine refuses every one. The sentinel rose: 2,217 of 2,217 matched, none lenient.
    - **The measurement, before -> after,** mutated at `pmcd`: same place 87,633 -> 99,981 of 153,008, lite looser 586 -> 300 (280
      S64), stricter 357 -> 358; the end of the input 17,713 -> 6,088. `spec`, `lambda`, `lambdaJson` looser 49, 44, 36 -> 0. Stricter
-     and other place differences are ledgered by family, S171 to S179.
+     and other place differences are ledgered by family, S343 to S351.
    - **The gates at `44012955b`.** `bazel test //core/... //spec/... //rust/... //parser-equivalence/... //tools/... //gates/...`: 525
      targets, 523 pass and the same 2 skipped; `//wasm/...` built and its 5 tests pass. `//parser-equivalence:parser_parity`: 422 pins,
      line agreement 415, column exact 337 (none moved); the sentinel 2,217 in scope, matched 2,217; the sweep's 6,755 sources;
@@ -849,37 +849,37 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    **Rulings 19 to 21 done 2026-11-10** (from `3328a746e`; commits `e02b2cb0a`). Every input was asked of legend-engine's own
    parser on the parser-equivalence class path (`PureGrammarParser`, 4.145.0); the measurement's probes re-run on its pinned
    inputs with the `block` door added (`docs/rust-port/ENGINE_GAP_2026_11_09.md`, "After rulings 19 to 21").
-   - **Ruling 19.** S180 split: a Diagram's m2 argument list (`Diagram X(width=.., height=..)`, the reviewed "DEFENDED" rows
-     of `docs/refusal-allowlist.tsv`) is S180, the mapping test with no `data` (`ElementParserTest`'s two tests) S181, each
+   - **Ruling 19.** S352 split: a Diagram's m2 argument list (`Diagram X(width=.., height=..)`, the reviewed "DEFENDED" rows
+     of `docs/refusal-allowlist.tsv`) is S352, the mapping test with no `data` (`ElementParserTest`'s two tests) S353, each
      ruled deliberately looser. No code change.
    - **Ruling 20: the 34, by root cause, each at the engine's line and column at the engine's dialect** (lite's and the
      platform's dialects read them as before but for the first): a line comment ends at a lone `\r`, at every dialect, as
-     both upstreams' lexers end it (S182; no frozen question holds one); the persistence grammar's test key order and its
-     `;`s (S183); its walker's arm of a service output's value by the output's kind, the engine's NPE refusal reproduced,
-     and a graph-fetch output's required `keys` (S184); the orders of a `RelationalMapper`'s lists, a generation node's `id`
-     and a MongoDB mapping's `~filter`, the last in its parser's coordinates (S185); a `%` literal ended where the engine's
-     lexer ends it, a milestoning's `INFINITY_DATE` its `DATE` alone (S186); relation data by its grammar's words, and the
-     walker's reparse of a test's or a data space's path-less relation at the `#{` (S187); a ServiceStore data island's and
-     a content pattern's end (S188); a data space's test data path and its executable's `functionIdentifier` (S189); a
-     HostedService's `postValidations` and `testSuites` by the Service's rules, no `;` after either list (S190); a service
-     test's `primitiveValue` (S191); a Pure mapping's set id no number or boolean (S192); a mapping expression ending in a
-     path (S193); a default value's whole `defaultValueExpression` (S194); a column spec's name that starts no lambda a type
-     (S195). The walker-level rules are held at the engine's walk (`Dialect::holds_to_the_engines_walk`), so a later syntax
+     both upstreams' lexers end it (S354; no frozen question holds one); the persistence grammar's test key order and its
+     `;`s (S355); its walker's arm of a service output's value by the output's kind, the engine's NPE refusal reproduced,
+     and a graph-fetch output's required `keys` (S356); the orders of a `RelationalMapper`'s lists, a generation node's `id`
+     and a MongoDB mapping's `~filter`, the last in its parser's coordinates (S357); a `%` literal ended where the engine's
+     lexer ends it, a milestoning's `INFINITY_DATE` its `DATE` alone (S358); relation data by its grammar's words, and the
+     walker's reparse of a test's or a data space's path-less relation at the `#{` (S359); a ServiceStore data island's and
+     a content pattern's end (S360); a data space's test data path and its executable's `functionIdentifier` (S361); a
+     HostedService's `postValidations` and `testSuites` by the Service's rules, no `;` after either list (S362); a service
+     test's `primitiveValue` (S363); a Pure mapping's set id no number or boolean (S364); a mapping expression ending in a
+     path (S365); a default value's whole `defaultValueExpression` (S366); a column spec's name that starts no lambda a type
+     (S367). The walker-level rules are held at the engine's walk (`Dialect::holds_to_the_engines_walk`), so a later syntax
      error of the section comes first; the rules that ran before lite's own reading of a construct and moved texts away from
      the engine's place (a default value, a service test's value, a mapping expression's path, a HostedService's lists) run
      behind it. Probing found two comma lists ruling 18's helper missed (a DataQuality tree's `{...}`, a HostedService's
-     `UserList`), now `item (COMMA item)*` (S169's rule).
+     `UserList`), now `item (COMMA item)*` (S341's rule).
    - **Ruling 20: the end of the input** (6,080 mutated texts at `pmcd`, 67 corpus after) ledgered as a family, not chased:
-     S177, amended with its sub-causes and their counts.
+     S349, amended with its sub-causes and their counts.
    - **Ruling 21.** `block` measured at `LEGEND_ENGINE` against `parseLambda` (a function body's `codeBlock`) over the
      corpus's 22,091 expression texts: 2 looser (an empty and a blank block), refused now in the `lambda` door's words and
-     place (S196); 2 stricter, ledgered (S151, S173). Nothing else.
+     place (S368); 2 stricter, ledgered (S323, S345). Nothing else.
    - **Lite's own relied on none of the 34.** Six of them are `FixtureCorpusParityTest`'s own negatives, which lite accepted
      as its adjudicated residue (`LENIENT_RESIDUE`): refused now as their comments say a conforming parser must, the residue
      6 -> 0 (shrink-only, its dated note in place) and with it the test's asserted agreeing fixtures 260 -> 266 (its own
      `266 - size()`, no literal changed).
    - **The measurement, before -> after**, mutated (16 per text) at `pmcd`: same place 99,981 -> 100,042 of 153,008, lite
-     looser 300 -> 282 (280 S64, 2 S181), stricter 358 -> 358; corpus looser 581 -> 575 (571 S64, 3 S180, 1 S181); mutated
+     looser 300 -> 282 (280 S64, 2 S353), stricter 358 -> 358; corpus looser 581 -> 575 (571 S64, 3 S352, 1 S353); mutated
      (4 per text) 84 -> 74 (all S64); `spec`, `lambda`, `lambdaJson` 0, `block` 2 -> 0. No text moved away from the engine's
      place. Lite looser is 0 apart from the ruled exclusions.
    - **The difference lists.** `deliberate-differences.tsv` 744 -> 760 asks (`pmcd` at `LEGEND_ENGINE` 204 -> 212,
@@ -897,13 +897,13 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      --check` clean. 153,008 door answers over mutated oracle texts: no panic, no raw answer. Ledger check: no MISSING.
    - **The Java side.** `RustParserProvider.raised` is unchanged: no raw class added or removed. No test source re-expressed
      but `FixtureCorpusParityTest`'s residue. `docs/refusal-allowlist.tsv`'s three Diagram rows stand, a dated line saying
-     ruling 19 kept them (S180).
+     ruling 19 kept them (S352).
    - **Choices taken that are the user's** (each reversible): the line comment's `\r` at every dialect, not the engine's
      alone (both upstreams lex it so, no frozen answer moved); an empty block refused at the `lambda` door's unplaced place,
      not the engine's `[2:1]`, its wrapper's line; a HostedService's lists checked by the Service's readers and the suites'
      grammar while its records still skip them; the rules that run behind lite's own reading of a construct (a default
      value, a service test's value, a mapping expression's path, a HostedService's lists), so that in a text with two errors
-     lite's later one can stand before the engine's earlier one (no pinned text does). Found and not refused: S183's `None
+     lite's later one can stand before the engine's earlier one (no pinned text does). Found and not refused: S355's `None
      {}` and an expression's `~owner:`-family column spec (the gap report's "Found while probing").
 
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
@@ -973,7 +973,7 @@ keeping `PlatformSurfaceGuardrailTest` and `TextSurgeryPinTest`'s witness-prefix
 13. **Row 63 is refused at the model door at the engine's dialect and at the `lambda` door**, as the engine refuses it;
     `pmcd` at lite's and the platform's dialects keeps accepting. If lite's own tests rely on the `lambda` door
     accepting it, that comes back to the user.
-14. **The 23 register rows S128 to S150 are ratified as they stand**, the four that differ from the engine past the
+14. **The 23 register rows S300 to S322 are ratified as they stand**, the four that differ from the engine past the
     line (PARITY rows 63, 73, 76, 83) included.
 
 **Ruled on what rulings 11 to 13 found (the user, 2026-11-09):**
@@ -1014,7 +1014,7 @@ the platform's, a mistake corrected with these.
     `pmcd`, 67 corpus) is ledgered as a family, not chased.
 21. **Ruling 18's own choices are ratified**: the four lowered counts (all from `relationMappingSetup.pure`, which the
     pinned engine refuses), the removed allowlist row for it, the 7 `LENIENT_RESIDUE` rows deleted as now matched, the
-    744-row difference list kept as plain text, S157 and S158 refused at the `document` door only; `block` is measured
+    744-row difference list kept as plain text, S329 and S330 refused at the `document` door only; `block` is measured
     in the next round.
 
 **Ruled on what rulings 19 to 21 left (the user, 2026-11-10):**

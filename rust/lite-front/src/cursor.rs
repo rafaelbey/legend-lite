@@ -235,7 +235,7 @@ pub enum PercentAt {
 
 /// A `%` literal lite's lexer reads further than legend-engine's ([`engine_percent_literal_len`]): the engine's parser meets
 /// the rest as its next token, refused at the engine's dialect where it stops (the user's ruling 20 of 2026-11-10,
-/// docs/rust-port/PHASE2.md section 6; register S186), by where the literal stands. None when the engine reads the whole
+/// docs/rust-port/PHASE2.md section 6; register S358), by where the literal stands. None when the engine reads the whole
 /// token.
 pub fn refused_percent_rest(tokens: &TokenStream<'_>, token_pos: usize, place: PercentAt) -> Option<JavaError> {
     let text = tokens.text(token_pos);
@@ -624,7 +624,7 @@ pub trait Cursor<'s> {
 
     /// The separator after an item of a comma list, whether a comma was read. At lite's and the platform's dialects the
     /// comma is optional and may trail. At the engine's the list is its grammar's `item (COMMA item)*` (the user's ruling
-    /// 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6; register S169): a comma has an item after it, and the next
+    /// 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6; register S341): a comma has an item after it, and the next
     /// token is a comma or closes the list.
     fn match_list_comma(&mut self) -> R<bool> {
         if !self.dialect().refuses_lite_extensions() {

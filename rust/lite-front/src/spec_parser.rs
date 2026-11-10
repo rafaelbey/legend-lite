@@ -877,7 +877,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         };
         if !self.dialect.refuses_lite_extensions() {
             // deliberately stricter than the engine, which reads a name or the float `Infinity` (the user's ruling 11 of
-            // 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY rows 7 and 8, register S152 and S154)
+            // 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY rows 7 and 8, register S324 and S326)
             let refused = || {
                 refused_at(
                     self.tokens,
@@ -987,7 +987,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         let value = &raw[1..];
         let date_pos = self.pos;
-        // the engine's lexer ends the literal sooner: its next token is refused (ruling 20, register S186)
+        // the engine's lexer ends the literal sooner: its next token is refused (ruling 20, register S358)
         if self.dialect.refuses_lite_extensions()
             && let Some(refused) =
                 crate::cursor::refused_percent_rest(self.tokens, date_pos, crate::cursor::PercentAt::Expression)
@@ -1010,7 +1010,7 @@ impl<'t, 's> SpecParser<'t, 's> {
                 jcat!("invalid date literal '%", value, "': ", m),
             )),
             // deliberately stricter than the engine, which keeps the text (the user's ruling 11 of 2026-11-09,
-            // docs/rust-port/PHASE2.md section 6; PARITY row 3, register S151)
+            // docs/rust-port/PHASE2.md section 6; PARITY row 3, register S323)
             Err(TemporalError::DateTime(m)) => Err(refused_at(
                 self.tokens,
                 date_pos,
@@ -1027,7 +1027,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             return Err(self.error_str("malformed time literal: expected leading '%'"));
         }
         let time_pos = self.pos;
-        // the engine's lexer ends the literal sooner: its next token is refused (ruling 20, register S186)
+        // the engine's lexer ends the literal sooner: its next token is refused (ruling 20, register S358)
         if self.dialect.refuses_lite_extensions()
             && let Some(refused) =
                 crate::cursor::refused_percent_rest(self.tokens, time_pos, crate::cursor::PercentAt::Expression)
@@ -2185,7 +2185,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             }
             // a name that starts no lambda (`x|`, `x: T[m]|`) is a type to the engine's `oneColSpec`, and the column spec
             // ends with it: in a `~[...]` only a `,` or `]` follows it, and no second function does (the user's ruling 20
-            // of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S195)
+            // of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S367)
             let engines_type = self.dialect.refuses_lite_extensions()
                 && is_identifier_token(self.peek())
                 && !(self.pos + 1 < self.tokens.count() && self.tokens.ty(self.pos + 1) == T::PIPE)

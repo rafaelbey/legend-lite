@@ -397,7 +397,7 @@ pub fn lambda(text: &[u16]) -> Answer<LambdaFunction> {
 
 /// `SpecParser.parseCodeBlock(text, dialect)`: a `;`-separated block. At the engine's dialect a block with no statement
 /// is refused, as the engine's `codeBlock` is at least one line, in the words and place of the `lambda` door's refusal of
-/// an empty text (the user's ruling 21 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S196: the engine's
+/// an empty text (the user's ruling 21 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S368: the engine's
 /// `parseLambda` places it on the line below the text, its wrapper's `}`).
 pub fn block(text: &[u16], dialect: Dialect) -> Answer<Vec<ValueSpecification>> {
     read_expression(text, dialect.at_a_door(), |level| {
@@ -426,7 +426,7 @@ pub fn pmcd(text: &[u16], dialect: Dialect, overlays: &[OverlayGrammar<'_>]) -> 
                 && let Err(e) = crate::emitter::emit(&parsed.model)
                 && e.is_in_flight()
                 // a local property under an AggregationAware main mapping: the engine accepts it, the JSON door alone
-                // refuses it (ruling 11, register S157)
+                // refuses it (ruling 11, register S329)
                 && !e.words().lossy().starts_with("the local property")
             {
                 return Err(e.placed());
@@ -664,7 +664,7 @@ mod refusal_tests {
     }
 
     /// `text` accepted by the parser at every dialect, the `document` door alone refusing it at `place`: what the engine
-    /// accepts and legend-engine's JSON has no answer for (ruling 11, register S157 and S158).
+    /// accepts and legend-engine's JSON has no answer for (ruling 11, register S329 and S330).
     #[track_caller]
     fn only_document_refused_at(text: &str, place: (i32, i32)) {
         let units = u(text);
@@ -1547,7 +1547,7 @@ mod refusal_tests {
         model_refused_at_the_engines(&fun("1.5ed"), (3, 6));
     }
 
-    /// Each family of the user's ruling 20 of 2026-11-10 (docs/rust-port/PHASE2.md section 6; register S182 to S195): refused
+    /// Each family of the user's ruling 20 of 2026-11-10 (docs/rust-port/PHASE2.md section 6; register S354 to S367): refused
     /// at the engine's dialect, at the place legend-engine's own parser gives (4.145.0, asked 2026-11-10), and read at lite's
     /// and the platform's dialects as before but for the line comment, whose rule is the lexer's.
     #[track_caller]
@@ -1756,7 +1756,7 @@ mod refusal_tests {
 
     #[test]
     fn an_empty_block_is_refused_at_the_engines_dialect() {
-        // ruling 21 of 2026-11-10 (register S196): the `lambda` door's words and place for an empty text
+        // ruling 21 of 2026-11-10 (register S368): the `lambda` door's words and place for an empty text
         for t in ["", "   ", "// c\n"] {
             let e = block(&u(t), Dialect::LegendEngine).unwrap_err();
             assert_eq!(

@@ -5,9 +5,9 @@
 # the same text; ruling 11 refuses what the engine accepts (row 3); ruling 13 refuses row 63 at the model door at the
 # engine's dialect; ruling 16 reads an AwsGlue island as the engine reads it, at the engine's place (row 73); ruling 18
 # (the fourth column `ruling18`) refuses at the engine's dialect what its grammar refuses, and places a refusal at the end
-# of the input where the engine places it, at every door and dialect (register S169 to S180); ruling 20 of 2026-11-10 (the
+# of the input where the engine places it, at every door and dialect (register S341 to S352); ruling 20 of 2026-11-10 (the
 # fourth column `ruling20`) refuses at the engine's dialect the texts ruling 18 left looser, by their grammar rules
-# (register S182 to S195). A row ruling 20 re-answered keeps the column it was first listed with.
+# (register S354 to S367). A row ruling 20 re-answered keeps the column it was first listed with.
 # The three differentials and //core:front_shim read this file: identical + listed == total, each
 # listed question really differs from Java's frozen answer and answers exactly the new answer named here.
 # door	dialect (- at an engine-JSON door)	the text's sha	PARITY row	class	line	column	sha-256 of the message's UTF-16 units

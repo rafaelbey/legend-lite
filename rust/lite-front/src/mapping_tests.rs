@@ -542,7 +542,7 @@ impl MappingCursor<'_, '_> {
             self.advance()?;
             let brace_tok = self.pos;
             let ri = self.read_island()?;
-            // the engine's walker reparses the island at the `#{` (ruling 20, register S187)
+            // the engine's walker reparses the island at the `#{` (ruling 20, register S359)
             if self.dialect.holds_to_the_engines_walk()
                 && let Some(refused) = crate::mapping_parser::relation_reparse_refusal(
                     self.tokens,

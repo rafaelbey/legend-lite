@@ -849,7 +849,7 @@ pub fn aggregation_aware(b: &mut Buf, aa: &PClassMappingAggregationAware) -> Em 
             }
             b.a("{\"_type\":\"AggregationAwarePropertyMapping\",\"property\":{\"class\":");
             // a local property has no owner to write: deliberately stricter than the engine, which reads it (the user's
-            // ruling 11 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 72, register S157)
+            // ruling 11 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 72, register S329)
             let Some(owner) = &pm.owner_class else {
                 return Err(pm.property_source_information.as_deref().map_or(npe(None), |at| {
                     JavaError::parse(

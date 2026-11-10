@@ -640,7 +640,7 @@ fn parse_executables<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDataSpaceEx
                     let mut e = unquote_path_iae(&c.parse_qualified_name()?)?;
                     if c.peek() == T::PAREN_OPEN {
                         // the engine's `functionIdentifier` and its `;`, at its dialect (the user's ruling 20 of
-                        // 2026-11-10, docs/rust-port/PHASE2.md section 6; register S189)
+                        // 2026-11-10, docs/rust-port/PHASE2.md section 6; register S361)
                         if c.dialect().refuses_lite_extensions() {
                             let signature = c.pos();
                             c.engine_function_signature()?;
@@ -764,7 +764,7 @@ fn raw_to_semicolon<'s>(c: &mut impl Cursor<'s>) -> R<Vec<u16>> {
 
 /// What the engine's walker refuses in a data space's `testData` island (`Reference` or `DataspaceTestData`), its text
 /// trimmed and taken whole for a path, at its dialect (the user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section
-/// 6; register S189): no text at all, or a `::`-separated segment that is no identifier (a word of letters, digits, `_`
+/// 6; register S361): no text at all, or a `::`-separated segment that is no identifier (a word of letters, digits, `_`
 /// and `$`, or a quoted one).
 fn engines_invalid_test_data_path(path: &[u16]) -> Option<JStr> {
     if path.is_empty() {
@@ -811,7 +811,7 @@ pub fn parse_standalone_relation_at<'s>(host: &mut impl Cursor<'s>) -> R<PRelati
         p.advance()?;
         let brace_tok = p.pos;
         let island = p.read_island()?;
-        // the engine's walker reparses the island at the `#{` (ruling 20, register S187)
+        // the engine's walker reparses the island at the `#{` (ruling 20, register S359)
         if p.dialect.holds_to_the_engines_walk()
             && let Some(refused) = crate::mapping_parser::relation_reparse_refusal(
                 host.tokens(),

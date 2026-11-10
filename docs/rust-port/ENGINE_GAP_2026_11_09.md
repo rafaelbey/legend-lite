@@ -99,8 +99,8 @@ record doors read as they did"). One shortest example per rule was read by hand.
 words that are a row's own, or on the record/JSON door pair; medium for the island-coordinates rule (rows 33, 57: lite's
 place must equal the engine's place translated into the island) and for M. A false negative is possible where a row
 describes an input in words the rules do not look for; those count as unledgered, so the unledgered figure is an upper
-bound by that margin. Three judgement calls are left unledgered and named here: `^a::B('a'+=1)` (S159 mentions `+=` only as
-a place rule), `c(1)!n` (no row), `expected: 'a';` (S165's list does not name it).
+bound by that margin. Three judgement calls are left unledgered and named here: `^a::B('a'+=1)` (S331 mentions `+=` only as
+a place rule), `c(1)!n` (no row), `expected: 'a';` (S337's list does not name it).
 
 Corpus:
 
@@ -182,25 +182,25 @@ accepts and its engine-JSON refusals refuse: 17 at the engine's place, 4 ledgere
 | P33 | empty embedded runtime or connection, unplaced | H | other place | 384 |
 | P13 | documentation string before a keyword | M | other place | 358 |
 | P33 / P57 | refusal in an island's own coordinates | H | other place | 183 |
-| S151 / P3 | impossible date with a zone | H | other place | 108 |
-| S146 / P83 | #{ as the last token | H | other place | 71 |
-| S143 / P73 | persistence node the emitter refuses, at a record door | H | lite looser | 13 |
+| S323 / P3 | impossible date with a zone | H | other place | 108 |
+| S318 / P83 | #{ as the last token | H | other place | 71 |
+| S315 / P73 | persistence node the emitter refuses, at a record door | H | lite looser | 13 |
 | P11 | graph-fetch subtype error, unplaced | M | other place | 7 |
-| S159 / P69 | positional cast at a record door | H | lite looser | 6 |
+| S331 / P69 | positional cast at a record door | H | lite looser | 6 |
 | P31 | EqualTo #{ }# unplaced | H | other place | 5 |
-| S144 / P76 | DataQuality context at a record door | H | lite looser | 5 |
+| S316 / P76 | DataQuality context at a record door | H | lite looser | 5 |
 | P73 | platform Foo a token late | H | other place | 3 |
-| S151 / P3 | impossible date with a zone | H | lite stricter | 3 |
+| S323 / P3 | impossible date with a zone | H | lite stricter | 3 |
 | P47 | Diagram import | M | other place | 2 |
-| S160 / P69 | spelled @Relation<(a:?)> at a record door | H | lite looser | 2 |
-| S161 / P70 | multiplicity parameter at a record door | H | lite looser | 2 |
+| S332 / P69 | spelled @Relation<(a:?)> at a record door | H | lite looser | 2 |
+| S333 / P70 | multiplicity parameter at a record door | H | lite looser | 2 |
 | P25 | relational string with a bad escape | M | other place | 2 |
 | S96 | ModelStore's -9223372036854775808 | H | lite stricter | 1 |
 | P62 | ServiceStore optional path parameter | M | other place | 1 |
-| S142 / P63 | graph-fetch argument, column | H | other place | 1 |
-| S165 / P74 | EqualToJson entries at a record door | H | lite looser | 1 |
+| S314 / P63 | graph-fetch argument, column | H | other place | 1 |
+| S337 / P74 | EqualToJson entries at a record door | H | lite looser | 1 |
 | P38 | URL is not valid | M | other place | 1 |
-| S153 / P8 | 1.ed, 1.e+d, 1.ef | H | lite stricter | 1 |
+| S325 / P8 | 1.ed, 1.e+d, 1.ef | H | lite stricter | 1 |
 
 ## The largest clusters (unledgered)
 
@@ -340,8 +340,8 @@ The differences the last agents listed as unchanged all show up:
 
 | input | where it landed | ledger |
 |---|---|---|
-| `^a::B($x)` | lite looser at the record doors `spec`, `lambda`, `pmcd`; same place at `lambdaJson`, `document` | S159, P69 |
-| row 74's eight entries (`['a']`, `[a, b]`, `[]`, `#/a::B/c#`, `[#/a::B/c#]`, `[{x: 1;}]`, `database:`, `binding:`) | lite looser at `pmcd`, same place at `document`, all eight | S165, P74 |
+| `^a::B($x)` | lite looser at the record doors `spec`, `lambda`, `pmcd`; same place at `lambdaJson`, `document` | S331, P69 |
+| row 74's eight entries (`['a']`, `[a, b]`, `[]`, `#/a::B/c#`, `[#/a::B/c#]`, `[{x: 1;}]`, `database:`, `binding:`) | lite looser at `pmcd`, same place at `document`, all eight | S337, P74 |
 | `expected: 'a';` | lite looser at `document` and `pmcd` | unledgered |
 | `platform: Foo;` | same line, other column: lite 5:16, engine 5:13 | P73 |
 | `^a::B('a'+=1)` | lite stricter at all five doors | unledgered (a judgement call) |
@@ -397,7 +397,7 @@ above), lite at commit `44012955b` through the same `doors` binary source, the e
 
 No text timed out and no door panicked or answered a raw `java.*` class on the input sets; the harness's two `lambdaJson` raw
 answers are the two rulings 12 and 16 left. A further run of the post-6b mutator through every door: 153,008 door answers, no
-panic, no raw answer. The 1 more `lite stricter` at `pmcd` over the corpus and over the mutated texts is register S173; the corpus
+panic, no raw answer. The 1 more `lite stricter` at `pmcd` over the corpus and over the mutated texts is register S345; the corpus
 `spec`/`lambda`/`lambdaJson` looser rows are 0.
 
 **What the difference comes down to**, the heuristic above (`engine-gap/report.py.txt`, `theme`), every disagreement of the
@@ -418,13 +418,13 @@ reads 17,713 here):
 | the engine answers a raw exception, unplaced | 0 | 0 | 0 | 0 | 19 | 20 |
 
 The end of the input, the cluster ruling 18 names: **17,713 → 6,088** mutated texts at `pmcd`, **182 → 67** corpus texts. Same
-line and column overall, mutated at `pmcd`: **87,633 → 99,981** of 153,008. What remains of the cluster is register S177: a
+line and column overall, mutated at `pmcd`: **87,633 → 99,981** of 153,008. What remains of the cluster is register S349: a
 refusal by name or a graph-fetch island cut off by the end of the input, and a text's last token that lite refuses where the
 engine's next token would have been the end.
 
 **Lite looser.** `pmcd` and `document`: 581 corpus (571 S64's TIME and TIMESTAMP_NS columns, excluded by ruling 18; 10 left), 300
 mutated (16 per text; 280 S64, 20 left), 84 mutated (4 per text; 74 S64, 10 left). `spec`, `lambda`, `lambdaJson`: 0, from 49, 44
-and 36. **It is not 0 apart from S64.** Forty texts are left, register S180: six because lite's own tests rely on them (the three
+and 36. **It is not 0 apart from S64.** Forty texts are left, register S352: six because lite's own tests rely on them (the three
 `Diagram X(width=..)` texts and the three `Field 'data' is required` texts), 34 because no rule was written for them:
 
 | section | text | the engine | the engine's words | at |
@@ -467,8 +467,8 @@ and 36. **It is not 0 apart from S64.** Forty texts are left, register S180: six
 | ###Service | `mut16/m043307` | 23:58 | Unexpected token '('. Valid alternatives: ['.'] | `aram']), 'singleparam', list([1,2,3]),st⟦([%2019-05-24,%2019-05-25⟧` |
 | ###Service | `mut/m006686` | 32:11 | Unexpected token 'Alice'. Valid alternatives: ['.'] | `     ;    ⟦ Name⟧` |
 
-**The ledger.** Every difference still counted above now has a family row: S171 to S173 (lite stricter), S174 to S179 (the place),
-S180 (lite looser, what is left), beside the rows the measurement above matched. The per-section tables above are not repeated:
+**The ledger.** Every difference still counted above now has a family row: S343 to S345 (lite stricter), S346 to S351 (the place),
+S352 (lite looser, what is left), beside the rows the measurement above matched. The per-section tables above are not repeated:
 their rows are the families' now.
 
 ## After rulings 19 to 21 (2026-11-10)
@@ -482,7 +482,7 @@ code ruling 18 left (`44012955b`; the commits between touch documents alone); af
 text as a function body's `codeBlock` (`function go():Any[*]{` + text + `\n}`) as lite's `block` door reads a `;`-separated
 block, so `block` at `LEGEND_ENGINE` was asked every expression text of the corpus (22,091) and held to the `parseLambda`
 answers recorded above. Before: 2 looser, the empty text and a blank one, an empty block that the engine's `codeBlock` (at
-least one line) refuses at its wrapper's `}` (`[2:1]`); 2 stricter, ledgered (S151, S173). After: 0 looser (register S196,
+least one line) refuses at its wrapper's `}` (`[2:1]`); 2 stricter, ledgered (S323, S345). After: 0 looser (register S368,
 refused in the `lambda` door's words and place for an empty text), the same 2 stricter. Nothing else was looser.
 
 **By door and category.**
@@ -527,10 +527,10 @@ answers are the two rulings 12 and 16 left. No text moved away from the engine's
 at the engine's line and column before, each stands there now, and lite stricter is unchanged (21 corpus, 358 and 105
 mutated). A further run of the post-6b mutator through every door: 153,008 door answers, no panic, no raw answer.
 
-**Lite looser.** `pmcd` and `document`: 575 corpus (571 S64, 3 S180, 1 S181), 282 mutated (16 per text; 280 S64, 2 S181), 74
+**Lite looser.** `pmcd` and `document`: 575 corpus (571 S64, 3 S352, 1 S353), 282 mutated (16 per text; 280 S64, 2 S353), 74
 mutated (4 per text; all S64). `spec`, `lambda`, `lambdaJson`, `block`: 0. **It is 0 apart from the named, ruled exclusions**:
-S64's TIME and TIMESTAMP_NS columns, and ruling 19's two, a Diagram's m2 argument list (S180) and a mapping test with no `data`
-(S181), which lite's own tests rely on.
+S64's TIME and TIMESTAMP_NS columns, and ruling 19's two, a Diagram's m2 argument list (S352) and a mapping test with no `data`
+(S353), which lite's own tests rely on.
 
 **The 34 (ruling 20)**, each now refused at the engine's line and column, by root cause (the table under "After ruling 18"
 listed 37 of the 40 texts: the three line-comment texts, `mut/m014672`, `mut/m014673` and `mut16/m112129`, were left out of it;
@@ -538,43 +538,43 @@ all 34 are here). The engine's words and lite's are each cut to a few words.
 
 | section | text | the engine | lite now | what it is | row |
 |---|---|---|---|---|---|
-| ###Persistence | `corpus/c29219da6` | 45:7 Unexpected token 'isTestDataFromServiceOutput... | 45:7 Unexpected token 'isTestDataFromServi... | a persistence test's keys out of `(testBatches isTestDataFromServiceOutput? graphFetchPath?)*` | S183 |
-| ###Persistence | `mut16/m039008` | 51:5 Unexpected token | 51:5 Unexpected token ';' | a `;` after a persistence dataset type's body | S183 |
-| ###Persistence | `corpus/c40188948` | 13:67 An exception of type 'NullPointerException' o... | 13:67 An exception of type 'NullPointerExce... | a graph-fetch output's key an identifier: the walker's other arm, its NPE | S184 |
-| ###Persistence | `corpus/c45e71b03` | 20:74 An exception of type 'NullPointerException' o... | 20:74 An exception of type 'NullPointerExce... | a TDS output's key a path: the walker's other arm, its NPE | S184 |
-| ###QueryPostProcessor | `corpus/c5462542f` | 18:4 Unexpected token 'SchemaMappers'. Valid alter... | 18:4 Unexpected token 'SchemaMappers' | a `RelationalMapper`'s `SchemaMappers` after its `TableMappers` | S185 |
-| ###GenerationSpecification | `corpus/cbec49736` | 18:10 Unexpected token 'id' | 18:10 Unexpected token 'id' | a generation node's `id` after its element | S185 |
-| ###Mapping | `corpus/cc65c96f1` | 26:5 Unexpected token | 26:5 Unexpected token '~filter' | a MongoDB mapping's `~filter` after `~mainCollection`, in its parser's coordinates | S185 |
-| ###Data | `mut16/m095081` | 60:31 Unexpected token | 60:31 Unexpected token ':.21' | `%19:41:.21`: the lexer's `StrictTime` ends at `%19:41` | S186 |
-| ###Service | `mut16/m024076` | 27:80 Unexpected token | 27:80 Unexpected token 'T00:00:00' | `%204T00:00:00`: the lexer's `Date` ends at `%204` | S186 |
-| ###Relational | `mut/m000092` | 10:89 Unexpected token ':'. Valid alternatives: ['D... | 10:89 Unexpected token ':00.0000' | a milestoning's `INFINITY_DATE = %9999-00:00.0000` | S186 |
-| ###Pure | `mut16/m013663` | 9:3 Unexpected token | 9:3 Unexpected token | a relation data path's first word a number | S187 |
-| ###Pure | `mut16/m117352` | 32:7 Unexpected token | 32:7 Unexpected token | a relation data path that starts with `.` | S187 |
-| ###Pure | `mut16/m131940` | 46:18 Unexpected token '<EOF>'. Valid alternatives:... | 46:18 Unexpected token | a function test assertion's table, then a word and the end (the walker's reparse) | S187 |
-| ###Service | `mut/m006686` | 32:11 Unexpected token 'Alice'. Valid alternatives:... | 32:11 Unexpected token | a function test assertion whose table is a lone `;` (the walker's reparse) | S187 |
-| ###Pure | `mut/m000374` | 30:25 Unexpected token ','. Valid alternatives: ['.'] | 30:25 Unexpected token | a `;` inside a header row, then `_id,` read as a path | S187 |
-| ###Pure | `mut/m000375` | 27:45 token recognition error at: '"TE;\n' | 27:45 Unexpected token | a quoted cell left open | S187 |
-| ###DataSpace | `mut16/m130457` | 55:12 Unexpected token | 55:12 Unexpected token | a data space's `sampleValues` table ended early (the walker's reparse) | S187 |
-| ###Data | `mut16/m048161` | 37:15 Unexpected token '.5'. Valid alternatives: ['.'] | 37:15 Unexpected token | `default.F1.5eirmTable:`: `.5` a `FLOAT`, no dot | S187 |
-| ###Data | `mut16/m118799` | 130:32 Unexpected token | 130:32 expected SEMI_COLON but found DOT ('.') | an `EqualTo` island's `expected: '123'.;` | S188 |
-| ###Data | `mut/m017896` | 18:4 Unexpected token | 18:4 Unexpected token ';' | an `EqualTo` island's second `;` | S188 |
-| ###Data | `mut16/m035163` | 7:8 Unexpected token '{' | 7:8 Unexpected token '{' | a ServiceStore data island going on after its `]` | S188 |
-| ###DataSpace | `mut/m013140` | 54:9 Invalid identifier: \|model | 54:9 Invalid identifier: \|model | a `DataspaceTestData` island's text no path | S189 |
-| ###DataSpace | `mut16/m105822` | 25:59 Unexpected token | 25:59 Unexpected token 'executionContextKey' | a data space executable's signature without its multiplicity and `;` | S189 |
-| ###HostedService | `mut16/m069011` | 70:1 Unexpected token | 70:1 Unexpected token '::' | a HostedService test suite's `tests: ::` | S190 |
-| ###HostedService | `mut/m024784` | 49:96 no viable alternative at input '->filter(row\... | 49:96 expected '(' after arrow-call functio... | a HostedService post-validation's lambda cut by a `;` | S190 |
-| ###Service | `mut16/m114522` | 61:21 Unexpected token | 61:21 Unexpected token '\|' | a service test's parameter `param = \|123` | S191 |
-| ###Service | `mut16/m043307` | 23:58 Unexpected token '('. Valid alternatives: ['.'] | 23:58 Unexpected token '(' | a legacy service test's parameter `st([...])` | S191 |
-| ###Mapping | `mut16/m121704` | 210:12 Unexpected token '2'. Valid alternatives: ['E... | 210:12 Unexpected token '2' | a Pure mapping property's set id `[2]` | S192 |
-| ###Mapping | `mut16/m015906` | 6:14 Unexpected token '<EOF>' | 6:14 Unexpected token '<EOF>' | an XStore mapping expression ending in a path (`p: tru::e`) | S193 |
-| ###Pure | `mut16/m069699` | 8:1 Unexpected token ']'. Valid alternatives: ['.'] | 8:1 Unexpected token ']' | a default value's reference without its `.name` in an array | S194 |
-| ###Pure | `mut/m013808` | 19:20 Unexpected token | 19:20 Unexpected token ':' | `~new: x\|\|$x.ied:y\|...`: `x` a type, the spec ended, a second `:` | S195 |
-| ###Pure | `mut/m014672` | 10:70 Unexpected token | 10:70 Unexpected token '@' | `// ... BASIS,\r@`: the comment ends at the `\r` | S182 |
-| ###Pure | `mut/m014673` | 13:35 Unexpected token | 13:35 Unexpected token '::' | `// ...License.\r::` | S182 |
-| ###Pure | `mut16/m112129` | 10:70 Unexpected token ';'. Valid alternatives: ['C... | 10:70 Unexpected token ';' | `// ... BASIS,\r;` | S182 |
+| ###Persistence | `corpus/c29219da6` | 45:7 Unexpected token 'isTestDataFromServiceOutput... | 45:7 Unexpected token 'isTestDataFromServi... | a persistence test's keys out of `(testBatches isTestDataFromServiceOutput? graphFetchPath?)*` | S355 |
+| ###Persistence | `mut16/m039008` | 51:5 Unexpected token | 51:5 Unexpected token ';' | a `;` after a persistence dataset type's body | S355 |
+| ###Persistence | `corpus/c40188948` | 13:67 An exception of type 'NullPointerException' o... | 13:67 An exception of type 'NullPointerExce... | a graph-fetch output's key an identifier: the walker's other arm, its NPE | S356 |
+| ###Persistence | `corpus/c45e71b03` | 20:74 An exception of type 'NullPointerException' o... | 20:74 An exception of type 'NullPointerExce... | a TDS output's key a path: the walker's other arm, its NPE | S356 |
+| ###QueryPostProcessor | `corpus/c5462542f` | 18:4 Unexpected token 'SchemaMappers'. Valid alter... | 18:4 Unexpected token 'SchemaMappers' | a `RelationalMapper`'s `SchemaMappers` after its `TableMappers` | S357 |
+| ###GenerationSpecification | `corpus/cbec49736` | 18:10 Unexpected token 'id' | 18:10 Unexpected token 'id' | a generation node's `id` after its element | S357 |
+| ###Mapping | `corpus/cc65c96f1` | 26:5 Unexpected token | 26:5 Unexpected token '~filter' | a MongoDB mapping's `~filter` after `~mainCollection`, in its parser's coordinates | S357 |
+| ###Data | `mut16/m095081` | 60:31 Unexpected token | 60:31 Unexpected token ':.21' | `%19:41:.21`: the lexer's `StrictTime` ends at `%19:41` | S358 |
+| ###Service | `mut16/m024076` | 27:80 Unexpected token | 27:80 Unexpected token 'T00:00:00' | `%204T00:00:00`: the lexer's `Date` ends at `%204` | S358 |
+| ###Relational | `mut/m000092` | 10:89 Unexpected token ':'. Valid alternatives: ['D... | 10:89 Unexpected token ':00.0000' | a milestoning's `INFINITY_DATE = %9999-00:00.0000` | S358 |
+| ###Pure | `mut16/m013663` | 9:3 Unexpected token | 9:3 Unexpected token | a relation data path's first word a number | S359 |
+| ###Pure | `mut16/m117352` | 32:7 Unexpected token | 32:7 Unexpected token | a relation data path that starts with `.` | S359 |
+| ###Pure | `mut16/m131940` | 46:18 Unexpected token '<EOF>'. Valid alternatives:... | 46:18 Unexpected token | a function test assertion's table, then a word and the end (the walker's reparse) | S359 |
+| ###Service | `mut/m006686` | 32:11 Unexpected token 'Alice'. Valid alternatives:... | 32:11 Unexpected token | a function test assertion whose table is a lone `;` (the walker's reparse) | S359 |
+| ###Pure | `mut/m000374` | 30:25 Unexpected token ','. Valid alternatives: ['.'] | 30:25 Unexpected token | a `;` inside a header row, then `_id,` read as a path | S359 |
+| ###Pure | `mut/m000375` | 27:45 token recognition error at: '"TE;\n' | 27:45 Unexpected token | a quoted cell left open | S359 |
+| ###DataSpace | `mut16/m130457` | 55:12 Unexpected token | 55:12 Unexpected token | a data space's `sampleValues` table ended early (the walker's reparse) | S359 |
+| ###Data | `mut16/m048161` | 37:15 Unexpected token '.5'. Valid alternatives: ['.'] | 37:15 Unexpected token | `default.F1.5eirmTable:`: `.5` a `FLOAT`, no dot | S359 |
+| ###Data | `mut16/m118799` | 130:32 Unexpected token | 130:32 expected SEMI_COLON but found DOT ('.') | an `EqualTo` island's `expected: '123'.;` | S360 |
+| ###Data | `mut/m017896` | 18:4 Unexpected token | 18:4 Unexpected token ';' | an `EqualTo` island's second `;` | S360 |
+| ###Data | `mut16/m035163` | 7:8 Unexpected token '{' | 7:8 Unexpected token '{' | a ServiceStore data island going on after its `]` | S360 |
+| ###DataSpace | `mut/m013140` | 54:9 Invalid identifier: \|model | 54:9 Invalid identifier: \|model | a `DataspaceTestData` island's text no path | S361 |
+| ###DataSpace | `mut16/m105822` | 25:59 Unexpected token | 25:59 Unexpected token 'executionContextKey' | a data space executable's signature without its multiplicity and `;` | S361 |
+| ###HostedService | `mut16/m069011` | 70:1 Unexpected token | 70:1 Unexpected token '::' | a HostedService test suite's `tests: ::` | S362 |
+| ###HostedService | `mut/m024784` | 49:96 no viable alternative at input '->filter(row\... | 49:96 expected '(' after arrow-call functio... | a HostedService post-validation's lambda cut by a `;` | S362 |
+| ###Service | `mut16/m114522` | 61:21 Unexpected token | 61:21 Unexpected token '\|' | a service test's parameter `param = \|123` | S363 |
+| ###Service | `mut16/m043307` | 23:58 Unexpected token '('. Valid alternatives: ['.'] | 23:58 Unexpected token '(' | a legacy service test's parameter `st([...])` | S363 |
+| ###Mapping | `mut16/m121704` | 210:12 Unexpected token '2'. Valid alternatives: ['E... | 210:12 Unexpected token '2' | a Pure mapping property's set id `[2]` | S364 |
+| ###Mapping | `mut16/m015906` | 6:14 Unexpected token '<EOF>' | 6:14 Unexpected token '<EOF>' | an XStore mapping expression ending in a path (`p: tru::e`) | S365 |
+| ###Pure | `mut16/m069699` | 8:1 Unexpected token ']'. Valid alternatives: ['.'] | 8:1 Unexpected token ']' | a default value's reference without its `.name` in an array | S366 |
+| ###Pure | `mut/m013808` | 19:20 Unexpected token | 19:20 Unexpected token ':' | `~new: x\|\|$x.ied:y\|...`: `x` a type, the spec ended, a second `:` | S367 |
+| ###Pure | `mut/m014672` | 10:70 Unexpected token | 10:70 Unexpected token '@' | `// ... BASIS,\r@`: the comment ends at the `\r` | S354 |
+| ###Pure | `mut/m014673` | 13:35 Unexpected token | 13:35 Unexpected token '::' | `// ...License.\r::` | S354 |
+| ###Pure | `mut16/m112129` | 10:70 Unexpected token ';'. Valid alternatives: ['C... | 10:70 Unexpected token ';' | `// ... BASIS,\r;` | S354 |
 
 **The end of the input (ruling 20: ledgered as a family, not chased).** 6,088 → 6,080 mutated texts at `pmcd`, 67 → 67 corpus;
-the family is register S177, which now names its sub-causes with their counts.
+the family is register S349, which now names its sub-causes with their counts.
 
 **What the difference comes down to**, the heuristic above (`engine-gap/report.py.txt`, `theme`), every disagreement of the
 kind, before and after:
@@ -593,8 +593,8 @@ kind, before and after:
 | the engine answers a raw exception, unplaced | 0 | 0 | 0 | 0 | 20 | 20 | 20 | 20 |
 
 **Found while probing, not refused** (inputs written by hand; none is in the pinned inputs, and none was ruled): a persister's
-bare kind written with a body (`auditing: None {}`), which the engine's persister grammar spells with `;` alone (S183); a
+bare kind written with a body (`auditing: None {}`), which the engine's persister grammar spells with `;` alone (S355); a
 constraint's keyword written as a column spec in an expression (`[~owner: abc]`), which the engine's lexer reads as
 `CONSTRAINT_OWNER` and refuses; and the comma lists ruling 18's helper does not reach that were not probed (a DataQuality
 tree's `<...>` constraints and the other loops of `data_quality_parser.rs`). Two such lists were probed and are refused now
-(a DataQuality tree's `{...}` and a HostedService's `UserList` users: a trailing comma, S169's rule).
+(a DataQuality tree's `{...}` and a HostedService's `UserList` users: a trailing comma, S341's rule).

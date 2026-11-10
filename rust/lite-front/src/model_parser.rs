@@ -741,7 +741,7 @@ fn section_elements(
 /// (`source.substring(r[0], r[1])`), its first line counted from the source's newlines. An empty section with another
 /// header after it, whose end precedes its start, is refused at its header: deliberately stricter than the engine,
 /// which reads an empty section (the user's ruling 11 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 46,
-/// register S155).
+/// register S327).
 fn diagram_parse(
     ts: &TokenStream<'_>,
     r: (isize, isize),
@@ -819,7 +819,7 @@ fn ended_inside_import(ts: &TokenStream<'_>, past: usize) -> JavaError {
 
 /// An import at the engine's dialect, as its grammar reads one (`IMPORT packagePath PATH_SEPARATOR STAR SEMI_COLON`), the
 /// token past its `;`; anything else refused at the token its grammar stops at (the user's ruling 18 of 2026-11-09,
-/// docs/rust-port/PHASE2.md section 6; register S169).
+/// docs/rust-port/PHASE2.md section 6; register S341).
 fn engine_import(ts: &TokenStream<'_>, import: usize) -> R<usize> {
     let n = ts.count();
     let stop = |at: usize| {

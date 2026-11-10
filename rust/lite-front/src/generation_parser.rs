@@ -67,7 +67,7 @@ fn parse_nodes<'s>(c: &mut impl Cursor<'s>, nodes: &mut Vec<Box<PGenerationNode>
         let mut element = None;
         while c.peek() != T::BRACE_CLOSE {
             // `{ (nodeId)? generationElement }`, at the engine's dialect (the user's ruling 20 of 2026-11-10,
-            // docs/rust-port/PHASE2.md section 6; register S185): nothing after the element, one id before it
+            // docs/rust-port/PHASE2.md section 6; register S357): nothing after the element, one id before it
             if c.dialect().refuses_lite_extensions() && (element.is_some() || (id.is_some() && eq(c.text(), "id"))) {
                 return Err(c.unexpected());
             }

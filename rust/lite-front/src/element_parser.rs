@@ -409,7 +409,7 @@ impl<'s> ElementCursor<'_, 's> {
     /// Where a property's default stops at the engine's dialect, by its grammar's `defaultValueExpression`
     /// (`instanceReference propertyExpression | expressionInstance | instanceLiteralToken | [ ... ]`) and the `;` after it:
     /// a reference's required `.name`, what follows an element (the user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md
-    /// section 6, register S194). None where it reads to the `;`, or stops at the end of the input, which lite's own
+    /// section 6, register S366). None where it reads to the `;`, or stops at the end of the input, which lite's own
     /// reading places.
     fn where_the_engines_default_stops(&self) -> Option<usize> {
         if !self.dialect.refuses_lite_extensions() {
@@ -1752,7 +1752,7 @@ impl<'s> ElementCursor<'_, 's> {
         let source = self.tokens.source();
         let (from, to) = (self.tokens.end(open_tok), self.tokens.start(end_tok));
         // the engine's `RelationElementsData` grammar over the island, as the engine's walk reads it (the user's ruling 20 of
-        // 2026-11-10, docs/rust-port/PHASE2.md section 6; register S187): an assertion's reparsed at the `#{`, test data's
+        // 2026-11-10, docs/rust-port/PHASE2.md section 6; register S359): an assertion's reparsed at the `#{`, test data's
         // where it stands; behind a later syntax error of the section
         if self.dialect.holds_to_the_engines_walk() {
             if assertion_spans {

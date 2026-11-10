@@ -952,7 +952,7 @@ impl MappingCursor<'_, '_> {
                 self.parse_identifier()?
             };
             // `mappingFilter? (mappingMainCollection | mappingBinding)*`, at the engine's dialect (the user's ruling 20 of
-            // 2026-11-10, docs/rust-port/PHASE2.md section 6; register S185): `~filter` first or not at all, refused where
+            // 2026-11-10, docs/rust-port/PHASE2.md section 6; register S357): `~filter` first or not at all, refused where
             // the engine's MongoDB parser places it: the text after the `{` its own, its first line the `{`'s, its lines
             // below the section's header line
             if self.dialect.holds_to_the_engines_walk() && eq(&kw, "filter") && !first && self.section_start_line >= 0 {
@@ -1423,7 +1423,7 @@ impl MappingCursor<'_, '_> {
             if self.peek() == T::BRACKET_OPEN {
                 self.advance()?;
                 // a set id is an identifier, no number or boolean, at the engine's dialect (the user's ruling 20 of 2026-11-10,
-                // docs/rust-port/PHASE2.md section 6; register S192)
+                // docs/rust-port/PHASE2.md section 6; register S364)
                 if self.dialect.holds_to_the_engines_walk()
                     && !local
                     && matches!(self.peek(), T::INTEGER | T::BOOLEAN | T::TRUE | T::FALSE)
@@ -1605,7 +1605,7 @@ impl MappingCursor<'_, '_> {
 
     /// legend-engine reads a mapping expression's text alone, and its parser meets the end of that text right after a
     /// path (`a::b`, the text's last token a name after `::`) and refuses it there (the user's ruling 20 of 2026-11-10,
-    /// docs/rust-port/PHASE2.md section 6; register S193): a Pure mapping's property or `~filter`, an XStore mapping's
+    /// docs/rust-port/PHASE2.md section 6; register S365): a Pure mapping's property or `~filter`, an XStore mapping's
     /// property, at the engine's dialect, the expression's tokens `from..to`.
     fn engines_path_at_the_end(&self, from: usize, to: usize) -> R<()> {
         if self.dialect.holds_to_the_engines_walk()

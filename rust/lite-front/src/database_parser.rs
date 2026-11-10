@@ -709,7 +709,7 @@ impl<'t, 's> DbCursor<'t, 's> {
                 key_order.push(key.clone());
                 self.expect(T::EQUAL)?;
                 // the infinity date is the engine's DATE token, read as its lexer reads it, at the engine's dialect (the
-                // user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S186)
+                // user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S358)
                 if self.dialect.refuses_lite_extensions() && eq(&key, "INFINITY_DATE") {
                     let percent = matches!(self.peek(), T::DATE | T::STRICTTIME);
                     let (date, strict) = if percent {

@@ -300,7 +300,7 @@ fn parse_persistence<'s>(c: &mut impl Cursor<'s>) -> R<PPersistence> {
 }
 
 /// A `;` after a value, as the engine's persistence grammar spells it at its dialect (the user's ruling 20 of 2026-11-10,
-/// docs/rust-port/PHASE2.md section 6; register S183): `Some(true)` where its rule ends with one, `Some(false)` where it
+/// docs/rust-port/PHASE2.md section 6; register S355): `Some(true)` where its rule ends with one, `Some(false)` where it
 /// has none (a `Kind { ... }` body is never followed by one), `None` where lite has not read the rule; lite's and the
 /// platform's dialects read every one as optional, as they did.
 fn engines_semicolon<'s>(c: &mut impl Cursor<'s>, required: Option<bool>) -> R<()> {
@@ -332,7 +332,7 @@ const SERVICE_OUTPUT_VALUES: [&str; 4] = ["keys", "versionField", "deleteField",
 
 /// A graph-fetch service output's `keys`, which the engine's walker requires as a TDS output's (lite's tables, Java's,
 /// require them of a TDS output alone), at the engine's dialect, before the output's other fields are walked (the
-/// user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S184).
+/// user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S356).
 fn engines_graph_fetch_keys(n: &PPersistenceNode) -> R<()> {
     if eq(&n.kind.0, "#path")
         && !n.entries.iter().any(|e| eq(entry_key(e), "keys"))
@@ -349,7 +349,7 @@ fn engines_graph_fetch_keys(n: &PPersistenceNode) -> R<()> {
 }
 
 /// The arm of each `serviceOutputValue` the engine's walker takes by the output's kind, at the engine's dialect (the
-/// user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S184): a TDS output's `.identifier()`, a
+/// user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S356): a TDS output's `.identifier()`, a
 /// graph-fetch output's `.dslNavigationPath()`, so the other arm is null to it and the walker fails uncaught, the section
 /// catch-all's `NullPointerException` at the section's start.
 fn engines_service_output_arms(n: &PPersistenceNode) -> R<()> {
@@ -1096,7 +1096,7 @@ fn parse_tests<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PPersistenceTest>>> {
             let key_start = c.pos();
             let key = c.parse_identifier()?;
             // `(testBatches isTestDataFromServiceOutput? graphFetchPath?)*`, at the engine's dialect (the user's ruling 20
-            // of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S183): a key out of its group's order is refused
+            // of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S355): a key out of its group's order is refused
             if c.dialect().refuses_lite_extensions() {
                 let after = |k: &str| previous.as_deref().is_some_and(|p| eq(p, k));
                 let in_order = if eq(&key, "isTestDataFromServiceOutput") {
@@ -1421,7 +1421,7 @@ fn parse_platform<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNode> {
     // a platform's island is the cloud grammar's text, not the persistence grammar's keys
     island_entries(&island, off, c.dialect(), &mut entries, false)?;
     // deliberately stricter than the engine, which reads the body and writes a default platform: the emitter has no wire
-    // for one (the user's ruling 11 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 73, register S158)
+    // for one (the user's ruling 11 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 73, register S330)
     if !aws && !entries.is_empty() && c.dialect().answers_engine_json() {
         return Err(refused_at(
             c.tokens(),

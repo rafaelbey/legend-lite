@@ -23,7 +23,7 @@ use TokenType as T;
 /// A HostedService's `testSuites` by the engine's grammar (`serviceTestSuites` and the rules under it: suites of `data`
 /// and `tests`, a test's `parameters`, `serializationFormat`, `keys` and `asserts`), an island taken whole, refused at the
 /// token where it stops; the cursor past the list (the user's ruling 20 of 2026-11-10, docs/rust-port/PHASE2.md section 6;
-/// register S190).
+/// register S362).
 fn engines_hosted_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<()> {
     fn word<'s>(c: &mut impl Cursor<'s>, w: Option<&str>) -> R<()> {
         if !is_identifier_token(c.peek()) || w.is_some_and(|w| !eq(c.text(), w)) {
@@ -266,7 +266,7 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
                 c.expect(T::BRACKET_OPEN)?;
                 while c.peek() != T::BRACKET_CLOSE {
                     users.push(JStr(string_value(c)?));
-                    // `item (COMMA item)*` at the engine's dialect, as ruling 18 holds every comma list (ruling 20, S169)
+                    // `item (COMMA item)*` at the engine's dialect, as ruling 18 holds every comma list (ruling 20, S341)
                     if !c.match_list_comma()? {
                         break;
                     }
@@ -302,7 +302,7 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
             c.expect(T::SEMI_COLON)?;
         } else if hosted && (eq(&key, "postValidations") || eq(&key, "testSuites")) {
             // the engine's HostedService grammar has the Service's rules for both, at its dialect (the user's ruling 20 of
-            // 2026-11-10, docs/rust-port/PHASE2.md section 6; register S190): the post-validations read by the Service's
+            // 2026-11-10, docs/rust-port/PHASE2.md section 6; register S362): the post-validations read by the Service's
             // reader, the test suites by their grammar alone (the engine's walker does not read their islands), each
             // refused where it stops; the records as they were
             if c.dialect().refuses_lite_extensions() && engines_refusal.is_none() {
