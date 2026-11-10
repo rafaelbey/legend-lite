@@ -423,6 +423,12 @@ Each with my recommendation first.
 10. **Questions 11, 12: the keep pool is added; only records a node holds, or that passes share, go in the arena.**
 11. **Questions 14, 15: handles are released by a `Cleaner`** with a byte threshold and a forced collection before the live-handle gate; **`Model` gains an overlay form.**
 12. **Question 9: the retirement ledger, about 1,150 to 1,300 test methods, is reviewed by the owner as one list before any Java is deleted.**
+14. **The freeze list is empty** (2026-11-10, ruling 2's list): no line changes `main`'s planning code (the compiler,
+    normalizer, resolver, lowering, plan, planner, builtin, testplan) after the merge until its part of the port is done;
+    the plan-as-data slices, the timeseries line and the corpus burn-down's compiler fixes wait, or land as an exception
+    the owner reviews. The merge point is `main` as it stands when the merge is made (`c4a39e06d` on 2026-11-10).
+15. **The Rust port's register rows take S300 to S499** (2026-11-10), beside the other lines' numbering blocks: at the
+    merge, the port's S128 to S196 are renumbered into it, with every citation.
 13. **SDLC-lite and Depot-lite stay in Java and out of the port for now** (the owner's question, not §9's). The compiler port does not touch them; what Python's
     local home does without `lite_sdlc_handle` and `lite_depot_handle` is decided at phase 4.
 
