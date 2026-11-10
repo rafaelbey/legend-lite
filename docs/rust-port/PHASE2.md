@@ -1016,3 +1016,20 @@ the platform's, a mistake corrected with these.
     pinned engine refuses), the removed allowlist row for it, the 7 `LENIENT_RESIDUE` rows deleted as now matched, the
     744-row difference list kept as plain text, S157 and S158 refused at the `document` door only; `block` is measured
     in the next round.
+
+**Ruled on what rulings 19 to 21 left (the user, 2026-11-10):**
+
+22. **A lone `\r` ends a line comment at every dialect**, as both upstream lexers do; the lexer stays dialect-free.
+23. **The parser reports several errors where it plausibly can** (the user's question). It recovers at element and
+    section boundaries only; the first error stays byte-identical to the engine's, so the engine-compatible routes, the
+    frozen oracle and the parity gates see no change; the others appear only where lite shapes the answer
+    (`compileErrors`, the editor's diagnostics); an error that leaves braces open is reported alone. Errors are sorted by
+    place, which settles the order question of the rulings 19 to 21 report (a rule run after lite's own reading). Built
+    right after `main` is merged, before any phase 3 code.
+24. **An empty or blank code block is refused in lite's words, at the place an expression was expected** (not as
+    recommended, which left it unplaced): not the engine's `[2:1]`, which is a line of its own wrapper.
+25. **A HostedService's `postValidations` and `testSuites` keep their check**; that lite's record and JSON omit both
+    lists, where the engine keeps them, becomes a register row. Carrying them through is left for later.
+26. **The three looser inputs found by hand** (`auditing: None {}`, a constraint keyword as a column spec such as
+    `[~owner: abc]`, DataQuality's unprobed comma lists) **are fixed in the multi-error round**, under the never-looser
+    rule.
