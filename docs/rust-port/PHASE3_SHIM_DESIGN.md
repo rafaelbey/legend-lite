@@ -423,6 +423,8 @@ Each with my recommendation first.
 10. **Questions 11, 12: the keep pool is added; only records a node holds, or that passes share, go in the arena.**
 11. **Questions 14, 15: handles are released by a `Cleaner`** with a byte threshold and a forced collection before the live-handle gate; **`Model` gains an overlay form.**
 12. **Question 9: the retirement ledger, about 1,150 to 1,300 test methods, is reviewed by the owner as one list before any Java is deleted.**
+13. **SDLC-lite and Depot-lite stay in Java and out of the port for now** (the owner's question, not §9's). The compiler port does not touch them; what Python's
+    local home does without `lite_sdlc_handle` and `lite_depot_handle` is decided at phase 4.
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.
