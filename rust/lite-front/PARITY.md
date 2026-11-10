@@ -6,7 +6,9 @@ Java's answers `//core:front_answers`, frozen since step 6a as `rust/oracles/fro
 `MANIFEST.tsv`): every question of the four doors, in the canonical form Java's
 `FrontAnswers.canonical` writes (the records in the lossless codec, or the error's class, line, column and message),
 compared by SHA-256 in `tests/front_parser_differential.rs`. The lexer under them is held separately
-(`tests/front_lexer_differential.rs`, every text's token stream). The protocol emitter (step 5) is held at the two
+(`tests/front_lexer_differential.rs`, every text's token stream). Since 2026-11-10 a line comment ends at a lone `\r` as well
+as at a `\n`, at every dialect, as legend-pure's and legend-engine's lexers end it (ruling 20, register S182; Java's read to the
+`\n`); no frozen text holds a lone `\r` in a comment, so no token stream moved. The protocol emitter (step 5) is held at the two
 doors whose answer is legend-engine's JSON (`tests/front_engine_differential.rs`, below).
 
 ## The numbers
@@ -25,8 +27,8 @@ doors whose answer is legend-engine's JSON (`tests/front_engine_differential.rs`
 22,151 + 876 + 5 = 23,032 expression questions, all identical. The errors include the oracle's one
 `java.time.DateTimeException` (a time-zone shift of an impossible date, below).
 
-These are the frozen Java answers' counts. Since 2026-11-09 744 asks differ on purpose (`deliberate-differences.tsv`
-beside the frozen files, rulings 4, 11, 13, 16 and 18 of docs/rust-port/PHASE2.md section 6). Nine are named by rows: the
+These are the frozen Java answers' counts. Since 2026-11-10 760 asks differ on purpose (`deliberate-differences.tsv`
+beside the frozen files, rulings 4, 11, 13, 16, 18 and 20 of docs/rust-port/PHASE2.md section 6; 744 from 2026-11-09). Nine are named by rows: the
 three `pmcd` asks of question `109b58da` and the `document` asks of `109b58da` and `00dc41c7` (rows 9 and 63), the `pmcd` ask at
 the engine's dialect of `00dc41c7` (row 63, ruling 13), the `spec` ask at the engine's dialect of `672e812e` (row 3, ruling 11),
 and the `pmcd` ask at the engine's dialect and the `document` ask of `1680d307` (row 73, ruling 16). The other 735 are ruling
@@ -34,8 +36,11 @@ and the `pmcd` ask at the engine's dialect and the `document` ask of `1680d307` 
 include the nine above), at `LEGEND_LITE` 164, at `LEGEND_PLATFORM` 167, `document` 204, `spec` at `LEGEND_ENGINE` 2, at
 `LEGEND_PLATFORM` 3. At lite's and the platform's dialects every one is a refusal at the end of the input moved to the engine's
 place, a quote left open at the end placed at the quote, or (6 asks) the end of a re-lexed persistence island's own text, in the
-island's own coordinates (row 57). Identical plus listed is the whole of every door, and any
-`java.*` answer over the frozen questions fails.
+island's own coordinates (row 57). Since 2026-11-10, 16 more are ruling 20's (`ruling20`, register S182 to S195), 8 asks each
+at `pmcd` at `LEGEND_ENGINE` and `document` (212 each now): six fixtures of `FixtureCorpusParityTest` refused as the engine
+refuses them, a `%...Z` date at the engine's column, and a message's words at the same place; lite's and the platform's
+dialects moved none. Identical plus listed is the whole of every door, and any `java.*` answer over the frozen questions
+fails.
 
 **The engine-JSON doors** (step 5, 2026-11-06): the protocol emitter (`emitter.rs` and its family, below), held to
 core/'s `ProtocolEmitter` and `SourceInformation.withoutSpans` over Java's parser (`//core:front_engine_answers`,
@@ -242,7 +247,7 @@ input. Those rows say so. Their questions in the frozen oracle are listed in
 | 18 | `Primitive 'a b'::T`, `native function 'a b'::f`, `Association A projects ...`, a function test's data `store:` or reference | the qualified name is kept as written, quotes included | these records take `parseQualifiedName` raw, where Class, Enum, Profile, Association, Measure and function names go through `splitFqn` (unquoted) and Text and Data names through `unquotePath` |
 | 19 | `Class X(a:Integer[1])` type variables at the platform's dialect | each name is its token's raw text (a quoted name keeps its quotes) | `parseTypeVariableDeclarations` reads `text()`, not `parseIdentifier` |
 | 20 | an extended constraint's `~enforcementLevel:` that names no level (a literal number, a call) | `constraint enforcementLevel must be Error or Warn, got 'null'` | `enforcementLevelName` answers null, concatenated |
-| 21 | a function test's `Relation #{...}#` or `ModelStore #{...}#` data, and a `###Data` element's | two grammars: the test block's (`ElementParser`, cells trimmed by `trim`, rows one per line) and the data element's (`MappingProtocolParser`, cells by `strip`, a path line required) | the parser keeps both, each pinned to its own probe |
+| 21 | a function test's `Relation #{...}#` or `ModelStore #{...}#` data, and a `###Data` element's | two grammars: the test block's (`ElementParser`, cells trimmed by `trim`, rows one per line) and the data element's (`MappingProtocolParser`, cells by `strip`, a path line required) | the parser keeps both, each pinned to its own probe. **Since 2026-11-10 (ruling 20, register S187), at the engine's walk, a function test's `Relation` data is held to the engine's `RelationElementsData` grammar where it stands, and a function test's or a mapping test's assertion and a data space's `sampleValues` where the walker reparses them (`": " + trim(content)` at the `#{`), each refused at the engine's place; a path's words are the M3 lexer's at every site the grammar is held (a number is no name, `.5` no dot). Lite's and the platform's dialects read both grammars as before** |
 | 22 | a ServiceStore stub's `queryParameters` / `headerParameters` | sorted by name (`String.compareTo`), not as written | `PServiceStub`'s compact constructor sorts them (`byName`) |
 | 23 | an element ending at the stream's end where Java reads one token past it (`parseTypeVariableDeclarations`, `parseEmbeddedValue`, `expectText`, a stub's content pattern, `~canAggregate`, an `EqualTo` island's key); a type read there (`looksLikeDbPointer`, an `Otherwise` target's lookahead) | that token's text is `""`, its type `STRING` | the lexer's arrays carry zeroed slack past `count`, and `STRING` is ordinal 0 (`Cursor::slack_text`, `ty_or_slack`) |
 | 24 | documentation before a Database's `Join`, `Filter`, `MultiGrainFilter`, `include` or `TabularFunction` | the literal is stepped over and the keyword read as the member's name: `'''d''' Join j(...)` is `expected PAREN_OPEN but found VALID_STRING ('j')`, `'''d''' include db::X` an include of store type `include`; a tabular function is `unsupported Database member: '<the literal>'` | `parseBody`'s switch looks past a documentation literal, but only the schema, table and view arms read one |

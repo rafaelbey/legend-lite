@@ -307,6 +307,7 @@ The dated record of moved pins, rosters and ratchets (the rules: "Recording a mo
 Newest first, at most 20 lines. Seeded from the last entries of the cut log; "D<n>" is the decisions log of the
 landing's program.
 
+- 2026-11-10 — rulings 20 and 21 (`e02b2cb0a`): `rust/oracles/front/deliberate-differences.tsv` 744 -> 760 asks (`pmcd` at `LEGEND_ENGINE` and `document` 204 -> 212 each, register S182 to S195); `FixtureCorpusParityTest`'s `LENIENT_RESIDUE` 6 -> 0 (its last six negatives refused as the engine refuses them); `FROZEN_MODULE_DIFFERS` and every other pin unchanged.
 - 2026-11-09 — ruling 18 (`44012955b`): `rust/oracles/front/deliberate-differences.tsv` 9 -> 744 asks; `FROZEN_MODULE_DIFFERS` 1 -> 66 inputs, now `wasm/frozen_module_differs.json`; `ModelReaderParityTest` own 37739 -> 37648 and documents 13514 -> 13512, `JsonModelDoorTest` 7085 -> 7084, `RoundTripProofTest` 6905 -> 6904 and upstream 270 -> 271 (`relationMappingSetup.pure`, which the pinned engine refuses); `LENIENT_RESIDUE` 13 -> 6; `docs/refusal-allowlist.tsv` and `REFUSAL_ALLOW_TOTAL` 4 -> 3; `OwnDialectCensusTest` `ModelNormalizerTest.java` 0 -> 1.
 - 2026-11-09 — `rust/oracles/front/deliberate-differences.tsv` 7 -> 9 asks (`1680d307` at `pmcd`/`LEGEND_ENGINE` and `document`,
   row 73: an `AwsGlue` island with its `;` left off, now at the engine's own place, ruling 16); no floor lowered, no other
@@ -377,10 +378,9 @@ landing's program.
 - 2026-10-30 — The seam's step A, one way into the session seam (D70): the JDBC census register loses
   `PlanSessions`, `SystemDatabase`, `SessionState` and `ConnectionResolver` (18 rows); the static-state register
   loses `SessionState.OF`. PR #82, `fd060846`.
-- 2026-10-30 — The java.sql revamp, step 3 (D69): the JDBC surface register as a table of classes and their acts; the
-  funnel's exemption; the new rule `noJdbcTypeInAPublicSignatureOutsideTheSeam`. `dfbbcfa5`.
 
 > Cut in the 2026-11 docs cleanup: the Maven-era chain and its log (2026-08-02 to 2026-09-22: `tools/allgates.sh`, the
 > root-flag trap, the budget decisions, the batch chain logs, the hand-kept ratchet table, the CI leg, fork policy and
 > build-once notes) and about 400 per-landing entries (2026-09-10 to 2026-11-01). Full text:
-> `git show de2745351:docs/GATES.md`.
+> `git show de2745351:docs/GATES.md`. Left since for the 20-line limit: the 2026-10-30 java.sql revamp step 3 entry (D69,
+> `dfbbcfa5`; `git show e02b2cb0a:docs/GATES.md`).

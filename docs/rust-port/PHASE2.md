@@ -846,6 +846,66 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      one. No test source was re-expressed; the guard files that moved are above, each with its note. `block` changed through the
      expression doors' shared reading and was not measured (the measurement has no `block` door).
 
+   **Rulings 19 to 21 done 2026-11-10** (from `3328a746e`; commits `e02b2cb0a`). Every input was asked of legend-engine's own
+   parser on the parser-equivalence class path (`PureGrammarParser`, 4.145.0); the measurement's probes re-run on its pinned
+   inputs with the `block` door added (`docs/rust-port/ENGINE_GAP_2026_11_09.md`, "After rulings 19 to 21").
+   - **Ruling 19.** S180 split: a Diagram's m2 argument list (`Diagram X(width=.., height=..)`, the reviewed "DEFENDED" rows
+     of `docs/refusal-allowlist.tsv`) is S180, the mapping test with no `data` (`ElementParserTest`'s two tests) S181, each
+     ruled deliberately looser. No code change.
+   - **Ruling 20: the 34, by root cause, each at the engine's line and column at the engine's dialect** (lite's and the
+     platform's dialects read them as before but for the first): a line comment ends at a lone `\r`, at every dialect, as
+     both upstreams' lexers end it (S182; no frozen question holds one); the persistence grammar's test key order and its
+     `;`s (S183); its walker's arm of a service output's value by the output's kind, the engine's NPE refusal reproduced,
+     and a graph-fetch output's required `keys` (S184); the orders of a `RelationalMapper`'s lists, a generation node's `id`
+     and a MongoDB mapping's `~filter`, the last in its parser's coordinates (S185); a `%` literal ended where the engine's
+     lexer ends it, a milestoning's `INFINITY_DATE` its `DATE` alone (S186); relation data by its grammar's words, and the
+     walker's reparse of a test's or a data space's path-less relation at the `#{` (S187); a ServiceStore data island's and
+     a content pattern's end (S188); a data space's test data path and its executable's `functionIdentifier` (S189); a
+     HostedService's `postValidations` and `testSuites` by the Service's rules, no `;` after either list (S190); a service
+     test's `primitiveValue` (S191); a Pure mapping's set id no number or boolean (S192); a mapping expression ending in a
+     path (S193); a default value's whole `defaultValueExpression` (S194); a column spec's name that starts no lambda a type
+     (S195). The walker-level rules are held at the engine's walk (`Dialect::holds_to_the_engines_walk`), so a later syntax
+     error of the section comes first; the rules that ran before lite's own reading of a construct and moved texts away from
+     the engine's place (a default value, a service test's value, a mapping expression's path, a HostedService's lists) run
+     behind it. Probing found two comma lists ruling 18's helper missed (a DataQuality tree's `{...}`, a HostedService's
+     `UserList`), now `item (COMMA item)*` (S169's rule).
+   - **Ruling 20: the end of the input** (6,080 mutated texts at `pmcd`, 67 corpus after) ledgered as a family, not chased:
+     S177, amended with its sub-causes and their counts.
+   - **Ruling 21.** `block` measured at `LEGEND_ENGINE` against `parseLambda` (a function body's `codeBlock`) over the
+     corpus's 22,091 expression texts: 2 looser (an empty and a blank block), refused now in the `lambda` door's words and
+     place (S196); 2 stricter, ledgered (S151, S173). Nothing else.
+   - **Lite's own relied on none of the 34.** Six of them are `FixtureCorpusParityTest`'s own negatives, which lite accepted
+     as its adjudicated residue (`LENIENT_RESIDUE`): refused now as their comments say a conforming parser must, the residue
+     6 -> 0 (shrink-only, its dated note in place) and with it the test's asserted agreeing fixtures 260 -> 266 (its own
+     `266 - size()`, no literal changed).
+   - **The measurement, before -> after**, mutated (16 per text) at `pmcd`: same place 99,981 -> 100,042 of 153,008, lite
+     looser 300 -> 282 (280 S64, 2 S181), stricter 358 -> 358; corpus looser 581 -> 575 (571 S64, 3 S180, 1 S181); mutated
+     (4 per text) 84 -> 74 (all S64); `spec`, `lambda`, `lambdaJson` 0, `block` 2 -> 0. No text moved away from the engine's
+     place. Lite looser is 0 apart from the ruled exclusions.
+   - **The difference lists.** `deliberate-differences.tsv` 744 -> 760 asks (`pmcd` at `LEGEND_ENGINE` 204 -> 212,
+     `document` 204 -> 212; `ruling20` in the fourth column for the 16 new rows; the six fixtures above, a `%...Z` date now
+     at the engine's column, a message's words): the frozen files stay Java's, no floor lowered. `FROZEN_MODULE_DIFFERS` is
+     unchanged (66 inputs): `//wasm:round_trip_test`'s inputs did not change.
+   - **Moved counts, each with its dated reason in place.** `FixtureCorpusParityTest`'s `LENIENT_RESIDUE` 6 -> 0, above.
+     Nothing else moved: no parity count, sentinel, sweep or ratchet.
+   - **The gates at `e02b2cb0a`.** `bazel test //core/... //spec/... //rust/... //parser-equivalence/... //tools/...
+     //gates/...`: 525 targets, 523 pass and the same 2 skipped; `//wasm/...` built and its 5 tests pass.
+     `//parser-equivalence:parser_parity`: 422 pins, line agreement 415, column exact 337 (none moved); the sentinel 2,217
+     in scope, matched 2,217; the sweep's 6,755 sources, seam 6,746/0; own corpus 2,943, `diffs=0`. `//core:front_shim`: the
+     four doors 110,048 identical and 548 listed of 110,596, the engine-JSON doors 29,852 and 212 of 30,064. `cargo test
+     --workspace` (lite-front's 92 unit tests, 8 of them new), `cargo clippy --all-targets -- -D warnings`, `cargo fmt
+     --check` clean. 153,008 door answers over mutated oracle texts: no panic, no raw answer. Ledger check: no MISSING.
+   - **The Java side.** `RustParserProvider.raised` is unchanged: no raw class added or removed. No test source re-expressed
+     but `FixtureCorpusParityTest`'s residue. `docs/refusal-allowlist.tsv`'s three Diagram rows stand, a dated line saying
+     ruling 19 kept them (S180).
+   - **Choices taken that are the user's** (each reversible): the line comment's `\r` at every dialect, not the engine's
+     alone (both upstreams lex it so, no frozen answer moved); an empty block refused at the `lambda` door's unplaced place,
+     not the engine's `[2:1]`, its wrapper's line; a HostedService's lists checked by the Service's readers and the suites'
+     grammar while its records still skip them; the rules that run behind lite's own reading of a construct (a default
+     value, a service test's value, a mapping expression's path, a HostedService's lists), so that in a text with two errors
+     lite's later one can stand before the engine's earlier one (no pinned text does). Found and not refused: S183's `None
+     {}` and an expression's `~owner:`-family column spec (the gap report's "Found while probing").
+
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
 exists, and the committed oracle after.
