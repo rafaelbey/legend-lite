@@ -406,4 +406,23 @@ Each with my recommendation first.
 2. **Question 2, 2026-11-10: the planning middle freezes on `main` at the merge.** From then on it takes only changes on a dated list the owner agrees;
    anything else that lands is ported into Rust as a delta with its own row. The runner, server and test-execution code can keep moving.
 
-The other questions wait on the owner's review of what from the test path is worth porting.
+**Ruled 2026-11-10, after reviewing what from the test path is worth porting** (questions 3 to 15 of §9, and four the review added):
+
+3. **The test path is this project's alone.** `testplan` and `testexec` exist to prove the compiler against PCT and the corpus; users will not run tests
+   through them. Nothing is built for them beyond what those suites need.
+4. **The Rust port has the host judge.** The database judge (`DatabaseJudge`, `DatabaseAsserts`, `VerdictBatch`, `VerdictSql`) is not ported at the start: its corpus
+   passes and agreement mode stop at the second switch. It is ported later, as its own work, only if it is missed.
+5. **SQL-text checks and their appeals are ported as `main` has them** (`SqlTextVerdicts`; the replay and comparison stay in Java).
+6. **`testplan` is re-expressed, not transcribed**: written from what each piece must produce and judged by the plan oracle, `TestPlan` JSON byte for byte, and ported
+   last. Measurement-only classes (`CanonicalDivergence`, `probe/Shadow`) are not ported.
+7. **Questions 3, 4, 7, 8: finished answers only.** No typed node crosses the FFI. §6's 17 functions, a read-only Java `Type` built from JSON, the `Edge` hook out of
+   planning; `testplan`, `setup` and `testdatagen` move in phase 3.
+8. **Questions 5, 6: the plan oracle, frozen before Java is deleted, with the identity and MIR oracles re-frozen after the merge; two switches by lane flag**, the
+   product path first.
+9. **Question 10: `Type<'a>`, one `Copy` family with a lifetime**, the model's values in an arena inside `Model` (§7.3 c).
+10. **Questions 11, 12: the keep pool is added; only records a node holds, or that passes share, go in the arena.**
+11. **Questions 14, 15: handles are released by a `Cleaner`** with a byte threshold and a forced collection before the live-handle gate; **`Model` gains an overlay form.**
+12. **Question 9: the retirement ledger, about 1,150 to 1,300 test methods, is reviewed by the owner as one list before any Java is deleted.**
+
+Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
+note that `judge/InstanceIds` stays Java.

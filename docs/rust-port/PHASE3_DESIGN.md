@@ -1,7 +1,8 @@
 # Rust port — phase 3 design: node identity (D1) and the shared model context (D5)
 
 **Status: ruled by the owner on 2026-11-09 (§6). Where §6 differs from a recommendation below, §6 wins; §1.6 says what
-the arena ruling changes. No port code exists.** [`ROADMAP.md`](ROADMAP.md) phase 3 requires these two designs settled
+the arena ruling changes; [`PHASE3_SHIM_DESIGN.md`](PHASE3_SHIM_DESIGN.md) §5 replaces §3's build order and §10 records what the
+test path keeps. No port code exists.** [`ROADMAP.md`](ROADMAP.md) phase 3 requires these two designs settled
 first; [`TRIAGE.md`](TRIAGE.md) names them D1 and D5.
 
 **Where the numbers come from.** Measured at `91db76618`; `core/src/main/java` is unchanged at `2a20d1cf9`, the tip when
