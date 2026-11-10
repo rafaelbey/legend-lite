@@ -101,7 +101,7 @@ fn parse_connections<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PStoreConnec
                 connection,
                 source_information: c.span(id_start, c.pos() - 1),
             }));
-            c.match_tok(T::COMMA)?;
+            c.list_comma()?;
         }
         let group_end = c.pos();
         c.expect(T::BRACKET_CLOSE)?;
@@ -113,7 +113,7 @@ fn parse_connections<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PStoreConnec
                 source_information: c.span(s_start, group_end),
             }));
         }
-        c.match_tok(T::COMMA)?;
+        c.list_comma()?;
     }
     c.expect(T::BRACKET_CLOSE)?;
     c.expect(T::SEMI_COLON)
@@ -191,7 +191,7 @@ fn parse_body_keys<'s>(
                     path: JStr(path),
                     source_information: c.span(m_start, c.pos() - 1),
                 }));
-                if !c.match_tok(T::COMMA)? {
+                if !c.match_list_comma()? {
                     break;
                 }
             }
@@ -223,7 +223,7 @@ fn parse_body_keys<'s>(
                         source_information: c.span(p_start, c.pos() - 1),
                         r#type: ptr_type,
                     }));
-                    c.match_tok(T::COMMA)?;
+                    c.list_comma()?;
                 }
                 let group_end = c.pos();
                 c.expect(T::BRACKET_CLOSE)?;
@@ -235,7 +235,7 @@ fn parse_body_keys<'s>(
                     store_pointers: stores,
                     source_information: c.span(c_start, group_end),
                 }));
-                c.match_tok(T::COMMA)?;
+                c.list_comma()?;
             }
             c.expect(T::BRACKET_CLOSE)?;
             c.expect(T::SEMI_COLON)?;

@@ -202,6 +202,27 @@ fn require_clean_header(h: &SectionHeader) -> R<()> {
     Ok(())
 }
 
+/// A section of a name no grammar reads whose header ends the text, at the engine's dialect: refused where `visitSection`
+/// names it, whatever the header line goes on to hold, the engine's section start (ruling 18 of 2026-11-09).
+fn refuse_unknown_last_section(ts: &TokenStream<'_>, h: &SectionHeader, dialect: Dialect) -> R<()> {
+    let known = listed(BUILT_IN_SECTIONS, &h.name) || TailGrammar::of(&String::from_utf16_lossy(&h.name)).is_some();
+    let last = ts.count() == 0 || ts.start(ts.count() - 1) < h.name_offset;
+    let at_the_end = last
+        && ts
+            .section_headers
+            .last()
+            .is_some_and(|l| l.name_offset == h.name_offset);
+    if known || !at_the_end || !dialect.refuses_lite_extensions() {
+        return Ok(());
+    }
+    let span = section_span(ts, &h.name, h.name_offset as isize - 3, ts.source().len() as isize);
+    Err(JavaError::parse(
+        jcat!("'", h.name, "' is not a known section parser"),
+        span.start_line,
+        span.start_column,
+    ))
+}
+
 fn parse_into(
     text: &[u16],
     dialect: Dialect,
@@ -274,6 +295,7 @@ fn parse_sections(
         name_offset: -1,
     }];
     for h in &ts.section_headers {
+        refuse_unknown_last_section(&ts, h, dialect)?;
         require_clean_header(h)?;
         bounds.push(Bounds {
             name: h.name.clone(),
@@ -333,8 +355,11 @@ fn parse_sections(
             // a refusal of the engine's walk comes after a later syntax error of its section; PARITY's ruling-4 rows that
             // legend-engine answers from its section catch-all: the section's start
             let (elements, imports) = walked(dialect).map_err(|e: JavaError| {
-                e.syntax_first(dialect, || walked(Dialect::LegendEngineSyntax).map(|_| ()))
-                    .at_section(&span)
+                e.end_of_input_first(dialect, crate::cursor::eof_place(&ts), || {
+                    walked(Dialect::LegendPlatform).map(|_| ())
+                })
+                .syntax_first(dialect, || walked(Dialect::LegendEngineSyntax).map(|_| ()))
+                .at_section(&span)
             })?;
             DocSection {
                 parser_name: bd.name.clone(),
@@ -784,6 +809,48 @@ fn orphan(ts: &TokenStream<'_>, cursor: usize) -> JavaError {
     )
 }
 
+/// The end of the input inside an import, where the engine's parser refuses it (ruling 18 of 2026-11-09).
+fn ended_inside_import(ts: &TokenStream<'_>, past: usize) -> JavaError {
+    crate::cursor::throw_at(ts, past, JStr::from("Unexpected token '<EOF>'"))
+}
+
+/// An import at the engine's dialect, as its grammar reads one (`IMPORT packagePath PATH_SEPARATOR STAR SEMI_COLON`), the
+/// token past its `;`; anything else refused at the token its grammar stops at (the user's ruling 18 of 2026-11-09,
+/// docs/rust-port/PHASE2.md section 6; register S169).
+fn engine_import(ts: &TokenStream<'_>, import: usize) -> R<usize> {
+    let n = ts.count();
+    let stop = |at: usize| {
+        if at < n {
+            orphan(ts, at)
+        } else {
+            ended_inside_import(ts, at)
+        }
+    };
+    let mut c = import + 1;
+    loop {
+        if c >= n || !is_identifier_token(ts.ty(c)) {
+            return Err(stop(c));
+        }
+        c += 1;
+        if c >= n || ts.ty(c) != T::PATH_SEPARATOR {
+            return Err(stop(c));
+        }
+        c += 1;
+        if c < n && ts.ty(c) == T::STAR {
+            c += 1;
+            break;
+        }
+    }
+    if c >= n {
+        // the `;` the last of the imports lacks: only `<EOF>` could follow it, one column less
+        return Err(ended_inside_import(ts, c).a_column_before());
+    }
+    if ts.ty(c) != T::SEMI_COLON {
+        return Err(orphan(ts, c));
+    }
+    Ok(c + 1)
+}
+
 /// `PmcdParser.strictWalk`: a section's range read in order -- its leading imports (import-aware sections only, each
 /// exactly `import pkg(::pkg)*::*;`), then one element after another, each consuming its own extent; anything else
 /// refused. `mapping_section_line` is a mapping's anchor line (-1 outside a `###Mapping` section).
@@ -808,6 +875,10 @@ fn strict_walk(
             if !imports_allowed || saw_element {
                 return Err(orphan(ts, cursor));
             }
+            if dialect.refuses_lite_extensions() {
+                cursor = engine_import(ts, cursor)?;
+                continue;
+            }
             cursor += 1;
             let mut wildcard = false;
             while cursor < n && ts.ty(cursor) != T::SEMI_COLON {
@@ -819,7 +890,10 @@ fn strict_walk(
                 }
                 cursor += 1;
             }
-            if !wildcard || cursor >= n {
+            if cursor >= n {
+                return Err(ended_inside_import(ts, cursor));
+            }
+            if !wildcard {
                 return Err(orphan(ts, cursor.min(n - 1)));
             }
             cursor += 1;

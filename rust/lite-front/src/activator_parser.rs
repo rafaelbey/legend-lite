@@ -97,7 +97,11 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
             let v = boolean_value(c)?;
             linked_put(&mut booleans, JStr(key), v);
         } else if eq(&key, "function") {
-            let fd = c.parse_function_descriptor()?;
+            let fd = if c.dialect().refuses_lite_extensions() && section != "Deephaven" {
+                c.parse_engine_function_identifier()?
+            } else {
+                c.parse_function_descriptor()?
+            };
             if section == "Deephaven" {
                 for i in fd.name_end..fd.end {
                     if eq(c.tokens().text(i), "..") {
@@ -146,7 +150,7 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
         } else if eq(&key, "activationConfiguration") {
             // the engine's DeephavenApp has no such key (the user's ruling 12 of 2026-11-09,
             // docs/rust-port/PHASE2.md section 6; PARITY row 71)
-            if eq(&kind, "DeephavenApp") && c.dialect().answers_engine_json() {
+            if eq(&kind, "DeephavenApp") && c.dialect().holds_to_the_engines_walk() {
                 return Err(refused_at(c.tokens(), key_tok, jcat!("Unexpected token '", key, "'")));
             }
             let a_s = c.pos();

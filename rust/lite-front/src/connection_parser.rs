@@ -105,6 +105,12 @@ pub fn parse_connection<'s>(c: &mut impl Cursor<'s>) -> R<PConnection> {
     c.advance()?;
     let qn = unquote_path_iae(&c.parse_qualified_name()?)?;
     let (pkg, name) = split_last(&qn);
+    if c.dialect().refuses_lite_extensions()
+        && c.peek() == T::BRACE_OPEN
+        && let Some(refusal) = crate::cursor::brace_island_refusal(c.tokens(), c.pos())
+    {
+        return Err(refusal);
+    }
     let value = parse_value(c, &flavor, decl_start, true)?;
     Ok(PConnection {
         pkg: JStr(pkg),
@@ -134,6 +140,18 @@ pub fn parse_island_value(
     let flavor = c.safe_text();
     let f_start = c.pos;
     c.advance()?;
+    if dialect.refuses_lite_extensions()
+        && c.peek() == T::BRACE_OPEN
+        && let Some(refusal) = crate::cursor::brace_island_refusal(&ts, c.pos)
+    {
+        // the island's own coordinates, shifted as the engine's walker shifts them
+        let (line, column) = refusal.position.unwrap_or((1, 1));
+        let at = (
+            line + base_line - 1,
+            if line == 1 { column + base_column - 1 } else { column },
+        );
+        return Err(refusal.at_place(at));
+    }
     parse_value(&mut c, &flavor, f_start, false)
 }
 
@@ -270,7 +288,7 @@ fn parse_model_chain_body<'s>(
         c.expect(T::BRACKET_OPEN)?;
         while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
             mappings.push(JStr(unquote_path_iae(&c.parse_qualified_name()?)?));
-            c.match_tok(T::COMMA)?;
+            c.list_comma()?;
         }
         c.expect(T::BRACKET_CLOSE)?;
         c.match_tok(T::SEMI_COLON)?;
@@ -498,7 +516,7 @@ fn parse_mongo_connection_body<'s>(c: &mut impl Cursor<'s>, decl_start: usize) -
                         base_url: JStr(host),
                         port,
                     }));
-                    c.match_tok(T::COMMA)?;
+                    c.list_comma()?;
                 }
                 c.expect(T::BRACKET_CLOSE)?;
             }
@@ -665,7 +683,7 @@ fn relational_key<'s>(c: &mut impl Cursor<'s>, key: &[u16], k_s: usize, b: &mut 
             c.expect(T::BRACKET_OPEN)?;
             while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                 configs.push(Box::new(parse_generation_features_config(c)?));
-                c.match_tok(T::COMMA)?;
+                c.list_comma()?;
             }
             c.expect(T::BRACKET_CLOSE)?;
             c.expect(T::SEMI_COLON)?;
@@ -737,7 +755,7 @@ fn parse_generation_features_config<'s>(c: &mut impl Cursor<'s>) -> R<PGeneratio
         c.expect(T::BRACKET_OPEN)?;
         while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
             into.push(string(c)?);
-            c.match_tok(T::COMMA)?;
+            c.list_comma()?;
         }
         c.expect(T::BRACKET_CLOSE)?;
         c.expect(T::SEMI_COLON)?;
@@ -790,7 +808,7 @@ fn parse_mapper_post_processors<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<PPost
                         end_column: real.end_column,
                     }),
                 }));
-                c.match_tok(T::COMMA)?;
+                c.list_comma()?;
             }
             c.expect(T::BRACE_CLOSE)?;
             out.push(PPostProcessor::PRelationalMapperPostProcessor(Box::new(
@@ -798,14 +816,14 @@ fn parse_mapper_post_processors<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<PPost
                     relational_mappers: ptrs,
                 },
             )));
-            c.match_tok(T::COMMA)?;
+            c.list_comma()?;
             continue;
         }
         if eq(&kind, "ExtractSubQueriesAsCTEsPostProcessor") {
             out.push(PPostProcessor::PExtractSubQueriesAsCtesPostProcessor(Box::new(
                 PExtractSubQueriesAsCtesPostProcessor {},
             )));
-            c.match_tok(T::COMMA)?;
+            c.list_comma()?;
             continue;
         }
         if !eq(&kind, "mapper") {
@@ -824,7 +842,7 @@ fn parse_mapper_post_processors<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<PPost
             c.expect(T::BRACKET_OPEN)?;
             while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                 mappers.push(parse_one_mapper(c)?);
-                c.match_tok(T::COMMA)?;
+                c.list_comma()?;
             }
             c.expect(T::BRACKET_CLOSE)?;
             c.expect(T::SEMI_COLON)?;
@@ -833,7 +851,7 @@ fn parse_mapper_post_processors<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<PPost
         out.push(PPostProcessor::PMapperPostProcessor(Box::new(PMapperPostProcessor {
             mappers,
         })));
-        c.match_tok(T::COMMA)?;
+        c.list_comma()?;
     }
     c.expect(T::BRACKET_CLOSE)?;
     c.expect(T::SEMI_COLON)
@@ -910,7 +928,7 @@ fn parse_datasource_spec<'s>(c: &mut impl Cursor<'s>, keyword_tok: usize) -> R<P
                     c.expect(T::BRACKET_OPEN)?;
                     while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                         list.push(quoted_string(c)?);
-                        c.match_tok(T::COMMA)?;
+                        c.list_comma()?;
                     }
                     c.expect(T::BRACKET_CLOSE)?;
                     sqls = Some(list);
@@ -1201,7 +1219,7 @@ fn parse_global_aurora_spec<'s>(c: &mut impl Cursor<'s>, keyword_tok: usize) -> 
                 c.expect(T::BRACKET_OPEN)?;
                 while !c.at_end() && c.peek() != T::BRACKET_CLOSE {
                     list.push(string(c)?);
-                    if !c.match_tok(T::COMMA)? {
+                    if !c.match_list_comma()? {
                         break;
                     }
                 }
@@ -1643,7 +1661,7 @@ fn parse_auth_strategy<'s>(c: &mut impl Cursor<'s>, keyword_tok: usize) -> R<PAu
                         c.expect(T::BRACKET_OPEN)?;
                         while c.peek() != T::BRACKET_CLOSE {
                             list.push(string(c)?);
-                            if !c.match_tok(T::COMMA)? {
+                            if !c.match_list_comma()? {
                                 break;
                             }
                         }

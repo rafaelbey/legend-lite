@@ -92,6 +92,7 @@ impl MappingCursor<'_, '_> {
         self.expect(T::BRACE_OPEN)?;
         let mut func = None;
         let mut tests = Vec::new();
+        let mut tests_spelled = false;
         let mut doc = None;
         while !self.at_end() && self.peek() != T::BRACE_CLOSE {
             let key = self.text();
@@ -120,12 +121,13 @@ impl MappingCursor<'_, '_> {
                 continue;
             }
             if eq(key, "tests") {
+                tests_spelled = true;
                 self.advance()?;
                 self.expect(T::COLON)?;
                 self.expect(T::BRACKET_OPEN)?;
                 while !self.at_end() && self.peek() != T::BRACKET_CLOSE {
                     tests.push(Box::new(self.parse_mapping_test()?));
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                 }
                 self.expect(T::BRACKET_CLOSE)?;
                 self.match_tok(T::SEMI_COLON)?;
@@ -135,6 +137,9 @@ impl MappingCursor<'_, '_> {
         }
         let close = self.pos;
         self.expect(T::BRACE_CLOSE)?;
+        if self.dialect.refuses_lite_extensions() && !tests_spelled {
+            return Err(throw_at(self.tokens, s_s, JStr::from("Field 'tests' is required")));
+        }
         let Some(func) = func else {
             return Err(throw_at(
                 self.tokens,
@@ -264,7 +269,7 @@ impl MappingCursor<'_, '_> {
                         data: JStr(data_buf),
                         source_information: self.span(d_s, d_e),
                     }));
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                 }
                 self.expect(T::BRACKET_CLOSE)?;
                 self.expect(T::SEMI_COLON)?;
@@ -350,7 +355,7 @@ impl MappingCursor<'_, '_> {
                 self.expect(T::BRACKET_OPEN)?;
                 while !self.at_end() && self.peek() != T::BRACKET_CLOSE {
                     data.push(Box::new(self.parse_store_test_data()?));
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                 }
                 self.expect(T::BRACKET_CLOSE)?;
                 self.expect(T::SEMI_COLON)?;
@@ -362,7 +367,7 @@ impl MappingCursor<'_, '_> {
                 self.expect(T::BRACKET_OPEN)?;
                 while !self.at_end() && self.peek() != T::BRACKET_CLOSE {
                     asserts.push(Box::new(self.parse_test_assertion()?));
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                 }
                 self.expect(T::BRACKET_CLOSE)?;
                 self.expect(T::SEMI_COLON)?;
@@ -372,6 +377,9 @@ impl MappingCursor<'_, '_> {
         }
         if asserts.is_empty() {
             return Err(throw_at(self.tokens, t_s, JStr::from("Field 'asserts' is required")));
+        }
+        if self.dialect.refuses_lite_extensions() && data.is_empty() {
+            return Err(throw_at(self.tokens, t_s, JStr::from("Field 'data' is required")));
         }
         let close = self.pos;
         self.expect(T::BRACE_CLOSE)?;
@@ -398,6 +406,11 @@ impl MappingCursor<'_, '_> {
             let ref_island = self.read_island()?;
             let mut ri = MappingCursor::at(&ref_island.tokens, 0, self.dialect);
             let data_path = unquote_path_iae(&ri.parse_qualified_name()?)?;
+            // the engine takes the island's text whole for a path (ruling 18)
+            if self.dialect.refuses_lite_extensions() && !ri.at_end() {
+                let words = crate::jcat!("Invalid identifier: ", ref_island.tokens.text(ri.pos()));
+                return Err(crate::cursor::throw_at(self.tokens, ref_tok, words).as_refusal());
+            }
             let de = PPointer {
                 r#type: JStr::from("DATA"),
                 path: JStr(data_path),
@@ -481,7 +494,7 @@ impl MappingCursor<'_, '_> {
             let entry = inner.parse_model_entry()?;
             require_unique_model_type(&model_data, &entry)?;
             model_data.push(entry);
-            inner.match_tok(T::COMMA)?;
+            inner.list_comma()?;
         }
         let ms_span = si(
             ts.start_line(ms_tok) as i32,
@@ -618,6 +631,10 @@ impl MappingCursor<'_, '_> {
         }
         let ef = inner.parse_external_format()?;
         inner.match_tok(T::SEMI_COLON)?;
+        // `expected: externalFormat;` and the end of the island, at the engine's dialect (ruling 18)
+        if self.dialect.refuses_lite_extensions() && !inner.at_end() {
+            return Err(inner.unexpected());
+        }
         Ok(PTestAssertion {
             id: JStr(assert_id),
             expected: PAssertionValue::PExternalFormatData(Box::new(ef)),

@@ -135,6 +135,21 @@ const REFUSED_AT_SECTION: &str = "lite.front.RefusedAtSection";
 /// The words of the engine's own walkers, in the errors the parser raises as it reads: a later one is no syntax error.
 const WALK_WORDS: [&str; 2] = ["Field '", "Unknown "];
 
+/// The refusals by name of constructs the engine's grammar reads and only its walk refuses ([`JavaError::end_of_input_first`]).
+const WALK_REFUSALS: [&str; 11] = [
+    "Unsupported syntax",
+    "Type and/or multiplicity parameters are not authorized",
+    "stereotypes/tagged values are not authorized",
+    "class projections are not supported",
+    "copy-with-update",
+    "Bracket operation is not supported",
+    "Unit instance not supported",
+    "is not supported yet",
+    ".allVersionsInRange() is not supported",
+    "Unexpected token '^'",
+    "Documentation must be written",
+];
+
 impl JavaError {
     /// A `ParseException` at a position: its message carries Java's `[line:col] ` prefix when `line > 0`.
     pub fn parse_at(message: &str, line: i32, column: i32) -> JavaError {
@@ -212,6 +227,55 @@ impl JavaError {
             class: REFUSED_AT_SECTION.to_owned(),
             message: Some(message),
             position: Some(at),
+        }
+    }
+
+    /// This error's message, without the `[line:col] ` prefix a placed one carries.
+    fn words(&self) -> JStr {
+        let text = self.message.clone().unwrap_or_default();
+        if !matches!(self.position, Some((line, _)) if line > 0) || self.class == REFUSED_AT_SECTION {
+            return text;
+        }
+        let units = text.units();
+        let start = units.iter().position(|&c| c == u16::from(b' ')).map_or(0, |i| i + 1);
+        JStr(units[start..].to_vec())
+    }
+
+    /// This error's words at another place, a refusal in flight: what the engine's section parse answers before its walk
+    /// begins (the user's ruling 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6).
+    pub fn at_place(&self, (line, column): (i32, i32)) -> JavaError {
+        JavaError::parse(self.words(), line, column).as_refusal()
+    }
+
+    /// This refusal one column to the left, its `[line:col] ` prefix with it (a line's column 0 where the end of the input
+    /// is an empty last line, as `ParserErrorListener` computes it).
+    pub fn a_column_before(self) -> JavaError {
+        let Some((line, column)) = self.position else {
+            return self;
+        };
+        JavaError {
+            class: self.class.clone(),
+            ..JavaError::parse(self.words(), line, column - 1)
+        }
+    }
+
+    /// A construct refused by name that the engine's grammar reads and its walk refuses, against the end of the input: the
+    /// engine parses a section whole before it walks it, so a text cut inside or after the construct is refused at its
+    /// end (the user's ruling 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6). `read_again` reads the text at the
+    /// platform's dialect, which reads every such construct; `end` is one past the input's last character.
+    pub(crate) fn end_of_input_first(
+        self,
+        level: Dialect,
+        end: (i32, i32),
+        read_again: impl FnOnce() -> Answer<()>,
+    ) -> JavaError {
+        let words = self.words().lossy();
+        if level == Dialect::LegendPlatform || !WALK_REFUSALS.iter().any(|w| words.contains(w)) {
+            return self;
+        }
+        match read_again() {
+            Err(later) if later.position == Some(end) || later.position == Some((end.0, end.1 - 1)) => later,
+            _ => self,
         }
     }
 
@@ -307,36 +371,62 @@ pub fn on_parse_stack<T: Send>(work: impl FnOnce() -> T + Send) -> T {
 
 /// An expression door's reading at `level`: a refusal of the engine's walk behind a later syntax error of the text
 /// ([`JavaError::syntax_first`]), a refusal in flight as a door answers it.
-fn read_expression<T>(level: Dialect, parse: impl Fn(Dialect) -> Answer<T>) -> Answer<T> {
+fn read_expression<T>(text: &[u16], level: Dialect, parse: impl Fn(Dialect) -> Answer<T>) -> Answer<T> {
     parse(level).map_err(|e| {
-        e.syntax_first(level, || parse(Dialect::LegendEngineSyntax).map(|_| ()))
-            .placed()
+        let tokens = crate::lexer::tokenize(text);
+        e.end_of_input_first(level, crate::cursor::eof_place(&tokens), || {
+            parse(Dialect::LegendPlatform).map(|_| ())
+        })
+        .syntax_first(level, || parse(Dialect::LegendEngineSyntax).map(|_| ()))
+        .placed()
     })
 }
 
 /// `SpecParser.parse(text, dialect)`: one expression. On the caller's thread, which needs a big stack
 /// ([`PARSE_STACK`]).
 pub fn spec(text: &[u16], dialect: Dialect) -> Answer<ValueSpecification> {
-    read_expression(dialect.at_a_door(), |level| spec_parser::parse(text, level))
+    read_expression(text, dialect.at_a_door(), |level| spec_parser::parse(text, level))
 }
 
 /// `SpecParser.parseLambda(text)`: a lambda at the engine's dialect, a non-lambda wrapped as a parameterless one.
 pub fn lambda(text: &[u16]) -> Answer<LambdaFunction> {
-    read_expression(Dialect::LegendEngineDoor, |level| {
+    read_expression(text, Dialect::LegendEngineDoor, |level| {
         spec_parser::parse_lambda(text, level)
     })
 }
 
 /// `SpecParser.parseCodeBlock(text, dialect)`: a `;`-separated block.
 pub fn block(text: &[u16], dialect: Dialect) -> Answer<Vec<ValueSpecification>> {
-    read_expression(dialect.at_a_door(), |level| spec_parser::parse_code_block(text, level))
+    read_expression(text, dialect.at_a_door(), |level| {
+        spec_parser::parse_code_block(text, level)
+    })
 }
 
 /// `PmcdParser.parse(text, dialect)`: a model text's records -- every element in section order, the section index,
 /// the unclaimed sections -- with the shim's registered overlay grammars: beside the records, each overlay section
 /// the walk met, whose grammar the shim calls and whose elements it splices (`model_parser::OverlaySection`).
 pub fn pmcd(text: &[u16], dialect: Dialect, overlays: &[OverlayGrammar<'_>]) -> PmcdAnswer {
-    let answer = crate::model_parser::parse_with_overlays(text, dialect.at_a_door(), overlays);
+    let level = dialect.at_a_door();
+    let answer = records(text, level, overlays);
+    PmcdAnswer {
+        // at the engine's dialect the record door refuses what the JSON door places (the user's ruling 18 of 2026-11-09,
+        // docs/rust-port/PHASE2.md section 6): the emitter knows the engine's kinds, the records have no other judge
+        parsed: answer.parsed.and_then(|parsed| {
+            if level.holds_to_the_engines_walk()
+                && let Err(e) = crate::emitter::emit(&parsed.model)
+                && e.is_syntax_error()
+            {
+                return Err(e.placed());
+            }
+            Ok(parsed)
+        }),
+        overlays: answer.overlays,
+    }
+}
+
+/// [`pmcd`]'s reading at `level`, before anything judges the records.
+fn records(text: &[u16], level: Dialect, overlays: &[OverlayGrammar<'_>]) -> PmcdAnswer {
+    let answer = crate::model_parser::parse_with_overlays(text, level, overlays);
     PmcdAnswer {
         parsed: answer.parsed.map_err(JavaError::placed),
         overlays: answer.overlays,
@@ -402,13 +492,13 @@ pub fn document(text: &[u16], spans: bool) -> Answer<Vec<u16>> {
 /// spliced records). At the engine's dialect the walk never meets one (an unknown section is refused there, PARITY
 /// row 17), so no text takes it; it is there by construction.
 pub fn document_with_overlays(text: &[u16], spans: bool, overlays: &[OverlayGrammar<'_>]) -> Option<Answer<Vec<u16>>> {
-    let answer = pmcd(text, Dialect::LegendEngine, overlays);
+    let answer = records(text, Dialect::LegendEngine.at_a_door(), overlays);
     if !answer.overlays.is_empty() {
         return None;
     }
     Some(answer.parsed.and_then(|parsed| {
         let json = crate::emitter::emit(&parsed.model)
-            .map_err(|e| emitter_refusal(e, || pmcd(text, Dialect::LegendEngineJson, &[]).parsed.map(|_| ())))?;
+            .map_err(|e| emitter_refusal(e, || records(text, Dialect::LegendEngineJson, &[]).parsed.map(|_| ())))?;
         Ok(if spans {
             json
         } else {
@@ -540,9 +630,27 @@ mod refusal_tests {
         assert_eq!(e.position, Some(place), "{text}: {e:?}");
     }
 
-    /// `text` accepted by the parser at every dialect, the `document` door refusing it at `place`.
+    /// `text` accepted at lite's and the platform's dialects; the model door at the engine's and the `document` door
+    /// refusing it at `place` (ruling 18 of 2026-11-09).
     #[track_caller]
     fn document_refused_at(text: &str, place: (i32, i32)) {
+        let units = u(text);
+        for d in [Dialect::LegendLite, Dialect::LegendPlatform] {
+            assert!(pmcd(&units, d, &[]).parsed.is_ok(), "{text}");
+        }
+        for e in [
+            pmcd(&units, Dialect::LegendEngine, &[]).parsed.map(|_| ()).expect_err(text),
+            document(&units, true).map(|_| ()).expect_err(text),
+        ] {
+            assert!(e.is_parse_exception(), "{text}: {e:?}");
+            assert_eq!(e.position, Some(place), "{text}: {e:?}");
+        }
+    }
+
+    /// `text` accepted by the parser at every dialect, the `document` door alone refusing it at `place`: what the engine
+    /// accepts and legend-engine's JSON has no answer for (ruling 11, register S157 and S158).
+    #[track_caller]
+    fn only_document_refused_at(text: &str, place: (i32, i32)) {
         let units = u(text);
         for d in DIALECTS {
             assert!(pmcd(&units, d, &[]).parsed.is_ok(), "{text}");
@@ -572,14 +680,10 @@ mod refusal_tests {
         }
     }
 
-    /// `text` accepted at the record door, refused at the JSON door at `place` (ruling 12).
+    /// `text` refused at the `lambda` door and its JSON door at `place` (rulings 12 and 18).
     #[track_caller]
     fn lambda_json_refused_at(text: &str, place: (i32, i32)) {
-        let units = u(text);
-        assert!(lambda(&units).is_ok(), "{text}");
-        let e = lambda_json(&units, true).expect_err(text);
-        assert!(e.is_parse_exception(), "{text}: {e:?}");
-        assert_eq!(e.position, Some(place), "{text}: {e:?}");
+        lambda_doors_refused_at(text, place);
     }
 
     /// `text` refused at the `lambda` door and its JSON door at `place` (rulings 13 and 16).
@@ -952,7 +1056,7 @@ mod refusal_tests {
     fn a_local_property_under_an_aggregation_aware_main_mapping_is_refused_at_it() {
         // row 72 (ruling 11), at the `document` door: the records have a place for it
         let aggregation = "###Mapping\nMapping a::M\n(\n  a::P[x]: AggregationAware\n  {\n    Views: [\n      (\n        ~modelOperation: {\n          ~canAggregate true,\n          ~groupByFunctions ($this.id),\n          ~aggregateValues (\n            ( ~mapFn:$this.p , ~aggregateFn: $mapped->sum() )\n          )\n        },\n        ~aggregateMapping: Pure\n        {\n          ~src a::S\n          p: $src.p\n        }\n      )\n    ],\n    ~mainMapping: Pure\n    {\n      ~src a::P\n      +loc: String[1]: $src.x\n    }\n  }\n)\n";
-        document_refused_at(aggregation, (25, 8));
+        only_document_refused_at(aggregation, (25, 8));
     }
 
     #[test]
@@ -961,8 +1065,8 @@ mod refusal_tests {
         let platform = |p: &str| {
             format!("###Persistence\nPersistenceContext a::C\n{{\n  persistence: a::P;\n  platform: {p};\n}}\n")
         };
-        document_refused_at(&platform("Default #{ x: 1; }#"), (5, 13));
-        document_refused_at(&platform("Default\n  #{\n    x: 1;\n  }#"), (5, 13));
+        only_document_refused_at(&platform("Default #{ x: 1; }#"), (5, 13));
+        only_document_refused_at(&platform("Default\n  #{\n    x: 1;\n  }#"), (5, 13));
         assert!(document(&u(&platform("Default")), true).is_ok());
     }
 

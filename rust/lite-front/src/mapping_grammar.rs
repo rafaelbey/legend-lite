@@ -232,7 +232,7 @@ impl MappingCursor<'_, '_> {
                 self.expect(T::BRACKET_OPEN)?;
                 while !self.at_end() && self.peek() != T::BRACKET_CLOSE {
                     legacy_tests.push(Box::new(self.parse_legacy_test(&qn)?));
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                 }
                 self.expect(T::BRACKET_CLOSE)?;
                 continue;
@@ -244,7 +244,7 @@ impl MappingCursor<'_, '_> {
                 self.expect(T::BRACKET_OPEN)?;
                 while !self.at_end() && self.peek() != T::BRACKET_CLOSE {
                     suites.push(Box::new(self.parse_test_suite(&qn)?));
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                 }
                 self.expect(T::BRACKET_CLOSE)?;
                 continue;
@@ -308,7 +308,7 @@ impl MappingCursor<'_, '_> {
                     let src = unquote_path_iae(&self.parse_qualified_name()?)?;
                     self.expect(T::ARROW)?;
                     let tgt = unquote_path_iae(&self.parse_qualified_name()?)?;
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                     subs.push(Box::new(PStoreSubstitution {
                         source_database_path: JStr(src.clone()),
                         target_database_path: JStr(tgt.clone()),
@@ -356,6 +356,12 @@ impl MappingCursor<'_, '_> {
         }
         self.expect(T::COLON)?;
         let body_start = self.pos;
+        if self.dialect.refuses_lite_extensions() {
+            let open = (body_start..self.tokens.count()).find(|&t| self.tokens.ty(t) == T::BRACE_OPEN);
+            if let Some(refusal) = open.and_then(|o| crate::cursor::brace_island_refusal(self.tokens, o)) {
+                return Err(refusal);
+            }
+        }
         let mut read_body = |this: &mut Self| {
             this.parse_element_body(
                 assoc_mappings,
@@ -374,7 +380,16 @@ impl MappingCursor<'_, '_> {
         // the engine's section parse takes an element's body whole, its walk parses the body and then walks it: inside the
         // body, too, a syntax error comes before what the walk refuses (the user's ruling 16 of 2026-11-09,
         // docs/rust-port/PHASE2.md section 6; PARITY row 63)
-        let read = read_body(self);
+        let read = read_body(self).map_err(|e| {
+            if self.element_body_left_open(body_start) {
+                // the engine's section parse takes the body whole and meets the end of the input first; its `<EOF>` is at
+                // the back edge of the elements' loop, one column less (ruling 18 of 2026-11-09)
+                let (line, column) = crate::cursor::eof_place(self.tokens);
+                e.at_place((line, column - 1))
+            } else {
+                e
+            }
+        });
         if self.dialect.reads_for_syntax() {
             return match (read, self.past_the_element_body(body_start)) {
                 (Err(_), Some(past)) => {
@@ -385,6 +400,9 @@ impl MappingCursor<'_, '_> {
             };
         }
         read.map_err(|e| {
+            if self.element_body_left_open(body_start) {
+                return e;
+            }
             let level = self.dialect;
             let raised_by_the_walk = e.is_in_flight();
             let answer = e.syntax_first(level, || {
@@ -414,6 +432,12 @@ impl MappingCursor<'_, '_> {
             }
         }
         None
+    }
+
+    /// Whether a mapping element's `{ ... }` opens at or after `from` and the end of the input comes before its `}`.
+    fn element_body_left_open(&self, from: usize) -> bool {
+        let opens = (from..self.tokens.count()).any(|t| self.tokens.ty(t) == T::BRACE_OPEN);
+        opens && self.past_the_element_body(from).is_none() && self.tokens.input_end().is_some()
     }
 
     /// A mapping element past its `:`, by its kind.
@@ -538,7 +562,18 @@ impl MappingCursor<'_, '_> {
         if extends_id.is_some() {
             return Err(self.error_str("'extends' on this class-mapping kind is unbuilt"));
         }
-        Err(self.error(jcat!("unsupported class mapping type: '", kind, "'")))
+        // the kind is the last token of the text: the engine's parser reads any word here and meets the end of the input
+        // (ruling 18 of 2026-11-09)
+        let at = if self.pos + 1 == self.tokens.count() {
+            self.pos + 1
+        } else {
+            self.pos
+        };
+        Err(throw_at(
+            self.tokens,
+            at,
+            jcat!("unsupported class mapping type: '", kind, "'"),
+        ))
     }
 
     /// `parseServiceStoreClassMapping`: `{ +local: T[m]; ~service [store] G.S (~path ...)? (~request (...))? ... }`.
@@ -692,7 +727,7 @@ impl MappingCursor<'_, '_> {
                                 transform_span: self.span(expr_start, self.pos - 1),
                                 source_information: self.span(e_start, self.pos - 1),
                             }));
-                            self.match_tok(T::COMMA)?;
+                            self.list_comma()?;
                         }
                         let p_end = self.pos;
                         self.expect(T::PAREN_CLOSE)?;
@@ -794,7 +829,7 @@ impl MappingCursor<'_, '_> {
                     transform_span: self.span(expr_start, self.pos - 1),
                     source_information: self.span(e_start, self.pos - 1),
                 }));
-                self.match_tok(T::COMMA)?;
+                self.list_comma()?;
             }
             self.expect(T::PAREN_CLOSE)?;
         }
@@ -841,7 +876,7 @@ impl MappingCursor<'_, '_> {
                 transform_span: boxed(entry_span.clone()),
                 source_information: boxed(entry_span),
             }));
-            self.match_tok(T::COMMA)?;
+            self.list_comma()?;
         }
         let outer_end = self.pos;
         self.expect(T::PAREN_CLOSE)?;
@@ -1220,7 +1255,7 @@ impl MappingCursor<'_, '_> {
                 self.expect(T::PAREN_OPEN)?;
                 while self.peek() != T::PAREN_CLOSE && !self.at_end() {
                     primary_key.push(self.parse_embedded_operation()?);
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                 }
                 self.expect(T::PAREN_CLOSE)?;
                 continue;
@@ -1237,7 +1272,7 @@ impl MappingCursor<'_, '_> {
                 self.expect(T::PAREN_OPEN)?;
                 while self.peek() != T::PAREN_CLOSE && !self.at_end() {
                     group_by.push(self.parse_embedded_operation()?);
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                 }
                 self.expect(T::PAREN_CLOSE)?;
                 continue;
@@ -1253,7 +1288,7 @@ impl MappingCursor<'_, '_> {
             clause_rank = RANK_PROPERTIES;
             if self.peek() == T::VALID_STRING && eq(self.text(), "scope") && self.peek_at(1) == T::PAREN_OPEN {
                 self.parse_scope_block(&mut props, Some(target), id.as_ref())?;
-                self.match_tok(T::COMMA)?;
+                self.list_comma()?;
                 continue;
             }
             self.parse_property_line(&mut props, Some(target), id.as_ref(), None, None)?;
@@ -1293,6 +1328,13 @@ impl MappingCursor<'_, '_> {
         let mut filter_body = None;
         let mut props = Vec::new();
         while !self.at_end() && self.peek() != T::BRACE_CLOSE {
+            // `(mappingSrc | mappingFilter)* (propertyMapping (COMMA propertyMapping)*)?` (ruling 18)
+            if self.dialect.refuses_lite_extensions()
+                && !props.is_empty()
+                && matches!(self.peek(), T::SRC_CMD | T::FILTER_CMD)
+            {
+                return Err(self.unexpected());
+            }
             if self.peek() == T::SRC_CMD {
                 if src_class.is_some() {
                     return Err(throw_at(
@@ -1513,7 +1555,7 @@ impl MappingCursor<'_, '_> {
                 source_information: self.span(o_s - 1, self.pos - 1),
                 owner_class: None,
             }));
-            self.match_tok(T::COMMA)?;
+            self.list_comma()?;
         }
         self.expect(T::PAREN_CLOSE)?;
         let close = self.pos;
@@ -1630,7 +1672,7 @@ impl MappingCursor<'_, '_> {
             self.advance()?;
             while self.peek() != T::BRACKET_CLOSE && !self.at_end() {
                 params.push(JStr(self.parse_set_id()?));
-                self.match_tok(T::COMMA)?;
+                self.list_comma()?;
             }
             self.expect(T::BRACKET_CLOSE)?;
             self.expect(T::COMMA)?;
@@ -1685,7 +1727,7 @@ impl MappingCursor<'_, '_> {
         }
         while self.peek() != T::PAREN_CLOSE && !self.at_end() {
             params.push(JStr(self.parse_set_id()?));
-            self.match_tok(T::COMMA)?;
+            self.list_comma()?;
         }
         self.expect(T::PAREN_CLOSE)?;
         self.match_tok(T::SEMI_COLON)?;
@@ -1862,7 +1904,7 @@ impl MappingCursor<'_, '_> {
                     self.expect(T::PAREN_OPEN)?;
                     while self.peek() != T::PAREN_CLOSE && !self.at_end() {
                         pk.push(self.parse_op_in_ctx(scope_db, scope)?);
-                        self.match_tok(T::COMMA)?;
+                        self.list_comma()?;
                     }
                     self.expect(T::PAREN_CLOSE)?;
                     continue;
@@ -2143,7 +2185,11 @@ impl MappingCursor<'_, '_> {
         } else {
             return Err(self.error_str("Relation class mapping must open with ~func (or its ~src alias)"));
         }
-        let fd = self.parse_function_descriptor()?;
+        let fd = if self.dialect.refuses_lite_extensions() && !src_form {
+            self.parse_engine_function_identifier()?
+        } else {
+            self.parse_function_descriptor()?
+        };
         let desc = self.compact_text(fd.start, fd.end - 1);
         let fn_span = self.span_of(fd.start, fd.end - 1);
         let mut src_lambda = None;
@@ -2191,7 +2237,7 @@ impl MappingCursor<'_, '_> {
             if self.match_tok(T::BRACKET_OPEN)? {
                 while self.peek() != T::BRACKET_CLOSE && !self.at_end() {
                     pk.push(JStr(self.parse_identifier()?));
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                 }
                 self.expect(T::BRACKET_CLOSE)?;
             } else {
@@ -2233,7 +2279,7 @@ impl MappingCursor<'_, '_> {
                         expr_lambda_source_information: wrapper,
                         source_information: self.span(n_s, self.pos - 1),
                     }));
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                 }
                 let p_close = self.pos;
                 self.expect(T::PAREN_CLOSE)?;
@@ -2252,7 +2298,7 @@ impl MappingCursor<'_, '_> {
                     expr_lambda_source_information: None,
                     source_information: self.span(p_s, p_close),
                 }));
-                self.match_tok(T::COMMA)?;
+                self.list_comma()?;
                 continue;
             }
             if self.peek() == T::PAREN_OPEN {
@@ -2281,7 +2327,7 @@ impl MappingCursor<'_, '_> {
                     expr_lambda_source_information: None,
                     source_information: self.span(p_s, b_close),
                 }));
-                self.match_tok(T::COMMA)?;
+                self.list_comma()?;
                 continue;
             }
             self.expect(T::COLON)?;
@@ -2317,7 +2363,7 @@ impl MappingCursor<'_, '_> {
                 expr_lambda_source_information: wrapper,
                 source_information: self.span(p_s, self.pos - 1),
             }));
-            self.match_tok(T::COMMA)?;
+            self.list_comma()?;
         }
         let close = self.pos;
         self.expect(T::BRACE_CLOSE)?;
@@ -2359,6 +2405,12 @@ impl MappingCursor<'_, '_> {
         let mut agg_vals = Vec::new();
         let mut agg_body_toks: Vec<isize> = Vec::new();
         let mut main_body_tok: isize = 0;
+        if self.dialect.refuses_lite_extensions()
+            && !self.at_end()
+            && !(self.peek() == T::VALID_STRING && eq(self.text(), "Views"))
+        {
+            return Err(self.unexpected());
+        }
         while !self.at_end() && self.peek() != T::BRACE_CLOSE {
             if self.peek() == T::VALID_STRING && eq(self.text(), "Views") {
                 self.advance()?;
@@ -2387,7 +2439,7 @@ impl MappingCursor<'_, '_> {
                             self.expect(T::PAREN_OPEN)?;
                             while self.peek() != T::PAREN_CLOSE && !self.at_end() {
                                 gbs.push(self.parse_agg_lambda()?);
-                                self.match_tok(T::COMMA)?;
+                                self.list_comma()?;
                             }
                             self.expect(T::PAREN_CLOSE)?;
                         } else if eq(&cmd, "aggregateValues") {
@@ -2405,16 +2457,16 @@ impl MappingCursor<'_, '_> {
                                 let aggregate_fn = self.parse_agg_lambda()?;
                                 self.expect(T::PAREN_CLOSE)?;
                                 avs.push(Box::new(PAggregateValue { map_fn, aggregate_fn }));
-                                self.match_tok(T::COMMA)?;
+                                self.list_comma()?;
                             }
                             self.expect(T::PAREN_CLOSE)?;
                         } else {
                             return Err(self.error(jcat!("modelOperation command '~", cmd, "' is unbuilt")));
                         }
-                        self.match_tok(T::COMMA)?;
+                        self.list_comma()?;
                     }
                     self.expect(T::BRACE_CLOSE)?;
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                     self.expect(T::TILDE)?;
                     self.expect_text("aggregateMapping")?;
                     self.expect(T::COLON)?;
@@ -2434,10 +2486,10 @@ impl MappingCursor<'_, '_> {
                     });
                     self.skip_brace_block()?;
                     self.expect(T::PAREN_CLOSE)?;
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                 }
                 self.expect(T::BRACKET_CLOSE)?;
-                self.match_tok(T::COMMA)?;
+                self.list_comma()?;
                 continue;
             }
             if self.peek() == T::TILDE && eq(self.peek_text(1), "mainMapping") {
@@ -2456,7 +2508,7 @@ impl MappingCursor<'_, '_> {
                     self.pos as isize
                 };
                 self.skip_brace_block()?;
-                self.match_tok(T::COMMA)?;
+                self.list_comma()?;
                 continue;
             }
             return Err(self.error(jcat!("AggregationAware member '", self.safe_text(), "' is unbuilt")));
@@ -2681,6 +2733,14 @@ impl MappingCursor<'_, '_> {
 
     /// `entryComma(closers)`: a comma promises another entry -- a closer right after one refused.
     fn entry_comma(&mut self, closers: &[TokenType]) -> R<()> {
+        // at the engine's dialect the entries are its grammar's `entry (COMMA entry)*`: nothing else follows one (ruling 18)
+        if self.dialect.refuses_lite_extensions()
+            && !self.at_end()
+            && self.peek() != T::COMMA
+            && !closers.contains(&self.peek())
+        {
+            return Err(self.unexpected());
+        }
         if !self.match_tok(T::COMMA)? {
             return Ok(());
         }

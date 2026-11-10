@@ -221,6 +221,11 @@ impl<'t, 's> MappingCursor<'t, 's> {
             let ri = self.read_island()?;
             let mut rp = MappingCursor::at(&ri.tokens, 0, self.dialect);
             let data_path = unquote_path_iae(&rp.parse_qualified_name()?)?;
+            // the engine takes the island's text whole for a path: what is left over makes it no identifier (ruling 18)
+            if self.dialect.refuses_lite_extensions() && !rp.at_end() {
+                let words = crate::jcat!("Invalid identifier: ", ri.tokens.text(rp.pos()));
+                return Err(crate::cursor::throw_at(self.tokens, r_tok, words).as_refusal());
+            }
             let si = span_info(
                 self.tokens.start_line(r_tok),
                 self.tokens.start_column(r_tok),
@@ -269,7 +274,7 @@ impl<'t, 's> MappingCursor<'t, 's> {
                 let entry = inner.parse_model_entry()?;
                 require_unique_model_type(&model_data, &entry)?;
                 model_data.push(entry);
-                inner.match_tok(T::COMMA)?;
+                inner.list_comma()?;
             }
             return Ok(PEmbeddedDataValue::PModelStoreData(Box::new(PModelStoreData {
                 model_data,
@@ -290,7 +295,7 @@ impl<'t, 's> MappingCursor<'t, 's> {
             inner.expect(T::BRACKET_OPEN)?;
             while inner.peek() != T::BRACKET_CLOSE && !inner.at_end() {
                 stubs.push(Box::new(inner.parse_service_stub()?));
-                inner.match_tok(T::COMMA)?;
+                inner.list_comma()?;
             }
             inner.expect(T::BRACKET_CLOSE)?;
             return Ok(PEmbeddedDataValue::PServiceStoreData(Box::new(PServiceStoreData {
@@ -503,6 +508,17 @@ impl<'t, 's> MappingCursor<'t, 's> {
         let src = ts.source();
         let mut p = island.content_start;
         let end = island.content_end;
+        if with_paths
+            && self.dialect.refuses_lite_extensions()
+            && let Some(at) = relation_elements_stop(src, p, end)
+        {
+            return Err(JavaError::parse(
+                JStr::from("Unexpected token"),
+                ts.line_of(at) as i32,
+                ts.column_of(at) as i32,
+            )
+            .as_refusal());
+        }
         let mut out = Vec::new();
         loop {
             while p < end && is_whitespace(src[p]) {
@@ -762,7 +778,7 @@ impl<'t, 's> MappingCursor<'t, 's> {
                 name: JStr(pname),
                 pattern: Box::new(pattern),
             }));
-            if !self.match_tok(T::COMMA)? {
+            if !self.match_list_comma()? {
                 break;
             }
         }
@@ -875,6 +891,128 @@ fn split_on(s: &[u16], sep: u16, out: &mut Vec<JStr>) {
         if i == s.len() || s[i] == sep {
             out.push(JStr(strip(&s[start..i]).to_vec()));
             start = i + 1;
+        }
+    }
+}
+
+/// Where the engine's `RelationElementsData` grammar stops in `src[start..end]`, none when it reads it all (the user's
+/// ruling 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6): `identifier (DOT identifier)* ':'` in the normal lexer's
+/// mode, then lines of cells (`~[",\r\n;]+`, or a `"..."` with `""` inside) to a `;`.
+fn relation_elements_stop(src: &[u16], start: usize, end: usize) -> Option<usize> {
+    let is_nl = |c: u16| c == u16::from(b'\n') || c == u16::from(b'\r');
+    let blank = |c: u16| c == u16::from(b' ') || c == u16::from(b'\t');
+    let word = |c: u16| c < 128 && ((c as u8).is_ascii_alphanumeric() || c == u16::from(b'_') || c == u16::from(b'$'));
+    let mut p = start;
+    loop {
+        // the normal mode, between elements and through a path
+        while p < end && (blank(src[p]) || is_nl(src[p])) {
+            p += 1;
+        }
+        if p >= end {
+            return None;
+        }
+        loop {
+            let from = p;
+            if src[p] == u16::from(b'\'') {
+                p += 1;
+                while p < end && src[p] != u16::from(b'\'') && !is_nl(src[p]) {
+                    p += if src[p] == u16::from(b'\\') { 2 } else { 1 };
+                }
+                if p >= end || src[p] != u16::from(b'\'') {
+                    return Some(from);
+                }
+                p += 1;
+            } else {
+                while p < end && word(src[p]) {
+                    p += 1;
+                }
+                if p == from {
+                    return Some(from);
+                }
+            }
+            while p < end && (blank(src[p]) || is_nl(src[p])) {
+                p += 1;
+            }
+            if p < end && src[p] == u16::from(b'.') {
+                p += 1;
+                while p < end && (blank(src[p]) || is_nl(src[p])) {
+                    p += 1;
+                }
+                if p >= end {
+                    return Some(p);
+                }
+                continue;
+            }
+            break;
+        }
+        if p >= end || src[p] != u16::from(b':') {
+            return Some(p.min(end));
+        }
+        p += 1;
+        while p < end && (blank(src[p]) || is_nl(src[p])) {
+            p += 1;
+        }
+        // the table's mode: a cell, a comma or a line break between cells, a `;` to end it
+        let mut cell_closed = false; // a cell has been read and only a separator may follow
+        loop {
+            if p >= end {
+                return Some(end);
+            }
+            let c = src[p];
+            if c == u16::from(b';') {
+                p += 1;
+                break;
+            }
+            if is_nl(c) {
+                while p < end && (is_nl(src[p]) || blank(src[p])) {
+                    p += 1;
+                }
+                cell_closed = false;
+                continue;
+            }
+            if c == u16::from(b',') {
+                p += 1;
+                cell_closed = false;
+                continue;
+            }
+            if cell_closed {
+                return Some(p);
+            }
+            // a quoted cell's leading blanks are its own
+            let mut q = p;
+            while q < end && blank(src[q]) {
+                q += 1;
+            }
+            if q < end && src[q] == u16::from(b'"') {
+                let open = q;
+                q += 1;
+                let mut closed = false;
+                while q < end && !is_nl(src[q]) {
+                    if src[q] == u16::from(b'"') {
+                        if q + 1 < end && src[q + 1] == u16::from(b'"') {
+                            q += 2;
+                            continue;
+                        }
+                        q += 1;
+                        closed = true;
+                        break;
+                    }
+                    q += 1;
+                }
+                if !closed {
+                    return Some(open);
+                }
+                while q < end && blank(src[q]) {
+                    q += 1;
+                }
+                p = q;
+                cell_closed = true;
+                continue;
+            }
+            while p < end && !is_nl(src[p]) && !matches!(src[p], 0x22 | 0x2C | 0x3B) {
+                p += 1;
+            }
+            cell_closed = true;
         }
     }
 }

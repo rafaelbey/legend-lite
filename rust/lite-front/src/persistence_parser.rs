@@ -613,6 +613,89 @@ fn parse_node<'s>(c: &mut impl Cursor<'s>, off: (i32, i32)) -> R<PPersistenceNod
     Ok(node(JStr(kind), None, entries, c.span(s, c.pos() - 1)))
 }
 
+/// The keys of the engine's persistence grammars (its lexer's keywords; ruling 18 of 2026-11-09).
+const PERSISTENCE_KEYS: &[&str] = &[
+    "actionIndicator",
+    "address",
+    "appendStrategy",
+    "asserts",
+    "auditing",
+    "batchIdIn",
+    "batchIdInName",
+    "batchIdOut",
+    "batchIdOutName",
+    "binding",
+    "connection",
+    "contentType",
+    "data",
+    "dataProcessingUnits",
+    "database",
+    "datasetType",
+    "dateTimeEnd",
+    "dateTimeFromName",
+    "dateTimeIn",
+    "dateTimeInName",
+    "dateTimeName",
+    "dateTimeOut",
+    "dateTimeOutName",
+    "dateTimeStart",
+    "dateTimeThruName",
+    "deduplication",
+    "deduplicationStrategy",
+    "deleteField",
+    "deleteValues",
+    "derivation",
+    "doc",
+    "duplicateCountName",
+    "emptyDatasetHandling",
+    "endField",
+    "expected",
+    "filterDuplicates",
+    "graphFetchPath",
+    "ingestMode",
+    "isTestDataFromServiceOutput",
+    "keys",
+    "mergeStrategy",
+    "modelClass",
+    "modelProperty",
+    "notifier",
+    "notifyees",
+    "partitionFields",
+    "partitioning",
+    "parts",
+    "persistence",
+    "persister",
+    "platform",
+    "processingDimension",
+    "service",
+    "serviceOutput",
+    "serviceOutputTargets",
+    "serviceParameters",
+    "sink",
+    "sinkConnection",
+    "sourceDateTimeFromField",
+    "sourceDateTimeInField",
+    "sourceDateTimeOutField",
+    "sourceDateTimeThruField",
+    "sourceDerivedDimension",
+    "sourceFields",
+    "startField",
+    "table",
+    "target",
+    "targetName",
+    "targetShape",
+    "temporality",
+    "testBatches",
+    "tests",
+    "transactionMilestoning",
+    "transactionScope",
+    "trigger",
+    "updatesHandling",
+    "url",
+    "validityMilestoning",
+    "versionField",
+];
+
 /// The kinds the engine's grammar writes with an island: a test's data and its assertions.
 fn admits_island(kind: &[u16]) -> bool {
     eq(kind, "ExternalFormat") || eq(kind, "Reference") || starts_with(kind, "EqualTo")
@@ -658,6 +741,10 @@ fn parse_entries<'s>(
     while !c.at_end() && close.is_none_or(|t| c.peek() != t) {
         let key_start = c.pos();
         let key = c.parse_identifier()?;
+        if close.is_some() && c.dialect().refuses_lite_extensions() && !PERSISTENCE_KEYS.iter().any(|k| eq(&key, k)) {
+            c.set_pos(key_start);
+            return Err(c.unexpected());
+        }
         c.expect(T::COLON)?;
         match c.peek() {
             T::STRING => {
@@ -687,7 +774,7 @@ fn parse_entries<'s>(
                             with_flat_defaults(pe),
                             c.span(ps, c.pos() - 1),
                         )));
-                        if !c.match_tok(T::COMMA)? {
+                        if !c.match_list_comma()? {
                             break;
                         }
                     }
@@ -703,7 +790,7 @@ fn parse_entries<'s>(
                     while c.peek() != T::BRACKET_CLOSE {
                         specs.push(one_token_spec(c, c.pos())?);
                         c.expect(T::PATH_LITERAL)?;
-                        if !c.match_tok(T::COMMA)? {
+                        if !c.match_list_comma()? {
                             break;
                         }
                     }
@@ -723,7 +810,7 @@ fn parse_entries<'s>(
                     } else {
                         vals.push(JStr(c.parse_identifier()?));
                     }
-                    if !c.match_tok(T::COMMA)? {
+                    if !c.match_list_comma()? {
                         break;
                     }
                 }
@@ -832,7 +919,7 @@ fn parse_output_targets<'s>(c: &mut impl Cursor<'s>) -> R<Vec<PServiceOutputTarg
             persistence_target: Box::new(target),
             source_information: c.span(s, c.pos() - 1),
         });
-        c.match_tok(T::COMMA)?;
+        c.list_comma()?;
     }
     c.expect(T::BRACKET_CLOSE)?;
     Ok(out)
@@ -863,7 +950,7 @@ fn parse_notifier<'s>(c: &mut impl Cursor<'s>, key_start: usize) -> R<PPersisten
             let n = parse_node(c, (0, 0))?;
             validate_node("notifyees", &n)?;
             notifyees.push(Box::new(n));
-            if !c.match_tok(T::COMMA)? {
+            if !c.match_list_comma()? {
                 break;
             }
         }
@@ -933,7 +1020,7 @@ fn parse_tests<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PPersistenceTest>>> {
             graph_fetch_path,
             source_information: c.span(s, c.pos() - 1),
         }));
-        c.match_tok(T::COMMA)?;
+        c.list_comma()?;
     }
     c.expect(T::BRACKET_CLOSE)?;
     Ok(out)
@@ -980,7 +1067,7 @@ fn parse_test_batches<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PPersistenc
                     let aid = c.parse_identifier()?;
                     c.expect(T::COLON)?;
                     let a_s = c.pos();
-                    if c.dialect().answers_engine_json() {
+                    if c.dialect().holds_to_the_engines_walk() {
                         refuse_what_equal_to_json_reads(c)?;
                     }
                     let an = parse_node(c, (0, 0))?;
@@ -989,7 +1076,7 @@ fn parse_test_batches<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PPersistenc
                         assertion: Box::new(node(an.kind, an.head_path, an.entries, None)),
                         source_information: c.span(a_s, c.pos() - 1),
                     }));
-                    if !c.match_tok(T::COMMA)? {
+                    if !c.match_list_comma()? {
                         break;
                     }
                 }
@@ -1014,7 +1101,7 @@ fn parse_test_batches<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PPersistenc
             source_information: c.span(s, c.pos() - 1),
             has_test_data: true,
         }));
-        c.match_tok(T::COMMA)?;
+        c.list_comma()?;
     }
     c.expect(T::BRACKET_CLOSE)
 }
@@ -1025,7 +1112,7 @@ fn parse_test_batches<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PPersistenc
 /// user's ruling 15 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 74).
 fn refuse_what_equal_to_json_reads<'s>(c: &mut impl Cursor<'s>) -> R<()> {
     let head = c.pos();
-    if !eq(c.text(), "EqualToJson") {
+    if c.at_end() || !eq(c.text(), "EqualToJson") {
         return Ok(());
     }
     if c.peek_at(1) == T::BRACE_OPEN {
@@ -1391,7 +1478,7 @@ fn parse_ctx_params<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PCtxParam>>) 
             value,
             source_information: c.span(s, c.pos() - 1),
         }));
-        c.match_tok(T::COMMA)?;
+        c.list_comma()?;
     }
     c.expect(T::BRACKET_CLOSE)
 }

@@ -194,6 +194,10 @@ pub struct TokenStream<'a> {
     tokens: Vec<Token>,
     pub section_headers: Vec<SectionHeader>,
     pub skipped_sections: Vec<SkippedSection>,
+    /// Where this stream's input ends, one past its last character, trailing blanks and line breaks counted: a whole
+    /// text's length, a range's end. `None` for a window that stops short of its stream's last token, whose end is no
+    /// end of the input (the user's ruling 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6).
+    input_end: Option<usize>,
     line_starts: OnceCell<Rc<Vec<usize>>>,
     positions: OnceCell<Vec<[usize; 4]>>,
 }
@@ -202,6 +206,11 @@ impl<'a> TokenStream<'a> {
     /// The source the offsets index.
     pub fn source(&self) -> &'a [u16] {
         self.source
+    }
+
+    /// Where this stream's input ends, if it runs to the end of one (see the field).
+    pub fn input_end(&self) -> Option<usize> {
+        self.input_end
     }
 
     pub fn count(&self) -> usize {
@@ -331,6 +340,7 @@ impl<'a> TokenStream<'a> {
             tokens: self.tokens[from..to].to_vec(),
             section_headers: self.section_headers.clone(),
             skipped_sections: self.skipped_sections.clone(),
+            input_end: if to == self.tokens.len() { self.input_end } else { None },
             line_starts,
             positions: OnceCell::new(),
         }
@@ -405,6 +415,7 @@ pub fn tokenize_range(source: &[u16], from: usize, to: usize) -> TokenStream<'_>
         tokens: lexer.tokens,
         section_headers: lexer.section_headers,
         skipped_sections: lexer.skipped_sections,
+        input_end: Some(to),
         line_starts: OnceCell::new(),
         positions: OnceCell::new(),
     }

@@ -105,7 +105,7 @@ pub fn parse_data_space<'s>(c: &mut impl Cursor<'s>) -> R<PDataSpace> {
                         diagram_span: span.clone(),
                         source_information: span,
                     }));
-                    if !c.match_tok(T::COMMA)? {
+                    if !c.match_list_comma()? {
                         break;
                     }
                 }
@@ -155,7 +155,7 @@ pub fn parse_data_space<'s>(c: &mut impl Cursor<'s>) -> R<PDataSpace> {
                         exclude,
                         source_information: c.span(s, c.pos() - 1),
                     }));
-                    c.match_tok(T::COMMA)?;
+                    c.list_comma()?;
                 }
                 c.expect(T::BRACKET_CLOSE)?;
                 c.expect(T::SEMI_COLON)?;
@@ -218,7 +218,7 @@ fn parse_operational_metadata<'s>(c: &mut impl Cursor<'s>, key_start: usize) -> 
                     ));
                 }
                 regions.push(JStr(v));
-                if !c.match_tok(T::COMMA)? {
+                if !c.match_list_comma()? {
                     break;
                 }
             }
@@ -284,7 +284,7 @@ fn parse_support_info<'s>(c: &mut impl Cursor<'s>) -> R<PDataSpaceSupport> {
                 c.expect(T::BRACKET_OPEN)?;
                 while c.peek() != T::BRACKET_CLOSE {
                     list.push(JStr(string_value(c)?));
-                    if !c.match_tok(T::COMMA)? {
+                    if !c.match_list_comma()? {
                         break;
                     }
                 }
@@ -350,7 +350,7 @@ fn parse_support_full<'s>(c: &mut impl Cursor<'s>) -> R<PDataSpaceSupport> {
                 c.expect(T::BRACKET_OPEN)?;
                 while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                     list.push(Box::new(parse_email(c)?));
-                    if !c.match_tok(T::COMMA)? {
+                    if !c.match_list_comma()? {
                         break;
                     }
                 }
@@ -362,7 +362,7 @@ fn parse_support_full<'s>(c: &mut impl Cursor<'s>) -> R<PDataSpaceSupport> {
                 c.expect(T::BRACKET_OPEN)?;
                 while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                     list.push(Box::new(parse_expertise(c)?));
-                    if !c.match_tok(T::COMMA)? {
+                    if !c.match_list_comma()? {
                         break;
                     }
                 }
@@ -470,7 +470,7 @@ fn parse_expertise<'s>(c: &mut impl Cursor<'s>) -> R<PDataSpaceExpertise> {
             c.expect(T::BRACKET_OPEN)?;
             while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                 list.push(JStr(string_value(c)?));
-                if !c.match_tok(T::COMMA)? {
+                if !c.match_list_comma()? {
                     break;
                 }
             }
@@ -593,7 +593,7 @@ fn parse_contexts<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDataSpaceConte
             test_data,
             source_information: ctx_span,
         }));
-        c.match_tok(T::COMMA)?;
+        c.list_comma()?;
     }
     c.expect(T::BRACKET_CLOSE)?;
     c.expect(T::SEMI_COLON)
@@ -671,7 +671,7 @@ fn parse_executables<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDataSpaceEx
             sample_values,
             source_information: c.span(entry_start, c.pos() - 1),
         }));
-        c.match_tok(T::COMMA)?;
+        c.list_comma()?;
     }
     c.expect(T::BRACKET_CLOSE)?;
     c.expect(T::SEMI_COLON)
@@ -722,7 +722,7 @@ fn parse_diagrams<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDataSpaceDiagr
             diagram_span,
             source_information: c.span(entry_start, c.pos() - 1),
         }));
-        c.match_tok(T::COMMA)?;
+        c.list_comma()?;
     }
     c.expect(T::BRACKET_CLOSE)?;
     c.expect(T::SEMI_COLON)

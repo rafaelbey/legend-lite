@@ -209,6 +209,12 @@ impl<'s> ElementCursor<'_, 's> {
                 let mut st = self.parse_type()?;
                 let span = self.span(st_tok, self.pos - 1);
                 if self.dialect.refuses_lite_extensions()
+                    && let TypeExpression::TypeExpressionNameRef(n) = &st
+                    && n.name.units().contains(&u16::from(b'~'))
+                {
+                    return Err(self.section_refusal(JStr::from("a unit is not a class to extend")));
+                }
+                if self.dialect.refuses_lite_extensions()
                     && let TypeExpression::TypeExpressionGeneric(g) = &st
                 {
                     st = name_ref(g.name.clone(), span.clone());
@@ -352,6 +358,54 @@ impl<'s> ElementCursor<'_, 's> {
     }
 
     /// `parseDerivedProperty`: `<<st>> {tags} name(params) { body }: Type[mult];`.
+    /// The first token of a property's default at the engine's dialect, and of each element of an array of defaults, by
+    /// its grammar's `defaultValueExpression`: a reference, `^new`, a literal or `[...]` (ruling 18 of 2026-11-09).
+    fn refuse_a_default_the_engines_grammar_has_no_rule_for(&self) -> R<()> {
+        if !self.dialect.refuses_lite_extensions() {
+            return Ok(());
+        }
+        let starts = |t: TokenType| {
+            is_identifier_token(t)
+                || matches!(
+                    t,
+                    T::NEW_SYMBOL
+                        | T::INTEGER
+                        | T::FLOAT
+                        | T::DECIMAL
+                        | T::DATE
+                        | T::STRICTTIME
+                        | T::TRUE
+                        | T::FALSE
+                        | T::BOOLEAN
+                        | T::DOC_STRING
+                        | T::BRACKET_OPEN
+                        | T::PATH_SEPARATOR
+                )
+        };
+        let mut p = self.pos;
+        let mut depth = 0i64;
+        let mut at_element = true;
+        while p < self.tokens.count() {
+            let t = self.tokens.ty(p);
+            if depth == 0 && t == T::SEMI_COLON {
+                break;
+            }
+            if at_element && !starts(t) && !(depth > 0 && t == T::BRACKET_CLOSE) {
+                return Err(ElementCursor::at(self.tokens, p, self.dialect).unexpected());
+            }
+            at_element = (t == T::BRACKET_OPEN && (depth == 0 || at_element)) || (t == T::COMMA && depth == 1);
+            if t == T::BRACKET_OPEN {
+                depth += 1;
+            } else if t == T::BRACKET_CLOSE {
+                depth -= 1;
+            } else if depth == 0 {
+                break;
+            }
+            p += 1;
+        }
+        Ok(())
+    }
+
     fn parse_derived_property(&mut self) -> R<DerivedPropertyDefinition> {
         let decl_start = self.pos;
         let doc = self.parse_documentation()?;
@@ -382,6 +436,10 @@ impl<'s> ElementCursor<'_, 's> {
                 if depth > 0 {
                     self.advance()?;
                 }
+            }
+            // `BRACE_OPEN codeBlock BRACE_CLOSE`, a code block being at least one line (ruling 18)
+            if self.dialect.refuses_lite_extensions() && body_start == self.pos && !self.at_end() {
+                return Err(self.unexpected());
             }
             body = self.slice_block(body_start, self.pos)?;
             self.expect(T::BRACE_CLOSE)?;
@@ -1697,6 +1755,7 @@ impl<'s> ElementCursor<'_, 's> {
         let mut default_value = None;
         if self.match_tok(T::EQUAL)? {
             let def_start = self.pos;
+            self.refuse_a_default_the_engines_grammar_has_no_rule_for()?;
             let mut depth = 0i64;
             while !self.at_end() {
                 let t = self.peek();

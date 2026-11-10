@@ -54,6 +54,15 @@ use ValueSpecification as VS;
 /// `SpecParser.parse(source, dialect)`: lexed, one program line, the whole input consumed.
 pub fn parse(text: &[u16], dialect: Dialect) -> Answer<ValueSpecification> {
     let tokens = tokenize(text);
+    // the engine reads an expression as the right side of a `let`: another `let` is a name, and what follows it is refused
+    // (ruling 18 of 2026-11-09)
+    if dialect.refuses_lite_extensions()
+        && tokens.count() > 1
+        && tokens.ty(0) == T::LET
+        && is_identifier_token(tokens.ty(1))
+    {
+        return Err(throw_at(&tokens, 1, jcat!("Unexpected token '", tokens.text(1), "'")));
+    }
     parse_tokens(&tokens, dialect)
 }
 
@@ -71,6 +80,91 @@ pub fn parse_lambda(text: &[u16], dialect: Dialect) -> Answer<LambdaFunction> {
     match parser.whole_line()? {
         VS::LambdaFunction(lf) => Ok(*lf),
         v => Ok(lambda(Vec::new(), vec![v], parser.span(0, parser.pos - 1))),
+    }
+}
+
+/// Where the engine's navigation grammar stops in a `#/.../#` literal (`DIVIDE genericType (propertyWithParameters)* (name)?`,
+/// the type a `path? identifier`, a segment a word with an optional balanced argument list): the offset into the literal, none
+/// when it reads to the closing `#` (the user's ruling 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6).
+fn path_literal_stop(text: &[u16]) -> Option<usize> {
+    let end = text.len() - 1;
+    let word = |c: u16| c < 128 && ((c as u8).is_ascii_alphanumeric() || c == ch(b'_') || c == ch(b'$'));
+    let blank = |c: u16| c == ch(b' ') || c == ch(b'\t') || c == ch(b'\n') || c == ch(b'\r');
+    let mut p = 2;
+    let skip = |p: &mut usize| {
+        while *p < end && blank(text[*p]) {
+            *p += 1;
+        }
+    };
+    let read_word = |p: &mut usize| {
+        let from = *p;
+        if *p < end && text[*p] == ch(b'\'') {
+            *p += 1;
+            while *p < end && text[*p] != ch(b'\'') {
+                *p += 1;
+            }
+            if *p < end {
+                *p += 1;
+                return true;
+            }
+            *p = from;
+            return false;
+        }
+        while *p < end && word(text[*p]) {
+            *p += 1;
+        }
+        *p > from
+    };
+    loop {
+        skip(&mut p);
+        if !read_word(&mut p) {
+            return Some(p);
+        }
+        skip(&mut p);
+        if p + 1 < end && text[p] == ch(b':') && text[p + 1] == ch(b':') {
+            p += 2;
+            continue;
+        }
+        break;
+    }
+    loop {
+        skip(&mut p);
+        if p >= end {
+            return None;
+        }
+        if text[p] == ch(b'!') {
+            p += 1;
+            skip(&mut p);
+            if !read_word(&mut p) {
+                return Some(p);
+            }
+            skip(&mut p);
+            return (p < end).then_some(p);
+        }
+        if text[p] != ch(b'/') {
+            return Some(p);
+        }
+        p += 1;
+        skip(&mut p);
+        if !read_word(&mut p) {
+            return Some(p);
+        }
+        skip(&mut p);
+        if p < end && text[p] == ch(b'(') {
+            let mut depth = 0;
+            while p < end {
+                if text[p] == ch(b'(') {
+                    depth += 1;
+                } else if text[p] == ch(b')') {
+                    depth -= 1;
+                    if depth == 0 {
+                        p += 1;
+                        break;
+                    }
+                }
+                p += 1;
+            }
+        }
     }
 }
 
@@ -593,6 +687,7 @@ impl<'t, 's> SpecParser<'t, 's> {
                 self.unit_literal(VS::CInteger(Box::new(n)))
             }
             T::FLOAT => {
+                self.refuse_a_float_without_fraction()?;
                 let n = self.parse_float()?;
                 self.unit_literal(n)
             }
@@ -613,7 +708,12 @@ impl<'t, 's> SpecParser<'t, 's> {
             T::FALSE => Ok(self.consume_boolean(false)),
             T::DATE => self.parse_date_or_date_time(),
             T::STRICTTIME => self.parse_strict_time(),
-            T::LATEST_DATE => Ok(self.parse_latest_date()),
+            T::LATEST_DATE => {
+                if self.dialect.holds_to_the_engines_walk() && !self.at_a_property_argument() {
+                    return Err(self.unexpected());
+                }
+                Ok(self.parse_latest_date())
+            }
             T::DOLLAR => self.parse_variable().map(vs_var),
             T::BRACKET_OPEN => self.parse_collection(),
             T::PAREN_OPEN => self.parse_parenthesised(),
@@ -728,6 +828,30 @@ impl<'t, 's> SpecParser<'t, 's> {
         crate::cursor::refused_exponent(self.tokens, tok)
     }
 
+    /// `1.` at the engine's dialect, whose lexer has no such float: an integer and a dot, the name its grammar wants after
+    /// the dot refused where it is not (the user's ruling 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6).
+    fn refuse_a_float_without_fraction(&self) -> R<()> {
+        if !self.dialect.refuses_lite_extensions() || self.tokens.text(self.pos).last() != Some(&ch(b'.')) {
+            return Ok(());
+        }
+        if is_identifier_token(self.peek_at(1)) {
+            return Ok(());
+        }
+        Err(refused_at(
+            self.tokens,
+            self.pos + 1,
+            jcat!(
+                "Unexpected token '",
+                if self.pos + 1 < self.tokens.count() {
+                    self.tokens.text(self.pos + 1).to_vec()
+                } else {
+                    u("<EOF>")
+                },
+                "'"
+            ),
+        ))
+    }
+
     /// `NumberLiterals.floating`: a float; at lite's and the platform's dialects its exact digits kept when the double
     /// loses them (`new BigDecimal(text)` against `BigDecimal.valueOf(d)`).
     fn parse_float(&mut self) -> R<ValueSpecification> {
@@ -826,6 +950,10 @@ impl<'t, 's> SpecParser<'t, 's> {
         let raw = self.text();
         self.pos += 1;
         let at = throw_at(self.tokens, tok, JStr::default()).position.unwrap_or((0, 0));
+        if self.dialect.refuses_lite_extensions() && !crate::cursor::is_text_block(raw) {
+            // two quotes and an open one to the engine's lexer: refused at the third (ruling 18)
+            return Err(JavaError::parse(JStr::from("Unexpected token '''"), at.0, at.1 + 2).as_refusal());
+        }
         let value = crate::cursor::doc_string_value(raw, at)?;
         Ok(VS::CString(Box::new(CString {
             value: JStr(value),
@@ -899,6 +1027,17 @@ impl<'t, 's> SpecParser<'t, 's> {
             written: Some(JStr::from(value)),
             pos: self.span(time_pos, time_pos),
         })))
+    }
+
+    /// Whether the token at the cursor is in the argument list of a `.property(...)` (the one place the engine's grammar
+    /// admits `%latest` outside `.all(...)`: `functionExpressionLatestMilestoningDateParameter`).
+    fn at_a_property_argument(&self) -> bool {
+        let ty = |i: usize| self.tokens.ty(i);
+        let mut p = self.pos;
+        while p >= 2 && ty(p - 1) == T::COMMA && ty(p - 2) == T::LATEST_DATE {
+            p -= 2;
+        }
+        p >= 3 && ty(p - 1) == T::PAREN_OPEN && is_identifier_token(ty(p - 2)) && ty(p - 3) == T::DOT
     }
 
     fn parse_latest_date(&mut self) -> ValueSpecification {
@@ -1042,11 +1181,25 @@ impl<'t, 's> SpecParser<'t, 's> {
             fqn.extend_from_slice(unit);
         }
         let fqn_end = self.pos - 1;
+        if self.dialect.holds_to_the_engines_walk() && fqn.contains(&ch(b'~')) && self.peek() == T::PAREN_OPEN {
+            return Err(self.section_refusal(jcat!("a unit is not a function: '", fqn, "'")));
+        }
         if !self.at_end() && self.peek() == T::DOT {
             let saved = self.pos;
             self.pos += 1;
             if !self.at_end() {
                 let t = self.peek();
+                // the engine's walker casts the unit it read to a class and fails uncaught: its section catch-all (ruling 18)
+                if self.dialect.refuses_lite_extensions()
+                    && fqn.contains(&ch(b'~'))
+                    && matches!(t, T::ALL | T::ALL_VERSIONS | T::ALL_VERSIONS_IN_RANGE)
+                {
+                    return Err(self.section_refusal(jcat!(
+                        "a unit is not a class to read '.",
+                        self.text(),
+                        "()' from"
+                    )));
+                }
                 // the all-call families commit only when '(' follows (an enum value named 'all' is a member)
                 let called = self.peek_at(1) == T::PAREN_OPEN;
                 if t == T::ALL && called {
@@ -1415,7 +1568,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             self.expect_with(T::PAREN_CLOSE, || {
                 jcat!("expected ')' to close ^", class_name, "($src) positional cast")
             })?;
-            if self.dialect.answers_engine_json() {
+            if self.dialect.holds_to_the_engines_walk() {
                 let stop = self.positional_cast_stop(first);
                 return Err(self.refused_positional_cast(stop, &class_name));
             }
@@ -2008,10 +2161,10 @@ impl<'t, 's> SpecParser<'t, 's> {
                 }
                 self.pos = colon_mark;
             }
-            function1 = Some(self.parse_column_lambda()?);
+            function1 = Some(self.column_lambda_at_the_engines(colon_mark)?);
             if !self.at_end() && self.peek() == T::COLON {
                 self.pos += 1;
-                function2 = Some(self.parse_column_lambda()?);
+                function2 = Some(self.column_lambda_at_the_engines(self.pos)?);
             }
         }
         let pos = if function1.is_none() {
@@ -2032,6 +2185,26 @@ impl<'t, 's> SpecParser<'t, 's> {
             stereotypes,
             tagged_values,
         })
+    }
+
+    /// A column's lambda: at the engine's dialect `anyLambda` (`|body`, `{...}`, `x|body`, `x:T[m]|body`), and what is
+    /// neither that nor a type is refused at the `:` before it, where the engine's prediction gives up (ruling 18).
+    fn column_lambda_at_the_engines(&mut self, after_colon: usize) -> R<LambdaFunction> {
+        if self.dialect.refuses_lite_extensions() && !self.at_any_lambda() {
+            self.pos = after_colon - 1;
+            return Err(self.unexpected());
+        }
+        self.parse_column_lambda()
+    }
+
+    /// Whether a lambda of the engine's `anyLambda` starts at the cursor.
+    fn at_any_lambda(&self) -> bool {
+        let t = self.peek();
+        if t == T::PIPE || t == T::BRACE_OPEN {
+            return true;
+        }
+        // a type is read on from here too: only what starts neither is refused
+        is_identifier_token(t) || t == T::PAREN_OPEN
     }
 
     fn col_spec_span(&self, from: usize, to: usize, start_col_shift: i32) -> Span {
@@ -2230,6 +2403,9 @@ impl<'t, 's> SpecParser<'t, 's> {
             let less_than = self.pos;
             self.pos += 1;
             let columns = self.parse_relation_shape()?;
+            if self.dialect.holds_to_the_engines_walk() && columns.is_empty() {
+                return Err(refused_at(self.tokens, less_than, JStr::from("Unexpected token '<'")));
+            }
             self.refuse_wildcard_columns(less_than + 1, Some(less_than))?;
             self.expect_msg(T::GREATER_THAN, "expected '>' to close @Relation type annotation")?;
             return Ok(TypeAnnotation::TypeAnnotationRelationShape(Box::new(
@@ -2272,7 +2448,7 @@ impl<'t, 's> SpecParser<'t, 's> {
     /// in the columns from token `from`: at its `?`, or at the `<` of a spelled `@Relation<(...)>`, which its grammar
     /// admits only for columns it can read.
     fn refuse_wildcard_columns(&self, from: usize, spelled_at: Option<usize>) -> R<()> {
-        if !self.dialect.answers_engine_json() {
+        if !self.dialect.holds_to_the_engines_walk() {
             return Ok(());
         }
         match (from..self.pos).find(|&t| self.tokens.ty(t) == T::QUESTION) {
@@ -2366,6 +2542,23 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         let inner = ustr::substring(text, 2, text.len() as isize - 1)?;
         let segs = split_char(inner, ch(b'/'));
+        if self.dialect.holds_to_the_engines_walk()
+            && let Some(at) = path_literal_stop(text)
+        {
+            let line_starts: Vec<i32> = text
+                .iter()
+                .enumerate()
+                .filter(|&(_, &c)| c == ch(b'\n'))
+                .map(|(k, _)| k as i32 + 1)
+                .collect();
+            let (line, column) = crate::protocol::island_place(
+                &line_starts,
+                text.len() as i32,
+                &self.span_of(lit_tok, lit_tok),
+                at as i32 - 1,
+            );
+            return Err(JavaError::parse(JStr::from("Unexpected token"), line, column).as_refusal());
+        }
         // the TYPE segment is a well-formed qualified name: no single or triple colons
         {
             let tseg = strip(&segs[0]);
@@ -2464,7 +2657,7 @@ impl<'t, 's> SpecParser<'t, 's> {
                     let stripped = strip(&arg);
                     let mut src = u("|");
                     src.extend_from_slice(stripped);
-                    let parsed = parse(&src, self.dialect)?;
+                    let parsed = parse(&src, self.dialect.quoted())?;
                     args.push(match parsed {
                         VS::LambdaFunction(lf) if lf.body.len() == 1 => {
                             lf.body.into_iter().next().expect("a one-statement body")

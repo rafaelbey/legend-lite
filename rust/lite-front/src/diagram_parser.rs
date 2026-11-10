@@ -362,6 +362,9 @@ fn parse_diagram(r: &mut Raw<'_>, dialect: Dialect) -> R<PDiagram> {
     let qn = r.path()?;
     r.skip_ws();
     if r.peek()? == ch('(') {
+        if dialect.refuses_lite_extensions() {
+            return Err(JavaError::parse(JStr::from("Unexpected token '('"), r.line, r.col).as_refusal());
+        }
         r.skip_balanced('(', ')')?;
         r.skip_ws();
     }

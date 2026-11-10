@@ -47,7 +47,7 @@ pub fn parse_relational_mapper<'s>(c: &mut impl Cursor<'s>) -> R<PRelationalMapp
                 let mut schemas = Vec::new();
                 while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                     schemas.push(Box::new(schema_pointer(c)?));
-                    c.match_tok(T::COMMA)?;
+                    c.list_comma()?;
                 }
                 c.expect(T::BRACKET_CLOSE)?;
                 c.expect(T::ARROW)?;
@@ -56,7 +56,7 @@ pub fn parse_relational_mapper<'s>(c: &mut impl Cursor<'s>) -> R<PRelationalMapp
                     database_name: JStr(to),
                     schemas,
                 }));
-                c.match_tok(T::COMMA)?;
+                c.list_comma()?;
             }
         } else if eq(&key, "SchemaMappers") {
             while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
@@ -66,7 +66,7 @@ pub fn parse_relational_mapper<'s>(c: &mut impl Cursor<'s>) -> R<PRelationalMapp
                     from: Box::new(from),
                     to: JStr(string_value(c)?),
                 }));
-                c.match_tok(T::COMMA)?;
+                c.list_comma()?;
             }
         } else if eq(&key, "TableMappers") {
             while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
@@ -76,7 +76,7 @@ pub fn parse_relational_mapper<'s>(c: &mut impl Cursor<'s>) -> R<PRelationalMapp
                     from: Box::new(from),
                     to: JStr(string_value(c)?),
                 }));
-                c.match_tok(T::COMMA)?;
+                c.list_comma()?;
             }
         } else {
             return Err(c.error(jcat!("unknown RelationalMapper key: ", key)));

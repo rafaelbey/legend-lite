@@ -100,13 +100,22 @@ pub fn is_fqn_segment_token(t: TokenType) -> bool {
     t != T::STRING && is_identifier_token(t)
 }
 
-/// `TokenStreamCursor.throwAt(tokens, tokenPos, message)`: a `ParseException` at the token's start, at the end of the
-/// last token past the stream's end, unplaced on an empty stream. Lines and columns 1-based, the column in code points
-/// (`TokenStream.columnOf`).
+/// `TokenStreamCursor.throwAt(tokens, tokenPos, message)`: a `ParseException` at the token's start; past the stream's
+/// last token where ANTLR places `<EOF>` in the engine's parse, one past the input's last character, trailing blanks and
+/// line breaks counted (the user's ruling 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6); past the end of a window
+/// that stops short of the input's end, at the end of its last token; unplaced on an empty stream. Lines and columns
+/// 1-based, the column in code points (`TokenStream.columnOf`).
 pub fn throw_at(tokens: &TokenStream<'_>, token_pos: usize, message: JStr) -> JavaError {
     let n = tokens.count();
     let char_pos = if token_pos < n {
         tokens.start(token_pos)
+    } else if let (true, Some(end)) = (n > 0, tokens.input_end()) {
+        // a quote open at the end of the input is no token to the engine's lexer: its parser refuses it, where it stands
+        if is_open_quote(tokens, n - 1) {
+            tokens.start(n - 1)
+        } else {
+            end
+        }
     } else if n > 0 {
         tokens.end(n - 1)
     } else {
@@ -152,10 +161,150 @@ pub fn refused_exponent(tokens: &TokenStream<'_>, token_pos: usize) -> JavaError
     .as_refusal()
 }
 
+/// An element body the engine's lexer takes as an island counted by braces alone (a mapping element's, a connection's), its
+/// strings no strings to it: where that count ends the body other than where the tokens do, the refusal of what comes next
+/// (the user's ruling 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6). `open` is the body's `{` token.
+pub fn brace_island_refusal(tokens: &TokenStream<'_>, open: usize) -> Option<JavaError> {
+    let source = tokens.source();
+    let end = tokens.input_end()?;
+    let mut depth = 0i64;
+    let mut raw_close = None;
+    for (i, &c) in source.iter().enumerate().take(end).skip(tokens.start(open)) {
+        if c == u16::from(b'{') {
+            depth += 1;
+        } else if c == u16::from(b'}') {
+            depth -= 1;
+            if depth == 0 {
+                raw_close = Some(i);
+                break;
+            }
+        }
+    }
+    let mut token_depth = 0i64;
+    let mut token_close = None;
+    for t in open..tokens.count() {
+        match tokens.ty(t) {
+            T::BRACE_OPEN => token_depth += 1,
+            T::BRACE_CLOSE => {
+                token_depth -= 1;
+                if token_depth == 0 {
+                    token_close = Some(tokens.start(t));
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    match raw_close {
+        None => {
+            let (line, column) = eof_place(tokens);
+            let at_the_end = JavaError::parse(JStr::from("Unexpected token '<EOF>'"), line, column - 1);
+            token_close.is_some().then(|| at_the_end.as_refusal())
+        }
+        Some(close) if Some(close) == token_close => None,
+        Some(close) => {
+            let rest = tokens.lex_range(close + 1, end).ok()?;
+            Some(if rest.count() > 0 {
+                JavaError::parse(
+                    jcat!("Unexpected token '", rest.text(0), "'"),
+                    tokens.line_of(rest.start(0)) as i32,
+                    tokens.column_of(rest.start(0)) as i32,
+                )
+                .as_refusal()
+            } else {
+                refused_at_eof(tokens, JStr::from("Unexpected token '<EOF>'"))
+            })
+        }
+    }
+}
+
 /// One past the text's last character: its line and column.
 pub fn eof_place(tokens: &TokenStream<'_>) -> (i32, i32) {
-    let end = tokens.source().len();
+    let end = tokens.input_end().unwrap_or(tokens.source().len());
     (tokens.line_of(end) as i32, tokens.column_of(end) as i32)
+}
+
+/// Whether the token at `i` is a quoted literal the end of the input cut before its closing quote.
+fn is_open_quote(tokens: &TokenStream<'_>, i: usize) -> bool {
+    let quote = match tokens.ty(i) {
+        T::STRING => u16::from(b'\''),
+        T::QUOTED_STRING => u16::from(b'"'),
+        _ => return false,
+    };
+    let text = tokens.text(i);
+    if text.len() < 2 || text[text.len() - 1] != quote {
+        return true;
+    }
+    // the last quote is escaped: an odd run of backslashes before it
+    let backslashes = text[..text.len() - 1]
+        .iter()
+        .rev()
+        .take_while(|&&c| c == u16::from(b'\\'))
+        .count();
+    backslashes % 2 == 1
+}
+
+/// The token a bracket's opener is closed by.
+fn closer_of(open: TokenType) -> Option<TokenType> {
+    Some(match open {
+        T::BRACE_OPEN => T::BRACE_CLOSE,
+        T::PAREN_OPEN => T::PAREN_CLOSE,
+        T::BRACKET_OPEN => T::BRACKET_CLOSE,
+        _ => return None,
+    })
+}
+
+/// A closing token missing at the end of the input, as ANTLR reports it in the engine's parse (the user's ruling 18 of
+/// 2026-11-09, docs/rust-port/PHASE2.md section 6). Its `<EOF>` is one past the last character when a decision fails
+/// there (`Unexpected token '<EOF>'`); it is reported as a token inserted or removed, with `ParserErrorListener` taking the
+/// column from the token's empty span, one column less (`Unexpected token`, the column 0 on an empty last line), in two
+/// cases: the closer ends a top-level element, which only `<EOF>` follows, and the parse has read a list's item or a body's
+/// member, so that `sync` fails at the back edge of its loop rather than on its way in. An opener with nothing after it is
+/// the way in, but for a `Class` or `Association` body, whose members are a rule of their own.
+fn missing_closer_a_column_early(window: &TokenStream<'_>, expected: TokenType) -> bool {
+    // a window of a larger stream does not hold the brackets it is inside of
+    let whole;
+    let tokens = if window.input_end() == Some(window.source().len()) {
+        whole = crate::lexer::tokenize(window.source());
+        &whole
+    } else {
+        window
+    };
+    let mut open: Vec<(usize, usize)> = Vec::new();
+    for i in 0..tokens.count() {
+        let t = tokens.ty(i);
+        if closer_of(t).is_some() {
+            open.push((i, 0));
+        } else if matches!(t, T::BRACE_CLOSE | T::PAREN_CLOSE | T::BRACKET_CLOSE) {
+            open.pop();
+        } else if matches!(t, T::COMMA | T::SEMI_COLON)
+            && let Some(top) = open.last_mut()
+        {
+            top.1 += 1;
+        }
+    }
+    let Some(&(opener, separators)) = open.last() else {
+        return false;
+    };
+    if closer_of(tokens.ty(opener)) != Some(expected) {
+        return false;
+    }
+    let element = (0..opener)
+        .rev()
+        .map(|i| tokens.ty(i))
+        .find(|t| matches!(t, T::CLASS | T::ASSOCIATION | T::ENUM | T::PROFILE | T::FUNCTION));
+    if opener + 1 == tokens.count() {
+        // the way in: only a Class's or an Association's body at the top of the section is past it
+        return open.len() == 1 && expected == T::BRACE_CLOSE && matches!(element, Some(T::CLASS | T::ASSOCIATION));
+    }
+    if separators > 0 {
+        return true;
+    }
+    // one item and no separator: an element's own body is at its end, a list written inline in its rule is on its way in
+    open.len() == 1
+        && expected != T::BRACKET_CLOSE
+        && !(expected == T::PAREN_CLOSE && element == Some(T::FUNCTION))
+        && !(expected == T::BRACE_CLOSE && element == Some(T::ENUM))
 }
 
 /// A short unicode escape in a `'''` text block or a quoted name: legend-engine's walkers unescape uncaught, so its
@@ -343,27 +492,74 @@ pub trait Cursor<'s> {
         Ok(false)
     }
 
+    /// The refusal of the token under the cursor where the engine's grammar has no rule for it, a refusal in flight.
+    fn unexpected(&self) -> JavaError {
+        self.error(jcat!("Unexpected token '", self.safe_text(), "'"))
+            .as_refusal()
+    }
+
+    /// The separator after an item of a comma list, whether a comma was read. At lite's and the platform's dialects the
+    /// comma is optional and may trail. At the engine's the list is its grammar's `item (COMMA item)*` (the user's ruling
+    /// 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6; register S170): a comma has an item after it, and the next
+    /// token is a comma or closes the list.
+    fn match_list_comma(&mut self) -> R<bool> {
+        if !self.dialect().refuses_lite_extensions() {
+            return self.match_tok(T::COMMA);
+        }
+        let closes = |t: TokenType| matches!(t, T::BRACKET_CLOSE | T::PAREN_CLOSE | T::BRACE_CLOSE | T::ISLAND_END);
+        if self.at_end() || closes(self.peek()) {
+            return Ok(false);
+        }
+        if self.peek() != T::COMMA {
+            return Err(self.unexpected());
+        }
+        self.advance()?;
+        if closes(self.peek()) {
+            return Err(self.unexpected());
+        }
+        Ok(true)
+    }
+
+    /// [`Cursor::match_list_comma`], where it does not matter whether a comma was read.
+    fn list_comma(&mut self) -> R<()> {
+        self.match_list_comma().map(|_| ())
+    }
+
     /// `expect(type)`: the generic `expected X but found Y ('text')` refusal.
     fn expect(&mut self, t: TokenType) -> R<()> {
         if self.peek() != t {
             self.reject_invalid()?;
-            return Err(self.error(jcat!(
-                "expected ",
+            return Err(self.missing(
                 t,
-                " but found ",
-                self.peek(),
-                " ('",
-                self.safe_text(),
-                "')"
-            )));
+                jcat!(
+                    "expected ",
+                    t,
+                    " but found ",
+                    self.peek(),
+                    " ('",
+                    self.safe_text(),
+                    "')"
+                ),
+            ));
         }
         self.advance()
+    }
+
+    /// The refusal of a token that is not there: [`Cursor::error`], but for a closer missing at the end of the input,
+    /// one column less where the engine's parser reports it so ([`missing_closer_a_column_early`]).
+    fn missing(&self, t: TokenType, message: JStr) -> JavaError {
+        let e = self.error(message);
+        let at_the_end = self.at_end() && self.tokens().input_end().is_some();
+        if at_the_end && missing_closer_a_column_early(self.tokens(), t) {
+            return e.a_column_before();
+        }
+        e
     }
 
     /// `expect(type, customMessage)`.
     fn expect_msg(&mut self, t: TokenType, message: &str) -> R<()> {
         if self.peek() != t {
-            return Err(self.error(JStr::from(message)));
+            return Err(self.missing(t, JStr::from(message)));
         }
         self.advance()
     }
@@ -371,7 +567,7 @@ pub trait Cursor<'s> {
     /// `expect(type, customMessage)` with a composed message, built only on failure (it has no side effect).
     fn expect_with(&mut self, t: TokenType, message: impl FnOnce() -> JStr) -> R<()> {
         if self.peek() != t {
-            return Err(self.error(message()));
+            return Err(self.missing(t, message()));
         }
         self.advance()
     }
@@ -569,6 +765,10 @@ pub trait Cursor<'s> {
             name.push(u16::from(b'~'));
             name.extend_from_slice(self.text());
             self.advance()?;
+            // `unitName` takes no arguments in the engine's grammar (ruling 18)
+            if self.dialect().holds_to_the_engines_walk() && self.peek() == T::LESS_THAN {
+                return Err(self.unexpected());
+            }
         }
         if self.peek() == T::PAREN_OPEN {
             let tvv = self.parse_type_variable_values()?;
@@ -580,6 +780,7 @@ pub trait Cursor<'s> {
                 self.span(start, self.pos() - 1),
             ));
         }
+        let angle = self.pos();
         if !self.match_tok(T::LESS_THAN)? {
             return Ok(name_ref(JStr(name), self.span(start, self.pos() - 1)));
         }
@@ -596,6 +797,15 @@ pub trait Cursor<'s> {
         args.push(self.parse_type_argument()?);
         while self.match_tok(T::COMMA)? {
             args.push(self.parse_type_argument()?);
+        }
+        // the engine's grammar has no schema algebra: it gives up on the arguments, at their `<` (ruling 18; PARITY row 87)
+        if self.dialect().holds_to_the_engines_walk()
+            && args
+                .iter()
+                .any(|a| matches!(a, TypeExpression::TypeExpressionSchemaAlgebra(_)))
+        {
+            self.set_pos(angle);
+            return Err(self.unexpected());
         }
         let mut mult = Vec::new();
         if self.match_tok(T::PIPE)? {
@@ -621,6 +831,9 @@ pub trait Cursor<'s> {
         while !self.at_end() && self.peek() != T::PAREN_CLOSE {
             if self.peek() == T::COMMA {
                 self.advance()?;
+                if self.dialect().refuses_lite_extensions() && self.peek() == T::PAREN_CLOSE {
+                    return Err(self.unexpected());
+                }
                 continue;
             }
             let p = self.pos();
@@ -737,7 +950,7 @@ pub trait Cursor<'s> {
         } else if is_identifier_token(t) {
             // the engine's walker fails on it, so its section catch-all answers (the user's ruling 12 of 2026-11-09,
             // docs/rust-port/PHASE2.md section 6; PARITY row 70)
-            if self.dialect().answers_engine_json() {
+            if self.dialect().holds_to_the_engines_walk() {
                 return Err(self.section_refusal(jcat!(
                     "the multiplicity parameter '",
                     self.text(),
@@ -1173,6 +1386,90 @@ pub trait Cursor<'s> {
             name_end,
             end: self.pos(),
         })
+    }
+
+    /// `~func`'s `functionIdentifier` at the engine's dialect: a name and the whole signature.
+    fn parse_engine_function_identifier(&mut self) -> R<FunctionDescriptor> {
+        let start = self.pos();
+        self.parse_qualified_name()?;
+        let name_end = self.pos();
+        self.engine_function_signature()?;
+        Ok(FunctionDescriptor {
+            start,
+            name_end,
+            end: self.pos(),
+        })
+    }
+
+    /// The rest of the engine's `functionIdentifier` past its name: `( (type multiplicity (, type multiplicity)*)? ) : type
+    /// multiplicity`, refused where its grammar stops (the user's ruling 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6).
+    fn engine_function_signature(&mut self) -> R<()> {
+        if self.peek() != T::PAREN_OPEN {
+            return Err(self.unexpected());
+        }
+        self.advance()?;
+        if self.peek() != T::PAREN_CLOSE {
+            loop {
+                self.engine_typed_slot()?;
+                if self.peek() != T::COMMA {
+                    break;
+                }
+                self.advance()?;
+            }
+        }
+        if self.peek() != T::PAREN_CLOSE {
+            return Err(self.unexpected());
+        }
+        self.advance()?;
+        if self.peek() != T::COLON {
+            return Err(self.unexpected());
+        }
+        self.advance()?;
+        self.engine_typed_slot()
+    }
+
+    /// A `type multiplicity` of the engine's grammar: a refusal inside a type's arguments stands at their `<`, where its
+    /// parser's prediction gives up on the arguments, a refusal elsewhere at the token.
+    fn engine_typed_slot(&mut self) -> R<()> {
+        let start = self.pos();
+        let arguments = self.first_token_of_type_arguments(start);
+        let read = self.parse_type();
+        if read.is_err() {
+            let at = arguments.filter(|&a| a < self.tokens().count()).unwrap_or(self.pos());
+            self.set_pos(at);
+            return Err(self.unexpected());
+        }
+        if self.peek() != T::BRACKET_OPEN {
+            return Err(self.unexpected());
+        }
+        self.advance()?;
+        // `identifier | ((fromMultiplicity DOT_DOT)? toMultiplicity)`, whose numbers the engine's walker never reads here
+        if is_identifier_token(self.peek()) {
+            self.advance()?;
+        } else {
+            if self.peek() == T::INTEGER && self.peek_at(1) == T::DOT_DOT {
+                self.advance()?;
+                self.advance()?;
+            }
+            if !matches!(self.peek(), T::INTEGER | T::STAR) {
+                return Err(self.unexpected());
+            }
+            self.advance()?;
+        }
+        if self.peek() != T::BRACKET_CLOSE {
+            return Err(self.unexpected());
+        }
+        self.advance()
+    }
+
+    /// The `<` of the type arguments of the name at `from`, if it has them.
+    fn first_token_of_type_arguments(&self, from: usize) -> Option<usize> {
+        let ts = self.tokens();
+        let mut i = from;
+        while i < ts.count() && (is_fqn_segment_token(ts.ty(i)) || ts.ty(i) == T::PATH_SEPARATOR) {
+            i += 1;
+        }
+        (i < ts.count() && ts.ty(i) == T::LESS_THAN).then_some(i)
     }
 
     /// `skipTypeArgsAndMultiplicity`: `<...>` type arguments and a `[..]` multiplicity, if present.

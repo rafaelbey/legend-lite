@@ -72,6 +72,12 @@ impl<'s> Cursor<'s> for DbCursor<'_, 's> {
 
     /// `parseIdentifier`: relational identifiers admit `"quoted"` spellings, which keep their quotes.
     fn parse_identifier(&mut self) -> R<Vec<u16>> {
+        if self.dialect.refuses_lite_extensions()
+            && self.peek() == T::QUOTED_STRING
+            && self.text().contains(&u16::from(b'\n'))
+        {
+            return Err(self.unexpected());
+        }
         if self.peek() == T::QUOTED_STRING {
             let raw = self.text().to_vec();
             self.advance()?;
@@ -306,6 +312,17 @@ impl<'t, 's> DbCursor<'t, 's> {
             };
             match head {
                 T::INCLUDE => {
+                    // `include*` before every other element, at the engine's dialect (ruling 18)
+                    if self.dialect.refuses_lite_extensions()
+                        && !(default_tables.is_empty()
+                            && default_views.is_empty()
+                            && default_tab_fns.is_empty()
+                            && schemas.is_empty()
+                            && joins.is_empty()
+                            && filters.is_empty())
+                    {
+                        return Err(self.unexpected());
+                    }
                     let s = self.pos;
                     self.advance()?;
                     let first = unquote_path_iae(&self.parse_qualified_name()?)?;
@@ -472,6 +489,7 @@ impl<'t, 's> DbCursor<'t, 's> {
                 tagged_values: Vec::new(),
                 source_information: self.span(c_s, self.pos - 1),
             }));
+            self.refuse_a_trailing_comma()?;
             if !self.match_tok(T::COMMA)? && self.peek() != T::PAREN_CLOSE {
                 return Err(self.error(jcat!("Unexpected token '", self.safe_text(), "'")));
             }
@@ -490,6 +508,32 @@ impl<'t, 's> DbCursor<'t, 's> {
 
     /// `parseTable`: `documentation? Table <<st>> {tags} name ( columns, milestoning? )` -- each column
     /// `documentation? name <<st>> {tags} TYPE (PRIMARY KEY | NOT NULL)?`, a comma between them.
+    /// A comma with no column after it, or with `milestoning`, which is no column, at the engine's dialect (ruling 18).
+    fn refuse_a_trailing_comma(&self) -> R<()> {
+        if self.dialect.refuses_lite_extensions() && self.peek() == T::COMMA {
+            match self.peek_at(1) {
+                T::PAREN_CLOSE => {
+                    return Err(crate::cursor::refused_at(
+                        self.tokens,
+                        self.pos + 1,
+                        JStr::from("Unexpected token ')'"),
+                    ));
+                }
+                T::VALID_STRING
+                    if eq(self.tokens.text(self.pos + 1), "milestoning") && self.peek_at(2) == T::PAREN_OPEN =>
+                {
+                    return Err(crate::cursor::refused_at(
+                        self.tokens,
+                        self.pos + 2,
+                        JStr::from("Unexpected token '('"),
+                    ));
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
     fn parse_table(&mut self) -> R<PDbTable> {
         let s = self.pos;
         let doc = self.parse_documentation()?;
@@ -529,6 +573,7 @@ impl<'t, 's> DbCursor<'t, 's> {
                 tagged_values: col_dec.tagged_values,
                 source_information: self.span(c_s, self.pos - 1),
             }));
+            self.refuse_a_trailing_comma()?;
             if !self.match_tok(T::COMMA)?
                 && self.peek() != T::PAREN_CLOSE
                 && !(self.peek() == T::VALID_STRING && eq(self.text(), "milestoning"))
@@ -576,9 +621,12 @@ impl<'t, 's> DbCursor<'t, 's> {
             "DECIMAL" => "Decimal",
             "NUMERIC" => "Numeric",
             _ => {
+                // the engine's grammar reads any word here and its walk refuses it, so the end of the input comes first
+                // (ruling 18 of 2026-11-09)
+                let at = if self.at_end() { self.pos } else { type_start };
                 return Err(throw_at(
                     self.tokens,
-                    type_start,
+                    at,
                     jcat!("unsupported column datatype: ", kind_word),
                 ));
             }
@@ -672,7 +720,7 @@ impl<'t, 's> DbCursor<'t, 's> {
                     kv.put(key, self.safe_text());
                     self.advance()?;
                 }
-                self.match_tok(T::COMMA)?;
+                self.list_comma()?;
             }
             self.validate_milestoning_keys(&kind, &key_order)?;
             let args_end = self.pos - 1;
@@ -683,7 +731,7 @@ impl<'t, 's> DbCursor<'t, 's> {
             } else {
                 plus_one_cols(self.span_of(s, self.pos - 1))
             };
-            self.match_tok(T::COMMA)?;
+            self.list_comma()?;
             if eq(&kind, "business") {
                 if kv.contains_key("BUS_SNAPSHOT_DATE") {
                     out.push(PMilestoning::PBusinessSnapshotMilestoning(Box::new(
@@ -883,7 +931,7 @@ impl<'t, 's> DbCursor<'t, 's> {
                 self.expect(T::PAREN_OPEN)?;
                 while self.peek() != T::PAREN_CLOSE && !self.at_end() {
                     group_by.push(self.parse_operation(schema_ctx)?);
-                    self.match_tok(T::COMMA)?;
+                    self.list_comma()?;
                 }
                 self.expect(T::PAREN_CLOSE)?;
                 continue;
@@ -901,7 +949,7 @@ impl<'t, 's> DbCursor<'t, 's> {
                 operation: op,
                 source_information: self.span(m_s, self.pos - 1),
             }));
-            self.match_tok(T::COMMA)?;
+            self.list_comma()?;
         }
         self.expect(T::PAREN_CLOSE)?;
         Ok(PDbView {
@@ -1375,7 +1423,7 @@ impl<'t, 's> DbCursor<'t, 's> {
             let mut items = Vec::new();
             while self.peek() != T::BRACKET_CLOSE && !self.at_end() {
                 items.push(self.parse_function_argument(schema_ctx)?);
-                self.match_tok(T::COMMA)?;
+                self.list_comma()?;
             }
             self.expect(T::BRACKET_CLOSE)?;
             return Ok(PRelOp::PRelLiteralList(Box::new(PRelLiteralList {
@@ -1412,7 +1460,7 @@ impl<'t, 's> DbCursor<'t, 's> {
             let mut args = Vec::new();
             while self.peek() != T::PAREN_CLOSE && !self.at_end() {
                 args.push(self.parse_function_argument(schema_ctx)?);
-                self.match_tok(T::COMMA)?;
+                self.list_comma()?;
             }
             self.expect(T::PAREN_CLOSE)?;
             return Ok(PRelOp::PDynaFunc(Box::new(PDynaFunc {

@@ -152,7 +152,7 @@ fn parse_service<'s>(c: &mut impl Cursor<'s>) -> R<PService> {
                     c.expect(T::BRACKET_OPEN)?;
                     while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                         users.push(string(c)?);
-                        c.match_tok(T::COMMA)?;
+                        c.list_comma()?;
                     }
                     c.expect(T::BRACKET_CLOSE)?;
                     ownership_users = Some(users);
@@ -176,7 +176,7 @@ fn parse_service<'s>(c: &mut impl Cursor<'s>) -> R<PService> {
                 c.expect(T::BRACKET_OPEN)?;
                 while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                     list.push(Box::new(parse_post_validation(c)?));
-                    c.match_tok(T::COMMA)?;
+                    c.list_comma()?;
                 }
                 c.expect(T::BRACKET_CLOSE)?;
                 c.match_tok(T::SEMI_COLON)?;
@@ -194,7 +194,7 @@ fn parse_service<'s>(c: &mut impl Cursor<'s>) -> R<PService> {
                 c.expect(T::BRACKET_OPEN)?;
                 while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
                     owners.push(string(c)?);
-                    c.match_tok(T::COMMA)?;
+                    c.list_comma()?;
                 }
                 c.expect(T::BRACKET_CLOSE)?;
                 c.expect(T::SEMI_COLON)?;
@@ -651,7 +651,7 @@ fn parse_post_validation<'s>(c: &mut impl Cursor<'s>) -> R<PPostValidation> {
                     let p_s = c.pos();
                     scan_param(c, &[T::COMMA, T::BRACKET_CLOSE])?;
                     params.push(slice_spec(c, p_s, c.pos())?);
-                    c.match_tok(T::COMMA)?;
+                    c.list_comma()?;
                 }
                 c.expect(T::BRACKET_CLOSE)?;
                 c.expect(T::SEMI_COLON)?;
@@ -679,7 +679,7 @@ fn parse_post_validation<'s>(c: &mut impl Cursor<'s>) -> R<PPostValidation> {
                         assertion: lambda,
                         source_information: boxed(extended),
                     }));
-                    c.match_tok(T::COMMA)?;
+                    c.list_comma()?;
                 }
                 c.expect(T::BRACKET_CLOSE)?;
                 c.expect(T::SEMI_COLON)?;
@@ -739,7 +739,7 @@ fn parse_legacy_body<'s>(
                     let pv_s = c.pos();
                     scan_param(c, &[T::COMMA, T::BRACKET_CLOSE])?;
                     param_values.push(legacy_param_value(c, pv_s)?);
-                    c.match_tok(T::COMMA)?;
+                    c.list_comma()?;
                 }
                 c.expect(T::BRACKET_CLOSE)?;
                 c.expect(T::COMMA)?;
@@ -764,7 +764,7 @@ fn parse_legacy_body<'s>(
                     assertion,
                     source_information: c.span(a_s, c.pos() - 1),
                 }));
-                if !c.match_tok(T::COMMA)? {
+                if !c.match_list_comma()? {
                     break;
                 }
             }
@@ -786,7 +786,7 @@ fn parse_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PServiceTestSuite
         let id = c.parse_identifier()?;
         if c.peek() == T::STRING || c.peek() == T::PAREN_OPEN {
             out.push(Box::new(parse_compact_suite(c, ss, id)?));
-            c.match_tok(T::COMMA)?;
+            c.list_comma()?;
             continue;
         }
         c.expect(T::COLON)?;
@@ -822,7 +822,7 @@ fn parse_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PServiceTestSuite
             tests,
             source_information: c.span(ss, c.pos() - 1),
         }));
-        c.match_tok(T::COMMA)?;
+        c.list_comma()?;
     }
     c.expect(T::BRACKET_CLOSE)?;
     Ok(out)
@@ -867,7 +867,7 @@ fn suite_params<'s>(c: &mut impl Cursor<'s>, close: TokenType) -> R<Vec<Box<PSer
         c.expect(T::EQUAL)?;
         if let Some(tb) = byte_array_param(c, &pn)? {
             parameters.push(Box::new(tb));
-            c.match_tok(T::COMMA)?;
+            c.list_comma()?;
             continue;
         }
         let vs = c.pos();
@@ -886,7 +886,7 @@ fn suite_params<'s>(c: &mut impl Cursor<'s>, close: TokenType) -> R<Vec<Box<PSer
         }
         let value = slice_spec(c, vs, c.pos())?;
         parameters.push(Box::new(PServiceTestSuitePSuiteParam { name: JStr(pn), value }));
-        c.match_tok(T::COMMA)?;
+        c.list_comma()?;
     }
     Ok(parameters)
 }
@@ -943,7 +943,7 @@ fn parse_compact_suite<'s>(c: &mut impl Cursor<'s>, ss: usize, id: Vec<u16>) -> 
                 c.advance()?;
                 while c.peek() != T::BRACKET_CLOSE {
                     keys.push(string(c)?);
-                    if !c.match_tok(T::COMMA)? {
+                    if !c.match_list_comma()? {
                         break;
                     }
                 }
@@ -1018,7 +1018,7 @@ fn parse_suite_data<'s>(c: &mut impl Cursor<'s>, key_start: usize) -> R<PService
                 data,
                 source_information: c.span(cs, c.pos() - 1),
             }));
-            c.match_tok(T::COMMA)?;
+            c.list_comma()?;
         }
         c.expect(T::BRACKET_CLOSE)?;
     }
@@ -1064,7 +1064,7 @@ fn parse_suite_tests<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PServiceTest
                     }
                     while c.peek() != T::BRACKET_CLOSE {
                         keys.push(string(c)?);
-                        if !c.match_tok(T::COMMA)? {
+                        if !c.match_list_comma()? {
                             break;
                         }
                     }
@@ -1082,7 +1082,7 @@ fn parse_suite_tests<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PServiceTest
                     c.expect(T::BRACKET_OPEN)?;
                     while !c.at_end() && c.peek() != T::BRACKET_CLOSE {
                         asserts.push(Box::new(test_assertion_at(c)?));
-                        c.match_tok(T::COMMA)?;
+                        c.list_comma()?;
                     }
                     c.expect(T::BRACKET_CLOSE)?;
                 }
@@ -1102,7 +1102,7 @@ fn parse_suite_tests<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PServiceTest
             assertions: asserts,
             source_information: c.span(ts, c.pos() - 1),
         }));
-        c.match_tok(T::COMMA)?;
+        c.list_comma()?;
     }
     c.expect(T::BRACKET_CLOSE)
 }
@@ -1142,7 +1142,9 @@ fn parse_legacy_test<'s>(c: &mut impl Cursor<'s>) -> R<PLegacyServiceTest> {
                 asserts: ka,
                 source_information: c.span(es, c.pos() - 1),
             }));
-            c.match_tok(T::COMMA)?;
+            if !c.dialect().refuses_lite_extensions() {
+                c.match_tok(T::COMMA)?;
+            }
         }
         c.expect(T::BRACE_CLOSE)?;
         c.match_tok(T::SEMI_COLON)?;
@@ -1281,7 +1283,10 @@ fn parse_execution<'s>(c: &mut impl Cursor<'s>, qn: &[u16]) -> R<PServiceExecuti
                 c.expect(T::COLON)?;
                 let body = parse_keyed_body(c, &key_value, key_tok, true)?;
                 executions.get_or_insert_with(Vec::new).push(Box::new(body));
-                c.match_tok(T::COMMA)?;
+                // no separator in the engine's grammar: `(serviceFunc | execKey | execParameter)*`
+                if !c.dialect().refuses_lite_extensions() {
+                    c.match_tok(T::COMMA)?;
+                }
                 continue;
             }
             c.expect(T::COLON)?;
@@ -1473,6 +1478,20 @@ fn parse_query<'s>(c: &mut impl Cursor<'s>, qn: &[u16]) -> R<ValueSpecification>
     if c.pos() == bs {
         return Err(c.error(jcat!("empty query expression in Service '", qn, "'")));
     }
+    // the engine's walker reads the query's text as a function's and a bare name ends where its grammar wants `(` (ruling 18)
+    if c.dialect().refuses_lite_extensions()
+        && (bs..c.pos()).all(|t| {
+            let ty = c.tokens().ty(t);
+            ty == T::PATH_SEPARATOR || (ty != T::STRING && is_identifier_token(ty))
+        })
+        && !c.at_end()
+    {
+        return Err(crate::cursor::refused_at(
+            c.tokens(),
+            c.pos(),
+            JStr::from("Unexpected token '<EOF>'"),
+        ));
+    }
     let v = slice_spec(c, bs, c.pos())?;
     c.expect(T::SEMI_COLON)?;
     Ok(as_lambda(v))
@@ -1506,7 +1525,7 @@ pub fn parse_execution_environment<'s>(c: &mut impl Cursor<'s>) -> R<PExecutionE
                     let sub_key = c.parse_identifier()?;
                     c.expect(T::COLON)?;
                     singles.push(Box::new(parse_keyed_body(c, &sub_key, sub_tok, false)?));
-                    c.match_tok(T::COMMA)?;
+                    c.list_comma()?;
                 }
                 c.expect(T::BRACKET_CLOSE)?;
                 executions.push(PExecutionParameters::PMultiKeyedExecution(Box::new(
@@ -1520,7 +1539,7 @@ pub fn parse_execution_environment<'s>(c: &mut impl Cursor<'s>) -> R<PExecutionE
                     c, &key_value, key_tok, false,
                 )?)));
             }
-            c.match_tok(T::COMMA)?;
+            c.list_comma()?;
         }
         c.expect(T::BRACKET_CLOSE)?;
         c.match_tok(T::SEMI_COLON)?;

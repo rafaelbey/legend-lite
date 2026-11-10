@@ -383,6 +383,7 @@ fn parse_parameter<'s>(c: &mut impl Cursor<'s>) -> R<PSsParam> {
 fn parse_type_ref<'s>(c: &mut impl Cursor<'s>) -> R<PSsTypeRef> {
     let start = c.pos();
     let list = c.match_tok(T::BRACKET_OPEN)?;
+    let head_tok = c.pos();
     let head = unquote_path_iae(&c.parse_qualified_name()?)?;
     let mut complex_type = None;
     let mut binding = None;
@@ -391,6 +392,19 @@ fn parse_type_ref<'s>(c: &mut impl Cursor<'s>) -> R<PSsTypeRef> {
         c.expect(T::MINUS)?;
         complex_type = Some(head.clone());
         binding = Some(JStr(unquote_path_iae(&c.parse_qualified_name()?)?));
+    } else if c.dialect().refuses_lite_extensions()
+        && !["Boolean", "Float", "Integer", "String"].iter().any(|t| eq(&head, t))
+    {
+        return Err(throw_at(
+            c.tokens(),
+            head_tok,
+            jcat!(
+                "Unsupported Parameter Value Type - ",
+                head,
+                ". Supported types are - Boolean, Float, Integer, String"
+            ),
+        )
+        .as_refusal());
     }
     if list {
         c.expect(T::BRACKET_CLOSE)?;
