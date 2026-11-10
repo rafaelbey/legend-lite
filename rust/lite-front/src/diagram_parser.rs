@@ -321,6 +321,10 @@ pub fn parse_raw(text: &[u16], start_line: i32, dialect: Dialect) -> R<ParsedDia
             break;
         }
         if r.starts_with("import ") {
+            // `imports (diagram)*`, at the engine's dialect (ruling 18)
+            if dialect.refuses_lite_extensions() && !elements.is_empty() {
+                return Err(JavaError::parse(JStr::from("Unexpected token 'import'"), r.line, r.col).as_refusal());
+            }
             let full = r.read_to_semicolon()?;
             let imp = trim(&full[7..]).to_vec();
             let n = imp.len();

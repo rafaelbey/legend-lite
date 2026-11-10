@@ -414,7 +414,10 @@ pub fn pmcd(text: &[u16], dialect: Dialect, overlays: &[OverlayGrammar<'_>]) -> 
         parsed: answer.parsed.and_then(|parsed| {
             if level.holds_to_the_engines_walk()
                 && let Err(e) = crate::emitter::emit(&parsed.model)
-                && e.is_syntax_error()
+                && e.is_in_flight()
+                // a local property under an AggregationAware main mapping: the engine accepts it, the JSON door alone
+                // refuses it (ruling 11, register S157)
+                && !e.words().lossy().starts_with("the local property")
             {
                 return Err(e.placed());
             }
@@ -639,7 +642,10 @@ mod refusal_tests {
             assert!(pmcd(&units, d, &[]).parsed.is_ok(), "{text}");
         }
         for e in [
-            pmcd(&units, Dialect::LegendEngine, &[]).parsed.map(|_| ()).expect_err(text),
+            pmcd(&units, Dialect::LegendEngine, &[])
+                .parsed
+                .map(|_| ())
+                .expect_err(text),
             document(&units, true).map(|_| ()).expect_err(text),
         ] {
             assert!(e.is_parse_exception(), "{text}: {e:?}");

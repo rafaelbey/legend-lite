@@ -1863,6 +1863,10 @@ impl MappingCursor<'_, '_> {
         let mut emb_id = None;
         if self.peek() == T::BRACKET_OPEN {
             self.advance()?;
+            // `sourceId: qualifiedName`, no number, at the engine's dialect (ruling 18)
+            if self.dialect.refuses_lite_extensions() && self.peek() == T::INTEGER {
+                return Err(self.unexpected());
+            }
             let first = self.parse_set_id()?;
             if self.peek() == T::COMMA {
                 self.advance()?;

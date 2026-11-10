@@ -206,8 +206,11 @@ fn require_clean_header(h: &SectionHeader) -> R<()> {
 /// names it, whatever the header line goes on to hold, the engine's section start (ruling 18 of 2026-11-09).
 fn refuse_unknown_last_section(ts: &TokenStream<'_>, h: &SectionHeader, dialect: Dialect) -> R<()> {
     let known = listed(BUILT_IN_SECTIONS, &h.name) || TailGrammar::of(&String::from_utf16_lossy(&h.name)).is_some();
-    let last = ts.count() == 0 || ts.start(ts.count() - 1) < h.name_offset;
-    let at_the_end = last
+    // nothing but blanks past the header's line: a raw-skipped section's content holds no tokens but is content
+    let nothing_after = ts.source()[h.content_start_offset.min(ts.source().len())..]
+        .iter()
+        .all(|&c| lite_javacompat::character::is_whitespace(c));
+    let at_the_end = nothing_after
         && ts
             .section_headers
             .last()

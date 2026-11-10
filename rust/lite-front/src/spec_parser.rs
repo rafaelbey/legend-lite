@@ -221,6 +221,10 @@ pub struct SpecParser<'t, 's> {
 }
 
 impl<'s> Cursor<'s> for SpecParser<'_, 's> {
+    fn reads_an_expression(&self) -> bool {
+        true
+    }
+
     fn tokens(&self) -> &TokenStream<'s> {
         self.tokens
     }

@@ -926,6 +926,10 @@ impl<'t, 's> DbCursor<'t, 's> {
                 continue;
             }
             if self.peek() == T::GROUP_BY_CMD {
+                // `filter? groupBy? distinct? columns`, at the engine's dialect (ruling 18)
+                if self.dialect.refuses_lite_extensions() && distinct {
+                    return Err(self.unexpected());
+                }
                 self.advance()?;
                 group_by = Vec::new();
                 self.expect(T::PAREN_OPEN)?;

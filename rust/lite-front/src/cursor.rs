@@ -261,7 +261,7 @@ fn closer_of(open: TokenType) -> Option<TokenType> {
 /// cases: the closer ends a top-level element, which only `<EOF>` follows, and the parse has read a list's item or a body's
 /// member, so that `sync` fails at the back edge of its loop rather than on its way in. An opener with nothing after it is
 /// the way in, but for a `Class` or `Association` body, whose members are a rule of their own.
-fn missing_closer_a_column_early(window: &TokenStream<'_>, expected: TokenType) -> bool {
+fn missing_closer_a_column_early(window: &TokenStream<'_>, expected: TokenType, expression: bool) -> bool {
     // a window of a larger stream does not hold the brackets it is inside of
     let whole;
     let tokens = if window.input_end() == Some(window.source().len()) {
@@ -300,8 +300,10 @@ fn missing_closer_a_column_early(window: &TokenStream<'_>, expected: TokenType) 
     if separators > 0 {
         return true;
     }
-    // one item and no separator: an element's own body is at its end, a list written inline in its rule is on its way in
-    open.len() == 1
+    // one item and no separator: an element's own body is at its end, a list written inline in its rule is on its way in;
+    // an expression door's text is the engine's `function go():Any[*]{let x = ...;}`, whose brackets are never the outermost
+    !expression
+        && open.len() == 1
         && expected != T::BRACKET_CLOSE
         && !(expected == T::PAREN_CLOSE && element == Some(T::FUNCTION))
         && !(expected == T::BRACE_CLOSE && element == Some(T::ENUM))
@@ -401,6 +403,11 @@ pub trait Cursor<'s> {
     fn set_pos(&mut self, pos: usize);
     /// Which of the three dialect levels this parse serves: there is no default.
     fn dialect(&self) -> Dialect;
+    /// Whether this cursor reads an expression, not a section's elements.
+    fn reads_an_expression(&self) -> bool {
+        false
+    }
+
     /// The `sourceId` stamped on spans: "" but for mapping test-suite query lambdas.
     fn span_source_id(&self) -> JStr {
         JStr::default()
@@ -500,7 +507,7 @@ pub trait Cursor<'s> {
 
     /// The separator after an item of a comma list, whether a comma was read. At lite's and the platform's dialects the
     /// comma is optional and may trail. At the engine's the list is its grammar's `item (COMMA item)*` (the user's ruling
-    /// 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6; register S170): a comma has an item after it, and the next
+    /// 18 of 2026-11-09, docs/rust-port/PHASE2.md section 6; register S169): a comma has an item after it, and the next
     /// token is a comma or closes the list.
     fn match_list_comma(&mut self) -> R<bool> {
         if !self.dialect().refuses_lite_extensions() {
@@ -550,7 +557,7 @@ pub trait Cursor<'s> {
     fn missing(&self, t: TokenType, message: JStr) -> JavaError {
         let e = self.error(message);
         let at_the_end = self.at_end() && self.tokens().input_end().is_some();
-        if at_the_end && missing_closer_a_column_early(self.tokens(), t) {
+        if at_the_end && missing_closer_a_column_early(self.tokens(), t, self.reads_an_expression()) {
             return e.a_column_before();
         }
         e

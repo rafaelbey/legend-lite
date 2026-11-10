@@ -518,7 +518,7 @@ fn content_anchored_island_node<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNo
         start_line(c.tokens(), emb_start)? - 1,
         start_column(c.tokens(), emb_start)? - 1,
     );
-    island_entries(&island, off, c.dialect(), &mut entries)?;
+    island_entries(&island, off, c.dialect(), &mut entries, true)?;
     let cs = c.span_of(emb_start, emb_start);
     let open_line = start_line(c.tokens(), emb_start - 1)?;
     let end_tok = c.pos();
@@ -558,8 +558,15 @@ fn island_entries(
     off: (i32, i32),
     level: crate::doors::Dialect,
     entries: &mut Vec<PPersistenceEntry>,
+    keys_are_the_grammars: bool,
 ) -> R<()> {
-    match parse_entries(&mut island_cursor(island, off, level), off, entries, None) {
+    match parse_entries(
+        &mut island_cursor(island, off, level),
+        off,
+        entries,
+        None,
+        keys_are_the_grammars,
+    ) {
         Err(_) if level.reads_for_syntax() => Ok(()),
         answer => answer,
     }
@@ -574,7 +581,7 @@ fn parse_node<'s>(c: &mut impl Cursor<'s>, off: (i32, i32)) -> R<PPersistenceNod
         c.advance()?;
         let mut path_entries = Vec::new();
         c.expect(T::BRACE_OPEN)?;
-        parse_entries(c, off, &mut path_entries, Some(T::BRACE_CLOSE))?;
+        parse_entries(c, off, &mut path_entries, Some(T::BRACE_CLOSE), true)?;
         c.expect(T::BRACE_CLOSE)?;
         return Ok(node(
             JStr::from("#path"),
@@ -586,7 +593,7 @@ fn parse_node<'s>(c: &mut impl Cursor<'s>, off: (i32, i32)) -> R<PPersistenceNod
     let kind = c.parse_identifier()?;
     let mut entries = Vec::new();
     if c.match_tok(T::BRACE_OPEN)? {
-        parse_entries(c, off, &mut entries, Some(T::BRACE_CLOSE))?;
+        parse_entries(c, off, &mut entries, Some(T::BRACE_CLOSE), true)?;
         c.expect(T::BRACE_CLOSE)?;
     } else if is_island(c.peek()) {
         let open = c.pos();
@@ -606,7 +613,7 @@ fn parse_node<'s>(c: &mut impl Cursor<'s>, off: (i32, i32)) -> R<PPersistenceNod
         let island = tokenize(&emb);
         let ic_off = (base_line, base_col);
         c.expect(T::ISLAND_END)?;
-        island_entries(&island, ic_off, c.dialect(), &mut entries)?;
+        island_entries(&island, ic_off, c.dialect(), &mut entries, true)?;
     } else {
         return Ok(node(JStr(kind), None, entries, c.span(s, s)));
     }
@@ -737,11 +744,15 @@ fn parse_entries<'s>(
     off: (i32, i32),
     out: &mut Vec<PPersistenceEntry>,
     close: Option<TokenType>,
+    keys_are_the_grammars: bool,
 ) -> R<()> {
     while !c.at_end() && close.is_none_or(|t| c.peek() != t) {
         let key_start = c.pos();
         let key = c.parse_identifier()?;
-        if close.is_some() && c.dialect().refuses_lite_extensions() && !PERSISTENCE_KEYS.iter().any(|k| eq(&key, k)) {
+        if keys_are_the_grammars
+            && c.dialect().holds_to_the_engines_walk()
+            && !PERSISTENCE_KEYS.iter().any(|k| eq(&key, k))
+        {
             c.set_pos(key_start);
             return Err(c.unexpected());
         }
@@ -766,7 +777,7 @@ fn parse_entries<'s>(
                         let ps = c.pos();
                         c.expect(T::BRACE_OPEN)?;
                         let mut pe = Vec::new();
-                        parse_entries(c, off, &mut pe, Some(T::BRACE_CLOSE))?;
+                        parse_entries(c, off, &mut pe, Some(T::BRACE_CLOSE), true)?;
                         c.expect(T::BRACE_CLOSE)?;
                         nodes.push(Box::new(node(
                             JStr::from("__part__"),
@@ -1294,7 +1305,8 @@ fn parse_platform<'s>(c: &mut impl Cursor<'s>) -> R<PPersistenceNode> {
         start_line(c.tokens(), emb_start)? - 1,
         start_column(c.tokens(), emb_start)? - 1,
     );
-    island_entries(&island, off, c.dialect(), &mut entries)?;
+    // a platform's island is the cloud grammar's text, not the persistence grammar's keys
+    island_entries(&island, off, c.dialect(), &mut entries, false)?;
     // deliberately stricter than the engine, which reads the body and writes a default platform: the emitter has no wire
     // for one (the user's ruling 11 of 2026-11-09, docs/rust-port/PHASE2.md section 6; PARITY row 73, register S158)
     if !aws && !entries.is_empty() && c.dialect().answers_engine_json() {
