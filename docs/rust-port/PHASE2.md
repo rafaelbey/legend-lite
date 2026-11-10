@@ -792,6 +792,56 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      --all-targets -- -D warnings`, `cargo fmt --check` clean. 153,008 mutated oracle texts through every door: no panic, no
      raw answer.
 
+   **Ruling 18 done 2026-11-09** (from `8c7de71fc`, the rulings of §6; commits `1884e6ef7`, `52f66f7fd`, `2468f9f4c`, `44012955b`).
+   Every input was asked of legend-engine's own parser on the parser-equivalence class path (`PureGrammarParser`, 4.145.0), the
+   measurement's probes re-run on its pinned inputs (`docs/rust-port/ENGINE_GAP_2026_11_09.md`, "After ruling 18").
+   - **The end of the input (§2 of the brief; register S170), in the cursor.** `throw_at` past the last token of a stream that runs
+     to the end of its input stands one past the input's last character, blanks and line breaks counted (`TokenStream::input_end`:
+     a whole text's length, a re-lexed range's end, none for a window short of its stream's last token). The expect family
+     (`Cursor::missing`) places a missing closer one column less where ANTLR reports a token inserted or removed (the closer ends
+     a top-level element, or `sync` fails at a loop's back edge: `ParserErrorListener`'s empty span), read off the brackets left
+     open. A quote left open at the end is refused at the quote. A construct only the walk refuses, cut by the end, is refused at
+     the end (`JavaError::end_of_input_first`, the text read again at the platform's dialect, on the error path alone). A mapping
+     element's or connection's body left open by the end is the outer parse's refusal, one column before the end.
+   - **Never looser (§1; register S169), by root cause, at `LEGEND_ENGINE`'s door levels alone:** imports by the engine's rule; every
+     comma list as `item (COMMA item)*`, a helper for the 90-odd sites that wrote an optional comma; element bodies as islands
+     counted by braces, strings no strings to them; clause orders (a Pure mapping's `~src`/`~filter` before its properties, a
+     view's `~groupBy` before `~distinct`, an `include` before the elements, imports before a diagram's, `Views` first in an
+     AggregationAware); `~func` and an activator's `function:` as `functionIdentifier`; a service's `query:` that is a bare name;
+     `1.` without a name after it; `%latest` outside `.all(...)` and a property's arguments; a default value's first token; schema
+     algebra and a unit's arguments in a type; a column spec's `:` followed by neither type nor lambda; `let` at the `spec` door;
+     navigation paths by the engine's navigation grammar; embedded relation data by its grammar; a `Reference`'s text as a path;
+     a persistence key its lexer does not name; a service-store parameter's scalar type; required `tests`. The record doors at the
+     engine's dialect now refuse what the JSON door places (`doors::pmcd` asks the emitter, and takes its placed refusals but S157's),
+     so S143, S144, S159, S160, S161 and S165 are refused at `pmcd`, `spec`, `block` and `lambda` too.
+   - **Named exclusions.** S64's TIME and TIMESTAMP_NS columns (571 corpus, 280 and 74 mutated texts at `pmcd` and `document`). S157
+     and S158, which the engine accepts, stay refused at the `document` door alone.
+   - **Lite's own relied on the acceptance: left, and back to the user (S180).** A `Diagram X(width=.., height=..)` argument list
+     (`ModelReaderParityTest`'s and `//wasm:round_trip_test`'s inputs, three reviewed rows of `docs/refusal-allowlist.tsv`); a
+     mapping test with no `data` (`ElementParserTest.mappingTestSuitesParsedOntoTheRecord`, `...InteriorBracesBalanced`).
+   - **Not reached: lite is still looser on 34 further texts** (of the pinned inputs; S180, the gap report lists them). Ruling 18
+     asked for 0; each is a rule not yet written (a persistence key out of order, a Mongo mapping's clauses, scattered mutations
+     inside embedded data). `docs/refusal-allowlist.tsv`'s row for `relationMappingSetup.pure` called its `~func` a version skew
+     of the oracle: the pinned 4.145.0 refuses it, so it is refused now, and the row left.
+   - **The difference lists.** `deliberate-differences.tsv` 9 -> 744 asks (`pmcd` at `LEGEND_ENGINE` 204, `LEGEND_LITE` 164,
+     `LEGEND_PLATFORM` 167; `document` 204; `spec` at `LEGEND_ENGINE` 2, `LEGEND_PLATFORM` 3; 145 KB, kept plain as it is not
+     large; the frozen files stay Java's, no floor lowered, the assertions two-way). `FROZEN_MODULE_DIFFERS` 1 -> 66 inputs, a
+     generated data file (`wasm/frozen_module_differs.json`, from the test's own `round-trip-diffs.jsonl`), held both ways.
+   - **Moved counts, each with its dated reason in place.** `ModelReaderParityTest` own and stripped 37739 -> 37648, documents 13514
+     -> 13512, `JsonModelDoorTest` 7085 -> 7084, `RoundTripProofTest` matched 6905 -> 6904 and upstream 270 -> 271: one source,
+     `relationMappingSetup.pure` (91 elements), which the engine refuses and the model door accepted. `LENIENT_RESIDUE` 13 -> 6 and
+     the refusal allowlist 4 -> 3 rows, parity fixed. `OwnDialectCensusTest` `ModelNormalizerTest.java` 0 -> 1 extension row, a
+     service's `query:` naming a function, lite's own, which the engine refuses. Of the 2,558 texts the engine door refuses in the
+     two parity targets, the engine refuses every one. The sentinel rose: 2,217 of 2,217 matched, none lenient.
+   - **The measurement, before -> after,** mutated at `pmcd`: same place 87,633 -> 99,981 of 153,008, lite looser 586 -> 300 (280
+     S64), stricter 357 -> 358; the end of the input 17,713 -> 6,088. `spec`, `lambda`, `lambdaJson` looser 49, 44, 36 -> 0. Stricter
+     and other place differences are ledgered by family, S171 to S179.
+   - **The gates at `44012955b`.** `bazel test //core/... //spec/... //rust/... //parser-equivalence/... //tools/... //gates/...`: 525
+     targets, 523 pass and the same 2 skipped; `//wasm/...` built and its 5 tests pass. `//parser-equivalence:parser_parity`: 422 pins,
+     line agreement 415, column exact 337 (none moved); the sentinel 2,217 in scope, matched 2,217; own corpus 2,943, `diffs=0`.
+     `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` clean. 153,008 door answers over
+     mutated oracle texts: no panic, no raw answer. Ledger check: no MISSING.
+
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
 exists, and the committed oracle after.

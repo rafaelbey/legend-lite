@@ -365,3 +365,108 @@ lite asks, none different.
 - `block`, and lite's and the platform's dialects: not asked of the engine.
 - That the mutated texts are a fair sample of real input: they are random cuts and insertions over 9,563 texts of the tests'
   own models. The rates are for those.
+
+## After ruling 18 (2026-11-09)
+
+Ruling 18 of `docs/rust-port/PHASE2.md` section 6, carried out; the same probes on the same pinned inputs (the seeds and SHA-256
+above), lite at commit `44012955b` through the same `doors` binary source, the engine's serial answers those recorded above
+(the same jars, the same texts). Before is the measurement above, after is this one.
+
+**By door and category.**
+
+| set | door | texts | both accept | same place | same line, other col | different line | lite looser | lite stricter | raw `java.*` | engine timeout | engine unplaced |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| corpus, before | `pmcd` | 29,188 | 22,664 | 3,113 | 1,721 | 1,077 | 593 | 20 | 0 | 0 | 0 |
+| corpus, after | `pmcd` | 29,188 | 22,663 | 3,247 | 1,671 | 1,005 | 581 | 21 | 0 | 0 | 0 |
+| corpus, before | `document` | 29,188 | 22,664 | 3,113 | 1,721 | 1,077 | 593 | 20 | 0 | 0 | 0 |
+| corpus, after | `document` | 29,188 | 22,663 | 3,247 | 1,671 | 1,005 | 581 | 21 | 0 | 0 | 0 |
+| corpus, before | `spec` | 22,091 | 7,282 | 59 | 11,262 | 3,417 | 49 | 3 | 0 | 0 | 19 |
+| corpus, after | `spec` | 22,091 | 7,282 | 109 | 11,260 | 3,417 | 0 | 3 | 0 | 0 | 20 |
+| corpus, before | `lambda` | 22,967 | 8,157 | 53 | 11,244 | 3,445 | 44 | 5 | 0 | 0 | 19 |
+| corpus, after | `lambda` | 22,967 | 8,157 | 97 | 11,243 | 3,445 | 0 | 5 | 0 | 0 | 20 |
+| corpus, before | `lambdaJson` | 22,967 | 8,157 | 60 | 11,244 | 3,445 | 36 | 5 | 0 | 0 | 20 |
+| corpus, after | `lambdaJson` | 22,967 | 8,157 | 97 | 11,243 | 3,445 | 0 | 5 | 0 | 0 | 20 |
+| mutated (16 per text), before | `pmcd` | 153,008 | 22,282 | 87,633 | 27,256 | 14,894 | 586 | 357 | 0 | 0 | 0 |
+| mutated (16 per text), after | `pmcd` | 153,008 | 22,281 | 99,981 | 19,902 | 10,186 | 300 | 358 | 0 | 0 | 0 |
+| mutated (16 per text), before | `document` | 153,008 | 22,282 | 87,650 | 27,260 | 14,894 | 565 | 357 | 0 | 0 | 0 |
+| mutated (16 per text), after | `document` | 153,008 | 22,281 | 99,981 | 19,902 | 10,186 | 300 | 358 | 0 | 0 | 0 |
+| mutated (4 per text), before | `pmcd` | 38,252 | 5,666 | 21,827 | 6,831 | 3,658 | 165 | 105 | 0 | 0 | 0 |
+| mutated (4 per text), after | `pmcd` | 38,252 | 5,666 | 24,894 | 4,961 | 2,542 | 84 | 105 | 0 | 0 | 0 |
+| mutated (4 per text), before | `document` | 38,252 | 5,666 | 21,832 | 6,831 | 3,658 | 160 | 105 | 0 | 0 | 0 |
+| mutated (4 per text), after | `document` | 38,252 | 5,666 | 24,894 | 4,961 | 2,542 | 84 | 105 | 0 | 0 | 0 |
+
+No text timed out and no door panicked or answered a raw `java.*` class on the input sets; the harness's two `lambdaJson` raw
+answers are the two rulings 12 and 16 left. A further run of the post-6b mutator through every door: 153,008 door answers, no
+panic, no raw answer. The 1 more `lite stricter` at `pmcd` over the corpus and over the mutated texts is register S173; the corpus
+`spec`/`lambda`/`lambdaJson` looser rows are 0.
+
+**What the difference comes down to**, the heuristic above (`engine-gap/report.py.txt`, `theme`), every disagreement of the
+kind, not only the unledgered ones (so `the end of the input`, which the table above counted among the unledgered as 17,009,
+reads 17,713 here):
+
+| what the difference comes down to | `pmcd`, mutated, before | after | `pmcd`, corpus, before | after | `spec`, corpus, before | after |
+|---|---:|---:|---:|---:|---:|---:|
+| a lite-only island refused at the engine's dialect: the column | 112 | 112 | 33 | 33 | 13,419 | 13,419 |
+| a construct lite refuses by name, at a token of its own | 11,428 | 10,492 | 1,917 | 1,910 | 5 | 5 |
+| the end of the input: where each places it | 17,713 | 6,088 | 182 | 67 | 7 | 8 |
+| lite reads a token further (or fewer) before stopping | 5,917 | 5,770 | 107 | 100 | 8 | 5 |
+| lite's walk stops at another token | 4,541 | 5,032 | 164 | 173 | 0 | 0 |
+| other | 2,280 | 2,435 | 329 | 327 | 2 | 2 |
+| brace-less #TDS: lite's place past the literal | 159 | 159 | 66 | 66 | 1,238 | 1,238 |
+| lite accepts what the engine refuses | 586 | 300 | 593 | 581 | 49 | 0 |
+| lite refuses what the engine accepts | 357 | 358 | 20 | 21 | 3 | 3 |
+| the engine answers a raw exception, unplaced | 0 | 0 | 0 | 0 | 19 | 20 |
+
+The end of the input, the cluster ruling 18 names: **17,713 → 6,088** mutated texts at `pmcd`, **182 → 67** corpus texts. Same
+line and column overall, mutated at `pmcd`: **87,633 → 99,981** of 153,008. What remains of the cluster is register S177: a
+refusal by name or a graph-fetch island cut off by the end of the input, and a text's last token that lite refuses where the
+engine's next token would have been the end.
+
+**Lite looser.** `pmcd` and `document`: 581 corpus (571 S64's TIME and TIMESTAMP_NS columns, excluded by ruling 18; 10 left), 300
+mutated (16 per text; 280 S64, 20 left), 84 mutated (4 per text; 74 S64, 10 left). `spec`, `lambda`, `lambdaJson`: 0, from 49, 44
+and 36. **It is not 0 apart from S64.** Forty texts are left, register S180: six because lite's own tests rely on them (the three
+`Diagram X(width=..)` texts and the three `Field 'data' is required` texts), 34 because no rule was written for them:
+
+| section | text | the engine | the engine's words | at |
+|---|---|---|---|---|
+| ###Data | `mut16/m095081` | 60:31 | Unexpected token | `          timeOfBirth = %19:41⟦:.21,⟧` |
+| ###Data | `mut16/m118799` | 130:32 | Unexpected token | `                expected: '123'⟦.;⟧` |
+| ###Data | `mut/m017896` | 18:4 | Unexpected token | `   ⟦;           }#⟧` |
+| ###Data | `mut16/m048161` | 37:15 | Unexpected token '.5'. Valid alternatives: ['.'] | `    default.F1⟦.5eirmTable:⟧` |
+| ###Data | `mut16/m035163` | 7:8 | Unexpected token '{' | `]      ⟦{⟧` |
+| ###DataSpace | `mut/m013140` | 54:9 | Invalid identifier: \|model | `        ⟦DataspaceTestData⟧` |
+| ###DataSpace | `mut16/m105822` | 25:59 | Unexpected token | `model::templateFunc():TabularDataSe     ⟦executionContextKey: 'Con⟧` |
+| ###DataSpace | `mut16/m130457` | 55:12 | Unexpected token | `          1⟦ , Alice⟧` |
+| ###Diagram | `corpus/c2fe663d2fc40516c.model` | 5:33 | Unexpected token '(' | `Diagram meta::test::TestDiagram1⟦(width=10.0, height=10.0)⟧` |
+| ###Diagram | `corpus/ca55a26307280473e.model` | 5:33 | Unexpected token '(' | `Diagram meta::test::TestDiagram1⟦(width=10.0, height=10.0)⟧` |
+| ###Diagram | `corpus/cf0bae7c7ba44f834.model` | 5:33 | Unexpected token '(' | `Diagram meta::test::TestDiagram1⟦(width=10.0, height=10.0)⟧` |
+| ###GenerationSpecification | `corpus/cbec49736727ea2c1.model` | 18:10 | Unexpected token 'id' | `         ⟦id: 'afterTheElement';⟧` |
+| ###HostedService | `mut16/m069011` | 70:1 | Unexpected token | `⟦::         [⟧` |
+| ###HostedService | `mut/m024784` | 49:96 | no viable alternative at input '->filter(row\|$row.getStrin | `lter(row\|$row.getString('name')->startsW⟦;ith('X'))->meta::legend:⟧` |
+| ###Mapping | `corpus/c3ff42094a2558e99.model` | 2:188 | Field 'data' is required | ` model::P { x } }#);     tests: [       ⟦Test1: {         asserts:⟧` |
+| ###Mapping | `mut16/m038818` | 2:186 | Field 'data' is required | ` model::P { x } }#);     tests: [       ⟦Test1: {         asserts:⟧` |
+| ###Mapping | `mut16/m038823` | 2:193 | Field 'data' is required | ` model::P { x } }#);     tests: [       ⟦Test1: {         asserts:⟧` |
+| ###Mapping | `corpus/cc65c96f1ea152d8f.model` | 26:5 | Unexpected token | `(⟦⟧` |
+| ###Mapping | `mut16/m121704` | 210:12 | Unexpected token '2'. Valid alternatives: ['EnumerationMap | `    nested[⟦2]: $src,⟧` |
+| ###Mapping | `mut16/m015906` | 6:14 | Unexpected token '<EOF>' | `    p: tru::e⟦⟧` |
+| ###Persistence | `corpus/c40188948116467ae.model` | 13:67 | An exception of type 'NullPointerException' occurred, plea | `nce::neg::GraphFetchKeysAsIdentifiers⟦⟧` |
+| ###Persistence | `corpus/c45e71b03edee21e5.model` | 20:74 | An exception of type 'NullPointerException' occurred, plea | `g::TdsKeysAsPaths⟦⟧` |
+| ###Persistence | `mut16/m039008` | 51:5 | Unexpected token | `    ⟦;}⟧` |
+| ###Persistence | `corpus/c29219da69acc11da.model` | 45:7 | Unexpected token 'isTestDataFromServiceOutput'. Valid alte | `      ⟦isTestDataFromServiceOutp⟧` |
+| ###Pure | `mut16/m013663` | 9:3 | Unexpected token | `  ⟦99999999999999999999     ⟧` |
+| ###Pure | `mut16/m117352` | 32:7 | Unexpected token | `      ⟦.PersonTable.unknown:⟧` |
+| ###Pure | `mut/m013808` | 19:20 | Unexpected token | `    ~new: x\|\|$x.ied⟦:y\|$y->sum()⟧` |
+| ###Pure | `mut/m000374` | 30:25 | Unexpected token ','. Valid alternatives: ['.'] | `            id, firm;_id⟦, firstName, lastName, em⟧` |
+| ###Pure | `mut16/m131940` | 46:18 | Unexpected token '<EOF>'. Valid alternatives: ['.'] | `                 ⟦                         ⟧` |
+| ###Pure | `mut16/m069699` | 8:1 | Unexpected token ']'. Valid alternatives: ['.'] | `⟦];⟧` |
+| ###Pure | `mut/m000375` | 27:45 | token recognition error at: '"TE;\n' | `        3 , 2      , "Time;"          , ⟦"TE;⟧` |
+| ###QueryPostProcessor | `corpus/c5462542fc6ca12cd.model` | 18:4 | Unexpected token 'SchemaMappers'. Valid alternatives: [')' | `   ⟦SchemaMappers:⟧` |
+| ###Relational | `mut/m000092` | 10:89 | Unexpected token ':'. Valid alternatives: ['Database', 'in | `NG_OUT = dummy, INFINITY_DATE = %9999-00⟦:00.0000),⟧` |
+| ###Service | `mut16/m024076` | 27:80 | Unexpected token | `, 440, 13.23, 88, -54, 2.3, [1, 2], %204⟦T00:00:00, %2019-05-24, E⟧` |
+| ###Service | `mut16/m114522` | 61:21 | Unexpected token | `            param = ⟦\|123⟧` |
+| ###Service | `mut16/m043307` | 23:58 | Unexpected token '('. Valid alternatives: ['.'] | `aram']), 'singleparam', list([1,2,3]),st⟦([%2019-05-24,%2019-05-25⟧` |
+| ###Service | `mut/m006686` | 32:11 | Unexpected token 'Alice'. Valid alternatives: ['.'] | `     ;    ⟦ Name⟧` |
+
+**The ledger.** Every difference still counted above now has a family row: S171 to S173 (lite stricter), S174 to S179 (the place),
+S180 (lite looser, what is left), beside the rows the measurement above matched. The per-section tables above are not repeated:
+their rows are the families' now.
