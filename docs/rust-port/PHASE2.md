@@ -943,3 +943,16 @@ the platform's, a mistake corrected with these.
     about 17,000 of the 40,000 place differences and the case an editor meets while someone is typing. The inputs on
     which lite is stricter and the remaining place differences are ledgered by family, not fixed. The measurement is
     re-run to confirm.
+
+**Ruled on what ruling 18 left (the user, 2026-11-10):**
+
+19. **Two looser cases stay looser, deliberately** (not as recommended, which refused them): a Diagram's m2 argument
+    list (`Diagram X(width=.., height=..)`, the reviewed "DEFENDED" rows of `docs/refusal-allowlist.tsv`) and a mapping
+    test with no `data` (`ElementParserTest.mappingTestSuitesParsedOntoTheRecord`, `...InteriorBracesBalanced`). Each is a
+    register row ruled deliberate; nothing else changes.
+20. **The 34 other looser texts are fixed before `main` is merged**; the end-of-input remainder (6,088 mutated texts at
+    `pmcd`, 67 corpus) is ledgered as a family, not chased.
+21. **Ruling 18's own choices are ratified**: the four lowered counts (all from `relationMappingSetup.pure`, which the
+    pinned engine refuses), the removed allowlist row for it, the 7 `LENIENT_RESIDUE` rows deleted as now matched, the
+    744-row difference list kept as plain text, S157 and S158 refused at the `document` door only; `block` is measured
+    in the next round.
