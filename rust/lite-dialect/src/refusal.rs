@@ -10,7 +10,8 @@ use lite_sql::SqlExpr;
 /// A refusal to render: the Java exception the renderer would have thrown.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Refusal {
-    /// The Java class's binary name (`com.legend.sql.dialect.DialectCapability`).
+    /// The Java class's binary name (`com.legend.sql.DialectCapability`: in `com.legend.sql` since `main`'s
+    /// 2026-11-09, merged 2026-11-10; `com.legend.sql.dialect` until then).
     pub class: &'static str,
     /// The exception's message, as Java built it.
     pub message: String,
@@ -18,7 +19,7 @@ pub struct Refusal {
 
 impl Refusal {
     /// A renderer capability wall (Java's `DialectCapability`, an `IllegalStateException`).
-    pub const DIALECT_CAPABILITY: &'static str = "com.legend.sql.dialect.DialectCapability";
+    pub const DIALECT_CAPABILITY: &'static str = "com.legend.sql.DialectCapability";
     pub const ILLEGAL_STATE: &'static str = "java.lang.IllegalStateException";
     pub const ILLEGAL_ARGUMENT: &'static str = "java.lang.IllegalArgumentException";
     pub const NULL_POINTER: &'static str = "java.lang.NullPointerException";

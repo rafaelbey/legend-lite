@@ -29,17 +29,11 @@ fn facts_are_snowflakes() {
     assert_eq!(
         ok(SF, "facts", "{}"),
         r#"{"temporaryTables":true,"loadsRowsInBulk":false,"relational":true,"inProcess":false,"#.to_owned()
-            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"serverVersions":null,"#
+            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"#
             + r#""inMemoryPath":null,"scriptAbort":null,"sessionSetup":["ALTER SESSION SET TIMEZONE = 'UTC', "#
             + r#"WEEK_START = 1, WEEK_OF_YEAR_POLICY = 1, TIMESTAMP_TYPE_MAPPING = 'TIMESTAMP_NTZ', "#
             + r#"QUOTED_IDENTIFIERS_IGNORE_CASE = FALSE, MULTI_STATEMENT_COUNT = 0, JSON_INDENT = 0, "#
-            + r#"STRICT_JSON_OUTPUT = TRUE"],"keysSnapshot":"NONE","resultColumnLimit":null}"#
-    );
-    // every server version is spelled alike; a spec's server keeps Snowflake
-    assert_eq!(ok(SF, "forServer", r#"{"version":"10.36.101"}"#), r#""Snowflake""#);
-    assert_eq!(
-        dispatch(r#"{"dialect":"Snowflake","server":"9"}"#, "facts", "{}").unwrap(),
-        ok(SF, "facts", "{}")
+            + r#"STRICT_JSON_OUTPUT = TRUE"],"keysSnapshot":"NONE","resultColumnLimit":null,"verdictSavepoint":null,"fusedStatementBudget":2147483647}"#
     );
     assert_eq!(
         refused(r#"{"dialect":"Snowflake","timeZone":"UTC"}"#, "facts", "{}").message,
@@ -198,10 +192,6 @@ fn the_interface_answers_as_snowflake() {
         "true"
     );
     assert_eq!(ok(SF, "script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-    assert_eq!(
-        ok(SF, "failingStatement", r#"{"message":"x","statements":["a"]}"#),
-        "null"
-    );
     let r = refused(SF, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),

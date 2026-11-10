@@ -53,7 +53,8 @@ fn render(e: &SqlExpr) -> String {
 }
 
 fn modern(e: &SqlExpr) -> String {
-    render_with(&H2::modern(), e).unwrap_or_else(|r| panic!("{r}"))
+    // the spellings H2Modern held until main's 2026-11-05, H2's own since (merged 2026-11-10)
+    render_with(&H2::new(), e).unwrap_or_else(|r| panic!("{r}"))
 }
 
 fn refusal(e: &SqlExpr) -> Refusal {
@@ -292,7 +293,6 @@ fn h2_spells_its_own_functions() {
             call(SqlFn::Matches, vec![s.clone(), string_lit("x")]),
             "regexp_like(\"t0\".S, 'x')",
         ),
-        (call(SqlFn::ListLength, vec![col("L")]), "len(\"t0\".L)"),
         (
             call(SqlFn::DateAtTime, vec![d.clone(), col("T")]),
             "\"t0\".D + \"t0\".T",
@@ -353,10 +353,6 @@ fn h2_refuses_what_it_cannot_spell_by_name() {
         (
             call(SqlFn::Unnest, vec![col("L")]),
             capability("UNNEST reached a dialect without an unnest placement"),
-        ),
-        (
-            call(SqlFn::VariantGet, vec![col("J"), string_lit("k")]),
-            capability("variant navigation reached a dialect without JSON support"),
         ),
     ];
     for (e, want) in cases {
@@ -508,7 +504,7 @@ fn translate_is_spelled_only_where_h2s_means_the_same() {
 }
 
 #[test]
-fn h2modern_counts_a_json_arrays_elements() {
+fn h2_counts_a_json_arrays_elements() {
     let l = col("L");
     assert_eq!(
         modern(&call(SqlFn::ListLength, vec![l.clone()])),
@@ -524,10 +520,29 @@ fn h2modern_counts_a_json_arrays_elements() {
         modern(&call(SqlFn::ListLength, vec![as_array])),
         "CARDINALITY(\"t0\".L)"
     );
-    // not one argument: H2's own spelling
+    // not one argument: Java's IllegalArgumentException (main's H2.listLength)
     assert_eq!(
-        modern(&call(SqlFn::ListLength, vec![l.clone(), l.clone()])),
-        "len(\"t0\".L, \"t0\".L)"
+        refusal(&call(SqlFn::ListLength, vec![l.clone(), l.clone()])),
+        Refusal::illegal_argument("LIST_LENGTH takes one list, given 2")
+    );
+}
+
+#[test]
+fn h2_guards_asin_and_acos_to_their_domain_and_emulates_json_type() {
+    // main's H2.domainGuarded (2026-11-06): NaN outside [-1, 1], the argument clamped, an absent one absent
+    assert_eq!(
+        modern(&call(SqlFn::Acos, vec![col("D")])),
+        "(CASE WHEN (\"t0\".D) BETWEEN -1 AND 1 THEN acos(LEAST(GREATEST(\"t0\".D, -1), 1)) WHEN (\"t0\".D) IS NOT \
+         NULL THEN CAST('NaN' AS DOUBLE PRECISION) END)"
+    );
+    assert!(modern(&call(SqlFn::Asin, vec![col("D")])).contains("THEN asin(LEAST(GREATEST("));
+    // main's H2.jsonType (2026-11-05): the kind read from IS JSON and the value's text, DuckDB's names
+    assert_eq!(
+        modern(&call(SqlFn::JsonType, vec![col("J")])),
+        "(CASE WHEN (\"t0\".J) IS NULL THEN NULL WHEN (\"t0\".J) IS JSON OBJECT THEN 'OBJECT' WHEN (\"t0\".J) IS JSON \
+         ARRAY THEN 'ARRAY' WHEN CAST((\"t0\".J) AS VARCHAR) = 'null' THEN 'NULL' WHEN CAST((\"t0\".J) AS VARCHAR) IN \
+         ('true', 'false') THEN 'BOOLEAN' WHEN CAST((\"t0\".J) AS VARCHAR) LIKE '\"%' THEN 'VARCHAR' WHEN \
+         REGEXP_LIKE(CAST((\"t0\".J) AS VARCHAR), '^-?[0-9]+$') THEN 'BIGINT' ELSE 'DOUBLE' END)"
     );
 }
 
@@ -758,13 +773,13 @@ fn a_cast_to_json_parses_and_a_boolean_cast_to_text_spells_the_references_words(
 }
 
 #[test]
-fn h2modern_navigates_typed_json() {
+fn h2_navigates_typed_json() {
     let j = col("J");
     let get = |k: SqlExpr| call(SqlFn::VariantGet, vec![j.clone(), k]);
     assert_eq!(modern(&get(string_lit("a\"b"))), "(\"t0\".J).\"a\"\"b\"");
     // the reference's zero-based index, one-based here
     assert_eq!(modern(&get(int_lit(0))), "(\"t0\".J)[1]");
-    let dynamic = render_with(&H2::modern(), &get(col("K"))).unwrap_err();
+    let dynamic = render_with(&H2::new(), &get(col("K"))).unwrap_err();
     assert_eq!(
         dynamic,
         capability("variant navigation reached a dialect without JSON support")
@@ -783,16 +798,8 @@ fn h2modern_navigates_typed_json() {
     ];
     let lit = crate::build::struct_lit(fields);
     assert_eq!(modern(&lit), "JSON_OBJECT('a': 1, 'it''s': 's')");
-    assert_eq!(
-        refusal(&lit),
-        capability("a struct literal reached a dialect without struct support")
-    );
     let field = crate::build::struct_get(j.clone(), "f\"");
     assert_eq!(modern(&field), "(\"t0\".J).\"f\"\"\"");
-    assert_eq!(
-        refusal(&field),
-        capability("a struct extraction reached a dialect without struct support")
-    );
     // a scalar cast over navigation extracts text and strips its quoting; a cast to JSON parses, as H2's
     let bigint = SqlType::Scalar(Scalar::Bigint);
     assert_eq!(
@@ -1068,11 +1075,11 @@ fn a_catalog_grid_reads_h2s_information_schema() {
 
 #[test]
 fn json_kinds_and_typeof_names() {
-    for d in [H2::new(), H2::modern()] {
+    {
+        let d = H2::new();
         assert_eq!(d.json_kind_name(JsonKind::String).unwrap(), "VARCHAR");
         assert_eq!(d.json_kind_name(JsonKind::UnsignedInteger).unwrap(), "UBIGINT");
         assert_eq!(d.typeof_name(Scalar::Date).unwrap(), "DATE");
-        // the literal "H2", on H2Modern too
         assert_eq!(
             d.typeof_name(Scalar::Varchar).unwrap_err(),
             capability("a TYPEOF compared with VARCHAR's name reached H2")
@@ -1091,7 +1098,6 @@ fn the_passes_are_h2s_in_its_order() {
         "SourceSpelling",
     ];
     assert_eq!(names(H2::new().passes()), pipeline);
-    assert_eq!(names(H2::modern().passes()), pipeline);
     // QUALIFY wrapped only where it is not native: never on H2
     let mut wrapped = pipeline.to_vec();
     wrapped.insert(1, "QualifyToSubselect");

@@ -1334,8 +1334,10 @@ fn the_interface_as_postgres_answers_it() {
     assert!(!d.in_process());
     assert!(!d.loads_rows_in_bulk());
     assert!(d.temporary_tables());
-    assert_eq!(d.server_versions(), Ok(None));
-    assert!(d.for_server("16.4").is_none());
+    assert_eq!(
+        d.verdict_savepoint().map(|s| s.set),
+        Some("SAVEPOINT legend_verdicts".to_owned())
+    );
     let map = SqlType::Map {
         key: Box::new(SqlType::Scalar(Scalar::Varchar)),
         value: Box::new(SqlType::Scalar(Scalar::Bigint)),
@@ -1344,7 +1346,6 @@ fn the_interface_as_postgres_answers_it() {
     assert!(!d.delivers_own(&map, "VARCHAR"));
     assert!(!d.delivers_own(&SqlType::Scalar(Scalar::Bigint), "ARRAY"));
     assert_eq!(d.copy_select_list(&[]), Ok("*".into()));
-    assert_eq!(d.failing_statement("x", &["a".into()]), None);
     assert_eq!(
         d.catalog_columns_query("s", "t").unwrap_err().message,
         "the platform asks no catalog question of Postgres"

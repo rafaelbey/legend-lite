@@ -789,9 +789,10 @@ mod tests {
         assert_eq!(
             dialect(DUCKDB, "facts", "{}"),
             "OK\n{\"temporaryTables\":true,\"loadsRowsInBulk\":true,\"relational\":true,\"inProcess\":true,\
-             \"dropsStagedTablesWithTheirTransaction\":false,\"needsStaticPivot\":false,\"serverVersions\":null,\
+             \"dropsStagedTablesWithTheirTransaction\":false,\"needsStaticPivot\":false,\
              \"inMemoryPath\":\":memory:\",\"scriptAbort\":\"ROLLBACK\",\"sessionSetup\":[\"SET TimeZone='UTC'\"],\
-             \"keysSnapshot\":\"TRANSACTION\",\"resultColumnLimit\":null}"
+             \"keysSnapshot\":\"TRANSACTION\",\"resultColumnLimit\":null,\"verdictSavepoint\":null,\
+             \"fusedStatementBudget\":2147483647}"
         );
     }
 
@@ -800,8 +801,8 @@ mod tests {
         let _serial = serial();
         assert_eq!(
             dialect(r#"{"dialect":"Oracle"}"#, "facts", "{}"),
-            "ERR\nILLEGAL_ARGUMENT\n-\n-\nunknown dialect 'Oracle': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, \
-             EngineStyleDB2, EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, \
+            "ERR\nILLEGAL_ARGUMENT\n-\n-\nunknown dialect 'Oracle': Rust answers DuckDb, H2, EngineStyleH2, EngineStyleDB2, \
+             EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, \
              Snowflake, MariaDb, MySql, MongoDb"
         );
         let geometry = r#"{"column":{"name":"g","dataType":"GEOMETRY","logicalType":"GEOMETRY","precision":null,"scale":null,"notNull":false}}"#;

@@ -30,9 +30,9 @@ const BOTH: [(&str, &str); 2] = [(MARIA, "MariaDb"), (MY, "MySql")];
 
 #[test]
 fn facts_are_each_databases() {
-    let tail = r#""keysSnapshot":"REPEATABLE_READ","resultColumnLimit":4096}"#;
+    let tail = r#""keysSnapshot":"REPEATABLE_READ","resultColumnLimit":4096,"verdictSavepoint":null,"fusedStatementBudget":2147483647}"#;
     let head = r#"{"temporaryTables":true,"loadsRowsInBulk":false,"relational":true,"inProcess":false,"#.to_owned()
-        + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"serverVersions":null,"#
+        + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"#
         + r#""inMemoryPath":null,"scriptAbort":null,"sessionSetup":["#;
     let mode = "SET SESSION sql_mode = 'ANSI_QUOTES,PIPES_AS_CONCAT,NO_BACKSLASH_ESCAPES,STRICT_ALL_TABLES,\
                 NO_ENGINE_SUBSTITUTION";
@@ -53,10 +53,6 @@ fn facts_are_each_databases() {
         )
     );
     for (spec, name) in BOTH {
-        // every server version is spelled alike; a spec's server keeps the dialect
-        assert_eq!(ok(spec, "forServer", r#"{"version":"11.4.13"}"#), format!("\"{name}\""));
-        let served = spec.replace("\"server\":null", "\"server\":\"8.4.3\"");
-        assert_eq!(dispatch(&served, "facts", "{}").unwrap(), ok(spec, "facts", "{}"));
         let configured = spec.replace("\"server\":null", "\"quoteIdentifiers\":true");
         assert_eq!(
             refused(&configured, "facts", "{}").message,
@@ -238,10 +234,6 @@ fn the_interface_answers_as_each_database() {
         assert_eq!(delivers(list, "VARCHAR"), "true");
         assert_eq!(delivers(bigint, "NULL"), "true");
         assert_eq!(answer("script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-        assert_eq!(
-            answer("failingStatement", r#"{"message":"x","statements":["a"]}"#),
-            "null"
-        );
         let r = refused(spec, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
         assert_eq!(
             (r.kind(), r.message.clone()),

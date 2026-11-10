@@ -43,9 +43,9 @@ fn facts_are_duckdbs() {
     assert_eq!(
         ok("facts", "{}"),
         r#"{"temporaryTables":true,"loadsRowsInBulk":true,"relational":true,"inProcess":true,"#.to_owned()
-            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":false,"serverVersions":null,"#
+            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":false,"#
             + r#""inMemoryPath":":memory:","scriptAbort":"ROLLBACK","sessionSetup":["SET TimeZone='UTC'"],"#
-            + r#""keysSnapshot":"TRANSACTION","resultColumnLimit":null}"#
+            + r#""keysSnapshot":"TRANSACTION","resultColumnLimit":null,"verdictSavepoint":null,"fusedStatementBudget":2147483647}"#
     );
 }
 
@@ -103,16 +103,15 @@ fn the_interfaces_defaults_answer_as_javas() {
     assert_eq!(
         to_compact(&facts(&d)),
         r#"{"temporaryTables":true,"loadsRowsInBulk":false,"relational":true,"inProcess":false,"#.to_owned()
-            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":false,"serverVersions":null,"#
+            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":false,"#
             + r#""inMemoryPath":null,"scriptAbort":null,"sessionSetup":[],"#
             + r#""keysSnapshot":{"refused":{"kind":"DIALECT_CAPABILITY","message":"a dynamic pivot's probe plan reached "#
             + r#"Plain, which says no snapshot for it"}},"resultColumnLimit":{"refused":{"kind":"DIALECT_CAPABILITY","#
-            + r#""message":"a dynamic pivot's probe plan reached Plain, which says no column limit for it"}}}"#
+            + r#""message":"a dynamic pivot's probe plan reached Plain, which says no column limit for it"}},"verdictSavepoint":null,"fusedStatementBudget":2147483647}"#
     );
     assert_eq!(d.script(&["a".into(), "b".into()]), "a;\nb;");
     assert_eq!(d.script(&[]), ";");
     assert_eq!(d.typing_wire_name(Some("int4")).as_deref(), Some("INTEGER"));
-    assert!(d.for_server("1.0").is_none());
     let column = CatalogColumn {
         name: "c".into(),
         data_type: "POINT".into(),
@@ -198,7 +197,7 @@ fn the_spec_carries_the_engines_scan_order() {
     );
     // the statement changed, so the process's count moved (other tests render beside this one: at least one)
     assert!(fired() > before, "StableScanOrder's firings did not move");
-    // missing: off; a server: DuckDB's text depends on none
+    // missing: off; a server: named by no spec since main's SqlDialect lost forServer (2026-11-05), refused
     let bare = dispatch(r#"{"dialect":"DuckDb"}"#, "query.render", &wrap("query", join)).unwrap();
     assert_eq!(bare, plain);
     let served = dispatch(
@@ -206,8 +205,11 @@ fn the_spec_carries_the_engines_scan_order() {
         "query.render",
         &wrap("query", join),
     )
-    .unwrap();
-    assert_eq!(served, plain);
+    .unwrap_err();
+    assert_eq!(
+        served.message,
+        "a dialect's spec names no server version: no dialect is chosen by one (main's SqlDialect, 2026-11-05)"
+    );
 }
 
 #[test]
@@ -352,7 +354,7 @@ fn wire_names_fold_and_nothing_is_delivered_by_a_convention() {
 }
 
 #[test]
-fn a_script_is_one_transaction_and_names_no_failing_statement() {
+fn a_script_is_one_transaction() {
     assert_eq!(
         ok(
             "script",
@@ -364,12 +366,10 @@ fn a_script_is_one_transaction_and_names_no_failing_statement() {
         ok("script", r#"{"statements":[]}"#),
         r#""BEGIN TRANSACTION;\n;\nCOMMIT;""#
     );
+    // failingStatement went with main's SqlDialect (2026-11-10): no op
     assert_eq!(
-        ok(
-            "failingStatement",
-            r#"{"message":"Constraint Error","statements":["a","b"]}"#
-        ),
-        "null"
+        refused("failingStatement", "{}").message,
+        "unknown dialect op 'failingStatement'"
     );
     assert_eq!(
         refused("script", r#"{"statements":[1]}"#).message,
@@ -589,7 +589,7 @@ fn the_seam_refuses_what_it_cannot_read() {
         (r.class, r.message.as_str()),
         (
             Refusal::ILLEGAL_ARGUMENT,
-            "unknown dialect 'Oracle': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, \
+            "unknown dialect 'Oracle': Rust answers DuckDb, H2, EngineStyleH2, EngineStyleDB2, \
              EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDb, MySql, \
              MongoDb"
         )

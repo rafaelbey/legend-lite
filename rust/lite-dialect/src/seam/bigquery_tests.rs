@@ -29,15 +29,9 @@ fn facts_are_bigquerys() {
     assert_eq!(
         ok(BQ, "facts", "{}"),
         r#"{"temporaryTables":true,"loadsRowsInBulk":false,"relational":true,"inProcess":false,"#.to_owned()
-            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"serverVersions":null,"#
+            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"#
             + r#""inMemoryPath":null,"scriptAbort":null,"sessionSetup":[],"keysSnapshot":"NONE","#
-            + r#""resultColumnLimit":10000}"#
-    );
-    // every server version is spelled alike; a spec's server keeps BigQuery
-    assert_eq!(ok(BQ, "forServer", r#"{"version":"1"}"#), r#""BigQuery""#);
-    assert_eq!(
-        dispatch(r#"{"dialect":"BigQuery","server":"2"}"#, "facts", "{}").unwrap(),
-        ok(BQ, "facts", "{}")
+            + r#""resultColumnLimit":10000,"verdictSavepoint":null,"fusedStatementBudget":500000}"#
     );
     assert_eq!(
         refused(r#"{"dialect":"BigQuery","quoteIdentifiers":false}"#, "facts", "{}").message,
@@ -166,10 +160,6 @@ fn the_interface_answers_as_bigquery() {
         "false"
     );
     assert_eq!(ok(BQ, "script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-    assert_eq!(
-        ok(BQ, "failingStatement", r#"{"message":"x","statements":["a"]}"#),
-        "null"
-    );
     let r = refused(BQ, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),

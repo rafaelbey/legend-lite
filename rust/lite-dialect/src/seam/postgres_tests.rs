@@ -30,15 +30,9 @@ fn facts_are_postgres() {
     assert_eq!(
         ok(PG, "facts", "{}"),
         r#"{"temporaryTables":true,"loadsRowsInBulk":false,"relational":true,"inProcess":false,"#.to_owned()
-            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"serverVersions":null,"#
+            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"#
             + r#""inMemoryPath":null,"scriptAbort":"ROLLBACK","sessionSetup":["SET TimeZone='UTC'"],"#
-            + r#""keysSnapshot":"REPEATABLE_READ","resultColumnLimit":1664}"#
-    );
-    // every server version is spelled alike; a spec's server keeps Postgres
-    assert_eq!(ok(PG, "forServer", r#"{"version":"16.4"}"#), r#""Postgres""#);
-    assert_eq!(
-        dispatch(r#"{"dialect":"Postgres","server":"17.0"}"#, "facts", "{}").unwrap(),
-        ok(PG, "facts", "{}")
+            + r#""keysSnapshot":"REPEATABLE_READ","resultColumnLimit":1664,"verdictSavepoint":{"set":"SAVEPOINT legend_verdicts","rollbackTo":"ROLLBACK TO SAVEPOINT legend_verdicts","release":"RELEASE SAVEPOINT legend_verdicts"},"fusedStatementBudget":2147483647}"#
     );
     // an engine-text dialect's configuration is no Postgres's
     assert_eq!(
@@ -186,10 +180,6 @@ fn the_interface_answers_as_postgres() {
     // the interface's defaults
     assert_eq!(ok(PG, "wireTypeName", r#"{"driverTypeName":"int8"}"#), r#""BIGINT""#);
     assert_eq!(ok(PG, "typingWireName", r#"{"driverTypeName":"int8"}"#), r#""BIGINT""#);
-    assert_eq!(
-        ok(PG, "failingStatement", r#"{"message":"x","statements":["a"]}"#),
-        "null"
-    );
     assert_eq!(ok(PG, "copySelectList", r#"{"conversions":[]}"#), r#""*""#);
     let r = refused(PG, "copySelectList", r#"{"conversions":[{"column":"c","sql":"x"}]}"#);
     assert_eq!(
@@ -306,11 +296,7 @@ fn reads_stored_answers_for_every_dialect() {
         assert_eq!(reads(PG, kind), read, "{kind}");
     }
     // every other dialect's rule: DuckDB's and the base's (only OTHER and DISTINCT, as text) ...
-    for spec in [
-        r#"{"dialect":"DuckDb"}"#,
-        r#"{"dialect":"H2"}"#,
-        r#"{"dialect":"H2Modern"}"#,
-    ] {
+    for spec in [r#"{"dialect":"DuckDb"}"#, r#"{"dialect":"H2"}"#] {
         assert_eq!(reads(spec, "DISTINCT"), "true", "{spec}");
         assert_eq!(reads(spec, "JSON"), "false", "{spec}");
     }

@@ -46,8 +46,7 @@ const STRING_PARAM: &str = r#"{"_type":"planParam","type":{"_type":"unknown"},"n
 #[test]
 fn the_seam_opens_the_three_with_their_configuration() {
     // the default configuration, its fields missing or given
-    for (spec, name) in ENGINE_TEXTS {
-        assert_eq!(ok(spec, "forServer", r#"{"version":"2.1.214"}"#), format!("\"{name}\""));
+    for (_, name) in ENGINE_TEXTS {
         let given = format!(r#"{{"dialect":"{name}","quoteIdentifiers":false,"timeZone":null}}"#);
         assert_eq!(ok(&given, "physicalName", r#"{"name":"a b"}"#), r#""\"a b\"""#);
     }
@@ -89,7 +88,7 @@ fn the_seam_opens_the_three_with_their_configuration() {
         .class,
         Refusal::ILLEGAL_ARGUMENT
     );
-    for name in ["DuckDb", "H2", "H2Modern"] {
+    for name in ["DuckDb", "H2"] {
         let r = refused(
             &format!(r#"{{"dialect":"{name}","quoteIdentifiers":false}}"#),
             "facts",
@@ -111,7 +110,7 @@ fn facts_are_the_interfaces_defaults_naming_the_dialect() {
         assert_eq!(
             ok(spec, "facts", "{}"),
             format!(
-                r#"{{"temporaryTables":true,"loadsRowsInBulk":false,"relational":true,"inProcess":false,"dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":false,"serverVersions":null,"inMemoryPath":null,"scriptAbort":null,"sessionSetup":[],"keysSnapshot":{{"refused":{{"kind":"DIALECT_CAPABILITY","message":"a dynamic pivot's probe plan reached {name}, which says no snapshot for it"}}}},"resultColumnLimit":{{"refused":{{"kind":"DIALECT_CAPABILITY","message":"a dynamic pivot's probe plan reached {name}, which says no column limit for it"}}}}}}"#
+                r#"{{"temporaryTables":true,"loadsRowsInBulk":false,"relational":true,"inProcess":false,"dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":false,"inMemoryPath":null,"scriptAbort":null,"sessionSetup":[],"keysSnapshot":{{"refused":{{"kind":"DIALECT_CAPABILITY","message":"a dynamic pivot's probe plan reached {name}, which says no snapshot for it"}}}},"resultColumnLimit":{{"refused":{{"kind":"DIALECT_CAPABILITY","message":"a dynamic pivot's probe plan reached {name}, which says no column limit for it"}}}},"verdictSavepoint":null,"fusedStatementBudget":2147483647}}"#
             )
         );
     }
@@ -228,14 +227,6 @@ fn names_raw_text_and_the_interfaces_defaults() {
             "false"
         );
         assert_eq!(ok(spec, "script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-        assert_eq!(
-            ok(
-                spec,
-                "failingStatement",
-                r#"{"message":"SQL statement: a","statements":["a"]}"#
-            ),
-            "null"
-        );
         // the catalog and the host: the interface's refusals, naming the dialect by its own simple name
         let r = refused(spec, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
         assert_eq!(
@@ -360,7 +351,7 @@ fn the_engine_text_ops_answer_as_engine_text_dialect_does() {
         r#""select \"session.temptableforin_x_0\".ColumnForStoringInCollection as ColumnForStoringInCollection from SESSION.tempTableForIn_x as \"session.temptableforin_x_0\"""#
     );
     // every other dialect refuses the engine ops by name
-    for name in ["DuckDb", "H2", "H2Modern"] {
+    for name in ["DuckDb", "H2"] {
         let r = refused(
             &format!(r#"{{"dialect":"{name}"}}"#),
             "engine.inTempTableSelect",

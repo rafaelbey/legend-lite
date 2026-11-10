@@ -38,7 +38,6 @@ use lite_sql::{MAX_DEPTH, SqlDdl, SqlDml, SqlQuery, ValueKind, read_ddl, read_dm
 pub const DIALECTS: &[&str] = &[
     "DuckDb",
     "H2",
-    "H2Modern",
     "EngineStyleH2",
     "EngineStyleDB2",
     "EngineStyleComposite",
@@ -57,7 +56,6 @@ pub const DIALECTS: &[&str] = &[
 /// Every op the seam answers (`SEAM.md`, "Ops").
 pub const OPS: &[&str] = &[
     "facts",
-    "forServer",
     "query.render",
     "query.renderInline",
     "query.renderStatement",
@@ -74,7 +72,6 @@ pub const OPS: &[&str] = &[
     "typingWireName",
     "deliversOwn",
     "script",
-    "failingStatement",
     "catalogType",
     "catalogColumnsQuery",
     "bareNameReaches",
@@ -112,9 +109,9 @@ pub fn dispatch(spec: &str, op: &str, args: &str) -> Result<String, Refusal> {
     Ok(to_compact(&answer(dialect.as_ref(), op, &args)?))
 }
 
-/// The dialect a spec names (`{"dialect": name, "server": version or null, "engineScanOrder": bool,
-/// "quoteIdentifiers": bool, "timeZone": zone or null}`), made fresh and then taken for its server (`forServer`) when
-/// the spec names one. `quoteIdentifiers` and `timeZone` configure an engine-text dialect (Java's constructor
+/// The dialect a spec names (`{"dialect": name, "server": null, "engineScanOrder": bool, "quoteIdentifiers": bool,
+/// "timeZone": zone or null}`), made fresh; a spec names no server version (`server` null or missing, since main's
+/// SqlDialect lost `forServer` on 2026-11-05; merged 2026-11-10). `quoteIdentifiers` and `timeZone` configure an engine-text dialect (Java's constructor
 /// arguments) and are refused on any other; `EngineStyleComposite` has only its default configuration.
 pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
     let spec = parse(spec).map_err(json)?;
@@ -122,7 +119,12 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
         return Err(Refusal::illegal_argument("a dialect's spec is a JSON object"));
     };
     let name = spec.str("dialect").map_err(json)?;
-    let server = spec.str_or_null("server").map_err(json)?;
+    // a server version: since main's 2026-11-05 no plan names one (lite's one H2), so a spec may name none
+    if spec.str_or_null("server").map_err(json)?.is_some() {
+        return Err(Refusal::illegal_argument(
+            "a dialect's spec names no server version: no dialect is chosen by one (main's SqlDialect, 2026-11-05)",
+        ));
+    }
     let engine_scan_order = match spec.get("engineScanOrder") {
         None => false,
         Some(_) => spec.bool("engineScanOrder").map_err(json)?,
@@ -135,8 +137,8 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
     let time_zone = spec.str_or_null("timeZone").map_err(json)?;
     let configured = spec.get("quoteIdentifiers").is_some() || spec.get("timeZone").is_some();
     let dialect: Box<dyn SqlDialect> = match name {
-        "DuckDb" | "H2" | "H2Modern" | "Postgres" | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery"
-        | "Snowflake" | "MariaDb" | "MySql" | "MongoDb"
+        "DuckDb" | "H2" | "Postgres" | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery" | "Snowflake"
+        | "MariaDb" | "MySql" | "MongoDb"
             if configured =>
         {
             return Err(Refusal::illegal_argument(format!(
@@ -150,7 +152,6 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
             Box::new(d)
         }
         "H2" => Box::new(H2::new()),
-        "H2Modern" => Box::new(H2::modern()),
         "Postgres" => Box::new(Postgres::new()),
         "SQLite" => Box::new(Sqlite::new()),
         "Trino" => Box::new(Trino::new()),
@@ -179,10 +180,7 @@ pub fn open(spec: &str) -> Result<Box<dyn SqlDialect>, Refusal> {
             )));
         }
     };
-    Ok(match server.and_then(|version| dialect.for_server(version)) {
-        Some(for_server) => for_server,
-        None => dialect,
-    })
+    Ok(dialect)
 }
 
 fn answer(d: &dyn SqlDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
@@ -206,16 +204,6 @@ fn answer(d: &dyn SqlDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
     }
     Ok(match op {
         "facts" => facts(d),
-        // the dialect a session of this server version is spelled in, by its name: the JVM builds its own shim of it
-        // (no Java code chooses a dialect by its class)
-        "forServer" => {
-            let version = string(a, "version")?;
-            let chosen = match d.for_server(version) {
-                Some(other) => other.dialect_name(),
-                None => d.dialect_name(),
-            };
-            text(chosen.to_owned())
-        }
         "duckdb.tables" => duckdb_tables(),
         // the process's StableScanOrder firings, every dialect's (Java's `StableScanOrder.firings()` adds them)
         "scanOrderFirings" => number(crate::scan_order::firings() as i64),
@@ -265,9 +253,6 @@ fn answer(d: &dyn SqlDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
             Node::Bool(d.delivers_own(&label, string(a, "wire")?))
         }
         "script" => text(d.script(&strings(a, "statements")?)),
-        "failingStatement" => d
-            .failing_statement(string(a, "message")?, &strings(a, "statements")?)
-            .map_or(Node::Null, |i| number(i as i64)),
         "catalogType" => catalog_type_json(&d.catalog_type(&read_catalog_column(a.obj("column").map_err(json)?)?)?),
         "catalogColumnsQuery" => text(d.catalog_columns_query(string(a, "schema")?, string(a, "table")?)?),
         "bareNameReaches" => Node::Bool(d.bare_name_reaches(string(a, "catalogName")?)?),
@@ -334,10 +319,6 @@ fn facts(d: &dyn SqlDialect) -> Node {
         Ok(limit) => limit.map_or(Node::Null, |n| number(i64::from(n))),
         Err(r) => refused_json(&r),
     };
-    let server_versions = match d.server_versions() {
-        Ok(versions) => versions.map_or(Node::Null, texts),
-        Err(r) => refused_json(&r),
-    };
     object(vec![
         ("temporaryTables", Node::Bool(d.temporary_tables())),
         ("loadsRowsInBulk", Node::Bool(d.loads_rows_in_bulk())),
@@ -348,7 +329,6 @@ fn facts(d: &dyn SqlDialect) -> Node {
             Node::Bool(d.drops_staged_tables_with_their_transaction()),
         ),
         ("needsStaticPivot", Node::Bool(d.needs_static_pivot())),
-        ("serverVersions", server_versions),
         ("inMemoryPath", d.in_memory_path().map_or(Node::Null, Node::Str)),
         ("scriptAbort", d.script_abort().map_or(Node::Null, Node::Str)),
         ("sessionSetup", texts(d.session_setup())),

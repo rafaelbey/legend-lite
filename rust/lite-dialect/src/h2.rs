@@ -1,22 +1,21 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! Java's `H2` (`core/src/main/java/com/legend/sql/dialect/H2.java`), the H2 execution dialect, and `H2Modern`
-//! (`H2Modern.java`, `extends H2`), its 2.3+ profile: the base renderer plus executable H2 2.1.214 SQL -- native
-//! QUALIFY, no LATERAL (the collection carrier rides JSON), no typed-JSON navigation on 2.1 (H2Modern spells it
-//! natively), case-sensitive names (a derived label quoted always, a physical name as the DDL spelled it) -- and, as
-//! its [`crate::SqlDialect`], its session facts and the server versions it is written for.
+//! Java's `H2` (`core/src/main/java/com/legend/sql/dialect/H2.java`), the H2 execution dialect: the base renderer
+//! plus executable SQL for lite's ONE H2, 2.5.252 -- native QUALIFY, no LATERAL (the collection carrier rides JSON),
+//! typed-JSON navigation (`(j)."field"`, `(j)[i]` one-based), case-sensitive names (a derived label quoted always, a
+//! physical name as the DDL spelled it) -- and, as its [`crate::SqlDialect`], its session facts.
 //!
-//! H2Modern is this struct with `modern` set: Java's subclass overrides ten methods, and each is a branch on it here
-//! (`server_versions`, `for_server`, `variant_get`, `struct_lit`, `struct_get`, `call`'s LIST_LENGTH arm,
-//! `variant_aware_cast`; its `scalarTypeName`, `formatText` and `reducer` are H2's by delegation). Every other answer,
-//! the refusals naming "H2" in their text included, is H2's.
+//! Until `main`'s 2026-11-05 (merged 2026-11-10) a second dialect, `H2Modern` (`extends H2`, chosen for a server of 2.3
+//! and later), spelled the navigation and H2 refused it; `main` folded its overrides into H2 (`variantGet`,
+//! `structLit`, `structGet`, LIST_LENGTH by `CARDINALITY`, the navigation cast) and deleted it with every plan's server
+//! versions (register S141), so this struct is H2 alone.
 
 use crate::ansi::{self, part};
 use crate::catalog::{self, TypeCode, Types};
 use crate::dialect::KeysSnapshot;
 use crate::h2_passes::h2_passes;
-use crate::java::{self, sql_type_text, type_fact_text};
+use crate::java::{sql_type_text, type_fact_text};
 use crate::refusal::{Refusal, arg};
 use crate::renderer::{AnsiSqlRenderer, AnsiState, Lexicon, PlanParam};
 use crate::rewriter::SqlRewriter;
@@ -29,31 +28,16 @@ use lite_sql::{
 };
 use std::sync::LazyLock;
 
-/// The H2 dialect, or (with `modern`) H2Modern: one per render, as Java's `new H2()` and `new H2Modern()`.
+/// The H2 dialect: one per render, as Java's `new H2()`.
 #[derive(Debug, Default)]
 pub struct H2 {
     ansi: AnsiState,
-    /// Java's `H2Modern`: the 2.3+ profile, chosen for a server H2's [`SERVERS`] do not name.
-    modern: bool,
 }
 
 impl H2 {
     /// Java's `new H2()`.
     pub fn new() -> H2 {
         H2::default()
-    }
-
-    /// Java's `new H2Modern()`.
-    pub fn modern() -> H2 {
-        H2 {
-            ansi: AnsiState::default(),
-            modern: true,
-        }
-    }
-
-    /// Whether this is H2Modern.
-    pub fn is_modern(&self) -> bool {
-        self.modern
     }
 }
 
@@ -65,10 +49,6 @@ pub const CAPS: crate::carrier::Caps = crate::carrier::Caps {
     json_carrier: false,
     native_full_outer: false,
 };
-
-/// Java's `H2.SERVERS`: the server versions this dialect writes for, as prefixes of the version a session reports --
-/// 2.1 and 2.2, the engine-parity target (the product's H2 is 2.1.214).
-pub const SERVERS: &[&str] = &["2.1", "2.2"];
 
 /// H2 2.1.214's reserved words, the engine's own list (h2Extension2_1_214.pure:180-192): Java's `ENGINE_LEXICON`, the
 /// golden text channel's set, in its order.
@@ -609,8 +589,15 @@ impl H2 {
         ansi::cast_type_name(self, t)
     }
 
-    /// H2Modern's LIST_LENGTH: `CARDINALITY` counts a JSON array's elements on 2.3+ (an Array-cast wrapper unwrapped).
+    /// LIST_LENGTH: `CARDINALITY` counts a JSON array's elements (probed: 3 for `'[1,2,3]'`); an Array-typed cast over the
+    /// list only re-types it and is unwrapped. Java's `IllegalArgumentException` for any other arity.
     fn list_length(&self, w: &mut SqlWriter, a: &[SqlExpr]) -> Result<(), Refusal> {
+        if a.len() != 1 {
+            return Err(Refusal::illegal_argument(format!(
+                "LIST_LENGTH takes one list, given {}",
+                a.len()
+            )));
+        }
         let mut x = &a[0];
         if let SqlExpr::Cast {
             value,
@@ -621,6 +608,59 @@ impl H2 {
             x = value;
         }
         w.append("CARDINALITY(").expr(self, x, 0)?.append(")");
+        Ok(())
+    }
+
+    /// `JSON_TYPE`: H2 has no `json_type`; its kind read from the SQL standard's `IS JSON` predicates and the value's
+    /// text (`CAST` to VARCHAR keeps the JSON spelling), named as [`AnsiSqlRenderer::json_kind_name`] names it -- probed
+    /// on 2.5.252 over every kind. SQL's NULL answers NULL, as DuckDB's does (main's H2.jsonType, 2026-11-05).
+    fn json_type(&self, w: &mut SqlWriter, x: &SqlExpr) -> Result<(), Refusal> {
+        let name = |kind: JsonKind| -> Result<String, Refusal> { self.string_lit(&self.json_kind_name(kind)?) };
+        w.append("(CASE WHEN (")
+            .expr(self, x, 0)?
+            .append(") IS NULL THEN NULL WHEN (");
+        w.expr(self, x, 0)?
+            .append(") IS JSON OBJECT THEN ")
+            .append(&name(JsonKind::Object)?);
+        w.append(" WHEN (")
+            .expr(self, x, 0)?
+            .append(") IS JSON ARRAY THEN ")
+            .append(&name(JsonKind::Array)?);
+        w.append(" WHEN CAST((")
+            .expr(self, x, 0)?
+            .append(") AS VARCHAR) = 'null' THEN ");
+        w.append(&name(JsonKind::Null)?);
+        w.append(" WHEN CAST((")
+            .expr(self, x, 0)?
+            .append(") AS VARCHAR) IN ('true', 'false') THEN ");
+        w.append(&name(JsonKind::Boolean)?);
+        w.append(" WHEN CAST((")
+            .expr(self, x, 0)?
+            .append(") AS VARCHAR) LIKE '\"%' THEN ");
+        w.append(&name(JsonKind::String)?);
+        w.append(" WHEN REGEXP_LIKE(CAST((")
+            .expr(self, x, 0)?
+            .append(") AS VARCHAR), '^-?[0-9]+$') THEN ");
+        w.append(&name(JsonKind::Integer)?);
+        w.append(" ELSE ").append(&name(JsonKind::Float)?).append(" END)");
+        Ok(())
+    }
+
+    /// `ASIN` and `ACOS`: NaN outside the domain, as the engine's H2 answers; the function reads its argument CLAMPED to
+    /// the domain (H2 folds a constant inside a CASE's untaken branch too, and raises on `acos(2.0)` there), and an
+    /// absent argument stays absent (NULL fails the BETWEEN and falls through to NULL) -- main's H2.domainGuarded,
+    /// 2026-11-06.
+    fn domain_guarded(&self, w: &mut SqlWriter, f: &str, a: &[SqlExpr]) -> Result<(), Refusal> {
+        let x = arg(a, 0)?;
+        w.append("(CASE WHEN (")
+            .expr(self, x, 0)?
+            .append(") BETWEEN -1 AND 1 THEN ")
+            .append(f);
+        w.append("(LEAST(GREATEST(")
+            .expr(self, x, 0)?
+            .append(", -1), 1)) WHEN (");
+        w.expr(self, x, 0)?
+            .append(") IS NOT NULL THEN CAST('NaN' AS DOUBLE PRECISION) END)");
         Ok(())
     }
 }
@@ -635,7 +675,7 @@ impl AnsiSqlRenderer for H2 {
     }
 
     fn simple_name(&self) -> &'static str {
-        if self.modern { "H2Modern" } else { "H2" }
+        "H2"
     }
 
     /// The engine's H2 text is H2's own.
@@ -876,8 +916,6 @@ impl AnsiSqlRenderer for H2 {
     ) -> Result<(), Refusal> {
         use SqlFn as F;
         match f {
-            // H2Modern: CARDINALITY counts a JSON array's elements on 2.3+
-            F::ListLength if self.modern && a.len() == 1 => self.list_length(w, a),
             F::Format => self.format_arm(w, a),
             F::Equal => self.equal_arm(w, a, parent_prec),
             F::DateDiff => self.date_diff_arm(w, a),
@@ -1087,8 +1125,10 @@ impl AnsiSqlRenderer for H2 {
             F::Sin => self.plain(w, "sin", a),
             F::Cos => self.plain(w, "cos", a),
             F::Tan => self.plain(w, "tan", a),
-            F::Asin => self.plain(w, "asin", a),
-            F::Acos => self.plain(w, "acos", a),
+            // outside [-1, 1] the engine's H2 (2.1.214) answers NaN and H2 2.5 raises, as DuckDB does: the domain
+            // guarded, the engine's answer
+            F::Asin => self.domain_guarded(w, "asin", a),
+            F::Acos => self.domain_guarded(w, "acos", a),
             F::Atan => self.plain(w, "atan", a),
             F::Atan2 => self.plain(w, "atan2", a),
             F::Sinh => self.plain(w, "sinh", a),
@@ -1135,11 +1175,11 @@ impl AnsiSqlRenderer for H2 {
             F::Degrees => self.plain(w, "degrees", a),
             F::RepeatStr => self.plain(w, "repeat", a),
             F::JaroWinkler => self.plain(w, "jaro_winkler_similarity", a),
-            F::ListLength => self.plain(w, "len", a),
+            F::ListLength => self.list_length(w, a),
             F::Strftime => self.plain(w, "formatdatetime", a),
             F::Strptime => self.plain(w, "parsedatetime", a),
             F::FloorRaw => self.plain(w, "floor", a),
-            F::JsonType => self.plain(w, "json_type", a),
+            F::JsonType => self.json_type(w, arg(a, 0)?),
             F::JsonArrayLength => self.plain(w, "json_array_length", a),
             F::JsonPretty => self.plain(w, "json_pretty", a),
             // refused by name: H2 cannot run DuckDB's spelling
@@ -1387,7 +1427,7 @@ impl AnsiSqlRenderer for H2 {
         Ok(())
     }
 
-    /// A cast to JSON parses; a boolean cast to text spells the reference's `true`/`false`. H2Modern first: a scalar
+    /// A cast to JSON parses; a boolean cast to text spells the reference's `true`/`false`; then (H2Modern's until 2026-11-05) a scalar
     /// cast over a navigation extracts the text and strips its JSON quoting.
     fn variant_aware_cast(
         &self,
@@ -1396,25 +1436,25 @@ impl AnsiSqlRenderer for H2 {
         target: &SqlType,
         conform: bool,
     ) -> Result<(), Refusal> {
-        if self.modern {
-            let navigation = matches!(
-                value,
-                SqlExpr::Call {
-                    r#fn: SqlFn::VariantGet | SqlFn::VariantElements,
-                    ..
-                }
-            ) || matches!(value, SqlExpr::StructGet { .. });
-            if navigation && matches!(target, SqlType::Scalar(sc) if *sc != Scalar::Json) {
-                w.append("CAST(TRIM(BOTH '\"' FROM CAST(")
-                    .expr(self, value, 0)?
-                    .append(" AS VARCHAR)) AS ");
-                let t = ansi::cast_type_name(self, target)?;
-                w.append(&t).append(")");
-                return Ok(());
-            }
-        }
         if *target == SqlType::Scalar(Scalar::Json) {
             return self.json_parse_cast(w, value);
+        }
+        // a scalar cast over a navigation extracts TEXT first: H2 rejects JSON -> number/boolean casts outright and its
+        // VARCHAR cast keeps the JSON quoting (probed) -- TRIM strips it
+        let navigation = matches!(
+            value,
+            SqlExpr::Call {
+                r#fn: SqlFn::VariantGet | SqlFn::VariantElements,
+                ..
+            }
+        ) || matches!(value, SqlExpr::StructGet { .. });
+        if navigation && matches!(target, SqlType::Scalar(_)) {
+            w.append("CAST(TRIM(BOTH '\"' FROM CAST(")
+                .expr(self, value, 0)?
+                .append(" AS VARCHAR)) AS ");
+            let t = ansi::cast_type_name(self, target)?;
+            w.append(&t).append(")");
+            return Ok(());
         }
         // a value whose type fact is BOOLEAN takes the reference spelling too, not only a boolean-shaped one
         let boolean_fact = matches!(
@@ -1486,37 +1526,33 @@ impl AnsiSqlRenderer for H2 {
         )))
     }
 
-    /// H2Modern: `(x)."key"` for a literal key, `(x)[i+1]` for a literal index (one-based); a dynamic key is refused.
+    /// `(x)."key"` for a literal key, `(x)[i+1]` for a literal index (one-based); a dynamic key has no spelling (field
+    /// access is an identifier) and meets the base renderer's wall.
     fn variant_get(&self, w: &mut SqlWriter, args: &[SqlExpr]) -> Result<(), Refusal> {
-        if self.modern {
-            match arg(args, 1)? {
-                SqlExpr::StringLit { value: key, .. } => {
-                    w.append("(")
-                        .expr(self, &args[0], 7)?
-                        .append(").\"")
-                        .append(&key.replace('"', "\"\""))
-                        .append("\"");
-                    return Ok(());
-                }
-                SqlExpr::IntLit { value: ix, .. } => {
-                    w.append("(")
-                        .expr(self, &args[0], 7)?
-                        .append(")[")
-                        .append_long(ix.wrapping_add(1))
-                        .append("]");
-                    return Ok(());
-                }
-                _ => {}
+        match arg(args, 1)? {
+            SqlExpr::StringLit { value: key, .. } => {
+                w.append("(")
+                    .expr(self, &args[0], 7)?
+                    .append(").\"")
+                    .append(&key.replace('"', "\"\""))
+                    .append("\"");
+                return Ok(());
             }
+            SqlExpr::IntLit { value: ix, .. } => {
+                w.append("(")
+                    .expr(self, &args[0], 7)?
+                    .append(")[")
+                    .append_long(ix.wrapping_add(1))
+                    .append("]");
+                return Ok(());
+            }
+            _ => {}
         }
         ansi::variant_get(self, w, args)
     }
 
-    /// H2Modern: a struct literal is a JSON object (its canonical field order).
+    /// A struct value rides the JSON-object carrier: a literal is `JSON_OBJECT` (canonical field order).
     fn struct_lit(&self, w: &mut SqlWriter, fields: &[StructLitField]) -> Result<(), Refusal> {
-        if !self.modern {
-            return ansi::struct_lit(self, w, fields);
-        }
         w.append("JSON_OBJECT(").join(fields, ", ", |w, f| {
             let name = self.string_lit(&f.name)?;
             w.append(&name).append(": ").expr(self, &f.value, 0)?;
@@ -1526,11 +1562,8 @@ impl AnsiSqlRenderer for H2 {
         Ok(())
     }
 
-    /// H2Modern: a field read is navigation, `(x)."field"`.
+    /// A field read is navigation, `(x)."field"`.
     fn struct_get(&self, w: &mut SqlWriter, source: &SqlExpr, field: &str, _type: &TypeFact) -> Result<(), Refusal> {
-        if !self.modern {
-            return ansi::struct_get(self, w, source, field);
-        }
         w.append("(")
             .expr(self, source, 7)?
             .append(").\"")
@@ -1566,7 +1599,7 @@ fn within_group_shaped(r: &Reducer) -> bool {
 }
 
 // ==================================================================
-// H2's `SqlDialect`: the renders as its renderer writes them, and what H2.java and H2Modern.java override of the
+// H2's `SqlDialect`: the renders as its renderer writes them, and what H2.java overrides of the
 // interface
 // ==================================================================
 
@@ -1627,26 +1660,6 @@ impl crate::dialect::SqlDialect for H2 {
         AnsiSqlRenderer::table_name(self, name, quoting)
     }
 
-    /// H2 2.3+ has typed-JSON navigation, which H2Modern spells natively; 2.1 and 2.2 (the engine-parity target,
-    /// [`SERVERS`]) keep H2's walls. H2Modern is already the 2.3+ profile.
-    fn for_server(&self, version: &str) -> Option<Box<dyn crate::dialect::SqlDialect>> {
-        if self.modern || SERVERS.iter().any(|s| version.starts_with(s)) {
-            return None;
-        }
-        Some(Box::new(H2::modern()))
-    }
-
-    /// [`SERVERS`]; H2Modern refuses: it is chosen for a server at run time, never planned with.
-    fn server_versions(&self) -> Result<Option<Vec<String>>, Refusal> {
-        if self.modern {
-            return Err(Refusal::capability(format!(
-                "H2Modern: a plan is written for H2's servers [{}], and H2Modern is chosen for any other at run time",
-                SERVERS.join(", ")
-            )));
-        }
-        Ok(Some(SERVERS.iter().map(|s| (*s).to_owned()).collect()))
-    }
-
     /// An embedded engine.
     fn in_process(&self) -> bool {
         true
@@ -1670,14 +1683,5 @@ impl crate::dialect::SqlDialect for H2 {
     /// No native dynamic PIVOT: the two-phase staticization pre-pass pins the key values.
     fn needs_static_pivot(&self) -> bool {
         true
-    }
-
-    /// H2 names the failing statement of a script (`SQL statement: <text>`; a later failure quotes the script from
-    /// that statement on): the index of the statement the quote starts with.
-    fn failing_statement(&self, message: &str, statements: &[String]) -> Option<usize> {
-        const MARK: &str = "SQL statement: ";
-        let at = message.find(MARK)?;
-        let quoted = java::strip(&message[at + MARK.len()..]);
-        statements.iter().position(|s| quoted.starts_with(java::strip(s)))
     }
 }

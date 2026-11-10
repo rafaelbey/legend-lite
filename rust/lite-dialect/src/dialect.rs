@@ -145,18 +145,8 @@ pub trait SqlDialect {
         Ok(out)
     }
 
-    /// This dialect for the server version a session reports: `None` keeps this one (Java's `return this`).
-    /// Default: every version is spelled alike.
-    fn for_server(&self, version: &str) -> Option<Box<dyn SqlDialect>> {
-        let _ = version;
-        None
-    }
-
-    /// The server versions this dialect's text is written for; none when it depends on no server's version; refused
-    /// by a dialect no plan is written in (H2Modern's).
-    fn server_versions(&self) -> Result<Option<Vec<String>>, Refusal> {
-        Ok(None)
-    }
+    // (for_server and server_versions went 2026-11-10 with main's SqlDialect, which lost both on 2026-11-05: lite's one
+    // H2, no plan names a server version)
 
     /// Whether a target loads its declared rows through the database's own bulk loader. Default: no.
     fn loads_rows_in_bulk(&self) -> bool {
@@ -253,11 +243,7 @@ pub trait SqlDialect {
         i32::MAX
     }
 
-    /// Which statement of a failed script the engine's message names (0-based). Default: the engine does not say.
-    fn failing_statement(&self, message: &str, statements: &[String]) -> Option<usize> {
-        let _ = (message, statements);
-        None
-    }
+    // (failing_statement went 2026-11-10 with main's SqlDialect, which lost it with the walk's failed scripts)
 
     /// A column as this database's catalog describes it. Default: refused, naming the type and the dialect.
     fn catalog_type(&self, column: &CatalogColumn) -> Result<CatalogType, Refusal> {

@@ -29,15 +29,9 @@ fn facts_are_trinos() {
     assert_eq!(
         ok(TR, "facts", "{}"),
         r#"{"temporaryTables":false,"loadsRowsInBulk":false,"relational":true,"inProcess":false,"#.to_owned()
-            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"serverVersions":null,"#
+            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"#
             + r#""inMemoryPath":null,"scriptAbort":null,"sessionSetup":["SET TIME ZONE 'UTC'"],"#
-            + r#""keysSnapshot":"NONE","resultColumnLimit":null}"#
-    );
-    // every server version is spelled alike; a spec's server keeps Trino
-    assert_eq!(ok(TR, "forServer", r#"{"version":"483"}"#), r#""Trino""#);
-    assert_eq!(
-        dispatch(r#"{"dialect":"Trino","server":"400"}"#, "facts", "{}").unwrap(),
-        ok(TR, "facts", "{}")
+            + r#""keysSnapshot":"NONE","resultColumnLimit":null,"verdictSavepoint":null,"fusedStatementBudget":2147483647}"#
     );
     // an engine-text dialect's configuration is no Trino's
     assert_eq!(
@@ -210,10 +204,6 @@ fn the_interface_answers_as_trino() {
     assert_eq!(delivers(r#"{"_type":"scalar","name":"JSON"}"#, "JSON"), "false");
     // the interface's defaults
     assert_eq!(ok(TR, "script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-    assert_eq!(
-        ok(TR, "failingStatement", r#"{"message":"x","statements":["a"]}"#),
-        "null"
-    );
     assert_eq!(ok(TR, "copySelectList", r#"{"conversions":[]}"#), r#""*""#);
     let r = refused(TR, "copySelectList", r#"{"conversions":[{"column":"c","sql":"x"}]}"#);
     assert_eq!(

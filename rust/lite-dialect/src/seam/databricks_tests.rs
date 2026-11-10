@@ -29,15 +29,9 @@ fn facts_are_databricks() {
     assert_eq!(
         ok(DB, "facts", "{}"),
         r#"{"temporaryTables":true,"loadsRowsInBulk":false,"relational":true,"inProcess":false,"#.to_owned()
-            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"serverVersions":null,"#
+            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"#
             + r#""inMemoryPath":null,"scriptAbort":null,"sessionSetup":["SET TIME ZONE 'UTC'","SET ANSI_MODE = true"],"#
-            + r#""keysSnapshot":"NONE","resultColumnLimit":null}"#
-    );
-    // every server version is spelled alike; a spec's server keeps Databricks
-    assert_eq!(ok(DB, "forServer", r#"{"version":"15.4"}"#), r#""Databricks""#);
-    assert_eq!(
-        dispatch(r#"{"dialect":"Databricks","server":"14"}"#, "facts", "{}").unwrap(),
-        ok(DB, "facts", "{}")
+            + r#""keysSnapshot":"NONE","resultColumnLimit":null,"verdictSavepoint":null,"fusedStatementBudget":2147483647}"#
     );
     assert_eq!(
         refused(r#"{"dialect":"Databricks","quoteIdentifiers":true}"#, "facts", "{}").message,
@@ -168,10 +162,6 @@ fn the_interface_answers_as_databricks() {
         "false"
     );
     assert_eq!(ok(DB, "script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-    assert_eq!(
-        ok(DB, "failingStatement", r#"{"message":"x","statements":["a"]}"#),
-        "null"
-    );
     let r = refused(DB, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),

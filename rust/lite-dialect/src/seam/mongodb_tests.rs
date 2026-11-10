@@ -28,12 +28,8 @@ fn wrap(key: &str, mir: &str) -> String {
 fn facts_are_mongodbs() {
     assert_eq!(
         ok("facts", "{}"),
-        r#"{"temporaryTables":false,"loadsRowsInBulk":false,"relational":false,"inProcess":false,"dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":false,"serverVersions":null,"inMemoryPath":null,"scriptAbort":null,"sessionSetup":[],"keysSnapshot":"NONE","resultColumnLimit":null}"#
+        r#"{"temporaryTables":false,"loadsRowsInBulk":false,"relational":false,"inProcess":false,"dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":false,"inMemoryPath":null,"scriptAbort":null,"sessionSetup":[],"keysSnapshot":"NONE","resultColumnLimit":null,"verdictSavepoint":null,"fusedStatementBudget":2147483647}"#
     );
-    // every server version is spelled alike; a spec's server keeps the dialect
-    assert_eq!(ok("forServer", r#"{"version":"8.0.17"}"#), "\"MongoDb\"");
-    let served = MONGO.replace("\"server\":null", "\"server\":\"8.0.17\"");
-    assert_eq!(dispatch(&served, "facts", "{}").unwrap(), ok("facts", "{}"));
     let configured = MONGO.replace("\"server\":null", "\"timeZone\":\"UTC\"");
     assert_eq!(
         dispatch(&configured, "facts", "{}").unwrap_err().message,
@@ -185,7 +181,6 @@ fn the_interface_answers_with_its_defaults() {
         "false"
     );
     assert_eq!(ok("script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-    assert_eq!(ok("failingStatement", r#"{"message":"x","statements":["a"]}"#), "null");
     let r = refused("catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),

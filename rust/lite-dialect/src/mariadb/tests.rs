@@ -502,11 +502,11 @@ fn the_facts_and_the_wire_answer_as_java() {
     for d in [&maria, &my] {
         assert_eq!(d.keys_snapshot().unwrap(), KeysSnapshot::RepeatableRead);
         assert_eq!(d.result_column_limit().unwrap(), Some(4096));
+        assert_eq!(d.verdict_savepoint(), None);
+        assert_eq!(d.fused_statement_budget(), i32::MAX);
         assert!(d.needs_static_pivot());
         assert!(d.temporary_tables());
         assert!(d.relational() && !d.in_process() && !d.loads_rows_in_bulk());
-        assert_eq!(d.server_versions().unwrap(), None);
-        assert!(d.for_server("11.4.13").is_none());
         assert_eq!(d.wire_type_name(Some("LONGTEXT")), "VARCHAR");
         assert_eq!(d.wire_type_name(Some("UUID")), "VARCHAR");
         assert_eq!(d.wire_type_name(Some("DATETIME")), "TIMESTAMP");
@@ -544,7 +544,6 @@ fn the_facts_and_the_wire_answer_as_java() {
         assert!(d.delivers_own(&t(Scalar::Json), "VARCHAR"));
         assert!(!d.delivers_own(&t(Scalar::Double), "DECIMAL(10,0)"));
         assert_eq!(d.script(&["a".into(), "b".into()]), "a;\nb;");
-        assert_eq!(d.failing_statement("boom", &["a".into()]), None);
         assert_eq!(d.script_abort(), None);
         assert_eq!(
             refused(SqlDialect::from_engine_text(d, "SELECT 1")),

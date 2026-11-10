@@ -243,11 +243,11 @@ fn a_type_hole_follows_its_placeholder() {
 #[test]
 fn a_refusal_carries_the_java_class_and_message() {
     let r = Refusal::capability("pivot reached a dialect without a PIVOT strategy");
-    assert_eq!(r.class, "com.legend.sql.dialect.DialectCapability");
+    assert_eq!(r.class, "com.legend.sql.DialectCapability");
     assert!(r.is_capability());
     assert_eq!(
         r.to_string(),
-        "com.legend.sql.dialect.DialectCapability: pivot reached a dialect without a PIVOT strategy"
+        "com.legend.sql.DialectCapability: pivot reached a dialect without a PIVOT strategy"
     );
     assert!(!Refusal::illegal_state("x").is_capability());
     assert_eq!(

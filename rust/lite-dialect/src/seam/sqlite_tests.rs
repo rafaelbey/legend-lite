@@ -29,15 +29,9 @@ fn facts_are_sqlites() {
     assert_eq!(
         ok(SQ, "facts", "{}"),
         r#"{"temporaryTables":true,"loadsRowsInBulk":false,"relational":true,"inProcess":true,"#.to_owned()
-            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"serverVersions":null,"#
+            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"#
             + r#""inMemoryPath":null,"scriptAbort":null,"sessionSetup":["PRAGMA case_sensitive_like = ON"],"#
-            + r#""keysSnapshot":"TRANSACTION","resultColumnLimit":2000}"#
-    );
-    // every server version is spelled alike; a spec's server keeps SQLite
-    assert_eq!(ok(SQ, "forServer", r#"{"version":"3.47.1"}"#), r#""SQLite""#);
-    assert_eq!(
-        dispatch(r#"{"dialect":"SQLite","server":"3.0"}"#, "facts", "{}").unwrap(),
-        ok(SQ, "facts", "{}")
+            + r#""keysSnapshot":"TRANSACTION","resultColumnLimit":2000,"verdictSavepoint":null,"fusedStatementBudget":500000}"#
     );
     // an engine-text dialect's configuration is no SQLite's
     assert_eq!(
@@ -231,10 +225,6 @@ fn the_interface_answers_as_sqlite() {
     assert_eq!(delivers(&scalar("DOUBLE"), "DOUBLE"), "false");
     // the interface's defaults
     assert_eq!(ok(SQ, "script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-    assert_eq!(
-        ok(SQ, "failingStatement", r#"{"message":"x","statements":["a"]}"#),
-        "null"
-    );
     assert_eq!(ok(SQ, "copySelectList", r#"{"conversions":[]}"#), r#""*""#);
     let r = refused(SQ, "copySelectList", r#"{"conversions":[{"column":"c","sql":"x"}]}"#);
     assert_eq!(

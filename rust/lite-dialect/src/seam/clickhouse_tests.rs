@@ -34,15 +34,9 @@ fn facts_are_clickhouses() {
     assert_eq!(
         ok(CH, "facts", "{}"),
         r#"{"temporaryTables":true,"loadsRowsInBulk":false,"relational":true,"inProcess":false,"#.to_owned()
-            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"serverVersions":null,"#
+            + r#""dropsStagedTablesWithTheirTransaction":false,"needsStaticPivot":true,"#
             + r#""inMemoryPath":null,"scriptAbort":null,"sessionSetup":[],"keysSnapshot":"NONE","#
-            + r#""resultColumnLimit":null}"#
-    );
-    // every server version is spelled alike; a spec's server keeps ClickHouse
-    assert_eq!(ok(CH, "forServer", r#"{"version":"25.8"}"#), r#""ClickHouse""#);
-    assert_eq!(
-        dispatch(r#"{"dialect":"ClickHouse","server":"24"}"#, "facts", "{}").unwrap(),
-        ok(CH, "facts", "{}")
+            + r#""resultColumnLimit":null,"verdictSavepoint":null,"fusedStatementBudget":100000}"#
     );
     assert_eq!(
         refused(r#"{"dialect":"ClickHouse","timeZone":"UTC"}"#, "facts", "{}").message,
@@ -170,10 +164,6 @@ fn the_interface_answers_as_clickhouse() {
         "false"
     );
     assert_eq!(ok(CH, "script", r#"{"statements":["a","b"]}"#), r#""a;\nb;""#);
-    assert_eq!(
-        ok(CH, "failingStatement", r#"{"message":"x","statements":["a"]}"#),
-        "null"
-    );
     let r = refused(CH, "catalogColumnsQuery", r#"{"schema":"s","table":"t"}"#);
     assert_eq!(
         (r.kind(), r.message.as_str()),

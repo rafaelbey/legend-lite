@@ -1,14 +1,13 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! Every op of the seam through [`dispatch`] for H2 and H2Modern, each answer held to what Java's `SqlDialect`
-//! answers for them (`H2.java`'s and `H2Modern.java`'s overrides, `AnsiSqlRenderer`'s implementations, the
-//! interface's defaults naming the dialect). The golden oracles hold the renders (`tests/dialect_differential.rs`).
+//! Every op of the seam through [`dispatch`] for H2, each answer held to what Java's `SqlDialect` answers for it
+//! (`H2.java`'s overrides, `AnsiSqlRenderer`'s implementations, the interface's defaults naming the dialect; H2Modern
+//! went with main's 2026-11-05, merged 2026-11-10). The golden oracles hold the renders (`tests/dialect_differential.rs`).
 
 use super::*;
 
 const H2: &str = r#"{"dialect":"H2","server":null}"#;
-const H2_MODERN: &str = r#"{"dialect":"H2Modern","server":null}"#;
 
 fn ok(spec: &str, op: &str, args: &str) -> String {
     dispatch(spec, op, args).unwrap_or_else(|r| panic!("{spec} {op} {args}: {r}"))
@@ -25,64 +24,19 @@ fn wrap(key: &str, mir: &str) -> String {
     format!("{{\"{key}\":{mir}}}")
 }
 
-/// The facts both share, before `serverVersions`.
-const SHARED_FACTS: &str = r#"{"temporaryTables":true,"loadsRowsInBulk":false,"relational":true,"inProcess":true,"dropsStagedTablesWithTheirTransaction":true,"needsStaticPivot":true,"serverVersions":"#;
+/// H2's facts, before `inMemoryPath`.
+const SHARED_FACTS: &str = r#"{"temporaryTables":true,"loadsRowsInBulk":false,"relational":true,"inProcess":true,"dropsStagedTablesWithTheirTransaction":true,"needsStaticPivot":true"#;
 
-/// The facts both share, after `serverVersions`.
-const SHARED_TAIL: &str = r#","inMemoryPath":null,"scriptAbort":null,"sessionSetup":[],"keysSnapshot":"REPEATABLE_READ","resultColumnLimit":16384}"#;
-
-const MODERN_REFUSES_SERVERS: &str = r#"{"refused":{"kind":"DIALECT_CAPABILITY","message":"H2Modern: a plan is written for H2's servers [2.1, 2.2], and H2Modern is chosen for any other at run time"}}"#;
+/// H2's facts, from `inMemoryPath` on.
+const SHARED_TAIL: &str = r#","inMemoryPath":null,"scriptAbort":null,"sessionSetup":[],"keysSnapshot":"REPEATABLE_READ","resultColumnLimit":16384,"verdictSavepoint":null,"fusedStatementBudget":2147483647}"#;
 
 #[test]
-fn facts_are_h2s_and_h2moderns() {
+fn facts_are_h2s() {
+    assert_eq!(ok(H2, "facts", "{}"), format!("{SHARED_FACTS}{SHARED_TAIL}"));
+    // H2Modern is no dialect the seam opens: main deleted it on 2026-11-05 (merged 2026-11-10)
     assert_eq!(
-        ok(H2, "facts", "{}"),
-        format!(r#"{SHARED_FACTS}["2.1","2.2"]{SHARED_TAIL}"#)
-    );
-    // H2Modern is chosen at run time, never planned with: its server versions are refused, not null
-    assert_eq!(
-        ok(H2_MODERN, "facts", "{}"),
-        format!("{SHARED_FACTS}{MODERN_REFUSES_SERVERS}{SHARED_TAIL}")
-    );
-}
-
-#[test]
-fn a_server_chooses_h2_or_h2modern_by_its_versions_prefix() {
-    let for_server = |spec: &str, version: &str| ok(spec, "forServer", &format!(r#"{{"version":"{version}"}}"#));
-    // H2.SERVERS.stream().anyMatch(version::startsWith) ? this : new H2Modern()
-    assert_eq!(for_server(H2, "2.1.214"), r#""H2""#);
-    assert_eq!(for_server(H2, "2.2.224"), r#""H2""#);
-    assert_eq!(for_server(H2, "2.3.232"), r#""H2Modern""#);
-    assert_eq!(for_server(H2, "2.4.240"), r#""H2Modern""#);
-    assert_eq!(for_server(H2, ""), r#""H2Modern""#);
-    // a prefix, as Java's startsWith: 2.10 starts with 2.1
-    assert_eq!(for_server(H2, "2.10"), r#""H2""#);
-    // H2Modern is already the 2.3+ profile; DuckDB keeps itself
-    assert_eq!(for_server(H2_MODERN, "2.1.214"), r#""H2Modern""#);
-    assert_eq!(for_server(H2_MODERN, "2.4.240"), r#""H2Modern""#);
-    assert_eq!(for_server(r#"{"dialect":"DuckDb"}"#, "1.4.1"), r#""DuckDb""#);
-    assert_eq!(refused(H2, "forServer", "{}").message, "missing field 'version'");
-    assert_eq!(
-        refused(H2, "forServer", r#"{"version":null}"#).message,
-        "field 'version' is null, not a string"
-    );
-    // a spec naming a server opens the dialect for it
-    assert_eq!(
-        dispatch(r#"{"dialect":"H2","server":"2.3.232"}"#, "facts", "{}").unwrap(),
-        ok(H2_MODERN, "facts", "{}")
-    );
-    assert_eq!(
-        dispatch(r#"{"dialect":"H2","server":"2.1.214"}"#, "facts", "{}").unwrap(),
-        ok(H2, "facts", "{}")
-    );
-    assert_eq!(
-        dispatch(
-            r#"{"dialect":"H2","server":"2.3.232"}"#,
-            "forServer",
-            r#"{"version":"2.1"}"#
-        )
-        .unwrap(),
-        r#""H2Modern""#
+        refused(r#"{"dialect":"H2Modern","server":null}"#, "facts", "{}").class,
+        Refusal::ILLEGAL_ARGUMENT
     );
 }
 
@@ -113,7 +67,7 @@ fn queries_render_as_h2_writes_them() {
     );
     // a value-typed one to a type hole of every kind, in the kinds' declared order
     assert_eq!(
-        ok(H2_MODERN, "query.renderStatement", &wrap("query", VALUE_TYPED_SELECT)),
+        ok(H2, "query.renderStatement", &wrap("query", VALUE_TYPED_SELECT)),
         r#"{"sql":"SELECT CAST(? AS ) AS \"x\"","binds":[{"parameter":"n","binding":{"_type":"one","nullType":"BIGINT","hole":{"at":17,"types":{"INTEGER":{"name":"BIGINT","digits":"NONE","fraction":null},"FLOATING":{"name":"DECFLOAT","digits":"PRECISION","fraction":null}},"absent":"INTEGER"}}}],"regions":[]}"#
     );
     let r = refused(H2, "query.render", &wrap("query", PARAM_SELECT));
@@ -135,7 +89,7 @@ fn ddl_and_dml_render_and_a_session_table_is_its_table_then_its_rows() {
     let create = r#""Create Table S.T(ID TIME(9) NOT NULL, \"value\" DECIMAL(10, 2) NULL, PRIMARY KEY(ID));""#;
     assert_eq!(ok(H2, "ddl.render", &wrap("ddl", CREATE_TABLE)), create);
     assert_eq!(
-        ok(H2_MODERN, "dml.render", &wrap("dml", INSERT_VALUES)),
+        ok(H2, "dml.render", &wrap("dml", INSERT_VALUES)),
         r#""INSERT INTO T (ID) VALUES ('2');""#
     );
     assert_eq!(
@@ -156,7 +110,8 @@ fn ddl_and_dml_render_and_a_session_table_is_its_table_then_its_rows() {
 
 #[test]
 fn names_are_spelled_by_h2s_rules() {
-    for spec in [H2, H2_MODERN] {
+    {
+        let spec = H2;
         let physical = |name: &str| {
             ok(
                 spec,
@@ -200,7 +155,8 @@ fn names_are_spelled_by_h2s_rules() {
 
 #[test]
 fn the_engines_h2_text_is_h2s_own() {
-    for spec in [H2, H2_MODERN] {
+    {
+        let spec = H2;
         let text = r#""insert into T (id, name) values (1, CURRENT_TIMESTAMP())""#;
         assert_eq!(ok(spec, "fromEngineText", &format!(r#"{{"statement":{text}}}"#)), text);
         assert_eq!(
@@ -240,43 +196,7 @@ fn wire_names_and_scripts_are_the_interfaces_defaults() {
         ),
         r#""CREATE TABLE a(x INT);\nINSERT INTO a VALUES (1);""#
     );
-    assert_eq!(ok(H2_MODERN, "script", r#"{"statements":[]}"#), r#"";""#);
-}
-
-#[test]
-fn h2_names_the_failing_statement_of_a_script() {
-    let failing = |spec: &str, message: &str, statements: &[&str]| {
-        let mut args = Obj::new();
-        args.insert("message", Node::Str(message.into()));
-        args.insert(
-            "statements",
-            Node::Arr(statements.iter().map(|s| Node::Str((*s).into())).collect()),
-        );
-        ok(spec, "failingStatement", &to_compact(&Node::Obj(args)))
-    };
-    let script = [" CREATE TABLE a(x INT) ", "INSERT INTO a VALUES (1)", "SELECT 2"];
-    // the quote from the failing statement on, each statement stripped
-    assert_eq!(
-        failing(
-            H2,
-            "Unique index violated; SQL statement: INSERT INTO a VALUES (1);\nSELECT 2 [23505-214]",
-            &script
-        ),
-        "1"
-    );
-    assert_eq!(
-        failing(
-            H2_MODERN,
-            "boom; SQL statement:   CREATE TABLE a(x INT); [42000-214]",
-            &script
-        ),
-        "0"
-    );
-    // no marker (a newline is no space), or a quote no statement starts
-    assert_eq!(failing(H2, "boom; SQL statement:\nSELECT 2", &script), "null");
-    assert_eq!(failing(H2, "boom; SQL statement: DROP TABLE a", &script), "null");
-    // an empty statement starts every quote
-    assert_eq!(failing(H2, "SQL statement: anything", &["SELECT 1", "  "]), "1");
+    assert_eq!(ok(H2, "script", r#"{"statements":[]}"#), r#"";""#);
 }
 
 fn column(data_type: &str) -> String {
@@ -287,7 +207,7 @@ fn column(data_type: &str) -> String {
 
 #[test]
 fn the_catalog_and_the_host_are_the_interfaces_refusals_naming_the_dialect() {
-    for (spec, name) in [(H2, "H2"), (H2_MODERN, "H2Modern")] {
+    for (spec, name) in [(H2, "H2")] {
         let r = refused(spec, "catalogType", &column("INTEGER"));
         assert_eq!(
             (r.class, r.message),
@@ -356,7 +276,7 @@ fn the_seam_opens_the_h2_family_and_names_every_dialect_it_answers() {
     let r = dispatch(r#"{"dialect":"Oracle"}"#, "facts", "{}").unwrap_err();
     assert_eq!(
         r.message,
-        "unknown dialect 'Oracle': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, \
+        "unknown dialect 'Oracle': Rust answers DuckDb, H2, EngineStyleH2, EngineStyleDB2, \
          EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDb, MySql, \
          MongoDb"
     );
