@@ -5,6 +5,19 @@ in its own plan (plan rule 0b.16).
 
 ## Now: the Rust port
 
+**On `main`, as merged into the port at `c4a39e06d` (2026-11-10)** -- its two active lines, as `main` states them
+(the owner's ruling 14, `docs/rust-port/PHASE3_SHIM_DESIGN.md` §10: the freeze list is empty, so their changes to
+`main`'s planning code wait for the port, or land as an exception the owner reviews):
+
+**The goals of record, P1, 2026-11-08 (branch `claude/corpus-walk-deletion`):** the plan as data, designed and ruled in
+`docs/PLAN_AS_DATA_2026_11_07.md`; step 0 under way (the census moved to `diagnostics`). It touches `core/` widely
+(driver, judge, exec, testplan, executionplan, planner) over its steps, and lands in slices through PRs on the user's
+word. The milestone lanes' baseline is GATES 2026-11-07.
+
+**The test-is-the-product program, 2026-11-06:** PCT and core at 100% landed (PR #83 merged, `1aa9a34b`). Active now:
+**the corpus burn-down** (branch `claude/wizardly-dirac-rw6tim-seam`, restarted from `main`), then the walk's deletion.
+A session picking it up starts at `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` (§0 the state, §10 the order).
+
 The work is the Rust port, on the branch `rust-port`; its plan is `docs/rust-port/ROADMAP.md` there (iteration 1:
 GraalVM out of `libcompiler`, the whole planning path in Rust; Java keeps the executor, the HTTP shell, the test
 runners and the warehouse, SDLC, Depot and query-store modules). The port's session works on a branch of its own and
@@ -19,7 +32,9 @@ lands (rule 5).
 
 - **PR #83, the planner-driver seam program** (`docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md`, planned 2026-10-30
   and not ratified: the user rules on its §6 first): its branch holds the decisions log's D78 to D108, unmerged
-  (`docs/GATES.md`'s 2026-11-01 record; main's log ends at D77). Whether it lands is the user's call.
+  (`docs/GATES.md`'s 2026-11-01 record; main's log ends at D77). Whether it lands is the user's call. **Closed
+  2026-11-10:** merged on `main` on 2026-11-06 (`1aa9a34b`), as `main`'s own line above says, and with it the
+  walk's deletion (PR #92); both are in the port since `main`'s merge at `c4a39e06d`.
 
 ## The lines of work, 2026-09-29 to 2026-11-01
 
@@ -67,4 +82,6 @@ session is not running one (a browser test, `//studio:verify_test`, times out un
 > Cut in the 2026-11 docs cleanup: the active lines' order of 2026-10-04 with every announcement and landing of the
 > Bazel program, the build rebuild, Studio, the database owner and DataCube + Python, and the thirteen lines' sections
 > with all their announcements and landings (2026-09-29 to 2026-11-01), including the compiler line's landings filed
-> under the rules. Full text: `git show de2745351:docs/IN_FLIGHT.md`.
+> under the rules. Full text: `git show de2745351:docs/IN_FLIGHT.md`. `main`'s announcements and landings of
+> 2026-11-01 to 2026-11-10 (the planner-driver seam program's S2 to S5, the test-is-the-product plan's M0 to M10,
+> the walker deletion, the plan-as-data slices), written after the cut: `git show c4a39e06d:docs/IN_FLIGHT.md`.

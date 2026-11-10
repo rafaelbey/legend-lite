@@ -3897,6 +3897,17 @@ impl crate::dialect::SqlDialect for Postgres {
         Box::new(PostgresHostOperations)
     }
 
+    /// Postgres aborts a transaction on a failing statement (every later statement is refused until a rollback), and
+    /// has savepoints: a fused verdict statement inside a transaction is guarded by one (F11; `main`'s Postgres.java,
+    /// merged 2026-11-10).
+    fn verdict_savepoint(&self) -> Option<crate::dialect::VerdictSavepoint> {
+        Some(crate::dialect::VerdictSavepoint {
+            set: "SAVEPOINT legend_verdicts".to_owned(),
+            rollback_to: "ROLLBACK TO SAVEPOINT legend_verdicts".to_owned(),
+            release: "RELEASE SAVEPOINT legend_verdicts".to_owned(),
+        })
+    }
+
     /// The probe plan's facts (2026-10-20): REPEATABLE READ is its snapshot.
     fn keys_snapshot(&self) -> Result<KeysSnapshot, Refusal> {
         Ok(KeysSnapshot::RepeatableRead)

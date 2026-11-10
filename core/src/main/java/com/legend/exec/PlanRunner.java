@@ -3,14 +3,29 @@
 
 package com.legend.exec;
 
+import com.legend.base.Nullable;
+import com.legend.error.DataError;
+import com.legend.error.NotImplementedException;
+import com.legend.executionplan.ColumnFacts;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.result.Batcher;
+import com.legend.result.Collector;
+import com.legend.result.ResultSink;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.BiFunction;
 
 /**
  * THE RUNNER (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 3): an {@link ExecutionPlan} run with a caller's
@@ -45,17 +60,17 @@ public final class PlanRunner {
      */
     public static Rows rows(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions)
             throws IOException {
-        com.legend.result.Collector collector = new com.legend.result.Collector();
+        Collector collector = new Collector();
         stream(plan, values, sessions, collector);
-        com.legend.result.Collector.Collected c = collector.collected();
+        Collector.Collected c = collector.collected();
         return new Rows(c.columns(), c.rows());
     }
 
     /** {@link #stream(ExecutionPlan, Map, PlanSessions.Source, com.legend.result.ResultSink, int)} in batches of
      *  {@link com.legend.result.Batcher#DEFAULT_CAPACITY} rows. */
     public static void stream(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
-            com.legend.result.ResultSink sink) throws IOException {
-        stream(plan, values, sessions, sink, com.legend.result.Batcher.DEFAULT_CAPACITY);
+            ResultSink sink) throws IOException {
+        stream(plan, values, sessions, sink, Batcher.DEFAULT_CAPACITY);
     }
 
     /**
@@ -66,10 +81,28 @@ public final class PlanRunner {
      * then hands it on (no answer leaves for a change rolled back).
      */
     public static void stream(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
-            com.legend.result.ResultSink sink, int capacity) throws IOException {
+            ResultSink sink, int capacity) throws IOException {
+        // the runtime wall (the deep audit, 2026-11-05): while the plan runs, nothing on this thread plans
+        try (var run = com.legend.base.RunScope.enter()) {
+            streamRun(plan, values, sessions, sink, capacity);
+        }
+    }
+
+    private static void streamRun(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
+            ResultSink sink, int capacity) throws IOException {
         Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(), values);
         switch (plan.root()) {
             case ExecutionPlan.TdsResult tds -> {
+                if (reported(tds)) {
+                    // a relation of no declared column: the columns its result reports, read from the real run
+                    Streamed[] streamed = {null};
+                    send(tds.sql(), checked, sessions, (st, statement, bound) ->
+                            st.reportedRows(statement, tds.sql().slots(), bound,
+                                    columns -> streamed[0] = new Streamed(columns, sink, capacity),
+                                    cells -> streamed[0].row(cells)));
+                    Objects.requireNonNull(streamed[0], "the session handed no reported columns").end();
+                    return;
+                }
                 Streamed streamed = new Streamed(tds.columns(), sink, capacity);
                 send(tds.sql(), checked, sessions, (st, statement, bound) ->
                         st.rows(statement, tds.sql().slots(), bound, tds.columns(), streamed::row));
@@ -85,13 +118,59 @@ public final class PlanRunner {
                 }
                 streamed.end();
             }
+            case ExecutionPlan.Constant constant -> {
+                // a value the program wrote: answered with nothing sent, no session opened
+                Streamed streamed = new Streamed(constant.columns(), sink, capacity);
+                for (List<Object> row : constantRows(constant)) {
+                    streamed.row(row);
+                }
+                streamed.end();
+            }
             case ExecutionPlan.Update update -> throw new IllegalStateException("a plan whose answer is an update: a"
                     + " plan's answer is a result");
             case ExecutionPlan.Check check -> throw new IllegalStateException("a plan whose answer is a check: a"
                     + " plan's answer is a result");
             case ExecutionPlan.Effect effect -> throw new IllegalStateException("a plan whose answer is an effect: a"
                     + " plan's answer is a result (an effect alone is sent by effect(...))");
+            case ExecutionPlan.Load seeds -> throw new IllegalStateException("a plan whose root is a seed step: a"
+                    + " program's step, run by the program runner (ProgramRunner.run)");
         }
+    }
+
+    /** A seed step on the graph's system database is the system store's own ({@link ExecutionPlan.Load#SYSTEM_STORE},
+     *  the planner's), never a body's test data: refused by name otherwise. */
+    static void systemStore(ExecutionPlan.Load seeds) {
+        if (!seeds.identity().equals(ExecutionPlan.Load.SYSTEM_STORE)) {
+            throw new IllegalStateException("a seed step on the graph's system database that is not the system store's"
+                    + " own: the database holds the graph's metamodel and nothing else");
+        }
+    }
+
+    /** The program's held answer streamed to {@code sink}, once its steps have run (and its changes committed). */
+    static void streamHeld(Held held, ResultSink sink) throws IOException {
+        Streamed streamed = new Streamed(held.columns, sink, Batcher.DEFAULT_CAPACITY);
+        for (List<Object> row : held.rows) {
+            streamed.row(row);
+        }
+        streamed.end();
+    }
+
+    static KeyedSink heldSink(Held held) {
+        return new KeyedSink() {
+            @Override
+            public void columns(List<ExecutionPlan.Column> columns) {
+                held.columns = columns;
+            }
+
+            @Override
+            public void row(List<Object> cells) {
+                held.rows.add(cells);
+            }
+
+            @Override
+            public void end() {
+            }
+        };
     }
 
     /**
@@ -101,6 +180,13 @@ public final class PlanRunner {
      * count of rows the database reports. Its transaction is the caller's (the body's, {@link Sessions#inTransaction}).
      */
     public static long update(ExecutionPlan.Update update, PlanSessions.Source sessions) throws IOException {
+        // a run of one statement (THE WALL, 2026-11-06: every statement is a run's; none started inside a run)
+        try (var run = com.legend.base.RunScope.enter()) {
+            return updateIn(update, sessions);
+        }
+    }
+
+    private static long updateIn(ExecutionPlan.Update update, PlanSessions.Source sessions) throws IOException {
         long[] count = {0};
         send(update.sql(), Map.of(), sessions, (st, statement, values) ->
                 count[0] = st.update(statement, update.sql().slots(), values));
@@ -110,6 +196,13 @@ public final class PlanRunner {
     /** The body driver's one effect: {@code effect} -- a raw statement a program wrote, a DDL, a script, a seed's
      *  rows -- on a session of {@code sessions} as {@link #update}'s; whether it answered rows (not read). */
     public static boolean effect(ExecutionPlan.Effect effect, PlanSessions.Source sessions) throws IOException {
+        // a run of one statement (THE WALL, 2026-11-06)
+        try (var run = com.legend.base.RunScope.enter()) {
+            return effectIn(effect, sessions);
+        }
+    }
+
+    private static boolean effectIn(ExecutionPlan.Effect effect, PlanSessions.Source sessions) throws IOException {
         if (!effect.sql().slots().isEmpty()) {
             throw new IllegalStateException("an effect binds no slot: its text is the statement");
         }
@@ -135,12 +228,13 @@ public final class PlanRunner {
     }
 
     private static List<Statements.Reported> schema(ExecutionPlan.Sql sql, PlanSessions.Source sessions,
-            java.util.function.BiFunction<Statements, String, List<Statements.Reported>> read) {
+            BiFunction<Statements, String, List<Statements.Reported>> read) {
         if (!sql.slots().isEmpty()) {
             throw new IllegalStateException("a schema probe binds no slot: its text is the statement");
         }
-        try (Sessions.Session session = sessions.open(sql.target())) {
-            return read.apply(opened(session, sql.target()), sql.statement());
+        // a run of one statement (THE WALL, 2026-11-06)
+        try (var run = com.legend.base.RunScope.enter(); Sessions.Session session = sessions.open(sql.target())) {
+            return read.apply(opened(session, sql.target(), sessions.mark()), sql.statement());
         }
     }
 
@@ -161,23 +255,39 @@ public final class PlanRunner {
      * itself); a session the host opens is set up by its owner ({@link PlanSessions#setUp}). Counted under the
      * caller's statement origin. No step streams to a sink, so none raises an {@code IOException} of its own.
      */
-    public static void setUp(List<ExecutionPlan.SetupStep> steps, ExecutionPlan.Target target,
-            PlanSessions.Source sessions, @com.legend.base.Nullable Ran ran) {
+    public static void setUp(List<ExecutionPlan.LoadStep> steps, ExecutionPlan.Target target,
+            PlanSessions.Source sessions, @Nullable Ran ran) {
+        // a run of its steps (THE WALL, 2026-11-06)
+        try (var run = com.legend.base.RunScope.enter()) {
+            setUpIn(steps, target, sessions, ran);
+        }
+    }
+
+    /** {@link #setUp} inside the run in progress: a session the runner opened for a target, set up as it opens
+     *  ({@link PlanSessions}). */
+    static void setUpIn(List<ExecutionPlan.LoadStep> steps, ExecutionPlan.Target target,
+            PlanSessions.Source sessions, @Nullable Ran ran) {
         for (int i = 0; i < steps.size(); i++) {
             boolean answeredRows = switch (steps.get(i)) {
-                case ExecutionPlan.SetupStep.Statement s -> {
+                case ExecutionPlan.LoadStep.Statement s -> {
                     try {
-                        yield effect(new ExecutionPlan.Effect(ExecutionPlan.Sql.of(s.sql(), target)), sessions);
+                        yield effectIn(new ExecutionPlan.Effect(ExecutionPlan.Sql.of(s.sql(), target)), sessions);
                     } catch (IOException e) {
-                        throw new java.io.UncheckedIOException(e);
+                        throw new UncheckedIOException(e);
                     }
                 }
-                case ExecutionPlan.SetupStep.Rows r -> {
+                // a target's setup holds statements and rows; its loads by reference arrive with the design's L2
+                case ExecutionPlan.LoadStep.File f -> throw new IllegalStateException("a file's load in a target's"
+                        + " setup (" + f.ref().name() + "): a target's loads by reference arrive with"
+                        + " docs/DATA_IN_THE_PLAN_2026_11_09.md L2");
+                case ExecutionPlan.LoadStep.Rows r -> {
                     try (Sessions.Session session = sessions.open(target)) {
-                        if (!opened(session, target).load(r)) {
+                        if (!opened(session, target, sessions.mark()).load(r)) {
                             throw new IllegalStateException("the setup has rows for a bulk loader, and the session's"
                                     + " database has none (" + r.stagingTable() + ")");
                         }
+                        // the bulk load's one statement, counted under the caller's mark
+                        StatementOrigin.count(sessions.mark());
                     }
                     yield false;
                 }
@@ -191,11 +301,11 @@ public final class PlanRunner {
     /** A typed answer on its way to a sink: the columns once the statement has answered (its first row, or its
      *  end), so a statement the database refuses has written nothing to the sink. */
     private static final class Streamed {
-        private final com.legend.result.Batcher batcher;
+        private final Batcher batcher;
         private boolean started;
 
-        Streamed(List<ExecutionPlan.Column> columns, com.legend.result.ResultSink sink, int capacity) {
-            this.batcher = new com.legend.result.Batcher(columns, sink, capacity);
+        Streamed(List<ExecutionPlan.Column> columns, ResultSink sink, int capacity) {
+            this.batcher = new Batcher(columns, sink, capacity);
         }
 
         void row(List<Object> cells) throws IOException {
@@ -218,11 +328,11 @@ public final class PlanRunner {
     /** A keyed plan's typed rows, streamed: its answered columns (the per-key ones named by the keys) once the keys
      *  are read, then the body's rows. */
     private static final class KeyedStream implements KeyedSink {
-        private final com.legend.result.ResultSink sink;
+        private final ResultSink sink;
         private final int capacity;
-        private @com.legend.base.Nullable Streamed streamed;
+        private @Nullable Streamed streamed;
 
-        KeyedStream(com.legend.result.ResultSink sink, int capacity) {
+        KeyedStream(ResultSink sink, int capacity) {
             this.sink = sink;
             this.capacity = capacity;
         }
@@ -234,25 +344,39 @@ public final class PlanRunner {
 
         @Override
         public void row(List<Object> cells) throws IOException {
-            java.util.Objects.requireNonNull(streamed, "a keyed row before its columns").row(cells);
+            Objects.requireNonNull(streamed, "a keyed row before its columns").row(cells);
         }
 
         @Override
         public void end() throws IOException {
-            java.util.Objects.requireNonNull(streamed, "a keyed end before its columns").end();
+            Objects.requireNonNull(streamed, "a keyed end before its columns").end();
         }
     }
 
+    /** {@code held}'s rows as {@link #rows} hands them: through the result's batches and the collector, so a cell
+     *  reaches a judge as it reaches every other reader of a typed result (a tagged column's value, not its carrier;
+     *  the seam program's S2f, 2026-10-30: the held rows of a verdict's sides and of the fused statement go this way). */
+    static Rows collected(Held held) throws IOException {
+        Collector collector = new Collector();
+        Streamed streamed = new Streamed(held.columns, collector, Batcher.DEFAULT_CAPACITY);
+        for (List<Object> row : held.rows) {
+            streamed.row(row);
+        }
+        streamed.end();
+        Collector.Collected c = collector.collected();
+        return new Rows(c.columns(), c.rows());
+    }
+
     /** A plan of several steps' answer, held until its changes have committed: its typed rows. */
-    private static final class Held {
-        private List<ExecutionPlan.Column> columns = List.of();
-        private final List<List<Object>> rows = new java.util.ArrayList<>();
+    static final class Held {
+        List<ExecutionPlan.Column> columns = List.of();
+        final List<List<Object>> rows = new ArrayList<>();
     }
 
     // ---- a keyed plan (a dynamic pivot's probe plan, 2026-10-20; docs/PLAN_PATH_PROGRAM_2026_10_17.md §9) ----------
 
     /** Where a keyed plan's answer goes, once its keys are known: its columns, then each row's cells. */
-    private interface KeyedSink {
+    interface KeyedSink {
         void columns(List<ExecutionPlan.Column> columns) throws IOException;
 
         void row(List<Object> cells) throws IOException;
@@ -272,7 +396,13 @@ public final class PlanRunner {
         ExecutionPlan.Target target = null;
         int results = 0;
         boolean changes = false;
+        ExecutionPlan.Keyed.Snapshot snapshot = null;
         for (ExecutionPlan.Node step : sequence.steps()) {
+            if (step instanceof ExecutionPlan.Constant) {
+                // a value the program wrote: the answer, with nothing sent
+                results++;
+                continue;
+            }
             ExecutionPlan.Sql sql = switch (step) {
                 case ExecutionPlan.Update u -> {
                     changes = true;
@@ -287,12 +417,24 @@ public final class PlanRunner {
                     changes = true;
                     yield e.sql();
                 }
+                case ExecutionPlan.Load u -> throw new NotImplementedException("a seed step in a"
+                        + " plan the query door runs: seeds are the test door's (the program runner's, ProgramRunner.run)");
                 case ExecutionPlan.TdsResult t -> {
                     results++;
                     yield t.sql();
                 }
-                case ExecutionPlan.Keyed k -> throw new com.legend.error.NotImplementedException("a keyed result"
-                        + " inside a plan of several steps is not run yet");
+                case ExecutionPlan.Keyed k -> {
+                    // a keyed result among the steps (the seam program's S1a, 2026-10-30; refused by name until then):
+                    // its two statements run on the sequence's session, its snapshot the sequence's one transaction,
+                    // opened at the strictest isolation a keyed step asks (below); the body's null types checked here,
+                    // the keys' as the step's statement; one target for both is the record's own rule
+                    results++;
+                    nullTypes(k.body());
+                    snapshot = stricter(snapshot, k.snapshot());
+                    yield k.keys();
+                }
+                case ExecutionPlan.Constant c -> throw new IllegalStateException("not reached: a constant step sends"
+                        + " nothing");
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence: a"
                         + " plan's steps are one list");
             };
@@ -300,29 +442,55 @@ public final class PlanRunner {
             if (target == null) {
                 target = sql.target();
             } else if (!target.equals(sql.target())) {
-                throw new com.legend.error.NotImplementedException("a plan whose steps name different targets: its"
+                throw new NotImplementedException("a plan whose steps name different targets: its"
                         + " steps run on one session, in one transaction");
             }
         }
         if (results != 1) {
             throw new IllegalStateException("a sequence of " + results + " result steps: a plan's answer is one");
         }
-        ExecutionPlan.Target on = java.util.Objects.requireNonNull(target, "a sequence has a step");
+        ExecutionPlan.Target on = Objects.requireNonNull(target, "a sequence has a step");
         try (Sessions.Session session = changes ? sessions.openToChange(on) : sessions.open(on)) {
-            Statements st = opened(session, on);
+            Statements st = opened(session, on, sessions.mark());
+            if (snapshot != null && snapshot != ExecutionPlan.Keyed.Snapshot.NONE && st.ownsTransaction()) {
+                // a keyed step's snapshot is the sequence's own transaction, at the isolation the step asks, set
+                // before its first statement (Postgres refuses an isolation changed mid-transaction); a transaction a
+                // caller holds is joined as it is below, and is the snapshot then
+                st.inSnapshot(snapshot, () -> steps(sequence, checked, st, held));
+                return;
+            }
             try {
                 st.inTransaction(() -> {
                     try {
                         steps(sequence, checked, st, held);
                     } catch (IOException e) {
-                        throw new java.io.UncheckedIOException(e);
+                        throw new UncheckedIOException(e);
                     }
                     return null;
                 });
-            } catch (java.io.UncheckedIOException e) {
+            } catch (UncheckedIOException e) {
                 throw e.getCause();
             }
         }
+    }
+
+    /** The stricter of two keyed snapshots ({@code a} null: none asked yet): a serializable transaction over a
+     *  repeatable-read one, that over the database's own, that over none. */
+    static ExecutionPlan.Keyed.Snapshot stricter(ExecutionPlan.Keyed.@Nullable Snapshot a,
+            ExecutionPlan.Keyed.Snapshot b) {
+        if (a == null) {
+            return b;
+        }
+        return rank(b) > rank(a) ? b : a;
+    }
+
+    private static int rank(ExecutionPlan.Keyed.Snapshot s) {
+        return switch (s) {
+            case NONE -> 0;
+            case TRANSACTION -> 1;
+            case REPEATABLE_READ -> 2;
+            case SERIALIZABLE -> 3;
+        };
     }
 
     /** The steps, each at its turn on {@code st}: a change's count bound under its name for the slots after it; a
@@ -330,43 +498,221 @@ public final class PlanRunner {
      *  {@code held}. */
     private static void steps(ExecutionPlan.Sequence sequence, Map<String, PlanParameters.Checked> checked,
             Statements st, Held held) throws IOException {
-        Map<String, PlanParameters.Checked> values = new java.util.HashMap<>(checked);
+        Map<String, PlanParameters.Checked> values = new HashMap<>(checked);
         for (ExecutionPlan.Node step : sequence.steps()) {
             switch (step) {
-                case ExecutionPlan.Update u -> {
-                    String statement = statement(u.sql(), values);
-                    StatementOrigin.sent(statement);
-                    long count = st.update(statement, u.sql().slots(), valuesOf(u.sql(), values));
-                    if (u.count() != null) {
-                        // (the database's count: a value it produced, bound where a later step reads it)
-                        values.put(u.count(), new PlanParameters.One(count));
-                    }
-                }
-                case ExecutionPlan.Check k -> {
-                    String statement = statement(k.sql(), values);
-                    StatementOrigin.sent(statement);
-                    st.query(statement, k.sql().slots(), valuesOf(k.sql(), values), row -> { });
-                }
-                case ExecutionPlan.Effect e -> {
-                    String statement = statement(e.sql(), values);
-                    StatementOrigin.sent(statement);
-                    st.execute(statement);
-                }
-                case ExecutionPlan.TdsResult t -> {
-                    String statement = statement(t.sql(), values);
-                    StatementOrigin.sent(statement);
-                    held.columns = t.columns();
-                    st.rows(statement, t.sql().slots(), valuesOf(t.sql(), values), t.columns(), held.rows::add);
-                }
-                case ExecutionPlan.Keyed k -> throw new com.legend.error.NotImplementedException("a keyed result"
-                        + " inside a plan of several steps is not run yet");
+                case ExecutionPlan.Update u -> update(u, values, st);
+                case ExecutionPlan.Check k -> check(k, values, st);
+                case ExecutionPlan.Effect e -> effect(e, values, st);
+                case ExecutionPlan.Load u -> throw new IllegalStateException("a seed step in a plan's steps: the"
+                        + " program runner's (ProgramRunner.run)");
+                case ExecutionPlan.TdsResult t -> result(t, values, st, held);
+                case ExecutionPlan.Constant c -> constant(c, held);
+                case ExecutionPlan.Keyed k -> keyedOn(k, values, st, heldSink(held));
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
             }
         }
     }
 
+    /** A change's statement on {@code st}, its count bound under its name for the slots after it. */
+    static void update(ExecutionPlan.Update u, Map<String, PlanParameters.Checked> values, Statements st)
+            throws IOException {
+        unstamped(u.sql());   // a write is sent with no trace comment (JdbcStatements.update): it binds none
+        String statement = statement(u.sql(), values);
+        StatementOrigin.sent(st.mark(), statement);
+        long count = st.update(statement, u.sql().slots(), valuesOf(u.sql(), values));
+        if (u.count() != null) {
+            // (the database's count: a value it produced, bound where a later step reads it)
+            values.put(u.count(), new PlanParameters.One(count));
+        }
+    }
+
+    /** A check's rows read and dropped (the database computes what it may raise). */
+    static void check(ExecutionPlan.Check k, Map<String, PlanParameters.Checked> values, Statements st)
+            throws IOException {
+        stamp(k.sql(), values, st);
+        String statement = statement(k.sql(), values);
+        StatementOrigin.sent(st.mark(), statement);
+        st.query(statement, k.sql().slots(), valuesOf(k.sql(), values), row -> { });
+    }
+
+    /** An effect sent for what it does. */
+    private static void effect(ExecutionPlan.Effect e, Map<String, PlanParameters.Checked> values, Statements st) {
+        unstamped(e.sql());
+        String statement = statement(e.sql(), values);
+        StatementOrigin.sent(st.mark(), statement);
+        st.execute(statement);
+    }
+
+    /** A program's effect step (the test-is-the-product plan's B12): a script in its dialect's bracket where the
+     *  session owns its transaction and none is open (the bracket's abort sent before a failure is raised), its
+     *  statements bare otherwise; a single statement as {@link #effect}. */
+    static void script(ExecutionPlan.Effect e, Map<String, PlanParameters.Checked> values, Statements st,
+            boolean inTransaction) {
+        unstamped(e.sql());
+        ExecutionPlan.Effect.Script script = e.script();
+        // the script is the body's statement, whatever mark is in force (a fixture's seeding); its abort is not
+        Statements body = Statements.marked(st, StatementOrigin.BODY);
+        if (script == null || inTransaction) {
+            effect(e, values, body);
+            return;
+        }
+        try {
+            sendStatement(script.bracketed(), body);
+        } catch (DataError failed) {
+            if (script.abort() != null) {
+                sendStatement(script.abort(), st);
+            }
+            throw failed;
+        }
+    }
+
+    /** A statement the plan wrote as text (a script, a savepoint's), sent for what it does. */
+    static void sendStatement(String statement, Statements st) {
+        StatementOrigin.sent(st.mark(), statement);
+        st.execute(statement);
+    }
+
+    /** The graph's system store's seed step ({@link ExecutionPlan.Load#SYSTEM_STORE}) on {@code system}, the graph's
+     *  system database's session, once (the seeds' memo): the body driver's walk reaching that session runs the program
+     *  road's own step through here, so whichever road comes first writes the store, once. Deleted with the walk. */
+    public static void seedSystemStore(ExecutionPlan.Load seeds, Sessions.Session system) {
+        if (!(seeds.target().database() instanceof ExecutionPlan.Database.System)) {
+            throw new IllegalStateException("the system store's seeds name the graph's system database");
+        }
+        systemStore(seeds);
+        // a run of the seed step (THE WALL, 2026-11-06)
+        try (var run = com.legend.base.RunScope.enter()) {
+            // the system store's load holds rows and statements, never a file: it is given no store
+            seed(seeds, system, opened(system, seeds.target()), com.legend.executionplan.DataStores.none(),
+                    answered -> { });
+        }
+    }
+
+    /** A program's load (B12; docs/DATA_IN_THE_PLAN_2026_11_09.md 2.2): a {@code BEFORE_STEP} load (the seeds) skipped
+     *  where the session holds its identity and has run no write since, and its identity recorded once run; an
+     *  {@code AT_STEP} load (a program's own, {@code loadCsvToDbTable}) run every time, a write, recording nothing. Its
+     *  steps run as a target's setup's are, a file's through {@link DataLoads} over {@code stores}. {@code ran} is told
+     *  which of its steps ran, and whether each answered rows -- on a failure, those before it, as the walk records a
+     *  setup's statements as each runs (the M5 audit's S1). The system store's load is sent under the SYSTEM mark, as
+     *  its holder sent it; every other under SEED. */
+    static void seed(ExecutionPlan.Load seeds, Sessions.Session session, Statements st,
+            com.legend.executionplan.DataStores stores, java.util.function.Consumer<List<Boolean>> ran) {
+        boolean memo = seeds.cadence() == ExecutionPlan.Load.Cadence.BEFORE_STEP;
+        SeedKey key = new SeedKey(seeds.identity());
+        if (memo && session.state().established(key)) {
+            return;
+        }
+        if (!memo) {
+            // a program's own load writes, as an effect does: a seed established before it is established no more
+            session.state().markWriting();
+        }
+        List<Boolean> answered = new ArrayList<>(seeds.steps().size());
+        boolean system = seeds.target().database() instanceof ExecutionPlan.Database.System;
+        Statements seeding = Statements.marked(st, system ? StatementOrigin.SYSTEM : StatementOrigin.SEED);
+        try {
+            for (ExecutionPlan.LoadStep each : seeds.steps()) {
+                switch (each) {
+                    case ExecutionPlan.LoadStep.Statement s -> {
+                        StatementOrigin.sent(seeding.mark(), s.sql());
+                        answered.add(seeding.execute(s.sql()));
+                    }
+                    case ExecutionPlan.LoadStep.Rows r -> {
+                        if (!seeding.load(r)) {
+                            throw new IllegalStateException("the seeds have rows for a bulk loader, and the session's"
+                                    + " database has none (" + r.stagingTable() + ")");
+                        }
+                        // the bulk load's one statement, counted under the seeds' mark
+                        StatementOrigin.count(seeding.mark());
+                        answered.add(false);
+                    }
+                    case ExecutionPlan.LoadStep.File f -> {
+                        // the file by its reference: its verified bytes, delivered as the plan says (DataLoads)
+                        byte[] bytes = DataLoads.verified(f.ref(), stores);
+                        switch (f.delivery()) {
+                            case ExecutionPlan.LoadStep.Delivery.DatabaseReads reads -> {
+                                try (DataLoads.Staged staged = DataLoads.stage(bytes)) {
+                                    seeding.readsFile(reads.sql(), staged.path());
+                                }
+                            }
+                            case ExecutionPlan.LoadStep.Delivery.Streamed streamed -> {
+                                List<List<String>> cells = DataLoads.cells(f.ref(), bytes, streamed.columns());
+                                if (!cells.isEmpty()) {
+                                    seeding.streams(streamed.insert(), cells);
+                                }
+                            }
+                        }
+                        // the load's one statement (its batch, or the read), counted under the seeds' mark
+                        StatementOrigin.count(seeding.mark());
+                        answered.add(false);
+                    }
+                }
+            }
+        } finally {
+            ran.accept(List.copyOf(answered));
+        }
+        if (memo) {
+            session.state().establish(key);
+        }
+    }
+
+    /** A seed step's key as the session's seeds' memo holds it. */
+    private record SeedKey(String key) {
+    }
+
+    /** A constant answer's rows into {@code held}. */
+    static void constant(ExecutionPlan.Constant c, Held held) {
+        held.columns = c.columns();
+        held.rows.addAll(constantRows(c));
+    }
+
+    /** A constant answer's TEXT cells read back by its column's declared type: a String the text, a Boolean
+     *  {@code true} or {@code false}; any other type refused by name (the planner writes no other constant). */
+    static List<List<Object>> constantRows(ExecutionPlan.Constant c) {
+        String type = c.columns().get(0).type();
+        List<List<Object>> rows = new ArrayList<>(c.cells().size());
+        for (List<String> row : c.cells()) {
+            String text = row.get(0);
+            Object cell = text == null ? null : switch (type) {
+                case "String" -> text;
+                case "Boolean" -> switch (text) {
+                    case "true" -> Boolean.TRUE;
+                    case "false" -> Boolean.FALSE;
+                    default -> throw new IllegalStateException("a Boolean constant's text is true or false, not '"
+                            + text + "'");
+                };
+                default -> throw new NotImplementedException("a constant answer of " + type
+                        + ": the planner writes a String or a Boolean");
+            };
+            List<Object> one = new ArrayList<>(1);
+            one.add(cell);
+            rows.add(one);
+        }
+        return rows;
+    }
+
+    /** A typed result's rows into {@code held}. */
+    static void result(ExecutionPlan.TdsResult t, Map<String, PlanParameters.Checked> values, Statements st,
+            Held held) throws IOException {
+        stamp(t.sql(), values, st);
+        String statement = statement(t.sql(), values);
+        StatementOrigin.sent(st.mark(), statement);
+        if (reported(t)) {
+            st.reportedRows(statement, t.sql().slots(), valuesOf(t.sql(), values), columns -> held.columns = columns,
+                    held.rows::add);
+            return;
+        }
+        held.columns = t.columns();
+        st.rows(statement, t.sql().slots(), valuesOf(t.sql(), values), t.columns(), held.rows::add);
+    }
+
+    /** A relation of no declared column: the columns its result reports (a raw grid's, the seam program's S3c). */
+    private static boolean reported(ExecutionPlan.TdsResult t) {
+        return t.shape() == ExecutionPlan.TdsResult.Shape.RELATION && t.columns().isEmpty();
+    }
+
     /** Every null's type checked before any session is opened: a plan whose null is of no type is refused whole. */
-    private static void nullTypes(ExecutionPlan.Sql sql) {
+    static void nullTypes(ExecutionPlan.Sql sql) {
         for (ExecutionPlan.Slot slot : sql.slots()) {
             if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
                 JdbcStatements.nullType(one, slot);
@@ -374,10 +720,27 @@ public final class PlanRunner {
         }
     }
 
+    /** A statement whose own stamp the runner does not bind (a keyed plan's, a write's, an effect's: none is sent
+     *  under a comment the runner mints): one that binds it is a planner defect, refused by name. */
+    private static void unstamped(ExecutionPlan.Sql sql) {
+        if (sql.stamp() != null) {
+            throw new IllegalStateException("a keyed, write or effect statement binds its own execution-trace stamp ('"
+                    + sql.stamp() + "'): only a query or a check binds one (the planner's)");
+        }
+    }
+
+    /** {@code sql}'s own execution-trace stamp, where the plan reads it ({@link ExecutionPlan.Sql#stamp}): the comment
+     *  the session will send it under, minted now and bound under its name (R17 C4). */
+    private static void stamp(ExecutionPlan.Sql sql, Map<String, PlanParameters.Checked> values, Statements st) {
+        if (sql.stamp() != null) {
+            values.put(sql.stamp(), new PlanParameters.One(st.nextStamp()));
+        }
+    }
+
     /** Each slot's value, in the statement's order. */
     private static List<PlanParameters.Checked> valuesOf(ExecutionPlan.Sql sql,
             Map<String, PlanParameters.Checked> checked) {
-        List<PlanParameters.Checked> values = new java.util.ArrayList<>(sql.slots().size());
+        List<PlanParameters.Checked> values = new ArrayList<>(sql.slots().size());
         for (int i = 0; i < sql.slots().size(); i++) {
             values.add(value(checked, sql.slots().get(i), i + 1));
         }
@@ -392,83 +755,105 @@ public final class PlanRunner {
      */
     private static void keyed(ExecutionPlan.Keyed keyed, Map<String, PlanParameters.Checked> checked,
             PlanSessions.Source sessions, KeyedSink sink) throws IOException {
-        for (ExecutionPlan.Sql sql : List.of(keyed.keys(), keyed.body())) {
-            for (ExecutionPlan.Slot slot : sql.slots()) {
-                if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
-                    JdbcStatements.nullType(one, slot);
-                }
-            }
+        nullTypes(keyed.keys());
+        nullTypes(keyed.body());
+        try (Sessions.Session session = sessions.open(keyed.keys().target())) {
+            Statements st = opened(session, keyed.keys().target(), sessions.mark());
+            st.inSnapshot(keyed.snapshot(), () -> keyedOn(keyed, checked, st, sink));
         }
+    }
+
+    /**
+     * A keyed plan's two statements on {@code st}, inside their snapshot already (a keyed plan's own, or the
+     * sequence's transaction where the keyed result is a step: the seam program's S1a, 2026-10-30): the keys probe
+     * read as typed rows, the body written for those keys and its rows handed to {@code sink}.
+     */
+    static void keyedOn(ExecutionPlan.Keyed keyed, Map<String, PlanParameters.Checked> checked,
+            Statements st, KeyedSink sink) throws IOException {
         int perKey = (int) keyed.outputs().stream().filter(o -> o instanceof ExecutionPlan.Keyed.PerKey).count();
         // each statement's cells read by the names it writes them under (a session reading by name, MongoDB's, needs
         // them; JDBC reads by place): the probe's keyFields, a fixed output's field, a per-key output's
         // "_pk<position>_<field>" (ExecutionPlan.Keyed.PerKey)
-        List<ExecutionPlan.Column> keyColumns = new java.util.ArrayList<>();
+        List<ExecutionPlan.Column> keyColumns = new ArrayList<>();
         for (int i = 0; i <= perKey; i++) {
             keyColumns.add(new ExecutionPlan.Column(keyed.keyFields().get(i), "String",
                     new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null, null));
         }
-        try (Sessions.Session session = sessions.open(keyed.keys().target())) {
-            Statements st = opened(session, keyed.keys().target());
-            st.inSnapshot(keyed.snapshot(), () -> {
-                List<List<Object>> keys = new java.util.ArrayList<>();
-                ExecutionPlan.Sql probe = keyed.keys();
-                List<PlanParameters.Checked> probeValues = new java.util.ArrayList<>(probe.slots().size());
-                for (int i = 0; i < probe.slots().size(); i++) {
-                    probeValues.add(value(checked, probe.slots().get(i), i + 1));
-                }
-                st.rows(statement(probe, checked), probe.slots(), probeValues, keyColumns, keys::add);
-                int fixed = keyed.outputs().size() - perKey;
-                int columns = fixed + keys.size() * perKey;
-                if (keyed.maxColumns() != null && columns > keyed.maxColumns()) {
-                    throw new com.legend.error.NotImplementedException("a dynamic pivot of " + keys.size() + " keys answers "
-                            + columns + " columns, more than the database's " + keyed.maxColumns());
-                }
-                List<ExecutionPlan.Column> answered = new java.util.ArrayList<>(columns);
-                List<ExecutionPlan.Column> read = new java.util.ArrayList<>(columns);
-                for (int i = 0; i < keyed.outputs().size(); i++) {
-                    if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.Fixed f) {
-                        answered.add(f.column());
-                        read.add(named(f.column(), f.field()));
+        List<List<Object>> keys = new ArrayList<>();
+        unstamped(keyed.keys());
+        unstamped(keyed.body());
+        ExecutionPlan.Sql probe = keyed.keys();
+        if (keyed.keysOf() == ExecutionPlan.Keyed.KeysOf.COLUMNS) {
+            // a raw grid's: each column its result reports a key, its label the key's one cell (the seam program's
+            // S3c, 2026-10-30) -- read when the plan runs, never at planning
+            for (Statements.Reported r : st.columns(statement(probe, checked))) {
+                if (!keyed.admitted().isEmpty()) {
+                    String slot = r.type() == null ? null : ColumnFacts.slot(r.type());
+                    if (slot == null || !keyed.admitted().contains(slot)) {
+                        throw new NotImplementedException("a raw grid's column '" + r.name()
+                                + "' is reported as " + r.driverType() + ": its cells are spelled here exactly only"
+                                + " in " + keyed.admitted() + " (never approximately)");
                     }
                 }
-                for (int k = 0; k < keys.size(); k++) {
-                    for (int i = 0; i < keyed.outputs().size(); i++) {
-                        if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.PerKey p) {
-                            String name = cellText(keys.get(k), p.name());
-                            ExecutionPlan.Column c = p.column();
-                            ExecutionPlan.Column a = new ExecutionPlan.Column(name, c.type(), c.multiplicity(),
-                                    c.slot(), c.store(), c.precision());
-                            answered.add(a);
-                            read.add(named(a, "_pk" + k + "_" + p.field()));
-                        }
-                    }
-                }
-                // the answer in the relation's own order: the first perKeyAt fixed columns, the per-key ones, then the
-                // rest of the fixed ones -- read in the body's order (its fixed columns first), each cell placed
-                int at = keyed.perKeyAt();
-                int[] place = new int[columns];
-                for (int i = 0; i < columns; i++) {
-                    place[i] = i < at ? i : i < fixed ? i + (columns - fixed) : i - (fixed - at);
-                }
-                List<ExecutionPlan.Column> inOrder = new java.util.ArrayList<>(java.util.Collections.nCopies(columns,
-                        (ExecutionPlan.Column) null));
-                for (int i = 0; i < columns; i++) {
-                    inOrder.set(place[i], answered.get(i));
-                }
-                Expanded body = expand(keyed.body(), keys, checked);
-                sink.columns(inOrder);
-                StatementOrigin.sent(body.statement());
-                st.rows(body.statement(), body.slots(), body.values(), read, cells -> {
-                    List<Object> placed = new java.util.ArrayList<>(java.util.Collections.nCopies(columns, null));
-                    for (int i = 0; i < columns; i++) {
-                        placed.set(place[i], cells.get(i));
-                    }
-                    sink.row(placed);
-                });
-                sink.end();
-            });
+                keys.add(List.of(r.name()));
+            }
+        } else {
+            List<PlanParameters.Checked> probeValues = new ArrayList<>(probe.slots().size());
+            for (int i = 0; i < probe.slots().size(); i++) {
+                probeValues.add(value(checked, probe.slots().get(i), i + 1));
+            }
+            st.rows(statement(probe, checked), probe.slots(), probeValues, keyColumns, keys::add);
         }
+        int fixed = keyed.outputs().size() - perKey;
+        int columns = fixed + keys.size() * perKey;
+        if (keyed.maxColumns() != null && columns > keyed.maxColumns()) {
+            throw new NotImplementedException((keyed.keysOf() == ExecutionPlan.Keyed.KeysOf.COLUMNS
+                    ? "a raw grid of " + keys.size() + " columns answers " : "a dynamic pivot of " + keys.size()
+                    + " keys answers ") + columns + " columns, more than the database's " + keyed.maxColumns());
+        }
+        List<ExecutionPlan.Column> answered = new ArrayList<>(columns);
+        List<ExecutionPlan.Column> read = new ArrayList<>(columns);
+        for (int i = 0; i < keyed.outputs().size(); i++) {
+            if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.Fixed f) {
+                answered.add(f.column());
+                read.add(named(f.column(), f.field()));
+            }
+        }
+        for (int k = 0; k < keys.size(); k++) {
+            for (int i = 0; i < keyed.outputs().size(); i++) {
+                if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.PerKey p) {
+                    String name = cellText(keys.get(k), p.name());
+                    ExecutionPlan.Column c = p.column();
+                    ExecutionPlan.Column a = new ExecutionPlan.Column(name, c.type(), c.multiplicity(),
+                            c.slot(), c.store(), c.precision());
+                    answered.add(a);
+                    read.add(named(a, "_pk" + k + "_" + p.field()));
+                }
+            }
+        }
+        // the answer in the relation's own order: the first perKeyAt fixed columns, the per-key ones, then the
+        // rest of the fixed ones -- read in the body's order (its fixed columns first), each cell placed
+        int at = keyed.perKeyAt();
+        int[] place = new int[columns];
+        for (int i = 0; i < columns; i++) {
+            place[i] = i < at ? i : i < fixed ? i + (columns - fixed) : i - (fixed - at);
+        }
+        List<ExecutionPlan.Column> inOrder = new ArrayList<>(Collections.nCopies(columns,
+                (ExecutionPlan.Column) null));
+        for (int i = 0; i < columns; i++) {
+            inOrder.set(place[i], answered.get(i));
+        }
+        Expanded body = expand(keyed.body(), keys, checked);
+        sink.columns(inOrder);
+        StatementOrigin.sent(st.mark(), body.statement());
+        st.rows(body.statement(), body.slots(), body.values(), read, cells -> {
+            List<Object> placed = new ArrayList<>(Collections.nCopies(columns, null));
+            for (int i = 0; i < columns; i++) {
+                placed.set(place[i], cells.get(i));
+            }
+            sink.row(placed);
+        });
+        sink.end();
     }
 
     /** {@code c} read under the name its statement writes it: the column's facts, that name. */
@@ -498,8 +883,8 @@ public final class PlanRunner {
             Map<String, PlanParameters.Checked> checked) {
         String text = sql.statement();
         // the type holes, each outside every region (the writer refuses one inside): their places and types, in order
-        List<int[]> holes = new java.util.ArrayList<>();
-        List<String> holeTypes = new java.util.ArrayList<>();
+        List<int[]> holes = new ArrayList<>();
+        List<String> holeTypes = new ArrayList<>();
         for (int i = 0; i < sql.slots().size(); i++) {
             ExecutionPlan.Slot each = sql.slots().get(i);
             if (each.binding() instanceof ExecutionPlan.Binding.One one && one.hole() != null) {
@@ -508,8 +893,8 @@ public final class PlanRunner {
             }
         }
         StringBuilder out = new StringBuilder(text.length() + keys.size() * 64);
-        List<ExecutionPlan.Slot> slots = new java.util.ArrayList<>();
-        List<PlanParameters.Checked> values = new java.util.ArrayList<>();
+        List<ExecutionPlan.Slot> slots = new ArrayList<>();
+        List<PlanParameters.Checked> values = new ArrayList<>();
         int[] hole = {0};
         int from = 0;
         int slot = 0;
@@ -520,7 +905,7 @@ public final class PlanRunner {
             }
             if (keys.isEmpty()) {
                 if (r.empty() == null) {
-                    throw new com.legend.error.NotImplementedException("a dynamic pivot with no fixed column found no key: its"
+                    throw new NotImplementedException("a dynamic pivot with no fixed column found no key: its"
                             + " relation has no column");
                 }
                 out.append(r.empty());
@@ -595,18 +980,23 @@ public final class PlanRunner {
                 JdbcStatements.nullType(one, slot);
             }
         }
-        List<PlanParameters.Checked> values = new java.util.ArrayList<>(sql.slots().size());
-        for (int i = 0; i < sql.slots().size(); i++) {
-            values.add(value(checked, sql.slots().get(i), i + 1));
-        }
         // the session's own statements (JDBC's, or a connector's: Statements), 2026-10-17, docs/MONGODB_PLAN_2026_10_16.md
         // D12: the runner holds the plan and the punctuation; the session carries text in and text out
         try (Sessions.Session session = sessions.open(sql.target())) {
-            Statements st = opened(session, sql.target());
-            String statement = statement(sql, checked);
+            Statements st = opened(session, sql.target(), sessions.mark());
+            Map<String, PlanParameters.Checked> bound = checked;
+            if (sql.stamp() != null) {
+                bound = new HashMap<>(checked);
+                stamp(sql, bound, st);
+            }
+            List<PlanParameters.Checked> values = new ArrayList<>(sql.slots().size());
+            for (int i = 0; i < sql.slots().size(); i++) {
+                values.add(value(bound, sql.slots().get(i), i + 1));
+            }
+            String statement = statement(sql, bound);
             // counted here alone, for every session kind (a session sends, the runner counts: JdbcStatements counted
             // each statement a second time, 2026-10-21)
-            StatementOrigin.sent(statement);
+            StatementOrigin.sent(st.mark(), statement);
             ask.of(st, statement, values);
         }
     }
@@ -619,17 +1009,20 @@ public final class PlanRunner {
      *  set there (Postgres's {@code SET} is transactional) and the memo cannot see it. The one place a session's
      *  statements are taken (the doors, 2026-10-29: {@code ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements}),
      *  on every path: a statement, a schema read, a setup step, a sequence, a keyed plan. */
-    private static Statements opened(Sessions.Session session, ExecutionPlan.Target target) {
-        Statements st = session.statements();
+    static Statements opened(Sessions.Session session, ExecutionPlan.Target target) {
+        return opened(session, target, StatementOrigin.OTHER);
+    }
+
+    /** {@link #opened(Sessions.Session, ExecutionPlan.Target)}, the statements counted under {@code mark}. */
+    static Statements opened(Sessions.Session session, ExecutionPlan.Target target, StatementOrigin mark) {
+        Statements st = Statements.marked(session.statements(), mark);
         st.check(target);
         if (!target.session().isEmpty()) {
             boolean memo = st.ownsTransaction();
             if (!memo || session.state().needsSessionStatements(target.session())) {
-                try (var origin = StatementOrigin.enter(StatementOrigin.SESSION)) {
-                    for (String s : target.session()) {
-                        StatementOrigin.sent(s);
-                        st.execute(s);
-                    }
+                for (String s : target.session()) {
+                    StatementOrigin.sent(StatementOrigin.SESSION, s);
+                    st.execute(s);
                 }
                 if (memo) {
                     // recorded after every statement ran: one that failed leaves the list to run again
@@ -700,12 +1093,12 @@ public final class PlanRunner {
         return spelling;
     }
 
-    private static final java.time.format.DateTimeFormatter DATE_TIME_TEXT =
-            java.time.format.DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSSSSSSSS", java.util.Locale.ROOT);
+    private static final DateTimeFormatter DATE_TIME_TEXT =
+            DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSSSSSSSS", Locale.ROOT);
 
     /** {@code t} as the text its cast reads: to the nanosecond, or to {@code fraction} digits of a second, the finer ones
      *  cut, as its literal's are. */
-    static String dateTimeText(LocalDateTime t, @com.legend.base.Nullable Integer fraction) {
+    static String dateTimeText(LocalDateTime t, @Nullable Integer fraction) {
         int unit = 1;
         for (int digits = fraction == null ? 9 : fraction; digits < 9; digits++) {
             unit *= 10;
@@ -713,7 +1106,7 @@ public final class PlanRunner {
         return DATE_TIME_TEXT.format(t.withNano(t.getNano() - t.getNano() % unit));
     }
 
-    private static BigDecimal digitsOf(@com.legend.base.Nullable BigDecimal digits, ExecutionPlan.Slot slot) {
+    private static BigDecimal digitsOf(@Nullable BigDecimal digits, ExecutionPlan.Slot slot) {
         if (digits == null) {
             throw new IllegalStateException("slot of '" + slot.parameter() + "' spells a type with a value's digits,"
                     + " given a value with none");

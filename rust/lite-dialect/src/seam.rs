@@ -354,6 +354,18 @@ fn facts(d: &dyn SqlDialect) -> Node {
         ("sessionSetup", texts(d.session_setup())),
         ("keysSnapshot", keys_snapshot),
         ("resultColumnLimit", result_column_limit),
+        // main's two verdict facts (merged 2026-11-10): the fused statement's savepoint (null: none written) and budget
+        (
+            "verdictSavepoint",
+            d.verdict_savepoint().map_or(Node::Null, |s| {
+                object(vec![
+                    ("set", Node::Str(s.set)),
+                    ("rollbackTo", Node::Str(s.rollback_to)),
+                    ("release", Node::Str(s.release)),
+                ])
+            }),
+        ),
+        ("fusedStatementBudget", number(i64::from(d.fused_statement_budget()))),
     ])
 }
 

@@ -136,6 +136,12 @@ final class DatabaseOwners {
             // 2026-10-16, the dialect program's Phase 6: the vocabulary's own tests, which read and write every
             // database's name and connection as the vocabulary does ({@code protocol/sql/}'s tests excepted, as above)
             TEST + "parser/", TEST + "protocol/", TEST + "model/",
+            // 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 2.6, the plan-as-data design's step 7): the plan's own FAITHFUL
+            // copy of the model's connection description -- the same variants under the same names -- its plan format
+            // codec, and the planner's copy from the model's, which name every database as the model's vocabulary does
+            MAIN + "executionplan/DatabaseType.java", MAIN + "executionplan/ConnectionSpecification.java",
+            MAIN + "executionplan/AuthenticationSpec.java", MAIN + "executionplan/ConnectionWire.java",
+            MAIN + "planner/ConnectionPlans.java",
             // 2026-11-05, the Rust port's phase 2 (docs/rust-port/PHASE2.md §3): the parser's records read back from
             // the Rust library (FrontRecords, generated from every record, FrontRead, FrontReader), and the front
             // oracle that asks the parser and writes its every record -- each names every database's records as the
@@ -155,8 +161,9 @@ final class DatabaseOwners {
             // legend-engine's golden text (which engine-style dialect a declared type gets, and the engine's test
             // database), the census's SEAM; it stays in the root layer, where the engine-style dialects are
             // quarantined (ArchitectureTest.engineStyleRendererIsQuarantinedToTheRootLayer) -- the layer's execution
-            // side, com.legend.driver, since step C (D73, 2026-10-30)
-            MAIN + "driver/EngineText.java",
+            // side, com.legend.driver, since step C (D73, 2026-10-30); the planner since the seam program's S2g
+            // (2026-10-31: the engine's plan text is planning work; the quarantine names it alone of the planner)
+            MAIN + "planner/EngineText.java",
             // 2026-10-16, the dialect program's Phase 5: the connector registry, Databases' counterpart on the
             // execution side (a declared type to the connector that opens its sessions)
             MAIN + "exec/Connectors.java",

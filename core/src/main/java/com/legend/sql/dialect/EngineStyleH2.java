@@ -10,7 +10,6 @@ import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlType;
 
 import java.util.List;
-import java.util.OptionalInt;
 
 /**
  * legend-engine's own SQL TEXT for its test database H2 (the engine's {@code toSQLString} and plan goldens) -- since
@@ -48,12 +47,6 @@ public class EngineStyleH2 implements SqlDialect, EngineTextDialect {
     /** The engine-text dialect the Rust library names {@code name}: this one's, or a subclass's. */
     EngineStyleH2(String name, boolean quoteIdentifiers, @Nullable String timeZone) {
         this.rust = RustDialects.provider().engineText(name, quoteIdentifiers, timeZone);
-    }
-
-    /** The engine text is written for no server: it keeps itself. */
-    @Override
-    public SqlDialect forServer(String version) {
-        return this;
     }
 
     @Override
@@ -135,13 +128,23 @@ public class EngineStyleH2 implements SqlDialect, EngineTextDialect {
     }
 
     @Override
-    public @Nullable List<String> serverVersions() {
-        return rust.serverVersions();
+    public boolean loadsRowsInBulk() {
+        return rust.loadsRowsInBulk();
     }
 
     @Override
-    public boolean loadsRowsInBulk() {
-        return rust.loadsRowsInBulk();
+    public CsvLoad csvLoad(SqlDml.LoadCsv load) {
+        return rust.csvLoad(load);
+    }
+
+    @Override
+    public @Nullable VerdictSavepoint verdictSavepoint() {
+        return rust.verdictSavepoint();
+    }
+
+    @Override
+    public int fusedStatementBudget() {
+        return rust.fusedStatementBudget();
     }
 
     @Override
@@ -217,11 +220,6 @@ public class EngineStyleH2 implements SqlDialect, EngineTextDialect {
     @Override
     public @Nullable String scriptAbort() {
         return rust.scriptAbort();
-    }
-
-    @Override
-    public OptionalInt failingStatement(String message, List<String> statements) {
-        return rust.failingStatement(message, statements);
     }
 
     @Override

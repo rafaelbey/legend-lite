@@ -46,7 +46,7 @@ public final class MirJson {
 
     enum QueryTag { select, union, with }
 
-    enum SourceTag { table, subselect, cte, join, pivot, values, dual, sourceUrl, rawSql, catalog, varSet }
+    enum SourceTag { table, subselect, cte, join, pivot, values, dual, sourceUrl, rawSql, catalog, varSet, gridReport }
 
     enum ExprTag {
         rowOrder, storedRead, reduceCollection, membership, column, starExcept, star, stringLit, intLit, floatLit,
@@ -71,7 +71,8 @@ public final class MirJson {
 
     enum DdlTag { createTable, dropTable, createSchema, dropSchema }
 
-    enum DmlTag { insertValues, insertFromTable, deleteAll, createTempTableAs, insertSelect, update, deleteWhere, merge }
+    enum DmlTag { insertValues, insertFromTable, deleteAll, createTempTableAs, insertSelect, update, deleteWhere, merge,
+        loadCsv }
 
     // ---------------------------------------------------------------- writing
 
@@ -240,6 +241,13 @@ public final class MirJson {
                 o.put("alias", r.alias());
                 o.put("outputs", outputCols(r.outputs()));
                 o.put("writtenFor", r.writtenFor());
+            }
+            case SqlSource.GridReport g -> {
+                o.put("_type", SourceTag.gridReport.name());
+                o.put("grid", query(g.grid()));
+                o.put("part", g.part().name());
+                o.put("alias", g.alias());
+                o.put("outputs", outputCols(g.outputs()));
             }
             case SqlSource.Catalog c -> {
                 o.put("_type", SourceTag.catalog.name());
@@ -868,6 +876,12 @@ public final class MirJson {
                 o.put("alias", m.alias());
                 o.put("sourceAlias", m.sourceAlias());
             }
+            // main's CSV file load (2026-11-09; merged 2026-11-10): its table and columns, no file and no row
+            case SqlDml.LoadCsv lc -> {
+                target(o, DmlTag.loadCsv, lc.schema(), lc.table(), lc.quoting());
+                o.put("columns", lc.columns());
+                o.put("quotedColumns", List.copyOf(lc.quotedColumns()));
+            }
         }
         return o;
     }
@@ -1032,6 +1046,9 @@ public final class MirJson {
                     readOutputCols(o.getArr("outputs")));
             case rawSql -> new SqlSource.RawSql(o.getString("sql"), o.getString("alias"),
                     readOutputCols(o.getArr("outputs")), o.getString("writtenFor"));
+            case gridReport -> new SqlSource.GridReport(readQuery(o.getObj("grid")),
+                    named(SqlSource.GridReport.Part.class, o.getString("part"), "part"), o.getString("alias"),
+                    readOutputCols(o.getArr("outputs")));
             case catalog -> new SqlSource.Catalog(named(SqlSource.Catalog.Grid.class, o.getString("grid"), "grid"),
                     o.getStringOr("schemaPattern", null), o.getStringOr("tablePattern", null),
                     o.getStringOr("columnPattern", null), o.getString("alias"), readOutputCols(o.getArr("outputs")));
@@ -1202,9 +1219,9 @@ public final class MirJson {
     private static SqlExpr.WindowCall.Frame.Bound readBound(Json.Obj o) {
         return switch (tagOf(BoundTag.class, o, "window bound")) {
             case unboundedPreceding -> new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding();
-            case preceding -> new SqlExpr.WindowCall.Frame.Bound.Preceding(readNumber(o));
+            case preceding -> SqlExpr.WindowCall.Frame.Bound.Preceding.of(readNumber(o));
             case currentRow -> new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
-            case following -> new SqlExpr.WindowCall.Frame.Bound.Following(readNumber(o));
+            case following -> SqlExpr.WindowCall.Frame.Bound.Following.of(readNumber(o));
             case unboundedFollowing -> new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
             case intervalPreceding -> new SqlExpr.WindowCall.Frame.Bound.IntervalPreceding(o.getLong("n"),
                     o.getString("unit"));
@@ -1324,6 +1341,8 @@ public final class MirJson {
                     readQuoting(o.getObj("quoting")), strings(o.getArr("columns")), quotedColumns(o),
                     strings(o.getArr("keys")), readQuery(o.getObj("query")), o.getString("alias"),
                     o.getString("sourceAlias"));
+            case loadCsv -> new SqlDml.LoadCsv(o.getStringOr("schema", null), o.getString("table"),
+                    readQuoting(o.getObj("quoting")), strings(o.getArr("columns")), quotedColumns(o));
         };
     }
 

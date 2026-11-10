@@ -11,7 +11,6 @@ import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlType;
 
 import java.util.List;
-import java.util.OptionalInt;
 
 /**
  * The PostgreSQL EXECUTION dialect, version 16 and later -- since 2026-11-03 the Rust library's
@@ -79,19 +78,23 @@ public final class Postgres implements SqlDialect {
     }
 
     @Override
-    public SqlDialect forServer(String version) {
-        SqlDialect d = rust.forServer(version);
-        return d == rust ? this : d;
-    }
-
-    @Override
-    public @Nullable List<String> serverVersions() {
-        return rust.serverVersions();
-    }
-
-    @Override
     public boolean loadsRowsInBulk() {
         return rust.loadsRowsInBulk();
+    }
+
+    @Override
+    public CsvLoad csvLoad(SqlDml.LoadCsv load) {
+        return rust.csvLoad(load);
+    }
+
+    @Override
+    public @Nullable VerdictSavepoint verdictSavepoint() {
+        return rust.verdictSavepoint();
+    }
+
+    @Override
+    public int fusedStatementBudget() {
+        return rust.fusedStatementBudget();
     }
 
     @Override
@@ -167,11 +170,6 @@ public final class Postgres implements SqlDialect {
     @Override
     public @Nullable String scriptAbort() {
         return rust.scriptAbort();
-    }
-
-    @Override
-    public OptionalInt failingStatement(String message, List<String> statements) {
-        return rust.failingStatement(message, statements);
     }
 
     @Override

@@ -35,19 +35,6 @@ public final class RustDialectProvider implements RustDialects {
         return new RustDialect(name, quoteIdentifiers, timeZone);
     }
 
-    @Override
-    public String forServer(String name, String version) {
-        Map<String, Object> args = new LinkedHashMap<>();
-        args.put("version", version);
-        String answer;
-        try {
-            answer = Lite.shared().dialect(spec(name), "forServer", Json.toCompact(args));
-        } catch (LiteRefusal refusal) {
-            throw RustDialect.rethrown(refusal.kind(), String.valueOf(refusal.getMessage()));
-        }
-        return ((Json.Str) Json.parse(answer)).value();
-    }
-
     private static String spec(String name) {
         Map<String, Object> s = new LinkedHashMap<>();
         s.put("dialect", name);

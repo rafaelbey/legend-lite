@@ -2098,6 +2098,11 @@ impl crate::dialect::SqlDialect for BigQuery {
         Vec::new()
     }
 
+    /// Half BigQuery's 1,024K-character query limit (`main`'s BigQuery.java, merged 2026-11-10).
+    fn fused_statement_budget(&self) -> i32 {
+        500_000
+    }
+
     /// A transaction needs a session script.
     fn keys_snapshot(&self) -> Result<KeysSnapshot, Refusal> {
         Ok(KeysSnapshot::None)

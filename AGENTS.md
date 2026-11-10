@@ -2,6 +2,21 @@
 
 > **This file is read by AI coding assistants. Follow these rules strictly.**
 >
+> **The goals of record (ratified by the user, 2026-11-07): `docs/GOALS_OF_RECORD_2026_11_07.md`.
+> Read it before reopening any "where does this live / may this run here" debate.**
+> - **G1 One road:** one compiler, one planner, one exec. No walk, no second evaluator.
+> - **G2 Judge parity:** the host and database judges reach the same verdict everywhere.
+> - **G3 A lean product path:** typed values matched by type and value, lean SQL, fast exec.
+> - **G4 Provable separation:** plan only plans, exec only execs, judge and driver included.
+>   - The plan is SQL and data only, never Java and never stuffed to dodge the rule.
+>   - Exec runs only the plan's statements.
+>   - It is proven at run time (`RunScope`) and at compile time (ArchUnit).
+> - **G5 Compatibility at the edge:** contained, one direction (the edge depends on the product, never the reverse).
+> - **G6 The database does the work.** Small Java formatting, the appeals and the referee are allowed only at the edge.
+>
+> G7-G11 were accepted by the user (2026-11-07): no fallbacks, ledgered fidelity, a guard for every goal, determinism,
+> and the plan as portable data.
+>
 > **North-star tenet:** *Total Knowledge, Demand-Driven Work* — be eager and
 > total about Knowledge (parse/index/manifest), lazy about Work (type-check
 > bodies, lower, SQL, execute). See `docs/TENETS.md` before any "lazy vs
@@ -182,8 +197,8 @@ user-visible error carries one of these eight.
 | `Compiler.compileErrors(String)` | A→F, then eager G over all bodies: a whole model | its errors as a list: the first element error alone, else every body's; both `compilation/compile` routes answer from it |
 | `Compiler.query(ctx, query)` | names + G, typed once → `TypedQuery` | STRICT |
 | `TypedQuery.plan(runtime)` | G½ → J (also `.lower`, `.resultType`, `.expression`, `.target`) | STRICT — **the production seam** |
-| `Execution.run(...)` | A→K: the query's plan run by the plan's runner, its rows to the caller's sink (a writer at the boundary) | STRICT — **the production seam** |
-| `Execution.runProgram(...)` | a TEST BODY: compiled whole to one artifact before anything runs (the block compiler, `driver/BodyCompiler`: frames, verdict rows, prepared value statements; docs/architecture/testing.md §4), then G½→K through the body driver and its judges; the verdicts to a listener, the last statement's answer streamed to the sink the caller hands for its shape (`Execution.Answer`, a writer at the boundary; door 1, 2026-10-29) | STRICT |
+| `Execution.run(...)` | A→K: the query planned by its one planning entry (`TypedQuery.executionPlan`), the plan run by exec's product run (`ProductRun`), its rows written in the caller's `Output` (a format and a stream, data: the result library makes the writer from the plan; 2026-11-09); `Execution.runOnProjectDatabases` is the server's (pure/v1's execute) | STRICT — **the production seam** |
+| `TestExecution.runProgram(...)` | a TEST BODY planned whole by the test planner (`testplan/TestPlanner`; `testplan/BodyClass` names its class) into a test plan, which is data, and run by the test runner (`testexec/TestRunner`), its asserts judged at their verdict steps; a body the program road does not plan is refused by name (the walk was deleted 2026-11-06); the verdicts to a listener, the last statement's answer written in the caller's `Output` (data, the writer the result library's). Its halves `planBody`/`runBody` (and `planProgram`/`runFixture`) let a caller provide fixtures between them | STRICT |
 
 The old door (`Execution.execute*`, `executeResolved`, the query service's materialized `execute`, a materialized
 `ExecutionResult` as a product answer) was deleted 2026-10-29 (the result boundary program's track D): a product
@@ -195,12 +210,19 @@ and MariaDB's own `floatLayout` literal helper; the Z audit, 2026-10-29).
 `NameResolver.resolve(parsed)` vs `resolve(parsed, walls)`. If you want every
 error rather than the first, you want `buildModule`.
 
-`BodyDriver` (the body driver; `StatementExecutor` until 2026-10-29) is the driver's (`com.legend.driver`, step C,
-D73, 2026-10-30) and **has one caller by design**, `Execution.runProgram` (`ArchitectureTest.theDriverHasOneCaller`;
-package-private while it shared the root package with the door). The root package holds the five public doors alone:
-`Compiler`, `TypedQuery`, `HeldModels` (the plan side) and `Execution`, `ExecuteOptions` (the execution side); the
-machinery is `planner/` and `driver/`, and the planner depends on no execution class (`plannerIsExecutionFree`). The driver never re-implements a step; the body driver never decides pipeline
-order.
+**The driver and judge packages are deleted (slice 5, 2026-11-09, docs/PLAN_AS_DATA_2026_11_07.md section 11).** A
+test body is planned by `testplan/` (`TestPlanner`: the body's class, `BodyClass`; each assert planned by its judge's
+planner, `HostAsserts`, `DatabaseAsserts`, `AgreementAsserts`; `BodyDriver` is what remains of the body's planning
+environment) into a test plan, which is data (`testexecutionplan/`), and the plan is run by `testexec/` (`TestRunner`:
+exec's program runner with the judges as its callback), which reaches no planning library. **The walk is deleted
+(2026-11-06)**; a body no class admits, or whose judge's planner refuses an assert, is refused by name
+(`NotImplementedException: the program road does not plan this body`, with its kinds and the class rule's reason).
+The root package holds the public doors alone: `Compiler`, `TypedQuery`, `HeldModels` (the plan side, `//core:planner`),
+`Execution` (the product's door, `//core:execution`) and `TestExecution`, `ExecuteOptions` (the test body's door,
+`//core:test_execution`). Each door method is one planning call and one run call (`ArchitectureTest.theDoorsOnlyCompose`,
+`JavaEvalLedgerTest.theDoorsHoldNoLogic`); only the test door sees both halves of a test (`onlyTheDoorSeesBothHalves`),
+and a class above the doors reaches each side through its public types alone (`onlyTheDoorsCompose`). The planner depends
+on no execution class (`plannerIsExecutionFree`).
 
 ## Layer ownership (the contract)
 
@@ -299,7 +321,8 @@ legend-engine's own: a rendered column quoted into a FreeMarker template argumen
 
 Dialects: `AnsiSqlRenderer` → `DuckDb`, `Postgres`, `SQLite`, `MariaDb` (→ `MySql`), `Trino`,
 `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`, `MongoDb` (whose text is an aggregation pipeline, not SQL:
-docs/MONGODB_PLAN_2026_10_16.md); `H2` → `H2Modern`; `EngineStyleH2` →
+docs/MONGODB_PLAN_2026_10_16.md); `H2` (lite's one H2, 2.5.252; `H2Modern`, the second dialect a server's version
+chose, went 2026-11-05 with every plan's server versions); `EngineStyleH2` →
 `EngineStyleDB2` → `EngineStyleComposite`. `com.legend.database.Databases` constructs the
 one a declared database type runs on.
 
@@ -434,11 +457,15 @@ otherwise, which is how it drifted:
 | `docs/architecture/README.md` | **The architecture**, language-neutral: the pipeline, the plan as the planner/executor seam, the invariants the port keeps, the known structural gaps; then `frontend.md`, `backend.md`, `testing.md` |
 | `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` | **The plan and the result** (ratified 2026-10-18): one plan record with three renderers, one result model that is a stream with sinks, per-row formatting, the typed session seam, the fast path's invariants; with the plan path program's rulings folded in (everything executes through a plan) |
 | `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` | **The result boundary program** (landed as PR #80, 2026-10-30): the program and the user's rulings (§8); its design is `docs/RESULTS_AND_RENDERERS_2026_10_22.md`; its evidence is `docs/result-boundary-homework/` (the audit, the code maps, the measurements, every probe's source); its open questions are register rows S119–S127; its session brief (`RESULT_BOUNDARY_START_HERE.md`) is in `docs/HISTORY.md` |
+| `docs/DATA_IN_THE_PLAN_2026_11_09.md` | **Data in the plan** (the user's go, 2026-11-09): data enters a database through a load and only a load -- a reference with a digest (never a machine path, never large rows), resolved, verified and delivered by exec, the delivery chosen at planning per database; today's 17 mechanisms each replaced and deleted (13) or bounded by a guard (4, not loads); the deletion census as the proof; slices L1-L8. Evidence: `docs/data-in-the-plan-homework/` |
+| `docs/PLAN_AS_DATA_2026_11_07.md` | **Start here for P1's remaining work** (branch `claude/corpus-walk-deletion`, the user's rulings of 2026-11-08): a test body's run reads only its plan, which is data; two plan types; the judgments, failures and connection description as plan data; the edge's typed extension point; exec as the one walker with a callback; no `driver` package (`testplan`/`testexec` beside `planner`/`exec`); the guards that prove no code is in the plan; the order of work and its verification |
+| `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` | **Start here for the test-is-the-product program** (branch `claude/wizardly-dirac-rw6tim-seam`, PR #83): the state on 2026-11-06, the user's rulings, the concepts (the program road, the three judges, the runtime and exec walls, channels A and B), the roadmap from PCT and core at 100% through the corpus, the walk's deletion, the special-casing audit and lean SQL, the measurements and the lessons |
 | `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` | **The planner-driver seam program** (planned 2026-10-30, NOT ratified; the user rules on its §6 first): lite's execution model applied to the test body -- planned once as one `Sequence` the database executes, the verdict the database's (or the host judge's, D7), a shape the planner cannot know a step whose rows fill the next statement's regions (the `Keyed` pattern), the driver the runner plus the judges, the four probes retired shape by shape, step C's widenings reverted; its evidence `docs/planner-driver-seam-homework/` (the code measured; upstream read in the pinned sources as spec input, not as a model to copy) |
 | `docs/SEMANTICS_REGISTER.md` | Every deliberate difference from the reference, with evidence |
 | `docs/UPSTREAM_BEHAVIOR.md` | How legend-engine and legend-pure actually behave, source-cited: printing values, cells and decoding, equality, how upstream tests backends |
 | `docs/backends/` | How each database behaves, measured with its version: DuckDB, Postgres, H2, MariaDB, SQLite, the cloud databases; the probes behind it |
 | `docs/DATACUBE_ARCHITECTURE.md` | DataCube's map: its pieces, where state lives, how a cube becomes a query, and its living design docs |
+| `docs/CORE_SQL_SIZE_2026_11_04.md` | **Core's SQL size, measured** (the user's question, 2026-11-03): 85% of core's SQL is the system metamodel's seed re-sent per test; the metamodel queries' 84K statements are the generic lowering's (no metamodel special case in lowering or SQL); where the metamodel IS special; the H2 OOM; what to do once the walkers and doors are gone (the user's order) |
 | `docs/GATES.md` | The gate chain. **Read before claiming anything is green.** |
 | `docs/CLOUD_SESSIONS.md` | Bazel in a Claude Code cloud session: GitHub archives refused (`tools/cloud-distdir.sh`), the disk allowance, root |
 | `docs/TENETS.md` | Eager-Knowledge / lazy-Work, the north star, and the standing tenets (folded from the engineering log) |

@@ -31,27 +31,92 @@ Everything runs through Bazel from the repository root.
 | one service through legend-lite, a session policy, row dumps | `bazel run //core:stress_tool -- [--backend NAME] [--sessions fresh\|shared] [--only NAME] [--data F.pure,...] [--rows DIR] [--out DIR]` |
 | files or services through legend-engine | `bazel run //tools/engine-runner:testable -- <file.pure>... [--testable=<fqn>]... [--dump=<dir>]` |
 
-Eleven files under `stress/` are **generator outputs** and must never be hand-edited, because the next build
-overwrites them. They are listed once, in `core/stress.bzl`'s `STRESS_GENERATED`: `59`, `60` and `64` from
-`scripts/corpus/dense_build.py`, `92` to `98` from `scripts/corpus/build.py` (two of them `94`), among them
-`94-fanout-services.pure` (every generated service and its expectation) and `93-testdata.pure` (the `###Data`
-element, all seeded rows). `bazel test //:generated` fails when a committed copy differs from what the generators
-write, naming the update command. Everything else under `stress/` is hand-written and safe to edit. If you want to
-change what is generated, change the generator in `scripts/corpus/`, not its output.
+**Bazel.** Since 2026-10-21 the corpus commands are Bazel targets: the engine runner, its JDK
+and its jars (legend-engine at the release `release.MODULE.bazel` pins), and the Python the
+scripts run on all come from the build. Nothing is built by hand, and there is no `cp.txt`.
+
+The probes (`scripts/corpus/probe_*.py`) and `scripts/projects/{check,loadtime}.py` still read
+the Maven-era runner (`cp.txt`, `target/classes`, `run.py`'s old `RUNNER` and `JAVA_HOME`),
+so they don't run. Moving them onto `run.py`'s `Engine.launch` is the Bazel workplan's P7-03.
+
+## The commands
+
+Everything is driven from the repository root.
+
+```
+bazel run //core:update_stress_corpus                    # regenerate the corpus from the generators
+bazel run //scripts/corpus:changed -- --out changed.txt  # the testables that changed against HEAD
+bazel run //scripts/corpus:run -- --only changed.txt     # run those on legend-engine and judge them
+bazel run //scripts/corpus:run -- --jobs 4               # the whole corpus, four JVMs at once
+bazel test //scripts/corpus:engine_stress                # the whole corpus as a sharded test (manual)
+bazel run //scripts/corpus:run -- --shard 3/8 --out s3    # one of engine_stress's eight slices, by hand
+python scripts/corpus/verdicts.py merge --shards 8 --out all s0 s1 ...   # the slices' verdicts as one
+python scripts/corpus/verdicts.py fingerprint all/engine-verdicts.tsv     # compare two machines' verdicts
+```
+
+`changed` lists every testable when anything other than a service changed: a seed, a mapping
+or a class can change any service's answer. `run` writes `engine-pass.txt` (lite's pass-list
+form), `engine-verdicts.tsv`, `engine-report.tsv`, `shard.txt` and each JVM's log into `--out`,
+or into a temporary directory it names.
+
+The whole verdict also runs on GitHub-hosted runners, by hand: `.github/workflows/engine-verdict.yml`
+(dispatched with a platform, `linux`, `linux-arm`, `macos` or `windows`) runs the eight slices
+as eight jobs and merges them. Its merge job's annotations carry the summary and the verdict's
+fingerprint, which `verdicts.py fingerprint` gives a desk's run too, so two platforms agree on
+every testable exactly when the fingerprints are equal.
+
+The generators are the part that matters. Thirteen files under `stress/` are **generated wholesale**
+and must never be hand-edited, because the next build overwrites them (`core/stress.bzl`'s
+`STRESS_GENERATED` lists them all); the main ones:
+
+- `94-fanout-services.pure` — every generated service and its expectation (134k lines)
+- `93-testdata.pure` — the `###Data` element, i.e. all seeded rows
+- `98-combination-execution.pure` — the combination matrix's services
+- `99-typed-services.pure` — typed constants, predicate trees and parameters (`literals.py`, the
+  improvement plan's Phase 1)
+- `99-intraday-services.pure` — milestoning at time of day: versions read at a DateTime, a StrictDate's
+  midnight, a parameter, every version or a range, and dated navigations (`intraday.py`, the plan's Phase 3)
+- `92-services.pure` — the hand-written battery, rendered
+
+Everything else under `stress/` is hand-written and safe to edit. If you want to change what
+is generated, change the generator in `scripts/corpus/`, not its output.
 
 `build.py` also runs every consistency check before it writes anything — a class whose
 mapping the runtime cannot resolve, a duplicate set id, a seeded value too wide for its
-column, a service that sorts on an unprojected alias. It prints them all and writes nothing
-if any fires.
+column, a service that sorts on an unprojected alias, a seed spine that lost an adversarial
+shape or emptied a to-many a service counts, and an expected result that is empty or
+hollow outside a declared emptiness family
+(`emptiness.py`). It prints them all and writes nothing if any fires. A clean build ends with
+`wrote` or `no changes`.
 
-Gate 10's floors are `MIN_PASS` ratchets inside `StressServiceSuitesTest` (DuckDB) and
-`StressServiceSuitesH2Test` (H2): raised, never lowered.
+The whole corpus takes **88 minutes** with `--jobs 4` on a 20-core Windows desk (measured
+2026-10-21 at 4,735 testables). The run's last line is the summary, which on that day read:
 
-**The engine side.** `scripts/corpus/run.py` runs the whole corpus through legend-engine and adjudicates every
-service against the quarantine (below). It, `scripts/projects/check.py` and `scripts/projects/loadtime.py` still
-read the Maven-era classpath file `tools/engine-runner/cp.txt`, which the Bazel build does not write; until they are
-ported, the engine runs through `//tools/engine-runner:testable` (`tools/engine-runner/README.md`), with the linked
-project files passed first (below).
+```
+4685 passed, 32 known-fail (quarantined), 1 not run (hangs), 18 unexpected, 4736 total, in 5291 s
+```
+
+The 18 were 14 JVMs killed by a concurrent Bazel build (all passed alone), legend-engine's fix
+of F27 (`FIXED`; its quarantine entry is now gone) and F60's three `cbrt` cells (the
+platform's last bit; since 2026-10-23 those cells read perfect cubes, the improvement plan's
+D6). **`0 unexpected` is the only acceptable result.** The other numbers are allowed to move.
+
+### Where the time actually goes
+
+Measured 2026-10-21, four JVMs at once:
+
+| | |
+| --- | --- |
+| per testable | about 3 s; a graph fetch up to 24 s (`DSTree_*`), the slowest family |
+| per JVM | 25 s alone, about 50 s beside three others, to parse and compile the corpus (parse is twice compile) |
+| per batch of 200 | 650 to 1,130 s, by family |
+| memory | about 4 GB resident per JVM, under a 6 GB heap |
+
+Until 2026-10-21 each test also paid for every test before it in its JVM: legend-engine's
+service test runner kept every test's pooled DuckDB connection, and each later test's data
+setup slowed (`docs/UPSTREAM_FINDINGS.md`, F59). Nine services sharing `stress::RT` took 2.4 s
+to 25 s, one after another, and a batch of 40 ran for over 40 minutes. The runner now closes
+the pools after every testable, which is also what makes batches of 200 work.
 
 ## The two generated layers
 
@@ -59,11 +124,16 @@ The services fall into two layers, and the split is deliberate.
 
 **Bare projections**, one per subtype set, ~1830 of them. A wrong `~filter` fails by returning
 the WHOLE table rather than by erroring, and a bare projection over the subtype is the only
-thing that makes that visible. These are the control.
+thing that makes that visible. These are the control. About 570 expect no rows: the seed holds
+no row of that subtype, and the empty answer is the assertion (`emptiness.py`'s families).
 
 **Stacked queries** from `scripts/corpus/deepstack.py`, ~2440 of them: four-hop chains
 filtered on a NAVIGATED column, `groupBy` on a joined key, `graphFetch` three and four levels
-deep, subtype roots navigating inherited edges, qualified properties taking arguments.
+deep, subtype roots navigating inherited edges, qualified properties taking arguments. Since the
+improvement plan's Phase 2 (2026-10-27) every one of them reaches a value: the deep variants root
+only at classes the seed holds rows of, a seed pass (`spines.py`) relinks or clones the fewest
+rows that give each chain complete paths to two distinct values, and each filter compares
+against a value of its column (`selective.py`) instead of the `> ' '` guard, which a tenth keep.
 
 A stacked query is only interpretable if a simple one over the same rows passes, which is why
 the bare ones were kept rather than upgraded. The same split already pays around F6
@@ -71,13 +141,13 @@ the bare ones were kept rather than upgraded. The same split already pays around
 
 One pair is a true INVARIANCE. `DSDeep_X` filters on a model path before `project`, where the
 predicate can be pushed into the WHERE beside the join; `DSPost_X` applies the identical
-predicate to the projected ALIAS afterwards. All 400 pairs carry identical expectations,
-each computed independently from the seed -- so if the engine ever places one of them wrongly,
-exactly one side of the pair fails and names itself.
+predicates to the projected ALIASES afterwards. Each pair's expectations are computed
+independently from the seed and `build.py` requires them equal -- so if the engine ever places
+one of them wrongly, exactly one side of the pair fails and names itself.
 
 ## Reading a failure
 
-`run.py` classifies every service, and the classes mean different things:
+`run.py` classifies every testable, and the classes mean different things:
 
 | verdict | meaning |
 | --- | --- |
@@ -86,22 +156,27 @@ exactly one side of the pair fails and names itself.
 | `REGRESSION` | it failed and is not quarantined — **this is the one to care about** |
 | `ERROR` | it threw rather than returning a wrong answer |
 | `FIXED <Fnn>` | a quarantined service now passes; remove it from `quarantine.py` |
-| `MISSING` | it reported nothing at all |
+| `HUNG` | it was still running after `--limit` (600 s); it needs a repro and a `HANGS` entry |
+| `DIED` | its JVM exited while it ran |
+| `MISSING` | it ran and reported no test |
 
-A wall of `MISSING` almost always means **one** service killed the JVM its batch ran in.
-`run.py` prints `FATAL AT INIT <name>` above them when it can detect this. A service that
-throws during test-suite *initialisation* cannot be quarantined — quarantine excuses a
-failure, and this one never reports one — so it has to be removed from the corpus and its
-defect pinned with a probe under `repro/` instead.
+Since 2026-10-21 the runner takes one testable at a time and reports each as it finishes, so
+one service costs only itself. A service that throws during test-suite *initialisation* is
+an `ERROR` of its own; before, it killed its batch's JVM and left a wall of `MISSING`. After
+a hang or a crash, `run.py` starts a new JVM on the testables after it.
 
 ## Running one service
 
-The full suite is too slow for a debugging loop. Through legend-lite, `bazel run //core:stress_tool -- --only NAME`.
-Through legend-engine, name the services to run, with the linked project files ahead of the stress files:
+The full suite is too slow for a debugging loop. To run a handful, list them in a file and:
 
 ```
-bazel run //tools/engine-runner:testable -- <linked project .pure files> core/src/test/resources/stress/*.pure \
-  --testable=stress::PL2_PillarTenorBand
+bazel run //scripts/corpus:run -- --only mine.txt -v      # -v prints every verdict and the JVM's log
+```
+
+or run the runner directly on any files, the linked projects first:
+
+```
+bazel run //tools/engine-runner:testable -- <files...> --testable=stress::PL2_PillarTenorBand --dump=<dir>
 ```
 
 (Paths are relative to where you type the command; `scripts/corpus/model.py`'s `linked_files()` lists the linked

@@ -104,7 +104,8 @@ class TestLaneOrderGuardrailTest {
         assertEquals(new TreeSet<>(List.of(
                 // 2026-10-18 (the plan path program's step 6, both judges on plans): the judges' canon-ordered side,
                 // the assert's own wrap over a plan -- a judge's path, no product render
-                "com/legend/driver/JudgePlans.java",
+                // (the driver's until slice 5, 2026-11-09: the test's planner's since)
+                "com/legend/testplan/JudgePlans.java",
                 // StableScanOrder.java left 2026-11-04 (the last switch; rust/RETIRED_TESTS.md): the test-lane pass is
                 // the Rust library's (rust/lite-dialect/src/scan_order.rs stabilizes there)
                 "com/legend/lowering/CanonicalRenderSql.java")),

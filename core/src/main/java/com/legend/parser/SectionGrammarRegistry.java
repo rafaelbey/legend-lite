@@ -39,7 +39,7 @@ public final class SectionGrammarRegistry {
         for (com.legend.spi.SectionGrammar g : LOADED) {
             m.put(g.name(), g);
         }
-        return m;
+        return java.util.Collections.unmodifiableMap(m);
     }
 
     /** The overlay grammars the ServiceLoader registered, in order (a later one of the same name wins): what the Rust

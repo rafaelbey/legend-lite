@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
@@ -96,8 +98,8 @@ class ClickHouseDialectTest {
         SqlExpr w = new SqlExpr.WindowCall(new SqlAgg.Reducer(fn, List.of(v), false, List.of()), List.of(),
                 List.of(new SqlSelect.SortKey(k, true, null, null)),
                 new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.RANGE,
-                        new SqlExpr.WindowCall.Frame.Bound.Preceding(0.5),
-                        new SqlExpr.WindowCall.Frame.Bound.Following(0.5)));
+                        SqlExpr.WindowCall.Frame.Bound.Preceding.of(0.5),
+                        SqlExpr.WindowCall.Frame.Bound.Following.of(0.5)));
         return render(select(table("t", "t0", "k", SqlType.Scalar.DOUBLE), null, w));
     }
 
@@ -115,5 +117,20 @@ class ClickHouseDialectTest {
         assertFalse(median.contains("'median'"), median);
         // anything else is refused by name
         assertThrows(DialectCapability.class, () -> fractionalRange(SqlAgg.Fn.MODE));
+    }
+
+    @Test
+    void aNegationBracketsItsWholeOperand() {
+        // ClickHouse reads `NOT (` as its function not(: an operand that only starts with a bracket would be cut short
+        // (PCT round 21, 2026-11-05: `NOT (SELECT ...) = (SELECT ...)` refused, "failed at position ... (toInt64)")
+        SqlSource.Table t = table("t", "t0", "k", SqlType.Scalar.BIGINT);
+        SqlExpr k = col("t0", "k", SqlType.Scalar.BIGINT);
+        SqlExpr one = new SqlExpr.ScalarSubquery(select(t, null, k),
+                new com.legend.sql.TypeFact.Typed(SqlType.Scalar.BIGINT, true));
+        SqlExpr two = new SqlExpr.ScalarSubquery(select(t, null, k),
+                new com.legend.sql.TypeFact.Typed(SqlType.Scalar.BIGINT, true));
+        String sql = render(select(t, SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.EQUAL, one, two)), k));
+        assertTrue(sql.contains("WHERE NOT ((SELECT \"t0\".\"k\" AS \"c0\" FROM \"t\" AS \"t0\")"
+                + " = (SELECT \"t0\".\"k\" AS \"c0\" FROM \"t\" AS \"t0\"))\n"), sql);
     }
 }

@@ -1892,6 +1892,13 @@ impl crate::dialect::SqlDialect for ClickHouse {
         Ok(out)
     }
 
+    /// One assert's statement (up to ~45K characters, measured) parses well under ClickHouse's AST limit; 1.3M
+    /// characters fused passed neither the limit nor, raised, the memory (10-12 GB) (`main`'s ClickHouse.java, merged
+    /// 2026-11-10).
+    fn fused_statement_budget(&self) -> i32 {
+        100_000
+    }
+
     /// No transactions across statements.
     fn keys_snapshot(&self) -> Result<KeysSnapshot, Refusal> {
         Ok(KeysSnapshot::None)

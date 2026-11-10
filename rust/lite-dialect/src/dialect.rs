@@ -27,6 +27,18 @@ pub enum KeysSnapshot {
     None,
 }
 
+/// A fused verdict statement's savepoint texts (Java's `SqlDialect.VerdictSavepoint`): set before the statement, rolled
+/// back to when the database rejects it, released otherwise.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerdictSavepoint {
+    /// the savepoint set before the statement
+    pub set: String,
+    /// rolled back to when the database rejects the statement
+    pub rollback_to: String,
+    /// released otherwise
+    pub release: String,
+}
+
 impl KeysSnapshot {
     /// The constant's Java `name()`.
     pub fn as_str(self) -> &'static str {
@@ -226,6 +238,19 @@ pub trait SqlDialect {
     /// The statement that aborts a failed script's bracket. Default: none (nothing bracketed).
     fn script_abort(&self) -> Option<String> {
         None
+    }
+
+    /// The texts that guard a fused verdict statement sent inside a transaction (Java's `verdictSavepoint`, `main`'s
+    /// 2026-11-01, merged 2026-11-10): a savepoint where the database aborts a transaction on a failing statement.
+    /// Default: none written (measured for DuckDB and H2; every other database not measured, so none sent).
+    fn verdict_savepoint(&self) -> Option<VerdictSavepoint> {
+        None
+    }
+
+    /// The most characters a fused verdict statement may have on this database (Java's `fusedStatementBudget`,
+    /// `main`'s 2026-11-05, merged 2026-11-10). Default: unbounded, Java's `Integer.MAX_VALUE`.
+    fn fused_statement_budget(&self) -> i32 {
+        i32::MAX
     }
 
     /// Which statement of a failed script the engine's message names (0-based). Default: the engine does not say.

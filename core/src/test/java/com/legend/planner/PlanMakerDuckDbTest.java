@@ -22,13 +22,12 @@ class PlanMakerDuckDbTest {
     private static final DatabaseType DUCKDB = DatabaseType.DuckDB;
 
     @Test
-    void theTargetIsWhole_itsDatabaseVersionsSessionAndSetup() {
+    void theTargetIsWhole_itsDatabaseSessionAndSetup() {
         ExecutionPlan.Target duck = target(plan(DUCKDB, "|#>{s::DB.T}#->select(~[ID, NAME, PRICE])"
                 + "->sort(~ID->ascending())", com.legend.testcases.PlanCases.Written.JSON));
-        assertEquals(new ExecutionPlan.Servers.Every(), duck.servers());
         assertEquals(List.of("SET TimeZone='UTC'"), duck.session());
         // DuckDB's rows go to its bulk loader: the create, the rows, the copy and the drop
-        ExecutionPlan.SetupStep.Rows rows = (ExecutionPlan.SetupStep.Rows) duck.setup().get(duck.setup().size() - 1);
+        ExecutionPlan.LoadStep.Rows rows = (ExecutionPlan.LoadStep.Rows) duck.setup().get(duck.setup().size() - 1);
         assertEquals(List.of(List.of("1", "a", "1.50"), java.util.Arrays.asList("2", "O'Brien", null),
                 java.util.Arrays.asList("3", null, "3.25")), rows.rows());
     }

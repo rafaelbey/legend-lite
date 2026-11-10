@@ -47,12 +47,8 @@ public final class ExecutionTrace {
         return last;
     }
 
-    /** A stamped statement whose comment nobody will read (no trace given). */
-    public static String stampOnly(String sql) {
-        return comment() + "\n" + sql;
-    }
-
-    private static String comment() {
-        return "-- \"executionTraceID\" : \"" + java.util.UUID.randomUUID() + "\"";
+    /** A comment minted now, as legend-engine's executor mints one per execution. */
+    static String comment() {
+        return com.legend.executionplan.ExecutionPlan.traceComment(java.util.UUID.randomUUID());
     }
 }

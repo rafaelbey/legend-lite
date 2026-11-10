@@ -22,6 +22,9 @@ test_suite(
         # the probe and the planner it also reads are not its inputs (tools/metrics/README.md)
         "//tools/metrics:tools_build_test",
         "//core:core_tests",
+        # the judge matrix (the asserts-as-plan-nodes program, step 7, 2026-11-04): the packages that run bodies, under
+        # the database judge alone and under BOTH
+        "//core:core_tests_judges",
         # the twin's lanes (track T, T-d, 2026-10-29): the integration tests on SQLite and H2, each held to its floor
         "//core:core_tests_lanes",
         # the Arrow writer's round-trip gate (track A, 2026-10-29): lite's Arrow stream against its JSON rows, read by
@@ -85,6 +88,7 @@ test_suite(
         "//core:cypher_parity_native_test",
         # the store writes on the embedded Postgres 16 (the writes design's leg 2)
         "//core:store_writes_postgres_test",
+        "//core:relation_to_one_postgres_test",
         # the #IQ{...}# island's syntax-case ratchet: the research's derived syntax cases through the island's reader,
         # held by iq-parity/syntax-pins.tsv
         "//core:iq_syntax_cases_test",
@@ -94,6 +98,9 @@ test_suite(
         "//third_party/teavm_classlib:tests",
         "//pure-protocol:twins_test",
         "//tools/engine-runner:smoke_test",
+        # the stress corpus's engine verdict (//scripts/corpus:run) and :changed compile: built beside the runner the
+        # smoke test builds anyway (docs/STRESS_CORPUS_PLAN_2026_10_19.md Phase 0)
+        "//scripts/corpus:tools_build_test",
     ],
 )
 
@@ -136,6 +143,9 @@ test_suite(
         "//scripts/corpus:stacking_gate",
         "//scripts/corpus:scoreboard_gate",
         "//scripts/corpus:functions_gate",
+        "//scripts/corpus:changed_test",
+        "//scripts/corpus:quarantine_test",
+        "//scripts/corpus:run_test",
         "//core:guardrails",
         "//core:census",
         "//pct:pct_discipline",
@@ -366,6 +376,10 @@ test_suite(
         # hand at its two heaps, in no per-push lane
         "//core:seam_benchmark",
         "//core:seam_benchmark_small_heap",
+        # the stress corpus through legend-engine at the pinned release (2026-10-21, Bazel workplan P3-25 as
+        # docs/STRESS_CORPUS_PLAN_2026_10_19.md Phase 0): sharded, hours of CPU; run on a corpus or quarantine change
+        # and on a legend-engine bump
+        "//scripts/corpus:engine_stress",
         # the #IQ{...}# island's real-world corpus lane (2026-10-15; core/BUILD.bazel's iq_corpus_test): manual, it
         # names corpora kept out of the repository (-Diq.corpus.root) and fails without them
         "//core:iq_corpus_test",

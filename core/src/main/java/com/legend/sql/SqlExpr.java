@@ -1,5 +1,6 @@
 package com.legend.sql;
 
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -33,6 +34,13 @@ public sealed interface SqlExpr
      * {@code PlatformTypes.TDS_NULL_CELL} is this same constant.
      */
     public static final String TDS_NULL_CELL = "TDSNull";
+
+    /** An identity layout's synthetic fields, as a class instance's JSON object carries them: its identity
+     *  ({@code __id}) and its class ({@code __type}). The compiler's {@code ClassLayouts.SYNTHETIC_ID} and
+     *  {@code SYNTHETIC_TYPE} are these same constants; here so a test's run reads an object by them without the
+     *  compiler (the plan-as-data design's slice 5, 2026-11-09). */
+    public static final String SYNTHETIC_ID = "__id";
+    public static final String SYNTHETIC_TYPE = "__type";
 
     /**
      * The DIRECT {@link SqlExpr} children, in rebuild order — the ONE
@@ -218,8 +226,8 @@ public sealed interface SqlExpr
                     channels.add(new TaggedList.Channel(ch.kind(), ch.slot(), cs.get(3 + i)));
                 }
                 int n = 3 + tl.channels().size();
-                yield tl.rows() == null ? new TaggedList(cs.get(0), cs.get(1), cs.get(2), channels)
-                        : new TaggedList(cs.get(0), cs.get(1), cs.get(2), channels, cs.get(n));
+                yield new TaggedList(cs.get(0), cs.get(1), cs.get(2), channels, tl.rows() == null ? null : cs.get(n),
+                        tl.order(), SqlTyping.UNKNOWN);
             }
             case DeferredTdsString ignored -> this;
             case Group ignored -> new Group(cs.get(0));
@@ -1130,18 +1138,43 @@ public sealed interface SqlExpr
      * and a rule consuming the list reads its channels; any other consumer refuses by name until designed.
      */
     record TaggedList(SqlExpr positions, SqlExpr tags, SqlExpr comparable, List<Channel> channels,
-                      @com.legend.base.Nullable SqlExpr rows, TypeFact type)
+                      @com.legend.base.Nullable SqlExpr rows, Order order, TypeFact type)
             implements SqlExpr {
         public TaggedList {
             channels = List.copyOf(channels);
             if (channels.isEmpty()) {
                 throw new IllegalArgumentException("a tagged list holds its elements in channels; none were given");
             }
+            java.util.Objects.requireNonNull(order, "a tagged list's order");
             type = SqlTyping.taggedListType(channels);
         }
 
+        /** A list as built: its positions in their own order (1..n, or a subset kept in order). */
         public TaggedList(SqlExpr positions, SqlExpr tags, SqlExpr comparable, List<Channel> channels) {
-            this(positions, tags, comparable, channels, null, SqlTyping.UNKNOWN);
+            this(positions, tags, comparable, channels, null, Order.POSITION, SqlTyping.UNKNOWN);
+        }
+
+        /** The order the list's positions hold, which its root's rows are returned in -- an unnest promises no order
+         *  (2026-11-03, round 18: BigQuery and MySQL returned a mixed list's elements out of order): by position
+         *  (a list as built, kept by a dedup or a filter), by comparable (a sort; ties by position, a stable sort's),
+         *  each either way (a reverse). */
+        public enum Order {
+            POSITION, POSITION_DESC, COMPARABLE, COMPARABLE_DESC;
+
+            /** The order of the list reversed. */
+            public Order reversed() {
+                return switch (this) {
+                    case POSITION -> POSITION_DESC;
+                    case POSITION_DESC -> POSITION;
+                    case COMPARABLE -> COMPARABLE_DESC;
+                    case COMPARABLE_DESC -> COMPARABLE;
+                };
+            }
+        }
+
+        /** The same list in another order. */
+        public TaggedList withOrder(Order newOrder) {
+            return new TaggedList(positions, tags, comparable, channels, rows, newOrder, SqlTyping.UNKNOWN);
         }
 
         /** A list whose arrays are aggregated from {@code rows}: a {@link ScalarSubquery} over its CELLS, one row per
@@ -1151,7 +1184,7 @@ public sealed interface SqlExpr
          *  to the rewriters (the children contract); its reader refuses what is not a subquery. */
         public TaggedList(SqlExpr positions, SqlExpr tags, SqlExpr comparable, List<Channel> channels,
                           SqlExpr rows) {
-            this(positions, tags, comparable, channels, rows, SqlTyping.UNKNOWN);
+            this(positions, tags, comparable, channels, rows, Order.POSITION, SqlTyping.UNKNOWN);
         }
 
         /** The cells relation's columns ({@link #rows}): the element's position, its tag, its comparable, its
@@ -1195,19 +1228,20 @@ public sealed interface SqlExpr
             return out;
         }
 
-        /** The tag at {@code position}. */
+        /** The tag at {@code position}: a position the list holds, read by {@link SqlFn#LIST_AT} (each array and the
+         *  position written once: nested positions multiplied the general read's copies, 2026-11-03). */
         public SqlExpr tagAt(SqlExpr position) {
-            return Call.of(SqlFn.LIST_GET, tags, position);
+            return Call.of(SqlFn.LIST_AT, tags, position);
         }
 
         /** The comparable at {@code position}. */
         public SqlExpr comparableAt(SqlExpr position) {
-            return Call.of(SqlFn.LIST_GET, comparable, position);
+            return Call.of(SqlFn.LIST_AT, comparable, position);
         }
 
         /** Channel {@code k}'s value at {@code position}. */
         public SqlExpr channelAt(int k, SqlExpr position) {
-            return Call.of(SqlFn.LIST_GET, channels.get(k).values(), position);
+            return Call.of(SqlFn.LIST_AT, channels.get(k).values(), position);
         }
 
         /** The element at {@code position}: a tagged value whose tag is the channel index there, whose comparable
@@ -1223,7 +1257,7 @@ public sealed interface SqlExpr
 
         /** The same list over other positions (its rows, if any, no longer describe the order: dropped). */
         public TaggedList withPositions(SqlExpr newPositions) {
-            return new TaggedList(newPositions, tags, comparable, channels);
+            return new TaggedList(newPositions, tags, comparable, channels, null, order, SqlTyping.UNKNOWN);
         }
 
         /** The list's elements where every array is a literal and the positions are {@code 1..n} in order (a
@@ -1256,8 +1290,8 @@ public sealed interface SqlExpr
 
     /** A relation-toString whose COLUMN LIST is dynamic (a pivot with
      * runtime-discovered keys): the '#TDS' text cannot compose at
-     * lowering — the EXECUTION BOUNDARY resolves it (DynamicPivot's
-     * two-phase discipline; the lowering layer records the typed
+     * lowering — it is refused by name where it reaches a statement (the body driver: the pivot's keyed plan writes no
+     * text; until 2026-10-31 a staticizer read the keys at planning; the lowering layer records the typed
      * schema by {@code id}). Types-free by design — the sql package
      * never carries compiler types. A node reaching a renderer is a
      * routing bug and walls loudly there. */
@@ -1391,13 +1425,76 @@ public sealed interface SqlExpr
                 record UnboundedPreceding() implements Bound {
                 }
 
-                record Preceding(Number n) implements Bound {
+                record Preceding(Offset offset) implements Bound {
+                    /** The bound of offset {@code n} (an integer, a float or a decimal, as the program wrote it). */
+                    public static Preceding of(Number n) {
+                        return new Preceding(Offset.of(n));
+                    }
+
+                    /** The offset as the number it is. */
+                    public Number n() {
+                        return offset.value();
+                    }
                 }
 
                 record CurrentRow() implements Bound {
                 }
 
-                record Following(Number n) implements Bound {
+                record Following(Offset offset) implements Bound {
+                    /** The bound of offset {@code n} (an integer, a float or a decimal, as the program wrote it). */
+                    public static Following of(Number n) {
+                        return new Following(Offset.of(n));
+                    }
+
+                    /** The offset as the number it is. */
+                    public Number n() {
+                        return offset.value();
+                    }
+                }
+
+                /** A ROWS or RANGE frame side's offset, the number the program wrote -- an integer, a float or a decimal
+                 *  (the plan-as-data design's step 9, 2026-11-08: guard 1 at zero; an abstract {@code Number} is no type
+                 *  a plan holds). */
+                sealed interface Offset permits Offset.Int, Offset.Float, Offset.Dec {
+
+                    /** The offset as the Java number it was written as. */
+                    Number value();
+
+                    /** {@code n}'s offset: refused by name for a number of another kind. */
+                    static Offset of(Number n) {
+                        return switch (n) {
+                            case Long l -> new Int(l);
+                            case Integer i -> new Int(i);
+                            case Double d -> new Float(d);
+                            case java.math.BigDecimal b -> new Dec(b);
+                            default -> throw new IllegalArgumentException("a window frame offset is an integer, a float"
+                                    + " or a decimal, not a " + n.getClass().getSimpleName());
+                        };
+                    }
+
+                    /** An integer offset. */
+                    record Int(long n) implements Offset {
+                        @Override
+                        public Number value() {
+                            return n;
+                        }
+                    }
+
+                    /** A float offset (a RANGE frame's). */
+                    record Float(double n) implements Offset {
+                        @Override
+                        public Number value() {
+                            return n;
+                        }
+                    }
+
+                    /** A decimal offset (a RANGE frame's). */
+                    record Dec(java.math.BigDecimal n) implements Offset {
+                        @Override
+                        public Number value() {
+                            return n;
+                        }
+                    }
                 }
 
                 record UnboundedFollowing() implements Bound {

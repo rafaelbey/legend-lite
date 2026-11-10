@@ -76,7 +76,7 @@ text                                                            [FRONTEND]
 | G½ | inline user calls | `compiler/spec/` | `UserCallInliner` | `TypedSpec` (β-inlined) |
 | H | resolve store | `resolver/` | `StoreResolver` | `TypedSpec` (class queries → relational pipelines) |
 | I | lower | `lowering/` | `Lowerer` | `sql.SqlQuery` IR (dialect-free) |
-| J | render SQL | `sql/dialect/` | `SqlDialect.render`. Java on `AnsiSqlRenderer`: `Postgres`, `SQLite`, `MariaDb`→`MySql`, `Trino`, `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`, `MongoDb`. Shims over Rust: `DuckDb`, `H2`→`H2Modern`, `EngineStyleH2`→`EngineStyleDB2`→`EngineStyleComposite` | SQL string |
+| J | render SQL | `sql/dialect/` | `SqlDialect.render`: every dialect a shim over the Rust library since 2026-11-04 (rust/lite-dialect) -- `DuckDb`, `Postgres`, `SQLite`, `MariaDb`→`MySql`, `Trino`, `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`, `MongoDb`; `H2` (one H2, 2.5.252, since `main`'s 2026-11-05; `H2Modern` folded into it, merged 2026-11-10); `EngineStyleH2`→`EngineStyleDB2`→`EngineStyleComposite` | SQL string |
 | K | execute | `exec/`, `result/` | `PlanRunner`, the writers | typed rows to a sink, each cell spelled at the boundary (the old door's `Executor`/`ExecutionResult` deleted 2026-10-27 and 2026-10-29) |
 
 Wired by the root package's doors (`package-info.java`). `Compiler.compileModel` runs A–F once per model.

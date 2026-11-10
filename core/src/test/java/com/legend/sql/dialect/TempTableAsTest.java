@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlDml;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlSelect;
@@ -40,7 +42,7 @@ class TempTableAsTest {
     @Test
     void theGeneratorsSessionsHoldAQuerysRowsInATemporaryTable() throws Exception {
         for (var db : List.<Map.Entry<SqlDialect, String>>of(Map.entry(new H2(), "jdbc:h2:mem:temp_as"),
-                Map.entry(new H2Modern(), "jdbc:h2:mem:temp_as_modern"), Map.entry(new DuckDb(), "jdbc:duckdb:"),
+                Map.entry(new DuckDb(), "jdbc:duckdb:"),
                 Map.entry(new SQLite(), "jdbc:sqlite::memory:"))) {
             SqlDialect d = db.getKey();
             String name = d.getClass().getSimpleName();
@@ -77,7 +79,7 @@ class TempTableAsTest {
      *  transaction ends, committed or rolled back, with no DROP (which would commit). */
     @Test
     void h2StagesRowsInTheProgramsTransaction() throws Exception {
-        for (H2 d : List.of(new H2(), new H2Modern())) {
+        for (H2 d : List.of(new H2())) {
             String name = d.getClass().getSimpleName();
             assertTrue(d.dropsStagedTablesWithTheirTransaction(), name);
             String url = "jdbc:h2:mem:staged_" + name;

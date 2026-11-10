@@ -36,6 +36,19 @@ public sealed interface SqlSource {
      */
     record Pivot(SqlSource source, List<SqlExpr> on, List<SqlExpr> in, List<SqlExpr> named, List<Using> usings,
                  String alias, List<OutputCol> outputs) implements SqlSource {
+        /** The separator in a generated column's name, between its key and its template ({@code 2011__|__newCol});
+         *  the compiler's {@code Type.RelationType.PIVOT_SEPARATOR} is this constant (2026-11-09: the run reads a
+         *  keyed side's columns by it, and names no compiler type). */
+        public static final String SEPARATOR = "__|__";
+
+        /** A generated column's PRESENTED name, as upstream prints it: quoted where it carries the separator and is
+         *  not quoted already. A name, never SQL. */
+        public static String presented(String physical) {
+            return physical.contains(SEPARATOR) && !(physical.startsWith("'") && physical.endsWith("'"))
+                    ? "'" + physical + "'"
+                    : physical;
+        }
+
         /** The values whose columns a dialect without a dynamic PIVOT writes: {@code in}'s, else the named ones;
          *  empty for a dynamic pivot nothing names (its columns exist only once the database is asked). */
         public List<SqlExpr> values() {
@@ -171,6 +184,53 @@ public sealed interface SqlSource {
      * keeps its catalog and how it is read is the dialect's (the dialect program's Phase 3, 2026-10-16: until then
      * the compiler wrote {@code information_schema} text into a {@link RawSql}). A schema grid takes no table
      * pattern, and only the column grid takes a column pattern. */
+    /**
+     * What a RAW GRID reports, as rows (the planner-driver seam program's S3c, 2026-10-30): {@code grid} an authored
+     * statement whose columns nobody declared, read in one of three parts, each written by the dialect with a region
+     * per column the grid's result reports (its keyed plan reads them first, {@code ExecutionPlan.Keyed.KeysOf
+     * COLUMNS}): {@link Part#COLUMNS} one row per column, its label and position ({@code value}, {@code __ord});
+     * {@link Part#CELLS} one row per cell, row-major ({@code __rn}, {@code __ord}, {@code value} the cell carried as the
+     * database's JSON, its kind the JSON's); {@link Part#TEXTS} the same, {@code value} the cell as the database's text.
+     * The names are needed only to spell a later statement's text, as a dynamic pivot's keys are (D76); nothing is read
+     * at planning.
+     */
+    record GridReport(SqlQuery grid, Part part, String alias, List<OutputCol> outputs) implements SqlSource {
+        public GridReport {
+            java.util.Objects.requireNonNull(grid, "grid");
+            java.util.Objects.requireNonNull(part, "part");
+            outputs = List.copyOf(outputs);
+        }
+
+        /** {@code part} of {@code grid} under {@code alias}, its outputs the part's own. */
+        public GridReport(SqlQuery grid, Part part, String alias) {
+            this(grid, part, alias, columnsOf(part));
+        }
+
+        /** The four parts: the grid's column names; its cells one row each (as values or as text); its rows, each as
+         *  the list of its cells. */
+        public enum Part { COLUMNS, CELLS, TEXTS, ROWS }
+
+        /** A part's columns: the position, the row's number where a part is per cell, and the value. */
+        public static List<OutputCol> columnsOf(Part part) {
+            OutputCol ord = new OutputCol(ORD, SqlType.Scalar.BIGINT, false);
+            return switch (part) {
+                case COLUMNS -> List.of(new OutputCol(VALUE, SqlType.Scalar.VARCHAR, false), ord);
+                case CELLS -> List.of(new OutputCol(ROW, SqlType.Scalar.BIGINT, false), ord,
+                        new OutputCol(VALUE, SqlType.Scalar.JSON, true));
+                case TEXTS -> List.of(new OutputCol(ROW, SqlType.Scalar.BIGINT, false), ord,
+                        new OutputCol(VALUE, SqlType.Scalar.VARCHAR, true));
+                case ROWS -> List.of(new OutputCol(ROW_CELLS, new SqlType.Array(SqlType.Scalar.JSON), false));
+            };
+        }
+
+        /** The value's column, the position's, the row number's. */
+        public static final String VALUE = "value";
+        public static final String ORD = "__ord";
+        public static final String ROW = "__rn";
+        /** A row's cells, in the grid's column order: the row's {@code values}. */
+        public static final String ROW_CELLS = "values";
+    }
+
     record Catalog(Grid grid, @com.legend.base.Nullable String schemaPattern,
             @com.legend.base.Nullable String tablePattern, @com.legend.base.Nullable String columnPattern,
             String alias, List<OutputCol> outputs) implements SqlSource {

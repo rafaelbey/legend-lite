@@ -10,38 +10,18 @@ import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlType;
 
 import java.util.List;
-import java.util.OptionalInt;
 
 /**
  * The H2 EXECUTION dialect -- since 2026-11-03 the Rust library's (docs/rust-port/PHASE1.md §4 step 4; rust/lite-dialect
  * src/h2.rs): every method is the Rust dialect's ({@link RustDialects#dialect}), which renders every H2 input of the
- * golden oracles exactly as this class's Java did. Its contract is unchanged: EXECUTABLE H2 2.1.214 SQL, every spelling
- * probed against the real jar, anything H2 cannot express a loud wall. {@link H2Modern}, the 2.3+ profile with typed-JSON
- * navigation, is chosen by the connected server's version ({@link #forServer}). The class keeps its name and its
- * subclass for those who make one ({@code new H2()}, {@code new H2Modern()}).
+ * golden oracles exactly as this class's Java did. Its contract is unchanged: EXECUTABLE SQL for lite's ONE H2, 2.5.252
+ * (since `main`'s 2026-11-05: the {@code H2Modern} profile, chosen by the connected server's version, went with the
+ * 2.1.214 jar, register S141; merged into the port 2026-11-10), every spelling probed against the real jar, anything H2
+ * cannot express a loud wall. The class keeps its name for those who make one ({@code new H2()}).
  */
 public class H2 implements SqlDialect {
 
-    private final String name;
-    private final SqlDialect rust;
-
-    public H2() {
-        this("H2");
-    }
-
-    /** The H2 profile the Rust library names {@code name}: {@code H2}, or {@link H2Modern}'s. */
-    H2(String name) {
-        this.name = name;
-        this.rust = RustDialects.provider().dialect(name);
-    }
-
-    /** CAPABILITY BY CONNECTED VERSION: H2 2.3+ has typed-JSON navigation, which {@link H2Modern} spells natively; 2.1
-     *  and 2.2 -- the engine-parity target -- keep this dialect's walls. The library names the profile the version
-     *  takes. */
-    @Override
-    public SqlDialect forServer(String version) {
-        return RustDialects.provider().forServer(name, version).equals(name) ? this : new H2Modern();
-    }
+    private final SqlDialect rust = RustDialects.provider().dialect("H2");
 
     @Override
     public String render(SqlQuery query) {
@@ -84,13 +64,23 @@ public class H2 implements SqlDialect {
     }
 
     @Override
-    public @Nullable List<String> serverVersions() {
-        return rust.serverVersions();
+    public boolean loadsRowsInBulk() {
+        return rust.loadsRowsInBulk();
     }
 
     @Override
-    public boolean loadsRowsInBulk() {
-        return rust.loadsRowsInBulk();
+    public CsvLoad csvLoad(SqlDml.LoadCsv load) {
+        return rust.csvLoad(load);
+    }
+
+    @Override
+    public @Nullable VerdictSavepoint verdictSavepoint() {
+        return rust.verdictSavepoint();
+    }
+
+    @Override
+    public int fusedStatementBudget() {
+        return rust.fusedStatementBudget();
     }
 
     @Override
@@ -166,11 +156,6 @@ public class H2 implements SqlDialect {
     @Override
     public @Nullable String scriptAbort() {
         return rust.scriptAbort();
-    }
-
-    @Override
-    public OptionalInt failingStatement(String message, List<String> statements) {
-        return rust.failingStatement(message, statements);
     }
 
     @Override

@@ -203,10 +203,20 @@ class PlanMakerTest {
                     class: m::Raw; url: 'data:application/json,[{"name":"b"},{"name":"a"}]'; } }# ] ]; }
                 """;
         String query = "|m::P.all()->project(~[name: p|$p.name])->sort(~name->ascending())";
-        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("m::RT");
+        com.legend.TypedQuery typed = Compiler.query(Compiler.compileModel(model), query);
+        ExecutionPlan plan = typed.executionPlan("m::RT");
         ExecutionPlan.Target t = target(plan);
-        assertEquals(new ExecutionPlan.Database.Platform(Databases.PLATFORM), t.database());
+        // the platform's own engine (hole 7, 2026-11-08); a product plan names the engine alone -- the project's
+        // database, its key and its fill, is the server's road's (the full audit, 2026-11-09: TypedQuery.projectPlan)
+        assertTrue(t.database() instanceof ExecutionPlan.Database.Platform p
+                && p.type() == com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)
+                && p.project() == null, String.valueOf(t.database()));
         assertEquals(List.of(), t.setup());
+        // the server's plan: the project's database, keyed by the model's stores, filled with nothing -- the run
+        // finds it from the plan alone
+        ExecutionPlan.Target served = target(typed.projectPlan("m::RT"));
+        assertTrue(served.database() instanceof ExecutionPlan.Database.Platform q
+                && q.project() != null && q.project().made().isEmpty(), String.valueOf(served.database()));
         try (Connection today = TestBackends.platform().open();
              Connection planned = TestBackends.platform().open()) {
             StringWriter out = new StringWriter();
@@ -397,6 +407,47 @@ class PlanMakerTest {
         }
     }
 
+    /**
+     * A keyed result as a STEP of a sequence runs as the root keyed plan does (the planner-driver seam program's S1a,
+     * 2026-10-30; refused by name until then, the plan's F5): a test body's dynamic pivot stands beside its lets and
+     * its verdicts. The sequence's transaction is the two statements' snapshot, opened at the isolation the keyed step
+     * asks (H2's REPEATABLE READ; DuckDB's and SQLite's own transaction): the same columns and rows on every
+     * in-process database, a step before it or not, and the sequence reads back from its JSON as any does.
+     */
+    @Test
+    void aKeyedResultAsAStepOfASequenceRunsAsTheRootKeyedPlanDoes() throws Exception {
+        String query = TREES + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])"
+                + "->sort(~city->ascending())";
+        for (DatabaseType type : IN_PROCESS) {
+            ExecutionPlan root = Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT");
+            ExecutionPlan.Keyed keyed = assertInstanceOf(ExecutionPlan.Keyed.class, root.root(), type.name());
+            ExecutionPlan sequence = ExecutionPlan.reading(List.of(), new ExecutionPlan.Sequence(List.of(keyed)));
+            assertEquals(ExecutionPlan.TdsResult.Shape.RELATION, sequence.answerShape());
+            assertEquals(sequence, com.legend.executionplan.PlanJson.read(com.legend.executionplan.PlanJson.write(sequence)),
+                    type + ": the sequence read back");
+            String expected;
+            try (Connection c = fresh(type)) {
+                expected = csv(root, c);
+            }
+            try (Connection c = fresh(type)) {
+                assertEquals(expected, csv(sequence, c), type + ": the keyed step's answer");
+            }
+        }
+        // a step before the keyed one, on the platform's database: the sequence's one transaction holds both
+        ExecutionPlan root = Compiler.query(Compiler.compileModel(model(Databases.PLATFORM.name())), query)
+                .executionPlan("s::RT");
+        ExecutionPlan.Keyed keyed = assertInstanceOf(ExecutionPlan.Keyed.class, root.root());
+        ExecutionPlan sequence = ExecutionPlan.reading(List.of(), new ExecutionPlan.Sequence(List.of(
+                new ExecutionPlan.Check(ExecutionPlan.Sql.of("SELECT 1", keyed.keys().target())), keyed)));
+        String expected;
+        try (Connection c = fresh(Databases.PLATFORM)) {
+            expected = csv(root, c);
+        }
+        try (Connection c = fresh(Databases.PLATFORM)) {
+            assertEquals(expected, csv(sequence, c), "a check, then the keyed step");
+        }
+    }
+
     /** The PCT's trees by city, country and year, with a coefficient (testPivot_SingleMultiple_Dynamic_Aggregation). */
     private static final String TREES_PCT = "#TDS\n city, country, year, treePlanted, coefficient\n NYC, USA, 2011, 5000, 1\n"
             + " NYC, USA, 2000, 5000, 2\n SAN, USA, 2000, 2000, 1\n SAN, USA, 2011, 100, 2\n LDN, UK, 2011, 3000, 2\n"
@@ -540,7 +591,7 @@ class PlanMakerTest {
      *  name, never bound as something it is not. */
     @Test
     void aListParameterWrittenWhereOneValueGoesIsRefusedByName() {
-        var refused = assertThrows(com.legend.sql.dialect.DialectCapability.class, () -> plan(Databases.PLATFORM,
+        var refused = assertThrows(com.legend.sql.DialectCapability.class, () -> plan(Databases.PLATFORM,
                 "{ns: Integer[*]|#>{s::DB.T}#->extend(~n: r|$ns->size())->select(~[ID, n])}", Written.JSON));
         assertTrue(refused.getMessage().contains("is bound only as a whole list"), refused.getMessage());
     }
@@ -641,7 +692,7 @@ class PlanMakerTest {
             String sql = plan.answerSql().statement();
             if (dialect.inProcess()) {
                 forms.add("setup");
-                assertTrue(target.setup().stream().anyMatch(s -> s instanceof ExecutionPlan.SetupStep.Statement st
+                assertTrue(target.setup().stream().anyMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
                         && st.sql().contains("classes")), type + ": " + target.setup());
                 assertEquals(dialect.sessionSetup(), target.session(), type.name());
                 assertFalse(sql.contains("metamodel_classes"), type + ": " + sql);
@@ -652,7 +703,7 @@ class PlanMakerTest {
                 }
                 continue;
             }
-            assertTrue(target.setup().stream().noneMatch(s -> s instanceof ExecutionPlan.SetupStep.Statement st
+            assertTrue(target.setup().stream().noneMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
                     && st.sql().contains("classes")), type + ": " + target.setup());
             if (!dialect.temporaryTables()) {
                 forms.add("inline");

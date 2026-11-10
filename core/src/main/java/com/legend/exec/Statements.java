@@ -23,6 +23,11 @@ public interface Statements {
      *  version, of a version they are written for; anything else is refused by name, never run. */
     void check(ExecutionPlan.Target target);
 
+    /** The execution-trace comment the next query this session sends will carry, minted now (the test-is-the-product
+     *  plan's M3f, R17 C4: a statement's stamp a plan binds, {@code ExecutionPlan.Sql.stamp}); asked again before that
+     *  query is sent, the same comment. */
+    String nextStamp();
+
     /** A statement run for its effect -- a session statement, a setup statement, an effect a body sends
      *  ({@link ExecutionPlan.Effect}): whether it answered rows, which are not read. */
     boolean execute(String statement);
@@ -75,7 +80,15 @@ public interface Statements {
     /** {@code rows} loaded through the session's database's bulk loader where it has one ({@link BulkLoad}): false
      *  when it has none, and the caller sends the one INSERT its dialect writes instead. A body's seeds and the system
      *  database's rows load so (B1a). */
-    boolean load(ExecutionPlan.SetupStep.Rows rows);
+    boolean load(ExecutionPlan.LoadStep.Rows rows);
+
+    /** A file's load the database READS (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.5, 2026-11-09): {@code statement}'s one
+     *  {@code ?} bound to {@code staged}, the path of the runner's own copy of the verified bytes. */
+    void readsFile(String statement, String staged);
+
+    /** A file's load the runner STREAMS (2.5): {@code insert} sent once per row of {@code rows} in one batch, each
+     *  row's cells bound to its {@code ?}s in order as text (a null cell SQL NULL), the database casting each. */
+    void streams(String insert, List<List<String>> rows);
 
     @FunctionalInterface
     interface Rows {
@@ -98,6 +111,23 @@ public interface Statements {
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException;
 
     /**
+     * {@code statement}'s rows with the columns its RESULT reports (the planner-driver seam program's S3c, 2026-10-30):
+     * a raw grid's, whose columns the program never named, read from the real run as the engine reads a raw result
+     * set. {@code columns} receives them before any row -- each its label, the Pure type the wire table names for the
+     * SQL type JDBC reports (Any where it names none, the cell then the driver's own kind), that type's slot, nullable
+     * as reported -- and each row's cells are read by them as {@link #rows} reads a plan's. Nothing is read at
+     * planning; the plan declared no column ({@code ExecutionPlan.TdsResult}: a relation of no column).
+     */
+    void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            ReportedColumns columns, Cells cells) throws IOException;
+
+    /** Where a result's reported columns go, before its rows. */
+    @FunctionalInterface
+    interface ReportedColumns {
+        void columns(List<ExecutionPlan.Column> columns) throws IOException;
+    }
+
+    /**
      * {@code work} with every statement it sends seeing one state of the data, as {@code snapshot} says (a keyed plan's
      * keys probe and its body: the keys are the body's; 2026-10-20): a transaction at that isolation, committed when
      * the work is done and rolled back when it fails, the session's own setting restored; {@code NONE} runs it as it
@@ -115,5 +145,102 @@ public interface Statements {
     @FunctionalInterface
     interface Cells {
         void row(List<Object> cells) throws IOException;
+    }
+
+    /** The statement origin this session's statements are counted under ({@link StatementOrigin}): the mark the
+     *  runner gave them for what it runs now -- explicit, carried by the statements it hands down (until slice 5,
+     *  2026-11-09, a thread-scoped mark the senders read). */
+    default StatementOrigin mark() {
+        return StatementOrigin.OTHER;
+    }
+
+    /** {@code st} counted under {@code mark}: the same statements, the same session. */
+    static Statements marked(Statements st, StatementOrigin mark) {
+        if (st.mark() == mark) {
+            return st;
+        }
+        return new Marked(st instanceof Marked m ? m.inner() : st, mark);
+    }
+
+    /** A session's statements under a mark of the runner's: every call the inner statements', the mark this one's. */
+    record Marked(Statements inner, StatementOrigin mark) implements Statements {
+        @Override
+        public void check(ExecutionPlan.Target target) {
+            inner.check(target);
+        }
+
+        @Override
+        public String nextStamp() {
+            return inner.nextStamp();
+        }
+
+        @Override
+        public boolean execute(String statement) {
+            return inner.execute(statement);
+        }
+
+        @Override
+        public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+                Rows rows) throws IOException {
+            inner.query(statement, slots, values, rows);
+        }
+
+        @Override
+        public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
+                throws IOException {
+            return inner.update(statement, slots, values);
+        }
+
+        @Override
+        public <T> T inTransaction(java.util.function.Supplier<T> work) {
+            return inner.inTransaction(work);
+        }
+
+        @Override
+        public boolean ownsTransaction() {
+            return inner.ownsTransaction();
+        }
+
+        @Override
+        public List<Reported> columns(String statement) {
+            return inner.columns(statement);
+        }
+
+        @Override
+        public List<Reported> describe(String statement) {
+            return inner.describe(statement);
+        }
+
+        @Override
+        public boolean load(ExecutionPlan.LoadStep.Rows rows) {
+            return inner.load(rows);
+        }
+
+        @Override
+        public void readsFile(String statement, String staged) {
+            inner.readsFile(statement, staged);
+        }
+
+        @Override
+        public void streams(String insert, List<List<String>> rows) {
+            inner.streams(insert, rows);
+        }
+
+        @Override
+        public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+                List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
+            inner.rows(statement, slots, values, columns, cells);
+        }
+
+        @Override
+        public void reportedRows(String statement, List<ExecutionPlan.Slot> slots,
+                List<PlanParameters.Checked> values, ReportedColumns columns, Cells cells) throws IOException {
+            inner.reportedRows(statement, slots, values, columns, cells);
+        }
+
+        @Override
+        public void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot, Work work) throws IOException {
+            inner.inSnapshot(snapshot, work);
+        }
     }
 }

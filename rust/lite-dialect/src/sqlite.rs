@@ -2704,6 +2704,12 @@ impl crate::dialect::SqlDialect for Sqlite {
         vec!["PRAGMA case_sensitive_like = ON".to_owned()]
     }
 
+    /// Half SQLite's SQLITE_MAX_SQL_LENGTH (1,000,000 bytes), a margin for multi-byte text (`main`'s SQLite.java,
+    /// merged 2026-11-10).
+    fn fused_statement_budget(&self) -> i32 {
+        500_000
+    }
+
     /// A read transaction is one snapshot.
     fn keys_snapshot(&self) -> Result<KeysSnapshot, Refusal> {
         Ok(KeysSnapshot::Transaction)

@@ -6,6 +6,7 @@ package com.legend.ffi;
 import com.legend.base.Nullable;
 import com.legend.executionplan.MirJson;
 import com.legend.json.Json;
+import com.legend.sql.DialectCapability;
 import com.legend.sql.SqlDdl;
 import com.legend.sql.SqlDml;
 import com.legend.sql.SqlExpr;
@@ -14,7 +15,6 @@ import com.legend.sql.SqlType;
 import com.legend.sql.ValueKind;
 import com.legend.sql.dialect.CatalogModel;
 import com.legend.sql.dialect.CatalogType;
-import com.legend.sql.dialect.DialectCapability;
 import com.legend.sql.dialect.HostOperation;
 import com.legend.sql.dialect.HostOperations;
 import com.legend.sql.dialect.RenderedStatement;
@@ -26,7 +26,6 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalInt;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -39,7 +38,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class RustDialect implements SqlDialect, RustDialects.EngineText {
 
     private final String name;
-    private final @Nullable String server;
     /** An engine-text dialect's configuration (SEAM.md §2), sent with it alone: the seam refuses it on any other. */
     private final boolean engineText;
     private final boolean quoteIdentifiers;
@@ -53,19 +51,17 @@ public final class RustDialect implements SqlDialect, RustDialects.EngineText {
 
     /** The dialect Rust names {@code name} (Java's simple class name: {@code DuckDb}, {@code H2}). */
     public RustDialect(String name) {
-        this(name, null, false, false, null);
+        this(name, false, false, null);
     }
 
     /** The engine-text dialect Rust names {@code name}, made as Java's {@code new EngineStyleH2(quoteIdentifiers,
      *  timeZone)} is. */
     public RustDialect(String name, boolean quoteIdentifiers, @Nullable String timeZone) {
-        this(name, null, true, quoteIdentifiers, timeZone);
+        this(name, true, quoteIdentifiers, timeZone);
     }
 
-    private RustDialect(String name, @Nullable String server, boolean engineText, boolean quoteIdentifiers,
-            @Nullable String timeZone) {
+    private RustDialect(String name, boolean engineText, boolean quoteIdentifiers, @Nullable String timeZone) {
         this.name = name;
-        this.server = server;
         this.engineText = engineText;
         this.quoteIdentifiers = quoteIdentifiers;
         this.timeZone = timeZone;
@@ -76,7 +72,6 @@ public final class RustDialect implements SqlDialect, RustDialects.EngineText {
     private String spec() {
         Map<String, Object> s = new LinkedHashMap<>();
         s.put("dialect", name);
-        s.put("server", server);
         // read at each call, as Java's DuckDb read it at each render
         s.put("engineScanOrder", Boolean.getBoolean("legend.exec.engineScanOrder"));
         if (engineText) {
@@ -167,36 +162,49 @@ public final class RustDialect implements SqlDialect, RustDialects.EngineText {
 
     @Override
     public String render(SqlQuery query) {
+        com.legend.base.RunScope.planning("render a query");
         return string(call("query.render", args("query", MirJson.query(query))));
     }
 
     @Override
     public String renderInline(SqlQuery query) {
+        com.legend.base.RunScope.planning("render a query");
         return string(call("query.renderInline", args("query", MirJson.query(query))));
     }
 
     @Override
     public RenderedStatement renderStatement(SqlQuery query) {
+        com.legend.base.RunScope.planning("render a query");
         return statement((Json.Obj) call("query.renderStatement", args("query", MirJson.query(query))));
     }
 
     @Override
     public String render(SqlDdl ddl) {
+        com.legend.base.RunScope.planning("render a statement");
         return string(call("ddl.render", args("ddl", MirJson.ddl(ddl))));
     }
 
     @Override
     public String render(SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         return string(call("dml.render", args("dml", MirJson.dml(dml))));
     }
 
     @Override
     public RenderedStatement renderStatement(SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         return statement((Json.Obj) call("dml.renderStatement", args("dml", MirJson.dml(dml))));
     }
 
     @Override
+    public CsvLoad csvLoad(SqlDml.LoadCsv load) {
+        Json.Obj o = (Json.Obj) call("csvLoad", args("load", MirJson.dml(load)));
+        return new CsvLoad(o.getBool("readsFile"), o.getString("sql"));
+    }
+
+    @Override
     public List<String> sessionTable(SqlDdl.CreateTable table, SqlDml.@Nullable InsertValues rows) {
+        com.legend.base.RunScope.planning("render a statement");
         return strings(call("sessionTable", args("table", MirJson.ddl(table), "rows", rows == null ? null
                 : MirJson.dml(rows))));
     }
@@ -257,17 +265,17 @@ public final class RustDialect implements SqlDialect, RustDialects.EngineText {
     }
 
     @Override
-    public SqlDialect forServer(String version) {
-        // the seam names the dialect the server takes (SEAM.md §3a): H2's for its own servers, H2Modern's for another
-        String chosen = string(call("forServer", args("version", version)));
-        return chosen.equals(name) ? this : new RustDialect(chosen);
+    public @Nullable VerdictSavepoint verdictSavepoint() {
+        Json.Node v = facts().getOr("verdictSavepoint", Json.Null.INSTANCE);
+        if (v instanceof Json.Obj o) {
+            return new VerdictSavepoint(o.getString("set"), o.getString("rollbackTo"), o.getString("release"));
+        }
+        return null;
     }
 
     @Override
-    public @Nullable List<String> serverVersions() {
-        // H2Modern refuses: a plan is written for H2's servers
-        Json.Node v = factOrRefusal("serverVersions");
-        return v instanceof Json.Null ? null : strings(v);
+    public int fusedStatementBudget() {
+        return (int) ((Json.Num) facts().get("fusedStatementBudget")).longValue();
     }
 
     @Override
@@ -365,12 +373,6 @@ public final class RustDialect implements SqlDialect, RustDialects.EngineText {
         return string(call("script", args("statements", statements)));
     }
 
-    @Override
-    public OptionalInt failingStatement(String message, List<String> statements) {
-        Json.Node n = call("failingStatement", args("message", message, "statements", statements));
-        return n instanceof Json.Num num ? OptionalInt.of((int) num.longValue()) : OptionalInt.empty();
-    }
-
     // ---- the catalog
 
     @Override
@@ -433,11 +435,13 @@ public final class RustDialect implements SqlDialect, RustDialects.EngineText {
 
     @Override
     public String renderAsAliased(SqlQuery query) {
+        com.legend.base.RunScope.planning("render a query");
         return string(call("engine.renderAsAliased", args("query", MirJson.query(query))));
     }
 
     @Override
     public @Nullable String selectList(SqlQuery query) {
+        com.legend.base.RunScope.planning("render a statement");
         return stringOrNull(call("engine.selectList", args("query", MirJson.query(query))));
     }
 
@@ -462,6 +466,6 @@ public final class RustDialect implements SqlDialect, RustDialects.EngineText {
 
     @Override
     public String toString() {
-        return name + (server == null ? "" : " for " + server) + " (Rust)";
+        return name + " (Rust)";
     }
 }

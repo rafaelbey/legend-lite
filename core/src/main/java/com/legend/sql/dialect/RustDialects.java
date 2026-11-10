@@ -26,10 +26,6 @@ public interface RustDialects {
      *  {@code new EngineStyleH2(quoteIdentifiers, timeZone)} is. */
     EngineText engineText(String name, boolean quoteIdentifiers, @Nullable String timeZone);
 
-    /** The name of the dialect {@code name}'s {@code forServer(version)} takes ({@code H2} for a 2.1 or 2.2 server,
-     *  {@code H2Modern} for any other; a dialect that keeps itself names itself). */
-    String forServer(String name, String version);
-
     /** The dialect's quote character and reserved words. */
     Lexicon lexicon(String name);
 

@@ -12,6 +12,13 @@ git ls-tree -r --name-only cf73e6ef7 docs/type-audit-2026-08/   # what a folder 
 git log --diff-filter=D -1 -- docs/SOME_DOC.md                  # the commit that removed it
 ```
 
+**Five were changed on `main` after `cf73e6ef7`** and are read at the commit the Rust port merged (`c4a39e06d`,
+2026-11-10), where their last text is: `docs/RESULT_BOUNDARY_START_HERE.md` (PR #82's landing, the lane sessions of
+2026-10-30), `docs/SQLTEXT_ROW_VERDICT_CHARTER.md` (its 2026-11-02 correction: a byte-equal text is the assert's
+verdict), `docs/build-inventory/program/PHASE_8.md` (Test-11 and Exec-2 taken over by the stress corpus plan),
+`repro/datediff-hours-off-boundary/README.md` and `repro/substring-two-answers/README.md` (F37's property-mapping half
+withdrawn). The merge kept their removal; `main`'s additions to them are in git there.
+
 A folder entry (ending in `/`) covers every file under it, except files still in the tree. A path cited in code
 or in a doc that is no longer in the tree is listed here. The living documents are named in `AGENTS.md`
 ("Standing documents").

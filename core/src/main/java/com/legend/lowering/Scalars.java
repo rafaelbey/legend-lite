@@ -56,7 +56,8 @@ final class Scalars {
     interface Rule extends BiFunction<TypedNativeCall, List<SqlExpr>, SqlExpr> {
     }
 
-    private static final Map<com.legend.model.FunctionId, Rule> RULES = new HashMap<>();
+    private static final com.legend.base.Sealed.SealedMap<com.legend.model.FunctionId, Rule> RULES =
+            com.legend.base.Sealed.map(new HashMap<>());
 
     private Scalars() {
     }
@@ -1087,8 +1088,13 @@ final class Scalars {
         for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_RELATION_SORT, Pure.AT_TDS_SORT, Pure.AT_COLLECTION_SORT)) {
             RULES.put(f, (n, args) -> {
                 // STAMP-READ identity: sort over <=1 values IS the
-                // operand ([0..0] included: sort([]) is []).
-                if (Stamps.atMostOne(n.args().get(0))) {
+                // operand ([0..0] included: sort([]) is []) -- never a
+                // relation's cells ($t.rows.values->sort()), whose [1] is the
+                // relation value's multiplicity, not its cell count
+                // (2026-11-03, the corpus's strictdate::testProject)
+                if (Stamps.atMostOne(n.args().get(0))
+                        && !(com.legend.compiler.element.type.Type.schemaView(n.args().get(0).info().type())
+                                instanceof com.legend.compiler.element.type.Type.RelationType)) {
                     return args.get(0);
                 }
                 if (n.args().size() == 1) {
@@ -3349,6 +3355,18 @@ final class Scalars {
                     continue;
                 }
             }
+            // %s over a number: pure prints the value's toString (format('got %s', [2]) is 'got 2'); printf's %s
+            // takes text, and DuckDB's refuses an integer (2026-11-04, the asserts-as-plan-nodes program: the format
+            // overload of an assert's message reached it -- PCT formats no number by %s)
+            if (d == 's' && typed != null && typed.info().type() instanceof Type.Primitive p
+                    && (p == Type.Primitive.INTEGER || p == Type.Primitive.FLOAT || p == Type.Primitive.DECIMAL
+                            || p == Type.Primitive.NUMBER)) {
+                spread.set(argIdx, pureToString(p, spread.get(argIdx)));
+                out.append("%s");
+                argIdx++;
+                i += 2;
+                continue;
+            }
             out.append('%').append(d == 't' ? 's' : d);
             argIdx++;
             i += 2;
@@ -3729,4 +3747,9 @@ final class Scalars {
      * proven: unscoped unwrap regressed tests/mapping 9->7). CONSUMED
      * positions keep the cast always (audit 19 F7: DuckDB does not
      * wire-convert where H2 does). */
+
+    // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
+    static {
+        RULES.seal();
+    }
 }

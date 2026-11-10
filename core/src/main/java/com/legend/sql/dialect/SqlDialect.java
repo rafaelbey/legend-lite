@@ -1,5 +1,7 @@
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlQuery;
 
 /**
@@ -60,26 +62,28 @@ public interface SqlDialect {
      *  column's {@code declaredQuoted}), never quote characters inside the name. */
     String storedName(String name, boolean declaredQuoted);
 
-    /** This dialect for the server version a session reports ({@code DatabaseMetaData}'s product version):
-     *  a dialect whose SQL differs by version says how. Default: every version is spelled alike. */
-    default SqlDialect forServer(String version) {
-        return this;
-    }
-
-    /** The server versions this dialect's text is written for ({@link #forServer} keeps it for these and takes another
-     *  dialect for any other), which a plan names so its runner refuses another; null when its text depends on no
-     *  server's version (the dialect program's Phase 5, 2026-10-16: until then {@code Databases.servers} listed each
-     *  database). */
-    default @com.legend.base.Nullable java.util.List<String> serverVersions() {
-        return null;
-    }
-
     /** Whether a target on this database loads its declared rows through the database's own bulk loader (a plan's
-     *  {@code SetupStep.Rows}, the statements that stage them this dialect's) rather than one INSERT
+     *  {@code LoadStep.Rows}, the statements that stage them this dialect's) rather than one INSERT
      *  (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, "setup at plan time, one form per database"; the dialect
      *  program's Phase 5, 2026-10-16: until then {@code Databases.loadsRowsInBulk} listed each database). */
     default boolean loadsRowsInBulk() {
         return false;
+    }
+
+    /**
+     * How this dialect's database takes a CSV file's rows ({@link com.legend.sql.SqlDml.LoadCsv}; the design's 2.5,
+     * docs/DATA_IN_THE_PLAN_2026_11_09.md, 2026-11-09): its statement, and whether the database READS the runner's copy
+     * of the file through the statement's one bound {@code ?} ({@link CsvLoad#readsFile}) or the runner STREAMS the
+     * cells, the statement one row's insert. Chosen here, at planning, as every spelling is; a dialect whose database
+     * takes neither refuses it by name ({@code DialectCapability}).
+     */
+    CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load);
+
+    /** A CSV file's load as this dialect spells it: {@code sql}, and whether the database reads the file itself. */
+    record CsvLoad(boolean readsFile, String sql) {
+        public CsvLoad {
+            java.util.Objects.requireNonNull(sql, "sql");
+        }
     }
 
     /** Whether a {@code RelationalDatabaseConnection} declares this database: its text is SQL over relational tables.
@@ -161,9 +165,9 @@ public interface SqlDialect {
                 + ", which says no column limit for it");
     }
 
-    /** Whether dynamic PIVOT needs the two-phase staticization
-     * pre-pass ({@link com.legend.driver.DynamicPivot} — no native
-     * dynamic pivot on this backend). */
+    /** Whether this database has no native PIVOT: a pivot whose keys are named is written as the grouped CASE
+     *  emulation, and a dynamic one is keyed, as on every database (its keys read by its plan's first step; the
+     *  staticizer that read them at planning deleted 2026-10-31, the planner-driver seam program's S3a). */
     default boolean needsStaticPivot() {
         return false;
     }
@@ -211,11 +215,29 @@ public interface SqlDialect {
         return null;
     }
 
-    /** Which statement of a failed script the engine's message names (0-based), or
-     *  empty when the engine does not say — H2 quotes the failing statement
-     *  ({@code SQL statement: …}); DuckDB names values and columns only. */
-    default java.util.OptionalInt failingStatement(String message, java.util.List<String> statements) {
-        return java.util.OptionalInt.empty();
+    /** The texts that guard a fused verdict statement sent inside a transaction (F11, the test-is-the-product plan's
+     *  B12): where this database ABORTS a transaction on a failing statement, a savepoint set before the statement and
+     *  rolled back to when the database rejects it, so the verdicts' own wrappers can still run; released otherwise.
+     *  Null where none is written: measured for DuckDB (it aborts and has no savepoint, M3a, which says so itself) and
+     *  H2 (it survives a failing statement, M3a); for every other database NOT measured -- today's behaviour kept, no
+     *  savepoint sent, its F11 rung unproven until a lane measures it (the M3 audit: a null here is not a fact about
+     *  those databases). */
+    default @com.legend.base.Nullable VerdictSavepoint verdictSavepoint() {
+        return null;
+    }
+
+    /** The most characters a FUSED verdict statement may have on this database (the verdict batch's statement over
+     *  several asserts, {@code VerdictBatch}): a group whose fused text is longer is planned as several fused
+     *  statements, halved until each fits -- the same verdicts, more statements. Unbounded where the database has no
+     *  limit a body meets; a database with a hard limit on a statement's text or its parse says so (PCT rounds 21-22,
+     *  2026-11-05: ClickHouse refused a 1.3M-character statement at its AST limit, and with the limit raised its
+     *  analyzer took 10-12 GB; SQLite and BigQuery cap a statement near 1M characters). */
+    default int fusedStatementBudget() {
+        return Integer.MAX_VALUE;
+    }
+
+    /** {@link #verdictSavepoint}'s three texts. */
+    record VerdictSavepoint(String set, String rollbackTo, String release) {
     }
 
     /** DDL rendered like a query (2026-09-16): the dialect spells the
