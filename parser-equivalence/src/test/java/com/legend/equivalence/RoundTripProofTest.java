@@ -53,9 +53,9 @@ class RoundTripProofTest {
      *  round-tripping would otherwise hide among the engine's own). Measured 2026-10-09 (leg 5). */
     private static final Map<String, int[]> PINS = Map.of(
             // input -> {min matched, max failed, max refused, max upstream}
-            // 6905 -> 6904 (2026-11-09, the user's ruling 18, docs/rust-port/PHASE2.md section 6): a text the engine refuses
-            // and the model door accepted is refused now as the engine refuses it
-            "engine corpus", new int[]{6904, 0, 40, 270},
+            // matched 6905 -> 6904, upstream 270 -> 271 (2026-11-09, the user's ruling 18, docs/rust-port/PHASE2.md section 6):
+            // relationMappingSetup.pure, which the engine (4.145.0) refuses and the model door accepted, is refused now
+            "engine corpus", new int[]{6904, 0, 40, 271},
             "lite projects", new int[]{222, 0, 0, 0},
             "showcase projects", new int[]{131, 0, 0, 0});
 

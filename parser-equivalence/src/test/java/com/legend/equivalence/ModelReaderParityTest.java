@@ -56,15 +56,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelReaderParityTest {
 
     /** Own-JSON elements read and emitted to the same bytes, with source information. Up-only. */
-    // 37739 -> 37648 (2026-11-09, the user's ruling 18, docs/rust-port/PHASE2.md section 6): 91 sources the engine refuses and
-    // the document door accepted, each one section index, are refused now as the engine refuses them; asked of both parsers
+    // 37739 -> 37648 (2026-11-09, the user's ruling 18, docs/rust-port/PHASE2.md section 6): one source of 91 elements,
+    // relationMappingSetup.pure, whose `~func` has no signature: the engine (4.145.0, the pinned referee) refuses it, the
+    // document door accepted it, and refuses it now
     private static final int MIN_OWN_MATCHED = 37648;   // 2026-10-05: every element of the corpus (2 more upgraded)
     /** Own-JSON elements matched without source information. Up-only. */
     private static final int MIN_OWN_STRIPPED_MATCHED = 37648;   // 2026-10-05; 37739 -> 37648 2026-11-09, as MIN_OWN_MATCHED
     /** Engine-JSON elements matched (where lite's emitter matches the engine). Up-only. */
     private static final int MIN_ENGINE_MATCHED = 38702;   // 2026-10-05 (2 more upgraded); every J2 is lite's J
     /** Whole documents matched (own, with and without source information). Up-only. */
-    private static final int MIN_DOCS_MATCHED = 13514;   // 2026-10-05 (4 more upgraded)
+    private static final int MIN_DOCS_MATCHED = 13512;   // 2026-10-05 (4 more upgraded); 13514 -> 13512 2026-11-09, ruling 18: that one source's two forms
     /** Upstream's lambda round-trip texts read and emitted to the engine's bytes, each mode. Up-only. */
     private static final int MIN_LAMBDAS_MATCHED = 205;   // 2026-10-05: every lambda text the engine parses
     /** Mismatches anywhere (own or engine, either mode, elements or documents). Down-only. */

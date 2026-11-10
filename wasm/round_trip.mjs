@@ -25,14 +25,14 @@ const STYLES = ['STANDARD', 'PRETTY'];
 
 const sha256 = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
 
-// 2026-11-09 (docs/rust-port/PHASE2.md section 6, ruling 4; PARITY row 9): the inputs where the JVM's parser refuses with
-// a placed parse error and this frozen module, TeaVM's last build of the Java parser (wasm/BUILD.bazel), still answers
-// the raw JDK exception. Held both ways: the module answers exactly this, and the JVM's answer differs. They go when the
+// 2026-11-09 (docs/rust-port/PHASE2.md section 6, rulings 4 and 18; PARITY row 9): the inputs where the JVM's parser now
+// answers otherwise and this frozen module, TeaVM's last build of the Java parser (wasm/BUILD.bazel), keeps Java's answer.
+// frozen_module_differs.json maps each input's id to the module's whole answer, generated from the test's own
+// round-trip-diffs.jsonl. Held both ways: the module answers exactly this, and the JVM's answer differs. They go when the
 // Rust wasm32 build replaces the module.
-const FROZEN_MODULE_DIFFERS = new Map([
-  ['legend-pure-core/legend-pure-m3-core/src/test/java/org/finos/legend/pure/m3/tests/elements/profile/TestProfile.java#52',
-    'OK\n500\napplication/json\n{"code":-1,"message":"IllegalArgumentException: Less than 4 hex digits in unicode escape","status":"error"}'],
-]);
+const FROZEN_MODULE_DIFFERS = new Map(
+  Object.entries(JSON.parse(readFileSync(runfileFromEnv('FROZEN_MODULE_DIFFERS'), 'utf8'))),
+);
 
 /** A folded answer's body when it is a 200 (`OK\n200\n<type>\n<body>`), else undefined (TabRoundTripRequests.okBody). */
 function okBody(folded) {

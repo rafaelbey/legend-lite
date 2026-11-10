@@ -67,8 +67,8 @@ class JsonModelDoorTest {
      *  engine's parser drops them (rule A), so the 14 texts holding them (AbstractTestConstraints 5, TestNestedCollection
      *  2, TestPureRuntimeFunction_Constraint 7, by name in the GATES entry) are rule A's, written whole, below. */
     private static final Map<String, int[]> PINS = Map.of(
-            // 7085 -> 7084 (2026-11-09, the user's ruling 18, docs/rust-port/PHASE2.md section 6): a text the engine refuses and
-            // the model door accepted is refused now as the engine refuses it
+            // 7085 -> 7084 (2026-11-09, the user's ruling 18, docs/rust-port/PHASE2.md section 6): relationMappingSetup.pure,
+            // which the engine (4.145.0) refuses and the model door accepted, is refused now as the engine refuses it
             "engine corpus", new int[]{7084, 4},
             "lite projects", new int[]{167, 0},
             "showcase projects", new int[]{123, 0});

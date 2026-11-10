@@ -165,9 +165,15 @@ node_test(
     name = "round_trip_test",
     wasm = True,
     size = "large",
-    data = ["//parser-equivalence:tab_round_trip"],
+    data = [
+        "frozen_module_differs.json",
+        "//parser-equivalence:tab_round_trip",
+    ],
     entry_point = "round_trip.mjs",
-    env = {"TAB_ROUND_TRIP": "$(rlocationpath //parser-equivalence:tab_round_trip)"},
+    env = {
+        "FROZEN_MODULE_DIFFERS": "$(rlocationpath frozen_module_differs.json)",
+        "TAB_ROUND_TRIP": "$(rlocationpath //parser-equivalence:tab_round_trip)",
+    },
 )
 
 # THE TIMEZONE DIFFERENTIAL: a tz database is a resource, not code, so only the
