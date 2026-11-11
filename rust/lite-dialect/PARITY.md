@@ -45,6 +45,19 @@ LITE_ORACLES="<mir-dump.jsonl> <h2-dump.jsonl> $PWD/oracles/mir/tagged-engine.js
 (`LITE_ORACLES` names the oracle files, separated by whitespace; `LITE_DIALECT_MISMATCHES=<dir>` writes each dialect's
 every mismatch to `<dir>/<dialect>.txt`.)
 
+**Since `main`'s merge at `c4a39e06d` (2026-11-10; docs/rust-port/PHASE2.md §4, the merge's entry).** The oracles are
+`main`'s Java's answers: every frozen file re-answered by `main`'s dialects (`oracles/mir/ReAnswer.java`, the inputs
+byte for byte; 4,443 rows moved, each a hunk of the replay), and a seventh file, `//rust/oracles:merge_arms`
+(`mir/merge-arms.jsonl`, `oracles/mir/MergeArms.java`), holds the arms `main` added that no frozen input reaches
+(LIST_AT, a raw grid's report in each part, a CSV file's load, H2's folded navigation, JSON_TYPE and domain guard, one
+alias in two query blocks) on each of `main`'s 15 dialects. H2Modern is no dialect (`main` folded it into H2): its lines
+are H2's, and `h2modern_renders_as_java_does` and its seam twin are gone. Every dialect renders all of its distinct
+inputs as `main`'s Java does, the first measurement: DuckDb 16,225, H2 22,259, EngineStyleH2 2,176, EngineStyleDB2 127,
+EngineStyleComposite 95, Postgres 11,701, SQLite 2,600, Trino 2,701, Databricks 2,702, ClickHouse 2,714, BigQuery 2,714,
+Snowflake 2,716, MariaDb 2,705, MySql 2,705, MongoDb 2,677. The per-dialect sections below were measured before the
+merge, over the old answers; their counts are history, their findings stand unless `main`'s Java changed them (H2's
+navigation, the list bound once, MySQL's JSON null, ClickHouse's NOT, the alias's block).
+
 # DuckDB
 
 ## The numbers

@@ -906,6 +906,84 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      lite's later one can stand before the engine's earlier one (no pinned text does). Found and not refused: S355's `None
      {}` and an expression's `~owner:`-family column spec (the gap report's "Found while probing").
 
+   **The merge of `main` at `c4a39e06d` done 2026-11-10** (the owner's rulings 1, 14 and 15, PHASE3_SHIM_DESIGN.md §10;
+   `origin/main` as fetched that day, PR #94's merge; the branch's base was `cf73e6ef7`). Commits, in order: the renumbering
+   `8191cac19`, the merge `9c08abbc7`, the replay `0d6352c86`, `0d318a5c7`, `090926c8d`, `f9fca3bdb`, `2a02224b3`, `29e30e43c`,
+   the re-freeze `d55a29a96`, and this record.
+   - **The register renumbered first** (`8191cac19`): the port's rows S128 to S196 are S300 to S368 (S(128+k) -> S(300+k)),
+     381 citations in 28 files (the register, this file, ENGINE_GAP and its ledger, GATES, `rust/lite-front`'s PARITY and
+     comments, the front oracle's difference list header, the refusal allowlist, `FixtureCorpusParityTest`'s comment), so
+     that none is mixed with `main`'s own S128 to S144, S171, S172. Left as written on purpose: ruling 15's own words and the
+     two renumbering notes. At the merge the register appends the port's rows after `main`'s S172 (214 rows, no id twice),
+     and `main`'s numbering-blocks note gains the port's S300 to S499.
+   - **What conflicted and how each class was resolved** (58 paths). (1) Java this branch deleted and `main` changed -- 27
+     files: `Lexer.java` (its keyword map made immutable: behaviour-neutral, as `SectionGrammarRegistry`'s change and the
+     protocol records' blank lines are), 17 of `sql/dialect`'s passes and helpers, the four retired dialect tests
+     (`CapabilityMatrix`, `CapabilityReach`, `SqlWriterTest`, `StoredReadsTest`) and five documents the 2026-11 cleanup
+     removed: the deletion kept, `main`'s change to each saved for the replay; `docs/HISTORY.md` names `c4a39e06d` for the
+     five documents' last text. (2) `H2Modern.java`, the reverse case (`main` deleted it, the branch had a shim): `main`
+     followed. (3) The fifteen dialect shims: the branch's bodies, made to `main`'s `SqlDialect` -- `forServer`,
+     `serverVersions`, `failingStatement` gone; `csvLoad`, `verdictSavepoint`, `fusedStatementBudget` new, each one seam
+     call or fact; `DialectCapability` in `com.legend.sql`; `RunScope.planning` checked before each render, as `main`'s
+     renderer checks it. MirJson's DML codec (the port's) gained `main`'s `LoadCsv`. (4) The guards changed on both sides
+     (`ArchitectureTest`, `CodeShapeGuardrailTest`, `DatabaseOwners`, `TestLaneOrderGuardrailTest`): `main`'s text, the port's
+     dated moves reapplied; `main`'s new static-state register loses the seven fields the port deleted (a new
+     `rust/RETIRED_TESTS.md` row). (5) `core/BUILD.bazel`, `tools/deps/core-layers.txt`, `tools/junit/defs.bzl`: `main`'s
+     structure (`driver` and `judge` deleted, `testplan`, `testexec`, `execution` and kin new), `ide` out, the port's `ffi`,
+     `rust_dialect`, `rust_parser` kept. (6) Documents: both sides' content -- AGENTS.md `main`'s doors with the port's Rust
+     lexer and parser (no invariant renumbered) and `main`'s new standing documents that are in the tree; GATES and IN_FLIGHT
+     in the cleanup's shape, `main`'s per-landing entries by pointer; RUNNING_THE_CORPUS `main`'s engine side. (7)
+     `ratchets.tsv`: measured after (below). No test `main` added or changed reaches a class this branch deleted except by
+     name in comments and in the guards above; all compiled, so nothing was re-expressed or retired for that reason. The
+     merge commit built (`bazel build //... --keep_going` complete); the seam's two new facts were added in it so that a
+     build action planning a verdict (`//core:ladder_report`) builds.
+   - **The replay, by area** (Rust and shim sources, lines added/removed). The door and the one H2 (`0d6352c86`, +236/-434):
+     the trait's and seam's `forServer`, `serverVersions`, `failingStatement` and a spec's server gone, the refusal class
+     `com.legend.sql.DialectCapability`, H2Modern no dialect, its overrides H2's (`(j)."key"`, `(j)[i+1]`, `JSON_OBJECT`,
+     `CARDINALITY`, the navigation cast), H2's JSON_TYPE emulation and asin/acos domain guard. LIST_AT on every dialect
+     (`0d318a5c7`, +157/-5): the constant, its typing, sixteen arms and three sets, the carrier's literal pick on H2. A raw
+     grid's report (`090926c8d`, +266/-14): the record and its MirJson tag, the base renderer's report and three hooks,
+     H2's and DuckDB's spellings, MongoDB's refusal, the rewriter's walk into the grid and its WITH hook. A CSV file's load
+     (`f9fca3bdb`, +200/-4): the record and tag, CsvLoad and `csv_load` on every dialect, the base's refusal and two
+     spellings, DuckDB's reader, H2's streamed insert, the seam's `csvLoad` op. The alias's query block (`2a02224b3`, +68/-8):
+     `query_blocks::each`, StoredReads and SourceSpelling per block. The statements written once (`29e30e43c`, +241/-151):
+     SQLite's and BigQuery's list bound once, MySQL's JSON null by `NULLIF(..., CAST('null' AS JSON))`, MariaDB's literal
+     index at its path, ClickHouse's `NOT (...)`, S138's guard words on SQLite and MariaDB.
+   - **The oracles re-frozen from `main`'s Java** (`d55a29a96`). In a scratch worktree at `c4a39e06d` (the port's MirJson in
+     place), `rust/oracles/mir/ReAnswer.java` answered each frozen file's every input again on a fresh `main` dialect; the
+     inputs are byte for byte the old ones, so the row diff is exact: 4,443 rows moved (mir-dump 539, h2-dump 1,336,
+     dialects-dump 253, sqlite-arms 56, dialect-arms 2,259; tagged-engine 0). By the hunk that explains them:
+     `DialectCapability`'s class 2,951 (and 16 on folded lines); H2Modern folded into H2 -- 649 folded lines answering as
+     before, 62 now spelled, 148 refusals moved to a later wall (the struct read is spelled now; mir-dump 377 folded, 52
+     dropped as duplicates of H2's own inputs; h2-dump 386, 46); H2's JSON_TYPE 119, asin/acos 26; the list bound once 288;
+     MySQL's JSON null 129; ClickHouse's NOT 24; S138's words 14; MariaDB's literal index 8; the query block 9. No moved row
+     lacks a hunk. `rust/oracles/mir/MergeArms.java` (new) holds the arms no frozen input reaches -- LIST_AT, the report's four
+     parts, the CSV load, H2's folded navigation, JSON_TYPE and guard, one alias in two blocks -- 71 inputs on each of
+     `main`'s 15 dialects, 1,065 lines (`mir/merge-arms.jsonl.zst`, `//rust/oracles:merge_arms`). MANIFEST.tsv: the five files'
+     SHA-256 replaced under a dated note naming `c4a39e06d` and ReAnswer.java, and merge-arms' own line naming `c4a39e06d`
+     and MergeArms.java. The differential's first measurement over them: every dialect at all of its distinct statements
+     (DuckDb 16,225, H2 22,259, EngineStyleH2 2,176, DB2 127, Composite 95, Postgres 11,701, SQLite 2,600, Trino 2,701,
+     Databricks 2,702, ClickHouse 2,714, BigQuery 2,714, Snowflake 2,716, MariaDb 2,705, MySql 2,705, MongoDb 2,677); the
+     floors raised to those counts, H2Modern's floor and two tests gone; the MIR round trip reads all 39,237 distinct texts
+     back to Java's bytes. The scratch worktree is removed.
+   - **The front oracle** stays as frozen: `main`'s lexer and parser changes are behaviour-neutral and the Rust front end did
+     not change (but comments). The three front differentials pass over the frozen files with every floor whole.
+     `//parser-equivalence:parser_parity` passes: 422 pins, line agreement 415, column exact 337, the sentinel 2,217 of
+     2,217 matched, the sweep's 6,755 sources (seam 6,746/0, asym 9), own corpus `diffs=0` -- all unchanged but one
+     denominator: `own_corpus.matched` 2,943 (the port's) -> 3,025 over the merged tree, exactly `main`'s +82 snippets
+     (3009 -> 3091, its added tests) less the port's -66 retired (3009 -> 2943), `REFERENCE_REJECTED` 248 -> 252 (`main`'s
+     4); ratchets.tsv measured by `update_ratchets` (its ledger row says so).
+   - **Retired or re-expressed:** nothing at the merge beyond the deletions the branch already ledgered; H2Modern's Rust
+     tests and differential floor (its class gone), and each test whose assertion follows `main`'s Java, are rows of
+     `rust/RETIRED_TESTS.md`. Two pre-existing ledger gaps closed: `FixtureCorpusParityTest` and ruling 18's four parity
+     floors (`ModelReaderParityTest`, `JsonModelDoorTest`, `RoundTripProofTest`, `CorpusSweepTest`).
+   - **Choices taken that are the owner's** (each reversible): the re-freeze re-answers the frozen inputs (plus the new arms'
+     oracle) rather than re-dumping `bazel test //...` on `main` with the probes -- exact row diffs, but the trees `main`'s
+     lowering now builds are judged by the Java tests through the shims and the lanes, not by a frozen dump; H2Modern's
+     inputs re-asked of H2 and kept as H2's; GATES and IN_FLIGHT keep `main`'s per-landing entries by pointer; the five
+     removed documents `main` edited stay removed; RUNNING_THE_CORPUS takes `main`'s engine side; the merge commit carries
+     the two verdict facts so that it builds.
+
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
 exists, and the committed oracle after.

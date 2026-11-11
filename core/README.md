@@ -15,11 +15,12 @@ whole product.
 **The Rust port.** On branch `rust-port` the planning path is moving to Rust
 ([`docs/rust-port/ROADMAP.md`](../docs/rust-port/ROADMAP.md); the crates are under [`rust/`](../rust/README.md)).
 Iteration 1 replaces the planning path. The executor (`exec`) and the record layer it is walled to, the `server`
-HTTP shell, and the `driver` and `judge` test runners stay Java. Phase 1 (the dialects) is under way: since
-2026-11-03, `DuckDb`, `H2`, `H2Modern` and the three `EngineStyle*` dialects in `sql/dialect/` are Java shims
-over the Rust library, reached through the `RustDialects` SPI that `ffi/` implements. The other ten dialects are
-still Java on `AnsiSqlRenderer` ([`PHASE1.md`](../docs/rust-port/PHASE1.md) §4). This file describes the Java
-tree as it stands. [Which invariants the port keeps](#which-invariants-the-rust-port-keeps) is below. The
+HTTP shell, and the test runners (`testexec` since `main`'s merge of 2026-11-10; `driver` and `judge` were deleted
+on `main`) stay Java. Phases 1 and 2 are done: every dialect in `sql/dialect/` is a Java shim over the Rust library
+(since 2026-11-04), reached through the `RustDialects` SPI that `ffi/` implements ([`PHASE1.md`](../docs/rust-port/PHASE1.md)
+§4), and the lexer and parser are the Rust library's behind the text doors (since 2026-11-06). `main` was merged in at
+`c4a39e06d` on 2026-11-10, its dialect changes replayed into Rust (`H2Modern` is gone: lite's one H2).
+This file describes the Java tree as it stands. [Which invariants the port keeps](#which-invariants-the-rust-port-keeps) is below. The
 language-neutral design is [`docs/architecture/README.md`](../docs/architecture/README.md).
 
 ## The wall — non-negotiable

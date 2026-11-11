@@ -24,6 +24,16 @@ with `PivotAsGroupBy.java` and `AsOfAsPick.java`), §3f Databricks' (`Databricks
 MariaDb's (`MariaDb.java`'s, with `WindowAggregatesAsCorrelated.java`), §3k MySql's (`MySql.java`'s over MariaDb's,
 with `WindowsComputedBelow.java`) or §3l MongoDb's (`MongoDb.java`'s, with `MongoDbPipeline.java` and `MongoJson.java`).
 
+**Since `main`'s merge at `c4a39e06d` (2026-11-10; docs/rust-port/PHASE2.md §4, the merge's entry).** The seam
+answers `main`'s `SqlDialect`: `forServer`, `serverVersions` and `failingStatement` are gone from the interface (lite's
+one H2, 2.5.252, since 2026-11-05; no plan names a server version), so the `forServer` and `failingStatement` ops and
+the `serverVersions` fact are gone, and a spec naming a `server` is refused (`a dialect's spec names no server version:
+no dialect is chosen by one (main's SqlDialect, 2026-11-05)`); `H2Modern` is no dialect the seam opens (its overrides
+are H2's, §3a). New: the `csvLoad` op (§3) and the `verdictSavepoint` and `fusedStatementBudget` facts. A refusal of
+kind `DIALECT_CAPABILITY` is `com.legend.sql.DialectCapability` (§5; in `com.legend.sql` since `main`'s 2026-11-09).
+Where a section below still names `forServer`, `failingStatement`, `serverVersions` or H2Modern, it describes the seam
+before the merge.
+
 ## 1. The call
 
 ```c
@@ -68,17 +78,17 @@ The phase and position fields are always `-`; the message is the rest of the tex
 ### `spec`
 
 ```json
-{"dialect": "DuckDb" | "H2" | "H2Modern" | "EngineStyleH2" | "EngineStyleDB2" | "EngineStyleComposite" | "Postgres"
+{"dialect": "DuckDb" | "H2" | "EngineStyleH2" | "EngineStyleDB2" | "EngineStyleComposite" | "Postgres"
              | "SQLite" | "Trino" | "Databricks" | "ClickHouse" | "BigQuery" | "Snowflake" | "MariaDb" | "MySql"
              | "MongoDb",
- "server": "<version>" | null, "engineScanOrder": true | false,
+ "server": null, "engineScanOrder": true | false,
  "quoteIdentifiers": true | false, "timeZone": "<zone>" | null}
 ```
 
 | field | | |
 |---|---|---|
 | `dialect` | required string | Java's simple class name: `DuckDb`, `H2`, `H2Modern`, `EngineStyleH2`, `EngineStyleDB2`, `EngineStyleComposite`, `Postgres`, `SQLite`, `Trino`, `Databricks`, `ClickHouse`, `BigQuery`, `Snowflake`, `MariaDb`, `MySql` or `MongoDb`; any other is refused (`unknown dialect '<name>': Rust answers DuckDb, H2, H2Modern, EngineStyleH2, EngineStyleDB2, EngineStyleComposite, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDb, MySql, MongoDb`). |
-| `server` | string, null or missing | the server version a session reports: the dialect is taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDb, MySql and MongoDb keep themselves. |
+| `server` | null or missing | (since the merge: a string is refused, no dialect is chosen by a server version) the server version a session reported: until 2026-11-10 the dialect was taken `forServer(server)` when given. DuckDB's `forServer` keeps itself and its `serverVersions` is null, so DuckDB ignores it; H2 is taken as H2Modern for a version that starts with neither `2.1` nor `2.2` (§3a); H2Modern, the engine-text dialects, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDb, MySql and MongoDb keep themselves. |
 | `engineScanOrder` | boolean or missing (false) | `Boolean.getBoolean("legend.exec.engineScanOrder")`, which Java's `DuckDb` reads at each render: the engine corpus runner's opt-in to `StableScanOrder`. The JVM passes its property's value. Read as a boolean for every dialect; only DuckDB reads it. |
 | `quoteIdentifiers` | boolean or missing (false) | an engine-text dialect's constructor argument (`new EngineStyleH2(quoteIdentifiers, timeZone)`, `new EngineStyleDB2(...)`; the plan text's connection): every physical identifier double-quoted. |
 | `timeZone` | string, null or missing (null) | the same constructors' second argument, the connection's zone: a DATETIME placeholder written in `GMTtoTZ`, a date-time constant shifted from GMT to the zone (`GMT` itself shifts none; §6). |
@@ -119,13 +129,13 @@ Each answer is one JSON value. "string" is a JSON string, `[string]` an array of
 | op | args | answer (DuckDB) |
 |---|---|---|
 | `facts` | `{}` | the facts object (below) |
-| `forServer` | `{"version": string}` | string: the simple name of the dialect a session of that server version is spelled in, `forServer(version)` (this dialect's own name where Java returns `this`); DuckDB's is `"DuckDb"` whatever the version. The JVM builds its own shim of the named dialect (no Java code chooses a dialect by its class) |
 | `query.render` | `{"query": MIR query}` | string: `render(SqlQuery)` |
 | `query.renderInline` | `{"query": MIR query}` | string: `renderInline(SqlQuery)` (one line) |
 | `query.renderStatement` | `{"query": MIR query}` | STATEMENT: `renderStatement(SqlQuery)` |
 | `ddl.render` | `{"ddl": MIR DDL}` | string: `render(SqlDdl)` |
 | `dml.render` | `{"dml": MIR DML}` | string: `render(SqlDml)` |
-| `dml.renderStatement` | `{"dml": MIR DML}` | STATEMENT: `renderStatement(SqlDml)` |
+| `dml.renderStatement` | `{"dml": MIR DML}` | STATEMENT: `renderStatement(SqlDml)` (a `loadCsv` refused: `IllegalStateException`, its placeholders are the runner's) |
+| `csvLoad` | `{"load": MIR loadCsv}` | `{"readsFile": boolean, "sql": string}`: `csvLoad(SqlDml.LoadCsv)` (main's 2026-11-09). DuckDB's reads the file, `INSERT INTO <t> (<columns>) SELECT * FROM read_csv(?, header = true, delim = ',', quote = '"', escape = '"', all_varchar = true)`; H2's streams the cells, `INSERT INTO <t> (<columns>) VALUES (?, ...)`, `readsFile` false; every other dialect refuses it (`a CSV file's load reached <Dialect>: this dialect's database takes no file yet`; MongoDB's `render(SqlDml)` in its own words) |
 | `sessionTable` | `{"table": MIR createTable, "rows": MIR insertValues \| null}` | `[string]`: the table's DDL, then (when `rows` is given) its INSERT |
 | `physicalName` | `{"name": string}` | string |
 | `storedName` | `{"name": string, "declaredQuoted": boolean}` | string |
@@ -136,7 +146,6 @@ Each answer is one JSON value. "string" is a JSON string, `[string]` an array of
 | `typingWireName` | `{"driverTypeName": string \| null}` | string or null; DuckDB's is `wireTypeName`'s, always a string |
 | `deliversOwn` | `{"label": MIR type, "wire": string}` | boolean; DuckDB's is `false` |
 | `script` | `{"statements": [string]}` | string: `BEGIN TRANSACTION;\n<s1>;\n<s2>;\nCOMMIT;` (no statements: `BEGIN TRANSACTION;\n;\nCOMMIT;`) |
-| `failingStatement` | `{"message": string, "statements": [string]}` | integer (0-based) or null (`OptionalInt.empty()`); DuckDB's is `null` |
 | `catalogType` | `{"column": Column}` | CatalogType |
 | `catalogColumnsQuery` | `{"schema": string, "table": string}` | string: DuckDB's catalog question, each name a string literal |
 | `bareNameReaches` | `{"catalogName": string}` | boolean; DuckDB's is `true` |
@@ -162,13 +171,17 @@ Each answer is one JSON value. "string" is a JSON string, `[string]` an array of
 
 ```json
 {"temporaryTables": true, "loadsRowsInBulk": true, "relational": true, "inProcess": true,
- "dropsStagedTablesWithTheirTransaction": false, "needsStaticPivot": false, "serverVersions": null,
+ "dropsStagedTablesWithTheirTransaction": false, "needsStaticPivot": false,
  "inMemoryPath": ":memory:", "scriptAbort": "ROLLBACK", "sessionSetup": ["SET TimeZone='UTC'"],
- "keysSnapshot": "TRANSACTION", "resultColumnLimit": null}
+ "keysSnapshot": "TRANSACTION", "resultColumnLimit": null, "verdictSavepoint": null, "fusedStatementBudget": 2147483647}
 ```
 
-- `serverVersions`: `[string]`, null, or, where the dialect refuses it (H2Modern's), `{"refused": ...}` as for
-  `keysSnapshot` below; `inMemoryPath`, `scriptAbort`: string or null; `sessionSetup`: `[string]`.
+- `inMemoryPath`, `scriptAbort`: string or null; `sessionSetup`: `[string]`. (`serverVersions` went at the merge.)
+- `verdictSavepoint` (main's 2026-11-01): null, or `{"set", "rollbackTo", "release"}`, the texts that guard a fused
+  verdict statement where the database aborts a transaction on a failing one -- Postgres's `SAVEPOINT legend_verdicts`,
+  `ROLLBACK TO SAVEPOINT legend_verdicts`, `RELEASE SAVEPOINT legend_verdicts`; null on every other dialect.
+- `fusedStatementBudget` (main's 2026-11-05): the most characters a fused verdict statement may have -- SQLite and
+  BigQuery 500,000, ClickHouse 100,000, every other 2,147,483,647 (Java's `Integer.MAX_VALUE`).
 - `keysSnapshot`: a `SqlDialect.KeysSnapshot` name (`TRANSACTION`, `REPEATABLE_READ`, `SERIALIZABLE`, `NONE`), or,
   where the dialect refuses it, `{"refused": {"kind": <kind>, "message": <message>}}` (§5's kind and message; the JVM
   throws it when `keysSnapshot()` is called, not when the facts are read).
@@ -646,7 +659,7 @@ matched exactly (a subclass not listed is not its parent's kind):
 
 | Java class | kind | the JVM throws |
 |---|---|---|
-| `com.legend.sql.dialect.DialectCapability` | `DIALECT_CAPABILITY` | `new DialectCapability(message)` |
+| `com.legend.sql.DialectCapability` (`com.legend.sql.dialect` until main's 2026-11-09) | `DIALECT_CAPABILITY` | `new DialectCapability(message)` |
 | `java.lang.IllegalStateException` | `ILLEGAL_STATE` | `new IllegalStateException(message)` |
 | `java.lang.IllegalArgumentException` | `ILLEGAL_ARGUMENT` | `new IllegalArgumentException(message)` |
 | `java.lang.UnsupportedOperationException` | `UNSUPPORTED_OPERATION` | `new UnsupportedOperationException(message)` |

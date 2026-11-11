@@ -307,6 +307,7 @@ The dated record of moved pins, rosters and ratchets (the rules: "Recording a mo
 Newest first, at most 20 lines. Seeded from the last entries of the cut log; "D<n>" is the decisions log of the
 landing's program.
 
+- 2026-11-10 — `main` merged into the Rust port at `c4a39e06d` (merge `9c08abbc7`, replay `0d6352c86` to `29e30e43c`, re-freeze `d55a29a96`): the register's port rows S128-S196 renumbered S300-S368 (`8191cac19`); `ArchitectureTest`'s static-state register (main's) loses the seven fields the port deleted (`StableScanOrder.FIRINGS`, `SQLite.MONTHS`/`DAYS`, `SqliteDigests.MD5_K`/`MD5_S`/`SHA256_K`, `TokenStream.TOKEN_TYPES`), every other guard main's text with the port's dated moves; parser-equivalence's `own_corpus.matched` 3091 -> 3025 (main's +82 snippets, the port's -66; diffs 0); the dialect oracles re-frozen from main's Java, every differential floor raised to all of its dialect's inputs (DuckDb 16154 -> 16225, H2 21847 -> 22259, ...; H2Modern's floor gone with the class).
 - 2026-11-10 — rulings 20 and 21 (`e02b2cb0a`): `rust/oracles/front/deliberate-differences.tsv` 744 -> 760 asks (`pmcd` at `LEGEND_ENGINE` and `document` 204 -> 212 each, register S354 to S367); `FixtureCorpusParityTest`'s `LENIENT_RESIDUE` 6 -> 0 (its last six negatives refused as the engine refuses them); `FROZEN_MODULE_DIFFERS` and every other pin unchanged.
 - 2026-11-09 — ruling 18 (`44012955b`): `rust/oracles/front/deliberate-differences.tsv` 9 -> 744 asks; `FROZEN_MODULE_DIFFERS` 1 -> 66 inputs, now `wasm/frozen_module_differs.json`; `ModelReaderParityTest` own 37739 -> 37648 and documents 13514 -> 13512, `JsonModelDoorTest` 7085 -> 7084, `RoundTripProofTest` 6905 -> 6904 and upstream 270 -> 271 (`relationMappingSetup.pure`, which the pinned engine refuses); `LENIENT_RESIDUE` 13 -> 6; `docs/refusal-allowlist.tsv` and `REFUSAL_ALLOW_TOTAL` 4 -> 3; `OwnDialectCensusTest` `ModelNormalizerTest.java` 0 -> 1.
 - 2026-11-09 — `rust/oracles/front/deliberate-differences.tsv` 7 -> 9 asks (`1680d307` at `pmcd`/`LEGEND_ENGINE` and `document`,
@@ -375,9 +376,6 @@ landing's program.
   `ROOT_CLASSES` +1. PR #82, `9f44d43c`.
 - 2026-10-30 — The seam's step B1, the judge layer out of exec (D71): `JUDGE_CLASSES` (14) new, `EXEC_CLASSES` −16,
   `ROOT_CLASSES` +4; size pins GridProbe 48 → 53, DynamicPivot 113 → 118, Equality 447 → 448 (import lines). PR #82, `7a6c899e`.
-- 2026-10-30 — The seam's step A, one way into the session seam (D70): the JDBC census register loses
-  `PlanSessions`, `SystemDatabase`, `SessionState` and `ConnectionResolver` (18 rows); the static-state register
-  loses `SessionState.OF`. PR #82, `fd060846`.
 
 > Cut in the 2026-11 docs cleanup: the Maven-era chain and its log (2026-08-02 to 2026-09-22: `tools/allgates.sh`, the
 > root-flag trap, the budget decisions, the batch chain logs, the hand-kept ratchet table, the CI leg, fork policy and
