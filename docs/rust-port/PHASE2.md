@@ -1264,3 +1264,16 @@ the platform's, a mistake corrected with these.
 26. **The three looser inputs found by hand** (`auditing: None {}`, a constraint keyword as a column spec such as
     `[~owner: abc]`, DataQuality's unprobed comma lists) **are fixed in the multi-error round**, under the never-looser
     rule.
+
+**Ruled on the multi-error round's report (the user, 2026-11-11):**
+
+27. **The four checks that run after lite's read of a construct move into the read** (a property's default value, a
+    service test's value, a mapping expression's path, a HostedService's lists), so that within one element the earlier
+    of two errors is first, as the engine reports it. Only texts with two errors in one element change; no pinned text
+    does.
+28. **The multi-error round's own choices are ratified** (open brackets end recovery for the rest of the text; errors
+    placed before the first are not listed; the editor's first diagnostic keeps its old place; a section catch-all among
+    the further errors at its element's head; recovery resumes after a `;` or a closing bracket; the section of the
+    column-spec rule from the last `###` at a line start; a missing comma after a validation keeps its answer;
+    `lambda("")` unplaced), and **the DataSpace executable `id: 'e';`**, found by hand, is refused at the engine's place
+    in ruling 27's round.
