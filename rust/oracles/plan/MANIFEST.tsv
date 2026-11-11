@@ -19,6 +19,8 @@
 # is under 10 MB compressed (the largest frozen file in git is front/questions.jsonl.zst, 8.4 MB) and is not the
 # database judge's (ruling 4: not ported at first); otherwise it is archived outside git, as the front oracle's full
 # answers are, with its SHA-256 below and in plan-test-plans.sha256 beside it. Compressed with `zstd -19 --long=27`.
+# The host judge's test plans, 65 MB as one stream, are in git DEDUPLICATED since 2026-11-11 (section 10 ruling 18):
+# 10.1 MB in four files, below. The database judge's stay archived only.
 # plan-ids: model, query, doors, use (the identity oracle's key), then the execution plans' ids in order, then the test
 # plans' ids in order (comma-separated; empty when none). 25,740 rows with an execution plan (25,741 plans: 25,694 rows
 # through executionPlan, 46 projectPlan), 25,597 with a test plan (one each; query ids test 10,076, service 11,538, vs
@@ -31,12 +33,38 @@
 plan-ids.tsv.zst	model, query, doors, use, execution plan ids, test plan ids: 51,337 rows; 25,741 execution plans, 25,597 test plans	33c6cef3eae91d5ccca79b69b20619287aabf99bbaecf852886005fed3280c5c
 # Every execution plan the ids name, once: id TAB E TAB the PlanJson (v31) text, sorted by id. 424,296,853 characters.
 execution-plans.tsv.zst	id TAB E TAB PlanJson, sorted by id: 17,044 lines	1af460bdfdef057d494845ae65ac68373255293657541cfda53e727c04aa6b7d
-# ARCHIVED (not in git): every test plan a host-judge row names, once, id TAB T TAB the TestPlanJson (v11) text, sorted by
-# id: 16,247 lines, 30,212,521,643 characters (the stress suites' plans carry their test data's CSV several times over,
-# about 2.5 MB each, and compress about 900 to 1).
+# THE HOST JUDGE'S TEST PLANS, DEDUPLICATED (2026-11-11; docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 ruling 18;
+# docs/rust-port/PHASE3.md step 0): every test plan a host-judge row names, once, 16,247 plans of 30,212,521,643
+# characters, rebuilt exactly from four files. THE FORMAT is rust/tools/test-plan-texts.py's header (the writer, the
+# reader and the check: a tool, not a probe, since reading this oracle needs it). In short: a JSON value of a plan (a
+# string, an array or an object) of at least 8,192 bytes that occurs twice or more in the archive, nested ones too, is
+# stored once in the values store under its key (the SHA-256 of its text's UTF-16 units, little-endian: a plan's id
+# rule), and its place in a plan's text, or in a bigger value's, holds a reference: U+0001, the key's 64 hex digits,
+# U+0001. Java's compact JSON writer never writes a character below U+0020 (Json.escapeTo escapes every one inside a
+# string; outside strings it writes none), and the archive holds none, so a reference is never Java's text. Rebuilding
+# splits a text on U+0001 and puts each value back, rebuilt the same way. Each store is independent zstd frames of up to
+# 2 MiB (`zstd -19`, zstd 1.5.7; plain `zstd -d` reads a store whole), so one plan reads its plans frame and its values'
+# frames only: 65 to 83 ms a plan from a fresh reader (two runs), decompressing a median 5.6 MB of the 246 MB; 10 to 12
+# ms a plan from one reader. WHAT REPEATS (measured first): one 516,123-byte CSV (testDataSetupCsv, the stress suites'
+# seed data) stands 31,494 times in 10,498 plans (16.3 GB), and SQL strings 4.5 GB more; but whole JSON strings
+# deduplicated still leave 4.9 GB of plan text even from 64 bytes, since whole sub-objects repeat across a suite's plans
+# (the session, the seed steps, MIR trees); whole values leave 154 MB of plan text and 26,551 values (91 MB). The four
+# files' bytes by threshold: 256 17.1 MB, 512 13.6, 1,024 11.8, 2,048 10.7, 4,096 10.3, 8,192 10.1, 16,384 10.3.
+# MADE by `python3 rust/tools/test-plan-texts.py write <the archive below> <dir>` (its defaults, --min 8192 --frame
+# 2097152), twice, byte for byte the same. CHECKED 2026-11-11 by `check rust/oracles/plan --sha <the archive's SHA-256>
+# --ids rust/oracles/plan/plan-ids.tsv.zst`: all 16,247 plans rebuilt, each hashing to its id; every value's rebuilt text
+# to its key; every frame its row of the frame table; the index every value's frame; the rebuilt archive's SHA-256 the
+# archive's (below); the plans' ids exactly the test plan ids the host judge's rows name in plan-ids.
+test-plans-host.tsv.zst	id TAB T TAB the plan's text outlined, sorted by id: 16,247 lines in 76 frames	d13189c23b9d48cbf274e78bbd428c53d22f5e639a6ac22ac6a74e05035f9912
+test-plan-values.tsv.zst	key TAB the value's text outlined, in the order the plans first reach them: 26,551 lines in 44 frames	08e55e5422e77ab88a0035192e2517d494d3c0c7b281117dcfe97428ae4d9b89
+test-plan-values-index.tsv.zst	a value's key's first 16 hex digits TAB the values frame it is in, sorted: 26,551 lines	1f4a2e02559184e9eef63d732f039e81ef5116050050eaaac8be1ee95586b2ae
+test-plan-frames.tsv	store TAB frame TAB first key TAB byte offset TAB byte length TAB lines, the 120 frames of the two stores (plain text: its own SHA-256)	6bfa497300fdaaabac36104aec54f6a269c9abbf2f8671e0b327b9ac1e18d1f1
+# THE ARCHIVE THEY ARE MADE FROM (kept outside git): the same plans as one stream, id TAB T TAB the TestPlanJson (v11)
+# text, sorted by id: 16,247 lines, 30,212,521,643 characters (the stress suites' plans carry their test data's CSV
+# several times over, about 2.5 MB each, and compress about 900 to 1).
 # /Users/cocobey73/.local/legend-lite/oracle-archive/plan-test-plans-host.tsv.zst (65,061,945 bytes, `zstd -d --long=27`),
 # SHA-256 of its uncompressed text 17af882afbd26a5e0b5e2845b38e4adb723c8481b27bbef70cbf15bb67051403 (checked 2026-11-11 by
-# decompressing it).
+# decompressing it, and again by the rebuild above).
 # ARCHIVED, MARKED THE DATABASE JUDGE'S: every test plan only a DATABASE or BOTH row names, the same form: 6,850 lines,
 # 3,973,995,251 characters.
 # /Users/cocobey73/.local/legend-lite/oracle-archive/plan-test-plans-database-judge.tsv.zst (7,959,229 bytes), SHA-256 of

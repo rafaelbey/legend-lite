@@ -68,7 +68,12 @@ profile does not.
 - `oracles/plan/`: the plan oracle, made with it (the same rows, keyed alike): per question, the id of each plan Java made,
   a product query's `ExecutionPlan` (PlanJson v31) and a test body's `TestPlan` (TestPlanJson v11), the id being the SHA-256
   of the JSON's UTF-16 units once run-specific values are masked (`plan-ids.tsv.zst`), and every execution plan's text
-  (`execution-plans.tsv.zst`). The test plans' texts are archived outside git; `MANIFEST.tsv` says where, with their hashes.
+  (`execution-plans.tsv.zst`). The host judge's test plans' texts are in git deduplicated (`test-plans-host.tsv.zst`,
+  `test-plan-values.tsv.zst`, its index and frame table: each JSON value of 8 KB or more that repeats stored once); the
+  database judge's are archived outside git. `MANIFEST.tsv` says where, with their hashes.
+- `tools/test-plan-texts.py`: the format of the deduplicated test plans, its writer (from the archive), its reader (one
+  plan's exact text by its id, `read rust/oracles/plan <id>`) and the check that every plan rebuilds to its id. A tool,
+  not a probe: it touches no source, and reading the oracle needs it.
 - `tools/identity-hits-probe.patch`: the probe that made both. `git apply` it to a clean tree (the patch is the switch),
   run, read `identity-hits-*`, `identity-mir-*` and `identity-plan-*` from each test's outputs and each corpus pass's scratch
   directory, `git apply -R` as soon as the run is over; never commit it to the sources.
