@@ -403,6 +403,7 @@ const REPEATING: &[SqlFn] = &[
     SqlFn::Asin,
     SqlFn::BoolToText,
     SqlFn::ListGet,
+    SqlFn::ListAt,
     SqlFn::ListSlice,
     SqlFn::ListInit,
     SqlFn::ListTail,

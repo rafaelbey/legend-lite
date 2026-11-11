@@ -18,6 +18,7 @@ const NULL_OVER_EMPTY: &[SqlFn] = &[
     SqlFn::ListFilter,
     SqlFn::ListTransform,
     SqlFn::ListGet,
+    SqlFn::ListAt,
     SqlFn::ListPosition,
     SqlFn::ListDistinct,
     SqlFn::ListSum,
@@ -738,6 +739,7 @@ impl Databricks {
             | SqlFn::ListTransform
             | SqlFn::ListConcat
             | SqlFn::ListGet
+            | SqlFn::ListAt
             | SqlFn::ListPosition
             | SqlFn::ListZip
             | SqlFn::ListDistinct
@@ -1086,6 +1088,14 @@ impl Databricks {
                     .append(", CAST(")
                     .expr(self, &args[1], 0)?
                     .append(" AS INT)) END)");
+            }
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            SqlFn::ListAt => {
+                w.append("try_element_at(")
+                    .piece(&*list)?
+                    .append(", CAST(")
+                    .expr(self, arg(args, 1)?, 0)?
+                    .append(" AS INT))");
             }
             // DuckDB's list_position: NULL when absent (array_position answers 0)
             SqlFn::ListPosition => {

@@ -1071,6 +1071,7 @@ impl EngineStyle {
             | F::ListTransform
             | F::ListConcat
             | F::ListGet
+            | F::ListAt
             | F::ListPosition
             | F::ListZip
             | F::ListDistinct
@@ -1290,6 +1291,7 @@ impl EngineStyle {
             | F::ListTransform
             | F::ListConcat
             | F::ListGet
+            | F::ListAt
             | F::ListPosition
             | F::ListExists
             | F::ListForAll
@@ -1466,6 +1468,7 @@ impl EngineStyle {
             | F::ListTransform
             | F::ListConcat
             | F::ListGet
+            | F::ListAt
             | F::ListPosition
             | F::ListExists
             | F::ListForAll

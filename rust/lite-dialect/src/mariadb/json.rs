@@ -145,6 +145,17 @@ impl MariaDb {
         self.value_at(self.ex(xs, 0), self.index_path(index), list_element(xs))
     }
 
+    /// Java's `elementAtPosition` (main's 2026-11-03, merged 2026-11-10): the element at a 0-based index the list holds
+    /// (LIST_AT's position, a positive literal LIST_GET's), its path `$[index]` with the index written once -- where
+    /// [`Self::element_at`]'s path may write it again for a negative one (MySQL's `$[last-n]`).
+    pub(super) fn element_at_position<'a>(&'a self, xs: &'a SqlExpr, index: P<'a>) -> P<'a> {
+        let path = pc(move |w| {
+            w.append("CONCAT('$[', ").piece(&*index)?.append(", ']')");
+            Ok(())
+        });
+        self.value_at(self.ex(xs, 0), path, list_element(xs))
+    }
+
     // ---- lists: each operation a correlated subquery over JSON_TABLE(xs)
 
     /// Java's `param(name)`: a lambda parameter (or an element's or index's name) as its references spell it.

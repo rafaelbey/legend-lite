@@ -1490,6 +1490,20 @@ impl CarrierStrategies {
                 return Ok(Some(picked));
             }
         }
+        // LIST_AT (a position the list holds) on a dialect with no list and no JSON carrier (H2): the literal array's
+        // pick, as LIST_GET's; where a carrier exists, the dialect's own read writes the position once (main's
+        // CarrierStrategies, 2026-11-03, merged 2026-11-10)
+        if !self.caps.json_carrier
+            && let SqlExpr::Call {
+                r#fn: SqlFn::ListAt,
+                args,
+                ..
+            } = e
+            && let [coll, idx] = args.as_slice()
+            && let Some(picked) = self.literal_pick(coll, idx)?
+        {
+            return Ok(Some(picked));
+        }
         if let SqlExpr::Membership { needle, collection, .. } = e
             && let Some(rewritten) = membership_rule(needle, collection)?
         {

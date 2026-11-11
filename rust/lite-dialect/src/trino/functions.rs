@@ -19,6 +19,7 @@ const NULL_OVER_EMPTY: &[SqlFn] = &[
     SqlFn::ListFilter,
     SqlFn::ListTransform,
     SqlFn::ListGet,
+    SqlFn::ListAt,
     SqlFn::ListPosition,
     SqlFn::ListDistinct,
     SqlFn::ListSum,
@@ -788,6 +789,7 @@ impl Trino {
             | SqlFn::ListTransform
             | SqlFn::ListConcat
             | SqlFn::ListGet
+            | SqlFn::ListAt
             | SqlFn::ListPosition
             | SqlFn::ListZip
             | SqlFn::ListDistinct
@@ -1293,6 +1295,14 @@ impl Trino {
                     .expr(self, arg(args, 1)?, 0)?
                     .append(" = 0 THEN NULL ELSE element_at(");
                 w.piece(&*list)?.append(", ").expr(self, &args[1], 0)?.append(") END)");
+            }
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            SqlFn::ListAt => {
+                w.append("element_at(")
+                    .piece(&*list)?
+                    .append(", ")
+                    .expr(self, arg(args, 1)?, 0)?
+                    .append(")");
             }
             // DuckDB's list_position: NULL when absent (array_position answers 0)
             SqlFn::ListPosition => {

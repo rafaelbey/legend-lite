@@ -78,6 +78,9 @@ java_enum! {
         ListConcat => "LIST_CONCAT",
         ListGet => "LIST_GET",
         ListPosition => "LIST_POSITION",
+        // (list, position): the element at a 1-based position the list's own construction names, list and position
+        // written once (main's SqlFn.LIST_AT, 2026-11-03; merged 2026-11-10)
+        ListAt => "LIST_AT",
         ListExists => "LIST_EXISTS",
         ListForAll => "LIST_FOR_ALL",
         StructInsert => "STRUCT_INSERT",

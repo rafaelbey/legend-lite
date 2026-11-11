@@ -473,7 +473,7 @@ pub fn call(
         SqlFn::ListTransform => list_map(d, w, a),
         SqlFn::ListConcat => list_concat(d, w, a),
         // an element past the end is null, where $arrayElemAt answers nothing
-        SqlFn::ListGet => {
+        SqlFn::ListGet | SqlFn::ListAt => {
             w.append("{\"$ifNull\": [{\"$arrayElemAt\": [")
                 .expr(d, arg(a, 0)?, 0)?
                 .append(", {\"$subtract\": [");

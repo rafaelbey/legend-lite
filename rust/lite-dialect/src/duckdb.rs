@@ -704,6 +704,7 @@ impl AnsiSqlRenderer for DuckDb {
             | F::ListTransform
             | F::ListConcat
             | F::ListGet
+            | F::ListAt
             | F::ListPosition
             | F::ListZip
             | F::ListDistinct
@@ -1010,7 +1011,7 @@ impl AnsiSqlRenderer for DuckDb {
             F::ListFlatten => self.plain(w, "flatten", args),
             F::ListConcat => self.plain(w, "list_concat", args),
             F::JsonMergePatch => self.plain(w, "json_merge_patch", args),
-            F::ListGet => self.plain(w, "list_extract", args),
+            F::ListGet | F::ListAt => self.plain(w, "list_extract", args),
             F::ListPosition => self.plain(w, "list_position", args),
             F::ListZip => self.plain(w, "list_zip", args),
             F::ListDistinct => self.plain(w, "list_distinct", args),

@@ -1072,6 +1072,7 @@ impl AnsiSqlRenderer for H2 {
             | F::ListTransform
             | F::ListConcat
             | F::ListGet
+            | F::ListAt
             | F::ListPosition
             | F::ListZip
             | F::ListDistinct

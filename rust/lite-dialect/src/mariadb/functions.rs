@@ -548,6 +548,7 @@ impl MariaDb {
             | F::ListTransform
             | F::ListConcat
             | F::ListGet
+            | F::ListAt
             | F::ListPosition
             | F::ListDistinct
             | F::ListAppend
@@ -1311,6 +1312,32 @@ impl MariaDb {
                     w.append(", JSON_ARRAY())");
                 }
                 w.append(") END)");
+                Ok(())
+            }
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            F::ListAt => {
+                let xs = arg(a, 0)?;
+                let n = arg(a, 1)?;
+                let at = self.element_at_position(
+                    xs,
+                    pc(move |w| {
+                        w.expr(self, n, 6)?.append(" - 1");
+                        Ok(())
+                    }),
+                );
+                // a list whose elements claim no type: cast to the call's own type, as LIST_GET
+                match if list_element(xs).is_none() {
+                    cast_target(self, call_type)
+                } else {
+                    None
+                } {
+                    None => {
+                        w.piece(&*at)?;
+                    }
+                    Some(t) => {
+                        w.append("CAST(").piece(&*at)?.append(&format!(" AS {t})"));
+                    }
+                }
                 Ok(())
             }
             // 1-based, negative from the end, 0 and out of range NULL (DuckDB's list_extract)

@@ -495,6 +495,7 @@ impl Sqlite {
             | F::ListTransform
             | F::ListConcat
             | F::ListGet
+            | F::ListAt
             | F::ListPosition
             | F::ListDistinct
             | F::ListAppend
@@ -1096,6 +1097,15 @@ impl Sqlite {
                 self.element_at(Cow::Borrowed(arg(a, 0)?), index)(w)?;
                 w.append(" END)");
                 Ok(())
+            }
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            F::ListAt => {
+                let _ = arg(a, 1)?;
+                let index = pc(move |w: &mut SqlWriter| {
+                    w.expr(self, &a[1], 6)?.append(" - 1");
+                    Ok(())
+                });
+                self.element_at(Cow::Borrowed(arg(a, 0)?), index)(w)
             }
             // DuckDB's list_position: 1-based, NULL when absent, a NULL needle found by IS
             F::ListPosition => {

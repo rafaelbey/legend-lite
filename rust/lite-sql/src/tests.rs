@@ -1034,7 +1034,8 @@ fn every_name_table_is_javas() {
         );
         all.len()
     }
-    assert_eq!(names(SqlFn::ALL, SqlFn::as_str, SqlFn::from_name), 181);
+    // 181 -> 182 (2026-11-10): main's SqlFn.LIST_AT (2026-11-03), merged into the port
+    assert_eq!(names(SqlFn::ALL, SqlFn::as_str, SqlFn::from_name), 182);
     assert_eq!(names(AggFn::ALL, AggFn::as_str, AggFn::from_name), 40);
     assert_eq!(names(Scalar::ALL, Scalar::as_str, Scalar::from_name), 13);
     assert_eq!(names(DateFmtPart::ALL, DateFmtPart::as_str, DateFmtPart::from_name), 15);

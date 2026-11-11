@@ -178,7 +178,7 @@ fn call_nullability(f: SqlFn, a: &[SqlExpr], base: TypeFact) -> TypeFact {
         F::Hash | F::Typeof => false,
         F::ListConcat | F::MapConcat | F::ListAppend => false,
         F::Coalesce | F::Greatest | F::Least => all_nullable(a),
-        F::ListGet | F::ListPosition | F::PureSplitPart => true,
+        F::ListGet | F::ListAt | F::ListPosition | F::PureSplitPart => true,
         F::Unnest => a.is_empty() || elements_may_be_null(&a[0]),
         F::IntDivide | F::Rem | F::Mod => true,
         F::ListSum
@@ -401,7 +401,7 @@ fn call_kind(f: SqlFn, a: &[SqlExpr]) -> TypeFact {
         | F::ListDistinct
         | F::ListReverse => first_type(a).map_or(TypeFact::Unknown, array_pass),
         F::ListConcat => uniform(a, TypeFact::Bottom),
-        F::ListGet | F::Unnest => first_type(a).map_or(TypeFact::Unknown, element),
+        F::ListGet | F::ListAt | F::Unnest => first_type(a).map_or(TypeFact::Unknown, element),
         F::ListMax | F::ListMin => first_type(a).map_or(TypeFact::Unknown, element),
         F::AddInterval | F::AddIntervalTemporal => bottom_or(a, Scalar::Timestamp),
         F::BitAnd | F::BitOr | F::BitXor | F::BitNot | F::BitShiftLeft | F::BitShiftRight => bit_op_type(a),

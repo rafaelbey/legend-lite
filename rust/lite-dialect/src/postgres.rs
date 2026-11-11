@@ -394,6 +394,7 @@ const EMPTY_IN_EMPTY_OUT: &[SqlFn] = &[
     SqlFn::ListMedian,
     SqlFn::ListMode,
     SqlFn::ListGet,
+    SqlFn::ListAt,
     SqlFn::ListSlice,
     SqlFn::ListTail,
     SqlFn::ListInit,
@@ -2775,6 +2776,22 @@ impl AnsiSqlRenderer for Postgres {
                     at(w)
                 }
             }
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            SqlFn::ListAt => {
+                let i = arg(args, 1)?;
+                let xs2 = xs.clone();
+                let at = pc(move |w| {
+                    w.append("(");
+                    xs2(w)?;
+                    w.append(")[").expr(self, i, 0)?.append("]");
+                    Ok(())
+                });
+                if rebuilt(Some(&first)) {
+                    self.decode(at, &first, 0)(w)
+                } else {
+                    at(w)
+                }
+            }
             SqlFn::ListPosition => {
                 w.append("array_position(");
                 xs(w)?;
@@ -3212,6 +3229,7 @@ impl AnsiSqlRenderer for Postgres {
             // ---- lists: a list of scalars is a native array
             F::ListFilter
             | F::ListGet
+            | F::ListAt
             | F::ListPosition
             | F::ListDistinct
             | F::ListAppend

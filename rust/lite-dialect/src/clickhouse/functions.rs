@@ -314,6 +314,15 @@ impl ClickHouse {
                 })?;
                 w.append(")");
             }
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            SqlFn::ListAt => {
+                let list = self.list(xs);
+                w.append("arrayElement(")
+                    .piece(&*list)?
+                    .append(", ")
+                    .expr(self, a1()?, 0)?
+                    .append(")");
+            }
             // 1-based, negative from the end, out of range NULL; a Tuple is never NULL: a struct is its default
             SqlFn::ListGet => {
                 let list = self.list(xs);
@@ -933,6 +942,7 @@ impl ClickHouse {
             | SqlFn::ListTransform
             | SqlFn::ListConcat
             | SqlFn::ListGet
+            | SqlFn::ListAt
             | SqlFn::ListPosition
             | SqlFn::ListZip
             | SqlFn::ListDistinct

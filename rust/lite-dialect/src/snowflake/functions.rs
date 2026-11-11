@@ -704,6 +704,7 @@ impl Snowflake {
             | SqlFn::ListTransform
             | SqlFn::ListConcat
             | SqlFn::ListGet
+            | SqlFn::ListAt
             | SqlFn::ListPosition
             | SqlFn::ListFlatten
             | SqlFn::ListZip
@@ -883,6 +884,21 @@ impl Snowflake {
             // 1-based, negative from the end, out of range (0 included) NULL, as DuckDB's list_extract
             SqlFn::ListGet => {
                 let get = self.list_get(xs, arg(a, 1)?);
+                let p = self.typed(get, element.or(result))?;
+                w.piece(&*p)?;
+                Ok(())
+            }
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            SqlFn::ListAt => {
+                let i = arg(a, 1)?;
+                let get = pc(move |w| {
+                    w.append("GET(")
+                        .expr(self, xs, 0)?
+                        .append(", ")
+                        .expr(self, i, 6)?
+                        .append(" - 1)");
+                    Ok(())
+                });
                 let p = self.typed(get, element.or(result))?;
                 w.piece(&*p)?;
                 Ok(())

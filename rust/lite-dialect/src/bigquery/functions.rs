@@ -1269,6 +1269,22 @@ impl BigQuery {
                     .append(" AS INT64) - 1 END)]");
                 Ok(())
             }
+            // LIST_AT: a position the list holds (1-based, positive): its element by offset, the list and the position
+            // written once; a NULL list's element its type's NULL, as LIST_GET (main's BigQuery.listAt, 2026-11-03)
+            SqlFn::ListAt => {
+                let xs = a0()?;
+                if null_list(xs) {
+                    let null = self.null_of(fact_type(t))?;
+                    w.append(&null);
+                    return Ok(());
+                }
+                w.append("(")
+                    .expr(self, xs, 0)?
+                    .append(")[SAFE_OFFSET(CAST(")
+                    .expr(self, a1()?, 0)?
+                    .append(" AS INT64) - 1)]");
+                Ok(())
+            }
             // DuckDB's list_position: 1-based, NULL when absent, a NULL needle found by IS NOT DISTINCT FROM
             SqlFn::ListPosition => {
                 let o = self.param("__o");
