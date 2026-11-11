@@ -1137,6 +1137,87 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      of ruling 23's comments broke three javadoc blocks, which the full suite's first run caught (223 targets failed to
      build); `701531f7b` closes them, no word changed.
 
+   **Rulings 27 and 28 done 2026-11-11** (from `68f8ebd0b`; commits `bcf60ed8f`, `ef41660f0`, and this record). **Ruling 27's
+   premise held for two of its four constructs, not for the HostedService lists:** no pinned text holds two refusals of one
+   default value or of one class mapping body, but 49 pinned texts changed their `pmcd` answer, all in HostedService (the
+   deferral removed) or DataSpace (ruling 28): 15 to the engine's place, 33 at the same place in other words, one between two
+   other lines; five are frozen questions (below), so the difference list moved. Every new input was asked of
+   legend-engine's own parser on the parser-equivalence class path (`PureGrammarParser`, 4.145.0), not recalled, each
+   construct with two errors in one element in either order and with one (346 texts, and the 58 the new unit tests hold); the
+   measurement re-run on its pinned inputs (`docs/rust-port/ENGINE_GAP_2026_11_09.md`, "After rulings 27 and 28").
+   - **A property's default value** (S366). The engine reads `defaultValueExpression` in its one parse of the section, so it
+     meets the earlier of two refusals first. Of an element's first token (ruling 18's check), where that grammar stops
+     (ruling 20's) and lite's own reading of the value, the refusal placed first is answered, ties in that order and an
+     unplaced one keeping its turn (`JavaError::or_earlier`); until now lite's reading came first and the grammar's stop only
+     when the reading took the value: `= x.y + (1 +);` is refused at the `+` (`[3:23]`, the engine's), not at the `)`. A `::` the
+     name's grammar has read is refused at what follows it, as the engine is (`[a::b::-c.d]` at the `-`): the first run left
+     `mut/m017635` at that `::`, two columns early, the one text that moved away from the engine's place, and it stands at
+     the engine's place again. 122 texts: 76 at the engine's place before, 107 after, none left it.
+   - **A HostedService's `postValidations` and `testSuites`** (S362). Refused where the list stands, as the engine's grammar
+     reads both in its one parse of the section; ruling 20 had put the refusal behind every later refusal of the element,
+     which a later key's error, or the end of the input its skip of a broken list reached, then won. 16 texts: 8 -> 16.
+   - **A mapping expression's path** (S365, S364). The path is the expression's last token, so its refusal already stood
+     behind lite's own reading of the expression, and the body's second reading for a syntax error (ruling 16) already let a
+     later syntax error of the body come first. Asked of the engine, its class mapping walker
+     (`PureInstanceClassMappingParseTreeWalker`) checks a second `~src` or `~filter` before it reparses any expression, and a
+     set id that is a number is the class mapping parser's own syntax error: the second reading now lets such a duplicate
+     win (`JavaError::syntax_or_duplicate_first`, `Field '~filter' should be specified only once` at `[4:3]`), and holds the
+     set id's check too (`[8:11]`); a later expression's walk refusal or path stays behind the path, as the engine reparses in
+     order. 43 texts: 29 -> 34, the nine left a place difference of `(1 +)` alone.
+   - **A service test's value** (S363). Already in the read: its check runs where the value is read, before lite's own reading
+     of it, and every two-error text answers the engine's first. 21 texts, 18 at the engine's place before and after; nothing
+     changed.
+   - **Ruling 28** (S373). A data space executable's id at the engine's dialect is the engine's `executableId`,
+     `(VALID_STRING | INTEGER | DECIMAL) SEMI_COLON` by its lexer: a `VALID_STRING` is `(Letter | Digit | '_') (Letter | Digit |
+     '_' | '$')*` and none of the 49 words the DataSpace, M3 and core lexers read before it, the longest match winning, a tie
+     the rule declared first; any other first token is refused at it, a second token at that token, a stop at the end of the
+     input left to lite's own reading. 144 texts (every keyword, every token kind, near misses, ids cut by the end, a second
+     error in the element): 93 looser -> 0, every one at the engine's place after. Lite's and the platform's dialects glue the
+     id's tokens as before.
+   - **The measurement, before -> after** (`pmcd` and `document`; every other door and the harness unchanged): corpus same
+     place 3,254 -> 3,256, different line 1,005 -> 1,003; mutated (16 per text) same place 100,047 -> 100,058, other column
+     19,858 -> 19,855, different line 10,182 -> 10,174; mutated (4 per text) 24,918 -> 24,920, 4,949 -> 4,948, 2,540 -> 2,539.
+     **Lite looser unchanged: 575 corpus (571 S64, 3 S352, 1 S353), 282 and 74 mutated, 0 at every expression door -- only the
+     ruled exclusions.** No text moved away from the engine's place; 15 reached it (12 HostedService, 3 DataSpace), 33 kept
+     their place in the list's or the id's words, one moved between two other lines (`mut16/m109900`).
+   - **The frozen-question check.** Every frozen question answered again (the model door's answer the error list's first):
+     758 of the 760 listed asks as before, the other two (`72b6e615` at `pmcd` at `LEGEND_ENGINE` and `document`, listed by
+     ruling 18) re-answered in the list's words at their place, and 8 more asks at those two doors (`ruling27`). Each is a
+     HostedService corpus text whose test suites' island is broken (`#{` or `}#` written as a brace), so its element holds two
+     refusals, the list's and the element's left open by it: `479a3de2` and `73425021` now at the engine's places (`[83:22]`,
+     `[63:19]`) where lite answered the end of the input, `08ef5041` and `b664f679` at the end of the input in the list's words.
+     `deliberate-differences.tsv` 760 -> 768 asks; `unlistable` 0; lite's and the platform's dialects and the expression doors
+     moved none; ruling 23's further errors as before (1,234 asks hold 5,733 over the frozen questions; the corpus's and the
+     mutated texts' counts at the three dialects equal, no panic, none out of order).
+   - **Moved:** `deliberate-differences.tsv` 760 -> 768 (a docs/GATES.md line). No floor (identical plus listed is unchanged),
+     ratchet, guard constant or pin. No test source in `core/src/test`, `parser-equivalence` or elsewhere re-expressed; the two
+     new Rust tests are a `rust/RETIRED_TESTS.md` row.
+   - **The gates at `bcf60ed8f`** (`ef41660f0`'s documents, written while it ran, feed no target). `bazel test //...
+     --keep_going --local_test_jobs=2` against `rust/BASELINE.tsv` (`main` at `c4a39e06d`): 567 targets, 189 executed, 565
+     passed, 2 skipped (`//tools/guards:classpath_test`, `:markdown_inputs_test`, as in the baseline); no target the baseline
+     passes fails; gone 3, each ledgered (`//core:core_tests_lexer`, `core_tests_ide`, `//docs:update_dialect_capability_test`);
+     new 18, the port's, all passing, the three front differentials, which read the difference list, run and not cached; no
+     TIMEOUT (`//core:front_reader_test` 239 s, `stress_suites` 730 s, `stress_suites_h2` 701 s,
+     `//parser-equivalence:parser_parity` 195 s). `//parser-equivalence:parser_parity`: 422 pins, line agreement 415 of 421,
+     column exact 337 (none moved); the sentinel 2,217 in scope, matched 2,217, lenient 0; the composer sweep's 6,755 sources,
+     `diffs=0`; own corpus 3,025 matched, `diffs=0`. `//core:front_shim`: the four doors 110,044 identical and 552 listed of
+     110,596 (548 before), the engine-JSON doors 29,848 and 216 of 30,064 (212), 0 differ. `cargo test --workspace`
+     (lite-front's 101 unit tests, 2 of them new), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` clean.
+     Ledger check from `c4a39e06d`: no MISSING (79 test sources, each named).
+   - **Choices taken that are the user's** (each reversible): the mapping path's order taken from the engine's walker (body
+     syntax, then a duplicate `~src` or `~filter`, then each expression in order), not "the earlier of two", and with it the
+     set id's check held at the body's syntax reading (the duplicate is also the earlier by place; the set id is the later,
+     and stands first on purpose, as the engine's syntax error); ruling 28 carried out for every token the engine's
+     `executableId` refuses, not `id: 'e'` alone, under ruling 18's never-looser rule; a default value's ties in the order
+     first token, reading, stop, an unplaced refusal keeping its turn; a service test's value left as it was. The grammar's
+     stop now competes with lite's reading, so its places matter where they did not: the dangling `::` was corrected; others
+     seen imprecise (`^$(...)`'s, a unit's `~` with no name after it) still lose to lite's reading on every text asked and are
+     left. Left as they are, of another kind than two refusals of one construct in text order: a refusal of the engine's walk
+     that lite's reading raises (a default's `^$x(a=1)`, a legacy test's value past a long) stands before a later syntax error
+     of the element, which the engine answers first. Found by hand and not refused: a default value `x.all(1 + 2).y`, which
+     lite takes and the engine refuses at the second `.` (`[3:28]`): `.all(...)` is its `allOrFunction` only with a milestoning
+     date or variable, so here it is the `propertyExpression` and nothing may follow.
+
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
 exists, and the committed oracle after.
