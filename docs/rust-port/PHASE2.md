@@ -1358,3 +1358,13 @@ the platform's, a mistake corrected with these.
     column-spec rule from the last `###` at a line start; a missing comma after a validation keeps its answer;
     `lambda("")` unplaced), and **the DataSpace executable `id: 'e';`**, found by hand, is refused at the engine's place
     in ruling 27's round.
+
+**Phase 2 closes (the user, 2026-11-11), on the rulings 27 and 28 report:**
+
+29. **Its choices are ratified** (a mapping body in the engine walker's order, a numeric set id before a bad path; ruling
+    28 applied to the whole `executableId` family; default-value refusals at one place ordered first token, lite's
+    reading, the grammar's stop; a service test's value left as it already matched; the imprecise stops `^$(` and a
+    unit's `~` left). **A walk-level refusal before a later syntax error** (`^$x(a=1) + (1 +)`, a legacy test's value past
+    a long), where the engine reports the syntax error first, is a register row (S374), not fixed. **The default value
+    `x.all(1 + 2).y`**, which lite accepts and the engine refuses at the second `.` (`[3:28]`), is the one open item of the
+    never-looser rule: it is fixed the next time the parser is touched for phase 3.
