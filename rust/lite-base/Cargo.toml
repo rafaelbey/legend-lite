@@ -1,0 +1,10 @@
+[package]
+name = "lite-base"
+version = "0.1.0"
+description = "The foundation of phase 3's crates: the query and model arenas, the keep pool, and identity"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]

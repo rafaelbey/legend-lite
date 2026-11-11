@@ -1,0 +1,30 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# The foundation of phase 3's crates (src/lib.rs; docs/rust-port/PHASE3_CRATES.md, 2026-11-11): the layer `base` of
+# tools/deps/core-layers.txt -- the query's bump arena with its keep pool and the model's arena (the one unsafe module,
+# src/arena.rs), and identity (src/identity.rs: same, IdMap, IdSet, Origin).
+rust_library(
+    name = "lite_base",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    version = "0.1.0",
+    visibility = ["//rust:__subpackages__"],
+)
+
+rust_test(
+    name = "lite_base_test",
+    crate = ":lite_base",
+    edition = "2024",
+    visibility = ["//gates:__pkg__"],
+)
+
+# the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards
+filegroup(
+    name = "sources",
+    srcs = glob(["src/**/*.rs"]) + ["Cargo.toml"],
+    visibility = ["//rust/lite-guards:__pkg__"],
+)
+
+guards_package()
