@@ -977,3 +977,41 @@ fn duckdb_reads_its_other_and_distinct_columns_stored() {
     assert_eq!(reads(r#"{"_type":"plain","kind":"JSON"}"#), "false");
     assert_eq!(refused("duckdb.readsStored", "{}").message, "missing field 'type'");
 }
+
+/// A CSV file's load into `T (a, b)`, as main's MirJson writes it.
+const LOAD_CSV: &str = r#"{"_type":"loadCsv","schema":null,"table":"T","quoting":{"schema":false,"table":false},"columns":["a","b"],"quotedColumns":[]}"#;
+
+#[test]
+fn a_csv_load_is_read_by_duckdb_and_streamed_on_h2() {
+    // main's csvLoad (2026-11-09), held to its Java's answers (rust/oracles/mir/merge-arms.jsonl's statements)
+    assert_eq!(
+        ok("csvLoad", &format!(r#"{{"load":{LOAD_CSV}}}"#)),
+        r#"{"readsFile":true,"sql":"INSERT INTO T (a, b) SELECT * FROM read_csv(?, header = true, delim = ',', quote = '\"', escape = '\"', all_varchar = true)"}"#
+    );
+    assert_eq!(
+        dispatch(r#"{"dialect":"H2"}"#, "csvLoad", &format!(r#"{{"load":{LOAD_CSV}}}"#)).unwrap(),
+        r#"{"readsFile":false,"sql":"INSERT INTO T (a, b) VALUES (?, ?)"}"#
+    );
+    let sqlite = dispatch(
+        r#"{"dialect":"SQLite"}"#,
+        "csvLoad",
+        &format!(r#"{{"load":{LOAD_CSV}}}"#),
+    )
+    .unwrap_err();
+    assert_eq!(
+        (sqlite.class, sqlite.message.as_str()),
+        (
+            Refusal::DIALECT_CAPABILITY,
+            "a CSV file's load reached SQLite: this dialect's database takes no file yet"
+        )
+    );
+    // its statement form is the runner's to bind: refused
+    assert_eq!(
+        refused("dml.renderStatement", &format!(r#"{{"dml":{LOAD_CSV}}}"#)).message,
+        "a CSV file's load is spelled by csvLoad, its placeholders bound by the runner: T"
+    );
+    assert_eq!(
+        refused("csvLoad", &format!(r#"{{"load":{INSERT_VALUES}}}"#)).message,
+        "csvLoad's load is a loadCsv statement"
+    );
+}
