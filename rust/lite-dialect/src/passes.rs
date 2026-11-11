@@ -1295,12 +1295,9 @@ fn join_conditions<'a>(s: &'a SqlSource, out: &mut Vec<&'a SqlExpr>) {
     }
 }
 
-impl SqlRewriter for StoredReads {
-    fn name(&self) -> &'static str {
-        "StoredReads"
-    }
-
-    fn rewrite_root(&mut self, q: SqlQuery) -> Result<SqlQuery, Refusal> {
+impl StoredReads {
+    /// One query block: its scanned tables' read columns by alias, then its references rewritten.
+    fn block(&mut self, q: SqlQuery) -> Result<SqlQuery, Refusal> {
         self.read.clear();
         let mut collect = ReadTables {
             reads: self.reads,
@@ -1311,6 +1308,17 @@ impl SqlRewriter for StoredReads {
             return Ok(q);
         }
         Ok(rewrite(self, q)?.into_inner())
+    }
+}
+
+impl SqlRewriter for StoredReads {
+    fn name(&self) -> &'static str {
+        "StoredReads"
+    }
+
+    /// Per query block: an alias names its source within its block alone (main's QueryBlocks, 2026-11-05).
+    fn rewrite_root(&mut self, q: SqlQuery) -> Result<SqlQuery, Refusal> {
+        crate::query_blocks::each(q, &mut |b| self.block(b))
     }
 
     fn expr(&mut self, e: SqlExpr) -> Result<Rw<SqlExpr>, Refusal> {

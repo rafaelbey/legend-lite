@@ -61,6 +61,7 @@ pub mod mongodb;
 pub mod passes;
 pub mod pieces;
 pub mod postgres;
+pub mod query_blocks;
 pub mod raw_sql;
 pub mod refusal;
 pub mod renderer;

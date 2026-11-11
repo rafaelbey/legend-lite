@@ -735,9 +735,13 @@ impl SqlRewriter for SourceSpelling {
         "SourceSpelling"
     }
 
+    /// Per query block: an alias's outputs scope over the block that defines it (main's QueryBlocks, 2026-11-05).
     fn rewrite_root(&mut self, q: SqlQuery) -> Result<SqlQuery, Refusal> {
-        rewrite(&mut Scope(&mut self.scope), q.clone())?;
-        Ok(rewrite(self, q)?.into_inner())
+        crate::query_blocks::each(q, &mut |b| {
+            self.scope.clear();
+            rewrite(&mut Scope(&mut self.scope), b.clone())?;
+            Ok(rewrite(self, b)?.into_inner())
+        })
     }
 
     fn expr(&mut self, e: SqlExpr) -> Result<Rw<SqlExpr>, Refusal> {
