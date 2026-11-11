@@ -250,8 +250,10 @@ pub unsafe extern "C" fn lite_front(door: *const c_char, dialect: *const c_char,
 /// section order, each `[name, start, end, line, element, section]` (`lite_front::model_parser::OverlaySection`: the
 /// grammar's text `text[start, end)` and the line it starts on, then where its elements go -- before the records'
 /// `model.elements[element]`, their paths into the section index's `sections[section]`); then the records in the
-/// codec's form, or the error as [`lite_front`] writes it, which an overlay grammar's own exception pre-empts. On the
-/// calling thread's worker, as [`lite_front`].
+/// codec's form, or the error as [`lite_front`] writes it, which an overlay grammar's own exception pre-empts -- with,
+/// as its last key, `rest`: the errors the text holds after it, sorted by place, each written the same way, when there
+/// is any (the user's ruling 23 of 2026-11-10, built 2026-11-11; [`front_errors`]). On the calling thread's worker, as
+/// [`lite_front`].
 ///
 /// # Safety
 /// `dialect`, `overlays` and `text` are null or NUL-terminated strings the caller keeps alive for the call.
@@ -410,7 +412,8 @@ fn overlay_grammars(json: &str) -> Option<Vec<(Vec<u16>, bool)>> {
         .collect()
 }
 
-/// The model door's answer as [`lite_front_model`] folds it: `A\n<sections>\n<records>` or `E\n<sections>\n<error>`.
+/// The model door's answer as [`lite_front_model`] folds it: `A\n<sections>\n<records>` or `E\n<sections>\n<error>`, the
+/// error with the rest of the text's errors ([`front_errors`]).
 fn model_answer(dialect: lite_front::doors::Dialect, grammars: &[(Vec<u16>, bool)], text: &[u16]) -> String {
     use lite_front::codec;
     let overlays: Vec<lite_front::model_parser::OverlayGrammar<'_>> = grammars
@@ -420,7 +423,7 @@ fn model_answer(dialect: lite_front::doors::Dialect, grammars: &[(Vec<u16>, bool
             lexable: *lexable,
         })
         .collect();
-    let answer = lite_front::doors::pmcd(text, dialect, &overlays);
+    let (answer, rest) = lite_front::doors::pmcd_with_errors(text, dialect, &overlays);
     let mut w = codec::Writer::new();
     w.raw("[");
     for (i, o) in answer.overlays.iter().enumerate() {
@@ -439,8 +442,29 @@ fn model_answer(dialect: lite_front::doors::Dialect, grammars: &[(Vec<u16>, bool
     match answer.parsed {
         // the door's declared PmcdParser.Parsed fixes the class: no tag
         Ok(parsed) => format!("A\n{sections}\n{}", codec::write(&parsed, true)),
-        Err(e) => format!("E\n{sections}\n{}", front_error(&e)),
+        Err(e) => format!("E\n{sections}\n{}", front_errors(&e, &rest)),
     }
+}
+
+/// [`front_error`] with the errors the text holds after it, sorted by place (the user's ruling 23 of 2026-11-10, built
+/// 2026-11-11, docs/rust-port/PHASE2.md section 6; `lite_front::doors::pmcd_with_errors`): a last key `rest`, each one
+/// as [`front_error`] writes it, when there is any -- the first error's JSON otherwise unchanged, byte for byte.
+fn front_errors(e: &lite_front::doors::JavaError, rest: &[lite_front::doors::JavaError]) -> String {
+    let first = front_error(e);
+    if rest.is_empty() {
+        return first;
+    }
+    let mut out = String::with_capacity(first.len() * (rest.len() + 1) + 16);
+    out.push_str(&first[..first.len() - 1]);
+    out.push_str(",\"rest\":[");
+    for (i, r) in rest.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push_str(&front_error(r));
+    }
+    out.push_str("]}");
+    out
 }
 
 /// A door's answer as `lite_front` folds it: `A\n<records>` or `E\n<error>`.
@@ -888,6 +912,27 @@ mod tests {
         assert!(engine.starts_with("OK\nE\n[]\n{"), "{engine}");
         assert!(engine.contains("is not a known section parser"), "{engine}");
         assert!(model("LEGEND_LITE", r#"[["Toy"]]"#).starts_with("ERR\n"));
+    }
+
+    #[test]
+    fn the_model_door_hands_back_the_errors_after_the_first() {
+        // the user's ruling 23 of 2026-11-10, built 2026-11-11: the first error as before, the rest a last key, sorted
+        // by place
+        let _serial = serial();
+        let model = |source: &str| {
+            let text = format!("\"{}\"", source.replace('\n', "\\n"));
+            take(unsafe { lite_front_model(c("LEGEND_LITE").as_ptr(), c("[]").as_ptr(), c(&text).as_ptr()) })
+        };
+        let two = model("Class a::A\n{\n  x: String[1]\n}\nClass a::B\n{\n  y Integer[1];\n}\n");
+        assert_eq!(
+            two,
+            "OK\nE\n[]\n{\"class\":\"com.legend.parser.ParseException\",\"message\":\"expected SEMI_COLON but found \
+             BRACE_CLOSE ('}')\",\"line\":4,\"column\":1,\"rest\":[{\"class\":\"com.legend.parser.ParseException\",\
+             \"message\":\"expected COLON but found VALID_STRING ('Integer')\",\"line\":7,\"column\":5}]}"
+        );
+        // one error: no rest key, the error's JSON as it always was
+        let one = model("Class a::A\n{\n  x: String[1]\n}\n");
+        assert!(one.ends_with("\"line\":4,\"column\":1}"), "{one}");
     }
 
     #[test]

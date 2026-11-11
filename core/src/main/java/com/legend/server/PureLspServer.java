@@ -166,9 +166,25 @@ public class PureLspServer {
     }
 
     /**
-     * Create a diagnostics notification for a single error in a file.
-     */
+     * Create a diagnostics notification for an error in a file: the error itself, placed as it always was, then -- for
+     * a parse error -- one diagnostic per error the parser read after it, at its own line and column (the user's
+     * ruling 23 of 2026-11-10, built 2026-11-11, docs/rust-port/PHASE2.md section 6; {@link
+     * com.legend.parser.ParseException#further()}). /
     private String createDiagnosticsForError(String uri, String text, Exception e) {
+        List<Map<String, Object>> diagnostics = new ArrayList<>();
+        diagnostics.add(diagnosticFor(text, e));
+        if (e instanceof com.legend.parser.ParseException p) {
+            for (com.legend.parser.ParseException further : p.further()) {
+                // the parser's line and column count from 1, the protocol's from 0
+                diagnostics.add(diagnostic(Math.max(0, further.line() - 1), Math.max(0, further.column() - 1),
+                        String.valueOf(further.getMessage())));
+            }
+        }
+        return createDiagnosticsNotification(uri, diagnostics);
+    }
+
+    /** The first error's diagnostic: its place read from its message, else from the first quoted name it holds. */
+    private Map<String, Object> diagnosticFor(String text, Exception e) {
         String message = e.getMessage();
         int line = 0;
         int character = 0;
@@ -209,6 +225,11 @@ public class PureLspServer {
             }
         }
 
+        return diagnostic(line, character, message != null ? message : "Compilation error");
+    }
+
+    /** An error diagnostic at a 0-based line and character, its range twenty characters long. */
+    private static Map<String, Object> diagnostic(int line, int character, String message) {
         Map<String, Object> diagnostic = new LinkedHashMap<>();
         Map<String, Object> range = new LinkedHashMap<>();
         Map<String, Object> startPos = new LinkedHashMap<>();
@@ -222,9 +243,8 @@ public class PureLspServer {
         diagnostic.put("range", range);
         diagnostic.put("severity", 1);
         diagnostic.put("source", "legend-lite");
-        diagnostic.put("message", message != null ? message : "Compilation error");
-
-        return createDiagnosticsNotification(uri, List.of(diagnostic));
+        diagnostic.put("message", message);
+        return diagnostic;
     }
 
     private int[] findInSource(String source, String searchTerm) {

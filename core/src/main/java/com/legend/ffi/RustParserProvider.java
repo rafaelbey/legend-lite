@@ -178,7 +178,11 @@ public final class RustParserProvider implements RustParsers {
                 + answer.substring(0, Math.min(80, answer.length())));
     }
 
-    /** The error Java's parser raises, as the Rust library names it: its class, with its message. */
+    /**
+     * The error Java's parser raises, as the Rust library names it: its class, with its message -- a
+     * {@link ParseException} with the errors the model door read after it ({@code rest}, the user's ruling 23 of
+     * 2026-11-11), each one a ParseException of its own.
+     */
     private static RuntimeException raised(Json.Obj e) {
         String cls = ((Json.Str) e.get("class")).value();
         String message = e.get("message") instanceof Json.Str s ? s.value() : null;
@@ -186,7 +190,8 @@ public final class RustParserProvider implements RustParsers {
             // the parser writes every ParseException's message: one without is not the parser's answer
             case "com.legend.parser.ParseException" -> new ParseException(
                     java.util.Objects.requireNonNull(message, "the Rust parser raised a ParseException with no message"),
-                    (int) ((Json.Num) e.get("line")).longValue(), (int) ((Json.Num) e.get("column")).longValue());
+                    (int) ((Json.Num) e.get("line")).longValue(), (int) ((Json.Num) e.get("column")).longValue(),
+                    further(e));
             case "java.lang.IllegalStateException" -> new IllegalStateException(message);
             case "java.lang.IllegalArgumentException" -> new IllegalArgumentException(message);
             case "java.lang.UnsupportedOperationException" -> new UnsupportedOperationException(message);
@@ -199,6 +204,20 @@ public final class RustParserProvider implements RustParsers {
             default -> new IllegalStateException("the Rust parser raised a " + cls + ", which the shim has no class"
                     + " for: " + message);
         };
+    }
+
+    /** The errors after the first that the model door lists ({@code rest}, absent when there is none). */
+    private static List<ParseException> further(Json.Obj e) {
+        if (!(e.getOr("rest", null) instanceof Json.Arr rest)) {
+            return List.of();
+        }
+        List<ParseException> out = new java.util.ArrayList<>();
+        for (Json.Node r : rest.items()) {
+            if (raised((Json.Obj) r) instanceof ParseException p) {
+                out.add(p);
+            }
+        }
+        return out;
     }
 
     /** {@code text} as a JSON string literal: {@code "} and {@code \}, the controls and every surrogate escaped. */

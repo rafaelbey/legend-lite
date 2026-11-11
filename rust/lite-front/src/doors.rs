@@ -437,6 +437,24 @@ pub fn pmcd(text: &[u16], dialect: Dialect, overlays: &[OverlayGrammar<'_>]) -> 
     }
 }
 
+/// [`pmcd`]'s answer and, when it refuses, the errors the text holds after that refusal, sorted by place (the user's
+/// ruling 23 of 2026-11-10, built 2026-11-11, docs/rust-port/PHASE2.md section 6; `model_parser::further_errors`): what
+/// the shim's model door answers. The first error is [`pmcd`]'s own, byte for byte, so every engine-compatible answer
+/// is unchanged; the rest are for the surfaces lite shapes itself (the editor's diagnostics, `Compiler.compileErrors`).
+/// A text the emitter refuses has parsed, and holds no other error.
+pub fn pmcd_with_errors(
+    text: &[u16],
+    dialect: Dialect,
+    overlays: &[OverlayGrammar<'_>],
+) -> (PmcdAnswer, Vec<JavaError>) {
+    let answer = pmcd(text, dialect, overlays);
+    let rest = match &answer.parsed {
+        Err(first) => crate::model_parser::further_errors(text, dialect.at_a_door(), overlays, first),
+        Ok(_) => Vec::new(),
+    };
+    (answer, rest)
+}
+
 /// [`pmcd`]'s reading at `level`, before anything judges the records.
 fn records(text: &[u16], level: Dialect, overlays: &[OverlayGrammar<'_>]) -> PmcdAnswer {
     let answer = crate::model_parser::parse_with_overlays(text, level, overlays);
@@ -1788,5 +1806,128 @@ mod refusal_tests {
             Some((1, 1)),
             "a door with no section and no token: the text's start"
         );
+    }
+}
+
+#[cfg(test)]
+mod multi_error_tests {
+    //! The user's ruling 23 of 2026-11-10, built 2026-11-11 (docs/rust-port/PHASE2.md section 6): a model text's errors
+    //! after the first, read on at element and section boundaries only, sorted by place; the first the door's own
+    //! answer, byte for byte; an element that leaves its brackets open, or a header's refusal, reported alone.
+    use super::*;
+    use crate::ustr::u;
+
+    /// The door's answer and the errors after it, each as `(line, column, words)`.
+    fn errors(text: &str, dialect: Dialect) -> Vec<(i32, i32, String)> {
+        let units = u(text);
+        let (answer, rest) = pmcd_with_errors(&units, dialect, &[]);
+        let first = answer.parsed.expect_err(text);
+        assert_eq!(
+            Some(&first),
+            pmcd(&units, dialect, &[]).parsed.as_ref().err(),
+            "the first is the door's answer"
+        );
+        std::iter::once(first)
+            .chain(rest)
+            .map(|e| {
+                let (line, column) = e.position.unwrap();
+                (line, column, e.words().lossy())
+            })
+            .collect()
+    }
+
+    fn at(line: i32, column: i32, words: &str) -> (i32, i32, String) {
+        (line, column, words.to_owned())
+    }
+
+    const MISSING_SEMI: &str = "expected SEMI_COLON but found BRACE_CLOSE ('}')";
+    const MISSING_COLON: &str = "expected COLON but found VALID_STRING ('Integer')";
+
+    #[test]
+    fn several_elements_of_several_sections_each_answer_their_error_in_order() {
+        let text = "Class a::A\n{\n  x: String[1]\n}\n\nClass a::B\n{\n  y: Integer[1];\n}\n\nClass a::C\n{\n  z Integer[1];\n}\n\n\
+                    function a::f(): String[1]\n{\n  'a' +\n}\n\nEnum a::E\n{\n  X, Y\n}\n\n\
+                    ###Relational\nDatabase a::D\n(\n  Table t (id INT PRIMARY KEY,, name VARCHAR(20))\n)\n\n\
+                    ###Pure\nClass a::Z { q Integer[1]; }\n";
+        let expected = vec![
+            at(4, 1, MISSING_SEMI),
+            at(13, 5, MISSING_COLON),
+            at(18, 8, "expected expression, got end of input"),
+            at(29, 31, "expected identifier, got COMMA"),
+            at(33, 16, MISSING_COLON),
+        ];
+        assert_eq!(errors(text, Dialect::LegendLite), expected);
+        assert_eq!(errors(text, Dialect::LegendPlatform), expected);
+        // the engine's dialect reads the same elements, each refused in its own words
+        assert_eq!(errors(text, Dialect::LegendEngine).len(), expected.len());
+    }
+
+    #[test]
+    fn an_element_that_leaves_its_brackets_open_is_reported_alone() {
+        let open = "Class a::A\n{\n  x: String[1]\n\nClass a::B\n{\n  y: Integer[1];\n}\n\nClass a::C\n{\n  z Integer[1];\n}\n";
+        assert_eq!(
+            errors(open, Dialect::LegendLite),
+            vec![at(5, 1, "expected SEMI_COLON but found CLASS ('Class')")]
+        );
+        // one closer too many
+        let stray = "Class a::A { x: String[1]; } }\nClass a::B { y Integer[1]; }\n";
+        assert_eq!(
+            errors(stray, Dialect::LegendLite),
+            vec![at(1, 30, "Unexpected token '}'")]
+        );
+        // a later element that leaves its brackets open is the last one read
+        let later = "Class a::A { x String[1]; }\nClass a::B { y Integer[1];\nClass a::C { z Integer[1]; }\n";
+        assert_eq!(
+            errors(later, Dialect::LegendLite),
+            vec![
+                at(1, 16, "expected COLON but found VALID_STRING ('String')"),
+                at(2, 16, MISSING_COLON)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_header_s_refusal_is_reported_alone() {
+        let text = "###Pure x\nClass a::A { x: String[1] }\nClass a::B { y Integer[1]; }\n";
+        assert_eq!(
+            errors(text, Dialect::LegendLite),
+            vec![at(1, 9, "Unexpected token 'x'")]
+        );
+    }
+
+    #[test]
+    fn a_section_with_no_elements_to_go_on_to_is_one_error_and_the_next_section_is_read() {
+        let text = "Class a::A { x String[1]; }\n###Diagram\nDiagram a::D { foo }\n###Foo\nwhat\n###Pure\nClass a::B { y Integer[1]; }\n";
+        assert_eq!(
+            errors(text, Dialect::LegendLite),
+            vec![
+                at(1, 16, "expected COLON but found VALID_STRING ('String')"),
+                at(3, 19, "unknown diagram view 'foo'"),
+                at(4, 4, "'Foo' is not a known section parser"),
+                at(7, 16, MISSING_COLON),
+            ]
+        );
+    }
+
+    #[test]
+    fn an_error_placed_before_the_first_is_not_listed() {
+        // at the engine's dialect a refusal of its walk (a graph-fetch argument) stands behind a later syntax error of
+        // its section, which is the door's answer (ruling 16): the walk's refusal, placed before it, is not listed
+        let text =
+            "function f::g():Any[*]{#{a::B{c(f())}}#}\nClass a::C { x Integer[1]; }\nClass a::D { y Integer[1]; }\n";
+        assert_eq!(
+            errors(text, Dialect::LegendEngine),
+            vec![at(2, 16, MISSING_COLON), at(3, 16, MISSING_COLON)]
+        );
+    }
+
+    #[test]
+    fn one_error_lists_none_after_it() {
+        let (answer, rest) = pmcd_with_errors(&u("Class a::A { x String[1]; }\n"), Dialect::LegendLite, &[]);
+        assert!(answer.parsed.is_err());
+        assert!(rest.is_empty());
+        let (answer, rest) = pmcd_with_errors(&u("Class a::A { x: String[1]; }\n"), Dialect::LegendLite, &[]);
+        assert!(answer.parsed.is_ok());
+        assert!(rest.is_empty());
     }
 }

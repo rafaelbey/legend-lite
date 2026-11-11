@@ -344,7 +344,7 @@ fn parse_sections(
             }
         } else {
             let walked = |level: Dialect| -> R<_> {
-                let elements = section_elements(&ts, &name, range, bd.header_start, level)?;
+                let elements = section_elements(&ts, &name, range, bd.header_start, level, None)?;
                 let imports = if name == "Diagram" {
                     // a raw section has no tokens: its own parse carries the imports (`diagramImports`, a second parse)
                     diagram_imports(&ts, range, level)?
@@ -682,33 +682,36 @@ fn platform_head(ts: &TokenStream<'_>, cursor: usize) -> i32 {
     -1
 }
 
-/// `PmcdParser.sectionElements`: a section's elements, by the grammar its name routes to.
+/// `PmcdParser.sectionElements`: a section's elements, by the grammar its name routes to. With a `sink`, the walk goes
+/// on past an element it refuses ([`Recovery`]).
 fn section_elements(
     ts: &TokenStream<'_>,
     name: &str,
     r: (isize, isize),
     header_start: isize,
     dialect: Dialect,
+    sink: Option<&mut Recovery>,
 ) -> R<Vec<DocElement>> {
     let imports_ok = IMPORT_AWARE.contains(&name);
     // the aggLambdaShift anchor: the header's line + 1 (the engine sub-parses content from the header's newline)
     let header_line = ts.line_of(header_start.max(0) as usize) as i64 + 1;
-    let walk = |rule: HeadRule<'_>, heads: Option<&mut Vec<TokenType>>, line: i64| {
-        strict_walk(ts, r, rule, imports_ok, line, heads, name, dialect)
+    let walk = |rule: HeadRule<'_>, heads: Option<&mut Vec<TokenType>>, line: i64, sink: Option<&mut Recovery>| {
+        strict_walk(ts, r, rule, imports_ok, line, heads, name, dialect, sink)
     };
     if !dialect.refuses_platform_dialect() && PLATFORM_OPEN_SECTIONS.contains(&name) {
         return walk(
             HeadRule::Platform,
             None,
             if name == "Mapping" { header_line } else { -1 },
+            sink,
         );
     }
     match name {
-        "Pure" => walk(HeadRule::Domain, None, -1),
+        "Pure" => walk(HeadRule::Domain, None, -1, sink),
         "Runtime" => {
             // the engine's runtime walker collects every `Runtime` first, then every `SingleConnectionRuntime`
             let mut heads = Vec::new();
-            let parsed = walk(HeadRule::Runtime, Some(&mut heads), -1)?;
+            let parsed = walk(HeadRule::Runtime, Some(&mut heads), -1, sink)?;
             let (mut first, mut rest) = (Vec::new(), Vec::new());
             for (e, h) in parsed.into_iter().zip(heads) {
                 if h == T::RUNTIME { first.push(e) } else { rest.push(e) }
@@ -716,14 +719,14 @@ fn section_elements(
             first.extend(rest);
             Ok(first)
         }
-        "Connection" => walk(HeadRule::Connection, None, -1),
-        "Relational" => walk(HeadRule::Relational, None, -1),
-        "Mapping" => walk(HeadRule::Mapping, None, header_line),
-        "Data" => walk(HeadRule::Data, None, -1),
+        "Connection" => walk(HeadRule::Connection, None, -1, sink),
+        "Relational" => walk(HeadRule::Relational, None, -1, sink),
+        "Mapping" => walk(HeadRule::Mapping, None, header_line, sink),
+        "Data" => walk(HeadRule::Data, None, -1, sink),
         "Diagram" => diagram_elements(ts, r, dialect),
         _ => {
             if let Some(kinds) = activator_kinds(name) {
-                return walk(HeadRule::Activator(kinds), None, -1);
+                return walk(HeadRule::Activator(kinds), None, -1, sink);
             }
             if TailGrammar::of(name).is_none() {
                 return Err(JavaError::parse(
@@ -732,7 +735,7 @@ fn section_elements(
                     1,
                 ));
             }
-            Ok(rule_group(name, walk(HeadRule::Tail, None, -1)?))
+            Ok(rule_group(name, walk(HeadRule::Tail, None, -1, sink)?))
         }
     }
 }
@@ -856,7 +859,9 @@ fn engine_import(ts: &TokenStream<'_>, import: usize) -> R<usize> {
 
 /// `PmcdParser.strictWalk`: a section's range read in order -- its leading imports (import-aware sections only, each
 /// exactly `import pkg(::pkg)*::*;`), then one element after another, each consuming its own extent; anything else
-/// refused. `mapping_section_line` is a mapping's anchor line (-1 outside a `###Mapping` section).
+/// refused. `mapping_section_line` is a mapping's anchor line (-1 outside a `###Mapping` section). With no `sink` the
+/// first refusal is the walk's answer, as it always was; with one, a refusal goes to the sink and the walk goes on at
+/// the next element ([`Recovery`]), or ends there.
 #[allow(clippy::too_many_arguments)]
 fn strict_walk(
     ts: &TokenStream<'_>,
@@ -867,77 +872,304 @@ fn strict_walk(
     mut heads_out: Option<&mut Vec<TokenType>>,
     section: &str,
     dialect: Dialect,
+    mut sink: Option<&mut Recovery>,
 ) -> R<Vec<DocElement>> {
     let mut out = Vec::new();
     let mut cursor = skip_to(ts, r.0);
     let mut saw_element = false;
     let n = ts.count();
     while cursor < n && (ts.start(cursor) as isize) < r.1 {
-        let t = ts.ty(cursor);
-        if t == T::IMPORT {
-            if !imports_allowed || saw_element {
-                return Err(orphan(ts, cursor));
-            }
-            if dialect.refuses_lite_extensions() {
-                cursor = engine_import(ts, cursor)?;
-                continue;
-            }
-            cursor += 1;
-            let mut wildcard = false;
-            while cursor < n && ts.ty(cursor) != T::SEMI_COLON {
-                let it = ts.ty(cursor);
-                if it == T::STAR {
-                    wildcard = true;
-                } else if it != T::PATH_SEPARATOR && !is_identifier_token(it) {
-                    return Err(orphan(ts, cursor));
+        let step = walk_step(
+            ts,
+            cursor,
+            rule,
+            imports_allowed,
+            &mut saw_element,
+            mapping_section_line,
+            section,
+            dialect,
+        );
+        match step {
+            Ok((read, head, end)) => {
+                if let Some(head) = head
+                    && let Some(h) = heads_out.as_deref_mut()
+                {
+                    h.push(head);
                 }
-                cursor += 1;
+                if let Some(de) = read {
+                    out.push(de);
+                }
+                cursor = end;
             }
-            if cursor >= n {
-                return Err(ended_inside_import(ts, cursor));
+            Err(e) => {
+                let Some(recovery) = sink.as_deref_mut() else {
+                    return Err(e);
+                };
+                match recovery.resume_after(ts, r, rule, cursor, e) {
+                    Some(next) => cursor = next,
+                    None => return Ok(out),
+                }
             }
-            if !wildcard {
-                return Err(orphan(ts, cursor.min(n - 1)));
-            }
-            cursor += 1;
-            continue;
         }
-        if t == T::STRING && cursor + 1 < n && rule.kind_of(ts, cursor + 1) >= 0 {
-            return Err(JavaError::parse(
-                JStr::from(crate::cursor::DOC_MULTI_LINE),
-                ts.line_of(ts.start(cursor)) as i32,
-                ts.start_column(cursor) as i32,
-            ));
-        }
-        let head = if t == T::DOC_STRING && cursor + 1 < n {
-            cursor + 1
-        } else {
-            cursor
-        };
-        let kind = rule.kind_of(ts, head);
-        if kind == SKIP {
-            let mut p = ElementCursor::at(ts, cursor, dialect);
-            if !p.skip_top_level_non_element()? {
-                return Err(orphan(ts, cursor));
-            }
-            saw_element = true;
-            cursor = p.pos;
-            continue;
-        }
-        if kind < 0 {
-            return Err(orphan(ts, cursor));
-        }
-        saw_element = true;
-        if let Some(h) = heads_out.as_deref_mut() {
-            h.push(ts.ty(head));
-        }
-        let (de, end) = parse_one_at(ts, cursor, kind, mapping_section_line, section, dialect)?;
-        if let Some(de) = de {
-            out.push(de);
-        }
-        cursor = end;
     }
     Ok(out)
+}
+
+/// One step of [`strict_walk`] at `cursor`: an import, a skipped non-element, or an element -- what it read, the head
+/// token's type of an element (for the runtime walker's order), and the token past it.
+#[allow(clippy::too_many_arguments)]
+fn walk_step(
+    ts: &TokenStream<'_>,
+    mut cursor: usize,
+    rule: HeadRule<'_>,
+    imports_allowed: bool,
+    saw_element: &mut bool,
+    mapping_section_line: i64,
+    section: &str,
+    dialect: Dialect,
+) -> R<(Option<DocElement>, Option<TokenType>, usize)> {
+    let n = ts.count();
+    let t = ts.ty(cursor);
+    if t == T::IMPORT {
+        if !imports_allowed || *saw_element {
+            return Err(orphan(ts, cursor));
+        }
+        if dialect.refuses_lite_extensions() {
+            return Ok((None, None, engine_import(ts, cursor)?));
+        }
+        cursor += 1;
+        let mut wildcard = false;
+        while cursor < n && ts.ty(cursor) != T::SEMI_COLON {
+            let it = ts.ty(cursor);
+            if it == T::STAR {
+                wildcard = true;
+            } else if it != T::PATH_SEPARATOR && !is_identifier_token(it) {
+                return Err(orphan(ts, cursor));
+            }
+            cursor += 1;
+        }
+        if cursor >= n {
+            return Err(ended_inside_import(ts, cursor));
+        }
+        if !wildcard {
+            return Err(orphan(ts, cursor.min(n - 1)));
+        }
+        return Ok((None, None, cursor + 1));
+    }
+    if t == T::STRING && cursor + 1 < n && rule.kind_of(ts, cursor + 1) >= 0 {
+        return Err(JavaError::parse(
+            JStr::from(crate::cursor::DOC_MULTI_LINE),
+            ts.line_of(ts.start(cursor)) as i32,
+            ts.start_column(cursor) as i32,
+        ));
+    }
+    let head = if t == T::DOC_STRING && cursor + 1 < n {
+        cursor + 1
+    } else {
+        cursor
+    };
+    let kind = rule.kind_of(ts, head);
+    if kind == SKIP {
+        let mut p = ElementCursor::at(ts, cursor, dialect);
+        if !p.skip_top_level_non_element()? {
+            return Err(orphan(ts, cursor));
+        }
+        *saw_element = true;
+        return Ok((None, None, p.pos));
+    }
+    if kind < 0 {
+        return Err(orphan(ts, cursor));
+    }
+    *saw_element = true;
+    let (de, end) = parse_one_at(ts, cursor, kind, mapping_section_line, section, dialect)?;
+    Ok((de, Some(ts.ty(head)), end))
+}
+
+/// The errors a model text holds after its first, where they can be found (the user's ruling 23 of 2026-11-10, built
+/// 2026-11-11, docs/rust-port/PHASE2.md section 6): a refusal inside an element ends that element's reading, and the
+/// walk goes on at the next element of its section -- a head token at bracket depth 0 after a `;` or a closing bracket,
+/// no earlier than the refusal's place -- or at the next section. Never inside an element. An element whose brackets do
+/// not close before its section ends (or close one more than they open) leaves the rest of the text untrusted: its
+/// refusal is the last one read.
+#[derive(Debug, Default)]
+pub(crate) struct Recovery {
+    errors: Vec<JavaError>,
+    stopped: bool,
+}
+
+/// A bracket, an island's `#{` or `}#` opening or closing a group a recovery counts.
+fn opens_group(t: TokenType) -> bool {
+    matches!(
+        t,
+        T::PAREN_OPEN | T::BRACKET_OPEN | T::BRACE_OPEN | T::ISLAND_OPEN | T::ISLAND_START
+    )
+}
+
+fn closes_group(t: TokenType) -> bool {
+    matches!(t, T::PAREN_CLOSE | T::BRACKET_CLOSE | T::BRACE_CLOSE | T::ISLAND_END)
+}
+
+/// A token's place as an error names it: its line and column.
+fn place_of(ts: &TokenStream<'_>, i: usize) -> (i32, i32) {
+    (ts.line_of(ts.start(i)) as i32, ts.column_of(ts.start(i)) as i32)
+}
+
+impl Recovery {
+    /// The refusal of the element at `start`, kept (a section catch-all's at the element's head, as a door places one
+    /// without its section), and where the walk goes on: the next element's first token, or none.
+    fn resume_after(
+        &mut self,
+        ts: &TokenStream<'_>,
+        r: (isize, isize),
+        rule: HeadRule<'_>,
+        start: usize,
+        e: JavaError,
+    ) -> Option<usize> {
+        let head_place = place_of(ts, start);
+        let e = e.held_at(head_place).placed();
+        let at = match e.position {
+            Some((line, column)) if line > 0 => (line, column),
+            _ => head_place,
+        };
+        self.errors.push(e);
+        let n = ts.count();
+        let at_a_head = |i: usize| {
+            rule.kind_of(ts, i) >= 0 || (ts.ty(i) == T::DOC_STRING && i + 1 < n && rule.kind_of(ts, i + 1) >= 0)
+        };
+        let mut depth = 0i64;
+        let mut i = start;
+        while i < n && (ts.start(i) as isize) < r.1 {
+            let t = ts.ty(i);
+            if i > start
+                && depth == 0
+                && matches!(
+                    ts.ty(i - 1),
+                    T::SEMI_COLON | T::BRACE_CLOSE | T::PAREN_CLOSE | T::BRACKET_CLOSE | T::ISLAND_END
+                )
+                && place_of(ts, i) >= at
+                && at_a_head(i)
+            {
+                return Some(i);
+            }
+            if opens_group(t) {
+                depth += 1;
+            } else if closes_group(t) {
+                depth -= 1;
+                if depth < 0 {
+                    break;
+                }
+            }
+            i += 1;
+        }
+        if depth != 0 {
+            self.stopped = true;
+        }
+        None
+    }
+
+    /// A refusal that ends its section's reading: a section with no elements to go on to (a raw `###Diagram`, an unknown
+    /// section, a section's imports).
+    fn refused(&mut self, e: JavaError, at: (i32, i32)) {
+        self.errors.push(e.held_at(at).placed());
+    }
+}
+
+/// The errors a model text holds after `first`, the door's answer (the user's ruling 23 of 2026-11-10, built
+/// 2026-11-11, docs/rust-port/PHASE2.md section 6; [`Recovery`]): every section walked at `dialect` with each refusal
+/// kept and the walk going on past it. Sorted by place and kept only when placed after `first`, so the list a caller
+/// shows begins with the door's answer, byte for byte, and stays in order: a refusal the door's answer stands after
+/// (the engine's section parse reporting a later syntax error before a refusal of its walk, a refusal placed at its
+/// section's start) is not listed. None after a header's refusal, which is checked before any section is read, or after
+/// a first error that names no place; none after an element that leaves its brackets open.
+pub(crate) fn further_errors(
+    text: &[u16],
+    dialect: Dialect,
+    overlays: &[OverlayGrammar<'_>],
+    first: &JavaError,
+) -> Vec<JavaError> {
+    let first_at = match first.position {
+        Some((line, column)) if line > 0 && first.is_parse_exception() => (line, column),
+        _ => return Vec::new(),
+    };
+    let ts = tokenize(text);
+    for h in &ts.section_headers {
+        if refuse_unknown_last_section(&ts, h, dialect).is_err() || require_clean_header(h).is_err() {
+            return Vec::new();
+        }
+    }
+    let mut recovery = Recovery::default();
+    let mut bounds = vec![Bounds {
+        name: u("Pure"),
+        header_start: -1,
+        content_start: 0,
+        name_offset: -1,
+    }];
+    for h in &ts.section_headers {
+        bounds.push(Bounds {
+            name: h.name.clone(),
+            header_start: h.name_offset as isize - 3,
+            content_start: h.content_start_offset,
+            name_offset: h.name_offset as isize,
+        });
+    }
+    for i in 0..bounds.len() {
+        if recovery.stopped {
+            break;
+        }
+        let bd = &bounds[i];
+        let content_end = if i + 1 < bounds.len() {
+            bounds[i + 1].header_start - 1
+        } else {
+            text.len() as isize
+        };
+        let range = (bd.content_start as isize, content_end);
+        let name = String::from_utf16_lossy(&bd.name);
+        let header_at = if bd.name_offset < 0 {
+            (1, 1)
+        } else {
+            (
+                ts.line_of(bd.name_offset as usize) as i32,
+                ts.column_of(bd.name_offset as usize) as i32,
+            )
+        };
+        if !dialect.refuses_lite_extensions()
+            && !listed(BUILT_IN_SECTIONS, &bd.name)
+            && TailGrammar::of(&name).is_none()
+        {
+            if let Err(e) = registered(&ts, bd, range, dialect, overlays, &mut Vec::new()) {
+                recovery.refused(e, header_at);
+            }
+            continue;
+        }
+        if name == "Diagram" {
+            // a raw section, one reading for its elements and imports alike
+            if let Err(e) = diagram_elements(&ts, range, dialect) {
+                recovery.refused(e, header_at);
+            }
+            continue;
+        }
+        match section_elements(&ts, &name, range, bd.header_start, dialect, Some(&mut recovery)) {
+            Err(e) => recovery.refused(e, header_at),
+            Ok(_) if !recovery.stopped && listed(IMPORT_AWARE, &bd.name) => {
+                if let Err(e) = section_imports(&ts, range) {
+                    recovery.refused(e, header_at);
+                }
+            }
+            Ok(_) => {}
+        }
+    }
+    let mut out: Vec<JavaError> = Vec::new();
+    for e in recovery.errors {
+        let Some((line, column)) = e.position else {
+            continue;
+        };
+        if !e.is_parse_exception() || line <= 0 || (line, column) <= first_at || out.contains(&e) {
+            continue;
+        }
+        out.push(e);
+    }
+    out.sort_by_key(|e| e.position);
+    out
 }
 
 /// `PmcdParser.parseOneAt`: the element of `kind` at `site`, the path the section index lists it under, and the
