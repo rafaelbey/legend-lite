@@ -821,6 +821,19 @@ fn with_flat_defaults(entries: Vec<PPersistenceEntry>) -> Vec<PPersistenceEntry>
     out
 }
 
+/// The persister's kinds the engine's grammar spells with a `;` alone, no body after them: `auditing: None`,
+/// `mergeStrategy: NoDeletes`, `deduplicationStrategy: None` and `AnyVersion` (`PersistenceParserGrammar.g4`'s
+/// `noAuditing`, `noDeletesMergeStrategy`, `noDeduplicationStrategy`, `anyVersionDeduplicationStrategy`). At the engine's
+/// dialect a `{` or an island after one is refused there, `Unexpected token` in lite's words (the user's ruling 26 of
+/// 2026-11-10, built 2026-11-11; docs/rust-port/PHASE2.md section 6; register S369). The keys belong to the persister
+/// alone: inside a target's island (its entries read with the island's offsets, never `(0, 0)`) the engine's target
+/// grammar takes `auditing: None {}`, and so does lite.
+fn a_bare_kind(key: &[u16], kind: &[u16]) -> bool {
+    (eq(key, "auditing") && eq(kind, "None"))
+        || (eq(key, "mergeStrategy") && eq(kind, "NoDeletes"))
+        || (eq(key, "deduplicationStrategy") && (eq(kind, "None") || eq(kind, "AnyVersion")))
+}
+
 fn scalar(key: Vec<u16>, value: Vec<u16>, quoted: bool) -> PPersistenceEntry {
     PPersistenceEntry::PPersistenceEntryScalar(Box::new(PPersistenceEntryScalar {
         key: JStr(key),
@@ -948,6 +961,9 @@ fn parse_entries<'s>(
                     head.extend(c.parse_identifier()?);
                 }
                 if c.peek() == T::BRACE_OPEN || is_island(c.peek()) {
+                    if off == (0, 0) && c.dialect().refuses_lite_extensions() && a_bare_kind(&key, &head) {
+                        return Err(c.unexpected());
+                    }
                     let braced = c.peek() == T::BRACE_OPEN;
                     c.set_pos(key_start);
                     c.parse_identifier()?;

@@ -305,6 +305,31 @@ fn is_arithmetic_op(t: TokenType) -> bool {
     )
 }
 
+/// The name of the `###` section that holds `offset` of `source` -- the last header before it at a line's start, where
+/// the lexer starts one -- or `Pure`, the engine's implicit first section (a door's expression text has no header).
+fn section_at(source: &[u16], offset: usize) -> &[u16] {
+    let hash = ch(b'#');
+    let mut i = offset.min(source.len());
+    while i > 0 {
+        i -= 1;
+        if i + 2 < source.len()
+            && source[i] == hash
+            && source[i + 1] == hash
+            && source[i + 2] == hash
+            && (i == 0 || source[i - 1] == ch(b'\n'))
+        {
+            let start = i + 3;
+            let mut end = start;
+            while end < source.len() && (is_letter_or_digit(source[end]) || source[end] == ch(b'_')) {
+                end += 1;
+            }
+            return &source[start..end];
+        }
+    }
+    // `Pure`
+    &[0x50, 0x75, 0x72, 0x65]
+}
+
 fn opens_milestoning_literal(t: TokenType) -> bool {
     t == T::LATEST_DATE || t == T::DATE || t == T::DOLLAR
 }
@@ -2101,7 +2126,41 @@ impl<'t, 's> SpecParser<'t, 's> {
         self.parse_col_spec_tail(name, cmd_tok, 1, Vec::new(), Vec::new())
     }
 
+    /// The engine's domain lexer reads `~owner`, `~externalId`, `~function`, `~message` and `~enforcementLevel`, with a
+    /// `:` after them past blanks and line breaks, as one constraint token (`DomainLexerGrammar.g4`'s `CONSTRAINT_*`),
+    /// which no column spec starts with. At the engine's dialect, where that lexer reads the text -- a `###Pure`
+    /// section, an expression door's text; a mapping's, a service's or a data quality check's expression is read by a
+    /// lexer of its own, which takes the `~` alone -- the word is refused at the `~` (the user's ruling 26 of 2026-11-10,
+    /// built 2026-11-11; docs/rust-port/PHASE2.md section 6; register S370). A comment between the word and the `:`, or
+    /// a blank after the `~`, keeps them apart, as that lexer does.
+    fn a_constraint_keyword_at_the_tilde(&self) -> Option<Vec<u16>> {
+        if !self.dialect.refuses_lite_extensions() || self.pos + 1 >= self.tokens.count() {
+            return None;
+        }
+        let (tilde, word) = (self.pos, self.pos + 1);
+        let text = self.tokens.text(word);
+        if self.tokens.end(tilde) != self.tokens.start(word)
+            || !["owner", "externalId", "function", "message", "enforcementLevel"]
+                .iter()
+                .any(|k| eq(text, k))
+        {
+            return None;
+        }
+        let source = self.tokens.source();
+        let mut p = self.tokens.end(word);
+        while p < source.len() && matches!(source[p], 0x20 | 0x09 | 0x0D | 0x0A) {
+            p += 1;
+        }
+        if p >= source.len() || source[p] != ch(b':') || !eq(section_at(source, self.tokens.start(tilde)), "Pure") {
+            return None;
+        }
+        Some(text.to_vec())
+    }
+
     fn parse_column_builders(&mut self) -> R<ColumnInstance> {
+        if let Some(word) = self.a_constraint_keyword_at_the_tilde() {
+            return Err(self.error(jcat!("Unexpected token '~", word, "'")).as_refusal());
+        }
         self.pos += 1;
         if !self.at_end() && self.peek() == T::BRACKET_OPEN {
             return self

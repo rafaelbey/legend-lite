@@ -1593,6 +1593,109 @@ mod refusal_tests {
         }
     }
 
+    /// A v1 persister whose ingest mode's and target shape's last lines are `ingest` and `shape`.
+    fn persister(ingest: &str, shape: &str) -> String {
+        format!(
+            "###Persistence\nPersistence a::P\n{{\n  doc: 'd';\n  trigger: Manual;\n  service: a::S;\n  persister: Batch\n  {{\n    \
+             sink: Relational\n    {{\n      database: a::D;\n    }}\n    targetShape: Flat\n    {{\n      targetName: 'T';\n      \
+             modelClass: a::C;\n{shape}    }}\n    ingestMode: NontemporalDelta\n    {{\n      mergeStrategy: NoDeletes;\n{ingest}    \
+             }}\n  }}\n}}\n"
+        )
+    }
+
+    #[test]
+    fn the_three_looser_inputs_found_by_hand_are_refused_at_the_engines_place() {
+        // ruling 26 of 2026-11-10, built 2026-11-11 (register S369 to S371): each input and place read from the engine's
+        // parser (`PureGrammarParser`, 4.145.0)
+        // a persister's bare kind written with a body or an island (S369)
+        let none = "      auditing: None;\n";
+        refused_at_the_engines_alone("model", &persister("      auditing: None {}\n", ""), (21, 22));
+        refused_at_the_engines_alone(
+            "model",
+            &persister("      auditing: None { dateTimeName: 'x'; }\n", ""),
+            (21, 22),
+        );
+        refused_at_the_engines_alone("model", &persister("      auditing: None #{ }#\n", ""), (21, 22));
+        let no_deletes = persister(none, "").replace("NoDeletes;", "NoDeletes {}");
+        refused_at_the_engines_alone("model", &no_deletes, (20, 32));
+        for kind in ["None", "AnyVersion"] {
+            let shape = format!("      deduplicationStrategy: {kind} {{}}\n");
+            refused_at_the_engines_alone("model", &persister(none, &shape), (17, 30 + kind.len() as i32 + 1));
+        }
+        // a target's island is another grammar's, which takes a body after `None`
+        let island = "###Persistence\nPersistence a::P\n{\n  doc: 'd';\n  trigger: Manual;\n  service: a::S;\n  \
+                      serviceOutputTargets:\n  [\n    TDS\n    {\n      keys: [ foo ]\n      datasetType: Delta\n      {\n        \
+                      actionIndicator: None;\n      }\n      deduplication: AnyVersion;\n    }\n    ->\n    Relational\n    #{\n      \
+                      table: TableA;\n      database: a::D;\n      temporality: None\n      {\n        updatesHandling: Overwrite;\n        \
+                      auditing: None {}\n      }\n    }#\n  ];\n}\n";
+        assert!(pmcd(&u(island), Dialect::LegendEngine, &[]).parsed.is_ok());
+        // a constraint's keyword written as a column spec, where the engine's domain lexer reads the text (S370)
+        refused_at_the_engines_alone("spec", "[~owner: abc]", (1, 2));
+        for word in ["owner", "externalId", "function", "message", "enforcementLevel"] {
+            refused_at_the_engines_alone("spec", &format!("$t->extend(~{word}: x|1)"), (1, 12));
+        }
+        refused_at_the_engines_alone("spec", "$t->extend(~owner\n\t : x|1)", (1, 12));
+        refused_at_the_engines_alone("spec", "$t->extend(~owner:Integer[1])", (1, 12));
+        refused_at_the_engines_alone(
+            "model",
+            "function a::f(): Any[*]\n{\n  $t->extend(~owner: x|1)\n}\n",
+            (3, 14),
+        );
+        let e = lambda(&u("|$t->extend(~owner: x|1)")).unwrap_err();
+        assert_eq!(e.position, Some((1, 13)));
+        // a blank after the `~`, a comment before the `:`, a longer word, or another section's lexer: no constraint token
+        for text in [
+            "$t->extend(~ owner: x|1)",
+            "$t->extend(~owner/*c*/: x|1)",
+            "$t->extend(~ownerX: x|1)",
+        ] {
+            assert!(spec(&u(text), Dialect::LegendEngine).is_ok(), "{text}");
+        }
+        let mapping = "###Mapping\nMapping my::M ( *model::Mammal: Pure { ~src model::Mammal noOfLegs: \
+                       $src->extend(~owner: x|1) } )\n";
+        assert!(pmcd(&u(mapping), Dialect::LegendEngine, &[]).parsed.is_ok());
+        // DataQuality's comma lists, `item (COMMA item)*`, and a data space's context name a string (S371)
+        let tree = |constraints: &str, property: &str, context: &str| {
+            format!(
+                "###DataQualityValidation\nDataQualityValidation my::Check\n{{\n  context: {context};\n  validationTree: $[\n    \
+                 my::P<{constraints}>{{\n      name<{property}>\n    }}\n  ]$;\n}}\n"
+            )
+        };
+        let mapping_and_runtime = "fromMappingAndRuntime(my::M, my::R)";
+        refused_at_the_engines_alone("model", &tree("c1,", "c1", mapping_and_runtime), (6, 14));
+        refused_at_the_engines_alone("model", &tree("c1", "c1,", mapping_and_runtime), (7, 15));
+        refused_at_the_engines_alone("model", &tree("c1", "c1", "fromDataSpace(my::DS, my::x)"), (4, 34));
+        assert!(
+            pmcd(&u(&tree("c1", "c1", mapping_and_runtime)), Dialect::LegendEngine, &[])
+                .parsed
+                .is_ok()
+        );
+        let checks = |validations: &str| {
+            format!(
+                "###DataQualityValidation\nDataQualityRelationValidation meta::x::v\n{{\n   query: \
+                 |#>{{my::Store.myTable}}#->filter(c|$c.name == 'ok');\n   validations: {validations};\n}}\n"
+            )
+        };
+        let v1 = "{ name: 'v1'; assertion: row|$row.name != 'error'; }";
+        refused_at_the_engines_alone("model", &checks(&format!("[ {v1}, ]")), (5, 70));
+        refused_at_the_engines_alone("model", &checks("[]"), (5, 18));
+        let comparison = |keys: &str, columns: &str| {
+            format!(
+                "###DataQualityValidation\nDataQualityRelationComparison meta::x::r\n{{\n   source: \
+                 src|#>{{my::Store.sourceTable}}#->filter(c|$c.active == true);\n   target: \
+                 tgt|#>{{my::Store.targetTable}}#->filter(c|$c.active == true);\n   keys: {keys};\n   columnsToCompare: \
+                 {columns};\n   strategy: MD5Hash;\n}}\n"
+            )
+        };
+        refused_at_the_engines_alone("model", &comparison("[id,]", "[a]"), (6, 14));
+        refused_at_the_engines_alone("model", &comparison("[id]", "[a, b,]"), (7, 28));
+        assert!(
+            pmcd(&u(&comparison("[]", "[]")), Dialect::LegendEngine, &[])
+                .parsed
+                .is_ok()
+        );
+    }
+
     #[test]
     fn a_line_comment_ends_at_a_lone_carriage_return() {
         // a lone `\r` ends a line comment, as the engines' lexers end it

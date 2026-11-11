@@ -75,6 +75,12 @@ fn parse_validation<'s>(c: &mut impl Cursor<'s>) -> R<PDataQualityValidation> {
             ctx_path_span = c.span(s, c.pos() - 1);
             if c.match_tok(T::COMMA)? {
                 let s2 = c.pos();
+                // a data space's context name is a `STRING` in the engine's grammar (`fromDataSpace: ... COMMA
+                // contextName`), refused where a path stands at its dialect (the user's ruling 26 of 2026-11-10, built
+                // 2026-11-11; docs/rust-port/PHASE2.md section 6; register S371)
+                if c.dialect().refuses_lite_extensions() && eq(&kind, "fromDataSpace") && c.peek() != T::STRING {
+                    return Err(c.unexpected());
+                }
                 let second = if c.peek() == T::STRING {
                     string_value(c)?
                 } else {
@@ -150,6 +156,12 @@ fn parse_tree_node<'s>(c: &mut impl Cursor<'s>, root: bool) -> R<PDqTreeNode> {
             constraints.push(JStr(v));
             if !c.match_tok(T::COMMA)? {
                 break;
+            }
+            // a class's or a property's `constraintList` is `LESS_THAN name (COMMA name)* GREATER_THAN`: no comma before the
+            // `>` at the engine's dialect (the user's ruling 26 of 2026-11-10, built 2026-11-11; docs/rust-port/PHASE2.md
+            // section 6; register S371)
+            if c.dialect().refuses_lite_extensions() && c.peek() == T::GREATER_THAN {
+                return Err(c.unexpected());
             }
         }
         c.expect(T::GREATER_THAN)?;
@@ -279,7 +291,7 @@ fn parse_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PDqTestSuite>>> {
                         data: v,
                         source_information: c.span(es, c.pos() - 1),
                     }));
-                    if !c.match_tok(T::COMMA)? {
+                    if !list_comma(c)? {
                         break;
                     }
                 }
@@ -309,7 +321,7 @@ fn parse_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PDqTestSuite>>> {
                         c.expect(T::BRACKET_OPEN)?;
                         while !c.at_end() && c.peek() != T::BRACKET_CLOSE {
                             a.push(Box::new(test_assertion_at(c)?));
-                            if !c.match_tok(T::COMMA)? {
+                            if !list_comma(c)? {
                                 break;
                             }
                         }
@@ -325,7 +337,7 @@ fn parse_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PDqTestSuite>>> {
                         assertions,
                         source_information: c.span(ts, c.pos() - 1),
                     }));
-                    if !c.match_tok(T::COMMA)? {
+                    if !list_comma(c)? {
                         break;
                     }
                 }
@@ -345,7 +357,7 @@ fn parse_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PDqTestSuite>>> {
             tests,
             source_information: c.span(ss, c.pos() - 1),
         }));
-        if !c.match_tok(T::COMMA)? {
+        if !list_comma(c)? {
             break;
         }
     }
@@ -353,10 +365,29 @@ fn parse_test_suites<'s>(c: &mut impl Cursor<'s>) -> R<Vec<Box<PDqTestSuite>>> {
     Ok(out)
 }
 
+/// The comma after a bracketed list's item, whether one was read. At the engine's dialect each of these lists is its
+/// grammar's `item (COMMA item)*` (`DataQualityParserGrammar.g4`: validations, keys, columns to compare, test suites,
+/// their data, tests and assertions), so a comma before the `]` is refused there (the user's ruling 26 of 2026-11-10,
+/// built 2026-11-11; docs/rust-port/PHASE2.md section 6; register S371). A missing comma was refused at the engine's
+/// place already, in the words it had; lite's and the platform's dialects read a trailing comma as before.
+fn list_comma<'s>(c: &mut impl Cursor<'s>) -> R<bool> {
+    if !c.match_tok(T::COMMA)? {
+        return Ok(false);
+    }
+    if c.dialect().refuses_lite_extensions() && !c.at_end() && c.peek() == T::BRACKET_CLOSE {
+        return Err(c.unexpected());
+    }
+    Ok(true)
+}
+
 /// `parseChecks`: `[ { name: '..'; description: '..'; assertion: expr; type: ROW_LEVEL; }, ... ]`, a name and an
-/// assertion required (at the element).
+/// assertion required (at the element); at the engine's dialect at least one (`validation (COMMA validation)*`, ruling
+/// 26, register S371).
 fn parse_checks<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDqRelationCheck>>, element_anchor: usize) -> R<()> {
     c.expect(T::BRACKET_OPEN)?;
+    if c.dialect().refuses_lite_extensions() && !c.at_end() && c.peek() == T::BRACKET_CLOSE {
+        return Err(c.unexpected());
+    }
     while c.peek() != T::BRACKET_CLOSE {
         c.expect(T::BRACE_OPEN)?;
         let mut name = None;
@@ -384,6 +415,18 @@ fn parse_checks<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDqRelationCheck>
             c.expect(T::SEMI_COLON)?;
         }
         c.expect(T::BRACE_CLOSE)?;
+        // `validation (COMMA validation)* BRACKET_CLOSE`: a comma before the `]` is refused at the last validation's `}`,
+        // where the engine's prediction gives up, before its walk asks for a name (ruling 26, register S371). What else
+        // follows a validation is refused as before: the engine's place for it depends on the token (a `{` at the `}`, a
+        // `;` at itself), a place difference already ledgered, not a looser text
+        let closed = c.pos() - 1;
+        if c.dialect().refuses_lite_extensions()
+            && !c.at_end()
+            && c.peek() == T::COMMA
+            && c.peek_at(1) == T::BRACKET_CLOSE
+        {
+            return Err(throw_at(c.tokens(), closed, JStr::from("Unexpected token '}'")).as_refusal());
+        }
         let (Some(name), Some(assertion)) = (name, assertion) else {
             return Err(throw_at(
                 c.tokens(),
@@ -397,7 +440,7 @@ fn parse_checks<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDqRelationCheck>
             assertion,
             r#type,
         }));
-        if !c.match_tok(T::COMMA)? {
+        if !list_comma(c)? {
             break;
         }
     }
@@ -476,7 +519,7 @@ fn identifier_list<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<JStr>) -> R<()> {
     c.expect(T::BRACKET_OPEN)?;
     while c.peek() != T::BRACKET_CLOSE {
         out.push(JStr(c.parse_identifier()?));
-        if !c.match_tok(T::COMMA)? {
+        if !list_comma(c)? {
             break;
         }
     }
