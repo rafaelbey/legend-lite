@@ -608,7 +608,12 @@ impl MariaDb {
             .append(" IS NULL THEN NULL ELSE coalesce(")
             .append(name);
         w.append("(").expr(self, x, 0)?.append("), ");
-        let message = [build::string_lit(&format!("{f} is undefined outside [-1,1]"))];
+        // register S138 (the user's ruling, 2026-11-05; main's MariaDb.java): the guard exists because the database cannot
+        // hold NaN (the engine's answer), and says so
+        let message = [build::string_lit(&format!(
+            "{} of a value outside [-1, 1] is NaN, which this database cannot hold",
+            f.as_str().to_lowercase()
+        ))];
         let raise = self.raise(&message, Some(&SqlType::Scalar(Scalar::Double)));
         w.piece(&*raise)?.append(") END)");
         Ok(())
@@ -1344,6 +1349,26 @@ impl MariaDb {
             F::ListGet => {
                 let xs = arg(a, 0)?;
                 let n = arg(a, 1)?;
+                if let SqlExpr::IntLit { value, .. } = n
+                    && *value > 0
+                {
+                    // a positive literal index: the element at its path, nothing more to test (main's 2026-11-03)
+                    let index = (*value - 1).to_string();
+                    let at = self.element_at_position(xs, text(index));
+                    match if list_element(xs).is_none() {
+                        cast_target(self, call_type)
+                    } else {
+                        None
+                    } {
+                        None => {
+                            w.piece(&*at)?;
+                        }
+                        Some(t) => {
+                            w.append("CAST(").piece(&*at)?.append(&format!(" AS {t})"));
+                        }
+                    }
+                    return Ok(());
+                }
                 let index = pc(move |w| {
                     w.append("CASE WHEN ")
                         .expr(self, n, 4)?

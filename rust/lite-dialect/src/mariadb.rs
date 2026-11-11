@@ -597,18 +597,13 @@ impl MariaDb {
     }
 
     /// Java's `jsonText(Piece, Piece)`: a JSON scalar's SQL value at `path` -- `JSON_VALUE` (MySQL: `JSON_EXTRACT`'s,
-    /// unquoted, a JSON null NULL).
+    /// unquoted, a JSON null NULL -- compared as JSON with JSON's own null, the document written ONCE: main's
+    /// 2026-11-03, where the CASE form wrote it twice and nesting doubled the statement).
     fn json_text<'a>(&self, json: P<'a>, path: P<'a>) -> P<'a> {
         if self.mysql {
+            let member = self.json_member(json, path);
             return pc(move |w| {
-                w.append("(CASE WHEN JSON_TYPE(JSON_EXTRACT(")
-                    .piece(&*json)?
-                    .append(", ")
-                    .piece(&*path)?;
-                w.append(")) = 'NULL' THEN NULL ELSE JSON_UNQUOTE(JSON_EXTRACT(")
-                    .piece(&*json)?
-                    .append(", ");
-                w.piece(&*path)?.append(")) END)");
+                w.append("JSON_UNQUOTE(").piece(&*member)?.append(")");
                 Ok(())
             });
         }
@@ -625,27 +620,21 @@ impl MariaDb {
     /// Java's `jsonText(String, String)`: [`MariaDb::json_text`] of SQL text.
     fn json_text_of(&self, json: &str, path: &str) -> String {
         if self.mysql {
-            return format!(
-                "(CASE WHEN JSON_TYPE(JSON_EXTRACT({json}, {path})) = 'NULL' THEN NULL ELSE JSON_UNQUOTE(JSON_EXTRACT(\
-                 {json}, {path})) END)"
-            );
+            return format!("JSON_UNQUOTE(NULLIF(JSON_EXTRACT({json}, {path}), CAST('null' AS JSON)))");
         }
         format!("JSON_VALUE({json}, {path})")
     }
 
-    /// Java's `jsonMember`: a list, struct or map at `path`, as its JSON, a JSON null NULL.
+    /// Java's `jsonMember`: a list, struct or map at `path`, as its JSON, a JSON null NULL (MySQL: the null read as
+    /// JSON's own null, the document written once, main's 2026-11-03).
     fn json_member<'a>(&self, json: P<'a>, path: P<'a>) -> P<'a> {
         if self.mysql {
             return pc(move |w| {
-                w.append("(CASE WHEN JSON_TYPE(JSON_EXTRACT(")
+                w.append("NULLIF(JSON_EXTRACT(")
                     .piece(&*json)?
                     .append(", ")
-                    .piece(&*path)?;
-                w.append(")) = 'NULL' THEN NULL ELSE JSON_EXTRACT(")
-                    .piece(&*json)?
-                    .append(", ")
-                    .piece(&*path)?;
-                w.append(") END)");
+                    .piece(&*path)?
+                    .append("), CAST('null' AS JSON))");
                 Ok(())
             });
         }

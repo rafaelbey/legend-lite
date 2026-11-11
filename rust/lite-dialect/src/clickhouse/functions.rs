@@ -910,7 +910,18 @@ impl ClickHouse {
                 ansi::infix(self, w, f, a, parent_prec)
             }
             // the shared spellings (the base's named helpers)
-            SqlFn::Not => ansi::not_prefix(self, w, a, parent_prec),
+            // NOT bracketing its whole operand (main's ClickHouse.notCall, PCT round 21): ClickHouse reads `NOT (` as its
+            // function `not(`, so an operand that merely starts with a bracket was cut short
+            SqlFn::Not => {
+                if 3 < parent_prec {
+                    w.append("(");
+                }
+                w.append("NOT (").expr(self, arg(a, 0)?, 0)?.append(")");
+                if 3 < parent_prec {
+                    w.append(")");
+                }
+                Ok(())
+            }
             SqlFn::Negate => ansi::negation(self, w, a),
             SqlFn::IsNull => ansi::is_null_test(self, w, a),
             SqlFn::IsNotNull => ansi::is_not_null_test(self, w, a),

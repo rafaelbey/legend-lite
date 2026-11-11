@@ -562,7 +562,12 @@ impl Sqlite {
             .append(" IS NULL THEN NULL ELSE coalesce(")
             .append(name);
         w.append("(").expr(self, &a[0], 0)?.append("), ");
-        let undefined = [build::string_lit(&format!("{f} is undefined outside [-1,1]"))];
+        // register S138 (the user's ruling, 2026-11-05; main's SQLite.java): the guard exists because the database cannot
+        // hold NaN (the engine's answer), and says so
+        let undefined = [build::string_lit(&format!(
+            "{} of a value outside [-1, 1] is NaN, which this database cannot hold",
+            f.as_str().to_lowercase()
+        ))];
         self.raise(&undefined)(w)?;
         w.append(") END)");
         Ok(())
@@ -1119,16 +1124,14 @@ impl Sqlite {
             // DuckDB's list_distinct drops NULLs; the first occurrence's order
             F::ListDistinct => {
                 let xs = arg(a, 0)?;
-                let held = json_of(text(e.clone()), list_element(xs));
-                let body = pc(move |w: &mut SqlWriter| {
+                self.unless_null(xs, move |w, b| {
                     w.append("(SELECT json_group_array(");
-                    held(w)?;
+                    json_of(text(e.clone()), list_element(b))(w)?;
                     w.append(&format!(" ORDER BY {o}) FROM (SELECT {e}, min({o}) AS {o} FROM "));
-                    self.elements(xs, "__e", "__o", None)?(w)?;
+                    self.elements(b, "__e", "__o", None)?(w)?;
                     w.append(&format!(" WHERE {e} IS NOT NULL GROUP BY {e}))"));
                     Ok(())
-                });
-                self.unless_null(xs, body)(w)
+                })(w)
             }
             // list_append(NULL, v) is [v]
             F::ListAppend => {
@@ -1157,30 +1160,27 @@ impl Sqlite {
                 let xs = arg(a, 0)?;
                 let el = list_element(xs).cloned();
                 let held = json_of(text(e.clone()), el.as_ref());
-                let body = pc(move |w: &mut SqlWriter| {
+                self.unless_null(xs, move |w, b| {
                     w.append("(SELECT json_group_array(");
                     held(w)?;
                     w.append(" ORDER BY ")
                         .append(&self.element_sort(&e, el.as_ref(), dir))
                         .append(") FROM ");
-                    self.elements(xs, "__e", "__o", None)?(w)?;
+                    self.elements(b, "__e", "__o", None)?(w)?;
                     w.append(")");
                     Ok(())
-                });
-                self.unless_null(xs, body)(w)
+                })(w)
             }
             F::ListReverse => {
                 let xs = arg(a, 0)?;
-                let held = json_of(text(e.clone()), list_element(xs));
-                let body = pc(move |w: &mut SqlWriter| {
+                self.unless_null(xs, move |w, b| {
                     w.append("(SELECT json_group_array(");
-                    held(w)?;
+                    json_of(text(e.clone()), list_element(b))(w)?;
                     w.append(&format!(" ORDER BY {o} DESC) FROM "));
-                    self.elements(xs, "__e", "__o", None)?(w)?;
+                    self.elements(b, "__e", "__o", None)?(w)?;
                     w.append(")");
                     Ok(())
-                });
-                self.unless_null(xs, body)(w)
+                })(w)
             }
             F::ListTail => {
                 let xs = arg(a, 0)?;
@@ -1218,15 +1218,14 @@ impl Sqlite {
                     _ => None,
                 };
                 let held = json_of(text(element_read(inner.as_ref(), "__fi")), inner.as_ref());
-                let body = pc(move |w: &mut SqlWriter| {
+                self.unless_null(xs, move |w, b| {
                     w.append("(SELECT json_group_array(");
                     held(w)?;
                     w.append(" ORDER BY __fo.key, __fi.key) FROM json_each(")
-                        .expr(self, xs, 0)?;
+                        .expr(self, b, 0)?;
                     w.append(") AS __fo, json_each(__fo.value) AS __fi)");
                     Ok(())
-                });
-                self.unless_null(xs, body)(w)
+                })(w)
             }
             F::ListZip => self.zip(f, a, t)?(w),
             F::ListProduct => {
@@ -1464,26 +1463,22 @@ impl Sqlite {
             }
             F::MapKeys => {
                 let xs = arg(a, 0)?;
-                let body = pc(move |w: &mut SqlWriter| {
+                self.unless_null(xs, move |w, b| {
                     w.append("(SELECT json_group_array(key ORDER BY id) FROM json_each(")
-                        .expr(self, xs, 0)?;
+                        .expr(self, b, 0)?;
                     w.append("))");
                     Ok(())
-                });
-                self.unless_null(xs, body)(w)
+                })(w)
             }
             F::MapValues => {
                 let xs = arg(a, 0)?;
                 let held = json_of(text(element_read(value, "")), value);
-                let body = pc(move |w: &mut SqlWriter| {
+                self.unless_null(xs, move |w, b| {
                     w.append("(SELECT json_group_array(");
                     held(w)?;
-                    w.append(" ORDER BY id) FROM json_each(")
-                        .expr(self, xs, 0)?
-                        .append("))");
+                    w.append(" ORDER BY id) FROM json_each(").expr(self, b, 0)?.append("))");
                     Ok(())
-                });
-                self.unless_null(xs, body)(w)
+                })(w)
             }
             // the later map's keys win, as DuckDB's map_concat
             F::MapConcat => {

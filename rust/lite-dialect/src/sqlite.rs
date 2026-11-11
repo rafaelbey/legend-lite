@@ -216,6 +216,28 @@ pub struct Sqlite {
     binds: Cell<u64>,
 }
 
+/// The one-row derived table a list is bound in (Java's `BOUND_LIST`), and its one column (`BOUND_VALUE`).
+const BOUND_LIST: &str = "__l";
+const BOUND_VALUE: &str = "__xs";
+
+/// The bound list as the body reads it: `__l.__xs` of the list's own type where it has one (Java's `Column.of(...,
+/// DERIVED)`), else a derived column of no type (`Column.derived`).
+fn bound_list(xs: &SqlExpr) -> SqlExpr {
+    let r#type = match xs.r#type() {
+        lite_sql::TypeFact::Typed { r#type, nullable } => lite_sql::TypeFact::Typed {
+            r#type: r#type.clone(),
+            nullable: *nullable,
+        },
+        _ => lite_sql::TypeFact::Unknown,
+    };
+    SqlExpr::Column(lite_sql::Column {
+        table: Some(BOUND_LIST.to_owned()),
+        name: BOUND_VALUE.to_owned(),
+        r#type,
+        origin: Some(lite_sql::Origin::Derived),
+    })
+}
+
 impl Sqlite {
     /// Java's `new SQLite()`.
     pub fn new() -> Sqlite {
@@ -837,14 +859,25 @@ impl Sqlite {
         }))
     }
 
-    /// `body`, or NULL for a NULL list (Java's `unlessNull`).
-    fn unless_null<'a>(&'a self, xs: &'a SqlExpr, body: P<'a>) -> P<'a> {
+    /// `body` over the list, or NULL for a NULL list (Java's `unlessNull`, main's 2026-11-05): the list written ONCE,
+    /// bound in a one-row derived table the body reads by name (its type the list's own) -- tested and then read, it was
+    /// written twice, and a list built from another's elements doubled the statement at every level (PCT round 21:
+    /// 264K characters, past SQLite's limit). A nested binding shadows this one only inside its own subquery.
+    fn unless_null<'a>(
+        &'a self,
+        xs: &'a SqlExpr,
+        body: impl Fn(&mut SqlWriter, &SqlExpr) -> Result<(), Refusal> + 'a,
+    ) -> P<'a> {
+        let bound = bound_list(xs);
         pc(move |w| {
-            w.append("(CASE WHEN ")
-                .expr(self, xs, 4)?
+            w.append("(SELECT CASE WHEN ")
+                .expr(self, &bound, 4)?
                 .append(" IS NULL THEN NULL ELSE ");
-            body(w)?;
-            w.append(" END)");
+            body(w, &bound)?;
+            w.append(" END FROM (SELECT ").expr(self, xs, 0)?.append(" AS ");
+            let value = self.param(BOUND_VALUE)?;
+            let list = self.alias_ident(BOUND_LIST);
+            w.append(&value).append(") AS ").append(&list).append(")");
             Ok(())
         })
     }
@@ -862,21 +895,18 @@ impl Sqlite {
     ) -> Result<P<'a>, Refusal> {
         let po = self.param(o)?;
         let (e, o, i) = (e.to_owned(), o.to_owned(), i.map(str::to_owned));
-        Ok(self.unless_null(
-            xs,
-            pc(move |w| {
-                w.append("(SELECT json_group_array(");
-                select(w)?;
-                w.append(" ORDER BY ").append(&po).append(") FROM ");
-                self.elements(xs, &e, &o, i.as_deref())?(w)?;
-                if let Some(wh) = &r#where {
-                    w.append(" WHERE ");
-                    wh(w)?;
-                }
-                w.append(")");
-                Ok(())
-            }),
-        ))
+        Ok(self.unless_null(xs, move |w, b| {
+            w.append("(SELECT json_group_array(");
+            select(w)?;
+            w.append(" ORDER BY ").append(&po).append(") FROM ");
+            self.elements(b, &e, &o, i.as_deref())?(w)?;
+            if let Some(wh) = &r#where {
+                w.append(" WHERE ");
+                wh(w)?;
+            }
+            w.append(")");
+            Ok(())
+        }))
     }
 
     /// `(SELECT agg(e) FROM elements)`: a list reduced as rows; MODE the most frequent non-NULL element, the first
@@ -2174,21 +2204,22 @@ impl AnsiSqlRenderer for Sqlite {
         let el = list_element(collection);
         let e = self.param("__e")?;
         let nested_el = nested(el);
-        w.append("(CASE WHEN ")
-            .expr(self, collection, 4)?
-            .append(" IS NULL OR ")
-            .expr(self, needle, 4)?;
-        w.append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM ");
-        self.elements(collection, "__e", "__eo", None)?(w)?;
+        // the collection bound once (unless_null), NULL for a NULL collection or needle
         let read = if nested_el { format!("json({e})") } else { e };
-        w.append(" WHERE ").append(&read).append(" = ");
-        if nested_el {
-            w.append("json(").expr(self, needle, 0)?.append(")");
-        } else {
-            w.expr(self, needle, 5)?;
-        }
-        w.append(") END)");
-        Ok(())
+        self.unless_null(collection, move |w, b| {
+            w.append("(CASE WHEN ")
+                .expr(self, needle, 4)?
+                .append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM ");
+            self.elements(b, "__e", "__eo", None)?(w)?;
+            w.append(" WHERE ").append(&read).append(" = ");
+            if nested_el {
+                w.append("json(").expr(self, needle, 0)?.append(")");
+            } else {
+                w.expr(self, needle, 5)?;
+            }
+            w.append(") END)");
+            Ok(())
+        })(w)
     }
 
     fn reduce_collection(

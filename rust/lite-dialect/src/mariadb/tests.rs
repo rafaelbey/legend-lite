@@ -396,7 +396,7 @@ fn the_family_hooks_answer_each_its_own() {
     assert_eq!(piece_text(maria.json_text(text("j"), text("p"))), "JSON_VALUE(j, p)");
     assert_eq!(
         piece_text(my.json_text(text("j"), text("p"))),
-        "(CASE WHEN JSON_TYPE(JSON_EXTRACT(j, p)) = 'NULL' THEN NULL ELSE JSON_UNQUOTE(JSON_EXTRACT(j, p)) END)"
+        "JSON_UNQUOTE(NULLIF(JSON_EXTRACT(j, p), CAST('null' AS JSON)))"
     );
     assert_eq!(maria.json_text_of("j", "p"), "JSON_VALUE(j, p)");
     assert_eq!(
@@ -409,7 +409,7 @@ fn the_family_hooks_answer_each_its_own() {
     );
     assert_eq!(
         piece_text(my.json_member(text("j"), text("p"))),
-        "(CASE WHEN JSON_TYPE(JSON_EXTRACT(j, p)) = 'NULL' THEN NULL ELSE JSON_EXTRACT(j, p) END)"
+        "NULLIF(JSON_EXTRACT(j, p), CAST('null' AS JSON))"
     );
     assert_eq!((maria.boolean_column(), my.boolean_column()), ("BOOLEAN", "INT"));
     assert_eq!((maria.json_is_binary(), my.json_is_binary()), (false, true));

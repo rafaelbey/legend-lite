@@ -429,15 +429,14 @@ impl BigQuery {
             let e = self.param("__c");
             let co = self.param("__co");
             let each = self.cast_to(text(e.clone()), from, element);
-            let body: P<'_> = pc(move |w| {
+            return self.unless_null(v, move |w, b| {
                 w.append("ARRAY(SELECT ")
                     .piece(&*each)?
                     .append(" FROM UNNEST(")
-                    .expr(self, v, 0)?;
+                    .expr(self, b, 0)?;
                 w.append(&format!(") AS {e} WITH OFFSET AS {co} ORDER BY {co})"));
                 Ok(())
-            });
-            return self.unless_null(v, body)(w);
+            })(w);
         }
         if target_is(Scalar::Varchar) {
             return self.as_text(v)(w);
@@ -594,12 +593,15 @@ impl BigQuery {
                 let v = format!("{e}.{}", self.ident(&entry[1].name));
                 let head = format!("ARRAY(SELECT AS STRUCT {k} AS {key}, {v} AS {value} FROM UNNEST(");
                 let tail = format!(") AS {e} WITH OFFSET AS {o} ORDER BY {o})");
-                let then: P<'_> = pc(move |w| {
-                    w.append(&head).expr(self, xs, 0)?.append(&tail);
-                    Ok(())
-                });
-                let checked = self.keys_checked(xs, e.clone(), k, then);
-                w.piece(&*self.unless_null(xs, checked))?;
+                let e2 = e.clone();
+                w.piece(&*self.unless_null(xs, move |w, b| {
+                    let (head, tail) = (head.clone(), tail.clone());
+                    let then: P<'_> = pc(move |w| {
+                        w.append(&head).expr(self, b, 0)?.append(&tail);
+                        Ok(())
+                    });
+                    self.keys_checked(b, e2.clone(), k.clone(), then)(w)
+                }))?;
             }
             // DuckDB's map(ks, vs): the keys zipped with the values by position
             SqlFn::MapFromLists => {
@@ -649,25 +651,23 @@ impl BigQuery {
             SqlFn::MapKeys | SqlFn::MapValues => {
                 let xs = arg(a, 0)?;
                 let field = if f == SqlFn::MapKeys { key } else { value };
-                let body: P<'_> = pc(move |w| {
+                w.piece(&*self.unless_null(xs, move |w, b| {
                     w.append(&format!("ARRAY(SELECT {e}.{field} FROM UNNEST("))
-                        .expr(self, xs, 0)?;
+                        .expr(self, b, 0)?;
                     w.append(&format!(") AS {e} WITH OFFSET AS {o} ORDER BY {o})"));
                     Ok(())
-                });
-                w.piece(&*self.unless_null(xs, body))?;
+                }))?;
             }
             SqlFn::MapExtract => {
                 let xs = arg(a, 0)?;
-                let body: P<'_> = pc(move |w| {
+                w.piece(&*self.unless_null(xs, move |w, b| {
                     w.append(&format!("ARRAY(SELECT {e}.{value} FROM UNNEST("))
-                        .expr(self, xs, 0)?;
+                        .expr(self, b, 0)?;
                     w.append(&format!(") AS {e} WITH OFFSET AS {o} WHERE {e}.{key} = "))
                         .expr(self, arg(a, 1)?, 5)?;
                     w.append(&format!(" ORDER BY {o})"));
                     Ok(())
-                });
-                w.piece(&*self.unless_null(xs, body))?;
+                }))?;
             }
             other => return Err(Refusal::illegal_state(format!("not a map call: {other}"))),
         }
@@ -740,16 +740,15 @@ impl BigQuery {
         let value = self.ident("value");
         let k = self.cast_to(text(format!("{e}.{key}")), Some(from_key), to_key);
         let v = self.cast_to(text(format!("{e}.{value}")), Some(from_value), to_value);
-        let body: P<'a> = pc(move |w| {
+        Ok(self.unless_null(m, move |w, b| {
             w.append("ARRAY(SELECT AS STRUCT ")
                 .piece(&*k)?
                 .append(&format!(" AS {key}, "))
                 .piece(&*v)?;
-            w.append(&format!(" AS {value} FROM UNNEST(")).expr(self, m, 0)?;
+            w.append(&format!(" AS {value} FROM UNNEST(")).expr(self, b, 0)?;
             w.append(&format!(") AS {e} WITH OFFSET AS {o} ORDER BY {o})"));
             Ok(())
-        });
-        Ok(self.unless_null(m, body))
+        }))
     }
 
     /// A Variant object as a map: its members, each value read as the map's value type (Java's `variantAsMap`).
@@ -1302,14 +1301,13 @@ impl BigQuery {
                 let xs = a0()?;
                 let e = self.param("__e");
                 let o = self.param("__o");
-                let body: P<'_> = pc(move |w| {
+                w.piece(&*self.unless_null(xs, move |w, b| {
                     w.append(&format!("ARRAY(SELECT {e} FROM "));
-                    let elements = self.elements(xs, "__e", "__o")?;
+                    let elements = self.elements(b, "__e", "__o")?;
                     w.piece(&*elements)?;
                     w.append(&format!(" WHERE {e} IS NOT NULL GROUP BY {e} ORDER BY MIN({o}))"));
                     Ok(())
-                });
-                w.piece(&*self.unless_null(xs, body))?;
+                }))?;
                 Ok(())
             }
             // list_append(NULL, v) is [v]
@@ -1355,12 +1353,11 @@ impl BigQuery {
                 let xs = a0()?;
                 let e = self.param("__e");
                 let order = self.element_sort(&e, list_element(xs), dir);
-                let body: P<'_> = pc(move |w| {
-                    w.append(&format!("ARRAY(SELECT {e} FROM UNNEST(")).expr(self, xs, 0)?;
+                w.piece(&*self.unless_null(xs, move |w, b| {
+                    w.append(&format!("ARRAY(SELECT {e} FROM UNNEST(")).expr(self, b, 0)?;
                     w.append(&format!(") AS {e} ORDER BY {order})"));
                     Ok(())
-                });
-                w.piece(&*self.unless_null(xs, body))?;
+                }))?;
                 Ok(())
             }
             SqlFn::ListTail | SqlFn::ListInit | SqlFn::ListSlice => {

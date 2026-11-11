@@ -60,6 +60,28 @@ pub struct BigQuery {
     mode_counts: RefCell<Vec<Vec<(SqlExpr, SqlExpr)>>>,
 }
 
+/// The one-row UNNEST a list is bound in (Java's `BOUND_LIST`), and its one field (`BOUND_VALUE`).
+const BOUND_LIST: &str = "__l";
+const BOUND_VALUE: &str = "__xs";
+
+/// The bound list as the body reads it: `__l.__xs` of the list's own type where it has one (Java's `Column.of(...,
+/// DERIVED)`), else a derived column of no type (`Column.derived`).
+fn bound_list(xs: &SqlExpr) -> SqlExpr {
+    let r#type = match xs.r#type() {
+        TypeFact::Typed { r#type, nullable } => TypeFact::Typed {
+            r#type: r#type.clone(),
+            nullable: *nullable,
+        },
+        _ => TypeFact::Unknown,
+    };
+    SqlExpr::Column(lite_sql::Column {
+        table: Some(BOUND_LIST.to_owned()),
+        name: BOUND_VALUE.to_owned(),
+        r#type,
+        origin: Some(lite_sql::Origin::Derived),
+    })
+}
+
 impl BigQuery {
     /// Java's `new BigQuery()`.
     pub fn new() -> BigQuery {
@@ -503,14 +525,36 @@ impl BigQuery {
         }))
     }
 
-    /// `body`, or NULL for a NULL list (Java's `unlessNull`).
-    fn unless_null<'a>(&'a self, xs: &'a SqlExpr, body: P<'a>) -> P<'a> {
+    /// `body` over the list, or NULL for a NULL list (Java's `unlessNull`, main's 2026-11-05): the list written ONCE,
+    /// bound as the one field of a one-row UNNEST the body reads by name (its type the list's own) -- tested and then
+    /// read, it was written twice, doubling the statement at every level (PCT round 21: 1,244,880 characters, past
+    /// BigQuery's 1,024K limit). A NULL literal is not bound: a bare NULL types INT64 here, and the guard alone answers
+    /// it. A nested binding shadows this one only inside its own subquery.
+    pub(crate) fn unless_null<'a>(
+        &'a self,
+        xs: &'a SqlExpr,
+        body: impl Fn(&mut SqlWriter, &SqlExpr) -> Result<(), Refusal> + 'a,
+    ) -> P<'a> {
+        if null_list(xs) {
+            return pc(move |w| {
+                w.append("(CASE WHEN ")
+                    .expr(self, xs, 4)?
+                    .append(" IS NULL THEN NULL ELSE ");
+                body(w, xs)?;
+                w.append(" END)");
+                Ok(())
+            });
+        }
+        let bound = bound_list(xs);
         pc(move |w| {
-            w.append("(CASE WHEN ")
-                .expr(self, xs, 4)?
-                .append(" IS NULL THEN NULL ELSE ")
-                .piece(&*body)?;
-            w.append(" END)");
+            w.append("(SELECT CASE WHEN ")
+                .expr(self, &bound, 4)?
+                .append(" IS NULL THEN NULL ELSE ");
+            body(w, &bound)?;
+            w.append(" END FROM UNNEST([STRUCT(").expr(self, xs, 0)?.append(" AS ");
+            let value = self.param(BOUND_VALUE);
+            let list = self.alias_ident(BOUND_LIST);
+            w.append(&value).append(")]) AS ").append(&list).append(")");
             Ok(())
         })
     }
@@ -526,19 +570,16 @@ impl BigQuery {
         r#where: Option<P<'a>>,
     ) -> P<'a> {
         let order = format!(" ORDER BY {})", self.param(&o));
-        self.unless_null(
-            xs,
-            pc(move |w| {
-                w.append("ARRAY(SELECT ").piece(&*select)?.append(" FROM ");
-                let elements = self.elements(xs, &e, &o)?;
-                w.piece(&*elements)?;
-                if let Some(wh) = &r#where {
-                    w.append(" WHERE ").piece(&**wh)?;
-                }
-                w.append(&order);
-                Ok(())
-            }),
-        )
+        self.unless_null(xs, move |w, b| {
+            w.append("ARRAY(SELECT ").piece(&*select)?.append(" FROM ");
+            let elements = self.elements(b, &e, &o)?;
+            w.piece(&*elements)?;
+            if let Some(wh) = &r#where {
+                w.append(" WHERE ").piece(&**wh)?;
+            }
+            w.append(&order);
+            Ok(())
+        })
     }
 
     /// `(SELECT agg(e) FROM UNNEST(xs) AS e WITH OFFSET AS o)`: a list reduced as rows; MODE its most frequent
@@ -1714,16 +1755,17 @@ impl AnsiSqlRenderer for BigQuery {
     /// DuckDB's list_contains: NULL for a NULL list or needle; else found or not.
     fn membership(&self, w: &mut SqlWriter, needle: &SqlExpr, collection: &SqlExpr) -> Result<(), Refusal> {
         let e = self.param("__e");
-        w.append("(CASE WHEN ")
-            .expr(self, collection, 4)?
-            .append(" IS NULL OR ")
-            .expr(self, needle, 4)?;
-        w.append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM UNNEST(")
-            .expr(self, collection, 0)?;
-        w.append(&format!(") AS {e} WHERE {e} = "))
-            .expr(self, needle, 5)?
-            .append(") END)");
-        Ok(())
+        // the collection bound once (unless_null), NULL for a NULL collection or needle
+        self.unless_null(collection, move |w, b| {
+            w.append("(CASE WHEN ")
+                .expr(self, needle, 4)?
+                .append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM UNNEST(")
+                .expr(self, b, 0)?;
+            w.append(&format!(") AS {e} WHERE {e} = "))
+                .expr(self, needle, 5)?
+                .append(") END)");
+            Ok(())
+        })(w)
     }
 
     fn reduce_collection(
