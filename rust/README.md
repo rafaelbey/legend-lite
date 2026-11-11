@@ -26,9 +26,11 @@ profile does not.
   the Java was deleted -- by the three differentials (`PARITY.md` measures where it stands). `src/probes.rs` answers
   what `//parser-equivalence`'s gates and the prelude generator asked of the Java parser's internals.
 
-- `BASELINE.tsv`: every test target of `bazel test //...` on the pristine tree (upstream `main` at `cf73e6ef7`,
-  2026-11-02, macOS arm64): 508 passed, 2 skipped as incompatible with the platform. A phase lands only when every
-  target that passed here still passes, or is a row of `RETIRED_TESTS.md`.
+- `BASELINE.tsv`: every test target of `bazel test //...` on the pristine tree -- since 2026-11-11 upstream `main` at
+  `c4a39e06d`, the merge point (PHASE3_SHIM_DESIGN.md §10, ruling 14; macOS arm64): 552 targets, 550 passed, 2 skipped
+  as incompatible with the platform. A phase lands only when every target that passed here still passes, or is a row
+  of `RETIRED_TESTS.md`. `BASELINE-cf73e6ef7.tsv` is the first baseline, `main` at `cf73e6ef7` (2026-11-02): 508
+  passed, the same 2 skipped; it judged the phases before the merge (docs/rust-port/PHASE0.md §1).
 - `oracles/jvm/`: the JVM's answers that were build outputs, frozen before any of them can be produced by Rust
   (otherwise a differential would compare Rust with Rust). `MANIFEST.tsv` names each one's producing target and the
   SHA-256 of its uncompressed text; the two large ones are zstd-compressed (`zstd -d`).

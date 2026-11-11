@@ -10,6 +10,13 @@ platform (`//tools/guards:classpath_test`, `//tools/guards:markdown_inputs_test`
 [`rust/BASELINE.tsv`](../../rust/BASELINE.tsv); a phase lands only when every target that passed there still passes, or
 is a row of `rust/RETIRED_TESTS.md`.
 
+**The baseline moved with the merge (2026-11-11).** Once `main` was merged at `c4a39e06d` (PHASE3_SHIM_DESIGN.md §10,
+rulings 1 and 14), the port is judged against `main` there, not against `cf73e6ef7`: `rust/BASELINE.tsv` is now
+`bazel test //...` on pristine `main` at `c4a39e06d` (macOS arm64): **552 test targets, 550 passed, 2 skipped**, the
+same two guards. The table above is kept as [`rust/BASELINE-cf73e6ef7.tsv`](../../rust/BASELINE-cf73e6ef7.tsv); the
+measurements of phases 0 to 2 below and in PHASE1.md and PHASE2.md were made against it. PHASE2.md §4 has the move
+("Browser modules re-frozen, baseline moved").
+
 ## 2. The JVM's answers, frozen
 
 The answers that were build outputs are committed under [`rust/oracles/jvm/`](../../rust/oracles/jvm), each with its
