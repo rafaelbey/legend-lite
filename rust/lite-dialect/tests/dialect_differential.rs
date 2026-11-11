@@ -721,7 +721,7 @@ fn dml_query(dml: &SqlDml) -> Option<SqlQuery> {
         )),
         SqlDml::DeleteWhere { r#where, .. } => Some(select(Vec::new(), r#where.clone())),
         SqlDml::InsertValues { rows, .. } => Some(select(rows.concat(), None)),
-        SqlDml::InsertFromTable { .. } | SqlDml::DeleteAll { .. } => None,
+        SqlDml::InsertFromTable { .. } | SqlDml::DeleteAll { .. } | SqlDml::LoadCsv { .. } => None,
     }
 }
 

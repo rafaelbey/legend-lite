@@ -62,6 +62,7 @@ pub const OPS: &[&str] = &[
     "ddl.render",
     "dml.render",
     "dml.renderStatement",
+    "csvLoad",
     "sessionTable",
     "physicalName",
     "storedName",
@@ -234,6 +235,15 @@ fn answer(d: &dyn SqlDialect, op: &str, a: &Obj) -> Result<Node, Refusal> {
         "dml.render" => text(d.render_dml(&read_dml(a.obj("dml").map_err(json)?).map_err(json)?)?),
         "dml.renderStatement" => {
             statement_json(&d.render_dml_statement(&read_dml(a.obj("dml").map_err(json)?).map_err(json)?)?)
+        }
+        // main's csvLoad (2026-11-09): the statement and whether the database reads the file itself
+        "csvLoad" => {
+            let load = read_dml(a.obj("load").map_err(json)?).map_err(json)?;
+            if !matches!(load, lite_sql::SqlDml::LoadCsv { .. }) {
+                return Err(Refusal::illegal_argument("csvLoad's load is a loadCsv statement"));
+            }
+            let l = d.csv_load(&load)?;
+            object(vec![("readsFile", Node::Bool(l.reads_file)), ("sql", Node::Str(l.sql))])
         }
         "sessionTable" => {
             let (table, rows) = session_table_args(a)?;

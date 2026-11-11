@@ -116,6 +116,16 @@ pub enum SqlDml {
         alias: String,
         source_alias: String,
     },
+    /// A CSV file's rows into a table (Java's `SqlDml.LoadCsv`, main's 2026-11-09): the statement names no file and
+    /// holds no row; its first line a header, its cells text the database casts into the columns, positionally. A
+    /// dialect spells its delivery (`SqlDialect.csvLoad`).
+    LoadCsv {
+        schema: Option<String>,
+        table: String,
+        quoting: NameQuoting,
+        columns: Vec<String>,
+        quoted_columns: Vec<String>,
+    },
 }
 
 /// Java's `SqlDml.Update.Assignment`.

@@ -74,6 +74,11 @@ impl SqlDialect for Plain {
     fn render_dml_statement(&self, _: &SqlDml) -> Result<RenderedStatement, Refusal> {
         Ok(RenderedStatement::plain("dml".into()))
     }
+
+    fn csv_load(&self, load: &SqlDml) -> Result<crate::dialect::CsvLoad, Refusal> {
+        let _ = load;
+        unreachable!()
+    }
     fn raw(&self, s: &str, _: Option<&str>) -> Result<String, Refusal> {
         Ok(s.into())
     }

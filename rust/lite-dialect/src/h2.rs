@@ -1611,6 +1611,12 @@ impl AnsiSqlRenderer for H2 {
     fn writes_grid_reports(&self) -> bool {
         true
     }
+
+    /// The runner streams the cells, one row's insert each (main's 2026-11-09): H2's `CSVREAD` takes no bound path,
+    /// and a path written into the statement is a machine's path in the plan.
+    fn csv_load(&self, load: &SqlDml) -> Result<crate::dialect::CsvLoad, Refusal> {
+        ansi::csv_streamed(self, load)
+    }
 }
 
 #[cfg(test)]
@@ -1653,6 +1659,10 @@ impl crate::dialect::SqlDialect for H2 {
 
     fn render_dml_statement(&self, dml: &SqlDml) -> Result<RenderedStatement, Refusal> {
         AnsiSqlRenderer::render_dml_statement(self, dml)
+    }
+
+    fn csv_load(&self, load: &SqlDml) -> Result<crate::dialect::CsvLoad, Refusal> {
+        AnsiSqlRenderer::csv_load(self, load)
     }
 
     fn raw(&self, statement: &str, written_for: Option<&str>) -> Result<String, Refusal> {

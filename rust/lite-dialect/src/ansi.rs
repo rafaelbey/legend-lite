@@ -2060,6 +2060,64 @@ pub fn render_dml<D: AnsiSqlRenderer>(d: &D, dml: &SqlDml) -> Result<String, Ref
         SqlDml::Update { .. } => d.update(dml)?.into_text(),
         SqlDml::DeleteWhere { .. } => d.delete_where(dml)?.into_text(),
         SqlDml::Merge { .. } => d.merge(dml)?.into_text(),
+        SqlDml::LoadCsv { .. } => Ok(d.csv_load(dml)?.sql),
+    }
+}
+
+/// Java's base `csvLoad` (main's 2026-11-09): refused, naming the dialect (a remote database's load is its bulk load,
+/// designed when its lane needs one).
+pub fn csv_load<D: AnsiSqlRenderer>(d: &D, load: &SqlDml) -> Result<crate::dialect::CsvLoad, Refusal> {
+    let _ = load;
+    Err(Refusal::capability(format!(
+        "a CSV file's load reached {}: this dialect's database takes no file yet",
+        d.simple_name()
+    )))
+}
+
+/// Java's `csvReadsFile`: `INSERT INTO t (columns) SELECT * FROM <reader>`, the reader the database's CSV reader over
+/// the statement's one `?`, the runner's copy of the file.
+pub fn csv_reads_file<D: AnsiSqlRenderer>(
+    d: &D,
+    load: &SqlDml,
+    reader: &str,
+) -> Result<crate::dialect::CsvLoad, Refusal> {
+    let (schema, table, quoting, columns, quoted) = load_csv(load)?;
+    Ok(crate::dialect::CsvLoad {
+        reads_file: true,
+        sql: format!(
+            "INSERT INTO {}{} SELECT * FROM {reader}",
+            ddl_qualified(d, schema, table, quoting),
+            dml_columns(d, columns, quoted)
+        ),
+    })
+}
+
+/// Java's `csvStreamed`: one row's insert, a `?` per column.
+pub fn csv_streamed<D: AnsiSqlRenderer>(d: &D, load: &SqlDml) -> Result<crate::dialect::CsvLoad, Refusal> {
+    let (schema, table, quoting, columns, quoted) = load_csv(load)?;
+    Ok(crate::dialect::CsvLoad {
+        reads_file: false,
+        sql: format!(
+            "INSERT INTO {}{} VALUES ({})",
+            ddl_qualified(d, schema, table, quoting),
+            dml_columns(d, columns, quoted),
+            vec!["?"; columns.len()].join(", ")
+        ),
+    })
+}
+
+/// A `SqlDml::LoadCsv`'s parts.
+#[allow(clippy::type_complexity)]
+fn load_csv(load: &SqlDml) -> Result<(Option<&str>, &str, NameQuoting, &[String], &[String]), Refusal> {
+    match load {
+        SqlDml::LoadCsv {
+            schema,
+            table,
+            quoting,
+            columns,
+            quoted_columns,
+        } => Ok((schema.as_deref(), table, *quoting, columns, quoted_columns)),
+        _ => Err(Refusal::illegal_argument("a CSV file's load is a SqlDml.LoadCsv")),
     }
 }
 
@@ -2074,6 +2132,10 @@ pub fn render_dml_statement<D: AnsiSqlRenderer>(d: &D, dml: &SqlDml) -> Result<R
         SqlDml::Update { .. } => d.update(dml)?.into_statement(),
         SqlDml::DeleteWhere { .. } => d.delete_where(dml)?.into_statement(),
         SqlDml::Merge { .. } => d.merge(dml)?.into_statement(),
+        // its placeholders are the runner's to bind (the file's copy, or a row's cells): never values the plan binds
+        SqlDml::LoadCsv { table, .. } => Err(Refusal::illegal_state(format!(
+            "a CSV file's load is spelled by csvLoad, its placeholders bound by the runner: {table}"
+        ))),
     }
 }
 

@@ -874,6 +874,18 @@ pub fn write_dml(d: &SqlDml) -> Node {
             o
         }
         SqlDml::DeleteAll { schema, table, quoting } => target("deleteAll", schema, table, quoting),
+        SqlDml::LoadCsv {
+            schema,
+            table,
+            quoting,
+            columns,
+            quoted_columns,
+        } => {
+            let mut o = target("loadCsv", schema, table, quoting);
+            o.insert("columns", strings(columns));
+            o.insert("quotedColumns", strings(quoted_columns));
+            o
+        }
         SqlDml::CreateTempTableAs {
             table,
             query,

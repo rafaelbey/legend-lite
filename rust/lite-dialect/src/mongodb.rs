@@ -1253,6 +1253,9 @@ impl AnsiSqlRenderer for MongoDb {
             SqlDml::Merge { .. } => Err(Refusal::capability(
                 "a merge reached MongoDb: a store write is not shaped on MongoDb",
             )),
+            SqlDml::LoadCsv { .. } => Err(Refusal::capability(
+                "a CSV file's load reached MongoDb: its bulk load of a file is not shaped yet",
+            )),
         }
     }
 }
@@ -1288,6 +1291,10 @@ impl crate::dialect::SqlDialect for MongoDb {
 
     fn render_dml_statement(&self, dml: &SqlDml) -> Result<RenderedStatement, Refusal> {
         AnsiSqlRenderer::render_dml_statement(self, dml)
+    }
+
+    fn csv_load(&self, load: &SqlDml) -> Result<crate::dialect::CsvLoad, Refusal> {
+        AnsiSqlRenderer::csv_load(self, load)
     }
 
     fn raw(&self, statement: &str, written_for: Option<&str>) -> Result<String, Refusal> {

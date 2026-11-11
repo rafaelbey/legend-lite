@@ -2066,6 +2066,10 @@ impl crate::dialect::SqlDialect for BigQuery {
         AnsiSqlRenderer::render_dml_statement(self, dml)
     }
 
+    fn csv_load(&self, load: &SqlDml) -> Result<crate::dialect::CsvLoad, Refusal> {
+        AnsiSqlRenderer::csv_load(self, load)
+    }
+
     fn raw(&self, statement: &str, written_for: Option<&str>) -> Result<String, Refusal> {
         ansi::raw(self, statement, written_for)
     }

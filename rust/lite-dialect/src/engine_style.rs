@@ -2672,7 +2672,8 @@ impl AnsiSqlRenderer for EngineStyle {
             | SqlDml::InsertSelect { .. }
             | SqlDml::Update { .. }
             | SqlDml::DeleteWhere { .. }
-            | SqlDml::Merge { .. } => ansi::render_dml(self, dml),
+            | SqlDml::Merge { .. }
+            | SqlDml::LoadCsv { .. } => ansi::render_dml(self, dml),
         }
     }
 
@@ -3493,6 +3494,10 @@ impl SqlDialect for EngineStyle {
 
     fn render_dml_statement(&self, dml: &SqlDml) -> Result<RenderedStatement, Refusal> {
         AnsiSqlRenderer::render_dml_statement(self, dml)
+    }
+
+    fn csv_load(&self, load: &SqlDml) -> Result<crate::dialect::CsvLoad, Refusal> {
+        AnsiSqlRenderer::csv_load(self, load)
     }
 
     fn raw(&self, statement: &str, written_for: Option<&str>) -> Result<String, Refusal> {

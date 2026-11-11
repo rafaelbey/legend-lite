@@ -1340,6 +1340,16 @@ impl AnsiSqlRenderer for DuckDb {
     fn writes_grid_reports(&self) -> bool {
         true
     }
+
+    /// DuckDB's own CSV reader over the runner's copy of the file, its path a bound parameter (main's 2026-11-06; the
+    /// path bound since 2026-11-09, measured): comma-separated, its first line a header, every cell text.
+    fn csv_load(&self, load: &SqlDml) -> Result<crate::dialect::CsvLoad, Refusal> {
+        ansi::csv_reads_file(
+            self,
+            load,
+            "read_csv(?, header = true, delim = ',', quote = '\"', escape = '\"', all_varchar = true)",
+        )
+    }
 }
 
 impl DuckDb {
@@ -1490,6 +1500,10 @@ impl crate::dialect::SqlDialect for DuckDb {
 
     fn render_dml_statement(&self, dml: &SqlDml) -> Result<RenderedStatement, Refusal> {
         AnsiSqlRenderer::render_dml_statement(self, dml)
+    }
+
+    fn csv_load(&self, load: &SqlDml) -> Result<crate::dialect::CsvLoad, Refusal> {
+        AnsiSqlRenderer::csv_load(self, load)
     }
 
     fn raw(&self, statement: &str, written_for: Option<&str>) -> Result<String, Refusal> {

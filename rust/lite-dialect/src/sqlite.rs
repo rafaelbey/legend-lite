@@ -1673,9 +1673,12 @@ impl AnsiSqlRenderer for Sqlite {
                 self.qualified(schema.as_deref(), table, *quoting)
             )),
             SqlDml::CreateTempTableAs { .. } => self.temp_table_as(dml)?.into_text(),
-            SqlDml::InsertSelect { .. } | SqlDml::Update { .. } | SqlDml::DeleteWhere { .. } | SqlDml::Merge { .. } => {
-                ansi::render_dml(self, dml)
-            }
+            // a CSV file's load: the base's statement, its reader refused until SQLite's is designed
+            SqlDml::InsertSelect { .. }
+            | SqlDml::Update { .. }
+            | SqlDml::DeleteWhere { .. }
+            | SqlDml::Merge { .. }
+            | SqlDml::LoadCsv { .. } => ansi::render_dml(self, dml),
         }
     }
 
@@ -2665,6 +2668,10 @@ impl crate::dialect::SqlDialect for Sqlite {
 
     fn render_dml_statement(&self, dml: &SqlDml) -> Result<RenderedStatement, Refusal> {
         AnsiSqlRenderer::render_dml_statement(self, dml)
+    }
+
+    fn csv_load(&self, load: &SqlDml) -> Result<crate::dialect::CsvLoad, Refusal> {
+        AnsiSqlRenderer::csv_load(self, load)
     }
 
     fn raw(&self, statement: &str, written_for: Option<&str>) -> Result<String, Refusal> {

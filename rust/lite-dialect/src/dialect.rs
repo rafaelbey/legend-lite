@@ -27,6 +27,17 @@ pub enum KeysSnapshot {
     None,
 }
 
+/// A CSV file's load as a dialect spells it (Java's `SqlDialect.CsvLoad`, main's 2026-11-09): its statement, and
+/// whether the database reads the file itself through the statement's one bound `?` (else the runner streams the
+/// cells, the statement one row's insert).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsvLoad {
+    /// the database reads the runner's copy of the file through the statement's one `?`
+    pub reads_file: bool,
+    /// the statement
+    pub sql: String,
+}
+
 /// A fused verdict statement's savepoint texts (Java's `SqlDialect.VerdictSavepoint`): set before the statement, rolled
 /// back to when the database rejects it, released otherwise.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,6 +115,8 @@ pub trait SqlDialect {
     fn render_dml(&self, dml: &SqlDml) -> Result<String, Refusal>;
     /// Java's `renderStatement(SqlDml)`.
     fn render_dml_statement(&self, dml: &SqlDml) -> Result<RenderedStatement, Refusal>;
+    /// Java's `csvLoad(SqlDml.LoadCsv)` (main's 2026-11-09): how this dialect's database takes a CSV file's rows.
+    fn csv_load(&self, load: &SqlDml) -> Result<CsvLoad, Refusal>;
     /// Java's `raw(statement, writtenFor)`: authored raw SQL in this session's language.
     fn raw(&self, statement: &str, written_for: Option<&str>) -> Result<String, Refusal>;
     /// Java's `fromEngineText(statement)`: one statement of the engine's H2 text as this database runs it.

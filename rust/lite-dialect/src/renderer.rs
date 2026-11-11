@@ -517,6 +517,12 @@ pub trait AnsiSqlRenderer: Sized {
         ansi::catalog(self, w, catalog)
     }
 
+    /// A CSV file's load (Java's `csvLoad`, main's 2026-11-09): refused by the base, a database that takes a file
+    /// spelling its reader ([`ansi::csv_reads_file`]: DuckDB's) or its streamed insert ([`ansi::csv_streamed`]: H2's).
+    fn csv_load(&self, load: &SqlDml) -> Result<crate::dialect::CsvLoad, Refusal> {
+        ansi::csv_load(self, load)
+    }
+
     /// Whether this dialect writes a raw grid's report (Java's `writesGridReports`, main's 2026-10-30): one whose
     /// database is measured to answer it; every other refuses it by name.
     fn writes_grid_reports(&self) -> bool {

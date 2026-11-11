@@ -845,6 +845,13 @@ pub fn read_dml(o: &Obj) -> Result<SqlDml, Error> {
             quoted_columns: quoted_columns()?,
             source: string(o, "source")?,
         },
+        "loadCsv" => SqlDml::LoadCsv {
+            schema: schema()?,
+            table: table()?,
+            quoting: name_quoting()?,
+            columns: columns()?,
+            quoted_columns: quoted_columns()?,
+        },
         "deleteAll" => SqlDml::DeleteAll {
             schema: schema()?,
             table: table()?,
