@@ -25,6 +25,15 @@ profile does not.
   record-sourced callers), over a text's UTF-16 units, held to Java's every answer -- frozen in `oracles/front/` before
   the Java was deleted -- by the three differentials (`PARITY.md` measures where it stands). `src/probes.rs` answers
   what `//parser-equivalence`'s gates and the prelude generator asked of the Java parser's internals.
+- `lite-base/`: phase 3's foundation (the layer `base`; docs/rust-port/PHASE3_CRATES.md): the per-query bump arena with
+  its keep pool and the model's arena, shared between threads (`src/arena.rs`, the one module with `unsafe`), and
+  identity -- Java's `==`, `IdentityHashMap` and `Object` origins for arena records and `Arc` nodes (`src/identity.rs`,
+  the one module that turns a pointer into an address).
+- `lite-types/`: the type family (core's `compiler_element_type` layer): `Type<'a>`, one `Copy` family with a lifetime
+  in either arena, `Multiplicity`, `PrecisionDecimal`, `PlatformTypes`, held to Java's answers frozen in
+  `oracles/types/` by `tests/type_differential.rs`.
+- `lite-guards/`: the port's guards, tests only: the crate graph held to `crate-layers.txt` (Cargo and Bazel both) and
+  that file to tools/deps/core-layers.txt, and the sources to the arena ruling's rules (PHASE3_CRATES.md §3).
 
 - `BASELINE.tsv`: every test target of `bazel test //...` on the pristine tree -- since 2026-11-11 upstream `main` at
   `c4a39e06d`, the merge point (PHASE3_SHIM_DESIGN.md §10, ruling 14; macOS arm64): 552 targets, 550 passed, 2 skipped
@@ -71,6 +80,10 @@ profile does not.
   (`execution-plans.tsv.zst`). The host judge's test plans' texts are in git deduplicated (`test-plans-host.tsv.zst`,
   `test-plan-values.tsv.zst`, its index and frame table: each JSON value of 8 KB or more that repeats stored once); the
   database judge's are archived outside git. `MANIFEST.tsv` says where, with their hashes.
+- `oracles/types/`: the type family's answers (`type-facts.tsv`, 26,429 lines: every platform type, every operation of
+  core's `compiler_element_type` layer that needs no later layer, every refusal by its exception and message), made by
+  `TypeOracle.java` on core's built jars (its header says how) before the Java is deleted; `MANIFEST.tsv` names its
+  tree and SHA-256.
 - `tools/test-plan-texts.py`: the format of the deduplicated test plans, its writer (from the archive), its reader (one
   plan's exact text by its id, `read rust/oracles/plan <id>`) and the check that every plan rebuilds to its id. A tool,
   not a probe: it touches no source, and reading the oracle needs it.
