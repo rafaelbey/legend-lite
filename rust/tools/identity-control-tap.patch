@@ -1,0 +1,241 @@
+diff --git a/core/src/main/java/com/legend/TypedQuery.java b/core/src/main/java/com/legend/TypedQuery.java
+index 456bdf7ca..12fd7200e 100644
+--- a/core/src/main/java/com/legend/TypedQuery.java
++++ b/core/src/main/java/com/legend/TypedQuery.java
+@@ -242,7 +242,7 @@ public final class TypedQuery {
+     private com.legend.executionplan.ExecutionPlan planned(@com.legend.base.Nullable String runtime,
+             java.util.Set<com.legend.platform.Feature> features, boolean projectDatabase) {
+         try (var planning = com.legend.base.RunScope.plans("a query")) {
+-            com.legend.executionplan.ExecutionPlan plan = PlanMaker.plan(this, runtime, features, projectDatabase);
++            com.legend.executionplan.ExecutionPlan plan = com.legend.base.SqlTap.plan(PlanMaker.plan(this, runtime, features, projectDatabase));
+             if (Boolean.getBoolean("legend.plan.roundtrip")) {
+                 com.legend.executionplan.PlanJson.requireRoundTrip(plan);
+             }
+diff --git a/core/src/main/java/com/legend/exec/JdbcStatements.java b/core/src/main/java/com/legend/exec/JdbcStatements.java
+index a1c7e58c6..caf757cca 100644
+--- a/core/src/main/java/com/legend/exec/JdbcStatements.java
++++ b/core/src/main/java/com/legend/exec/JdbcStatements.java
+@@ -134,7 +134,7 @@ final class JdbcStatements implements Statements {
+     public boolean execute(String statement) {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+         try (Statement st = c.createStatement()) {
+-            return st.execute(statement);
++            return st.execute(com.legend.base.SqlTap.sent(statement));
+         } catch (SQLException e) {
+             throw failed(e);
+         }
+@@ -144,7 +144,7 @@ final class JdbcStatements implements Statements {
+     public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
+             throws IOException {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+-        try (PreparedStatement st = c.prepareStatement(statement)) {
++        try (PreparedStatement st = c.prepareStatement(com.legend.base.SqlTap.sent(statement))) {
+             for (int i = 0; i < slots.size(); i++) {
+                 bind(st, i + 1, slots.get(i), values.get(i));
+             }
+@@ -157,7 +157,7 @@ final class JdbcStatements implements Statements {
+     @Override
+     public List<Reported> columns(String statement) {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+-        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(statement)) {
++        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(com.legend.base.SqlTap.sent(statement))) {
+             return reported(rs.getMetaData());
+         } catch (SQLException e) {
+             throw failed(e);
+@@ -167,7 +167,7 @@ final class JdbcStatements implements Statements {
+     @Override
+     public List<Reported> describe(String statement) {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+-        try (PreparedStatement st = c.prepareStatement(statement)) {
++        try (PreparedStatement st = c.prepareStatement(com.legend.base.SqlTap.sent(statement))) {
+             java.sql.ResultSetMetaData md = st.getMetaData();
+             return md == null ? List.of() : reported(md);
+         } catch (SQLException e) {
+@@ -188,7 +188,7 @@ final class JdbcStatements implements Statements {
+     @Override
+     public void readsFile(String statement, String staged) {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+-        try (PreparedStatement st = c.prepareStatement(statement)) {
++        try (PreparedStatement st = c.prepareStatement(com.legend.base.SqlTap.sent(statement))) {
+             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
+             st.setString(1, staged);
+             st.execute();
+@@ -200,7 +200,7 @@ final class JdbcStatements implements Statements {
+     @Override
+     public void streams(String insert, List<List<String>> rows) {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+-        try (PreparedStatement st = c.prepareStatement(insert)) {
++        try (PreparedStatement st = c.prepareStatement(com.legend.base.SqlTap.sent(insert))) {
+             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
+             for (List<String> row : rows) {
+                 for (int i = 0; i < row.size(); i++) {
+@@ -250,7 +250,7 @@ final class JdbcStatements implements Statements {
+     public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+             Rows rows) throws IOException {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+-        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
++        try (PreparedStatement st = c.prepareStatement(stamped(com.legend.base.SqlTap.sent(statement)))) {
+             for (int i = 0; i < slots.size(); i++) {
+                 bind(st, i + 1, slots.get(i), values.get(i));
+             }
+@@ -271,7 +271,7 @@ final class JdbcStatements implements Statements {
+     public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+-        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
++        try (PreparedStatement st = c.prepareStatement(stamped(com.legend.base.SqlTap.sent(statement)))) {
+             for (int i = 0; i < slots.size(); i++) {
+                 bind(st, i + 1, slots.get(i), values.get(i));
+             }
+@@ -322,7 +322,7 @@ final class JdbcStatements implements Statements {
+     public void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+             ReportedColumns columns, Cells cells) throws IOException {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+-        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
++        try (PreparedStatement st = c.prepareStatement(stamped(com.legend.base.SqlTap.sent(statement)))) {
+             for (int i = 0; i < slots.size(); i++) {
+                 bind(st, i + 1, slots.get(i), values.get(i));
+             }
+diff --git a/core/src/main/java/com/legend/testplan/TestPlanner.java b/core/src/main/java/com/legend/testplan/TestPlanner.java
+index 3fe0a2d43..f9ab74789 100644
+--- a/core/src/main/java/com/legend/testplan/TestPlanner.java
++++ b/core/src/main/java/com/legend/testplan/TestPlanner.java
+@@ -33,15 +33,15 @@ public final class TestPlanner {
+      *  runtime's dialect chosen, an unread let made the statement it binds (the user's ruling, 2026-11-02), then
+      *  {@link #plan(TypedQuery, String, SqlDialect, PlanningOptions)}. */
+     public static TestPlan plan(TypedQuery typed, @Nullable String runtimeFqn, PlanningOptions options) {
+-        return plan(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
+-                options);
++        return com.legend.base.SqlTap.testPlan(plan(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
++                options));
+     }
+ 
+     /** {@code typed} planned AHEAD, to run later (the door's {@code planProgram}): as {@link #plan} plans it, or null
+      *  for a body that cannot be planned ahead ({@link #planned}). */
+     public static @Nullable TestPlan planAhead(TypedQuery typed, @Nullable String runtimeFqn, PlanningOptions options) {
+-        return planned(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
+-                options);
++        return com.legend.base.SqlTap.testPlanAhead(planned(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
++                options));
+     }
+ 
+     /** {@code typed} with each unread let the statement it binds: it runs at its turn, on every road. */
+diff --git a/spec/corpus.bzl b/spec/corpus.bzl
+index d78440aab..fe33fe010 100644
+--- a/spec/corpus.bzl
++++ b/spec/corpus.bzl
+@@ -25,6 +25,7 @@ def _pass_flags(golden):
+         "-Dlegend.referee.h2=$(execpath @h2_engine//jar:file)",
+         # DuckDB's JDBC driver loads its library: allowed, so the JDK prints no warning on the build's console
+         "--enable-native-access=ALL-UNNAMED",
++        "-Dlegend.identity.run=C",
+         _SCAN_ORDER,
+     ] + (["-Drcorpus.measured.out={OUT_DIR}"] if golden else [])
+ 
+diff --git a/base/src/main/java/com/legend/base/SqlTap.java b/base/src/main/java/com/legend/base/SqlTap.java
+new file mode 100644
+--- /dev/null
++++ b/base/src/main/java/com/legend/base/SqlTap.java
+@@ -0,0 +1,102 @@
++// Copyright 2026 Legend Contributors
++// SPDX-License-Identifier: Apache-2.0
++
++package com.legend.base;
++
++import java.io.IOException;
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.StandardOpenOption;
++import java.util.regex.Pattern;
++
++/**
++ * TEMPORARY (Rust port, phase 3 step 0 redone on the merged tree, the CONTROL run -- never committed to the sources;
++ * rust/tools/identity-control-tap.patch, docs/rust-port/PHASE3.md): every statement a JDBC session sends, in order, one
++ * line per statement (its length and a hash of its text), and every plan the two plan sites make (a product query's
++ * {@code TypedQuery.planned}, a test body's {@code TestPlanner.plan} and {@code planAhead}: {@code P:<kind>:<id>}, the id
++ * the identity probe gives the plan's JSON once its execution-trace UUID is masked), so that a run with the identity probe
++ * can be compared with a run of this class alone: counting must not alter what is computed. Written to the test's
++ * undeclared outputs, else java.io.tmpdir.
++ */
++public final class SqlTap {
++
++    private SqlTap() {
++    }
++
++    private static final String FILE = "identity-sql-" + ProcessHandle.current().pid() + ".txt";
++
++    /** The plan oracle's one mask (rust/oracles/plan/MANIFEST.tsv): the trace comment's UUID, minted per run. */
++    private static final Pattern TRACE = Pattern.compile(
++            "(?<k>executionTraceID\\\\?\"\\s*:\\s*\\\\?\")[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
++
++    public static String sent(String statement) {
++        write(statement.length() + ":" + id(statement) + "\n");
++        return statement;
++    }
++
++    public static <T> T plan(T executionPlan) {
++        planned('E', "com.legend.executionplan.PlanJson", "com.legend.executionplan.ExecutionPlan", executionPlan);
++        return executionPlan;
++    }
++
++    public static <T> T testPlan(T testPlan) {
++        planned('T', "com.legend.testexecutionplan.TestPlanJson", "com.legend.testexecutionplan.TestPlan", testPlan);
++        return testPlan;
++    }
++
++    public static <T> @Nullable T testPlanAhead(@Nullable T testPlan) {
++        if (testPlan == null) {
++            write("P:T:null\n");
++            return null;
++        }
++        return testPlan(testPlan);
++    }
++
++    private static void planned(char kind, String writer, String type, Object plan) {
++        String text;
++        try {
++            text = (String) Class.forName(writer).getMethod("write", Class.forName(type)).invoke(null, plan);
++        } catch (ReflectiveOperationException | LinkageError | RuntimeException | StackOverflowError e) {
++            write("P:" + kind + ":!" + e.getClass().getSimpleName() + "\n");
++            return;
++        }
++        String masked = TRACE.matcher(text).replaceAll("${k}00000000-0000-0000-0000-000000000000");
++        write("P:" + kind + ":" + sha16(masked) + "\n");
++    }
++
++    /** The identity probe's id: SHA-256 of the text's UTF-16 units, little-endian. */
++    private static String sha16(String text) {
++        byte[] b = new byte[text.length() * 2];
++        for (int i = 0; i < text.length(); i++) {
++            char c = text.charAt(i);
++            b[2 * i] = (byte) c;
++            b[2 * i + 1] = (byte) (c >> 8);
++        }
++        try {
++            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(b));
++        } catch (java.security.NoSuchAlgorithmException e) {
++            throw new IllegalStateException(e);
++        }
++    }
++
++    private static String id(String text) {
++        try {
++            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
++                    .digest(text.getBytes(StandardCharsets.UTF_8)), 0, 12);
++        } catch (java.security.NoSuchAlgorithmException e) {
++            throw new IllegalStateException(e);
++        }
++    }
++
++    private static synchronized void write(String line) {
++        try {
++            String d = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
++            Path dir = Path.of(d != null ? d : System.getProperty("java.io.tmpdir"));
++            Files.writeString(dir.resolve(FILE), line, StandardCharsets.UTF_8, StandardOpenOption.CREATE,
++                    StandardOpenOption.APPEND);
++        } catch (IOException | RuntimeException e) {
++            // a probe that cannot write must not fail the test it rides on
++        }
++    }
++}

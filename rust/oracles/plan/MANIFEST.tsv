@@ -1,0 +1,43 @@
+# file	what	sha256 of the uncompressed output
+# THE PLAN ORACLE (2026-11-11; docs/rust-port/PHASE3_SHIM_DESIGN.md section 5 step 1 and section 10 rulings 4, 6, 8;
+# docs/rust-port/PHASE3.md step 0, "Step 0 redone on the merged tree"): for every question the lanes enumerate, Java's
+# answer as plan JSON, frozen before the Java planner is deleted, for the Rust planner to be judged against byte for byte.
+# Made with the identity oracle (rust/oracles/identity, its MANIFEST for the row key) by the same probe, the same two runs
+# (A, B) over the same lanes on worktree-rust-port-phase0 at 1ea8fbf45 (core/src/main as of the merge of main at
+# c4a39e06d, 9c08abbc7): a product query's plan where TypedQuery.planned makes it (executionPlan and projectPlan:
+# PlanJson.write, legend-lite-plan v31), a test body's where TestPlanner.plan makes it (TestPlanJson.write,
+# legend-lite-test-plan v11 over the product's v31). TestPlanner.planAhead was reached by no lane. Rows are keyed as
+# the identity oracle's (model, query, doors, use), and a key here is a key there.
+# A PLAN'S ID is the SHA-256 of its JSON's UTF-16 units, little-endian (the probe's, and rust/oracles/front's id), after
+# MASKING run-specific values: one mask, the execution-trace comment's UUID (`executionTraceID" : "<uuid>`, the JSON's
+# escaped quotes allowed) to 00000000-0000-0000-0000-000000000000; planning reserves one under a verdict batch
+# (testplan/ActivityComments). It applied 0 times in both runs: no frozen plan carries a UUID, so every id is the
+# SHA-256 of exactly what Java's writer wrote. Stability: of the 73,411 keys in both runs, no plan id differs between A
+# and B, in any row, before or after masking; within a run no key has two answers. A Rust planner reproduces a row when
+# its writer's JSON for the question, masked so, hashes to the row's ids in order.
+# WHERE THE TEXTS ARE. Every plan's id is here; the texts are for debugging a mismatch. A text store is in git when it
+# is under 10 MB compressed (the largest frozen file in git is front/questions.jsonl.zst, 8.4 MB) and is not the
+# database judge's (ruling 4: not ported at first); otherwise it is archived outside git, as the front oracle's full
+# answers are, with its SHA-256 below and in plan-test-plans.sha256 beside it. Compressed with `zstd -19 --long=27`.
+# plan-ids: model, query, doors, use (the identity oracle's key), then the execution plans' ids in order, then the test
+# plans' ids in order (comma-separated; empty when none). 25,740 rows with an execution plan (25,741 plans: 25,694 rows
+# through executionPlan, 46 projectPlan), 25,597 with a test plan (one each; query ids test 10,076, service 11,538, vs
+# 3,551, fixture 432), none with both. The JUDGE a test plan was planned under is in its doors
+# (testPlan@<runtime>,<judge>,<rules>...): HOST 17,651 rows (12,318 under lite's rules, 5,333 under the compatibility
+# rules), and, MARKED as the database judge's, DATABASE 5,800 and BOTH 2,146 (both judges in one plan: the host's sides
+# and the database's statement). The host judge's plans are what the Rust testplan is judged against (ruling 4); the
+# database judge's cost nothing extra to freeze (the same runs: the corpus's database passes, the *_judge_database and
+# *_judge_both lanes) and are frozen for when that judge is ported.
+plan-ids.tsv.zst	model, query, doors, use, execution plan ids, test plan ids: 51,337 rows; 25,741 execution plans, 25,597 test plans	33c6cef3eae91d5ccca79b69b20619287aabf99bbaecf852886005fed3280c5c
+# Every execution plan the ids name, once: id TAB E TAB the PlanJson (v31) text, sorted by id. 424,296,853 characters.
+execution-plans.tsv.zst	id TAB E TAB PlanJson, sorted by id: 17,044 lines	1af460bdfdef057d494845ae65ac68373255293657541cfda53e727c04aa6b7d
+# ARCHIVED (not in git): every test plan a host-judge row names, once, id TAB T TAB the TestPlanJson (v11) text, sorted by
+# id: 16,247 lines, 30,212,521,643 characters (the stress suites' plans carry their test data's CSV several times over,
+# about 2.5 MB each, and compress about 900 to 1).
+# /Users/cocobey73/.local/legend-lite/oracle-archive/plan-test-plans-host.tsv.zst (65,061,945 bytes, `zstd -d --long=27`),
+# SHA-256 of its uncompressed text 17af882afbd26a5e0b5e2845b38e4adb723c8481b27bbef70cbf15bb67051403 (checked 2026-11-11 by
+# decompressing it).
+# ARCHIVED, MARKED THE DATABASE JUDGE'S: every test plan only a DATABASE or BOTH row names, the same form: 6,850 lines,
+# 3,973,995,251 characters.
+# /Users/cocobey73/.local/legend-lite/oracle-archive/plan-test-plans-database-judge.tsv.zst (7,959,229 bytes), SHA-256 of
+# its uncompressed text 2deef1c7ac11899ea698138acd182bdfed8d9aca3f1a3abf6247418f1f643f28 (checked 2026-11-11).

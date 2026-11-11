@@ -1,5 +1,5 @@
 diff --git a/core/src/main/java/com/legend/Compiler.java b/core/src/main/java/com/legend/Compiler.java
-index 09b2a4b12..73c9d245f 100644
+index fc62d7f4a..6c094f06f 100644
 --- a/core/src/main/java/com/legend/Compiler.java
 +++ b/core/src/main/java/com/legend/Compiler.java
 @@ -74,8 +74,11 @@ public final class Compiler {
@@ -99,7 +99,7 @@ index 09b2a4b12..73c9d245f 100644
      }
  
      /** {@link #query(ModelContext, String)} for a query that arrives ALREADY PARSED — an upstream {@code pure/v1}
-@@ -729,6 +748,14 @@ public final class Compiler {
+@@ -736,6 +755,14 @@ public final class Compiler {
      public static ProgramFacts programFacts(
              com.legend.protocol.spec.ValueSpecification resolved,
              ModelContext ctx) {
@@ -114,7 +114,7 @@ index 09b2a4b12..73c9d245f 100644
          SpecCompiler specs = new SpecCompiler(ctx);
          java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
          java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
-@@ -811,6 +838,16 @@ public final class Compiler {
+@@ -818,6 +845,16 @@ public final class Compiler {
              com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
              String runtimeFqn, boolean relationalRootForm,
              @com.legend.base.Nullable String explicitMappingFqn) {
@@ -131,7 +131,7 @@ index 09b2a4b12..73c9d245f 100644
          SpecCompiler specs = new SpecCompiler(ctx);
          java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
          body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);
-@@ -847,6 +884,12 @@ public final class Compiler {
+@@ -854,6 +891,12 @@ public final class Compiler {
       * signature-broken walls under the plain FQN.
       */
      public static java.util.Map<String, String> compileAllBodies(ModelContext ctx) {
@@ -144,42 +144,11 @@ index 09b2a4b12..73c9d245f 100644
          SpecCompiler specs = new SpecCompiler(ctx);
          java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
          // the MODULE's own bodies: the boot layer's (the system metamodel's
-diff --git a/core/src/main/java/com/legend/Execution.java b/core/src/main/java/com/legend/Execution.java
-index d8faa0080..e59bace61 100644
---- a/core/src/main/java/com/legend/Execution.java
-+++ b/core/src/main/java/com/legend/Execution.java
-@@ -68,6 +68,7 @@ public final class Execution {
-             com.legend.exec.PlanSessions.Source planSessions, Establish establish,
-             java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf,
-             int batchRows) throws java.io.IOException {
-+        try (var __p = com.legend.base.IdentityProbe.door(typed.probeScope(), "run@" + runtimeFqn + "," + establish)) {
-         if (typed.writes()) {
-             com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn);
-             com.legend.result.ResultSink sink = sinkOf.apply(plan);
-@@ -86,6 +87,7 @@ public final class Execution {
-             com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), on, sink, batchRows);
-             return plan;
-         }
-+        }
-     }
- 
-     /** {@link #run(TypedQuery, String, Source, com.legend.exec.PlanSessions.Source,
-@@ -183,6 +185,9 @@ public final class Execution {
-             @com.legend.base.Nullable Answer answer) {
-         ModelContext ctx = typed.context();
-         com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session);
--        BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
-+        try (var __p = com.legend.base.IdentityProbe.door(typed.probeScope(), "runProgram@" + runtimeFqn + ","
-+                + dialect.getClass().getSimpleName() + "," + options.judgeMode())) {
-+            BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
-+        }
-     }
- }
 diff --git a/core/src/main/java/com/legend/TypedQuery.java b/core/src/main/java/com/legend/TypedQuery.java
-index 7ec10820e..8ad966556 100644
+index 456bdf7ca..0cfb37167 100644
 --- a/core/src/main/java/com/legend/TypedQuery.java
 +++ b/core/src/main/java/com/legend/TypedQuery.java
-@@ -25,11 +25,23 @@ public final class TypedQuery {
+@@ -25,26 +25,40 @@ public final class TypedQuery {
      private final com.legend.protocol.spec.ValueSpecification resolved;
      private final SpecCompiler specs;
      private @com.legend.base.Nullable List<TypedSpec> body;
@@ -202,8 +171,27 @@ index 7ec10820e..8ad966556 100644
 +        return probe;
      }
  
+     /** This query with {@code body} as its typed statements (a body the test door rewrote statement for statement, the
+      *  places kept: {@code LetPlanner.unreadAsStatements}); the model, the resolved query and the spec compiler shared.
+      *  An internal of the execution door's, public for the driver's tests as {@link #specs} is. */
+     public TypedQuery withBody(List<TypedSpec> body) {
+-        TypedQuery q = new TypedQuery(ctx, resolved, specs);
++        TypedQuery q = new TypedQuery(ctx, resolved, specs, probe);
+         q.body = List.copyOf(body);
+         return q;
+     }
+ 
+-    private TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved, SpecCompiler specs) {
++    private TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved, SpecCompiler specs,
++            @com.legend.base.Nullable com.legend.base.IdentityProbe.Scope probe) {
+         this.ctx = ctx;
+         this.resolved = resolved;
+         this.specs = specs;
++        this.probe = probe;
+     }
+ 
      /** The compiled model this query is typed against. */
-@@ -54,12 +66,14 @@ public final class TypedQuery {
+@@ -69,12 +83,14 @@ public final class TypedQuery {
  
      /** The query's statements typed as a query body (Phase G), once. */
      public List<TypedSpec> body() {
@@ -223,7 +211,7 @@ index 7ec10820e..8ad966556 100644
      }
  
      /**
-@@ -76,6 +90,12 @@ public final class TypedQuery {
+@@ -91,6 +107,12 @@ public final class TypedQuery {
       *  parameter is typed as a lambda VALUE ({@link SpecCompiler#typeQueryBody}), not as a query over parameters, and is
       *  refused here by name. */
      public List<QueryParameters.Declared> parameters() {
@@ -236,7 +224,7 @@ index 7ec10820e..8ad966556 100644
          if (!(resolved instanceof com.legend.protocol.spec.LambdaFunction lf)) {
              return List.of();
          }
-@@ -93,7 +113,9 @@ public final class TypedQuery {
+@@ -108,7 +130,9 @@ public final class TypedQuery {
  
      /** The query typed as ONE expression (Phase G): its typed HIR, the front half only. */
      public TypedSpec expression() {
@@ -247,35 +235,24 @@ index 7ec10820e..8ad966556 100644
      }
  
      /** The {@link Compiler.Target} the query names: the runtime its {@code ->from(runtime)} binds and the database its
-@@ -129,9 +151,11 @@ public final class TypedQuery {
+@@ -144,6 +168,8 @@ public final class TypedQuery {
       *  §9, step 2's landing 2). */
      public Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming,
              List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
--        Resolved r = resolve(new java.util.ArrayList<>(body()), runtime);
--        return new Compiler.LoweredQuery(lowerer(r.temporal(), streaming, slots, features).lower(r.body()), r.root(),
--                ctx);
-+        try (var __p = com.legend.base.IdentityProbe.door(probe, "lower@" + runtime + (streaming ? ",streaming" : ""))) {
-+            Resolved r = resolve(new java.util.ArrayList<>(body()), runtime);
-+            return new Compiler.LoweredQuery(lowerer(r.temporal(), streaming, slots, features).lower(r.body()), r.root(),
-+                    ctx);
++        try (var __p = com.legend.base.IdentityProbe.door(probe, "lower@" + runtime + (streaming ? ",streaming" : "")
++                + (features.isEmpty() ? "" : "," + features.stream().map(String::valueOf).sorted().toList()))) {
+         // the product's statement road (the test-is-the-product plan's M2, B11): the test road's front half, the
+         // product's lowering
+         com.legend.planner.ProductStatements.Statement s = com.legend.planner.ProductStatements.prepare(this,
+@@ -152,6 +178,7 @@ public final class TypedQuery {
+         com.legend.sql.SqlQuery plan = com.legend.planner.ProductStatements.lower(this, p, s.temporal(), streaming,
+                 slots, new com.legend.lowering.ObjectSites());
+         return new Compiler.LoweredQuery(plan, p.body().get(p.body().size() - 1), ctx);
 +        }
      }
  
-     /** Statements inlined (G½) and resolved (H) for a runtime, every store they touch bound to it: what a lowering
-@@ -146,6 +170,12 @@ public final class TypedQuery {
-      *  docs/WRITES_DESIGN_2026_10_18.md §8, leg 7) inlined, resolved against {@code runtime}, every touched store
-      *  checked against its connections -- every planning step before the lowering, no database. */
-     public Resolved resolve(List<TypedSpec> statements, @com.legend.base.Nullable String runtime) {
-+        try (var __p = com.legend.base.IdentityProbe.door(probe, "resolve@" + runtime)) {
-+            return resolve0(statements, runtime);
-+        }
-+    }
-+
-+    private Resolved resolve0(List<TypedSpec> statements, @com.legend.base.Nullable String runtime) {
-         List<TypedSpec> b = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(
-                 new java.util.ArrayList<>(statements));   // Phase G½
-         boolean temporalRoot = com.legend.compiler.element.Temporal.anyTemporalGetAll(b, ctx);
-@@ -187,14 +217,16 @@ public final class TypedQuery {
+     /** The Lowerer a planned statement lowers with (the wire path's): the model's object layouts (every object its
+@@ -192,14 +219,16 @@ public final class TypedQuery {
      /** Whether the query is a program that changes a store (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): a statement
       *  writes a store table ({@code StatementEffects.writesStore}), or a let stages rows for the writes after it. */
      public boolean writes() {
@@ -298,25 +275,25 @@ index 7ec10820e..8ad966556 100644
      }
  
      /** The query planned for {@code runtime}: the SQL in the runtime's dialect, the root's type and its result shape —
-@@ -212,7 +244,9 @@ public final class TypedQuery {
-      *  every statement final for its target, its answer typed rows read by the plan's column facts (a relation's rows,
-      *  a value's elements, a graph fetch's objects), no output format in it -- a writer at the edge spells them. */
-     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime) {
--        return PlanMaker.plan(this, runtime, java.util.Set.of(), null);
-+        try (var __p = com.legend.base.IdentityProbe.door(probe, "executionPlan@" + runtime)) {
-+            return PlanMaker.plan(this, runtime, java.util.Set.of(), null);
-+        }
-     }
+@@ -241,8 +270,16 @@ public final class TypedQuery {
  
-     /** {@link #executionPlan(String)} under the engine's execution feature flags ({@code features}: a lowering
-@@ -222,10 +256,18 @@ public final class TypedQuery {
-      *  the dialect's declared target (2026-10-19, the plan path program's step 9). */
-     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
-             java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
--        return PlanMaker.plan(this, runtime, features, serverVersion);
-+        try (var __p = com.legend.base.IdentityProbe.door(probe, "executionPlan@" + runtime + "," + features.stream().map(String::valueOf).sorted().toList())) {
-+            return PlanMaker.plan(this, runtime, features, serverVersion);
+     private com.legend.executionplan.ExecutionPlan planned(@com.legend.base.Nullable String runtime,
+             java.util.Set<com.legend.platform.Feature> features, boolean projectDatabase) {
++        try (var __p = com.legend.base.IdentityProbe.door(probe, (projectDatabase ? "projectPlan@" : "executionPlan@") + runtime
++                + (features.isEmpty() ? "" : "," + features.stream().map(String::valueOf).sorted().toList()))) {
++            return planned0(runtime, features, projectDatabase);
 +        }
++    }
++
++    private com.legend.executionplan.ExecutionPlan planned0(@com.legend.base.Nullable String runtime,
++            java.util.Set<com.legend.platform.Feature> features, boolean projectDatabase) {
+         try (var planning = com.legend.base.RunScope.plans("a query")) {
+-            com.legend.executionplan.ExecutionPlan plan = PlanMaker.plan(this, runtime, features, projectDatabase);
++            com.legend.executionplan.ExecutionPlan plan = com.legend.base.IdentityProbe.plan(PlanMaker.plan(this, runtime, features, projectDatabase));
+             if (Boolean.getBoolean("legend.plan.roundtrip")) {
+                 com.legend.executionplan.PlanJson.requireRoundTrip(plan);
+             }
+@@ -251,6 +288,12 @@ public final class TypedQuery {
      }
  
      private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {
@@ -330,10 +307,10 @@ index 7ec10820e..8ad966556 100644
          String sql = Compiler.dialectOf(ctx, runtime).render(l.plan());
          com.legend.plan.ResultShape shape = com.legend.plan.ResultShape.of(l.root());
 diff --git a/core/src/main/java/com/legend/compiler/ModelBuilder.java b/core/src/main/java/com/legend/compiler/ModelBuilder.java
-index d533f83c0..6a554fff1 100644
+index 786f68567..674a99212 100644
 --- a/core/src/main/java/com/legend/compiler/ModelBuilder.java
 +++ b/core/src/main/java/com/legend/compiler/ModelBuilder.java
-@@ -377,29 +377,29 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
+@@ -379,29 +379,29 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
              return false;
          }
          return switch (el) {
@@ -379,7 +356,7 @@ index d533f83c0..6a554fff1 100644
              // the pre-E clean-sheet surface is Phase E's input only; the
              // index holds nothing for it
              case com.legend.model.CleanSheetMappingDefinition cs -> true;
-@@ -783,7 +783,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
+@@ -795,7 +795,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
          java.util.List<AssociationDefinition> hits = new java.util.ArrayList<>();
          for (InjectedEnd e : injectedEnds(ownerClassFqn, propName)) {
              // a self-association naming both ends alike injects twice: one association
@@ -389,10 +366,10 @@ index d533f83c0..6a554fff1 100644
              }
          }
 diff --git a/core/src/main/java/com/legend/compiler/NameResolver.java b/core/src/main/java/com/legend/compiler/NameResolver.java
-index 7f13ac75c..da7877507 100644
+index 41133c28e..c2622656b 100644
 --- a/core/src/main/java/com/legend/compiler/NameResolver.java
 +++ b/core/src/main/java/com/legend/compiler/NameResolver.java
-@@ -1390,7 +1390,7 @@ public final class NameResolver {
+@@ -1397,7 +1397,7 @@ public final class NameResolver {
                  (s, sc) -> resolveSchema(s, sc, resolvedViews), scope);
          List<DatabaseDefinition.TableDefinition> tables = db.tables(); // column data types only; no FQN
          List<ViewDefinition> views = resolveList(db.views(), (v, sc) -> {
@@ -451,10 +428,10 @@ index 45d1d97c8..c70899193 100644
                      com.legend.error.LegendCompileException.Phase.MODEL,
                      "view '" + view.name() + "' of '" + dbFqn + "' reads its own columns"
 diff --git a/core/src/main/java/com/legend/compiler/spec/Overloads.java b/core/src/main/java/com/legend/compiler/spec/Overloads.java
-index 9a6365325..4ffc8ec0f 100644
+index 59e579208..9344c1482 100644
 --- a/core/src/main/java/com/legend/compiler/spec/Overloads.java
 +++ b/core/src/main/java/com/legend/compiler/spec/Overloads.java
-@@ -363,7 +363,7 @@ final class Overloads {
+@@ -367,7 +367,7 @@ final class Overloads {
              ValueSpecification arg = af.parameters().get(i);
              TypedSpec typedArg = a.args().get(i);
              subst.put(chosen.parameters().get(i).name(), arg);
@@ -464,19 +441,19 @@ index 9a6365325..4ffc8ec0f 100644
              }
          }
 diff --git a/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java b/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
-index b422c5bb1..01bb367d2 100644
+index 7dd65039f..5b5a9c39b 100644
 --- a/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
 +++ b/core/src/main/java/com/legend/compiler/spec/SpecCompiler.java
-@@ -79,7 +79,7 @@ public final class SpecCompiler {
-      * variant built on top of it.
+@@ -83,7 +83,7 @@ public final class SpecCompiler {
       */
      public CompiledFunction compile(TypedFunction fn) {
+         com.legend.base.RunScope.planning("type a spec");
 -        CompiledFunction cached = memo.get(fn);
 +        CompiledFunction cached = com.legend.base.IdentityProbe.got("SpecCompiler.memo", memo.get(fn));
          if (cached != null) {
              return cached;
          }
-@@ -142,7 +142,7 @@ public final class SpecCompiler {
+@@ -147,7 +147,7 @@ public final class SpecCompiler {
          work.add(root);
          while (!work.isEmpty()) {
              TypedFunction fn = work.poll();
@@ -486,10 +463,10 @@ index b422c5bb1..01bb367d2 100644
              }
              CompiledFunction cf = compile(fn);  // compiles fn's body (flat, signature-based)
 diff --git a/core/src/main/java/com/legend/compiler/spec/Typer.java b/core/src/main/java/com/legend/compiler/spec/Typer.java
-index df04157f9..a93c3cffb 100644
+index eac1c39ee..7da3d26bc 100644
 --- a/core/src/main/java/com/legend/compiler/spec/Typer.java
 +++ b/core/src/main/java/com/legend/compiler/spec/Typer.java
-@@ -109,14 +109,14 @@ final class Typer {
+@@ -113,14 +113,14 @@ final class Typer {
  
      /** Whether {@code vs} is a node a call typed already ({@link #withPretyped}): the static fold keeps it as it is. */
      boolean pretyped(ValueSpecification vs) {
@@ -506,7 +483,7 @@ index df04157f9..a93c3cffb 100644
          try {
              return body.get();
          } finally {
-@@ -174,7 +174,7 @@ final class Typer {
+@@ -178,7 +178,7 @@ final class Typer {
      TypedSpec synth(ValueSpecification vs, Env env) {
          // an argument of a generic call already typed, met again in the call's inlined body (Overloads.inlineNormalized):
          // its typing, never typed again -- a chain of k calls typed once each, not 2^k times (2026-10-28)
@@ -516,10 +493,10 @@ index df04157f9..a93c3cffb 100644
              return pre;
          }
 diff --git a/core/src/main/java/com/legend/compiler/spec/UserCallInliner.java b/core/src/main/java/com/legend/compiler/spec/UserCallInliner.java
-index 4510e64b9..f6e5c9a42 100644
+index 338f42deb..976cd8917 100644
 --- a/core/src/main/java/com/legend/compiler/spec/UserCallInliner.java
 +++ b/core/src/main/java/com/legend/compiler/spec/UserCallInliner.java
-@@ -133,7 +133,8 @@ public final class UserCallInliner {
+@@ -135,7 +135,8 @@ public final class UserCallInliner {
      private record CallInstantiation(Object frame, List<Integer> around, Object origin) {
          @Override
          public boolean equals(Object o) {
@@ -529,7 +506,7 @@ index 4510e64b9..f6e5c9a42 100644
                      && around.equals(c.around);
          }
  
-@@ -265,7 +266,7 @@ public final class UserCallInliner {
+@@ -280,7 +281,7 @@ public final class UserCallInliner {
  
      /** The places {@code term} stands in {@code t} (by reference), and whether one is under a lambda. */
      private static void countReads(TypedSpec t, TypedSpec term, boolean underLambda, int[] reads, boolean[] perRow) {
@@ -538,7 +515,7 @@ index 4510e64b9..f6e5c9a42 100644
              reads[0]++;
              perRow[0] |= underLambda;
              return;
-@@ -284,10 +285,15 @@ public final class UserCallInliner {
+@@ -299,10 +300,15 @@ public final class UserCallInliner {
  
      /** A call's body inlined: one instantiation per source node at this point of the frame (its copies one). */
      private <T> T instantiated(TypedUserCall call, java.util.function.Supplier<T> reduction) {
@@ -556,7 +533,7 @@ index 4510e64b9..f6e5c9a42 100644
      }
  
      private <T> T instantiatedAs(int number, java.util.function.Supplier<T> reduction) {
-@@ -1330,7 +1336,7 @@ public final class UserCallInliner {
+@@ -1344,7 +1350,7 @@ public final class UserCallInliner {
      }
  
      private TypedSpec rewrite(TypedSpec n) {
@@ -650,40 +627,85 @@ index 5cb1d30bb..01518a2d6 100644
  
      @Override
 diff --git a/core/src/main/java/com/legend/exec/JdbcStatements.java b/core/src/main/java/com/legend/exec/JdbcStatements.java
-index 86b5f29ff..96ed21eee 100644
+index a1c7e58c6..caf757cca 100644
 --- a/core/src/main/java/com/legend/exec/JdbcStatements.java
 +++ b/core/src/main/java/com/legend/exec/JdbcStatements.java
-@@ -126,7 +126,7 @@ final class JdbcStatements implements Statements {
-     @Override
+@@ -134,7 +134,7 @@ final class JdbcStatements implements Statements {
      public boolean execute(String statement) {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
          try (Statement st = c.createStatement()) {
 -            return st.execute(statement);
 +            return st.execute(com.legend.base.SqlTap.sent(statement));
          } catch (SQLException e) {
              throw failed(e);
          }
-@@ -135,7 +135,7 @@ final class JdbcStatements implements Statements {
-     @Override
+@@ -144,7 +144,7 @@ final class JdbcStatements implements Statements {
      public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
              throws IOException {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
 -        try (PreparedStatement st = c.prepareStatement(statement)) {
 +        try (PreparedStatement st = c.prepareStatement(com.legend.base.SqlTap.sent(statement))) {
              for (int i = 0; i < slots.size(); i++) {
                  bind(st, i + 1, slots.get(i), values.get(i));
              }
-@@ -201,7 +201,7 @@ final class JdbcStatements implements Statements {
+@@ -157,7 +157,7 @@ final class JdbcStatements implements Statements {
      @Override
+     public List<Reported> columns(String statement) {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+-        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(statement)) {
++        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(com.legend.base.SqlTap.sent(statement))) {
+             return reported(rs.getMetaData());
+         } catch (SQLException e) {
+             throw failed(e);
+@@ -167,7 +167,7 @@ final class JdbcStatements implements Statements {
+     @Override
+     public List<Reported> describe(String statement) {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+-        try (PreparedStatement st = c.prepareStatement(statement)) {
++        try (PreparedStatement st = c.prepareStatement(com.legend.base.SqlTap.sent(statement))) {
+             java.sql.ResultSetMetaData md = st.getMetaData();
+             return md == null ? List.of() : reported(md);
+         } catch (SQLException e) {
+@@ -188,7 +188,7 @@ final class JdbcStatements implements Statements {
+     @Override
+     public void readsFile(String statement, String staged) {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+-        try (PreparedStatement st = c.prepareStatement(statement)) {
++        try (PreparedStatement st = c.prepareStatement(com.legend.base.SqlTap.sent(statement))) {
+             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
+             st.setString(1, staged);
+             st.execute();
+@@ -200,7 +200,7 @@ final class JdbcStatements implements Statements {
+     @Override
+     public void streams(String insert, List<List<String>> rows) {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+-        try (PreparedStatement st = c.prepareStatement(insert)) {
++        try (PreparedStatement st = c.prepareStatement(com.legend.base.SqlTap.sent(insert))) {
+             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
+             for (List<String> row : rows) {
+                 for (int i = 0; i < row.size(); i++) {
+@@ -250,7 +250,7 @@ final class JdbcStatements implements Statements {
      public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
              Rows rows) throws IOException {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
 -        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
 +        try (PreparedStatement st = c.prepareStatement(stamped(com.legend.base.SqlTap.sent(statement)))) {
              for (int i = 0; i < slots.size(); i++) {
                  bind(st, i + 1, slots.get(i), values.get(i));
              }
-@@ -221,7 +221,7 @@ final class JdbcStatements implements Statements {
-     @Override
+@@ -271,7 +271,7 @@ final class JdbcStatements implements Statements {
      public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
              List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+-        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
++        try (PreparedStatement st = c.prepareStatement(stamped(com.legend.base.SqlTap.sent(statement)))) {
+             for (int i = 0; i < slots.size(); i++) {
+                 bind(st, i + 1, slots.get(i), values.get(i));
+             }
+@@ -322,7 +322,7 @@ final class JdbcStatements implements Statements {
+     public void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+             ReportedColumns columns, Cells cells) throws IOException {
+         com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
 -        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
 +        try (PreparedStatement st = c.prepareStatement(stamped(com.legend.base.SqlTap.sent(statement)))) {
              for (int i = 0; i < slots.size(); i++) {
@@ -703,11 +725,11 @@ index 4657ffa90..c5156de2e 100644
          }
          return sb.toString();
 diff --git a/core/src/main/java/com/legend/lowering/Lowerer.java b/core/src/main/java/com/legend/lowering/Lowerer.java
-index 93cdc7dfd..9741fc1f1 100644
+index 6f7530f81..8b198aefe 100644
 --- a/core/src/main/java/com/legend/lowering/Lowerer.java
 +++ b/core/src/main/java/com/legend/lowering/Lowerer.java
-@@ -377,7 +377,9 @@ public final class Lowerer {
-     public SqlQuery lower(List<TypedSpec> body) {
+@@ -388,7 +388,9 @@ public final class Lowerer {
+         }
          // J-tail: demand-driven subselect column pruning (engine parity —
          // isolated composites enumerate only consumed columns)
 -        return SubselectPrune.prune(lower(withQueryLets(body)));
@@ -717,7 +739,7 @@ index 93cdc7dfd..9741fc1f1 100644
      }
  
      /**
-@@ -390,6 +392,12 @@ public final class Lowerer {
+@@ -401,6 +403,12 @@ public final class Lowerer {
       * ({@link com.legend.sql.SqlDml.Merge}). The statement's count is the database's (the executor's update count).
       */
      public com.legend.sql.SqlDml lowerStoreWrite(List<TypedSpec> body) {
@@ -727,10 +749,10 @@ index 93cdc7dfd..9741fc1f1 100644
 +    }
 +
 +    private com.legend.sql.SqlDml lowerStoreWrite0(List<TypedSpec> body) {
+         com.legend.base.RunScope.planning("lower a spec");
          TypedSpec root = withQueryLets(body);
          return switch (root) {
-             case TypedWrite w when w.destination().isPresent()
-@@ -1479,7 +1487,7 @@ public final class Lowerer {
+@@ -1519,7 +1527,7 @@ public final class Lowerer {
              List<OutputCol> contract) {
          List<SqlSelect.Projection> ps = new ArrayList<>(aggs.size());
          for (TypedAggCol a : aggs) {
@@ -739,7 +761,7 @@ index 93cdc7dfd..9741fc1f1 100644
              // §3b: the obligation sees through wrapping Calls
              if (Fold.orderUnionAggregateExpr(base, av)
                      instanceof Fold.OrderedAggExpr oa) {
-@@ -1956,7 +1964,7 @@ public final class Lowerer {
+@@ -1996,7 +2004,7 @@ public final class Lowerer {
                          mergeWhere(src.where(), predicate, f.stamp()));
                  yield engineExistsJoinForm
                          ? ExistsJoinForm.rewrite(m, this::nextAlias,
@@ -749,10 +771,10 @@ index 93cdc7dfd..9741fc1f1 100644
              }
              case HAVING -> src.withHaving(src.having() == null ? predicate
 diff --git a/core/src/main/java/com/legend/lowering/ObjectSites.java b/core/src/main/java/com/legend/lowering/ObjectSites.java
-index a38318308..3890ef693 100644
+index c466d0836..04bec35be 100644
 --- a/core/src/main/java/com/legend/lowering/ObjectSites.java
 +++ b/core/src/main/java/com/legend/lowering/ObjectSites.java
-@@ -19,6 +19,9 @@ public final class ObjectSites {
+@@ -38,6 +38,9 @@ public final class ObjectSites {
      public String idOf(Object key) {
          var ids = key instanceof com.legend.compiler.spec.typed.Evaluation.Site ? sites : nodes;
          String id = ids.get(key);
@@ -760,7 +782,7 @@ index a38318308..3890ef693 100644
 +            com.legend.base.IdentityProbe.got("ObjectSites.nodes[class-e]", id);
 +        }
          if (id == null) {
-             id = "o" + (sites.size() + nodes.size() + 1);
+             id = prefix + (sites.size() + nodes.size() + 1);
              ids.put(key, id);
 diff --git a/core/src/main/java/com/legend/lowering/WhereMerge.java b/core/src/main/java/com/legend/lowering/WhereMerge.java
 index 066396c05..3b53afccd 100644
@@ -909,6 +931,19 @@ index aabe2a045..4b82cb2df 100644
                      throw new IllegalStateException("normalize before the knowledge layer:"
                              + " association '" + ad.qualifiedName() + "' qualified property '"
                              + dp.name() + "' is not adopted by its owner"
+diff --git a/core/src/main/java/com/legend/planner/ProgramFrames.java b/core/src/main/java/com/legend/planner/ProgramFrames.java
+index e0a3c66e1..3e30a74c7 100644
+--- a/core/src/main/java/com/legend/planner/ProgramFrames.java
++++ b/core/src/main/java/com/legend/planner/ProgramFrames.java
+@@ -232,7 +232,7 @@ public final class ProgramFrames {
+         ArrayDeque<TypedSpec> todo = new ArrayDeque<>(body);
+         while (!todo.isEmpty()) {
+             TypedSpec t = todo.pop();
+-            if (t == chain) {
++            if (com.legend.base.IdentityProbe.same("ProgramFrames.pastes", t == chain)) {
+                 n++;
+                 continue;
+             }
 diff --git a/core/src/main/java/com/legend/resolver/Anchors.java b/core/src/main/java/com/legend/resolver/Anchors.java
 index 510c3b1cf..16020bb96 100644
 --- a/core/src/main/java/com/legend/resolver/Anchors.java
@@ -932,10 +967,10 @@ index 510c3b1cf..16020bb96 100644
              return hit;
          }
 diff --git a/core/src/main/java/com/legend/resolver/ClassSources.java b/core/src/main/java/com/legend/resolver/ClassSources.java
-index e83e69a2d..4f4e89f77 100644
+index 741524cc9..638b457da 100644
 --- a/core/src/main/java/com/legend/resolver/ClassSources.java
 +++ b/core/src/main/java/com/legend/resolver/ClassSources.java
-@@ -298,9 +298,10 @@ public final class ClassSources {
+@@ -311,9 +311,10 @@ public final class ClassSources {
          // lookup for the step — materialization, substitution, predicates —
          // reads the same bindings
          String memoKey = mappingFqn + '\u0000' + classFqn + (scope == null ? "" : "\u0000scope=" + scope);
@@ -1072,7 +1107,7 @@ index c01a62ce2..55b51cd65 100644
              var ma = (TypedMilestonedAccess) n;
              return new TypedMilestonedAccess(
 diff --git a/core/src/main/java/com/legend/test/PureTestRunner.java b/core/src/main/java/com/legend/test/PureTestRunner.java
-index 2f9ab4d4b..6bab8aa33 100644
+index ff9611675..dfb8ac7f3 100644
 --- a/core/src/main/java/com/legend/test/PureTestRunner.java
 +++ b/core/src/main/java/com/legend/test/PureTestRunner.java
 @@ -221,8 +221,10 @@ public final class PureTestRunner implements AutoCloseable {
@@ -1100,17 +1135,30 @@ index 2f9ab4d4b..6bab8aa33 100644
                  setupStores.put(fqn, stores);
                  for (String store : stores) {
                      index.computeIfAbsent(store, s -> new ArrayList<>()).add(fqn);
-@@ -351,7 +356,8 @@ public final class PureTestRunner implements AutoCloseable {
+@@ -300,8 +305,11 @@ public final class PureTestRunner implements AutoCloseable {
+             if (called.containsAll(setups) || !mayProvide(store, ran)) {
+                 continue;
+             }
+-            com.legend.testexecutionplan.TestPlan fixture = TestExecution.planProgram(
+-                    Compiler.queryResolved(ctx, deriveSetup(setups.get(0))), runtimeFqn, options);
++            com.legend.testexecutionplan.TestPlan fixture;
++            try (var __l = com.legend.base.IdentityProbe.label("fixture:" + setups.get(0))) {
++                fixture = TestExecution.planProgram(
++                        Compiler.queryResolved(ctx, deriveSetup(setups.get(0))), runtimeFqn, options);
++            }
+             if (fixture != null) {
+                 provideFixture(store, conn, ran, shared,
+                         (fqn, target) -> TestExecution.runFixture(fixture, target, options));
+@@ -408,7 +416,7 @@ public final class PureTestRunner implements AutoCloseable {
              // as it always did — the declared-footprint guard above still
              // refuses the known clashes
          }
--        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
-+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED);
-+                var __l = com.legend.base.IdentityProbe.label("fixture:" + fqn)) {
-             // the one entry for a program (track C, 2026-10-29): the setup's body typed once, run on the session
-             Execution.runProgram(Compiler.queryResolved(ctx, call), runtimeFqn,
-                     com.legend.Execution.Source.given(target), null, null, options);
-@@ -404,6 +410,12 @@ public final class PureTestRunner implements AutoCloseable {
+-        try {
++        try (var __l = com.legend.base.IdentityProbe.label("fixture:" + fqn)) {
+             // the fixture's statements counted under SEED: the program's own mark (TestExecution.runFixture's origin)
+             program.accept(target);
+         } finally {
+@@ -468,6 +476,12 @@ public final class PureTestRunner implements AutoCloseable {
      /** Run one test: its package session (opened on demand), its setups once,
       *  its body through the platform, one result. */
      public Result run(PureTests.TestCase t) {
@@ -1124,10 +1172,10 @@ index 2f9ab4d4b..6bab8aa33 100644
          if (!t.pkg().equals(sessionPkg)) {
              beginSession(t.pkg());
 diff --git a/core/src/main/java/com/legend/test/ServiceTestRunner.java b/core/src/main/java/com/legend/test/ServiceTestRunner.java
-index 27a374393..d42bc0e69 100644
+index 4f8fe9f3a..8e9b78f24 100644
 --- a/core/src/main/java/com/legend/test/ServiceTestRunner.java
 +++ b/core/src/main/java/com/legend/test/ServiceTestRunner.java
-@@ -192,7 +192,9 @@ public final class ServiceTestRunner implements AutoCloseable {
+@@ -197,7 +197,9 @@ public final class ServiceTestRunner implements AutoCloseable {
                  long t0 = System.nanoTime();
                  Result r;
                  try {
@@ -1138,12 +1186,156 @@ index 27a374393..d42bc0e69 100644
                  } catch (Skip s) {
                      r = new Result(svc.qualifiedName(), suite.id(), test.id(), Status.SKIPPED,
                              String.valueOf(s.getMessage()), 0);
+diff --git a/core/src/main/java/com/legend/testplan/BodyClass.java b/core/src/main/java/com/legend/testplan/BodyClass.java
+index 3425a39a2..a948485fc 100644
+--- a/core/src/main/java/com/legend/testplan/BodyClass.java
++++ b/core/src/main/java/com/legend/testplan/BodyClass.java
+@@ -233,9 +233,9 @@ public enum BodyClass {
+                 throughLets(statement, query.body().subList(0, Math.min(index, query.body().size())), 0),
+                 frameQueries);
+         boolean user = readsStore(read, n -> userStoreRead(n, systemClasses, ctx), query.specs(), new HashMap<>(),
+-                frameQueries::contains);
++                __n -> com.legend.base.IdentityProbe.has("BodyClass.frameQueries", frameQueries.contains(__n)));
+         boolean system = readsStore(read, n -> anotherWay(n, systemClasses, ctx) == Kind.SYSTEM_READ,
+-                query.specs(), new HashMap<>(), frameQueries::contains);
++                query.specs(), new HashMap<>(), __n -> com.legend.base.IdentityProbe.has("BodyClass.frameQueries", frameQueries.contains(__n)));
+         return user && system ? Stores.BOTH : user ? Stores.USER : system ? Stores.SYSTEM : Stores.NONE;
+     }
+ 
+diff --git a/core/src/main/java/com/legend/testplan/SqlTextVerdicts.java b/core/src/main/java/com/legend/testplan/SqlTextVerdicts.java
+index b88a0112a..0c848b02f 100644
+--- a/core/src/main/java/com/legend/testplan/SqlTextVerdicts.java
++++ b/core/src/main/java/com/legend/testplan/SqlTextVerdicts.java
+@@ -173,13 +173,13 @@ final class SqlTextVerdicts {
+         @Override
+         public void collect(String name, String golden, String ours, boolean textEqual,
+                 @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Appeal appeal, BodyDriver.ExecEnv env) {
+-            boolean deferredText = ours == token;
++            boolean deferredText = com.legend.base.IdentityProbe.same("SqlTextVerdicts.token", ours == token);
+             if (deferredText != (deferred != null)) {
+                 throw new IllegalStateException(name + ": " + (deferredText
+                         ? "the arm compared a deferred text the collector did not record"
+                         : "a text deferred to the verdict step is not the text the arm compared"));
+             }
+-            boolean deferredGoldenText = golden == goldenToken;
++            boolean deferredGoldenText = com.legend.base.IdentityProbe.same("SqlTextVerdicts.goldenToken", golden == goldenToken);
+             if (deferredGoldenText != (deferredGolden != null)) {
+                 // the arm processed the golden it read before comparing it (a strip that cut it, a route's own
+                 // reading): a golden the plan reads reaches the comparison as read, or the body is the walk's
+@@ -393,7 +393,7 @@ final class SqlTextVerdicts {
+         com.legend.testplan.VerdictBatch batch = env.verdictBatch();
+         if (batch != null && batch.active() && !appeals) {
+             // clean mode: the text equality is the verdict row, and a failed row is the assert's failure
+-            batch.defer(name, true, collector instanceof BatchTexts bt && ours == bt.token
++            batch.defer(name, true, collector instanceof BatchTexts bt && com.legend.base.IdentityProbe.same("SqlTextVerdicts.batchToken", ours == bt.token)
+                     ? com.legend.lowering.VerdictSql.textEquals(golden,
+                             java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row"))
+                     : com.legend.lowering.VerdictSql.textEquals(golden, ours), env.target(),
+@@ -401,7 +401,7 @@ final class SqlTextVerdicts {
+             return ok();
+         }
+         if (batch != null && batch.active()) {
+-            if (collector instanceof BatchTexts bt && ours == bt.token) {
++            if (collector instanceof BatchTexts bt && com.legend.base.IdentityProbe.same("SqlTextVerdicts.batchToken", ours == bt.token)) {
+                 // our text a side the plan reads (2026-11-04, the core program): the database computes it and the
+                 // equality in the verdict row, and a failed row hands the text it read to the appeal
+                 batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden,
+diff --git a/core/src/main/java/com/legend/testplan/TestDoor.java b/core/src/main/java/com/legend/testplan/TestDoor.java
+index 9602a0bd3..abbf5d9ea 100644
+--- a/core/src/main/java/com/legend/testplan/TestDoor.java
++++ b/core/src/main/java/com/legend/testplan/TestDoor.java
+@@ -136,8 +136,8 @@ public final class TestDoor {
+                 case PlannedStep.Extension e -> kinds.extension(e.handle());
+             });
+         }
+-        Map<Integer, Effect> effects = byStep(planned, kinds.effects());
+-        Map<Integer, List<String>> seeds = byStep(planned, kinds.seeds());
++        Map<Integer, Effect> effects = byStep(planned, kinds.effects(), "TestKinds.effects");
++        Map<Integer, List<String>> seeds = byStep(planned, kinds.seeds(), "TestKinds.seeds");
+         // the ledger texts are the compatibility edge's to plan, by the step's index (the plan-as-data design's step 8,
+         // 2.7: a recorder implies the compatibility rules); a run that hands no edge plans none
+         Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep = new LinkedHashMap<>();
+@@ -157,10 +157,10 @@ public final class TestDoor {
+ 
+     /** {@code beside}, keyed by the step it rides, re-keyed by the step's place in {@code steps}; a step the library
+      *  planned that is not one of them is refused by name (its texts would never reach the ledger). */
+-    private static <T> Map<Integer, T> byStep(List<PlannedStep> steps, Map<ExecutionPlan.Node, T> beside) {
++    private static <T> Map<Integer, T> byStep(List<PlannedStep> steps, Map<ExecutionPlan.Node, T> beside, String __table) {
+         Map<Integer, T> byIndex = new LinkedHashMap<>();
+         for (int i = 0; i < steps.size(); i++) {
+-            T texts = steps.get(i) instanceof PlannedStep.Product p ? beside.get(p.node()) : null;
++            T texts = steps.get(i) instanceof PlannedStep.Product p ? com.legend.base.IdentityProbe.got(__table, beside.get(p.node())) : null;
+             if (texts != null) {
+                 byIndex.put(i, texts);
+             }
+diff --git a/core/src/main/java/com/legend/testplan/TestKinds.java b/core/src/main/java/com/legend/testplan/TestKinds.java
+index 9618d3b4b..af4c75a5d 100644
+--- a/core/src/main/java/com/legend/testplan/TestKinds.java
++++ b/core/src/main/java/com/legend/testplan/TestKinds.java
+@@ -391,6 +391,7 @@ final class TestKinds implements ProgramKinds {
+         ExecutionPlan.Load setup = new ExecutionPlan.Load(Seeds.key(steps), ExecutionPlan.Load.Cadence.BEFORE_STEP,
+                 steps, program.target());
+         program.add(setup);
++        com.legend.base.IdentityProbe.has("TestKinds.seeds.put", seeds.containsKey(setup));
+         seeds.put(setup, planned.stream().map(CsvSeed.Planned::text).toList());
+     }
+ 
+@@ -513,6 +514,7 @@ final class TestKinds implements ProgramKinds {
+                 (resource.ref().digest() + "\n" + delivered).getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                 ExecutionPlan.Load.Cadence.AT_STEP, List.of(planned.step()), program.target());
+         program.add(load);
++        com.legend.base.IdentityProbe.has("TestKinds.seeds.put", seeds.containsKey(load));
+         seeds.put(load, List.of(planned.recorded()));
+     }
+ 
+@@ -528,6 +530,7 @@ final class TestKinds implements ProgramKinds {
+                 + ";", List.of(), program.target(), null, List.of()), new ExecutionPlan.Effect.Script(executed,
+                 dialect.script(executed), dialect.scriptAbort()));
+         program.add(effect);
++        com.legend.base.IdentityProbe.has("TestKinds.effects.put", effects.containsKey(effect));
+         effects.put(effect, new TestDoor.Effect(script.stream()
+                 .map(s -> new TestDoor.Recorded(s.recorded(), RawSql.isSingleQuery(s.executed()))).toList()));
+         script.clear();
+diff --git a/core/src/main/java/com/legend/testplan/TestPlanner.java b/core/src/main/java/com/legend/testplan/TestPlanner.java
+index 3fe0a2d43..6f1fb14ad 100644
+--- a/core/src/main/java/com/legend/testplan/TestPlanner.java
++++ b/core/src/main/java/com/legend/testplan/TestPlanner.java
+@@ -33,15 +33,25 @@ public final class TestPlanner {
+      *  runtime's dialect chosen, an unread let made the statement it binds (the user's ruling, 2026-11-02), then
+      *  {@link #plan(TypedQuery, String, SqlDialect, PlanningOptions)}. */
+     public static TestPlan plan(TypedQuery typed, @Nullable String runtimeFqn, PlanningOptions options) {
+-        return plan(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
+-                options);
++        try (var __p = com.legend.base.IdentityProbe.door(typed.probeScope(), "testPlan@" + runtimeFqn + __probeOptions(options))) {
++            return com.legend.base.IdentityProbe.testPlan(plan(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
++                    options));
++        }
++    }
++
++    /** The probe's name for what planning reads of the options (the judge, the rules, the edge, the features). */
++    private static String __probeOptions(PlanningOptions o) {
++        return "," + o.judgeMode() + "," + o.judgingRules() + (o.edge() != null ? ",edge" : "")
++                + (o.features().isEmpty() ? "" : "," + o.features().stream().map(String::valueOf).sorted().toList());
+     }
+ 
+     /** {@code typed} planned AHEAD, to run later (the door's {@code planProgram}): as {@link #plan} plans it, or null
+      *  for a body that cannot be planned ahead ({@link #planned}). */
+     public static @Nullable TestPlan planAhead(TypedQuery typed, @Nullable String runtimeFqn, PlanningOptions options) {
+-        return planned(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
+-                options);
++        try (var __p = com.legend.base.IdentityProbe.door(typed.probeScope(), "testPlanAhead@" + runtimeFqn + __probeOptions(options))) {
++            return com.legend.base.IdentityProbe.testPlanAhead(planned(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
++                    options));
++        }
+     }
+ 
+     /** {@code typed} with each unread let the statement it binds: it runs at its turn, on every road. */
 diff --git a/spec/corpus.bzl b/spec/corpus.bzl
-index 726532ef9..1fe2eedcf 100644
+index d78440aab..d9c6eda7c 100644
 --- a/spec/corpus.bzl
 +++ b/spec/corpus.bzl
-@@ -22,6 +22,7 @@ def _pass_flags(golden):
-     return program_jvm_flags("spec") + [
+@@ -25,6 +25,7 @@ def _pass_flags(golden):
+         "-Dlegend.referee.h2=$(execpath @h2_engine//jar:file)",
          # DuckDB's JDBC driver loads its library: allowed, so the JDK prints no warning on the build's console
          "--enable-native-access=ALL-UNNAMED",
 +        "-Dlegend.identity.run=1",
@@ -1154,7 +1346,7 @@ diff --git a/base/src/main/java/com/legend/base/IdentityProbe.java b/base/src/ma
 new file mode 100644
 --- /dev/null
 +++ b/base/src/main/java/com/legend/base/IdentityProbe.java
-@@ -0,0 +1,458 @@
+@@ -0,0 +1,523 @@
 +// Copyright 2026 Legend Contributors
 +// SPDX-License-Identifier: Apache-2.0
 +
@@ -1199,7 +1391,9 @@ new file mode 100644
 + * query, and otherwise a row 'L' of the context, keyed by the hash of the queries that ran on it.
 + *
 + * <p>Written at JVM exit to the test's undeclared outputs, else java.io.tmpdir (a java_run action's declared scratch
-+ * directory): {@code identity-hits-<pid>.tsv} and, for {@link #mir}, {@code identity-mir-<pid>.jsonl}.
++ * directory): {@code identity-hits-<pid>.tsv} and, for {@link #mir}, {@code identity-mir-<pid>.jsonl}; for {@link #plan}
++ * and {@link #testPlan} (the plan oracle, step 0 redone on the merged tree, 2026-11-11), {@code identity-plan-<pid>.tsv}.
++ * A row's last three columns are its lowerings' MirJson ids, its execution plans' ids and its test plans' ids, in order.
 + */
 +public final class IdentityProbe {
 +
@@ -1215,6 +1409,8 @@ new file mode 100644
 +        final HashMap<String, long[]> counts = new HashMap<>(32);
 +        final HashMap<String, long[]> lazy = new HashMap<>(8);
 +        final ArrayList<String> mir = new ArrayList<>(2);
++        final ArrayList<String> plans = new ArrayList<>(1);
++        final ArrayList<String> testPlans = new ArrayList<>(1);
 +
 +        Scope(char kind, String model, String query, @Nullable Use use) {
 +            this.kind = kind;
@@ -1244,6 +1440,7 @@ new file mode 100644
 +    private static final Scope BOOT = register(new Scope('B', "boot", "-", null));
 +    private static final Scope UNSCOPED = new Scope('U', "-", "-", null);
 +    private static final Set<String> MIR_SEEN = ConcurrentHashMap.newKeySet();
++    private static final Set<String> PLAN_SEEN = ConcurrentHashMap.newKeySet();
 +    private static final java.util.concurrent.atomic.AtomicLong UNKNOWN_CONTEXTS =
 +            new java.util.concurrent.atomic.AtomicLong();
 +
@@ -1512,6 +1709,63 @@ new file mode 100644
 +        }
 +    }
 +
++    // ---- the plans, as their JSON (the plan oracle)
++
++    /** A product query's execution plan ({@code TypedQuery.planned}): its PlanJson's id in the scope's row, its text in
++     *  {@code identity-plan-<pid>.tsv} (kind E). The text is the writer's, unmasked: run-specific values are masked when
++     *  the oracle is frozen. Returns its argument. */
++    public static <T> T plan(T executionPlan) {
++        planOf(executionPlan, 'E', "com.legend.executionplan.PlanJson", "com.legend.executionplan.ExecutionPlan");
++        return executionPlan;
++    }
++
++    /** A test body's test plan ({@code TestPlanner.plan}; kind T), as {@link #plan}. */
++    public static <T> T testPlan(T testPlan) {
++        planOf(testPlan, 'T', "com.legend.testexecutionplan.TestPlanJson", "com.legend.testexecutionplan.TestPlan");
++        return testPlan;
++    }
++
++    /** A program planned ahead ({@code TestPlanner.planAhead}), as {@link #testPlan}; a body that cannot be planned
++     *  ahead answers null, recorded as {@code null}. */
++    public static <T> @Nullable T testPlanAhead(@Nullable T testPlan) {
++        if (testPlan == null) {
++            Scope s = CURRENT.get();
++            if (s != null) {
++                s.testPlans.add("null");
++            }
++            return null;
++        }
++        return testPlan(testPlan);
++    }
++
++    private static void planOf(Object value, char kind, String writer, String type) {
++        Scope s = CURRENT.get();
++        if (s == null) {
++            synchronized (UNSCOPED) {
++                inc(UNSCOPED.counts, "unscoped-plan-" + kind, true);
++            }
++            return;
++        }
++        List<String> into = kind == 'E' ? s.plans : s.testPlans;
++        String text;
++        try {
++            text = (String) Class.forName(writer).getMethod("write", Class.forName(type)).invoke(null, value);
++        } catch (ReflectiveOperationException | LinkageError | RuntimeException e) {
++            Throwable c = e.getCause() != null ? e.getCause() : e;
++            String said = String.valueOf(c.getMessage()).replaceAll("[,\\t\\n]", " ");
++            into.add("!" + c.getClass().getSimpleName() + ":" + said.substring(0, Math.min(60, said.length())));
++            return;
++        } catch (StackOverflowError e) {
++            into.add("!StackOverflowError");
++            return;
++        }
++        String id = sha(text);
++        into.add(id);
++        if (PLAN_SEEN.add(id)) {
++            append("identity-plan-" + PID + ".tsv", id + "\t" + kind + "\t" + text + "\n");
++        }
++    }
++
 +    // ---- the output
 +
 +    private static void dump() {
@@ -1532,7 +1786,8 @@ new file mode 100644
 +            if (s.kind != 'Q' && counts.isEmpty()) {
 +                continue;
 +            }
-+            line(out, s.kind, s.model, s.query, doors(s), s.kind == 'Q' ? (solo ? "solo" : "shared") : "-", counts, s.mir);
++            line(out, s.kind, s.model, s.query, doors(s), s.kind == 'Q' ? (solo ? "solo" : "shared") : "-", counts, s.mir,
++                    s.plans, s.testPlans);
 +        }
 +        List<Use> uses;
 +        synchronized (ALL_USES) {
@@ -1558,7 +1813,8 @@ new file mode 100644
 +                continue;
 +            }
 +            Collections.sort(queries);
-+            line(out, 'L', u.model, "set:" + sha(String.join("\u0001", queries)), "-", "shared", lazy, List.of());
++            line(out, 'L', u.model, "set:" + sha(String.join("\u0001", queries)), "-", "shared", lazy, List.of(),
++                    List.of(), List.of());
 +        }
 +        Map<String, long[]> unscoped;
 +        synchronized (UNSCOPED) {
@@ -1566,7 +1822,7 @@ new file mode 100644
 +        }
 +        if (!unscoped.isEmpty() || UNKNOWN_CONTEXTS.get() != 0) {
 +            unscoped.put("unknown-contexts", new long[] {UNKNOWN_CONTEXTS.get(), 0});
-+            line(out, 'U', "-", "-", "-", "-", unscoped, List.of());
++            line(out, 'U', "-", "-", "-", "-", unscoped, List.of(), List.of(), List.of());
 +        }
 +        if (out.length() > 0) {
 +            append("identity-hits-" + PID + ".tsv", out.toString());
@@ -1588,7 +1844,7 @@ new file mode 100644
 +    }
 +
 +    private static void line(StringBuilder out, char kind, String model, String query, String doors, String use,
-+            Map<String, long[]> counts, List<String> mir) {
++            Map<String, long[]> counts, List<String> mir, List<String> plans, List<String> testPlans) {
 +        out.append(kind).append('\t').append(model).append('\t').append(query).append('\t').append(doors).append('\t')
 +                .append(use).append('\t');
 +        boolean first = true;
@@ -1599,7 +1855,8 @@ new file mode 100644
 +            first = false;
 +            out.append(e.getKey()).append('=').append(e.getValue()[0]).append('/').append(e.getValue()[1]);
 +        }
-+        out.append('\t').append(String.join(",", mir)).append('\n');
++        out.append('\t').append(String.join(",", mir)).append('\t').append(String.join(",", plans)).append('\t')
++                .append(String.join(",", testPlans)).append('\n');
 +    }
 +
 +    private static synchronized void append(String file, String text) {

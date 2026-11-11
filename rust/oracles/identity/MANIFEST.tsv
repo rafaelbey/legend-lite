@@ -1,9 +1,12 @@
 # file	what	sha256 of the uncompressed output
-# Made 2026-11-09 on worktree-rust-port-phase0 (core/src/main as of 91de44e54, no Java change since) by
-# rust/tools/identity-hits-probe.patch (never committed to the sources) over //core/..., //spec:corpus_duckdb,
-# //spec:corpus_h2, PCT's DuckDB, H2 and channel-B lanes: what docs/rust-port/PHASE3.md step 0 reports. Two complete runs
-# (A, B); only what both agree on is here. Compressed with `zstd -19 --long=27`: plain decompression reads it.
-# A ROW is one question. kind: B the boot layer (one per JVM, identical in all 53), M a model compile, Q a query (a
+# RE-FROZEN 2026-11-11 on the merged tree (worktree-rust-port-phase0 at 1ea8fbf45; core/src/main and base as of the merge
+# of main at c4a39e06d, 9c08abbc7, no Java change since) by rust/tools/identity-hits-probe.patch, retargeted (never
+# committed to the sources), over //core/..., //spec:corpus_duckdb, //spec:corpus_h2, PCT's DuckDB, H2 and channel-B
+# lanes: what docs/rust-port/PHASE3.md step 0, "Step 0 redone on the merged tree", reports. Two complete runs (A, B),
+# 145 tests each; only what both agree on is here, and on every key in both they agree. The first freeze (2026-11-09,
+# the old tree at 91de44e54) is in git history (this file's previous version); PHASE3.md says what moved and why.
+# Compressed with `zstd -19 --long=27`: plain decompression reads it.
+# A ROW is one question. kind: B the boot layer (one per JVM, identical in all), M a model compile, Q a query (a
 # TypedQuery, or one of Compiler's typed passes), L a shared context's lazy model-tier counts. Its key is (kind, model, query,
 # doors, use).
 #   model: t:<sha> a model text, s:<sha> every (name, text) parseSources saw on the thread since the last buildModel or
@@ -12,22 +15,29 @@
 #          p:<sha> parsed records' toString, protocol:<sha> a client's PureModelContextData's toString, boot; an overlay
 #          of a compiled model (the corpus's runtime and connection) adds +<database type>.
 #   query: t:<sha> the query's text; test:<fqn>, fixture:<fqn>, setup:<fqn>, service:<fqn>/<suite>/<test> the runner's name
-#          for it; vs:<sha> the resolved spec's toString (no text exists: 2,550 rows); compileAllBodies's text id; - for B
+#          for it; vs:<sha> the resolved spec's toString (no text exists: 4,535 rows); compileAllBodies's text id; - for B
 #          and M; set:<sha> for L, the hash of the queries that ran on that context. A text's sha is SHA-256 of its UTF-16
-#          units, little-endian: rust/oracles/front's id, so the texts of t: rows are read from front/questions.jsonl.zst
-#          (31,427 of the 31,508 t: query rows; the other 81 are compileAllBodies' constant id, 50 rows, and 31 query
-#          texts of tests newer than that oracle; every t: model is there).
-#   doors: the public doors called at top level, in first-call order, with their runtime and judge pass where they
-#          take them (runProgram@<runtime>,<dialect class>,<judge mode>; run@<runtime>,<establish>; executionPlan@<runtime>),
-#          *n when called n times.
+#          units, little-endian: rust/oracles/front's id, so the texts of t: rows are read from front/questions.jsonl.zst.
+#   doors: the public doors called at top level, in first-call order, *n when called n times. MOVED with main (the
+#          merged tree): a product query's planning door is TypedQuery.planned, named executionPlan@<runtime>[,<features>]
+#          or projectPlan@<runtime> (Execution.run is one statement over it and carries no door: the first freeze's
+#          run@<runtime>,<establish>); a test body's is TestPlanner.plan, named testPlan@<runtime>,<judge>,<rules>[,edge]
+#          [,<features>] (judge HOST, DATABASE or BOTH; rules LITE or COMPILED_PURE_COMPAT; edge: the compatibility edge
+#          was handed; the first freeze's runProgram@<runtime>,<dialect class>,<judge>, the dialect being a function of the
+#          model and runtime, both in the key), and testPlanAhead@... for TestPlanner.planAhead (reached by no lane);
+#          lower@<runtime>[,streaming][,<features>]; plan@<runtime>[,streaming]; programFacts; lowerResolved@...;
+#          body, parameters, expression, writes; compileModel, buildModel, buildModule, compileAllBodies.
 #   use:   solo, the context served this one query; shared, more than one; - for B, M, L.
 #   counts: table=a/b;... sorted by name. a/b is hit/miss at a lookup, true/false at a reference comparison. A table named
 #           model.* is model-tier: inside a query it joins the row only when use is solo, else it goes to the context's L row
-#           (first-touch on a shared context is order-dependent).
-hits.tsv.zst	kind, model, query, doors, use, counts: 66,994 rows (B 1, L 8, M 2,741, Q 64,244), 2,752 models, 59 tables	f933a3a64e0e99b8d82cf4be2e56964f7b6221e783ee793e908f64538f341016
+#           (first-touch on a shared context is order-dependent). New on the merged tree (testplan and planner):
+#           TestKinds.effects, TestKinds.seeds (TestDoor.byStep's reads), TestKinds.effects.put, TestKinds.seeds.put (a
+#           step put twice), BodyClass.frameQueries, SqlTextVerdicts.token, .goldenToken, .batchToken, ProgramFrames.pastes.
+hits.tsv.zst	kind, model, query, doors, use, counts: 73,411 rows (B 1, L 24, M 2,792, Q 70,594), 2,803 models, 69 tables	aebca853ff23dc90948c3d311fc9d36fc5f66135bc0cd74f360914b584fbd74f
 # Each lowering the question made (Lowerer.lower and lowerStoreWrite, in order): the SHA-256 of its MirJson text's UTF-16
-# units. !IllegalStateException:... is MirJson's refusal by design (a tagged value or list, resolved at its query's root; 2,774
-# lowerings). ~moved: the id differed between the two runs (72, each a VALUES row holding the host's executionTraceID UUID).
-mir-ids.tsv.zst	model, query, doors, use, ids: 48,407 rows, 146,594 lowerings, 39,266 distinct	2e160a61598ea6cfe2eda364a82de2f38491b594f82f89275bd166e555f3b712
-# Every MirJson the ids name, once: Java's answer for "the corpora through a Rust CLI". 853,188,972 characters.
-mir-store.tsv.zst	id TAB MirJson, sorted by id: 39,266 lines	ff1a35afcdac56ec50d2b3dc8c526521d733d95fde30fa9629faa5309a8fff0b
+# units. !IllegalStateException:... is MirJson's refusal by design (a tagged value or list, resolved at its query's root;
+# 2,546 lowerings: 2,538 lists, 8 values). No id moved between the two runs (the first freeze's 72 ~moved, a VALUES row holding the host's
+# executionTraceID, are gone with the body driver: a test body is planned before it runs).
+mir-ids.tsv.zst	model, query, doors, use, ids: 51,606 rows, 167,833 lowerings, 40,613 distinct	e29aa2a8dff67ea8a639bc299f539b87264cb042d405291ff7a29bb218bba33f
+# Every MirJson the ids name, once: Java's answer for "the corpora through a Rust CLI". 876,194,434 characters.
+mir-store.tsv.zst	id TAB MirJson, sorted by id: 40,613 lines	de98afbfde06c21b30364f9fb837f8e2fdbe709064c49d0ecd9711d21dace459
