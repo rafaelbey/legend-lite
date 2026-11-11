@@ -1,0 +1,13 @@
+# file	producing command	tree, JDK	sha256
+# Made 2026-11-11 on worktree-rust-port-phase0 by rust/oracles/types/TypeOracle.java (its header: the command, what a
+# line is) on the tree's built jars of //core:compiler_element_type and its runtime closure, the build's JDK, the Rust
+# parser loaded for the platform's declarations (Type.Primitive reads builtin/Pure.java's native classes). Core's type
+# layer (core/src/main/java/com/legend/compiler/element/type/) as of def2fc58f, main's, unchanged since the merge at
+# c4a39e06d (main's planning code is frozen there for the port: PHASE3_SHIM_DESIGN.md §10 ruling 14), so this is the
+# answer Java gives as long as it exists. 26,429 lines over 80 ops: 356 types (every Type.Primitive, every
+# PlatformTypes constant as a class, every FQN Type.Primitive.byFqn() knows, the carriers with zero, one and two
+# arguments, function, relation and schema-algebra types), 17 multiplicities, 20 decimals (the int range's edges among
+# them) and 536 strings, each op's answer or refusal (exception class and message); every type against every type for
+# equality. Run twice: byte-identical. Plain text, read by //rust/lite-types:type_differential_test. Regenerate only to
+# re-freeze: Java's answers are the oracle, never Rust's.
+type-facts.tsv	java rust/oracles/types/TypeOracle.java (TypeOracle's header)	965fa1d04 (type layer at def2fc58f), 25.0.4+7-LTS	a0674d87453300e602983f31b70b1780e45b9c646fbf9bd830e4d632f1397365

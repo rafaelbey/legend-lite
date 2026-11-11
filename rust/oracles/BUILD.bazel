@@ -13,6 +13,9 @@ exports_files(
         "mir/tagged-engine.jsonl",
         # the records the parser's doors can return (front/MANIFEST.tsv): what the front end's codec covers
         "front/schema.json",
+        # the type family's answers (types/MANIFEST.tsv; 2026-11-11, phase 3 slice 1a): lite-types' differential reads
+        # them
+        "types/type-facts.tsv",
     ],
     visibility = ["//rust:__subpackages__"],
 )

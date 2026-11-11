@@ -1,0 +1,52 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# legend-lite's type family, ported from core's compiler_element_type layer (src/lib.rs; docs/rust-port/PHASE3.md,
+# slice 1a, 2026-11-11): Type<'a>, one Copy family with a lifetime, in a query's or the model's arena (lite_base).
+rust_library(
+    name = "lite_types",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    version = "0.1.0",
+    visibility = ["//rust:__subpackages__"],
+    deps = [
+        "//rust/lite-base:lite_base",
+        "//rust/lite-javacompat:lite_javacompat",
+        "//rust/lite-sql:lite_sql",
+    ],
+)
+
+rust_test(
+    name = "lite_types_test",
+    crate = ":lite_types",
+    edition = "2024",
+    visibility = ["//gates:__pkg__"],
+)
+
+# every line of Java's answers, frozen in //rust/oracles:types/type-facts.tsv by rust/oracles/types/TypeOracle.java
+# (26,429 lines over 80 ops: every platform type, every operation the layer has that needs no later layer), asked of
+# this crate and held to Java's byte for byte (tests/type_differential.rs)
+rust_test(
+    name = "type_differential_test",
+    srcs = ["tests/type_differential.rs"],
+    data = ["//rust/oracles:types/type-facts.tsv"],
+    edition = "2024",
+    env = {"LITE_TYPE_ORACLE": "$(rootpath //rust/oracles:types/type-facts.tsv)"},
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":lite_types",
+        "//rust/lite-base:lite_base",
+        "//rust/lite-json:lite_json",
+        "//rust/lite-sql:lite_sql",
+    ],
+)
+
+# the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards
+filegroup(
+    name = "sources",
+    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]) + ["Cargo.toml"],
+    visibility = ["//rust/lite-guards:__pkg__"],
+)
+
+guards_package()

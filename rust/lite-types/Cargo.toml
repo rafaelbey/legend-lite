@@ -1,0 +1,16 @@
+[package]
+name = "lite-types"
+version = "0.1.0"
+description = "legend-lite's type family (core/'s compiler_element_type layer, ported): Type<'a> in an arena"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+lite-base = { path = "../lite-base" }
+lite-javacompat = { path = "../lite-javacompat" }
+lite-sql = { path = "../lite-sql" }
+
+[dev-dependencies]
+lite-json = { path = "../lite-json" }
