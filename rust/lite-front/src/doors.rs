@@ -396,16 +396,21 @@ pub fn lambda(text: &[u16]) -> Answer<LambdaFunction> {
 }
 
 /// `SpecParser.parseCodeBlock(text, dialect)`: a `;`-separated block. At the engine's dialect a block with no statement
-/// is refused, as the engine's `codeBlock` is at least one line, in the words and place of the `lambda` door's refusal of
-/// an empty text (the user's ruling 21 of 2026-11-10, docs/rust-port/PHASE2.md section 6; register S368: the engine's
-/// `parseLambda` places it on the line below the text, its wrapper's `}`).
+/// is refused, as the engine's `codeBlock` is at least one line (the user's ruling 21 of 2026-11-10), in lite's words
+/// and at the place an expression was expected (ruling 24 of 2026-11-10, built 2026-11-11; docs/rust-port/PHASE2.md
+/// section 6; register S368): the end of the input, one past its last character, blanks, comments and line breaks
+/// counted, where lite places `1 +`'s missing operand -- `[1:1]` for an empty text, `[1:4]` for three blanks, `[2:1]` for
+/// a line break or a comment line alone. Not the engine's `[2:1]` for every one, its wrapper's `}` on the line below.
 pub fn block(text: &[u16], dialect: Dialect) -> Answer<Vec<ValueSpecification>> {
     read_expression(text, dialect.at_a_door(), |level| {
         spec_parser::parse_code_block(text, level).and_then(|statements| {
             if statements.is_empty() && level.refuses_lite_extensions() {
-                return Err(JavaError::parse_unplaced(JStr::from(
-                    "expected expression, got end of input",
-                )));
+                let (line, column) = crate::cursor::eof_place(&crate::lexer::tokenize(text));
+                return Err(JavaError::parse(
+                    JStr::from("expected expression, got end of input"),
+                    line,
+                    column,
+                ));
             }
             Ok(statements)
         })
@@ -1774,15 +1779,39 @@ mod refusal_tests {
 
     #[test]
     fn an_empty_block_is_refused_at_the_engines_dialect() {
-        // ruling 21 of 2026-11-10 (register S368): the `lambda` door's words and place for an empty text
-        for t in ["", "   ", "// c\n"] {
+        // ruling 21 of 2026-11-10 (register S368): refused in lite's words; ruling 24 (2026-11-10, built 2026-11-11): at
+        // the place an expression was expected, the end of the input -- one past its last character, as `1 +` is
+        for (t, place) in [
+            ("", (1, 1)),
+            ("   ", (1, 4)),
+            ("\n", (2, 1)),
+            ("  \n\t ", (2, 3)),
+            ("// c\n", (2, 1)),
+            ("/* c */", (1, 8)),
+        ] {
             let e = block(&u(t), Dialect::LegendEngine).unwrap_err();
             assert_eq!(
-                (e.position, e.message.map(|m| m.lossy())),
-                (Some((0, 0)), Some("expected expression, got end of input".to_owned())),
+                (e.class.as_str(), e.position, e.words().lossy()),
+                (
+                    PARSE_EXCEPTION,
+                    Some(place),
+                    "expected expression, got end of input".to_owned()
+                ),
                 "{t:?}"
             );
-            assert_eq!(e.position, lambda(&u(t)).unwrap_err().position, "{t:?}");
+            assert_eq!(
+                e.message.unwrap().lossy(),
+                format!("[{}:{}] expected expression, got end of input", place.0, place.1),
+                "{t:?}"
+            );
+            assert_eq!(
+                spec(&u(&format!("{t}1 +")), Dialect::LegendEngine)
+                    .unwrap_err()
+                    .position
+                    .map(|(l, _)| l),
+                Some(place.0),
+                "{t:?}: the line `1 +`'s missing operand stands on"
+            );
             for d in [Dialect::LegendLite, Dialect::LegendPlatform] {
                 assert!(block(&u(t), d).unwrap().is_empty(), "{t:?} at {d:?}");
             }
