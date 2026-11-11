@@ -147,8 +147,6 @@ class CodeShapeGuardrailTest {
             // (Lowerer.relationDepth row DELETED 2026-08-24 — the audit
             // found the counter write-only; the allowlist justification
             // was a rationalization, exactly what this guardrail is for)
-            // renderer nesting cursor: NAMED-frame (view) subselect depth —
-            // same lifecycle as a parser cursor, scoped to one render()
             // the inliner's UNROLL BUDGET spend (batch 149): a per-compile
             // counter of call expansions inside a named budget object —
             // same lifecycle as the inliner (the compile artifact); it
@@ -182,10 +180,12 @@ class CodeShapeGuardrailTest {
             // lifecycle as the session's connection (SessionState lives in a weak map keyed by it). The body
             // driver's nested Established.dirty before, moved to the seam
             "SessionState.dirty",
-            "EngineStyleH2.frameDepth",
-            // anonymous-subselect nesting cursor (bare DISTINCT-key
-            // spelling scope) — same lifecycle as frameDepth
-            "EngineStyleH2.anonDistinctDepth",
+            // (EngineStyleH2.frameDepth and .anonDistinctDepth, the engine-text renderer's NAMED-frame (view) and
+            // anonymous-subselect nesting cursors, removed 2026-11-11, the owner's ruling 17
+            // (docs/rust-port/PHASE3_SHIM_DESIGN.md §10): the Java renderer that had them is a shim of the Rust
+            // library's since 2026-11-03 (the port's phase 1 step 4d), so neither field exists to be scanned; the
+            // entries outlived it because the scan never asks that a listed field exist. The cursors are the Rust
+            // renderer's now, frame_depth and anon_distinct_depth in rust/lite-dialect/src/engine_style.rs)
             // 2026-11-10, the merge of main at c4a39e06d: main's M5 audit (2026-11-01) taught this scan annotated types,
             // and it found two of the Rust port's shims' fields, there since the shims were written (unscanned until
             // the merge, not new): the Rust dialect's facts, read once from the library by the dialect object (LAZY, a
