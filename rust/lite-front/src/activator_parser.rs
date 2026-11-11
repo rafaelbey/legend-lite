@@ -216,9 +216,6 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
     let mut act_conn_span = None;
     let mut seen: HashSet<Vec<u16>> = HashSet::new();
     let hosted = section == "HostedService";
-    // the refusal of a HostedService list the engine's grammar reads and lite skips, behind every refusal lite's own
-    // reading of the element makes (ruling 20)
-    let mut engines_refusal: Option<crate::doors::JavaError> = None;
     while !c.at_end() && c.peek() != T::BRACE_CLOSE {
         let key_tok = c.pos();
         let key = c.parse_identifier()?;
@@ -304,17 +301,17 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
             // the engine's HostedService grammar has the Service's rules for both, at its dialect (the user's ruling 20 of
             // 2026-11-10, docs/rust-port/PHASE2.md section 6; register S362): the post-validations read by the Service's
             // reader, the test suites by their grammar alone (the engine's walker does not read their islands), each
-            // refused where it stops; the records as they were
-            if c.dialect().refuses_lite_extensions() && engines_refusal.is_none() {
+            // refused where it stops, here, as the engine's one parse of the section meets it -- before a later refusal of
+            // the element (the user's ruling 27 of 2026-11-11; until then behind every refusal of lite's own reading of
+            // the element); the records as they were
+            if c.dialect().refuses_lite_extensions() {
                 let list = c.pos();
-                let read = if eq(&key, "postValidations") {
-                    crate::service_parser::parse_post_validations(c).map(|_| ())
+                if eq(&key, "postValidations") {
+                    crate::service_parser::parse_post_validations(c)?;
                 } else {
-                    engines_hosted_test_suites(c)
-                };
-                engines_refusal = read
-                    .and_then(|()| crate::service_parser::no_semicolon_after_the_list(c))
-                    .err();
+                    engines_hosted_test_suites(c)?;
+                }
+                crate::service_parser::no_semicolon_after_the_list(c)?;
                 c.set_pos(list);
             }
             c.skip_balanced_block()?;
@@ -326,9 +323,6 @@ pub fn parse_element<'s>(c: &mut impl Cursor<'s>, section: &str, kinds: &[&str])
         c.expect(T::SEMI_COLON)?;
     }
     c.expect(T::BRACE_CLOSE)?;
-    if let Some(refused) = engines_refusal {
-        return Err(refused);
-    }
     let Some((function_path, function_span)) = function else {
         return Err(throw_at(
             c.tokens(),

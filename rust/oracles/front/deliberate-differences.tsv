@@ -1,5 +1,5 @@
-# The front oracle's deliberate differences (2026-11-09, 2026-11-10; docs/rust-port/PHASE2.md section 6, rulings 4, 11, 13, 16, 18
-# and 20):
+# The front oracle's deliberate differences (2026-11-09, 2026-11-10, 2026-11-11; docs/rust-port/PHASE2.md section 6, rulings 4,
+# 11, 13, 16, 18, 20 and 27):
 # the questions where Rust answers differently from the frozen Java answers (answers.tsv.zst, engine.tsv.zst), which stay
 # Java's, on purpose. A raw JDK exception on malformed input became a placed parse error at legend-engine's place for
 # the same text; ruling 11 refuses what the engine accepts (row 3); ruling 13 refuses row 63 at the model door at the
@@ -7,7 +7,9 @@
 # (the fourth column `ruling18`) refuses at the engine's dialect what its grammar refuses, and places a refusal at the end
 # of the input where the engine places it, at every door and dialect (register S341 to S352); ruling 20 of 2026-11-10 (the
 # fourth column `ruling20`) refuses at the engine's dialect the texts ruling 18 left looser, by their grammar rules
-# (register S354 to S367). A row ruling 20 re-answered keeps the column it was first listed with.
+# (register S354 to S367); ruling 27 of 2026-11-11 (the fourth column `ruling27`) refuses a HostedService's list where it
+# stands, before a later refusal of its element (register S362: four corpus texts whose test suites' island is broken).
+# A row a later ruling re-answered keeps the column it was first listed with.
 # The three differentials and //core:front_shim read this file: identical + listed == total, each
 # listed question really differs from Java's frozen answer and answers exactly the new answer named here.
 # door	dialect (- at an engine-JSON door)	the text's sha	PARITY row	class	line	column	sha-256 of the message's UTF-16 units
@@ -41,6 +43,8 @@ pmcd	LEGEND_ENGINE	082ea08e0ba6dc2785c300734d011e77ca53155e64ec6b65e3fe36700c35f
 document	-	082ea08e0ba6dc2785c300734d011e77ca53155e64ec6b65e3fe36700c35f69e	ruling18	com.legend.parser.ParseException	15	12	d508c5b6a2d09af922649a6210ed9da29789b87731f0d065ea44f59014813c49
 pmcd	LEGEND_LITE	082ea08e0ba6dc2785c300734d011e77ca53155e64ec6b65e3fe36700c35f69e	ruling18	com.legend.parser.ParseException	15	12	d508c5b6a2d09af922649a6210ed9da29789b87731f0d065ea44f59014813c49
 pmcd	LEGEND_PLATFORM	082ea08e0ba6dc2785c300734d011e77ca53155e64ec6b65e3fe36700c35f69e	ruling18	com.legend.parser.ParseException	15	12	d508c5b6a2d09af922649a6210ed9da29789b87731f0d065ea44f59014813c49
+pmcd	LEGEND_ENGINE	08ef504101252a56fac1f18acc527ffaa21e1214904f959b7352f658683051e7	ruling27	com.legend.parser.ParseException	122	1	fdfb4e50450cf7140599b4b1fe226df298f1d8dc22ec80c76304210d32eb77c1
+document	-	08ef504101252a56fac1f18acc527ffaa21e1214904f959b7352f658683051e7	ruling27	com.legend.parser.ParseException	122	1	fdfb4e50450cf7140599b4b1fe226df298f1d8dc22ec80c76304210d32eb77c1
 pmcd	LEGEND_ENGINE	0a354a5e7c0901d9cd432c37d98c09f799045593639804d2a821d1863130859a	ruling18	com.legend.parser.ParseException	3	13	1f006e3e86a7f4afc365da1c31d418f68497f7d1cba96c811947846bda71d3a3
 document	-	0a354a5e7c0901d9cd432c37d98c09f799045593639804d2a821d1863130859a	ruling18	com.legend.parser.ParseException	3	13	1f006e3e86a7f4afc365da1c31d418f68497f7d1cba96c811947846bda71d3a3
 pmcd	LEGEND_LITE	0a354a5e7c0901d9cd432c37d98c09f799045593639804d2a821d1863130859a	ruling18	com.legend.parser.ParseException	3	13	1f006e3e86a7f4afc365da1c31d418f68497f7d1cba96c811947846bda71d3a3
@@ -238,6 +242,8 @@ pmcd	LEGEND_ENGINE	4769f8ddc7bb8d3d9318b74832f5810fd4d0558dedf4bb237ba710e7c06ed
 document	-	4769f8ddc7bb8d3d9318b74832f5810fd4d0558dedf4bb237ba710e7c06edc78	ruling18	com.legend.parser.ParseException	4	1	36171d3f091a60db7c216552bfa6633bf17ffdce3704babf1ad4e356d9180663
 pmcd	LEGEND_LITE	4769f8ddc7bb8d3d9318b74832f5810fd4d0558dedf4bb237ba710e7c06edc78	ruling18	com.legend.parser.ParseException	4	1	36171d3f091a60db7c216552bfa6633bf17ffdce3704babf1ad4e356d9180663
 pmcd	LEGEND_PLATFORM	4769f8ddc7bb8d3d9318b74832f5810fd4d0558dedf4bb237ba710e7c06edc78	ruling18	com.legend.parser.ParseException	4	1	36171d3f091a60db7c216552bfa6633bf17ffdce3704babf1ad4e356d9180663
+pmcd	LEGEND_ENGINE	479a3de2b1ed843634f35d767abf28c83a19be4b1a431b65e6dfb2503312a979	ruling27	com.legend.parser.ParseException	83	22	9e44179bda02e41e2a22094de02e1fd4d7dd7fa68aac70f200dd318842eff774
+document	-	479a3de2b1ed843634f35d767abf28c83a19be4b1a431b65e6dfb2503312a979	ruling27	com.legend.parser.ParseException	83	22	9e44179bda02e41e2a22094de02e1fd4d7dd7fa68aac70f200dd318842eff774
 pmcd	LEGEND_ENGINE	4834abb72d085045aae8d5c69cdcb0ee7bb840c997d01e1b625fc135d08ca578	ruling18	com.legend.parser.ParseException	36	45	2040031eae3c61828b363f9b91adec8ab8ca00fd8e356dbbbf4e7b549c148434
 document	-	4834abb72d085045aae8d5c69cdcb0ee7bb840c997d01e1b625fc135d08ca578	ruling18	com.legend.parser.ParseException	36	45	2040031eae3c61828b363f9b91adec8ab8ca00fd8e356dbbbf4e7b549c148434
 pmcd	LEGEND_LITE	4834abb72d085045aae8d5c69cdcb0ee7bb840c997d01e1b625fc135d08ca578	ruling18	com.legend.parser.ParseException	36	45	2040031eae3c61828b363f9b91adec8ab8ca00fd8e356dbbbf4e7b549c148434
@@ -403,10 +409,12 @@ pmcd	LEGEND_ENGINE	71a546d04260ec46f5d3aee0b3f5d272907bd93e73a64cf5db26f6a3c15c7
 document	-	71a546d04260ec46f5d3aee0b3f5d272907bd93e73a64cf5db26f6a3c15c784c	ruling18	com.legend.parser.ParseException	2	24	41694c5e860815ef22c79be1083cad415ad112bef484fd97b956eed866695cbc
 pmcd	LEGEND_LITE	71a546d04260ec46f5d3aee0b3f5d272907bd93e73a64cf5db26f6a3c15c784c	ruling18	com.legend.parser.ParseException	2	24	41694c5e860815ef22c79be1083cad415ad112bef484fd97b956eed866695cbc
 pmcd	LEGEND_PLATFORM	71a546d04260ec46f5d3aee0b3f5d272907bd93e73a64cf5db26f6a3c15c784c	ruling18	com.legend.parser.ParseException	2	24	41694c5e860815ef22c79be1083cad415ad112bef484fd97b956eed866695cbc
-pmcd	LEGEND_ENGINE	72b6e615fca263d30cf4bfe50f50a3fba35e22c8d93c1f58d2e9c6974892d383	ruling18	com.legend.parser.ParseException	88	6	e7c817eaeda7493b3f69a5f631496b88be284a10c68d8fffef7814910ee6fb63
-document	-	72b6e615fca263d30cf4bfe50f50a3fba35e22c8d93c1f58d2e9c6974892d383	ruling18	com.legend.parser.ParseException	88	6	e7c817eaeda7493b3f69a5f631496b88be284a10c68d8fffef7814910ee6fb63
+pmcd	LEGEND_ENGINE	72b6e615fca263d30cf4bfe50f50a3fba35e22c8d93c1f58d2e9c6974892d383	ruling18	com.legend.parser.ParseException	88	6	7159b65f022fe02a6a47a60dc0d2f8ff845173ff7f9d9775f2cb4f08a75afd0d
+document	-	72b6e615fca263d30cf4bfe50f50a3fba35e22c8d93c1f58d2e9c6974892d383	ruling18	com.legend.parser.ParseException	88	6	7159b65f022fe02a6a47a60dc0d2f8ff845173ff7f9d9775f2cb4f08a75afd0d
 pmcd	LEGEND_LITE	72b6e615fca263d30cf4bfe50f50a3fba35e22c8d93c1f58d2e9c6974892d383	ruling18	com.legend.parser.ParseException	88	6	e7c817eaeda7493b3f69a5f631496b88be284a10c68d8fffef7814910ee6fb63
 pmcd	LEGEND_PLATFORM	72b6e615fca263d30cf4bfe50f50a3fba35e22c8d93c1f58d2e9c6974892d383	ruling18	com.legend.parser.ParseException	88	6	e7c817eaeda7493b3f69a5f631496b88be284a10c68d8fffef7814910ee6fb63
+pmcd	LEGEND_ENGINE	7342502168af94497d8a99f6eb8777b373a09dced7350c7bb740839fb3f07167	ruling27	com.legend.parser.ParseException	63	19	4658de1c44c422db2d52df6bd8f8afb0d5bbc03f95c0f7e48ac50c92b224e500
+document	-	7342502168af94497d8a99f6eb8777b373a09dced7350c7bb740839fb3f07167	ruling27	com.legend.parser.ParseException	63	19	4658de1c44c422db2d52df6bd8f8afb0d5bbc03f95c0f7e48ac50c92b224e500
 pmcd	LEGEND_ENGINE	75f44b49a8c0811bd9cad55e047252ecd8e945ba8db36ce4c9be198a07ac9cc2	ruling18	com.legend.parser.ParseException	15	7	565aabb16f1e302462b5fe472b8d35bd9679277373c3745adbf6a5c49029b99f
 document	-	75f44b49a8c0811bd9cad55e047252ecd8e945ba8db36ce4c9be198a07ac9cc2	ruling18	com.legend.parser.ParseException	15	7	565aabb16f1e302462b5fe472b8d35bd9679277373c3745adbf6a5c49029b99f
 pmcd	LEGEND_ENGINE	76517e9d2f97eb4e25db37ecef307d2b37a1028c5406f4bad0439504a558346c	ruling18	com.legend.parser.ParseException	46	16	8ee26adde511451994340eaa6cf89c7a863f48af0eb8b623cfee1636feec80b6
@@ -572,6 +580,8 @@ pmcd	LEGEND_ENGINE	b38f6f5c63e63a01b6f51922382164bd266a392f70e7e4e5f46d9cc83c3f9
 document	-	b38f6f5c63e63a01b6f51922382164bd266a392f70e7e4e5f46d9cc83c3f95bc	ruling18	com.legend.parser.ParseException	2	11	7f765f39c55334111d8a1b139b5853e41f7e28bfc8804226f33fee9706ccfa3c
 pmcd	LEGEND_LITE	b38f6f5c63e63a01b6f51922382164bd266a392f70e7e4e5f46d9cc83c3f95bc	ruling18	com.legend.parser.ParseException	2	11	7f765f39c55334111d8a1b139b5853e41f7e28bfc8804226f33fee9706ccfa3c
 pmcd	LEGEND_PLATFORM	b38f6f5c63e63a01b6f51922382164bd266a392f70e7e4e5f46d9cc83c3f95bc	ruling18	com.legend.parser.ParseException	2	11	7f765f39c55334111d8a1b139b5853e41f7e28bfc8804226f33fee9706ccfa3c
+pmcd	LEGEND_ENGINE	b664f679da9aadef2740cc65011325c1bbbdd4c01eaf1df80c630b344029529f	ruling27	com.legend.parser.ParseException	122	1	fdfb4e50450cf7140599b4b1fe226df298f1d8dc22ec80c76304210d32eb77c1
+document	-	b664f679da9aadef2740cc65011325c1bbbdd4c01eaf1df80c630b344029529f	ruling27	com.legend.parser.ParseException	122	1	fdfb4e50450cf7140599b4b1fe226df298f1d8dc22ec80c76304210d32eb77c1
 pmcd	LEGEND_ENGINE	b885ac0e1626ff344bb29cb29349feee448df6f26a425c8ee101c6429cdee138	ruling18	com.legend.parser.ParseException	45	5	27c2bcaf97a9bab3dcb37992e2185e92b6cc05eefbbbdcae79182044418e2cae
 document	-	b885ac0e1626ff344bb29cb29349feee448df6f26a425c8ee101c6429cdee138	ruling18	com.legend.parser.ParseException	45	5	27c2bcaf97a9bab3dcb37992e2185e92b6cc05eefbbbdcae79182044418e2cae
 pmcd	LEGEND_LITE	b885ac0e1626ff344bb29cb29349feee448df6f26a425c8ee101c6429cdee138	ruling18	com.legend.parser.ParseException	45	5	27c2bcaf97a9bab3dcb37992e2185e92b6cc05eefbbbdcae79182044418e2cae

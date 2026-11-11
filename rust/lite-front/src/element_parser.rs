@@ -465,6 +465,10 @@ impl<'s> ElementCursor<'_, 's> {
                         while ty(q) == Some(T::PATH_SEPARATOR) && ty(q + 1).is_some_and(is_identifier_token) {
                             q += 2;
                         }
+                        // a `::` the name's grammar has read, refused at what follows it (ruling 27 of 2026-11-11)
+                        if ty(q) == Some(T::PATH_SEPARATOR) {
+                            return Err(q + 1);
+                        }
                     }
                     if ty(q) == Some(T::LESS_THAN) {
                         let mut depth = 0i64;
@@ -511,6 +515,10 @@ impl<'s> ElementCursor<'_, 's> {
                     if t != T::PATH_SEPARATOR {
                         while ty(q) == Some(T::PATH_SEPARATOR) && ty(q + 1).is_some_and(is_identifier_token) {
                             q += 2;
+                        }
+                        // a `::` the name's grammar has read, refused at what follows it (ruling 27 of 2026-11-11)
+                        if ty(q) == Some(T::PATH_SEPARATOR) {
+                            return Err(q + 1);
                         }
                         if ty(q) == Some(T::TILDE) && ty(q + 1).is_some_and(is_identifier_token) {
                             q += 2;
@@ -1930,9 +1938,15 @@ impl<'s> ElementCursor<'_, 's> {
         let mut default_value = None;
         if self.match_tok(T::EQUAL)? {
             let def_start = self.pos;
-            self.refuse_a_default_the_engines_grammar_has_no_rule_for()?;
-            let engines_stop = self.where_the_engines_default_stops();
+            // the engine's `defaultValueExpression` is read in its one parse of the section: of a default's refusals -- an
+            // element's first token, where that grammar stops, lite's own reading -- the one placed first is the engine's,
+            // ties in this order (the user's ruling 27 of 2026-11-11, docs/rust-port/PHASE2.md section 6; register S366)
+            let first_token = self.refuse_a_default_the_engines_grammar_has_no_rule_for().err();
+            let engines_stop = self
+                .where_the_engines_default_stops()
+                .map(|stop| ElementCursor::at(self.tokens, stop, self.dialect).unexpected());
             let mut depth = 0i64;
+            let mut scanned = Ok(());
             while !self.at_end() {
                 let t = self.peek();
                 if depth == 0 && t == T::SEMI_COLON {
@@ -1943,13 +1957,20 @@ impl<'s> ElementCursor<'_, 's> {
                 } else if closes(t) {
                     depth -= 1;
                 }
-                self.advance()?;
+                if let Err(e) = self.advance() {
+                    scanned = Err(e);
+                    break;
+                }
             }
-            let value = self.slice_spec(def_start, self.pos)?;
-            // what lite's own reading takes and the engine's grammar does not, refused where that grammar stops
-            if let Some(stop) = engines_stop {
-                return Err(ElementCursor::at(self.tokens, stop, self.dialect).unexpected());
+            let read = scanned.and_then(|()| self.slice_spec(def_start, self.pos));
+            let refused = [first_token, read.as_ref().err().cloned(), engines_stop]
+                .into_iter()
+                .flatten()
+                .reduce(crate::doors::JavaError::or_earlier);
+            if let Some(refused) = refused {
+                return Err(refused);
             }
+            let value = read?;
             if matches!(value, VS::LambdaFunction(_)) {
                 return Err(self.error_str("a lambda is not a legal property default value"));
             }

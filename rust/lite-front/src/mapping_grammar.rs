@@ -379,7 +379,8 @@ impl MappingCursor<'_, '_> {
         };
         // the engine's section parse takes an element's body whole, its walk parses the body and then walks it: inside the
         // body, too, a syntax error comes before what the walk refuses (the user's ruling 16 of 2026-11-09,
-        // docs/rust-port/PHASE2.md section 6; PARITY row 63)
+        // docs/rust-port/PHASE2.md section 6; PARITY row 63), and a Pure class mapping's `~src` or `~filter` given twice
+        // before what its reparse of an expression refuses (ruling 27 of 2026-11-11)
         let read = read_body(self).map_err(|e| {
             if self.element_body_left_open(body_start) {
                 // the engine's section parse takes the body whole and meets the end of the input first; its `<EOF>` is at
@@ -405,7 +406,7 @@ impl MappingCursor<'_, '_> {
             }
             let level = self.dialect;
             let raised_by_the_walk = e.is_in_flight();
-            let answer = e.syntax_first(level, || {
+            let answer = e.syntax_or_duplicate_first(level, || {
                 self.pos = body_start;
                 self.dialect = Dialect::LegendEngineSyntax;
                 let again = read_body(self);
@@ -1423,21 +1424,18 @@ impl MappingCursor<'_, '_> {
             if self.peek() == T::BRACKET_OPEN {
                 self.advance()?;
                 // a set id is an identifier, no number or boolean, at the engine's dialect (the user's ruling 20 of 2026-11-10,
-                // docs/rust-port/PHASE2.md section 6; register S364)
-                if self.dialect.holds_to_the_engines_walk()
-                    && !local
-                    && matches!(self.peek(), T::INTEGER | T::BOOLEAN | T::TRUE | T::FALSE)
-                {
+                // docs/rust-port/PHASE2.md section 6; register S364): a syntax error of the class mapping's own parser, so
+                // also where the body is read again for one (ruling 27 of 2026-11-11), the section's own parse passing the
+                // body by
+                let held = self.dialect.holds_to_the_engines_walk() || self.dialect.reads_for_syntax();
+                if held && !local && matches!(self.peek(), T::INTEGER | T::BOOLEAN | T::TRUE | T::FALSE) {
                     return Err(self.unexpected());
                 }
                 // the walker reads the first bracketed id as the target and drops a second
                 tgt_id = Some(JStr(self.parse_set_id()?));
                 if self.peek() == T::COMMA {
                     self.advance()?;
-                    if self.dialect.holds_to_the_engines_walk()
-                        && !local
-                        && matches!(self.peek(), T::INTEGER | T::BOOLEAN | T::TRUE | T::FALSE)
-                    {
+                    if held && !local && matches!(self.peek(), T::INTEGER | T::BOOLEAN | T::TRUE | T::FALSE) {
                         return Err(self.unexpected());
                     }
                     self.parse_set_id()?;

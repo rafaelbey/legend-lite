@@ -604,8 +604,161 @@ fn parse_contexts<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDataSpaceConte
     c.expect(T::SEMI_COLON)
 }
 
+/// The words the engine's DataSpace lexer reads as a token of their own before its `VALID_STRING` (`DataSpaceLexerGrammar`'s
+/// keywords, `M3LexerGrammar`'s and the core lexer's booleans): none is an executable's id.
+const ID_KEYWORDS: &[&str] = &[
+    "DataSpace",
+    "stereotypes",
+    "tags",
+    "name",
+    "title",
+    "description",
+    "query",
+    "id",
+    "executionContextKey",
+    "executionContexts",
+    "defaultExecutionContext",
+    "mapping",
+    "mappingProvider",
+    "defaultRuntime",
+    "testData",
+    "diagrams",
+    "diagram",
+    "elements",
+    "executables",
+    "executable",
+    "sampleValues",
+    "supportInfo",
+    "documentationUrl",
+    "Email",
+    "address",
+    "Combined",
+    "emails",
+    "website",
+    "faqUrl",
+    "supportUrl",
+    "documentation",
+    "label",
+    "url",
+    "expertise",
+    "expertIds",
+    "operationalMetadata",
+    "coverageRegions",
+    "updateFrequency",
+    "groupId",
+    "artifactId",
+    "versionId",
+    "featuredDiagrams",
+    "all",
+    "let",
+    "allVersions",
+    "allVersionsInRange",
+    "toBytes",
+    "true",
+    "false",
+];
+
+/// The length of the engine's first token at the start of `s` when it is one an executable's id takes -- a `VALID_STRING`
+/// (`(Letter | Digit | '_') (Letter | Digit | '_' | '$')*`, no keyword), an `INTEGER` or a `DECIMAL` -- by its lexer's
+/// longest match, a tie to the rule declared first; 0 for any other token (a `STRING`, a `FLOAT`, a boolean, a keyword, a
+/// sign, a date, ...).
+fn engines_id_token_len(s: &[u16]) -> usize {
+    let at = |i: usize| s.get(i).copied().filter(|&c| c < 128).map(|c| c as u8);
+    let digit = |i: usize| at(i).is_some_and(|b| b.is_ascii_digit());
+    let digits = |mut i: usize| {
+        while digit(i) {
+            i += 1;
+        }
+        i
+    };
+    // `(('e' | 'E') ('+' | '-')? Digit+)?`, from `i`
+    let exponent = |i: usize| {
+        if !matches!(at(i), Some(b'e' | b'E')) {
+            return i;
+        }
+        let j = if matches!(at(i + 1), Some(b'+' | b'-')) {
+            i + 2
+        } else {
+            i + 1
+        };
+        if digit(j) { digits(j) } else { i }
+    };
+    // `Digit* '.' Digit+`, from 0
+    let fraction = || {
+        let i = digits(0);
+        (at(i) == Some(b'.') && digit(i + 1)).then(|| digits(i + 1))
+    };
+    let word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    let valid = if at(0).is_some_and(word) {
+        let mut i = 1;
+        while at(i).is_some_and(|b| word(b) || b == b'$') {
+            i += 1;
+        }
+        i
+    } else {
+        0
+    };
+    let integer = digits(0);
+    let float = fraction().map_or(0, |i| {
+        let i = exponent(i);
+        if matches!(at(i), Some(b'f' | b'F')) { i + 1 } else { i }
+    });
+    let decimal = fraction().or_else(|| (integer > 0).then_some(integer)).map_or(0, |i| {
+        let i = exponent(i);
+        if matches!(at(i), Some(b'd' | b'D')) { i + 1 } else { 0 }
+    });
+    let longest = valid.max(integer).max(float).max(decimal);
+    if longest == 0 || float == longest {
+        return 0;
+    }
+    if integer == longest || decimal == longest {
+        return longest;
+    }
+    if ID_KEYWORDS.iter().any(|k| eq(&s[..valid], k)) {
+        return 0;
+    }
+    valid
+}
+
+/// The engine's `executableId` (`DATA_SPACE__EXECUTABLE__ID COLON (VALID_STRING | INTEGER | DECIMAL) SEMI_COLON`), the
+/// cursor at the value: its first token one of the three, by the engine's lexer, or refused at it; the `;` after it, or
+/// refused at the token there (where the engine's token ends inside lite's, at that character). A stop at the end of the
+/// input is left to lite's own reading. At the engine's dialect (the user's ruling 28 of 2026-11-11,
+/// docs/rust-port/PHASE2.md section 6; register S373); the cursor is left where it began.
+fn engines_executable_id<'s>(c: &impl Cursor<'s>) -> R<()> {
+    if c.at_end() {
+        return Ok(());
+    }
+    let tokens = c.tokens();
+    let from = tokens.start(c.pos());
+    let len = engines_id_token_len(&tokens.source()[from..]);
+    if len == 0 {
+        return Err(c.unexpected());
+    }
+    let end = from + len;
+    match (c.pos()..tokens.count()).find(|&i| tokens.end(i) > end) {
+        None => Ok(()),
+        Some(i) if tokens.start(i) < end => {
+            let rest = &tokens.source()[end..tokens.end(i)];
+            Err(crate::doors::JavaError::parse(
+                jcat!("Unexpected token '", rest, "'"),
+                tokens.line_of(end) as i32,
+                tokens.column_of(end) as i32,
+            )
+            .as_refusal())
+        }
+        Some(i) if tokens.ty(i) == T::SEMI_COLON => Ok(()),
+        Some(i) => Err(crate::cursor::refused_at(
+            tokens,
+            i,
+            jcat!("Unexpected token '", tokens.text(i), "'"),
+        )),
+    }
+}
+
 /// `parseExecutables`: `[ { id; title; description?; executable | query; executionContextKey?; sampleValues?; }, ...
-/// ];` -- an id's raw token texts glued (a digit-led `2Id` lexes as two tokens), a pointer's span its statement's.
+/// ];` -- an id's raw token texts glued (a digit-led `2Id` lexes as two tokens), a pointer's span its statement's; at the
+/// engine's dialect the id is its grammar's ([`engines_executable_id`]).
 fn parse_executables<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDataSpaceExecutable>>) -> R<()> {
     c.expect(T::BRACKET_OPEN)?;
     while c.peek() != T::BRACKET_CLOSE && !c.at_end() {
@@ -627,6 +780,9 @@ fn parse_executables<'s>(c: &mut impl Cursor<'s>, out: &mut Vec<Box<PDataSpaceEx
             c.expect(T::COLON)?;
             match String::from_utf16_lossy(&key).as_str() {
                 "id" => {
+                    if c.dialect().refuses_lite_extensions() {
+                        engines_executable_id(c)?;
+                    }
                     let mut idb = Vec::new();
                     while !c.at_end() && c.peek() != T::SEMI_COLON {
                         idb.extend(c.safe_text());

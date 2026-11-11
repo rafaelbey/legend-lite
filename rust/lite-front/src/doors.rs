@@ -296,6 +296,17 @@ impl JavaError {
         JavaError::parse(message, span.start_line, span.start_column).as_refusal()
     }
 
+    /// Of this refusal and `other`, both of one construct the engine reads in one parse, the one placed first: `other` when
+    /// both are placed and it stands before this one, else this one (an unplaced refusal keeps the caller's order). The
+    /// engine's parser meets the earlier of two refusals first (the user's ruling 27 of 2026-11-11,
+    /// docs/rust-port/PHASE2.md section 6).
+    pub(crate) fn or_earlier(self, other: JavaError) -> JavaError {
+        match (self.position, other.position) {
+            (Some(mine), Some(theirs)) if mine.0 > 0 && theirs.0 > 0 && theirs < mine => other,
+            _ => self,
+        }
+    }
+
     /// A refusal in flight, of either kind.
     pub(crate) fn is_in_flight(&self) -> bool {
         self.class == REFUSED || self.class == REFUSED_AT_SECTION
@@ -324,6 +335,33 @@ impl JavaError {
             Err(later) if later.is_syntax_error() => later,
             _ => self,
         }
+    }
+
+    /// [`JavaError::syntax_first`] in a mapping element's body: a Pure class mapping's walker checks that its `~src` and
+    /// its `~filter` are given once before it reparses any of its expressions
+    /// (`PureInstanceClassMappingParseTreeWalker.visitPureInstanceClassMapping`), so such a duplicate the second reading
+    /// meets stands before this refusal too, as a syntax error does (the user's ruling 27 of 2026-11-11,
+    /// docs/rust-port/PHASE2.md section 6; register S365).
+    pub(crate) fn syntax_or_duplicate_first(
+        self,
+        level: Dialect,
+        read_again: impl FnOnce() -> Answer<()>,
+    ) -> JavaError {
+        if !(level.holds_to_the_engines_walk() && self.is_in_flight()) {
+            return self;
+        }
+        match read_again() {
+            Err(later) if later.is_syntax_error() || later.is_a_class_mapping_field_twice() => later,
+            _ => self,
+        }
+    }
+
+    /// A Pure class mapping's `~src` or `~filter` given twice, the walker's words.
+    fn is_a_class_mapping_field_twice(&self) -> bool {
+        let words = self.words().lossy();
+        self.class == PARSE_EXCEPTION
+            && (words == "Field '~src' should be specified only once"
+                || words == "Field '~filter' should be specified only once")
     }
 
     /// What a door answers: a refusal in flight as the `ParseException` it is; every other error as it stands.
@@ -1694,6 +1732,104 @@ mod refusal_tests {
                 .parsed
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn of_two_refusals_in_one_element_the_engines_first_is_answered() {
+        // ruling 27 of 2026-11-11 (register S362, S365, S366): each text and place read from the engine's parser
+        // (`PureGrammarParser`, 4.145.0); one refusal alone answers as before
+        let default = |d: &str| format!("Class a::C\n{{\n  p: Integer[1] = {d};\n}}\n");
+        // a default value: where its grammar stops before lite's own reading of it refuses, and the reverse
+        model_refused_at_the_engines(&default("x.y + (1 +)"), (3, 23));
+        model_refused_at_the_engines(&default("'a' + 'b' + "), (3, 23));
+        model_refused_at_the_engines(&default("[1, x.y + 2, (1 +)]"), (3, 27));
+        model_refused_at_the_engines(&default("x|1 + "), (3, 20));
+        model_refused_at_the_engines(&default("x.y + 1;\n  q: Integer[1 = 2"), (3, 23));
+        model_refused_at_the_engines(&default("a::f() + [1, 2 3]"), (3, 26));
+        // a `::` the name's grammar has read is refused at what follows it
+        model_refused_at_the_engines(&default("[a::b::-c.d]"), (3, 26));
+        // a HostedService's lists: refused where they stand, before a later refusal of the element
+        let hosted = |close: &str, tail: &str| {
+            format!(
+                "###HostedService\nHostedService a::hs\n{{\n   pattern: '/x';\n   ownership: Deployment {{ identifier: 'a' }};\n   \
+                 function: a::f():String[1];\n   postValidations:\n   [\n      {{\n         description: 'x';\n         \
+                 params: [];\n         assertions: [\n            a1: tds: TabularDataSet[1]|$tds->f();\n         ];\n      \
+                 }}{close}\n{tail}}}\n"
+            )
+        };
+        model_refused_at_the_engines(&hosted(",\n   ]", "   documentation: 'd'\n"), (16, 4));
+        model_refused_at_the_engines(&hosted("\n   ];", "   documentation: 'd'\n"), (16, 5));
+        model_refused_at_the_engines(&hosted("\n   ];", "   postValidations: [];\n"), (16, 5));
+        model_refused_at_the_engines(&hosted("\n   ];", ""), (16, 5));
+        // a Pure class mapping: its body's syntax, then its `~src` and `~filter` given twice, then each expression's reparse
+        let pure =
+            |body: &str| format!("###Mapping\nMapping a::m\n(\n  a::A: Pure\n  {{\n    ~src a::S\n{body}\n  }}\n)\n");
+        model_refused_at_the_engines(&pure("    ~filter a::b\n    ~filter $src.y"), (4, 3));
+        model_refused_at_the_engines(&pure("    ~filter a::b\n    ~src a::T"), (4, 3));
+        model_refused_at_the_engines(&pure("    name: a::b,\n    other[2]: $src.o"), (8, 11));
+        model_refused_at_the_engines(&pure("    name: a::b,\n    other: [1, 2 3]"), (8, 18));
+        model_refused_at_the_engines(
+            &pure("    name: a::b,\n    other: $src->graphFetch(#{a::B{c(f())}}#)"),
+            (7, 15),
+        );
+        model_refused_at_the_engines(&pure("    name: a::b,\n    other: a::c"), (7, 15));
+        model_refused_at_the_engines(&pure("    name[2]: $src.x,\n    other: a::b"), (7, 10));
+    }
+
+    #[test]
+    fn a_data_space_executables_id_is_the_engines_executable_id() {
+        // ruling 28 of 2026-11-11 (register S373): `(VALID_STRING | INTEGER | DECIMAL) SEMI_COLON` by the engine's lexer,
+        // each text and place read from the engine's parser (`PureGrammarParser`, 4.145.0)
+        let ds = |id: &str| {
+            format!(
+                "###DataSpace\nDataSpace model::dataSpace\n{{\n  title: 'some title';\n  executables:\n  [\n    {{\n      \
+                 id: {id};\n      title: 'Template 1';\n      query: |model::element.all();\n    }}\n  ];\n}}\n"
+            )
+        };
+        for id in [
+            "'e'", "1.5", "-1", "true", "title", "all", "%2020", "$x", "''", "1.5f", ".5",
+        ] {
+            refused_at_the_engines_alone("model", &ds(id), (8, 11));
+        }
+        // a letter the engine's lexer does not have, which lite's refuses at every dialect
+        model_refused_at_the_engines(&ds("\u{e9}"), (8, 11));
+        for (id, column) in [
+            ("a::b", 12),
+            ("e f", 13),
+            ("e.f", 12),
+            ("1.e5", 12),
+            ("x-y", 12),
+            ("x.1", 12),
+        ] {
+            refused_at_the_engines_alone("model", &ds(id), (8, column));
+        }
+        model_refused_at_the_engines(&ds(""), (8, 11));
+        model_refused_at_the_engines(&ds("e").replace("id: e;", "id: e"), (9, 7));
+        for id in [
+            "1",
+            "e",
+            "1.5d",
+            "1d",
+            "2Id",
+            "1e5",
+            "_x",
+            "Class",
+            "import",
+            "99999999999999999999",
+            "0x10",
+            "x$y",
+            "titles",
+            "TITLE",
+            ".5d",
+            "1.5E+3d",
+            "e/*c*/",
+            "007",
+        ] {
+            assert!(pmcd(&u(&ds(id)), Dialect::LegendEngine, &[]).parsed.is_ok(), "{id}");
+        }
+        // with a later refusal in the element, the id's comes first
+        model_refused_at_the_engines(&ds("'e'").replace("'Template 1'", "1"), (8, 11));
+        model_refused_at_the_engines(&ds("'e'").replace("  ];\n", "  ]\n"), (8, 11));
     }
 
     #[test]
