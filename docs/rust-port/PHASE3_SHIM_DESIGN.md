@@ -434,6 +434,14 @@ Each with my recommendation first.
     `main`'s planning code is frozen at that commit for the port.
 15. **The Rust port's register rows take S300 to S499** (2026-11-10), beside the other lines' numbering blocks: at the
     merge, the port's S128 to S196 are renumbered into it, with every citation.
+16. **The browser modules are re-frozen from `main`** (2026-11-11): `wasm/planner/` and `sdlc-server/page/` are built by
+    TeaVM from pristine `main` at `c4a39e06d` and frozen, so they write `main`'s plan format (v31) and the tab's Output
+    into a table works again; the list of inputs where the frozen module and the Rust parser differ is regenerated.
+17. **The merge's own choices are ratified** (2026-11-11): own corpus 2,943 to 3,025 (a bigger corpus, not a parity
+    change); the dialect oracles re-frozen by asking `main`'s dialects every frozen input again, with 1,065 inputs for arms
+    none reached; the guard pins it moved, each a ledger row; `H2Modern`'s inputs re-asked of H2; the five removed docs
+    `main` edited stay removed. The two allowlist entries for fields that no longer exist (`EngineStyleH2.frameDepth`,
+    `anonDistinctDepth`) are removed.
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.
