@@ -598,3 +598,76 @@ constraint's keyword written as a column spec in an expression (`[~owner: abc]`)
 `CONSTRAINT_OWNER` and refuses; and the comma lists ruling 18's helper does not reach that were not probed (a DataQuality
 tree's `<...>` constraints and the other loops of `data_quality_parser.rs`). Two such lists were probed and are refused now
 (a DataQuality tree's `{...}` and a HostedService's `UserList` users: a trailing comma, S341's rule).
+
+## After rulings 23 to 26 (2026-11-11)
+
+Rulings 23 to 26 of `docs/rust-port/PHASE2.md` section 6, carried out; the same probes on the same pinned inputs (the seeds
+and SHA-256 above), lite at commit `cedfd8fea` through the same `doors` binary source (`block` included), the engine's serial
+answers those recorded above (the same jars and texts; none asked again). Before is lite at `8bd6583d9`, the tree the rulings
+were built on (`main` merged at `c4a39e06d`), whose answers are those of "After rulings 19 to 21", every count equal; after is
+this one. Every new input of rulings 24 and 26 was asked of legend-engine's own parser (`PureGrammarParser`, 4.145.0, on the
+parser-equivalence class path), by hand, not recalled.
+
+**By door and category.** Only the mutated texts at `pmcd` and `document` moved; every other row is the same before and after.
+
+| set | door | texts | both accept | same place | same line, other col | different line | lite looser | lite stricter | raw `java.*` | engine timeout | engine unplaced |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| corpus, before and after | `pmcd` | 29,188 | 22,663 | 3,254 | 1,670 | 1,005 | 575 | 21 | 0 | 0 | 0 |
+| corpus, before and after | `document` | 29,188 | 22,663 | 3,254 | 1,670 | 1,005 | 575 | 21 | 0 | 0 | 0 |
+| corpus, before and after | `spec` | 22,091 | 7,282 | 110 | 11,259 | 3,417 | 0 | 3 | 0 | 0 | 20 |
+| corpus, before and after | `lambda` | 22,967 | 8,157 | 98 | 11,242 | 3,445 | 0 | 5 | 0 | 0 | 20 |
+| corpus, before and after | `lambdaJson` | 22,967 | 8,157 | 98 | 11,242 | 3,445 | 0 | 5 | 0 | 0 | 20 |
+| corpus, before and after | `block` | 22,091 | 7,290 | 98 | 11,238 | 3,443 | 0 | 2 | 0 | 0 | 20 |
+| mutated (16 per text), before | `pmcd` | 153,008 | 22,281 | 100,042 | 19,861 | 10,184 | 282 | 358 | 0 | 0 | 0 |
+| mutated (16 per text), after | `pmcd` | 153,008 | 22,281 | 100,047 | 19,858 | 10,182 | 282 | 358 | 0 | 0 | 0 |
+| mutated (16 per text), before | `document` | 153,008 | 22,281 | 100,042 | 19,861 | 10,184 | 282 | 358 | 0 | 0 | 0 |
+| mutated (16 per text), after | `document` | 153,008 | 22,281 | 100,047 | 19,858 | 10,182 | 282 | 358 | 0 | 0 | 0 |
+| mutated (4 per text), before | `pmcd` | 38,252 | 5,666 | 24,917 | 4,949 | 2,541 | 74 | 105 | 0 | 0 | 0 |
+| mutated (4 per text), after | `pmcd` | 38,252 | 5,666 | 24,918 | 4,949 | 2,540 | 74 | 105 | 0 | 0 | 0 |
+| mutated (4 per text), before | `document` | 38,252 | 5,666 | 24,917 | 4,949 | 2,541 | 74 | 105 | 0 | 0 | 0 |
+| mutated (4 per text), after | `document` | 38,252 | 5,666 | 24,918 | 4,949 | 2,540 | 74 | 105 | 0 | 0 | 0 |
+| harness, before and after | every door | as "After rulings 19 to 21" | | | | | | | | | |
+
+No text timed out, and no door panicked or answered a raw `java.*` class on the input sets; the harness's two `lambdaJson` raw
+answers are the two rulings 12 and 16 left. **No text moved away from the engine's place**: of every (text, door) at the
+engine's line and column before, each stands there now, and lite stricter is unchanged. Six mutated texts reached it, each by
+a ruling-26 rule: a class constraint's `~owner:` or `~function:` mutated into an expression, refused at the `~` (`mut16/m073353`,
+`m093569`, `m109202`, `m118514`, `mut/m023471`; S370), and a data space context's name a path (`mut16/m011514`, `Unexpected
+token 'ce'` at `[4:70]`; S371).
+
+**Lite looser** is unchanged: 575 corpus (571 S64, 3 S352, 1 S353), 282 mutated (16 per text; 280 S64, 2 S353), 74 mutated (4 per
+text; all S64), 0 at every expression door. It is 0 apart from the ruled exclusions. Of the inputs written by hand, the three
+families of ruling 26 are 0 looser now (below).
+
+**Ruling 23: several errors.** The model door reads on past a refused element, at element and section boundaries only, and
+lists the errors after the first, sorted by place, placed after it (register S372). The first is the door's answer: the measured
+doors (`answer_form`, `engine_forms`) answer as before, and so does every count above. Through the list's own door
+(`doors::pmcd_with_errors`) at all three dialects: the corpus's 29,188 model texts (87,564 asks) -- 1,234 asks hold further
+errors, 5,733 in all; the mutated texts (16 per text, 153,008, 459,024 asks) -- 9,397 asks hold further errors, 16,803 in all; in
+both, no panic, no further error out of order or placed at or before the first, and the first equal to `pmcd`'s answer in every
+ask. Over the front oracle (every frozen question, the model door's answer taken as the list's first) the questions Rust
+answers differently from Java's frozen answer are byte for byte the 760 listed before.
+
+**Ruling 24: an empty or blank block** (`block` at the engine's dialect): placed where an expression was expected, the end of
+the input (`[1:1]` for an empty text, `[1:4]` for three blanks, `[2:1]` for a line break or a comment line alone), in lite's
+words, where it was unplaced (S368). The corpus's two such texts (an empty one, three blanks) are refused at `[1:1]` and `[1:4]`
+now; the engine's place for both is its wrapper's `[2:1]`, so both stay "different line" and `block`'s row is unchanged.
+
+**Ruling 26: the three looser families found by hand**, each probed against the engine and fixed at its place (texts; a model
+text is asked at `pmcd` and `document`, an expression at `spec`, `lambda`, `lambdaJson` and `block`, every looser text looser at each):
+
+| family | probed | looser before | after | row |
+|---|---|---:|---:|---|
+| a persister's bare kind with a body: every `key: Kind;` the engine accepts in a corpus `###Persistence` text, written `Kind {}`, `Kind { }`, `Kind {};`, `Kind {\n}` (296), and four by hand (a body with a field, an island, two inside a target's island) | 300 | 14 (`auditing: None`, `mergeStrategy: NoDeletes`, `deduplicationStrategy: None`, `AnyVersion`) | 0 | S369 |
+| a constraint's keyword as a column spec: the five words with a `:` (blanks, a tab, a line break between), a blank after the `~`, a comment, a longer word, at `spec`, `lambda`, `block`, in a `###Pure` function body and derived property, and in `###Mapping`, `###Service`, `###DataSpace` and `###DataQualityValidation` expressions (which the engine takes) | 33 | 17 | 0 | S370 |
+| DataQuality's lists: every comma loop of `data_quality_parser.rs` (a class's and a property's constraints, the context's two arguments, `validations`, `keys`, `columnsToCompare`, `testSuites`, `data`, `tests`, `asserts`) with a trailing, a missing and a lone comma and an empty list | 51 | 11 | 0 | S371 |
+
+In the persistence family the engine's target islands take a body after `None` (`auditing: None {}` inside a relational target's
+`#{...}#`): lite takes it there too. In the DataQuality family the engine's place for a trailing comma after the last validation is
+that validation's `}`; a missing comma after it keeps lite's answer (the engine's place then depends on the next token, a place
+difference, not a looser text). The unit test's 30 texts (`doors::refusal_tests::the_three_looser_inputs_found_by_hand_...`)
+were asked of the engine again: each answers the place the test holds, and lite the same.
+
+**Found while probing, not refused** (written by hand, not in the pinned inputs, not ruled): a data space executable's `id:`
+written as a string (`id: 'e';`), which lite accepts and the engine refuses at the string (`[16:11] Unexpected token ''e''`): its
+grammar takes an identifier.
