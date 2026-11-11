@@ -14,6 +14,9 @@
 //!
 //! A MirJson tree nests deep: parse it with `lite_json::parse_with_depth(text, MAX_DEPTH)`.
 
+// 2026-11-11 (docs/rust-port/PHASE3_CRATES.md §3): no unsafe code but lite-base's arena and lite-ffi's boundary
+#![forbid(unsafe_code)]
+
 mod mir;
 mod names;
 mod read;
@@ -23,8 +26,9 @@ mod write;
 pub use lite_json::Error;
 pub use mir::{
     BigDecimal, Bound, Column, Cte, DateFmt, Double, Frame, Hoist, JavaNumber, JsonArrayAggKey, Lambda, NameQuoting,
-    OutputCol, PivotUsing, Projection, Reducer, SortKey, SqlAgg, SqlExpr, SqlQuery, SqlSelect, SqlSource, SqlType,
-    SqlUnion, SqlWith, StructField, StructLitField, TaggedSlot, TypeFact, ValueTyping, When,
+    OutputCol, PIVOT_SEPARATOR, PivotUsing, Projection, Reducer, SortKey, SqlAgg, SqlExpr, SqlQuery, SqlSelect,
+    SqlSource, SqlType, SqlUnion, SqlWith, StructField, StructLitField, TDS_NULL_CELL, TaggedSlot, TypeFact,
+    ValueTyping, When, pivot_presented,
 };
 pub use names::{
     AggFn, CatalogGrid, ColumnKind, DateFmtPart, DatePart, FrameKind, GridReportPart, JoinKind, JsonKind, NullOrder,

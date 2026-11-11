@@ -98,6 +98,24 @@ pub struct NameQuoting {
     pub table: bool,
 }
 
+/// Java's `SqlSource.Pivot.SEPARATOR`: between a pivoted value and its aggregate's name in a generated column's name
+/// (the compiler's `Type.RelationType.PIVOT_SEPARATOR` is this constant; 2026-11-11, docs/rust-port/PHASE3.md slice 1a).
+pub const PIVOT_SEPARATOR: &str = "__|__";
+
+/// Java's `SqlSource.Pivot.presented`: a generated column's presented name, as upstream prints it -- quoted where it
+/// carries the separator and is not quoted already. A name, never SQL.
+pub fn pivot_presented(physical: &str) -> String {
+    if physical.contains(PIVOT_SEPARATOR) && !(physical.starts_with('\'') && physical.ends_with('\'')) {
+        format!("'{physical}'")
+    } else {
+        physical.to_owned()
+    }
+}
+
+/// Java's `SqlExpr.TDS_NULL_CELL`: the spelling of real pure's `^TDSNull()` instance (the compiler's
+/// `PlatformTypes.TDS_NULL_CELL` is this constant).
+pub const TDS_NULL_CELL: &str = "TDSNull";
+
 /// Java's `SqlSource`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SqlSource {
