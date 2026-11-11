@@ -11,7 +11,8 @@ exports_files([
 # legend-lite's SQL dialects, ported from core/'s com.legend.sql.dialect (src/lib.rs; docs/rust-port/PHASE1.md steps 3
 # to 6): the shared renderer (Java's AnsiSqlRenderer as a trait), the writer, the pass pipeline with every pass DuckDB,
 # the H2 family, Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery, Snowflake, MariaDB, MySQL and MongoDB run,
-# the typing rules its constructors apply (Java's SqlTyping), DuckDB, H2 and H2Modern, the engine-text dialects
+# the typing rules its constructors apply (Java's SqlTyping), DuckDB, H2 (H2Modern folded into it, main's 2026-11-05),
+# the engine-text dialects
 # (EngineStyleH2, EngineStyleDB2, EngineStyleComposite), Postgres, SQLite, Trino, Databricks, ClickHouse, BigQuery,
 # Snowflake, MariaDb, MySql and MongoDb (its aggregation pipeline and JSON writer),
 # rendering a lite_sql statement as the JVM does. It embeds the JDK's time-zone rules (src/java_time.rs includes
@@ -38,10 +39,11 @@ rust_test(
     visibility = ["//gates:__pkg__"],
 )
 
-# every statement of the golden oracles (//rust/oracles:mir_dump, :h2_dump, :dialects_dump, :sqlite_arms, :dialect_arms
-# and the tagged engine-text query) of each dialect Rust answers -- DuckDb 16,154, H2 21,847, H2Modern 394, EngineStyleH2
-# 2,105, EngineStyleDB2 56, EngineStyleComposite 24, Postgres 11,630, SQLite 2,529, Trino 2,630, Databricks 2,631,
-# ClickHouse 2,643, BigQuery 2,643, Snowflake 2,645, MariaDb 2,634, MySql 2,634, MongoDb 2,606 -- rendered by a fresh
+# every statement of the golden oracles (//rust/oracles:mir_dump, :h2_dump, :dialects_dump, :sqlite_arms, :dialect_arms,
+# :merge_arms and the tagged engine-text query; re-frozen from main's Java at c4a39e06d, 2026-11-10) of each dialect Rust
+# answers -- DuckDb 16,225, H2 22,259, EngineStyleH2 2,176, EngineStyleDB2 127, EngineStyleComposite 95, Postgres 11,701,
+# SQLite 2,600, Trino 2,701, Databricks 2,702, ClickHouse 2,714, BigQuery 2,714, Snowflake 2,716, MariaDb 2,705, MySql
+# 2,705, MongoDb 2,677 -- rendered by a fresh
 # Rust dialect and
 # held to Java's answer, at
 # least each dialect's floor (tests/<dialect>-floor.txt) identical; every type fact of every statement of the oracles
@@ -64,7 +66,6 @@ rust_test(
         "tests/enginestyledb2-floor.txt",
         "tests/enginestyleh2-floor.txt",
         "tests/h2-floor.txt",
-        "tests/h2modern-floor.txt",
         "tests/mariadb-floor.txt",
         "tests/mongodb-floor.txt",
         "tests/mysql-floor.txt",
@@ -73,6 +74,7 @@ rust_test(
         "tests/sqlite-floor.txt",
         "tests/trino-floor.txt",
         "//rust/oracles:dialect_arms",
+        "//rust/oracles:merge_arms",
         "//rust/oracles:dialects_dump",
         "//rust/oracles:h2_dump",
         "//rust/oracles:mir/tagged-engine.jsonl",
@@ -87,7 +89,6 @@ rust_test(
         "LITE_DIALECT_FLOORS": " ".join([
             "$(rootpath tests/duckdb-floor.txt)",
             "$(rootpath tests/h2-floor.txt)",
-            "$(rootpath tests/h2modern-floor.txt)",
             "$(rootpath tests/enginestyleh2-floor.txt)",
             "$(rootpath tests/enginestyledb2-floor.txt)",
             "$(rootpath tests/enginestylecomposite-floor.txt)",
@@ -109,6 +110,7 @@ rust_test(
             "$(rootpath //rust/oracles:dialects_dump)",
             "$(rootpath //rust/oracles:sqlite_arms)",
             "$(rootpath //rust/oracles:dialect_arms)",
+            "$(rootpath //rust/oracles:merge_arms)",
         ]),
         "LITE_TZDB_GENERATED": "$(rootpath //rust/oracles/tzdb:out/tzdb.bin)",
         "LITE_ZONE_ORACLES": " ".join([

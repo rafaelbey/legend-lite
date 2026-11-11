@@ -2,4 +2,7 @@
 # statements must render exactly as Java's (2,158 of the two dumps, 371 of mir/sqlite-arms.jsonl, the arms rendered by
 # Java's own SQLite). Measured 2026-11-03 with SQLite, SqliteRegex, SqliteDigests and the passes it installs ported
 # (PARITY.md): all of them.
-2529
+# 2529 -> 2600 (2026-11-10): the oracles re-frozen from main's Java at c4a39e06d (its merge into the port) and
+# the oracle of main's new arms (mir/merge-arms.jsonl.zst) added; measured: all of them, every row that moved
+# a hunk of the replay (docs/rust-port/PHASE2.md §4, the merge's entry).
+2600

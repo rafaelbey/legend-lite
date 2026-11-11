@@ -31,6 +31,7 @@ rust_test(
     args = ["--ignored"],
     data = [
         "//rust/oracles:dialect_arms",
+        "//rust/oracles:merge_arms",
         "//rust/oracles:dialects_dump",
         "//rust/oracles:h2_dump",
         "//rust/oracles:mir_dump",
@@ -44,6 +45,7 @@ rust_test(
             "$(rootpath //rust/oracles:dialects_dump)",
             "$(rootpath //rust/oracles:sqlite_arms)",
             "$(rootpath //rust/oracles:dialect_arms)",
+            "$(rootpath //rust/oracles:merge_arms)",
         ]),
     },
     visibility = ["//gates:__pkg__"],

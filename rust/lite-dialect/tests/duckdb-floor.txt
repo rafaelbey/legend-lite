@@ -1,3 +1,6 @@
 # The DuckDB differential's floor (tests/dialect_differential.rs): how many of the dump's 16,154 DuckDb statements must
 # render exactly as Java's. Measured 2026-11-03 with every pass ported (PARITY.md): all of them.
-16154
+# 16154 -> 16225 (2026-11-10): the oracles re-frozen from main's Java at c4a39e06d (its merge into the port) and
+# the oracle of main's new arms (mir/merge-arms.jsonl.zst) added; measured: all of them, every row that moved
+# a hunk of the replay (docs/rust-port/PHASE2.md §4, the merge's entry).
+16225

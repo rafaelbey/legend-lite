@@ -3,14 +3,14 @@
 # docs/rust-port/PHASE0.md §4, deduplicated by (dialect, op, MirJson): 28,951 entries, every one answered on a fresh
 # dialect of its class, 138 of them a refusal. Version 1: a statement's binds and regions are Java's record toString
 # (ambiguous where a string holds ", "), its SQL exact; the seam's statement JSON replaces them at the DuckDB switch.
-mir-dump.jsonl.zst	{"dialect","fresh","op","kind","mir","answer"} per line; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement	14993de10df736f7b005ad6e20cbfc06d43e145cc701a42220a8b17b15c0d15a
+mir-dump.jsonl.zst	{"dialect","fresh","op","kind","mir","answer"} per line; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement	73b9a12f1bfa230c631ca836880f54c67f3d345dde262a6def3f354e3661b2f4
 # Made 2026-11-03 on worktree-rust-port-phase0 (core as of aa9f05f62) by rust/tools/h2-dump-probe.patch over `bazel test //...`
 # (every test and build action, the corpus lanes' judge passes included): the H2 family (H2, H2Modern, EngineStyleH2,
 # EngineStyleDB2, EngineStyleComposite), deduplicated by (dialect, config, op, MirJson) across every JVM: 24,001
 # entries, no key with two answers. mir-dump.jsonl's line format plus `config` (an engine-text dialect's
 # {"quoteIdentifiers","timeZone"}; null otherwise) and the engine-text entry points. 4 inputs are absent: queries
 # holding SqlExpr.Tagged, which MirJson refuses by design (docs/rust-port/PHASE1.md §4 step 4).
-h2-dump.jsonl.zst	{"dialect","config","fresh","op","kind","mir","answer"} per line; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement, fromEngineText, engine.renderAsAliased, engine.selectList, engine.collectionSplice, engine.renderedAlias, engine.inTempTableSelect (a string op's mir is its input string)	7623053c860a06a1fc0b0bc1c53f64ba31cfffd0dc671c805742001657acc5a6
+h2-dump.jsonl.zst	{"dialect","config","fresh","op","kind","mir","answer"} per line; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement, fromEngineText, engine.renderAsAliased, engine.selectList, engine.collectionSplice, engine.renderedAlias, engine.inTempTableSelect (a string op's mir is its input string)	212545c6e1b910ca0e81cffc039326c42e79dd8a3679f529e4b9d6c6f19b261f
 # Made 2026-11-03 by a probe on //spec:corpus_h2's judge passes (the h2-dump probe plus a TaggedProbe, never committed):
 # the one engine-text query of the whole suite holding a SqlExpr.Tagged (sqlstring::testGreatestLeast, seen 4 times on
 # the H2 and DuckDB lanes), written with each Tagged replaced by its comparable -- the form the engine-text shim sends
@@ -23,7 +23,7 @@ tagged-engine.jsonl	h2-dump.jsonl's line format	55f55a0a84bf4be79e5d33181b06a3c0
 # MongoDb 8 -- deduplicated by (dialect, op, MirJson) across every JVM: 13,918 entries, no key with two answers, every one
 # answered by a fresh dialect made without arguments (config null). The cloud dialects, MariaDB/MySQL and MongoDB run on
 # no lane, so their oracle is thin; their Java unit tests remain their gate through the shims.
-dialects-dump.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement	df2719d83b308199e53a25b48779ae78ed2734aa17f08b158120a5ef7e7115c7
+dialects-dump.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement	022a7472023bb37964a84513eb8a46f77aa65e0f290a23e3dd35bcc8875588a9
 # Made 2026-11-03 on worktree-rust-port-phase0 (core as of 9649a5270, JDK 25.0.4+7) by rust/oracles/mir/SqliteArms.java
 # on core's built jars (its command in its header): 371 inputs the two dumps hold none of -- the 43 SqlFn arms no lane
 # reaches on SQLite, the regular expressions' find path, the maps, the casts' matrix, the root's delivered values (a root
@@ -31,7 +31,7 @@ dialects-dump.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.ren
 # shapes, the lateral rows, the windowed moments, the date-time formats, CommonSubexpressions firing (no tie for its
 # largest node) -- each built with Java's constructors, written as MirJson, read back and rendered on a fresh
 # `new SQLite()` (the tree the shim sends); 47 of them a refusal.
-sqlite-arms.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement	35f3ae8ff1c466f43a8052c863994f8be90f7ae01d0edcd1f80e09563761b906
+sqlite-arms.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement	3fff7e0aaa2b564edc0cfa1a678d1111d3be3924f8fc02a91e590de6a5d6b794
 # Made 2026-11-04 on worktree-rust-port-phase0 (core as of 31bb939f3, JDK 25.0.4+7) by rust/oracles/mir/DialectArms.java
 # on core's built jars (its command in its header): 2,599 inputs reaching the arms of the eight Java dialects left to port
 # -- every SqlFn and SqlAgg.Fn arm of their exhaustive switches, their own walls, type names and casts, literal
@@ -41,4 +41,22 @@ sqlite-arms.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.rende
 # refusal. MirJson refuses 2 inputs by design (a Tagged, a TaggedList); 6 answers, a ClassCastException naming the JVM's
 # class loader, are no line. What they reach, measured by rust/tools/dialect-arms-coverage.py: docs/rust-port/PHASE1.md
 # step 6a.
-dialect-arms.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement, fromEngineText (its mir the input string)	5c52e7910c27e9bd81c8f1824e1a731c620b6537bb8528b89ae1ac25f6bb90c0
+dialect-arms.jsonl.zst	h2-dump.jsonl's line format; ops query.render, query.renderStatement, ddl.render, dml.render, dml.renderStatement, fromEngineText (its mir the input string)	326982703fae06dc9d7fab2e876c2beec547e51c05dca8f97553bbdeee1ccf84
+# Re-frozen 2026-11-10 on worktree-rust-port-phase0 (core at main's c4a39e06d, JDK 25.0.4+7) by
+# rust/oracles/mir/ReAnswer.java on main's built jars (its command in its header; the port's MirJson with its DDL and
+# DML codec in place) at main's merge into the port: each frozen file's every input kept byte for byte and answered
+# again on a fresh dialect of main's class, the five rows above now hold main's Java's answers (moved: mir-dump 539, h2-dump 1336, dialects-dump 253, sqlite-arms 56, dialect-arms 2259).
+# Every moved row is a hunk of the replay (docs/rust-port/PHASE2.md §4, the merge's entry): DialectCapability's class
+# (com.legend.sql since main's 2026-11-09), H2Modern folded into H2 (its lines re-asked of H2, written as H2's, a
+# line repeating one of H2's own inputs dropped: mir-dump 377 folded, 52 dropped; h2-dump 386, 46), H2's JSON_TYPE
+# and asin/acos guard, the list bound once on SQLite and BigQuery, MySQL's JSON null, MariaDB's literal index,
+# ClickHouse's NOT, S138's words, the alias's query block. mir-dump's 38 Portable lines (CarrierDifferentialTest's
+# renderer, no class of main's) are kept as frozen. tagged-engine.jsonl's one answer did not move. Before the
+# re-freeze each file is git show 31a6c6ba1:rust/oracles/mir/<file>.
+# Made 2026-11-10 on worktree-rust-port-phase0 (core at main's c4a39e06d, JDK 25.0.4+7) by
+# rust/oracles/mir/MergeArms.java on main's built jars (its command in its header): the arms main added after the
+# port's base that no frozen input reaches -- LIST_AT, a raw grid's report in each part, a CSV file's load, H2's folded
+# navigation, JSON_TYPE and domain guard, one alias in two query blocks -- 71 inputs each built with main's
+# constructors, written as MirJson, read back and rendered on a fresh dialect of each of main's 15 classes: 1065
+# lines.
+merge-arms.jsonl.zst	h2-dump.jsonl's line format (config null); ops query.render, query.renderStatement, dml.render, dml.renderStatement	a9df78e0a9a1edfac1baf7183fe8648fff2848c9c947889e2969fe8598189253

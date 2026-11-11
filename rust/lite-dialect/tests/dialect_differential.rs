@@ -57,12 +57,6 @@ fn h2_renders_as_java_does() {
 
 #[test]
 #[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
-fn h2modern_renders_as_java_does() {
-    renders_as_java_does("H2Modern");
-}
-
-#[test]
-#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
 fn the_seam_answers_as_duckdbs_renderer_does() {
     the_seam_answers_as_the_renderer_does("DuckDb");
 }
@@ -71,12 +65,6 @@ fn the_seam_answers_as_duckdbs_renderer_does() {
 #[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
 fn the_seam_answers_as_h2s_renderer_does() {
     the_seam_answers_as_the_renderer_does("H2");
-}
-
-#[test]
-#[ignore = "reads the JVM's oracles named by LITE_ORACLES"]
-fn the_seam_answers_as_h2moderns_renderer_does() {
-    the_seam_answers_as_the_renderer_does("H2Modern");
 }
 
 #[test]

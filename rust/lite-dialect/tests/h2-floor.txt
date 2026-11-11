@@ -1,3 +1,6 @@
 # The H2 differential's floor (tests/dialect_differential.rs): how many of the oracles' 21,847 distinct H2 statements
 # must render exactly as Java's. Measured 2026-11-03 with every pass of H2's ported (PARITY.md): all of them.
-21847
+# 21847 -> 22259 (2026-11-10): the oracles re-frozen from main's Java at c4a39e06d (its merge into the port) and
+# the oracle of main's new arms (mir/merge-arms.jsonl.zst) added; measured: all of them, every row that moved
+# a hunk of the replay (docs/rust-port/PHASE2.md §4, the merge's entry).
+22259

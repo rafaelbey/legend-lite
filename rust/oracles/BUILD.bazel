@@ -81,6 +81,17 @@ zstd_decompress(
     visibility = ["//rust:__subpackages__"],
 )
 
+# The arms main added after the port's base (LIST_AT, a raw grid's report, a CSV file's load, H2's folded navigation, one
+# alias in two query blocks), over inputs no frozen dump holds, rendered by main's own dialects at c4a39e06d (the merge
+# of main, 2026-11-10; mir/MergeArms.java, mir/MANIFEST.tsv): for the MIR's round trip and every dialect's differential.
+zstd_decompress(
+    name = "merge_arms",
+    testonly = True,
+    src = "mir/merge-arms.jsonl.zst",
+    out = "mir/merge-arms.jsonl",
+    visibility = ["//rust:__subpackages__"],
+)
+
 # Every question the test suite asks the parser's text doors, and every model text at all three dialects (phase 2
 # step 1; front/MANIFEST.tsv): the front end's differentials ask Java and Rust each one.
 zstd_decompress(

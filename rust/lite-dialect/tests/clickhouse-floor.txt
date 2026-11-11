@@ -2,4 +2,7 @@
 # statements must render exactly as Java's (2,598 lines of mir/dialect-arms.jsonl, the arms rendered by Java's own
 # ClickHouse; 37 of the dialects dump and 37 of the first; 29 lines repeat an input). Measured 2026-11-04 with ClickHouse
 # and the passes it installs ported (PARITY.md): all of them.
-2643
+# 2643 -> 2714 (2026-11-10): the oracles re-frozen from main's Java at c4a39e06d (its merge into the port) and
+# the oracle of main's new arms (mir/merge-arms.jsonl.zst) added; measured: all of them, every row that moved
+# a hunk of the replay (docs/rust-port/PHASE2.md §4, the merge's entry).
+2714
