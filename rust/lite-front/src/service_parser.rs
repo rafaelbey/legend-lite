@@ -26,19 +26,22 @@ use crate::mapping_parser::MappingCursor;
 use crate::nodes::{Span, applied, boxed, vs_fn};
 use crate::protocol::qualified_name;
 use crate::records::{
-    CByteArray, CFloat, CInteger, ColSpec, ColumnInstance, Element, EnumValue, GraphFetchLiteralNode, LambdaFunction,
-    PEmbeddedDataValue, PEmbeddedRuntime, PExecutionEnvironment, PExecutionParameters, PKeyedExecution,
-    PLegacyServiceTest, PLegacyServiceTestPKeyedLegacyTest, PLegacyServiceTestPLegacyAssert, PMultiExecution,
-    PMultiKeyedExecution, PPointer, PPostValidation, PPostValidationAssertion, PRuntimeComponents, PService,
-    PServiceExecution, PServiceTestSuite, PServiceTestSuitePResolverData, PServiceTestSuitePSuiteConnData,
-    PServiceTestSuitePSuiteData, PServiceTestSuitePSuiteParam, PServiceTestSuitePSuiteTest, PSingleExecution,
-    PTestAssertion, SourceInfo, ValueSpecification,
+    AppliedFunction, AppliedProperty, CByteArray, CFloat, CInteger, ColSpec, ColSpecArray, ColumnInstance, Element,
+    EnumValue, GraphFetchLiteral, GraphFetchLiteralNode, GraphFetchLiteralSubTypeNode, KeyExpression, LambdaFunction,
+    NewInstance, NewInstanceCast, NewInstanceKeyBinding, PEmbeddedDataValue, PEmbeddedRuntime, PExecutionEnvironment,
+    PExecutionParameters, PKeyedExecution, PLegacyServiceTest, PLegacyServiceTestPKeyedLegacyTest,
+    PLegacyServiceTestPLegacyAssert, PMultiExecution, PMultiKeyedExecution, PPointer, PPostValidation,
+    PPostValidationAssertion, PRuntimeComponents, PService, PServiceExecution, PServiceTestSuite,
+    PServiceTestSuitePResolverData, PServiceTestSuitePSuiteConnData, PServiceTestSuitePSuiteData,
+    PServiceTestSuitePSuiteParam, PServiceTestSuitePSuiteTest, PSingleExecution, PTestAssertion, PathLiteral,
+    PureCollection, QuotedGrammarCall, QuotedTreeCall, SourceInfo, TdsLiteral, ValueSpecification,
 };
 use crate::runtime_parser::parse_embedded_body;
 use crate::sections::{as_lambda, boolean_value, scan_island, split_last, string_value};
 use crate::spec_parser::parse_tokens;
 use crate::ustr::{eq, u};
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use TokenType as T;
 use ValueSpecification as VS;
@@ -258,7 +261,7 @@ fn byte_array_param<'s>(c: &mut impl Cursor<'s>, name: &[u16]) -> R<Option<PServ
     c.expect(T::STRING)?;
     let decoded = c.unquote_and_unescape(quoted)?;
     c.expect(T::PAREN_CLOSE)?;
-    let value = VS::CByteArray(Box::new(CByteArray {
+    let value = VS::CByteArray(Arc::new(CByteArray {
         value: JStr::from(base64_of_utf8(&decoded)),
         pos: c.span(vs, c.pos() - 1),
     }));
@@ -283,14 +286,14 @@ fn legacy_param_value<'s>(c: &impl Cursor<'s>, from: usize) -> R<ValueSpecificat
         if lt == T::INTEGER {
             // past a long: the engine's walker parses it uncaught too, so its section catch-all answers (PARITY row 37)
             let v = parse_long(&negative.0).map_err(|m| c.section_refusal(m))?;
-            return Ok(VS::CInteger(Box::new(CInteger {
+            return Ok(VS::CInteger(Arc::new(CInteger {
                 value: JValue::Long(v),
                 pos: span,
             })));
         }
         if lt == T::FLOAT {
             let v = parse_double(&negative.0).map_err(|m| c.section_refusal(m))?;
-            return Ok(VS::CFloat(Box::new(CFloat {
+            return Ok(VS::CFloat(Arc::new(CFloat {
                 value: v,
                 exact: None,
                 pos: span,
@@ -308,7 +311,7 @@ fn legacy_param_value<'s>(c: &impl Cursor<'s>, from: usize) -> R<ValueSpecificat
         for i in from..dot {
             path.extend_from_slice(ts.text(i));
         }
-        return Ok(VS::EnumValue(Box::new(EnumValue {
+        return Ok(VS::EnumValue(Arc::new(EnumValue {
             full_path: JStr(unquote_path_iae(&path)?),
             value: JStr::from(ts.text(pos - 1)),
             enumeration_pos: None,
@@ -326,12 +329,12 @@ fn legacy_param_value<'s>(c: &impl Cursor<'s>, from: usize) -> R<ValueSpecificat
         let inner = slice_spec(c, from + 2, pos - 1)?;
         let call = applied(
             JStr::from("list"),
-            vec![fold_signed_literals(inner)?.0],
+            vec![fold_signed_literals(&inner)?.0],
             c.span(from, pos - 1),
         );
         return Ok(vs_fn(call));
     }
-    Ok(fold_signed_literals(slice_spec(c, from, pos)?)?.0)
+    Ok(fold_signed_literals(&slice_spec(c, from, pos)?)?.0)
 }
 
 /// `signedSpan(minus, lit)`: the folded literal's span, the `-` through the digits.
@@ -374,87 +377,131 @@ fn negated_long(v: &JValue) -> i64 {
 
 /// Folds a child that Java's `withChildren` casts to `AppliedFunction`: a quoted form's original and a TDS literal's
 /// desugaring are named calls, and a fold turns only a sign over a literal into another node.
-fn fold_applied(af: crate::records::AppliedFunction) -> R<(crate::records::AppliedFunction, bool)> {
-    match fold_signed_literals(VS::AppliedFunction(Box::new(af)))? {
-        (VS::AppliedFunction(f), changed) => Ok((*f, changed)),
+fn fold_applied(af: &Arc<AppliedFunction>) -> R<(Arc<AppliedFunction>, bool)> {
+    match fold_signed_literals(&VS::AppliedFunction(Arc::clone(af)))? {
+        (VS::AppliedFunction(f), changed) => Ok((f, changed)),
         (other, _) => unreachable!("a named call folded into {other:?}"),
     }
 }
 
-/// Folds a lambda child (its own `withChildren`: a changed body drops the span).
-fn fold_lambda(mut lf: LambdaFunction) -> R<(LambdaFunction, bool)> {
-    let changed = fold_all(&mut lf.body)?;
-    if changed {
-        lf.pos = None;
+/// Folds a lambda child (its own `withChildren`: a changed body drops the span); the lambda itself when nothing
+/// changed.
+fn fold_lambda(lf: &Arc<LambdaFunction>) -> R<(Arc<LambdaFunction>, bool)> {
+    let (body, changed) = fold_list(&lf.body)?;
+    if !changed {
+        return Ok((Arc::clone(lf), false));
     }
-    Ok((lf, changed))
+    Ok((
+        Arc::new(LambdaFunction {
+            parameters: Arc::clone(&lf.parameters),
+            body,
+            pos: None,
+        }),
+        true,
+    ))
 }
 
-/// Folds each value in place; whether any changed.
-fn fold_all(values: &mut [ValueSpecification]) -> R<bool> {
+/// Each value folded, in order: `None` when none changed, so the caller keeps its own list (as Java's rewrites hand
+/// the original back).
+fn fold_each(values: &[ValueSpecification]) -> R<Option<Vec<ValueSpecification>>> {
+    let mut folded = Vec::with_capacity(values.len());
     let mut changed = false;
-    for v in values.iter_mut() {
-        let old = std::mem::replace(
-            v,
-            VS::CByteArray(Box::new(CByteArray {
-                value: JStr::default(),
-                pos: None,
-            })),
-        );
-        let (f, c) = fold_signed_literals(old)?;
-        *v = f;
+    for v in values {
+        let (f, c) = fold_signed_literals(v)?;
+        folded.push(f);
         changed |= c;
     }
-    Ok(changed)
+    Ok(changed.then_some(folded))
 }
 
-fn fold_nodes(nodes: &mut [Box<GraphFetchLiteralNode>]) -> R<bool> {
-    let mut changed = false;
-    for n in nodes.iter_mut() {
-        changed |= fold_all(&mut n.parameters)?;
-        changed |= fold_nodes(&mut n.sub_trees)?;
-    }
-    Ok(changed)
+/// A node's list folded: the list itself when nothing changed; whether anything did.
+fn fold_list(values: &Arc<[ValueSpecification]>) -> R<(Arc<[ValueSpecification]>, bool)> {
+    Ok(match fold_each(values)? {
+        Some(folded) => (folded.into(), true),
+        None => (Arc::clone(values), false),
+    })
 }
 
-/// A column spec rebuilt by `withChildren` (its nine-argument constructor: the decorations dropped).
-fn fold_col_spec(mut cs: ColSpec) -> R<(ColSpec, bool)> {
+/// A graph-fetch tree's nodes folded (each node's parameters, then its subtrees): `None` when none changed; else every
+/// node again, a changed one with its folded children.
+fn fold_nodes(nodes: &[Box<GraphFetchLiteralNode>]) -> R<Option<Vec<Box<GraphFetchLiteralNode>>>> {
+    let mut folded = Vec::with_capacity(nodes.len());
+    for n in nodes {
+        folded.push((fold_each(&n.parameters)?, fold_nodes(&n.sub_trees)?));
+    }
+    if folded.iter().all(|(p, s)| p.is_none() && s.is_none()) {
+        return Ok(None);
+    }
+    Ok(Some(
+        nodes
+            .iter()
+            .zip(folded)
+            .map(|(n, (parameters, sub_trees))| {
+                Box::new(GraphFetchLiteralNode {
+                    property: n.property.clone(),
+                    pos: n.pos.clone(),
+                    parameters: parameters.unwrap_or_else(|| n.parameters.clone()),
+                    alias: n.alias.clone(),
+                    sub_type: n.sub_type.clone(),
+                    sub_trees: sub_trees.unwrap_or_else(|| n.sub_trees.clone()),
+                })
+            })
+            .collect(),
+    ))
+}
+
+/// A column spec rebuilt by `withChildren` (its nine-argument constructor: the decorations dropped); the spec itself
+/// when nothing changed.
+fn fold_col_spec(cs: &Arc<ColSpec>) -> R<(Arc<ColSpec>, bool)> {
     let mut changed = false;
-    if let Some(f) = cs.function1.take() {
-        let (f, c) = fold_lambda(*f)?;
-        cs.function1 = Some(Box::new(f));
-        changed |= c;
+    let mut function = |f: &Option<Arc<LambdaFunction>>| -> R<Option<Arc<LambdaFunction>>> {
+        Ok(match f {
+            Some(f) => {
+                let (f, c) = fold_lambda(f)?;
+                changed |= c;
+                Some(f)
+            }
+            None => None,
+        })
+    };
+    let function1 = function(&cs.function1)?;
+    let function2 = function(&cs.function2)?;
+    let (args, c) = fold_list(&cs.args)?;
+    changed |= c;
+    if !changed {
+        return Ok((Arc::clone(cs), false));
     }
-    if let Some(f) = cs.function2.take() {
-        let (f, c) = fold_lambda(*f)?;
-        cs.function2 = Some(Box::new(f));
-        changed |= c;
-    }
-    changed |= fold_all(&mut cs.args)?;
-    if changed {
-        cs.stereotypes = Vec::new();
-        cs.tagged_values = Vec::new();
-    }
-    Ok((cs, changed))
+    Ok((
+        Arc::new(ColSpec {
+            function1,
+            function2,
+            args,
+            stereotypes: Arc::default(),
+            tagged_values: Arc::default(),
+            ..ColSpec::clone(cs)
+        }),
+        true,
+    ))
 }
 
 /// `foldSignedLiterals`: unary minus over an integer or float literal is the negative literal (its span the `-`
 /// through the digits), at every depth; a node above a folded one rebuilt by Java's `withChildren` (which this
-/// mirrors per variant, its losses included), every other node kept. The flag: whether anything changed.
-fn fold_signed_literals(v: ValueSpecification) -> R<(ValueSpecification, bool)> {
+/// mirrors per variant, its losses included), every other node kept -- the same node, so an unchanged tree is handed
+/// back whole. The flag: whether anything changed.
+fn fold_signed_literals(v: &ValueSpecification) -> R<(ValueSpecification, bool)> {
     Ok(match v {
-        VS::AppliedFunction(mut af) => {
+        VS::AppliedFunction(af) => {
             if eq(&af.function.0, "minus") && af.parameters.len() == 1 {
                 match &af.parameters[0] {
                     VS::CInteger(ci) => {
                         let value = JValue::Long(negated_long(&ci.value));
                         let pos = signed_span(&af.pos, &ci.pos);
-                        return Ok((VS::CInteger(Box::new(CInteger { value, pos })), true));
+                        return Ok((VS::CInteger(Arc::new(CInteger { value, pos })), true));
                     }
                     VS::CFloat(cf) => {
                         let pos = signed_span(&af.pos, &cf.pos);
                         return Ok((
-                            VS::CFloat(Box::new(CFloat {
+                            VS::CFloat(Arc::new(CFloat {
                                 value: -cf.value,
                                 exact: None,
                                 pos,
@@ -465,123 +512,204 @@ fn fold_signed_literals(v: ValueSpecification) -> R<(ValueSpecification, bool)> 
                     _ => {}
                 }
             }
-            let changed = fold_all(&mut af.parameters)?;
-            (VS::AppliedFunction(af), changed)
-        }
-        VS::AppliedProperty(mut ap) => {
-            let receiver = std::mem::replace(
-                &mut ap.receiver,
-                VS::CByteArray(Box::new(CByteArray {
-                    value: JStr::default(),
-                    pos: None,
-                })),
-            );
-            let (r, changed) = fold_signed_literals(receiver)?;
-            ap.receiver = r;
-            if changed {
-                ap.pos = None;
-            }
-            (VS::AppliedProperty(ap), changed)
-        }
-        VS::LambdaFunction(lf) => {
-            let (lf, changed) = fold_lambda(*lf)?;
-            (VS::LambdaFunction(Box::new(lf)), changed)
-        }
-        VS::PathLiteral(mut pl) => {
-            let (d, changed) = fold_lambda(*pl.desugared)?;
-            pl.desugared = Box::new(d);
-            (VS::PathLiteral(pl), changed)
-        }
-        VS::GraphFetchLiteral(mut gf) => {
-            let mut changed = fold_nodes(&mut gf.sub_trees)?;
-            for st in gf.sub_type_trees.iter_mut() {
-                changed |= fold_nodes(&mut st.sub_trees)?;
-            }
-            (VS::GraphFetchLiteral(gf), changed)
-        }
-        VS::QuotedTreeCall(mut q) => {
-            let (o, c1) = fold_applied(*q.original)?;
-            q.original = Box::new(o);
-            let tree = std::mem::replace(
-                &mut q.tree,
-                VS::CByteArray(Box::new(CByteArray {
-                    value: JStr::default(),
-                    pos: None,
-                })),
-            );
-            let (t, c2) = fold_signed_literals(tree)?;
-            q.tree = t;
-            (VS::QuotedTreeCall(q), c1 || c2)
-        }
-        VS::QuotedGrammarCall(mut q) => {
-            let (o, mut changed) = fold_applied(*q.original)?;
-            q.original = Box::new(o);
-            let mut functions = Vec::with_capacity(q.functions.len());
-            for f in std::mem::take(&mut q.functions) {
-                let (f, c) = fold_lambda(*f)?;
-                changed |= c;
-                functions.push(Box::new(f));
-            }
-            q.functions = functions;
-            (VS::QuotedGrammarCall(q), changed)
-        }
-        VS::TdsLiteral(mut tl) => {
-            let (d, changed) = fold_applied(*tl.desugared)?;
-            tl.desugared = Box::new(d);
-            (VS::TdsLiteral(tl), changed)
-        }
-        VS::NewInstance(mut ni) => {
-            let mut changed = false;
-            for kb in ni.properties.iter_mut() {
-                let value = std::mem::replace(
-                    &mut kb.expression.value,
-                    VS::CByteArray(Box::new(CByteArray {
-                        value: JStr::default(),
-                        pos: None,
+            match fold_list(&af.parameters)? {
+                (parameters, true) => (
+                    VS::AppliedFunction(Arc::new(AppliedFunction {
+                        parameters,
+                        ..AppliedFunction::clone(af)
                     })),
-                );
-                let (f, c) = fold_signed_literals(value)?;
-                kb.expression.value = f;
-                changed |= c;
+                    true,
+                ),
+                (_, false) => (v.clone(), false),
             }
-            (VS::NewInstance(ni), changed)
         }
-        VS::NewInstanceCast(mut nc) => {
-            let src = std::mem::replace(
-                &mut nc.src,
-                VS::CByteArray(Box::new(CByteArray {
-                    value: JStr::default(),
+        VS::AppliedProperty(ap) => match fold_signed_literals(&ap.receiver)? {
+            (receiver, true) => (
+                VS::AppliedProperty(Arc::new(AppliedProperty {
+                    receiver,
                     pos: None,
+                    ..AppliedProperty::clone(ap)
                 })),
-            );
-            let (s, changed) = fold_signed_literals(src)?;
-            nc.src = s;
-            (VS::NewInstanceCast(nc), changed)
+                true,
+            ),
+            (_, false) => (v.clone(), false),
+        },
+        VS::LambdaFunction(lf) => {
+            let (lf, changed) = fold_lambda(lf)?;
+            (VS::LambdaFunction(lf), changed)
         }
-        VS::PureCollection(mut pc) => {
-            let changed = fold_all(&mut pc.values)?;
-            (VS::PureCollection(pc), changed)
+        VS::PathLiteral(pl) => match fold_lambda(&pl.desugared)? {
+            (desugared, true) => (
+                VS::PathLiteral(Arc::new(PathLiteral {
+                    desugared,
+                    ..PathLiteral::clone(pl)
+                })),
+                true,
+            ),
+            (_, false) => (v.clone(), false),
+        },
+        VS::GraphFetchLiteral(gf) => {
+            let sub_trees = fold_nodes(&gf.sub_trees)?;
+            let mut sub_types = Vec::with_capacity(gf.sub_type_trees.len());
+            for st in gf.sub_type_trees.iter() {
+                sub_types.push(fold_nodes(&st.sub_trees)?);
+            }
+            if sub_trees.is_none() && sub_types.iter().all(Option::is_none) {
+                (v.clone(), false)
+            } else {
+                let sub_type_trees = if sub_types.iter().all(Option::is_none) {
+                    Arc::clone(&gf.sub_type_trees)
+                } else {
+                    gf.sub_type_trees
+                        .iter()
+                        .zip(sub_types)
+                        .map(|(st, folded)| {
+                            Box::new(GraphFetchLiteralSubTypeNode {
+                                sub_type_class: st.sub_type_class.clone(),
+                                pos: st.pos.clone(),
+                                sub_trees: folded.unwrap_or_else(|| st.sub_trees.clone()),
+                            })
+                        })
+                        .collect()
+                };
+                (
+                    VS::GraphFetchLiteral(Arc::new(GraphFetchLiteral {
+                        class_name: gf.class_name.clone(),
+                        sub_trees: sub_trees.map_or_else(|| Arc::clone(&gf.sub_trees), Arc::from),
+                        sub_type_trees,
+                        pos: gf.pos.clone(),
+                    })),
+                    true,
+                )
+            }
         }
+        VS::QuotedTreeCall(q) => {
+            let (original, c1) = fold_applied(&q.original)?;
+            let (tree, c2) = fold_signed_literals(&q.tree)?;
+            if c1 || c2 {
+                (
+                    VS::QuotedTreeCall(Arc::new(QuotedTreeCall {
+                        original,
+                        tree,
+                        pos: q.pos.clone(),
+                    })),
+                    true,
+                )
+            } else {
+                (v.clone(), false)
+            }
+        }
+        VS::QuotedGrammarCall(q) => {
+            let (original, mut changed) = fold_applied(&q.original)?;
+            let mut functions = Vec::with_capacity(q.functions.len());
+            for f in q.functions.iter() {
+                let (f, c) = fold_lambda(f)?;
+                changed |= c;
+                functions.push(f);
+            }
+            if changed {
+                (
+                    VS::QuotedGrammarCall(Arc::new(QuotedGrammarCall {
+                        original,
+                        functions: functions.into(),
+                        pos: q.pos.clone(),
+                    })),
+                    true,
+                )
+            } else {
+                (v.clone(), false)
+            }
+        }
+        VS::TdsLiteral(tl) => match fold_applied(&tl.desugared)? {
+            (desugared, true) => (
+                VS::TdsLiteral(Arc::new(TdsLiteral {
+                    desugared,
+                    ..TdsLiteral::clone(tl)
+                })),
+                true,
+            ),
+            (_, false) => (v.clone(), false),
+        },
+        VS::NewInstance(ni) => {
+            let mut changed = false;
+            let mut values = Vec::with_capacity(ni.properties.len());
+            for kb in ni.properties.iter() {
+                let (f, c) = fold_signed_literals(&kb.expression.value)?;
+                changed |= c;
+                values.push(f);
+            }
+            if changed {
+                let properties = ni
+                    .properties
+                    .iter()
+                    .zip(values)
+                    .map(|(kb, value)| {
+                        Box::new(NewInstanceKeyBinding {
+                            key: kb.key.clone(),
+                            expression: Box::new(KeyExpression {
+                                value,
+                                ..KeyExpression::clone(&kb.expression)
+                            }),
+                        })
+                    })
+                    .collect();
+                (
+                    VS::NewInstance(Arc::new(NewInstance {
+                        properties,
+                        ..NewInstance::clone(ni)
+                    })),
+                    true,
+                )
+            } else {
+                (v.clone(), false)
+            }
+        }
+        VS::NewInstanceCast(nc) => match fold_signed_literals(&nc.src)? {
+            (src, true) => (
+                VS::NewInstanceCast(Arc::new(NewInstanceCast {
+                    src,
+                    ..NewInstanceCast::clone(nc)
+                })),
+                true,
+            ),
+            (_, false) => (v.clone(), false),
+        },
+        VS::PureCollection(pc) => match fold_list(&pc.values)? {
+            (values, true) => (
+                VS::PureCollection(Arc::new(PureCollection {
+                    values,
+                    pos: pc.pos.clone(),
+                })),
+                true,
+            ),
+            (_, false) => (v.clone(), false),
+        },
         VS::ColumnInstance(ColumnInstance::ColSpec(cs)) => {
-            let (cs, changed) = fold_col_spec(*cs)?;
-            (VS::ColumnInstance(ColumnInstance::ColSpec(Box::new(cs))), changed)
+            let (cs, changed) = fold_col_spec(cs)?;
+            (VS::ColumnInstance(ColumnInstance::ColSpec(cs)), changed)
         }
-        VS::ColumnInstance(ColumnInstance::ColSpecArray(mut ca)) => {
+        VS::ColumnInstance(ColumnInstance::ColSpecArray(ca)) => {
             let mut changed = false;
             let mut specs = Vec::with_capacity(ca.col_specs.len());
-            for cs in std::mem::take(&mut ca.col_specs) {
-                let (cs, c) = fold_col_spec(*cs)?;
+            for cs in ca.col_specs.iter() {
+                let (cs, c) = fold_col_spec(cs)?;
                 changed |= c;
-                specs.push(Box::new(cs));
+                specs.push(cs);
             }
-            ca.col_specs = specs;
             if changed {
                 // the array rebuilt by its position-free constructor
-                ca.pos = None;
+                (
+                    VS::ColumnInstance(ColumnInstance::ColSpecArray(Arc::new(ColSpecArray {
+                        col_specs: specs.into(),
+                        pos: None,
+                    }))),
+                    true,
+                )
+            } else {
+                (v.clone(), false)
             }
-            (VS::ColumnInstance(ColumnInstance::ColSpecArray(ca)), changed)
         }
-        leaf @ (VS::CBoolean(_)
+        VS::CBoolean(_)
         | VS::CByteArray(_)
         | VS::CDate(_)
         | VS::CDecimal(_)
@@ -595,7 +723,7 @@ fn fold_signed_literals(v: ValueSpecification) -> R<(ValueSpecification, bool)> 
         | VS::Variable(_)
         | VS::TypeAnnotation(_)
         | VS::SqlIsland(_)
-        | VS::GqlIsland(_)) => (leaf, false),
+        | VS::GqlIsland(_) => (v.clone(), false),
     })
 }
 
@@ -682,14 +810,23 @@ fn parse_post_validation<'s>(c: &mut impl Cursor<'s>) -> R<PPostValidation> {
                     // an assertion ends at the list's ',' or ']', or at a ';', which is the lambda's own
                     scan_param(c, &[T::SEMI_COLON, T::BRACKET_CLOSE, T::COMMA])?;
                     c.match_tok(T::SEMI_COLON)?;
-                    let mut lambda = slice_spec(c, ls, c.pos())?;
+                    let parsed = slice_spec(c, ls, c.pos())?;
                     let extended = c.span_of(a_s, c.pos() - 1);
-                    if let VS::LambdaFunction(lf) = &mut lambda
-                        && let Some(lp) = lf.pos.as_mut()
-                    {
-                        lp.end_line = extended.end_line;
-                        lp.end_column = extended.end_column;
-                    }
+                    // a lambda's span runs on through the assertion's end: the lambda rebuilt with it
+                    let lambda = match parsed {
+                        VS::LambdaFunction(lf) if lf.pos.is_some() => {
+                            let pos = lf.pos.as_deref().map(|lp| SourceInfo {
+                                end_line: extended.end_line,
+                                end_column: extended.end_column,
+                                ..lp.clone()
+                            });
+                            VS::LambdaFunction(Arc::new(LambdaFunction {
+                                pos: pos.map(Box::new),
+                                ..LambdaFunction::clone(&lf)
+                            }))
+                        }
+                        other => other,
+                    };
                     assertions.push(Box::new(PPostValidationAssertion {
                         id: JStr(id),
                         assertion: lambda,

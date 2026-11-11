@@ -26,6 +26,7 @@ use crate::records::{
 };
 use crate::ustr::{ends_with, starts_with};
 use lite_javacompat::character::is_whitespace;
+use std::sync::Arc;
 
 use TokenType as T;
 
@@ -965,7 +966,7 @@ pub trait Cursor<'s> {
                 // past a long: the engine's walker parses it uncaught too, so its section catch-all answers (PARITY
                 // row 6), in the JDK's words
                 let value = java_parse_long(self.text()).map_err(|m| self.section_refusal(m))?;
-                tvv.push(ValueSpecification::CInteger(Box::new(CInteger {
+                tvv.push(ValueSpecification::CInteger(Arc::new(CInteger {
                     value: JValue::Long(value),
                     pos: self.span(p, p),
                 })));

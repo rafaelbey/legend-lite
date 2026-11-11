@@ -2987,7 +2987,7 @@ pub(crate) fn new_instance(b: &mut Buf, ni: &NewInstance, span: Option<&SourceIn
     b.int(ni.properties.len() as i64);
     b.a("},\"values\":[");
     let mut first = true;
-    for kb in &ni.properties {
+    for kb in ni.properties.iter() {
         if !first {
             b.ch(b',');
         }
@@ -3489,7 +3489,7 @@ pub(crate) fn data_instance(b: &mut Buf, v: &ValueSpecification) -> Em {
     b.int(ni.properties.len() as i64);
     b.a("},\"values\":[");
     let mut first = true;
-    for kb in &ni.properties {
+    for kb in ni.properties.iter() {
         if !first {
             b.ch(b',');
         }

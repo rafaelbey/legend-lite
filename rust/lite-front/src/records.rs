@@ -2,9 +2,13 @@
 // from the protocol records the parser's doors return -- do not edit; regenerate with
 // `bazel run //rust/lite-front:update_generated`. A struct per record, its components in canonical
 // order (`Option` exactly where the record's source says @Nullable); an enum per sealed parent and per
-// Java enum; the lossless codec's writer, byte for byte the JVM's (RecordCodec).
+// Java enum; the lossless codec's writer, byte for byte the JVM's (RecordCodec). A ValueSpecification
+// node is held as `Arc`, its lists `Arc<[T]>` (the source tree, docs/rust-port/PHASE3_DESIGN.md §6
+// ruling 1); every other record as `Box`, its lists `Vec`.
 
 #![allow(clippy::all, non_camel_case_types, unused_variables)]
+
+use std::sync::Arc;
 
 use crate::codec::{Codec, Writer};
 use crate::jtypes::{BigDecimal, JStr, JValue};
@@ -816,8 +820,8 @@ pub struct PClassMappingFunction {
     pub extends_class_mapping_id: Option<JStr>,
     pub root: bool,
     pub kind: JStr,
-    pub function: Option<Box<PackageableElementPtr>>,
-    pub body_lambda: Option<Box<LambdaFunction>>,
+    pub function: Option<Arc<PackageableElementPtr>>,
+    pub body_lambda: Option<Arc<LambdaFunction>>,
     pub source_information: Option<Box<SourceInfo>>,
 }
 
@@ -3346,8 +3350,8 @@ impl Codec for PFunctionActivator {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PFunctionAssociationMapping {
     pub association: Box<PPointer>,
-    pub function: Option<Box<PackageableElementPtr>>,
-    pub body_lambda: Option<Box<LambdaFunction>>,
+    pub function: Option<Arc<PackageableElementPtr>>,
+    pub body_lambda: Option<Arc<LambdaFunction>>,
     pub source_information: Option<Box<SourceInfo>>,
 }
 
@@ -8235,8 +8239,8 @@ impl Codec for TypeExpressionTypedParameter {
 #[derive(Clone, Debug, PartialEq)]
 pub struct AppliedFunction {
     pub function: JStr,
-    pub parameters: Vec<ValueSpecification>,
-    pub referents: Vec<JStr>,
+    pub parameters: Arc<[ValueSpecification]>,
+    pub referents: Arc<[JStr]>,
     pub pos: Option<Box<SourceInfo>>,
     pub property_call: bool,
     pub grouped: bool,
@@ -8483,16 +8487,16 @@ impl Codec for CTime {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ColSpec {
     pub name: JStr,
-    pub function1: Option<Box<LambdaFunction>>,
-    pub function2: Option<Box<LambdaFunction>>,
+    pub function1: Option<Arc<LambdaFunction>>,
+    pub function2: Option<Arc<LambdaFunction>>,
     pub alias: Option<JStr>,
-    pub args: Vec<ValueSpecification>,
+    pub args: Arc<[ValueSpecification]>,
     pub qualified: bool,
     pub pos: Option<Box<SourceInfo>>,
     pub col_type: Option<TypeExpression>,
     pub col_type_mult: Option<Multiplicity>,
-    pub stereotypes: Vec<Box<PStereotype>>,
-    pub tagged_values: Vec<Box<PTaggedValue>>,
+    pub stereotypes: Arc<[Box<PStereotype>]>,
+    pub tagged_values: Arc<[Box<PTaggedValue>]>,
 }
 
 impl Codec for ColSpec {
@@ -8528,7 +8532,7 @@ impl Codec for ColSpec {
 /// `com.legend.protocol.spec.ColSpecArray`
 #[derive(Clone, Debug, PartialEq)]
 pub struct ColSpecArray {
-    pub col_specs: Vec<Box<ColSpec>>,
+    pub col_specs: Arc<[Arc<ColSpec>]>,
     pub pos: Option<Box<SourceInfo>>,
 }
 
@@ -9214,8 +9218,8 @@ impl Codec for GqlIsland {
 #[derive(Clone, Debug, PartialEq)]
 pub struct GraphFetchLiteral {
     pub class_name: JStr,
-    pub sub_trees: Vec<Box<GraphFetchLiteralNode>>,
-    pub sub_type_trees: Vec<Box<GraphFetchLiteralSubTypeNode>>,
+    pub sub_trees: Arc<[Box<GraphFetchLiteralNode>]>,
+    pub sub_type_trees: Arc<[Box<GraphFetchLiteralSubTypeNode>]>,
     pub pos: Option<Box<SourceInfo>>,
 }
 
@@ -9313,8 +9317,8 @@ impl Codec for KeyExpression {
 /// `com.legend.protocol.spec.LambdaFunction`
 #[derive(Clone, Debug, PartialEq)]
 pub struct LambdaFunction {
-    pub parameters: Vec<Box<Variable>>,
-    pub body: Vec<ValueSpecification>,
+    pub parameters: Arc<[Arc<Variable>]>,
+    pub body: Arc<[ValueSpecification]>,
     pub pos: Option<Box<SourceInfo>>,
 }
 
@@ -9336,9 +9340,9 @@ impl Codec for LambdaFunction {
 #[derive(Clone, Debug, PartialEq)]
 pub struct NewInstance {
     pub class_name: JStr,
-    pub type_arguments: Vec<TypeExpression>,
-    pub type_multiplicity_arguments: Vec<JStr>,
-    pub properties: Vec<Box<NewInstanceKeyBinding>>,
+    pub type_arguments: Arc<[TypeExpression]>,
+    pub type_multiplicity_arguments: Arc<[JStr]>,
+    pub properties: Arc<[Box<NewInstanceKeyBinding>]>,
 }
 
 impl Codec for NewInstance {
@@ -9380,7 +9384,7 @@ impl Codec for NewInstanceKeyBinding {
 #[derive(Clone, Debug, PartialEq)]
 pub struct NewInstanceCast {
     pub class_name: JStr,
-    pub type_arguments: Vec<TypeExpression>,
+    pub type_arguments: Arc<[TypeExpression]>,
     pub src: ValueSpecification,
     pub target_set_id: Option<JStr>,
 }
@@ -9424,13 +9428,13 @@ impl Codec for PackageableElementPtr {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PathLiteral {
     pub start_type: JStr,
-    pub segments: Vec<Box<PathLiteralSegment>>,
-    pub desugared: Box<LambdaFunction>,
+    pub segments: Arc<[Box<PathLiteralSegment>]>,
+    pub desugared: Arc<LambdaFunction>,
     pub alias: Option<JStr>,
     pub has_dated_segment: bool,
     pub pos: Option<Box<SourceInfo>>,
     pub literal_length: i32,
-    pub line_starts: Vec<i32>,
+    pub line_starts: Arc<[i32]>,
 }
 
 impl Codec for PathLiteral {
@@ -9608,7 +9612,7 @@ impl Codec for PathLiteralSegment {
 /// `com.legend.protocol.spec.PureCollection`
 #[derive(Clone, Debug, PartialEq)]
 pub struct PureCollection {
-    pub values: Vec<ValueSpecification>,
+    pub values: Arc<[ValueSpecification]>,
     pub pos: Option<Box<SourceInfo>>,
 }
 
@@ -9627,8 +9631,8 @@ impl Codec for PureCollection {
 /// `com.legend.protocol.spec.QuotedGrammarCall`
 #[derive(Clone, Debug, PartialEq)]
 pub struct QuotedGrammarCall {
-    pub original: Box<AppliedFunction>,
-    pub functions: Vec<Box<LambdaFunction>>,
+    pub original: Arc<AppliedFunction>,
+    pub functions: Arc<[Arc<LambdaFunction>]>,
     pub pos: Option<Box<SourceInfo>>,
 }
 
@@ -9649,7 +9653,7 @@ impl Codec for QuotedGrammarCall {
 /// `com.legend.protocol.spec.QuotedTreeCall`
 #[derive(Clone, Debug, PartialEq)]
 pub struct QuotedTreeCall {
-    pub original: Box<AppliedFunction>,
+    pub original: Arc<AppliedFunction>,
     pub tree: ValueSpecification,
     pub pos: Option<Box<SourceInfo>>,
 }
@@ -9697,7 +9701,7 @@ impl Codec for SqlIsland {
 #[derive(Clone, Debug, PartialEq)]
 pub struct TdsLiteral {
     pub tds_string: JStr,
-    pub desugared: Box<AppliedFunction>,
+    pub desugared: Arc<AppliedFunction>,
     pub pos: Option<Box<SourceInfo>>,
 }
 
@@ -9756,7 +9760,7 @@ impl Codec for TypeAnnotationNamed {
 /// `com.legend.protocol.spec.TypeAnnotation$RelationShape`
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypeAnnotationRelationShape {
-    pub columns: Vec<Box<TypeAnnotationRelationShapeColumn>>,
+    pub columns: Arc<[Box<TypeAnnotationRelationShapeColumn>]>,
     pub spelled_name: Option<JStr>,
     pub type_span: Option<Box<SourceInfo>>,
     pub pos: Option<Box<SourceInfo>>,
@@ -10771,8 +10775,8 @@ impl Codec for TypeExpression {
 /// `com.legend.protocol.spec.ColumnInstance` (sealed)
 #[derive(Clone, Debug, PartialEq)]
 pub enum ColumnInstance {
-    ColSpec(Box<ColSpec>),
-    ColSpecArray(Box<ColSpecArray>),
+    ColSpec(Arc<ColSpec>),
+    ColSpecArray(Arc<ColSpecArray>),
 }
 
 impl Codec for ColumnInstance {
@@ -10905,10 +10909,10 @@ impl Codec for PathLiteralPathArg {
 /// `com.legend.protocol.spec.TypeAnnotation` (sealed)
 #[derive(Clone, Debug, PartialEq)]
 pub enum TypeAnnotation {
-    TypeAnnotationNamed(Box<TypeAnnotationNamed>),
-    TypeAnnotationRelationShape(Box<TypeAnnotationRelationShape>),
-    TypeAnnotationMultiplicityRef(Box<TypeAnnotationMultiplicityRef>),
-    TypeAnnotationWildcard(Box<TypeAnnotationWildcard>),
+    TypeAnnotationNamed(Arc<TypeAnnotationNamed>),
+    TypeAnnotationRelationShape(Arc<TypeAnnotationRelationShape>),
+    TypeAnnotationMultiplicityRef(Arc<TypeAnnotationMultiplicityRef>),
+    TypeAnnotationWildcard(Arc<TypeAnnotationWildcard>),
 }
 
 impl Codec for TypeAnnotation {
@@ -10925,33 +10929,33 @@ impl Codec for TypeAnnotation {
 /// `com.legend.protocol.spec.ValueSpecification` (sealed)
 #[derive(Clone, Debug, PartialEq)]
 pub enum ValueSpecification {
-    AppliedFunction(Box<AppliedFunction>),
-    AppliedProperty(Box<AppliedProperty>),
-    CBoolean(Box<CBoolean>),
-    CDate(Box<CDate>),
-    CDecimal(Box<CDecimal>),
-    CFloat(Box<CFloat>),
-    CInteger(Box<CInteger>),
-    CLatestDate(Box<CLatestDate>),
-    GraphFetchLiteral(Box<GraphFetchLiteral>),
-    QuotedTreeCall(Box<QuotedTreeCall>),
-    QuotedGrammarCall(Box<QuotedGrammarCall>),
-    PathLiteral(Box<PathLiteral>),
-    SqlIsland(Box<SqlIsland>),
-    GqlIsland(Box<GqlIsland>),
-    TdsLiteral(Box<TdsLiteral>),
-    CString(Box<CString>),
-    CByteArray(Box<CByteArray>),
-    CTime(Box<CTime>),
+    AppliedFunction(Arc<AppliedFunction>),
+    AppliedProperty(Arc<AppliedProperty>),
+    CBoolean(Arc<CBoolean>),
+    CDate(Arc<CDate>),
+    CDecimal(Arc<CDecimal>),
+    CFloat(Arc<CFloat>),
+    CInteger(Arc<CInteger>),
+    CLatestDate(Arc<CLatestDate>),
+    GraphFetchLiteral(Arc<GraphFetchLiteral>),
+    QuotedTreeCall(Arc<QuotedTreeCall>),
+    QuotedGrammarCall(Arc<QuotedGrammarCall>),
+    PathLiteral(Arc<PathLiteral>),
+    SqlIsland(Arc<SqlIsland>),
+    GqlIsland(Arc<GqlIsland>),
+    TdsLiteral(Arc<TdsLiteral>),
+    CString(Arc<CString>),
+    CByteArray(Arc<CByteArray>),
+    CTime(Arc<CTime>),
     ColumnInstance(ColumnInstance),
-    EnumValue(Box<EnumValue>),
-    LambdaFunction(Box<LambdaFunction>),
-    NewInstance(Box<NewInstance>),
-    NewInstanceCast(Box<NewInstanceCast>),
-    PackageableElementPtr(Box<PackageableElementPtr>),
-    PureCollection(Box<PureCollection>),
+    EnumValue(Arc<EnumValue>),
+    LambdaFunction(Arc<LambdaFunction>),
+    NewInstance(Arc<NewInstance>),
+    NewInstanceCast(Arc<NewInstanceCast>),
+    PackageableElementPtr(Arc<PackageableElementPtr>),
+    PureCollection(Arc<PureCollection>),
     TypeAnnotation(TypeAnnotation),
-    Variable(Box<Variable>),
+    Variable(Arc<Variable>),
 }
 
 impl Codec for ValueSpecification {

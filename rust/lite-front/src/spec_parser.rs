@@ -47,6 +47,7 @@ use crate::ustr::{
 };
 use lite_javacompat::character::{is_digit, is_letter, is_letter_or_digit, is_whitespace};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use TokenType as T;
 use ValueSpecification as VS;
@@ -78,7 +79,8 @@ pub fn parse_lambda(text: &[u16], dialect: Dialect) -> Answer<LambdaFunction> {
     let mut parser = SpecParser::new(&tokens, JStr::default(), dialect, false);
     parser.lambda_text = true;
     match parser.whole_line()? {
-        VS::LambdaFunction(lf) => Ok(*lf),
+        // the answer's own node, just built: a move, not a copy
+        VS::LambdaFunction(lf) => Ok(Arc::unwrap_or_clone(lf)),
         v => Ok(lambda(Vec::new(), vec![v], parser.span(0, parser.pos - 1))),
     }
 }
@@ -632,9 +634,9 @@ impl<'t, 's> SpecParser<'t, 's> {
     /// The number at the cursor: an integer, a float or a decimal.
     fn parse_number(&mut self) -> R<ValueSpecification> {
         match self.peek() {
-            T::INTEGER => self.parse_integer().map(|c| VS::CInteger(Box::new(c))),
+            T::INTEGER => self.parse_integer().map(|c| VS::CInteger(Arc::new(c))),
             T::FLOAT => self.parse_float(),
-            _ => self.parse_decimal().map(|c| VS::CDecimal(Box::new(c))),
+            _ => self.parse_decimal().map(|c| VS::CDecimal(Arc::new(c))),
         }
     }
 
@@ -716,7 +718,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         match t {
             T::INTEGER => {
                 let n = self.parse_integer()?;
-                self.unit_literal(VS::CInteger(Box::new(n)))
+                self.unit_literal(VS::CInteger(Arc::new(n)))
             }
             T::FLOAT => {
                 self.refuse_a_float_without_fraction()?;
@@ -725,14 +727,14 @@ impl<'t, 's> SpecParser<'t, 's> {
             }
             T::DECIMAL => {
                 let n = self.parse_decimal()?;
-                self.unit_literal(VS::CDecimal(Box::new(n)))
+                self.unit_literal(VS::CDecimal(Arc::new(n)))
             }
             // a quoted name starts an expression when a call or path follows ('abs'($x), 'pkg'::f)
             T::STRING => {
                 if self.peek_at(1) == T::PAREN_OPEN || self.peek_at(1) == T::PATH_SEPARATOR {
                     self.parse_qualified_name_start()
                 } else {
-                    self.parse_string().map(|c| VS::CString(Box::new(c)))
+                    self.parse_string().map(|c| VS::CString(Arc::new(c)))
                 }
             }
             T::DOC_STRING => self.parse_doc_string(),
@@ -750,13 +752,13 @@ impl<'t, 's> SpecParser<'t, 's> {
             T::BRACKET_OPEN => self.parse_collection(),
             T::PAREN_OPEN => self.parse_parenthesised(),
             T::NEW_SYMBOL => self.parse_new_instance(),
-            T::BRACE_OPEN => self.parse_lambda_function().map(|l| VS::LambdaFunction(Box::new(l))),
-            T::PIPE => self.parse_lambda_pipe().map(|l| VS::LambdaFunction(Box::new(l))),
+            T::BRACE_OPEN => self.parse_lambda_function().map(|l| VS::LambdaFunction(Arc::new(l))),
+            T::PIPE => self.parse_lambda_pipe().map(|l| VS::LambdaFunction(Arc::new(l))),
             T::TILDE => self.parse_column_builders().map(VS::ColumnInstance),
             // a fused mapping command token in expression position is an ordinary colspec of its name
             T::DISTINCT_CMD | T::FILTER_CMD | T::GROUP_BY_CMD | T::MAIN_TABLE_CMD | T::PRIMARY_KEY_CMD | T::SRC_CMD => {
                 self.parse_tilde_command_col_spec()
-                    .map(|c| VS::ColumnInstance(ColumnInstance::ColSpec(Box::new(c))))
+                    .map(|c| VS::ColumnInstance(ColumnInstance::ColSpec(Arc::new(c))))
             }
             T::AT => self.parse_type_annotation().map(VS::TypeAnnotation),
             T::TDS_LITERAL => self.parse_tds_literal(),
@@ -768,7 +770,7 @@ impl<'t, 's> SpecParser<'t, 's> {
                     if self.pos + 1 < self.tokens.count() && self.tokens.ty(self.pos + 1) == T::PIPE {
                         return self
                             .parse_single_param_lambda()
-                            .map(|l| VS::LambdaFunction(Box::new(l)));
+                            .map(|l| VS::LambdaFunction(Arc::new(l)));
                     }
                     // typed 'x: Type[mult] | body', committed only when the whole pattern is there
                     if self.pos + 1 < self.tokens.count()
@@ -777,7 +779,7 @@ impl<'t, 's> SpecParser<'t, 's> {
                     {
                         return self
                             .parse_single_param_lambda()
-                            .map(|l| VS::LambdaFunction(Box::new(l)));
+                            .map(|l| VS::LambdaFunction(Arc::new(l)));
                     }
                     return self.parse_qualified_name_start();
                 }
@@ -918,14 +920,14 @@ impl<'t, 's> SpecParser<'t, 's> {
             let shown = BigDecimal::parse_units(&u(&lite_javacompat::double_to_string(d)))
                 .expect("a finite double's text is a decimal");
             if exact.compare_to(&shown) != std::cmp::Ordering::Equal {
-                return Ok(VS::CFloat(Box::new(CFloat {
+                return Ok(VS::CFloat(Arc::new(CFloat {
                     value: d,
                     exact: Some(exact),
                     pos: span,
                 })));
             }
         }
-        Ok(VS::CFloat(Box::new(CFloat {
+        Ok(VS::CFloat(Arc::new(CFloat {
             value: d,
             exact: None,
             pos: span,
@@ -987,7 +989,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             return Err(JavaError::parse(JStr::from("Unexpected token '''"), at.0, at.1 + 2).as_refusal());
         }
         let value = crate::cursor::doc_string_value(raw, at)?;
-        Ok(VS::CString(Box::new(CString {
+        Ok(VS::CString(Arc::new(CString {
             value: JStr(value),
             pos: boxed(self.doc_string_span(tok)),
             multi_line: true,
@@ -997,7 +999,7 @@ impl<'t, 's> SpecParser<'t, 's> {
     fn consume_boolean(&mut self, value: bool) -> ValueSpecification {
         let tok = self.pos;
         self.pos += 1;
-        VS::CBoolean(Box::new(CBoolean {
+        VS::CBoolean(Arc::new(CBoolean {
             value,
             pos: self.span(tok, tok),
         }))
@@ -1024,7 +1026,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             return Err(self.error(jcat!("Unexpected token '%", value, "'")));
         }
         match parse_date(value, !self.dialect.refuses_lite_extensions()) {
-            Ok(d) => Ok(VS::CDate(Box::new(CDate {
+            Ok(d) => Ok(VS::CDate(Arc::new(CDate {
                 value: d,
                 written: Some(JStr::from(value)),
                 pos: self.span(date_pos, date_pos),
@@ -1068,7 +1070,7 @@ impl<'t, 's> SpecParser<'t, 's> {
                 unreachable!("a time literal has no date or zone to shift: {e:?}")
             }
         };
-        Ok(VS::CTime(Box::new(CTime {
+        Ok(VS::CTime(Arc::new(CTime {
             value: parsed,
             written: Some(JStr::from(value)),
             pos: self.span(time_pos, time_pos),
@@ -1089,7 +1091,7 @@ impl<'t, 's> SpecParser<'t, 's> {
     fn parse_latest_date(&mut self) -> ValueSpecification {
         let tok = self.pos;
         self.pos += 1;
-        VS::CLatestDate(Box::new(CLatestDate {
+        VS::CLatestDate(Arc::new(CLatestDate {
             pos: self.span(tok, tok),
         }))
     }
@@ -1136,7 +1138,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             self.pos += 1; // the [:stop] form, start 0
             let stop = self.parse_combined_expression()?;
             self.expect_msg(T::BRACKET_CLOSE, "expected ']' to close range literal")?;
-            let zero = VS::CInteger(Box::new(CInteger {
+            let zero = VS::CInteger(Arc::new(CInteger {
                 value: JValue::Long(0),
                 pos: None,
             }));
@@ -1184,7 +1186,9 @@ impl<'t, 's> SpecParser<'t, 's> {
         self.expect_msg(T::PAREN_CLOSE, "expected ')' to close parenthesised expression")?;
         Ok(match inner {
             VS::AppliedFunction(mut af) => {
-                af.grouped = true;
+                // the call is marked after it is built (its `)` is read after it): the node the line above parsed,
+                // held nowhere else yet, so the one handle to it is this one
+                Arc::get_mut(&mut af).expect("a call just parsed is unshared").grouped = true;
                 VS::AppliedFunction(af)
             }
             other => other,
@@ -1272,18 +1276,19 @@ impl<'t, 's> SpecParser<'t, 's> {
             let at = throw_at(self.tokens, fqn_start, JStr::default())
                 .position
                 .unwrap_or((0, 0));
-            let call = applied(
+            // one node, which a quoted form's original aliases as Java's does
+            let call = Arc::new(applied(
                 unquoted(&fqn).map_err(|e| e.held_at(at))?,
                 args,
                 self.span(fqn_start, fqn_end),
-            );
+            ));
             if let Some(folded) = self.fold_tree(&call)? {
                 return Ok(folded);
             }
             if let Some(folded) = self.fold_grammar(&call)? {
                 return Ok(folded);
             }
-            return Ok(vs_fn(call));
+            return Ok(VS::AppliedFunction(call));
         }
         Ok(ptr(JStr(fqn), self.span(fqn_start, fqn_end)))
     }
@@ -1427,8 +1432,10 @@ impl<'t, 's> SpecParser<'t, 's> {
             )));
         }
         if let VS::PackageableElementPtr(p) = receiver {
+            // the receiver just parsed: its parts moved, not copied
+            let p = Arc::unwrap_or_clone(p);
             let node = p.pos.is_none();
-            return Ok(VS::EnumValue(Box::new(EnumValue {
+            return Ok(VS::EnumValue(Arc::new(EnumValue {
                 full_path: p.full_path,
                 value: name,
                 enumeration_pos: p.pos,
@@ -1516,7 +1523,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             let index = self.parse_integer()?;
             vs_fn(applied(
                 JStr::from("at"),
-                vec![receiver, VS::CInteger(Box::new(index))],
+                vec![receiver, VS::CInteger(Arc::new(index))],
                 None,
             ))
         } else if t == T::STRING {
@@ -1620,13 +1627,13 @@ impl<'t, 's> SpecParser<'t, 's> {
             }
             let cast = NewInstanceCast {
                 class_name: JStr(class_name),
-                type_arguments: type_args,
+                type_arguments: type_args.into(),
                 src,
                 target_set_id: None,
             };
             return Ok(vs_fn(applied(
                 JStr::from("new"),
-                vec![receiver, VS::NewInstanceCast(Box::new(cast))],
+                vec![receiver, VS::NewInstanceCast(Arc::new(cast))],
                 None,
             )));
         }
@@ -1719,9 +1726,9 @@ impl<'t, 's> SpecParser<'t, 's> {
     ) -> R<ValueSpecification> {
         let ni = NewInstance {
             class_name: JStr(class_name),
-            type_arguments: type_args,
-            type_multiplicity_arguments: type_mult_args,
-            properties,
+            type_arguments: type_args.into(),
+            type_multiplicity_arguments: type_mult_args.into(),
+            properties: properties.into(),
         };
         if self.dialect.refuses_platform_dialect() && matches!(receiver, VS::PackageableElementPtr(_)) {
             match caret_special(&ni) {
@@ -1732,7 +1739,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         Ok(vs_fn(applied(
             JStr::from("new"),
-            vec![receiver, VS::NewInstance(Box::new(ni))],
+            vec![receiver, VS::NewInstance(Arc::new(ni))],
             None,
         )))
     }
@@ -2165,9 +2172,9 @@ impl<'t, 's> SpecParser<'t, 's> {
         if !self.at_end() && self.peek() == T::BRACKET_OPEN {
             return self
                 .parse_col_spec_array()
-                .map(|a| ColumnInstance::ColSpecArray(Box::new(a)));
+                .map(|a| ColumnInstance::ColSpecArray(Arc::new(a)));
         }
-        self.parse_one_col_spec().map(|c| ColumnInstance::ColSpec(Box::new(c)))
+        self.parse_one_col_spec().map(|c| ColumnInstance::ColSpec(Arc::new(c)))
     }
 
     /// `~name`, `~'quoted'`, with leading `<<stereotypes>>`/`{tagged values}` read by the element grammar at this
@@ -2231,13 +2238,13 @@ impl<'t, 's> SpecParser<'t, 's> {
                         function1: None,
                         function2: None,
                         alias: None,
-                        args: Vec::new(),
+                        args: Arc::default(),
                         qualified: false,
                         pos: self.col_spec_span(name_tok_idx, self.pos - 1, start_col_shift),
                         col_type: Some(col_type),
                         col_type_mult: col_mult,
-                        stereotypes,
-                        tagged_values,
+                        stereotypes: stereotypes.into(),
+                        tagged_values: tagged_values.into(),
                     });
                 }
                 self.pos = colon_mark;
@@ -2281,16 +2288,16 @@ impl<'t, 's> SpecParser<'t, 's> {
         };
         Ok(ColSpec {
             name: JStr(name),
-            function1: function1.map(Box::new),
-            function2: function2.map(Box::new),
+            function1: function1.map(Arc::new),
+            function2: function2.map(Arc::new),
             alias: None,
-            args: Vec::new(),
+            args: Arc::default(),
             qualified: false,
             pos,
             col_type: None,
             col_type_mult: None,
-            stereotypes,
-            tagged_values,
+            stereotypes: stereotypes.into(),
+            tagged_values: tagged_values.into(),
         })
     }
 
@@ -2405,16 +2412,16 @@ impl<'t, 's> SpecParser<'t, 's> {
     }
 
     /// A `~[...]` array's specs, each read knowing it is one (`in_col_spec_array`, which its tail takes).
-    fn parse_col_spec_array_items(&mut self, specs: &mut Vec<Box<ColSpec>>) -> R<()> {
+    fn parse_col_spec_array_items(&mut self, specs: &mut Vec<Arc<ColSpec>>) -> R<()> {
         self.in_col_spec_array = true;
-        specs.push(Box::new(self.parse_one_col_spec()?));
+        specs.push(Arc::new(self.parse_one_col_spec()?));
         while !self.at_end() && self.peek() == T::COMMA {
             self.pos += 1;
             if !self.at_end() && self.peek() == T::BRACKET_CLOSE {
                 return Err(self.error_str("trailing comma in ColSpec array"));
             }
             self.in_col_spec_array = true;
-            specs.push(Box::new(self.parse_one_col_spec()?));
+            specs.push(Arc::new(self.parse_one_col_spec()?));
         }
         Ok(())
     }
@@ -2426,14 +2433,14 @@ impl<'t, 's> SpecParser<'t, 's> {
         if !self.at_end() && self.peek() == T::BRACKET_CLOSE {
             self.pos += 1;
             return Ok(ColSpecArray {
-                col_specs: specs,
+                col_specs: specs.into(),
                 pos: self.span(open, self.pos - 1),
             });
         }
         self.parse_col_spec_array_items(&mut specs)?;
         self.expect_msg(T::BRACKET_CLOSE, "expected ']' to close ColSpec array")?;
         Ok(ColSpecArray {
-            col_specs: specs,
+            col_specs: specs.into(),
             pos: self.span(open, self.pos - 1),
         })
     }
@@ -2474,7 +2481,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         let platform = !self.dialect.refuses_platform_dialect();
         if platform && !self.at_end() && self.peek() == T::BRACKET_OPEN {
             let multiplicity = self.parse_multiplicity()?;
-            return Ok(TypeAnnotation::TypeAnnotationMultiplicityRef(Box::new(
+            return Ok(TypeAnnotation::TypeAnnotationMultiplicityRef(Arc::new(
                 TypeAnnotationMultiplicityRef {
                     multiplicity,
                     pos: self.span(at_tok, self.pos - 1),
@@ -2485,9 +2492,9 @@ impl<'t, 's> SpecParser<'t, 's> {
             let open = self.pos;
             let columns = self.parse_relation_shape()?;
             self.refuse_wildcard_columns(open, None)?;
-            return Ok(TypeAnnotation::TypeAnnotationRelationShape(Box::new(
+            return Ok(TypeAnnotation::TypeAnnotationRelationShape(Arc::new(
                 TypeAnnotationRelationShape {
-                    columns,
+                    columns: columns.into(),
                     spelled_name: None,
                     type_span: self.span(at_tok, self.pos - 1),
                     pos: self.span(at_tok, self.pos - 1),
@@ -2523,9 +2530,9 @@ impl<'t, 's> SpecParser<'t, 's> {
             }
             self.refuse_wildcard_columns(less_than + 1, Some(less_than))?;
             self.expect_msg(T::GREATER_THAN, "expected '>' to close @Relation type annotation")?;
-            return Ok(TypeAnnotation::TypeAnnotationRelationShape(Box::new(
+            return Ok(TypeAnnotation::TypeAnnotationRelationShape(Arc::new(
                 TypeAnnotationRelationShape {
-                    columns,
+                    columns: columns.into(),
                     spelled_name: Some(JStr(name)),
                     type_span: self.span(name_start, self.pos - 1),
                     pos: self.span(at_tok, self.pos - 1),
@@ -2626,7 +2633,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         self.expect_msg(T::COLON, "expected ':' after column name inside @Relation")?;
         let r#type = if !self.at_end() && self.peek() == T::QUESTION {
             self.pos += 1;
-            TypeAnnotation::TypeAnnotationWildcard(Box::new(TypeAnnotationWildcard {}))
+            TypeAnnotation::TypeAnnotationWildcard(Arc::new(TypeAnnotationWildcard {}))
         } else {
             named(self.parse_type()?, None)
         };
@@ -2775,7 +2782,7 @@ impl<'t, 's> SpecParser<'t, 's> {
                     let parsed = parse(&src, self.dialect.quoted())?;
                     args.push(match parsed {
                         VS::LambdaFunction(lf) if lf.body.len() == 1 => {
-                            lf.body.into_iter().next().expect("a one-statement body")
+                            lf.body.first().cloned().expect("a one-statement body")
                         }
                         _ => vs_var(variable(JStr::from(stripped))),
                     });
@@ -2818,15 +2825,15 @@ impl<'t, 's> SpecParser<'t, 's> {
             pos: None,
         };
         let desugared = lambda(vec![param], vec![body], None);
-        Ok(VS::PathLiteral(Box::new(PathLiteral {
+        Ok(VS::PathLiteral(Arc::new(PathLiteral {
             start_type,
-            segments: pieces,
-            desugared: Box::new(desugared),
+            segments: pieces.into(),
+            desugared: Arc::new(desugared),
             alias,
             has_dated_segment: has_dated,
             pos: self.span(lit_tok, lit_tok),
             literal_length: text.len() as i32,
-            line_starts,
+            line_starts: line_starts.into(),
         })))
     }
 
@@ -3049,9 +3056,9 @@ impl<'t, 's> SpecParser<'t, 's> {
             vec![cstring(JStr::from("TDS"), None), cstring(tds_string.clone(), None)],
             None,
         );
-        Ok(VS::TdsLiteral(Box::new(TdsLiteral {
+        Ok(VS::TdsLiteral(Arc::new(TdsLiteral {
             tds_string,
-            desugared: Box::new(desugared),
+            desugared: Arc::new(desugared),
             pos: self.span(tok, tok),
         })))
     }
@@ -3115,7 +3122,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             let (from, to) = (self.tokens.end(island_start), self.tokens.start(self.pos - 1));
             return self
                 .parse_graph_fetch_tree(from, to, island_start)
-                .map(|g| VS::GraphFetchLiteral(Box::new(g)));
+                .map(|g| VS::GraphFetchLiteral(Arc::new(g)));
         }
         if eq(dsl_type, ">") {
             let content_text = trim(&content);
@@ -3123,7 +3130,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             return self.parse_table_reference(content_text, span).map(vs_fn);
         }
         if eq(dsl_type, "SQL") {
-            return Ok(VS::SqlIsland(Box::new(SqlIsland {
+            return Ok(VS::SqlIsland(Arc::new(SqlIsland {
                 sql: JStr(content),
                 pos: self.span(island_start, self.pos - 1),
                 language: JStr::from("SQL"),
@@ -3143,7 +3150,7 @@ impl<'t, 's> SpecParser<'t, 's> {
                 ts.end_line(island_start) as i32,
                 ts.end_column(island_start) as i32 + 1,
             )?;
-            return Ok(VS::GqlIsland(Box::new(GqlIsland {
+            return Ok(VS::GqlIsland(Arc::new(GqlIsland {
                 document: Box::new(document),
                 pos: self.span(island_start, self.pos - 1),
             })));
@@ -3153,7 +3160,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             let (from, to) = (self.tokens.start(island_start) + 1, self.tokens.start(self.pos - 1) + 1);
             return self
                 .parse_graph_fetch_tree(from, to, island_start)
-                .map(|g| VS::GraphFetchLiteral(Box::new(g)));
+                .map(|g| VS::GraphFetchLiteral(Arc::new(g)));
         }
         Err(self.error(jcat!("unknown DSL island type: '#", dsl_type, "{'")))
     }
@@ -3163,7 +3170,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         if self.dialect.refuses_lite_extensions() {
             return Err(self.error(jcat!("unknown DSL island type: '#", dsl_type, "{'")));
         }
-        Ok(VS::SqlIsland(Box::new(SqlIsland {
+        Ok(VS::SqlIsland(Arc::new(SqlIsland {
             sql: JStr(cypher),
             pos: self.span(island_start, self.pos - 1),
             language: JStr::from("Cypher"),
@@ -3193,7 +3200,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             }
             profile = Some(JStr::from(p));
         }
-        Ok(VS::SqlIsland(Box::new(SqlIsland {
+        Ok(VS::SqlIsland(Arc::new(SqlIsland {
             sql: JStr(sql),
             pos: self.span(island_start, self.pos - 1),
             language: JStr::from("IQ"),
@@ -3270,8 +3277,8 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         Ok(GraphFetchLiteral {
             class_name: JStr(class_name),
-            sub_trees: nodes,
-            sub_type_trees: sub_types,
+            sub_trees: nodes.into(),
+            sub_type_trees: sub_types.into(),
             pos: name_pos,
         })
     }
@@ -3422,7 +3429,7 @@ impl<'t, 's> SpecParser<'t, 's> {
 
     /// `QuotedSpecParser.fold`: `compileLegendValueSpecification('<tree literal>')` (a literal, a `+` chain, or a
     /// let-bound constant in scope) parsed here, at this parse's dialect, into the two-faced `QuotedTreeCall`.
-    fn fold_tree(&self, call: &AppliedFunction) -> R<Option<ValueSpecification>> {
+    fn fold_tree(&self, call: &Arc<AppliedFunction>) -> R<Option<ValueSpecification>> {
         if !(call.function == "compileLegendValueSpecification"
             || call.function == "meta::legend::compileLegendValueSpecification")
             || call.parameters.len() != 1
@@ -3438,8 +3445,8 @@ impl<'t, 's> SpecParser<'t, 's> {
             Err(e) if e.is_parse_exception() => return Ok(None),
             Err(e) => return Err(e),
         };
-        Ok(Some(VS::QuotedTreeCall(Box::new(QuotedTreeCall {
-            original: Box::new(call.clone()),
+        Ok(Some(VS::QuotedTreeCall(Arc::new(QuotedTreeCall {
+            original: Arc::clone(call),
             tree,
             pos: call.pos.clone(),
         }))))
@@ -3449,7 +3456,7 @@ impl<'t, 's> SpecParser<'t, 's> {
     /// constant in scope) whose payload parses, at the engine's dialect, as functions only: the two-faced
     /// `QuotedGrammarCall`, each function as its lambda (its declared parameters, its body). A payload the model
     /// parser refuses with a `ParseException`, or one declaring anything else, leaves the plain call.
-    fn fold_grammar(&self, call: &AppliedFunction) -> R<Option<ValueSpecification>> {
+    fn fold_grammar(&self, call: &Arc<AppliedFunction>) -> R<Option<ValueSpecification>> {
         if !(call.function == "compileLegendGrammar" || call.function == "meta::legend::compileLegendGrammar")
             || call.parameters.len() != 1
         {
@@ -3473,7 +3480,7 @@ impl<'t, 's> SpecParser<'t, 's> {
                         .parameters
                         .into_iter()
                         .map(|p| {
-                            Box::new(Variable {
+                            Arc::new(Variable {
                                 name: p.name,
                                 r#type: Some(p.r#type),
                                 multiplicity: Some(p.multiplicity),
@@ -3481,9 +3488,9 @@ impl<'t, 's> SpecParser<'t, 's> {
                             })
                         })
                         .collect();
-                    functions.push(Box::new(LambdaFunction {
+                    functions.push(Arc::new(LambdaFunction {
                         parameters,
-                        body: fd.body,
+                        body: fd.body.into(),
                         pos: None,
                     }));
                 }
@@ -3493,9 +3500,9 @@ impl<'t, 's> SpecParser<'t, 's> {
         if functions.is_empty() {
             return Ok(None);
         }
-        Ok(Some(VS::QuotedGrammarCall(Box::new(QuotedGrammarCall {
-            original: Box::new(call.clone()),
-            functions,
+        Ok(Some(VS::QuotedGrammarCall(Arc::new(QuotedGrammarCall {
+            original: Arc::clone(call),
+            functions: functions.into(),
             pos: call.pos.clone(),
         }))))
     }
@@ -3509,9 +3516,9 @@ fn fold_string_concat(v: &ValueSpecification, constants: &dyn Fn(&[u16]) -> Opti
         VS::Variable(var) => constants(&var.name.0),
         VS::AppliedFunction(pf) if pf.function == "plus" || pf.function == "meta::pure::functions::math::plus" => {
             let mut sb = Vec::new();
-            for p in &pf.parameters {
+            for p in pf.parameters.iter() {
                 if let VS::PureCollection(pc) = p {
-                    for e in &pc.values {
+                    for e in pc.values.iter() {
                         sb.extend(fold_string_concat(e, constants)?);
                     }
                     continue;
@@ -3560,9 +3567,10 @@ pub(crate) fn caret_special(ni: &NewInstance) -> Result<Option<AppliedFunction>,
 /// `signedLiteral`: a model store's signed number as one literal -- an integer that fits a long a long, a float its
 /// exact digits negated too.
 fn signed_literal(n: ValueSpecification, negative: bool, span: Span) -> ValueSpecification {
+    // the literal just built: its parts moved, not copied
     match n {
         VS::CInteger(c) => {
-            let value = match (c.value, negative) {
+            let value = match (Arc::unwrap_or_clone(c).value, negative) {
                 (v, false) => v,
                 (JValue::Long(v), true) => {
                     if v == i64::MIN {
@@ -3582,27 +3590,33 @@ fn signed_literal(n: ValueSpecification, negative: bool, span: Span) -> ValueSpe
                 }
                 (other, true) => other,
             };
-            VS::CInteger(Box::new(CInteger { value, pos: span }))
+            VS::CInteger(Arc::new(CInteger { value, pos: span }))
         }
-        VS::CFloat(c) => VS::CFloat(Box::new(CFloat {
-            value: if negative { -c.value } else { c.value },
-            exact: match c.exact {
-                Some(e) if negative => Some(e.negate()),
-                e => e,
-            },
-            pos: span,
-        })),
-        VS::CDecimal(c) => VS::CDecimal(Box::new(CDecimal {
-            value: if negative { c.value.negate() } else { c.value },
-            pos: span,
-        })),
+        VS::CFloat(c) => {
+            let c = Arc::unwrap_or_clone(c);
+            VS::CFloat(Arc::new(CFloat {
+                value: if negative { -c.value } else { c.value },
+                exact: match c.exact {
+                    Some(e) if negative => Some(e.negate()),
+                    e => e,
+                },
+                pos: span,
+            }))
+        }
+        VS::CDecimal(c) => {
+            let c = Arc::unwrap_or_clone(c);
+            VS::CDecimal(Arc::new(CDecimal {
+                value: if negative { c.value.negate() } else { c.value },
+                pos: span,
+            }))
+        }
         // both callers hand it what parse_number built, one of the three above
         other => unreachable!("a number literal is an integer, a float or a decimal: {other:?}"),
     }
 }
 
 fn named(t: TypeExpression, pos: Span) -> TypeAnnotation {
-    TypeAnnotation::TypeAnnotationNamed(Box::new(TypeAnnotationNamed { r#type: t, pos }))
+    TypeAnnotation::TypeAnnotationNamed(Arc::new(TypeAnnotationNamed { r#type: t, pos }))
 }
 
 /// `TypeAnnotation.RelationShape.spelledRelation`: the simple name `Relation`.

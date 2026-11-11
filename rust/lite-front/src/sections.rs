@@ -22,6 +22,7 @@ use crate::records::{Element, PText, ValueSpecification};
 use crate::spec_parser::parse_tokens;
 use crate::ustr::{eq, last_index_of_str};
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use TokenType as T;
 
@@ -150,7 +151,7 @@ pub fn lambda_to_semicolon<'s>(c: &mut impl Cursor<'s>) -> R<ValueSpecification>
 pub fn as_lambda(v: ValueSpecification) -> ValueSpecification {
     match v {
         ValueSpecification::LambdaFunction(_) => v,
-        other => ValueSpecification::LambdaFunction(Box::new(lambda(Vec::new(), vec![other], None))),
+        other => ValueSpecification::LambdaFunction(Arc::new(lambda(Vec::new(), vec![other], None))),
     }
 }
 

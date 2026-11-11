@@ -53,17 +53,14 @@ pub fn boolean_part(parts: Vec<BoolPart>, input: ValueSpecification) -> AppliedF
             Some(a) if a.op == "or" && p.function == "and" => {
                 let AppliedFunction {
                     function,
-                    mut parameters,
+                    parameters,
                     referents,
                     pos,
                     ..
                 } = a.node;
-                let last = parameters.pop().expect("a boolean call has two parameters");
-                let first = parameters
-                    .into_iter()
-                    .next()
-                    .expect("a boolean call has two parameters");
-                let new_af = build_boolean(p, last);
+                let (last, rest) = parameters.split_last().expect("a boolean call has two parameters");
+                let first = rest.first().expect("a boolean call has two parameters").clone();
+                let new_af = build_boolean(p, last.clone());
                 let mut node = infix(function, vec![first, vs_fn(new_af)], pos);
                 node.referents = referents;
                 Acc { node, op: a.op }
@@ -119,15 +116,15 @@ fn process_op(p: ArithPart, acc: Option<Acc>, initial: &mut Option<ValueSpecific
     if is_strictly_lower_precedence(a.op, p.function) {
         let AppliedFunction {
             function,
-            mut parameters,
+            parameters,
             referents,
             pos,
             ..
         } = a.node;
         if a.op == "divide" || (RELATIONAL_ARITH_MISASSOCIATION && is_relational_comparison(a.op)) {
-            let last = parameters.pop().expect("a binary call has two parameters");
-            let first = parameters.into_iter().next().expect("a binary call has two parameters");
-            let new_af = build_arith(p, last);
+            let (last, rest) = parameters.split_last().expect("a binary call has two parameters");
+            let first = rest.first().expect("a binary call has two parameters").clone();
+            let new_af = build_arith(p, last.clone());
             let mut node = infix(function, vec![first, vs_fn(new_af)], pos);
             node.referents = referents;
             return Acc { node, op: a.op };
@@ -135,8 +132,9 @@ fn process_op(p: ArithPart, acc: Option<Acc>, initial: &mut Option<ValueSpecific
         // a collection carrier (plus/minus/times): the last element rebuilt, re-collected with the CLAIMING
         // context's span
         let ctx_span = p.ctx_span.clone();
-        let mut vals = match parameters.into_iter().next() {
-            Some(ValueSpecification::PureCollection(c)) => c.values,
+        // the collection's values, the same nodes, into a list to rebuild
+        let mut vals = match parameters.first() {
+            Some(ValueSpecification::PureCollection(c)) => c.values.to_vec(),
             // `a.node` is built by `build_arith` or the arm below, a collection carrier unless `a.op` is `divide` or
             // a comparison (the arm above)
             _ => unreachable!("an arithmetic run's parameter is its collection"),

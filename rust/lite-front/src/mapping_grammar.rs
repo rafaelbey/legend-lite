@@ -39,6 +39,7 @@ use crate::records::{
 };
 use crate::spec_parser::{parse_code_block, parse_code_block_tokens, parse_tokens};
 use crate::ustr::{eq, index_of_units, last_index_of_str, u};
+use std::sync::Arc;
 
 use TokenType as T;
 
@@ -169,8 +170,8 @@ fn expr_wrapper(rb: &RelationBinding, brace_line: i64) -> Span {
 fn clean_sheet_realization(
     body: Vec<ValueSpecification>,
 ) -> (
-    Option<Box<crate::records::PackageableElementPtr>>,
-    Option<Box<LambdaFunction>>,
+    Option<Arc<crate::records::PackageableElementPtr>>,
+    Option<Arc<LambdaFunction>>,
 ) {
     if body.len() == 1 && matches!(body[0], ValueSpecification::PackageableElementPtr(_)) {
         let Some(ValueSpecification::PackageableElementPtr(ptr)) = body.into_iter().next() else {
@@ -180,9 +181,9 @@ fn clean_sheet_realization(
     }
     (
         None,
-        Some(Box::new(LambdaFunction {
-            parameters: Vec::new(),
-            body,
+        Some(Arc::new(LambdaFunction {
+            parameters: Arc::default(),
+            body: body.into(),
             pos: None,
         })),
     )
@@ -860,8 +861,8 @@ impl MappingCursor<'_, '_> {
             };
             let var_span = synthetic(col, 5);
             let prop_span = synthetic(col + 6, prop.len() as i32);
-            let expr = ValueSpecification::AppliedProperty(Box::new(crate::records::AppliedProperty {
-                receiver: ValueSpecification::Variable(Box::new(Variable {
+            let expr = ValueSpecification::AppliedProperty(Arc::new(crate::records::AppliedProperty {
+                receiver: ValueSpecification::Variable(Arc::new(Variable {
                     name: JStr::from("this"),
                     r#type: None,
                     multiplicity: None,
@@ -1173,7 +1174,7 @@ impl MappingCursor<'_, '_> {
         let span = self.span_of(expr_start, self.pos - 1);
         match rhs {
             ValueSpecification::CString(cs) => Ok(RelationBinding {
-                column: Some(cs.value),
+                column: Some(cs.value.clone()),
                 expr: None,
                 span,
             }),
@@ -1181,7 +1182,7 @@ impl MappingCursor<'_, '_> {
                 if index_of_units(&ptr.full_path.0, &u("::"), 0).is_none() =>
             {
                 Ok(RelationBinding {
-                    column: Some(ptr.full_path),
+                    column: Some(ptr.full_path.clone()),
                     expr: None,
                     span,
                 })

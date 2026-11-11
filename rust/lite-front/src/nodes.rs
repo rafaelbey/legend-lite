@@ -4,6 +4,10 @@
 //! The protocol records' convenience constructors (core/'s `protocol.spec` records), as the parser calls them: each
 //! fills the components Java's shorter constructor fills (`AppliedFunction(function, parameters)` has no referents,
 //! no span, every flag false; `EnumValue`'s four-argument form sets `node` when it has no enumeration span; ...).
+//! A `ValueSpecification` node is an `Arc`, its lists `Arc<[T]>` (records.rs); the helpers take a built `Vec` and
+//! freeze it.
+
+use std::sync::Arc;
 
 use crate::jtypes::JStr;
 use crate::records::{
@@ -26,8 +30,8 @@ pub fn applied_full(
 ) -> AppliedFunction {
     AppliedFunction {
         function,
-        parameters,
-        referents: Vec::new(),
+        parameters: parameters.into(),
+        referents: Arc::default(),
         pos,
         property_call,
         grouped,
@@ -49,12 +53,12 @@ pub fn infix(function: JStr, parameters: Vec<ValueSpecification>, pos: Span) -> 
 }
 
 pub fn vs_fn(f: AppliedFunction) -> ValueSpecification {
-    ValueSpecification::AppliedFunction(Box::new(f))
+    ValueSpecification::AppliedFunction(Arc::new(f))
 }
 
 /// `new CString(value, pos)`: not multi-line.
 pub fn cstring(value: JStr, pos: Span) -> ValueSpecification {
-    ValueSpecification::CString(Box::new(CString {
+    ValueSpecification::CString(Arc::new(CString {
         value,
         pos,
         multi_line: false,
@@ -63,17 +67,20 @@ pub fn cstring(value: JStr, pos: Span) -> ValueSpecification {
 
 /// `new PureCollection(values, pos)`.
 pub fn collection(values: Vec<ValueSpecification>, pos: Span) -> ValueSpecification {
-    ValueSpecification::PureCollection(Box::new(PureCollection { values, pos }))
+    ValueSpecification::PureCollection(Arc::new(PureCollection {
+        values: values.into(),
+        pos,
+    }))
 }
 
 /// `new PackageableElementPtr(fullPath, pos)`.
 pub fn ptr(full_path: JStr, pos: Span) -> ValueSpecification {
-    ValueSpecification::PackageableElementPtr(Box::new(PackageableElementPtr { full_path, pos }))
+    ValueSpecification::PackageableElementPtr(Arc::new(PackageableElementPtr { full_path, pos }))
 }
 
 /// `new AppliedProperty(receiver, property, pos)`: no owner class.
 pub fn property(receiver: ValueSpecification, name: JStr, pos: Span) -> ValueSpecification {
-    ValueSpecification::AppliedProperty(Box::new(AppliedProperty {
+    ValueSpecification::AppliedProperty(Arc::new(AppliedProperty {
         receiver,
         property: name,
         pos,
@@ -92,14 +99,14 @@ pub fn variable(name: JStr) -> Variable {
 }
 
 pub fn vs_var(v: Variable) -> ValueSpecification {
-    ValueSpecification::Variable(Box::new(v))
+    ValueSpecification::Variable(Arc::new(v))
 }
 
 /// `new LambdaFunction(parameters, body, pos)`.
 pub fn lambda(parameters: Vec<Variable>, body: Vec<ValueSpecification>, pos: Span) -> LambdaFunction {
     LambdaFunction {
-        parameters: parameters.into_iter().map(Box::new).collect(),
-        body,
+        parameters: parameters.into_iter().map(Arc::new).collect(),
+        body: body.into(),
         pos,
     }
 }

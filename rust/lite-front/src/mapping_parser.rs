@@ -29,6 +29,7 @@ use crate::spec_parser::parse_instance_data;
 use crate::ustr::{ends_with, eq, last_index_of, last_index_of_str, strip, u};
 use lite_javacompat::character::is_whitespace;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use TokenType as T;
 
@@ -375,8 +376,9 @@ impl<'t, 's> MappingCursor<'t, 's> {
                 return Err(self.error_str("model instance data must be ONE collection"));
             }
             let instances = match vs.remove(0) {
-                ValueSpecification::PureCollection(c) => ValueSpecification::PureCollection(Box::new(PureCollection {
-                    values: c.values,
+                // the same values, aliased, under a collection without its span
+                ValueSpecification::PureCollection(c) => ValueSpecification::PureCollection(Arc::new(PureCollection {
+                    values: c.values.clone(),
                     pos: None,
                 })),
                 v => v,

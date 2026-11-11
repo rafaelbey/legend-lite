@@ -34,6 +34,12 @@ import java.util.regex.Pattern;
  * {@code @Nullable}: the protocol and the parser are NullAway-checked, so an unannotated component is never null. The
  * annotation has CLASS retention, so it is read from the records' source, which the generator is given.
  *
+ * <p>The source tree is {@code Arc} (2026-11-11; docs/rust-port/PHASE3_DESIGN.md §6, ruling 1): a record that is a
+ * {@link ValueSpecification} node ({@link #family}) is held as {@code Arc<R>} wherever a slot or a sealed parent holds
+ * it, and its list components are {@code Arc<[T]>}, so that phase 3's rewrites alias an unchanged node or list as
+ * Java's do and compare it by identity. Every other record is held as {@code Box<R>}, its lists {@code Vec<T>}. The
+ * writers read through references, so the codec's bytes are the same either way.
+ *
  * <pre>a java_run: FrontCodegen OUT_RS CORE_MAIN_DIR  (CORE_MAIN_DIR: core/src/main/java/com/legend)</pre>
  */
 public final class FrontCodegen {
@@ -120,9 +126,13 @@ public final class FrontCodegen {
                 // from the protocol records the parser's doors return -- do not edit; regenerate with
                 // `bazel run //rust/lite-front:update_generated`. A struct per record, its components in canonical
                 // order (`Option` exactly where the record's source says @Nullable); an enum per sealed parent and per
-                // Java enum; the lossless codec's writer, byte for byte the JVM's (RecordCodec).
+                // Java enum; the lossless codec's writer, byte for byte the JVM's (RecordCodec). A ValueSpecification
+                // node is held as `Arc`, its lists `Arc<[T]>` (the source tree, docs/rust-port/PHASE3_DESIGN.md §6
+                // ruling 1); every other record as `Box`, its lists `Vec`.
 
                 #![allow(clippy::all, non_camel_case_types, unused_variables)]
+
+                use std::sync::Arc;
 
                 use crate::codec::{Codec, Writer};
                 use crate::jtypes::{BigDecimal, JStr, JValue};
@@ -383,13 +393,15 @@ public final class FrontCodegen {
     }
 
     /** A component's Rust type: its declared type's, but a list whose elements its source says may be null is a
-     *  {@code Vec<Option<_>>}, each null element written {@code null}. */
+     *  {@code Vec<Option<_>>} ({@code Arc<[Option<_>]>} on a {@link #family} record), each null element written
+     *  {@code null}. */
     private RustType componentType(Class<?> owner, RecordComponent rc, String v) throws Exception {
+        boolean shared = family(owner);
         if (!nullableElements(owner).get(rc.getName())) {
-            return type(rc.getGenericType(), v);
+            return type(rc.getGenericType(), v, shared);
         }
-        RustType e = type(listElement(rc), "x");
-        return new RustType("Vec<Option<" + e.spelling() + ">>",
+        RustType e = type(listElement(rc), "x", shared);
+        return new RustType(list(shared, "Option<" + e.spelling() + ">"),
                 "{ w.raw(\"[\"); for (i, x) in " + v + ".iter().enumerate() { if i > 0 { w.raw(\",\"); } "
                         + "match x { None => w.raw(\"null\"), Some(x) => { " + e.write() + " } } } w.raw(\"]\"); }");
     }
@@ -402,20 +414,44 @@ public final class FrontCodegen {
         throw new IllegalStateException(rc + ": only a list's elements may be marked @Nullable");
     }
 
-    /** A declared Java type in Rust, and the statement that writes {@code v} (an expression of a reference to it). */
-    private RustType type(Type t, String v) {
+    /**
+     * The source tree's records (docs/rust-port/PHASE3_DESIGN.md §6, ruling 1): every record that is a
+     * {@link ValueSpecification} node -- the sealed parent's records, and those of its nested parents
+     * ({@code ColumnInstance}, {@code TypeAnnotation}). Held as {@code Arc<R>}, their lists {@code Arc<[T]>}. A record
+     * a node holds that is not itself a node ({@code KeyExpression}, {@code GraphFetchLiteral.Node}, a GraphQL
+     * island's records, {@code SourceInfo}, ...) stays {@code Box}, its lists {@code Vec}.
+     */
+    private static boolean family(Class<?> c) {
+        return c.isRecord() && ValueSpecification.class.isAssignableFrom(c);
+    }
+
+    /** A list of {@code element}: {@code Arc<[_]>} on a {@link #family} record, else {@code Vec<_>}. */
+    private static String list(boolean shared, String element) {
+        return shared ? "Arc<[" + element + "]>" : "Vec<" + element + ">";
+    }
+
+    /**
+     * A declared Java type in Rust, and the statement that writes {@code v} (an expression of a reference to it).
+     * {@code shared}: the type is a component of a {@link #family} record, whose lists are {@code Arc<[T]>}.
+     */
+    private RustType type(Type t, String v, boolean shared) {
         if (t instanceof ParameterizedType p) {
             Class<?> raw = (Class<?>) p.getRawType();
             Type[] a = p.getActualTypeArguments();
             if (raw == List.class) {
-                RustType e = type(a[0], "x");
-                return new RustType("Vec<" + e.spelling() + ">",
+                RustType e = type(a[0], "x", shared);
+                return new RustType(list(shared, e.spelling()),
                         "{ w.raw(\"[\"); for (i, x) in " + v + ".iter().enumerate() { if i > 0 { w.raw(\",\"); } "
                                 + e.write() + " } w.raw(\"]\"); }");
             }
+            if (shared) {
+                // a node's map or entry has no shape ruled yet: a decision, not a silent Vec
+                throw new IllegalStateException("a ValueSpecification node holds a " + t.getTypeName()
+                        + ": rule its shared shape (docs/rust-port/PHASE3_DESIGN.md §6, ruling 1)");
+            }
             if (raw == Map.class || raw == LinkedHashMap.class) {
-                RustType k = type(a[0], "k");
-                RustType val = type(a[1], "x");
+                RustType k = type(a[0], "k", false);
+                RustType val = type(a[1], "x", false);
                 if (a[0] == String.class) {
                     return new RustType("Vec<(" + k.spelling() + ", " + val.spelling() + ")>",
                             "{ w.raw(\"{\"); for (i, (k, x)) in " + v + ".iter().enumerate() { if i > 0 { w.raw(\",\"); } "
@@ -427,8 +463,8 @@ public final class FrontCodegen {
                                 + "w.raw(\"]\"); }");
             }
             if (raw == Map.Entry.class) {
-                RustType k = type(a[0], "ek");
-                RustType val = type(a[1], "ev");
+                RustType k = type(a[0], "ek", false);
+                RustType val = type(a[1], "ev", false);
                 return new RustType("(" + k.spelling() + ", " + val.spelling() + ")",
                         "{ let ek = &" + v + ".0; let ev = &" + v + ".1; w.raw(\"[\"); " + k.write() + " w.raw(\",\"); "
                                 + val.write() + " w.raw(\"]\"); }");
@@ -459,12 +495,18 @@ public final class FrontCodegen {
             return new RustType("JValue", "w.value(" + v + ");");
         }
         if (c.isRecord()) {
-            return new RustType("Box<" + names.get(c) + ">", v + ".write(w, true);");
+            return new RustType(held(c), v + ".write(w, true);");
         }
         if (c.isSealed() || c.isEnum()) {
             return new RustType(names.get(c), v + ".write(w, true);");
         }
         throw new IllegalArgumentException("no Rust rule for " + c.getName());
+    }
+
+    /** A record as a slot or a sealed parent holds it: {@code Arc<R>} for a {@link #family} record, else
+     *  {@code Box<R>}. */
+    private String held(Class<?> record) {
+        return (family(record) ? "Arc<" : "Box<") + names.get(record) + ">";
     }
 
     private static final Set<String> KEYWORDS = Set.of("as", "async", "await", "box", "break", "const", "continue",
@@ -487,7 +529,7 @@ public final class FrontCodegen {
         out.append("#[derive(Clone, Debug, PartialEq)]\npub enum ").append(name).append(" {\n");
         for (Class<?> s : c.getPermittedSubclasses()) {
             String sn = names.get(s);
-            out.append("    ").append(sn).append("(").append(s.isRecord() ? "Box<" + sn + ">" : sn).append("),\n");
+            out.append("    ").append(sn).append("(").append(s.isRecord() ? held(s) : sn).append("),\n");
         }
         out.append("}\n\n");
         // a value in a slot declared as this parent is never exact: each record writes its tag
