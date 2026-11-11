@@ -27,8 +27,9 @@ doors whose answer is legend-engine's JSON (`tests/front_engine_differential.rs`
 22,151 + 876 + 5 = 23,032 expression questions, all identical. The errors include the oracle's one
 `java.time.DateTimeException` (a time-zone shift of an impossible date, below).
 
-These are the frozen Java answers' counts. Since 2026-11-10 760 asks differ on purpose (`deliberate-differences.tsv`
-beside the frozen files, rulings 4, 11, 13, 16, 18 and 20 of docs/rust-port/PHASE2.md section 6; 744 from 2026-11-09). Nine are named by rows: the
+These are the frozen Java answers' counts. Since 2026-11-11 768 asks differ on purpose (`deliberate-differences.tsv`
+beside the frozen files, rulings 4, 11, 13, 16, 18, 20 and 27 of docs/rust-port/PHASE2.md section 6; 744 from 2026-11-09, 760
+from 2026-11-10). Nine are named by rows: the
 three `pmcd` asks of question `109b58da` and the `document` asks of `109b58da` and `00dc41c7` (rows 9 and 63), the `pmcd` ask at
 the engine's dialect of `00dc41c7` (row 63, ruling 13), the `spec` ask at the engine's dialect of `672e812e` (row 3, ruling 11),
 and the `pmcd` ask at the engine's dialect and the `document` ask of `1680d307` (row 73, ruling 16). The other 735 are ruling
@@ -43,7 +44,13 @@ dialects moved none. Identical plus listed is the whole of every door, and any `
 fails. Since 2026-11-11 (rulings 23, 24 and 26; register S368 to S372) no frozen answer moved: the model door's answer is
 the first of a text's errors, byte for byte (its others ride beside it, and 1,234 model asks hold some), no frozen question
 asks `block` at the engine's dialect, where an empty block is now placed, and no frozen text holds one of the three looser
-families refused at the engine's place.
+families refused at the engine's place. Since 2026-11-11 (rulings 27 and 28; register S362, S364 to S366, S373), 8 more are
+ruling 27's (`ruling27`), 4 asks each at `pmcd` at `LEGEND_ENGINE` and `document` (216 each now): four HostedService texts
+whose test suites' island is broken (`#{` or `}#` written as a brace) hold two refusals in one element, the list's own and the
+element's left open by it, and now answer the list's, as the engine does -- `479a3de2` at `[83:22]` and `73425021` at
+`[63:19]`, the engine's places, where lite answered the end of the input, and `08ef5041` and `b664f679` at the end of the
+input in the list's words (`Unexpected token '<EOF>'`); one listed ask pair (`72b6e615`, `ruling18`) is re-answered in the list's
+words at its place. No other frozen answer moved; lite's and the platform's dialects moved none.
 
 **The engine-JSON doors** (step 5, 2026-11-06): the protocol emitter (`emitter.rs` and its family, below), held to
 core/'s `ProtocolEmitter` and `SourceInformation.withoutSpans` over Java's parser (`//core:front_engine_answers`,
@@ -274,7 +281,7 @@ input. Those rows say so. Their questions in the frozen oracle are listed in
 | 41 | a Deephaven or Elasticsearch connection's value span; an authentication island's span; a `relationalMapper`'s pointers | a value's end column the close's plus 4 (Deephaven's the close's own, unshifted inside an island); an auth island's end column its close's plus 3, an empty island's start its `}#`; a relational mapper's pointers moved up a line per line break between the keyword and its `{` | the engine's re-parse offsets (`SpanOrigin.overshootEnd`, `anchoredOvershoot`, the post-processor walker's keyword offset) |
 | 42 | a key twice in a connection body | `Field 'x' should be specified only once`, placed at the cursor (Static, Snowflake, Spanner, Databricks, BigQuery, EmbeddedH2, DuckDB, SQLite, ServiceStore, Deephaven, MongoDB, a mapper post-processor, the auth strategies but SnowflakePublic, TrinoDelegatedKerberos and GCPWorkloadIdentityFederation, an island's keys at the island's cursor), at the `specification` or `auth` keyword (LocalH2, Redshift, Athena, Aurora, GlobalAurora, MemSql, Oracle, Trino and its ssl block, those three), at its kind (a `GenerationFeaturesConfig`), at the first key (Elasticsearch) or at the element (the relational and model connections' own keys) | each site anchors `once` where its engine walker's ctx is |
 | 43 | a PSK island with more after its key (`# PSK { psk: 'k'; anything else }#`) | the key kept, the rest ignored | the engine's `pskAuthentication` rule has no EOF |
-| 44 | a DataSpace executable's `id: 'a' b 3;` | `'a'b3` | the id is its raw token texts glued, a quoted one with its quotes (a digit-led `2Id` lexes as two tokens) |
+| 44 | a DataSpace executable's `id: 'a' b 3;` | `'a'b3` | the id is its raw token texts glued, a quoted one with its quotes (a digit-led `2Id` lexes as two tokens). **Since 2026-11-11 (the user's ruling 28)** at the engine's dialect the id is its grammar's `executableId`, one `VALID_STRING`, `INTEGER` or `DECIMAL` of its lexer and the `;` (register S373): this input is refused at the string, `Unexpected token ''a''`, the engine's place; lite's and the platform's dialects glue as before |
 | 45 | a `###Diagram` section | its spans and its refusals count columns in UTF-16 units from the section's first line (`/*😀*/Diagram d::D { }` starts at column 7; `/*😀*/Diagram d::D { other x }` is `[2:27] unknown diagram view 'other'`, 26 in code points) | the lexer raw-skips the section and its grammar walks the characters (`DiagramSectionGrammar.Raw`), a column a `char`, where every other refusal counts code points (row 2) |
 | 46 | an empty `###Diagram` section with another header after it (`###Diagram\n###Pure\n...`) | `java.lang.StringIndexOutOfBoundsException: Range [11, 10) out of bounds for length 30`, unplaced. **Since 2026-11-09 (the user's ruling 11), a `ParseException`, deliberately stricter than legend-engine, which reads an empty section:** `an empty ###Diagram section must not be followed by another section` at its header (`[1:1]`). A section with a line in it is not this row (`###Diagram\n\n###Pure` parses), nor one the text ends with. Register S327. | `diagramElements` takes `source.substring(contentStart, contentEnd)`, and an empty section's content ends one unit before it starts |
 | 47 | a Diagram `import` | `import`, exactly one space, then `pkg(::pkg)*::*` of letters and digits (`Character.isLetterOrDigit`, any script), `_` and `$`, listed as written, the wildcard dropped, each once: `import\ta::*;` is no import (`expected 'Diagram'`), `import a.b::*;` is `malformed import 'a.b::*'` placed after its `;` | the raw grammar scans its own imports, not as `sectionImports` reads a lexed section's |

@@ -671,3 +671,82 @@ were asked of the engine again: each answers the place the test holds, and lite 
 **Found while probing, not refused** (written by hand, not in the pinned inputs, not ruled): a data space executable's `id:`
 written as a string (`id: 'e';`), which lite accepts and the engine refuses at the string (`[16:11] Unexpected token ''e''`): its
 grammar takes an identifier.
+
+## After rulings 27 and 28 (2026-11-11)
+
+Rulings 27 and 28 of `docs/rust-port/PHASE2.md` section 6, carried out; the same probes on the same pinned inputs (the seeds and
+SHA-256 above), lite at commit `bcf60ed8f` through the same `doors` binary source, the engine's serial answers those recorded
+above (the same jars and texts; none asked again). Before is lite at `68f8ebd0b`, whose parser is `cedfd8fea`'s, so every count
+of "After rulings 23 to 26" (asked again: equal); after is this one. Every new input was written by hand and asked of
+legend-engine's own parser (`PureGrammarParser`, 4.145.0, on the parser-equivalence class path), not recalled: the 346 texts of
+the tables below, each construct with two errors in one element in either order and with one, and the 58 the new unit tests
+hold.
+
+**By door and category.** Only `pmcd` and `document` moved, and only towards the engine's place; every other row, the harness
+included, is the same before and after.
+
+| set | door | texts | both accept | same place | same line, other col | different line | lite looser | lite stricter |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| corpus, before | `pmcd`, `document` | 29,188 | 22,663 | 3,254 | 1,670 | 1,005 | 575 | 21 |
+| corpus, after | `pmcd`, `document` | 29,188 | 22,663 | 3,256 | 1,670 | 1,003 | 575 | 21 |
+| mutated (16 per text), before | `pmcd`, `document` | 153,008 | 22,281 | 100,047 | 19,858 | 10,182 | 282 | 358 |
+| mutated (16 per text), after | `pmcd`, `document` | 153,008 | 22,281 | 100,058 | 19,855 | 10,174 | 282 | 358 |
+| mutated (4 per text), before | `pmcd`, `document` | 38,252 | 5,666 | 24,918 | 4,949 | 2,540 | 74 | 105 |
+| mutated (4 per text), after | `pmcd`, `document` | 38,252 | 5,666 | 24,920 | 4,948 | 2,539 | 74 | 105 |
+
+No text timed out, panicked or answered a raw `java.*` class. **No text moved away from the engine's place**: of every (text,
+door) at the engine's line and column before, each stands there now. Fifteen texts reached it, at both doors: 12 in
+`###HostedService` (corpus `c479a3de...` `[83:22]` and `c7342502...` `[63:19]`, the test suites' island written with a brace;
+`mut16/m005314`, `m005320`, `m005326`, `m005327`, `m099136`, `m099150`, `m109901`, `m125589`, `m125590`; `mut/m001331`), the list's
+refusal where lite answered a later refusal of the element, mostly the end of the input its skip of the broken list reached; 3
+in `###DataSpace` (`mut16/m105818`, `id: 1` with no `;`, at the next key; `mut16/m108848`, `id:; 2;`; `mut/m026047`, `id: 1';`),
+ruling 28's grammar. Thirty-three more kept their place in other words, the list's own refusal or the id's (`Unexpected token
+'<EOF>'` for `expected BRACE_CLOSE but found EOF`, `Unexpected token '\'` for `unlexable input`): 32 HostedService, 1 DataSpace.
+One moved from one line other than the engine's to another (`mut16/m109900`, an open quote in a post-validation's description:
+the engine at the quote, lite at the list's next refusal where it answered a later one). No default value or mapping text
+moved: no pinned text holds two refusals of one default or of one class mapping body.
+
+**Lite looser** is unchanged: 575 corpus (571 S64, 3 S352, 1 S353), 282 mutated (16 per text; 280 S64, 2 S353), 74 mutated (4 per
+text; all S64), 0 at every expression door: only the ruled exclusions.
+
+**Ruling 27, per construct** (texts written by hand; a text at the engine's place counts when lite's first refusal is at the
+engine's line and column, or both accept):
+
+| construct | texts | at the engine's place before | after | what moved |
+|---|---:|---:|---:|---|
+| a property's default value | 122 | 76 | 107 | of an element's first token, where its `defaultValueExpression` stops and lite's own reading, the refusal placed first (`= x.y + (1 +);` at the `+`, `[3:23]`, where lite answered the `)`; `= 1 + ;` at the `+`, where it answered the `;`); a `::` the name's grammar has read refused at what follows it (S366) |
+| a service test's value | 21 | 18 | 18 | nothing: its check already runs where the value is read, before lite's own reading of it, and every text with two errors in one element answers the engine's first (S363) |
+| a mapping expression's path | 43 | 29 | 34 | the path is the expression's last token, so it already stood behind lite's reading of the expression and, by the body's second reading, behind a later syntax error of the body; in the engine's walker a `~src` or `~filter` given twice is checked before any expression is reparsed, and a set id that is a number is the class mapping parser's syntax error: both now stand before the path (`[4:3]`, `[8:11]`), a later expression's own walk refusal or path behind it, as before (S364, S365) |
+| a HostedService's `postValidations` and `testSuites` | 16 | 8 | 16 | the list refused where it stands, no longer behind every later refusal of the element: the engine's grammar reads both lists in its one parse of the section (S362) |
+
+The 15 default values left, each unchanged: 13 whose first refusal lite places otherwise than the engine whatever the order
+(`^a::B(x = 1 +)`: lite at the `)`, the engine at the `+`; `a::b~1`; `^$(a=1)`), one a refusal of the engine's walk it answers
+behind a later syntax error (`^$x(a=1) + (1 +)`), one lite stricter (`:: .x`). The 9 mapping texts left are `(1 +)`, the same
+place difference.
+
+**Ruling 28: a data space executable's id** is the engine's `executableId`, `(VALID_STRING | INTEGER | DECIMAL) SEMI_COLON` by its
+lexer (S373): 144 texts -- every one of the 49 words the DataSpace, M3 and core lexers read before `VALID_STRING`, every token
+kind, `VALID_STRING`'s digit-led and `$` spellings, decimals and floats, two tokens, a comment or a line break before the `;`,
+an id cut by the end of the input, a second error in the element before and after it -- 93 looser before, 0 after, every one at
+the engine's place after (45 before). Lite's and the platform's dialects read every id as before.
+
+**The frozen questions** (every one answered again, the model door's answer the error list's first): the questions answered
+differently from Java's frozen answer are the 760 listed before and 8 more asks, `ruling27`, at `pmcd` at `LEGEND_ENGINE` and
+`document` (216 each); one listed pair re-answered. Each is a HostedService corpus text whose test suites' island is broken
+(`#{` or `}#` written as a brace), so its element holds two refusals, the list's and the element's left open by it, and answers
+the list's now, as the engine does: `479a3de2` at `[83:22]` and `73425021` at `[63:19]`, the engine's places, where lite answered
+the end of the input; `08ef5041` and `b664f679` at the end of the input in the list's words (`Unexpected token '<EOF>'`), where
+lite answered `expected BRACE_CLOSE`; `72b6e615` (listed by ruling 18) the same at its place. Lite's and the platform's
+dialects, the expression doors and every other question: as before. `unlistable` 0. **Several errors** (ruling 23, through
+`doors::pmcd_with_errors` at the three dialects): the corpus's 87,564 asks hold further errors in 1,234 (5,733 in all), the
+mutated texts' 459,024 in 9,397 (16,803), as before; no panic, none out of order or placed at or before the first, the first
+`pmcd`'s answer in every ask.
+
+**Found while probing, not refused** (written by hand, not in the pinned inputs, not ruled): a default value's `x.all(1 + 2).y`,
+which lite accepts and the engine refuses at the second `.` (`[3:28]`): its `allOrFunction`'s `.all(...)` takes a milestoning
+date or variable alone, so `.all(1 + 2)` is the `propertyExpression` and nothing may follow it. Not changed, being of another
+kind than the four checks (two refusals of one element, the earlier first): a refusal of the engine's walk that lite's reading
+of a default value or a legacy service test's value raises stands before a later syntax error of the element, where the engine
+answers the syntax error (`^$x(a=1) + (1 +)`: lite's `copy-with-update` `[3:17]`, the engine's `[3:25]`; a legacy test's
+`-99999999999999999999` and a later key's error: lite's `For input string` `[2:8]`, the engine's `[22:1]`); a test suite's value
+past a long is refused at the number (`Unexpected token`), where the engine's walker answers its section catch-all.
