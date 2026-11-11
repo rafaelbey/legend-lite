@@ -297,8 +297,10 @@ done, in the order of the design's §3.
      and the 30 keys of each `core_tests_integration` lane and 6 of each `core_tests_server` lane whose model holds a temporary
      path: 16,851 keys in each run, none in both, and with the model id set aside their counts agree between the runs, lane
      by lane. `//core:ladder_report` (a build action: the cache answered it in both runs, so its rows are the compile check's
-     alone) is not frozen. `TestPlanner.planAhead` was reached by no lane (no body's appeals named a store a fixture had to be
-     planned ahead for), so the oracle holds no plan made ahead.
+     alone) is not frozen. `TestPlanner.planAhead` was reached by no lane in these sets, so the oracle holds no plan made
+     ahead. The texts of `t:` ids are read from `rust/oracles/front/questions.jsonl.zst`: 31,438 of the 31,615 `t:` query
+     rows (the other 177 are `compileAllBodies`' constant id, 50 rows, and 127 rows of texts newer than that oracle) and
+     35,652 of the 37,112 rows with a `t:` model (50 of 2,664 distinct model texts are newer).
 
    - **Stable.** Two complete runs, A and B, of the same patched tree, 180,219 rows each, 90,262 keys each. Within a run no key
      has two answers (counts, MirJson ids, plan ids). Of the 73,411 keys in both, **no count differs, no lowering id moved and no

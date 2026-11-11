@@ -17,7 +17,10 @@
 #   query: t:<sha> the query's text; test:<fqn>, fixture:<fqn>, setup:<fqn>, service:<fqn>/<suite>/<test> the runner's name
 #          for it; vs:<sha> the resolved spec's toString (no text exists: 4,535 rows); compileAllBodies's text id; - for B
 #          and M; set:<sha> for L, the hash of the queries that ran on that context. A text's sha is SHA-256 of its UTF-16
-#          units, little-endian: rust/oracles/front's id, so the texts of t: rows are read from front/questions.jsonl.zst.
+#          units, little-endian: rust/oracles/front's id, so the texts of t: rows are read from front/questions.jsonl.zst:
+#          31,438 of the 31,615 t: query rows (the other 177: compileAllBodies' constant id, 50 rows, and 127 rows of
+#          query texts newer than that oracle, frozen 2026-11-05 on the old tree), and 35,652 of the 37,112 rows with a t:
+#          model (50 of the 2,664 distinct model texts are newer than it).
 #   doors: the public doors called at top level, in first-call order, *n when called n times. MOVED with main (the
 #          merged tree): a product query's planning door is TypedQuery.planned, named executionPlan@<runtime>[,<features>]
 #          or projectPlan@<runtime> (Execution.run is one statement over it and carries no door: the first freeze's
