@@ -17,7 +17,8 @@ import java.util.List;
  * 2026-11-11, docs/rust-port/PHASE2.md section 6): the parser reads on past a refused element, at element and section
  * boundaries only, and lists what it finds after this error, sorted by place. This exception, its message and its place
  * are the parser's answer as they always were; the surfaces lite shapes itself (the editor's diagnostics, {@code
- * Compiler.compileErrors}) show the rest. /
+ * Compiler.compileErrors}) show the rest.
+ */
 public final class ParseException extends com.legend.error.LegendCompileException {
 
     private static final long serialVersionUID = 1L;

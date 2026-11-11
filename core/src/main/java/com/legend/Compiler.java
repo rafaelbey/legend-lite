@@ -899,7 +899,8 @@ public final class Compiler {
      * body's, in {@code compileAllBodies}' order; empty when the model compiles. Both {@code compilation/compile}
      * routes answer from it -- legend-engine's with the first error, legend-lite's with all of them -- and the SDLC
      * checks a tree with it. A failure that is not the model's (a malformed argument, a compiler bug) is thrown, not
-     * listed as one of its errors. /
+     * listed as one of its errors.
+     */
     public static java.util.List<String> compileErrors(String model) {
         return compileErrorsOf(() -> compileModel(model));
     }

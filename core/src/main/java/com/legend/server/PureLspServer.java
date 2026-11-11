@@ -169,7 +169,8 @@ public class PureLspServer {
      * Create a diagnostics notification for an error in a file: the error itself, placed as it always was, then -- for
      * a parse error -- one diagnostic per error the parser read after it, at its own line and column (the user's
      * ruling 23 of 2026-11-10, built 2026-11-11, docs/rust-port/PHASE2.md section 6; {@link
-     * com.legend.parser.ParseException#further()}). /
+     * com.legend.parser.ParseException#further()}).
+     */
     private String createDiagnosticsForError(String uri, String text, Exception e) {
         List<Map<String, Object>> diagnostics = new ArrayList<>();
         diagnostics.add(diagnosticFor(text, e));
