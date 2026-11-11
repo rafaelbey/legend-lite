@@ -89,8 +89,13 @@ legend_java_library(
 
 # The page's SDLC and Depot: the rules and all they reach, compiled to WebAssembly -- FROZEN since 2026-11-03 (the Rust
 # port's phase 1, docs/rust-port/PHASE1.md §5): what the rules reach includes core's dialects, which move to Rust and
-# TeaVM cannot compile, so the page keeps the module TeaVM last built from :page_boundary (at 6f61be3f0; sha-256
-# classes.wasm 392d446a..., the runtime 05a76aac...) until the Rust wasm32 build replaces it.
+# TeaVM cannot compile, so the page keeps a module TeaVM built until the Rust wasm32 build replaces it.
+# RE-FROZEN 2026-11-11 (the owner's ruling 16, docs/rust-port/PHASE3_SHIM_DESIGN.md §10): TeaVM's build of
+# //sdlc-server:page on pristine main at c4a39e06d, the merge point, beside //wasm:planner's; sha-256
+#   classes.wasm               88260212440278ded0c3026acede015752e63a6735a651d6ac199c221b90ccc3 (5,018,472 bytes)
+#   wasm-gc-module-runtime.js  05a76aaced9113a89533c1b6609e19dcb2a484bb7f20593f4980e0cfbb6b9787 (unchanged)
+# (first frozen at 6f61be3f0; its classes.wasm was
+#   392d446adfa41cb89579e2f780d230f1f44fdc1cd792b12962918030819eed08)
 filegroup(
     name = "page",
     srcs = [

@@ -70,9 +70,17 @@ legend_java_library(
 
 # The module: the tab's adapter and all it reaches, with the class library TeaVM substitutes for the JDK's -- FROZEN
 # since 2026-11-03 (the Rust port's phase 1, docs/rust-port/PHASE1.md §5): core's dialects move to Rust, which TeaVM
-# cannot compile, so the browser keeps the module TeaVM last built from :tab (at 6f61be3f0; sha-256 classes.wasm
-# f4b7caf0..., the runtime 05a76aac...) until the Rust wasm32 planner replaces it. The Rust dialects render exactly as
-# Java's, so :differential_test still holds this frozen module to the live JVM's answers.
+# cannot compile, so the browser keeps a module TeaVM built until the Rust wasm32 planner replaces it. The Rust
+# dialects render exactly as Java's, so :differential_test still holds this frozen module to the live JVM's answers.
+# RE-FROZEN 2026-11-11 (the owner's ruling 16, docs/rust-port/PHASE3_SHIM_DESIGN.md §10): TeaVM's build of
+# //wasm:planner on pristine main at c4a39e06d, the merge point, so the module writes main's plan format (PlanJson 31)
+# that main's host runner reads; sha-256
+#   classes.wasm               34db9435ffb369479140fb762aec3bfc1618d3db8ee54b8d7c1acda323ac96fd (8,775,592 bytes)
+#   wasm-gc-module-runtime.js  05a76aaced9113a89533c1b6609e19dcb2a484bb7f20593f4980e0cfbb6b9787 (unchanged)
+# (first frozen at 6f61be3f0, writing PlanJson 19; its classes.wasm was
+#   f4b7caf06ff82f3118f852a43e33c4b0808b99b9841053e18f8e23cf97e3fb81)
+# TeaVM's build of this module is not byte-reproducible (its start function differs between compiles of the same
+# inputs, PHASE1.md §5's note), so the hash names the build committed.
 filegroup(
     name = "planner",
     srcs = [

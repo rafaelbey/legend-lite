@@ -666,6 +666,18 @@ holds the frozen Java module to the live JVM's answers, a differential of its ow
 `//:wasm` therefore registers no action, so `CompileOnlyTest` no longer expects a TeaVM compile or a javac plugin in
 that tier (`rust/RETIRED_TESTS.md`). The Rust wasm32 build replaces both modules later.
 
+**Re-frozen 2026-11-11** (the owner's ruling 16, PHASE3_SHIM_DESIGN.md §10): after the merge of `main` at `c4a39e06d`
+the module above wrote PlanJson version 19 and `main`'s host runner reads 31, so both modules are now TeaVM's build of
+`//wasm:planner` and `//sdlc-server:page` on pristine `main` at `c4a39e06d`, in a scratch worktree there. SHA-256: the
+planner's `classes.wasm` `34db9435ffb369479140fb762aec3bfc1618d3db8ee54b8d7c1acda323ac96fd` (was `f4b7caf0...`), the
+page's `88260212440278ded0c3026acede015752e63a6735a651d6ac199c221b90ccc3` (was `392d446a...`), both runtimes
+`05a76aaced9113a89533c1b6609e19dcb2a484bb7f20593f4980e0cfbb6b9787`, unchanged; the BUILD comments carry them. The
+TeaVM actions were served from the build's disk cache by their keys (the output of an earlier build of the same
+inputs). Compiled again with no cache, the page came out byte for byte the same; the planner did not: one function
+body differs, the module's start function (TeaVM's start-up initialiser, 548 KB), in 521 bytes at the same length.
+TeaVM's planner build is not byte-reproducible, so the planner's hash names the build committed, not every build of
+`c4a39e06d`. PHASE2.md §4 has the rest ("Browser modules re-frozen, baseline moved").
+
 ## 6. CI, emulated locally (2026-11-04)
 
 The user ruled out a CI run on the branch: `tools/ci-local` runs `gates-run.yml`'s lanes here instead -- macOS
