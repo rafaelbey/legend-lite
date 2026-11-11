@@ -442,6 +442,13 @@ Each with my recommendation first.
     none reached; the guard pins it moved, each a ledger row; `H2Modern`'s inputs re-asked of H2; the five removed docs
     `main` edited stay removed. The two allowlist entries for fields that no longer exist (`EngineStyleH2.frameDepth`,
     `anonDistinctDepth`) are removed.
+18. **The plan oracle's host test plans are deduplicated and committed** (2026-11-11): each repeated payload stored once
+    by its hash, so that every checkout and CI can hold the Rust `testplan` to Java's plans byte for byte; if the result
+    is still large, the owner rules again on the real size. The database judge's plans stay in the archive.
+19. **Step 0's own choices on the merged tree are ratified** (2026-11-11): a test plan's key without the dialect; the
+    classification of `testplan`'s identity sites, `ObjectSites.nodes` now semantic (b); the second patch,
+    `identity-control-tap.patch`; and what is left out (`//core:ladder_report`, the Postgres lanes and temporary-path
+    models, `planAhead`, which no lane reaches and which the Rust `testplan` tests on its own).
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.
