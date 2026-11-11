@@ -173,3 +173,208 @@ done, in the order of the design's §3.
      names. A row reproduces when the CLI compiles the model and asks exactly the doors of its `doors` column on a context with
      its `use`; the corpus rows need the sources and the test FQN, the `vs:` rows a name first. `whereZones` has no Rust table
      (ruling 3): its counts are for reading only.
+
+   **Step 0 redone on the merged tree: done 2026-11-11, no production Java changed** ([`PHASE3_SHIM_DESIGN.md`](PHASE3_SHIM_DESIGN.md)
+   §10, rulings 1 and 8; §5's steps 0 and 1). The first freeze above was made on the old tree, whose `driver` and `judge` `main`
+   has since deleted; this redoes it at `1ea8fbf45` (core and `base` as of the merge of `main` at `c4a39e06d`, `9c08abbc7`) and
+   adds the plan oracle. Everything above stands as the record of the first freeze; where the two differ, this entry is the
+   oracle. The probe was applied to a clean tree, run and reverted with `git apply -R` of the same patch, never across a
+   commit; the control likewise.
+
+   - **The probe, retargeted** ([`rust/tools/identity-hits-probe.patch`](../../rust/tools/identity-hits-probe.patch), replaced:
+     124 edits to 40 files of core, `spec/corpus.bzl`'s run flag, and `base`'s `IdentityProbe` and `SqlTap`). The first
+     freeze's edits were re-checked by their exact text against the merged sources; 99 applied unchanged, and what moved with
+     `main`:
+     1. *The doors.* `TypedQuery.lower` is the product statement road now (`ProductStatements`) and keeps its door;
+        `TypedQuery.resolve` is gone; `executionPlan` and `projectPlan` meet in `TypedQuery.planned`, the product query's one
+        planning entry, whose door is `executionPlan@<runtime>[,<features>]` or `projectPlan@<runtime>`. `Execution.run` is one
+        statement over that and carries no door (the first freeze's `run@<runtime>,<establish>`, which nested `executionPlan`).
+        A test body's planning is `TestPlanner.plan` (`Execution.runProgram` with `BodyDriver`, the first freeze's door, is gone):
+        `testPlan@<runtime>,<judge>,<rules>[,edge][,<features>]`, the judge `HOST`, `DATABASE` or `BOTH`, the rules `LITE` or
+        `COMPILED_PURE_COMPAT`, `edge` when the compatibility edge was handed; `TestPlanner.planAhead`'s is `testPlanAhead@...`.
+        The first freeze's dialect class is dropped from the name: it is a function of the model and the runtime, both in the
+        key. `TypedQuery.withBody`'s copy keeps the query's scope (the lift and the unread lets are the same question).
+     2. *The runners' names.* `PureTestRunner` plans a package's setup inside `runFixture` (`runSetup`'s `planBody`) and an
+        on-demand fixture in `provideFixtures` (`planProgram`); both are labelled `fixture:` there.
+     3. *The lowering's MirJson hook.* `Lowerer.lowerStoreWrite` gained `main`'s `RunScope` line; the hook is unchanged.
+     4. *The SQL tap.* Nine of the JDBC seam's sends are tapped now, not four: `main` added typed rows and reported rows
+        (stamped as a query is), a statement's columns, a prepared statement's description, a file read and a streamed
+        insert. The recovery statements (a connector's constants) and the bulk loader's rows are not.
+     5. *The new sites* (below) and *the plan oracle*: `IdentityProbe.plan` and `testPlan` record each plan's JSON, two new
+        columns of a row.
+
+   - **The sites on the merged tree.** The first freeze's javac census (every reference comparison and identity collection,
+     attributed over core, `base`, `json`, `arrow_ipc`, 0 errors) run again at `1ea8fbf45` and matched to the old one by
+     (file, enclosing method, text). Of §1.1's 33 identity collections all 33 stand, 13 at a moved line (`SpecCompiler` 46→48,
+     `Typer` 108/118→112/122, `Overloads` 361→365, `UserCallInliner` 114→116, `NameResolver` 1388→1395, `ClassSources`
+     320→333, `StoreResolver` 2216→2251, `Lowerer` 1166/2042→1206/2082, `ObjectSites` 16→24; the census's lines, of which
+     §1.1 cites a few one off). Of its classified comparisons 29 stand where they were, 31 moved a
+     few lines (`ModelBuilder`'s sixteen `indexed` arms 380-402→382-404 and `findAssociationAtClass` 786→798,
+     `UserCallInliner` 136/268→138/283, the (e) sites of `VerdictSql`, `KeyedPivot`, `Lowerer`, `Fold`, `RelOpTranslator`,
+     `FoldChecker`, `InferenceKernel`), and 3 went: `resolver/RawGridSchema` is gone on `main` (a raw grid is a keyed plan
+     step now), with its 8 comparisons, 3 of them (e). The ten dialect shims' `d == rust` went with `main`'s `forServer`. In
+     scope now: 36 identity collections and 438 reference comparisons (the old scope's 424 and `testplan`'s 14); `setup` and
+     `testdatagen` have none. Added, each classified as §1.1 does:
+
+     | Site (merged tree) | What | Class | Counted as |
+     |---|---|---|---|
+     | `testplan/TestKinds.java:76,78`, read at `TestDoor.java:163` (`byStep`) | an effect or seed step (an `ExecutionPlan.Node`) → its ledger texts, re-keyed by the step's place | (b): plan nodes are pure data, so two equal effect steps are equal records and must stay two (a map by content would merge them and `byStep`'s size check would refuse the body). The miss is loud, not silent. `testplan` is re-expressed (ruling 6): keying by the step's index, as `TestKinds.frameRuns` already does, removes the identity | `TestKinds.effects`, `TestKinds.seeds` (the reads); `TestKinds.effects.put`, `.seeds.put` (a step put twice: never) |
+     | `testplan/BodyClass.java:231`, read at `:236,238` | a frame's query lambdas, by instance: the store scan descends into these alone | (b), as `SyntheticHeads.valuesLambdas`: an equal lambda handed elsewhere "runs nowhere" | `BodyClass.frameQueries` |
+     | `testplan/SqlTextVerdicts.java:176,182,396,404` | the SQL-text collector's sentinel texts (`new String(...)`, "compared by identity, never a text a program spells") | (b): a token, as `Evaluation`'s `new Object()` origin | `SqlTextVerdicts.token`, `.goldenToken`, `.batchToken` |
+     | `planner/ProgramFrames.java:235` (`pastes`) | how many times a frame's chain stands in the body, by reference: "a pasted read places the frame's chain itself" | (c) | `ProgramFrames.pastes` |
+     | `testplan/TestPlanner.java:52,181`, `BodyClass.java:259,297,713`, `BodyDriver.java:122` (`withPlan`), `HostAsserts.java:355`, `compiler/spec/RelationCountAsserts.java:45,57`, `ResultEnvelopeSplice.java:669`, `planner/PlanAllocations.java:288`, `EnginePlans.java:105`, `sql/SqlRewriter.java:108` | hand back the original if nothing changed | (d), 13 | not counted, as before |
+     | `sql/dialect/QueryBlocks.java:37,38,41,48` | the alias's query blocks | (d), 4: a dialect helper, in Rust since the merge's replay (`query_blocks::each`) | not counted |
+     | `testplan/HostAsserts.java:350` (`program == env`), `SqlTextVerdicts.java:209` (`at == env`), `DatabaseJudge.java:309` (`fe == fa`, two `Type.Primitive` constants under `Type`), `lowering/Lowerer.java:2503` (`parent.children().get(0) != n`) | which did I pick, which child am I | (e), 4. The first two rely on `withPlan`'s (d) handing back `this`; the third is the database judge's (ruling 4) | not counted |
+
+   - **What was counted**, summed over the frozen rows, beside the first freeze (a row counts a question once):
+
+     | Class | Table or site | Hit / true | Miss / false | Rows | First freeze |
+     |---|---|---:|---:|---:|---|
+     | (a) memo | `SpecCompiler.memo` | 3,031,740 | 245,638 | 37,564 | 1,582,730 / 240,191 / 34,507 |
+     | (a) memo | `Anchors.memo` | 152,740 | 5,235,155 | 52,376 | 134,771 / 5,305,268 / 48,778 |
+     | (a) memo | `Anchors.spaceMemo` | 31,613 | 472,818 | 52,589 | 26,351 / 434,887 / 48,987 |
+     | (a) memo | `ClassSources.routedSources`, `perRoutes` (each) | 14,859 | 8,824 | 4,966 | 12,354 / 7,207 / 4,907 |
+     | (a) memo | `ContextReading.scoped` | 1,786,100 | 379,866 | 14,428 | 4,018,844 / 667,100 / 14,254 |
+     | (a) memo | `ContextReading.timeZone.seen` | 3,974 | 1,504,862 | 21,468 | 3,834 / 2,247,049 / 19,647 |
+     | (a′) side table | `whereZones[not-in-rust]` | 11,730 | 6,643 | 6,290 | 9,428 / 5,700 / 6,399 |
+     | (a′) side table | `DateSplit.ctxStrips` | 56 | 5,800 | 36 | 36 / 3,768 / 36 |
+     | (a′) side table | `DateSplit.dateRenames` | 346 | 5,454 | 36 | 226 / 3,542 / 36 |
+     | (a′) side table | `StackBuilder.leaves` | 2,333 | 73,452 | 5,881 | 1,220 / 53,420 / 5,775 |
+     | (a′) side table | `StoreResolver.aggReads` | 2,211 | 1,193,754 | 27,255 | 1,558 / 1,086,703 / 24,599 |
+     | (a′) side table | `InnerDemand.inQueryReads` | 328 | 2,844 | 687 | 220 / 2,094 / 591 |
+     | (a′) side table | `Lowerer.calCtx` | 1,326 | 24,091 | 7,746 | 882 / 20,882 / 7,532 |
+     | (b) query tier | `TypedUserCall.equals.origin` | 0 | 0 | 0 | the same |
+     | (b) query tier | `Evaluation.equals.origin` | 0 | 4,424 | 240 | 0 / 804 / 12 |
+     | (b) query tier | `Evaluation.Site.equals.origin` | 749,188 | 0 | 1,260 | 746,151 / 0 / 1,317 |
+     | (b) query tier | `CallInstantiation.equals.frame`, `.origin` (each) | 1,280 | 0 | 84 | 3,334 / 0 / 104 |
+     | (b) query tier | `UserCallInliner.callInstantiations` | 1,280 | 1,319,305 | 13,528 | 3,334 / 1,266,951 / 13,472 |
+     | (b) query tier | `SourceSubst.untrackedLetNodes` | 4,400 | 2,452 | 237 | the same |
+     | (b) query tier | `ContextReading.lambdaBound` | 768,414 | 1,016,177 | 12,769 | 714,195 / 2,271,789 / 11,172 |
+     | (b) query tier | `SyntheticHeads.valuesLambdas` | 208 | 172,736 | 25,949 | 144 / 143,771 / 23,239 |
+     | (b) query tier, **was (e)** | `ObjectSites.nodes` (below) | 822 | 232 | 17 | 0 / 0 / 0 |
+     | (b) query tier, **new** | `TestKinds.effects` | 2,281 | 30,036 | 17,606 | |
+     | (b) query tier, **new** | `TestKinds.seeds` | 11,664 | 20,653 | 17,606 | |
+     | (b) query tier, **new** | `TestKinds.effects.put`, `.seeds.put` | 0 | 2,283; 11,913 | 864; 11,913 | |
+     | (b) query tier, **new** | `BodyClass.frameQueries` | 138,766 | 213,534 | 22,972 | |
+     | (b) query tier, **new** | `SqlTextVerdicts.token`, `.goldenToken`, `.batchToken` | 336; 4; 94 | 10,546; 10,878; 0 | 6,588; 6,588; 94 | |
+     | (b) model tier | `model.ModelBuilder.indexed.*` (15 of its 16 arms fired, as before) | 73,173 | 11,500 | 16,791 | 61,458 / 7,905 / 16,589 |
+     | (b) model tier | `model.PureModelContext.CheckedLayer` | 6,478,837 | 183,150 | 2,779 | 6,385,510 / 173,890 / 2,728 |
+     | (b) model tier | `model.DatabaseDefinition.defaultSchemaTables` | 238,543 | 34,183 | 3,733 | 141,942 / 23,336 / 3,487 |
+     | (b) model tier | `model.DatabaseDefinition.defaultSchemaViews` | 307 | 76,425 | 356 | 163 / 31,007 / 199 |
+     | (b) model tier | `model.MappingDefinition.position` | 23,989 | 0 | 242 | 15,356 / 0 / 165 |
+     | (b) model tier | `model.AssociationSynthesis.self` | 68 | 66 | 19 | 66 / 64 / 19 |
+     | (b) model tier | `model.TableIndex.inSchemas`, `LiftedViews.*`, `ViewSignatures.expanding`, `MappingClosures.first`, `MappingPrePass.selfEdge`, `ScanRelations.pm` | | | | the same, each |
+     | (c) query tier | `UserCallInliner.reducedTerms` | 2,769,826 | 17,027,637 | 52,673 | 2,436,879 / 15,330,022 / 49,041 |
+     | (c) query tier | `UserCallInliner.countReads` | 25 | 263 | 9 | 19 / 143 / 9 |
+     | (c) query tier | `Typer.pretyped`, `Typer.withPretyped.shadowed`, `Overloads.pretyped` | | | | the same, each |
+     | (c) query tier | `InnerDemand.lambdas.seen` | 3,558 | 4,632 | 531 | 2,734 / 3,417 / 527 |
+     | (c) query tier, **new** | `ProgramFrames.pastes` | 88 | 1,782 | 89 | |
+     | (c) model tier | `model.NameResolver.resolvedViews`, `ModelNormalizer.adopted`, `ModelBuilder.findAssociationAtClass` | | | | the same, each |
+
+   - **What ran.** The first freeze's targets, on the merged tree: `//core/...` (121 test targets now: `main` added the
+     `*_judge_database` and `*_judge_both` variants of thirteen lanes), `//spec:corpus_duckdb` and `corpus_h2` (each a host and
+     a database pass, 2,613 tests, 108 fixtures and 113 setups), PCT's DuckDB five, `pct_h2` and channel B's six: 145 test
+     targets and the four corpus passes, each run at most four actions and two tests at a time (`--jobs=4
+     --local_test_jobs=2`, PHASE1.md §6), `--nocache_test_results` and the corpus flag making every one run again. Each run
+     took 23 to 29 minutes. Two targets fail with the probe, both rules over the source and neither over what is computed:
+     `//core:guardrails`, as in the first freeze (the probe's own shape), and `//core:census`'s `HarnessDisciplineTest` (the test door's name sorts its feature list: a "sort site" in
+     `TestPlanner`). Frozen rows by set (a question two sets ask is one row):
+
+     | Set | Rows |
+     |---|---:|
+     | `//spec:corpus_duckdb`, each of its host and database passes | 5,418 |
+     | `//spec:corpus_h2`, each pass | 5,418 |
+     | `//core:stress_suites` / `stress_suites_h2` | 12,147 / 6,077 |
+     | `//core:core_tests_integration` / `_h2` / `_sqlite` / `_judge_database` / `_judge_both` | 2,984 / 2,979 / 2,955 / 2,984 / 2,984 |
+     | `//core:iq_parity_test`, `cypher_parity_test`, `cypher_parity_native_test`, `sql_parity_test` | 8,503, 5,897, 5,917, 2,130 |
+     | PCT: DuckDB's five lanes, `pct_h2`, channel B's six | 2,495, 491, 1,730 |
+     | The rest of `//core/...` (50 lanes, 22 of them judge variants) | 4,241 |
+     | **All of it, distinct** | **73,411** (B 1, L 24, M 2,792, Q 70,594; 2,803 models) |
+
+     Query ids: `t:` 31,615, `test:` 15,536, `service:` 18,249, `vs:` 4,535, `fixture:` 432, `setup:` 227. *Left out, and
+     why:* as before, the Postgres lanes (`iq_parity_postgres_test`, `cypher_parity_postgres_test`, `sql_parity_postgres_test`,
+     `postgres_arm_test`, `sql_island_postgres_test`, `store_writes_postgres_test`, and `main`'s `relation_to_one_postgres_test`)
+     and the 30 keys of each `core_tests_integration` lane and 6 of each `core_tests_server` lane whose model holds a temporary
+     path: 16,851 keys in each run, none in both, and with the model id set aside their counts agree between the runs, lane
+     by lane. `//core:ladder_report` (a build action: the cache answered it in both runs, so its rows are the compile check's
+     alone) is not frozen. `TestPlanner.planAhead` was reached by no lane (no body's appeals named a store a fixture had to be
+     planned ahead for), so the oracle holds no plan made ahead.
+
+   - **Stable.** Two complete runs, A and B, of the same patched tree, 180,219 rows each, 90,262 keys each. Within a run no key
+     has two answers (counts, MirJson ids, plan ids). Of the 73,411 keys in both, **no count differs, no lowering id moved and no
+     plan id moved**. The first freeze's 72 moved lowering ids are gone: they were a corpus aggregation-aware test's `VALUES`
+     holding the host's fresh `executionTraceID`, read back by the body driver after a statement ran; a test body is planned
+     before it runs now. Every plan text's id was checked against its text (SHA-256 of its UTF-16 units), 59,552 texts in each
+     run.
+
+   - **Counting changes nothing.** A control run C applied only the SQL tap and a plan tap at the plan oracle's three sites
+     ([`rust/tools/identity-control-tap.patch`](../../rust/tools/identity-control-tap.patch): no counting, no scope; each plan's
+     masked id written in order beside the statements). Against A, over 6,986,471 statements in 72 processes: 6,969,583 in
+     the same order, one process (`core_tests_exec_judge_database`) the same 531 statements with two adjacent ones swapped,
+     and three (`core_tests_integration`, `_judge_database`, `_judge_both`) differing at 15 statements each, every one of which
+     differs between A and B too (a temporary path). The swap is the lane's own: the control alone, run four times on that
+     lane, sends the two in one order three times and the other once. The plans, per process as a multiset: 58 of 72 the
+     same; 13 differ only where A and B differ too (the Postgres lanes' port, the temporary paths); `ladder_report` has plans
+     only in C (the cache answered it in A). The control fails only `//core:guardrails`, by its plan tap's reflection (rule
+     F1.11). `//core:update_ladder_*` (the SQL pins), the corpus rosters' `update_rcorpus_*` and both corpus verdicts stayed
+     green with the probe.
+
+   - **What moved against the first freeze, and why.** Matched one to one by key with the doors normalized (`run@R,E` and
+     `executionPlan@R`; `runProgram@R,D,J` and `testPlan@R,J`): 49,774 rows, of which 33,576 count exactly as before and
+     16,198 differently. By question:
+     1. *Test bodies* (`testPlan` rows, 11,128): the body is planned whole once by `testplan`, where `BodyDriver` walked it and
+        re-ran the inliner, resolver and lowering per statement and per assert side (PHASE3_SHIM_DESIGN.md §3.3). So the
+        context reader is asked far less (`ContextReading.scoped` 3.0M/0.46M → 0.05M/0.08M on those rows, `lambdaBound`'s
+        misses 1.7M → 22K, `timeZone.seen`'s 1.26M → 0.21M), while the inliner and the memo see the whole program
+        (`reducedTerms` and `SpecCompiler.memo` grow; `SpecCompiler.memo`'s hits 1.43M → 2.81M), and the new tables appear.
+     2. *`programFacts`* (4,752 rows, the corpus's): only `SpecCompiler.memo` moves (misses 39,202 → 33,828).
+     3. *Product queries* (`executionPlan`, 313 of 29,772 matched): only `SpecCompiler.memo` (hits 706 → 1,454: the product
+        statement road asks it again for a body it has typed).
+     4. *Models*: 5 `buildModel` rows whose boot-layer check moved (`CheckedLayer` 11,955/18,060 → 0/70).
+     Unmatched: 17,139 old rows, 23,567 new; 14,266 of the old find their partner when only the model id differs (`main`
+     changed the stress suites' and PCT's sources, so their `s:` ids moved), 1,014 when only the doors do. The new rows are
+     mostly questions `main`'s tests added (the judge lanes, `core_tests_testplan`, the stress suites' 2,704 more rows).
+
+   - **What the first freeze said that no longer holds.**
+     1. *`ObjectSites.nodes` is alive* (the first freeze's finding 3, §1.1's class (e)). `main` folded the test road's per-node
+        ids (`judge/InstanceIds`, gone) into `ObjectSites`: "a construction the compiler builds after the inliner keys by its
+        node". 822 hits and 232 misses in 17 rows: PCT channel B's four lanes and `core_tests_testexec` under all three
+        judges. It numbers objects (`o1`, `o2`, ... or the test road's `i1`, ...) by node instance, so two equal constructions
+        are two objects and the numbering order reaches the SQL: class (b), and the port needs it.
+     2. `judge/InstanceIds` "stays Java" falls away with it (PHASE3_SHIM_DESIGN.md §10, question 13).
+     3. The 72 `~moved` lowering ids, and with them the need for a mask (above).
+     4. Findings 1, 2, 4 and 5 still hold on the merged tree: the (a′) lookups still miss by design; `ClassSources`' two
+        levels still count alike in every row (4,966); `TypedUserCall`'s `origin ==` and `findAssociationAtClass` are still
+        never reached, nor the `indexed` arm for a `LegacyMappingDefinition`.
+
+   - **The plan oracle (new;** [`rust/oracles/plan/`](../../rust/oracles/plan), its `MANIFEST.tsv`**).** For every question
+     the lanes enumerate, the plan Java made: a product query's `ExecutionPlan` where `TypedQuery.planned` makes it
+     (`PlanJson`, v31) and a test body's `TestPlan` where `TestPlanner.plan` makes it (`TestPlanJson`, v11 over the product's
+     v31), in each row in order. A plan's id is the SHA-256 of its JSON's UTF-16 units after masking run-specific values.
+     *Masking:* the one candidate, the execution-trace comment's UUID (`testplan/ActivityComments` reserves one at planning
+     under a verdict batch), is masked to the zero UUID; it applied **0 times** in both runs, and a search of run A's every plan
+     and MirJson text for any UUID found none. The temporary paths and Postgres ports some plans hold are in their model's text
+     too, so those keys are not frozen at all. Nothing else differed, so every frozen id is the hash of exactly what Java's
+     writer wrote. *Sizes:* 51,337 rows with a plan: 25,740 with an execution plan (25,741 plans; 46 through `projectPlan`),
+     25,597 with a test plan. Test plans by judge: `HOST` 17,651 rows (12,318 under lite's rules, 5,333 under the
+     compatibility rules), and, **marked** as the database judge's in their doors, `DATABASE` 5,800 and `BOTH` 2,146 (ruling 4:
+     not ported at first; frozen because the same runs made them). Distinct texts: 17,044 execution plans (424 million
+     characters), 16,247 host test plans (30.2 billion: each stress-suite plan carries its 500 KB test data CSV several times
+     over, about 2.5 MB a plan, and compresses about 900 to 1), 6,850 test plans only the database judge's rows reach (4.0
+     billion).
+
+   - **Frozen.** [`rust/oracles/identity/`](../../rust/oracles/identity), replaced (its MANIFEST says what moved):
+     `hits.tsv.zst` 1.4 MB (25.8 MB of text, 73,411 rows, 69 tables), `mir-ids.tsv.zst` 2.5 MB (51,606 rows, 167,833
+     lowerings, 40,613 distinct, 2,546 refusals: 2,538 tagged lists, 8 tagged values), `mir-store.tsv.zst` 5.3 MB (876
+     million characters). [`rust/oracles/plan/`](../../rust/oracles/plan), new: `plan-ids.tsv.zst` 2.4 MB (every plan's id,
+     both judges') and `execution-plans.tsv.zst` 3.5 MB (every execution plan's text). The test plans' texts are archived
+     outside git, as the front oracle's full answers are, by the MANIFEST's rule (a text store in git when it is under 10 MB
+     compressed and not the database judge's): `~/.local/legend-lite/oracle-archive/plan-test-plans-host.tsv.zst` (65 MB) and
+     `plan-test-plans-database-judge.tsv.zst` (8 MB), each with its SHA-256 in the MANIFEST and in `plan-test-plans.sha256`
+     beside it, each checked by decompressing it. Every file was checked against its MANIFEST row, every MirJson and plan id
+     against a text, and every execution plan's text re-hashed to its id.
+
+   - **For the Rust side, the plans.** A Rust planner reproduces a row when its writer's JSON for the question, masked so,
+     hashes to the row's ids in order: the product doors' plans at switch 1, `testplan`'s at switch 2 (§5 of
+     PHASE3_SHIM_DESIGN.md), the host judge's rows first. The ids are in git, so the comparison needs no archive; the archive
+     is for reading a mismatch.
