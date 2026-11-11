@@ -909,7 +909,8 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
    **The merge of `main` at `c4a39e06d` done 2026-11-10** (the owner's rulings 1, 14 and 15, PHASE3_SHIM_DESIGN.md §10;
    `origin/main` as fetched that day, PR #94's merge; the branch's base was `cf73e6ef7`). Commits, in order: the renumbering
    `8191cac19`, the merge `9c08abbc7`, the replay `0d6352c86`, `0d318a5c7`, `090926c8d`, `f9fca3bdb`, `2a02224b3`, `29e30e43c`,
-   the re-freeze `d55a29a96`, and this record.
+   the re-freeze `d55a29a96`, this record `b9b1e6331`, the seam's `csvLoad` test `2dccf8bbc`, and the full suite's two
+   guard pins (below).
    - **The register renumbered first** (`8191cac19`): the port's rows S128 to S196 are S300 to S368 (S(128+k) -> S(300+k)),
      381 citations in 28 files (the register, this file, ENGINE_GAP and its ledger, GATES, `rust/lite-front`'s PARITY and
      comments, the front oracle's difference list header, the refusal allowlist, `FixtureCorpusParityTest`'s comment), so
@@ -977,12 +978,31 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      tests and differential floor (its class gone), and each test whose assertion follows `main`'s Java, are rows of
      `rust/RETIRED_TESTS.md`. Two pre-existing ledger gaps closed: `FixtureCorpusParityTest` and ruling 18's four parity
      floors (`ModelReaderParityTest`, `JsonModelDoorTest`, `RoundTripProofTest`, `CorpusSweepTest`).
+   - **The full suite on the merged tree** (`bazel test //... --keep_going`, against `main`'s own run at `c4a39e06d`: 552
+     targets, 550 passed, 2 skipped): 567 targets. Gone, 3, each a row: `//core:core_tests_lexer` and `core_tests_ide`
+     (2026-11-06), `//docs:update_dialect_capability_test` (2026-11-04). New, 18, the port's (`//rust/...`, `//core:ffi_test`,
+     `ffi_missing_test`, `front_reader_test`, `update_front_records_test`), all passing. Two guards of `main`'s found what
+     the port had and the merge did not show: `main`'s scan of annotated field types (2026-11-01) reached two shim fields
+     (`RustDialect.factsRead`, `EngineStyleH2.lastRendered`, allowlisted with their reasons), and the static-slot census's
+     floor 19 is 18 on the port (`StableScanOrder.FIRINGS`, the register's own removal) -- two pins moved, each a row.
+     **Three targets red, one cause, a functional regression of the branch:** `//engine-client:plan_runner_test`,
+     `//datacube:table_output_test` and `//datacube:verify_flow_test` (its Output into a table: `datacube-app.ts`
+     `writeTable` -> `table-output.ts` -> `runPlan`). The browser's planner is the TeaVM module frozen at `6f61be3f0`
+     (PHASE1.md §5), which writes PlanJson version 19; `main`'s host runner (`engine-client/src/plan-runner.ts`) reads
+     version 31 and refuses it by name ("not a legend-lite execution plan of version 31"). Before the merge both sides
+     were 19; on `main` the module is built live and moves with PlanJson. Every other consumer of the frozen module
+     passes (its differential among them). Left red: lowering the runner's version would claim a format the plans do not
+     have, and re-freezing the module is the owner's (below).
    - **Choices taken that are the owner's** (each reversible): the re-freeze re-answers the frozen inputs (plus the new arms'
      oracle) rather than re-dumping `bazel test //...` on `main` with the probes -- exact row diffs, but the trees `main`'s
      lowering now builds are judged by the Java tests through the shims and the lanes, not by a frozen dump; H2Modern's
      inputs re-asked of H2 and kept as H2's; GATES and IN_FLIGHT keep `main`'s per-landing entries by pointer; the five
      removed documents `main` edited stay removed; RUNNING_THE_CORPUS takes `main`'s engine side; the merge commit carries
-     the two verdict facts so that it builds.
+     the two verdict facts so that it builds; the host runner is `main`'s (version 31) and the three targets above stay
+     red until the owner rules -- re-freeze the browser's modules (`wasm/planner/`, `sdlc-server/page/`) from TeaVM's
+     build of `main` at `c4a39e06d` (as the oracles were), keep the port's runner at 19 for the frozen module (`main`'s
+     constant-node case, version 23's, still red), or carry the red
+     until the Rust wasm32 planner replaces the module.
 
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser

@@ -186,6 +186,13 @@ class CodeShapeGuardrailTest {
             // anonymous-subselect nesting cursor (bare DISTINCT-key
             // spelling scope) — same lifecycle as frameDepth
             "EngineStyleH2.anonDistinctDepth",
+            // 2026-11-10, the merge of main at c4a39e06d: main's M5 audit (2026-11-01) taught this scan annotated types,
+            // and it found two of the Rust port's shims' fields, there since the shims were written (unscanned until
+            // the merge, not new): the Rust dialect's facts, read once from the library by the dialect object (LAZY, a
+            // memo of a pure derivation, volatile, benign-racy: two reads answer the same facts); and the engine-text
+            // shim's last rendered query, the alias plan renderedAlias reads (as Java's EngineStyleH2 read the plan its
+            // last render made: the cursor of one dialect object, never shared across threads, Java's lifecycle)
+            "RustDialect.factsRead", "EngineStyleH2.lastRendered",
             // (MappingProtocolParser.sectionStartLine and .aggLambdaShift, the mapping section's span-shift context,
             // left 2026-11-06 with the Java lexer and parser, the Rust port's phase 2 step 6b)
             // JSON writer's field/value alternation cursor — same

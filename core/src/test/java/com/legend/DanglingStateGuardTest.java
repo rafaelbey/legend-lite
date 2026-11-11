@@ -121,7 +121,10 @@ class DanglingStateGuardTest {
         // (SqlTypeCensus, PrimitiveCensus), the mute and suspend switches, the product's statement observer, the
         // startup registries sealed (a constant is no slot); ArchitectureTest.staticStateIsConstantOrRegistered
         // registers what remains
-        assertTrue(slots.size() >= 19, "slot census collapsed: " + slots.size()
+        // the floor 19 -> 18 (2026-11-10, the merge of main at c4a39e06d into the Rust port): StableScanOrder.FIRINGS
+        // is gone on the port, its count the Rust library's since 2026-11-04 (StableScanOrder.firings() reads the
+        // seam); the static-state register lost it at the same merge (rust/RETIRED_TESTS.md)
+        assertTrue(slots.size() >= 18, "slot census collapsed: " + slots.size()
                 + " static slots found — the declaration regex rotted");
         // every file a word occurs in, from ONE pass over the sources: a
         // slot's uses are searched only where its name occurs at all
