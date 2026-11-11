@@ -380,3 +380,21 @@ done, in the order of the design's §3.
      hashes to the row's ids in order: the product doors' plans at switch 1, `testplan`'s at switch 2 (§5 of
      PHASE3_SHIM_DESIGN.md), the host judge's rows first. The ids are in git, so the comparison needs no archive; the archive
      is for reading a mismatch.
+
+   - **The host judge's test plans in git, deduplicated (2026-11-11,** PHASE3_SHIM_DESIGN.md §10 ruling 18**).** Measured
+     first: of the archive's 30.2 billion bytes, one 516,123-byte CSV (the stress suites' `testDataSetupCsv`) stands 31,494
+     times in 10,498 plans (16.3 GB) and SQL strings take 4.5 GB more, but deduplicating whole JSON strings still leaves 4.9
+     GB of plan text even from 64 bytes: whole sub-objects repeat across a suite's plans (the session, the seed steps, MIR
+     trees). So the grain is the whole JSON value: a string, array or object of at least 8,192 bytes that occurs twice or
+     more, nested ones too, is stored once under its key (its text's id, the plan's rule), and its place holds a reference,
+     U+0001, the key's 64 hex digits, U+0001, a character Java's compact JSON writer never writes and the archive never
+     holds. 26,551 values; 154 MB of plan text and 91 MB of values left, in independent 2 MiB zstd frames so that one plan
+     reads only its own frames (65 to 83 ms a plan from a fresh reader, a median 5.6 MB decompressed). The threshold is the
+     measured smallest (the four files' bytes: 256 17.1 MB, 1,024 11.8, 4,096 10.3, 8,192 10.1, 16,384 10.3). In
+     [`rust/oracles/plan/`](../../rust/oracles/plan): `test-plans-host.tsv.zst` 6.0 MB, `test-plan-values.tsv.zst` 3.9 MB,
+     `test-plan-values-index.tsv.zst` 0.2 MB, `test-plan-frames.tsv` 13 KB, 10.1 MB together; the format, the writer, the
+     reader and the check are [`rust/tools/test-plan-texts.py`](../../rust/tools/test-plan-texts.py) (a tool beside the
+     probes, not a probe: reading the oracle needs it). **Lossless:** all 16,247 plans rebuilt, each hashing to its id,
+     every value to its key, the rebuilt stream's SHA-256 the archive's (`17af882a…`), the ids exactly the host rows' test
+     plan ids; the writer run twice wrote the same bytes. A host mismatch is read from git now (`test-plan-texts.py read`);
+     the archive stays, as the source, and the database judge's plans stay in theirs only.
