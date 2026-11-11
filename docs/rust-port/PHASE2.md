@@ -1051,6 +1051,92 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      new row; `frameDepth`'s drifted comment removed with the entries; GATES' oldest "Recent changes" line (the seam's
      step B1, D71) left for its 20-line limit, by pointer.
 
+   **Rulings 23 to 26 done 2026-11-11** (from `8bd6583d9`, `main` merged at `c4a39e06d`; commits `6336c351e`, `47d609f3c`,
+   `cedfd8fea`, `701531f7b`, `dda829ec5`, and this record). Every new input was asked of legend-engine's own parser on the
+   parser-equivalence class path (`PureGrammarParser`, 4.145.0), not recalled; the measurement re-run on its pinned inputs
+   (`docs/rust-port/ENGINE_GAP_2026_11_09.md`, "After rulings 23 to 26").
+   - **Ruling 23: several errors** (`6336c351e`, register S372). `model_parser::further_errors` walks every section again at
+     the door's dialect with a recovery sink in `strict_walk`: a refused element ends its reading and the walk goes on at the
+     next element of its section -- a head token at bracket depth 0 (braces, parentheses, brackets and islands counted), after
+     a `;` or a closing bracket, no earlier than the refusal's place -- or at the next section; never inside an element. A
+     raw `###Diagram`, an unknown section or a section's imports is one error and the next section is read. An element that
+     leaves its brackets open (or closes one too many) is the last read; a header's refusal (checked before any section is
+     read) and a first error with no place are reported alone. The list is sorted by place and keeps only what is placed
+     after the first, so it begins with the door's own answer and stays in order. `doors::pmcd_with_errors` is `pmcd`'s
+     answer, untouched, plus the list; `pmcd`, `answer_form` and the engine-JSON doors are unchanged. The FFI's model door
+     writes the list as a last key `rest` of the error's JSON (absent when empty, so one error's JSON is byte for byte what
+     it was); `ParseException.further()` carries it (the first error stays the exception), read by `RustParserProvider`.
+     **The surfaces that showed one parse error, and now:** a list -- `Compiler.compileErrors(String)`, and so
+     `/api/lite/v1/compilation/compile` (`PureV1Api.compileEveryError`), the SDLC's tree check (`sdlc-server`'s
+     `CoreGrammar.compileErrors`) and the studio's `compileErrors`, which read it; and the editor's diagnostics
+     (`PureLspServer`: one diagnostic per error, the first placed from its message as before, the others at their own line
+     and column). The first alone, the engine's shape, as before: `compilation/compile` (`PureV1Api.compile`, the list's
+     first), `PureV1Api.refusal` and every route that answers a `ParseException`'s message, the `document` and
+     `lambdaJson` doors, `Compiler.compileErrors(PureModelContextData)` (no parse), and the expression doors (an expression
+     holds one error). **The first-error identity check:** every frozen question of the front oracle answered again, the
+     model door's answer taken as the list's first: the questions Rust answers differently from Java's frozen answer are the
+     760 listed before, byte for byte (`unlistable` 0); 1,234 of the 87,564 model asks hold further errors (5,733), none out
+     of order. Through `pmcd_with_errors` over the mutated texts (16 per text) at the three dialects, 459,024 asks: 9,397 hold
+     further errors (16,803), no panic, none out of order or placed at or before the first, the first `pmcd`'s answer in
+     every ask. **The order question** of the rulings 19 to 21 report (a rule run behind lite's own reading of a
+     construct): the sort settles it where the two errors fall in different elements. Where both fall in one construct --
+     a default value, a service test's value, a mapping expression's path, a HostedService's lists, each inside one element
+     -- recovery does not enter the element, so the list holds lite's own reading's error, as the door did; answering the
+     earlier of the two instead would change a first error the engine-compatible routes answer (no pinned text has two),
+     and is left for the user.
+   - **Ruling 24** (`47d609f3c`, S368). The `block` door's empty or blank block at the engine's dialect keeps lite's words
+     and is placed where an expression was expected: the end of the input, one past its last character, blanks, comments
+     and line breaks counted, as lite places `1 +`'s missing operand -- `[1:1]` for an empty text, `[1:4]` for three blanks,
+     `[2:1]` for a line break or a comment line alone. The `lambda` door's empty text keeps its unplaced answer, a frozen
+     question; no frozen question asks `block` at the engine's dialect.
+   - **Ruling 26** (`cedfd8fea`, S369 to S371), each family probed against the engine first and refused at its place, in
+     lite's words: a v1 persister's bare kind (`auditing: None`, `mergeStrategy: NoDeletes`, `deduplicationStrategy: None`,
+     `AnyVersion`) with a body or an island after it, outside a target's island, whose grammar takes one (300 texts, 14
+     looser before, 0 after); a constraint's keyword as a column spec (`~owner`, `~externalId`, `~function`, `~message`,
+     `~enforcementLevel` and a `:` past blanks, the engine's `CONSTRAINT_*` token), refused at the `~` where the engine's
+     domain lexer reads the text -- a `###Pure` section or an expression door -- and taken in a mapping's, service's, data
+     space's or data quality check's expression, as the engine takes it; the lexer stays dialect-free (33 texts, 17 looser,
+     0); DataQuality's comma lists, `item (COMMA item)*` (a class's and a property's constraints, `validations` and at least
+     one, `keys`, `columnsToCompare`, `testSuites`, `data`, `tests`, `asserts`), and a data space context's name a `STRING`
+     (51 texts, 11 looser, 0). The unit test's 30 texts were asked of the engine: each answers the place the test holds.
+     (`cedfd8fea`'s message counts the first family's 296 generated texts and 12 looser, and the third family's looser as
+     10, a property's trailing comma missed; the register and the gap report give the texts, as here.)
+   - **The measurement, before -> after**, mutated (16 per text) at `pmcd` and `document`: same place 100,042 -> 100,047 of
+     153,008, other column 19,861 -> 19,858, different line 10,184 -> 10,182; mutated (4 per text) same place 24,917 ->
+     24,918, different line 2,541 -> 2,540; every corpus row, every expression door and the harness unchanged. **Lite looser
+     unchanged: 575 corpus (571 S64, 3 S352, 1 S353), 282 and 74 mutated, 0 at every expression door -- only the ruled
+     exclusions.** No text moved away from the engine's place; six reached it (S370's five, S371's one). No panic, no raw
+     answer.
+   - **Nothing moved but the code.** `deliberate-differences.tsv` (760 asks), the floors, `FROZEN_MODULE_DIFFERS` (66), the
+     ratchets, every guard constant and pin as they were, so docs/GATES.md gains no "Recent changes" line. No test source in `core/src/test`, `parser-equivalence` or elsewhere
+     re-expressed; the Rust tests changed and added are one `rust/RETIRED_TESTS.md` row.
+   - **The gates at `701531f7b`** (`dda829ec5`'s documents in the tree, and the other session's `e77f7b8e9` and `18cf22bd9`,
+     `rust/oracles/plan/`, `rust/tools/` and PHASE3.md). `bazel test //... --keep_going --local_test_jobs=2` against
+     `rust/BASELINE.tsv` (`main` at `c4a39e06d`): 567 targets, 182 executed, 565 passed, 2 skipped (`//tools/guards:classpath_test`,
+     `:markdown_inputs_test`, as in the baseline); no target the baseline passes fails; gone 3, each ledgered
+     (`//core:core_tests_lexer`, `core_tests_ide`, `//docs:update_dialect_capability_test`); new 18, the port's, all passing; no
+     TIMEOUT (`//core:front_reader_test` 240 s, `stress_suites` 723 s, `stress_suites_h2` 675 s, `//parser-equivalence:parser_parity`
+     182 s). `//parser-equivalence:parser_parity`: 422 pins, line agreement 415 of 421, column exact 337 (none moved); the sentinel
+     2,217 in scope, matched 2,217, lenient 0; the sweep's 6,755 sources matched, seam 6,746/0, asym 9; own corpus 3,025 matched,
+     `diffs=0`. `//core:front_shim`: the four doors 110,048 identical and 548 listed of 110,596, the engine-JSON doors 29,852 and
+     212 of 30,064, 0 differ. `cargo test --workspace` (lite-front's 99 unit tests, 7 of them new), `cargo clippy --all-targets --
+     -D warnings`, `cargo fmt --check` clean. Ledger check from `c4a39e06d`: no MISSING (79 test sources, each named). **The
+     surfaces end to end** (the server's deploy jar, a four-class text with three errors): `/api/lite/v1/compilation/compile`
+     answers all three, sorted (`[4:1]`, `[7:5]`, `[15:5]`); `/api/pure/v1/compilation/compile` the first alone, as before;
+     the LSP's `didOpen` publishes three diagnostics, the first where it stood, the others at line 6 and 14, character 4.
+   - **Choices taken that are the user's** (each reversible): an element that leaves its brackets open leaves the whole
+     rest of the text untrusted, not its section alone (the lexer splits sections by header whatever the brackets); an error
+     placed before the first is not listed, so the list is sorted and its first the door's; the order question inside one
+     construct left as above; the editor's first diagnostic placed as before (from its message, a quoted name's first
+     occurrence), the others by their own line and column; a section catch-all's refusal among the further errors placed
+     at its element's head, not its section's start; recovery resumes only at a head after a `;` or a closing bracket (a
+     head inside an element's header is not a boundary); S370's rule finds the text's section by the last `###` at a
+     line's start before the `~`; a missing comma after a validation keeps its answer (the engine's place there depends on
+     the next token, a place difference). Found by hand and not refused: a data space executable's `id:` written as a
+     string (`id: 'e';`), which the engine refuses at the string (the gap report's "Found while probing"). A scratch reflow
+     of ruling 23's comments broke three javadoc blocks, which the full suite's first run caught (223 targets failed to
+     build); `701531f7b` closes them, no word changed.
+
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
 exists, and the committed oracle after.
