@@ -1,0 +1,10 @@
+[package]
+name = "lite-guards"
+version = "0.1.0"
+description = "The guards on the Rust port's crates: the crate graph held to the layers, the sources to their rules"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]

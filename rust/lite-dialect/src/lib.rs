@@ -34,6 +34,9 @@
 //! A statement nests deep: render it on a thread with a big stack (the deepest tree of the oracles needs more than 2 MB
 //! in a debug build).
 
+// 2026-11-11 (docs/rust-port/PHASE3_CRATES.md §3): no unsafe code but lite-base's arena and lite-ffi's boundary
+#![forbid(unsafe_code)]
+
 pub mod ansi;
 pub mod bigquery;
 pub mod build;

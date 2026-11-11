@@ -7,6 +7,9 @@
 //! under rust/oracles/ (`tests/`). [`character`] answers Java's `Character` predicates as the build JDK does, for every
 //! code point.
 
+// 2026-11-11 (docs/rust-port/PHASE3_CRATES.md §3): no unsafe code but lite-base's arena and lite-ffi's boundary
+#![forbid(unsafe_code)]
+
 pub mod character;
 mod double;
 

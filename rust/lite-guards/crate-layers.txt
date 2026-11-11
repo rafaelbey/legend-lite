@@ -1,0 +1,28 @@
+# THE RUST PORT'S CRATE GRAPH (docs/rust-port/PHASE3_CRATES.md, 2026-11-11): one line per crate of rust/'s workspace --
+# its name, the layers of tools/deps/core-layers.txt it ports, the phase that made it, and its DIRECT dependencies
+# (crates). rust/lite-guards/tests/guards.rs holds it both ways, as CoreLayeringTest holds Bazel to core-layers.txt:
+#   - each crate's dependencies are exactly its line's, in its Cargo.toml and in Bazel's own answer (a genquery of the
+#     crate's library, rust/lite-guards/BUILD.bazel): a new edge, or a removed one, fails until this file says so;
+#   - every edge is one the layers file allows: some layer of the crate lists some layer of the dependency in
+#     core-layers.txt (a Rust crate may reach less than its Java layer, never more);
+#   - every crate of the workspace has a line, and every line names a crate.
+# A layer is a line of core-layers.txt, or a name it lists only as a dependency (base, json: //base and //json). A crate
+# that ports part of a layer names the layer; a layer split between crates is named layer/part, with a `split` line
+# giving the parts in their order (a part may reach the parts before it, never after: the split that makes F-not-G a
+# compile error, PHASE3_CRATES.md §2). `jdk` is the JDK's Java spellings: below every layer, any crate may reach it.
+# `top` is not a layer: it may reach any crate, and none may reach it. A moved edge or layer is recorded here, dated,
+# with the plan item that moves it (AGENTS.md: guard files are load-bearing).
+# crate	layers	phase	deps
+lite-javacompat	jdk	0
+lite-ffi	top	0	lite-dialect lite-front
+lite-json	json	1	lite-javacompat
+# lite-sql: the SQL tree (sql) and its JSON codec, MirJson (execution_plan's in Java)
+lite-sql	sql execution_plan	1	lite-json
+# lite-dialect: the dialects (sql_dialect) and the seam's JSON a dialect is asked in (rust_dialect's in Java)
+lite-dialect	sql_dialect rust_dialect	1	lite-javacompat lite-json lite-sql
+# lite-front: the parser's records and doors (parser, protocol's records, rust_parser's doors)
+lite-front	parser protocol rust_parser	2	lite-javacompat
+# 2026-11-11, phase 3 slice 1a (docs/rust-port/PHASE3.md): the foundation and the type family
+lite-base	base	3
+lite-types	compiler_element_type	3	lite-base lite-javacompat lite-sql
+lite-guards	top	3

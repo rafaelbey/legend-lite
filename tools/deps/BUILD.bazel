@@ -4,6 +4,13 @@ load("//tools/junit:defs.bzl", "junit_test")
 load(":pools.bzl", "POOLS", "TESTONLY_POOLS")
 load("//tools/guards:defs.bzl", "guards_package")
 
+# the layers, for the Rust port's crate-graph guard too: //rust/lite-guards:guards_test holds rust/'s crates to them
+# (2026-11-11, docs/rust-port/PHASE3_CRATES.md §3)
+exports_files(
+    ["core-layers.txt"],
+    visibility = ["//rust/lite-guards:__pkg__"],
+)
+
 # Every external jar the product reaches: core itself (NullAway subtracted — a
 # compiler plugin, on javac's processor path, never on a classpath) and the
 # drivers a running core is given.

@@ -20,4 +20,12 @@ rust_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards (2026-11-11,
+# docs/rust-port/PHASE3_CRATES.md §3)
+filegroup(
+    name = "sources",
+    srcs = glob(["src/**/*.rs"]) + ["Cargo.toml"],
+    visibility = ["//rust/lite-guards:__pkg__"],
+)
+
 guards_package()

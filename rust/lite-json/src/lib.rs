@@ -18,6 +18,9 @@
 //! its string; a Rust `String` cannot hold one, so a lone surrogate reads as U+FFFD. (The JVM's own UTF-8 encoder
 //! sends such a string to Rust as `?`.)
 
+// 2026-11-11 (docs/rust-port/PHASE3_CRATES.md §3): no unsafe code but lite-base's arena and lite-ffi's boundary
+#![forbid(unsafe_code)]
+
 mod parse;
 mod write;
 
