@@ -257,6 +257,19 @@ pub fn write_source(src: &SqlSource) -> Node {
             o.insert("writtenFor", s(written_for));
             o
         }
+        SqlSource::GridReport {
+            grid,
+            part,
+            alias,
+            outputs,
+        } => {
+            let mut o = tagged("gridReport");
+            o.insert("grid", write_query(grid));
+            o.insert("part", s(part.as_str()));
+            o.insert("alias", s(alias));
+            o.insert("outputs", output_cols(outputs));
+            o
+        }
         SqlSource::Catalog {
             grid,
             schema_pattern,

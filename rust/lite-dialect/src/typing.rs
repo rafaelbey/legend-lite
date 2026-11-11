@@ -1469,6 +1469,7 @@ pub fn source_outputs(s: &SqlSource) -> &[OutputCol] {
         | SqlSource::Values { outputs, .. }
         | SqlSource::SourceUrl { outputs, .. }
         | SqlSource::RawSql { outputs, .. }
+        | SqlSource::GridReport { outputs, .. }
         | SqlSource::Catalog { outputs, .. }
         | SqlSource::VarSetPlaceholder { outputs, .. } => outputs,
     }
@@ -1490,6 +1491,7 @@ pub fn source_alias(s: &SqlSource) -> Result<&str, Refusal> {
         | SqlSource::Values { alias, .. }
         | SqlSource::SourceUrl { alias, .. }
         | SqlSource::RawSql { alias, .. }
+        | SqlSource::GridReport { alias, .. }
         | SqlSource::Catalog { alias, .. }
         | SqlSource::VarSetPlaceholder { alias, .. } => Ok(alias),
     }

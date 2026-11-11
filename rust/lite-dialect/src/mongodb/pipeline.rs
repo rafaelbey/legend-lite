@@ -97,6 +97,9 @@ fn base_of(src: &SqlSource) -> Result<Option<String>, Refusal> {
         SqlSource::RawSql { .. } => Err(Refusal::capability(
             "a raw statement as a relation reached MongoDb: a user's own pipeline as a source is not run yet",
         )),
+        SqlSource::GridReport { .. } => Err(Refusal::capability(
+            "a raw grid's report reached MongoDb: a raw grid is an authored SQL text",
+        )),
         SqlSource::Catalog { .. } => Err(Refusal::capability(
             "a catalog grid reached MongoDb: its catalog (listCollections) is not read as a grid yet",
         )),

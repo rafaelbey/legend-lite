@@ -11,8 +11,8 @@
 //! written, and MirJson refuses them.
 
 use crate::names::{
-    AggFn, CatalogGrid, DateFmtPart, DatePart, FrameKind, JoinKind, JsonKind, NullOrder, Origin, ParamKind, Quantifier,
-    Scalar, SqlFn, TdsForm, ValueKind,
+    AggFn, CatalogGrid, DateFmtPart, DatePart, FrameKind, GridReportPart, JoinKind, JsonKind, NullOrder, Origin,
+    ParamKind, Quantifier, Scalar, SqlFn, TdsForm, ValueKind,
 };
 use crate::stmt::ColumnType;
 use lite_json::Error;
@@ -152,6 +152,15 @@ pub enum SqlSource {
         alias: String,
         outputs: Vec<OutputCol>,
         written_for: String,
+    },
+    /// What a RAW GRID reports, as rows (Java's `SqlSource.GridReport`, main's 2026-10-30): `grid` an authored
+    /// statement whose columns nobody declared, read in one of its parts, each written by the dialect with a region per
+    /// column the grid's result reports.
+    GridReport {
+        grid: Box<SqlQuery>,
+        part: GridReportPart,
+        alias: String,
+        outputs: Vec<OutputCol>,
     },
     Catalog {
         grid: CatalogGrid,

@@ -2572,6 +2572,7 @@ impl AliasPlan {
             | SqlSource::Dual
             | SqlSource::SourceUrl { .. }
             | SqlSource::RawSql { .. }
+            | SqlSource::GridReport { .. }
             | SqlSource::Catalog { .. } => {}
         }
     }
@@ -2848,6 +2849,7 @@ impl AnsiSqlRenderer for EngineStyle {
             | SqlSource::Dual
             | SqlSource::SourceUrl { .. }
             | SqlSource::RawSql { .. }
+            | SqlSource::GridReport { .. }
             | SqlSource::Catalog { .. } => return ansi::source(self, w, src, depth),
         }
         Ok(())

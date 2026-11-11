@@ -1327,6 +1327,19 @@ impl AnsiSqlRenderer for DuckDb {
     fn merge(&self, dml: &SqlDml) -> Result<SqlWriter, Refusal> {
         ansi::standard_merge(self, dml)
     }
+
+    fn variant_of(&self, w: &mut SqlWriter, value: crate::writer::Piece<'_>) -> Result<(), Refusal> {
+        self.grid_variant_of(w, value)
+    }
+
+    fn array_of_cells(&self, w: &mut SqlWriter, cell: crate::writer::Piece<'_>) -> Result<(), Refusal> {
+        self.grid_array_of_cells(w, cell)
+    }
+
+    /// Measured on DuckDB 1.5.6.0 (main's S3c, 2026-10-30).
+    fn writes_grid_reports(&self) -> bool {
+        true
+    }
 }
 
 impl DuckDb {
@@ -1430,6 +1443,25 @@ LEFT JOIN (SELECT DISTINCT type_oid, logical_type FROM duckdb_types()
            WHERE internal AND type_oid IS NOT NULL) t ON t.type_oid = c.data_type_id
 WHERE c.database_name = current_database() AND c.schema_name = {schema} AND c.table_name = {table}
 ORDER BY c.column_index";
+
+impl DuckDb {
+    /// `to_json(value)` (main's S3c, 2026-10-30): a raw grid's cell carried as DuckDB's JSON.
+    fn grid_variant_of(&self, w: &mut SqlWriter, value: crate::writer::Piece<'_>) -> Result<(), Refusal> {
+        w.append("to_json(").piece(value)?.append(")");
+        Ok(())
+    }
+
+    /// A list literal, `[c1, c2, ...]` (main's S3c, 2026-10-30).
+    fn grid_array_of_cells(&self, w: &mut SqlWriter, cell: crate::writer::Piece<'_>) -> Result<(), Refusal> {
+        w.append("[");
+        w.region("", ", ", None, |w| {
+            cell(w)?;
+            Ok(())
+        })?;
+        w.append("]");
+        Ok(())
+    }
+}
 
 impl crate::dialect::SqlDialect for DuckDb {
     fn dialect_name(&self) -> &'static str {

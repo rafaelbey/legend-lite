@@ -16,7 +16,7 @@ use crate::ansi;
 use crate::refusal::Refusal;
 use crate::rewriter::SqlRewriter;
 use crate::statement::{RenderedStatement, TypeSpelling};
-use crate::writer::SqlWriter;
+use crate::writer::{Piece, SqlWriter};
 use lite_sql::{
     AggFn, BigDecimal, Bound, Column, ColumnType, Cte, DateFmt, Frame, JoinKind, JsonArrayAggKey, JsonKind, Lambda,
     NameQuoting, OutputCol, ParamKind, Projection, Reducer, Scalar, SortKey, SqlAgg, SqlDdl, SqlDml, SqlExpr, SqlFn,
@@ -515,6 +515,30 @@ pub trait AnsiSqlRenderer: Sized {
     /// A catalog grid's query (`catalog` is the `SqlSource::Catalog` node).
     fn catalog(&self, w: &mut SqlWriter, catalog: &SqlSource) -> Result<(), Refusal> {
         ansi::catalog(self, w, catalog)
+    }
+
+    /// Whether this dialect writes a raw grid's report (Java's `writesGridReports`, main's 2026-10-30): one whose
+    /// database is measured to answer it; every other refuses it by name.
+    fn writes_grid_reports(&self) -> bool {
+        false
+    }
+
+    /// `value` carried as this database's JSON, its kind the JSON's (a raw grid's cell; Java's `variantOf`): refused
+    /// unless the dialect writes one.
+    fn variant_of(&self, w: &mut SqlWriter, value: Piece<'_>) -> Result<(), Refusal> {
+        let _ = (w, value);
+        Err(Refusal::capability(
+            "a raw grid's cells as values reached a dialect without a JSON carrier for them",
+        ))
+    }
+
+    /// A list of `cell`, one copy per column of the grid's report (a per-key region), in this database's list spelling
+    /// (Java's `arrayOfCells`): refused unless the dialect writes one.
+    fn array_of_cells(&self, w: &mut SqlWriter, cell: Piece<'_>) -> Result<(), Refusal> {
+        let _ = (w, cell);
+        Err(Refusal::capability(
+            "a raw grid's rows as lists of their cells reached a dialect without a list of JSON values",
+        ))
     }
 
     fn agg_order_null_placement(&self, k: &SortKey) -> String {

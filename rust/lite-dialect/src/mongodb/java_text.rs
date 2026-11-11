@@ -555,6 +555,19 @@ pub fn source(s: &SqlSource) -> String {
                 output_cols_text(outputs)
             )
         }
+        // main's SqlSource.GridReport (2026-10-30): its record's toString
+        SqlSource::GridReport {
+            grid,
+            part,
+            alias,
+            outputs,
+        } => {
+            format!(
+                "GridReport[grid={}, part={part}, alias={alias}, outputs={}]",
+                query(grid),
+                output_cols_text(outputs)
+            )
+        }
         SqlSource::Catalog {
             grid,
             schema_pattern,

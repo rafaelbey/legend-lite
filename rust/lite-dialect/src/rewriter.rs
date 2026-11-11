@@ -81,6 +81,12 @@ pub trait SqlRewriter {
         Ok(Rw::Same(SqlQuery::Union(u)))
     }
 
+    /// A WITH, after its common table expressions and body were rewritten, at every depth (Java's `with`, main's
+    /// 2026-10-31: a pass that reshapes a statement's CTEs). Default: identity.
+    fn with(&mut self, w: SqlWith) -> Result<Rw<SqlQuery>, Refusal> {
+        Ok(Rw::Same(SqlQuery::With(w)))
+    }
+
     /// A source, after its children were rewritten.
     fn source(&mut self, s: SqlSource) -> Result<Rw<SqlSource>, Refusal> {
         Ok(Rw::Same(s))
@@ -154,12 +160,12 @@ pub fn rewrite<R: SqlRewriter + ?Sized>(r: &mut R, q: SqlQuery) -> Result<Rw<Sql
                 });
             }
             let body = Box::new(rewrite(r, *w.body)?.take(&mut ch));
-            let out = SqlQuery::With(SqlWith {
+            let out = SqlWith {
                 ctes,
                 body,
                 recursive: w.recursive,
-            });
-            Ok(if ch { Rw::New(out) } else { Rw::Same(out) })
+            };
+            Ok(r.with(out)?.after(ch))
         }
     }
 }
@@ -304,6 +310,18 @@ pub fn rewrite_source<R: SqlRewriter + ?Sized>(r: &mut R, s: SqlSource) -> Resul
                 outputs,
             }
         }
+        // a raw grid's report: its grid a lowered query, rewritten as any subselect is (main's S3c audit, 2026-10-31)
+        SqlSource::GridReport {
+            grid,
+            part,
+            alias,
+            outputs,
+        } => SqlSource::GridReport {
+            grid: subquery(r, grid, &mut ch)?,
+            part,
+            alias,
+            outputs,
+        },
         // the leaves: a table, a CTE reference, a URL, a plan variable, carried text, a catalog grid, Dual
         leaf => leaf,
     };

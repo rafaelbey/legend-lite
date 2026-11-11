@@ -27,8 +27,8 @@ pub use mir::{
     SqlUnion, SqlWith, StructField, StructLitField, TaggedSlot, TypeFact, ValueTyping, When,
 };
 pub use names::{
-    AggFn, CatalogGrid, ColumnKind, DateFmtPart, DatePart, FrameKind, JoinKind, JsonKind, NullOrder, Origin, ParamKind,
-    Quantifier, Scalar, SqlFn, TdsForm, ValueKind,
+    AggFn, CatalogGrid, ColumnKind, DateFmtPart, DatePart, FrameKind, GridReportPart, JoinKind, JsonKind, NullOrder,
+    Origin, ParamKind, Quantifier, Scalar, SqlFn, TdsForm, ValueKind,
 };
 pub use read::{
     EXPR_TAGS, read_agg, read_column_type, read_ddl, read_dml, read_expr, read_fact, read_query, read_source, read_type,

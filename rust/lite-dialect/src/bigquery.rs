@@ -255,6 +255,7 @@ fn source_class(src: &SqlSource) -> &'static str {
         SqlSource::Dual => "Dual",
         SqlSource::SourceUrl { .. } => "SourceUrl",
         SqlSource::RawSql { .. } => "RawSql",
+        SqlSource::GridReport { .. } => "GridReport",
         SqlSource::Catalog { .. } => "Catalog",
         SqlSource::VarSetPlaceholder { .. } => "VarSetPlaceholder",
     }

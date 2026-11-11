@@ -10,8 +10,8 @@ use crate::mir::{
     SqlUnion, SqlWith, StructField, StructLitField, TaggedSlot, TypeFact, ValueTyping, When,
 };
 use crate::names::{
-    AggFn, CatalogGrid, ColumnKind, DateFmtPart, DatePart, FrameKind, JoinKind, JsonKind, NullOrder, Origin, ParamKind,
-    Quantifier, Scalar, SqlFn, TdsForm, ValueKind,
+    AggFn, CatalogGrid, ColumnKind, DateFmtPart, DatePart, FrameKind, GridReportPart, JoinKind, JsonKind, NullOrder,
+    Origin, ParamKind, Quantifier, Scalar, SqlFn, TdsForm, ValueKind,
 };
 use crate::stmt::{Assignment, ColumnType, DdlColumn, SqlDdl, SqlDml};
 use lite_json::{Error, Node, Obj};
@@ -300,6 +300,12 @@ pub fn read_source(o: &Obj) -> Result<SqlSource, Error> {
             alias: alias()?,
             outputs: outputs()?,
             written_for: string(o, "writtenFor")?,
+        },
+        "gridReport" => SqlSource::GridReport {
+            grid: subquery(o, "grid")?,
+            part: named(GridReportPart::from_name, o.str("part")?, "part")?,
+            alias: alias()?,
+            outputs: outputs()?,
         },
         "catalog" => SqlSource::Catalog {
             grid: named(CatalogGrid::from_name, o.str("grid")?, "grid")?,

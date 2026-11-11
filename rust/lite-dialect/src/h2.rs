@@ -1589,6 +1589,28 @@ impl AnsiSqlRenderer for H2 {
     fn merge(&self, dml: &SqlDml) -> Result<SqlWriter, Refusal> {
         ansi::standard_merge(self, dml)
     }
+
+    /// `CAST(value AS JSON)` (main's S3c, 2026-10-30).
+    fn variant_of(&self, w: &mut SqlWriter, value: crate::writer::Piece<'_>) -> Result<(), Refusal> {
+        w.append("CAST(").piece(value)?.append(" AS JSON)");
+        Ok(())
+    }
+
+    /// `JSON_ARRAY(c1, c2, ... NULL ON NULL)`, as a list literal is written (measured on 2.1.214: `[1,"a"]`).
+    fn array_of_cells(&self, w: &mut SqlWriter, cell: crate::writer::Piece<'_>) -> Result<(), Refusal> {
+        w.append("JSON_ARRAY(");
+        w.region("", ", ", None, |w| {
+            cell(w)?;
+            Ok(())
+        })?;
+        w.append(" NULL ON NULL)");
+        Ok(())
+    }
+
+    /// Measured on H2 2.1.214 (main's S3c, 2026-10-30).
+    fn writes_grid_reports(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]

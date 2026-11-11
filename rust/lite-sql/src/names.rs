@@ -395,6 +395,17 @@ java_enum! {
 }
 
 java_enum! {
+    /// Java's `SqlSource.GridReport.Part` (main's, 2026-10-30): a raw grid's column names, its cells one row each (as
+    /// values or as text), its rows each as the list of its cells.
+    GridReportPart {
+        Columns => "COLUMNS",
+        Cells => "CELLS",
+        Texts => "TEXTS",
+        Rows => "ROWS",
+    }
+}
+
+java_enum! {
     /// Java's `SqlSource.Catalog.Grid`.
     CatalogGrid {
         Schemas => "SCHEMAS",

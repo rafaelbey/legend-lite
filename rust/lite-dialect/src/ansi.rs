@@ -16,10 +16,10 @@ use crate::rewriter::SqlRewriter;
 use crate::statement::{Bind, Binding, Digits, RenderedStatement, TypeSpelling, enum_map, list_text};
 use crate::writer::SqlWriter;
 use lite_sql::{
-    BigDecimal, Bound, Column, ColumnKind, ColumnType, DateFmt, DateFmtPart, DatePart, Frame, JavaNumber, JoinKind,
-    JsonArrayAggKey, Lambda, NameQuoting, NullOrder, Origin, OutputCol, ParamKind, Projection, Reducer, Scalar,
-    SortKey, SqlAgg, SqlDdl, SqlDml, SqlExpr, SqlFn, SqlQuery, SqlSelect, SqlSource, SqlType, StructField,
-    StructLitField, TypeFact, ValueKind, When,
+    BigDecimal, Bound, Column, ColumnKind, ColumnType, DateFmt, DateFmtPart, DatePart, Frame, GridReportPart,
+    JavaNumber, JoinKind, JsonArrayAggKey, Lambda, NameQuoting, NullOrder, Origin, OutputCol, ParamKind, Projection,
+    Reducer, Scalar, SortKey, SqlAgg, SqlDdl, SqlDml, SqlExpr, SqlFn, SqlQuery, SqlSelect, SqlSource, SqlType,
+    StructField, StructLitField, TypeFact, ValueKind, When,
 };
 
 // ==================================================================
@@ -441,6 +441,14 @@ pub fn source<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, src: &SqlSource, dep
             let text = raw(d, sql, Some(written_for))?;
             let a = d.alias_ident(alias);
             w.append("(").append(&text).append(") AS ").append(&a);
+            Ok(())
+        }
+        // a raw grid's report (main's S3c, 2026-10-30): where it is written is the dialect's
+        SqlSource::GridReport { grid, part, alias, .. } => {
+            w.append("(");
+            grid_report(d, w, grid, *part)?;
+            let a = d.alias_ident(alias);
+            w.append(") AS ").append(&a);
             Ok(())
         }
         SqlSource::Catalog { alias, .. } => {
@@ -1472,6 +1480,92 @@ pub fn aggregate<D: AnsiSqlRenderer>(d: &D, w: &mut SqlWriter, name: &str, r: &R
             .join(&r.order_by, ", ", |w, k| aggregate_order_key(d, w, k))?;
     }
     w.append(")");
+    Ok(())
+}
+
+/// Java's `gridReport` (main's, the planner-driver seam program's S3c, 2026-10-30): a raw grid's report written with
+/// a REGION per column the grid's result reports (its keyed plan reads them first): COLUMNS one row per column, its
+/// label bound from the key and its position; CELLS and TEXTS one row per cell, the grid numbered once
+/// (`ROW_NUMBER() OVER ()`), its columns renamed by position in a derived column list (`lc_<k>`), crossed with the
+/// positions, each row's cell picked by position and carried as this database's JSON ([`AnsiSqlRenderer::variant_of`])
+/// or as its text; ROWS one row per grid row, its cells one list ([`AnsiSqlRenderer::array_of_cells`]). Refused on a
+/// dialect not measured to answer it ([`AnsiSqlRenderer::writes_grid_reports`]).
+pub fn grid_report<D: AnsiSqlRenderer>(
+    d: &D,
+    w: &mut SqlWriter,
+    grid: &SqlQuery,
+    part: GridReportPart,
+) -> Result<(), Refusal> {
+    if !d.writes_grid_reports() {
+        return Err(Refusal::capability(
+            "a raw grid's report (its column names, cells, texts or rows) reached a dialect it is not measured on (a \
+             column list on a derived table, a JSON value per cell)",
+        ));
+    }
+    // the report's columns spelled as any projected alias is (H2 quotes those always)
+    let value = d.alias_ident("value");
+    let ord = d.alias_ident("__ord");
+    let row = d.alias_ident("__rn");
+    let text = cast_type_name(d, &SqlType::Scalar(Scalar::Varchar))?;
+    let cell = |c: &mut SqlWriter| -> Result<(), Refusal> {
+        c.append("g.lc_").counter()?;
+        Ok(())
+    };
+    match part {
+        GridReportPart::Columns => {
+            let empty = format!("SELECT CAST(NULL AS {text}) AS {value}, 0 AS {ord} WHERE 1 = 0");
+            w.region("", " UNION ALL ", Some(&empty), |w| {
+                w.append("SELECT CAST(")
+                    .bind_key(0)?
+                    .append(&format!(" AS {text}) AS {value}, "))
+                    .counter()?
+                    .append(&format!(" AS {ord}"));
+                Ok(())
+            })?;
+        }
+        GridReportPart::Cells | GridReportPart::Texts => {
+            w.append(&format!("SELECT g.{row} AS {row}, o.{ord} AS {ord}, CASE o.{ord}"));
+            w.region(" ", " ", Some(" WHEN 0 THEN NULL"), |w| {
+                w.append("WHEN ").counter()?.append(" THEN ");
+                if part == GridReportPart::Cells {
+                    d.variant_of(w, &cell)?;
+                } else {
+                    w.append("CAST(").piece(&cell)?.append(&format!(" AS {text})"));
+                }
+                Ok(())
+            })?;
+            w.append(&format!(
+                " END AS {value} FROM (SELECT ROW_NUMBER() OVER () AS {row}, g0.* FROM ("
+            ));
+            d.query(w, grid, 0)?;
+            w.append(&format!(") AS g0) AS g({row}"));
+            w.region(", ", ", ", Some(""), |w| {
+                w.append("lc_").counter()?;
+                Ok(())
+            })?;
+            w.append(") CROSS JOIN (");
+            let empty = format!("SELECT 0 AS {ord} WHERE 1 = 0");
+            w.region("", " UNION ALL ", Some(&empty), |w| {
+                w.append("SELECT ").counter()?.append(&format!(" AS {ord}"));
+                Ok(())
+            })?;
+            w.append(") AS o");
+        }
+        GridReportPart::Rows => {
+            // one row per grid row, in the grid's own order (nothing renumbers it), its cells one list
+            w.append("SELECT ");
+            d.array_of_cells(w, &|w: &mut SqlWriter| d.variant_of(w, &cell))?;
+            let cells = d.alias_ident("values");
+            w.append(&format!(" AS {cells} FROM ("));
+            d.query(w, grid, 0)?;
+            w.append(") AS g(");
+            w.region("", ", ", None, |w| {
+                w.append("lc_").counter()?;
+                Ok(())
+            })?;
+            w.append(")");
+        }
+    }
     Ok(())
 }
 
