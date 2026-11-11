@@ -1004,6 +1004,53 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      constant-node case, version 23's, still red), or carry the red
      until the Rust wasm32 planner replaces the module.
 
+   **Browser modules re-frozen, baseline moved 2026-11-11** (the owner's rulings 16 and 17, PHASE3_SHIM_DESIGN.md §10;
+   commits `c944218fc`, `c75194013`, `9360a3950`, and this record).
+   - **The modules** (`c75194013`). TeaVM's build of `//wasm:planner` and `//sdlc-server:page` on pristine `main` at
+     `c4a39e06d`, in a scratch worktree there (removed after), copied over `wasm/planner/` and `sdlc-server/page/`.
+     SHA-256: the planner's `classes.wasm` `34db9435...` (8,376,379 -> 8,775,592 bytes), the page's `88260212...`
+     (5,005,923 -> 5,018,472), both runtimes `05a76aac...`, unchanged; the full hashes are in the BUILD comments and
+     PHASE1.md §5's dated note. The TeaVM actions were disk-cache hits. Compiled again with no cache, the page came out
+     byte for byte the same and the planner did not -- its start function (548 KB) is 521 bytes apart at the same
+     length -- so TeaVM's planner build is not byte-reproducible and the hash names the build committed. The module
+     writes PlanJson 31: the three targets the merge left red (`//engine-client:plan_runner_test`,
+     `//datacube:table_output_test`, `//datacube:verify_flow_test`) pass, run without cached results, and with them the
+     tab's Output into a table; `//wasm:differential_test` (the module against the port's JVM and its Rust dialects),
+     `:zone_test` and `:round_trip_test` pass.
+   - **The difference list, regenerated** by ruling 18's method: `wasm/frozen_module_differs.json` emptied,
+     `//wasm:round_trip_test` run, its own `round-trip-diffs.jsonl` (66 inputs, each differing at its first answer)
+     written back sorted by id, and the test run again, green. **66 inputs before, 66 after, byte for byte the same
+     file**: none left, none joined, no answer moved, so there is no class of change to explain. What the list holds is
+     where the two parsers differ, and neither moved: the module's is `main`'s Java parser, whose changes since
+     `cf73e6ef7` are behaviour-neutral (the merge's entry above), answering each of the 66 exactly as the module frozen
+     at `6f61be3f0` did; the JVM half is the same Rust parser. Everything else matches digest for digest: the engine
+     corpus 9,134 inputs, 9,068 matched and 66 listed; the showcase projects 123 of 123; lite's projects 167 of 167.
+   - **The allowlist** (`c944218fc`, ruling 17). `CodeShapeGuardrailTest.MUTABLE_FIELD_ALLOWLIST` loses
+     `EngineStyleH2.frameDepth` and `anonDistinctDepth` with their two comments (`frameDepth`'s own had drifted from its
+     entry, on `main` as on the port), a dated note in their place. Neither field has existed since `EngineStyleH2.java`
+     became a shim (2026-11-03, PHASE1.md §4 step 4d); the scan asks only that a mutable field it finds be listed, so
+     the entries outlived the fields. `//core:guardrails` passes; a `rust/RETIRED_TESTS.md` row.
+   - **The baseline** (`9360a3950`). `rust/BASELINE.tsv` is `bazel test //...` on pristine `main` at `c4a39e06d` (macOS
+     arm64): 552 test targets, 550 passed, 2 skipped (`//tools/guards:classpath_test`, `:markdown_inputs_test`, as
+     before). The first, `main` at `cf73e6ef7` (510 targets, 508 passed, the same 2 skipped), is
+     `rust/BASELINE-cf73e6ef7.tsv`; phases 0 to 2 were measured against it. PHASE0.md §1 and `rust/README.md` say so;
+     ROADMAP.md's verification section names only the file.
+   - **The gates at `9360a3950`.** `bazel test //... --keep_going` against the new baseline: 567 targets, 79 executed
+     (the rest cached), 557 passed, 2 skipped. Moved: none, once the eight below ran again. New 18, the port's, all
+     passing. Gone 3, each ledgered: `//core:core_tests_lexer`, `core_tests_ide`,
+     `//docs:update_dialect_capability_test`. Eight did not pass in that run, 16 tests at once on one Mac: seven
+     TIMEOUT whose logs end in their own success summary (`//core:front_reader_test`, `stress_suites`,
+     `stress_suites_h2`, `//parser-equivalence:parser_parity`, `//python:wheel_test`, `//datacube:jupyterlab_test`,
+     `//query:verify_test`, the last after five of its server- and warehouse-lane steps had missed 30 to 60 s waits),
+     and `//datacube:marimo_test` FAILED with the cube's cell still blank. Run again two at a time, all eight pass
+     (the stress suites 714 s and 681 s, `marimo_test` 29 s): this machine's concurrency, the failure PHASE1.md §6 met
+     in the Linux VM, not the tree. Ledger check from `c4a39e06d`: no MISSING (79 test sources, each named).
+   - **Choices taken that are the owner's** (each reversible): the planner's committed bytes are the disk cache's build
+     (`34db9435...`), every check above ran on, not the no-cache compile's (`f113ce07...`, same inputs, same length);
+     the 2026-11-10 `rust/RETIRED_TESTS.md` row for the three targets closed by a dated note, not rewritten, beside a
+     new row; `frameDepth`'s drifted comment removed with the entries; GATES' oldest "Recent changes" line (the seam's
+     step B1, D71) left for its 20-line limit, by pointer.
+
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
 exists, and the committed oracle after.
