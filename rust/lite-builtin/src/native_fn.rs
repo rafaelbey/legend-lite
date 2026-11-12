@@ -719,15 +719,17 @@ impl OperatorRun {
     }
 }
 
-/// `OperatorRun.byId()`: stricter than [`index_by_id`] -- any identity seen twice panics, even within one run.
-fn operator_runs_by_id<R: Copy>(
+/// `OperatorRun.byId()`: [`index_by_id`]'s rule -- an identity in two different runs panics, a run naming one overload
+/// twice is the same mapping (2026-11-12, the owner's ruling on slice 1b's report: Java refused a repeat within one run
+/// too, under a message that was then false; both sides changed).
+fn operator_runs_by_id<R: Copy + PartialEq>(
     runs: &[R],
     overloads: fn(R) -> &'static [NativeId],
 ) -> HashMap<&'static FunctionId, R> {
     let mut out = HashMap::new();
     for &r in runs {
         for o in overloads(r) {
-            if out.insert(o.id(), r).is_some() {
+            if out.insert(o.id(), r).is_some_and(|prior| prior != r) {
                 panic!("{} in two operator runs", o.def().qualified_name);
             }
         }
@@ -1263,11 +1265,12 @@ mod tests {
     }
 
     #[test]
-    fn an_operator_run_refuses_any_repeated_identity() {
-        // stricter than indexById: one run naming one overload twice is refused too
+    fn an_overload_in_two_operator_runs_is_javas_initialization_error() {
+        // indexById's rule (2026-11-12): one run naming one overload twice is the same mapping, two runs are refused
+        on_parse_stack(|| assert_eq!(operator_runs_by_id(&[Clash::First], Clash::overloads).len(), 1));
         assert_eq!(
             panic_text(|| {
-                operator_runs_by_id(&[Clash::First], Clash::overloads);
+                operator_runs_by_id(&[Clash::First, Clash::Second], Clash::overloads);
             }),
             "meta::pure::functions::date::calendar::cw in two operator runs"
         );
