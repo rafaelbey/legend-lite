@@ -12,3 +12,7 @@ lite-base = { path = "../lite-base" }
 lite-builtin = { path = "../lite-builtin" }
 lite-error = { path = "../lite-error" }
 lite-model = { path = "../lite-model" }
+
+[dev-dependencies]
+# the tests' parse stack, dialects and record codec (rust/lite-front): the catalog parses its declarations on first read
+lite-front = { path = "../lite-front" }

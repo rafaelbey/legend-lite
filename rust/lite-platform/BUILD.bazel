@@ -18,17 +18,40 @@ rust_library(
     ],
 )
 
+# the unit tests (the ports of ImplementationTableTest, DeclarationTableTest and FormOwnershipTest) parse the catalog
+# and their declarations on the parser's stack: lite-front, a dev-dependency (Cargo.toml)
 rust_test(
     name = "lite_platform_test",
     crate = ":lite_platform",
     edition = "2024",
     visibility = ["//gates:__pkg__"],
+    deps = ["//rust/lite-front:lite_front"],
+)
+
+# The platform's tables held to Java's (tests/platform_tables.rs): every table of com.legend.platform dumped one fact
+# per line by rust/oracles/builtin/PlatformTables.java (BuiltinAnswers.java's second file), frozen
+# (//rust/oracles:builtin/platform-tables.tsv), written again from this crate's tables and compared line for line:
+# every line identical.
+rust_test(
+    name = "platform_tables_test",
+    srcs = glob(["tests/platform_tables.rs", "tests/tables/*.rs"]),
+    crate_root = "tests/platform_tables.rs",
+    data = ["//rust/oracles:builtin/platform-tables.tsv"],
+    edition = "2024",
+    env = {"LITE_PLATFORM_TABLES": "$(rootpath //rust/oracles:builtin/platform-tables.tsv)"},
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":lite_platform",
+        "//rust/lite-builtin:lite_builtin",
+        "//rust/lite-front:lite_front",
+        "//rust/lite-model:lite_model",
+    ],
 )
 
 # the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards
 filegroup(
     name = "sources",
-    srcs = glob(["src/**/*.rs"]) + ["Cargo.toml"],
+    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]) + ["Cargo.toml"],
     visibility = ["//rust/lite-guards:__pkg__"],
 )
 

@@ -74,6 +74,7 @@ dependencies = [
  "lite-base",
  "lite-builtin",
  "lite-error",
+ "lite-front",
  "lite-model",
 ]
 
