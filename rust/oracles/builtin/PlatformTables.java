@@ -75,6 +75,14 @@ final class PlatformTables {
         DeclarationTable declarations = DeclarationTable.of(platform);
         declarations(out, "platform.declarations", null, platform, declarations);
         ImplementationTable table = ImplementationTable.build(declarations, platformRegistrations());
+        // THE BOOT DECLARATIONS' TABLE (the catalog, the prelude, the system metamodel), not the platform's whole one:
+        // its 16 dangling registrations name upstream declarations only a loaded module supplies -- the forms'
+        // meta::pure::tds::distinct and extend (core/pure/tds/tds.pure), meta::relational::validation::validate
+        // (validation.pure) and meta::pure::functions::relation::eval (core_functions_relation eval.pure), the subsumed
+        // createDbConfig (dbExtension.pure) and relationalExtensions (core_relational extensions/extension.pure), and
+        // the 8 upstream-body and 2 refused-version decisions' ids -- each read at that name in the pinned sources
+        // (2026-11-12, the owner's ruling on slice 1b's report). spec's ImplementationTableTest builds the whole table
+        // (the catalog, the pinned stdlib, every upstream declaration at a registered FQN) and holds it to none.
         table(out, "platform.table", null, table, declarations);
         outside(out, table);
         DeclarationTable catalog = DeclarationTable.of(Pure.all());

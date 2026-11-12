@@ -56,6 +56,9 @@ pub fn dump(out: &mut Out) {
     let declarations = DeclarationTable::of(platform.iter().cloned());
     declarations_section(out, "platform.declarations", None, &platform, &declarations);
     let table = ImplementationTable::build(&declarations, &platform_registrations());
+    // The boot declarations' table, not the platform's whole one: its 16 dangling registrations are upstream
+    // declarations only a loaded module supplies, each read at its name in the pinned sources (PlatformTables.java says
+    // which; 2026-11-12, the owner's ruling). spec's ImplementationTableTest holds the whole table to none.
     table_section(out, "platform.table", None, &table, &declarations);
     outside(out, &table);
     let all: Vec<Function> = catalog().all().iter().map(native).collect();
