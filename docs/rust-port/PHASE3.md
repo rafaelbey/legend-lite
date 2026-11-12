@@ -461,3 +461,54 @@ done, in the order of the design's §3.
      agreement 415 of 421, column exact 337; the sentinel 2,217 matched of 2,217, lenient 0; the composer sweep's 6,755
      sources, 0 mismatched; own corpus 3,025, 0 diffs. `:round_trip_proof` and `//core:front_reader_test` pass. `cargo
      test --workspace`, clippy `-D warnings` and `fmt --check` clean.
+   - **Slice 1a: the foundations, `identity` and `Type` (done 2026-11-11;** [`PHASE3_CRATES.md`](PHASE3_CRATES.md)**).** No
+     Java production code changed, and nothing calls the new crates yet.
+     - *The crates.* `PHASE3_CRATES.md` maps phase 3's crates: one per layer of `tools/deps/core-layers.txt` that phase 3
+       ports, `door` merged into `builtin` (an exact merge), `compiler` split into names, element and spec in that order
+       so that F cannot reach G (four Java edges against the order are listed for their slices). Made now: `lite-base`
+       (the layer `base`), `lite-types` (`compiler_element_type`) and `lite-guards` (tests only). `lite-guards` holds
+       `rust/lite-guards/crate-layers.txt` exactly against every crate's Cargo.toml and, under Bazel, each library's
+       genquery, every edge of it within the layers file (a crate may reach less than its Java layer, never more), and
+       the sources to the arena ruling's two rules: `unsafe` only in `lite-base/src/arena.rs` and `lite-ffi`, every
+       other crate root `#![forbid(unsafe_code)]` (added to `lite-javacompat`, `lite-json`, `lite-sql`, `lite-dialect`;
+       `lite-front`'s waits on its own work), and a pointer turned into an address only in `lite-base/src/identity.rs`.
+       `lite-sql` gained Java's `SqlSource.Pivot.SEPARATOR`, `presented` and `SqlExpr.TDS_NULL_CELL`, which the type
+       layer reads from the `sql` layer.
+     - *The allocator* (`lite-base/src/arena.rs`, hand-written, no crates.io dependency): 298 lines, 203 of code. A bump
+       through chunks that never move (4 KiB doubling to 1 MiB, each 16-aligned; a value past a quarter of the next chunk
+       or aligned past 16 gets a chunk of its own; every value at least one byte, so two `alloc`s of a zero-sized record
+       are two objects, and every empty slice is the one `&[]`, as Java's `List.of()` is one object); the sealed `Alloc`
+       trait (`alloc<T: Copy>`, `alloc_slice`, `alloc_str`, `alloc_from_iter`, which refuses an iterator that lies about
+       its length); `QueryArena`, `Send` and not `Sync` (both held at compile time), with its keep pool (`keep`, for a
+       `Box` SQL tree or an `Arc` source node, dropped with the arena); `ModelArena`, `Send` and `Sync`, a mutex on the
+       bump state and the value written outside it. Its `unsafe`: 10 blocks, 2 `unsafe impl Send` and the keep pool's one
+       `unsafe fn`, with 12 `SAFETY:` comments (`clippy::undocumented_unsafe_blocks` denied). 21 tests, 12 of the arena
+       (alignment to 4,096, zero-sized values, empty slices, copies, an iterator that allocates and two that lie, a 16 MB
+       value, chunk growth over 6.4 MB, the keep pool's 1,001 drops, a query arena moved to another thread, eight threads
+       on one model arena) and 9 of identity. **Miri was not run**: the pinned toolchain (1.99.1, stable) has no `miri`
+       component. The module avoids the shapes stacked borrows refuse: chunks kept as `alloc`'s raw pointers, the keep
+       pool's boxes leaked to raw pointers and rebuilt only to free them.
+     - *identity* (`lite-base/src/identity.rs`): `same` over `Identity` (an arena record, slice or text; an `Arc` node or
+       list), `Addr` (no order, no text, no number), `IdMap` and `IdSet` (lookup, insert, remove, no iteration; an `Arc`
+       key kept alive), `Origin<'q>` (of a source node, which the query's keep pool then holds, or fresh: a byte of the
+       arena). The design's §1.5 item 3: equal but not same, same after a copy, a `Filter` rebuilt with equal children
+       not same, a copied list not the list.
+     - *`Type<'a>`* (`lite-types`): Java's family as one `Copy` family with a lifetime, a leaf inline and a structural
+       type a reference to its arena record; covariant, proved by a function that compiles only so and by the static
+       late-bound schema beside a query's types; at most three words. Every operation of the layer that needs no later
+       layer is ported (PHASE3_CRATES.md §4 lists them); `Multiplicity.from`, `PlatformTypes.eraseTdsRow`,
+       `handleRowClass` and `isStatementOnly` wait for the layers they read (`protocol`'s records, `builtin`, `model`),
+       and subtyping is the model's in Java (`ModelContext.isSubtype`), so it is not invented here.
+     - *The differential.* `rust/oracles/types/TypeOracle.java`, run on core's built jars, froze Java's answers in
+       `type-facts.tsv` (MANIFEST row; two runs byte-identical): 26,429 lines over 80 ops -- 356 types (every primitive,
+       every `PlatformTypes` constant as a class, every `byFqn` name, the carriers with zero, one and two arguments,
+       function, relation and schema-algebra types), 17 multiplicities, 20 decimals (Java's `int` wrapping included), 536
+       strings; every type against every type for equality; every refusal by its exception and message.
+       `//rust/lite-types:type_differential_test` builds each type in both arenas and holds every line: **26,429 of
+       26,429 identical**, each op's count the oracle header's.
+     - *Gates.* `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --check`
+       clean; the four new targets (`//rust/lite-base:lite_base_test`, `//rust/lite-types:lite_types_test`,
+       `:type_differential_test`, `//rust/lite-guards:guards_test`) in `//gates:core`. `bazel test //... --keep_going`
+       at `000520ef1`: 571 targets, 569 passed and 2 skipped (the baseline's two); of `rust/BASELINE.tsv`'s 550 passing
+       targets every one passes but the three gone with their code and ledgered in `rust/RETIRED_TESTS.md`
+       (`//core:core_tests_ide`, `//core:core_tests_lexer`, `//docs:update_dialect_capability_test`).
