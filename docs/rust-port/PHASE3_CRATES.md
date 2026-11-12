@@ -127,7 +127,8 @@ numbers.
 4. **`protocol`'s translators**: where they go is phase 3's open question (ROADMAP), not settled here.
 5. **Subtyping**: not on the type, so not in `lite-types`; frozen nowhere yet. If the owner wants the platform's
    lattice frozen now (`isSubtype` over the platform FQNs on the boot model), it is a few lines more in
-   `rust/oracles/types/TypeOracle.java` and a model on its class path.
+   `rust/oracles/types/TypeOracle.java` and a model on its class path. (Overtaken 2026-11-12 by the owner's ruling 22:
+   held to the live Java in slice 1b, not frozen -- item 11.)
 6. **The model's records generated** (slice 1b): a third mode of `FrontCodegen`, held by its diff test, the records'
    methods written by hand beside them. Alternative: hand-written records, held only by the differential.
 7. **A map on a model record is `Arc<[(K, V)]>` in Java's iteration order** (every model map is a `LinkedHashMap`'s view;
