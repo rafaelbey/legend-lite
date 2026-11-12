@@ -1,0 +1,37 @@
+# file	what	sha256 of the uncompressed output
+# Made 2026-11-12 on worktree-rust-port-phase0 (core's main sources as of 7c438f7b3: the compiler's root package, the
+# model, builtin and platform as of main's c4a39e06d with slice 1b's ten fixes, frozen there for the port,
+# docs/rust-port/PHASE3_SHIM_DESIGN.md §10 rulings 14 and 25) by core/src/test/java/com/legend/frontoracle/NameAnswers.java
+# (its header: the command, the canonical text's grammar) run as a source program on the tree's built jars of
+# //core:planner's closure, the build's JDK (25.0.4+7-LTS), the Rust parser loaded from //rust/lite-ffi (Bazel, opt-level
+# 3); the front oracle's questions (rust/oracles/front/questions.jsonl.zst) and the identity oracle's keys
+# (rust/oracles/identity/hits.tsv.zst) decompressed. What step D hands on, asked of the live Java, hashed: SHA-256 of
+# each canonical text's UTF-16 units, little-endian. Run twice (A with --live, B with --texts): both files
+# byte-identical. Compressed with `zstd -19 --long=27`. //rust/lite-names:names_differential_test writes every text
+# again from lite-names and holds it to its hash: every one identical, no list of differences.
+# MODELS: one line per model ask of the front oracle (["pmcd", dialect]) the door parses, in the questions file's order
+# -- 74,292 asks over 26,324 texts (the model oracle's 74,292 answered). The text: B NameResolver.resolveAlongside(parsed,
+# bootFqns, null) (74,280 answered, 12 refused: ModelException), T the same tolerant (12 with walls), P resolve(parsed)
+# and Q tolerant (1,175 differ from B and T), K the association adoption strict over B's model (116 adopted, 15 refused)
+# and L tolerant over T's (116, 15 with walls), X ModelBuilder.from(L's model) (32 refused) asked every question E and F
+# ask it: 7,476,103 lines -- 642,462 keys (k: the find methods; c: the kernel's class lookup, ancestors, subtree,
+# lineage; s: subtyping against every key), 1,140,129 property probes (p), 965,380 accessor lines (o), 643,848 table
+# spellings (t) and 828,951 columns (u), 596,051 filter and 316,904 join lookups, 96,180 views (v) and 2,809 main tables
+# (w), 158,967 legacy set ids (q), 490,673 section scopes (i), 202,484 function ids (f), 31,954 lifted derived
+# properties (l), 123 duplicates (d).
+models.tsv.zst	NameAnswers' models: text sha TAB dialect TAB hash, 74,292 lines	4421f233300475ac041e36be54a2cb0895b245a84daa74132caed3662e60b3bc
+# QUERIES: one line per distinct (query, model) pair of the identity oracle whose model and query are both t: texts of
+# the front oracle, in first-seen order -- 31,297 pairs, 20,857 query texts, 2,321 model texts. The text: N
+# resolveQuery (the sectionless scope: no model), M resolveQueryIn(query, no imports, the model's universe), I with the
+# model's union imports; the universe the step-D index of the model's L elements with the boot layer's resolved elements
+# added, asked as PureModelContext.resolutionUniverse asks. M equals N on all 31,297; I differs from M on 183. Run A also
+# held M and I against the live compiled model's universe (Compiler.compileModel(text).resolutionUniverse()): 31,297 of
+# 31,297 the same, every model compiling (a measurement, not frozen).
+queries.tsv.zst	NameAnswers' queries: query sha TAB model sha TAB hash, 31,297 lines	b5f77c9f83cdf4be93c6f4ff5b6956273bf86541582524e8127fb1bd9cd83b5b
+# The full texts the hashes are of -- 4,325,762,099 characters of model forms, 51,301,278 bytes of query-form JSON lines
+# ({"sha","dialect","form"}, {"query","model","form"}) -- are archived outside git, for a mismatch to be read once Java is
+# gone: /Users/cocobey73/.local/legend-lite/oracle-archive/names-model-texts-java.jsonl.zst (53,377,759 bytes) and
+# names-query-texts-java.jsonl.zst (1,495,255 bytes), `zstd -d --long=27`; the SHA-256 of their uncompressed texts
+# f3b5ac9a487fc2d0d66bc69c5cc7ab0e94f4fc6089bac218556208dee157721b and
+# a5419b2bdcdbc00a63975618481949732d0734d53cae16685c92b84a07d6bff6 (names-texts-java.sha256 beside them; both checked
+# 2026-11-12 by decompressing them).

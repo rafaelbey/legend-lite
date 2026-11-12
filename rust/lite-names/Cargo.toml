@@ -1,0 +1,20 @@
+[package]
+name = "lite-names"
+version = "0.1.0"
+description = "legend-lite's model index and name resolution (core/'s com.legend.compiler root package, step D, ported)"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+lite-base = { path = "../lite-base" }
+lite-builtin = { path = "../lite-builtin" }
+lite-error = { path = "../lite-error" }
+lite-model = { path = "../lite-model" }
+lite-platform = { path = "../lite-platform" }
+lite-types = { path = "../lite-types" }
+
+[dev-dependencies]
+# the tests' parse stack, doors and record codec (rust/lite-front): the differential parses the oracle's texts
+lite-front = { path = "../lite-front" }

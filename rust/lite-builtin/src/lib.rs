@@ -30,7 +30,8 @@ pub mod dyna_fn;
 pub mod natives;
 pub mod dyna_fn_decisions;
 pub mod engine_handlers;
-pub mod lattice;
+// the boot model's class lattice moved to rust/lite-names (2026-11-12, the names slice): it needs the boot layer's
+// names resolved, which lite-names does and lite-builtin, below it, cannot ask
 pub mod native_fn;
 pub mod prelude;
 pub mod pure;

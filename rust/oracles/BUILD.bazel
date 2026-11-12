@@ -157,4 +157,23 @@ zstd_decompress(
     visibility = ["//rust:__subpackages__"],
 )
 
+# What step D hands on, as the live Java answered it (2026-11-12, phase 3's names slice; names/MANIFEST.tsv): the
+# canonical text's SHA-256 per model ask and per (query, model) pair, frozen before the Java goes; the names
+# differential (//rust/lite-names:names_differential_test) reads them.
+zstd_decompress(
+    name = "names_models",
+    testonly = True,
+    src = "names/models.tsv.zst",
+    out = "names/models.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
+zstd_decompress(
+    name = "names_queries",
+    testonly = True,
+    src = "names/queries.tsv.zst",
+    out = "names/queries.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
 guards_package()

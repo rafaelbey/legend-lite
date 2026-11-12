@@ -14,6 +14,7 @@ members = [
     "lite-javacompat",
     "lite-json",
     "lite-model",
+    "lite-names",
     "lite-platform",
     "lite-sql",
     "lite-types",

@@ -429,6 +429,24 @@ java_run(
     deps = [":imports_generator"],
 )
 
+# rust/lite-names/src/core_imports.rs: the same sequence for the Rust port (2026-11-12, docs/rust-port/PHASE3.md, the
+# names slice), from the same CompileContext.java, so the two cannot drift at an upstream bump;
+# //rust/lite-names:update_generated writes it
+java_run(
+    name = "gen_imports_rs",
+    srcs = [_ENGINE_COMPILE_CONTEXT],
+    outs = ["generated/core_imports.rs"],
+    arguments = [
+        "$(execpath %s)" % _ENGINE_COMPILE_CONTEXT,
+        "{OUT}",
+        "--rust",
+    ],
+    main_class = "com.legend.generators.ImportsGenerator",
+    mnemonic = "Generate",
+    visibility = ["//rust/lite-names:__pkg__"],
+    deps = [":imports_generator"],
+)
+
 # DynaFn.java, whole: the engine's dynafunction registries, every dialect
 java_run(
     name = "gen_dynafn",

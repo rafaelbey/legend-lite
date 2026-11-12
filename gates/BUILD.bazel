@@ -76,6 +76,10 @@ test_suite(
         "//rust/lite-builtin:builtin_tables_test",
         "//rust/lite-platform:lite_platform_test",
         "//rust/lite-platform:platform_tables_test",
+        # phase 3's names slice (docs/rust-port/PHASE3.md, 2026-11-12): the model index and name resolution, and the
+        # differential holding what step D hands on to the live Java's frozen answers
+        "//rust/lite-names:lite_names_test",
+        "//rust/lite-names:names_differential_test",
         # the shim's reader: every Java answer read back by the generated reader is the records written
         "//core:front_reader_test",
         # the planner on java.base alone (P3-19): seconds

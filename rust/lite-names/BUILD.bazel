@@ -1,0 +1,81 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# The core import group in Rust (2026-11-12, docs/rust-port/PHASE3.md, the names slice), written by the generator that
+# writes CoreImports.java from the same pinned CompileContext.java (//spec:gen_imports_rs): regenerate with
+# `bazel run //rust/lite-names:update_generated`; its diff test (in //:generated) fails when the sequence moves.
+write_source_files(
+    name = "update_generated",
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe core import group moved -- regenerate: bazel run //rust/lite-names:update_generated (and //:update_generated for the Java beside it)",
+    files = {"src/core_imports.rs": "//spec:gen_imports_rs"},
+    visibility = ["//:__pkg__"],
+)
+
+# legend-lite's model index and name resolution, ported from core's com.legend.compiler root package (src/lib.rs;
+# docs/rust-port/PHASE3.md, the names slice, 2026-11-12): step D, the first part of the compiler's split.
+rust_library(
+    name = "lite_names",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    version = "0.1.0",
+    visibility = ["//rust:__subpackages__"],
+    deps = [
+        "//rust/lite-base:lite_base",
+        "//rust/lite-builtin:lite_builtin",
+        "//rust/lite-error:lite_error",
+        "//rust/lite-model:lite_model",
+        "//rust/lite-platform:lite_platform",
+        "//rust/lite-types:lite_types",
+    ],
+)
+
+rust_test(
+    name = "lite_names_test",
+    crate = ":lite_names",
+    edition = "2024",
+    visibility = ["//gates:__pkg__"],
+    deps = ["//rust/lite-front:lite_front"],
+)
+
+# The names differential (tests/names_differential.rs): every model text of the front oracle at every dialect asked,
+# resolved strict and tolerant, alongside the boot layer and bare, adopted, and its index asked every question E and F
+# ask; and every (model, query) pair of the identity oracle whose texts the front oracle holds, resolved with no model
+# and against the model -- each canonical text held to the Java's (the SHA-256 per ask, frozen:
+# //rust/oracles:names_models, :names_queries; rust/oracles/names/MANIFEST.tsv): every ask identical, no list of
+# differences.
+rust_test(
+    name = "names_differential_test",
+    size = "large",
+    srcs = ["tests/names_differential.rs"],
+    args = ["--ignored"],
+    data = [
+        "//rust/oracles:front_questions",
+        "//rust/oracles:names_models",
+        "//rust/oracles:names_queries",
+    ],
+    edition = "2024",
+    env = {
+        "LITE_NAMES_MODELS": "$(rootpath //rust/oracles:names_models)",
+        "LITE_NAMES_QUERIES": "$(rootpath //rust/oracles:names_queries)",
+        "LITE_NAMES_QUESTIONS": "$(rootpath //rust/oracles:front_questions)",
+    },
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":lite_names",
+        "//rust/lite-base:lite_base",
+        "//rust/lite-builtin:lite_builtin",
+        "//rust/lite-front:lite_front",
+        "//rust/lite-model:lite_model",
+    ],
+)
+
+# the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards
+filegroup(
+    name = "sources",
+    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]) + ["Cargo.toml"],
+    visibility = ["//rust/lite-guards:__pkg__"],
+)
+
+guards_package()

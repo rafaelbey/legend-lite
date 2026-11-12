@@ -32,3 +32,9 @@ lite-error	error	3
 lite-model	model	3	lite-base lite-front lite-javacompat
 lite-builtin	builtin door	3	lite-error lite-front lite-model
 lite-platform	platform	3	lite-base lite-builtin lite-error lite-model
+# 2026-11-12, phase 3's names slice (docs/rust-port/PHASE3.md): the compiler split into its three parts in order, names <
+# element < spec (PHASE3_CRATES.md §2, the owner's ruling 21), so that F reaching G, or D reaching either, is a build
+# error; the line stands before its later parts are made (the guard checks a part named on a crate's line is declared
+# here, never that every declared part has a crate). lite-names is the first part: the model index and name resolution
+split	compiler	names element spec
+lite-names	compiler/names	3	lite-base lite-builtin lite-error lite-model lite-platform lite-types
