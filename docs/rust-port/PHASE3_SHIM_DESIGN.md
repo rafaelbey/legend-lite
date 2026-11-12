@@ -449,6 +449,16 @@ Each with my recommendation first.
     classification of `testplan`'s identity sites, `ObjectSites.nodes` now semantic (b); the second patch,
     `identity-control-tap.patch`; and what is left out (`//core:ladder_report`, the Postgres lanes and temporary-path
     models, `planAhead`, which no lane reaches and which the Rust `testplan` tests on its own).
+20. **The flip's cost is won back, measured** (2026-11-11): one shared empty `Arc<[T]>` for every empty list, and short
+    lists built straight into `Arc<[T]>`, timed natively before and after, with no answer change.
+21. **The crate map** (`PHASE3_CRATES.md`, 2026-11-11): the compiler is three crates, names < element < spec, so that F
+    calling G fails to build, the four Java edges against that order rewired in the slices that port them; `door` is
+    merged into `builtin`; a Rust crate may reach what its Java layer reaches or less, held exactly against Cargo and
+    Bazel. Where the SQL translators (`protocol/sql`, `iq`, `cypher`) go stays open until the typer's slice is planned.
+22. **Subtyping (`ModelContext.isSubtype`) is held to the live Java in slice 1b**, with the model; no freeze now.
+23. **The flip's and slice 1a's own choices are ratified** (2026-11-11): only `ValueSpecification` nodes `Arc`, the rest
+    of the records as they were; a map on a node refused by the generator until its shape is decided; the allocator at
+    298 lines; a zero-size value one byte, every empty slice the one `&[]`; a lying iterator a panic; Miri not run.
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.
