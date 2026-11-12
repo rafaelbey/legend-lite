@@ -26,8 +26,8 @@ use crate::jnum::{parse_double, parse_long};
 use crate::jtypes::{BigDecimal, JStr, JValue};
 use crate::lexer::{TokenStream, TokenType, tokenize};
 use crate::nodes::{
-    Span, applied, applied_full, boxed, collection, concrete, cstring, infix, lambda, name_ref, property, ptr,
-    variable, vs_fn, vs_var,
+    IntoList, Span, applied, applied_full, boxed, collection, concrete, cstring, infix, lambda, list_of, name_ref,
+    property, ptr, variable, vs_fn, vs_var,
 };
 use crate::operator_parts::{ArithPart, BoolPart, arithmetic_part, boolean_part};
 use crate::records::{
@@ -47,6 +47,7 @@ use crate::ustr::{
 };
 use lite_javacompat::character::{is_digit, is_letter, is_letter_or_digit, is_whitespace};
 use std::collections::HashMap;
+use std::iter::once;
 use std::sync::Arc;
 
 use TokenType as T;
@@ -81,7 +82,7 @@ pub fn parse_lambda(text: &[u16], dialect: Dialect) -> Answer<LambdaFunction> {
     match parser.whole_line()? {
         // the answer's own node, just built: a move, not a copy
         VS::LambdaFunction(lf) => Ok(Arc::unwrap_or_clone(lf)),
-        v => Ok(lambda(Vec::new(), vec![v], parser.span(0, parser.pos - 1))),
+        v => Ok(lambda([], [v], parser.span(0, parser.pos - 1))),
     }
 }
 
@@ -447,7 +448,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         Ok(applied(
             JStr::from("letFunction"),
-            vec![cstring(JStr(var_name), None), value],
+            [cstring(JStr(var_name), None), value],
             boxed(let_span),
         ))
     }
@@ -565,11 +566,11 @@ impl<'t, 's> SpecParser<'t, 's> {
                 let op_tok = self.pos;
                 self.pos += 1;
                 let right = self.parse_combined_arithmetic_only()?;
-                let eq = infix(JStr::from("equal"), vec![expr, right], self.span(op_tok, op_tok));
+                let eq = infix(JStr::from("equal"), [expr, right], self.span(op_tok, op_tok));
                 expr = if t == T::TEST_EQUAL {
                     vs_fn(eq)
                 } else {
-                    vs_fn(infix(JStr::from("not"), vec![vs_fn(eq)], self.span(op_tok, op_tok)))
+                    vs_fn(infix(JStr::from("not"), [vs_fn(eq)], self.span(op_tok, op_tok)))
                 };
             }
         }
@@ -586,7 +587,7 @@ impl<'t, 's> SpecParser<'t, 's> {
                 let operand = self.parse_expression()?;
                 return Ok(vs_fn(applied(
                     JStr::from("not"),
-                    vec![operand],
+                    [operand],
                     self.span(not_tok, self.pos - 1),
                 )));
             }
@@ -600,14 +601,10 @@ impl<'t, 's> SpecParser<'t, 's> {
                 // -5 RomanLength~Pes: the sign belongs to the unit literal's number
                 if self.peek_is_number() && self.unit_path_end(self.pos + 1).is_some() {
                     let n = self.parse_number()?;
-                    return self.unit_literal(vs_fn(infix(JStr::from("minus"), vec![n], self.span(op_tok, op_tok))));
+                    return self.unit_literal(vs_fn(infix(JStr::from("minus"), [n], self.span(op_tok, op_tok))));
                 }
                 let operand = self.parse_expression()?;
-                return Ok(vs_fn(infix(
-                    JStr::from("minus"),
-                    vec![operand],
-                    self.span(op_tok, op_tok),
-                )));
+                return Ok(vs_fn(infix(JStr::from("minus"), [operand], self.span(op_tok, op_tok))));
             }
             if t == T::PLUS {
                 let op_tok = self.pos;
@@ -617,11 +614,7 @@ impl<'t, 's> SpecParser<'t, 's> {
                     return Ok(signed_literal(n, false, self.span(op_tok, self.pos - 1)));
                 }
                 let operand = self.parse_expression()?;
-                return Ok(vs_fn(infix(
-                    JStr::from("plus"),
-                    vec![operand],
-                    self.span(op_tok, op_tok),
-                )));
+                return Ok(vs_fn(infix(JStr::from("plus"), [operand], self.span(op_tok, op_tok))));
             }
         }
         self.parse_primary()
@@ -1144,7 +1137,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             }));
             return Ok(vs_fn(infix(
                 JStr::from("range"),
-                vec![zero, stop],
+                [zero, stop],
                 self.span(open, self.pos - 1),
             )));
         }
@@ -1155,14 +1148,21 @@ impl<'t, 's> SpecParser<'t, 's> {
         });
         if platform && self.peek() == T::COLON {
             self.pos += 1; // [start:stop(:step)]
-            let mut args = vec![values.pop().expect("the start")];
-            args.push(self.parse_combined_expression()?);
-            if self.peek() == T::COLON {
+            // the start, the stop and a step if any: the list built straight in, its length known
+            let start = values.pop().expect("the start");
+            let stop = self.parse_combined_expression()?;
+            let step = if self.peek() == T::COLON {
                 self.pos += 1;
-                args.push(self.parse_combined_expression()?);
-            }
+                Some(self.parse_combined_expression()?)
+            } else {
+                None
+            };
             self.expect_msg(T::BRACKET_CLOSE, "expected ']' to close range literal")?;
-            return Ok(vs_fn(infix(JStr::from("range"), args, self.span(open, self.pos - 1))));
+            let span = self.span(open, self.pos - 1);
+            return Ok(vs_fn(match step {
+                None => infix(JStr::from("range"), [start, stop], span),
+                Some(step) => infix(JStr::from("range"), [start, stop, step], span),
+            }));
         }
         while !self.at_end() && self.peek() == T::COMMA {
             self.pos += 1;
@@ -1211,7 +1211,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             ));
         }
         let unit = self.parse_qualified_name_start()?;
-        Ok(vs_fn(applied(JStr::from("newUnit"), vec![unit, number], None)))
+        Ok(vs_fn(applied(JStr::from("newUnit"), [unit, number], None)))
     }
 
     /// An identifier-starting primary: a unit name, the `.all()` family, a call (with the quoted folds), or an
@@ -1298,19 +1298,26 @@ impl<'t, 's> SpecParser<'t, 's> {
     fn parse_all_call(&mut self, fqn: Vec<u16>, dot_tok: usize, fqn_span: Span) -> R<AppliedFunction> {
         let name_tok = self.pos - 1;
         self.expect_msg(T::PAREN_OPEN, "expected '(' after '.all'")?;
-        let mut args = vec![ptr(JStr(fqn), fqn_span)];
+        let class = ptr(JStr(fqn), fqn_span);
         if !self.at_end() && self.peek() != T::PAREN_CLOSE && !opens_milestoning_literal(self.peek()) {
-            return self.property_form_call("all", name_tok, args);
+            return self.property_form_call("all", name_tok, vec![class]);
         }
+        // the class and none, one or two milestoning dates: the list built straight in, its length known
+        let mut dates = [None, None];
         if !self.at_end() && self.peek() != T::PAREN_CLOSE {
-            args.push(self.parse_milestoning_expression()?);
+            dates[0] = Some(self.parse_milestoning_expression()?);
             if !self.at_end() && self.peek() == T::COMMA {
                 self.pos += 1;
-                args.push(self.parse_milestoning_expression()?);
+                dates[1] = Some(self.parse_milestoning_expression()?);
             }
         }
         self.expect_msg(T::PAREN_CLOSE, "expected ')' to close '.all(...)'")?;
-        Ok(applied(JStr::from("getAll"), args, self.span(dot_tok, self.pos - 1)))
+        let span = self.span(dot_tok, self.pos - 1);
+        Ok(match dates {
+            [None, _] => applied(JStr::from("getAll"), [class], span),
+            [Some(d), None] => applied(JStr::from("getAll"), [class, d], span),
+            [Some(d), Some(e)] => applied(JStr::from("getAll"), [class, d, e], span),
+        })
     }
 
     /// The engine's property-call form of `all`/`allVersionsInRange` with general arguments, spanning the name.
@@ -1343,7 +1350,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         self.expect_msg(T::PAREN_CLOSE, "'.allVersions()' takes no arguments")?;
         Ok(applied(
             JStr::from("getAllVersions"),
-            vec![ptr(JStr(fqn), fqn_span)],
+            [ptr(JStr(fqn), fqn_span)],
             self.span(dot_tok, self.pos - 1),
         ))
     }
@@ -1376,7 +1383,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         Ok(applied(
             JStr::from("getAllVersionsInRange"),
-            vec![ptr(JStr(fqn), fqn_span), start, end],
+            [ptr(JStr(fqn), fqn_span), start, end],
             self.span(dot_tok, self.pos - 1),
         ))
     }
@@ -1418,9 +1425,8 @@ impl<'t, 's> SpecParser<'t, 's> {
             if args.is_empty() && self.dialect.refuses_platform_dialect() {
                 return Ok(property(receiver, name, self.span(name_start, name_end)));
             }
-            let mut params = Vec::with_capacity(1 + args.len());
-            params.push(receiver);
-            params.extend(args);
+            // the receiver and the arguments, straight into the call's list, its length known
+            let params = list_of(once(receiver).chain(args));
             return Ok(vs_fn(applied_full(
                 name,
                 params,
@@ -1476,9 +1482,8 @@ impl<'t, 's> SpecParser<'t, 's> {
             return Err(self.error(jcat!("expected '(' after arrow-call function name '", f, "'")));
         }
         let args = self.parse_arg_list()?;
-        let mut params = Vec::with_capacity(1 + args.len());
-        params.push(receiver);
-        params.extend(args);
+        // the receiver and the arguments, straight into the call's list, its length known
+        let params = list_of(once(receiver).chain(args));
         let at = throw_at(self.tokens, fn_start, JStr::default())
             .position
             .unwrap_or((0, 0));
@@ -1523,7 +1528,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             let index = self.parse_integer()?;
             vs_fn(applied(
                 JStr::from("at"),
-                vec![receiver, VS::CInteger(Arc::new(index))],
+                [receiver, VS::CInteger(Arc::new(index))],
                 None,
             ))
         } else if t == T::STRING {
@@ -1627,13 +1632,13 @@ impl<'t, 's> SpecParser<'t, 's> {
             }
             let cast = NewInstanceCast {
                 class_name: JStr(class_name),
-                type_arguments: type_args.into(),
+                type_arguments: type_args.into_list(),
                 src,
                 target_set_id: None,
             };
             return Ok(vs_fn(applied(
                 JStr::from("new"),
-                vec![receiver, VS::NewInstanceCast(Arc::new(cast))],
+                [receiver, VS::NewInstanceCast(Arc::new(cast))],
                 None,
             )));
         }
@@ -1726,9 +1731,9 @@ impl<'t, 's> SpecParser<'t, 's> {
     ) -> R<ValueSpecification> {
         let ni = NewInstance {
             class_name: JStr(class_name),
-            type_arguments: type_args.into(),
-            type_multiplicity_arguments: type_mult_args.into(),
-            properties: properties.into(),
+            type_arguments: type_args.into_list(),
+            type_multiplicity_arguments: type_mult_args.into_list(),
+            properties: properties.into_list(),
         };
         if self.dialect.refuses_platform_dialect() && matches!(receiver, VS::PackageableElementPtr(_)) {
             match caret_special(&ni) {
@@ -1739,7 +1744,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         Ok(vs_fn(applied(
             JStr::from("new"),
-            vec![receiver, VS::NewInstance(Arc::new(ni))],
+            [receiver, VS::NewInstance(Arc::new(ni))],
             None,
         )))
     }
@@ -1963,7 +1968,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         self.expect_msg(T::PIPE, "expected '|' after shorthand lambda parameter")?;
         let mut body = vec![self.parse_program_line()?];
         self.read_brace_less_block(&mut body)?;
-        Ok(lambda(vec![param], body, self.span(pipe_tok, self.pos - 1)))
+        Ok(lambda([param], body, self.span(pipe_tok, self.pos - 1)))
     }
 
     /// Whether `x: Type[mult] |` stands at the cursor (the cursor restored either way).
@@ -2070,7 +2075,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         let r = self.brace_less_body(&mut body);
         self.const_strings.pop();
         r?;
-        Ok(lambda(Vec::new(), body, self.span(pipe_tok, self.pos - 1)))
+        Ok(lambda([], body, self.span(pipe_tok, self.pos - 1)))
     }
 
     fn brace_less_body(&mut self, body: &mut Vec<ValueSpecification>) -> R<()> {
@@ -2243,8 +2248,8 @@ impl<'t, 's> SpecParser<'t, 's> {
                         pos: self.col_spec_span(name_tok_idx, self.pos - 1, start_col_shift),
                         col_type: Some(col_type),
                         col_type_mult: col_mult,
-                        stereotypes: stereotypes.into(),
-                        tagged_values: tagged_values.into(),
+                        stereotypes: stereotypes.into_list(),
+                        tagged_values: tagged_values.into_list(),
                     });
                 }
                 self.pos = colon_mark;
@@ -2296,8 +2301,8 @@ impl<'t, 's> SpecParser<'t, 's> {
             pos,
             col_type: None,
             col_type_mult: None,
-            stereotypes: stereotypes.into(),
-            tagged_values: tagged_values.into(),
+            stereotypes: stereotypes.into_list(),
+            tagged_values: tagged_values.into_list(),
         })
     }
 
@@ -2433,14 +2438,14 @@ impl<'t, 's> SpecParser<'t, 's> {
         if !self.at_end() && self.peek() == T::BRACKET_CLOSE {
             self.pos += 1;
             return Ok(ColSpecArray {
-                col_specs: specs.into(),
+                col_specs: specs.into_list(),
                 pos: self.span(open, self.pos - 1),
             });
         }
         self.parse_col_spec_array_items(&mut specs)?;
         self.expect_msg(T::BRACKET_CLOSE, "expected ']' to close ColSpec array")?;
         Ok(ColSpecArray {
-            col_specs: specs.into(),
+            col_specs: specs.into_list(),
             pos: self.span(open, self.pos - 1),
         })
     }
@@ -2469,7 +2474,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             }
         }
         let body = self.parse_combined_expression()?;
-        Ok(lambda(Vec::new(), vec![body], None))
+        Ok(lambda([], [body], None))
     }
 
     // -------------------------------------------------------------------- type annotations
@@ -2494,7 +2499,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             self.refuse_wildcard_columns(open, None)?;
             return Ok(TypeAnnotation::TypeAnnotationRelationShape(Arc::new(
                 TypeAnnotationRelationShape {
-                    columns: columns.into(),
+                    columns: columns.into_list(),
                     spelled_name: None,
                     type_span: self.span(at_tok, self.pos - 1),
                     pos: self.span(at_tok, self.pos - 1),
@@ -2532,7 +2537,7 @@ impl<'t, 's> SpecParser<'t, 's> {
             self.expect_msg(T::GREATER_THAN, "expected '>' to close @Relation type annotation")?;
             return Ok(TypeAnnotation::TypeAnnotationRelationShape(Arc::new(
                 TypeAnnotationRelationShape {
-                    columns: columns.into(),
+                    columns: columns.into_list(),
                     spelled_name: Some(JStr(name)),
                     type_span: self.span(name_start, self.pos - 1),
                     pos: self.span(at_tok, self.pos - 1),
@@ -2824,16 +2829,16 @@ impl<'t, 's> SpecParser<'t, 's> {
             multiplicity: None,
             pos: None,
         };
-        let desugared = lambda(vec![param], vec![body], None);
+        let desugared = lambda([param], [body], None);
         Ok(VS::PathLiteral(Arc::new(PathLiteral {
             start_type,
-            segments: pieces.into(),
+            segments: pieces.into_list(),
             desugared: Arc::new(desugared),
             alias,
             has_dated_segment: has_dated,
             pos: self.span(lit_tok, lit_tok),
             literal_length: text.len() as i32,
-            line_starts: line_starts.into(),
+            line_starts: line_starts.into_list(),
         })))
     }
 
@@ -3053,7 +3058,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         let tds_string = JStr::from(inner);
         let desugared = applied(
             JStr::from("meta::legend::lite::tds"),
-            vec![cstring(JStr::from("TDS"), None), cstring(tds_string.clone(), None)],
+            [cstring(JStr::from("TDS"), None), cstring(tds_string.clone(), None)],
             None,
         );
         Ok(VS::TdsLiteral(Arc::new(TdsLiteral {
@@ -3224,10 +3229,12 @@ impl<'t, 's> SpecParser<'t, 's> {
             None => (content, None),
             Some(d) => (&content[..d], Some(&content[d + 1..])),
         };
-        let mut params = vec![ptr(JStr::from(db), None)];
-        if let Some(r) = rest {
-            params.push(cstring(JStr::from(r), None));
-        }
+        // the database and the table if named: the list built straight in, its length known
+        let database = ptr(JStr::from(db), None);
+        let params = match rest {
+            None => [database].into_list(),
+            Some(r) => [database, cstring(JStr::from(r), None)].into_list(),
+        };
         Ok(applied_full(
             JStr::from("tableReference"),
             params,
@@ -3277,8 +3284,8 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         Ok(GraphFetchLiteral {
             class_name: JStr(class_name),
-            sub_trees: nodes.into(),
-            sub_type_trees: sub_types.into(),
+            sub_trees: nodes.into_list(),
+            sub_type_trees: sub_types.into_list(),
             pos: name_pos,
         })
     }
@@ -3476,21 +3483,17 @@ impl<'t, 's> SpecParser<'t, 's> {
                 Element::PSectionIndex(_) => continue,
                 Element::PFunction(fd) => {
                     let fd = *fd;
-                    let parameters = fd
-                        .parameters
-                        .into_iter()
-                        .map(|p| {
-                            Arc::new(Variable {
-                                name: p.name,
-                                r#type: Some(p.r#type),
-                                multiplicity: Some(p.multiplicity),
-                                pos: None,
-                            })
+                    let parameters = list_of(fd.parameters.into_iter().map(|p| {
+                        Arc::new(Variable {
+                            name: p.name,
+                            r#type: Some(p.r#type),
+                            multiplicity: Some(p.multiplicity),
+                            pos: None,
                         })
-                        .collect();
+                    }));
                     functions.push(Arc::new(LambdaFunction {
                         parameters,
-                        body: fd.body.into(),
+                        body: fd.body.into_list(),
                         pos: None,
                     }));
                 }
@@ -3502,7 +3505,7 @@ impl<'t, 's> SpecParser<'t, 's> {
         }
         Ok(Some(VS::QuotedGrammarCall(Arc::new(QuotedGrammarCall {
             original: Arc::clone(call),
-            functions: functions.into(),
+            functions: functions.into_list(),
             pos: call.pos.clone(),
         }))))
     }

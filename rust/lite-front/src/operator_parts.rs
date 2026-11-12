@@ -8,8 +8,10 @@
 //! `1 < 2 + 3 * 4` is `lessThan(1, times[Collection[plus[Collection[2,3]], 4]])`.
 
 use crate::jtypes::JStr;
-use crate::nodes::{Span, collection, infix, vs_fn};
+use crate::nodes::{Span, collection, infix, list_of, vs_fn};
 use crate::records::{AppliedFunction, ValueSpecification};
+use std::iter::once;
+use std::sync::Arc;
 
 /// `EngineQuirks.RELATIONAL_ARITH_MISASSOCIATION`: decided in writing to reproduce the engine (2026-08-06).
 const RELATIONAL_ARITH_MISASSOCIATION: bool = true;
@@ -61,7 +63,7 @@ pub fn boolean_part(parts: Vec<BoolPart>, input: ValueSpecification) -> AppliedF
                 let (last, rest) = parameters.split_last().expect("a boolean call has two parameters");
                 let first = rest.first().expect("a boolean call has two parameters").clone();
                 let new_af = build_boolean(p, last.clone());
-                let mut node = infix(function, vec![first, vs_fn(new_af)], pos);
+                let mut node = infix(function, [first, vs_fn(new_af)], pos);
                 node.referents = referents;
                 Acc { node, op: a.op }
             }
@@ -78,7 +80,7 @@ pub fn boolean_part(parts: Vec<BoolPart>, input: ValueSpecification) -> AppliedF
 }
 
 fn build_boolean(p: BoolPart, input: ValueSpecification) -> AppliedFunction {
-    infix(JStr::from(p.function), vec![input, p.operand], p.op_span)
+    infix(JStr::from(p.function), [input, p.operand], p.op_span)
 }
 
 /// `arithmeticPart`: a comparison folds the whole accumulator; plus/minus/times/divide thread through `processOp`.
@@ -125,24 +127,24 @@ fn process_op(p: ArithPart, acc: Option<Acc>, initial: &mut Option<ValueSpecific
             let (last, rest) = parameters.split_last().expect("a binary call has two parameters");
             let first = rest.first().expect("a binary call has two parameters").clone();
             let new_af = build_arith(p, last.clone());
-            let mut node = infix(function, vec![first, vs_fn(new_af)], pos);
+            let mut node = infix(function, [first, vs_fn(new_af)], pos);
             node.referents = referents;
             return Acc { node, op: a.op };
         }
         // a collection carrier (plus/minus/times): the last element rebuilt, re-collected with the CLAIMING
         // context's span
         let ctx_span = p.ctx_span.clone();
-        // the collection's values, the same nodes, into a list to rebuild
-        let mut vals = match parameters.first() {
-            Some(ValueSpecification::PureCollection(c)) => c.values.to_vec(),
+        // the collection's values, the same nodes, the last one rebuilt: straight into the new list, its length known
+        let values = match parameters.first() {
+            Some(ValueSpecification::PureCollection(c)) => Arc::clone(&c.values),
             // `a.node` is built by `build_arith` or the arm below, a collection carrier unless `a.op` is `divide` or
             // a comparison (the arm above)
             _ => unreachable!("an arithmetic run's parameter is its collection"),
         };
-        let last = vals.pop().expect("an arithmetic run has operands");
-        let new_af = build_arith(p, last);
-        vals.push(vs_fn(new_af));
-        let mut node = infix(function, vec![collection(vals, ctx_span)], pos);
+        let (last, rest) = values.split_last().expect("an arithmetic run has operands");
+        let new_af = build_arith(p, last.clone());
+        let vals = list_of(rest.iter().cloned().chain(once(vs_fn(new_af))));
+        let mut node = infix(function, [collection(vals, ctx_span)], pos);
         node.referents = referents;
         return Acc { node, op: a.op };
     }
@@ -160,25 +162,24 @@ fn build_arith(p: ArithPart, initial: ValueSpecification) -> AppliedFunction {
         let mut af: Option<AppliedFunction> = None;
         let mut left = initial;
         for other in p.operands {
-            let built = infix(JStr::from("divide"), vec![left, other], p.ctx_span.clone());
+            let built = infix(JStr::from("divide"), [left, other], p.ctx_span.clone());
             left = vs_fn(built.clone());
             af = Some(built);
         }
         return af.expect("divide part without operands");
     }
-    let mut vals = Vec::with_capacity(1 + p.operands.len());
-    vals.push(initial);
-    vals.extend(p.operands);
+    // the initial value and the operands, straight into the collection's list, its length known
+    let vals = list_of(once(initial).chain(p.operands));
     infix(
         JStr::from(p.function),
-        vec![collection(vals, p.ctx_span.clone())],
+        [collection(vals, p.ctx_span.clone())],
         p.ctx_span,
     )
 }
 
 fn build_comparison(p: ArithPart, initial: ValueSpecification) -> AppliedFunction {
     let first = p.operands.into_iter().next().expect("a comparison has its right side");
-    infix(JStr::from(p.function), vec![initial, first], p.ctx_span)
+    infix(JStr::from(p.function), [initial, first], p.ctx_span)
 }
 
 fn is_relational_comparison(f: &str) -> bool {

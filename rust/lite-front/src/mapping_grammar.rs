@@ -24,7 +24,7 @@ use crate::jcat;
 use crate::jtypes::{JStr, JValue};
 use crate::lexer::{TokenStream, TokenType};
 use crate::mapping_parser::MappingCursor;
-use crate::nodes::{Span, boxed};
+use crate::nodes::{IntoList, Span, boxed};
 use crate::records::{
     LambdaFunction, Multiplicity, PAggregateSetImplementation, PAggregateValue, PAssociationMapping, PBodyBuildInfo,
     PClassMapping, PClassMappingAggregationAware, PClassMappingFunction, PClassMappingMergeOperation,
@@ -183,7 +183,7 @@ fn clean_sheet_realization(
         None,
         Some(Arc::new(LambdaFunction {
             parameters: Arc::default(),
-            body: body.into(),
+            body: body.into_list(),
             pos: None,
         })),
     )

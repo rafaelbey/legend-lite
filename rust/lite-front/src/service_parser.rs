@@ -23,7 +23,7 @@ use crate::jnum::{parse_double, parse_long};
 use crate::jtypes::{JStr, JValue, base64_of_utf8};
 use crate::lexer::TokenType;
 use crate::mapping_parser::MappingCursor;
-use crate::nodes::{Span, applied, boxed, vs_fn};
+use crate::nodes::{IntoList, Span, applied, boxed, vs_fn};
 use crate::protocol::qualified_name;
 use crate::records::{
     AppliedFunction, AppliedProperty, CByteArray, CFloat, CInteger, ColSpec, ColSpecArray, ColumnInstance, Element,
@@ -329,7 +329,7 @@ fn legacy_param_value<'s>(c: &impl Cursor<'s>, from: usize) -> R<ValueSpecificat
         let inner = slice_spec(c, from + 2, pos - 1)?;
         let call = applied(
             JStr::from("list"),
-            vec![fold_signed_literals(&inner)?.0],
+            [fold_signed_literals(&inner)?.0],
             c.span(from, pos - 1),
         );
         return Ok(vs_fn(call));
@@ -402,22 +402,30 @@ fn fold_lambda(lf: &Arc<LambdaFunction>) -> R<(Arc<LambdaFunction>, bool)> {
 }
 
 /// Each value folded, in order: `None` when none changed, so the caller keeps its own list (as Java's rewrites hand
-/// the original back).
+/// the original back). No list is made until a value changes (2026-11-11, the flip's cost won back): an unchanged
+/// value folds to itself, so the values before the first change are the list's own.
 fn fold_each(values: &[ValueSpecification]) -> R<Option<Vec<ValueSpecification>>> {
-    let mut folded = Vec::with_capacity(values.len());
-    let mut changed = false;
-    for v in values {
-        let (f, c) = fold_signed_literals(v)?;
-        folded.push(f);
-        changed |= c;
+    let mut folded: Option<Vec<ValueSpecification>> = None;
+    for (i, v) in values.iter().enumerate() {
+        let (f, changed) = fold_signed_literals(v)?;
+        match &mut folded {
+            Some(list) => list.push(f),
+            None if changed => {
+                let mut list = Vec::with_capacity(values.len());
+                list.extend_from_slice(&values[..i]);
+                list.push(f);
+                folded = Some(list);
+            }
+            None => {}
+        }
     }
-    Ok(changed.then_some(folded))
+    Ok(folded)
 }
 
 /// A node's list folded: the list itself when nothing changed; whether anything did.
 fn fold_list(values: &Arc<[ValueSpecification]>) -> R<(Arc<[ValueSpecification]>, bool)> {
     Ok(match fold_each(values)? {
-        Some(folded) => (folded.into(), true),
+        Some(folded) => (folded.into_list(), true),
         None => (Arc::clone(values), false),
     })
 }
@@ -611,7 +619,7 @@ fn fold_signed_literals(v: &ValueSpecification) -> R<(ValueSpecification, bool)>
                 (
                     VS::QuotedGrammarCall(Arc::new(QuotedGrammarCall {
                         original,
-                        functions: functions.into(),
+                        functions: functions.into_list(),
                         pos: q.pos.clone(),
                     })),
                     true,
@@ -700,7 +708,7 @@ fn fold_signed_literals(v: &ValueSpecification) -> R<(ValueSpecification, bool)>
                 // the array rebuilt by its position-free constructor
                 (
                     VS::ColumnInstance(ColumnInstance::ColSpecArray(Arc::new(ColSpecArray {
-                        col_specs: specs.into(),
+                        col_specs: specs.into_list(),
                         pos: None,
                     }))),
                     true,

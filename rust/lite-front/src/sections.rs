@@ -151,7 +151,7 @@ pub fn lambda_to_semicolon<'s>(c: &mut impl Cursor<'s>) -> R<ValueSpecification>
 pub fn as_lambda(v: ValueSpecification) -> ValueSpecification {
     match v {
         ValueSpecification::LambdaFunction(_) => v,
-        other => ValueSpecification::LambdaFunction(Arc::new(lambda(Vec::new(), vec![other], None))),
+        other => ValueSpecification::LambdaFunction(Arc::new(lambda([], [other], None))),
     }
 }
 
