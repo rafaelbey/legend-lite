@@ -1218,6 +1218,37 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      lite takes and the engine refuses at the second `.` (`[3:28]`): `.all(...)` is its `allOrFunction` only with a milestoning
      date or variable, so here it is the `propertyExpression` and nothing may follow.
 
+   **After the closing: ruling 29's open item done 2026-11-11** (from `0b086400c`, the next time the parser was touched
+   for phase 3; commit `18296bec6`). The default value `x.all(1 + 2).y` is refused at the engine's dialect at the engine's
+   place, `[3:28]` (register S375). The engine's `defaultValueExpression` is `instanceReference propertyExpression`, and
+   `instanceReference`'s `allOrFunction?` takes a `.all(...)` only as `allFunction` (`.all()`),
+   `allFunctionWithMilestoning` (one or two of `%latest`, a date, a variable), `allVersionsFunction` (`.allVersions()`)
+   or `allVersionsInRangeFunction` (two of them) (`M3ParserGrammar.g4`); any other `.all(...)` is the
+   `propertyExpression` itself, after which the value ends. Lite's grammar stop (ruling 20's, S366) read every
+   `.all(...)` followed by a `.name` as the `allOrFunction`; it asks the arguments first now, at the engine's dialect
+   only.
+   - **Asked of the engine** (`PureGrammarParser`, 4.145.0, on the parser-equivalence class path), not recalled: 69 default
+     values -- `.all`, `.allVersions` and `.allVersionsInRange` with every argument shape (none, a number, a string, a
+     name, a sum, one to three variables or dates, `%latest`, a time, a trailing or lone comma), each with and without a
+     property after it, other calls followed by a property (`a::f(1 + 2).y`, `x.y(1).z`, `a::f(1).all(2).y`, `^a::B(x =
+     1).y`), in an array of defaults, with a second refusal in the value or the element -- and 6 expression texts. At
+     `pmcd` and `document` at the engine's dialect, at the engine's place or both accepting **36 -> 54 of 69, lite looser
+     15 -> 0**; every one that moved moved to the engine's place (15 accepted before, 3 refused later: `x.all(1 + 2).y.z`
+     at its last `.`, `x.all(1 + 2).y + (1 +)` at the `+`, and with a later refusal in the element at that one). Lite's
+     and the platform's dialects, and `spec`, `lambda`, `lambdaJson` and `block`: no answer moved.
+   - **Left, each unchanged:** 13 place differences and 2 texts lite refuses and the engine accepts, where lite's own
+     reading of the value refuses first: three variables or a sum in `.all(...)` (`expected ')' to close '.all(...)'`),
+     a date and a number (`expected milestoning expression`), `$d.x`, `.allVersions` with an argument (`'.allVersions()'
+     takes no arguments`, also with nothing after it, which the engine accepts), `.allVersionsInRange` with one or three
+     dates, `.allVersionsInRange(%d, %d).y` (the engine's walker refuses it in the same words at the call's start, lite just
+     after the call), `1.y` (lite at the `y`, the engine at the `.`), and `'a'.y`, which the engine reads as a quoted name with a
+     property and lite's stop as a literal with nothing after it (lite stricter). Of the never-looser rule's kind none.
+   - **Nothing pinned moved.** The frozen-question check: every frozen question's answer as before, the difference list's
+     768 asks exactly. The gap measurement's pinned inputs (the harness, the corpus, both mutated sets): every count as
+     after rulings 27 and 28 (`docs/rust-port/ENGINE_GAP_2026_11_09.md`, "After ruling 29"); no pinned text holds such a
+     default. One new unit test (`doors::refusal_tests::a_default_values_all_call_is_its_all_or_function_only_with_its_arguments`,
+     26 texts, a `rust/RETIRED_TESTS.md` row).
+
 **Gates at every switch:** `bazel test //...` against `rust/BASELINE.tsv`; `//parser-equivalence:parser_parity`
 whole and `:round_trip_proof` (they need the upstream checkouts); the live differential while the Java parser
 exists, and the committed oracle after.

@@ -750,3 +750,20 @@ of a default value or a legacy service test's value raises stands before a later
 answers the syntax error (`^$x(a=1) + (1 +)`: lite's `copy-with-update` `[3:17]`, the engine's `[3:25]`; a legacy test's
 `-99999999999999999999` and a later key's error: lite's `For input string` `[2:8]`, the engine's `[22:1]`); a test suite's value
 past a long is refused at the number (`Unexpected token`), where the engine's walker answers its section catch-all.
+
+## After ruling 29 (2026-11-11)
+
+Ruling 29's one open item of the never-looser rule, carried out at commit `18296bec6` (`docs/rust-port/PHASE2.md` section 4,
+"After the closing"; register S375): a default value's `.all(...)` is its `allOrFunction` only with that rule's arguments,
+else its `propertyExpression`, after which the value ends, so `x.all(1 + 2).y` is refused at the engine's dialect at the
+second `.` (`[3:28]`). The same probes on the same pinned inputs, the same `doors` binary source, the engine's recorded
+answers; before is lite at `bcf60ed8f` (the source tree's flip to `Arc` and its cost won back, `68a7a3ef3` and `4cb1a8df5`,
+moved no answer: a mutation fuzz of 275,040 forms and every frozen question).
+
+**Nothing moved**: every (text, door) of the harness, the corpus and both mutated sets in the same category as "After
+rulings 27 and 28", every count above the same (corpus `pmcd` same place 3,256, different line 1,003, lite looser 575;
+mutated, 16 per text, 100,058, 10,174, 282; 4 per text, 24,920, 2,539, 74), no text left the engine's place: no pinned text
+holds a default value's `.all(...)` with other arguments and a property after it. Of the 69 default values written by hand
+and asked of the engine's parser, 36 at the engine's place or both accepting before, 54 after, lite looser 15 -> 0; the 15
+left are lite's own reading of the value refusing first, at another place (13) or where the engine accepts (2), each
+unchanged. The frozen questions: answered as before, the difference list's 768 asks exactly.

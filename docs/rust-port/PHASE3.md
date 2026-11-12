@@ -452,7 +452,8 @@ done, in the order of the design's §3.
      339.1, `pmcd` at lite's 1,544 → 1,596, at the engine's 1,693 → 1,687. A list frozen from its `Vec` is a second
      allocation and a copy, and an empty `Vec` frozen is one where it was none (`Arc::default()` allocates nothing); the
      counts' atomics are the rest. Not changed here, and not measured: freezing an empty list as `Arc::default()` (one
-     shared empty list, as Java's `List.of()` is) and building a short list straight into its `Arc<[T]>`.
+     shared empty list, as Java's `List.of()` is) and building a short list straight into its `Arc<[T]>` (both done the
+     same day, "The flip's cost won back", below).
    - **Gates.** `bazel test //... --keep_going --local_test_jobs=2` against `rust/BASELINE.tsv`: 567 targets, 186
      executed; every target the baseline passes passing but two that timed out while the machine was loaded (load
      13-15, 3.5 GB of swap in use); gone the 3 ledgered; new 18, the port's, passing. The two,
@@ -513,3 +514,39 @@ done, in the order of the design's §3.
        at `000520ef1`: 571 targets, 569 passed and 2 skipped (the baseline's two); of `rust/BASELINE.tsv`'s 550 passing
        targets every one passes but the three gone with their code and ledgered in `rust/RETIRED_TESTS.md`
        (`//core:core_tests_ide`, `//core:core_tests_lexer`, `//docs:update_dialect_capability_test`).
+   - **The flip's cost won back, and `lite-front` under the source guards (done 2026-11-11,** the owner's ruling;
+     `4cb1a8df5`, `2cd2b2a7e`**).** Every empty list of a node is the one shared empty list, `Arc::<[T]>::default()`
+     (std's one static, no allocation), as Java's `List.of()` is one object; a list whose length is known is built
+     straight into its `Arc<[T]>`, one allocation and no `Vec` first: `nodes::IntoList` (a `Vec`, an array, a list
+     already frozen) and `nodes::list_of` (an iterator of known length), the helpers taking an array where the parser
+     wrote `vec![..]`, and a call's receiver and arguments, an arithmetic run's operands, `.all()`'s class and dates, a
+     range, a table reference and a grammar call's parameters built so. The service grammar's signed-literal fold makes
+     a list only at its first changed value (the flip had it copy every list it visited). **No answer moved:** the
+     mutation fuzz's 275,040 forms the same SHA-256 before and after (and the flip's own), every frozen question as
+     before (the difference list's 768 asks exactly), the front differentials and `//core:front_shim` as before.
+     **The speed**, natively (the flip's harness; three builds alternated: before the flip, the flip, now; load 2.3-2.7),
+     total ms, before the flip / the flip / now:
+
+     | | round 1 | round 2 | round 3 |
+     |---|---|---|---|
+     | `spec`, every dialect, least of ten passes | 42.3 / 44.4 / 42.7 | 42.7 / 44.2 / 43.1 | 42.1 / 43.9 / 42.6 |
+     | `lambda` | 10.70 / 11.49 / 10.90 | 10.68 / 11.44 / 10.94 | 10.57 / 11.34 / 10.79 |
+     | `lambdaJson` (parse and emit) | 12.62 / 13.39 / 12.69 | 12.66 / 13.31 / 12.77 | 12.42 / 13.20 / 12.59 |
+     | `pmcd` at lite's dialect, the third of three passes | 1,743 / 1,798 / 1,764 | 1,777 / 1,820 / 1,795 | |
+     | the platform's | 1,724 / 1,786 / 1,755 | 1,761 / 1,810 / 1,789 | |
+     | the engine's | 2,344 / 2,365 / 2,327 | 2,383 / 2,386 / 2,373 | |
+     | parse and codec, lite's (the shim's model door) | 2,457 / 2,488 / 2,463 | 2,496 / 2,525 / 2,493 | |
+     | `document` (parse and emit) | 2,157 / 2,163 / 2,145 | 2,188 / 2,193 / 2,170 | |
+
+     So of the flip's cost on this run (`spec` +3.5-4.9%, `lambda` +7.1-7.4%, `lambdaJson` +5.1-6.3%, the model texts
+     +2.4-3.6% at lite's and the platform's dialects), about three quarters is won back: `spec` +0.9-1.3% over the
+     unflipped parser, `lambda` +1.9-2.4%, `lambdaJson` +0.6-1.4%, the model texts +1.0-1.8%, the engine's dialect,
+     the codec and `document` -0.8% to +0.3%. (The flip's own run, at load 4.4-4.6, measured its expression doors 10-20%
+     slower; the same flipped build is 4-7% slower here.) **Allocations an ask**, one pass, before the flip / the flip /
+     now: `spec` at lite's dialect 48.2 / 51.3 / 48.7, the platform's 27.2 / 29.1 / 27.8, the engine's 38.0 / 40.1 /
+     39.3; `lambda` 303.5 / 339.1 / 306.5; `block` 31.6 / 34.4 / 32.4; `pmcd` at lite's 1,544 / 1,596 / 1,557, the
+     platform's 1,553 / 1,605 / 1,566, the engine's 1,693 / 1,687 / 1,647. What remains is a list of unknown length
+     (a call's arguments, a lambda's body, a collection's values), built as a `Vec` and frozen: two allocations where
+     the unflipped parser made one. **The guards:** `lite-front`'s exemption from the arena ruling's source rules is
+     lifted -- its `sources` filegroup handed to `//rust/lite-guards:guards_test`, its root `#![forbid(unsafe_code)]`
+     (it holds no `unsafe` and no address conversion), the dated `CARGO_ONLY` entry removed, the list now empty.

@@ -50,7 +50,12 @@ whose test suites' island is broken (`#{` or `}#` written as a brace) hold two r
 element's left open by it, and now answer the list's, as the engine does -- `479a3de2` at `[83:22]` and `73425021` at
 `[63:19]`, the engine's places, where lite answered the end of the input, and `08ef5041` and `b664f679` at the end of the
 input in the list's words (`Unexpected token '<EOF>'`); one listed ask pair (`72b6e615`, `ruling18`) is re-answered in the list's
-words at its place. No other frozen answer moved; lite's and the platform's dialects moved none.
+words at its place. No other frozen answer moved; lite's and the platform's dialects moved none. Since 2026-11-11
+(ruling 29's open item; register S375) a default value's `.all(...)` is its `allOrFunction` only with that rule's
+arguments, so `x.all(1 + 2).y` is refused at the engine's dialect at the second `.`, `[3:28]`, as the engine refuses it: no
+frozen text holds such a default, and no frozen answer moved (the list's 768 asks exactly). The same day the source tree's
+lists were built without the flip's extra allocations (one shared empty list, short lists straight into their `Arc<[T]>`):
+no answer moved.
 
 **The engine-JSON doors** (step 5, 2026-11-06): the protocol emitter (`emitter.rs` and its family, below), held to
 core/'s `ProtocolEmitter` and `SourceInformation.withoutSpans` over Java's parser (`//core:front_engine_answers`,
