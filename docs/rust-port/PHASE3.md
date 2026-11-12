@@ -631,3 +631,29 @@ done, in the order of the design's §3.
      (`//core:core_tests_ide`, `//core:core_tests_lexer`, `//docs:update_dialect_capability_test`); 32 targets new
      since the baseline, the port's, all passing, ten of them this slice's. `ledger_check.sh c4a39e06d`: 80 rows ok,
      none missing.
+   - *The ten fixed (the owner's ruling of 2026-11-12 on this slice's report: fix every Java behaviour that looked
+     wrong, in Java and in Rust).* Each confirmed first -- what Java did, what it should do, and where "should" comes
+     from -- then one commit per item, Java and Rust together, the tables re-dumped from Java (two runs
+     byte-identical) and Rust held to them. (1) `PlatformPure.adopt` keeps the declaration's pre- and
+     post-conditions; measured first, inert: no adopted declaration carries one (the boot layer adopts none; upstream's
+     43 declarations at the platform's names carry none), so S94 and S89 cover it; a platform version with a condition
+     is refused (`f206e51fa`, +70 table lines). (2) The six "dangling" FQNs each exist upstream at exactly that name
+     (tds.pure, validation.pure, eval.pure, dbExtension.pure, extension.pure): they dangle only in the dump's table
+     over the boot declarations, and spec's `ImplementationTableTest` holds the whole table to none -- no Java change,
+     the dump says what its 16 are (`fd638cdce`). (3) `families()` lists `RowGetter` once (`f8d74a601`). (4)
+     `OperatorRun`'s id map refuses an overload in two runs, `indexById`'s rule (`f2fefe45a`). (5) `RowGetter.of`
+     reads applied spellings only, pinned for every getter (`013a80c24`). (6) The system source spells Pure's `'\n'`
+     and has no blank line before the Database's `)`: five line breaks fewer, every value the same, positions alone
+     moved; every path by which a system position can reach a frozen text was traced and none is taken (a raise's
+     position, a plan's scope id, a function body's content id, the stores' key), the plan, identity and MIR oracles
+     not regenerated (`5f88f8bb8`; builtin 8,722 -> 8,717 lines, platform 105 hashes). (7)
+     `duplicates()` reports each id once (`d64f9a4c6`, one line). (8) A `JavaRoutine`'s class member is an owner and a
+     property together (`e1092f457`). (9) `GroupAggregate` needs no `of`, held to its two readers (`fa7b21d88`). (10)
+     `isBivariateMap` takes a resolved callee's id, never null (`793b86949`). Items 5, 8, 9 and 10 are invariants named
+     and pinned, not wider types; 2 to 5 and 8 to 10 move no table line. The tables now: builtin 8,717 of 8,717,
+     platform 5,098 of 5,098. Gates: `cargo test --workspace`, clippy `-D warnings` and `fmt --check` clean; Bazel
+     `test //... --keep_going` on the tree of `5f88f8bb8` (item 6 not yet committed, as the stop condition asks) but
+     for one comment line of `rust/oracles/builtin/MANIFEST.tsv` corrected after the run, which no target reads:
+     581 targets, 579 passed, 2 skipped, every baseline target passing but the three ledgered;
+     `ledger_check.sh c4a39e06d`: 81 rows ok, none missing (the governance test's two new cases ledgered).
+
