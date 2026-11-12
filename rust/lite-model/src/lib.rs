@@ -17,6 +17,10 @@
 //!   [`function_id`]: `FunctionId` and `SignatureMangle`), `ParsedModel`'s keys and positions and `ImportScope`
 //!   ([`parsed_model`]), relational identifiers, join types, set ids ([`names`]).
 //!
+//! - The model's reads the names layer calls (the names slice, 2026-11-12): `RelationalOperation`'s children, walk,
+//!   `navigatesJoin` and `tables` ([`relational_operation`]), `ClassMapping.Pure.PropertyBinding.withExpression`; and
+//!   subtyping's one walk over class declarations, in the shapes of Java's two relations ([`subtyping`]).
+//!
 //! What `com.legend.model` holds that is not here yet, for the slice that first calls it: the methods the normalizer
 //! and the compiler call on `MappingDefinition` (its facts, `position`), `ClassMapping`'s witness-column names, the
 //! `LegacyMappingDefinition` and `RuntimeDefinition` helpers, `ClassMapping.RelationFunction.Col.bindSrc`, and the
@@ -38,6 +42,7 @@ pub mod parsed_model;
 pub mod records;
 mod database;
 pub mod rel_op_from_protocol;
+pub mod relational_operation;
 pub mod subtyping;
 pub mod text;
 

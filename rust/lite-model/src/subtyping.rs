@@ -1,17 +1,22 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! Subtyping over class declarations (`ModelContext.isSubtype` as `PureModelContext` answers it; 2026-11-12, the
-//! owner's ruling 22 of docs/rust-port/PHASE3_SHIM_DESIGN.md §10: held to the live Java in slice 1b, with the model, not
-//! frozen). `child <: parent` when they are one name, or when the child's reach -- the child and, walked breadth first,
-//! every class a reached class names as a supertype (its head's FQN, `TypeClassifier.headFqn`), `Nil` not walked past --
-//! holds the parent or `Nil`, the bottom type. A class the walk meets that has no declaration contributes nothing.
+//! Subtyping over class declarations: ONE walk, the hierarchy's closure from a class ([`reach`]), and Java's two
+//! relations as its two call shapes (2026-11-12, the names slice, docs/rust-port/PHASE3.md; first made in slice 1b
+//! under the owner's ruling 22 of docs/rust-port/PHASE3_SHIM_DESIGN.md §10, held to the live Java, not frozen).
 //!
-//! Java walks the compiled classes' `superClassFqns`, which are the declarations' heads after name resolution; this walks
-//! the declarations a caller hands, so their supertypes must be spelled as FQNs (the platform's boot layer is: the
-//! catalog's, the prelude's and the system metamodel's classes). A head that is no name (a function, relation or
-//! schema-algebra type) is Java's `ModelException`, the first one met answered as the walk's failure, as Java answers a
-//! class that failed to compile on the way.
+//! Java keeps two subtype relations, and they answer differently:
+//! - **F's, the typer's** (`PureModelContext.isSubtype`, [`is_subtype`]): the compiled classes' supertypes, their
+//!   heads' FQNs (`TypeClassifier.headFqn`: a head that is no name fails that class, and none of its supertypes is
+//!   walked); `Nil` the bottom type (reached, never walked past; a reach holding it answers true); a primitive's lattice
+//!   walked like any class's; the first failure met is the question's when the answer would otherwise be false.
+//! - **E's, the normalizer's** (`KnowledgeLayer.isSubtype`, lite-names' kernel, which calls [`reach`] with
+//!   [`Heads::Raw`]): the declarations' raw heads (`TypeExpression.rawClassName`: a head that is no name contributes
+//!   nothing, never a failure), a primitive no class (the caller's lookup answers none), no bottom.
+//!
+//! Each relation's class lookup is the caller's: `KnowledgeLayer.classDef` (the catalog's native classes first, then
+//! the graph's) for both, `hierarchyClass` (no primitive) for E's. The walk is breadth first; a class it meets that has
+//! no declaration contributes nothing; a cycle contributes nothing new.
 
 use std::collections::{HashSet, VecDeque};
 
@@ -40,8 +45,61 @@ pub fn head_fqn(t: &p::TypeExpression) -> Result<&JStr, &'static str> {
     }
 }
 
-/// `PureModelContext.isSubtype(child, parent)` over the declarations `find` answers: `Err` with the first failure the
-/// walk met when the answer would otherwise be false (Java throws it then).
+/// How a walked class's supertypes are read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Heads {
+    /// F's: `headFqn`, a head that is no name fails the class (none of its supertypes walked) and `Nil` stops the walk.
+    Compiled,
+    /// E's: `rawClassName`, a head that is no name contributes nothing.
+    Raw,
+}
+
+/// A class's reach: the classes the walk met (itself first among them), and the first failure it met.
+#[derive(Clone, Debug, Default)]
+pub struct Reach {
+    pub classes: HashSet<JStr>,
+    pub failure: Option<&'static str>,
+}
+
+/// The hierarchy's closure from `cls` over the declarations `find` answers, supertypes read by `heads`.
+pub fn reach<'a>(cls: &JStr, heads: Heads, find: impl Fn(&JStr) -> Option<&'a ClassDefinition>) -> Reach {
+    let nil = JStr::from(NIL);
+    let mut out = Reach::default();
+    let mut work: VecDeque<JStr> = VecDeque::from([cls.clone()]);
+    while let Some(cur) = work.pop_front() {
+        if !out.classes.insert(cur.clone()) || (heads == Heads::Compiled && cur == nil) {
+            continue;
+        }
+        let Some(def) = find(&cur) else { continue };
+        match heads {
+            Heads::Raw => work.extend(def.super_classes.iter().filter_map(|s| s.raw_class_name().cloned())),
+            Heads::Compiled => {
+                // Java compiles the class first: a head that is no name fails it, and none of its supertypes is walked
+                let mut supers = Vec::with_capacity(def.super_classes.len());
+                let mut failed = None;
+                for s in def.super_classes.iter() {
+                    match head_fqn(s) {
+                        Ok(h) => supers.push(h.clone()),
+                        Err(e) => {
+                            failed = Some(e);
+                            break;
+                        }
+                    }
+                }
+                match failed {
+                    Some(e) => {
+                        out.failure.get_or_insert(e);
+                    }
+                    None => work.extend(supers),
+                }
+            }
+        }
+    }
+    out
+}
+
+/// `PureModelContext.isSubtype(child, parent)` (F's relation) over the declarations `find` answers: `Err` with the
+/// first failure the walk met when the answer would otherwise be false (Java throws it then).
 pub fn is_subtype<'a>(
     child: &JStr,
     parent: &JStr,
@@ -50,39 +108,11 @@ pub fn is_subtype<'a>(
     if child == parent {
         return Ok(true);
     }
-    let nil = JStr::from(NIL);
-    let mut reach: HashSet<JStr> = HashSet::new();
-    let mut failure: Option<&'static str> = None;
-    let mut work: VecDeque<JStr> = VecDeque::from([child.clone()]);
-    while let Some(cur) = work.pop_front() {
-        if !reach.insert(cur.clone()) || cur == nil {
-            continue;
-        }
-        if let Some(def) = find(&cur) {
-            // Java compiles the class first: a head that is no name fails it, and none of its supertypes is walked
-            let mut heads = Vec::with_capacity(def.super_classes.len());
-            let mut failed = None;
-            for s in def.super_classes.iter() {
-                match head_fqn(s) {
-                    Ok(h) => heads.push(h.clone()),
-                    Err(e) => {
-                        failed = Some(e);
-                        break;
-                    }
-                }
-            }
-            match failed {
-                Some(e) => {
-                    failure.get_or_insert(e);
-                }
-                None => work.extend(heads),
-            }
-        }
-    }
-    if reach.contains(parent) || reach.contains(&nil) {
+    let r = reach(child, Heads::Compiled, find);
+    if r.classes.contains(parent) || r.classes.contains(&JStr::from(NIL)) {
         return Ok(true);
     }
-    match failure {
+    match r.failure {
         Some(e) => Err(e),
         None => Ok(false),
     }
@@ -133,5 +163,13 @@ mod tests {
         assert!(!is("a::X", "a::A"));
         assert!(is(NIL, "a::A"), "Nil is below every type");
         assert!(!is("a::A", NIL));
+        // E's shape: the same closure, no bottom
+        let raw = reach(&JStr::from("a::C"), Heads::Raw, find);
+        assert!(raw.classes.contains(&JStr::from("a::A")) && raw.failure.is_none());
+        assert!(
+            !reach(&JStr::from(NIL), Heads::Raw, find)
+                .classes
+                .contains(&JStr::from("a::A"))
+        );
     }
 }

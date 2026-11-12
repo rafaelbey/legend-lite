@@ -57,6 +57,7 @@ pub mod persistence_parser;
 pub mod probes;
 pub mod protocol;
 pub mod query_post_processor_parser;
+pub mod record_methods;
 #[rustfmt::skip] // generated, and held byte for byte to its generator: //rust/lite-front:update_generated_test
 pub mod records;
 pub mod runtime_parser;
