@@ -514,8 +514,8 @@ done, in the order of the design's §3.
        at `000520ef1`: 571 targets, 569 passed and 2 skipped (the baseline's two); of `rust/BASELINE.tsv`'s 550 passing
        targets every one passes but the three gone with their code and ledgered in `rust/RETIRED_TESTS.md`
        (`//core:core_tests_ide`, `//core:core_tests_lexer`, `//docs:update_dialect_capability_test`).
-   - **The flip's cost won back, and `lite-front` under the source guards (done 2026-11-11,** the owner's ruling;
-     `4cb1a8df5`, `2cd2b2a7e`**).** Every empty list of a node is the one shared empty list, `Arc::<[T]>::default()`
+   - **The flip's cost won back, and `lite-front` under the source guards (done 2026-11-11,** the owner's ruling 20,
+     [`PHASE3_SHIM_DESIGN.md`](PHASE3_SHIM_DESIGN.md) §10; `4cb1a8df5`, `2cd2b2a7e`**).** Every empty list of a node is the one shared empty list, `Arc::<[T]>::default()`
      (std's one static, no allocation), as Java's `List.of()` is one object; a list whose length is known is built
      straight into its `Arc<[T]>`, one allocation and no `Vec` first: `nodes::IntoList` (a `Vec`, an array, a list
      already frozen) and `nodes::list_of` (an iterator of known length), the helpers taking an array where the parser
