@@ -398,3 +398,66 @@ done, in the order of the design's §3.
      every value to its key, the rebuilt stream's SHA-256 the archive's (`17af882a…`), the ids exactly the host rows' test
      plan ids; the writer run twice wrote the same bytes. A host mismatch is read from git now (`test-plan-texts.py read`);
      the archive stays, as the source, and the database judge's plans stay in theirs only.
+
+1. **`identity`, `Type`/`ExprType`; the `ValueSpecification` family to `Arc`.**
+
+   - **The source tree's records are `Arc` (done 2026-11-11,** the design's §6 ruling 1**).** The generator
+     (`FrontCodegen`, `//core:front_records_rs`) holds every record that is a `ValueSpecification` node -- the sealed
+     parent's 25 records and `ColumnInstance`'s 2 and `TypeAnnotation`'s 4, 31 -- as `Arc<R>` wherever a slot or a
+     sealed parent holds it, and their 19 list components as `Arc<[T]>`. Every other record stays `Box`, its lists
+     `Vec`: a record a node holds that is not itself one (`KeyExpression`, `NewInstance.KeyBinding`,
+     `GraphFetchLiteral.Node` and `SubTypeNode`, `PathLiteral.Segment` and its arguments, `RelationShape.Column`, the
+     GraphQL island's records, `SourceInfo`, `TypeExpression`, `Multiplicity`, a stereotype), and an element's list of
+     value specifications (a function's body). Forced outside the family: `PClassMappingFunction` and
+     `PFunctionAssociationMapping`, whose `function` and `bodyLambda` are family records (`Option<Arc<_>>`). A map on a
+     node is refused by the generator until its shape is ruled (none exists). The Java reader (`FrontRecords`) did not
+     change.
+   - **The parser.** A list is built as a `Vec` and frozen into its `Arc<[T]>` (`nodes.rs`' helpers keep their `Vec`
+     parameters). The service grammar's signed-literal fold is rewritten as Java's `withChildren`: the same node or
+     list back when nothing changed, a new one with the variant's losses when something did. A quoted form's `original`
+     aliases its call, as Java's does; an assertion's lambda is rebuilt with its span extended. **One `Arc::get_mut`**:
+     `parse_parenthesised` marks the call it has just parsed `grouped` (its `)` comes after it is built; nothing else
+     holds it yet: the one node the parser clones and keeps while it reads on, `parse_key_value`'s at the engine's
+     dialect, was built before, never the one returned here. A shared one would fail the `expect`, loudly, never
+     silently). `Arc::unwrap_or_clone` moves the parts of a node just built (a move, as the count is one) in
+     `parse_lambda`, a property over an element pointer read as an enum value, and `signed_literal`.
+   - **No answer moved.** The three front differentials as before, every answer byte-pinned: the lexer 52,143 of
+     52,143; the four doors 110,044 identical and 552 listed of 110,596; `document` and `lambdaJson` 29,848 and 216 of
+     30,064; 0 differ. `//core:front_shim` the same two counts, 0 differ. A mutation fuzz (a scratch harness, one seed:
+     about 12,000 of the oracle's texts, each and three mutations of it, at every door: 275,040 answers) gave every
+     answer's form the same SHA-256 before and after, no panic.
+   - **The parser's speed, natively** (release, no FFI, no JVM: a scratch harness over `lite_front::doors`, the oracle's
+     every ask on one thread of `PARSE_STACK`, the records released inside the time; before and after alternated twice).
+     Totals in ms, before → after. The model doors, the last of three passes (load 3.5 falling to 1.5):
+
+     | | round 1 | round 2 |
+     |---|---|---|
+     | model texts, parse (`pmcd`, 29,188 a dialect): lite's | 1,812 → 1,846 | 1,788 → 1,800 |
+     | the platform's | 1,793 → 1,833 | 1,771 → 1,788 |
+     | the engine's (with the emitter's judge) | 2,410 → 2,433 | 2,381 → 2,350 |
+     | parse and codec, lite's (the shim's model door) | 2,537 → 2,568 | 2,504 → 2,501 |
+     | `document` (parse and emit) | 2,225 → 2,225 | 2,199 → 2,162 |
+
+     The expression doors, whose totals are small, the least of ten passes (load 4.4-4.6):
+
+     | | round 1 | round 2 |
+     |---|---|---|
+     | `spec`, every dialect (22,151) | 43.4 → 48.4 | 43.9 → 48.1 |
+     | `lambda` (876) | 11.0 → 13.1 | 11.1 → 13.0 |
+     | `lambdaJson` (parse and emit) | 12.9 → 15.0 | 13.0 → 14.8 |
+
+     So the model texts' parse is 0.7-2.2% slower at lite's and the platform's dialects (p50 the same to 0.0003 ms, p95
+     1.7-2.6% higher) and -1.3% to +1.0% at the engine's, the rounds differing by 1-3%; an expression's parse is 10-20%
+     slower, about 0.2 µs a `spec` query and 2.4 µs a lambda. **Allocations**, counted in one pass: `spec` 48.2 → 51.3 an ask, `lambda` 303.5 →
+     339.1, `pmcd` at lite's 1,544 → 1,596, at the engine's 1,693 → 1,687. A list frozen from its `Vec` is a second
+     allocation and a copy, and an empty `Vec` frozen is one where it was none (`Arc::default()` allocates nothing); the
+     counts' atomics are the rest. Not changed here, and not measured: freezing an empty list as `Arc::default()` (one
+     shared empty list, as Java's `List.of()` is) and building a short list straight into its `Arc<[T]>`.
+   - **Gates.** `bazel test //... --keep_going --local_test_jobs=2` against `rust/BASELINE.tsv`: 567 targets, 186
+     executed; every target the baseline passes passing but two that timed out while the machine was loaded (load
+     13-15, 3.5 GB of swap in use); gone the 3 ledgered; new 18, the port's, passing. The two,
+     `//core:stress_suites_h2` (3,702 s) and `//parser-equivalence:parser_parity` (3,209 s, its 45 tests passing), pass
+     on a quieter run of the same inputs (689 s, 190.5 s). `parser_parity`'s counts as at `bcf60ed8f`: 422 pins, line
+     agreement 415 of 421, column exact 337; the sentinel 2,217 matched of 2,217, lenient 0; the composer sweep's 6,755
+     sources, 0 mismatched; own corpus 3,025, 0 diffs. `:round_trip_proof` and `//core:front_reader_test` pass. `cargo
+     test --workspace`, clippy `-D warnings` and `fmt --check` clean.
