@@ -54,7 +54,7 @@ macro_rules! cat {
     ($($part:expr),* $(,)?) => {{
         let mut out: Vec<u16> = Vec::new();
         $( $crate::text::Units::push_to(&$part, &mut out); )*
-        ::lite_front::jtypes::JStr(out)
+        $crate::JStr(out)
     }};
 }
 

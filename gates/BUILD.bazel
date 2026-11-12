@@ -75,6 +75,7 @@ test_suite(
         "//rust/lite-builtin:model_differential_test",
         "//rust/lite-builtin:builtin_tables_test",
         "//rust/lite-platform:lite_platform_test",
+        "//rust/lite-platform:platform_tables_test",
         # the shim's reader: every Java answer read back by the generated reader is the records written
         "//core:front_reader_test",
         # the planner on java.base alone (P3-19): seconds

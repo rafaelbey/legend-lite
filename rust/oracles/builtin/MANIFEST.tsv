@@ -1,0 +1,15 @@
+# file	producing command	tree, JDK	sha256
+# Made 2026-11-12 on worktree-rust-port-phase0 by rust/oracles/builtin/BuiltinAnswers.java (its header: the command,
+# what a line is; a source program beside the files, with its sections PureTables, NativeFnTables, MetamodelTables and
+# PlatformTables, and Codec, its copy of the record codec) on the tree's built jars of //core:builtin, :platform and their
+# runtime closure, the build's JDK, the Rust parser loaded from rust/lite-ffi (cargo, release) for the declarations the
+# platform parses when its classes load. Core's com.legend.builtin and com.legend.platform as of main's c4a39e06d, frozen
+# there for the port (docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 14), and the generated tables (Pure.java,
+# DynaFn.java, prelude.pure, engine-handlers.tsv) as //:update_generated holds them, so this is the answer Java gives
+# while it exists. One fact per line, `section TAB field...`: a record the record codec's JSON (its declared type
+# deciding the tags), a large text its SHA-256 (UTF-16 units, little-endian), a set Java keeps in a hash structure
+# sorted. Run twice: byte-identical. Plain text (3.5 MB), read by //rust/lite-builtin:builtin_tables_test and
+# //rust/lite-platform:platform_tables_test, every line identical. Regenerate only to re-freeze: Java's answers are the
+# oracle, never Rust's.
+builtin-tables.tsv	java rust/oracles/builtin/BuiltinAnswers.java builtin-tables.tsv platform-tables.tsv: 8,722 lines -- the catalog (Pure: 891 natives, 12 classes, 6 enumerations, 513 overload groups, the constants, the lite vocabulary, the indexes over every FQN and id; 4,079 with DynaFn, its decisions, EngineHandlers, Prelude, Subsumed, TdsLegacy), the native function families (NativeFn, 2,741), the system metamodel (SystemMetamodel, 1,902)	core and its generated files at c4a39e06d (unchanged to 80a992ff0), 25.0.4+7-LTS	bd8cf69d3725e44c17808a79cf03c604c24f75bed2472182dabf6dfce902758c
+platform-tables.tsv	the same command: 5,028 lines -- CoreFn, Feature, WalledBodies, PlatformPure, the declaration table over the platform's declarations (the catalog's natives, the prelude's and the system metamodel's functions), the implementation table over it and the registrations the platform and builtin hold (the lowering's own empty), and the Java tests' hand-written tables	the same	b85a2d9bde3aa1e2271c2ac15555cf9d224e25a73b929ad225e6977d6018e0f9

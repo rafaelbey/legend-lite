@@ -43,10 +43,10 @@ pub mod text;
 pub use error::{ModelError, Thrown, Unrepresentable};
 pub use records::*;
 
+/// The lossless codec's writer the records implement.
+pub use lite_front::codec;
 /// The Java values the model's records hold (rust/lite-front's), for the crates above the model that do not reach the
 /// protocol layer (the platform: tools/deps/core-layers.txt).
 pub use lite_front::jtypes::{BigDecimal, JStr, JValue};
 /// The protocol records the model's records hold (rust/lite-front's), likewise.
 pub use lite_front::records as protocol;
-/// The lossless codec's writer the records implement.
-pub use lite_front::codec;
