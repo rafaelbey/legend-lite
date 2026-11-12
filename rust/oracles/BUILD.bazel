@@ -16,6 +16,10 @@ exports_files(
         # the type family's answers (types/MANIFEST.tsv; 2026-11-11, phase 3 slice 1a): lite-types' differential reads
         # them
         "types/type-facts.tsv",
+        # the platform's tables as Java holds them (builtin/MANIFEST.tsv; 2026-11-12, phase 3 slice 1b): lite-builtin's
+        # and lite-platform's table tests read them
+        "builtin/builtin-tables.tsv",
+        "builtin/platform-tables.tsv",
     ],
     visibility = ["//rust:__subpackages__"],
 )

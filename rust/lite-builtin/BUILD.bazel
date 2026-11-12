@@ -70,6 +70,24 @@ rust_test(
     ],
 )
 
+# The platform's tables held to Java's (tests/builtin_tables.rs): every table of com.legend.builtin dumped one fact per
+# line by rust/oracles/builtin/BuiltinAnswers.java, frozen (//rust/oracles:builtin/builtin-tables.tsv, its MANIFEST),
+# written again from this crate's tables and compared line for line: every line identical.
+rust_test(
+    name = "builtin_tables_test",
+    srcs = glob(["tests/builtin_tables.rs", "tests/tables/*.rs"]),
+    crate_root = "tests/builtin_tables.rs",
+    data = ["//rust/oracles:builtin/builtin-tables.tsv"],
+    edition = "2024",
+    env = {"LITE_BUILTIN_TABLES": "$(rootpath //rust/oracles:builtin/builtin-tables.tsv)"},
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":lite_builtin",
+        "//rust/lite-front:lite_front",
+        "//rust/lite-model:lite_model",
+    ],
+)
+
 # the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards
 filegroup(
     name = "sources",
