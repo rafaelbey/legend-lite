@@ -184,8 +184,10 @@ pipeline.
 
 **A second, user-facing phase vocabulary exists** and does not use letters:
 `error/LegendCompileException.Phase` = `PARSE, RESOLVE, NORMALIZE, MODEL,
-TYPE, MAPPING, LOWER, EXECUTE`. Note there is **no `RENDER`**. Every
-user-visible error carries one of these eight.
+TYPE, MAPPING, LOWER, RENDER, EXECUTE`. `RENDER` (a plan wrapped in a text
+projection, such as `toCSV`) is **declared but never raised**: no code throws
+in it, so every user-visible error carries one of the other eight. The Rust
+port keeps all nine (the owner, 2026-11-12: PHASE3_SHIM_DESIGN.md §10 ruling 24).
 
 ### Entry points
 

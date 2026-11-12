@@ -7,9 +7,9 @@
 //! or our bug (a panic, Java's `IllegalStateException`)?
 //!
 //! One record for the package's eleven classes: the class is its [`ErrorKind`], each kind's fixed phase as Java's
-//! constructors fix it. Messages are UTF-16 units, as Java's are. The phases are the code's (`PARSE` .. `EXECUTE`,
-//! `RENDER` among them); AGENTS.md's prose says there is no `RENDER`, a difference listed for the owner, not resolved
-//! here.
+//! constructors fix it. Messages are UTF-16 units, as Java's are. The phases are the code's nine (`PARSE` ..
+//! `EXECUTE`, `RENDER` among them). `RENDER` is declared but never raised; it is kept, as Java declares it (the owner,
+//! 2026-11-12: docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 ruling 24).
 
 #![forbid(unsafe_code)]
 

@@ -459,6 +459,17 @@ Each with my recommendation first.
 23. **The flip's and slice 1a's own choices are ratified** (2026-11-11): only `ValueSpecification` nodes `Arc`, the rest
     of the records as they were; a map on a node refused by the generator until its shape is decided; the allocator at
     298 lines; a zero-size value one byte, every empty slice the one `&[]`; a lying iterator a panic; Miri not run.
+24. **`RENDER` stays a phase** (2026-11-12): Rust's error type carries Java's nine phases as declared, though no code
+    raises an error in `RENDER`; AGENTS.md and `docs/architecture/README.md` now say it is declared but never raised.
+25. **The ten Java behaviours slice 1b found and ported as-is are fixed now, in Java and Rust together** (2026-11-12),
+    each confirmed against its source before it was changed (upstream's pinned sources, the code's own contract, or a
+    test), one commit each, the builtin and platform tables re-dumped from Java and Rust held to them; a fix that moved
+    any other frozen oracle or a test's answer would have come back to the owner first (`PHASE3.md`, slice 1b's entry).
+26. **Slice 1b's own choices are ratified** (2026-11-12): model maps as ordered key-value lists in Java's insertion
+    order; no `lite-values` yet; `DecisionProbe` not ported; `ModelAnswers` in core's test tree beside `FrontAnswers`,
+    and the tables' dump programs in `rust/oracles/builtin` with their own codec copy; `lite-platform`'s test-only
+    dependency on `lite-front`; the families' id maps built on first lookup; the metamodel dump comparing records by
+    value; and the 143 classes whose subtyping waits for name resolution.
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.

@@ -64,7 +64,8 @@ A to G½ is the frontend ([`frontend.md`](frontend.md); the mechanics of normali
 and K the runtime ([`backend.md`](backend.md) §§5–11).
 
 Every user-visible error carries one of eight phases: PARSE, RESOLVE, NORMALIZE, MODEL, TYPE, MAPPING, LOWER,
-EXECUTE (there is no RENDER). The Rust port's error contract carries the same phase
+EXECUTE. A ninth, RENDER, is declared but never raised; the Rust port keeps all nine (the owner, 2026-11-12). The Rust
+port's error contract carries the same phase
 (`ERR\n<kind>\n<phase>\n<line:col>\n<message>`).
 
 The planner's doors: compile a model (strict: the first error aborts; or tolerant, every element error collected),
