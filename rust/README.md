@@ -45,6 +45,12 @@ profile does not.
   (`tests/builtin_tables.rs` over `oracles/builtin/`).
 - `lite-platform/`: the platform (core's `platform` layer): the declarations by id and what implements each, held to
   Java's tables (`tests/platform_tables.rs` over `oracles/builtin/`).
+- `lite-names/`: the model index and name resolution (step D; core's `compiler` root package, the first part of the
+  compiler's split, PHASE3_CRATES.md §2): `NameResolver`, `ModelBuilder` with `SymbolTable` and `TableIndex`,
+  `KnowledgeLayer`'s part that is D's, `BareNames`, `ResolvedNames`, `SynthFqn`, `CoreImports` (`src/core_imports.rs`,
+  generated beside `CoreImports.java` by `//spec:gen_imports_rs`); held to the live Java's answers over every model
+  text and query pair of the oracles (`tests/names_differential.rs` over `oracles/names/`), and the boot model's
+  subtyping to the live Java's (`tests/subtype_live.rs`, by hand).
 
 - `BASELINE.tsv`: every test target of `bazel test //...` on the pristine tree -- since 2026-11-11 upstream `main` at
   `c4a39e06d`, the merge point (PHASE3_SHIM_DESIGN.md §10, ruling 14; macOS arm64): 552 targets, 550 passed, 2 skipped
@@ -98,6 +104,11 @@ profile does not.
 - `oracles/model/`: Java's text door's answer to every model text of `oracles/front/` at every dialect asked (87,564
   asks: the canonical text's SHA-256 per ask, `answers.tsv.zst`), made by core's `frontoracle/ModelAnswers.java` before
   the Java is deleted; the full texts archived outside git (`MANIFEST.tsv` says where, with its hash).
+- `oracles/names/`: what step D hands on, as the live Java answered it (the names slice, 2026-11-12): the canonical
+  text's SHA-256 per model ask (74,292: the resolutions, the adoption, the index's answers to E's and F's questions,
+  `models.tsv.zst`) and per (query, model) pair of the identity oracle (31,297, `queries.tsv.zst`), made by core's
+  `frontoracle/NameAnswers.java` before the Java is deleted; the full texts archived outside git (`MANIFEST.tsv` says
+  where, with their hashes).
 - `oracles/builtin/`: the platform's tables as Java holds them (`builtin-tables.tsv`, `platform-tables.tsv`: one fact
   per line), made by `BuiltinAnswers.java` beside them on core's built jars; and `SubtypeProbe.java`, which asks the
   live Java's boot model every subtype pair (not frozen: ruling 22).

@@ -1,7 +1,8 @@
 # Rust port — phase 3's crates (2026-11-11)
 
 **Status: the map phase 3 builds to, written with slice 1a (PHASE3.md, step 1).** The crates slices 1a and 1b fill exist
-(`lite-base`, `lite-types` and the guards, `lite-guards`; `lite-error`, `lite-model`, `lite-builtin`, `lite-platform`, 2026-11-12);
+(`lite-base`, `lite-types` and the guards, `lite-guards`; `lite-error`, `lite-model`, `lite-builtin`, `lite-platform`, 2026-11-12;
+`lite-names`, the names slice, 2026-11-12, §7);
 the rest are named here and made by the slice that first fills each. The owner's ruling it follows: `PHASE3_DESIGN.md` §6 ruling 6 (`lite-core` split along
 `tools/deps/core-layers.txt`, so that "F must not trigger G" is a compile error) and `PHASE3_SHIM_DESIGN.md` §10. Where a
 boundary is a choice the layers file leaves open, it is listed in §5 for the owner.
@@ -30,7 +31,7 @@ says, for each crate that exists, its layers and its exact dependencies, and `li
 | `platform` | `lite-platform` | `lite-base`, `lite-builtin`, `lite-error`, `lite-model` | | **made** (slice 1b): reaches all four |
 | `compiler_element_type` | `lite-types` | `lite-base`, `lite-builtin`, `lite-model`, `lite-platform`, `lite-front`, `lite-sql` | `lite-sql`'s `SqlType`, `lite-javacompat`'s white space | **made** (slice 1a): reaches `lite-base`, `lite-sql`, `lite-javacompat` today |
 | `database` | `lite-database` | `lite-base`, `lite-error`, `lite-model`, `lite-dialect` | `lite-dialect` | a declared database type to its dialect |
-| `compiler`, split (§2) | `lite-names`, `lite-element`, `lite-spec` | `compiler`'s line, and each part the parts before it | | D and the model index; F; G and G½ |
+| `compiler`, split (§2) | `lite-names`, `lite-element`, `lite-spec` | `compiler`'s line, and each part the parts before it | | D and the model index; F; G and G½. **`lite-names` made** (the names slice, 2026-11-12, §7): reaches `lite-base`, `lite-builtin`, `lite-error`, `lite-model`, `lite-platform`, `lite-types` |
 | `normalizer` | `lite-normalizer` | its line (it reaches all three compiler parts) | | E |
 | `lineage` | `lite-lineage` | its line | | |
 | `validation` | `lite-validation` | its line | | |
@@ -78,7 +79,9 @@ invariant 7, AGENTS.md invariant 6). Java's code has edges against this order to
 
 `crate-layers.txt` gives a split with a line `split compiler names element spec`; `lite-guards` then allows
 `compiler/spec` to reach `compiler/element` and `compiler/names`, and refuses the reverse (its test
-`a_split_layers_parts_reach_only_the_parts_before_them`). No crate is split yet, so the file has no such line.
+`a_split_layers_parts_reach_only_the_parts_before_them`). **The line is in the file since the names slice (2026-11-12)**,
+with `lite-names` (`compiler/names`) its first part: the guard checks that a part a crate names is declared, never that
+every declared part has a crate, so the line stands before `lite-element` and `lite-spec` exist, unchanged.
 
 ## 3. How the graph is held
 
@@ -142,6 +145,34 @@ numbers.
 11. **Subtyping (ruling 22)** agrees with the live Java on every class whose walk meets only FQN-spelled supertypes (366 of
     the boot model's 509); the 143 that meet a prelude supertype spelled by its simple name wait for name resolution
     (the names slice) and are not guessed. The live check is a test run by hand while Java exists, not frozen.
+    (Closed 2026-11-12 by the names slice: all 509 agree, §7.)
+
+The names slice's (2026-11-12, §7), each the conservative path where the choice is a person's:
+
+12. **The protocol records' methods name resolution calls are `lite-front`'s** (`src/record_methods.rs`: `rawClassName`,
+    the stereotypes' `withProfile`, `KeyExpression.withValue`, `AppliedFunction.withParameters`, `PathLiteral`'s
+    `withChildren`, `GraphFetchLiteral`'s `arguments`, `withArguments`, `withClassNames`), as the model's are
+    `lite-model`'s (`RelationalOperation`'s walk, `navigatesJoin`, `tables`; `PropertyBinding.withExpression`): where Java
+    has them. Alternative: private helpers in `lite-names`.
+13. **Subtyping is one walk with two shapes.** Java has two relations that answer differently: `KnowledgeLayer.isSubtype`
+    (E's: raw heads, a primitive no class, no bottom) and `PureModelContext.isSubtype` (F's: compiled heads, `Nil` the
+    bottom, a primitive's lattice walked, a failing class the question's failure), which does not delegate to the
+    knowledge layer but asks it for the lookup alone. Rust keeps both relations, as answers, over one walk
+    (`lite_model::subtyping::reach`, `Heads::Raw` or `Heads::Compiled`); the boot lattice moved to `lite-names`, which
+    resolves the boot layer's names. Alternative: one relation, which would change one of Java's answers.
+14. **What waits for F and G** (they reach F or G): `StatementInline`, `LiteralMapUnroll`, `KnowledgeLayer.columnKind`, the
+    query front door `Compiler.resolveQuery` (it runs those and `ValidateDesugar` after the resolution), and
+    `PureModelContext.resolutionUniverse` itself (F's; its answer, over the index, is `lite-names`' `IndexUniverse`).
+15. **The query differential's universe is the step-D index plus the boot layer's resolved elements**, not the compiled
+    model's (which also holds Phase E's products): `IndexUniverse` over `ModelIndex::from` of the adopted model with the
+    boot layer added. The Java side measured it against the live compiled model's universe on every pair (§7).
+16. **A generic type with type-variable values is not spelled by Java's `toString`** where `KnowledgeLayer.rawName` spells
+    a non-name type into a refusal's message (an association qualified property returning a function, relation or
+    schema type): the names layer refuses it loudly (`IllegalStateException`) rather than guess a value's spelling. The
+    differential met no such model.
+17. **The process-wide memos `BUILT` and `REFERENTS` are `Mutex<HashMap>`** (lookup, compute outside the lock, first writer
+    wins, a trivial answer not kept), where PHASE3_DESIGN.md §2.5 item 7 said `RwLock`: they are written as often as read
+    while a process warms. `KnowledgeLayer.derived` is a `TypeId`-keyed memo (its one caller is E's).
 
 ## 6. What slice 1b made (2026-11-12)
 
@@ -158,3 +189,47 @@ numbers.
   inputs (`//spec:gen_natives_rs`, `//spec:gen_dynafn_rs`); the resources are read as the same committed files.
 - **The crates above the protocol layer reach its types through `lite-model`'s re-exports** (`JStr`, the protocol
   records, the codec): `platform`'s line in core-layers.txt lists no `protocol`.
+
+## 7. What the names slice made (2026-11-12)
+
+`lite-names` (layer `compiler/names`, the first part of §2's split): step D and the model index. PHASE3.md's names slice
+entry has the numbers.
+
+**Placement, measured by imports and qualified names** (each class of `com.legend.compiler`'s root package; "reaches"
+counts every `com.legend.*` type a class names, imports and fully qualified references alike):
+
+| Class | Crate | Why |
+|---|---|---|
+| `NameResolver` | `lite-names` | reaches `builtin` (`Pure`, `Prelude`, `DecisionProbe`'s no-op hooks), `model`, `protocol`, `error`, and `compiler_element_type`'s `Type.Primitive` (`lite-types`, a layer `compiler` lists): all below D |
+| `BareNames`, `ResolvedNames` | `lite-names` | `builtin` (`Pure`, `EngineHandlers`, `Prelude`), `platform` (`CoreFn`), `protocol` |
+| `CoreImports` | `lite-names` | generated (`//spec:gen_imports_rs`), reaches nothing |
+| `ModelBuilder`, `SymbolTable`, `TableIndex`, `StoreLookups` | `lite-names` | `model`, `protocol`, `error`, `Type.Primitive` |
+| `KnowledgeLayer` | `lite-names`, but for `columnKind` | `builtin`, `model`, `protocol`, `error`, `Type.Primitive`; `columnKind`'s computed-view-column arm calls F's `RelationalTypeInference.infer` -- the method waits for `lite-element` (only E calls it) |
+| `SynthFqn`, `DerivedProps`, `RelationalKinds` | `lite-names` | `model`, `protocol` |
+| `StatementInline` | waits for `lite-spec` | F's `ModelContext`, G's `Calls` and `SourceSubst` |
+| `LiteralMapUnroll` | waits for `lite-spec` | G's `SourceSubst` |
+
+So §2's edge table holds with one correction: `KnowledgeLayer` reaches F through `RelationalTypeInference` alone (its
+other `compiler.element` references are `compiler.element.type`, `lite-types`, below the compiler); `StatementInline`
+reaches F (`ModelContext`) and G (`Calls`, `SourceSubst`); `LiteralMapUnroll` reaches G (`SourceSubst`).
+
+**What D hands on, and how it is held.** The live differential (`tests/names_differential.rs` against core's
+`frontoracle/NameAnswers.java`, frozen as `rust/oracles/names/`): the resolved `ParsedModel` (strict and tolerant, the
+compile's `resolveAlongside` and the bare `resolve`), the association adoption, and the index's answers to every
+question E and F ask it (the calls into `ModelBuilder` and `KnowledgeLayer` from `normalizer` and `compiler/element`,
+listed by reading them: the find methods, the iteration accessors, the include-closure store lookups, the view's main
+table and lift, the legacy sets by id, the section scopes, the functions by id; the kernel's class lookup, subtyping,
+ancestors, subtree, lineage, a property's type, definition, multiplicity and inline derivation), each record named by
+its place in the model, never by a private field.
+
+**Query resolution reads the index alone.** `NameResolver.resolveQuery` reads no model (the sectionless scope);
+`resolveQueryIn`, through `Compiler.resolveNames`, reads a universe that `PureModelContext.resolutionUniverse` builds from
+the index alone (`hasElement`, `hasFunctionId`, `primitiveExtensionFqns`, the platform's names). So shim function 9
+(`lite_names_resolve`, "model or null") is served by `resolver::resolve_query` and `resolver::resolve_query_in` over an
+`IndexUniverse`; the method that makes the universe from a compiled model is F's and waits.
+
+**Left for F and G:** `StatementInline`, `LiteralMapUnroll`, `KnowledgeLayer.columnKind`, `Compiler.resolveQuery` (the
+front door that runs them and `ValidateDesugar` after the resolution), `PureModelContext.resolutionUniverse`,
+`isSubtype` as F's method (its walk is `lite_model::subtyping::is_subtype`, its lookup this crate's
+`Knowledge::class_def`), and the gate's `ModelBuilder.add` of Phase E's products (`ModelIndex::add` is ported; E makes
+what it adds).

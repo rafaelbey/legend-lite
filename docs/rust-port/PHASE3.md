@@ -666,3 +666,130 @@ done, in the order of the design's §3.
      inputs changed (2 of its 26 keys are frozen, and equal). So nothing between the freeze at `1ea8fbf45` and
      `d6c3f18cf` -- the flip, the parser's last rulings, slice 1b and the ten -- moved a Java answer; no re-freeze.
 
+
+   **The names slice: the model index and name resolution (done 2026-11-12;** [`PHASE3_CRATES.md`](PHASE3_CRATES.md)
+   §7**).** Step D as the crate `lite-names` (`compiler/names`, the split's first part). No Java production code changed
+   but the import generator's second output; nothing calls the new crate yet.
+
+   - *Placement* (PHASE3_CRATES.md §7's table, measured by imports and qualified names): `NameResolver`, `BareNames`,
+     `ResolvedNames`, `CoreImports`, `SynthFqn`, `ModelBuilder`, `SymbolTable`, `TableIndex`, `StoreLookups`,
+     `RelationalKinds`, `DerivedProps` and `KnowledgeLayer` are D's (they reach `builtin`, `platform`, `model`,
+     `protocol`, `error` and `compiler_element_type`'s `Type.Primitive`); `KnowledgeLayer.columnKind` (F's
+     `RelationalTypeInference`), `StatementInline` (F's `ModelContext`, G's `Calls`, `SourceSubst`) and
+     `LiteralMapUnroll` (G's `SourceSubst`) wait for their slices, and with them `Compiler.resolveQuery`, the query front
+     door that runs them after the resolution. `DecisionProbe`'s hooks are no-ops unless `LL_SHADOW` is set: not ported.
+     The guard took the line `split compiler names element spec` as it stood (it checks that a crate's part is declared,
+     never that every part has a crate), so no guard changed.
+   - *The crate* (`rust/lite-names`, 5,039 lines of source, 44 generated, 330 of unit tests; 950 of differential and
+     live tests): the resolver (`resolver/`: the tiers, the call decision, every element and value-specification
+     walker), the index (`model_index.rs`: registration, the lazy indexes, the include-closure store lookups, the view's
+     main table and lift, the legacy sets by id), the kernel (`knowledge.rs`), the boot lattice (`lattice.rs`, moved from
+     lite-builtin), `bare_names.rs`, `resolved_names.rs`, `synth_fqn.rs`, `derived_props.rs`, `relational_kinds.rs`.
+     The walkers answer `None` for Java's `==` input and rebuild as Java's constructors rebuild, the convenience
+     constructors' dropped components included (the list below). The records' own methods the resolver calls are where
+     Java has them: the protocol records' in `lite-front/src/record_methods.rs`, the model's in
+     `lite-model/src/relational_operation.rs`.
+   - *The generator retargeted.* `ImportsGenerator <CompileContext.java> <out> --rust` writes
+     `rust/lite-names/src/core_imports.rs` from the same `CompileContext.META_IMPORTS` (`//spec:gen_imports_rs`), held by
+     `//rust/lite-names:update_generated` in `//:generated`.
+   - *Identity, as step 0's census classified each D site:* `model.ModelBuilder.indexed.*` (b) is `same` on the slot's
+     `Arc`; `ModelBuilder.findAssociationAtClass` (c) `same`; `model.NameResolver.resolvedViews` (c) an `IdMap` keyed by
+     the schema view's `Arc`; `model.TableIndex.inSchemas` (b) an `IdSet`; `DatabaseDefinition`'s default-schema reads
+     slice 1b's. Two facts the next slice relies on (the census of E and F, 2026-11-12) are pinned by tests: the index
+     hands out the database's own view record from `findView`, `viewsOf` and every spelling (E's `LiftedViews` keys
+     identity maps by it: `a_view_is_the_databases_own_record_from_every_lookup`), and holds the very records it is
+     given, the boot layer's among them, a batch added again adding nothing (F's `CheckedLayer` recognizes them by
+     identity: `the_index_holds_the_boot_layers_own_records`).
+   - *Java's hash order* reaches no answer of D: every `HashMap` of `ModelBuilder`, `KnowledgeLayer` and `NameResolver`
+     is only looked up, and the maps whose order is seen (`duplicateElements`, the primitive extensions, a legacy
+     mapping's classes, a runtime's rebuilt bindings) are insertion-ordered in both. One order outside D was found:
+     `PureModelContext.resolutionUniverse`'s iterator, a `HashSet`'s, which `testplan/JudgmentFacts` iterates (F's and
+     the test planner's; listed for the owner).
+   - *The live differential* (`//rust/lite-names:names_differential_test` against core's
+     `frontoracle/NameAnswers.java`). **Models**: every model text of the front oracle at every dialect it is asked at
+     that the door parses -- 74,292 asks over 26,324 texts -- each one canonical text of six resolutions and an index:
+     `B` `resolveAlongside(parsed, bootFqns, null)` (the strict compile's), `T` the same tolerant, `P` and `Q` the bare
+     `resolve` strict and tolerant, `K` and `L` the association adoption strict and tolerant, `X` the index of `L`'s model
+     asked every question E and F ask it (by reading their calls into `ModelBuilder` and `KnowledgeLayer`), every record
+     named by its place. 74,280 strict resolutions answered and 12 refused. **Queries**: every (model, query) pair of the
+     identity oracle whose texts the front oracle holds -- 31,297 pairs, 20,857 query texts, 2,321 model texts -- each
+     resolved `N` with no model (the sectionless scope: shim function 9's null model), `M` against the model's universe
+     with no imports, `I` with the model's union imports. **Every text identical to Java's: 74,292 of 74,292 and 31,297
+     of 31,297**, with no list of differences.
+   - *The model's universe for a query* is the step-D index (the adopted model's elements with the boot layer's resolved
+     elements added, asked as `PureModelContext.resolutionUniverse` asks), not the compiled model's, which also holds
+     Phase E's products. Measured in the same Java run against the live compiled model's universe
+     (`Compiler.compileModel(text).resolutionUniverse()`): **31,297 of 31,297 pairs answer the same**, every model
+     compiling.
+   - *Subtyping.* `PureModelContext.isSubtype` does not delegate to `KnowledgeLayer`: it walks the compiled classes on
+     its own (`Nil` the bottom, a primitive's lattice walked, a failing class the question's failure) and asks the kernel
+     for the lookup alone; `KnowledgeLayer.isSubtype` is E's other relation (raw heads, a primitive no class, no bottom).
+     Java keeps two relations; Rust keeps both as answers over one walk (`lite_model::subtyping::reach`, in F's shape or
+     E's), the kernel calling it. The boot lattice moved to `lite-names` (it resolves the boot layer's names first, as
+     `Compiler.boot()` does), and the live check (`tests/subtype_live.rs` against `SubtypeProbe.java`, run by hand) now
+     answers **all 509 classes, 259,081 pairs (1,898 subtype), identical**; slice 1b's 143 held apart are gone.
+   - *Frozen*: [`rust/oracles/names/`](../../rust/oracles/names) -- `models.tsv.zst` 2.1 MB (74,292 lines: the text,
+     the dialect, the canonical text's SHA-256) and `queries.tsv.zst` 1.6 MB (31,297 lines: the query, the model, the
+     hash), each with its SHA-256 in `MANIFEST.tsv`; two Java runs byte-identical (A with the live universe check, 20 min
+     43 s; B writing the texts, 19 min 4 s). The texts (4.3 billion characters of model forms, 7,476,103 index lines among
+     them; 51 MB of query forms) are archived outside the repository,
+     `~/.local/legend-lite/oracle-archive/names-model-texts-java.jsonl.zst` (53 MB) and `names-query-texts-java.jsonl.zst`
+     (1.5 MB), their SHA-256 in `names-texts-java.sha256` beside them, each checked by decompressing it. Among the
+     answers: 12 strict resolutions refused (an ambiguous name), 1,175 asks where the bare `resolve` answers otherwise
+     than `resolveAlongside` (the boot layer's names), 116 adoptions and 15 refused, 32 indexes refused; `M` equals `N`
+     on every pair and `I` differs from `M` on 183 -- a measurement of this corpus, whose `t:` queries spell their user
+     elements fully qualified, not a property of the resolver (a bare user name under a core-import package would
+     differ). Under Bazel the differential takes about 4 minutes (237 s, optimized): the largest Rust test in
+     `//gates:core` by far (the model differential's is about 25 s), within `large`'s 900 s; whether it belongs in the
+     local gate or in CI alone is the owner's.
+   - *Not held to a Java answer by the differential* (each a composition of pieces it does hold): `built_call_names`
+     (G's `Calls` asks it), `resolve_names` (`Compiler.resolveNames`' wrapper), `resolve_with_universe` (the
+     lower-level `resolve(model, knownFqns)`, no prelude), `ModelIndex::derived`, `knowledge::canonical_table`,
+     `ModelIndex::retain_legacy_surface`; the unit tests (`src/tests.rs`, 12) hold `built_call_names`, `resolve_names`,
+     `derived` and `canonical_table` to what their pieces answer.
+   - *Gates.* `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --check`
+     clean. Bazel `test //... --keep_going --local_test_jobs=2` on the tree of `76a191f11` (the crate, the oracle, the
+     tool; the docs beside it are no test's input, G17): 584 targets, 582 passed, 2 skipped; of `rust/BASELINE.tsv`'s
+     550 passing targets every one passes but the three gone with their code and ledgered (`//core:core_tests_ide`,
+     `//core:core_tests_lexer`, `//docs:update_dialect_capability_test`), no status moved; 35 targets new since the
+     baseline, the port's, all passing, three of them this slice's (`//rust/lite-names:lite_names_test`,
+     `:names_differential_test`, `:update_generated_test`), and `//core:core_tests_lib` compiling `NameAnswers.java`.
+     `lite_names_test` and the guards passed again on `5278bce01` (the compositions' unit tests, added during the run).
+     `ledger_check.sh c4a39e06d`: 82 rows ok, none missing.
+   - *Java behaviours that look wrong, ported as they are* (each a candidate for the owner, none changed):
+     1. A resolved model drops its unclaimed sections and element spans when any element changed (`NameResolver.java`
+        :257-259, the six-argument `ParsedModel`); the adoption drops the spans (`KnowledgeLayer.java`:478-480).
+     2. The convenience constructors drop components on a rebuild: a name reference's, a relation column's, a
+        parameter's, a lambda's, a variable's, a collection's, a type annotation's, an element pointer's and an applied
+        property's position (`NameResolver.java` :645, :689, :889, :1987, :1968, :1937, :2052, :1860/:1875, :1903, the
+        last also its owner class); an enum value's positions, so it becomes a node (:1879); a `ColSpec`'s position,
+        declared type and multiplicity and annotations (:2043); a relation shape's spelled name and spans (:2060); a
+        `NewInstance`'s multiplicity arguments (:1917); a constraint's external id, owner and position (:904); a
+        function-reference realization's source (:1063); an embedded property mapping's primary key (:1363); a named
+        relation-function mapping's primary key (:1224); a primitive extension's type variables (:409).
+     3. A runtime's connection ids resolve only when something else in it changed (:1492-1496); two binding keys that
+        resolve to one store merge into one entry (:1483).
+     4. Not walked: an enumerated-expression property mapping's relational operation (:1331), a generic's type-variable
+        values (:653), a quoted tree call's tree (:1838).
+     5. A call position asks the call tiers for a qualified name the universe does not know (:337-349), though its
+        comment says a qualified spelling matches no tier.
+     6. A database registered twice keeps the first one's filter, join or view index when the second declares none
+        (`ModelBuilder.java`:435-484); `findAssociationOf` climbs bare-name supertypes only (:784) where the
+        direct-subclass index takes generic heads too; a join-only view's root reads the join in its database's own
+        joins, not the include closure (:1198).
+     7. `KnowledgeLayer.rawName` spells a non-name type by Java's record `toString` into a refusal's message (:526).
+     8. `PureModelContext.resolutionUniverse` (F's) answers membership with the extensions and the function ids, but
+        iterates and counts without them, in a `HashSet`'s order (`PureModelContext.java`:315-341), and
+        `testplan/JudgmentFacts.java`:117 iterates it: a hash order reaching a plan (TRIAGE C1), outside this slice.
+   - *The owner's choices this slice made* (PHASE3_CRATES.md §5, items 12 to 17): the records' methods where Java has
+     them (`lite-front`, `lite-model`); subtyping one walk with Java's two relations as its shapes, the boot lattice in
+     `lite-names`; what waits for F and G; the query differential's step-D universe; a generic's type-variable values
+     refused rather than spelled in `rawName`'s message; the process-wide memos as `Mutex<HashMap>`. And the
+     differential's own shape: the canonical text's six resolutions (the bare `resolve` beside the compile's
+     `resolveAlongside`), the index asked by labels of place, the query pairs from the identity oracle's `t:` keys with
+     the runner's section imports not recoverable from a key (no imports, and the model's union imports, instead).
+   - *Open for the owner* (raised by the census of E and F, 2026-11-12, `port-scratch/efcensus/REPORT.md`): whether G's
+     `Calls` (the call builder, about 120 uses in E, reaching only names-tier code) and F's `RelationalTypeInference`,
+     `ViewSignatures` and `columnType` move into `lite-names` (with them, `KnowledgeLayer.columnKind` would be D's); and
+     whether `PureModelContext.refuseDuplicates` belongs beside `duplicate_elements`. Not decided here: the brief's
+     placement stands until the owner rules.
