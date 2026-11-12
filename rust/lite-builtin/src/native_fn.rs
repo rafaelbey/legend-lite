@@ -1085,8 +1085,8 @@ impl Member for RowGetter {
     }
 }
 
-/// The families, in `NativeFn.families()`'s order (Java puts `RowGetter` twice; a `LinkedHashMap` keeps its first
-/// place).
+/// The families, in `NativeFn.families()`'s order, each once (2026-11-12, the owner's ruling: Java put `RowGetter`
+/// twice, the second put a no-op its `LinkedHashMap` kept at the first place; the second is gone).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Family {
     Calendar,
