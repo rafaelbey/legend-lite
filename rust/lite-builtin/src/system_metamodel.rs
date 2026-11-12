@@ -308,6 +308,9 @@ fn filters() -> String {
     for k in &ACTIVITY_KINDS {
         push! { sb; "                Filter Act", k[1], "(metamodel.activities.kind = '", k[1], "')\n" }
     }
+    // no line terminator after the last filter, as the source's other builders end: the template's own line ends it
+    // (2026-11-12, the owner's ruling: the two made a blank line before the Database block's ")"; Java's too)
+    sb.pop();
     sb
 }
 
@@ -689,11 +692,11 @@ fn formatted(template: &str, args: &[&str]) -> String {
 }
 
 /// Schema (charter §4 + step 3); grow BY WITNESS ONLY. The class's text block as Java's compiler makes its value: the
-/// incidental indentation (twelve spaces) and trailing spaces stripped, each escape `\n` a line feed -- four of them,
-/// in the two `joinStrings('', '\n', '\n')` of `relationTreeAsString`, so the Pure source holds a raw line break inside
-/// each of those string literals, as Java's does (2026-11-12: Java's text block, not Pure, reads the escape) -- and
-/// the closing delimiter's own line leaving one final line feed. `%N$s` are [`formatted`]'s placeholders, `%%` its
-/// escaped `%`.
+/// incidental indentation (twelve spaces) and trailing spaces stripped, and the closing delimiter's own line leaving one
+/// final line feed. A Pure string's line break is Pure's escape, the two characters `\n` (written `\\n` here and in
+/// Java's text block), as upstream's relationTreeAsString spells it (2026-11-12, the owner's ruling on slice 1b's
+/// report: both sides wrote a raw line break inside the two `joinStrings` literals). `%N$s` are [`formatted`]'s
+/// placeholders, `%%` its escaped `%`.
 const TEMPLATE: &str = "\
 ###Relational
 Database meta::lite::metamodel::MetamodelStore
@@ -1330,7 +1333,7 @@ function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::
 }
 function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1]):String[1]
 {
-    $t->meta::lite::lineage::relationTreeLines($withJoin)->joinStrings('', '\n', '\n')
+    $t->meta::lite::lineage::relationTreeLines($withJoin)->joinStrings('', '\\n', '\\n')
 }
 function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], space:String[1]):String[1]
 {
@@ -1338,7 +1341,7 @@ function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::
 }
 function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1], space:String[1]):String[1]
 {
-    $t->meta::lite::lineage::relationTreeLines($withJoin)->map(l|$space + $l)->joinStrings('', '\n', '\n')
+    $t->meta::lite::lineage::relationTreeLines($withJoin)->map(l|$space + $l)->joinStrings('', '\\n', '\\n')
 }
 function meta::lite::lineage::relationTreeLines(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1]):String[*]
 {
@@ -1846,6 +1849,9 @@ mod tests {
         assert!(source.ends_with("    }\n)\n"));
         assert!(!source.contains("%1$s") && !source.contains("%%"));
         assert!(source.contains("format('VARCHAR(%d)', $v.size)"));
-        assert!(source.contains("->joinStrings('', '\n', '\n')"));
+        // Pure's escape, never a raw line break inside the literal, and no blank line before the Database's ")"
+        assert!(source.contains("->joinStrings('', '\\n', '\\n')"));
+        assert!(!source.contains("'\n'"));
+        assert!(source.contains("')\n)\n\n###Pure") && !source.contains("\n\n)\n\n###Pure"));
     }
 }
