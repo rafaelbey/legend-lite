@@ -41,7 +41,11 @@ impl DeclarationTable {
                 Some(prior) => {
                     let bodied = matches!(f, Function::FunctionDefinition(_));
                     if bodied && matches!(prior, Function::FunctionDefinition(_)) && f != *prior {
-                        duplicates.push(id.qualified);
+                        // each id once, in first-met order (2026-11-12, the owner's ruling: a third differing body
+                        // reported the id again, in Java and here)
+                        if !duplicates.contains(&id.qualified) {
+                            duplicates.push(id.qualified);
+                        }
                     } else if bodied {
                         // the bodied declaration is upstream's reference
                         by_id.put(id, f);
@@ -73,7 +77,7 @@ impl DeclarationTable {
         self.by_fqn.get(fqn).map_or(&[], Vec::as_slice)
     }
 
-    /// `duplicates()`: the ids declared by two different bodies (the first kept), once per later body.
+    /// `duplicates()`: the ids declared by two different bodies (the first kept), each once, in the order first met.
     pub fn duplicates(&self) -> &[JStr] {
         &self.duplicates
     }
@@ -146,6 +150,19 @@ mod tests {
             assert_eq!(t.duplicates(), &[JStr::from("my::pkg::one_Integer_1__Integer_1_")]);
             assert_eq!(t.get(&id("my::pkg::one_Integer_1__Integer_1_")), Some(&fs[0]));
             assert_eq!(t.size(), 1);
+        });
+    }
+
+    #[test]
+    fn an_id_with_three_different_bodies_is_reported_once() {
+        // 2026-11-12, the owner's ruling: each id once, however many bodies differ from the first
+        on_stack(|| {
+            let mut fs = declare("function my::pkg::one(x:Integer[1]):Integer[1] { $x }");
+            fs.extend(declare("function my::pkg::one(x:Integer[1]):Integer[1] { 1 }"));
+            fs.extend(declare("function my::pkg::one(x:Integer[1]):Integer[1] { 2 }"));
+            let t = DeclarationTable::of(fs.clone());
+            assert_eq!(t.duplicates(), &[JStr::from("my::pkg::one_Integer_1__Integer_1_")]);
+            assert_eq!(t.get(&id("my::pkg::one_Integer_1__Integer_1_")), Some(&fs[0]));
         });
     }
 

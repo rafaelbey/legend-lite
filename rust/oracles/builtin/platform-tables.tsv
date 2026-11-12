@@ -4913,7 +4913,7 @@ platform.case.declarations.at	sameBodyTwice	"toUpper"	0
 platform.case.declarations.get	sameBodyTwice	no::such::function_Integer_1__Integer_1_	true
 platform.case.declarations.size	twoBodies	3	1
 platform.case.declarations.id	twoBodies	0	my::pkg::one_Integer_1__Integer_1_	FunctionDefinition	3b96ff14fd4a02c5f1eee9453917568d8a7b8599211b6fc66e21a2a751d5e2b4
-platform.case.declarations.duplicates	twoBodies	2	my::pkg::one_Integer_1__Integer_1_ my::pkg::one_Integer_1__Integer_1_
+platform.case.declarations.duplicates	twoBodies	1	my::pkg::one_Integer_1__Integer_1_
 platform.case.declarations.at	twoBodies	""	0	
 platform.case.declarations.at	twoBodies	"my::pkg::nothing"	0	
 platform.case.declarations.at	twoBodies	"my::pkg::one"	1	my::pkg::one_Integer_1__Integer_1_
