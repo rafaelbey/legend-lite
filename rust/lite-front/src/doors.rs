@@ -1777,6 +1777,55 @@ mod refusal_tests {
     }
 
     #[test]
+    fn a_default_values_all_call_is_its_all_or_function_only_with_its_arguments() {
+        // ruling 29 of 2026-11-11 (register S375): `.all(...)` is a default value's `allOrFunction` only with that rule's
+        // arguments, else its `propertyExpression`, after which nothing may follow; each text and place read from the
+        // engine's parser (`PureGrammarParser`, 4.145.0); lite's and the platform's dialects accept as before
+        let default = |d: &str| format!("Class a::C\n{{\n  p: a::T[*] = {d};\n}}\n");
+        for (d, column) in [
+            ("x.all(1 + 2).y", 28),
+            ("x.all(1).y", 24),
+            ("x.all('a').y", 26),
+            ("x.all(x).y", 24),
+            ("x.all(1, 2).y", 27),
+            ("x.all(-1).y", 25),
+            ("x.all(%10:00).y", 29),
+            ("a::x.all(1).y", 27),
+            ("x.all(1 + 2).y(3)", 28),
+            ("x.all(1 + 2).y.z", 28),
+            ("x.allVersionsInRange(1, 2).y", 42),
+            ("x.allVersionsInRange().y", 38),
+            ("[x.all(1 + 2).y]", 29),
+            ("[x.all($d).y, x.all(1).y]", 38),
+        ] {
+            refused_at_the_engines_dialect(&default(d), (3, column));
+        }
+        // before a later refusal of the value, which lite's own reading meets at every dialect
+        model_refused_at_the_engines(&default("x.all(1 + 2).y + (1 +)"), (3, 28));
+        // the engine's `allOrFunction`: `.all()` and one or two dates, `.allVersions()`, `.allVersionsInRange` and two;
+        // a `.all(...)` with nothing after it the property itself; a call's arguments
+        for d in [
+            "x.all().y",
+            "x.all($d).y",
+            "x.all($d, $e).y",
+            "x.all(%latest).y",
+            "x.all(%2020-01-01).y",
+            "x.all(%2020-01-01, %latest).y",
+            "x.allVersions().y",
+            "x.all(1 + 2)",
+            "x.allVersionsInRange(1, 2)",
+            "[x.all().y, 1]",
+            "a::f(1 + 2).y",
+        ] {
+            let units = u(&default(d));
+            for dialect in [Dialect::LegendEngine, Dialect::LegendLite, Dialect::LegendPlatform] {
+                assert!(pmcd(&units, dialect, &[]).parsed.is_ok(), "{d}");
+            }
+            assert!(document(&units, true).is_ok(), "{d}");
+        }
+    }
+
+    #[test]
     fn a_data_space_executables_id_is_the_engines_executable_id() {
         // ruling 28 of 2026-11-11 (register S373): `(VALID_STRING | INTEGER | DECIMAL) SEMI_COLON` by the engine's lexer,
         // each text and place read from the engine's parser (`PureGrammarParser`, 4.145.0)

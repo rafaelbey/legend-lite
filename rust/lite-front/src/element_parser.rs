@@ -524,13 +524,16 @@ impl<'s> ElementCursor<'_, 's> {
                             q += 2;
                         }
                     }
-                    if ty(q) == Some(T::DOT)
-                        && matches!(ty(q + 1), Some(T::ALL | T::ALL_VERSIONS | T::ALL_VERSIONS_IN_RANGE))
+                    if let Some(keyword @ (T::ALL | T::ALL_VERSIONS | T::ALL_VERSIONS_IN_RANGE)) = ty(q + 1)
+                        && ty(q) == Some(T::DOT)
                         && ty(q + 2) == Some(T::PAREN_OPEN)
                     {
-                        // `.all()` is the `allOrFunction` when a `.name` follows it, else the `.name` itself
+                        // `.all(...)` is the `allOrFunction` when a `.name` follows it and its arguments are that rule's,
+                        // else the `.name` itself, the `propertyExpression`, after which nothing may follow: `x.all(1 +
+                        // 2).y` refused at the second `.` (the user's ruling 29 of 2026-11-11, docs/rust-port/PHASE2.md
+                        // section 6; register S375)
                         let past = past_group(q + 2);
-                        if ty(past) != Some(T::DOT) {
+                        if ty(past) != Some(T::DOT) || !all_or_function(keyword, q + 3, past - 1, ty) {
                             return Ok(past);
                         }
                         q = past;
@@ -552,6 +555,39 @@ impl<'s> ElementCursor<'_, 's> {
                 }
                 _ => Err(p),
             }
+        }
+        // whether `.all(...)`'s arguments, `from` to its `)` at `close`, are its `allOrFunction`'s: none or one or two
+        // dates for `all` (`allFunction`, `allFunctionWithMilestoning`), none for `allVersions` (`allVersionsFunction`),
+        // two for `allVersionsInRange` (`allVersionsInRangeFunction`); a date its `buildMilestoningVariableExpression`,
+        // `%latest`, a date or a variable
+        fn all_or_function(
+            keyword: TokenType,
+            from: usize,
+            close: usize,
+            ty: &dyn Fn(usize) -> Option<TokenType>,
+        ) -> bool {
+            let (mut p, mut dates) = (from, 0);
+            while p < close {
+                match ty(p) {
+                    Some(T::LATEST_DATE | T::DATE) => p += 1,
+                    Some(T::DOLLAR) if ty(p + 1).is_some_and(is_identifier_token) => p += 2,
+                    _ => return false,
+                }
+                dates += 1;
+                if ty(p) != Some(T::COMMA) {
+                    break;
+                }
+                p += 1;
+                if p == close {
+                    return false;
+                }
+            }
+            p == close
+                && match keyword {
+                    T::ALL => dates <= 2,
+                    T::ALL_VERSIONS => dates == 0,
+                    _ => dates == 2,
+                }
         }
         let stop = match value(self.pos, &ty, &past_group) {
             Ok(end) if ty(end) == Some(T::SEMI_COLON) => return None,
