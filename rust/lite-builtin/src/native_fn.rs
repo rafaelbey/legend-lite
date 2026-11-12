@@ -321,7 +321,9 @@ family! {
     /// `NativeFn.GroupAggregate`: the group-lambda aggregates (engine core_functions_relation joinStrings.pure,
     /// 4.145.0) -- `relation::joinStrings(rel, col|f, separator[, sortInfos])`, written over the group inside a
     /// groupBy/aggregate FuncColSpec and desugared by GroupLambdaAggs to the map/reduce aggregate form whose reducer is
-    /// the ordered `string_agg`; never lowered as a call. Java gives it no `BY_ID` and no `of`.
+    /// the ordered `string_agg`; never lowered as a call. No `BY_ID` and no `of`, by design (2026-11-12, the owner's
+    /// ruling): no resolved callee is dispatched through it -- GroupLambdaAggs reads the call by its resolved name, the
+    /// lowering reads its overloads as `AT_RELATION_JOIN_STRINGS`; a test holds the member to that list.
     GroupAggregate {
         JOIN_STRINGS("meta::pure::functions::relation::joinStrings",
             JOIN_STRINGS__RELATION_1__COL_SPEC_1__STRING_1, JOIN_STRINGS__RELATION_1__COL_SPEC_1__STRING_1__SORT_INFO_MANY,
@@ -1327,6 +1329,26 @@ mod tests {
         assert_eq!(RowGetter::of_lifted(Some("$prop$get")), None);
         assert!(RowGetter::is_owner(EXECUTE_ROW_OWNER));
         assert!(!RowGetter::is_owner("meta::pure::tds::TabularDataSet"));
+    }
+
+    #[test]
+    fn the_group_aggregate_is_the_lowerings_overloads() {
+        // GroupAggregate has no `of`: the lowering reads its overloads as AT_RELATION_JOIN_STRINGS (2026-11-12, the
+        // owner's ruling; Java's NativeRegistryGovernanceTest holds the same, and the desugar's name)
+        on_parse_stack(|| {
+            let ours: HashSet<&FunctionId> = GroupAggregate::JOIN_STRINGS
+                .overloads()
+                .iter()
+                .map(|o| o.id())
+                .collect();
+            let lowering: HashSet<&FunctionId> = natives::AT_RELATION_JOIN_STRINGS.iter().map(|o| o.id()).collect();
+            assert_eq!(ours, lowering);
+        });
+        assert_eq!(GroupAggregate::VALUES, &[GroupAggregate::JOIN_STRINGS]);
+        assert_eq!(
+            GroupAggregate::JOIN_STRINGS.fqn(),
+            "meta::pure::functions::relation::joinStrings"
+        );
     }
 
     #[test]
