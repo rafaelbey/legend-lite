@@ -30,6 +30,7 @@ pub mod dyna_fn;
 pub mod natives;
 pub mod dyna_fn_decisions;
 pub mod engine_handlers;
+pub mod lattice;
 pub mod native_fn;
 pub mod prelude;
 pub mod pure;

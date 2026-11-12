@@ -38,6 +38,7 @@ pub mod parsed_model;
 pub mod records;
 mod database;
 pub mod rel_op_from_protocol;
+pub mod subtyping;
 pub mod text;
 
 pub use error::{ModelError, Thrown, Unrepresentable};
