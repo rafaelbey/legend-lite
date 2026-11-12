@@ -294,3 +294,37 @@ fn the_index_holds_the_boot_layers_own_records() {
         );
     });
 }
+
+/// The pieces the differential does not ask Java directly: a built call's names are the resolver's decision in the
+/// sectionless scope (memoized), a derived fact is computed once per index, `default.T` is the top level's `T`.
+#[test]
+fn the_compositions_answer_as_their_pieces() {
+    on_parse_stack(|| {
+        let made = resolver::built_call_names(&j("filter"), 2);
+        assert!(made.found && made.function == j("filter") && !made.referents.is_empty());
+        assert_eq!(
+            resolver::built_call_names(&j("filter"), 2),
+            made,
+            "memoized: the same answer again"
+        );
+        let nothing = resolver::built_call_names(&j("noSuchFunctionAnywhere"), 1);
+        assert!(!nothing.found && nothing.referents.is_empty());
+        assert_eq!(crate::knowledge::canonical_table(&j("default.T")), j("T"));
+        assert_eq!(crate::knowledge::canonical_table(&j("s.T")), j("s.T"));
+        let ix = ModelIndex::from(&model("Class a::A {}\n")).unwrap();
+        let first = ix.derived(|m| m.classes().count());
+        let again = ix.derived(|_| 99usize);
+        assert!(
+            lite_base::same(&first, &again),
+            "a derived fact is computed once per index"
+        );
+        assert_eq!(*again, 1);
+        let names = resolver::resolve_names(
+            &[lite_front::doors::spec(&"String".encode_utf16().collect::<Vec<u16>>(), Dialect::LegendLite).unwrap()],
+            lite_model::ImportScope::empty(),
+            resolver::platform_fqns(),
+        )
+        .unwrap();
+        assert_eq!(names.len(), 1);
+    });
+}
