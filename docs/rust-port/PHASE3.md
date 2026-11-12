@@ -550,3 +550,84 @@ done, in the order of the design's §3.
      the unflipped parser made one. **The guards:** `lite-front`'s exemption from the arena ruling's source rules is
      lifted -- its `sources` filegroup handed to `//rust/lite-guards:guards_test`, its root `#![forbid(unsafe_code)]`
      (it holds no `unsafe` and no address conversion), the dated `CARGO_ONLY` entry removed, the list now empty.
+
+2. **The model records, the platform's declarations and the text's door (slice 1b, done 2026-11-12;**
+   [`PHASE3_CRATES.md`](PHASE3_CRATES.md) §6**).** No Java production code changed but the generators' second output;
+   nothing calls the new crates yet. `ModelIndex`, its freeze and name resolution are the names slice's (step 2's rest).
+
+   - *The crates.* `lite-error` (layer `error`, 257 lines: `LegendCompileException`'s phases, as the code has them --
+     `RENDER` among them -- and the package's eleven classes as one record by kind), `lite-model` (`model`, reaching
+     `lite-base`, `lite-front`, `lite-javacompat`; 4,632 generated lines and 4,310 by hand), `lite-builtin` (`builtin`
+     and `door`, reaching `lite-error`, `lite-front`, `lite-model`; 3,317 generated and 4,918 by hand, 1,072 of tests),
+     `lite-platform` (`platform`, reaching `lite-base`, `lite-builtin`, `lite-error`, `lite-model`; 2,450, and 945 of
+     tests). `lite-values` is not made: nothing in `model`, `door`, `builtin` or `platform` reads `com.legend.values`
+     (its records are `lite-front`'s). Each in `rust/lite-guards/crate-layers.txt` with its exact dependencies, the
+     workspace, Bazel and `//gates:core`; each root `#![forbid(unsafe_code)]`.
+   - *The model's records are generated* from the Java's by a third mode of `FrontCodegen` (`//core:model_records_rs`,
+     held by `//rust/lite-model:update_generated_test` in `//:generated`): 190 types reached from `ParsedModel`,
+     `NormalizedModel`, `Function`, `FunctionId` and `ClassMember` (153 records, 30 sealed parents, 7 enums, each enum
+     with Java's `values`, `name`, `ordinal`, `valueOf`), each component an `Option` exactly where its source says
+     `@Nullable`, with the lossless codec's writer, so both sides write the differential's canonical text from one
+     schema. The model tier is `Arc` (PHASE3_DESIGN.md §6 ruling 1): a model record held as `Arc<R>`, a list
+     `Arc<[T]>`, a map `Arc<[(K, V)]>` in Java's iteration order (every model map is a `LinkedHashMap`'s view: the
+     differential's Java side checks it). **No model record writes its own `equals`** (searched: only `FunctionId` and
+     `PoisonKey` write a `toString`), so every one derives `PartialEq`, and `Eq` and `Hash` where every component has
+     them (126 of 190). A protocol record the model holds is `lite-front`'s.
+   - *By hand in `lite-model`:* the converters, line for line -- `ModelFromProtocol` (the section index's imports, the
+     spans, a parsed model's offsets), `FromProtocol`, `MappingFromProtocol`, `RelOpFromProtocol`,
+     `MongoDeclarations` -- each throw Java's class and message (a converter's refusal named, as the door catches it by
+     class); `FunctionId` and `SignatureMangle`; `ImportScope`'s builder; `ParsedModel`'s keys and positions;
+     `RelationalIdentifier`, `JoinType`, `LogicalOp`, `ComparisonOp`, `SynthHat`, `SetId`, `DerivedPropertyNames`;
+     `DatabaseDefinition`'s default-schema reads by identity (`lite_base::IdSet`, the schemas' and the flat lists sharing
+     their records as Java's do). Left for the slice that first calls them: the methods the normalizer and the
+     compiler call on `MappingDefinition`, `ClassMapping`'s witness-column names, `LegacyMappingDefinition`'s and
+     `RuntimeDefinition`'s helpers, `RelationFunction.Col.bindSrc`.
+   - *The text's door and the live differential.* `lite_builtin::door::parse` is `ModelFromText.parse`.
+     `core/src/test/java/com/legend/frontoracle/ModelAnswers.java` asks Java's door every model text of the front
+     oracle at every dialect it is asked at -- 87,564 asks over 29,188 texts; 74,292 answered (490,785 elements of 23
+     kinds, 1,679,438 model records in sealed slots alone), 13,272 errors (`ParseException` 13,200,
+     `IllegalStateException` 39, `UnsupportedOperationException` 33) -- and hashes each answer's canonical text (the front oracle's form: `A` and the record codec's JSON of the `ParsedModel`, every
+     record and component, or `E`, the class, line, column and message). `//rust/lite-builtin:model_differential_test`
+     holds Rust's door to every hash: **87,564 of 87,564 identical, on the first run**, with no list of differences.
+     Java's hashes are frozen in [`rust/oracles/model/`](../../rust/oracles/model) (`answers.tsv.zst`, 1.4 MB, cut as
+     the front oracle's; two Java runs byte-identical); the 87,564 texts (2.9 GB) are archived outside git
+     (`model-texts-java.jsonl.zst`, 55 MB, its SHA-256 checked by decompressing it).
+   - *The generators retargeted.* The two that write `builtin`'s Java tables gain a Rust output from the same inputs,
+     so the two cannot drift at an upstream bump: `NativesGenerator --rust` reads `Pure.java` as `//spec:gen_natives`
+     writes it and writes `rust/lite-builtin/src/natives.rs` (`//spec:gen_natives_rs`: the 891 constants' signature
+     texts in the file's load-bearing order, each constant by its Java name as a `NativeId` -- so a constant the
+     catalog lacks does not compile, as in Java -- and the 513 overload groups); `DynaFnGenerator --rust` writes
+     `dyna_fn.rs` from the engine's registries (`//spec:gen_dynafn_rs`, 232 names). Both held by
+     `//rust/lite-builtin:update_generated` in `//:generated`. The resources (`prelude.pure`, `engine-handlers.tsv`)
+     are read by Rust as the same committed files (`include_str!`); `CoreImports.java` is the compiler's, the names
+     slice's.
+   - *By hand in `lite-builtin`:* `Pure` (the catalog parsed through the door at the platform's dialect on first read,
+     its indexes, the lite vocabulary, the type FQN constants, the native classes and enumerations, the walled
+     natives), `DynaFnDecisions` (its 191 decisions) with `DynaFn`'s methods, `EngineHandlers`, `Prelude`, `NativeFn`
+     (the 21 families and `OperatorRun`), `SystemMetamodel` (its source written by the ported builders, byte for byte),
+     `Subsumed`, `TdsLegacy`. Not ported: `DecisionProbe`, the untangle's measurement probe (a `ServiceLoader` hook, a
+     no-op unless `LL_SHADOW` is set). `lite-platform` ports the whole package (`CoreFn`, `Feature`, `WalledBodies`,
+     `DeclarationTable`, `Implementation`, `Registrations`, `ImplementationTable`, `PlatformPure`), with
+     `ImplementationTableTest`'s, `DeclarationTableTest`'s and `FormOwnershipTest`'s cases as unit tests.
+   - *The tables, held the same way.* [`rust/oracles/builtin/BuiltinAnswers.java`](../../rust/oracles/builtin) (a
+     source program beside the frozen files, as the type oracle's is) dumps every table of `builtin` and `platform` one
+     fact per line -- a record as the codec's JSON, a set Java keeps hashed written sorted -- and
+     `//rust/lite-builtin:builtin_tables_test` and `//rust/lite-platform:platform_tables_test` write the same lines
+     from Rust: **8,722 of 8,722** (the catalog with the dynafunctions, the handlers, the prelude, `Subsumed` and
+     `TdsLegacy` 4,079; the families 2,741; the system metamodel 1,902) **and 5,028 of 5,028** (the platform: the
+     declaration table over the catalog's, the prelude's and the system metamodel's functions, 1,078 ids; the
+     implementation table over it and the registrations the platform holds; the Java tests' tables). Frozen with their
+     MANIFEST, two runs byte-identical.
+   - *Subtyping, held to the live Java (ruling 22).* `lite_model::subtyping` walks `PureModelContext.isSubtype`'s
+     reach over class declarations; `lite_builtin::lattice` holds the boot layer's. `SubtypeProbe.java` asks the live
+     Java's compiled boot model every ordered pair of its 509 class FQNs (with `Nil` and two absent names: 259,081
+     pairs); `tests/subtype_live.rs` (ignored, run by hand: not frozen) holds the lattice to it. **The 366 children
+     whose walk meets only FQN-spelled supertypes agree on every pair (186,294); the other 143 meet a supertype the
+     prelude spells by its simple name under its section's imports** (`EngineRuntime extends Runtime`), which only
+     name resolution answers -- held apart, not guessed, for the names slice.
+   - *Gates.* `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --check`
+     clean. Bazel `test //... --keep_going` at `b73168539`: 581 targets, 579 passed, 2 skipped; of
+     `rust/BASELINE.tsv`'s 550 passing targets every one passes but the three gone with their code and ledgered
+     (`//core:core_tests_ide`, `//core:core_tests_lexer`, `//docs:update_dialect_capability_test`); 32 targets new
+     since the baseline, the port's, all passing, ten of them this slice's. `ledger_check.sh c4a39e06d`: 80 rows ok,
+     none missing.
