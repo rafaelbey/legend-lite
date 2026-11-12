@@ -1011,6 +1011,76 @@ platform.platformPure.adopt	other	33	IllegalArgumentException	not the same funct
 platform.platformPure.adopt	bodiless	34	returned	a46e2cdac8ec8ea23beb3693804de596c54a10990b08668bad2fe4789070fa91
 platform.platformPure.adopt	renamed	34	ModelException	MODEL	meta::relational::mapping::resolvePrimaryKey_RootRelationalInstanceSetImplementation_1__RelationalOperationElement_MANY_	'meta::relational::mapping::resolvePrimaryKey_RootRelationalInstanceSetImplementation_1__RelationalOperationElement_MANY_' is the platform's own Pure, whose body binds its parameter 1 as '_this'; this declaration names it '_thisRenamed' — the two must agree
 platform.platformPure.adopt	other	34	IllegalArgumentException	not the same function: meta::relational::mapping::resolvePrimaryKey_RootRelationalInstanceSetImplementation_1__RelationalOperationElement_MANY_ and meta::pure::mapping::_classMappingByClass_Mapping_1__Class_1__SetImplementation_MANY_
+platform.platformPure.adopt	conditioned	0	returned	254d590004637396d09a2509d00d3a181f8eb7e89bbcfab2da16ffe57ee364d8
+platform.platformPure.adopt	platformConditioned	0	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::mapping::_classMappingByClass_Mapping_1__Class_1__SetImplementation_MANY_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	1	returned	d43ac4212b701510526935c1bb80656bee8cd3182ce227640e51f770df1b02ce
+platform.platformPure.adopt	platformConditioned	1	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::mapping::rootClassMappingByClass_Mapping_1__Class_1__SetImplementation_$0_1$_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	2	returned	d934be9318989ad2b87bd9da026fee28b75e427f05c7666a27c6ffe1c18f6127
+platform.platformPure.adopt	platformConditioned	2	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::mapping::enumerationMappingByName_Mapping_1__String_1__EnumerationMapping_$0_1$_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	3	returned	905fd0eba5218c323c795f5a6acad47604ab1c555d12681105b28c0fcb17f6d9
+platform.platformPure.adopt	platformConditioned	3	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::mapping::toDomainValue_EnumerationMapping_1__Any_1__Any_1_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	4	returned	7701e850af0dd70fbc4e4701330fc4d5f1c17610f24992c73284950a6ae7ecb7
+platform.platformPure.adopt	platformConditioned	4	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::metamodel::schema_Database_1__String_1__Schema_$0_1$_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	5	returned	a7cb0f483ba6fb691ab4edb997d1ea16f50de90431f893eca99079f6190966aa
+platform.platformPure.adopt	platformConditioned	5	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::metamodel::table_Schema_1__String_1__Table_$0_1$_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	6	returned	3e248107d47e327b6745b6d5ab055becf93f3444228236fcfa4ab90e46c20f95
+platform.platformPure.adopt	platformConditioned	6	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::metamodel::view_Schema_1__String_1__View_$0_1$_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	7	returned	e384e6e3f28e77ea5405ddeaccaf7b64000a7c3aa60db29e0a74d15de1f0f613
+platform.platformPure.adopt	platformConditioned	7	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::metamodel::column_Table_1__String_1__Column_$0_1$_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	8	returned	a2e6fcb769f870ecdf64a493a64e97a466d67f414ec12f4f1b6ea9ff8387caa6
+platform.platformPure.adopt	platformConditioned	8	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::metamodel::children_RelationalTreeNode_1__JoinTreeNode_MANY_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	9	returned	2b9e9fbd5d4423db8df308264c1f2f42224623b948f51b550acbc1195fc966b2
+platform.platformPure.adopt	platformConditioned	9	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::metamodel::childByJoinName_RelationalTreeNode_1__String_1__JoinTreeNode_$0_1$_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	10	returned	3769395cb664f7a043d586cc5cfc8131616b46ffd298ef1641e7f0f6250f317c
+platform.platformPure.adopt	platformConditioned	10	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::mapping::allPropertyMappings_PropertyMappingsImplementation_1__PropertyMapping_MANY_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	11	returned	7cb1fcd554678a69bdf5e3352c8315cd70b51767fe0721adc095eb8abcd8265b
+platform.platformPure.adopt	platformConditioned	11	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::mapping::_propertyMappingsByPropertyName_PropertyMappingsImplementation_1__String_1__PropertyMapping_MANY_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	12	returned	d33493714baf6e77021f66c045359cde4b57748f6390fd5565e5f898d02da959
+platform.platformPure.adopt	platformConditioned	12	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::mapping::propertyMappingsByPropertyName_PropertyMappingsImplementation_1__String_1__PropertyMapping_MANY_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	13	returned	e88380bde688d9e7d0a2d1e473e3fcb9aabc35602814ad54bbaa917d3f1dff67
+platform.platformPure.adopt	platformConditioned	13	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::mapping::propertyMappingsByPropertyName_InstanceSetImplementation_1__String_1__PropertyMapping_MANY_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	14	returned	6420d10ef47ccea7c88ef04faf4b10a8e4ee24c616467540aa4289df3d4bb0e5
+platform.platformPure.adopt	platformConditioned	14	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::functions::typeInference::inferRelationalType_RelationalOperationElement_1__DataType_$0_1$_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	15	returned	c2837979f4f8a56d11a9a295b7899baad374ddaf262a9bb177e276b39f9eecee
+platform.platformPure.adopt	platformConditioned	15	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::functions::typeInference::inferRelationalType_RelationalOperationElement_1__Boolean_1__DataType_$0_1$_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	16	returned	40ba08ad10a3b1d805208c12f47f2a7cd18b7d08b762a9d4cd2d2b2abca2a471
+platform.platformPure.adopt	platformConditioned	16	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::metamodel::datatype::dataTypeToSqlText_DataType_1__String_1_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	17	returned	20c8dff4d6499cc7589ec6167cabb31072c9eaa586597293c1d1ad91ade0c03a
+platform.platformPure.adopt	platformConditioned	17	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::executionPlan::allNodes_ExecutionNode_1__Extension_MANY__ExecutionNode_MANY_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	18	returned	7c3779ee724aa13348fac312cad667db91b9998ed407f7556d143c2150963189
+platform.platformPure.adopt	platformConditioned	18	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::functions::meta::getLowerBound_Multiplicity_1__Integer_1_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	19	returned	dc61797782ba24432d7498185655a064ecbda34fa94e06e797068d61eb88b9ee
+platform.platformPure.adopt	platformConditioned	19	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::extension::routerExtensions_Extension_1__RouterExtension_MANY_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	20	returned	e0e8f2a828bb461bad332dddcad279dbd423a14c0f7cf8a4bab916d321a809e5
+platform.platformPure.adopt	platformConditioned	20	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::functions::pureToSqlQuery::expressionSequenceReturnsAtLeastToOneDataType_ValueSpecification_1__Boolean_1_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	21	returned	7313b381a3cfbe7ba81a31516a40a5e523a4432efa097598bc53ecf650ada450
+platform.platformPure.adopt	platformConditioned	21	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::mapping::inferPrimaryKeyColumnNames_ValueSpecification_1__String_MANY_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	22	returned	92d23d9b5da5f0bb23b4d33566991205c298839c1e48bd357bd3faaeec9d09dd
+platform.platformPure.adopt	platformConditioned	22	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::lineage::scanRelations::relationTreeAsString_RelationTree_1__String_1_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	23	returned	f072cbd1424b6e12ecb0eb2e3ebc3aeb721d5687106af8aba7f0a297697a7edb
+platform.platformPure.adopt	platformConditioned	23	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::lineage::scanRelations::relationTreeAsString_RelationTree_1__Boolean_1__String_1_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	24	returned	6d8fcb730ab13b413935cf6f9f968e1e88b1dd8f26f35a427cab10449739b441
+platform.platformPure.adopt	platformConditioned	24	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::lineage::scanRelations::relationTreeAsString_RelationTree_1__String_1__String_1_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	25	returned	c388a191efb7eeccb3b737df03546a783618dc84154b6c1fec463209a50e9e5d
+platform.platformPure.adopt	platformConditioned	25	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::lineage::scanRelations::relationTreeAsString_RelationTree_1__Boolean_1__String_1__String_1_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	26	returned	d64151db4f006012788810a8a08e4056f881e21fcb2acff4ac89ff252cfbf050
+platform.platformPure.adopt	platformConditioned	26	IllegalArgumentException	the platform's own Pure declares no conditions: meta::lite::lineage::relationTreeLines_RelationTree_1__Boolean_1__String_MANY_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	27	returned	8176b767270f0847c837057159f437238785dbafe19bc142bd0803c0951e6ba8
+platform.platformPure.adopt	platformConditioned	27	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::mapping::resolveStore_Mapping_1__Store_1__Store_1_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	28	returned	43fe92318264592973a27bd57f5bbdf5b444f941e126226681e6adb7f9e65ddb
+platform.platformPure.adopt	platformConditioned	28	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::runtime::extractDBs_Mapping_1__Database_MANY_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	29	returned	87f5a2ef8d723664040895f22b7f3f42778c0e6c2d1abcf615e6aa939745f50d
+platform.platformPure.adopt	platformConditioned	29	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::mapping::classMappings_Mapping_1__SetImplementation_MANY_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	30	returned	662ed60c069a2adba926ba661ec1ec4f9af76f7c0f49011701baca40132e6517
+platform.platformPure.adopt	platformConditioned	30	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::mapping::classMappingById_Mapping_1__String_1__SetImplementation_$0_1$_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	31	returned	85642ade09ddd0712d960e07c016a01bedd525bc14c05200cfab6b9e01931b27
+platform.platformPure.adopt	platformConditioned	31	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::metamodel::mainTable_RelationalMappingSpecification_1__Table_1_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	32	returned	91050771c1b0f80fb9fc3a99f50bea02bba59135351c627a8b6150e0687b67ea
+platform.platformPure.adopt	platformConditioned	32	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::mapping::superMapping_PropertyMappingsImplementation_1__PropertyMappingsImplementation_$0_1$_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	33	returned	2f9295c05a44f7e051b956023eb68f05ba7c75e6a4ae8e37e1b4fe9d75c6573e
+platform.platformPure.adopt	platformConditioned	33	IllegalArgumentException	the platform's own Pure declares no conditions: meta::pure::mapping::allSuperSetImplementations_PropertyMappingsImplementation_1__Mapping_1__PropertyMappingsImplementation_MANY_ declares 1 pre- and 1 post-conditions
+platform.platformPure.adopt	conditioned	34	returned	ea3ca6b73b9e0d18d086c6916a23b77fef1a5ed1e67402efa1660ec7a8a43cd4
+platform.platformPure.adopt	platformConditioned	34	IllegalArgumentException	the platform's own Pure declares no conditions: meta::relational::mapping::resolvePrimaryKey_RootRelationalInstanceSetImplementation_1__RelationalOperationElement_MANY_ declares 1 pre- and 1 post-conditions
 platform.declarations.size	1078	1078
 platform.declarations.id	0	meta::pure::graphFetch::execution::alloyConfig_Boolean_1__Boolean_1__Boolean_1__Boolean_1__AlloySerializationConfig_1_	NativeFunctionDefinition	d646067fb3c2d2c7910d053ae1ea7e8d4839543489db6aabfa024bf4d7ae6a8c
 platform.declarations.id	1	meta::pure::graphFetch::execution::alloyConfig_Boolean_1__Boolean_1__Boolean_1__Boolean_1__Boolean_1__AlloySerializationConfig_1_	NativeFunctionDefinition	62d368991702152ac9db7684e620e7257525b65543fb0fee8853d1bebf810eee

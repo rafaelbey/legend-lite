@@ -218,6 +218,26 @@ final class PlatformTables {
             }
             adopt(out, "other", k, f, sys.get((k + 1) % sys.size()));
         }
+        // the declaration's conditions are kept, the platform's own refused (2026-11-12, item 1 of the owner's ruling
+        // on slice 1b's report): every system function as a declaration with a pre- and a post-condition, and as a
+        // platform version with them (parsed at lite's dialect: the engine's drops a constraint block, S89)
+        FunctionDefinition conditions = (FunctionDefinition) ModelFromText.parse(
+                "function my::pkg::c(x:Integer[1]):Integer[1]\n[\n  $x > 0,\n  $return > 0\n]\n{\n  $x\n}",
+                Dialect.LEGEND_LITE).elements().get(0);
+        if (conditions.preConstraints().size() != 1 || conditions.postConstraints().size() != 1) {
+            throw new IllegalStateException("the conditioned case parses to one pre- and one post-condition");
+        }
+        for (int k = 0; k < sys.size(); k++) {
+            FunctionDefinition f = sys.get(k);
+            adopt(out, "conditioned", k, withConditions(f, conditions), f);
+            adopt(out, "platformConditioned", k, f, withConditions(f, conditions));
+        }
+    }
+
+    private static FunctionDefinition withConditions(FunctionDefinition f, FunctionDefinition from) {
+        return new FunctionDefinition(f.qualifiedName(), f.typeParameters(), f.multiplicityParameters(),
+                f.parameters(), f.returnType(), f.returnMultiplicity(), f.body(), f.stereotypes(), f.taggedValues(),
+                f.synthesizedFrom(), from.preConstraints(), from.postConstraints());
     }
 
     // ---------------------------------------------------------------- the declarations

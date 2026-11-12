@@ -85,8 +85,13 @@ pub(crate) mod testing {
 
     /// The functions of `source` at the engine's dialect.
     pub fn declare(source: &str) -> Vec<Function> {
+        declare_at(source, Dialect::LegendEngine)
+    }
+
+    /// The functions of `source` at `dialect` (lite's keeps a function's constraint block, the engine's drops it).
+    pub fn declare_at(source: &str, dialect: Dialect) -> Vec<Function> {
         let units: Vec<u16> = source.encode_utf16().collect();
-        lite_builtin::door::parse(&units, Dialect::LegendEngine)
+        lite_builtin::door::parse(&units, dialect)
             .unwrap_or_else(|e| panic!("{source}: {e:?}"))
             .elements
             .iter()

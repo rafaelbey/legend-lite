@@ -272,6 +272,37 @@ fn platform_pure_section(out: &mut Out) {
         }
         adopt(out, "other", k, f, &sys[(k + 1) % sys.len()]);
     }
+    // the declaration's conditions are kept, the platform's own refused (2026-11-12, item 1 of the owner's ruling):
+    // every system function as a declaration with a pre- and a post-condition, and as a platform version with them
+    // (parsed at lite's dialect: the engine's drops a constraint block, S89)
+    let units: Vec<u16> = "function my::pkg::c(x:Integer[1]):Integer[1]\n[\n  $x > 0,\n  $return > 0\n]\n{\n  $x\n}"
+        .encode_utf16()
+        .collect();
+    let conditions = match lite_builtin::door::parse(&units, Dialect::LegendLite)
+        .expect("the conditioned case parses")
+        .elements[0]
+        .as_function()
+    {
+        Some(Function::FunctionDefinition(f)) => f,
+        _ => panic!("the conditioned case is a function definition"),
+    };
+    assert_eq!(
+        (conditions.pre_constraints.len(), conditions.post_constraints.len()),
+        (1, 1)
+    );
+    for (k, f) in sys.iter().enumerate() {
+        adopt(out, "conditioned", k, &with_conditions(f, &conditions), f);
+        adopt(out, "platformConditioned", k, f, &with_conditions(f, &conditions));
+    }
+}
+
+/// Java's twelve-argument constructor over `f`, with `from`'s conditions.
+fn with_conditions(f: &FunctionDefinition, from: &FunctionDefinition) -> Arc<FunctionDefinition> {
+    Arc::new(FunctionDefinition {
+        pre_constraints: from.pre_constraints.clone(),
+        post_constraints: from.post_constraints.clone(),
+        ..f.clone()
+    })
 }
 
 // ---------------------------------------------------------------- the declarations

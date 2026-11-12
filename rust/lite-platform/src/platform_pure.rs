@@ -14,7 +14,7 @@ use std::sync::{Arc, LazyLock};
 
 use lite_builtin::system_metamodel;
 use lite_error::{CompileError, Phase};
-use lite_model::linked::{LinkedMap, empty};
+use lite_model::linked::LinkedMap;
 use lite_model::{Function, FunctionDefinition, FunctionId, JStr};
 
 use crate::implementation::IllegalArgument;
@@ -39,8 +39,9 @@ pub enum AdoptError {
 /// id by construction. The body binds the platform's parameter names, so the two must name their parameters alike; a
 /// difference is an error naming both, never a silent rebinding.
 ///
-/// As Java's (its ten-argument constructor), the result has no constraints: `declaration`'s pre- and post-conditions
-/// are not carried.
+/// The declaration keeps its pre- and post-conditions too: they are the declaration's, not the body's (2026-11-12, the
+/// owner's ruling on slice 1b's report: Java's ten-argument constructor dropped them; both sides now keep them). The
+/// platform's own versions declare none; one that did is refused (`IllegalArgumentException`), never dropped.
 pub fn adopt(
     declaration: &Arc<FunctionDefinition>,
     platform: &Arc<FunctionDefinition>,
@@ -50,6 +51,19 @@ pub fn adopt(
     if id != theirs_id {
         return Err(AdoptError::IllegalArgument(IllegalArgument {
             message: cat!("not the same function: ", &id.qualified, " and ", &theirs_id.qualified),
+        }));
+    }
+    if !platform.pre_constraints.is_empty() || !platform.post_constraints.is_empty() {
+        return Err(AdoptError::IllegalArgument(IllegalArgument {
+            message: cat!(
+                "the platform's own Pure declares no conditions: ",
+                &id.qualified,
+                " declares ",
+                platform.pre_constraints.len().to_string(),
+                " pre- and ",
+                platform.post_constraints.len().to_string(),
+                " post-conditions"
+            ),
         }));
     }
     for (i, p) in declaration.parameters.iter().enumerate() {
@@ -85,8 +99,8 @@ pub fn adopt(
         stereotypes: declaration.stereotypes.clone(),
         tagged_values: declaration.tagged_values.clone(),
         synthesized_from: declaration.synthesized_from.clone(),
-        pre_constraints: empty(),
-        post_constraints: empty(),
+        pre_constraints: declaration.pre_constraints.clone(),
+        post_constraints: declaration.post_constraints.clone(),
     }))
 }
 
@@ -201,6 +215,33 @@ mod tests {
             assert_eq!(adopted.body, ours.body);
             assert_eq!(adopted.stereotypes, theirs.stereotypes);
             assert_eq!(adopted.parameters, theirs.parameters);
+        });
+    }
+
+    #[test]
+    fn the_declarations_conditions_are_kept_and_the_platforms_refused() {
+        // 2026-11-12, the owner's ruling (item 1): the conditions are the declaration's, not the body's
+        on_stack(|| {
+            let lite = |s: &str| match crate::testing::declare_at(s, lite_front::doors::Dialect::LegendLite).remove(0) {
+                Function::FunctionDefinition(f) => f,
+                Function::NativeFunctionDefinition(_) => panic!("a body"),
+            };
+            let theirs = lite("function my::pkg::f(x:Integer[1]):Integer[1]\n[\n  $x > 0,\n  $return > 0\n]\n{ 1 }");
+            assert_eq!((theirs.pre_constraints.len(), theirs.post_constraints.len()), (1, 1));
+            let ours = fd("function my::pkg::f(x:Integer[1]):Integer[1] { $x }");
+            let adopted = adopt(&theirs, &ours).expect("adopted");
+            assert_eq!(adopted.body, ours.body);
+            assert_eq!(adopted.pre_constraints, theirs.pre_constraints);
+            assert_eq!(adopted.post_constraints, theirs.post_constraints);
+            assert_eq!(
+                adopt(&ours, &theirs),
+                Err(AdoptError::IllegalArgument(IllegalArgument {
+                    message: JStr::from(
+                        "the platform's own Pure declares no conditions: my::pkg::f_Integer_1__Integer_1_ declares 1 \
+                         pre- and 1 post-conditions"
+                    )
+                }))
+            );
         });
     }
 
