@@ -656,4 +656,13 @@ done, in the order of the design's §3.
      for one comment line of `rust/oracles/builtin/MANIFEST.tsv` corrected after the run, which no target reads:
      581 targets, 579 passed, 2 skipped, every baseline target passing but the three ledgered;
      `ledger_check.sh c4a39e06d`: 81 rows ok, none missing (the governance test's two new cases ledgered).
+   - *The frozen oracles re-measured after the ten (2026-11-12).* Item 6's tracing was then measured: step 0's probe
+     (`rust/tools/identity-hits-probe.patch`, applying cleanly with no offsets) run once over the freeze's lanes at
+     `d6c3f18cf`, in the verify worktree, `--nocache_test_results`, 27 min 55 s, the two probe-caused failures of the
+     freeze and no other. **Of the 73,411 frozen keys, all 73,411 answered and equal, none moved**: 67,752 rows of
+     counts, 167,833 MIR ids, 25,741 execution plan ids and 25,597 test plan ids, every id re-hashed to its text, the
+     mask applied 0 times, every lane's key count run A's. The keys run R adds are the 16,851 the freeze left out by
+     design (the Postgres lanes, the temporary-path models) and 24 of `//core:ladder_report`, which ran because its
+     inputs changed (2 of its 26 keys are frozen, and equal). So nothing between the freeze at `1ea8fbf45` and
+     `d6c3f18cf` -- the flip, the parser's last rulings, slice 1b and the ten -- moved a Java answer; no re-freeze.
 
