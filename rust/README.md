@@ -34,6 +34,17 @@ profile does not.
   `oracles/types/` by `tests/type_differential.rs`.
 - `lite-guards/`: the port's guards, tests only: the crate graph held to `crate-layers.txt` (Cargo and Bazel both) and
   that file to tools/deps/core-layers.txt, and the sources to the arena ruling's rules (PHASE3_CRATES.md §3).
+- `lite-error/`: the user-facing error taxonomy (core's `error` layer): `LegendCompileException`'s phases and classes.
+- `lite-model/`: the model (core's `model` layer): its records, generated from the Java's (`src/records.rs`,
+  `//core:model_records_rs`), `Arc` with `Arc<[T]>` lists, and the converters from the protocol records
+  (`ModelFromProtocol` and its family), subtyping over declarations.
+- `lite-builtin/`: the platform's declarations and the text's door (core's `builtin` and `door` layers): the native
+  catalog (`src/natives.rs`, generated beside `Pure.java` by `//spec:gen_natives_rs`), the dynafunctions
+  (`src/dyna_fn.rs`, `//spec:gen_dynafn_rs`), the families, the prelude, the system metamodel; held to Java's door on
+  every model text of `oracles/front/` (`tests/model_differential.rs` over `oracles/model/`) and to Java's tables
+  (`tests/builtin_tables.rs` over `oracles/builtin/`).
+- `lite-platform/`: the platform (core's `platform` layer): the declarations by id and what implements each, held to
+  Java's tables (`tests/platform_tables.rs` over `oracles/builtin/`).
 
 - `BASELINE.tsv`: every test target of `bazel test //...` on the pristine tree -- since 2026-11-11 upstream `main` at
   `c4a39e06d`, the merge point (PHASE3_SHIM_DESIGN.md §10, ruling 14; macOS arm64): 552 targets, 550 passed, 2 skipped
@@ -84,6 +95,12 @@ profile does not.
   core's `compiler_element_type` layer that needs no later layer, every refusal by its exception and message), made by
   `TypeOracle.java` on core's built jars (its header says how) before the Java is deleted; `MANIFEST.tsv` names its
   tree and SHA-256.
+- `oracles/model/`: Java's text door's answer to every model text of `oracles/front/` at every dialect asked (87,564
+  asks: the canonical text's SHA-256 per ask, `answers.tsv.zst`), made by core's `frontoracle/ModelAnswers.java` before
+  the Java is deleted; the full texts archived outside git (`MANIFEST.tsv` says where, with its hash).
+- `oracles/builtin/`: the platform's tables as Java holds them (`builtin-tables.tsv`, `platform-tables.tsv`: one fact
+  per line), made by `BuiltinAnswers.java` beside them on core's built jars; and `SubtypeProbe.java`, which asks the
+  live Java's boot model every subtype pair (not frozen: ruling 22).
 - `tools/test-plan-texts.py`: the format of the deduplicated test plans, its writer (from the archive), its reader (one
   plan's exact text by its id, `read rust/oracles/plan <id>`) and the check that every plan rebuilds to its id. A tool,
   not a probe: it touches no source, and reading the oracle needs it.

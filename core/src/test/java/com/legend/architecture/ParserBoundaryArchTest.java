@@ -119,7 +119,11 @@ class ParserBoundaryArchTest {
             "com/legend/frontoracle/FrontTiming.java",
             // 2026-11-06, phase 2 step 5's oracle (f00bbc98d): Java's engine JSON asks the oracle's model texts at the
             // engine's dialect alone, the one the engine's JSON is written at -- that dialect is its subject
-            "com/legend/frontoracle/FrontEngineAnswers.java");
+            "com/legend/frontoracle/FrontEngineAnswers.java",
+            // 2026-11-12, phase 3 slice 1b's model differential (docs/rust-port/PHASE3.md): Java's text door asked every
+            // model text of the front oracle at each dialect it is asked at, as the Rust door is -- the dialects are its
+            // subject, as the front oracle's
+            "com/legend/frontoracle/ModelAnswers.java");
 
     @Test
     void theCompilerLayerNeverTouchesTheParser() throws IOException {

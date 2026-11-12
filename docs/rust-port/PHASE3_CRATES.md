@@ -1,8 +1,8 @@
 # Rust port — phase 3's crates (2026-11-11)
 
-**Status: the map phase 3 builds to, written with slice 1a (PHASE3.md, step 1).** Only the crates slice 1a fills exist
-(`lite-base`, `lite-types`, and the guards, `lite-guards`); the rest are named here and made by the slice that first
-fills each. The owner's ruling it follows: `PHASE3_DESIGN.md` §6 ruling 6 (`lite-core` split along
+**Status: the map phase 3 builds to, written with slice 1a (PHASE3.md, step 1).** The crates slices 1a and 1b fill exist
+(`lite-base`, `lite-types` and the guards, `lite-guards`; `lite-error`, `lite-model`, `lite-builtin`, `lite-platform`, 2026-11-12);
+the rest are named here and made by the slice that first fills each. The owner's ruling it follows: `PHASE3_DESIGN.md` §6 ruling 6 (`lite-core` split along
 `tools/deps/core-layers.txt`, so that "F must not trigger G" is a compile error) and `PHASE3_SHIM_DESIGN.md` §10. Where a
 boundary is a choice the layers file leaves open, it is listed in §5 for the owner.
 
@@ -21,13 +21,13 @@ says, for each crate that exists, its layers and its exact dependencies, and `li
 | `sql` and `execution_plan`'s MirJson | `lite-sql` | `lite-json` | | phase 1 |
 | `sql_dialect` and `rust_dialect`'s seam JSON | `lite-dialect` | `lite-sql`, `lite-json` | | phase 1 |
 | `parser`, `protocol`'s records, `rust_parser`'s doors | `lite-front` | `lite-javacompat` (`error`, `spi`, `values` when needed) | | phase 2; its source tree `Arc` since 2026-11-11 |
-| `error` | `lite-error` | `lite-base` | | the error contract, `LegendCompileException`'s phases |
-| `values` | `lite-values` | `lite-base` | | |
+| `error` | `lite-error` | `lite-base` | | **made** (slice 1b): the error contract, `LegendCompileException`'s phases; reaches nothing |
+| `values` | `lite-values` | `lite-base` | | not made in slice 1b: nothing in `model`, `door`, `builtin` or `platform` reads `com.legend.values` (its records are `lite-front`'s) |
 | `cache` | `lite-cache` | `lite-base` | `lite-front`'s `sha256` | the content `Hash` only; `HandleStore` is exec's and stays Java |
 | `diagnostics` | `lite-diagnostics` | `lite-base` | | `testplan`'s verdict batch reads it |
-| `model` | `lite-model` | `lite-base`, `lite-front` (protocol) | | the model records, `ModelIndex` (step 2) |
-| `builtin` with `door` | `lite-builtin` | `lite-base`, `lite-error`, `lite-model`, `lite-front` | | `door` is 67 lines and an exact merge: every layer that reaches `door` reaches `builtin`, and `door`'s deps are within `builtin`'s |
-| `platform` | `lite-platform` | `lite-base`, `lite-builtin`, `lite-error`, `lite-model` | | |
+| `model` | `lite-model` | `lite-base`, `lite-front` (protocol) | `lite-javacompat`'s white space | **made** (slice 1b): the model records (generated) and the converters from the protocol records; `ModelIndex` is the names slice's |
+| `builtin` with `door` | `lite-builtin` | `lite-base`, `lite-error`, `lite-model`, `lite-front` | | `door` is 67 lines and an exact merge: every layer that reaches `door` reaches `builtin`, and `door`'s deps are within `builtin`'s. **Made** (slice 1b): reaches `lite-error`, `lite-front`, `lite-model` |
+| `platform` | `lite-platform` | `lite-base`, `lite-builtin`, `lite-error`, `lite-model` | | **made** (slice 1b): reaches all four |
 | `compiler_element_type` | `lite-types` | `lite-base`, `lite-builtin`, `lite-model`, `lite-platform`, `lite-front`, `lite-sql` | `lite-sql`'s `SqlType`, `lite-javacompat`'s white space | **made** (slice 1a): reaches `lite-base`, `lite-sql`, `lite-javacompat` today |
 | `database` | `lite-database` | `lite-base`, `lite-error`, `lite-model`, `lite-dialect` | `lite-dialect` | a declared database type to its dialect |
 | `compiler`, split (§2) | `lite-names`, `lite-element`, `lite-spec` | `compiler`'s line, and each part the parts before it | | D and the model index; F; G and G½ |
@@ -128,3 +128,32 @@ numbers.
 5. **Subtyping**: not on the type, so not in `lite-types`; frozen nowhere yet. If the owner wants the platform's
    lattice frozen now (`isSubtype` over the platform FQNs on the boot model), it is a few lines more in
    `rust/oracles/types/TypeOracle.java` and a model on its class path.
+6. **The model's records generated** (slice 1b): a third mode of `FrontCodegen`, held by its diff test, the records'
+   methods written by hand beside them. Alternative: hand-written records, held only by the differential.
+7. **A map on a model record is `Arc<[(K, V)]>` in Java's iteration order** (every model map is a `LinkedHashMap`'s view;
+   lookups are scans or the builder's `LinkedMap`). Alternative: a hash map beside an order.
+8. **`lite-values` is not made yet**: nothing ported so far reads `com.legend.values`.
+9. **`DecisionProbe` is not ported** (a measurement probe, `ServiceLoader`-bound, a no-op unless `LL_SHADOW` is set).
+10. **The tables' Java dump lives beside its frozen files** (`rust/oracles/builtin/`, a source program with its own copy
+    of the record codec, as `rust/oracles/types/TypeOracle.java` does), never compiled by Bazel; the model differential's
+    Java side is in core's test tree (`frontoracle/ModelAnswers.java`, beside the front oracle's, allowlisted in
+    `ParserBoundaryArchTest` for naming a dialect, as they are).
+11. **Subtyping (ruling 22)** agrees with the live Java on every class whose walk meets only FQN-spelled supertypes (366 of
+    the boot model's 509); the 143 that meet a prelude supertype spelled by its simple name wait for name resolution
+    (the names slice) and are not guessed. The live check is a test run by hand while Java exists, not frozen.
+
+## 6. What slice 1b made (2026-11-12)
+
+`lite-error` (layer `error`), `lite-model` (`model`), `lite-builtin` (`builtin` and `door`), `lite-platform`
+(`platform`); PHASE3.md's slice 1b entry has the numbers. The shape each follows:
+
+- **The model tier is `Arc`, generated.** The model's records are written by a mode of `FrontCodegen` from the Java's
+  (`//core:model_records_rs`), as the protocol records are (`//core:front_records_rs`), so they cannot drift while
+  Java exists and the canonical text both sides write comes from one schema. A record held as `Arc<R>`, a list
+  `Arc<[T]>`, a map `Arc<[(K, V)]>` in Java's iteration order; equality derived (no model record writes its own).
+- **The converters from the protocol records are `lite-model`'s**, as they are `com.legend.model`'s in Java; the text's
+  door (67 lines) is `lite-builtin`'s, merged as §1 says.
+- **The platform's generated tables are generated in Rust too**, by the generators that write the Java, from the same
+  inputs (`//spec:gen_natives_rs`, `//spec:gen_dynafn_rs`); the resources are read as the same committed files.
+- **The crates above the protocol layer reach its types through `lite-model`'s re-exports** (`JStr`, the protocol
+  records, the codec): `platform`'s line in core-layers.txt lists no `protocol`.
