@@ -459,7 +459,8 @@ by_id!(JavaRoutine);
 
 impl JavaRoutine {
     /// The qualified property this routine implements, as Java's constructor takes it (`derivedOwner`,
-    /// `derivedProperty`; Java sets neither unless both are given), with its lifted FQN
+    /// `derivedProperty`, given together or not at all: Java refuses half of one since 2026-11-12, the owner's ruling,
+    /// and this form cannot spell half), with its lifted FQN
     /// (`DerivedPropertyNames.lifted(owner, property)`, spelled out: a unit test holds it to the model's spelling).
     fn derived(self) -> Option<(&'static str, &'static str, &'static str)> {
         match self {
