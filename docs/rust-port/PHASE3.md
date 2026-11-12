@@ -471,7 +471,8 @@ done, in the order of the design's §3.
        genquery, every edge of it within the layers file (a crate may reach less than its Java layer, never more), and
        the sources to the arena ruling's two rules: `unsafe` only in `lite-base/src/arena.rs` and `lite-ffi`, every
        other crate root `#![forbid(unsafe_code)]` (added to `lite-javacompat`, `lite-json`, `lite-sql`, `lite-dialect`;
-       `lite-front`'s waits on its own work), and a pointer turned into an address only in `lite-base/src/identity.rs`.
+       `lite-front`'s waited on its own work, and was added when its exemption was lifted, below), and a pointer turned
+       into an address only in `lite-base/src/identity.rs`.
        `lite-sql` gained Java's `SqlSource.Pivot.SEPARATOR`, `presented` and `SqlExpr.TDS_NULL_CELL`, which the type
        layer reads from the `sql` layer.
      - *The allocator* (`lite-base/src/arena.rs`, hand-written, no crates.io dependency): 298 lines, 203 of code. A bump

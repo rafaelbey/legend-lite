@@ -136,4 +136,12 @@ rust_test(
     deps = [":lite_front"],
 )
 
+# the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards (2026-11-11,
+# docs/rust-port/PHASE3_CRATES.md §3; lite-front's exemption from them lifted that day, docs/rust-port/PHASE3.md step 1)
+filegroup(
+    name = "sources",
+    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]) + ["Cargo.toml"],
+    visibility = ["//rust/lite-guards:__pkg__"],
+)
+
 guards_package()

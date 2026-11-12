@@ -307,6 +307,7 @@ The dated record of moved pins, rosters and ratchets (the rules: "Recording a mo
 Newest first, at most 20 lines. Seeded from the last entries of the cut log; "D<n>" is the decisions log of the
 landing's program.
 
+- 2026-11-11 — lite-front's exemption from the Rust source guards lifted (docs/rust-port/PHASE3.md step 1): `rust/lite-guards/tests/guards.rs`'s `CARGO_ONLY` loses `lite-front`, its one entry (dated comment), so `//rust/lite-guards:guards_test` scans lite-front's sources under Bazel too (its new `sources` filegroup, in the test's `_SOURCES`) and holds its root's new `#![forbid(unsafe_code)]` under both builds; a tightening, every other guard list unchanged. Branch `worktree-rust-port-phase0`.
 - 2026-11-11 — rulings 27 and 28 (`bcf60ed8f`): `rust/oracles/front/deliberate-differences.tsv` 760 -> 768 asks (`pmcd` at `LEGEND_ENGINE` and `document` 212 -> 216 each, `ruling27` in the fourth column: four HostedService corpus texts whose test suites' island is broken answer the list's refusal, as the engine does, now that it stands where the list does; one listed pair, `72b6e615`, re-answered in the list's words at its place; register S362); no floor lowered (identical + listed unchanged), every other pin and list unchanged. Branch `worktree-rust-port-phase0`.
 - 2026-11-11 — the owner's rulings 16 and 17 (docs/rust-port/PHASE3_SHIM_DESIGN.md §10): the browser modules re-frozen from TeaVM's build of `main` at `c4a39e06d` (`c75194013`: PlanJson 31, so the three targets the merge left red pass), and `FROZEN_MODULE_DIFFERS` (`wasm/frozen_module_differs.json`) regenerated against them, unchanged: 66 inputs, byte for byte; `CodeShapeGuardrailTest`'s allowlist loses `EngineStyleH2.frameDepth` and `anonDistinctDepth`, fields gone since the Java renderer became a shim (`c944218fc`); `rust/BASELINE.tsv` is `main` at `c4a39e06d` (552 targets, 550 passed, 2 skipped), the first kept as `rust/BASELINE-cf73e6ef7.tsv` (`9360a3950`). Branch `worktree-rust-port-phase0`.
 - 2026-11-10 — `main` merged into the Rust port at `c4a39e06d` (merge `9c08abbc7`, replay `0d6352c86` to `29e30e43c`, re-freeze `d55a29a96`): the register's port rows S128-S196 renumbered S300-S368 (`8191cac19`); `ArchitectureTest`'s static-state register (main's) loses the seven fields the port deleted (`StableScanOrder.FIRINGS`, `SQLite.MONTHS`/`DAYS`, `SqliteDigests.MD5_K`/`MD5_S`/`SHA256_K`, `TokenStream.TOKEN_TYPES`), and `DanglingStateGuardTest`'s slot floor 19 -> 18 (the same `FIRINGS`); `CodeShapeGuardrailTest`'s allowlist gains `RustDialect.factsRead` and `EngineStyleH2.lastRendered` (main's annotated-type scan reached the shims); every other guard main's text with the port's dated moves; three targets red at the merge, one cause (the frozen browser planner writes PlanJson 19, main's host runner reads 31: `//engine-client:plan_runner_test`, `//datacube:table_output_test`, `//datacube:verify_flow_test`; docs/rust-port/PHASE2.md §4); parser-equivalence's `own_corpus.matched` 3091 -> 3025 (main's +82 snippets, the port's -66; diffs 0); the dialect oracles re-frozen from main's Java, every differential floor raised to all of its dialect's inputs (DuckDb 16154 -> 16225, H2 21847 -> 22259, ...; H2Modern's floor gone with the class).
@@ -370,16 +371,14 @@ landing's program.
 - 2026-11-01 — The product path's overhead taken out, every output byte-identical; `TenetRatchetTest`'s ceiling 21 → 9,
   the ninth site named (the direct timestamp read; the user's yes; the ceiling had stayed at 21 after the legacy
   executor's sites went on 2026-10-27). Branch `claude/product-path-perf` from `efff0406`, PR #85.
-- 2026-10-30 — Step C, the root dissolved (D73): the ledger's `ROOT_CLASSES` is the five doors, `PLANNER_CLASSES` (7)
-  and `DRIVER_CLASSES` (26) new; two new rules (`theDriverHasOneCaller`, `plannerIsExecutionFree`); size pins
-  AssertVerdicts 1258 → 1259 and BodyDriver 2313 → 2321 (the import lines the move needs). PR #82, `caa4bb8c2`.
 
 > Cut in the 2026-11 docs cleanup: the Maven-era chain and its log (2026-08-02 to 2026-09-22: `tools/allgates.sh`, the
 > root-flag trap, the budget decisions, the batch chain logs, the hand-kept ratchet table, the CI leg, fork policy and
 > build-once notes) and about 400 per-landing entries (2026-09-10 to 2026-11-01). Full text:
 > `git show de2745351:docs/GATES.md`. Left since for the 20-line limit: the 2026-10-30 java.sql revamp step 3 entry (D69,
 > `dfbbcfa5`; `git show e02b2cb0a:docs/GATES.md`), the seam's step B1 entry (D71, `7a6c899e`; `git show
-> 9360a3950:docs/GATES.md`) and its step B2 entry (D72, `9f44d43c`; `git show bcf60ed8f:docs/GATES.md`). Kept by pointer at `main`'s merge into the Rust port
+> 9360a3950:docs/GATES.md`), its step B2 entry (D72, `9f44d43c`; `git show bcf60ed8f:docs/GATES.md`) and step C's (D73,
+> `caa4bb8c2`; `git show ef41660f0:docs/GATES.md`). Kept by pointer at `main`'s merge into the Rust port
 > (2026-11-10): `main`'s own per-landing entries of 2026-10-30 to 2026-11-10 (the test-is-the-product
 > plan's M0 to M10c, the seam program's S1a to S4a, the walker deletion, the plan-as-data slices, the
 > lane sessions' rounds), written after this file's cut in the entry shape the cleanup retired, and its

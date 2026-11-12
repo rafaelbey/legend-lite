@@ -97,9 +97,9 @@ file as `//tools/deps:core_layering_test` holds Bazel's:
   allows its arena module alone, with `clippy::undocumented_unsafe_blocks` denied); a pointer becomes an address
   (`as_ptr`, `{:p}`, `ptr::eq`, `Arc::ptr_eq`, `addr`, `addr_eq`, `expose_provenance`) only in
   `lite-base/src/identity.rs`, but for `lite-ffi`'s C strings and one test's `ptr::eq` in `lite-dialect/src/java_time.rs`
-  (a count, so it cannot grow); `identity`'s maps and sets have no iteration method. Under Bazel `lite-front`'s sources
-  are not handed to the test (its BUILD file belongs to the source-tree work in flight on 2026-11-11, dated in the
-  test); cargo's run scans them.
+  (a count, so it cannot grow); `identity`'s maps and sets have no iteration method. Every crate's sources are handed
+  to the test under Bazel too: `lite-front`'s were not until its exemption was lifted on 2026-11-11, the source-tree
+  work landed (its `sources` filegroup and its root's `forbid`, PHASE3.md step 1).
 
 ## 4. What slice 1a made
 

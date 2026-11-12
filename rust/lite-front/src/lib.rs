@@ -18,6 +18,10 @@
 //! `doors::lambda_json`); step 6a: `probes`, what `//parser-equivalence`'s gate tests asked of the Java lexer's and
 //! parser's internals (section headers, the strict element sites, the Database sites, the known sections).
 
+// 2026-11-11 (docs/rust-port/PHASE3_CRATES.md §3; the exemption lifted, docs/rust-port/PHASE3.md step 1): no unsafe
+// code but lite-base's arena and lite-ffi's boundary
+#![forbid(unsafe_code)]
+
 pub mod activator_parser;
 pub mod codec;
 pub mod connection_emitters;

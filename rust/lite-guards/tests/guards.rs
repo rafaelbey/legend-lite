@@ -20,12 +20,10 @@ use std::path::{Path, PathBuf};
 const POLICY: &str = "rust/lite-guards/crate-layers.txt";
 const LAYERS: &str = "tools/deps/core-layers.txt";
 
-/// The crates whose sources Bazel does not hand this test, each with why; cargo scans them still.
-const CARGO_ONLY: &[(&str, &str)] = &[(
-    "lite-front",
-    "2026-11-11: its BUILD file is the source-tree flip's, in flight in this worktree; it holds no unsafe and no address \
-     (cargo's run of this test holds both)",
-)];
+/// The crates whose sources Bazel does not hand this test, each with why; cargo scans them still. None: lite-front's,
+/// the one there was (its BUILD file the source-tree flip's, in flight), was lifted on 2026-11-11 with the flip landed,
+/// its sources handed and its root forbidding unsafe code (docs/rust-port/PHASE3.md step 1).
+const CARGO_ONLY: &[(&str, &str)] = &[];
 
 /// Where a pointer may become an address besides lite-base's identity module, each with why.
 const ADDRESS_ALLOWED: &[(&str, usize, &str)] = &[

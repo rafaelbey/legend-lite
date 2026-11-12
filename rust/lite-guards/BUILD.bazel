@@ -24,11 +24,13 @@ _LIBRARIES = {
     scope = [library],
 ) for crate, library in _LIBRARIES.items()]
 
-# every crate's sources and manifest but lite-front's (the test's CARGO_ONLY says why; cargo's run reads it)
+# every crate's sources and manifest (lite-front's since 2026-11-11, its exemption lifted: docs/rust-port/PHASE3.md
+# step 1)
 _SOURCES = [
     "//rust/lite-base:sources",
     "//rust/lite-dialect:sources",
     "//rust/lite-ffi:sources",
+    "//rust/lite-front:sources",
     "//rust/lite-javacompat:sources",
     "//rust/lite-json:sources",
     "//rust/lite-sql:sources",
