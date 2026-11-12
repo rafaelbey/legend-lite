@@ -1048,7 +1048,11 @@ impl RowGetter {
         &BY_PROPERTY
     }
 
-    /// `of(appliedName)`: the accessor an applied (bare) name spells -- the name after its last `::` -- or none.
+    /// `of(appliedName)`: the accessor an applied (bare) name spells -- the name after its last `::` -- or none. The
+    /// invariant (2026-11-12, the owner's ruling): an applied spelling, never a lifted FQN, which is [`of_lifted`]'s and
+    /// answers none here (its callers pass an applied function's name; lifted names are made after parsing).
+    ///
+    /// [`of_lifted`]: RowGetter::of_lifted
     pub fn of(applied_name: Option<&str>) -> Option<RowGetter> {
         let applied = applied_name?;
         let key = applied.rfind("::").map_or(applied, |cut| &applied[cut + 2..]);
@@ -1322,6 +1326,20 @@ mod tests {
         assert_eq!(RowGetter::of_lifted(Some("$prop$get")), None);
         assert!(RowGetter::is_owner(EXECUTE_ROW_OWNER));
         assert!(!RowGetter::is_owner("meta::pure::tds::TabularDataSet"));
+    }
+
+    #[test]
+    fn each_row_getter_lookup_reads_its_own_spelling() {
+        // the invariant pinned for every getter (2026-11-12, the owner's ruling; Java's NativeRegistryGovernanceTest
+        // holds the same): of reads an applied spelling, of_lifted a lifted FQN, neither answers the other's
+        for &g in RowGetter::VALUES {
+            let qualified = format!("{}::{}", g.owner(), g.property());
+            assert_eq!(RowGetter::of(Some(g.property())), Some(g));
+            assert_eq!(RowGetter::of(Some(&qualified)), Some(g));
+            assert_eq!(RowGetter::of_lifted(Some(g.fqn())), Some(g));
+            assert_eq!(RowGetter::of(Some(g.fqn())), None);
+            assert_eq!(RowGetter::of_lifted(Some(g.property())), None);
+        }
     }
 
     #[test]
