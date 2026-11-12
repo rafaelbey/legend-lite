@@ -1,0 +1,80 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# The platform's generated tables in Rust (2026-11-12, docs/rust-port/PHASE3.md slice 1b), written by the generators
+# that write the Java beside them from the same pinned sources (spec/BUILD.bazel, "THE GENERATORS"): the native catalog
+# from Pure.java as //spec:gen_natives writes it, the engine's dynafunction registry as DynaFn.java holds it.
+# Regenerate with `bazel run //rust/lite-builtin:update_generated`; its diff test (in //:generated) fails when a table
+# moves.
+write_source_files(
+    name = "update_generated",
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe platform's tables moved -- regenerate: bazel run //rust/lite-builtin:update_generated (and //:update_generated for the Java beside them)",
+    files = {
+        "src/dyna_fn.rs": "//spec:gen_dynafn_rs",
+        "src/natives.rs": "//spec:gen_natives_rs",
+    },
+    visibility = ["//:__pkg__"],
+)
+
+# the platform's declarations and the text's door (src/lib.rs): the resources the Java reads, read by the same files
+_RESOURCES = [
+    "//core:src/main/resources/com/legend/builtin/engine-handlers.tsv",
+    "//core:src/main/resources/com/legend/builtin/prelude.pure",
+]
+
+rust_library(
+    name = "lite_builtin",
+    srcs = glob(["src/**/*.rs"]),
+    compile_data = _RESOURCES,
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    version = "0.1.0",
+    visibility = ["//rust:__subpackages__"],
+    deps = [
+        "//rust/lite-error:lite_error",
+        "//rust/lite-front:lite_front",
+        "//rust/lite-model:lite_model",
+    ],
+)
+
+rust_test(
+    name = "lite_builtin_test",
+    crate = ":lite_builtin",
+    edition = "2024",
+    visibility = ["//gates:__pkg__"],
+)
+
+# The model differential (tests/model_differential.rs): every model text of the front oracle (//rust/oracles:front_questions)
+# at every dialect asked, through this crate's door, its canonical text held to Java's door's (the SHA-256 per ask,
+# frozen: //rust/oracles:model_answers, rust/oracles/model/MANIFEST.tsv): all 87,564 identical, no list of differences.
+# Large: 87,564 parses and conversions, about 25 s optimized.
+rust_test(
+    name = "model_differential_test",
+    size = "large",
+    srcs = ["tests/model_differential.rs"],
+    args = ["--ignored"],
+    data = [
+        "//rust/oracles:front_questions",
+        "//rust/oracles:model_answers",
+    ],
+    edition = "2024",
+    env = {
+        "LITE_MODEL_ANSWERS": "$(rootpath //rust/oracles:model_answers)",
+        "LITE_MODEL_QUESTIONS": "$(rootpath //rust/oracles:front_questions)",
+    },
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":lite_builtin",
+        "//rust/lite-front:lite_front",
+    ],
+)
+
+# the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards
+filegroup(
+    name = "sources",
+    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]) + ["Cargo.toml"],
+    visibility = ["//rust/lite-guards:__pkg__"],
+)
+
+guards_package()

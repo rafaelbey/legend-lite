@@ -9,11 +9,15 @@ load("//tools/guards:defs.bzl", "guards_package")
 # deps_<crate>). A crate with a library and no query here fails the test.
 _LIBRARIES = {
     "lite-base": "//rust/lite-base:lite_base",
+    "lite-builtin": "//rust/lite-builtin:lite_builtin",
     "lite-dialect": "//rust/lite-dialect:lite_dialect",
+    "lite-error": "//rust/lite-error:lite_error",
     "lite-ffi": "//rust/lite-ffi:lite_ffi",
     "lite-front": "//rust/lite-front:lite_front",
     "lite-javacompat": "//rust/lite-javacompat:lite_javacompat",
     "lite-json": "//rust/lite-json:lite_json",
+    "lite-model": "//rust/lite-model:lite_model",
+    "lite-platform": "//rust/lite-platform:lite_platform",
     "lite-sql": "//rust/lite-sql:lite_sql",
     "lite-types": "//rust/lite-types:lite_types",
 }
@@ -28,11 +32,15 @@ _LIBRARIES = {
 # step 1)
 _SOURCES = [
     "//rust/lite-base:sources",
+    "//rust/lite-builtin:sources",
     "//rust/lite-dialect:sources",
+    "//rust/lite-error:sources",
     "//rust/lite-ffi:sources",
     "//rust/lite-front:sources",
     "//rust/lite-javacompat:sources",
     "//rust/lite-json:sources",
+    "//rust/lite-model:sources",
+    "//rust/lite-platform:sources",
     "//rust/lite-sql:sources",
     "//rust/lite-types:sources",
 ]

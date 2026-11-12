@@ -1,0 +1,13 @@
+[package]
+name = "lite-builtin"
+version = "0.1.0"
+description = "legend-lite's platform declarations and the text's door (core/'s com.legend.builtin and com.legend.door, ported)"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+lite-error = { path = "../lite-error" }
+lite-front = { path = "../lite-front" }
+lite-model = { path = "../lite-model" }

@@ -1,0 +1,35 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# legend-lite's platform, ported from core's com.legend.platform (src/lib.rs; docs/rust-port/PHASE3.md, slice 1b,
+# 2026-11-12): the declarations and what executes each.
+rust_library(
+    name = "lite_platform",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    version = "0.1.0",
+    visibility = ["//rust:__subpackages__"],
+    deps = [
+        "//rust/lite-base:lite_base",
+        "//rust/lite-builtin:lite_builtin",
+        "//rust/lite-error:lite_error",
+        "//rust/lite-model:lite_model",
+    ],
+)
+
+rust_test(
+    name = "lite_platform_test",
+    crate = ":lite_platform",
+    edition = "2024",
+    visibility = ["//gates:__pkg__"],
+)
+
+# the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards
+filegroup(
+    name = "sources",
+    srcs = glob(["src/**/*.rs"]) + ["Cargo.toml"],
+    visibility = ["//rust/lite-guards:__pkg__"],
+)
+
+guards_package()

@@ -1,0 +1,22 @@
+# file	what	sha256 of the uncompressed output
+# Made 2026-11-12 on worktree-rust-port-phase0 (core as of b3c01005e: the model package and the text's door as of main's
+# c4a39e06d, frozen there for the port, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 14) by
+# core/src/test/java/com/legend/frontoracle/ModelAnswers.java (its header: the command, what a line is) on the tree's
+# built jars of //core:builtin, :door, :model and their runtime closure, the build's JDK (25.0.4+7-LTS), the Rust parser
+# loaded from rust/lite-ffi built at the same commit (cargo, release), no overlay grammar registered: every model text
+# of rust/oracles/front/questions.jsonl.zst at every dialect it is asked at (["pmcd", dialect]), 87,564 asks over 29,188
+# texts, through Java's door (ModelFromText.parse: the Rust parser through the shim, read back into the protocol records,
+# made the compiler's model by ModelFromProtocol), the answer's canonical text -- A and RecordCodec's JSON of the
+# ParsedModel (every record, every component, in canonical-constructor order, a map in its iteration order), or E, the
+# error's class, its line and column, its message -- hashed: SHA-256 of its UTF-16 units, little-endian. 74,292 answered,
+# 13,272 errors (ParseException 13,200, IllegalStateException 39, UnsupportedOperationException 33). Every map the
+# answers hold is a LinkedHashMap's view (the run checks: no salted order). Run twice: byte-identical. CUT as the front
+# oracle's files are: a line per ask, `dialect TAB hash TAB A|E`, in the questions file's order (the text's sha is the
+# questions file's). Rust's door (rust/lite-builtin's door::parse) agrees on every ask: 87,564 of 87,564
+# (//rust/lite-builtin:model_differential_test). Compressed with `zstd -19 --long=27`.
+# The full texts the hashes are of -- 87,564 canonical texts, 2,903,913,225 bytes of JSON lines {"sha","dialect","form"}
+# -- are archived outside git, for a mismatch to be read once Java is gone:
+# /Users/cocobey73/.local/legend-lite/oracle-archive/model-texts-java.jsonl.zst (54,899,413 bytes, `zstd -d --long=27`),
+# the SHA-256 of its uncompressed text 95b0ef82aeaf692e5c58b369fae02c7f56340fa3cc8dbc921bfa94a47d8604a4
+# (model-texts-java.sha256 beside it; checked 2026-11-12 by decompressing it).
+answers.tsv.zst	ModelAnswers at b3c01005e, cut: [dialect, the canonical text's sha, A or E] per pmcd ask, 87,564 lines	36657e0d48d93020fccda0d4ca367ef72250b4aa7debd1e3467c587709a78c35

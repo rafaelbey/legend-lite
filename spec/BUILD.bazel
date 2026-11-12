@@ -446,6 +446,24 @@ java_run(
     deps = [":dynafn_generator"],
 )
 
+# rust/lite-builtin/src/dyna_fn.rs: the same registry for the Rust port (2026-11-12, docs/rust-port/PHASE3.md slice 1b),
+# from the same sources, so DynaFn.java and the Rust table cannot drift; //rust/lite-builtin:update_generated writes it
+java_run(
+    name = "gen_dynafn_rs",
+    srcs = ENGINE_TREE,
+    outs = ["generated/dyna_fn.rs"],
+    arguments = [
+        "{ENGINE_ROOT}",
+        "{OUT}",
+        "--rust",
+    ],
+    main_class = "com.legend.generators.DynaFnGenerator",
+    mnemonic = "Generate",
+    roots = ENGINE_ROOT,
+    visibility = ["//rust/lite-builtin:__pkg__"],
+    deps = [":dynafn_generator"],
+)
+
 # docs/engine-dynafunctions.tsv: the engine's reference table, which engine dialect extensions register each
 # dynafunction (the dialect program's D10, 2026-10-18: DynaFn.java names no database). No build reads it.
 java_run(
@@ -484,6 +502,24 @@ java_run(
     mnemonic = "Generate",
     roots = _ROOTS,
     visibility = ["//core:__pkg__"],
+    deps = [":generators"],
+)
+
+# rust/lite-builtin/src/natives.rs: the same catalog for the Rust port (2026-11-12, docs/rust-port/PHASE3.md slice 1b),
+# read from Pure.java as :gen_natives writes it, so the two cannot drift at an upstream bump;
+# //rust/lite-builtin:update_generated writes it
+java_run(
+    name = "gen_natives_rs",
+    srcs = [":gen_natives"],
+    outs = ["generated/natives.rs"],
+    arguments = [
+        "--rust",
+        "$(execpath :gen_natives)",
+        "{OUT}",
+    ],
+    main_class = "com.legend.generators.NativesGenerator",
+    mnemonic = "Generate",
+    visibility = ["//rust/lite-builtin:__pkg__"],
     deps = [":generators"],
 )
 

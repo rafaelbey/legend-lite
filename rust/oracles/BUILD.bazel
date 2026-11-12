@@ -142,4 +142,15 @@ zstd_decompress(
     ],
 )
 
+# Java's door's answer to every model text of the front oracle, at every dialect asked (2026-11-12, phase 3 slice 1b;
+# model/MANIFEST.tsv): the canonical text's SHA-256 per ask, frozen before the Java goes; the model differential
+# (//rust/lite-builtin:model_differential_test) reads it.
+zstd_decompress(
+    name = "model_answers",
+    testonly = True,
+    src = "model/answers.tsv.zst",
+    out = "model/answers.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
 guards_package()

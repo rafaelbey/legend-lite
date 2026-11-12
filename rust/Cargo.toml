@@ -5,12 +5,16 @@
 resolver = "3"
 members = [
     "lite-base",
+    "lite-builtin",
     "lite-dialect",
+    "lite-error",
     "lite-ffi",
     "lite-front",
     "lite-guards",
     "lite-javacompat",
     "lite-json",
+    "lite-model",
+    "lite-platform",
     "lite-sql",
     "lite-types",
 ]

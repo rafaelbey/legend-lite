@@ -1,0 +1,46 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# The model's records in Rust, generated from the Java records (//core:model_records_rs, FrontCodegen's model mode;
+# 2026-11-12): regenerate with `bazel run //rust/lite-model:update_generated`; its diff test (in //:generated) fails
+# when the records move.
+write_source_files(
+    name = "update_generated",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe model's records moved -- regenerate: bazel run //rust/lite-model:update_generated",
+    files = {"src/records.rs": "//core:model_records_rs"},
+    visibility = ["//:__pkg__"],
+)
+
+# legend-lite's model, ported from core's com.legend.model (src/lib.rs; docs/rust-port/PHASE3.md, slice 1b,
+# 2026-11-12): the model's records (Arc, generated) and the converters from the parser's protocol records.
+rust_library(
+    name = "lite_model",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    version = "0.1.0",
+    visibility = ["//rust:__subpackages__"],
+    deps = [
+        "//rust/lite-base:lite_base",
+        "//rust/lite-front:lite_front",
+        "//rust/lite-javacompat:lite_javacompat",
+    ],
+)
+
+rust_test(
+    name = "lite_model_test",
+    crate = ":lite_model",
+    edition = "2024",
+    visibility = ["//gates:__pkg__"],
+)
+
+# the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards
+filegroup(
+    name = "sources",
+    srcs = glob(["src/**/*.rs"]) + ["Cargo.toml"],
+    visibility = ["//rust/lite-guards:__pkg__"],
+)
+
+guards_package()

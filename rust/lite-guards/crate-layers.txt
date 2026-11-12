@@ -26,3 +26,9 @@ lite-front	parser protocol rust_parser	2	lite-javacompat
 lite-base	base	3
 lite-types	compiler_element_type	3	lite-base lite-javacompat lite-sql
 lite-guards	top	3
+# 2026-11-12, phase 3 slice 1b (docs/rust-port/PHASE3.md): the errors, the model and its converters from the protocol
+# records, the platform's declarations with the text's door (door merged into builtin: PHASE3_CRATES.md §1), the platform
+lite-error	error	3
+lite-model	model	3	lite-base lite-front lite-javacompat
+lite-builtin	builtin door	3	lite-error lite-front lite-model
+lite-platform	platform	3	lite-base lite-builtin lite-error lite-model

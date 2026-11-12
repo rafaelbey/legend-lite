@@ -1,0 +1,29 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# legend-lite's user-facing error taxonomy, ported from core's com.legend.error (src/lib.rs; docs/rust-port/PHASE3.md,
+# slice 1b, 2026-11-12): the compile errors and their phases.
+rust_library(
+    name = "lite_error",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    version = "0.1.0",
+    visibility = ["//rust:__subpackages__"],
+)
+
+rust_test(
+    name = "lite_error_test",
+    crate = ":lite_error",
+    edition = "2024",
+    visibility = ["//gates:__pkg__"],
+)
+
+# the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards
+filegroup(
+    name = "sources",
+    srcs = glob(["src/**/*.rs"]) + ["Cargo.toml"],
+    visibility = ["//rust/lite-guards:__pkg__"],
+)
+
+guards_package()

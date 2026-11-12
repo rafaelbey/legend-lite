@@ -7,6 +7,15 @@ name = "lite-base"
 version = "0.1.0"
 
 [[package]]
+name = "lite-builtin"
+version = "0.1.0"
+dependencies = [
+ "lite-error",
+ "lite-front",
+ "lite-model",
+]
+
+[[package]]
 name = "lite-dialect"
 version = "0.1.0"
 dependencies = [
@@ -14,6 +23,10 @@ dependencies = [
  "lite-json",
  "lite-sql",
 ]
+
+[[package]]
+name = "lite-error"
+version = "0.1.0"
 
 [[package]]
 name = "lite-ffi"
@@ -43,6 +56,25 @@ name = "lite-json"
 version = "0.1.0"
 dependencies = [
  "lite-javacompat",
+]
+
+[[package]]
+name = "lite-model"
+version = "0.1.0"
+dependencies = [
+ "lite-base",
+ "lite-front",
+ "lite-javacompat",
+]
+
+[[package]]
+name = "lite-platform"
+version = "0.1.0"
+dependencies = [
+ "lite-base",
+ "lite-builtin",
+ "lite-error",
+ "lite-model",
 ]
 
 [[package]]

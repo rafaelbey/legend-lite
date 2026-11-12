@@ -66,6 +66,14 @@ test_suite(
         "//rust/lite-types:lite_types_test",
         "//rust/lite-types:type_differential_test",
         "//rust/lite-guards:guards_test",
+        # phase 3's model and platform declarations (docs/rust-port/PHASE3.md, slice 1b, 2026-11-12): the errors, the
+        # model's records and converters, the text's door with its differential against Java's door over every model
+        # text of the front oracle, the platform's tables and their dump against Java's, the platform
+        "//rust/lite-error:lite_error_test",
+        "//rust/lite-model:lite_model_test",
+        "//rust/lite-builtin:lite_builtin_test",
+        "//rust/lite-builtin:model_differential_test",
+        "//rust/lite-platform:lite_platform_test",
         # the shim's reader: every Java answer read back by the generated reader is the records written
         "//core:front_reader_test",
         # the planner on java.base alone (P3-19): seconds

@@ -1957,6 +1957,29 @@ java_run(
     deps = [":front_codegen"],
 )
 
+# The model's records in Rust (2026-11-12, docs/rust-port/PHASE3.md slice 1b: FrontCodegen's model mode): every record of
+# com.legend.model the compiler's model is made of, by reflection, with the lossless codec's writer, each component an
+# Option exactly where its source says @Nullable, so the model's sources are inputs. //rust/lite-model:update_generated
+# writes it to rust/lite-model/src/records.rs.
+java_run(
+    name = "model_records_rs",
+    testonly = True,
+    srcs = glob(["src/main/java/com/legend/model/*.java"]) + [
+        "src/main/java/com/legend/Compiler.java",
+    ],
+    outs = ["front/model_records.rs"],
+    arguments = [
+        "model",
+        "{OUT}",
+        "{MAIN}",
+    ],
+    main_class = "com.legend.frontoracle.FrontCodegen",
+    mnemonic = "FrontCodegen",
+    roots = {"src/main/java/com/legend/Compiler.java": "{MAIN}"},
+    visibility = ["//rust/lite-model:__pkg__"],
+    deps = [":front_codegen"],
+)
+
 # The same records' reader in Java (FrontCodegen's java mode): the Rust parser's answer read back into the protocol
 # records, generated because the product bans reflection. Committed as src/main/java/com/legend/ffi/FrontRecords.java
 # (_GENERATED below).
@@ -1995,6 +2018,8 @@ legend_java_library(
         "src/test/java/com/legend/frontoracle/RecordCodec.java",
     ],
     deps = [
+        # the model's records (2026-11-12, the model mode: //core:model_records_rs)
+        ":model",
         ":parser",
         ":protocol",
     ],
@@ -2035,7 +2060,12 @@ exports_files(
     list(_GENERATED.keys()) + [
         "src/main/resources/com/legend/builtin/native-membership.tsv",
     ],
-    visibility = ["//spec:__pkg__"],
+    visibility = [
+        # the Rust port reads the platform's resources as the Java reads them (2026-11-12, docs/rust-port/PHASE3.md
+        # slice 1b: prelude.pure, engine-handlers.tsv)
+        "//rust/lite-builtin:__pkg__",
+        "//spec:__pkg__",
+    ],
 )
 
 # core's main Java sources as TEXT — the prelude generator reads what the

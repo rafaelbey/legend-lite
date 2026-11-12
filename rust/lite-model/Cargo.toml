@@ -1,0 +1,13 @@
+[package]
+name = "lite-model"
+version = "0.1.0"
+description = "legend-lite's model records (core/'s com.legend.model, ported): the compiler's model, Arc, and its converters from the protocol records"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+lite-base = { path = "../lite-base" }
+lite-front = { path = "../lite-front" }
+lite-javacompat = { path = "../lite-javacompat" }

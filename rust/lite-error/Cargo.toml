@@ -1,0 +1,10 @@
+[package]
+name = "lite-error"
+version = "0.1.0"
+description = "legend-lite's user-facing error taxonomy (core/'s com.legend.error, ported): the compile errors and their phases"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
