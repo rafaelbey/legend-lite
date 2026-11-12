@@ -259,7 +259,8 @@ family! {
 by_id!(LowererForm);
 
 impl LowererForm {
-    /// `isBivariateMap(id)`: rowMapper / wavgRowMapper -- the bi-variate aggregate map bodies.
+    /// `isBivariateMap(id)`: rowMapper / wavgRowMapper -- the bi-variate aggregate map bodies. The invariant (2026-11-12,
+    /// the owner's ruling): a resolved callee's id, never none -- Java refuses a null, and `&FunctionId` cannot be one.
     pub fn is_bivariate_map(id: &FunctionId) -> bool {
         matches!(
             LowererForm::by_id().get(id),
