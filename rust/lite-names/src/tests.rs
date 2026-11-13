@@ -1072,3 +1072,43 @@ fn a_primitive_extensions_type_variables_ride_the_rebuild_and_their_types_resolv
         assert!(text.contains("\"a::C\""), "and its type resolves in the element's scope: {text}");
     });
 }
+
+/// S376 (2026-11-13, the names landings, ruling 32): a view column whose operation reads a column or a table its
+/// database does not have is refused in the engine's words (`Can't find column 'c'`, `Can't find table 'T' in schema 'S'
+/// and database 'D'`), the plain column mapping's and a nested reference alike; an aggregate is typed at any arity as
+/// the engine types it (KnowledgeLayerTest's twin).
+#[test]
+fn a_view_reading_a_missing_column_is_refused_and_an_aggregate_is_typed_at_any_arity() {
+    on_parse_stack(|| {
+        let m = model(concat!(
+            "###Relational\n",
+            "Database a::Db (\n",
+            "  Table T (ID INTEGER PRIMARY KEY, S VARCHAR(10))\n",
+            "  View V1 (X: T.NOPE)\n",
+            "  View V2 (X: concat(T.S, T.NOPE))\n",
+            "  View V3 (X: U.ID)\n",
+            "  View V4 (C0: count(), C2: count(T.ID, T.S), M2: max(T.ID, T.ID), A2: average(T.ID, T.ID))\n",
+            ")\n"
+        ));
+        let ix = ModelIndex::from(&m).unwrap();
+        let db = j("a::Db");
+        let arena = lite_base::QueryArena::new();
+        let signature = |name: &str| {
+            let v = ix.find_view(&db, &j(name)).unwrap().clone();
+            match view_signatures::of(&arena, &ix, &db, &v) {
+                Ok(sig) => sig.columns().iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "),
+                Err(e) => format!("REFUSED {}", e.message().unwrap().lossy()),
+            }
+        };
+        assert_eq!(signature("V1"), "REFUSED Can't find column 'NOPE'");
+        assert_eq!(signature("V2"), "REFUSED Can't find column 'NOPE'");
+        assert_eq!(
+            signature("V3"),
+            "REFUSED Can't find table 'U' in schema 'default' and database 'Db'"
+        );
+        assert_eq!(
+            signature("V4"),
+            "C0:Integer[1], C2:Integer[1], M2:Integer[0..1], A2:Float[1]"
+        );
+    });
+}

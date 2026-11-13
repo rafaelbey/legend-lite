@@ -49,7 +49,7 @@ queries.tsv.zst	NameAnswers' queries: query sha TAB model sha TAB hash, 31,297 l
 # 24 refused: two columns of one name), 11,308 view columns' inferred SQL types, each with the scope and the index, no
 # scope, no lookups (r), 1,485,730 column kinds of every table or view spelling's columns and one absent (n). No stack
 # overflow met. 3,402 distinct forms.
-stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names landings, at the end)	1ba41054009e223b05dad9684dcacd901cd67df8a1808bb80770e72a5c537d95
+stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names landings, at the end)	2106eea364c9464844da896a45f3e62052f46a4c7d712e9c8618e5edd8138d2c
 # CALLS: one line per call shape, the shape's fields then the hash (NameAnswers.callShapes, callForm: the record codec's
 # JSON of the call Calls builds) -- 14,454 shapes: platform 6,504, like 3,380, renamed 2,452, infixRun 732, among 478,
 # infixRunAmong 478, form 370, exact 58, carrier 2; every name the builder's 206 call sites build (read from them), at the
@@ -116,3 +116,9 @@ duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,29
 #    among them), queries, stores, calls and duplicates unchanged. Texts: names-models-texts-java-2026-11-13-landPE.jsonl.zst
 #    (58,297,884 bytes; ba8d54bf0a857b0d08011d33ee26878503e80ee43ef4f5117b81ae2e47511f4d, checked by decompressing it).
 #    lite-names: all five files identical.
+# 6. S376 (a view column reading a column its database has not refused in the engine's words, plain or nested; an
+#    aggregate typed at any arity): stores.tsv moved, 36 of 74,292 lines over 12 texts (1ba41054... -> 2106eea3...: the
+#    views' signatures that read a missing column, now the refusal), models, queries, calls and duplicates unchanged.
+#    Texts: names-stores-texts-java-2026-11-13-land376.jsonl.zst (1,707,550 bytes;
+#    7d247a535c1ec58c2b840311e72418d4b2f2e9f1ad20f0d1da649b7332b55099, checked by decompressing it). lite-names: all five
+#    files identical.
