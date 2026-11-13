@@ -389,8 +389,8 @@ pub fn canonical_table(table: &JStr) -> JStr {
 /// `adoptAssociationQualifiedProperties(parsed, walls)`: association qualified properties adopt into the class that
 /// owns them (the end opposite the one the property returns). A property naming no unique owning end is a model error:
 /// strict (`walls` `None`) throws it; tolerant records the association's first line in `walls` and adopts nothing from
-/// it. The rebuilt model keeps its source, offsets, imports, sources and unclaimed sections, and drops its element spans
-/// (Java's seven-argument `ParsedModel` constructor).
+/// it. The rebuilt model keeps its source, offsets, imports, sources, unclaimed sections and element spans (the spans
+/// since 2026-11-13: Java's seven-argument `ParsedModel` dropped them -- the names fixes, item 1).
 pub fn adopt_association_qualified_properties(
     parsed: &ParsedModel,
     mut walls: Option<&mut LinkedMap<JStr, JStr>>,
@@ -465,7 +465,7 @@ pub fn adopt_association_qualified_properties(
         element_imports: parsed.element_imports.clone(),
         element_sources: parsed.element_sources.clone(),
         unclaimed_sections: parsed.unclaimed_sections.clone(),
-        element_spans: Arc::default(),
+        element_spans: parsed.element_spans.clone(),
     })
 }
 

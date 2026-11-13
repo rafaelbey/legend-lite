@@ -11,14 +11,14 @@
 //! platform's bare-name tiers ([`bare_names`](crate::bare_names)) and records the call's referents on the node.
 //!
 //! **Unchanged is the input.** Every walker answers `None` when nothing in its subtree changed (Java hands back the
-//! very input, `==`, and decides every rebuild on that), and a rebuilt record is built as Java builds it -- including
-//! the convenience constructors that drop a component (a rebuilt name reference, parameter, column, lambda, variable,
-//! collection, property, enum value or element pointer loses its source position; a rebuilt `ColSpec` its type,
-//! annotations and position; a rebuilt `NewInstance` its multiplicity arguments; a rebuilt constraint its external id,
-//! owner and position; a rebuilt function-reference realization its source; a rebuilt embedded property mapping its
-//! primary key; a rebuilt named relation function mapping its primary key; a rebuilt primitive extension its type
-//! variables; a resolved model its unclaimed sections and element spans). Each is listed in docs/rust-port/PHASE3.md,
-//! the names slice, as a Java behaviour ported as it is.
+//! very input, `==`, and decides every rebuild on that), and a rebuilt record is built as Java builds it: with every
+//! component but the names it resolved (since 2026-11-13, the names fixes, items 1 and 2, ruling 28: until then Java's
+//! convenience constructors dropped a rebuilt record's positions, a `ColSpec`'s type and annotations, a `NewInstance`'s
+//! multiplicity arguments, a constraint's external id and owner, a function-reference realization's source, an embedded
+//! or a named relation-function mapping's primary key, and a resolved model's unclaimed sections and element spans; an
+//! embedded mapping's primary key now resolves as a class mapping's does). One drop stays, held back for the owner
+//! because carrying it flips a model's acceptance: a rebuilt primitive extension loses its type variables (PHASE3.md,
+//! the names slice's entry, "the names fixes").
 //!
 //! **Identity**: a schema view is the same record in its schema's list and the database's flat list, and resolved once
 //! for both (PHASE3.md step 0's census, `model.NameResolver.resolvedViews`, class (c)): an [`IdMap`](lite_base::IdMap).
@@ -346,7 +346,8 @@ fn resolve_elements(
     if !changed {
         return Ok(model.clone());
     }
-    // Java's six-argument ParsedModel: the unclaimed sections and the element spans are not carried
+    // every side component survives the rebuild: a resolution rewrites names, nothing else (until 2026-11-13 Java's
+    // six-argument ParsedModel dropped the unclaimed sections and the element spans -- the names fixes, item 1)
     Ok(ParsedModel {
         elements: lite_model::linked::list(resolved),
         imports: model.imports.clone(),
@@ -354,8 +355,8 @@ fn resolve_elements(
         element_offsets: model.element_offsets.clone(),
         element_imports: model.element_imports.clone(),
         element_sources: model.element_sources.clone(),
-        unclaimed_sections: Arc::default(),
-        element_spans: Arc::default(),
+        unclaimed_sections: model.unclaimed_sections.clone(),
+        element_spans: model.element_spans.clone(),
     })
 }
 
