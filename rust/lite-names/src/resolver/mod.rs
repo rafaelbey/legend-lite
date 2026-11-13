@@ -473,8 +473,13 @@ fn resolve_call_candidates(name: &JStr, scope: &Scope<'_>) -> Vec<JStr> {
     }
 }
 
-/// `callTierMatches(name, scope)`: the call tiers' matches for a bare name, empty when none.
+/// `callTierMatches(name, scope)`: the call tiers' matches for a bare name, empty when none. A qualified spelling
+/// matches no tier: it is not prefixed with a package (until 2026-11-13 it was, `pkg::a::b::f` asked of the universe for
+/// every tier -- the names fixes, item 5, ruling 28).
 fn call_tier_matches(name: &JStr, scope: &Scope<'_>) -> Vec<JStr> {
+    if qualified(name) {
+        return Vec::new();
+    }
     let mut out: Vec<JStr> = Vec::with_capacity(2);
     let add = |c: JStr, out: &mut Vec<JStr>| {
         if scope.known.contains(&c) && !out.contains(&c) {

@@ -111,6 +111,35 @@ fn an_ambiguous_name_is_refused_strictly_and_walled_tolerantly() {
     });
 }
 
+/// A qualified call is itself (2026-11-13, the names fixes, item 5, ruling 28): the call tiers no longer prefix it
+/// with a package, so `b::f()` under `import a::*;` is not `a::b::f` (Pure has no relative qualified names).
+#[test]
+fn a_qualified_call_is_never_prefixed_by_a_tier() {
+    on_parse_stack(|| {
+        let m = model(
+            "import a::*;\nfunction a::b::f():String[1] { 'x' }\nfunction c::g():String[1] { b::f() }\n\
+             function c::h():String[1] { a::b::f() }\n",
+        );
+        let r = resolver::resolve(&m).unwrap();
+        let call = |fqn: &str| {
+            let body = r
+                .elements
+                .iter()
+                .find_map(|e| match e {
+                    PackageableElement::FunctionDefinition(f) if f.qualified_name == fqn => Some(f.body[0].clone()),
+                    _ => None,
+                })
+                .expect("the function");
+            match body {
+                VS::AppliedFunction(af) => (af.function.clone(), af.referents.to_vec()),
+                other => panic!("not a call: {other:?}"),
+            }
+        };
+        assert_eq!(call("c::g"), (j("b::f"), vec![]));
+        assert_eq!(call("c::h"), (j("a::b::f"), vec![]));
+    });
+}
+
 #[test]
 fn a_query_resolves_in_the_sectionless_scope_and_against_a_models_universe() {
     on_parse_stack(|| {
