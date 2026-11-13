@@ -81,12 +81,30 @@ import java.util.function.Supplier;
  * ids). {@code --live} also compares {@code M} and {@code I} with the live compiled model's universe
  * ({@code Compiler.compileModel(text).resolutionUniverse()}) and counts what differs (a measurement, never frozen).
  *
+ * <p><b>Stores</b> (the names follow-up, 2026-11-12: the owner's ruling moved {@code RelationalTypeInference},
+ * {@code ViewSignatures}, {@code StoreCompiler.columnType} and {@code MilestoningStrategy} into the names layer, and
+ * with them {@code KnowledgeLayer.columnKind}): per model ask, over the same index {@code X} asks ({@link #storesForm}),
+ * a form of its own -- so the models' forms, frozen before, are unchanged: {@code m} every class's stereotypes'
+ * milestoning strategy, {@code z} every table column's Pure type, {@code y} every view's signature (as
+ * {@code LiftedViews} asks it: the lift's owner database), {@code r} every view column's inferred SQL type (with the
+ * database's scope and the index, as {@code columnKind} and {@code ViewSignatures} ask; with no scope; with no lookups),
+ * {@code n} the column kind of every column of every table or view spelling over the include closure (and one absent
+ * column). {@code columnType} is package-private: asked by reflection.
+ *
+ * <p><b>Calls</b> (the follow-up's other half: {@code Calls} moved into the names layer): every builder of
+ * {@code com.legend.compiler.spec.Calls} over a set of call shapes ({@link #callShapes}): every name its callers build
+ * through it, read from them (2026-11-12), at the arities they use, and a sweep of every bare name the platform's tables
+ * know at arities 0 to 8; each answer the record codec's JSON of the call.
+ *
  * <p>Lines: {@code sha TAB dialect TAB hash TAB A|E} per model ask (a text the door refuses is skipped: the model
- * oracle has it), {@code querySha TAB modelSha TAB hash} per pair, the hash the SHA-256 of the form's UTF-16 units,
- * little-endian. {@code --texts DIR} writes every form too ({@code models.jsonl}, {@code queries.jsonl}) for the archive.
+ * oracle has it), {@code querySha TAB modelSha TAB hash} per pair, {@code sha TAB dialect TAB hash} per model ask for
+ * the stores, {@code shape... TAB hash} per call shape (its fields tab-separated, so the Rust side rebuilds the same
+ * call from the line), the hash the SHA-256 of the form's UTF-16 units, little-endian. {@code --texts DIR} writes every
+ * form too ({@code models.jsonl}, {@code queries.jsonl}, {@code stores.jsonl}, {@code calls.jsonl}) for the archive.
  *
  * <pre>
- *   java ... NameAnswers.java QUESTIONS.jsonl HITS.tsv MODELS-OUT.tsv QUERIES-OUT.tsv [--texts DIR] [--limit N] [--live]
+ *   java ... NameAnswers.java QUESTIONS.jsonl HITS.tsv MODELS-OUT.tsv QUERIES-OUT.tsv STORES-OUT.tsv CALLS-OUT.tsv
+ *       [--texts DIR] [--limit N] [--live]
  * </pre>
  */
 public final class NameAnswers {
@@ -108,10 +126,12 @@ public final class NameAnswers {
         Path hits = Path.of(args[1]);
         Path modelsOut = Path.of(args[2]);
         Path queriesOut = Path.of(args[3]);
+        Path storesOut = Path.of(args[4]);
+        Path callsOut = Path.of(args[5]);
         Path texts = null;
         long limit = Long.MAX_VALUE;
         boolean live = false;
-        for (int i = 4; i < args.length; i++) {
+        for (int i = 6; i < args.length; i++) {
             switch (args[i]) {
                 case "--texts" -> texts = Path.of(args[++i]);
                 case "--limit" -> limit = Long.parseLong(args[++i]);
@@ -125,7 +145,7 @@ public final class NameAnswers {
         Exception[] failed = new Exception[1];
         Thread th = new Thread(null, () -> {
             try {
-                run(questions, hits, modelsOut, queriesOut, t, l, lv);
+                run(questions, hits, modelsOut, queriesOut, storesOut, callsOut, t, l, lv);
             } catch (Exception e) {
                 failed[0] = e;
             }
@@ -137,8 +157,8 @@ public final class NameAnswers {
         }
     }
 
-    private static void run(Path questions, Path hits, Path modelsOut, Path queriesOut, Path texts, long limit,
-            boolean live) throws Exception {
+    private static void run(Path questions, Path hits, Path modelsOut, Path queriesOut, Path storesOut, Path callsOut,
+            Path texts, long limit, boolean live) throws Exception {
         MessageDigest md = MessageDigest.getInstance("SHA-256");
         RecordCodec codec = new RecordCodec();
         Map<String, String> textBySha = new LinkedHashMap<>();
@@ -150,8 +170,11 @@ public final class NameAnswers {
         }
         try (BufferedReader in = Files.newBufferedReader(questions, StandardCharsets.UTF_8);
                 BufferedWriter w = Files.newBufferedWriter(modelsOut, StandardCharsets.UTF_8);
+                BufferedWriter sw = Files.newBufferedWriter(storesOut, StandardCharsets.UTF_8);
                 BufferedWriter tw = texts == null ? null
-                        : Files.newBufferedWriter(texts.resolve("models.jsonl"), StandardCharsets.UTF_8)) {
+                        : Files.newBufferedWriter(texts.resolve("models.jsonl"), StandardCharsets.UTF_8);
+                BufferedWriter stw = texts == null ? null
+                        : Files.newBufferedWriter(texts.resolve("stores.jsonl"), StandardCharsets.UTF_8)) {
             for (String line = in.readLine(); line != null; line = in.readLine()) {
                 Json.Obj o = (Json.Obj) Json.parse(line);
                 String sha = ((Json.Str) o.get("sha")).value();
@@ -170,20 +193,27 @@ public final class NameAnswers {
                         continue;
                     }
                     asks++;
-                    String form = modelForm(parsed, codec, kinds);
+                    String[] stores = new String[1];
+                    String form = modelForm(parsed, codec, kinds, stores);
                     String hash = hash(md, form);
                     answered++;
                     w.write(sha + "\t" + dialect.name() + "\t" + hash + "\n");
+                    sw.write(sha + "\t" + dialect.name() + "\t" + hash(md, stores[0]) + "\n");
                     if (tw != null) {
                         StringBuilder j = new StringBuilder("{\"sha\":\"").append(sha).append("\",\"dialect\":\"")
                                 .append(dialect.name()).append("\",\"form\":");
                         RecordCodec.string(j, form);
                         tw.write(j.append("}\n").toString());
+                        StringBuilder s = new StringBuilder("{\"sha\":\"").append(sha).append("\",\"dialect\":\"")
+                                .append(dialect.name()).append("\",\"form\":");
+                        RecordCodec.string(s, stores[0]);
+                        stw.write(s.append("}\n").toString());
                     }
                 }
             }
         }
-        System.out.printf("[name-answers] %d model asks answered; sections %s%n", answered, kinds);
+        System.out.printf("[name-answers] %d model asks answered; sections %s; stores %s%n", answered, kinds,
+                STORE_LINES);
 
         // the query pairs: the identity oracle's keys, model and query both t: texts of the front oracle
         LinkedHashSet<List<String>> pairs = new LinkedHashSet<>();
@@ -252,6 +282,27 @@ public final class NameAnswers {
             System.out.printf("[name-answers] live universe: %d same, %d differ, %d models do not compile%n",
                     liveCounts[0], liveCounts[1], liveCounts[3]);
         }
+
+        // the call shapes, each asked of its builder
+        TreeMap<String, Long> builders = new TreeMap<>();
+        try (BufferedWriter w = Files.newBufferedWriter(callsOut, StandardCharsets.UTF_8);
+                BufferedWriter tw = texts == null ? null
+                        : Files.newBufferedWriter(texts.resolve("calls.jsonl"), StandardCharsets.UTF_8)) {
+            for (List<String> shape : callShapes()) {
+                String key = String.join("\t", shape);
+                String form = callForm(shape, codec);
+                w.write(key + "\t" + hash(md, form) + "\n");
+                builders.merge(shape.get(0), 1L, Long::sum);
+                if (tw != null) {
+                    StringBuilder j = new StringBuilder("{\"shape\":");
+                    RecordCodec.string(j, key);
+                    j.append(",\"form\":");
+                    RecordCodec.string(j, form);
+                    tw.write(j.append("}\n").toString());
+                }
+            }
+        }
+        System.out.printf("[name-answers] call shapes %s%n", builders);
     }
 
     private static String hash(MessageDigest md, String form) {
@@ -262,8 +313,10 @@ public final class NameAnswers {
     // Models
     // =================================================================
 
-    /** A model resolved, adopted and indexed: what step D hands on. */
-    static String modelForm(ParsedModel parsed, RecordCodec codec, TreeMap<String, Long> kinds) {
+    /** A model resolved, adopted and indexed: what step D hands on; {@code stores[0]} the stores form over the same
+     *  index ({@code -} when there is none). */
+    static String modelForm(ParsedModel parsed, RecordCodec codec, TreeMap<String, Long> kinds, String[] stores) {
+        stores[0] = "-";
         StringBuilder f = new StringBuilder();
         ParsedModel[] b = new ParsedModel[1];
         String bText = strict(() -> NameResolver.resolveAlongside(parsed, BOOT_FQNS, null), codec, b);
@@ -302,6 +355,7 @@ public final class NameAnswers {
             if (ix != null) {
                 f.append('\n');
                 index(f, l[0], ix, codec);
+                stores[0] = storesForm(l[0], ix);
             }
         }
         kinds.merge(bText.startsWith("A") ? "B:A" : "B:E", 1L, Long::sum);
@@ -728,6 +782,401 @@ public final class NameAnswers {
         }
     }
 
+    // =================================================================
+    // The stores: the helpers E calls, moved into the names layer (2026-11-12)
+    // =================================================================
+
+    /** The stores form's lines, by kind, over the whole run (printed at the end). */
+    private static final TreeMap<String, Long> STORE_LINES = new TreeMap<>();
+
+    /** {@link #attempt}, a stack overflow written as one (the type inference has no cycle guard: a computed view
+     *  column over a cyclic view chain recurses until the stack is gone; the Rust side cannot answer such a model, and
+     *  its marker says which). */
+    private static String attemptDeep(Supplier<String> s) {
+        try {
+            return s.get();
+        } catch (RuntimeException e) {
+            return fail(e);
+        } catch (StackOverflowError e) {
+            return "!java.lang.StackOverflowError";
+        }
+    }
+
+    private static void storeLine(StringBuilder f, String kind) {
+        f.append(kind);
+        STORE_LINES.merge(kind, 1L, Long::sum);
+    }
+
+    /** {@code StoreCompiler.columnType}, package-private: by reflection (no production code changes). */
+    private static final java.lang.reflect.Method COLUMN_TYPE = columnTypeMethod();
+
+    private static java.lang.reflect.Method columnTypeMethod() {
+        try {
+            java.lang.reflect.Method m = com.legend.compiler.element.StoreCompiler.class.getDeclaredMethod(
+                    "columnType", com.legend.model.RelationalDataType.class);
+            m.setAccessible(true);
+            return m;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static com.legend.compiler.element.type.Type columnType(com.legend.model.RelationalDataType dt) {
+        try {
+            return (com.legend.compiler.element.type.Type) COLUMN_TYPE.invoke(null, dt);
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            if (e.getCause() instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new IllegalStateException(e.getCause());
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** A type as its variant's letter and its {@code typeName()}. */
+    static String typeText(com.legend.compiler.element.type.Type t) {
+        String kind = switch (t) {
+            case com.legend.compiler.element.type.Type.Primitive p -> "P";
+            case com.legend.compiler.element.type.Type.PrecisionDecimal d -> "D";
+            case com.legend.compiler.element.type.Type.ClassType c -> "C";
+            case com.legend.compiler.element.type.Type.EnumType e -> "E";
+            default -> "?";
+        };
+        return kind + ":" + t.typeName();
+    }
+
+    /** A view's signature: each column's {@code name}, its type's {@link #typeText} and its multiplicity's text. */
+    static String signatureText(com.legend.compiler.element.type.Type.RelationType r) {
+        StringBuilder sb = new StringBuilder();
+        for (var c : r.columns()) {
+            if (!sb.isEmpty()) {
+                sb.append(',');
+            }
+            sb.append(c.name()).append('=').append(typeText(c.type())).append(c.multiplicity().text());
+        }
+        return sb.append('|').append(r.dynamicColumns().size()).toString();
+    }
+
+    private static String dataTypeText(com.legend.model.RelationalDataType dt) {
+        return dt == null ? "-" : new RecordCodec().write(dt, com.legend.model.RelationalDataType.class);
+    }
+
+    /** What the store and class helpers E calls answer over the index {@code X} asks. */
+    static String storesForm(ParsedModel m, ModelBuilder ix) {
+        StringBuilder f = new StringBuilder();
+        IdentityHashMap<Object, String> labels = labels(m);
+        KnowledgeLayer k = ix.knowledge();
+        List<PackageableElement> els = m.elements();
+        // the milestoning strategy of every class's stereotypes
+        for (int i = 0; i < els.size(); i++) {
+            if (els.get(i) instanceof ClassDefinition cd) {
+                for (int j = 0; j < cd.stereotypes().size(); j++) {
+                    var st = cd.stereotypes().get(j);
+                    com.legend.compiler.element.MilestoningStrategy s = com.legend.compiler.element.MilestoningStrategy
+                            .ofStereotypeOrNull(st.profileName(), st.stereotypeName());
+                    storeLine(f, "m");
+                    f.append("\te").append(i).append('\t').append(j).append('\t').append(s == null ? "-"
+                            : s.name() + "/" + bool(s.has(com.legend.compiler.element.MilestoningStrategy.Dimension
+                                    .BUSINESS)) + bool(s.has(com.legend.compiler.element.MilestoningStrategy
+                                            .Dimension.PROCESSING))).append('\n');
+                }
+            }
+        }
+        // every table column's Pure type
+        for (PackageableElement el : els) {
+            if (el instanceof DatabaseDefinition db) {
+                List<DatabaseDefinition.TableDefinition> tables = new ArrayList<>(db.tables());
+                for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+                    tables.addAll(s.tables());
+                }
+                for (DatabaseDefinition.TableDefinition td : tables) {
+                    for (DatabaseDefinition.ColumnDefinition c : td.columns()) {
+                        storeLine(f, "z");
+                        f.append('\t').append(label(labels, td)).append('\t').append(c.name()).append('\t')
+                                .append(attempt(() -> typeText(columnType(c.dataType())))).append('\n');
+                    }
+                }
+            }
+        }
+        // the databases and spellings the index is asked (as index() gathers them)
+        LinkedHashSet<String> dbs = new LinkedHashSet<>();
+        LinkedHashSet<String> spellings = new LinkedHashSet<>();
+        for (PackageableElement el : els) {
+            if (el instanceof DatabaseDefinition db) {
+                dbs.add(db.qualifiedName());
+                dbs.addAll(db.includes());
+                db.tables().forEach(x -> {
+                    spellings.add(x.name());
+                    spellings.add("default." + x.name());
+                });
+                db.views().forEach(x -> spellings.add(x.name()));
+                db.tabularFunctions().forEach(x -> spellings.add(x.name()));
+                for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+                    s.tables().forEach(x -> spellings.add(s.name() + "." + x.name()));
+                    s.views().forEach(x -> spellings.add(s.name() + "." + x.name()));
+                    s.tabularFunctions().forEach(x -> spellings.add(s.name() + "." + x.name()));
+                }
+            }
+        }
+        dbs.add("absent::Db");
+        spellings.add("absent_T");
+        for (String db : dbs) {
+            DatabaseDefinition scope = ix.findDatabase(db).orElse(null);
+            for (ModelBuilder.IndexedView iv : ix.viewsOf(db)) {
+                DatabaseDefinition.ViewDefinition view = iv.definition();
+                String vl = label(labels, view);
+                storeLine(f, "y");
+                f.append('\t').append(db).append('\t').append(vl).append('\t')
+                        .append(attemptDeep(() -> signatureText(com.legend.compiler.element.ViewSignatures.of(ix,
+                                iv.lift().ownerDb(), view)))).append('\n');
+                List<DatabaseDefinition.ViewDefinition.ViewColumnMapping> cms = view.columnMappings();
+                for (int c = 0; c < cms.size(); c++) {
+                    com.legend.model.RelationalOperation expr = cms.get(c).expression();
+                    storeLine(f, "r");
+                    f.append('\t').append(db).append('\t').append(vl).append('\t').append(c)
+                            .append('\t').append(attemptDeep(() -> dataTypeText(
+                                    com.legend.compiler.element.RelationalTypeInference.infer(expr, scope, ix))))
+                            .append('\t').append(attemptDeep(() -> dataTypeText(
+                                    com.legend.compiler.element.RelationalTypeInference.infer(expr, null, ix))))
+                            .append('\t').append(attemptDeep(() -> dataTypeText(
+                                    com.legend.compiler.element.RelationalTypeInference.infer(expr, scope, null))))
+                            .append('\n');
+                }
+            }
+            for (String sp : spellings) {
+                List<String> names = new ArrayList<>();
+                Optional<DatabaseDefinition.TableDefinition> td = ix.findTableDefinition(db, sp);
+                if (td.isPresent()) {
+                    td.get().columns().forEach(c -> names.add(c.name()));
+                } else {
+                    ix.findView(db, sp).ifPresent(v -> v.columnMappings().forEach(c -> names.add(c.name())));
+                }
+                names.add("absent_C");
+                for (String name : names) {
+                    storeLine(f, "n");
+                    f.append('\t').append(db).append('\t').append(sp).append('\t').append(name).append('\t')
+                            .append(attemptDeep(() -> {
+                                String kind = k.columnKind(db, sp, name);
+                                return kind == null ? "-" : kind;
+                            })).append('\n');
+                }
+            }
+        }
+        return f.toString();
+    }
+
+    // =================================================================
+    // The call builder (2026-11-12)
+    // =================================================================
+
+    /** A position for an original call (its carry-through pinned). */
+    private static final com.legend.protocol.SourceInfo ORIGINAL_POS =
+            new com.legend.protocol.SourceInfo("src", 1, 2, 3, 4);
+
+    /** {@code n} arguments: {@code CString}s {@code <prefix>0 ...}. */
+    private static List<ValueSpecification> args(String prefix, int n) {
+        List<ValueSpecification> out = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            out.add(new com.legend.protocol.spec.CString(prefix + i));
+        }
+        return out;
+    }
+
+    private static List<String> refs(String joined) {
+        return joined.isEmpty() ? List.of() : List.of(joined.split(",", -1));
+    }
+
+    /** An original call for {@code like} and {@code renamed}: its name, arity, record and written forms ({@code p} a
+     *  position, {@code c} propertyCall, {@code g} grouped, {@code x} infix, {@code i} island, {@code f} an fControl,
+     *  {@code o} an ownerClass). */
+    private static com.legend.protocol.spec.AppliedFunction original(String fn, int n, String referents,
+            String flags) {
+        return new com.legend.protocol.spec.AppliedFunction(fn, args("a", n), refs(referents),
+                flags.contains("p") ? ORIGINAL_POS : null, flags.contains("c"), flags.contains("g"),
+                flags.contains("x"), flags.contains("i"), flags.contains("f") ? "fctl" : null,
+                flags.contains("o") ? "my::Own" : null);
+    }
+
+    /** One shape asked of its builder: {@code A} and the call's JSON, or the error. */
+    static String callForm(List<String> s, RecordCodec codec) {
+        try {
+            com.legend.protocol.spec.AppliedFunction af = switch (s.get(0)) {
+                case "platform" -> com.legend.compiler.spec.Calls.platform(s.get(1),
+                        args("a", Integer.parseInt(s.get(2))));
+                case "form" -> com.legend.compiler.spec.Calls.form(com.legend.platform.CoreFn.valueOf(s.get(1)),
+                        args("a", Integer.parseInt(s.get(2))));
+                case "exact" -> com.legend.compiler.spec.Calls.exact(s.get(1), args("a", Integer.parseInt(s.get(2))));
+                case "carrier" -> com.legend.compiler.spec.Calls.carrier(s.get(1),
+                        args("a", Integer.parseInt(s.get(2))));
+                case "infixRun" -> com.legend.compiler.spec.Calls.infixRun(s.get(1),
+                        args("a", Integer.parseInt(s.get(2))));
+                case "among" -> com.legend.compiler.spec.Calls.among(s.get(1), refs(s.get(2)),
+                        args("a", Integer.parseInt(s.get(3))));
+                case "infixRunAmong" -> com.legend.compiler.spec.Calls.infixRunAmong(s.get(1), refs(s.get(2)),
+                        args("a", Integer.parseInt(s.get(3))));
+                case "renamed" -> com.legend.compiler.spec.Calls.renamed(
+                        original(s.get(1), Integer.parseInt(s.get(2)), s.get(3), s.get(4)), s.get(5),
+                        args("b", Integer.parseInt(s.get(6))));
+                case "like" -> com.legend.compiler.spec.Calls.like(
+                        original(s.get(1), Integer.parseInt(s.get(2)), s.get(3), s.get(4)),
+                        args("b", Integer.parseInt(s.get(5))));
+                default -> throw new IllegalArgumentException("no builder " + s.get(0));
+            };
+            return "A\t" + codec.write(af, ValueSpecification.class);
+        } catch (RuntimeException e) {
+            return error(e);
+        }
+    }
+
+    /** The names {@code Calls}' callers build through it, read from them (2026-11-12, every call site of core's main
+     *  sources: 135 {@code platform}, 53 {@code exact}, 8 {@code infixRun}, 4 {@code form}, 3 {@code like}, 1
+     *  {@code renamed}, {@code among} and {@code infixRunAmong}), with the arity each site builds at ({@code -1}: the
+     *  site's arguments are another call's, asked at 0 to 5); a name a site computes is listed from the table it
+     *  computes it from (the parse functions, the comparison shims, the legacy ranks, the sort directions). */
+    private static final Object[][] CALLERS = {
+        {"platform", "adjust", 3}, {"platform", "and", 2}, {"platform", "at", 2}, {"platform", "cast", 2},
+        {"platform", "col", 2}, {"platform", "concatenate", 2}, {"platform", "count", 1},
+        {"platform", "dayOfWeek", -1}, {"platform", "dayOfWeekNumber", 1}, {"platform", "distinct", 1},
+        {"platform", "distinct", 2}, {"platform", "distinct", -1}, {"platform", "equal", 2},
+        {"platform", "equal", -1}, {"platform", "execute", 5}, {"platform", "extend", 3},
+        {"platform", "extend", -1}, {"platform", "filter", 2}, {"platform", "first", 1}, {"platform", "fold", -1},
+        {"platform", "format", -1}, {"platform", "get", 2}, {"platform", "getAll", 1}, {"platform", "groupBy", 3},
+        {"platform", "groupBy", 4}, {"platform", "groupBy", -1}, {"platform", "hash", 2}, {"platform", "if", 3},
+        {"platform", "indexOf", 2}, {"platform", "isDistinct", 1}, {"platform", "isEmpty", 1},
+        {"platform", "isEmpty", -1}, {"platform", "isNotEmpty", 1}, {"platform", "isNotEmpty", -1},
+        {"platform", "join", 4}, {"platform", "join", -1}, {"platform", "joinStrings", 2},
+        {"platform", "letFunction", 2}, {"platform", "map", 2}, {"platform", "mod", 2}, {"platform", "new", 2},
+        {"platform", "not", 1}, {"platform", "not", -1}, {"platform", "or", 2}, {"platform", "over", 1},
+        {"platform", "over", -1}, {"platform", "pair", 2}, {"platform", "project", 2}, {"platform", "project", 3},
+        {"platform", "project", -1}, {"platform", "rename", 3}, {"platform", "restrict", 2},
+        {"platform", "select", 2}, {"platform", "slice", 3}, {"platform", "splitPart", 3},
+        {"platform", "substring", -1}, {"platform", "tableReference", 2}, {"platform", "to", 2},
+        {"platform", "toOne", 1}, {"platform", "toOneMany", 1}, {"platform", "toString", 1},
+        // DeclaredCoercions' parse functions, RelOpTranslator's comparison functions, TdsDesugars' legacy ranks,
+        // SortChecker's directions, EvalChecker's user function
+        {"platform", "parseInteger", 1}, {"platform", "parseFloat", 1}, {"platform", "parseDecimal", 1},
+        {"platform", com.legend.builtin.Pure.Lite.LESS_THAN_ANY, 2},
+        {"platform", com.legend.builtin.Pure.Lite.LESS_THAN_EQUAL_ANY, 2},
+        {"platform", com.legend.builtin.Pure.Lite.GREATER_THAN_ANY, 2},
+        {"platform", com.legend.builtin.Pure.Lite.GREATER_THAN_EQUAL_ANY, 2},
+        {"platform", "rank", 3}, {"platform", "denseRank", 3}, {"platform", "rowNumber", 2},
+        {"platform", "ascending", 1}, {"platform", "descending", 1}, {"platform", "my::pkg::f", -1},
+        {"form", "ASC", 1}, {"form", "DESC", 1}, {"form", "RENAME", 3},
+        {"infixRun", "plus", 2}, {"infixRun", "plus", -1}, {"infixRun", "minus", 2}, {"infixRun", "minus", -1},
+        {"infixRun", "times", 2},
+        {"exact", "meta::pure::functions::variant::convert::toVariant", 1},
+        {"exact", com.legend.builtin.Pure.Lite.CAST_AS_DECLARED, 2},
+        {"exact", com.legend.builtin.Pure.Lite.CONVERT_DATE_FORMAT, -1},
+        {"exact", com.legend.builtin.Pure.Lite.CONVERT_DATE_TIME_FORMAT, -1},
+        {"exact", com.legend.builtin.Pure.Lite.CONVERT_TIME_ZONE_FORMAT, -1},
+        {"exact", com.legend.builtin.Pure.Lite.GROUP_BY_COMPUTED_KEYS, 3},
+        {"exact", com.legend.builtin.Pure.Lite.GROUP_BY_OVER_INSTANCES, -1},
+        {"exact", com.legend.builtin.Pure.Lite.INLINE_VIEW, 1},
+        {"exact", com.legend.builtin.Pure.Lite.JOIN_SLOT, 3},
+        {"exact", com.legend.builtin.Pure.Lite.LEGACY_ASSOC_PREDICATE, 5},
+        {"exact", com.legend.builtin.Pure.Lite.LEGACY_LOCAL_PROPERTY, 2},
+        {"exact", com.legend.builtin.Pure.Lite.LEGACY_NAVIGATE, 3},
+        {"exact", com.legend.builtin.Pure.Lite.LEGACY_NAVIGATE, 4},
+        {"exact", com.legend.builtin.Pure.Lite.OTHERWISE, 2},
+        {"exact", com.legend.builtin.Pure.Lite.PARSE_DATE_FORMAT, -1},
+        {"exact", com.legend.builtin.Pure.Lite.ROUTE, 3},
+        {"exact", com.legend.builtin.Pure.Lite.SOURCE_URL, 1},
+        {"exact", com.legend.builtin.Pure.Lite.TRUST_ONE, 1},
+        {"exact", com.legend.builtin.Pure.Lite.TUPLE, -1},
+        {"exact", com.legend.builtin.Pure.Lite.TYPE_AS_DECLARED, 2},
+        {"exact", com.legend.builtin.Pure.SQL_NULL.qualifiedName(), 0},
+        {"exact", "my::pkg::f", -1},
+        // a bare spelling through exact: the rule is never consulted
+        {"exact", "filter", 2},
+        {"carrier", com.legend.protocol.spec.AppliedFunction.NEW, 2},
+        {"carrier", com.legend.protocol.spec.AppliedFunction.LIST, 1},
+    };
+
+    /** Every call shape asked: the callers' ({@link #CALLERS}); then a sweep over every bare name the platform's tables
+     *  know (the catalog natives' short names, the engine surface's handler names, the forms' spellings, the prelude's
+     *  functions, the dynafunctions' names and their shims' lite names) through {@code platform} at arities 0 to 8 and
+     *  through {@code infixRun} at two operands; every form at 0 to 4; every PURE dynafunction through {@code among}
+     *  and {@code infixRunAmong} with its registry row; and originals of every caller's name through {@code like} and
+     *  {@code renamed}, at their arity and the ones beside it, with no record, their built record, another, and both,
+     *  plain and with every written form set. */
+    static List<List<String>> callShapes() {
+        LinkedHashSet<List<String>> out = new LinkedHashSet<>();
+        LinkedHashSet<String> callerNames = new LinkedHashSet<>();
+        for (Object[] c : CALLERS) {
+            String builder = (String) c[0];
+            String name = (String) c[1];
+            int arity = (Integer) c[2];
+            if (builder.equals("platform")) {
+                callerNames.add(name);
+            }
+            for (int n = arity < 0 ? 0 : arity; n <= (arity < 0 ? 5 : arity); n++) {
+                out.add(List.of(builder, name, Integer.toString(n)));
+            }
+        }
+        java.util.TreeSet<String> names = new java.util.TreeSet<>();
+        for (com.legend.model.NativeFunctionDefinition nf : com.legend.builtin.Pure.all()) {
+            String q = nf.qualifiedName();
+            names.add(q.substring(q.lastIndexOf("::") + 2));
+        }
+        names.addAll(com.legend.builtin.EngineHandlers.names());
+        names.addAll(com.legend.platform.CoreFn.parseNames().keySet());
+        for (PackageableElement el : Prelude.elements()) {
+            if (el instanceof Function fn) {
+                String q = fn.qualifiedName();
+                names.add(q.substring(q.lastIndexOf("::") + 2));
+            }
+        }
+        for (com.legend.builtin.DynaFn d : com.legend.builtin.DynaFn.values()) {
+            names.add(d.dynaName());
+            if (d.resolution() == com.legend.builtin.DynaFn.Resolution.SHIM) {
+                names.add(d.liteFqn());
+            }
+        }
+        for (String name : names) {
+            for (int n = 0; n <= 8; n++) {
+                out.add(List.of("platform", name, Integer.toString(n)));
+            }
+            out.add(List.of("infixRun", name, "2"));
+        }
+        for (com.legend.platform.CoreFn form : com.legend.platform.CoreFn.values()) {
+            for (int n = 0; n <= 4; n++) {
+                out.add(List.of("form", form.name(), Integer.toString(n)));
+            }
+        }
+        for (com.legend.builtin.DynaFn d : com.legend.builtin.DynaFn.values()) {
+            if (d.resolution() == com.legend.builtin.DynaFn.Resolution.PURE) {
+                String row = String.join(",", d.fqns());
+                for (int n = 1; n <= 3; n++) {
+                    out.add(List.of("among", d.dynaName(), row, Integer.toString(n)));
+                    out.add(List.of("infixRunAmong", d.dynaName(), row, Integer.toString(n)));
+                }
+            }
+        }
+        out.add(List.of("among", "plus", "", "2"));
+        out.add(List.of("infixRunAmong", "plus", "", "2"));
+        callerNames.add("my::pkg::f");
+        callerNames.add("noSuchFunctionAnywhere");
+        for (String fn : callerNames) {
+            for (int n = 0; n <= 3; n++) {
+                String built = String.join(",", com.legend.compiler.spec.Calls.platform(fn, args("a", n))
+                        .referents());
+                LinkedHashSet<String> records = new LinkedHashSet<>(List.of("", built, "other::pkg::" + fn,
+                        built.isEmpty() ? "other::pkg::" + fn : built + ",other::pkg::" + fn));
+                for (String record : records) {
+                    for (String flags : List.of("", "pcgxifo")) {
+                        for (int m = Math.max(0, n - 1); m <= n + 1; m++) {
+                            out.add(List.of("like", fn, Integer.toString(n), record, flags, Integer.toString(m)));
+                        }
+                        out.add(List.of("renamed", fn, Integer.toString(n), record, flags, "ascending", "1"));
+                        out.add(List.of("renamed", fn, Integer.toString(n), record, flags, fn,
+                                Integer.toString(n + 1)));
+                    }
+                }
+            }
+        }
+        return List.copyOf(out);
+    }
     // =================================================================
     // Queries
     // =================================================================

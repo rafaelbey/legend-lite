@@ -35,3 +35,31 @@ queries.tsv.zst	NameAnswers' queries: query sha TAB model sha TAB hash, 31,297 l
 # f3b5ac9a487fc2d0d66bc69c5cc7ab0e94f4fc6089bac218556208dee157721b and
 # a5419b2bdcdbc00a63975618481949732d0734d53cae16685c92b84a07d6bff6 (names-texts-java.sha256 beside them; both checked
 # 2026-11-12 by decompressing them).
+# RE-FROZEN 2026-11-12 (the names follow-up: the owner's ruling moved Calls, RelationalTypeInference, ViewSignatures,
+# StoreCompiler.columnType and MilestoningStrategy into lite-names, docs/rust-port/PHASE3_CRATES.md §8) at 170a6cfb5, core's
+# main sources unchanged since 7c438f7b3, by the same program with two outputs more (STORES-OUT, CALLS-OUT), the same
+# jars, JDK and Rust parser. Run A (no options, 19 min 16 s) and run B (--texts, 19 min 35 s): all four files
+# byte-identical. The models' and queries' forms are unchanged by construction (the new questions are forms of their
+# own): both files hash again to 4421f233... and b5f77c9f... above, the frozen .zst files are untouched, and run B's
+# texts hash again to f3b5ac9a... and a5419b2b... (the archive stands).
+# STORES: one line per model ask, in the models file's order (74,292; 74,260 with an index, 32 without, form `-`): the
+# store and class helpers E calls, asked over the same index X asks (NameAnswers.storesForm) -- 16,826 stereotypes'
+# milestoning strategies (m: 3,954 business, 1,213 processing, 1,215 bitemporal, 10,444 none), 357,625 table columns'
+# Pure types (z; 36 refused: a decimal's scale past its precision), 2,809 views' signatures as LiftedViews asks them (y;
+# 24 refused: two columns of one name), 11,308 view columns' inferred SQL types, each with the scope and the index, no
+# scope, no lookups (r), 1,485,730 column kinds of every table or view spelling's columns and one absent (n). No stack
+# overflow met. 3,402 distinct forms.
+stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines	d60c472c19935b7cf91349a7e4acb542d3574516a5f542ce79c913aac7184e37
+# CALLS: one line per call shape, the shape's fields then the hash (NameAnswers.callShapes, callForm: the record codec's
+# JSON of the call Calls builds) -- 14,454 shapes: platform 6,504, like 3,380, renamed 2,452, infixRun 732, among 478,
+# infixRunAmong 478, form 370, exact 58, carrier 2; every name the builder's 206 call sites build (read from them), at the
+# arities they use (0 to 5 where a site's arguments are another call's), the names a site computes from their tables,
+# and every bare name the platform's tables know at 0 to 8. None refused.
+calls.tsv.zst	NameAnswers' calls: builder TAB shape fields TAB hash, 14,454 lines	3d84bb6622477d922402af9bf877041c66576273cf4eb086f982657f5dd0f984
+# Their texts (102,845,368 and 8,450,096 bytes of {"sha","dialect","form"} and {"shape","form"} lines) are archived beside
+# the others: oracle-archive/names-stores-texts-java.jsonl.zst (1,715,022 bytes) and names-calls-texts-java.jsonl.zst
+# (113,955 bytes), the SHA-256 of their uncompressed texts
+# 4aa710303814ebd0f647659fd46ff409812611bf8e35fb20915c3e3761475557 and
+# 816451c4951ec46803ccbba9c295e141d2a372dfa801f5869a49e5e0444f0efb (names-texts-java.sha256; both checked 2026-11-12 by
+# decompressing them). //rust/lite-names:names_differential_test holds lite-names to all four files: 74,292, 74,292,
+# 31,297 and 14,454 identical, no list of differences.

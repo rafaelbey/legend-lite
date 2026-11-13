@@ -176,4 +176,22 @@ zstd_decompress(
     visibility = ["//rust:__subpackages__"],
 )
 
+# The names follow-up (2026-11-12; names/MANIFEST.tsv): the store and class helpers E calls, moved into lite-names, per
+# model ask over the same index; and Calls' builders over the call shapes their callers build (each line names its shape).
+zstd_decompress(
+    name = "names_stores",
+    testonly = True,
+    src = "names/stores.tsv.zst",
+    out = "names/stores.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
+zstd_decompress(
+    name = "names_calls",
+    testonly = True,
+    src = "names/calls.tsv.zst",
+    out = "names/calls.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
 guards_package()

@@ -9,17 +9,26 @@
 //! resolved with no model, and against the model's universe with no imports and with the model's own). The canonical
 //! text's grammar is `NameAnswers`' javadoc; this file writes the same text, section by section.
 //!
-//! Inputs: `LITE_NAMES_QUESTIONS` (rust/oracles/front/questions.jsonl.zst, decompressed), `LITE_NAMES_MODELS` and
-//! `LITE_NAMES_QUERIES` (Java's answers: rust/oracles/names/, decompressed; the queries file names its pairs, which Java
-//! read from the identity oracle's keys). `LITE_NAMES_LIMIT` asks only the first N of each; `LITE_NAMES_MISMATCHES` names
-//! a directory each mismatch's Rust text is written to. Every ask must agree: a difference is a defect.
+//! The names follow-up (2026-11-12) adds two more, written by the same Java run: per model ask, the **stores** form --
+//! what the helpers the owner's ruling moved into this crate answer over the same index (`MilestoningStrategy` for every
+//! class's stereotypes, `StoreCompiler.columnType` for every table column, `ViewSignatures` for every view,
+//! `RelationalTypeInference` for every view column, `KnowledgeLayer.columnKind` for every column of every table or view
+//! spelling) -- and per call shape the **calls** form, what `Calls`' builder makes of it (the shape spelled in the
+//! oracle's line, so the same call is built here). A form of their own each, so the models' forms frozen before are
+//! unchanged.
+//!
+//! Inputs: `LITE_NAMES_QUESTIONS` (rust/oracles/front/questions.jsonl.zst, decompressed), `LITE_NAMES_MODELS`,
+//! `LITE_NAMES_QUERIES`, `LITE_NAMES_STORES` and `LITE_NAMES_CALLS` (Java's answers: rust/oracles/names/, decompressed;
+//! the queries file names its pairs, which Java read from the identity oracle's keys, and the calls file its shapes).
+//! `LITE_NAMES_LIMIT` asks only the first N of each; `LITE_NAMES_MISMATCHES` names a directory each mismatch's Rust text
+//! is written to. Every ask must agree: a difference is a defect.
 
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::sync::Arc;
 
-use lite_base::{Addr, Identity};
+use lite_base::{Addr, Identity, QueryArena};
 use lite_front::codec::{self, Codec, Writer};
 use lite_front::doors::{Dialect, JavaError, on_parse_stack};
 use lite_front::sha256::sha256_utf16le;
@@ -27,9 +36,15 @@ use lite_front::wire;
 use lite_model::linked::LinkedMap;
 use lite_model::protocol as p;
 use lite_model::{ClassMapping, Function, ImportScope, JStr, PackageableElement as E, ParsedModel};
-use lite_names::model_index::ModelIndex;
+use lite_names::milestoning::{Dimension, MilestoningStrategy};
+use lite_names::model_index::{ModelIndex, StoreLookups};
 use lite_names::resolver::{self, IndexUniverse};
-use lite_names::{Thrown, derived_props, knowledge, lattice, relational_kinds};
+use lite_names::{
+    Thrown, calls, derived_props, knowledge, lattice, relational_kinds, relational_type_inference, store_compiler,
+    view_signatures,
+};
+use lite_platform::CoreFn;
+use lite_types::{RelationType, Type};
 
 const SHOWN: usize = 25;
 
@@ -185,8 +200,10 @@ fn boot_fqns() -> HashSet<JStr> {
     out
 }
 
-/// A model resolved, adopted and indexed: `NameAnswers.modelForm`.
-fn model_form(parsed: &ParsedModel, boot: &HashSet<JStr>) -> Vec<u16> {
+/// A model resolved, adopted and indexed: `NameAnswers.modelForm`; and the stores form over the same index (`-` when
+/// there is none).
+fn model_form(parsed: &ParsedModel, boot: &HashSet<JStr>) -> (Vec<u16>, Vec<u16>) {
+    let mut stores = units("-");
     let mut f = F::default();
     let mut b = None;
     let b_text = strict(resolver::resolve_alongside(parsed, boot, None), &mut b);
@@ -230,10 +247,11 @@ fn model_form(parsed: &ParsedModel, boot: &HashSet<JStr>) -> Vec<u16> {
             Ok(ix) => {
                 f.s("\n");
                 index(&mut f, lm, &ix);
+                stores = stores_form(lm, &ix);
             }
         }
     }
-    f.0
+    (f.0, stores)
 }
 
 // =====================================================================
@@ -708,6 +726,245 @@ fn probe_names(key: &JStr, k: &lite_names::Knowledge<'_>, els: &[E]) -> Vec<JStr
 }
 
 // =====================================================================
+// The stores: the helpers E calls, moved into this crate (2026-11-12)
+// =====================================================================
+
+/// `NameAnswers.typeText`: a type as its variant's letter and its `typeName()`.
+fn type_text(t: Type<'_>) -> String {
+    let kind = match t {
+        Type::Primitive(_) => "P",
+        Type::PrecisionDecimal(_) => "D",
+        Type::ClassType(_) => "C",
+        Type::EnumType(_) => "E",
+        _ => "?",
+    };
+    format!("{kind}:{}", t.type_name())
+}
+
+/// `NameAnswers.signatureText`.
+fn signature_text(r: &RelationType<'_>) -> Vec<u16> {
+    let mut s = String::new();
+    for (i, c) in r.columns().iter().enumerate() {
+        if i > 0 {
+            s.push(',');
+        }
+        s.push_str(c.name);
+        s.push('=');
+        s.push_str(&type_text(c.r#type));
+        s.push_str(&c.multiplicity.text());
+    }
+    s.push('|');
+    s.push_str(&r.dynamic_columns().len().to_string());
+    units(&s)
+}
+
+fn data_type_text(dt: Option<lite_model::RelationalDataType>) -> Vec<u16> {
+    dt.map_or_else(|| units("-"), |dt| json(&dt, false))
+}
+
+/// `NameAnswers.storesForm`: what the store and class helpers E calls answer over the index `X` asks.
+fn stores_form(m: &ParsedModel, ix: &ModelIndex) -> Vec<u16> {
+    let mut f = F::default();
+    let labels = Labels::of(m);
+    let k = ix.knowledge();
+    let els = &m.elements;
+    let arena = QueryArena::new();
+    for (i, el) in els.iter().enumerate() {
+        if let E::ClassDefinition(cd) = el {
+            for (j, st) in cd.stereotypes.iter().enumerate() {
+                let s = MilestoningStrategy::of_stereotype_or_null(&st.profile_name, &st.stereotype_name);
+                f.s(&format!("m\te{i}\t{j}\t"));
+                match s {
+                    None => f.s("-"),
+                    Some(s) => f
+                        .s(s.name())
+                        .s("/")
+                        .s(b(s.has(Dimension::Business)))
+                        .s(b(s.has(Dimension::Processing))),
+                };
+                f.s("\n");
+            }
+        }
+    }
+    for el in els.iter() {
+        if let E::DatabaseDefinition(db) = el {
+            let mut tables: Vec<&Arc<lite_model::DatabaseDefinitionTableDefinition>> = db.tables.iter().collect();
+            for s in db.schemas.iter() {
+                tables.extend(s.tables.iter());
+            }
+            for td in tables {
+                for c in td.columns.iter() {
+                    f.s("z\t").u(&labels.arc(Some(td))).s("\t").j(&c.name).s("\t");
+                    f.u(&attempt(
+                        store_compiler::column_type(&c.data_type).map(|t| units(&type_text(t))),
+                    ));
+                    f.s("\n");
+                }
+            }
+        }
+    }
+    let mut dbs: LinkedMap<JStr, ()> = LinkedMap::new();
+    let mut spellings: LinkedMap<JStr, ()> = LinkedMap::new();
+    let dot = |a: &JStr, b: &JStr| lite_model::cat!(a, ".", b);
+    for el in els.iter() {
+        if let E::DatabaseDefinition(db) = el {
+            dbs.put_if_absent(db.qualified_name.clone(), ());
+            for inc in db.includes.iter() {
+                dbs.put_if_absent(inc.clone(), ());
+            }
+            for x in db.tables.iter() {
+                spellings.put_if_absent(x.name.clone(), ());
+                spellings.put_if_absent(lite_model::cat!("default.", &x.name), ());
+            }
+            for x in db.views.iter() {
+                spellings.put_if_absent(x.name.clone(), ());
+            }
+            for x in db.tabular_functions.iter() {
+                spellings.put_if_absent(x.name.clone(), ());
+            }
+            for s in db.schemas.iter() {
+                for x in s.tables.iter() {
+                    spellings.put_if_absent(dot(&s.name, &x.name), ());
+                }
+                for x in s.views.iter() {
+                    spellings.put_if_absent(dot(&s.name, &x.name), ());
+                }
+                for x in s.tabular_functions.iter() {
+                    spellings.put_if_absent(dot(&s.name, &x.name), ());
+                }
+            }
+        }
+    }
+    dbs.put_if_absent(JStr::from("absent::Db"), ());
+    spellings.put_if_absent(JStr::from("absent_T"), ());
+    let store: &dyn StoreLookups = ix;
+    for (db, _) in dbs.iter() {
+        let scope = ix.find_database(db).map(|d| &**d);
+        for iv in ix.views_of(db) {
+            let view = &iv.definition;
+            let vl = labels.arc(Some(view));
+            f.s("y\t").j(db).s("\t").u(&vl).s("\t");
+            f.u(&attempt(
+                view_signatures::of(&arena, store, &iv.lift.owner_db, view).map(|r| signature_text(r)),
+            ));
+            f.s("\n");
+            for (c, cm) in view.column_mappings.iter().enumerate() {
+                let expr = &cm.expression;
+                f.s("r\t").j(db).s("\t").u(&vl).s(&format!("\t{c}\t"));
+                f.u(&data_type_text(relational_type_inference::infer(
+                    expr,
+                    scope,
+                    Some(store),
+                )));
+                f.s("\t");
+                f.u(&data_type_text(relational_type_inference::infer(
+                    expr,
+                    None,
+                    Some(store),
+                )));
+                f.s("\t");
+                f.u(&data_type_text(relational_type_inference::infer(expr, scope, None)));
+                f.s("\n");
+            }
+        }
+        for (sp, _) in spellings.iter() {
+            let mut names: Vec<JStr> = Vec::new();
+            if let Some(td) = ix.find_table_definition(db, sp) {
+                names.extend(td.columns.iter().map(|c| c.name.clone()));
+            } else if let Some(v) = ix.find_view(db, sp) {
+                names.extend(v.column_mappings.iter().map(|c| c.name.clone()));
+            }
+            names.push(JStr::from("absent_C"));
+            for name in &names {
+                f.s("n\t").j(db).s("\t").j(sp).s("\t").j(name).s("\t");
+                f.s(k.column_kind(db, sp, name).unwrap_or("-"));
+                f.s("\n");
+            }
+        }
+    }
+    f.0
+}
+
+// =====================================================================
+// The call builder (2026-11-12)
+// =====================================================================
+
+/// `NameAnswers.args`: `n` `CString`s `<prefix>0 ...`.
+fn call_args(prefix: &str, n: usize) -> Vec<p::ValueSpecification> {
+    (0..n)
+        .map(|i| {
+            p::ValueSpecification::CString(Arc::new(p::CString {
+                value: JStr::from(format!("{prefix}{i}")),
+                pos: None,
+                multi_line: false,
+            }))
+        })
+        .collect()
+}
+
+/// `NameAnswers.refs`: a record's names, comma-joined in the shape (none when empty).
+fn refs(joined: &str) -> Vec<JStr> {
+    if joined.is_empty() {
+        Vec::new()
+    } else {
+        joined.split(',').map(JStr::from).collect()
+    }
+}
+
+/// `NameAnswers.original`: an original call for `like` and `renamed`, its written forms by letter.
+fn original(function: &str, n: usize, referents: &str, flags: &str) -> p::AppliedFunction {
+    p::AppliedFunction {
+        function: JStr::from(function),
+        parameters: call_args("a", n).into(),
+        referents: refs(referents).into(),
+        pos: flags.contains('p').then(|| {
+            Box::new(p::SourceInfo {
+                source_id: JStr::from("src"),
+                start_line: 1,
+                start_column: 2,
+                end_line: 3,
+                end_column: 4,
+            })
+        }),
+        property_call: flags.contains('c'),
+        grouped: flags.contains('g'),
+        infix: flags.contains('x'),
+        island: flags.contains('i'),
+        f_control: flags.contains('f').then(|| JStr::from("fctl")),
+        owner_class: flags.contains('o').then(|| JStr::from("my::Own")),
+    }
+}
+
+/// `NameAnswers.callForm`: one shape asked of its builder, `A` and the call's JSON.
+fn call_form(s: &[&str]) -> Vec<u16> {
+    let n = |i: usize| -> usize { s[i].parse().expect("an arity") };
+    let name = JStr::from(s[1]);
+    let af = match s[0] {
+        "platform" => calls::platform(&name, call_args("a", n(2))),
+        "form" => {
+            let form = CoreFn::VALUES.into_iter().find(|f| f.name() == s[1]).expect("a form");
+            calls::form(form, call_args("a", n(2)))
+        }
+        "exact" => calls::exact(&name, call_args("a", n(2))),
+        "carrier" => calls::carrier(&name, call_args("a", n(2))),
+        "infixRun" => calls::infix_run(&name, call_args("a", n(2))),
+        "among" => calls::among(&name, &refs(s[2]), call_args("a", n(3))),
+        "infixRunAmong" => calls::infix_run_among(&name, &refs(s[2]), call_args("a", n(3))),
+        "renamed" => calls::renamed(
+            &original(s[1], n(2), s[3], s[4]),
+            &JStr::from(s[5]),
+            call_args("b", n(6)),
+        ),
+        "like" => calls::like(&original(s[1], n(2), s[3], s[4]), call_args("b", n(5))),
+        other => panic!("no builder {other}"),
+    };
+    let mut f = F::default();
+    f.s("A\t")
+        .u(&json(&p::ValueSpecification::AppliedFunction(Arc::new(af)), false));
+    f.0
+}
+
+// =====================================================================
 // Queries
 // =====================================================================
 
@@ -782,9 +1039,11 @@ fn differential() {
     let dump = std::env::var("LITE_NAMES_MISMATCHES").ok();
     let boot = boot_fqns();
     let mut java = BufReader::new(File::open(env("LITE_NAMES_MODELS")).unwrap()).lines();
+    let mut java_stores = BufReader::new(File::open(env("LITE_NAMES_STORES")).unwrap()).lines();
     let mut texts: HashMap<String, Vec<u16>> = HashMap::new();
-    let (mut asked, mut matched) = (0usize, 0usize);
+    let (mut asked, mut matched, mut s_matched) = (0usize, 0usize, 0usize);
     let mut differ: Vec<String> = Vec::new();
+    let mut s_differ: Vec<String> = Vec::new();
     for line in BufReader::new(File::open(env("LITE_NAMES_QUESTIONS")).unwrap()).lines() {
         let line = line.unwrap();
         let q = wire::parse(&line, 64).unwrap();
@@ -816,7 +1075,16 @@ fn differential() {
                 f[0] == sha && f[1] == dialect_name,
                 "the models oracle is out of step at {sha} {dialect_name}: {java_line}"
             );
-            let form = model_form(&parsed, &boot);
+            let stores_line = java_stores
+                .next()
+                .unwrap_or_else(|| panic!("Java answered no stores ask for {dialect_name} {sha}"))
+                .unwrap();
+            let s: Vec<&str> = stores_line.split('\t').collect();
+            assert!(
+                s.len() == 3 && s[0] == sha && s[1] == dialect_name,
+                "the stores oracle is out of step at {sha} {dialect_name}: {stores_line}"
+            );
+            let (form, stores) = model_form(&parsed, &boot);
             if sha256_utf16le(&form) == f[2] {
                 matched += 1;
             } else {
@@ -829,6 +1097,18 @@ fn differential() {
                     .unwrap();
                 }
             }
+            if sha256_utf16le(&stores) == s[2] {
+                s_matched += 1;
+            } else {
+                s_differ.push(format!("stores {dialect_name} {sha}"));
+                if let Some(dir) = &dump {
+                    std::fs::write(
+                        format!("{dir}/stores.{dialect_name}.{sha}.rust.txt"),
+                        String::from_utf16_lossy(&stores),
+                    )
+                    .unwrap();
+                }
+            }
         }
     }
     if limit == usize::MAX {
@@ -836,11 +1116,20 @@ fn differential() {
             java.next().is_none(),
             "the models oracle holds more lines than the asks"
         );
+        assert!(
+            java_stores.next().is_none(),
+            "the stores oracle holds more lines than the asks"
+        );
     }
     println!(
         "[names-differential] models: {asked} asks, {matched} identical to Java's, {} differ",
         differ.len()
     );
+    println!(
+        "[names-differential] stores: {asked} asks, {s_matched} identical to Java's, {} differ",
+        s_differ.len()
+    );
+    differ.extend(s_differ);
 
     let boot_resolved =
         resolver::resolve(&lattice::boot_model().expect("the boot model")).expect("the boot layer resolves");
@@ -876,6 +1165,36 @@ fn differential() {
         "[names-differential] queries: {pairs} pairs over {} models, {q_matched} identical to Java's, {} differ",
         models.len(),
         differ.len() - q_differ_start
+    );
+
+    let (mut shapes, mut c_matched) = (0usize, 0usize);
+    let c_differ_start = differ.len();
+    let mut by_builder: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    // every shape, whatever the limit: they are few and need no model
+    for line in BufReader::new(File::open(env("LITE_NAMES_CALLS")).unwrap()).lines() {
+        let line = line.unwrap();
+        let f: Vec<&str> = line.split('\t').collect();
+        assert!(f.len() >= 4, "a line of the calls oracle is a shape and a hash: {line}");
+        shapes += 1;
+        let (shape, hash) = (&f[..f.len() - 1], f[f.len() - 1]);
+        *by_builder.entry(shape[0].to_owned()).or_default() += 1;
+        let form = call_form(shape);
+        if sha256_utf16le(&form) == hash {
+            c_matched += 1;
+        } else {
+            differ.push(format!("call {}", shape.join(" ")));
+            if let Some(dir) = &dump {
+                std::fs::write(
+                    format!("{dir}/call.{}.rust.txt", differ.len()),
+                    format!("{}\n{}", shape.join("\t"), String::from_utf16_lossy(&form)),
+                )
+                .unwrap();
+            }
+        }
+    }
+    println!(
+        "[names-differential] calls: {shapes} shapes {by_builder:?}, {c_matched} identical to Java's, {} differ",
+        differ.len() - c_differ_start
     );
     for d in differ.iter().take(SHOWN) {
         println!("[names-differential]   differs: {d}");
