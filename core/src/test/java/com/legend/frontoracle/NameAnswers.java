@@ -102,9 +102,14 @@ import java.util.function.Supplier;
  * call from the line), the hash the SHA-256 of the form's UTF-16 units, little-endian. {@code --texts DIR} writes every
  * form too ({@code models.jsonl}, {@code queries.jsonl}, {@code stores.jsonl}, {@code calls.jsonl}) for the archive.
  *
+ * <p><b>Duplicates</b> (the names fixes, 2026-11-13: ruling 28 put {@code PureModelContext.refuseDuplicates}, which reads
+ * only the index, in the names layer beside {@code duplicateElements}): per model ask, over the same index {@code X}
+ * asks, a form of its own ({@link #duplicatesForm}): the strict refusal and the tolerant walls, {@code L}'s continued.
+ * Its lines are {@code sha TAB dialect TAB hash}; {@code --texts} writes {@code duplicates.jsonl}.
+ *
  * <pre>
  *   java ... NameAnswers.java QUESTIONS.jsonl HITS.tsv MODELS-OUT.tsv QUERIES-OUT.tsv STORES-OUT.tsv CALLS-OUT.tsv
- *       [--texts DIR] [--limit N] [--live]
+ *       DUPLICATES-OUT.tsv [--texts DIR] [--limit N] [--live]
  * </pre>
  */
 public final class NameAnswers {
@@ -128,10 +133,11 @@ public final class NameAnswers {
         Path queriesOut = Path.of(args[3]);
         Path storesOut = Path.of(args[4]);
         Path callsOut = Path.of(args[5]);
+        Path duplicatesOut = Path.of(args[6]);
         Path texts = null;
         long limit = Long.MAX_VALUE;
         boolean live = false;
-        for (int i = 6; i < args.length; i++) {
+        for (int i = 7; i < args.length; i++) {
             switch (args[i]) {
                 case "--texts" -> texts = Path.of(args[++i]);
                 case "--limit" -> limit = Long.parseLong(args[++i]);
@@ -145,7 +151,7 @@ public final class NameAnswers {
         Exception[] failed = new Exception[1];
         Thread th = new Thread(null, () -> {
             try {
-                run(questions, hits, modelsOut, queriesOut, storesOut, callsOut, t, l, lv);
+                run(questions, hits, modelsOut, queriesOut, storesOut, callsOut, duplicatesOut, t, l, lv);
             } catch (Exception e) {
                 failed[0] = e;
             }
@@ -158,7 +164,7 @@ public final class NameAnswers {
     }
 
     private static void run(Path questions, Path hits, Path modelsOut, Path queriesOut, Path storesOut, Path callsOut,
-            Path texts, long limit, boolean live) throws Exception {
+            Path duplicatesOut, Path texts, long limit, boolean live) throws Exception {
         MessageDigest md = MessageDigest.getInstance("SHA-256");
         RecordCodec codec = new RecordCodec();
         Map<String, String> textBySha = new LinkedHashMap<>();
@@ -171,10 +177,13 @@ public final class NameAnswers {
         try (BufferedReader in = Files.newBufferedReader(questions, StandardCharsets.UTF_8);
                 BufferedWriter w = Files.newBufferedWriter(modelsOut, StandardCharsets.UTF_8);
                 BufferedWriter sw = Files.newBufferedWriter(storesOut, StandardCharsets.UTF_8);
+                BufferedWriter dw = Files.newBufferedWriter(duplicatesOut, StandardCharsets.UTF_8);
                 BufferedWriter tw = texts == null ? null
                         : Files.newBufferedWriter(texts.resolve("models.jsonl"), StandardCharsets.UTF_8);
                 BufferedWriter stw = texts == null ? null
-                        : Files.newBufferedWriter(texts.resolve("stores.jsonl"), StandardCharsets.UTF_8)) {
+                        : Files.newBufferedWriter(texts.resolve("stores.jsonl"), StandardCharsets.UTF_8);
+                BufferedWriter dtw = texts == null ? null
+                        : Files.newBufferedWriter(texts.resolve("duplicates.jsonl"), StandardCharsets.UTF_8)) {
             for (String line = in.readLine(); line != null; line = in.readLine()) {
                 Json.Obj o = (Json.Obj) Json.parse(line);
                 String sha = ((Json.Str) o.get("sha")).value();
@@ -193,12 +202,16 @@ public final class NameAnswers {
                         continue;
                     }
                     asks++;
-                    String[] stores = new String[1];
+                    String[] stores = new String[2];
                     String form = modelForm(parsed, codec, kinds, stores);
                     String hash = hash(md, form);
                     answered++;
                     w.write(sha + "\t" + dialect.name() + "\t" + hash + "\n");
                     sw.write(sha + "\t" + dialect.name() + "\t" + hash(md, stores[0]) + "\n");
+                    dw.write(sha + "\t" + dialect.name() + "\t" + hash(md, stores[1]) + "\n");
+                    if (!stores[1].equals("-")) {
+                        DUPLICATES.merge(stores[1].startsWith("S\t-") ? "clean" : "refused", 1L, Long::sum);
+                    }
                     if (tw != null) {
                         StringBuilder j = new StringBuilder("{\"sha\":\"").append(sha).append("\",\"dialect\":\"")
                                 .append(dialect.name()).append("\",\"form\":");
@@ -208,12 +221,16 @@ public final class NameAnswers {
                                 .append(dialect.name()).append("\",\"form\":");
                         RecordCodec.string(s, stores[0]);
                         stw.write(s.append("}\n").toString());
+                        StringBuilder d = new StringBuilder("{\"sha\":\"").append(sha).append("\",\"dialect\":\"")
+                                .append(dialect.name()).append("\",\"form\":");
+                        RecordCodec.string(d, stores[1]);
+                        dtw.write(d.append("}\n").toString());
                     }
                 }
             }
         }
-        System.out.printf("[name-answers] %d model asks answered; sections %s; stores %s%n", answered, kinds,
-                STORE_LINES);
+        System.out.printf("[name-answers] %d model asks answered; sections %s; stores %s; duplicates %s%n", answered,
+                kinds, STORE_LINES, DUPLICATES);
 
         // the query pairs: the identity oracle's keys, model and query both t: texts of the front oracle
         LinkedHashSet<List<String>> pairs = new LinkedHashSet<>();
@@ -314,9 +331,10 @@ public final class NameAnswers {
     // =================================================================
 
     /** A model resolved, adopted and indexed: what step D hands on; {@code stores[0]} the stores form over the same
-     *  index ({@code -} when there is none). */
+     *  index, {@code stores[1]} the duplicates form ({@code -} when there is none). */
     static String modelForm(ParsedModel parsed, RecordCodec codec, TreeMap<String, Long> kinds, String[] stores) {
         stores[0] = "-";
+        stores[1] = "-";
         StringBuilder f = new StringBuilder();
         ParsedModel[] b = new ParsedModel[1];
         String bText = strict(() -> NameResolver.resolveAlongside(parsed, BOOT_FQNS, null), codec, b);
@@ -336,10 +354,10 @@ public final class NameAnswers {
         f.append("\nK\t").append(same(kText, "B", bText));
         ParsedModel[] l = new ParsedModel[1];
         String lText;
+        Map<String, String> lWalls = new LinkedHashMap<>(tWalls);
         if (t[0] == null) {
             lText = "-";
         } else {
-            Map<String, String> lWalls = new LinkedHashMap<>(tWalls);
             lText = tolerant(() -> KnowledgeLayer.adoptAssociationQualifiedProperties(t[0], lWalls), lWalls, codec, l);
         }
         f.append("\nL\t").append(same(lText, "T", tText));
@@ -356,10 +374,37 @@ public final class NameAnswers {
                 f.append('\n');
                 index(f, l[0], ix, codec);
                 stores[0] = storesForm(l[0], ix);
+                stores[1] = duplicatesForm(ix, lWalls);
             }
         }
         kinds.merge(bText.startsWith("A") ? "B:A" : "B:E", 1L, Long::sum);
         kinds.merge(tText.startsWith("A") || tText.startsWith("[") ? "T:A" : "T:E", 1L, Long::sum);
+        return f.toString();
+    }
+
+    /** How many duplicates forms refused and how many did not (printed at the end). */
+    private static final TreeMap<String, Long> DUPLICATES = new TreeMap<>();
+
+    /** The names fixes (2026-11-13, ruling 28: {@code PureModelContext.refuseDuplicates} reads only the index, so it is
+     *  the names layer's in Rust): over the index {@code X} asks, {@code S} the strict refusal ({@code -} when there is
+     *  none, else the error), {@code W} the tolerant walls -- {@code L}'s walls continued, as the module build's one
+     *  wall sink is, the duplicates added. */
+    static String duplicatesForm(ModelBuilder ix, Map<String, String> lWalls) {
+        StringBuilder f = new StringBuilder("S\t");
+        try {
+            com.legend.compiler.element.PureModelContext.refuseDuplicates(ix, null);
+            f.append('-');
+        } catch (RuntimeException e) {
+            f.append(error(e));
+        }
+        Map<String, String> walls = new LinkedHashMap<>(lWalls);
+        f.append("\nW\t");
+        try {
+            com.legend.compiler.element.PureModelContext.refuseDuplicates(ix, walls);
+            f.append(walls(walls));
+        } catch (RuntimeException e) {
+            f.append(error(e));
+        }
         return f.toString();
     }
 

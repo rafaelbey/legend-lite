@@ -15,10 +15,12 @@
 //! `RelationalTypeInference` for every view column, `KnowledgeLayer.columnKind` for every column of every table or view
 //! spelling) -- and per call shape the **calls** form, what `Calls`' builder makes of it (the shape spelled in the
 //! oracle's line, so the same call is built here). A form of their own each, so the models' forms frozen before are
-//! unchanged.
+//! unchanged. The names fixes (2026-11-13) add the **duplicates** form, per model ask over the same index:
+//! `refuseDuplicates` strict and with the tolerant walls (`L`'s continued), the owner's ruling 28 having put it here.
 //!
 //! Inputs: `LITE_NAMES_QUESTIONS` (rust/oracles/front/questions.jsonl.zst, decompressed), `LITE_NAMES_MODELS`,
-//! `LITE_NAMES_QUERIES`, `LITE_NAMES_STORES` and `LITE_NAMES_CALLS` (Java's answers: rust/oracles/names/, decompressed;
+//! `LITE_NAMES_QUERIES`, `LITE_NAMES_STORES`, `LITE_NAMES_CALLS` and `LITE_NAMES_DUPLICATES` (Java's answers:
+//! rust/oracles/names/, decompressed;
 //! the queries file names its pairs, which Java read from the identity oracle's keys, and the calls file its shapes).
 //! `LITE_NAMES_LIMIT` asks only the first N of each; `LITE_NAMES_MISMATCHES` names a directory each mismatch's Rust text
 //! is written to. Every ask must agree: a difference is a defect.
@@ -200,10 +202,11 @@ fn boot_fqns() -> HashSet<JStr> {
     out
 }
 
-/// A model resolved, adopted and indexed: `NameAnswers.modelForm`; and the stores form over the same index (`-` when
-/// there is none).
-fn model_form(parsed: &ParsedModel, boot: &HashSet<JStr>) -> (Vec<u16>, Vec<u16>) {
+/// A model resolved, adopted and indexed: `NameAnswers.modelForm`; and the stores form and the duplicates form over the
+/// same index (`-` when there is none).
+fn model_form(parsed: &ParsedModel, boot: &HashSet<JStr>) -> (Vec<u16>, Vec<u16>, Vec<u16>) {
     let mut stores = units("-");
+    let mut duplicates = units("-");
     let mut f = F::default();
     let mut b = None;
     let b_text = strict(resolver::resolve_alongside(parsed, boot, None), &mut b);
@@ -229,10 +232,10 @@ fn model_form(parsed: &ParsedModel, boot: &HashSet<JStr>) -> (Vec<u16>, Vec<u16>
     };
     f.s("\nK\t").u(&same(k_text, "B", &b_text));
     let mut l = None;
+    let mut l_walls = t_walls.clone();
     let l_text = match &t {
         None => units("-"),
         Some(tm) => {
-            let mut l_walls = t_walls.clone();
             let r = knowledge::adopt_association_qualified_properties(tm, Some(&mut l_walls));
             tolerant(r, &l_walls, &mut l)
         }
@@ -248,10 +251,37 @@ fn model_form(parsed: &ParsedModel, boot: &HashSet<JStr>) -> (Vec<u16>, Vec<u16>
                 f.s("\n");
                 index(&mut f, lm, &ix);
                 stores = stores_form(lm, &ix);
+                duplicates = duplicates_form(&ix, &l_walls);
             }
         }
     }
-    (f.0, stores)
+    (f.0, stores, duplicates)
+}
+
+/// `NameAnswers.duplicatesForm` (the names fixes, 2026-11-13): over the index, `S` the strict refusal (`-` when none),
+/// `W` the tolerant walls, `L`'s continued.
+fn duplicates_form(ix: &ModelIndex, l_walls: &LinkedMap<JStr, JStr>) -> Vec<u16> {
+    let mut f = F::default();
+    f.s("S\t");
+    match ix.refuse_duplicates(None) {
+        Ok(()) => {
+            f.s("-");
+        }
+        Err(e) => {
+            f.u(&error(&e));
+        }
+    }
+    let mut walls = l_walls.clone();
+    f.s("\nW\t");
+    match ix.refuse_duplicates(Some(&mut walls)) {
+        Ok(()) => {
+            f.u(&walls_json(&walls));
+        }
+        Err(e) => {
+            f.u(&error(&e));
+        }
+    }
+    f.0
 }
 
 // =====================================================================
@@ -1040,10 +1070,12 @@ fn differential() {
     let boot = boot_fqns();
     let mut java = BufReader::new(File::open(env("LITE_NAMES_MODELS")).unwrap()).lines();
     let mut java_stores = BufReader::new(File::open(env("LITE_NAMES_STORES")).unwrap()).lines();
+    let mut java_duplicates = BufReader::new(File::open(env("LITE_NAMES_DUPLICATES")).unwrap()).lines();
     let mut texts: HashMap<String, Vec<u16>> = HashMap::new();
-    let (mut asked, mut matched, mut s_matched) = (0usize, 0usize, 0usize);
+    let (mut asked, mut matched, mut s_matched, mut d_matched) = (0usize, 0usize, 0usize, 0usize);
     let mut differ: Vec<String> = Vec::new();
     let mut s_differ: Vec<String> = Vec::new();
+    let mut d_differ: Vec<String> = Vec::new();
     for line in BufReader::new(File::open(env("LITE_NAMES_QUESTIONS")).unwrap()).lines() {
         let line = line.unwrap();
         let q = wire::parse(&line, 64).unwrap();
@@ -1084,7 +1116,28 @@ fn differential() {
                 s.len() == 3 && s[0] == sha && s[1] == dialect_name,
                 "the stores oracle is out of step at {sha} {dialect_name}: {stores_line}"
             );
-            let (form, stores) = model_form(&parsed, &boot);
+            let duplicates_line = java_duplicates
+                .next()
+                .unwrap_or_else(|| panic!("Java answered no duplicates ask for {dialect_name} {sha}"))
+                .unwrap();
+            let d: Vec<&str> = duplicates_line.split('\t').collect();
+            assert!(
+                d.len() == 3 && d[0] == sha && d[1] == dialect_name,
+                "the duplicates oracle is out of step at {sha} {dialect_name}: {duplicates_line}"
+            );
+            let (form, stores, duplicates) = model_form(&parsed, &boot);
+            if sha256_utf16le(&duplicates) == d[2] {
+                d_matched += 1;
+            } else {
+                d_differ.push(format!("duplicates {dialect_name} {sha}"));
+                if let Some(dir) = &dump {
+                    std::fs::write(
+                        format!("{dir}/duplicates.{dialect_name}.{sha}.rust.txt"),
+                        String::from_utf16_lossy(&duplicates),
+                    )
+                    .unwrap();
+                }
+            }
             if sha256_utf16le(&form) == f[2] {
                 matched += 1;
             } else {
@@ -1120,6 +1173,10 @@ fn differential() {
             java_stores.next().is_none(),
             "the stores oracle holds more lines than the asks"
         );
+        assert!(
+            java_duplicates.next().is_none(),
+            "the duplicates oracle holds more lines than the asks"
+        );
     }
     println!(
         "[names-differential] models: {asked} asks, {matched} identical to Java's, {} differ",
@@ -1129,7 +1186,12 @@ fn differential() {
         "[names-differential] stores: {asked} asks, {s_matched} identical to Java's, {} differ",
         s_differ.len()
     );
+    println!(
+        "[names-differential] duplicates: {asked} asks, {d_matched} identical to Java's, {} differ",
+        d_differ.len()
+    );
     differ.extend(s_differ);
+    differ.extend(d_differ);
 
     let boot_resolved =
         resolver::resolve(&lattice::boot_model().expect("the boot model")).expect("the boot layer resolves");

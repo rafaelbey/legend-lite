@@ -194,4 +194,14 @@ zstd_decompress(
     visibility = ["//rust:__subpackages__"],
 )
 
+# The names fixes (2026-11-13; names/MANIFEST.tsv): refuseDuplicates, which reads only the index, held per model ask
+# over the same index -- strict and with the tolerant walls (ruling 28 put it in lite-names beside duplicate_elements).
+zstd_decompress(
+    name = "names_duplicates",
+    testonly = True,
+    src = "names/duplicates.tsv.zst",
+    out = "names/duplicates.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
 guards_package()

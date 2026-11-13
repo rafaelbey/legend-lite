@@ -359,6 +359,44 @@ fn a_runtimes_bindings_and_ids_resolve_and_merge() {
     });
 }
 
+/// The index's three fixes (2026-11-13, the names fixes, item 6, ruling 28): a database registered twice is last-wins
+/// in every index (the first's joins and views stayed when the second had none); an association end injects through a
+/// generic supertype's head too (only a bare name was climbed); a join-only view's root reads its join over the include
+/// closure (only the database's own joins, else refused).
+/// `refuseDuplicates` over the index (2026-11-13, the names fixes: ruling 28 placed it beside `duplicate_elements`):
+/// strict, the first duplicate's `ModelException` with its FQN; tolerant, each walled under its FQN, an earlier wall
+/// keeping its reason.
+#[test]
+fn the_index_refuses_its_duplicates_strictly_and_walls_them_tolerantly() {
+    on_parse_stack(|| {
+        let m = model("Class a::A {}\nClass a::A {}\nClass a::B {}\nClass a::B {}\nClass a::C {}\n");
+        let ix = ModelIndex::from(&m).unwrap();
+        let e = ix.refuse_duplicates(None).unwrap_err();
+        assert_eq!(e.java_class(), "com.legend.error.ModelException");
+        assert_eq!(e.message().unwrap(), j("Duplicated element 'a::A'"));
+        match &e {
+            crate::Thrown::Compile(c) => {
+                assert_eq!(c.phase, Some(lite_error::Phase::Model));
+                assert_eq!(c.element.as_deref(), Some(&*j("a::A").0));
+            }
+            other => panic!("not a compile error: {other:?}"),
+        }
+        let mut walls = LinkedMap::new();
+        walls.put(j("a::B"), j("an earlier reason"));
+        ix.refuse_duplicates(Some(&mut walls)).unwrap();
+        let w: Vec<(String, String)> = walls.iter().map(|(k, v)| (k.lossy(), v.lossy())).collect();
+        assert_eq!(
+            w,
+            [
+                ("a::B".to_owned(), "an earlier reason".to_owned()),
+                ("a::A".to_owned(), "Duplicated element 'a::A'".to_owned())
+            ]
+        );
+        let clean = ModelIndex::from(&model("Class a::A {}\n")).unwrap();
+        clean.refuse_duplicates(None).unwrap();
+    });
+}
+
 #[test]
 fn the_index_is_last_wins_climbs_generic_heads_and_reads_joins_through_includes() {
     on_parse_stack(|| {

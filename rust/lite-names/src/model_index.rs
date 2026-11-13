@@ -378,6 +378,24 @@ impl ModelIndex {
         self.duplicate_elements.iter()
     }
 
+    /// `PureModelContext.refuseDuplicates(index, walls)` (Java's `ModelIntegrity.refuseDuplicates`; it reads only
+    /// [`ModelIndex::duplicate_elements`], so it is the index's -- ruling 28, the owner's answer of 2026-11-12, moved in
+    /// the names fixes of 2026-11-13): every FQN registered more than once is refused with the engine's "Duplicated
+    /// element" -- strict (`walls` `None`), the first one's `ModelException` (MODEL, the FQN its element); tolerant, each
+    /// walled under its FQN with its message's first line, a key already walled keeping its first reason.
+    pub fn refuse_duplicates(&self, mut walls: Option<&mut LinkedMap<JStr, JStr>>) -> Result<(), Thrown> {
+        for (fqn, message) in self.duplicate_elements.iter() {
+            let refusal = Thrown::model(Phase::Model, message.clone(), Some(fqn));
+            match walls.as_deref_mut() {
+                None => return Err(refusal),
+                Some(w) => {
+                    w.put_if_absent(fqn.clone(), refusal.first_line());
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn ingest_database(&mut self, db: &Arc<DatabaseDefinition>) {
         let id = self.intern_element(&db.qualified_name);
         put_at_id(&mut self.databases, id, db.clone());

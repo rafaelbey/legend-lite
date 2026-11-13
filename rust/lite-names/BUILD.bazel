@@ -45,7 +45,9 @@ rust_test(
 # and against the model -- each canonical text held to the Java's (the SHA-256 per ask, frozen:
 # //rust/oracles:names_models, :names_queries; rust/oracles/names/MANIFEST.tsv): every ask identical, no list of
 # differences. Since the names follow-up (2026-11-12), also per model ask the store and class helpers moved into this
-# crate over the same index (:names_stores), and the call builder over every call shape (:names_calls).
+# crate over the same index (:names_stores), and the call builder over every call shape (:names_calls); since the names
+# fixes (2026-11-13), refuseDuplicates over the same index, strict and tolerant (:names_duplicates). Large (237-270 s
+# optimized), and in //gates:core: ruling 28.
 rust_test(
     name = "names_differential_test",
     size = "large",
@@ -54,6 +56,7 @@ rust_test(
     data = [
         "//rust/oracles:front_questions",
         "//rust/oracles:names_calls",
+        "//rust/oracles:names_duplicates",
         "//rust/oracles:names_models",
         "//rust/oracles:names_queries",
         "//rust/oracles:names_stores",
@@ -61,6 +64,7 @@ rust_test(
     edition = "2024",
     env = {
         "LITE_NAMES_CALLS": "$(rootpath //rust/oracles:names_calls)",
+        "LITE_NAMES_DUPLICATES": "$(rootpath //rust/oracles:names_duplicates)",
         "LITE_NAMES_MODELS": "$(rootpath //rust/oracles:names_models)",
         "LITE_NAMES_QUERIES": "$(rootpath //rust/oracles:names_queries)",
         "LITE_NAMES_QUESTIONS": "$(rootpath //rust/oracles:front_questions)",

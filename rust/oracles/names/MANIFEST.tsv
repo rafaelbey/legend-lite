@@ -84,3 +84,13 @@ calls.tsv.zst	NameAnswers' calls: builder TAB shape fields TAB hash, 14,454 line
 # stores and calls unchanged (a4f4ecd9..., d60c472c..., 3d84bb66...). The models' texts (5,122,779,980 bytes) archived as
 # oracle-archive/names-models-texts-java-2026-11-13b.jsonl.zst (58,352,507 bytes), the SHA-256 of the uncompressed text
 # 0a96f27a9647eb300853cd09361e5f8a6bb8ca9698bf21657de2d0bef03a1b72 (names-texts-java.sha256; checked by decompressing it).
+# DUPLICATES (the names fixes, 2026-11-13: ruling 28 put PureModelContext.refuseDuplicates, which reads only the index,
+# in lite-names beside duplicate_elements): one line per model ask, in the models file's order (74,292; 74,260 with an
+# index, 32 without, form `-`), NameAnswers.duplicatesForm over the same index X asks -- S the strict refusal (`-`, or
+# the error: 123 asks refused, the first duplicate's "Duplicated element 'x'"), W the tolerant walls, L's walls continued
+# as the module build's one wall sink is. Made by the run pair of item 4's re-freeze above (its two files byte-identical),
+# which ran this commit's Java, NameAnswers' new output included. Its texts (9,087,868 bytes) archived as
+# oracle-archive/names-duplicates-texts-java-2026-11-13b.jsonl.zst (965,738 bytes), the SHA-256 of the uncompressed text
+# 978eb98ce5af10bd8c115366d52778c1f356aad84f977a5236d3135b162cd0cc (names-texts-java.sha256; checked by decompressing
+# it). //rust/lite-names:names_differential_test holds lite-names to all five files.
+duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,292 lines	cd2949dfac34dfc3e2c11212b1f4015ec471cd946ae5939d9ab9d5607c9102ef
