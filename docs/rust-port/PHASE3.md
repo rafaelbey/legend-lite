@@ -793,7 +793,7 @@ done, in the order of the design's §3.
      `ViewSignatures` and `columnType` move into `lite-names` (with them, `KnowledgeLayer.columnKind` would be D's); and
      whether `PureModelContext.refuseDuplicates` belongs beside `duplicate_elements`. Not decided here: the brief's
      placement stands until the owner rules. (The first two ruled the same day, yes, `MilestoningStrategy` with them:
-     the follow-up below. `refuseDuplicates` is still open.)
+     the follow-up below. `refuseDuplicates`, ruled with ruling 28, moved in the names fixes below.)
    - *The follow-up (2026-11-12, the owner's rulings on the census's asks 1 and 2;* [`PHASE3_CRATES.md`](PHASE3_CRATES.md)
      §8*).* Five classes Java keeps in `compiler/spec` and `compiler/element`, which reach only names-tier code and
      which E calls first, are `lite-names`'; no Java production code changed, nothing calls the new code yet but tests.
@@ -872,3 +872,93 @@ done, in the order of the design's §3.
         `//docs:update_dialect_capability_test`); 35 targets new since the baseline, all passing, `//rust/lite-guards:guards_test`,
         `//rust/lite-names:lite_names_test` and `:names_differential_test` among them. `ledger_check.sh c4a39e06d`: 82
         rows ok, none missing.
+   - *The names fixes (2026-11-13, the owner's rulings 25, 28 and 29 on the slice's and the follow-up's "Java behaviours
+     that look wrong"; the rows, every measurement and the held-back items' before and after:
+     `port-scratch/namesfix/ROWS.md`).* Each item confirmed first -- what Java did, what it should do, and where "should"
+     comes from (legend-engine 4.145.0's or legend-pure 5.99.0's pinned sources read, the code's own contract, a test) --
+     and its reach measured: an instrumented build (never committed) counted, per site, the inputs that reach it and those
+     whose answer the fix changes, over the names differential's asks (74,292 model asks, 31,297 query pairs) and over the
+     front oracle's 8,794 Database texts compiled and seeded (`MetamodelSeeds`, so `RelationalOpRows` over every mapping
+     expression and view column). One commit per item or coupled pair, Java and Rust together, each with its Java and Rust
+     tests; the names oracle re-frozen in a commit only where its answers moved (two Java runs byte-identical, the texts
+     archived with their SHA-256), lite-names held to every frozen answer on the first run. Then step 0's probe over the
+     freeze's lanes, as the re-check ran it: four commits moved frozen keys, and were reverted (the stop condition).
+     1. *Fixed, no answer moved* (NameAnswers at their state answering the frozen files byte for byte; the final probe
+        equal): items 8 and 13 (`b25d64101`: the type inference refuses a view-on-view cycle by name, `ViewSignatures`'
+        words, an identity set of the view columns being typed -- `infer` and `column_kind` answer a `Result` in Rust; the
+        column-kind walk keys on its triple, a collision a text cannot make and a protocol model can); item 7
+        (`eee2e98b2`: a qualified property returning a type that names no class is refused by its kind in words, never a
+        record's `toString`; the port's refusal of a generic's values and its `toString` spelling deleted); item 5
+        (`03b791378`: a qualified call matches no call tier); item 3 (`59f7c6a9a`: a runtime's ids resolve whatever else
+        changed; two keys naming one store keep both lists -- the engine refuses several connections per store, a check
+        lite makes for no runtime); items 9, 10's `sub` and 11 (`2be83bf8d`: a decimal is safe with the integer and float
+        kinds alone -- the item's "lone NUMERIC comes out DECIMAL" is the engine's own rule, unchanged; `sub` has no
+        default; `max`/`min` over several take the engine's safe type; `distinct` and the string transforms read their
+        first argument as the engine's do).
+     2. *Ruling 28's placement*: `refuseDuplicates` (`e4771f8b3`: `ModelIndex::refuse_duplicates` beside
+        `duplicate_elements`, held by a question of its own, `duplicates.tsv`: 123 of 74,292 asks refused, frozen from two
+        byte-identical runs; Java's stays where it is). The names oracle ends as the follow-up froze it, with
+        `duplicates.tsv` beside it (its MANIFEST says which re-freezes the reverts took back).
+     3. *Held back by the stop condition, reverted* (each landed with its tests and, where its answers moved, its names
+        re-freeze; the probe then moved frozen keys and a revert commit took it back; the owner's to land):
+        - Item 10's concat (`c4baaca19`, reverted by `371aef52e`) and item 4 (`5d162ee91`, reverted by `8f4c8003c`)
+          moved 914 test plan ids in the corpus lanes (`bin/spec/judge_{host,database}_{duckdb,h2}`): every corpus plan
+          seeds the system metamodel, and its rows moved -- concat's `Varchar(2)` type row for
+          `simpleRelationalMappingWithConcat`'s `Order` property 0 (a `Varchar(2)` and an `Integer`) gone and the
+          `DynaFunction` row's type reference null; 12 `TableAliasColumn` rows of enumerated expressions (the enumeration
+          tests' `employeeTestMapping*`, the model-to-model tests' `relationalMapping`) naming their database by its full
+          path (`column:myDB|...` -> `column:meta::relational::tests::mapping::enumeration::model::store::myDB|...`); the
+          system database's `graphKey` with them. Landing either is a re-freeze of the plan oracle. Measured, not read
+          off the rows: the probe at the item 4 revert moved no test plan id.
+        - Items 1 and 2 (`d90670102`, reverted by `eaa5c1a27`) moved no answer but renamed 2,823 frozen keys: 2,801 of the
+          4,535 `vs:` query ids (a query with no text is named by the SHA-256 of its resolved spec's `toString`, and a
+          rebuilt node now keeps its positions) and 22 of the 24 `L` set keys built from them; grouped by kind, model,
+          door and use, all 194 groups' new keys answer as the absent ones did, as multisets (counts, MirJson ids, plan
+          ids). Landing them is a re-key of the identity and plan oracles, or a probe key that no `toString` makes. With
+          them goes their last part, held back before: a rebuilt primitive extension's type variables
+          (`NameResolver.java`:409), which flips acceptance (`Primitive test::IntCap(x:Integer[1]) extends Integer` used
+          as `test::IntCap(2)` is refused today, "Wrong type variables count (1)", and would still be refused for
+          another reason, "'2' is not an instance of Integer": a type variable's own type is never resolved, a class's
+          no more than a primitive's; `test::IntCap()` is accepted today and would be refused).
+        - Item 6 (`bca1e2eb3`, reverted by `bf26e88e4`) moved no plan, MirJson or test plan id and no names answer, but two
+          counts of the identity oracle: `CallInstantiation.equals.frame` 32/0 -> 32/1 (`toPostgresModel`'s
+          `testConvertSelectSQLQuery`, the host judge on DuckDB) and 64/0 -> 64/1 (`testConvertJoinTreeNode`, the
+          database judge on H2), reproducibly (two full probes) and in one lane per test, the other three as frozen.
+          Bisected with the corpus lanes alone (each lane its own JVM): as frozen at `631d4e0bf`, `b25d64101` and
+          `59f7c6a9a`, both moved at `bca1e2eb3`. A hypothesis the reproduction supports: the probe counts
+          `UserCallInliner`'s `CallInstantiation.equals`, which a `HashMap` calls when two keys' hashes are equal, and the
+          record's `hashCode` is made of `System.identityHashCode`s (`UserCallInliner.java`:132-146), so a change that
+          hashes one more object by identity on the lane's thread before these tests changes which distinct keys
+          collide. That pair of counters (`.frame`, `.origin`) measures identity-hash collisions, not planning: a Rust
+          port cannot be held to it, and the owner may drop or mask it as `executionTraceID` is masked; landing item 6
+          is that, or a re-freeze of the two counts.
+     4. *Register rows, for the owner* (ruling 29's third policy): S376 (item 12: `ViewSignatures`' `Any`s and its
+        one-argument aggregates), S377 (item 14: an unknown `temporal.*` stereotype is no strategy at E, refused at F in
+        the engine's words), S378 (the inference's other differences from `getSafeType` found while confirming 9 to 11,
+        and concat's, held back).
+     5. *Guards*: the full suite found `//parser-equivalence:parser_parity` failing on the new Java test snippets
+        (`bc493b435`). Item 7's case wrote a function type as a qualified property's return, grammar the engine's
+        parser refuses, which three own-corpus guards keep to declared hosts; no guard was widened -- the case sets the
+        function type on the parsed records instead. `own_corpus.matched` 3025 -> 3038: the standing fixes' snippets
+        that join the own corpus and match the oracle (a `rust/RETIRED_TESTS.md` row). No other pin, ratchet or
+        allowlist moved. `//rust/lite-names:names_differential_test` was `size = "large"` already (since
+        `76a191f11`), in `//gates:core`; its BUILD comment says so now. PHASE3_CRATES.md §5 items 16 and 20 are marked
+        overtaken.
+     6. *The probe* (`rust/tools/identity-hits-probe.patch`, applying with hunks offset and no fuzz; the re-check's
+        scripts, `--nocache_test_results`, the verify worktree; each full run 143 of 145 targets passing, the two
+        probe-caused failures of the freeze, `//core:census` and `//core:guardrails`, and no other). At `c4baaca19`
+        (every fix in): of the 73,411 frozen keys, 70,588 answered, 69,674 equal, 914 test plan ids moved and 2,823 keys
+        absent. At `8f4c8003c` (items 4 and concat reverted): no plan, MirJson or test plan id moved, the same 2,823
+        absent, and item 6's two counts. At `eaa5c1a27` (items 1 and 2 reverted too): all 73,411 answered, 73,409 equal,
+        item 6's two counts. At `bf26e88e4` (item 6 reverted too), and again at `bc493b435` (item 7's test changed, the
+        code otherwise the same; 22 min 34 s): **of the 73,411 frozen keys, all 73,411 answered and equal, none moved**
+        -- 67,752 rows of counts, 167,833 MirJson ids, 25,741 execution plan ids and 25,597 test plan ids, every id
+        re-hashed to its text, the mask applied 0 times, the lanes' table the re-check's line for line (the 16,875 keys the
+        freeze left out by design). `check_manifest.py`: the identity and plan oracles' files all as their MANIFEST rows.
+        Each run's 35-38 GB folder deleted; the verify worktree left clean.
+     7. *Gates* (at `bc493b435`; the docs beside it are no test's input, G17): `cargo test --workspace` (637 passed,
+        0 failed, 44 ignored), `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --check` clean.
+        Bazel `test //... --keep_going --local_test_jobs=2` (1,121 s): 584 targets, 582 passed, 2 skipped, none failed
+        or timed out; of `rust/BASELINE.tsv`'s passing targets every one passes but the three gone with their code and
+        ledgered (`//core:core_tests_ide`, `//core:core_tests_lexer`, `//docs:update_dialect_capability_test`); the 35
+        targets new since the baseline all pass. `ledger_check.sh c4a39e06d`: 84 rows ok, none missing.

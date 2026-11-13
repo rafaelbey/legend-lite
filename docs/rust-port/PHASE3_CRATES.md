@@ -173,7 +173,8 @@ The names slice's (2026-11-12, §7), each the conservative path where the choice
 16. **A generic type with type-variable values is not spelled by Java's `toString`** where `KnowledgeLayer.rawName` spells
     a non-name type into a refusal's message (an association qualified property returning a function, relation or
     schema type): the names layer refuses it loudly (`IllegalStateException`) rather than guess a value's spelling. The
-    differential met no such model.
+    differential met no such model. (Overtaken 2026-11-13 by the names fixes, item 7, ruling 29: Java's refusal names a
+    type that names no class by its kind in words, and the port spells it the same; no `toString` in either.)
 17. **The process-wide memos `BUILT` and `REFERENTS` are `Mutex<HashMap>`** (lookup, compute outside the lock, first writer
     wins, a trivial answer not kept), where PHASE3_DESIGN.md §2.5 item 7 said `RwLock`: they are written as often as read
     while a process warms. `KnowledgeLayer.derived` is a `TypeId`-keyed memo (its one caller is E's).
@@ -190,7 +191,9 @@ The names follow-up's (2026-11-12, §8), each the conservative path:
     none).
 20. **The type inference keeps Java's missing cycle guard**: a computed view column over a cyclic chain recurses until
     the stack is gone -- Java throws `StackOverflowError`, Rust aborts the process. Alternative: a depth guard with a
-    named refusal (a divergence, a register row). The differential met no such model.
+    named refusal (a divergence, a register row). The differential met no such model. (Overtaken 2026-11-13 by ruling 29
+    and the names fixes, item 8: Java and Rust refuse the cycle by name, `ViewSignatures`' words, an identity set of
+    the view columns being typed, no depth limit.)
 21. **The Rust guard for "the one place a call is built" is a source scan** (§8), the parser's whole crate and the
     resolver's file exempt, `with_parameters` allowed, tests out of scope, the two files' counts pinned exactly.
     Alternative: a type-level guard (the record's constructor private to lite-front, the builder lite-front's), which
