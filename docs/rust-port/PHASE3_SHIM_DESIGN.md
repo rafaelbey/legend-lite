@@ -501,6 +501,26 @@ Each with my recommendation first.
     exhaustive match in Rust; Java's distinct subtype relations are kept (ruling 28); E's `NormalizedModel` and F's
     answers are held to the live Java by differentials and frozen before the slice lands. The census:
     [`EF_CENSUS.md`](EF_CENSUS.md), its evidence in [`ef-census/`](ef-census).
+32. **The names fixes the stop condition held back land, re-frozen before E** (2026-11-13; `PHASE3.md`, the names
+    slice's entry, "the names fixes"): items 4 and 10's `concat` are re-applied and the plan oracle's moved test plan
+    ids re-frozen, each attributed to its item, before the normalizer slice freezes its own oracle. Items 1 and 2 (a
+    rebuild keeps every component but its names, and the root door's three span drops, `Compiler.java` 358, 431, 476)
+    land after the probe's key for a query with no text stops being the SHA-256 of a Java `toString` and becomes a key
+    Rust can compute, the identity and plan oracles re-keyed once with every old key shown to answer as its new one.
+    `CallInstantiation.equals.frame` and `.origin` leave the frozen identity oracle (they count identity-hash
+    collisions, not planning, as `executionTraceID` was masked) and item 6 lands. A primitive extension's type
+    variables are carried and every type variable's declared type is resolved (classes too), matching the engine,
+    measured and re-frozen. Item 3: the inputs that write several connections for one store are counted; if none, both
+    forms are refused in the engine's words (`HelperRuntimeBuilder.java:197-205`), else the merge stays with a register
+    row and the count comes back. Register rows: S376 and S378 are fixed to the engine's answers (measured, re-frozen);
+    S377 is accepted as it is (a strict build answers as the engine does).
+33. **The names fixes' own choices are ratified** (2026-11-13): item 7's test builds its function type as records rather
+    than make `KnowledgeLayerTest.java` a grammar-guard host; Java's `refuseDuplicates` stays until the Java goes, held
+    to `lite-names`' by the names oracle's `duplicates.tsv`; the own-corpus ratchet 3025 to 3038.
+34. **Standing: a fix confirmed against upstream re-freezes and reports after** (2026-11-13). A fix whose right answer is
+    read from legend-engine's or legend-pure's pinned sources (or asked of the engine) lands with a re-freeze of every
+    frozen answer it moves, each moved key attributed to its item, and is reported after it lands. A fix whose only
+    source is lite's own code or documentation still stops for the owner before it lands.
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.
