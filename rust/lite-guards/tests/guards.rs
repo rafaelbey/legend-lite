@@ -11,6 +11,13 @@
 //!    pointer becomes an address (`as_ptr`, `{:p}`, `ptr::eq`, `Arc::ptr_eq`, `addr`) only in lite-base's
 //!    `src/identity.rs`, whose maps and sets have no iteration.
 //!
+//! 3. The one place a call is built (2026-11-12, the names follow-up; Java's `ArchitectureTest.callsAreBuiltOnlyByTheBuilder`
+//!    in Rust): outside the parser's crate (lite-front: the parser and the protocol readers build calls before
+//!    resolution), a call record (`AppliedFunction`) is constructed only by lite-names' `Calls` (`src/calls.rs`) and by
+//!    the resolver, which records a parsed call's names (`src/resolver/values.rs`, as Java's rule exempts
+//!    `NameResolver`); nothing else names lite-front's call factories. Production sources only (`src/`), as Java's
+//!    rule checks the production classes alone.
+//!
 //! Bazel hands the files (`LITE_GUARD_FILES`) and the genqueries (`LITE_CRATE_DEPS`); cargo reads the tree. A comment
 //! line (`//`, `//!`, `///`) is prose and is not scanned.
 
@@ -517,4 +524,121 @@ fn unsafe_lives_in_the_arena_and_addresses_in_identity() {
         }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Where a call record is constructed outside the parser's crate, each with its count -- exact, so the scan is seen to
+/// look -- and why (2026-11-12, the names follow-up: the owner's ruling moved Java's `compiler/spec/Calls` into
+/// lite-names). A new site is a call built past the builder: build it through `lite_names::calls` instead.
+const CALL_BUILDERS: &[(&str, usize, &str)] = &[
+    (
+        "rust/lite-names/src/calls.rs",
+        3,
+        "the one builder of a call after the resolver (Java's `compiler/spec/Calls`)",
+    ),
+    (
+        "rust/lite-names/src/resolver/values.rs",
+        1,
+        "the resolver records a parsed call's names (Java's `NameResolver`, which the rule exempts)",
+    ),
+];
+
+/// lite-front's call factories (the parser's `nodes` and `operator_parts`), which build a call with no record.
+const CALL_FACTORIES: &[&str] = &[
+    "lite_front::nodes",
+    "nodes::applied",
+    "nodes::infix",
+    "applied_full",
+    "operator_parts",
+];
+
+/// The constructions of a call record a code line writes: each `AppliedFunction {` that is not a return type
+/// (`-> p::AppliedFunction {`, a function's body brace) nor a declaration (`struct`, `impl`).
+fn call_constructions(line: &str) -> usize {
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let trimmed = line.trim_start();
+    if trimmed.starts_with("impl") || trimmed.starts_with("struct") || trimmed.starts_with("pub struct") {
+        return 0;
+    }
+    line.match_indices("AppliedFunction")
+        .filter(|(at, word)| {
+            let before = &line[..*at];
+            let after = line[at + word.len()..].trim_start();
+            if before.chars().next_back().is_some_and(ident) || !after.starts_with('{') {
+                return false;
+            }
+            // the path before the name (`p::`, `records::`) is part of it
+            let head = before.trim_end_matches(|c: char| ident(c) || c == ':').trim_end();
+            !head.ends_with("->")
+        })
+        .count()
+}
+
+#[test]
+fn calls_are_built_only_by_the_builder() {
+    let tree = tree();
+    let mut problems = Vec::new();
+    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut scanned = 0usize;
+    for (path, text) in tree.files.iter().filter(|(p, _)| p.ends_with(".rs")) {
+        let Some(name) = crate_of_path(path) else { continue };
+        // the parser's crate builds calls before resolution; production sources only
+        if name == "lite-front" || !path.starts_with(&format!("rust/{name}/src/")) {
+            continue;
+        }
+        scanned += 1;
+        let allowed = CALL_BUILDERS.iter().any(|(p, _, _)| p == path);
+        for (n, line) in code_lines(text) {
+            let made = call_constructions(line);
+            if made > 0 {
+                *counts.entry(path).or_default() += made;
+                if !allowed {
+                    problems.push(format!(
+                        "{path}:{n}: a call record built outside lite-names' `calls` (build it there): {}",
+                        line.trim()
+                    ));
+                }
+            }
+            for token in CALL_FACTORIES.iter().filter(|t| line.contains(**t)) {
+                problems.push(format!(
+                    "{path}:{n}: `{token}`, the parser's call factory, outside the parser's crate: {}",
+                    line.trim()
+                ));
+            }
+        }
+    }
+    for (path, expected, why) in CALL_BUILDERS {
+        let seen = counts.get(path).copied().unwrap_or(0);
+        if seen != *expected {
+            problems.push(format!(
+                "{path}: {seen} call records built where {expected} are pinned ({why}): a moved pin takes a dated \
+                 comment and a rust/RETIRED_TESTS.md row"
+            ));
+        }
+    }
+    assert!(
+        scanned >= 50,
+        "{scanned} production sources scanned: the guard is not looking"
+    );
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+#[test]
+fn a_call_construction_is_told_from_a_return_type() {
+    assert_eq!(call_constructions("    p::AppliedFunction {"), 1);
+    assert_eq!(call_constructions("    Ok(Some(p::AppliedFunction {"), 1);
+    assert_eq!(
+        call_constructions("let x = lite_front::records::AppliedFunction { function, .. };"),
+        1
+    );
+    assert_eq!(call_constructions("AppliedFunction{"), 1);
+    assert_eq!(
+        call_constructions("pub fn platform(name: &JStr, args: Vec<V>) -> p::AppliedFunction {"),
+        0
+    );
+    assert_eq!(call_constructions(") -> AppliedFunction {"), 0);
+    assert_eq!(call_constructions("impl AppliedFunction {"), 0);
+    assert_eq!(call_constructions("pub struct AppliedFunction {"), 0);
+    assert_eq!(call_constructions("V::AppliedFunction(af) => {"), 0);
+    assert_eq!(call_constructions("let f: AppliedFunctionX {"), 0);
+    assert_eq!(call_constructions("fn f(af: &p::AppliedFunction) {"), 0);
 }
