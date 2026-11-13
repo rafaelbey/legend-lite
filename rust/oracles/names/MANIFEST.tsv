@@ -19,7 +19,7 @@
 # spellings (t) and 828,951 columns (u), 596,051 filter and 316,904 join lookups, 96,180 views (v) and 2,809 main tables
 # (w), 158,967 legacy set ids (q), 490,673 section scopes (i), 202,484 function ids (f), 31,954 lifted derived
 # properties (l), 123 duplicates (d).
-models.tsv.zst	NameAnswers' models: text sha TAB dialect TAB hash, 74,292 lines	4421f233300475ac041e36be54a2cb0895b245a84daa74132caed3662e60b3bc
+models.tsv.zst	NameAnswers' models: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names landings, at the end)	a4b5c0ea74ab0a6b20fd7d52261de06b0891ce58bf776853345e07e14919a1e4
 # QUERIES: one line per distinct (query, model) pair of the identity oracle whose model and query are both t: texts of
 # the front oracle, in first-seen order -- 31,297 pairs, 20,857 query texts, 2,321 model texts. The text: N
 # resolveQuery (the sectionless scope: no model), M resolveQueryIn(query, no imports, the model's universe), I with the
@@ -84,3 +84,13 @@ calls.tsv.zst	NameAnswers' calls: builder TAB shape fields TAB hash, 14,454 line
 # 978eb98ce5af10bd8c115366d52778c1f356aad84f977a5236d3135b162cd0cc (names-texts-java.sha256; checked by decompressing
 # it). //rust/lite-names:names_differential_test holds lite-names to all five files.
 duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,292 lines	cd2949dfac34dfc3e2c11212b1f4015ec471cd946ae5939d9ab9d5607c9102ef
+# THE NAMES LANDINGS (2026-11-13, docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 rulings 32 and 34; PHASE3.md, the
+# names slice's entry): the fixes the stop condition held back land again, each re-freezing here what its Java moves, from
+# two runs of that commit's Java (A, and B with --texts) byte-identical on every file, lite-names held to the new answers
+# by the differential (cargo, release) before the commit; the texts archived with their SHA-256 in names-texts-java.sha256.
+# 1. Item 4 (an enumerated expression's operation, a generic's type-variable values and a quoted tree call's tree walked,
+#    the tree in the sectionless scope), re-applied first, on the follow-up's answers: models.tsv moved (18 of 74,292
+#    lines, 4421f233... -> a4b5c0ea...: the asks whose enumerated expressions name a database), queries, stores, calls
+#    and duplicates unchanged. Texts: names-models-texts-java-2026-11-13-land4.jsonl.zst (53,337,542 bytes;
+#    1d34f90f9da43565ed2553dd04a5b918d9e42ce558af3a32a7839f3f481d6568, checked by decompressing it). lite-names: 74,292,
+#    74,292, 74,292, 31,297 and 14,454 identical.

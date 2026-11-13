@@ -698,8 +698,14 @@ fn property_mapping(pm: &PropertyMapping, scope: &Scope<'_>) -> Rs<PropertyMappi
                 column: c.column.clone(),
             }))
         }),
-        // ported as Java has it: an enumerated expression's relational operation is not walked
-        P::PropertyMappingEnumeratedExpression(_) => None,
+        // its operation resolves as an Expression's does (not walked until 2026-11-13: the names fixes, item 4)
+        P::PropertyMappingEnumeratedExpression(ee) => rel_op(&ee.expression, scope)?.map(|expr| {
+            P::PropertyMappingEnumeratedExpression(Arc::new(lite_model::PropertyMappingEnumeratedExpression {
+                property_name: ee.property_name.clone(),
+                enum_mapping_id: ee.enum_mapping_id.clone(),
+                expression: expr,
+            }))
+        }),
         P::PropertyMappingEnumeratedColumn(ec) => name(&ec.database, scope)?.map(|db| {
             P::PropertyMappingEnumeratedColumn(Arc::new(PropertyMappingEnumeratedColumn {
                 property_name: ec.property_name.clone(),
