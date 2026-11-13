@@ -253,10 +253,13 @@ public final class NameResolver {
             resolved.add(r);
             changed |= r != el;
         }
+        // every side component survives the rebuild: a resolution rewrites names, nothing else (until 2026-11-13 the
+        // six-argument form dropped the unclaimed sections and the element spans whenever a name changed -- the names
+        // fixes, item 1, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28)
         return !changed ? model
                 : new ParsedModel(resolved, model.imports(),
                         model.source(), model.elementOffsets(), model.elementImports(),
-                        model.elementSources());
+                        model.elementSources(), model.unclaimedSections(), model.elementSpans());
     }
 
     /** The platform's own type universe (native classes and enums, the
@@ -647,7 +650,7 @@ public final class NameResolver {
         return switch (t) {
             case TypeExpression.NameRef nr -> {
                 String r = resolveName(nr.name(), scope);
-                yield r.equals(nr.name()) ? nr : new TypeExpression.NameRef(r);
+                yield r.equals(nr.name()) ? nr : new TypeExpression.NameRef(r, nr.pos());
             }
             case TypeExpression.Generic g -> {
                 String r = resolveName(g.name(), scope);
@@ -691,7 +694,7 @@ public final class NameResolver {
             TypeExpression.Column c, Scope scope) {
         TypeExpression t = resolveType(c.type(), scope);
         return t == c.type() ? c
-                : new TypeExpression.Column(c.name(), nn(t), c.multiplicity());
+                : new TypeExpression.Column(c.name(), nn(t), c.multiplicity(), c.pos());
     }
 
     /** Core lookup. Private; callers go through {@link #resolveType} etc. */
@@ -891,7 +894,7 @@ public final class NameResolver {
             ParameterDefinition p, Scope scope) {
         TypeExpression type = resolveType(p.type(), scope);
         return type == p.type() ? p
-                : new ParameterDefinition(p.name(), nn(type), p.multiplicity());
+                : new ParameterDefinition(p.name(), nn(type), p.multiplicity(), p.pos());
     }
 
     private static ConstraintDefinition resolveConstraint(
@@ -907,7 +910,7 @@ public final class NameResolver {
             return c;
         }
         return new ConstraintDefinition(c.name(), realization, message,
-                c.enforcementLevel());
+                c.enforcementLevel(), c.externalId(), c.owner(), c.pos());
     }
 
     private static AssociationDefinition resolveAssociation(
@@ -1065,7 +1068,7 @@ public final class NameResolver {
             case Realization.Ref ref -> {
                 String fqn = resolveName(ref.functionFqn(), scope);
                 yield fqn.equals(ref.functionFqn()) ? ref
-                        : new Realization.Ref(fqn);
+                        : new Realization.Ref(fqn, ref.source());
             }
             case Realization.Inline inl -> {
                 List<ValueSpecification> body = resolveList(inl.body(),
@@ -1227,7 +1230,7 @@ public final class NameResolver {
                 yield className.equals(rf.className()) && funcRef.equals(rf.funcRef())
                         ? rf
                         : new ClassMapping.RelationFunction(className, rf.setId(),
-                                rf.extendsSetId(), rf.root(), funcRef, rf.columns());
+                                rf.extendsSetId(), rf.root(), funcRef, null, rf.columns(), rf.primaryKey());
             }
             case ClassMapping.Pure p -> {
                 String className = resolveName(p.className(), scope);
@@ -1364,8 +1367,11 @@ public final class NameResolver {
             case PropertyMapping.Embedded e -> {
                 List<PropertyMapping> subs = resolvePropertyMappingList(
                         e.propertyMappings(), scope);
-                yield subs == e.propertyMappings() ? e
-                        : new PropertyMapping.Embedded(e.propertyName(), subs);
+                // its ~primaryKey's operations resolve as a class mapping's do, and ride the rebuild (until
+                // 2026-11-13 the two-argument form dropped them: the names fixes, item 2)
+                List<RelationalOperation> pk = resolveRelOpList(e.primaryKey(), scope);
+                yield subs == e.propertyMappings() && pk == e.primaryKey() ? e
+                        : new PropertyMapping.Embedded(e.propertyName(), subs, pk);
             }
             case PropertyMapping.InlineEmbedded ie -> ie; // setId is local; no FQN inside
             case PropertyMapping.OtherwiseEmbedded oe -> {
@@ -1879,7 +1885,7 @@ public final class NameResolver {
                 if (tilde > 0) {
                     String base = resolveName(ptr.fullPath().substring(0, tilde), scope);
                     String q = base + ptr.fullPath().substring(tilde);
-                    yield q.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(q);
+                    yield q.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(q, ptr.pos());
                 }
                 // a function referenced BY ITS SIGNATURE ID
                 // (contains(x, comparator_A_1__A_1__Boolean_1_), PCT's
@@ -1894,11 +1900,14 @@ public final class NameResolver {
                 // 2026-10-10; before, the typer walked the tiers from the bare base at every read). A resolved
                 // or qualified spelling matches no tier and comes back as it is.
                 String r = qualifyIdByBase(resolveName(ptr.fullPath(), scope), scope);
-                yield r.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(r);
+                yield r.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(r, ptr.pos());
             }
             case EnumValue ev -> {
                 String r = resolveName(ev.fullPath(), scope);
-                yield r.equals(ev.fullPath()) ? ev : new EnumValue(r, ev.value());
+                // the positions and the wire spelling ride the rebuild (until 2026-11-13 the two-argument form dropped
+                // both positions, and so made the value the real enumValue node: the names fixes, item 2)
+                yield r.equals(ev.fullPath()) ? ev
+                        : new EnumValue(r, ev.value(), ev.enumerationPos(), ev.pos(), ev.node());
             }
             case AppliedFunction af -> {
                 // IDEMPOTENT: a call carrying its record was resolved (its scope decided the names; since L7 step 2
@@ -1922,7 +1931,7 @@ public final class NameResolver {
             case AppliedProperty ap -> {
                 ValueSpecification receiver = resolveVs(ap.receiver(), scope);
                 yield receiver == ap.receiver() ? ap
-                        : new AppliedProperty(nn(receiver), ap.property());
+                        : new AppliedProperty(nn(receiver), ap.property(), ap.pos(), ap.ownerClass());
             }
             case LambdaFunction lf -> resolveLambda(lf, scope);
             case Variable v -> resolveVariable(v, scope);
@@ -1936,7 +1945,7 @@ public final class NameResolver {
                         && props == ni.properties()) {
                     yield ni;
                 }
-                yield new NewInstance(className, typeArgs, props);
+                yield new NewInstance(className, typeArgs, ni.typeMultiplicityArguments(), props);
             }
             case NewInstanceCast nic -> {
                 // Cast form ^Class($src): rewrite className (FQN
@@ -1956,12 +1965,12 @@ public final class NameResolver {
             }
             case PureCollection coll -> {
                 List<ValueSpecification> values = resolveVsList(coll.values(), scope);
-                yield values == coll.values() ? coll : new PureCollection(values);
+                yield values == coll.values() ? coll : new PureCollection(values, coll.pos());
             }
             case ColSpec cs -> resolveColSpec(cs, scope);
             case ColSpecArray csa -> {
                 List<ColSpec> out = resolveList(csa.colSpecs(), NameResolver::resolveColSpec, scope);
-                yield out == csa.colSpecs() ? csa : new ColSpecArray(out);
+                yield out == csa.colSpecs() ? csa : new ColSpecArray(out, csa.pos());
             }
             case TypeAnnotation ta -> resolveTypeAnnotation(ta, scope);
             // Explicit leaf pass-through. Listing every C-literal variant
@@ -1987,7 +1996,7 @@ public final class NameResolver {
 
     private static Variable resolveVariable(Variable v, Scope scope) {
         TypeExpression t = resolveType(v.type(), scope);
-        return t == v.type() ? v : new Variable(v.name(), t, v.multiplicity());
+        return t == v.type() ? v : new Variable(v.name(), t, v.multiplicity(), v.pos());
     }
 
     private static List<Variable> resolveVariableList(
@@ -2006,7 +2015,7 @@ public final class NameResolver {
         List<Variable> params = resolveVariableList(lf.parameters(), scope);
         List<ValueSpecification> body = resolveVsList(lf.body(), scope);
         return (params == lf.parameters() && body == lf.body()) ? lf
-                : new LambdaFunction(params, body);
+                : new LambdaFunction(params, body, lf.pos());
     }
 
     private static java.util.List<NewInstance.KeyBinding> resolveKeyBindings(
@@ -2063,7 +2072,8 @@ public final class NameResolver {
                 (x, sc) -> Objects.requireNonNull(resolveVs(x, sc), "resolveVs(x, sc)"), scope);
         return (r1 == fn1 && r2 == fn2 && ra == cs.args()) ? cs
                 : new ColSpec(cs.name(), r1, r2, cs.alias(), ra,
-                        cs.qualified());
+                        cs.qualified(), cs.pos(), cs.colType(), cs.colTypeMult(), cs.stereotypes(),
+                        cs.taggedValues());
     }
 
     private static TypeAnnotation resolveTypeAnnotation(
@@ -2071,7 +2081,7 @@ public final class NameResolver {
         return switch (ta) {
             case TypeAnnotation.Named named -> {
                 TypeExpression t = resolveType(named.type(), scope);
-                yield t == named.type() ? named : new TypeAnnotation.Named(nn(t));
+                yield t == named.type() ? named : new TypeAnnotation.Named(nn(t), named.pos());
             }
             case TypeAnnotation.Wildcard ignored -> ta;
             case TypeAnnotation.MultiplicityRef ignored -> ta;   // no names to resolve
@@ -2079,7 +2089,7 @@ public final class NameResolver {
                 List<TypeAnnotation.RelationShape.Column> out = resolveList(
                         shape.columns(), NameResolver::resolveRelationShapeColumn, scope);
                 yield out == shape.columns() ? shape
-                        : new TypeAnnotation.RelationShape(out);
+                        : new TypeAnnotation.RelationShape(out, shape.spelledName(), shape.typeSpan(), shape.pos());
             }
         };
     }
