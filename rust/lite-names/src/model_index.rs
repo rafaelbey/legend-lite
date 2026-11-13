@@ -400,12 +400,6 @@ impl ModelIndex {
         let id = self.intern_element(&db.qualified_name);
         put_at_id(&mut self.databases, id, db.clone());
         self.tables_by_db.insert(id, TableIndex::of(db));
-        // last-wins as every slot of a database registered twice: a second definition with none of a kind clears the
-        // first's (until 2026-11-13 the first's stayed beside the second's tables -- the names fixes, item 6, ruling 28)
-        self.filters_by_db.remove(&id);
-        self.joins_by_db.remove(&id);
-        self.views_by_db.remove(&id);
-        self.views_in_order.remove(&id);
         if !db.filters.is_empty() || !db.multi_grain_filters.is_empty() {
             let mut by_name = HashMap::new();
             for f in db.filters.iter() {
@@ -667,8 +661,7 @@ impl ModelIndex {
     }
 
     /// `findAssociationOf(owner, prop)`: the association whose end `prop` injects onto `owner` or, nearest first, a
-    /// class it extends (a bare name or a generic's head, as `directSubclasses`: until 2026-11-13 a bare name only, the
-    /// names fixes, item 6, ruling 28); two at one level is a model error (`ModelException`, MODEL).
+    /// class it extends by a bare name; two at one level is a model error (`ModelException`, MODEL).
     pub fn find_association_of(
         &self,
         owner_class_fqn: &JStr,
@@ -685,8 +678,8 @@ impl ModelIndex {
             }
             if let Some(cd) = self.find_class(&cls) {
                 for sup in cd.super_classes.iter() {
-                    if let Some(head) = sup.raw_class_name() {
-                        level.push_back(head.clone());
+                    if let p::TypeExpression::TypeExpressionNameRef(nr) = sup {
+                        level.push_back(nr.name.clone());
                     }
                 }
             }
@@ -1038,12 +1031,9 @@ impl ModelIndex {
         };
         let join_db = first.database_name.clone().unwrap_or_else(|| db_fqn.clone());
         let join_name = &first.join_name;
-        // the database's own join first, then the include closure, as every join lookup (`find_join`; the engine's
-        // getJoin). Until 2026-11-13 only the database's own joins: the names fixes, item 6, ruling 28
         let jd = self
             .find_database(&join_db)
             .and_then(|d| d.joins.iter().find(|j| &j.name == join_name))
-            .or_else(|| self.find_join(Some(&join_db), join_name))
             .ok_or_else(|| {
                 Thrown::model(
                     Phase::Model,
