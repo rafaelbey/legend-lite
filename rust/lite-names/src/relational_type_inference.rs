@@ -10,20 +10,28 @@
 //!
 //! Ported line for line. Java's `int` arithmetic wraps (a decimal's digits, a concatenation's summed sizes), so the
 //! port's does; a string literal's size is its UTF-16 length; a function name is lowered as `toLowerCase(Locale.ROOT)`
-//! lowers it. **No cycle guard, as in Java**: a computed view column whose expression reaches its own view through a
-//! column reference recurses until the stack is gone (Java's `StackOverflowError`; the Rust process aborts) -- listed for
-//! the owner, not changed.
+//! lowers it. A view column read through its expression is EXPANDING while its expression is typed: a chain of view
+//! columns that reaches one of them again (a view-on-view cycle) is refused, a `ModelException` (MODEL) worded as
+//! `ViewSignatures`' cycle refusal (2026-11-13, the names fixes, item 8, ruling 29: before, Java recursed until
+//! `StackOverflowError` and the Rust process aborted). The set holds the view column records by identity, and a column
+//! leaves it once typed: two reads of one column side by side are no cycle.
 
 use std::sync::Arc;
 
+use lite_base::IdSet;
+use lite_error::Phase;
 use lite_model::{
-    DatabaseDefinition, JValue, RelationalDataType as T, RelationalDataTypeBit, RelationalDataTypeDecimal,
-    RelationalDataTypeDouble_, RelationalDataTypeInteger_, RelationalDataTypeOther, RelationalDataTypeVarchar,
-    RelationalOperation as Op,
+    DatabaseDefinition, DatabaseDefinitionViewDefinitionViewColumnMapping, JValue, RelationalDataType as T,
+    RelationalDataTypeBit, RelationalDataTypeDecimal, RelationalDataTypeDouble_, RelationalDataTypeInteger_,
+    RelationalDataTypeOther, RelationalDataTypeVarchar, RelationalOperation as Op, cat,
 };
 
+use crate::error::Thrown;
 use crate::java_string;
 use crate::model_index::StoreLookups;
+
+/// The view columns being typed, by identity.
+type Expanding = IdSet<Arc<DatabaseDefinitionViewDefinitionViewColumnMapping>>;
 
 fn bit() -> T {
     T::RelationalDataTypeBit(Arc::new(RelationalDataTypeBit {}))
@@ -50,20 +58,39 @@ fn decimal(precision: i32, scale: i32) -> T {
 }
 
 /// `infer(op, db, ctx)`: the type of `op`; `db` scopes bare column references (a view's column expressions read their
-/// own database), `ctx` resolves an op's own `[db]` qualifier (mapping expressions carry it).
-pub fn infer<'a>(op: &Op, db: Option<&'a DatabaseDefinition>, ctx: Option<&'a dyn StoreLookups>) -> Option<T> {
-    match op {
-        Op::RelationalOperationColumnRef(c) => column_type(db, ctx, c.database_name.as_ref(), &c.table, &c.column),
+/// own database), `ctx` resolves an op's own `[db]` qualifier (mapping expressions carry it). A view-on-view cycle is
+/// refused (`Err`).
+pub fn infer<'a>(
+    op: &Op,
+    db: Option<&'a DatabaseDefinition>,
+    ctx: Option<&'a dyn StoreLookups>,
+) -> Result<Option<T>, Thrown> {
+    infer_in(op, db, ctx, &mut IdSet::new())
+}
+
+fn infer_in<'a>(
+    op: &Op,
+    db: Option<&'a DatabaseDefinition>,
+    ctx: Option<&'a dyn StoreLookups>,
+    expanding: &mut Expanding,
+) -> Result<Option<T>, Thrown> {
+    Ok(match op {
+        Op::RelationalOperationColumnRef(c) => {
+            column_type(db, ctx, c.database_name.as_ref(), &c.table, &c.column, expanding)?
+        }
         Op::RelationalOperationFunctionCall(f) => {
             let lowered = java_string::to_lower_root(&f.name.0);
             let name = String::from_utf16(&lowered).unwrap_or_default();
-            let first = || f.args.first().and_then(|a| infer(a, db, ctx));
+            let first = |expanding: &mut Expanding| match f.args.first() {
+                None => Ok(None),
+                Some(a) => infer_in(a, db, ctx, expanding),
+            };
             match name.as_str() {
                 // aggregates carry their argument's type (engine inferDynaFunctionReturnType: max/min/sum/avg family)
-                "max" | "min" | "distinct" => first(),
+                "max" | "min" | "distinct" => first(expanding)?,
                 // sum/avg PROMOTE float-family to DOUBLE (engine inferDynaFunctionReturnType aggregation rule)
                 "sum" | "average" => {
-                    let at = first();
+                    let at = first(expanding)?;
                     if matches!(at, Some(T::RelationalDataTypeFloat_(_) | T::RelationalDataTypeReal(_))) {
                         Some(double())
                     } else {
@@ -81,12 +108,12 @@ pub fn infer<'a>(op: &Op, db: Option<&'a DatabaseDefinition>, ctx: Option<&'a dy
                 "sqltrue" | "sqlfalse" => Some(bit()),
                 // string transforms keep their input's type
                 "substring" | "left" | "right" | "trim" | "ltrim" | "rtrim" | "toupper" | "tolower" | "upper"
-                | "lower" => first(),
+                | "lower" => first(expanding)?,
                 "position" | "length" | "charindex" | "locate" | "indexof" => Some(integer()),
                 "sub" => {
                     let mut acc: Option<T> = None;
                     for arg in f.args.iter() {
-                        acc = safe(acc, infer(arg, db, ctx));
+                        acc = safe(acc, infer_in(arg, db, ctx, expanding)?);
                     }
                     Some(acc.unwrap_or_else(integer))
                 }
@@ -96,7 +123,7 @@ pub fn infer<'a>(op: &Op, db: Option<&'a DatabaseDefinition>, ctx: Option<&'a dy
                 "concat" | "group_concat" => {
                     let mut size: i32 = 0;
                     for arg in f.args.iter() {
-                        match infer(arg, db, ctx) {
+                        match infer_in(arg, db, ctx, expanding)? {
                             Some(T::RelationalDataTypeVarchar(v)) => size = size.wrapping_add(v.size),
                             Some(T::RelationalDataTypeChar_(c)) => size = size.wrapping_add(c.size),
                             _ => {}
@@ -109,11 +136,11 @@ pub fn infer<'a>(op: &Op, db: Option<&'a DatabaseDefinition>, ctx: Option<&'a dy
                     let mut acc: Option<T> = None;
                     let mut i = 1;
                     while i < f.args.len() {
-                        acc = safe(acc, infer(&f.args[i], db, ctx));
+                        acc = safe(acc, infer_in(&f.args[i], db, ctx, expanding)?);
                         i += 2;
                     }
                     if f.args.len() % 2 == 1 {
-                        acc = safe(acc, infer(&f.args[f.args.len() - 1], db, ctx));
+                        acc = safe(acc, infer_in(&f.args[f.args.len() - 1], db, ctx, expanding)?);
                     }
                     acc
                 }
@@ -121,7 +148,7 @@ pub fn infer<'a>(op: &Op, db: Option<&'a DatabaseDefinition>, ctx: Option<&'a dy
                 "plus" | "minus" | "times" | "divide" => {
                     let mut acc: Option<T> = None;
                     for arg in f.args.iter() {
-                        acc = safe(acc, infer(arg, db, ctx));
+                        acc = safe(acc, infer_in(arg, db, ctx, expanding)?);
                     }
                     acc
                 }
@@ -129,7 +156,9 @@ pub fn infer<'a>(op: &Op, db: Option<&'a DatabaseDefinition>, ctx: Option<&'a dy
             }
         }
         Op::RelationalOperationJoinNavigation(j) => {
-            let terminal = j.terminal.as_ref()?;
+            let Some(terminal) = j.terminal.as_ref() else {
+                return Ok(None);
+            };
             // the nav's own [DB] qualifier scopes its TERMINAL (the terminal ColumnRef is stored db-relative --
             // adjudication ledger cluster 8: dropping it left the column untyped and concat inferred VARCHAR(n+0))
             let mut sub = db;
@@ -138,9 +167,9 @@ pub fn infer<'a>(op: &Op, db: Option<&'a DatabaseDefinition>, ctx: Option<&'a dy
             {
                 sub = Some(&**jdb);
             }
-            infer(terminal, sub, ctx)
+            infer_in(terminal, sub, ctx, expanding)?
         }
-        Op::RelationalOperationGroup(g) => infer(&g.inner, db, ctx),
+        Op::RelationalOperationGroup(g) => infer_in(&g.inner, db, ctx, expanding)?,
         Op::RelationalOperationLiteral(l) => match &l.value {
             JValue::String(s) => Some(varchar(s.0.len() as i32)),
             JValue::Integer(_) => Some(integer()),
@@ -157,7 +186,7 @@ pub fn infer<'a>(op: &Op, db: Option<&'a DatabaseDefinition>, ctx: Option<&'a dy
         | Op::RelationalOperationArrayLiteral(_)
         | Op::RelationalOperationLambda(_)
         | Op::RelationalOperationLambdaParam(_) => None,
-    }
+    })
 }
 
 /// `safe(a, b)`: the engine's `getSafeType` pair rule (typeInference.pure): equal types keep; OTHER absorbs into the
@@ -229,36 +258,54 @@ fn decimal_of(t: &T) -> Option<(i32, i32)> {
 
 /// `columnType(scope, ctx, opDb, table, column)`: the declared type of `table.column` -- in the op's OWN database when
 /// its `[db]` names one, else the scoping database -- through the one table lookup (include closure, schema-qualified
-/// spellings, exact names); a VIEW's column resolves THROUGH its column expression (view-on-view). The op's own name is
-/// tried first as spelled: an UNQUALIFIED `[db]` resolves to nothing and falls to the scope.
+/// spellings, exact names); a VIEW's column resolves THROUGH its column expression (view-on-view), the column EXPANDING
+/// while it is typed (a cycle is refused). The op's own name is tried first as spelled: an UNQUALIFIED `[db]` resolves
+/// to nothing and falls to the scope.
 fn column_type<'a>(
     scope: Option<&'a DatabaseDefinition>,
     ctx: Option<&'a dyn StoreLookups>,
     op_db: Option<&lite_model::JStr>,
     table: &lite_model::JStr,
     column: &lite_model::JStr,
-) -> Option<T> {
+    expanding: &mut Expanding,
+) -> Result<Option<T>, Thrown> {
     let mut db = scope;
     if let (Some(name), Some(c)) = (op_db, ctx) {
         db = c.find_database(Some(name)).map(|d| &**d).or(db);
     }
     let (Some(db), Some(ctx)) = (db, ctx) else {
-        return None;
+        return Ok(None);
     };
     let db_fqn = &db.qualified_name;
     if let Some(td) = ctx.find_table_definition(db_fqn, table) {
-        return td
+        return Ok(td
             .columns
             .iter()
             .find(|c| &c.name == column)
-            .map(|c| c.data_type.clone());
+            .map(|c| c.data_type.clone()));
     }
     if let Some(view) = ctx.find_view(db_fqn, table) {
         for cm in view.column_mappings.iter() {
             if &cm.name == column {
-                return infer(&cm.expression, Some(db), Some(ctx));
+                if !expanding.insert(cm.clone()) {
+                    return Err(Thrown::model(
+                        Phase::Model,
+                        cat!(
+                            "view '",
+                            &view.name,
+                            "' of '",
+                            db_fqn,
+                            "' reads its own columns (cyclic view-on-view chain)"
+                        ),
+                        None,
+                    ));
+                }
+                // Java's try/finally: the column leaves the set whatever the answer
+                let out = infer_in(&cm.expression, Some(db), Some(ctx), expanding);
+                expanding.remove(cm);
+                return out;
             }
         }
     }
-    None
+    Ok(None)
 }

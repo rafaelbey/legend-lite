@@ -333,21 +333,31 @@ impl<'m> Knowledge<'m> {
     /// COMPUTED view column has its expression's inferred SQL type's kind (the engine's `inferRelationalType`, the rule
     /// the metamodel store stamps on every relational-operation row: [`relational_type_inference`]); `None` when nothing
     /// physical is behind the name. (Completed 2026-11-12 by the names follow-up, the inference moved into this crate.)
-    ///
-    /// The walk's guard is Java's: a set of `db + "@" + table + "." + col` strings, so two spellings that concatenate
-    /// alike are one (ported as it is).
-    pub fn column_kind(&self, db: &JStr, table: &JStr, col: &JStr) -> Option<&'static str> {
+    /// A computed column over a view-on-view cycle is the inference's refusal (`Err`, since 2026-11-13: the names
+    /// fixes, item 8).
+    pub fn column_kind(&self, db: &JStr, table: &JStr, col: &JStr) -> Result<Option<&'static str>, Thrown> {
         self.column_kind_in(db, table, col, &mut HashSet::new())
     }
 
-    fn column_kind_in(&self, db: &JStr, table: &JStr, col: &JStr, seen: &mut HashSet<JStr>) -> Option<&'static str> {
-        if !seen.insert(cat!(db, "@", table, ".", col)) {
-            return None;
+    /// One step of the walk is the (database, table or view spelling, column) triple, compared as a triple: keyed on the
+    /// joined text `db@table.col` until 2026-11-13 (the names fixes, item 13, ruling 28), two triples that joined alike
+    /// were one step (a schema view `S.V`'s column `c` and a top-level view `S`'s quoted column `V.c`).
+    fn column_kind_in(
+        &self,
+        db: &JStr,
+        table: &JStr,
+        col: &JStr,
+        seen: &mut HashSet<(JStr, JStr, JStr)>,
+    ) -> Result<Option<&'static str>, Thrown> {
+        if !seen.insert((db.clone(), table.clone(), col.clone())) {
+            return Ok(None);
         }
         if let Some(cd) = self.column(Some(db), Some(table), col) {
-            return Some(relational_kinds::pure_kind_of(&cd.data_type));
+            return Ok(Some(relational_kinds::pure_kind_of(&cd.data_type)));
         }
-        let view = self.model.find_view(db, table)?;
+        let Some(view) = self.model.find_view(db, table) else {
+            return Ok(None);
+        };
         for vc in view.column_mappings.iter() {
             if &vc.name != col {
                 continue;
@@ -360,10 +370,10 @@ impl<'m> Knowledge<'m> {
             // type -- the engine's inferRelationalType, the same rule the metamodel store stamps on every
             // relational-operation row
             let scope = self.model.find_database(db).map(|d| &**d);
-            let t = relational_type_inference::infer(&vc.expression, scope, Some(self.model as &dyn StoreLookups));
-            return t.map(|t| relational_kinds::pure_kind_of(&t));
+            let t = relational_type_inference::infer(&vc.expression, scope, Some(self.model as &dyn StoreLookups))?;
+            return Ok(t.map(|t| relational_kinds::pure_kind_of(&t)));
         }
-        None
+        Ok(None)
     }
 }
 

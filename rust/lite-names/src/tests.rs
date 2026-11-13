@@ -308,6 +308,121 @@ fn database<'a>(m: &'a ParsedModel, fqn: &str) -> &'a std::sync::Arc<lite_model:
         .expect("the database")
 }
 
+/// `columnKind`'s walk keys each step on its (database, table, column) triple (2026-11-13, the names fixes, item 13,
+/// ruling 28): a schema view `S.V`'s column `c` reading a top-level view `S`'s column `V.c` is two steps, where the
+/// joined text `a::Db@S.V.c` made them one and the walk answered nothing. A text cannot name that column (a dotted
+/// name is quoted, and a definition keeps its quotes where a reference drops them): a model given as protocol records
+/// can, so the test renames the column as such a model would carry it.
+#[test]
+fn the_column_kind_walk_keys_each_step_on_its_triple() {
+    on_parse_stack(|| {
+        let parsed = model(concat!(
+            "###Relational\n",
+            "Database a::Db (\n",
+            "  Table T (ID INTEGER PRIMARY KEY, X VARCHAR(10))\n",
+            "  View S (Vc: T.X)\n",
+            "  Schema S ( View V (c: default.S.\"V.c\") )\n",
+            ")\n"
+        ));
+        let mut elements: Vec<PackageableElement> = parsed.elements.to_vec();
+        for el in elements.iter_mut() {
+            if let PackageableElement::DatabaseDefinition(db) = el {
+                let views: Vec<_> = db
+                    .views
+                    .iter()
+                    .map(|v| {
+                        if v.name != "S" {
+                            return v.clone();
+                        }
+                        let cms: Vec<_> = v
+                            .column_mappings
+                            .iter()
+                            .map(|cm| {
+                                std::sync::Arc::new(lite_model::DatabaseDefinitionViewDefinitionViewColumnMapping {
+                                    name: j("V.c"),
+                                    ..(**cm).clone()
+                                })
+                            })
+                            .collect();
+                        std::sync::Arc::new(lite_model::DatabaseDefinitionViewDefinition {
+                            column_mappings: cms.into(),
+                            ..(**v).clone()
+                        })
+                    })
+                    .collect();
+                *db = std::sync::Arc::new(lite_model::DatabaseDefinition {
+                    views: views.into(),
+                    ..(**db).clone()
+                });
+            }
+        }
+        let m = ParsedModel {
+            elements: elements.into(),
+            ..parsed
+        };
+        let ix = ModelIndex::from(&m).unwrap();
+        let k = ix.knowledge();
+        let db = j("a::Db");
+        assert_eq!(k.column_kind(&db, &j("S"), &j("V.c")).unwrap(), Some("String"));
+        assert_eq!(
+            k.column_kind(&db, &j("S.V"), &j("c")).unwrap(),
+            Some("String"),
+            "two triples that join alike are two steps"
+        );
+    });
+}
+
+/// The type inference refuses a view-on-view cycle by name (2026-11-13, the names fixes, item 8, ruling 29): a computed
+/// column whose expression reaches its own view through a column reference was typed until the stack was gone (Java's
+/// `StackOverflowError`, the Rust process aborted). Two reads of one column side by side are no cycle.
+#[test]
+fn the_type_inference_refuses_a_view_cycle_by_name() {
+    on_parse_stack(|| {
+        let m = model(concat!(
+            "###Relational\n",
+            "Database a::Db (\n",
+            "  Table T (ID INTEGER PRIMARY KEY, S VARCHAR(10))\n",
+            "  View P (A: concat(Q.B, 'x'))\n",
+            "  View Q (B: concat(P.A, 'y'))\n",
+            "  View R (C: concat(T.S, T.S), D: concat(R2.E, R2.E))\n",
+            "  View R2 (E: concat(T.S, 'z'))\n",
+            ")\n"
+        ));
+        let ix = ModelIndex::from(&m).unwrap();
+        let k = ix.knowledge();
+        let db = j("a::Db");
+        let refusal = "view 'P' of 'a::Db' reads its own columns (cyclic view-on-view chain)";
+        let e = k.column_kind(&db, &j("P"), &j("A")).unwrap_err();
+        assert_eq!(e.java_class(), "com.legend.error.ModelException");
+        assert_eq!(
+            e.message().unwrap(),
+            j("view 'Q' of 'a::Db' reads its own columns (cyclic view-on-view chain)")
+        );
+        let scope = Some(&**database(&m, "a::Db"));
+        let q = ix.find_view(&db, &j("Q")).unwrap().clone();
+        let e = relational_type_inference::infer(
+            &q.column_mappings[0].expression,
+            scope,
+            Some(&ix as &dyn crate::StoreLookups),
+        )
+        .unwrap_err();
+        assert_eq!(e.message().unwrap(), j(refusal));
+        let arena = lite_base::QueryArena::new();
+        let p = ix.find_view(&db, &j("P")).unwrap().clone();
+        let e = view_signatures::of(&arena, &ix, &db, &p).unwrap_err();
+        assert_eq!(
+            e.message().unwrap(),
+            j("view 'Q' of 'a::Db' reads its own columns (cyclic view-on-view chain)")
+        );
+        assert_eq!(k.column_kind(&db, &j("R"), &j("C")).unwrap(), Some("String"));
+        assert_eq!(
+            k.column_kind(&db, &j("R"), &j("D")).unwrap(),
+            Some("String"),
+            "one column read twice side by side is no cycle"
+        );
+    });
+}
+
 /// The store helpers the names follow-up moved here (2026-11-12): a view's signature and its columns' kinds through
 /// views of views, a computed column's inferred type (two decimals widened, two sizes summed), a cyclic chain refused
 /// by the signature and answered nothing by the kind. The differential holds every view of the corpus to Java's.
@@ -327,15 +442,15 @@ fn the_store_helpers_answer_over_a_small_database() {
         let ix = ModelIndex::from(&m).unwrap();
         let k = ix.knowledge();
         let db = j("a::Db");
-        assert_eq!(k.column_kind(&db, &j("T"), &j("S")), Some("String"));
-        assert_eq!(k.column_kind(&db, &j("V"), &j("HIGH")), Some("Decimal"));
-        assert_eq!(k.column_kind(&db, &j("W"), &j("HIGH")), Some("Decimal"));
+        assert_eq!(k.column_kind(&db, &j("T"), &j("S")).unwrap(), Some("String"));
+        assert_eq!(k.column_kind(&db, &j("V"), &j("HIGH")).unwrap(), Some("Decimal"));
+        assert_eq!(k.column_kind(&db, &j("W"), &j("HIGH")).unwrap(), Some("Decimal"));
         assert_eq!(
-            k.column_kind(&db, &j("X"), &j("A")),
+            k.column_kind(&db, &j("X"), &j("A")).unwrap(),
             None,
-            "a cyclic chain is seen once"
+            "a cyclic chain of column references is seen once"
         );
-        assert_eq!(k.column_kind(&db, &j("V"), &j("absent")), None);
+        assert_eq!(k.column_kind(&db, &j("V"), &j("absent")).unwrap(), None);
         let arena = lite_base::QueryArena::new();
         let v = ix.find_view(&db, &j("V")).unwrap().clone();
         let sig = view_signatures::of(&arena, &ix, &db, &v).unwrap();
@@ -366,13 +481,13 @@ fn the_store_helpers_answer_over_a_small_database() {
         let scope = Some(&**database(&m, "a::Db"));
         let label = &v.column_mappings[3].expression;
         assert_eq!(
-            relational_type_inference::infer(label, scope, Some(&ix as &dyn crate::StoreLookups)),
+            relational_type_inference::infer(label, scope, Some(&ix as &dyn crate::StoreLookups)).unwrap(),
             Some(lite_model::RelationalDataType::RelationalDataTypeVarchar(
                 std::sync::Arc::new(lite_model::RelationalDataTypeVarchar { size: 12 })
             ))
         );
         assert_eq!(
-            relational_type_inference::infer(label, scope, None),
+            relational_type_inference::infer(label, scope, None).unwrap(),
             Some(varchar(2)),
             "no lookups: 0 + 2"
         );

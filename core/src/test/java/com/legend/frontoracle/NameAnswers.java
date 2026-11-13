@@ -789,9 +789,10 @@ public final class NameAnswers {
     /** The stores form's lines, by kind, over the whole run (printed at the end). */
     private static final TreeMap<String, Long> STORE_LINES = new TreeMap<>();
 
-    /** {@link #attempt}, a stack overflow written as one (the type inference has no cycle guard: a computed view
-     *  column over a cyclic view chain recurses until the stack is gone; the Rust side cannot answer such a model, and
-     *  its marker says which). */
+    /** {@link #attempt}, a stack overflow written as one. (The type inference had no cycle guard: a computed view
+     *  column over a cyclic view chain recursed until the stack was gone. Since 2026-11-13 -- the names fixes, item 8,
+     *  ruling 29 -- it refuses the cycle by name, a {@code ModelException} written as any refusal; the marker stays
+     *  for what no guard foresees.) */
     private static String attemptDeep(Supplier<String> s) {
         try {
             return s.get();

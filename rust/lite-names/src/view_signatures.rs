@@ -198,7 +198,7 @@ fn column<'a, A: Alloc>(
 /// `inferred(expr, db, store)`: the engine's inferred relational type as a Pure type; `Any` when the engine's rule has
 /// none.
 fn inferred(expr: &Op, db: Option<&DatabaseDefinition>, store: &dyn StoreLookups) -> Result<Type<'static>, Thrown> {
-    match relational_type_inference::infer(expr, db, Some(store)) {
+    match relational_type_inference::infer(expr, db, Some(store))? {
         None => Ok(Type::ClassType(platform::ANY)),
         Some(dt) => store_compiler::column_type(&dt),
     }

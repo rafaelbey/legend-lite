@@ -851,19 +851,17 @@ fn stores_form(m: &ParsedModel, ix: &ModelIndex) -> Vec<u16> {
             for (c, cm) in view.column_mappings.iter().enumerate() {
                 let expr = &cm.expression;
                 f.s("r\t").j(db).s("\t").u(&vl).s(&format!("\t{c}\t"));
-                f.u(&data_type_text(relational_type_inference::infer(
-                    expr,
-                    scope,
-                    Some(store),
-                )));
+                f.u(&attempt(
+                    relational_type_inference::infer(expr, scope, Some(store)).map(data_type_text),
+                ));
                 f.s("\t");
-                f.u(&data_type_text(relational_type_inference::infer(
-                    expr,
-                    None,
-                    Some(store),
-                )));
+                f.u(&attempt(
+                    relational_type_inference::infer(expr, None, Some(store)).map(data_type_text),
+                ));
                 f.s("\t");
-                f.u(&data_type_text(relational_type_inference::infer(expr, scope, None)));
+                f.u(&attempt(
+                    relational_type_inference::infer(expr, scope, None).map(data_type_text),
+                ));
                 f.s("\n");
             }
         }
@@ -877,7 +875,9 @@ fn stores_form(m: &ParsedModel, ix: &ModelIndex) -> Vec<u16> {
             names.push(JStr::from("absent_C"));
             for name in &names {
                 f.s("n\t").j(db).s("\t").j(sp).s("\t").j(name).s("\t");
-                f.s(k.column_kind(db, sp, name).unwrap_or("-"));
+                f.u(&attempt(
+                    k.column_kind(db, sp, name).map(|kind| units(kind.unwrap_or("-"))),
+                ));
                 f.s("\n");
             }
         }
