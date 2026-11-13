@@ -398,6 +398,43 @@ fn the_index_refuses_its_duplicates_strictly_and_walls_them_tolerantly() {
 }
 
 #[test]
+fn the_index_is_last_wins_climbs_generic_heads_and_reads_joins_through_includes() {
+    on_parse_stack(|| {
+        let m = model(concat!(
+            "###Relational\n",
+            "Database a::Db ( Table T (ID INTEGER) Join J (T.ID = T.ID) View V (id: T.ID) )\n",
+            "Database a::Db ( Table T (ID INTEGER) )\n",
+        ));
+        let ix = ModelIndex::from(&m).unwrap();
+        assert_eq!(ix.duplicate_elements().count(), 1);
+        assert!(
+            ix.find_join(Some(&j("a::Db")), &j("J")).is_none(),
+            "the second definition has no join"
+        );
+        assert!(
+            ix.find_view(&j("a::Db"), &j("V")).is_none(),
+            "the second definition has no view"
+        );
+        let m = model(concat!(
+            "Class a::B {}\nClass a::C extends a::B<String> {}\nClass a::X {}\n",
+            "Association a::BX { bs: a::B[*]; x: a::X[1]; }\n",
+        ));
+        let ix = ModelIndex::from(&m).unwrap();
+        let hit = ix.find_association_of(&j("a::C"), &j("x")).unwrap();
+        assert_eq!(hit.map(|a| a.qualified_name.clone()), Some(j("a::BX")));
+        let m = model(concat!(
+            "###Relational\n",
+            "Database a::Base ( Table P (ID INTEGER, F INTEGER) Table F (ID INTEGER, N VARCHAR(10)) ",
+            "Join PF (P.F = F.ID) )\n",
+            "Database a::Top ( include a::Base View V ( name: @PF | F.N ) )\n",
+        ));
+        let ix = ModelIndex::from(&m).unwrap();
+        let v = ix.find_view(&j("a::Top"), &j("V")).unwrap().clone();
+        assert_eq!(ix.view_main_table(&j("a::Top"), &v).unwrap(), j("P"));
+    });
+}
+
+#[test]
 fn a_query_resolves_in_the_sectionless_scope_and_against_a_models_universe() {
     on_parse_stack(|| {
         let units: Vec<u16> = "|my::Person.all()->filter(p|$p.name == 'x')".encode_utf16().collect();

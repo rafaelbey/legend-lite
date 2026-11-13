@@ -108,3 +108,5 @@ duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,29
 #    names-models-texts-java-2026-11-13b.jsonl (0a96f27a...) and names-queries-texts-java-2026-11-13a.jsonl (1ae8a761...):
 #    confirmed at this commit's Java, taken from neither side of the revert's conflict. lite-names: all five files
 #    identical.
+# 4. Item 6 (the index last-wins, a generic head climbed, a join-only view's join read through includes): one run at
+#    its commit answered all five files as frozen (nothing moved, nothing re-frozen); lite-names identical.
