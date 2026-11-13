@@ -7,7 +7,7 @@
 //! - the per-graph **kernel** over the one model index ([`ModelIndex::knowledge`]): class lookup native-first (the
 //!   platform catalog, then the graph), the subtype relation (memoized per class: its reach), the ancestor and subtree
 //!   walks, a property's declared type, definition and multiplicity over the hierarchy, a table and its columns over
-//!   the database include closure;
+//!   the database include closure, a table's or a view's column's kind ([`Knowledge::column_kind`]);
 //! - the static **pass** over a name-resolved model: association qualified properties adopted into their owners
 //!   ([`adopt_association_qualified_properties`]).
 //!
@@ -17,8 +17,9 @@
 //! primitive's lattice walked, a class that fails to compile the question's failure -- and asks this layer only for
 //! the lookup ([`Knowledge::class_def`]). Java keeps both; so does the port (docs/rust-port/PHASE3.md, the names slice).
 //!
-//! **Left for F's slice:** `columnKind`, whose computed-view-column arm asks F's `RelationalTypeInference` (one of the
-//! names-to-element edges of PHASE3_CRATES.md §2); only E calls it.
+//! `columnKind`, left out by the names slice (its computed-view-column arm asks `RelationalTypeInference`, then F's), is
+//! here since the names follow-up (2026-11-12): the owner's ruling moved the inference into this crate, and the
+//! names-to-element edge of PHASE3_CRATES.md §2 with it.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -29,13 +30,14 @@ use lite_model::linked::LinkedMap;
 use lite_model::protocol as p;
 use lite_model::{
     AssociationDefinition, ClassDefinition, ClassDefinitionPropertyDefinition, DatabaseDefinitionColumnDefinition,
-    DatabaseDefinitionTableDefinition, JStr, PackageableElement, ParsedModel, cat,
+    DatabaseDefinitionTableDefinition, JStr, PackageableElement, ParsedModel, RelationalOperation, cat,
 };
 use lite_types::Primitive;
 
 use crate::error::Thrown;
 use crate::java_string;
-use crate::model_index::ModelIndex;
+use crate::model_index::{ModelIndex, StoreLookups};
+use crate::{relational_kinds, relational_type_inference};
 
 /// The kernel's memo: each asked class's reach (itself and every class its declared supers lead to).
 #[derive(Default)]
@@ -324,6 +326,44 @@ impl<'m> Knowledge<'m> {
     ) -> Option<Arc<DatabaseDefinitionColumnDefinition>> {
         self.table(db_fqn, table)
             .and_then(|td| td.columns.iter().find(|c| &c.name == column).cloned())
+    }
+
+    /// `columnKind(db, table, col)`: the Pure kind ([`relational_kinds`]) of a column of a table OR of a VIEW -- a view
+    /// column that reads one physical column (a column reference) has that column's kind, through views of views; a
+    /// COMPUTED view column has its expression's inferred SQL type's kind (the engine's `inferRelationalType`, the rule
+    /// the metamodel store stamps on every relational-operation row: [`relational_type_inference`]); `None` when nothing
+    /// physical is behind the name. (Completed 2026-11-12 by the names follow-up, the inference moved into this crate.)
+    ///
+    /// The walk's guard is Java's: a set of `db + "@" + table + "." + col` strings, so two spellings that concatenate
+    /// alike are one (ported as it is).
+    pub fn column_kind(&self, db: &JStr, table: &JStr, col: &JStr) -> Option<&'static str> {
+        self.column_kind_in(db, table, col, &mut HashSet::new())
+    }
+
+    fn column_kind_in(&self, db: &JStr, table: &JStr, col: &JStr, seen: &mut HashSet<JStr>) -> Option<&'static str> {
+        if !seen.insert(cat!(db, "@", table, ".", col)) {
+            return None;
+        }
+        if let Some(cd) = self.column(Some(db), Some(table), col) {
+            return Some(relational_kinds::pure_kind_of(&cd.data_type));
+        }
+        let view = self.model.find_view(db, table)?;
+        for vc in view.column_mappings.iter() {
+            if &vc.name != col {
+                continue;
+            }
+            if let RelationalOperation::RelationalOperationColumnRef(cr) = &vc.expression {
+                let cdb = cr.database_name.clone().unwrap_or_else(|| db.clone());
+                return self.column_kind_in(&cdb, &cr.table, &cr.column, seen);
+            }
+            // a COMPUTED view column (`HIGHEST_RATE: max(RATE.ZERO_RATE)`): its kind is the expression's inferred SQL
+            // type -- the engine's inferRelationalType, the same rule the metamodel store stamps on every
+            // relational-operation row
+            let scope = self.model.find_database(db).map(|d| &**d);
+            let t = relational_type_inference::infer(&vc.expression, scope, Some(self.model as &dyn StoreLookups));
+            return t.map(|t| relational_kinds::pure_kind_of(&t));
+        }
+        None
     }
 }
 

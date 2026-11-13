@@ -10,6 +10,7 @@ use lite_model::JStr;
 
 pub const ILLEGAL_STATE: &str = "java.lang.IllegalStateException";
 pub const ILLEGAL_ARGUMENT: &str = "java.lang.IllegalArgumentException";
+pub const NUMBER_FORMAT: &str = "java.lang.NumberFormatException";
 
 /// A throw of the names layer.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,6 +45,21 @@ impl Thrown {
         Thrown::Java {
             class: ILLEGAL_ARGUMENT,
             message: Some(message),
+        }
+    }
+
+    /// A type family's refusal (rust/lite-types' `TypeError`: Java's `IllegalArgumentException` from a constructor's
+    /// check, `IllegalStateException`, `NumberFormatException`), as the names layer throws it (2026-11-12, the names
+    /// follow-up: a view's signature and a store column's type are built here now).
+    pub fn from_type_error(e: lite_types::TypeError) -> Thrown {
+        let class = match e.thrown {
+            lite_types::Thrown::IllegalArgument => ILLEGAL_ARGUMENT,
+            lite_types::Thrown::IllegalState => ILLEGAL_STATE,
+            lite_types::Thrown::NumberFormat => NUMBER_FORMAT,
+        };
+        Thrown::Java {
+            class,
+            message: Some(JStr::from(e.message)),
         }
     }
 

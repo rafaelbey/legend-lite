@@ -143,3 +143,28 @@ pub fn multiplicity(m: &p::Multiplicity) -> String {
         p::Multiplicity::MultiplicityParameter(pm) => format!("[{}]", pm.name.lossy()),
     }
 }
+
+/// `String.toLowerCase(Locale.ROOT)` over UTF-16 units (2026-11-12, the names follow-up: a relational function's name
+/// lowered before it is matched, `RelationalTypeInference` and `ViewSignatures`): Unicode's full lower-case mapping with
+/// its final-sigma rule (`str::to_lowercase`, as the JDK's `ConditionalSpecialCasing`), each run between lone surrogates
+/// lowered alone, a lone surrogate kept. The parser's crate holds the same rule privately (lite-front's
+/// `tail_emitter::to_lower_root`, held by the front differential); this crate does not reach it.
+pub fn to_lower_root(s: &[u16]) -> Vec<u16> {
+    let mut out = Vec::with_capacity(s.len());
+    let mut run = String::new();
+    let flush = |run: &mut String, out: &mut Vec<u16>| {
+        out.extend(run.to_lowercase().encode_utf16());
+        run.clear();
+    };
+    for r in char::decode_utf16(s.iter().copied()) {
+        match r {
+            Ok(c) => run.push(c),
+            Err(e) => {
+                flush(&mut run, &mut out);
+                out.push(e.unpaired_surrogate());
+            }
+        }
+    }
+    flush(&mut run, &mut out);
+    out
+}

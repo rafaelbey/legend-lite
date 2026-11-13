@@ -9,8 +9,11 @@ use lite_model::linked::LinkedMap;
 use lite_model::protocol::ValueSpecification as VS;
 use lite_model::{JStr, PackageableElement, ParsedModel};
 
+use crate::milestoning::{Dimension, MilestoningStrategy};
 use crate::model_index::ModelIndex;
-use crate::{core_imports, resolver, symbol_table, synth_fqn};
+use crate::{
+    calls, core_imports, relational_type_inference, resolver, store_compiler, symbol_table, synth_fqn, view_signatures,
+};
 
 fn j(s: &str) -> JStr {
     JStr::from(s)
@@ -291,6 +294,168 @@ fn the_index_holds_the_boot_layers_own_records() {
         assert_eq!(
             order,
             ix.classes().map(|c| c.qualified_name.clone()).collect::<Vec<_>>()
+        );
+    });
+}
+
+fn database<'a>(m: &'a ParsedModel, fqn: &str) -> &'a std::sync::Arc<lite_model::DatabaseDefinition> {
+    m.elements
+        .iter()
+        .find_map(|e| match e {
+            PackageableElement::DatabaseDefinition(d) if d.qualified_name == fqn => Some(d),
+            _ => None,
+        })
+        .expect("the database")
+}
+
+/// The store helpers the names follow-up moved here (2026-11-12): a view's signature and its columns' kinds through
+/// views of views, a computed column's inferred type (two decimals widened, two sizes summed), a cyclic chain refused
+/// by the signature and answered nothing by the kind. The differential holds every view of the corpus to Java's.
+#[test]
+fn the_store_helpers_answer_over_a_small_database() {
+    on_parse_stack(|| {
+        let m = model(concat!(
+            "###Relational\n",
+            "Database a::Db (\n",
+            "  Table T (ID INTEGER PRIMARY KEY, D DECIMAL(10,2), N NUMERIC(5,4), S VARCHAR(10))\n",
+            "  View V (ID: T.ID, HIGH: max(T.D), TOTAL: plus(T.D, T.N), LABEL: concat(T.S, 'xy'))\n",
+            "  View W (ID: V.ID, HIGH: V.HIGH)\n",
+            "  View X (A: Y.A)\n",
+            "  View Y (A: X.A)\n",
+            ")\n"
+        ));
+        let ix = ModelIndex::from(&m).unwrap();
+        let k = ix.knowledge();
+        let db = j("a::Db");
+        assert_eq!(k.column_kind(&db, &j("T"), &j("S")), Some("String"));
+        assert_eq!(k.column_kind(&db, &j("V"), &j("HIGH")), Some("Decimal"));
+        assert_eq!(k.column_kind(&db, &j("W"), &j("HIGH")), Some("Decimal"));
+        assert_eq!(
+            k.column_kind(&db, &j("X"), &j("A")),
+            None,
+            "a cyclic chain is seen once"
+        );
+        assert_eq!(k.column_kind(&db, &j("V"), &j("absent")), None);
+        let arena = lite_base::QueryArena::new();
+        let v = ix.find_view(&db, &j("V")).unwrap().clone();
+        let sig = view_signatures::of(&arena, &ix, &db, &v).unwrap();
+        let types: Vec<String> = sig.columns().iter().map(|c| c.to_string()).collect();
+        assert_eq!(
+            types,
+            [
+                "ID:Integer[1]",
+                "HIGH:Number[0..1]",
+                "TOTAL:Decimal(12,4)[0..1]",
+                "LABEL:String[0..1]"
+            ]
+        );
+        let w = ix.find_view(&db, &j("W")).unwrap().clone();
+        let sig = view_signatures::of(&arena, &ix, &db, &w).unwrap();
+        assert_eq!(
+            sig.columns()[0].to_string(),
+            "ID:Integer[1]",
+            "a view's column through the inner view"
+        );
+        let x = ix.find_view(&db, &j("X")).unwrap().clone();
+        let e = view_signatures::of(&arena, &ix, &db, &x).unwrap_err();
+        assert_eq!(e.java_class(), "com.legend.error.ModelException");
+        assert_eq!(
+            e.message().unwrap(),
+            j("view 'X' of 'a::Db' reads its own columns (cyclic view-on-view chain)")
+        );
+        let scope = Some(&**database(&m, "a::Db"));
+        let label = &v.column_mappings[3].expression;
+        assert_eq!(
+            relational_type_inference::infer(label, scope, Some(&ix as &dyn crate::StoreLookups)),
+            Some(lite_model::RelationalDataType::RelationalDataTypeVarchar(
+                std::sync::Arc::new(lite_model::RelationalDataTypeVarchar { size: 12 })
+            ))
+        );
+        assert_eq!(
+            relational_type_inference::infer(label, scope, None),
+            Some(varchar(2)),
+            "no lookups: 0 + 2"
+        );
+    });
+}
+
+fn varchar(size: i32) -> lite_model::RelationalDataType {
+    lite_model::RelationalDataType::RelationalDataTypeVarchar(std::sync::Arc::new(
+        lite_model::RelationalDataTypeVarchar { size },
+    ))
+}
+
+/// A decimal Pure cannot hold is `PrecisionDecimal`'s refusal; a nested value a `Variant`; the milestoning funnel's
+/// spellings and axes.
+#[test]
+fn the_type_boundary_and_the_milestoning_funnel_answer_as_java() {
+    use lite_model::RelationalDataType as T;
+    let bad = T::RelationalDataTypeDecimal(std::sync::Arc::new(lite_model::RelationalDataTypeDecimal {
+        precision: 2,
+        scale: 5,
+    }));
+    let e = store_compiler::column_type(&bad).unwrap_err();
+    assert_eq!(e.java_class(), "java.lang.IllegalArgumentException");
+    assert_eq!(
+        e.message().unwrap(),
+        j("scale must be in [0, precision], got scale=5, precision=2")
+    );
+    let nested = T::RelationalDataTypeArray(std::sync::Arc::new(lite_model::RelationalDataTypeArray {
+        element: varchar(3),
+    }));
+    assert_eq!(
+        store_compiler::column_type(&nested).unwrap(),
+        lite_types::Type::ClassType(lite_types::platform::VARIANT)
+    );
+    let temporal = j(lite_types::platform::TEMPORAL_PROFILE);
+    assert_eq!(
+        MilestoningStrategy::of_stereotype_or_null(&temporal, &j("bitemporal")),
+        Some(MilestoningStrategy::Bitemporal)
+    );
+    assert_eq!(MilestoningStrategy::of_stereotype_or_null(&temporal, &j("other")), None);
+    assert_eq!(
+        MilestoningStrategy::of_stereotype_or_null(&j("temporal"), &j("bitemporal")),
+        None
+    );
+    assert!(MilestoningStrategy::Bitemporal.has(Dimension::Business));
+    assert!(!MilestoningStrategy::Processing.has(Dimension::Business));
+    assert_eq!(
+        MilestoningStrategy::of(Dimension::Processing),
+        MilestoningStrategy::Processing
+    );
+}
+
+/// The builder: a full name records nothing, an operator run is one collection under the infix marker, a call at
+/// another arity keeps its record and joins the rule's names.
+#[test]
+fn the_builder_records_as_the_resolver_would() {
+    on_parse_stack(|| {
+        let arg = |s: &str| {
+            VS::CString(std::sync::Arc::new(lite_model::protocol::CString {
+                value: j(s),
+                pos: None,
+                multi_line: false,
+            }))
+        };
+        let exact = calls::exact(&j("my::pkg::f"), vec![arg("a")]);
+        assert!(exact.referents.is_empty() && exact.function == j("my::pkg::f"));
+        let run = calls::infix_run(&j("plus"), vec![arg("a"), arg("b")]);
+        assert!(run.infix && run.parameters.len() == 1 && !run.referents.is_empty());
+        let built = calls::platform(&j("filter"), vec![arg("a"), arg("b")]);
+        assert_eq!(
+            &*built.referents,
+            &*resolver::built_call_names(&j("filter"), 2).referents
+        );
+        let mut original = built.clone();
+        original.referents = vec![j("x::filter")].into();
+        let same = calls::like(&original, vec![arg("c"), arg("d")]);
+        assert_eq!(&*same.referents, [j("x::filter")], "the same arity keeps the record");
+        let wider = calls::like(&original, vec![arg("c"), arg("d"), arg("e")]);
+        let rule = resolver::built_call_names(&j("filter"), 3).referents;
+        assert_eq!(wider.referents[0], j("x::filter"));
+        assert_eq!(
+            wider.referents.len(),
+            1 + rule.iter().filter(|r| **r != j("x::filter")).count()
         );
     });
 }
