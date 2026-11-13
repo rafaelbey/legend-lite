@@ -151,17 +151,22 @@ fn infer_in<'a>(
                 }
                 // joinStrings AGGREGATES: the engine assigns the fixed 4000 buffer size
                 "joinstrings" => Some(varchar(4000)),
-                // string concatenation SUMS the operand sizes (engine getSize over concat)
+                // string concatenation SUMS the operand sizes (engine getSize over concat); an operand typed other than
+                // CHAR or VARCHAR leaves it no type -- the engine's one rule asks every typed operand to be one
+                // (relationalExtension.pure:463-471); an operand with no type drops out. Until 2026-11-13 such an
+                // operand added 0 (the names fixes, item 10, ruling 28)
                 "concat" | "group_concat" => {
                     let mut size: i32 = 0;
+                    let mut other = false;
                     for arg in f.args.iter() {
                         match infer_in(arg, db, ctx, expanding)? {
                             Some(T::RelationalDataTypeVarchar(v)) => size = size.wrapping_add(v.size),
                             Some(T::RelationalDataTypeChar_(c)) => size = size.wrapping_add(c.size),
-                            _ => {}
+                            Some(_) => other = true,
+                            None => {}
                         }
                     }
-                    Some(varchar(size))
+                    if other { None } else { Some(varchar(size)) }
                 }
                 // case(c1, v1, ..., else): the SAFE type over the value branches (engine getSafeType lattice)
                 "case" => {

@@ -803,6 +803,37 @@ fn the_type_inference_keeps_the_engines_safe_type_rules() {
     });
 }
 
+/// A concatenation with an operand typed other than CHAR or VARCHAR has no type (2026-11-13, the names fixes, item 10,
+/// ruling 28: the engine's one concat rule asks every typed operand to be one); an operand with no type drops out. It
+/// summed the string operands' sizes and skipped the rest (`concat(INT, 'ab')` was VARCHAR(2)).
+#[test]
+fn a_concatenation_of_a_non_string_has_no_type() {
+    on_parse_stack(|| {
+        let m = model(concat!(
+            "###Relational\n",
+            "Database a::Db (\n",
+            "  Table T (ID INTEGER PRIMARY KEY, S VARCHAR(10), I INTEGER)\n",
+            "  View V (CI: concat(T.S, T.I), CN: concat(T.S, nope(T.ID)), CS: concat(T.S, 'ab'))\n",
+            ")\n"
+        ));
+        let ix = ModelIndex::from(&m).unwrap();
+        let db = j("a::Db");
+        let scope = Some(&**database(&m, "a::Db"));
+        let v = ix.find_view(&db, &j("V")).unwrap().clone();
+        let infer = |i: usize| {
+            relational_type_inference::infer(
+                &v.column_mappings[i].expression,
+                scope,
+                Some(&ix as &dyn crate::StoreLookups),
+            )
+            .unwrap()
+        };
+        assert_eq!(infer(0), None, "an INTEGER operand leaves no type");
+        assert_eq!(infer(1), Some(varchar(10)), "an operand with no type drops out");
+        assert_eq!(infer(2), Some(varchar(12)));
+    });
+}
+
 /// A decimal Pure cannot hold is `PrecisionDecimal`'s refusal; a nested value a `Variant`; the milestoning funnel's
 /// spellings and axes.
 #[test]

@@ -49,7 +49,7 @@ queries.tsv.zst	NameAnswers' queries: query sha TAB model sha TAB hash, 31,297 l
 # 24 refused: two columns of one name), 11,308 view columns' inferred SQL types, each with the scope and the index, no
 # scope, no lookups (r), 1,485,730 column kinds of every table or view spelling's columns and one absent (n). No stack
 # overflow met. 3,402 distinct forms.
-stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines	d60c472c19935b7cf91349a7e4acb542d3574516a5f542ce79c913aac7184e37
+stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names landings, at the end)	1ba41054009e223b05dad9684dcacd901cd67df8a1808bb80770e72a5c537d95
 # CALLS: one line per call shape, the shape's fields then the hash (NameAnswers.callShapes, callForm: the record codec's
 # JSON of the call Calls builds) -- 14,454 shapes: platform 6,504, like 3,380, renamed 2,452, infixRun 732, among 478,
 # infixRunAmong 478, form 370, exact 58, carrier 2; every name the builder's 206 call sites build (read from them), at the
@@ -94,3 +94,9 @@ duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,29
 #    and duplicates unchanged. Texts: names-models-texts-java-2026-11-13-land4.jsonl.zst (53,337,542 bytes;
 #    1d34f90f9da43565ed2553dd04a5b918d9e42ce558af3a32a7839f3f481d6568, checked by decompressing it). lite-names: 74,292,
 #    74,292, 74,292, 31,297 and 14,454 identical.
+# 2. Item 10's concat (a concatenation with an operand typed other than CHAR or VARCHAR has no type), on item 4's answers:
+#    stores.tsv moved, 11 of 74,292 lines (d60c472c... -> 1ba41054...: the asks whose view columns concatenate a
+#    non-string), models, queries, calls and duplicates unchanged. The two runs at this commit answered byte for byte what
+#    the original's freeze (c4baaca19) answered, the file the revert of its revert put back, and run B's texts hash to the
+#    archived names-stores-texts-java-2026-11-13c.jsonl (587d0139..., names-texts-java.sha256): confirmed, not taken
+#    from the revert. lite-names: all five files identical.
