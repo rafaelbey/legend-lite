@@ -63,14 +63,15 @@ calls.tsv.zst	NameAnswers' calls: builder TAB shape fields TAB hash, 14,454 line
 # 816451c4951ec46803ccbba9c295e141d2a372dfa801f5869a49e5e0444f0efb (names-texts-java.sha256; both checked 2026-11-12 by
 # decompressing them). //rust/lite-names:names_differential_test holds lite-names to all four files: 74,292, 74,292,
 # 31,297 and 14,454 identical, no list of differences.
-# RE-FROZEN 2026-11-13 twice by the names fixes and both REVERTED the same day (the names fixes' stop condition: the
-# final probe over the freeze's lanes; port-scratch/namesfix/ROWS.md): items 1 and 2 (a rebuilt record keeps every
-# component but its names; models.tsv 55,336 lines and queries.tsv 7,422 moved) renamed 2,823 keys of the identity and
-# plan oracles, and item 4 (an enumerated expression, a generic's values and a quoted tree walked; models.tsv 18 lines)
-# moved 914 test plan ids. models.tsv and queries.tsv are the follow-up's again (the hashes above); the reverted
-# answers' texts stay archived for the owner (oracle-archive/names-models-texts-java-2026-11-13a.jsonl.zst,
-# names-queries-texts-java-2026-11-13a.jsonl.zst, names-models-texts-java-2026-11-13b.jsonl.zst: 4f846d27...,
-# 1ae8a761..., 0a96f27a... in names-texts-java.sha256).
+# RE-FROZEN 2026-11-13 three times by the names fixes and all three REVERTED the same day (the names fixes' stop
+# condition: the final probe over the freeze's lanes; port-scratch/namesfix/ROWS.md): items 1 and 2 (a rebuilt record
+# keeps every component but its names; models.tsv 55,336 lines and queries.tsv 7,422 moved) renamed 2,823 keys of the
+# identity and plan oracles; item 4 (an enumerated expression, a generic's values and a quoted tree walked; models.tsv
+# 18 lines) and item 10's concat (a concatenation of a non-string has no type; stores.tsv 11 lines, d60c472c... ->
+# 1ba41054...) moved 914 test plan ids. models.tsv, queries.tsv and stores.tsv are the follow-up's again (the hashes
+# above); the reverted answers' texts stay archived for the owner (oracle-archive/names-models-texts-java-2026-11-13a,
+# names-queries-texts-java-2026-11-13a, names-models-texts-java-2026-11-13b and names-stores-texts-java-2026-11-13c,
+# each .jsonl.zst: 4f846d27..., 1ae8a761..., 0a96f27a..., 587d0139... in names-texts-java.sha256).
 # DUPLICATES (the names fixes, 2026-11-13: ruling 28 put PureModelContext.refuseDuplicates, which reads only the index,
 # in lite-names beside duplicate_elements): one line per model ask, in the models file's order (74,292; 74,260 with an
 # index, 32 without, form `-`), NameAnswers.duplicatesForm over the same index X asks -- S the strict refusal (`-`, or
