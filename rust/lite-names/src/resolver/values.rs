@@ -9,7 +9,7 @@ use std::sync::Arc;
 use lite_model::JStr;
 use lite_model::protocol as p;
 use lite_model::protocol::ValueSpecification as VS;
-use lite_model::{ImportScope, StereotypeApplication, TaggedValue, cat};
+use lite_model::{StereotypeApplication, TaggedValue, cat};
 
 use super::{Rs, Scope, qualify_id_by_base, resolve_call_candidates, resolve_name, resolve_profile};
 use crate::error::Thrown;
@@ -86,17 +86,15 @@ pub(super) fn resolve_type(t: &p::TypeExpression, scope: &Scope<'_>) -> Rs<p::Ty
         T::TypeExpressionGeneric(g) => {
             let r = name(&g.name, scope)?;
             let args = type_vec(&g.arguments, scope)?;
-            // the type-variable values resolve as any value specification (since 2026-11-13: the names fixes, item 4)
-            let values = vec_list(&g.type_variable_values, |x| resolve_vs(x, scope))?;
-            if r.is_none() && args.is_none() && values.is_none() {
+            if r.is_none() && args.is_none() {
                 None
             } else {
-                // the rebuild keeps the multiplicity arguments and the position
+                // the rebuild keeps the multiplicity arguments, the type variable values and the position
                 Some(T::TypeExpressionGeneric(Box::new(p::TypeExpressionGeneric {
                     name: or(&r, &g.name),
                     arguments: or(&args, &g.arguments),
                     multiplicity_arguments: g.multiplicity_arguments.clone(),
-                    type_variable_values: or(&values, &g.type_variable_values),
+                    type_variable_values: g.type_variable_values.clone(),
                     pos: g.pos.clone(),
                 })))
             }
@@ -309,16 +307,11 @@ pub fn resolve_vs(vs: &VS, scope: &Scope<'_>) -> Rs<VS> {
         }
         // a graph-fetch tree KEEPS its node: its call arguments resolve as expressions, its class names in place
         VS::GraphFetchLiteral(gf) => Some(VS::GraphFetchLiteral(Arc::new(graph_fetch(gf, scope)?))),
-        // the tree resolves in the SECTIONLESS scope (the core imports, no section imports) over the same universe: the
-        // engine compiles the quoted string as a section of its own with no imports (LegendCompile.doCompileVS). Not
-        // walked until 2026-11-13: the names fixes, item 4
         VS::QuotedTreeCall(q) => {
             let original = applied_function_arc(&q.original, scope)?;
-            let sectionless = Scope::prelude_of(ImportScope::empty(), scope.known);
-            let tree = resolve_vs(&q.tree, &sectionless)?.unwrap_or_else(|| q.tree.clone());
             Some(VS::QuotedTreeCall(Arc::new(p::QuotedTreeCall {
                 original,
-                tree,
+                tree: q.tree.clone(),
                 pos: q.pos.clone(),
             })))
         }
