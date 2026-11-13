@@ -12,8 +12,8 @@ use lite_model::protocol as p;
 use lite_model::*;
 
 use super::values::{
-    arc_list, constraint, derived_property, fqn_list, name, opt_name, or, realization, resolve_type, resolve_vs,
-    stereotypes, tagged_values, type_list, vs_list,
+    arc_list, constraint, derived_property, fqn_list, name, opt_name, or, parameter, realization, resolve_type,
+    resolve_vs, stereotypes, tagged_values, type_list, vs_list,
 };
 use super::{Rs, Scope, resolve_name};
 use crate::error::Thrown;
@@ -26,14 +26,22 @@ pub(super) fn resolve_element(el: &PackageableElement, scope: &Scope<'_>) -> Rs<
     Ok(match el {
         // opaque overlay elements carry extension-owned payloads; a data element is data
         E::OpaqueElementDefinition(_) | E::DataDefinition(_) => None,
-        E::PrimitiveExtensionDefinition(pe) => name(&pe.base_type_name, scope)?.map(|base| {
-            // Java's two-argument PrimitiveExtensionDefinition: the type variables are not carried
-            E::PrimitiveExtensionDefinition(Arc::new(PrimitiveExtensionDefinition {
-                qualified_name: pe.qualified_name.clone(),
-                base_type_name: base,
-                type_variables: Arc::default(),
-            }))
-        }),
+        // its type variables ride the rebuild and each one's declared type resolves in the element's scope (until
+        // 2026-11-13 Java's two-argument form dropped them and their types were never walked: the names landings,
+        // ruling 32)
+        E::PrimitiveExtensionDefinition(pe) => {
+            let base = name(&pe.base_type_name, scope)?;
+            let type_variables = arc_list(&pe.type_variables, |pd| Ok(parameter(pd, scope)?.map(Box::new)))?;
+            if base.is_none() && type_variables.is_none() {
+                None
+            } else {
+                Some(E::PrimitiveExtensionDefinition(Arc::new(PrimitiveExtensionDefinition {
+                    qualified_name: pe.qualified_name.clone(),
+                    base_type_name: or(&base, &pe.base_type_name),
+                    type_variables: or(&type_variables, &pe.type_variables),
+                })))
+            }
+        }
         E::ClassDefinition(cd) => class(cd, scope)?.map(E::ClassDefinition),
         E::AssociationDefinition(ad) => association(ad, scope)?.map(E::AssociationDefinition),
         E::FunctionDefinition(fd) => function(fd, scope)?.map(E::FunctionDefinition),
@@ -121,6 +129,8 @@ pub(super) fn resolve_element(el: &PackageableElement, scope: &Scope<'_>) -> Rs<
 fn class(cd: &ClassDefinition, outer: &Scope<'_>) -> Rs<Arc<ClassDefinition>> {
     // class type parameters shadow imports inside the body
     let scope = outer.with_type_params(&cd.type_params);
+    // its type variables' declared types resolve in its scope (not walked until 2026-11-13: the names landings, ruling 32)
+    let type_variables = arc_list(&cd.type_variables, |pd| Ok(parameter(pd, &scope)?.map(Box::new)))?;
     let supers = type_list(&cd.super_classes, &scope)?;
     let properties = arc_list(&cd.properties, |pd| property(pd, &scope))?;
     let derived = arc_list(&cd.derived_properties, |dp| {
@@ -129,7 +139,8 @@ fn class(cd: &ClassDefinition, outer: &Scope<'_>) -> Rs<Arc<ClassDefinition>> {
     let constraints = arc_list(&cd.constraints, |c| Ok(constraint(c, &scope)?.map(Box::new)))?;
     let st = stereotypes(&cd.stereotypes, &scope)?;
     let tv = tagged_values(&cd.tagged_values, &scope)?;
-    if supers.is_none()
+    if type_variables.is_none()
+        && supers.is_none()
         && properties.is_none()
         && derived.is_none()
         && constraints.is_none()
@@ -141,7 +152,7 @@ fn class(cd: &ClassDefinition, outer: &Scope<'_>) -> Rs<Arc<ClassDefinition>> {
     Ok(Some(Arc::new(ClassDefinition {
         qualified_name: cd.qualified_name.clone(),
         type_params: cd.type_params.clone(),
-        type_variables: cd.type_variables.clone(),
+        type_variables: or(&type_variables, &cd.type_variables),
         super_classes: or(&supers, &cd.super_classes),
         properties: or(&properties, &cd.properties),
         derived_properties: or(&derived, &cd.derived_properties),

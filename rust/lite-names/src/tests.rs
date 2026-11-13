@@ -1037,3 +1037,38 @@ fn the_compositions_answer_as_their_pieces() {
         assert_eq!(names.len(), 1);
     });
 }
+
+/// A primitive extension's type variables, fully (2026-11-13, the names landings, ruling 32): a rebuilt primitive
+/// extension keeps them (Java's two-argument form dropped them), and every type variable's declared type -- a primitive
+/// extension's and a class's -- resolves in the element's scope (neither was walked). Whether a value fits its variable
+/// is F's (Java's TypeClassifier, held to the engine's four cases by NameResolverTest's twin).
+#[test]
+fn a_primitive_extensions_type_variables_ride_the_rebuild_and_their_types_resolve() {
+    on_parse_stack(|| {
+        let units: Vec<u16> = concat!(
+            "import a::*;\n",
+            "Primitive a::P(x:C[1]) extends a::Base\n",
+            "Primitive a::Base extends Integer\n",
+            "Class a::C\n",
+            "{\n",
+            "  x : Integer[1];\n",
+            "}\n",
+        )
+        .encode_utf16()
+        .collect();
+        let m = lite_builtin::door::parse(&units, Dialect::LegendPlatform).expect("the model parses");
+        let r = resolver::resolve(&m).unwrap();
+        let pe = r
+            .elements
+            .iter()
+            .find_map(|e| match e {
+                PackageableElement::PrimitiveExtensionDefinition(pe) if pe.qualified_name == "a::P" => Some(pe.clone()),
+                _ => None,
+            })
+            .expect("the extension");
+        assert_eq!(pe.base_type_name, j("a::Base"), "its base resolves");
+        assert_eq!(pe.type_variables.len(), 1, "the rebuilt extension keeps its type variable");
+        let text = lite_front::codec::write(&pe.type_variables[0].r#type, false);
+        assert!(text.contains("\"a::C\""), "and its type resolves in the element's scope: {text}");
+    });
+}
