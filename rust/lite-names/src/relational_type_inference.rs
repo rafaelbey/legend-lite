@@ -86,8 +86,38 @@ fn infer_in<'a>(
                 Some(a) => infer_in(a, db, ctx, expanding),
             };
             match name.as_str() {
-                // aggregates carry their argument's type (engine inferDynaFunctionReturnType: max/min/sum/avg family)
-                "max" | "min" | "distinct" => first(expanding)?,
+                // aggregates carry their argument's type (engine inferDynaFunctionReturnType: max/min/sum/avg family);
+                // max and min over SEVERAL arguments are the safe type over all of them when one exists, else the
+                // first's -- the engine's two rules (relationalExtension.pure:1151-1197); until 2026-11-13 the first's
+                // alone (the names fixes, item 11, ruling 28)
+                "max" | "min" => {
+                    let mut types: Vec<Option<T>> = Vec::with_capacity(f.args.len());
+                    for arg in f.args.iter() {
+                        types.push(infer_in(arg, db, ctx, expanding)?);
+                    }
+                    let first = types.first().cloned().flatten();
+                    if types.len() <= 1 {
+                        first
+                    } else {
+                        // an argument with no type drops out, as the engine's map does
+                        let mut acc: Option<T> = None;
+                        let mut possible = true;
+                        for t in types.into_iter().flatten() {
+                            match acc {
+                                None => acc = Some(t),
+                                Some(a) => {
+                                    acc = safe(Some(a), Some(t));
+                                    if acc.is_none() {
+                                        possible = false;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if possible && acc.is_some() { acc } else { first }
+                    }
+                }
+                "distinct" => first(expanding)?,
                 // sum/avg PROMOTE float-family to DOUBLE (engine inferDynaFunctionReturnType aggregation rule)
                 "sum" | "average" => {
                     let at = first(expanding)?;
@@ -110,12 +140,14 @@ fn infer_in<'a>(
                 "substring" | "left" | "right" | "trim" | "ltrim" | "rtrim" | "toupper" | "tolower" | "upper"
                 | "lower" => first(expanding)?,
                 "position" | "length" | "charindex" | "locate" | "indexof" => Some(integer()),
+                // no typed operand, no type: never a default (until 2026-11-13 INTEGER -- the names fixes, item 10,
+                // ruling 28; the engine's sub matches no rule then)
                 "sub" => {
                     let mut acc: Option<T> = None;
                     for arg in f.args.iter() {
                         acc = safe(acc, infer_in(arg, db, ctx, expanding)?);
                     }
-                    Some(acc.unwrap_or_else(integer))
+                    acc
                 }
                 // joinStrings AGGREGATES: the engine assigns the fixed 4000 buffer size
                 "joinstrings" => Some(varchar(4000)),
@@ -190,7 +222,8 @@ fn infer_in<'a>(
 }
 
 /// `safe(a, b)`: the engine's `getSafeType` pair rule (typeInference.pure): equal types keep; OTHER absorbs into the
-/// other operand; DECIMAL beats int, double and float as it is; two decimals widen to
+/// other operand; DECIMAL beats the integer and float kinds as it is (never a string, a date or a bit: the engine's
+/// `safeTypeMap` has no such pair -- until 2026-11-13 it beat any type, the names fixes, item 9); two decimals widen to
 /// `DECIMAL(maxIntDigits + maxScale, maxScale)`; DOUBLE beats integers; two VARCHARs keep the larger size; two integer
 /// kinds the wider; `None` operands pass the other side through; no safe type is `None` (never the first operand).
 fn safe(a: Option<T>, b: Option<T>) -> Option<T> {
@@ -212,8 +245,8 @@ fn safe(a: Option<T>, b: Option<T>) -> Option<T> {
             let scale = as_.max(bs);
             return Some(decimal(int_digits.wrapping_add(scale), scale));
         }
-        (Some((ap, as_)), None) => return Some(decimal(ap, as_)),
-        (None, Some((bp, bs))) => return Some(decimal(bp, bs)),
+        (Some((ap, as_)), None) => return decimal_partner(&b).then(|| decimal(ap, as_)),
+        (None, Some((bp, bs))) => return decimal_partner(&a).then(|| decimal(bp, bs)),
         (None, None) => {}
     }
     let float = |t: &T| {
@@ -245,6 +278,21 @@ fn int_widening(t: &T) -> Option<usize> {
         T::RelationalDataTypeBigInt(_) => Some(3),
         _ => None,
     }
+}
+
+/// `DECIMAL_PARTNERS.contains(t.getClass())`: the kinds a DECIMAL (or NUMERIC) is safe with besides another decimal --
+/// the engine's `safeTypeMap` lists Decimal and Numeric among the partners of TinyInt, SmallInt, Integer, BigInt, Float
+/// and Double alone.
+fn decimal_partner(t: &T) -> bool {
+    matches!(
+        t,
+        T::RelationalDataTypeTinyInt(_)
+            | T::RelationalDataTypeSmallInt(_)
+            | T::RelationalDataTypeInteger_(_)
+            | T::RelationalDataTypeBigInt(_)
+            | T::RelationalDataTypeFloat_(_)
+            | T::RelationalDataTypeDouble_(_)
+    )
 }
 
 /// `decimalOf(t)`: a decimal's or numeric's precision and scale.

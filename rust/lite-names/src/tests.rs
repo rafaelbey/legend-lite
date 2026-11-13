@@ -853,6 +853,51 @@ fn varchar(size: i32) -> lite_model::RelationalDataType {
     ))
 }
 
+/// The type inference's three engine rules (2026-11-13, the names fixes, items 9 to 11, ruling 28): a decimal is safe
+/// with the integer and float kinds alone (with a string there is no safe type: it beat any type); `sub` with no typed
+/// operand has no type (it defaulted to INTEGER); `max` and `min` over several arguments are the safe type over all of
+/// them when one exists, else the first's (the first's alone).
+#[test]
+fn the_type_inference_keeps_the_engines_safe_type_rules() {
+    on_parse_stack(|| {
+        let m = model(concat!(
+            "###Relational\n",
+            "Database a::Db (\n",
+            "  Table T (ID INTEGER PRIMARY KEY, D DECIMAL(10,2), S VARCHAR(10), I INTEGER)\n",
+            "  View V (CD: case(equal(T.ID, 1), T.D, T.S), CI: case(equal(T.ID, 1), T.D, T.I), ",
+            "SB: sub(nope(T.ID), nope(T.ID)), MX: max(T.I, T.D), MS: max(T.I, T.S), MN: min(T.D))\n",
+            ")\n"
+        ));
+        let ix = ModelIndex::from(&m).unwrap();
+        let db = j("a::Db");
+        let scope = Some(&**database(&m, "a::Db"));
+        let v = ix.find_view(&db, &j("V")).unwrap().clone();
+        let infer = |i: usize| {
+            relational_type_inference::infer(
+                &v.column_mappings[i].expression,
+                scope,
+                Some(&ix as &dyn crate::StoreLookups),
+            )
+            .unwrap()
+        };
+        let dec = lite_model::RelationalDataType::RelationalDataTypeDecimal(std::sync::Arc::new(
+            lite_model::RelationalDataTypeDecimal {
+                precision: 10,
+                scale: 2,
+            },
+        ));
+        let int = lite_model::RelationalDataType::RelationalDataTypeInteger_(std::sync::Arc::new(
+            lite_model::RelationalDataTypeInteger_ {},
+        ));
+        assert_eq!(infer(0), None, "a decimal against a string has no safe type");
+        assert_eq!(infer(1), Some(dec.clone()), "a decimal beats an integer");
+        assert_eq!(infer(2), None, "sub with no typed operand has no type");
+        assert_eq!(infer(3), Some(dec.clone()), "max over two: their safe type");
+        assert_eq!(infer(4), Some(int), "max over two with no safe type: the first's");
+        assert_eq!(infer(5), Some(dec), "min over one: its own");
+    });
+}
+
 /// A decimal Pure cannot hold is `PrecisionDecimal`'s refusal; a nested value a `Variant`; the milestoning funnel's
 /// spellings and axes.
 #[test]
