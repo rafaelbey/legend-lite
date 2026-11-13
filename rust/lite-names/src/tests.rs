@@ -87,6 +87,92 @@ fn a_models_names_resolve_through_its_imports_its_package_and_the_core_group() {
     });
 }
 
+/// Three places the resolver did not walk (2026-11-13, the names fixes, item 4, ruling 28): an enumerated-expression
+/// property mapping's operation resolves as an expression mapping's does; a generic's type-variable values resolve as
+/// any value; a quoted tree call's tree resolves in the SECTIONLESS scope (the core imports, never the section's), as
+/// the engine compiles the quoted string in a section of its own. A text's type-variable values are integer and string
+/// literals (the parser takes no other); a model given as protocol records may carry any value, so the test sets one.
+#[test]
+fn the_resolver_walks_enumerated_expressions_type_variable_values_and_quoted_trees() {
+    on_parse_stack(|| {
+        let parsed = model(concat!(
+            "###Relational\n",
+            "Database app::Db ( Table T (ID INTEGER PRIMARY KEY, K VARCHAR(10)) )\n",
+            "Database app::Other ( Table T2 (K VARCHAR(10)) )\n",
+            "###Pure\n",
+            "import app::*;\n",
+            "Enum app::E { A, B }\n",
+            "Class app::C { e: E[1]; v: Varchar(8)[1]; }\n",
+            "function app::g():Any[*] { compileLegendValueSpecification('#{C{e, x(DurationUnit.DAYS)}}#') }\n",
+            "###Mapping\n",
+            "import app::*;\n",
+            "Mapping app::M (\n",
+            "  E: EnumerationMapping EM { A: 'a', B: 'b' }\n",
+            "  C: Relational { ~mainTable [Db]T e: EnumerationMapping EM: case(equal([Other]T2.K, 'x'), 'a', 'b') }\n",
+            ")\n",
+        ));
+        // the class's Varchar(8) carries the value E.A instead, as a protocol model may
+        let elements: Vec<PackageableElement> = parsed
+            .elements
+            .iter()
+            .map(|e| match e {
+                PackageableElement::ClassDefinition(c) if c.qualified_name == "app::C" => {
+                    let mut props: Vec<_> = c.properties.to_vec();
+                    let lite_model::protocol::TypeExpression::TypeExpressionGeneric(g) = &props[1].r#type else {
+                        panic!("a generic")
+                    };
+                    let mut g = (**g).clone();
+                    g.type_variable_values =
+                        vec![VS::EnumValue(std::sync::Arc::new(lite_model::protocol::EnumValue {
+                            full_path: j("E"),
+                            value: j("A"),
+                            enumeration_pos: None,
+                            pos: None,
+                            node: false,
+                        }))];
+                    props[1] = std::sync::Arc::new(lite_model::ClassDefinitionPropertyDefinition {
+                        r#type: lite_model::protocol::TypeExpression::TypeExpressionGeneric(Box::new(g)),
+                        ..(*props[1]).clone()
+                    });
+                    PackageableElement::ClassDefinition(std::sync::Arc::new(lite_model::ClassDefinition {
+                        properties: props.into(),
+                        ..(**c).clone()
+                    }))
+                }
+                other => other.clone(),
+            })
+            .collect();
+        let m = ParsedModel {
+            elements: elements.into(),
+            ..parsed
+        };
+        let r = resolver::resolve(&m).unwrap();
+        let text = |fqn: &str| {
+            let el = r
+                .elements
+                .iter()
+                .find(|e| e.qualified_name() == fqn)
+                .expect("the element");
+            lite_front::codec::write(el, true)
+        };
+        let mapping = text("app::M");
+        assert!(
+            mapping.contains("\"databaseName\":\"app::Other\"") && !mapping.contains("\"databaseName\":\"Other\""),
+            "the enumerated expression's [Other] resolves: {mapping}"
+        );
+        let class = text("app::C");
+        assert!(
+            class.contains("\"fullPath\":\"app::E\""),
+            "the type-variable value resolves: {class}"
+        );
+        let function = text("app::g");
+        assert!(
+            function.contains("meta::pure::functions::date::DurationUnit"),
+            "the tree's qualifier argument resolves through the core imports: {function}"
+        );
+    });
+}
+
 /// A rebuilt record keeps every component but the names it resolved (2026-11-13, the names fixes, items 1 and 2,
 /// ruling 28): a resolved model its unclaimed sections; a name reference, a collection and an enum value their
 /// positions, the enum value its wire spelling too. Java's convenience constructors dropped each (and the enum value

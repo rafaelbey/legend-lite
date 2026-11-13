@@ -19,7 +19,7 @@
 # spellings (t) and 828,951 columns (u), 596,051 filter and 316,904 join lookups, 96,180 views (v) and 2,809 main tables
 # (w), 158,967 legacy set ids (q), 490,673 section scopes (i), 202,484 function ids (f), 31,954 lifted derived
 # properties (l), 123 duplicates (d).
-models.tsv.zst	NameAnswers' models: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13, below)	2eb8d0115c1791d636bbdcb78eed7752e15b096d3842ad82fd46f3815255c1e1
+models.tsv.zst	NameAnswers' models: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13, below)	a46ed5e935e2a5817af018563399a164213f5f28fadb54b97256451ab56e88b7
 # QUERIES: one line per distinct (query, model) pair of the identity oracle whose model and query are both t: texts of
 # the front oracle, in first-seen order -- 31,297 pairs, 20,857 query texts, 2,321 model texts. The text: N
 # resolveQuery (the sectionless scope: no model), M resolveQueryIn(query, no imports, the model's universe), I with the
@@ -77,3 +77,10 @@ calls.tsv.zst	NameAnswers' calls: builder TAB shape fields TAB hash, 14,454 line
 # 4f846d27e7d85d155ef2fd81b1bd6b45cb164c27064deddb1f977aedc2c11374 and
 # 1ae8a761d66aaaafb98d26bc8a89c3e15bed4fda2cda33d762e1bf774cc9766d (names-texts-java.sha256; both checked 2026-11-13 by
 # decompressing them); the archived texts of the answers frozen before stay beside them.
+# RE-FROZEN 2026-11-13 again (the names fixes, item 4: an enumerated-expression mapping's operation, a generic's
+# type-variable values and a quoted tree call's tree walked by the resolver, the tree in the sectionless scope; ruling
+# 28), the same program and tools at that commit's Java. Run A and run B (--texts) byte-identical. models.tsv moved again
+# (18 of 74,292 lines, 2eb8d011... -> the hash above: the asks whose enumerated expressions name a database), queries,
+# stores and calls unchanged (a4f4ecd9..., d60c472c..., 3d84bb66...). The models' texts (5,122,779,980 bytes) archived as
+# oracle-archive/names-models-texts-java-2026-11-13b.jsonl.zst (58,352,507 bytes), the SHA-256 of the uncompressed text
+# 0a96f27a9647eb300853cd09361e5f8a6bb8ca9698bf21657de2d0bef03a1b72 (names-texts-java.sha256; checked by decompressing it).
