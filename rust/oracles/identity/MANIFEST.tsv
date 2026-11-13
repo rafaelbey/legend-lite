@@ -12,12 +12,25 @@
 #   model: t:<sha> a model text, s:<sha> every (name, text) parseSources saw on the thread since the last buildModel or
 #          buildModule, in order and each a NUL apart (the corpus: its sources, then one call per shape file; a parse that
 #          no build follows counts to the next build, so recompute it from that sequence, not from "the model's sources"),
-#          p:<sha> parsed records' toString, protocol:<sha> a client's PureModelContextData's toString, boot; an overlay
-#          of a compiled model (the corpus's runtime and connection) adds +<database type>.
+#          parsed:<sha> a model given as records (buildModel or buildModule with no sources seen: the ParsedModel as
+#          given, before resolution, in the lossless record codec's form, declared ParsedModel), pmcd:<sha> a client's
+#          PureModelContextData (Compiler.compileModel(PureModelContextData): the records as given, in the codec's form,
+#          declared PureModelContextData), boot; an overlay of a compiled model (the corpus's runtime and connection) adds
+#          +<database type>.
 #   query: t:<sha> the query's text; test:<fqn>, fixture:<fqn>, setup:<fqn>, service:<fqn>/<suite>/<test> the runner's name
-#          for it; vs:<sha> the resolved spec's toString (no text exists: 4,535 rows); compileAllBodies's text id; - for B
-#          and M; set:<sha> for L, the hash of the queries that ran on that context. A text's sha is SHA-256 of its UTF-16
-#          units, little-endian: rust/oracles/front's id, so the texts of t: rows are read from front/questions.jsonl.zst:
+#          for it; spec:<sha> a query with no text and no runner's name (4,535 rows): the input AS GIVEN to the resolve
+#          door the spec came out of, in the codec's form -- NameResolver.resolveQuery(query) the query alone, declared
+#          ValueSpecification; NameResolver.resolveQueryIn(query, imports, universe) `[query, imports]`, the import scope
+#          declared ImportScope; Compiler.resolveQuery(statements, imports, ctx) `[[statement, ...], imports]`; a spec no
+#          resolve door made would be keyed as handed, alone (none was: K1's 8,762 such scopes all came through a door);
+#          compileAllBodies's text id; - for B and M; set:<sha> for L, the hash of the queries that ran on that context
+#          (their ids as above). The codec's form is the one lite-front's and lite-names' writers write byte for byte
+#          (core's test-tree frontoracle/RecordCodec; the names oracle's forms are it): a key Rust can compute, where the
+#          keys it replaced -- p: and protocol:, a record's toString, and vs:, the toString of the RESOLVED spec, which
+#          moved whenever a resolution kept more -- were Java's alone (RE-KEYED 2026-11-13, docs/rust-port/
+#          PHASE3_SHIM_DESIGN.md section 10 ruling 32: below). A text's sha is SHA-256 of its UTF-16 units, little-endian:
+#          rust/oracles/front's id (a spec:, parsed: or pmcd: key's sha is the same over its form), so the texts of t: rows are read from
+#          front/questions.jsonl.zst. The counts below were taken before the re-key, which renamed no t: row:
 #          31,438 of the 31,615 t: query rows (the other 177: compileAllBodies' constant id, 50 rows, and 127 rows of
 #          query texts newer than that oracle, frozen 2026-11-05 on the old tree), and 35,652 of the 37,112 rows with a t:
 #          model (50 of the 2,664 distinct model texts are newer than it).
@@ -36,11 +49,32 @@
 #           (first-touch on a shared context is order-dependent). New on the merged tree (testplan and planner):
 #           TestKinds.effects, TestKinds.seeds (TestDoor.byStep's reads), TestKinds.effects.put, TestKinds.seeds.put (a
 #           step put twice), BodyClass.frameQueries, SqlTextVerdicts.token, .goldenToken, .batchToken, ProgramFrames.pastes.
-hits.tsv.zst	kind, model, query, doors, use, counts: 73,411 rows (B 1, L 24, M 2,792, Q 70,594), 2,803 models, 69 tables	aebca853ff23dc90948c3d311fc9d36fc5f66135bc0cd74f360914b584fbd74f
+# THE RE-KEY (2026-11-13, ruling 32). The probe's v2 (rust/tools/identity-hits-probe-v2.patch, beside the v1 patch these
+# files were first made by) writes every row twice over: identity-hits as v1 wrote it, and identity-keys with each row's
+# new model and query beside its old key, made from the input as given in two candidate forms -- the record codec's and
+# the protocol emitter's (ProtocolEmitter, the engine's JSON) -- computed at JVM exit on the shutdown hook's thread (the
+# resolve doors keep a list of weak references compared by ==, so no object's identity hash is asked). ONE run, K1, at
+# de483e694 (no fix applied), every lane of the freeze: 143 of 145 targets pass, the two probe-caused failures
+# (//core:census, //core:guardrails); all 73,411 frozen keys answered by their old keys and equal (moved 0, absent 0).
+# The bijection, over the run's 180,217 rows: in the codec's form every component of the old key <-> new key graph is
+# one old key and one new key (4,665 renamed, 85,621 the same key), every row of each answering alike; 0 splits, 0
+# collapses; every frozen key mapped, 4,659 renamed (vs: 4,535 to spec:, p: 40 to parsed:, protocol: 46 M and 19 Q rows
+# to pmcd:, 22 of the 24 L set keys) and 68,752 kept. The emitter's form refused 193 rows (it has no rule for a new
+# instance on a variable) and collapsed 13 groups of old keys whose rows answer differently: it loses information, so
+# the codec's form was chosen. vs:too-deep (a spec whose toString overflowed the stack) was 0 rows, frozen and in the
+# run. The map (73,411 lines: the old key, then the new model and query) is archived outside git:
+# /Users/cocobey73/.local/legend-lite/oracle-archive/identity-rekey-map-2026-11-13.tsv.zst (1,537,245 bytes), SHA-256 of
+# its uncompressed text 5df32e625cb0204d85fc0db3cce9306d6a3c95ce8602a2637349f890f7daf0af
+# (identity-rekey-map-2026-11-13.sha256 beside it). hits.tsv and mir-ids.tsv were re-keyed from their previous versions
+# by that map (sorted again as the freeze sorts, by the whole key) and held to K1 by the new keys: 73,411 of 73,411
+# answered and equal. Their previous SHA-256s: hits.tsv aebca853ff23dc90948c3d311fc9d36fc5f66135bc0cd74f360914b584fbd74f,
+# mir-ids.tsv e29aa2a8dff67ea8a639bc299f539b87264cb042d405291ff7a29bb218bba33f; mir-store.tsv, keyed by MirJson id, is
+# unchanged.
+hits.tsv.zst	kind, model, query, doors, use, counts: 73,411 rows (B 1, L 24, M 2,792, Q 70,594), 2,803 models, 69 tables; re-keyed 2026-11-13	3b3a9827d8336c247d0b2b7de5943cecdc69e182734f87c505c91a1269e932b0
 # Each lowering the question made (Lowerer.lower and lowerStoreWrite, in order): the SHA-256 of its MirJson text's UTF-16
 # units. !IllegalStateException:... is MirJson's refusal by design (a tagged value or list, resolved at its query's root;
 # 2,546 lowerings: 2,538 lists, 8 values). No id moved between the two runs (the first freeze's 72 ~moved, a VALUES row holding the host's
 # executionTraceID, are gone with the body driver: a test body is planned before it runs).
-mir-ids.tsv.zst	model, query, doors, use, ids: 51,606 rows, 167,833 lowerings, 40,613 distinct	e29aa2a8dff67ea8a639bc299f539b87264cb042d405291ff7a29bb218bba33f
+mir-ids.tsv.zst	model, query, doors, use, ids: 51,606 rows, 167,833 lowerings, 40,613 distinct; re-keyed 2026-11-13	be50210d06fb28f5d3c00d36dad86c02dcc59ddf3eb27cad7546978edcff4f69
 # Every MirJson the ids name, once: Java's answer for "the corpora through a Rust CLI". 876,194,434 characters.
 mir-store.tsv.zst	id TAB MirJson, sorted by id: 40,613 lines	de98afbfde06c21b30364f9fb837f8e2fdbe709064c49d0ecd9711d21dace459

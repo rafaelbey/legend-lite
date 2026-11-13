@@ -30,7 +30,12 @@
 # and the database's statement). The host judge's plans are what the Rust testplan is judged against (ruling 4); the
 # database judge's cost nothing extra to freeze (the same runs: the corpus's database passes, the *_judge_database and
 # *_judge_both lanes) and are frozen for when that judge is ported.
-plan-ids.tsv.zst	model, query, doors, use, execution plan ids, test plan ids: 51,337 rows; 25,741 execution plans, 25,597 test plans	33c6cef3eae91d5ccca79b69b20619287aabf99bbaecf852886005fed3280c5c
+# RE-KEYED 2026-11-13 (docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 ruling 32) with the identity oracle, by the
+# same map (its MANIFEST, "THE RE-KEY": a key made from the input as given, in the record codec's form, where a Java
+# toString was): the query ids above are now test 10,076, service 11,538, spec 3,551 (the vs: ids renamed), fixture 432;
+# no row split or merged, so the plan ids and the rows' count are unchanged. Previous SHA-256:
+# 33c6cef3eae91d5ccca79b69b20619287aabf99bbaecf852886005fed3280c5c.
+plan-ids.tsv.zst	model, query, doors, use, execution plan ids, test plan ids: 51,337 rows; 25,741 execution plans, 25,597 test plans; re-keyed 2026-11-13	d09763813913d58af1a3e81025aaca5342a7a2b6285e04d618357d549bd4ebe1
 # Every execution plan the ids name, once: id TAB E TAB the PlanJson (v31) text, sorted by id. 424,296,853 characters.
 execution-plans.tsv.zst	id TAB E TAB PlanJson, sorted by id: 17,044 lines	1af460bdfdef057d494845ae65ac68373255293657541cfda53e727c04aa6b7d
 # THE HOST JUDGE'S TEST PLANS, DEDUPLICATED (2026-11-11; docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 ruling 18;
