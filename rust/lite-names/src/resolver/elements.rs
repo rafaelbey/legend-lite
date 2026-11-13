@@ -35,11 +35,13 @@ pub(super) fn resolve_element(el: &PackageableElement, scope: &Scope<'_>) -> Rs<
             if base.is_none() && type_variables.is_none() {
                 None
             } else {
-                Some(E::PrimitiveExtensionDefinition(Arc::new(PrimitiveExtensionDefinition {
-                    qualified_name: pe.qualified_name.clone(),
-                    base_type_name: or(&base, &pe.base_type_name),
-                    type_variables: or(&type_variables, &pe.type_variables),
-                })))
+                Some(E::PrimitiveExtensionDefinition(Arc::new(
+                    PrimitiveExtensionDefinition {
+                        qualified_name: pe.qualified_name.clone(),
+                        base_type_name: or(&base, &pe.base_type_name),
+                        type_variables: or(&type_variables, &pe.type_variables),
+                    },
+                )))
             }
         }
         E::ClassDefinition(cd) => class(cd, scope)?.map(E::ClassDefinition),

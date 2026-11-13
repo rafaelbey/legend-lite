@@ -279,7 +279,15 @@ fn cant_find_table(spelled: &JStr, db_fqn: &JStr) -> Thrown {
     };
     Thrown::model(
         Phase::Model,
-        cat!("Can't find table '", &table, "' in schema '", &schema, "' and database '", &name, "'"),
+        cat!(
+            "Can't find table '",
+            &table,
+            "' in schema '",
+            &schema,
+            "' and database '",
+            &name,
+            "'"
+        ),
         None,
     )
 }
