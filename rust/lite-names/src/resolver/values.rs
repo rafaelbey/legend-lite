@@ -78,10 +78,8 @@ pub(super) fn resolve_type(t: &p::TypeExpression, scope: &Scope<'_>) -> Rs<p::Ty
     use p::TypeExpression as T;
     Ok(match t {
         T::TypeExpressionNameRef(nr) => name(&nr.name, scope)?.map(|r| {
-            T::TypeExpressionNameRef(Box::new(p::TypeExpressionNameRef {
-                name: r,
-                pos: nr.pos.clone(),
-            }))
+            // Java's one-argument NameRef: the position is not carried
+            T::TypeExpressionNameRef(Box::new(p::TypeExpressionNameRef { name: r, pos: None }))
         }),
         T::TypeExpressionGeneric(g) => {
             let r = name(&g.name, scope)?;
@@ -141,11 +139,12 @@ fn typed_parameter(tp: &p::TypeExpressionTypedParameter, scope: &Scope<'_>) -> R
 }
 
 fn column(c: &p::TypeExpressionColumn, scope: &Scope<'_>) -> Rs<p::TypeExpressionColumn> {
+    // Java's three-argument Column: the position is not carried
     Ok(resolve_type(&c.r#type, scope)?.map(|t| p::TypeExpressionColumn {
         name: c.name.clone(),
         r#type: t,
         multiplicity: c.multiplicity.clone(),
-        pos: c.pos.clone(),
+        pos: None,
     }))
 }
 
@@ -158,23 +157,23 @@ fn type_vec(types: &[p::TypeExpression], scope: &Scope<'_>) -> Rs<Vec<p::TypeExp
     vec_list(types, |t| resolve_type(t, scope))
 }
 
-/// `resolveParameter(p)` (the protocol's `ParameterDefinition`): its type; the rebuild keeps the position.
+/// `resolveParameter(p)` (the protocol's `ParameterDefinition`): the three-argument rebuild drops the position.
 pub(super) fn parameter(pd: &p::ParameterDefinition, scope: &Scope<'_>) -> Rs<p::ParameterDefinition> {
     Ok(resolve_type(&pd.r#type, scope)?.map(|t| p::ParameterDefinition {
         name: pd.name.clone(),
         r#type: t,
         multiplicity: pd.multiplicity.clone(),
-        pos: pd.pos.clone(),
+        pos: None,
     }))
 }
 
-/// `resolveRealization(r)`: a reference's function FQN (the rebuilt `Ref` keeps its source), an inline body's names.
+/// `resolveRealization(r)`: a reference's function FQN (the rebuilt `Ref` drops its source), an inline body's names.
 pub(super) fn realization(r: &p::Realization, scope: &Scope<'_>) -> Rs<p::Realization> {
     Ok(match r {
         p::Realization::RealizationRef(rf) => name(&rf.function_fqn, scope)?.map(|fqn| {
             p::Realization::RealizationRef(Box::new(p::RealizationRef {
                 function_fqn: fqn,
-                source: rf.source.clone(),
+                source: None,
             }))
         }),
         p::Realization::RealizationInline(inl) => vec_list(&inl.body, |x| resolve_vs(x, scope))?
@@ -182,8 +181,8 @@ pub(super) fn realization(r: &p::Realization, scope: &Scope<'_>) -> Rs<p::Realiz
     })
 }
 
-/// `resolveConstraint(c)`: its realization and `~message`; the rebuild keeps the external id, the owner and the
-/// position.
+/// `resolveConstraint(c)`: its realization and `~message`; the four-argument rebuild drops the external id, the owner
+/// and the position.
 pub(super) fn constraint(c: &p::ConstraintDefinition, scope: &Scope<'_>) -> Rs<p::ConstraintDefinition> {
     let realization = realization(&c.realization, scope)?;
     let message = match &c.message {
@@ -201,9 +200,9 @@ pub(super) fn constraint(c: &p::ConstraintDefinition, scope: &Scope<'_>) -> Rs<p
             None => c.message.clone(),
         },
         enforcement_level: c.enforcement_level.clone(),
-        external_id: c.external_id.clone(),
-        owner: c.owner.clone(),
-        pos: c.pos.clone(),
+        external_id: None,
+        owner: None,
+        pos: None,
     }))
 }
 
@@ -345,27 +344,28 @@ pub fn resolve_vs(vs: &VS, scope: &Scope<'_>) -> Rs<VS> {
             } else {
                 Some(VS::PackageableElementPtr(Arc::new(p::PackageableElementPtr {
                     full_path: r,
-                    pos: ptr.pos.clone(),
+                    pos: None,
                 })))
             }
         }
         VS::EnumValue(ev) => name(&ev.full_path, scope)?.map(|r| {
-            // the positions and the wire spelling ride the rebuild
+            // Java's two-argument EnumValue: no positions, so a node (`enumerationPos == null`)
             VS::EnumValue(Arc::new(p::EnumValue {
                 full_path: r,
                 value: ev.value.clone(),
-                enumeration_pos: ev.enumeration_pos.clone(),
-                pos: ev.pos.clone(),
-                node: ev.node,
+                enumeration_pos: None,
+                pos: None,
+                node: true,
             }))
         }),
         VS::AppliedFunction(af) => applied_function(af, scope)?.map(|a| VS::AppliedFunction(Arc::new(a))),
         VS::AppliedProperty(ap) => resolve_vs(&ap.receiver, scope)?.map(|receiver| {
+            // Java's two-argument AppliedProperty: the position and the owner class are not carried
             VS::AppliedProperty(Arc::new(p::AppliedProperty {
                 receiver,
                 property: ap.property.clone(),
-                pos: ap.pos.clone(),
-                owner_class: ap.owner_class.clone(),
+                pos: None,
+                owner_class: None,
             }))
         }),
         VS::LambdaFunction(lf) => lambda(lf, scope)?.map(VS::LambdaFunction),
@@ -377,10 +377,11 @@ pub fn resolve_vs(vs: &VS, scope: &Scope<'_>) -> Rs<VS> {
             if class_name.is_none() && type_args.is_none() && props.is_none() {
                 None
             } else {
+                // Java's three-argument NewInstance: the type's multiplicity arguments are not carried
                 Some(VS::NewInstance(Arc::new(p::NewInstance {
                     class_name: or(&class_name, &ni.class_name),
                     type_arguments: or(&type_args, &ni.type_arguments),
-                    type_multiplicity_arguments: ni.type_multiplicity_arguments.clone(),
+                    type_multiplicity_arguments: Arc::default(),
                     properties: or(&props, &ni.properties),
                 })))
             }
@@ -401,19 +402,18 @@ pub fn resolve_vs(vs: &VS, scope: &Scope<'_>) -> Rs<VS> {
             }
         }
         VS::PureCollection(coll) => vs_list(&coll.values, scope)?.map(|values| {
-            VS::PureCollection(Arc::new(p::PureCollection {
-                values,
-                pos: coll.pos.clone(),
-            }))
+            // Java's one-argument PureCollection: the position is not carried
+            VS::PureCollection(Arc::new(p::PureCollection { values, pos: None }))
         }),
         VS::ColumnInstance(p::ColumnInstance::ColSpec(cs)) => {
             col_spec(cs, scope)?.map(|c| VS::ColumnInstance(p::ColumnInstance::ColSpec(c)))
         }
         VS::ColumnInstance(p::ColumnInstance::ColSpecArray(csa)) => arc_list(&csa.col_specs, |c| col_spec(c, scope))?
             .map(|out| {
+                // Java's one-argument ColSpecArray: the position is not carried
                 VS::ColumnInstance(p::ColumnInstance::ColSpecArray(Arc::new(p::ColSpecArray {
                     col_specs: out,
-                    pos: csa.pos.clone(),
+                    pos: None,
                 })))
             }),
         VS::TypeAnnotation(ta) => type_annotation(ta, scope)?.map(VS::TypeAnnotation),
@@ -464,7 +464,7 @@ fn applied_function(af: &p::AppliedFunction, scope: &Scope<'_>) -> Rs<p::Applied
     }))
 }
 
-/// `resolveLambda(lf)`: its parameters' types and its body; the rebuild keeps the position.
+/// `resolveLambda(lf)`: its parameters' types and its body; the two-argument rebuild drops the position.
 pub(super) fn lambda(lf: &p::LambdaFunction, scope: &Scope<'_>) -> Rs<Arc<p::LambdaFunction>> {
     let params = arc_list(&lf.parameters, |v| variable(v, scope))?;
     let body = vs_list(&lf.body, scope)?;
@@ -474,11 +474,11 @@ pub(super) fn lambda(lf: &p::LambdaFunction, scope: &Scope<'_>) -> Rs<Arc<p::Lam
     Ok(Some(Arc::new(p::LambdaFunction {
         parameters: or(&params, &lf.parameters),
         body: or(&body, &lf.body),
-        pos: lf.pos.clone(),
+        pos: None,
     })))
 }
 
-/// `resolveVariable(v)`: its type; the rebuild keeps the position.
+/// `resolveVariable(v)`: its type; the three-argument rebuild drops the position.
 fn variable(v: &p::Variable, scope: &Scope<'_>) -> Rs<Arc<p::Variable>> {
     let Some(t) = &v.r#type else { return Ok(None) };
     Ok(resolve_type(t, scope)?.map(|t| {
@@ -486,7 +486,7 @@ fn variable(v: &p::Variable, scope: &Scope<'_>) -> Rs<Arc<p::Variable>> {
             name: v.name.clone(),
             r#type: Some(t),
             multiplicity: v.multiplicity.clone(),
-            pos: v.pos.clone(),
+            pos: None,
         })
     }))
 }
@@ -509,8 +509,8 @@ fn key_bindings(
     })
 }
 
-/// `resolveColSpec(cs)`: its lambdas and its qualifier arguments; the rebuild keeps the position, the column's declared
-/// type and multiplicity and its annotations.
+/// `resolveColSpec(cs)`: its lambdas and its qualifier arguments; the six-argument rebuild drops the position, the
+/// column's declared type and multiplicity and its annotations.
 fn col_spec(cs: &p::ColSpec, scope: &Scope<'_>) -> Rs<Arc<p::ColSpec>> {
     let r1 = match &cs.function1 {
         None => None,
@@ -531,11 +531,11 @@ fn col_spec(cs: &p::ColSpec, scope: &Scope<'_>) -> Rs<Arc<p::ColSpec>> {
         alias: cs.alias.clone(),
         args: or(&ra, &cs.args),
         qualified: cs.qualified,
-        pos: cs.pos.clone(),
-        col_type: cs.col_type.clone(),
-        col_type_mult: cs.col_type_mult.clone(),
-        stereotypes: cs.stereotypes.clone(),
-        tagged_values: cs.tagged_values.clone(),
+        pos: None,
+        col_type: None,
+        col_type_mult: None,
+        stereotypes: Arc::default(),
+        tagged_values: Arc::default(),
     })))
 }
 
@@ -543,10 +543,8 @@ fn col_spec(cs: &p::ColSpec, scope: &Scope<'_>) -> Rs<Arc<p::ColSpec>> {
 fn type_annotation(ta: &p::TypeAnnotation, scope: &Scope<'_>) -> Rs<p::TypeAnnotation> {
     Ok(match ta {
         p::TypeAnnotation::TypeAnnotationNamed(named) => resolve_type(&named.r#type, scope)?.map(|t| {
-            p::TypeAnnotation::TypeAnnotationNamed(Arc::new(p::TypeAnnotationNamed {
-                r#type: t,
-                pos: named.pos.clone(),
-            }))
+            // Java's one-argument Named: the position is not carried
+            p::TypeAnnotation::TypeAnnotationNamed(Arc::new(p::TypeAnnotationNamed { r#type: t, pos: None }))
         }),
         p::TypeAnnotation::TypeAnnotationWildcard(_) | p::TypeAnnotation::TypeAnnotationMultiplicityRef(_) => None,
         p::TypeAnnotation::TypeAnnotationRelationShape(shape) => arc_list(&shape.columns, |c| {
@@ -560,11 +558,12 @@ fn type_annotation(ta: &p::TypeAnnotation, scope: &Scope<'_>) -> Rs<p::TypeAnnot
             }))
         })?
         .map(|out| {
+            // Java's one-argument RelationShape: the spelled name, the type's span and the position are not carried
             p::TypeAnnotation::TypeAnnotationRelationShape(Arc::new(p::TypeAnnotationRelationShape {
                 columns: out,
-                spelled_name: shape.spelled_name.clone(),
-                type_span: shape.type_span.clone(),
-                pos: shape.pos.clone(),
+                spelled_name: None,
+                type_span: None,
+                pos: None,
             }))
         }),
     })

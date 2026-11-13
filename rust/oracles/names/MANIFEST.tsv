@@ -19,7 +19,7 @@
 # spellings (t) and 828,951 columns (u), 596,051 filter and 316,904 join lookups, 96,180 views (v) and 2,809 main tables
 # (w), 158,967 legacy set ids (q), 490,673 section scopes (i), 202,484 function ids (f), 31,954 lifted derived
 # properties (l), 123 duplicates (d).
-models.tsv.zst	NameAnswers' models: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13, below)	2eb8d0115c1791d636bbdcb78eed7752e15b096d3842ad82fd46f3815255c1e1
+models.tsv.zst	NameAnswers' models: text sha TAB dialect TAB hash, 74,292 lines	4421f233300475ac041e36be54a2cb0895b245a84daa74132caed3662e60b3bc
 # QUERIES: one line per distinct (query, model) pair of the identity oracle whose model and query are both t: texts of
 # the front oracle, in first-seen order -- 31,297 pairs, 20,857 query texts, 2,321 model texts. The text: N
 # resolveQuery (the sectionless scope: no model), M resolveQueryIn(query, no imports, the model's universe), I with the
@@ -27,7 +27,7 @@ models.tsv.zst	NameAnswers' models: text sha TAB dialect TAB hash, 74,292 lines 
 # added, asked as PureModelContext.resolutionUniverse asks. M equals N on all 31,297; I differs from M on 183. Run A also
 # held M and I against the live compiled model's universe (Compiler.compileModel(text).resolutionUniverse()): 31,297 of
 # 31,297 the same, every model compiling (a measurement, not frozen).
-queries.tsv.zst	NameAnswers' queries: query sha TAB model sha TAB hash, 31,297 lines (re-frozen 2026-11-13, below)	a4f4ecd95667e1f529dbd1555063fe874305dc31e695499e26eeb5862f2b1f56
+queries.tsv.zst	NameAnswers' queries: query sha TAB model sha TAB hash, 31,297 lines	b5f77c9f83cdf4be93c6f4ff5b6956273bf86541582524e8127fb1bd9cd83b5b
 # The full texts the hashes are of -- 4,325,762,099 characters of model forms, 51,301,278 bytes of query-form JSON lines
 # ({"sha","dialect","form"}, {"query","model","form"}) -- are archived outside git, for a mismatch to be read once Java is
 # gone: /Users/cocobey73/.local/legend-lite/oracle-archive/names-model-texts-java.jsonl.zst (53,377,759 bytes) and
@@ -63,31 +63,21 @@ calls.tsv.zst	NameAnswers' calls: builder TAB shape fields TAB hash, 14,454 line
 # 816451c4951ec46803ccbba9c295e141d2a372dfa801f5869a49e5e0444f0efb (names-texts-java.sha256; both checked 2026-11-12 by
 # decompressing them). //rust/lite-names:names_differential_test holds lite-names to all four files: 74,292, 74,292,
 # 31,297 and 14,454 identical, no list of differences.
-# RE-FROZEN 2026-11-13 (the names fixes, items 1 and 2: a rebuilt record keeps every component but the names it resolved
-# -- a resolved model its unclaimed sections and element spans, a rebuilt node its positions, a ColSpec its type and
-# annotations, an enum value its wire spelling, a NewInstance its multiplicity arguments, a constraint its id and owner, a
-# realization its source, an embedded or named relation-function mapping its primary key; the owner's ruling 28,
-# docs/rust-port/PHASE3.md, the names slice's entry) by the same program on the tree's jars at that commit's Java (core's
-# main sources: the names fixes' items 8, 13, 7, 5, 3 and 6 committed before it, none moving an answer), the same JDK and
-# Rust parser. Run A (no options, 20 min 16 s) and run B (--texts, 20 min 21 s): all four files byte-identical. models.tsv
-# moved (55,336 of 74,292 lines) and queries.tsv (7,422 of 31,297): the hashes above; stores.tsv and calls.tsv are
-# unchanged (d60c472c..., 3d84bb66...). Their texts (5,122,774,049 bytes of model forms, 54,776,214 of query forms) are
-# archived as oracle-archive/names-models-texts-java-2026-11-13a.jsonl.zst (58,305,992 bytes) and
-# names-queries-texts-java-2026-11-13a.jsonl.zst (1,554,294 bytes), the SHA-256 of their uncompressed texts
-# 4f846d27e7d85d155ef2fd81b1bd6b45cb164c27064deddb1f977aedc2c11374 and
-# 1ae8a761d66aaaafb98d26bc8a89c3e15bed4fda2cda33d762e1bf774cc9766d (names-texts-java.sha256; both checked 2026-11-13 by
-# decompressing them); the archived texts of the answers frozen before stay beside them.
-# RE-FROZEN 2026-11-13 again for item 4 and REVERTED the same day (the names fixes' stop condition: the final probe
-# found item 4 moving the plan oracle -- 12 seed rows of the corpus plans' system metamodel, an enumerated expression's
-# column naming its database by its full path; port-scratch/namesfix/ROWS.md). models.tsv is items 1 and 2's again (the
-# hash above, 2eb8d011...), the 18 lines item 4 moved taken back; item 4's texts stay archived for the owner
-# (oracle-archive/names-models-texts-java-2026-11-13b.jsonl.zst, 0a96f27a... in names-texts-java.sha256).
+# RE-FROZEN 2026-11-13 twice by the names fixes and both REVERTED the same day (the names fixes' stop condition: the
+# final probe over the freeze's lanes; port-scratch/namesfix/ROWS.md): items 1 and 2 (a rebuilt record keeps every
+# component but its names; models.tsv 55,336 lines and queries.tsv 7,422 moved) renamed 2,823 keys of the identity and
+# plan oracles, and item 4 (an enumerated expression, a generic's values and a quoted tree walked; models.tsv 18 lines)
+# moved 914 test plan ids. models.tsv and queries.tsv are the follow-up's again (the hashes above); the reverted
+# answers' texts stay archived for the owner (oracle-archive/names-models-texts-java-2026-11-13a.jsonl.zst,
+# names-queries-texts-java-2026-11-13a.jsonl.zst, names-models-texts-java-2026-11-13b.jsonl.zst: 4f846d27...,
+# 1ae8a761..., 0a96f27a... in names-texts-java.sha256).
 # DUPLICATES (the names fixes, 2026-11-13: ruling 28 put PureModelContext.refuseDuplicates, which reads only the index,
 # in lite-names beside duplicate_elements): one line per model ask, in the models file's order (74,292; 74,260 with an
 # index, 32 without, form `-`), NameAnswers.duplicatesForm over the same index X asks -- S the strict refusal (`-`, or
 # the error: 123 asks refused, the first duplicate's "Duplicated element 'x'"), W the tolerant walls, L's walls continued
 # as the module build's one wall sink is. Made by the run pair of item 4's re-freeze (its two files byte-identical), which
-# ran that commit's Java, NameAnswers' new output included; answered byte for byte by the run pair at item 4's revert.
+# ran that commit's Java, NameAnswers' new output included; answered byte for byte by the run pairs at item 4's revert
+# and at items 1 and 2's (neither revert moved a line of it).
 # Its texts (9,087,868 bytes) archived as oracle-archive/names-duplicates-texts-java-2026-11-13b.jsonl.zst (965,738
 # bytes), the SHA-256 of the uncompressed text
 # 978eb98ce5af10bd8c115366d52778c1f356aad84f977a5236d3135b162cd0cc (names-texts-java.sha256; checked by decompressing

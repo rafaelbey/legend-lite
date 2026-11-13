@@ -578,7 +578,7 @@ fn class_mapping(cm: &ClassMapping, scope: &Scope<'_>) -> Rs<ClassMapping> {
                     if class_name.is_none() && func_ref.is_none() {
                         None
                     } else {
-                        // no inline source; the primary key rides the rebuild (since 2026-11-13: item 2)
+                        // Java's six-argument RelationFunction: no inline source, and the primary key is not carried
                         Some(C::ClassMappingRelationFunction(Arc::new(
                             ClassMappingRelationFunction {
                                 class_name: or(&class_name, &rf.class_name),
@@ -588,7 +588,7 @@ fn class_mapping(cm: &ClassMapping, scope: &Scope<'_>) -> Rs<ClassMapping> {
                                 func_ref: Some(or(&func_ref, f)),
                                 inline_source: None,
                                 columns: rf.columns.clone(),
-                                primary_key: rf.primary_key.clone(),
+                                primary_key: Arc::default(),
                             },
                         )))
                     }
@@ -748,21 +748,14 @@ fn property_mapping(pm: &PropertyMapping, scope: &Scope<'_>) -> Rs<PropertyMappi
                 expression: expr,
             }))
         }),
-        P::PropertyMappingEmbedded(e) => {
-            // its ~primaryKey's operations resolve as a class mapping's do, and ride the rebuild (since 2026-11-13: the
-            // names fixes, item 2; the two-argument form dropped them)
-            let subs = property_mapping_list(&e.property_mappings, scope)?;
-            let pk = rel_op_list(&e.primary_key, scope)?;
-            if subs.is_none() && pk.is_none() {
-                None
-            } else {
-                Some(P::PropertyMappingEmbedded(Arc::new(PropertyMappingEmbedded {
-                    property_name: e.property_name.clone(),
-                    property_mappings: or(&subs, &e.property_mappings),
-                    primary_key: or(&pk, &e.primary_key),
-                })))
-            }
-        }
+        P::PropertyMappingEmbedded(e) => property_mapping_list(&e.property_mappings, scope)?.map(|subs| {
+            // Java's two-argument Embedded: the primary key is not carried
+            P::PropertyMappingEmbedded(Arc::new(PropertyMappingEmbedded {
+                property_name: e.property_name.clone(),
+                property_mappings: subs,
+                primary_key: Arc::default(),
+            }))
+        }),
         // set ids are local; no FQN inside
         P::PropertyMappingInlineEmbedded(_) => None,
         P::PropertyMappingOtherwiseEmbedded(oe) => {

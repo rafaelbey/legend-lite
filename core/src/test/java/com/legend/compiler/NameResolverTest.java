@@ -1971,41 +1971,6 @@ class NameResolverTest {
         assertEquals(java.util.Map.of("id3", "a::S"), runtime.apply(bare, "a::Q").connectionIds());
     }
 
-    /** The names fixes, items 1 and 2 (2026-11-13, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28): a rebuilt record
-     * keeps every component but the names it resolved -- a resolved model its unclaimed sections, a name reference, a
-     * collection and an enum value their positions, the enum value its wire spelling too. The convenience constructors
-     * dropped each (and the enum value became the real {@code enumValue} node). */
-    @Test
-    void aRebuiltRecordKeepsEveryComponentButItsNames() {
-        // the platform's dialect leaves a section no grammar claims unclaimed (lite's refuses it)
-        ParsedModel m = com.legend.door.ModelFromText.parse("""
-                import app::*;
-                Class app::A { b: B[1]; }
-                Class app::B { b: String[0..1]; }
-                Enum app::E { x }
-                function app::g():Any[*] { [E.x, E.x] }
-                ###Unknown
-                whatever
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM);
-        assertEquals(1, m.unclaimedSections().size());
-        ParsedModel r = NameResolver.resolve(m);
-        assertEquals(m.unclaimedSections(), r.unclaimedSections(), "a resolved model keeps its unclaimed sections");
-        ClassDefinition a = (ClassDefinition) r.elements().stream()
-                .filter(e -> e.qualifiedName().equals("app::A")).findFirst().orElseThrow();
-        TypeExpression.NameRef nr = (TypeExpression.NameRef) a.properties().get(0).type();
-        assertEquals("app::B", nr.name());
-        assertTrue(nr.pos() != null, "a rebuilt name reference keeps its position");
-        FunctionDefinition g = (FunctionDefinition) r.elements().stream()
-                .filter(e -> e.qualifiedName().equals("app::g")).findFirst().orElseThrow();
-        PureCollection coll = (PureCollection) g.body().get(0);
-        assertTrue(coll.pos() != null, "a rebuilt collection keeps its position");
-        EnumValue ev = (EnumValue) coll.values().get(0);
-        assertEquals("app::E", ev.fullPath());
-        assertTrue(ev.pos() != null, "a rebuilt enum value keeps its position");
-        assertTrue(ev.enumerationPos() != null, "and its enumeration's");
-        assertTrue(!ev.node(), "and its wire spelling: a property on an element pointer, not the enumValue node");
-    }
-
     @Test
     void resolveProducesSameInstanceWhenNothingChanges() {
         // Already-FQN tree round-trips through resolve with reference

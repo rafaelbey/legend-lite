@@ -82,66 +82,8 @@ fn a_models_names_resolve_through_its_imports_its_package_and_the_core_group() {
         // the M3 primitive, spelled by the prelude
         let ty = &class(&r, "app::D").properties[0].r#type;
         assert_eq!(ty.raw_class_name().unwrap(), &j("meta::pure::metamodel::type::String"));
-        // the parsed model has no element spans (a text's) and no unclaimed sections: the resolved one keeps them so
+        // a resolved model loses its element spans and unclaimed sections (Java's six-argument ParsedModel)
         assert!(r.unclaimed_sections.is_empty() && r.element_spans.is_empty());
-    });
-}
-
-/// A rebuilt record keeps every component but the names it resolved (2026-11-13, the names fixes, items 1 and 2,
-/// ruling 28): a resolved model its unclaimed sections; a name reference, a collection and an enum value their
-/// positions, the enum value its wire spelling too. Java's convenience constructors dropped each (and the enum value
-/// became the real `enumValue` node).
-#[test]
-fn a_rebuilt_record_keeps_every_component_but_its_names() {
-    on_parse_stack(|| {
-        // the platform's dialect leaves a section no grammar claims unclaimed (lite's refuses it)
-        let units: Vec<u16> = concat!(
-            "import app::*;\n",
-            "Class app::A { b: B[1]; }\n",
-            "Class app::B { b: String[0..1]; }\n",
-            "Enum app::E { x }\n",
-            "function app::g():Any[*] { [E.x, E.x] }\n",
-            "###Unknown\nwhatever\n",
-        )
-        .encode_utf16()
-        .collect();
-        let m = lite_builtin::door::parse(&units, Dialect::LegendPlatform).expect("the model parses");
-        assert_eq!(m.unclaimed_sections.len(), 1);
-        let r = resolver::resolve(&m).unwrap();
-        assert_eq!(
-            r.unclaimed_sections, m.unclaimed_sections,
-            "a resolved model keeps its unclaimed sections"
-        );
-        let a = class(&r, "app::A");
-        let lite_model::protocol::TypeExpression::TypeExpressionNameRef(nr) = &a.properties[0].r#type else {
-            panic!("a name reference")
-        };
-        assert_eq!(nr.name, j("app::B"));
-        assert!(nr.pos.is_some(), "a rebuilt name reference keeps its position");
-        let body = r
-            .elements
-            .iter()
-            .find_map(|e| match e {
-                PackageableElement::FunctionDefinition(f) if f.qualified_name == "app::g" => Some(f.body[0].clone()),
-                _ => None,
-            })
-            .expect("the function");
-        let VS::PureCollection(coll) = body else {
-            panic!("a collection")
-        };
-        assert!(coll.pos.is_some(), "a rebuilt collection keeps its position");
-        let VS::EnumValue(ev) = &coll.values[0] else {
-            panic!("an enum value")
-        };
-        assert_eq!(ev.full_path, j("app::E"));
-        assert!(
-            ev.pos.is_some() && ev.enumeration_pos.is_some(),
-            "a rebuilt enum value keeps its positions"
-        );
-        assert!(
-            !ev.node,
-            "and its wire spelling: a property on an element pointer, not the enumValue node"
-        );
     });
 }
 
