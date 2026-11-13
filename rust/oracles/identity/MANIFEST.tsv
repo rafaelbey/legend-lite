@@ -70,7 +70,16 @@
 # answered and equal. Their previous SHA-256s: hits.tsv aebca853ff23dc90948c3d311fc9d36fc5f66135bc0cd74f360914b584fbd74f,
 # mir-ids.tsv e29aa2a8dff67ea8a639bc299f539b87264cb042d405291ff7a29bb218bba33f; mir-store.tsv, keyed by MirJson id, is
 # unchanged.
-hits.tsv.zst	kind, model, query, doors, use, counts: 73,411 rows (B 1, L 24, M 2,792, Q 70,594), 2,803 models, 69 tables; re-keyed 2026-11-13	3b3a9827d8336c247d0b2b7de5943cecdc69e182734f87c505c91a1269e932b0
+# THE COUNTS MASK (2026-11-13, ruling 32): the two tables CallInstantiation.equals.frame and CallInstantiation.equals.origin
+# are dropped from every row's counts, here and from a run's counts before it is compared, as the plan oracle masks
+# executionTraceID (its MANIFEST: a run-specific value replaced when the oracle is frozen and when a run is compared; the
+# probe still writes them). They count UserCallInliner's CallInstantiation.equals, which a HashMap calls only when two
+# keys' hashes are equal, and that record hashes by System.identityHashCode of its frame and origin
+# (UserCallInliner.java:132-146): identity-hash collisions, not planning, so a Rust port cannot be held to them (the names
+# fixes' item 6 moved them, 32/0 -> 32/1 and 64/0 -> 64/1, by hashing one more object on a lane's thread: PHASE3.md).
+# Dropped: 84 rows touched (each held both; 1,280 true and 0 false in each table), none left without counts; 69 tables
+# -> 67. Re-keyed SHA-256 before the mask: 3b3a9827d8336c247d0b2b7de5943cecdc69e182734f87c505c91a1269e932b0.
+hits.tsv.zst	kind, model, query, doors, use, counts: 73,411 rows (B 1, L 24, M 2,792, Q 70,594), 2,803 models, 67 tables; re-keyed and masked 2026-11-13	08b430ff07bd6eb181d869cf1b7b7296399ef9372bba1ed7b1b936441fa36d9a
 # Each lowering the question made (Lowerer.lower and lowerStoreWrite, in order): the SHA-256 of its MirJson text's UTF-16
 # units. !IllegalStateException:... is MirJson's refusal by design (a tagged value or list, resolved at its query's root;
 # 2,546 lowerings: 2,538 lists, 8 values). No id moved between the two runs (the first freeze's 72 ~moved, a VALUES row holding the host's
