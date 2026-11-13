@@ -470,6 +470,37 @@ Each with my recommendation first.
     and the tables' dump programs in `rust/oracles/builtin` with their own codec copy; `lite-platform`'s test-only
     dependency on `lite-front`; the families' id maps built on first lookup; the metamodel dump comparing records by
     value; and the 143 classes whose subtyping waits for name resolution.
+27. **The names slice's placement, finished by two moves** (2026-11-12, the E/F census's questions 1 and 2):
+    `Calls` (the one place a resolved call is built) and `builtCallNames` live in `lite-names`, which removes the
+    names-to-spec edge through it; `RelationalTypeInference`, `ViewSignatures`, `StoreCompiler.columnType` and
+    `MilestoningStrategy` live in `lite-names` too, so `KnowledgeLayer.columnKind` is D's and the names-to-element edge
+    goes (done in the names follow-up, `a7616afa8`). Element code no F caller uses is ported with its first caller's
+    slice (question 3: `ClassLayouts`, `EqualityKeys`, `RelationalOpRows`, `Temporal`, `StoreCompiler.declaredType`,
+    `ModelContext.isDeclaredSubtype`, the Cypher view); `GraphEdges`' F-time rule is ported with F (question 4). The
+    execution overlay (question 5) was already ruled: ruling 11's overlay form.
+28. **The names slice** (2026-11-12): its Java behaviours that look wrong are fixed slice 1b's way (ruling 25), after
+    the follow-up of ruling 27, the hash order into a test plan left for `testplan`; its six own choices are ratified
+    (the records' methods beside their records; one subtyping walk in Java's two shapes, the lattice in `lite-names`;
+    the query universe from D's index and the boot layer; a generic with type-variable values refused where Java
+    prints a `toString`; `Mutex` memos and a type-keyed derived memo; `NameAnswers` in core's test tree); its
+    differential stays in the local gate, tagged `large`.
+29. **Three policies for every slice** (2026-11-12, the census's questions 6, 11 and 12): where Java's hash order reaches
+    an answer, Rust uses a declared order with a `SEMANTICS_REGISTER` row, and a mangled-name collision is refused by
+    name rather than picked; a raw Java exception a user's input can reach is made a proper refusal in Java first, then
+    ported; a divergence the code documents without a register row is ported exactly and given a row with the
+    engine's answer read from the pinned sources, each row then ruled by the owner.
+30. **E and F's fixes** (2026-11-12, questions 7-10, 13, 15), each confirmed against its source, in Java and Rust
+    together, any move of a frozen answer back to the owner before it lands: `FunctionCompiler`'s swallow ported as a
+    typed `Result` and F's missing multiplicity-bounds check added (parameters, returns, association ends); PARK-1's
+    duplicated rule one Rust function; PARK-26 settled by the engine's answer, asked first; tolerant mode's four wall
+    shapes ported exactly, then fixed as a follow-up; the ten E/F behaviours that look wrong fixed; the Phase-D
+    fallbacks measured over the lanes and deleted where unreached.
+31. **E and F's scope** (2026-11-12, questions 14, 16, 17 and the census's §3-4): its DON'T PORT list (about 660 lines:
+    test-only entry points, dead code, the probe hook, overridden defaults, the source-text guards over E retired with
+    ledger rows) and RE-EXPRESS list (same answers, simpler structure) are ratified; `DynaFnRegistryTest` becomes one
+    exhaustive match in Rust; Java's distinct subtype relations are kept (ruling 28); E's `NormalizedModel` and F's
+    answers are held to the live Java by differentials and frozen before the slice lands. The census:
+    [`EF_CENSUS.md`](EF_CENSUS.md), its evidence in [`ef-census/`](ef-census).
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.
