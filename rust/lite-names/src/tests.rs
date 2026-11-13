@@ -203,6 +203,36 @@ fn an_association_qualified_property_adopts_into_its_owner() {
     });
 }
 
+/// A qualified property returning a type that names no class is refused with the type's kind in words (2026-11-13,
+/// the names fixes, item 7, ruling 29): Java spelled it by the record's `toString()`, and the port refused one holding a
+/// type-variable value. A name keeps its quoted spelling.
+#[test]
+fn a_qualified_property_returning_no_class_is_refused_by_its_kind() {
+    on_parse_stack(|| {
+        let refused = |text: &str| {
+            let r = resolver::resolve(&model(text)).unwrap();
+            let e = crate::knowledge::adopt_association_qualified_properties(&r, None).unwrap_err();
+            assert_eq!(e.java_class(), "com.legend.error.ModelException");
+            e.message().unwrap().lossy()
+        };
+        assert_eq!(
+            refused(
+                "Class a::P {}\nClass a::F {}\nAssociation a::PF { p: a::P[*]; f: a::F[1]; \
+                 q() { [] }: {String[1]->Varchar(8)[1]}[1]; }\n"
+            ),
+            "association 'a::PF' qualified property 'q' returns a function type, which does not identify a unique \
+             owning end"
+        );
+        assert_eq!(
+            refused(
+                "Class a::P {}\nClass a::F {}\nAssociation a::PF { p: a::P[*]; f: a::F[1]; \
+                 q() { [] }: a::Other[1]; }\n"
+            ),
+            "association 'a::PF' qualified property 'q' returns 'a::Other', which does not identify a unique owning end"
+        );
+    });
+}
+
 /// The index hands out the database's own view records, one record per view whatever the lookup (PHASE3.md step 0's
 /// census, class (b): the normalizer's `LiftedViews` keys its identity maps by the view record, so a lookup that handed
 /// out a copy would miss there and wall the view as declared by no database).

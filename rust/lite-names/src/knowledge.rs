@@ -35,7 +35,6 @@ use lite_model::{
 use lite_types::Primitive;
 
 use crate::error::Thrown;
-use crate::java_string;
 use crate::model_index::{ModelIndex, StoreLookups};
 use crate::{relational_kinds, relational_type_inference};
 
@@ -472,33 +471,31 @@ pub fn adopt_association_qualified_properties(
 
 /// `qualifiedPropertyOwner(ad, dp)`: the class that owns an association's qualified property -- the end opposite the
 /// one it returns; a self-association owns its qualified properties itself; `None` when no unique end is identified.
-pub fn qualified_property_owner(
-    ad: &AssociationDefinition,
-    dp: &p::DerivedPropertyDefinition,
-) -> Result<Option<JStr>, Thrown> {
+pub fn qualified_property_owner(ad: &AssociationDefinition, dp: &p::DerivedPropertyDefinition) -> Option<JStr> {
+    // a type with no class name (a function, relation or schema-algebra type) is no end's class
     let t1 = raw_name(&ad.property1.target_class)?;
     let t2 = raw_name(&ad.property2.target_class)?;
     let ret = raw_name(&dp.r#type)?;
     if t1 == t2 {
-        return Ok(if ret == t1 { Some(t1) } else { None });
+        return if ret == t1 { Some(t1) } else { None };
     }
     if ret == t1 {
-        return Ok(Some(t2));
+        return Some(t2);
     }
-    Ok(if ret == t2 { Some(t1) } else { None })
+    if ret == t2 { Some(t1) } else { None }
 }
 
 fn owner_or_throw(ad: &AssociationDefinition, dp: &p::DerivedPropertyDefinition) -> Result<JStr, Thrown> {
-    if let Some(owner) = qualified_property_owner(ad, dp)? {
+    if let Some(owner) = qualified_property_owner(ad, dp) {
         return Ok(owner);
     }
-    let t1 = raw_name(&ad.property1.target_class)?;
-    let t2 = raw_name(&ad.property2.target_class)?;
-    let ret = raw_name(&dp.r#type)?;
+    let t1 = spelled(&ad.property1.target_class);
+    let t2 = spelled(&ad.property2.target_class);
+    let ret = spelled(&dp.r#type);
     let why = if t1 == t2 {
-        "', which is neither end of the self-association"
+        ", which is neither end of the self-association"
     } else {
-        "', which does not identify a unique owning end"
+        ", which does not identify a unique owning end"
     };
     Err(Thrown::model(
         Phase::Model,
@@ -507,7 +504,7 @@ fn owner_or_throw(ad: &AssociationDefinition, dp: &p::DerivedPropertyDefinition)
             &ad.qualified_name,
             "' qualified property '",
             &dp.name,
-            "' returns '",
+            "' returns ",
             ret,
             why
         ),
@@ -515,11 +512,27 @@ fn owner_or_throw(ad: &AssociationDefinition, dp: &p::DerivedPropertyDefinition)
     ))
 }
 
-/// `rawName(t)`: a name's or a generic's head, else the type's Java `toString()`.
-fn raw_name(t: &p::TypeExpression) -> Result<JStr, Thrown> {
+/// `rawName(t)`: a type's class name, a name's or a generic's head; `None` for a type that names no class (a function,
+/// relation or schema-algebra type).
+fn raw_name(t: &p::TypeExpression) -> Option<JStr> {
     match t {
-        p::TypeExpression::TypeExpressionNameRef(n) => Ok(n.name.clone()),
-        p::TypeExpression::TypeExpressionGeneric(g) => Ok(g.name.clone()),
-        other => java_string::type_expression(other),
+        p::TypeExpression::TypeExpressionNameRef(n) => Some(n.name.clone()),
+        p::TypeExpression::TypeExpressionGeneric(g) => Some(g.name.clone()),
+        p::TypeExpression::TypeExpressionFunctionType(_)
+        | p::TypeExpression::TypeExpressionRelationType(_)
+        | p::TypeExpression::TypeExpressionSchemaAlgebra(_) => None,
+    }
+}
+
+/// `spelled(t)`: a type as the refusal names it, its class name quoted, else its kind in words. Until 2026-11-13 Java
+/// spelled a type with no class name by the record's `toString()` and this port refused one holding a type-variable
+/// value: the names fixes, item 7 (ruling 29).
+fn spelled(t: &p::TypeExpression) -> JStr {
+    match t {
+        p::TypeExpression::TypeExpressionNameRef(n) => cat!("'", &n.name, "'"),
+        p::TypeExpression::TypeExpressionGeneric(g) => cat!("'", &g.name, "'"),
+        p::TypeExpression::TypeExpressionFunctionType(_) => JStr::from("a function type"),
+        p::TypeExpression::TypeExpressionRelationType(_) => JStr::from("a relation type"),
+        p::TypeExpression::TypeExpressionSchemaAlgebra(_) => JStr::from("a schema-algebra type"),
     }
 }
