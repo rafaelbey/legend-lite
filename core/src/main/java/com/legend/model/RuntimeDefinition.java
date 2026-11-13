@@ -36,8 +36,13 @@ import java.util.Objects;
  * @param qualifiedName       fully qualified runtime name
  * @param mappings            qualified names of bound {@code Mapping}s (declaration order)
  * @param connectionBindings  store qualified name &rarr; connection qualified
- *                            names, in declaration order — engine allows
- *                            SEVERAL connections per store
+ *                            names, in declaration order; lite keeps SEVERAL
+ *                            connections per store, where the engine refuses
+ *                            them ("Found N connections against store [S]
+ *                            under a single runtime.", ModelStore excepted,
+ *                            HelperRuntimeBuilder.java:197-205): register row
+ *                            S379 (until 2026-11-13 this said the engine allows
+ *                            several; the names landings, item 3, ruling 32)
  * @param jsonConnections     inline {@code JsonModelConnection} bindings parsed
  *                            from {@code #{ ... }#} islands (cross-baked into
  *                            the bound mappings by {@code ModelBuilder})
