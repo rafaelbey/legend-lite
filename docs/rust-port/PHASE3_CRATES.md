@@ -31,7 +31,7 @@ says, for each crate that exists, its layers and its exact dependencies, and `li
 | `platform` | `lite-platform` | `lite-base`, `lite-builtin`, `lite-error`, `lite-model` | | **made** (slice 1b): reaches all four |
 | `compiler_element_type` | `lite-types` | `lite-base`, `lite-builtin`, `lite-model`, `lite-platform`, `lite-front`, `lite-sql` | `lite-sql`'s `SqlType`, `lite-javacompat`'s white space | **made** (slice 1a): reaches `lite-base`, `lite-sql`, `lite-javacompat` today |
 | `database` | `lite-database` | `lite-base`, `lite-error`, `lite-model`, `lite-dialect` | `lite-dialect` | a declared database type to its dialect |
-| `compiler`, split (§2) | `lite-names`, `lite-element`, `lite-spec` | `compiler`'s line, and each part the parts before it | | D and the model index; F; G and G½. **`lite-names` made** (the names slice, 2026-11-12, §7): reaches `lite-base`, `lite-builtin`, `lite-error`, `lite-model`, `lite-platform`, `lite-types` |
+| `compiler`, split (§2) | `lite-names`, `lite-element`, `lite-spec` | `compiler`'s line, and each part the parts before it | | D and the model index; F; G and G½. **`lite-names` made** (the names slice, 2026-11-12, §7): reaches `lite-base`, `lite-builtin`, `lite-error`, `lite-model`, `lite-platform`, `lite-types`; since the follow-up (2026-11-12, §8) it also holds `Calls`, `RelationalTypeInference`, `ViewSignatures`, `StoreCompiler.columnType` and `MilestoningStrategy`, with no new edge |
 | `normalizer` | `lite-normalizer` | its line (it reaches all three compiler parts) | | E |
 | `lineage` | `lite-lineage` | its line | | |
 | `validation` | `lite-validation` | its line | | |
@@ -62,7 +62,10 @@ bottom; ROADMAP leaves whether the SQL→Pure translator moves in phase 3 to pha
 each reaching only the parts before it:
 
 1. `compiler/names` → `lite-names`: the root package -- the model index (`ModelBuilder`, `SymbolTable`, `TableIndex`,
-   `KnowledgeLayer`) and name resolution (`NameResolver`, `BareNames`, `ResolvedNames`, `CoreImports`, `SynthFqn`).
+   `KnowledgeLayer`) and name resolution (`NameResolver`, `BareNames`, `ResolvedNames`, `CoreImports`, `SynthFqn`) --
+   and, by the owner's ruling of 2026-11-12 (§8), five helpers Java keeps in `spec` and `element` that reach only
+   names-tier code and that E calls first: `spec/Calls`, `element/RelationalTypeInference`, `element/ViewSignatures`,
+   `element/StoreCompiler.columnType` (the method alone) and `element/MilestoningStrategy`.
 2. `compiler/element` → `lite-element`: F (`PureModelContext` as `Model`, the element compilers, `TypedClass` and kin).
 3. `compiler/spec` → `lite-spec`: G and G½ (`SpecCompiler`, the typer, the inliner, the typed tree).
 
@@ -74,8 +77,9 @@ invariant 7, AGENTS.md invariant 6). Java's code has edges against this order to
 |---|---|---|
 | element → spec | `element/TypeClassifier.java:47` | `InferenceKernel.ENUM_METACLASS_FQN`, a constant: it belongs with `PlatformTypes` |
 | element → spec | `element/Temporal.java:87-99` | helpers over `TypedSpec` (`TypedGetAll`): G's, living in F's package |
-| names → element | `KnowledgeLayer.java`, `StatementInline.java` | `ModelContext` and the typed classes |
-| names → spec | `StatementInline.java`, `LiteralMapUnroll.java` | `Calls`, `SourceSubst`: G½'s, living in the root |
+| names → element | `StatementInline.java` | `ModelContext` (F's). **`KnowledgeLayer.java`'s crossing is gone** (2026-11-12, §8): it was `RelationalTypeInference` alone (§7), now `lite-names`' own |
+| names → spec | `StatementInline.java`, `LiteralMapUnroll.java` | `SourceSubst` (G½'s, living in the root). **`Calls` no longer crosses** (2026-11-12, §8): `StatementInline`'s `Calls.platform` is `lite-names`' own builder; `LiteralMapUnroll` never reached it |
+| normalizer → spec, normalizer → element (the census's, 2026-11-12) | E's `Calls` (102 call sites in 11 files), `LiftedViews`' `ViewSignatures`, `MilestoningFacts`' `MilestoningStrategy` | **gone with §8**: E reaches only `lite-names` and `lite-types` for them |
 
 `crate-layers.txt` gives a split with a line `split compiler names element spec`; `lite-guards` then allows
 `compiler/spec` to reach `compiler/element` and `compiler/names`, and refuses the reverse (its test
@@ -174,6 +178,29 @@ The names slice's (2026-11-12, §7), each the conservative path where the choice
     wins, a trivial answer not kept), where PHASE3_DESIGN.md §2.5 item 7 said `RwLock`: they are written as often as read
     while a process warms. `KnowledgeLayer.derived` is a `TypeId`-keyed memo (its one caller is E's).
 
+The names follow-up's (2026-11-12, §8), each the conservative path:
+
+18. **`StoreCompiler` is split by method**: `columnType` is `lite-names`' (`store_compiler::column_type`); `tableSchema`
+    waits for `lite-element` (F's, its one caller); `declaredType` (the DDL type, reaching `sql`) waits for its first
+    caller (setup, testplan, G). Alternative: the whole class in `lite-names`, with a `lite-sql` edge it does not need yet.
+19. **Each moved class is a module named for it** (`calls`, `relational_type_inference`, `view_signatures`,
+    `store_compiler`, `milestoning`), not folded into the index or the kernel; `ViewSignatures.of` takes the arena its
+    types live in (the type family's `&'a` records), and a column's name crosses as UTF-8 (`JStr::lossy`): a view column
+    named with a lone surrogate would not survive, as everywhere the type family names a column (the differential met
+    none).
+20. **The type inference keeps Java's missing cycle guard**: a computed view column over a cyclic chain recurses until
+    the stack is gone -- Java throws `StackOverflowError`, Rust aborts the process. Alternative: a depth guard with a
+    named refusal (a divergence, a register row). The differential met no such model.
+21. **The Rust guard for "the one place a call is built" is a source scan** (§8), the parser's whole crate and the
+    resolver's file exempt, `with_parameters` allowed, tests out of scope, the two files' counts pinned exactly.
+    Alternative: a type-level guard (the record's constructor private to lite-front, the builder lite-front's), which
+    moves `Calls` out of `lite-names` and against the owner's ruling.
+22. **The differential's new questions are forms of their own** (`stores.tsv`, `calls.tsv`), so the models' and
+    queries' forms frozen before are byte-identical; `columnType`, package-private in Java, is asked by reflection from
+    `NameAnswers`; the call shapes are the callers' names at their arities (a site whose arguments are another call's at
+    0 to 5), the names a site computes enumerated from the table it computes them from, and a sweep of every bare name
+    the platform's tables know at 0 to 8.
+
 ## 6. What slice 1b made (2026-11-12)
 
 `lite-error` (layer `error`), `lite-model` (`model`), `lite-builtin` (`builtin` and `door`), `lite-platform`
@@ -204,10 +231,10 @@ counts every `com.legend.*` type a class names, imports and fully qualified refe
 | `BareNames`, `ResolvedNames` | `lite-names` | `builtin` (`Pure`, `EngineHandlers`, `Prelude`), `platform` (`CoreFn`), `protocol` |
 | `CoreImports` | `lite-names` | generated (`//spec:gen_imports_rs`), reaches nothing |
 | `ModelBuilder`, `SymbolTable`, `TableIndex`, `StoreLookups` | `lite-names` | `model`, `protocol`, `error`, `Type.Primitive` |
-| `KnowledgeLayer` | `lite-names`, but for `columnKind` | `builtin`, `model`, `protocol`, `error`, `Type.Primitive`; `columnKind`'s computed-view-column arm calls F's `RelationalTypeInference.infer` -- the method waits for `lite-element` (only E calls it) |
+| `KnowledgeLayer` | `lite-names` (`columnKind` since the follow-up, §8) | `builtin`, `model`, `protocol`, `error`, `Type.Primitive`; `columnKind`'s computed-view-column arm calls `RelationalTypeInference.infer`, F's package in Java, `lite-names`' since §8 |
 | `SynthFqn`, `DerivedProps`, `RelationalKinds` | `lite-names` | `model`, `protocol` |
-| `StatementInline` | waits for `lite-spec` | F's `ModelContext`, G's `Calls` and `SourceSubst` |
-| `LiteralMapUnroll` | waits for `lite-spec` | G's `SourceSubst` |
+| `StatementInline` | waits for `lite-spec` | F's `ModelContext`, G½'s `SourceSubst` (its `Calls` is `lite-names`' since §8) |
+| `LiteralMapUnroll` | waits for `lite-spec` | G½'s `SourceSubst` |
 
 So §2's edge table holds with one correction: `KnowledgeLayer` reaches F through `RelationalTypeInference` alone (its
 other `compiler.element` references are `compiler.element.type`, `lite-types`, below the compiler); `StatementInline`
@@ -228,8 +255,40 @@ the index alone (`hasElement`, `hasFunctionId`, `primitiveExtensionFqns`, the pl
 (`lite_names_resolve`, "model or null") is served by `resolver::resolve_query` and `resolver::resolve_query_in` over an
 `IndexUniverse`; the method that makes the universe from a compiled model is F's and waits.
 
-**Left for F and G:** `StatementInline`, `LiteralMapUnroll`, `KnowledgeLayer.columnKind`, `Compiler.resolveQuery` (the
-front door that runs them and `ValidateDesugar` after the resolution), `PureModelContext.resolutionUniverse`,
-`isSubtype` as F's method (its walk is `lite_model::subtyping::is_subtype`, its lookup this crate's
-`Knowledge::class_def`), and the gate's `ModelBuilder.add` of Phase E's products (`ModelIndex::add` is ported; E makes
-what it adds).
+**Left for F and G:** `StatementInline`, `LiteralMapUnroll`, `Compiler.resolveQuery` (the front door that runs them and
+`ValidateDesugar` after the resolution), `PureModelContext.resolutionUniverse`, `isSubtype` as F's method (its walk is
+`lite_model::subtyping::is_subtype`, its lookup this crate's `Knowledge::class_def`), and the gate's `ModelBuilder.add`
+of Phase E's products (`ModelIndex::add` is ported; E makes what it adds). (`KnowledgeLayer.columnKind`, listed here
+first, is the follow-up's: §8.)
+
+## 8. The names follow-up (2026-11-12)
+
+The owner's rulings on the census of E and F (its asks 1 and 2, `port-scratch/efcensus/REPORT.md` §5): five classes
+Java keeps in `compiler/spec` and `compiler/element` are `lite-names`', because they reach only names-tier code (the
+store lookups, the type family, the model, the error crate, the resolver's built-call decision, the platform's forms)
+and E is their first caller. PHASE3.md's names slice entry has the numbers.
+
+| Java | Rust (`lite-names`) | Reaches | First callers |
+|---|---|---|---|
+| `compiler/spec/Calls` (117 lines) | `calls` (`platform`, `form`, `exact`, `carrier`, `infix_run`, `renamed`, `among`, `infix_run_among`, `like`) | `NameResolver.builtCallNames` (`resolver::built_call_names`, ported with the names slice), `platform.CoreFn`, the protocol records | 206 call sites: E 102 (11 files), G 98 (20), validation 5, `StatementInline` 1 |
+| `compiler/element/RelationalTypeInference` (289) | `relational_type_inference::infer` | `StoreLookups`, the model | `KnowledgeLayer.columnKind`, `ViewSignatures`; H's `RelationalOpRows` later |
+| `compiler/element/ViewSignatures` (148) | `view_signatures::of` (its types in an arena) | `StoreLookups`, the type family, the model, the error crate, the two above | E's `LiftedViews` |
+| `compiler/element/StoreCompiler.columnType` (the method; the class's `tableSchema` waits for `lite-element`, `declaredType` for its first caller: it reaches `sql`) | `store_compiler::column_type` | the type family, the model | `ViewSignatures`; F's `tableSchema` later |
+| `compiler/element/MilestoningStrategy` (51) | `milestoning::MilestoningStrategy` | `PlatformTypes.isProfile`, `TEMPORAL_PROFILE` | E's `MilestoningFacts`; G, H, `Temporal` later |
+| `KnowledgeLayer.columnKind` (the names slice left it out) | `Knowledge::column_kind` | `RelationalTypeInference`, `RelationalKinds` | E's `DeclaredCoercions`, `UnionSynthesis` |
+
+None reaches F: the brief's stop condition (a class that reaches F waits) met nothing. No crate edge moved
+(`crate-layers.txt` unchanged: `lite-platform` and `lite-types` were `lite-names`' already). So §2's edge table loses
+`KnowledgeLayer`'s names → element crossing and the `Calls` half of names → spec; `StatementInline` (F's
+`ModelContext`, G½'s `SourceSubst`) and `LiteralMapUnroll` (`SourceSubst`) still wait for `lite-spec`.
+
+**The one place a call is built, in Rust.** Java's `ArchitectureTest.callsAreBuiltOnlyByTheBuilder` names Java's class
+and stays for Java. Rust's form is a source guard, as the address guard is (`ptr::eq` counts):
+`rust/lite-guards/tests/guards.rs`' `calls_are_built_only_by_the_builder` scans every crate's production sources but
+the parser's (lite-front builds calls before resolution: the parser and the protocol readers), and refuses a call
+record (`AppliedFunction {`, a struct expression; a return type's `-> AppliedFunction {` is not one) anywhere but
+`lite-names/src/calls.rs` (3, pinned exactly) and the resolver's `lite-names/src/resolver/values.rs` (1: the resolver
+records, as Java's rule exempts `NameResolver`), and any use of the parser's call factories (`lite_front::nodes`,
+`applied_full`, `operator_parts`) outside the parser's crate. `with_parameters` keeps the record and is allowed, as
+Java's rule allows `withParameters`. Tests (`tests/`) are out of its scope, as Java's rule checks production classes
+alone. Its detector has its own test (`a_call_construction_is_told_from_a_return_type`).

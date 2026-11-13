@@ -792,4 +792,83 @@ done, in the order of the design's §3.
      `Calls` (the call builder, about 120 uses in E, reaching only names-tier code) and F's `RelationalTypeInference`,
      `ViewSignatures` and `columnType` move into `lite-names` (with them, `KnowledgeLayer.columnKind` would be D's); and
      whether `PureModelContext.refuseDuplicates` belongs beside `duplicate_elements`. Not decided here: the brief's
-     placement stands until the owner rules.
+     placement stands until the owner rules. (The first two ruled the same day, yes, `MilestoningStrategy` with them:
+     the follow-up below. `refuseDuplicates` is still open.)
+   - *The follow-up (2026-11-12, the owner's rulings on the census's asks 1 and 2;* [`PHASE3_CRATES.md`](PHASE3_CRATES.md)
+     §8*).* Five classes Java keeps in `compiler/spec` and `compiler/element`, which reach only names-tier code and
+     which E calls first, are `lite-names`'; no Java production code changed, nothing calls the new code yet but tests.
+     1. *What moved*, line for line, Java's refusals and messages included: `Calls` → `calls` (149 lines; its nine
+        builders; `builtCallNames` was ported with the slice), `RelationalTypeInference` → `relational_type_inference`
+        (264; `int` arithmetic wrapping as Java's, a function name lowered as `toLowerCase(Locale.ROOT)` lowers it),
+        `ViewSignatures` → `view_signatures` (214; its types in the caller's arena, the views being expanded an `IdSet`
+        as Java's identity set), `StoreCompiler.columnType` → `store_compiler` (50; the class's `tableSchema` waits for
+        `lite-element`, `declaredType` for its first caller), `MilestoningStrategy` → `milestoning` (92); and
+        `KnowledgeLayer.columnKind` → `Knowledge::column_kind`, which the slice had left out. None reaches F (the brief's
+        stop condition met nothing); no crate edge moved. Java's hash order reaches none of their answers: the sets they
+        keep (`columnKind`'s `seen`, `ViewSignatures`' identity set, the built-call memo) are only asked.
+     2. *The edges*: `KnowledgeLayer`'s names → element crossing is gone, and so is the `Calls` half of names → spec
+        (`StatementInline`'s one `Calls.platform`); `StatementInline` (F's `ModelContext`, G½'s `SourceSubst`) and
+        `LiteralMapUnroll` (`SourceSubst`; it never reached `Calls`) still wait for `lite-spec`. E's normalizer → spec
+        and → element crossings (`Calls`' 102 sites in 11 files, `LiftedViews`' `ViewSignatures`, `MilestoningFacts`')
+        are gone with them.
+     3. *The guard*: `rust/lite-guards`' `calls_are_built_only_by_the_builder` (PHASE3_CRATES.md §8) -- outside the
+        parser's crate, a call record is built only in `lite-names/src/calls.rs` (3, pinned exactly) and the resolver's
+        `src/resolver/values.rs` (1), and nothing names the parser's call factories; Java's ArchitectureTest rule stays
+        for Java.
+     4. *The differential* (`NameAnswers.java` and `tests/names_differential.rs` extended, two forms of their own so
+        the frozen ones are unchanged). **Stores**, per model ask over the same index `X` asks (74,292; 74,260 with an
+        index): every class's stereotypes' milestoning strategy (16,826: 3,954 business, 1,213 processing, 1,215
+        bitemporal, 10,444 none), every table column's Pure type (357,625; 36 refused, a decimal's scale past its
+        precision), every view's signature as `LiftedViews` asks it (2,809; 24 refused, two columns of one name),
+        every view column's inferred SQL type with the scope and the index, with no scope and with no lookups (11,308
+        columns), and the column kind of every column of every table or view spelling over the include closure, one
+        absent column included (1,485,730). No stack overflow met; no cyclic view in the corpus (the unit test holds
+        the refusal). **Calls**: 14,454 shapes -- every name the builder's 206 call sites build (read from them: E 102
+        in 11 files, G 98 in 20, validation 5, `StatementInline` 1), at the arities they use (0 to 5 where a site's
+        arguments are another call's), the names a site computes enumerated from the table it computes them from (the
+        parse functions, the comparison shims, the legacy ranks, the sort directions, the dynafunctions' rows), a bare
+        name through `exact`, a full name through `platform`, a sweep of every bare name the platform's tables know
+        (the catalog, the engine surface, the forms, the prelude, the dynafunctions and their shims) at 0 to 8, every
+        form at 0 to 4, and originals through `like` and `renamed` with no record, their built record, another and
+        both, plain and with every written form set (`platform` 6,504, `like` 3,380, `renamed` 2,452, `infixRun` 732,
+        `among` and `infixRunAmong` 478 each, `form` 370, `exact` 58, `carrier` 2). **Every text identical to Java's
+        on the first run: models 74,292 of 74,292, stores 74,292 of 74,292, queries 31,297 of 31,297, calls 14,454 of
+        14,454**, with no list of differences (cargo, release: 270 s).
+     5. *Re-frozen* ([`rust/oracles/names/`](../../rust/oracles/names), its MANIFEST): run A (19 min 16 s) and run B
+        (`--texts`, 19 min 35 s) byte-identical on all four files. **The answers frozen before are unchanged**:
+        `models.tsv` and `queries.tsv` hash again to `4421f233...60b3bc` and `b5f77c9f...83b5b`, their `.zst` files
+        untouched, and run B's texts to the archived `f3b5ac9a...721b` and `a5419b2b...6bff6`. New: `stores.tsv.zst`
+        (1.4 MB, `d60c472c...4e37` uncompressed) and `calls.tsv.zst` (0.4 MB, `3d84bb66...0f984`); their texts (103 MB
+        and 8.5 MB) archived as `oracle-archive/names-stores-texts-java.jsonl.zst` (1.7 MB, `4aa71030...1557`) and
+        `names-calls-texts-java.jsonl.zst` (114 KB, `816451c4...f0efb`), each checked by decompressing it.
+     6. *Java behaviours that look wrong, ported as they are* (each a candidate for the owner, none changed): (a)
+        `RelationalTypeInference` has no cycle guard: a computed view column over a cyclic view chain recurses until the
+        stack is gone (`RelationalTypeInference.java`:257-288, entered from `KnowledgeLayer.java`:406 and
+        `ViewSignatures.java`:136; `ViewSignatures` guards only its own column-reference arm, `columnKind` only its own);
+        Java throws `StackOverflowError`, Rust aborts -- the corpus has no such view. (b) `safe` lets a decimal beat any
+        other type, a `VARCHAR`, a date or a `BIT` included, though its comment says "DECIMAL beats int/double/float"
+        (:201-206), and spells a lone `NUMERIC` operand as `DECIMAL` (:201-206). (c) `sub` with no inferable operand is
+        `INTEGER` (:86-87), a default; a concatenation's operand of no string type adds 0 to its size, so
+        `concat(INT, 'ab')` is `VARCHAR(2)` (:94-105). (d) `max`, `min`, `distinct` and the string transforms read their
+        first argument alone (:50-52, :75-78). (e) `ViewSignatures` types a column found nowhere `Any[0..1]` (:102) and a
+        column with no inferred type `Any` (:137) -- documented as the engine's rule; an aggregate is recognized at one
+        argument only (:104), so a `count()` of none is `Integer[0..1]`. (f) `columnKind`'s walk guard is the string
+        `db + "@" + table + "." + col` (`KnowledgeLayer.java`:382): two triples that concatenate alike are one. (g)
+        `MilestoningStrategy` answers nothing for an unknown `temporal.*` stereotype (:34, "the historical
+        set-membership tolerance").
+     7. *The owner's choices this follow-up made* (PHASE3_CRATES.md §5, items 18 to 22): `StoreCompiler` split by
+        method; a module per moved class, column names into the type family as UTF-8; Java's missing cycle guard kept;
+        the guard a source scan; the differential's new questions as forms of their own, `columnType` asked by
+        reflection, the call shapes as listed.
+     8. *Gates*: `cargo test --workspace` (630 passed, 0 failed, 44 ignored), `cargo clippy --workspace --all-targets
+        -- -D warnings` and `cargo fmt --check` clean. Bazel `test //... --keep_going --local_test_jobs=2` on the tree of
+        `8e2e0304a` (the code, the oracle and the guard; the docs beside it are no test's input, G17): 584 targets, 577
+        passed, 2 skipped, 5 timed out -- the machine slept mid-run (37,354 s of wall clock), and each of the five
+        (`//tools/guards:inventory_test`, whose own log says its one test passed, `//parser-equivalence:parser_parity`,
+        `//core:core_tests_resolver_judge_both`, `:core_tests_normalizer_judge_both`,
+        `//rust/lite-names:names_differential_test`) passed when re-run alone with the same flags (249 s; the
+        differential 248 s). So of `rust/BASELINE.tsv`'s 550 passing targets every one passes but the three gone with
+        their code and ledgered (`//core:core_tests_ide`, `//core:core_tests_lexer`,
+        `//docs:update_dialect_capability_test`); 35 targets new since the baseline, all passing, `//rust/lite-guards:guards_test`,
+        `//rust/lite-names:lite_names_test` and `:names_differential_test` among them. `ledger_check.sh c4a39e06d`: 82
+        rows ok, none missing.

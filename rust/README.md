@@ -47,10 +47,13 @@ profile does not.
   Java's tables (`tests/platform_tables.rs` over `oracles/builtin/`).
 - `lite-names/`: the model index and name resolution (step D; core's `compiler` root package, the first part of the
   compiler's split, PHASE3_CRATES.md §2): `NameResolver`, `ModelBuilder` with `SymbolTable` and `TableIndex`,
-  `KnowledgeLayer`'s part that is D's, `BareNames`, `ResolvedNames`, `SynthFqn`, `CoreImports` (`src/core_imports.rs`,
-  generated beside `CoreImports.java` by `//spec:gen_imports_rs`); held to the live Java's answers over every model
-  text and query pair of the oracles (`tests/names_differential.rs` over `oracles/names/`), and the boot model's
-  subtyping to the live Java's (`tests/subtype_live.rs`, by hand).
+  `KnowledgeLayer` (`columnKind` included since 2026-11-12), `BareNames`, `ResolvedNames`, `SynthFqn`, `CoreImports`
+  (`src/core_imports.rs`, generated beside `CoreImports.java` by `//spec:gen_imports_rs`); and, by the owner's ruling of
+  2026-11-12, the helpers E calls that Java keeps in `compiler/spec` and `compiler/element`: `Calls` (the one builder of
+  a call after the resolver), `RelationalTypeInference`, `ViewSignatures`, `StoreCompiler.columnType`,
+  `MilestoningStrategy`; held to the live Java's answers over every model text and query pair of the oracles, every
+  view and column of their indexes and every call shape the builder's callers make (`tests/names_differential.rs`
+  over `oracles/names/`), and the boot model's subtyping to the live Java's (`tests/subtype_live.rs`, by hand).
 
 - `BASELINE.tsv`: every test target of `bazel test //...` on the pristine tree -- since 2026-11-11 upstream `main` at
   `c4a39e06d`, the merge point (PHASE3_SHIM_DESIGN.md §10, ruling 14; macOS arm64): 552 targets, 550 passed, 2 skipped
