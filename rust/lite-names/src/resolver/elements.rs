@@ -901,14 +901,20 @@ fn view(v: &DatabaseDefinitionViewDefinition, scope: &Scope<'_>) -> Rs<View> {
 
 fn runtime(rd: &RuntimeDefinition, scope: &Scope<'_>) -> Rs<Arc<RuntimeDefinition>> {
     let mappings = fqn_list(&rd.mappings, scope)?;
-    // the bindings rebuilt as Java's LinkedHashMap: a store two keys resolve to keeps its first slot, its last value
+    // the bindings rebuilt as Java's LinkedHashMap; two keys that name one store keep both connection lists, in order,
+    // under the first key's place (until 2026-11-13 the second replaced the first's: the names fixes, item 3, ruling 28)
     let mut bindings: LinkedMap<JStr, Arc<[JStr]>> = LinkedMap::new();
     let mut bindings_changed = false;
     for (store, conns) in rd.connection_bindings.iter() {
         let s = resolve_name(store, scope)?;
         let c = fqn_list(conns, scope)?;
         bindings_changed |= &s != store || c.is_some();
-        bindings.put(s, c.unwrap_or_else(|| conns.clone()));
+        let conns = c.unwrap_or_else(|| conns.clone());
+        let merged: Arc<[JStr]> = match bindings.get(&s) {
+            None => conns,
+            Some(prior) => prior.iter().chain(conns.iter()).cloned().collect(),
+        };
+        bindings.put(s, merged);
     }
     let mut inline: Vec<PackageableElement> = Vec::with_capacity(rd.inline_connections.len());
     let mut inline_changed = false;
@@ -921,13 +927,16 @@ fn runtime(rd: &RuntimeDefinition, scope: &Scope<'_>) -> Rs<Arc<RuntimeDefinitio
             None => inline.push(el.clone()),
         }
     }
-    if mappings.is_none() && !bindings_changed && !inline_changed {
-        return Ok(None);
-    }
-    // ported as Java has it: the connection ids' stores resolve only when something else changed
+    // the connection ids' stores resolve whatever else changed (until 2026-11-13 only on a rebuild: item 3)
     let mut ids: LinkedMap<JStr, JStr> = LinkedMap::new();
+    let mut ids_changed = false;
     for (id, store) in rd.connection_ids.iter() {
-        ids.put(id.clone(), resolve_name(store, scope)?);
+        let s = resolve_name(store, scope)?;
+        ids_changed |= &s != store;
+        ids.put(id.clone(), s);
+    }
+    if mappings.is_none() && !bindings_changed && !inline_changed && !ids_changed {
+        return Ok(None);
     }
     Ok(Some(Arc::new(RuntimeDefinition {
         qualified_name: rd.qualified_name.clone(),

@@ -140,6 +140,81 @@ fn a_qualified_call_is_never_prefixed_by_a_tier() {
     });
 }
 
+/// A runtime's connection ids resolve whatever else changed, and two binding keys that name one store keep both
+/// connection lists under the first key's place (2026-11-13, the names fixes, item 3, ruling 28: the ids resolved only
+/// on a rebuild, and the second key's list replaced the first's).
+#[test]
+fn a_runtimes_bindings_and_ids_resolve_and_merge() {
+    on_parse_stack(|| {
+        let m = model(concat!(
+            "###Relational\nDatabase a::S ( Table T (ID INTEGER) )\n",
+            "###Connection\n",
+            "RelationalDatabaseConnection a::C1 { store: a::S; type: H2; specification: LocalH2 {}; auth: DefaultH2; }\n",
+            "RelationalDatabaseConnection a::C2 { store: a::S; type: H2; specification: LocalH2 {}; auth: DefaultH2; }\n",
+            "###Runtime\nimport a::*;\n",
+            "Runtime a::R { mappings: []; connections: [ S: [ id1: a::C1 ], a::S: [ id2: a::C2 ] ]; }\n",
+            "Runtime a::Q { mappings: []; connections: [ a::S: [ id3: a::C1 ] ]; }\n",
+        ));
+        let r = resolver::resolve(&m).unwrap();
+        let runtime = |fqn: &str| {
+            r.elements
+                .iter()
+                .find_map(|e| match e {
+                    PackageableElement::RuntimeDefinition(rd) if rd.qualified_name == fqn => Some(rd.clone()),
+                    _ => None,
+                })
+                .expect("the runtime")
+        };
+        let rd = runtime("a::R");
+        let bindings: Vec<(String, Vec<String>)> = rd
+            .connection_bindings
+            .iter()
+            .map(|(k, v)| (k.lossy(), v.iter().map(|c| c.lossy()).collect()))
+            .collect();
+        assert_eq!(
+            bindings,
+            [("a::S".to_owned(), vec!["a::C1".to_owned(), "a::C2".to_owned()])]
+        );
+        let ids: Vec<(String, String)> = rd.connection_ids.iter().map(|(k, v)| (k.lossy(), v.lossy())).collect();
+        assert_eq!(
+            ids,
+            [
+                ("id1".to_owned(), "a::S".to_owned()),
+                ("id2".to_owned(), "a::S".to_owned())
+            ]
+        );
+        // a text spells an id's store as its binding key (so they change together); a model given as protocol records
+        // need not: the id's store spelled bare under a qualified key resolves too
+        let elements: Vec<PackageableElement> = m
+            .elements
+            .iter()
+            .map(|e| match e {
+                PackageableElement::RuntimeDefinition(rd) if rd.qualified_name == "a::Q" => {
+                    PackageableElement::RuntimeDefinition(std::sync::Arc::new(lite_model::RuntimeDefinition {
+                        connection_ids: vec![(j("id3"), j("S"))].into(),
+                        ..(**rd).clone()
+                    }))
+                }
+                other => other.clone(),
+            })
+            .collect();
+        let bare = ParsedModel {
+            elements: elements.into(),
+            ..m.clone()
+        };
+        let r2 = resolver::resolve(&bare).unwrap();
+        let q = r2
+            .elements
+            .iter()
+            .find_map(|e| match e {
+                PackageableElement::RuntimeDefinition(rd) if rd.qualified_name == "a::Q" => Some(rd.clone()),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(q.connection_ids[0].1, j("a::S"));
+    });
+}
+
 #[test]
 fn a_query_resolves_in_the_sectionless_scope_and_against_a_models_universe() {
     on_parse_stack(|| {
