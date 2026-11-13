@@ -1067,9 +1067,16 @@ fn a_primitive_extensions_type_variables_ride_the_rebuild_and_their_types_resolv
             })
             .expect("the extension");
         assert_eq!(pe.base_type_name, j("a::Base"), "its base resolves");
-        assert_eq!(pe.type_variables.len(), 1, "the rebuilt extension keeps its type variable");
+        assert_eq!(
+            pe.type_variables.len(),
+            1,
+            "the rebuilt extension keeps its type variable"
+        );
         let text = lite_front::codec::write(&pe.type_variables[0].r#type, false);
-        assert!(text.contains("\"a::C\""), "and its type resolves in the element's scope: {text}");
+        assert!(
+            text.contains("\"a::C\""),
+            "and its type resolves in the element's scope: {text}"
+        );
     });
 }
 
@@ -1096,7 +1103,12 @@ fn a_view_reading_a_missing_column_is_refused_and_an_aggregate_is_typed_at_any_a
         let signature = |name: &str| {
             let v = ix.find_view(&db, &j(name)).unwrap().clone();
             match view_signatures::of(&arena, &ix, &db, &v) {
-                Ok(sig) => sig.columns().iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", "),
+                Ok(sig) => sig
+                    .columns()
+                    .iter()
+                    .map(|c| c.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
                 Err(e) => format!("REFUSED {}", e.message().unwrap().lossy()),
             }
         };
@@ -1110,5 +1122,68 @@ fn a_view_reading_a_missing_column_is_refused_and_an_aggregate_is_typed_at_any_a
             signature("V4"),
             "C0:Integer[1], C2:Integer[1], M2:Integer[0..1], A2:Float[1]"
         );
+    });
+}
+
+/// S378 (2026-11-13, the names landings, ruling 32): the type inference's safe type is the engine's safeTypeMap,
+/// isSafeTypePossible and getSafeType exactly; count is BIGINT; substring and its family a VARCHAR sized by their first
+/// argument's CHAR or VARCHAR, no type for another; sub its first argument's type when its first two share a kind, else
+/// none; group_concat no rule (KnowledgeLayerTest's twin).
+#[test]
+fn the_type_inference_safe_type_and_rules_are_the_engines() {
+    use lite_model::RelationalDataType as T;
+    use std::sync::Arc;
+    on_parse_stack(|| {
+        let m = model(concat!(
+            "###Relational\n",
+            "Database a::Db (\n",
+            "  Table T (ID INTEGER PRIMARY KEY, F FLOAT, B BIGINT, C CHAR(3), K CHAR(5), V VARCHAR(4), ",
+            "N NUMERIC(6,2), I INTEGER)\n",
+            "  View V (FI: case(equal(T.ID, 1), T.F, T.I), BF: case(equal(T.ID, 1), T.B, T.F), ",
+            "CC: case(equal(T.ID, 1), T.C, T.K), CV: case(equal(T.ID, 1), T.C, T.V), ",
+            "NN: case(equal(T.ID, 1), T.N, T.N), CT: count(T.ID), SC: substring(T.C, 1, 2), ",
+            "SI: substring(T.I, 1, 2), SV: sub(T.V, T.V), SM: sub(T.V, T.I), GC: group_concat(T.V))\n",
+            ")\n"
+        ));
+        let ix = ModelIndex::from(&m).unwrap();
+        let db = j("a::Db");
+        let scope = Some(&**database(&m, "a::Db"));
+        let v = ix.find_view(&db, &j("V")).unwrap().clone();
+        let infer = |i: usize| {
+            relational_type_inference::infer(
+                &v.column_mappings[i].expression,
+                scope,
+                Some(&ix as &dyn crate::StoreLookups),
+            )
+            .unwrap()
+        };
+        let varchar = |size| T::RelationalDataTypeVarchar(Arc::new(lite_model::RelationalDataTypeVarchar { size }));
+        assert_eq!(
+            infer(0),
+            Some(T::RelationalDataTypeFloat_(Arc::new(
+                lite_model::RelationalDataTypeFloat_ {}
+            )))
+        );
+        assert_eq!(infer(1), None, "BIGINT with FLOAT: no safe type");
+        assert_eq!(infer(2), Some(varchar(5)), "two CHARs: VARCHAR(5)");
+        assert_eq!(infer(3), Some(varchar(4)), "CHAR(3), VARCHAR(4): VARCHAR(4)");
+        assert_eq!(
+            infer(4),
+            Some(T::RelationalDataTypeDecimal(Arc::new(
+                lite_model::RelationalDataTypeDecimal { precision: 6, scale: 2 }
+            ))),
+            "two NUMERICs: DECIMAL"
+        );
+        assert_eq!(
+            infer(5),
+            Some(T::RelationalDataTypeBigInt(Arc::new(
+                lite_model::RelationalDataTypeBigInt {}
+            )))
+        );
+        assert_eq!(infer(6), Some(varchar(3)), "substring of a CHAR(3)");
+        assert_eq!(infer(7), None, "substring of an INTEGER: no type");
+        assert_eq!(infer(8), Some(varchar(4)), "sub of two VARCHARs: the first's");
+        assert_eq!(infer(9), None, "sub of a VARCHAR and an INTEGER: no rule");
+        assert_eq!(infer(10), None, "group_concat: no rule");
     });
 }

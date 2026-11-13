@@ -49,7 +49,7 @@ queries.tsv.zst	NameAnswers' queries: query sha TAB model sha TAB hash, 31,297 l
 # 24 refused: two columns of one name), 11,308 view columns' inferred SQL types, each with the scope and the index, no
 # scope, no lookups (r), 1,485,730 column kinds of every table or view spelling's columns and one absent (n). No stack
 # overflow met. 3,402 distinct forms.
-stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names landings, at the end)	2106eea364c9464844da896a45f3e62052f46a4c7d712e9c8618e5edd8138d2c
+stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names landings, at the end)	b1ac44c80a8d0c2a28265188db7c3d2c5cc2d5fb771d901b0ffad98543e8a506
 # CALLS: one line per call shape, the shape's fields then the hash (NameAnswers.callShapes, callForm: the record codec's
 # JSON of the call Calls builds) -- 14,454 shapes: platform 6,504, like 3,380, renamed 2,452, infixRun 732, among 478,
 # infixRunAmong 478, form 370, exact 58, carrier 2; every name the builder's 206 call sites build (read from them), at the
@@ -122,3 +122,10 @@ duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,29
 #    Texts: names-stores-texts-java-2026-11-13-land376.jsonl.zst (1,707,550 bytes;
 #    7d247a535c1ec58c2b840311e72418d4b2f2e9f1ad20f0d1da649b7332b55099, checked by decompressing it). lite-names: all five
 #    files identical.
+# 7. S378 (the type inference's safe type the engine's exactly; count BIGINT; the string transforms a sized VARCHAR;
+#    sub's rule; no rule for group_concat): stores.tsv moved, 266 of 74,292 lines over 89 texts (2106eea3... ->
+#    b1ac44c8...): 799 view columns' inferred types, every one a count INTEGER -> BIGINT (no ask's view column met a
+#    safe-type pair, a string transform, a sub or a group_concat whose answer the fix changes); models, queries, calls
+#    and duplicates unchanged. Texts: names-stores-texts-java-2026-11-13-land378.jsonl.zst (1,714,814 bytes;
+#    c5e6df414d72e15c0508159ebdb74e4076b0e5f96edf48d8759704fb1b9f8e8c, checked by decompressing it). lite-names: all
+#    five files identical.

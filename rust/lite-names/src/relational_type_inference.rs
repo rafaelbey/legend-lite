@@ -22,8 +22,8 @@ use lite_base::IdSet;
 use lite_error::Phase;
 use lite_model::{
     DatabaseDefinition, DatabaseDefinitionViewDefinitionViewColumnMapping, JValue, RelationalDataType as T,
-    RelationalDataTypeBit, RelationalDataTypeDecimal, RelationalDataTypeDouble_, RelationalDataTypeInteger_,
-    RelationalDataTypeOther, RelationalDataTypeVarchar, RelationalOperation as Op, cat,
+    RelationalDataTypeBigInt, RelationalDataTypeBit, RelationalDataTypeDecimal, RelationalDataTypeDouble_,
+    RelationalDataTypeInteger_, RelationalDataTypeOther, RelationalDataTypeVarchar, RelationalOperation as Op, cat,
 };
 
 use crate::error::Thrown;
@@ -39,6 +39,10 @@ fn bit() -> T {
 
 fn integer() -> T {
     T::RelationalDataTypeInteger_(Arc::new(RelationalDataTypeInteger_ {}))
+}
+
+fn big_int() -> T {
+    T::RelationalDataTypeBigInt(Arc::new(RelationalDataTypeBigInt {}))
 }
 
 fn double() -> T {
@@ -99,22 +103,9 @@ fn infer_in<'a>(
                     if types.len() <= 1 {
                         first
                     } else {
-                        // an argument with no type drops out, as the engine's map does
-                        let mut acc: Option<T> = None;
-                        let mut possible = true;
-                        for t in types.into_iter().flatten() {
-                            match acc {
-                                None => acc = Some(t),
-                                Some(a) => {
-                                    acc = safe(Some(a), Some(t));
-                                    if acc.is_none() {
-                                        possible = false;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                        if possible && acc.is_some() { acc } else { first }
+                        // an argument with no type drops out, as the engine's map does; the safe type is the
+                        // engine's fold (S378, 2026-11-13, ruling 32)
+                        safe_type_of(types).or(first)
                     }
                 }
                 "distinct" => first(expanding)?,
@@ -127,7 +118,9 @@ fn infer_in<'a>(
                         at
                     }
                 }
-                "count" => Some(integer()),
+                // count is BIGINT at any arity (relationalExtension.pure:543-551); until 2026-11-13 INTEGER (S378,
+                // ruling 32)
+                "count" => Some(big_int()),
                 // boolean dynafunctions spell BIT (engine H2)
                 "and" | "or" | "not" | "equal" | "notequal" | "in" | "isnull" | "isnotnull" | "greaterthan"
                 | "lessthan" | "greaterthanequal" | "lessthanequal" | "isempty" | "isnotempty" | "like"
@@ -136,18 +129,33 @@ fn infer_in<'a>(
                 "sqlnull" => Some(other()),
                 // engine inferDynaFunctionReturnType: sqlTrue/sqlFalse are BIT literals (ledger cluster 56)
                 "sqltrue" | "sqlfalse" => Some(bit()),
-                // string transforms keep their input's type
-                "substring" | "left" | "right" | "trim" | "ltrim" | "rtrim" | "toupper" | "tolower" | "upper"
-                | "lower" => first(expanding)?,
+                // substring, left, right, trim, ltrim and rtrim are a VARCHAR sized by their first argument's CHAR
+                // or VARCHAR (relationalExtension.pure:1051-1059, :1121-1129, :1509-1517, :1547-1555, :1647-1655,
+                // :1853-1861), another first argument no type; until 2026-11-13 they kept their first argument's
+                // type (S378, ruling 32)
+                "substring" | "left" | "right" | "trim" | "ltrim" | "rtrim" => match first(expanding)? {
+                    Some(T::RelationalDataTypeVarchar(v)) => Some(varchar(v.size)),
+                    Some(T::RelationalDataTypeChar_(c)) => Some(varchar(c.size)),
+                    _ => None,
+                },
+                // toUpper and toLower keep their first argument's type (:1793-1801, :1843-1851); upper and lower,
+                // which the engine's map has no rule for, are typed as they are
+                "toupper" | "tolower" | "upper" | "lower" => first(expanding)?,
                 "position" | "length" | "charindex" | "locate" | "indexof" => Some(integer()),
-                // no typed operand, no type: never a default (until 2026-11-13 INTEGER -- the names fixes, item 10,
-                // ruling 28; the engine's sub matches no rule then)
+                // sub is its first argument's type when its first two have one raw kind, else no rule matches
+                // (relationalExtension.pure:1637-1645): no type, never a default. Until 2026-11-13 the safe type over
+                // all its arguments (S378, ruling 32; its INTEGER default went with the names fixes, item 10)
                 "sub" => {
-                    let mut acc: Option<T> = None;
-                    for arg in f.args.iter() {
-                        acc = safe(acc, infer_in(arg, db, ctx, expanding)?);
+                    if f.args.len() < 2 {
+                        None
+                    } else {
+                        let first = infer_in(&f.args[0], db, ctx, expanding)?;
+                        let second = infer_in(&f.args[1], db, ctx, expanding)?;
+                        match (first, second) {
+                            (Some(a), Some(b)) if std::mem::discriminant(&a) == std::mem::discriminant(&b) => Some(a),
+                            _ => None,
+                        }
                     }
-                    acc
                 }
                 // joinStrings AGGREGATES: the engine assigns the fixed 4000 buffer size
                 "joinstrings" => Some(varchar(4000)),
@@ -155,7 +163,9 @@ fn infer_in<'a>(
                 // CHAR or VARCHAR leaves it no type -- the engine's one rule asks every typed operand to be one
                 // (relationalExtension.pure:463-471); an operand with no type drops out. Until 2026-11-13 such an
                 // operand added 0 (the names fixes, item 10, ruling 28)
-                "concat" | "group_concat" => {
+                // group_concat has no rule in the engine's map (no type: until 2026-11-13 it was typed as a concat,
+                // S378, ruling 32)
+                "concat" => {
                     let mut size: i32 = 0;
                     let mut other = false;
                     for arg in f.args.iter() {
@@ -168,26 +178,29 @@ fn infer_in<'a>(
                     }
                     if other { None } else { Some(varchar(size)) }
                 }
-                // case(c1, v1, ..., else): the SAFE type over the value branches (engine getSafeType lattice)
+                // case(c1, v1, ..., else): the engine's safe type over the value branches and the last argument
+                // (relationalExtension.pure:402-411); where none is possible the engine asserts, lite answers no type
                 "case" => {
-                    let mut acc: Option<T> = None;
+                    let mut types: Vec<Option<T>> = Vec::new();
                     let mut i = 1;
                     while i < f.args.len() {
-                        acc = safe(acc, infer_in(&f.args[i], db, ctx, expanding)?);
+                        types.push(infer_in(&f.args[i], db, ctx, expanding)?);
                         i += 2;
                     }
                     if f.args.len() % 2 == 1 {
-                        acc = safe(acc, infer_in(&f.args[f.args.len() - 1], db, ctx, expanding)?);
+                        types.push(infer_in(&f.args[f.args.len() - 1], db, ctx, expanding)?);
                     }
-                    acc
+                    safe_type_of(types)
                 }
-                // numeric operators widen positionally (engine math compatibility: DOUBLE beats INT; DECIMAL beats both)
+                // the numeric operators: the engine's safe type over every argument (its own rules for them differ,
+                // register row S378: plus and minus answer the first argument's type, times the first two's safe
+                // type, divide DOUBLE)
                 "plus" | "minus" | "times" | "divide" => {
-                    let mut acc: Option<T> = None;
+                    let mut types: Vec<Option<T>> = Vec::with_capacity(f.args.len());
                     for arg in f.args.iter() {
-                        acc = safe(acc, infer_in(arg, db, ctx, expanding)?);
+                        types.push(infer_in(arg, db, ctx, expanding)?);
                     }
-                    acc
+                    safe_type_of(types)
                 }
                 _ => None,
             }
@@ -226,86 +239,134 @@ fn infer_in<'a>(
     })
 }
 
-/// `safe(a, b)`: the engine's `getSafeType` pair rule (typeInference.pure): equal types keep; OTHER absorbs into the
-/// other operand; DECIMAL beats the integer and float kinds as it is (never a string, a date or a bit: the engine's
-/// `safeTypeMap` has no such pair -- until 2026-11-13 it beat any type, the names fixes, item 9); two decimals widen to
-/// `DECIMAL(maxIntDigits + maxScale, maxScale)`; DOUBLE beats integers; two VARCHARs keep the larger size; two integer
-/// kinds the wider; `None` operands pass the other side through; no safe type is `None` (never the first operand).
-fn safe(a: Option<T>, b: Option<T>) -> Option<T> {
-    let Some(a) = a else { return b };
-    let Some(b) = b else { return Some(a) };
-    if a == b {
-        return Some(a);
+// ---- the engine's safe type (S378, 2026-11-13, ruling 32): relationalExtension.pure:1926-2033, exactly
+
+/// A kind's place in the engine's `safeTypeMap` (relationalExtension.pure:2014-2033); `None` for a kind it does not list
+/// (REAL, BINARY, VARBINARY, TIME, TIMESTAMP_NS, DISTINCT, SEMISTRUCTURED, ARRAY, OBJECT), which has no partner, itself
+/// included.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    TinyInt,
+    SmallInt,
+    Integer,
+    BigInt,
+    Float,
+    Double,
+    Numeric,
+    Decimal,
+    Char,
+    Varchar,
+    Date,
+    Timestamp,
+    Bit,
+    Other,
+}
+
+fn kind(t: &T) -> Option<Kind> {
+    Some(match t {
+        T::RelationalDataTypeTinyInt(_) => Kind::TinyInt,
+        T::RelationalDataTypeSmallInt(_) => Kind::SmallInt,
+        T::RelationalDataTypeInteger_(_) => Kind::Integer,
+        T::RelationalDataTypeBigInt(_) => Kind::BigInt,
+        T::RelationalDataTypeFloat_(_) => Kind::Float,
+        T::RelationalDataTypeDouble_(_) => Kind::Double,
+        T::RelationalDataTypeNumeric(_) => Kind::Numeric,
+        T::RelationalDataTypeDecimal(_) => Kind::Decimal,
+        T::RelationalDataTypeChar_(_) => Kind::Char,
+        T::RelationalDataTypeVarchar(_) => Kind::Varchar,
+        T::RelationalDataTypeDate_(_) => Kind::Date,
+        T::RelationalDataTypeTimestamp(_) => Kind::Timestamp,
+        T::RelationalDataTypeBit(_) => Kind::Bit,
+        T::RelationalDataTypeOther(_) => Kind::Other,
+        _ => return None,
+    })
+}
+
+/// `safeTypeMap->get(k)`: its safe partners, in the map's order.
+fn partners(k: Kind) -> &'static [Kind] {
+    use Kind::*;
+    match k {
+        TinyInt => &[TinyInt, SmallInt, Integer, Float, BigInt, Double, Numeric, Decimal],
+        SmallInt => &[SmallInt, Integer, Float, BigInt, Double, Numeric, Decimal],
+        Integer => &[Integer, Float, BigInt, Double, Numeric, Decimal],
+        BigInt => &[BigInt, Double, Numeric, Decimal],
+        Float => &[Float, Double, Numeric, Decimal],
+        Double => &[Double, Numeric, Decimal],
+        Numeric => &[Numeric, Decimal],
+        Decimal => &[Decimal, Numeric],
+        Char | Varchar => &[Char, Varchar],
+        Date => &[Date],
+        Timestamp => &[Timestamp],
+        Bit => &[Bit],
+        Other => &[
+            TinyInt, SmallInt, Integer, Float, BigInt, Double, Numeric, Decimal, Char, Varchar, Date, Timestamp, Bit,
+            Other,
+        ],
     }
-    // engine getSafeType: OTHER absorbs into the other operand -- ledger cluster 56
-    if matches!(a, T::RelationalDataTypeOther(_)) {
-        return Some(b);
+}
+
+/// `safeTypeMap->get(t1).values->contains(t2)`, by raw kind.
+fn lists(t1: &T, t2: &T) -> bool {
+    match (kind(t1), kind(t2)) {
+        (Some(a), Some(b)) => partners(a).contains(&b),
+        _ => false,
     }
-    if matches!(b, T::RelationalDataTypeOther(_)) {
-        return Some(a);
-    }
-    match (decimal_of(&a), decimal_of(&b)) {
-        (Some((ap, as_)), Some((bp, bs))) => {
-            let int_digits = ap.wrapping_sub(as_).max(bp.wrapping_sub(bs));
-            let scale = as_.max(bs);
-            return Some(decimal(int_digits.wrapping_add(scale), scale));
+}
+
+/// The engine's `isSafeTypePossible(type1, type2)` (:1954-1965).
+fn is_safe_type_possible(t1: &T, t2: &T) -> bool {
+    lists(t1, t2) || lists(t2, t1)
+}
+
+/// The engine's `getSafeType(type1, type2)` (:1967-1985), asked only where a safe type is possible.
+fn get_safe_type(t1: &T, t2: &T) -> T {
+    let safe = if lists(t1, t2) { t2 } else { t1 };
+    match safe {
+        T::RelationalDataTypeChar_(_) | T::RelationalDataTypeVarchar(_) => varchar(size(t1).max(size(t2))),
+        T::RelationalDataTypeNumeric(_) | T::RelationalDataTypeDecimal(_) => {
+            let scale = scale(t1).max(scale(t2));
+            decimal(integer_digits(t1).max(integer_digits(t2)).wrapping_add(scale), scale)
         }
-        (Some((ap, as_)), None) => return decimal_partner(&b).then(|| decimal(ap, as_)),
-        (None, Some((bp, bs))) => return decimal_partner(&a).then(|| decimal(bp, bs)),
-        (None, None) => {}
-    }
-    let float = |t: &T| {
-        matches!(
-            t,
-            T::RelationalDataTypeDouble_(_) | T::RelationalDataTypeFloat_(_) | T::RelationalDataTypeReal(_)
-        )
-    };
-    if float(&a) || float(&b) {
-        return Some(double());
-    }
-    if let (T::RelationalDataTypeVarchar(va), T::RelationalDataTypeVarchar(vb)) = (&a, &b) {
-        return Some(varchar(va.size.max(vb.size)));
-    }
-    match (int_widening(&a), int_widening(&b)) {
-        (Some(ra), Some(rb)) => Some(if ra >= rb { a } else { b }),
-        // NO safe type (the engine's isSafeTypePossible is false: an INT branch against a VARCHAR branch, a DATE
-        // against a TIMESTAMP) -- the engine ASSERTS there; this platform types the element as nothing
-        _ => None,
+        other => other.clone(),
     }
 }
 
-/// The engine's integer widening order (safeTypeMap): `INT_WIDENING.indexOf(t.getClass())`.
-fn int_widening(t: &T) -> Option<usize> {
+/// The engine's list fold (:1926-1951): from the first type, each next one against the accumulated safe type
+/// (`getSafeType(next, acc)`); `None` when a step has none. A `None` type drops out first, as the engine's `map` drops
+/// an empty answer; no types, `None`.
+fn safe_type_of(types: impl IntoIterator<Item = Option<T>>) -> Option<T> {
+    let mut acc: Option<T> = None;
+    for t in types.into_iter().flatten() {
+        acc = Some(match acc {
+            None => t,
+            Some(a) if is_safe_type_possible(&t, &a) => get_safe_type(&t, &a),
+            Some(_) => return None,
+        });
+    }
+    acc
+}
+
+fn size(t: &T) -> i32 {
     match t {
-        T::RelationalDataTypeTinyInt(_) => Some(0),
-        T::RelationalDataTypeSmallInt(_) => Some(1),
-        T::RelationalDataTypeInteger_(_) => Some(2),
-        T::RelationalDataTypeBigInt(_) => Some(3),
-        _ => None,
+        T::RelationalDataTypeChar_(c) => c.size,
+        T::RelationalDataTypeVarchar(v) => v.size,
+        _ => 0,
     }
 }
 
-/// `DECIMAL_PARTNERS.contains(t.getClass())`: the kinds a DECIMAL (or NUMERIC) is safe with besides another decimal --
-/// the engine's `safeTypeMap` lists Decimal and Numeric among the partners of TinyInt, SmallInt, Integer, BigInt, Float
-/// and Double alone.
-fn decimal_partner(t: &T) -> bool {
-    matches!(
-        t,
-        T::RelationalDataTypeTinyInt(_)
-            | T::RelationalDataTypeSmallInt(_)
-            | T::RelationalDataTypeInteger_(_)
-            | T::RelationalDataTypeBigInt(_)
-            | T::RelationalDataTypeFloat_(_)
-            | T::RelationalDataTypeDouble_(_)
-    )
+fn scale(t: &T) -> i32 {
+    match t {
+        T::RelationalDataTypeNumeric(n) => n.scale,
+        T::RelationalDataTypeDecimal(d) => d.scale,
+        _ => 0,
+    }
 }
 
-/// `decimalOf(t)`: a decimal's or numeric's precision and scale.
-fn decimal_of(t: &T) -> Option<(i32, i32)> {
+fn integer_digits(t: &T) -> i32 {
     match t {
-        T::RelationalDataTypeDecimal(d) => Some((d.precision, d.scale)),
-        T::RelationalDataTypeNumeric(n) => Some((n.precision, n.scale)),
-        _ => None,
+        T::RelationalDataTypeNumeric(n) => n.precision.wrapping_sub(n.scale),
+        T::RelationalDataTypeDecimal(d) => d.precision.wrapping_sub(d.scale),
+        _ => 0,
     }
 }
 
