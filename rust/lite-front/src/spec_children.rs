@@ -298,7 +298,9 @@ mod tests {
     use crate::codec;
     use crate::doors::Dialect;
     use crate::jtypes::JStr;
-    use crate::records::{PStereotype, Variable};
+    use crate::records::{
+        GraphFetchLiteral, GraphFetchLiteralNode, GraphFetchLiteralSubTypeNode, PStereotype, SourceInfo, Variable,
+    };
 
     fn parse(text: &str) -> ValueSpecification {
         let units: Vec<u16> = text.encode_utf16().collect();
@@ -598,5 +600,164 @@ mod tests {
         let after = after.expect("changed");
         assert_eq!(json(&after).matches("\"name\":\"y\"").count(), 2);
         assert_eq!(json(&after).matches("\"name\":\"z\"").count(), 1);
+    }
+
+    fn call(text: &str) -> Arc<AppliedFunction> {
+        match parse(text) {
+            V::AppliedFunction(a) => a,
+            other => panic!("a call: {}", json(&other)),
+        }
+    }
+
+    fn lambda_of(text: &str) -> Arc<LambdaFunction> {
+        match parse(text) {
+            V::LambdaFunction(l) => l,
+            other => panic!("a lambda: {}", json(&other)),
+        }
+    }
+
+    fn node(
+        property: &str,
+        parameters: Vec<ValueSpecification>,
+        sub_trees: Vec<GraphFetchLiteralNode>,
+    ) -> GraphFetchLiteralNode {
+        GraphFetchLiteralNode {
+            property: JStr::from(property),
+            pos: None,
+            parameters,
+            alias: None,
+            sub_type: None,
+            sub_trees: sub_trees.into_iter().map(Box::new).collect(),
+        }
+    }
+
+    #[test]
+    fn a_graph_fetch_tree_s_arguments_are_its_children_property_trees_first() {
+        let tree = V::GraphFetchLiteral(Arc::new(GraphFetchLiteral {
+            class_name: JStr::from("a::P"),
+            sub_trees: Arc::from(vec![Box::new(node(
+                "firm",
+                vec![parse("$x")],
+                vec![node("name", vec![parse("$z"), parse("$x")], Vec::new())],
+            ))]),
+            sub_type_trees: Arc::from(vec![Box::new(GraphFetchLiteralSubTypeNode {
+                sub_type_class: JStr::from("a::Q"),
+                pos: None,
+                sub_trees: vec![Box::new(node("age", vec![parse("$x")], Vec::new()))],
+            })]),
+            pos: None,
+        }));
+        let names: Vec<String> = tree
+            .children()
+            .iter()
+            .map(|c| match c {
+                V::Variable(v) => String::from_utf16_lossy(&v.name.0),
+                _ => panic!("a variable"),
+            })
+            .collect();
+        assert_eq!(names, ["x", "z", "x", "x"], "depth first, the subtype trees after");
+        let after = walked(&tree);
+        assert_eq!(json(&after), json(&tree).replace("\"name\":\"x\"", "\"name\":\"y\""));
+        assert_eq!(after.children().len(), 4);
+    }
+
+    #[test]
+    fn a_quoted_tree_call_rebuilds_both_slots_and_keeps_its_position() {
+        let pos = Some(Box::new(SourceInfo {
+            source_id: JStr::from(""),
+            start_line: 1,
+            start_column: 1,
+            end_line: 1,
+            end_column: 9,
+        }));
+        let q = V::QuotedTreeCall(Arc::new(QuotedTreeCall {
+            original: call("f($x)"),
+            tree: parse("$x.a"),
+            pos: pos.clone(),
+        }));
+        assert_eq!(q.children().len(), 2, "the original call, then the tree");
+        let V::QuotedTreeCall(after) = walked(&q) else {
+            panic!("a quoted tree call")
+        };
+        assert_eq!(after.pos, pos);
+        assert_eq!(
+            json(&V::AppliedFunction(after.original.clone())),
+            json(&parse("f($x)")).replace("\"name\":\"x\"", "\"name\":\"y\"")
+        );
+        let V::AppliedProperty(tree) = &after.tree else {
+            panic!("a property")
+        };
+        assert_eq!(tree.receiver, walked(&parse("$x")));
+    }
+
+    #[test]
+    fn a_quoted_grammar_call_rebuilds_its_functions_in_order() {
+        let pos = Some(Box::new(SourceInfo {
+            source_id: JStr::from(""),
+            start_line: 2,
+            start_column: 1,
+            end_line: 2,
+            end_column: 5,
+        }));
+        let kept = lambda_of("{a | $a}");
+        let q = V::QuotedGrammarCall(Arc::new(QuotedGrammarCall {
+            original: call("g(1)"),
+            functions: Arc::from(vec![kept.clone(), lambda_of("{b | $x}")]),
+            pos: pos.clone(),
+        }));
+        assert_eq!(q.children().len(), 3, "the original call, then each function");
+        let V::QuotedGrammarCall(after) = walked(&q) else {
+            panic!("a quoted grammar call")
+        };
+        assert_eq!(after.pos, pos);
+        assert_eq!(after.original, call("g(1)"), "the unchanged call is the very one");
+        assert_eq!(after.functions.len(), 2);
+        assert_eq!(after.functions[0], kept, "the unchanged function keeps its position");
+        assert!(after.functions[0].pos.is_some());
+        assert_eq!(after.functions[1].pos, None, "the changed one was rebuilt");
+        assert!(json(&V::LambdaFunction(after.functions[1].clone())).contains("\"name\":\"y\""));
+    }
+
+    #[test]
+    fn a_column_spec_s_slots_advance_over_the_lambdas_it_has() {
+        let base = ColSpec {
+            name: JStr::from("total"),
+            function1: Some(lambda_of("{r | $x.amount}")),
+            function2: Some(lambda_of("{y | $y->sum()}")),
+            alias: Some(JStr::from("t")),
+            args: Arc::from(vec![parse("$x"), parse("2")]),
+            qualified: true,
+            pos: None,
+            col_type: None,
+            col_type_mult: None,
+            stereotypes: Arc::default(),
+            tagged_values: Arc::default(),
+        };
+        let both = V::ColumnInstance(ColumnInstance::ColSpec(Arc::new(base.clone())));
+        assert_eq!(both.children().len(), 4, "function1, function2, then the args");
+        let V::ColumnInstance(ColumnInstance::ColSpec(after)) = walked(&both) else {
+            panic!("a col spec")
+        };
+        assert_eq!(after.function1.as_ref().unwrap().pos, None, "the rebuilt map lambda");
+        assert_eq!(
+            after.function2, base.function2,
+            "the unchanged reduce lambda is the very one"
+        );
+        assert_eq!(after.args.len(), 2);
+        assert_eq!(after.args[1], base.args[1]);
+        assert_eq!((after.alias.clone(), after.qualified), (base.alias.clone(), true));
+        // a reduce lambda with no map lambda: the reduce is child 0, the args after it
+        let second_only = V::ColumnInstance(ColumnInstance::ColSpec(Arc::new(ColSpec {
+            function1: None,
+            function2: Some(lambda_of("{y | $x}")),
+            ..base.clone()
+        })));
+        assert_eq!(second_only.children().len(), 3);
+        let V::ColumnInstance(ColumnInstance::ColSpec(s)) = walked(&second_only) else {
+            panic!("a col spec")
+        };
+        assert_eq!(s.function1, None);
+        assert!(json(&V::LambdaFunction(s.function2.clone().unwrap())).contains("\"name\":\"y\""));
+        assert_eq!(s.args.len(), 2);
     }
 }

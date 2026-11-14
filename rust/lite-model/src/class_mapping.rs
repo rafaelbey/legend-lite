@@ -80,8 +80,8 @@ impl ClassMappingRelationFunctionCol {
     /// `Col.bindSrc(v, row)`: every `$src` in a row-expression binding replaced by the row variable -- `row` itself
     /// for a `$src`, `v` itself (its very `Arc`) when it holds none, and otherwise the node rebuilt through
     /// `mapChildren` (so a rebuilt property loses its position, a rebuilt lambda its own, as Java's rebuilds do). A
-    /// replaced `$src` counts as a change; in Java it does unless `row` is that very `$src` object, which no caller
-    /// hands it (the normalizer's rows are its own variables).
+    /// replaced `$src` always counts as a change here; in Java it does unless `row` is that very `$src` object (the
+    /// one place the two can differ: a caller that hands the tree's own `$src` as the row).
     pub fn bind_src(v: &ValueSpecification, row: &ValueSpecification) -> ValueSpecification {
         bound(v, row).unwrap_or_else(|| v.clone())
     }
