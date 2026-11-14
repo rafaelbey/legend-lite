@@ -164,3 +164,6 @@ duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,29
 #    instrumented build: 0 of 74,292); nothing re-frozen. lite-names identical.
 # 2. like, position, charindex and locate without the rules only lite had: one run at its code (--live) answered all
 #    five files as frozen (the instrumented build: no ask reaches one); nothing re-frozen. lite-names identical.
+# 3. A relational function's name matched exactly (the inference and ViewSignatures' aggregate switch): one run at its
+#    code (--live) answered all five files as frozen (the instrumented build: no name spelled otherwise than its key
+#    reaches either site); nothing re-frozen. lite-names identical.

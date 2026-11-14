@@ -34,7 +34,6 @@ use lite_model::{
 use lite_types::{Column, Family, Multiplicity, Primitive, RelationType, Type, platform};
 
 use crate::error::Thrown;
-use crate::java_string;
 use crate::model_index::StoreLookups;
 use crate::relational_type_inference;
 use crate::store_compiler;
@@ -149,9 +148,10 @@ fn column<'a, A: Alloc>(
     // an aggregate at any arity, typed as the engine's inferRelationalType types it (count BIGINT and average DOUBLE
     // whatever their arguments; sum by its first; max and min over several the safe type when one exists, else the
     // first's); until 2026-11-13 at exactly one argument only (S376, ruling 32)
+    // the name matched exactly, as the engine's map get matches it: COUNT or Sum is no aggregate, no rule; until
+    // 2026-11-14 lower-cased first (S378, the names batch, item 3, ruling 34)
     if let Op::RelationalOperationFunctionCall(fc) = expr {
-        let lowered = java_string::to_lower_root(&fc.name.0);
-        let function = String::from_utf16(&lowered).unwrap_or_default();
+        let function = String::from_utf16(&fc.name.0).unwrap_or_default();
         match function.as_str() {
             "count" => {
                 return Ok(Column {

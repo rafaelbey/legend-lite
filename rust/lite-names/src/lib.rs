@@ -32,7 +32,6 @@ pub mod calls;
 pub mod core_imports;
 pub mod derived_props;
 pub mod error;
-mod java_string;
 pub mod knowledge;
 pub mod lattice;
 pub mod milestoning;

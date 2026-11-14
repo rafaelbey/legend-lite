@@ -9,8 +9,8 @@
 //! inferable type (the engine's `failOnMatchFailure=false` branch).
 //!
 //! Ported line for line. Java's `int` arithmetic wraps (a decimal's digits, a concatenation's summed sizes), so the
-//! port's does; a string literal's size is its UTF-16 length; a function name is lowered as `toLowerCase(Locale.ROOT)`
-//! lowers it. A view column read through its expression is EXPANDING while its expression is typed: a chain of view
+//! port's does; a string literal's size is its UTF-16 length; a function name is matched exactly, as the engine's map
+//! `get` matches it (until 2026-11-14 lowered as `toLowerCase(Locale.ROOT)` lowers it: S378, the names batch, item 3). A view column read through its expression is EXPANDING while its expression is typed: a chain of view
 //! columns that reaches one of them again (a view-on-view cycle) is refused, a `ModelException` (MODEL) worded as
 //! `ViewSignatures`' cycle refusal (2026-11-13, the names fixes, item 8, ruling 29: before, Java recursed until
 //! `StackOverflowError` and the Rust process aborted). The set holds the view column records by identity, and a column
@@ -28,7 +28,6 @@ use lite_model::{
 };
 
 use crate::error::Thrown;
-use crate::java_string;
 use crate::model_index::StoreLookups;
 
 /// The view columns being typed, by identity.
@@ -101,8 +100,10 @@ fn infer_in<'a>(
             column_type(db, ctx, c.database_name.as_ref(), &c.table, &c.column, expanding)?
         }
         Op::RelationalOperationFunctionCall(f) => {
-            let lowered = java_string::to_lower_root(&f.name.0);
-            let name = String::from_utf16(&lowered).unwrap_or_default();
+            // the name matched exactly, as the engine's map get matches it (relationalExtension.pure:114): each arm
+            // spells the map's key, a name spelled otherwise has no rule; until 2026-11-14 lower-cased first (S378, the
+            // names batch, item 3, ruling 34). A name that is not UTF-16 text matches no key
+            let name = String::from_utf16(&f.name.0).unwrap_or_default();
             let first = |expanding: &mut Expanding| match f.args.first() {
                 None => Ok(None),
                 Some(a) => infer_in(a, db, ctx, expanding),
@@ -152,13 +153,13 @@ fn infer_in<'a>(
                 "count" => Some(big_int()),
                 // boolean dynafunctions spell BIT (engine H2). like has no rule in the engine's map, so no type; until
                 // 2026-11-14 BIT, a rule only lite had (S378, the names batch, item 2, ruling 34)
-                "and" | "or" | "not" | "equal" | "notequal" | "in" | "isnull" | "isnotnull" | "greaterthan"
-                | "lessthan" | "greaterthanequal" | "lessthanequal" | "isempty" | "isnotempty" | "startswith"
-                | "endswith" | "contains" => Some(bit()),
+                "and" | "or" | "not" | "equal" | "notEqual" | "in" | "isNull" | "isNotNull" | "greaterThan"
+                | "lessThan" | "greaterThanEqual" | "lessThanEqual" | "isEmpty" | "isNotEmpty" | "startsWith"
+                | "endsWith" | "contains" => Some(bit()),
                 // sqlNull carries the engine's OTHER type
-                "sqlnull" => Some(other()),
+                "sqlNull" => Some(other()),
                 // engine inferDynaFunctionReturnType: sqlTrue/sqlFalse are BIT literals (ledger cluster 56)
-                "sqltrue" | "sqlfalse" => Some(bit()),
+                "sqlTrue" | "sqlFalse" => Some(bit()),
                 // substring, left, right, trim, ltrim and rtrim are a VARCHAR sized by their first argument's CHAR
                 // or VARCHAR (relationalExtension.pure:1051-1059, :1121-1129, :1509-1517, :1547-1555, :1647-1655,
                 // :1853-1861), another first argument no type; until 2026-11-13 they kept their first argument's
@@ -171,11 +172,11 @@ fn infer_in<'a>(
                 // toUpper and toLower keep their first argument's type (:1793-1801, :1843-1851); upper and lower have no
                 // rule in the engine's map, so no type (until 2026-11-13 they kept their first argument's type: S378,
                 // ruling 34)
-                "toupper" | "tolower" => first(expanding)?,
+                "toUpper" | "toLower" => first(expanding)?,
                 // length and indexOf are INTEGER whatever their arguments (relationalExtension.pure:1061-1069,
                 // :961-969); position, charindex and locate have no rule in the engine's map, so no type; until 2026-11-14
                 // INTEGER, rules only lite had (S378, the names batch, item 2, ruling 34)
-                "length" | "indexof" => Some(integer()),
+                "length" | "indexOf" => Some(integer()),
                 // sub is its first argument's type when its first two have one raw kind, else no rule matches
                 // (relationalExtension.pure:1637-1645): no type, never a default. Until 2026-11-13 the safe type over
                 // all its arguments (S378, ruling 32; its INTEGER default went with the names fixes, item 10)
@@ -192,7 +193,7 @@ fn infer_in<'a>(
                     }
                 }
                 // joinStrings AGGREGATES: the engine assigns the fixed 4000 buffer size
-                "joinstrings" => Some(varchar(4000)),
+                "joinStrings" => Some(varchar(4000)),
                 // string concatenation SUMS the operand sizes (engine getSize over concat); an operand typed other than
                 // CHAR or VARCHAR leaves it no type -- the engine's one rule asks every typed operand to be one
                 // (relationalExtension.pure:463-471); an operand with no type drops out. Until 2026-11-13 such an
@@ -270,14 +271,14 @@ fn infer_in<'a>(
                 // firstDayOfQuarter :773-781, firstDayOfWeek :813-821, firstDayOfYear :823-831 a DATE; firstHourOfDay
                 // :833-841, firstMinuteOfHour :843-851, firstSecondOfMinute :853-861 a TIMESTAMP; convertVarchar128
                 // :503-511 a VARCHAR(128), md5 :1165-1173 a VARCHAR(32), sha256 :1577-1585 a VARCHAR(64)
-                "bitand" | "bitshiftleft" | "bitxor" | "dayofmonth" | "dayofyear" | "mod" | "monthnumber" | "sign"
-                | "weekofyear" => Some(integer()),
+                "bitAnd" | "bitShiftLeft" | "bitXor" | "dayOfMonth" | "dayOfYear" | "mod" | "monthNumber" | "sign"
+                | "weekOfYear" => Some(integer()),
                 "cbrt" | "log" | "sin" | "sqrt" => Some(double()),
-                "datepart" | "firstdayofmonth" | "firstdayofquarter" | "firstdayofweek" | "firstdayofyear" => {
+                "datePart" | "firstDayOfMonth" | "firstDayOfQuarter" | "firstDayOfWeek" | "firstDayOfYear" => {
                     Some(date())
                 }
-                "firsthourofday" | "firstminuteofhour" | "firstsecondofminute" => Some(timestamp()),
-                "convertvarchar128" => Some(varchar(128)),
+                "firstHourOfDay" | "firstMinuteOfHour" | "firstSecondOfMinute" => Some(timestamp()),
+                "convertVarchar128" => Some(varchar(128)),
                 "md5" => Some(varchar(32)),
                 "sha256" => Some(varchar(64)),
                 // abs is its one argument's type, whatever its kind (:193-201); with none or several, no type

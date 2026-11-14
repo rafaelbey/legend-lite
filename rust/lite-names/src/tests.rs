@@ -1324,6 +1324,8 @@ const ENGINE_CASES: &str = concat!(
     "    RP8: replace(sqlNull(), 'a', 'b'))\n",
     "  View VLITE (LK1: like(T.V, 'a%'), PO1: position('a', T.V), CI1: charindex('a', T.V), LO1: locate('a', T.V),\n",
     "    LK2: like())\n",
+    "  View VCASE (UA1: ABS(T.I), UA2: Sum(T.I), UA3: COUNT(T.I), UA4: Max(T.I), UA5: CONCAT(T.V, T.V),\n",
+    "    UA6: Coalesce(T.I), UA7: abs(T.I), UA8: SUM(T.I), UA9: count(T.I), UA10: AVERAGE(T.I))\n",
     ")\n"
 );
 
@@ -1411,6 +1413,39 @@ fn the_rules_only_lite_had_are_gone() {
             inference_table(ENGINE_CASES, &["VLITE"]),
             "VLITE.LK1=- VLITE.PO1=- VLITE.CI1=- VLITE.LO1=- VLITE.LK2=-"
         );
+    });
+}
+
+/// A function's name matched exactly (2026-11-14, the names batch, item 3: register row S378, ruling 34), as the
+/// engine's map `get` matches it: a name spelled otherwise than its key has no rule (the engine answers EMPTY), in the
+/// inference and in the view signature's aggregate switch alike (KnowledgeLayerTest's twin).
+#[test]
+fn a_functions_name_is_matched_exactly() {
+    on_parse_stack(|| {
+        assert_eq!(
+            inference_table(ENGINE_CASES, &["VCASE"]),
+            concat!(
+                "VCASE.UA1=- VCASE.UA2=- VCASE.UA3=- VCASE.UA4=- VCASE.UA5=- VCASE.UA6=- VCASE.UA7=Integer VCASE.UA8=- ",
+                "VCASE.UA9=BigInt VCASE.UA10=-"
+            )
+        );
+        let m = model(ENGINE_CASES);
+        let ix = ModelIndex::from(&m).unwrap();
+        let db = j("nb::Db");
+        let v = ix.find_view(&db, &j("VCASE")).unwrap().clone();
+        let arena = lite_base::QueryArena::new();
+        let sig = view_signatures::of(&arena, &ix, &db, &v).unwrap();
+        assert_eq!(
+            sig.columns()[2].to_string(),
+            "UA3:meta::pure::metamodel::type::Any[0..1]",
+            "COUNT is no aggregate"
+        );
+        assert_eq!(
+            sig.columns()[7].to_string(),
+            "UA8:meta::pure::metamodel::type::Any[0..1]",
+            "SUM is no aggregate"
+        );
+        assert_eq!(sig.columns()[8].to_string(), "UA9:Integer[1]", "count is");
     });
 }
 
