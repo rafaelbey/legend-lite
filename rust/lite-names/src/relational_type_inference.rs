@@ -192,8 +192,14 @@ fn infer_in<'a>(
                         }
                     }
                 }
-                // joinStrings AGGREGATES: the engine assigns the fixed 4000 buffer size
-                "joinStrings" => Some(varchar(4000)),
+                // joinStrings is a VARCHAR of the larger of 4000 and its first argument's CHAR or VARCHAR size; another
+                // first argument, or none, no type (relationalExtension.pure:1031-1039: the map's rule types a parsed
+                // joinStrings, a DynaFunction; Java's comment says why not the JoinStrings operation's arm, :173). Until
+                // 2026-11-14 VARCHAR(4000) whatever its arguments (S378, the names batch, item 4, ruling 34)
+                "joinStrings" => match first(expanding)? {
+                    Some(at) if is_char_or_varchar(&at) => Some(varchar(size(&at).max(4000))),
+                    _ => None,
+                },
                 // string concatenation SUMS the operand sizes (engine getSize over concat); an operand typed other than
                 // CHAR or VARCHAR leaves it no type -- the engine's one rule asks every typed operand to be one
                 // (relationalExtension.pure:463-471); an operand with no type drops out. Until 2026-11-13 such an

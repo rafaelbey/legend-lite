@@ -1326,6 +1326,9 @@ const ENGINE_CASES: &str = concat!(
     "    LK2: like())\n",
     "  View VCASE (UA1: ABS(T.I), UA2: Sum(T.I), UA3: COUNT(T.I), UA4: Max(T.I), UA5: CONCAT(T.V, T.V),\n",
     "    UA6: Coalesce(T.I), UA7: abs(T.I), UA8: SUM(T.I), UA9: count(T.I), UA10: AVERAGE(T.I))\n",
+    "  View VJS (JS1: joinStrings(T.V, ','), JS2: joinStrings(T.I, ','), JS3: joinStrings(T.X, ','),\n",
+    "    JS4: joinStrings(nope(T.I), ','), JS5: joinStrings(T.C, ','), JS6: joinStrings(T.V), JS7: joinStrings(),\n",
+    "    JS8: joinStrings(sqlNull(), ','), JS9: joinStrings(T.V, T.X))\n",
     ")\n"
 );
 
@@ -1446,6 +1449,22 @@ fn a_functions_name_is_matched_exactly() {
             "SUM is no aggregate"
         );
         assert_eq!(sig.columns()[8].to_string(), "UA9:Integer[1]", "count is");
+    });
+}
+
+/// joinStrings (2026-11-14, the names batch, item 4: register row S378, ruling 34): a VARCHAR of the larger of 4000 and
+/// its first argument's CHAR or VARCHAR size, no rule for another first argument (the engine's own answers); it was
+/// VARCHAR(4000) whatever its arguments (KnowledgeLayerTest's twin).
+#[test]
+fn join_strings_is_typed_by_the_engines_rule() {
+    on_parse_stack(|| {
+        assert_eq!(
+            inference_table(ENGINE_CASES, &["VJS"]),
+            concat!(
+                "VJS.JS1=Varchar(4000) VJS.JS2=- VJS.JS3=Varchar(5000) VJS.JS4=- VJS.JS5=Varchar(4000) ",
+                "VJS.JS6=Varchar(4000) VJS.JS7=- VJS.JS8=- VJS.JS9=Varchar(4000)"
+            )
+        );
     });
 }
 

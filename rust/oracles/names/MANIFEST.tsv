@@ -167,3 +167,6 @@ duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,29
 # 3. A relational function's name matched exactly (the inference and ViewSignatures' aggregate switch): one run at its
 #    code (--live) answered all five files as frozen (the instrumented build: no name spelled otherwise than its key
 #    reaches either site); nothing re-frozen. lite-names identical.
+# 4. joinStrings typed by the engine's map rule (a VARCHAR of max(4000, its first argument's CHAR or VARCHAR size)):
+#    one run at its code (--live) answered all five files as frozen (the instrumented build: no ask reaches a
+#    joinStrings); nothing re-frozen. lite-names identical.
