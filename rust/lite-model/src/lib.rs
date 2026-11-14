@@ -20,19 +20,29 @@
 //! - The model's reads the names layer calls (the names slice, 2026-11-12): `RelationalOperation`'s children, walk,
 //!   `navigatesJoin` and `tables` ([`relational_operation`]), `ClassMapping.Pure.PropertyBinding.withExpression`; and
 //!   subtyping's one walk over class declarations, in the shapes of Java's two relations ([`subtyping`]).
+//! - The model's methods and convenience constructors the normalizer calls (the normalizer slice's step 3,
+//!   2026-11-14, docs/rust-port/EF_CENSUS.md §8): `RelationalOperation`'s `withChildren`/`mapChildren`
+//!   ([`relational_operation`]); `ClassMapping`'s `aggregationAwareMain`, `RelationFunction.Col`'s `isEmbedded` and
+//!   `bindSrc`, and the short forms of `RelationFunction`, `Col` and `PropertyMapping` ([`class_mapping`]);
+//!   `FunctionDefinition`'s `isSynthesized`, `withSynthesizedFrom` and short forms, `Synthesized`'s
+//!   ([`function_definition`]); `MappingDefinition`'s constructors, the `NONE`s, `LegacyMappingDefinition`'s
+//!   `withClassMappings` and `KeyThread`'s short form ([`mapping_definition`]).
 //!
-//! What `com.legend.model` holds that is not here yet, for the slice that first calls it: the methods the normalizer
-//! and the compiler call on `MappingDefinition` (its facts, `position`), `ClassMapping`'s witness-column names, the
-//! `LegacyMappingDefinition` and `RuntimeDefinition` helpers, `ClassMapping.RelationFunction.Col.bindSrc`, and the
-//! identity-keyed lookups of `DatabaseDefinition` beyond its default-schema tables and views.
+//! What `com.legend.model` holds that is not here yet, for the slice that first calls it: the lookups on
+//! `MappingDefinition`'s bindings (`ClassBindings`, `AssociationBindings`: the resolver's; `position` re-expressed as a
+//! binding's index) and its facts' keyed reads, `ClassMapping`'s witness-column names, the `RuntimeDefinition`
+//! helpers, and the identity-keyed lookups of `DatabaseDefinition` beyond its default-schema tables and views.
 
 #![forbid(unsafe_code)]
 
+pub mod class_mapping;
 pub mod elements;
 pub mod error;
 pub mod from_protocol;
+pub mod function_definition;
 pub mod function_id;
 pub mod linked;
+pub mod mapping_definition;
 pub mod mapping_from_protocol;
 pub mod model_from_protocol;
 pub mod mongo_declarations;

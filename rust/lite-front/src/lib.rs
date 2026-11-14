@@ -66,6 +66,7 @@ pub mod service_parser;
 pub mod service_store_parser;
 pub mod sha256;
 pub mod source_information;
+pub mod spec_children;
 pub mod spec_parser;
 pub mod tail_emitter;
 pub mod temporal;
