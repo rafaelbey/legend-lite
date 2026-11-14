@@ -155,3 +155,10 @@ duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,29
 #    names-stores-texts-java-2026-11-13-follow378c.jsonl.zst (1,714,921 bytes;
 #    b070316be71de958624d51b1ce100c718521321fa2d59d49a9aa24c07e456e96, checked by decompressing it); entry 1's archive
 #    (follow378) kept as it was. lite-names: all five files identical.
+# THE NAMES BATCH (2026-11-14, docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 rulings 34 and 35; PHASE3.md, the names
+# slice's entry): the engine differences the follow-ups recorded in rows S376 and S378, each item measured first by an
+# instrumented build riding its new code, each re-freezing here what its Java moves (two byte-identical runs, A with
+# --live, B with --texts, the texts archived) or, where the measurement found nothing to move, confirmed by one run.
+# 1. The 30 type-inference rules the seeded Database texts use (abs, add, bitAnd, ..., weekOfYear; ruling 35): one run
+#    at its code (--live) answered all five files as frozen -- no ask of the names differential reaches one of the 30 (the
+#    instrumented build: 0 of 74,292); nothing re-frozen. lite-names identical.

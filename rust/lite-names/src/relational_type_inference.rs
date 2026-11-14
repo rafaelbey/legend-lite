@@ -22,9 +22,9 @@ use lite_base::IdSet;
 use lite_error::Phase;
 use lite_model::{
     DatabaseDefinition, DatabaseDefinitionViewDefinitionViewColumnMapping, JValue, RelationalDataType as T,
-    RelationalDataTypeBigInt, RelationalDataTypeBit, RelationalDataTypeDecimal, RelationalDataTypeDouble_,
-    RelationalDataTypeFloat_, RelationalDataTypeInteger_, RelationalDataTypeNumeric, RelationalDataTypeOther,
-    RelationalDataTypeVarchar, RelationalOperation as Op, cat,
+    RelationalDataTypeBigInt, RelationalDataTypeBit, RelationalDataTypeDate_, RelationalDataTypeDecimal,
+    RelationalDataTypeDouble_, RelationalDataTypeFloat_, RelationalDataTypeInteger_, RelationalDataTypeNumeric,
+    RelationalDataTypeOther, RelationalDataTypeTimestamp, RelationalDataTypeVarchar, RelationalOperation as Op, cat,
 };
 
 use crate::error::Thrown;
@@ -56,6 +56,19 @@ fn float() -> T {
 
 fn other() -> T {
     T::RelationalDataTypeOther(Arc::new(RelationalDataTypeOther {}))
+}
+
+fn date() -> T {
+    T::RelationalDataTypeDate_(Arc::new(RelationalDataTypeDate_ {}))
+}
+
+fn timestamp() -> T {
+    T::RelationalDataTypeTimestamp(Arc::new(RelationalDataTypeTimestamp {}))
+}
+
+/// A CHAR or a VARCHAR: the kinds the engine's `getSize` and its size matches read (relationalExtension.pure:2005-2011).
+fn is_char_or_varchar(t: &T) -> bool {
+    matches!(t, T::RelationalDataTypeChar_(_) | T::RelationalDataTypeVarchar(_))
 }
 
 fn varchar(size: i32) -> T {
@@ -241,6 +254,106 @@ fn infer_in<'a>(
                         }
                     }
                 }
+                // ---- the 30 rules the seeded Database texts use (2026-11-14, the names batch, item 1: register row
+                // S378, ruling 35; until then no rule, no type), each legend-engine 4.145.0's map entry at the lines
+                // cited, every arm's answer asked of the engine (Java's comment says how). Where the engine's inference
+                // fails, no type (S378).
+                //
+                // One type whatever the arguments, which the rule never reads: bitAnd :321-329, bitShiftLeft :351-359,
+                // bitXor :371-379, dayOfMonth :633-641, dayOfYear :663-671, mod :1219-1227 (and :1479-1487, the same),
+                // monthNumber :1259-1267, sign :1587-1595, weekOfYear :1883-1891 an INTEGER; cbrt :415-423, log
+                // :1101-1109, sin :1597-1605, sqrt :1687-1695 a DOUBLE; datePart :623-631, firstDayOfMonth :763-771,
+                // firstDayOfQuarter :773-781, firstDayOfWeek :813-821, firstDayOfYear :823-831 a DATE; firstHourOfDay
+                // :833-841, firstMinuteOfHour :843-851, firstSecondOfMinute :853-861 a TIMESTAMP; convertVarchar128
+                // :503-511 a VARCHAR(128), md5 :1165-1173 a VARCHAR(32), sha256 :1577-1585 a VARCHAR(64)
+                "bitand" | "bitshiftleft" | "bitxor" | "dayofmonth" | "dayofyear" | "mod" | "monthnumber" | "sign"
+                | "weekofyear" => Some(integer()),
+                "cbrt" | "log" | "sin" | "sqrt" => Some(double()),
+                "datepart" | "firstdayofmonth" | "firstdayofquarter" | "firstdayofweek" | "firstdayofyear" => {
+                    Some(date())
+                }
+                "firsthourofday" | "firstminuteofhour" | "firstsecondofminute" => Some(timestamp()),
+                "convertvarchar128" => Some(varchar(128)),
+                "md5" => Some(varchar(32)),
+                "sha256" => Some(varchar(64)),
+                // abs is its one argument's type, whatever its kind (:193-201); with none or several, no type
+                "abs" => {
+                    if f.args.len() == 1 {
+                        infer_in(&f.args[0], db, ctx, expanding)?
+                    } else {
+                        None
+                    }
+                }
+                // add's two rules over its first two arguments, the first that matches answering (:213-225): a safe
+                // type that is a VARCHAR, a VARCHAR of the two sizes summed (a CHAR's or VARCHAR's alone: an OTHER fails
+                // getSize, no type); another safe type, itself; none possible, no rule. Both typed, and two of them
+                "add" => {
+                    if f.args.len() < 2 {
+                        None
+                    } else {
+                        let t0 = infer_in(&f.args[0], db, ctx, expanding)?;
+                        let t1 = infer_in(&f.args[1], db, ctx, expanding)?;
+                        match (t0, t1) {
+                            (Some(a), Some(b)) => match safe_type_of([Some(a.clone()), Some(b.clone())]) {
+                                Some(T::RelationalDataTypeVarchar(_)) => {
+                                    if is_char_or_varchar(&a) && is_char_or_varchar(&b) {
+                                        Some(varchar(size(&a).wrapping_add(size(&b))))
+                                    } else {
+                                        None
+                                    }
+                                }
+                                safe => safe,
+                            },
+                            _ => None,
+                        }
+                    }
+                }
+                // coalesce is the safe type over every argument when one is possible, else no rule (:453-461): an
+                // argument with no type fails the engine's inference (failOnMatchFailure true), no type -- not dropped,
+                // as case's untyped branch is (S378, the owner's) -- and no argument fails its fold's head, no type
+                "coalesce" => {
+                    let mut types: Vec<Option<T>> = Vec::with_capacity(f.args.len());
+                    for arg in f.args.iter() {
+                        types.push(infer_in(arg, db, ctx, expanding)?);
+                    }
+                    if types.iter().any(Option::is_none) {
+                        None
+                    } else {
+                        safe_type_of(types)
+                    }
+                }
+                // if is the safe type of its second and third arguments when one is possible, else no rule (:941-949);
+                // the condition and a fourth argument unread; both typed, and three arguments at least
+                "if" => {
+                    if f.args.len() < 3 {
+                        None
+                    } else {
+                        let t1 = infer_in(&f.args[1], db, ctx, expanding)?;
+                        let t2 = infer_in(&f.args[2], db, ctx, expanding)?;
+                        match (t1, t2) {
+                            (Some(a), Some(b)) => safe_type_of([Some(a), Some(b)]),
+                            _ => None,
+                        }
+                    }
+                }
+                // lpad is a VARCHAR sized by its second argument when that is an integer literal (:1131-1139), its
+                // first unread; another second argument, or none, fails the match, no type (lite's grammar reads every
+                // integer constant as a Long: one past an int is past the engine's parser, which reads it with
+                // Integer.parseInt, and past a VARCHAR's size, no type)
+                "lpad" => match f.args.get(1) {
+                    Some(Op::RelationalOperationLiteral(l)) => match &l.value {
+                        JValue::Integer(i) => Some(varchar(*i)),
+                        JValue::Long(g) => i32::try_from(*g).ok().map(varchar),
+                        _ => None,
+                    },
+                    _ => None,
+                },
+                // replace is a VARCHAR of twice its first argument's CHAR or VARCHAR size (:1489-1497), Java's int
+                // doubling; another first argument, or none, no type
+                "replace" => match first(expanding)? {
+                    Some(at) if is_char_or_varchar(&at) => Some(varchar(size(&at).wrapping_mul(2))),
+                    _ => None,
+                },
                 _ => None,
             }
         }

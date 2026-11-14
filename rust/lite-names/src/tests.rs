@@ -1285,6 +1285,120 @@ fn the_operators_and_aggregates_are_typed_by_the_engines_rules() {
     });
 }
 
+/// The engine's type-inference cases (2026-11-14, the names batch: register row S378, rulings 34 and 35), one Database
+/// whose every view column is one case, every arm of each rule; each answer is legend-engine 4.145.0's, asked of the
+/// engine (KnowledgeLayerTest's `ENGINE_CASES` says how), `-` its EMPTY or a throw (no type here). The same text and
+/// table as KnowledgeLayerTest's.
+const ENGINE_CASES: &str = concat!(
+    "###Relational\n",
+    "Database nb::Db (\n",
+    "  Table T (ID INTEGER PRIMARY KEY, I INTEGER, TI TINYINT, SI SMALLINT, B BIGINT, F FLOAT, DB DOUBLE, R REAL,\n",
+    "    D DECIMAL(10,2), N NUMERIC(6,2), C CHAR(3), K CHAR(5), V VARCHAR(4), W VARCHAR(10), X VARCHAR(5000),\n",
+    "    H VARCHAR(2000000000), DT DATE, TS TIMESTAMP, BT BIT)\n",
+    "  View VABS (AB1: abs(T.I), AB2: abs(T.D), AB3: abs(T.V), AB4: abs(T.I, T.I), AB5: abs(nope(T.I)), AB6: abs(1),\n",
+    "    AB7: abs(abs(T.F)), AB8: abs())\n",
+    "  View VADD (AD1: add(T.V, T.W), AD2: add(T.C, T.V), AD3: add(T.I, T.F), AD4: add(T.I, T.V), AD5: add(T.B, T.F),\n",
+    "    AD6: add(sqlNull(), T.V), AD7: add(T.D, T.I), AD8: add(T.I), AD9: add(T.I, T.I, T.V), AD10: add(nope(T.I), T.I),\n",
+    "    AD11: add(T.C, T.K), AD12: add('ab', 'cde'), AD13: add(T.V, sqlNull()), AD14: add(sqlNull(), sqlNull()),\n",
+    "    AD15: add(T.R, T.R), AD16: add(T.DT, T.DT))\n",
+    "  View VBIT (BA1: bitAnd(T.I, T.I), BA2: bitAnd(nope(T.I), T.V), BL1: bitShiftLeft(T.I, 2), BL2: bitShiftLeft(),\n",
+    "    BX1: bitXor(T.I, T.I), BX2: bitXor(T.V))\n",
+    "  View VCONST (CB1: cbrt(T.I), CB2: cbrt(nope(T.I)), CV1: convertVarchar128(T.I), CV2: convertVarchar128(nope(T.I)),\n",
+    "    DP1: datePart(T.TS), DP2: datePart(T.V), DM1: dayOfMonth(T.DT), DY1: dayOfYear(T.DT), FM1: firstDayOfMonth(T.DT),\n",
+    "    FQ1: firstDayOfQuarter(T.DT), FW1: firstDayOfWeek(T.DT), FY1: firstDayOfYear(T.DT), FH1: firstHourOfDay(T.TS),\n",
+    "    FN1: firstMinuteOfHour(T.TS), FS1: firstSecondOfMinute(T.TS), LG1: log(T.I), M51: md5(T.V), M52: md5(nope(T.I)),\n",
+    "    MO1: mod(T.I, 2), MO2: mod(T.F, T.F), MN1: monthNumber(T.DT), SH1: sha256(T.V), SG1: sign(T.F),\n",
+    "    SG2: sign(nope(T.I)), SN1: sin(T.I), SQ1: sqrt(T.I), WY1: weekOfYear(T.DT), FH2: firstHourOfDay())\n",
+    "  View VCOAL (CO1: coalesce(T.I, T.F), CO2: coalesce(T.V, T.K), CO3: coalesce(T.I, T.V), CO4: coalesce(T.I),\n",
+    "    CO5: coalesce(nope(T.I), T.I), CO6: coalesce(sqlNull(), T.I), CO7: coalesce(T.D, T.N),\n",
+    "    CO8: coalesce(T.I, T.F, T.V), CO9: coalesce(), CO10: coalesce(T.R), CO11: coalesce(T.R, T.R),\n",
+    "    CO12: coalesce(T.I, sqlNull()), CO13: coalesce(T.C, T.K), CO14: coalesce(T.TI, T.SI, T.B))\n",
+    "  View VIF (IF1: if(equal(T.ID, 1), T.I, T.F), IF2: if(equal(T.ID, 1), T.V, T.K), IF3: if(equal(T.ID, 1), T.I, T.V),\n",
+    "    IF4: if(equal(T.ID, 1), T.I), IF5: if(equal(T.ID, 1), nope(T.I), T.I), IF6: if(nope(T.I), T.I, T.I),\n",
+    "    IF7: if(equal(T.ID, 1), T.D, T.I), IF8: if(equal(T.ID, 1), T.I, T.F, T.V), IF9: if(equal(T.ID, 1), T.I, sqlNull()),\n",
+    "    IF10: if(equal(T.ID, 1), T.R, T.R), IF11: if(equal(T.ID, 1), T.B, T.F), ZZ: T.ID)\n",
+    "  View VLPAD (LP1: lpad(T.V, 10, ' '), LP2: lpad(T.V, T.I, ' '), LP3: lpad(T.V, 'x'), LP4: lpad(T.V),\n",
+    "    LP5: lpad(nope(T.I), 7), LP6: lpad(T.V, 2.5), LP7: lpad(T.V, plus(1, 2)))\n",
+    "  View VREPL (RP1: replace(T.V, 'a', 'b'), RP2: replace(T.C, 'a', 'b'), RP3: replace(T.I, 'a', 'b'),\n",
+    "    RP4: replace(nope(T.I), 'a', 'b'), RP5: replace('abc', 'a', 'b'), RP6: replace(T.H, 'a', 'b'), RP7: replace(),\n",
+    "    RP8: replace(sqlNull(), 'a', 'b'))\n",
+    ")\n"
+);
+
+/// Every view column of `nb::Db` in `text`, in the order `views` names them, typed by the inference: `VIEW.COLUMN=TYPE`
+/// tokens, space-separated (`-` no type); KnowledgeLayerTest's `inferenceTable`.
+fn inference_table(text: &str, views: &[&str]) -> String {
+    use lite_model::RelationalDataType as T;
+    let m = model(text);
+    let ix = ModelIndex::from(&m).unwrap();
+    let db = j("nb::Db");
+    let scope = Some(&**database(&m, "nb::Db"));
+    let mut out: Vec<String> = Vec::new();
+    for view in views {
+        let v = ix.find_view(&db, &j(view)).unwrap().clone();
+        for cm in v.column_mappings.iter() {
+            let t =
+                relational_type_inference::infer(&cm.expression, scope, Some(&ix as &dyn crate::StoreLookups)).unwrap();
+            let text = match t {
+                None => "-".to_string(),
+                Some(T::RelationalDataTypeVarchar(v)) => format!("Varchar({})", v.size),
+                Some(T::RelationalDataTypeChar_(c)) => format!("Char({})", c.size),
+                Some(T::RelationalDataTypeDecimal(d)) => format!("Decimal({},{})", d.precision, d.scale),
+                Some(T::RelationalDataTypeNumeric(n)) => format!("Numeric({},{})", n.precision, n.scale),
+                Some(T::RelationalDataTypeInteger_(_)) => "Integer".to_string(),
+                Some(T::RelationalDataTypeBigInt(_)) => "BigInt".to_string(),
+                Some(T::RelationalDataTypeFloat_(_)) => "Float".to_string(),
+                Some(T::RelationalDataTypeDouble_(_)) => "Double".to_string(),
+                Some(T::RelationalDataTypeReal(_)) => "Real".to_string(),
+                Some(T::RelationalDataTypeBit(_)) => "Bit".to_string(),
+                Some(T::RelationalDataTypeDate_(_)) => "Date".to_string(),
+                Some(T::RelationalDataTypeTimestamp(_)) => "Timestamp".to_string(),
+                Some(T::RelationalDataTypeOther(_)) => "Other".to_string(),
+                Some(other) => panic!("a kind the table does not spell: {other:?}"),
+            };
+            out.push(format!("{view}.{}={text}", cm.name.lossy()));
+        }
+    }
+    out.join(" ")
+}
+
+/// The 30 rules the seeded Database texts use (2026-11-14, the names batch, item 1: register row S378, ruling 35; until
+/// then no rule, no type), every arm, typed as the engine types them (`ENGINE_CASES`: the engine's own answers). The
+/// one answer that differs: RP6, a VARCHAR(2000000000) replaced, which the engine types VARCHAR(4000000000) and lite
+/// VARCHAR(-294967296) (Java's int doubling, as concat's sum wraps; S378) (KnowledgeLayerTest's twin).
+#[test]
+fn the_thirty_rules_the_seeds_use_are_the_engines() {
+    on_parse_stack(|| {
+        let expected = concat!(
+            "VABS.AB1=Integer VABS.AB2=Decimal(10,2) VABS.AB3=Varchar(4) VABS.AB4=- VABS.AB5=- VABS.AB6=Integer\n",
+            "VABS.AB7=Float VABS.AB8=- VADD.AD1=Varchar(14) VADD.AD2=Varchar(7) VADD.AD3=Float VADD.AD4=- VADD.AD5=-\n",
+            "VADD.AD6=- VADD.AD7=Decimal(10,2) VADD.AD8=- VADD.AD9=Integer VADD.AD10=- VADD.AD11=Varchar(8)\n",
+            "VADD.AD12=Varchar(5) VADD.AD13=- VADD.AD14=Other VADD.AD15=- VADD.AD16=Date VBIT.BA1=Integer\n",
+            "VBIT.BA2=Integer VBIT.BL1=Integer VBIT.BL2=Integer VBIT.BX1=Integer VBIT.BX2=Integer VCONST.CB1=Double\n",
+            "VCONST.CB2=Double VCONST.CV1=Varchar(128) VCONST.CV2=Varchar(128) VCONST.DP1=Date VCONST.DP2=Date\n",
+            "VCONST.DM1=Integer VCONST.DY1=Integer VCONST.FM1=Date VCONST.FQ1=Date VCONST.FW1=Date VCONST.FY1=Date\n",
+            "VCONST.FH1=Timestamp VCONST.FN1=Timestamp VCONST.FS1=Timestamp VCONST.LG1=Double VCONST.M51=Varchar(32)\n",
+            "VCONST.M52=Varchar(32) VCONST.MO1=Integer VCONST.MO2=Integer VCONST.MN1=Integer VCONST.SH1=Varchar(64)\n",
+            "VCONST.SG1=Integer VCONST.SG2=Integer VCONST.SN1=Double VCONST.SQ1=Double VCONST.WY1=Integer\n",
+            "VCONST.FH2=Timestamp VCOAL.CO1=Float VCOAL.CO2=Varchar(5) VCOAL.CO3=- VCOAL.CO4=Integer VCOAL.CO5=-\n",
+            "VCOAL.CO6=Integer VCOAL.CO7=Decimal(10,2) VCOAL.CO8=- VCOAL.CO9=- VCOAL.CO10=Real VCOAL.CO11=-\n",
+            "VCOAL.CO12=Integer VCOAL.CO13=Varchar(5) VCOAL.CO14=BigInt VIF.IF1=Float VIF.IF2=Varchar(5) VIF.IF3=-\n",
+            "VIF.IF4=- VIF.IF5=- VIF.IF6=Integer VIF.IF7=Decimal(10,2) VIF.IF8=Float VIF.IF9=Integer VIF.IF10=-\n",
+            "VIF.IF11=- VIF.ZZ=Integer VLPAD.LP1=Varchar(10) VLPAD.LP2=- VLPAD.LP3=- VLPAD.LP4=- VLPAD.LP5=Varchar(7)\n",
+            "VLPAD.LP6=- VLPAD.LP7=- VREPL.RP1=Varchar(8) VREPL.RP2=Varchar(6) VREPL.RP3=- VREPL.RP4=-\n",
+            "VREPL.RP5=Varchar(6) VREPL.RP6=Varchar(-294967296) VREPL.RP7=- VREPL.RP8=-\n"
+        );
+        let expected: Vec<&str> = expected.split_whitespace().collect();
+        assert_eq!(
+            inference_table(
+                ENGINE_CASES,
+                &["VABS", "VADD", "VBIT", "VCONST", "VCOAL", "VIF", "VLPAD", "VREPL"]
+            ),
+            expected.join(" ")
+        );
+    });
+}
+
 /// S376's join terminal (2026-11-13, the names follow-ups, ruling 34): a join navigation's terminal is compiled as any
 /// other operation once the navigation's joins resolve, in the database of its last join, so a terminal reading a column
 /// or table its database lacks refuses the view in the engine's words, plain, nested in the terminal, or with the
