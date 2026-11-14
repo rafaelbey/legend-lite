@@ -1054,3 +1054,76 @@ done, in the order of the design's §3.
         or timed out; of `rust/BASELINE.tsv`'s passing targets every one passes but the three gone with their code and
         ledgered (`//core:core_tests_ide`, `//core:core_tests_lexer`, `//docs:update_dialect_capability_test`); the 35
         targets new since the baseline all pass. `ledger_check.sh c4a39e06d`: 85 rows ok, none missing.
+   - *The names follow-ups (2026-11-13 and 14, the owner's standing ruling 34, PHASE3_SHIM_DESIGN.md §10; the engine's sources
+     this work's only spec; every measurement and tool in `port-scratch/namesfollow/`).* What the names landings left in
+     register rows S376 and S378, in Java and Rust together, each item measured first (an instrumented build, never
+     committed, or a check over the names differential's asks), the names oracle re-frozen in its commit where it moved
+     (two byte-identical Java runs, the texts archived), lite-names held to every frozen answer; then the one attributed
+     re-freeze of the probe's oracles.
+     1. *S378's remainder* (`04dc555aa`, corrected by `c59296c31`). `plus` over one argument widens it (TINYINT and
+        SMALLINT an INTEGER, INTEGER and BIGINT a BIGINT, a DECIMAL or NUMERIC its own kind capped at precision 31, FLOAT
+        and DOUBLE a DOUBLE; relationalExtension.pure:1409-1437); `plus` and `minus` over several their first argument's
+        type when a safe type over all of them is possible (:1409-1437, :1209-1217); `times` the safe type of its first
+        two (:1773-1781); `divide` and `average` DOUBLE (:693-701, :291-299); `sum` by its first argument's kind, DECIMAL
+        and NUMERIC capped at 31, FLOAT and DOUBLE a DOUBLE, no rule for REAL (:1717-1741); a float literal FLOAT (:148);
+        `upper` and `lower` no rule. The pair rule (the safe type over every argument) is gone. `04dc555aa` read four of
+        `sum`'s five rules (its read stopped at :1735) and typed a FLOAT or DOUBLE nothing; the corpus probe at that
+        commit caught it -- the engine's own `testSumAggregationWithJoinInference` (testRelationalExtension.pure:186-192,
+        `sum` over a FLOAT, expects DOUBLE) failed on the host judge, and `//spec:corpus_{duckdb,h2}_verdict` with it --
+        and `c59296c31` corrected it, every other cited rule re-read through its closing bracket. `case` keeps no type where
+        no safe type is possible: the engine asserts there (:401-413) whatever `failOnMatchFailure` is, but its inference
+        runs at plan generation (relationalMappingExecution.pure:205-208, from :96, :101), never when the database
+        compiles (HelperRelationalBuilder.java:469-517), and lite infers when the model compiles and when it seeds the
+        metamodel, where a failing inference would refuse or break what the engine compiles -- the form lite cannot
+        spell, S378. Reach (the corrected rule against the landings' state): over the 8,794 seeded Database texts, 1
+        text's op type row (an `average` over an INTEGER now DOUBLE), no column kind, signature or compile outcome; over
+        the names differential's 74,292 asks, 15 asks (a `sum` over a SMALLINT now INTEGER); `plus`, `minus`, `times`,
+        `divide` reached and unchanged; `upper`, `lower`, a float literal unreached. Names oracle: stores.tsv 220 lines at
+        `04dc555aa` (the misread's), 205 back at `c59296c31`, 15 (5 texts) from the landings' answers; MANIFEST entries 1
+        and 3.
+     2. *S376's join terminal* (`edc11a648`). The engine compiles a join navigation's terminal as any other operation
+        once the navigation's joins resolve (HelperRelationalBuilder.java:1181-1186: `getJoin` first, :1255, :167-192,
+        then every `TableAliasColumn` through `getRelation` and `getColumn`, :1170-1171; a `{target}` column a
+        self-join's, unchecked, :1162-1168), in the database of its last join (RelationalParseTreeWalker.java
+        :1024-1044): it refuses a missing terminal, in S376's words. `ViewSignatures.requireColumns` now walks the
+        terminal in the navigation's database once every hop's join resolves (the store lookups gain `findJoin`; a
+        missing join is left to the lift, refused first). Reach (ViewCheck3): 2,174 terminals over the 74,292 asks, 12
+        references found nowhere (2 texts), every one where a join is missing too: nothing moves; one Java run at the
+        commit answered all five names files as frozen. `own_corpus.matched` 3063 -> 3065 (the case's two databases).
+     3. *Register rows* (`3b988d325`, `afefe2e8e`): S378 FIXED where lite now matches the engine, the row describing
+        only what still differs -- (1) the form lite cannot spell (an argument no rule types fails the engine's
+        inference, the rules' own `inferRelationalType($rop)` being `failOnMatchFailure` true, :120-123; `case`'s
+        assertion), (2) found while fixing, the owner's (116 of the map's names lite has no rule for, `joinStrings`'s
+        size, a Boolean or date literal, four rules only lite has, a name matched in lower case); S376 FIXED for the
+        terminal, what remains no rule (`Any[0..1]`), and two wordings found (a missing join, a missing schema); S379's
+        status kept by ruling 32's second branch, its kind an outcome (the coordinator's word, 2026-11-14).
+     4. *The one re-freeze, attributed* (`6e502d466`; `rust/oracles/plan/attribution-2026-11-14.tsv`). The probe v2 over
+        the corpus lanes at each commit (NF0b at f391b32d0, NF1 at 04dc555aa, NF2 at edc11a648, NF3 at c59296c31; a run
+        whose code an earlier probe run already built takes a copy of the probe differing by one unused constant, the
+        landings' Z2c way, so the action cache cannot answer its corpus judge passes -- NF0's first try collected nothing
+        for that reason) and two complete runs at c59296c31 (NZ1, NZ2, each its own tagged copy; 143 of 145 targets
+        passing each, the two probe-caused failures). The base answered as frozen (NF0b: 16,202 corpus keys, all equal).
+        NZ1 and NZ2 agree on every key: all 73,413 frozen keys answered, none absent, 914 test plan ids moved and nothing
+        else (no count, MirJson or execution plan id), nothing added (`//core:ladder_report`'s 24 and each run's 16,851
+        temporary-path keys by design). The 914 are item 1's (NF3 against NF0b; NF2 against NF1: item 2 moved 0): every
+        corpus plan seeds the system metamodel, and its two op type rows of legend-engine's sqlFunction testMapping --
+        `asin(divide(int1, 2))`, `acos(divide(int1, 2))`, testSqlFunctionsInMapping.pure:787-788 -- moved INTEGER ->
+        DOUBLE (the engine's `divide` rule where the pair rule took the safe type), the system database's graphKey with
+        them: one plan's text diffed row by row, the frozen archive's against NZ1's. 04dc555aa alone moved the same 914
+        differently and failed the corpus verdicts; never frozen. Re-frozen: `plan/plan-ids.tsv` (914 test plan ids;
+        783 new ids, 403 host and 380 database judge), the host store's four files rebuilt from a new archive by
+        `rust/tools/test-plan-texts.py` (twice byte for byte, checked: every plan its id, the archive's SHA-256, the host
+        rows' ids exactly), both new archives kept outside git with their SHA-256; `identity/hits.tsv` and `mir-ids.tsv`
+        re-derived byte for byte as frozen, not rewritten; `rust/oracles/mir` untouched (its Bazel tests pass).
+        `check_manifest`: every identity and plan file as its MANIFEST row. Each run's folder deleted; the verify worktree
+        left clean and detached at c59296c31.
+     5. *Gates* (at `6e502d466`, the re-freeze; the docs beside it are no test's input, G17): `cargo test --workspace` (646
+        passed, 0 failed, 44 ignored), `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --check`
+        clean. Bazel `test //... --keep_going --local_test_jobs=2` (1,758 s): 584 targets, 582 passed, 2 skipped, none
+        failed or timed out; of `rust/BASELINE.tsv`'s passing targets every one passes but the three gone with their code
+        and ledgered (`//core:core_tests_ide`, `//core:core_tests_lexer`, `//docs:update_dialect_capability_test`); the 35
+        targets new since the baseline all pass. `ledger_check.sh c4a39e06d`: 85 rows ok, none missing. Found, not
+        fixed (the owner's, to be scheduled under ruling 34; in rows S376 and S378): an argument no rule types and a `case`
+        with no safe type (the form lite cannot spell); 116 of the engine map's names lite has no rule for, `joinStrings`'s
+        size, a Boolean or date literal, the four rules only lite has, a name matched in lower case; a missing join and a
+        missing schema refused in lite's own words; a `{target}` terminal in a view refused by lite's lift.
