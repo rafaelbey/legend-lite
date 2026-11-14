@@ -236,7 +236,16 @@ fn require_columns(store: &dyn StoreLookups, db_fqn: &JStr, op: &Op) -> Result<(
                     Err(cant_find_column(&cr.column))
                 };
             }
-            Err(cant_find_table(&cr.table, &src_db))
+            // the engine's getRelation validates the schema before it looks for the table (validateSchemaExists,
+            // HelperRelationalBuilder.java:348-354, called at :286): a schema neither the database nor an included one
+            // declares is refused in its own words; until 2026-11-14 refused as a missing table (S376, the names batch,
+            // item 6, ruling 34)
+            let schema = schema_of(&cr.table);
+            Err(if schema_missing(store, &src_db, &schema) {
+                cant_find_schema(&schema, &src_db)
+            } else {
+                cant_find_table(&cr.table, &src_db)
+            })
         }
         Op::RelationalOperationFunctionCall(f) => f.args.iter().try_for_each(|a| require_columns(store, db_fqn, a)),
         Op::RelationalOperationComparison(c) => {
@@ -292,11 +301,7 @@ fn cant_find_table(spelled: &JStr, db_fqn: &JStr) -> Thrown {
         Some(dot) => (JStr::from(&units[..dot]), JStr::from(&units[dot + 1..])),
         None => (JStr::from("default"), spelled.clone()),
     };
-    let db = &db_fqn.0;
-    let name = match db.windows(2).rposition(|w| w == [u16::from(b':'), u16::from(b':')]) {
-        Some(i) => JStr::from(&db[i + 2..]),
-        None => db_fqn.clone(),
-    };
+    let name = db_name(db_fqn);
     Thrown::model(
         Phase::Model,
         cat!(
@@ -310,4 +315,57 @@ fn cant_find_table(spelled: &JStr, db_fqn: &JStr) -> Thrown {
         ),
         None,
     )
+}
+
+/// A database's own name: what follows its path's last `::`.
+fn db_name(db_fqn: &JStr) -> JStr {
+    let db = &db_fqn.0;
+    match db.windows(2).rposition(|w| w == [u16::from(b':'), u16::from(b':')]) {
+        Some(i) => JStr::from(&db[i + 2..]),
+        None => db_fqn.clone(),
+    }
+}
+
+/// A spelled relation's schema: what precedes its last dot, `default` when there is none.
+fn schema_of(spelled: &JStr) -> JStr {
+    let units = &spelled.0;
+    match units.iter().rposition(|&u| u == u16::from(b'.')) {
+        Some(dot) => JStr::from(&units[..dot]),
+        None => JStr::from("default"),
+    }
+}
+
+/// The engine's `validateSchemaExists` refusal (HelperRelationalBuilder.java:348-354): the database written as its own
+/// name (asked of the engine, 2026-11-14, the names batch).
+fn cant_find_schema(schema: &JStr, db_fqn: &JStr) -> Thrown {
+    Thrown::model(
+        Phase::Model,
+        cat!("Can't find schema '", schema, "' in database '", &db_name(db_fqn), "'"),
+        None,
+    )
+}
+
+/// Whether the engine's `schemaExists` is false (HelperRelationalBuilder.java:369-379): not `default`, the database
+/// known, and neither it nor a database it includes, transitively (each once), declares the schema; Java's
+/// `schemaMissing`.
+fn schema_missing(store: &dyn StoreLookups, db_fqn: &JStr, schema: &JStr) -> bool {
+    if schema.eq_str("default") || store.find_database(Some(db_fqn)).is_none() {
+        return false;
+    }
+    let mut seen: Vec<JStr> = Vec::new();
+    let mut todo: Vec<JStr> = vec![db_fqn.clone()];
+    while let Some(fqn) = todo.pop() {
+        if seen.contains(&fqn) {
+            continue;
+        }
+        seen.push(fqn.clone());
+        let Some(db) = store.find_database(Some(&fqn)) else {
+            continue;
+        };
+        if db.schemas.iter().any(|s| &s.name == schema) {
+            return false;
+        }
+        todo.extend(db.includes.iter().rev().cloned());
+    }
+    true
 }

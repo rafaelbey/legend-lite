@@ -170,3 +170,6 @@ duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,29
 # 4. joinStrings typed by the engine's map rule (a VARCHAR of max(4000, its first argument's CHAR or VARCHAR size)):
 #    one run at its code (--live) answered all five files as frozen (the instrumented build: no ask reaches a
 #    joinStrings); nothing re-frozen. lite-names identical.
+# 5. A view reading a schema its database lacks refused in the engine's words (ViewSignatures): one run at its code
+#    (--live) answered all five files as frozen (the instrumented build: every missing-relation refusal it reaches is
+#    through a schema that exists); nothing re-frozen. lite-names identical.

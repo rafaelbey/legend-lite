@@ -1452,6 +1452,60 @@ fn a_functions_name_is_matched_exactly() {
     });
 }
 
+/// A view column read through a schema its database lacks (2026-11-14, the names batch, item 6: register row S376, ruling
+/// 34) is refused in the engine's words, `Can't find schema 's9' in database 'Db'`, nested in an operation too; a schema
+/// an included database declares exists, and a table it lacks is the table's refusal (KnowledgeLayerTest's twin).
+#[test]
+fn a_view_reading_a_missing_schema_is_refused_in_the_engines_words() {
+    on_parse_stack(|| {
+        let refusal = |text: &str, db: &str| {
+            let m = model(text);
+            let ix = ModelIndex::from(&m).unwrap();
+            let db = j(db);
+            let v = ix.find_view(&db, &j("V1")).unwrap().clone();
+            let arena = lite_base::QueryArena::new();
+            match view_signatures::of(&arena, &ix, &db, &v) {
+                Ok(_) => panic!("the view compiled"),
+                Err(e) => e.message().unwrap().lossy(),
+            }
+        };
+        assert_eq!(
+            refusal(
+                concat!(
+                    "###Relational\n",
+                    "Database nb::six::Db ( Schema s1 ( Table T (ID INTEGER PRIMARY KEY, V VARCHAR(4)) )\n",
+                    "  View V1 (A: s9.T.V, Z: s1.T.ID) )\n"
+                ),
+                "nb::six::Db"
+            ),
+            "Can't find schema 's9' in database 'Db'"
+        );
+        assert_eq!(
+            refusal(
+                concat!(
+                    "###Relational\n",
+                    "Database nb::six::Db ( Schema s1 ( Table T (ID INTEGER PRIMARY KEY, V VARCHAR(4)) )\n",
+                    "  View V1 (A: concat(s1.T.V, s7.T.V), Z: s1.T.ID) )\n"
+                ),
+                "nb::six::Db"
+            ),
+            "Can't find schema 's7' in database 'Db'"
+        );
+        assert_eq!(
+            refusal(
+                concat!(
+                    "###Relational\n",
+                    "Database nb::six::Inner ( Schema s1 ( Table T (ID INTEGER PRIMARY KEY, V VARCHAR(4)) ) )\n",
+                    "Database nb::six::Outer ( include nb::six::Inner\n",
+                    "  View V1 (A: s1.T.V, B: s1.Q.V, Z: s1.T.ID) )\n"
+                ),
+                "nb::six::Outer"
+            ),
+            "Can't find table 'Q' in schema 's1' and database 'Outer'"
+        );
+    });
+}
+
 /// joinStrings (2026-11-14, the names batch, item 4: register row S378, ruling 34): a VARCHAR of the larger of 4000 and
 /// its first argument's CHAR or VARCHAR size, no rule for another first argument (the engine's own answers); it was
 /// VARCHAR(4000) whatever its arguments (KnowledgeLayerTest's twin).
