@@ -346,11 +346,14 @@ fn safe_type_of(types: impl IntoIterator<Item = Option<T>>) -> Option<T> {
     acc
 }
 
+/// A CHAR's or VARCHAR's size, an OTHER's 0 (getSafeType's own rule); no other kind meets a CHAR or VARCHAR safe type
+/// (only CHAR, VARCHAR and OTHER list them), as Java's `size` refuses.
 fn size(t: &T) -> i32 {
     match t {
         T::RelationalDataTypeChar_(c) => c.size,
         T::RelationalDataTypeVarchar(v) => v.size,
-        _ => 0,
+        T::RelationalDataTypeOther(_) => 0,
+        _ => unreachable!("a kind other than CHAR, VARCHAR or OTHER met a CHAR or VARCHAR safe type"),
     }
 }
 
