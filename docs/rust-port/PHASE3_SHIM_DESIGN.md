@@ -521,6 +521,16 @@ Each with my recommendation first.
     read from legend-engine's or legend-pure's pinned sources (or asked of the engine) lands with a re-freeze of every
     frozen answer it moves, each moved key attributed to its item, and is reported after it lands. A fix whose only
     source is lite's own code or documentation still stops for the owner before it lands.
+35. **The names follow-ups' finds: the rules the seeds use, and `case` refused at plan** (2026-11-14; `PHASE3.md`, the
+    names slice's entry, "the names follow-ups"; register rows S376, S378). Of the 116 relational type-inference rules
+    the engine has and lite lacks (legend-engine 4.145.0 `relationalExtension.pure`), the 30 the 8,794 seeded Database
+    texts use (39 texts, 917 call sites) are ported before the normalizer slice freezes, each rule's answers checked by
+    running the engine's own type-inference tests (or the engine itself), not by reading alone; the other 86, which no
+    text we hold uses, are a register row listing them, ported when a text first uses one. A relational `case` with no
+    safe type over its branches, and an argument no rule types, keep no type when the model compiles (lite compiles what
+    the engine compiles); the engine's assertion, which it makes only when it plans a query reading that column
+    (`relationalMappingExecution.pure:205-208`), is matched when the resolver and lowering are ported: lite refuses
+    such a query then, in the engine's words.
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.
