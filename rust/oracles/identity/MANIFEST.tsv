@@ -79,11 +79,38 @@
 # fixes' item 6 moved them, 32/0 -> 32/1 and 64/0 -> 64/1, by hashing one more object on a lane's thread: PHASE3.md).
 # Dropped: 84 rows touched (each held both; 1,280 true and 0 false in each table), none left without counts; 69 tables
 # -> 67. Re-keyed SHA-256 before the mask: 3b3a9827d8336c247d0b2b7de5943cecdc69e182734f87c505c91a1269e932b0.
-hits.tsv.zst	kind, model, query, doors, use, counts: 73,411 rows (B 1, L 24, M 2,792, Q 70,594), 2,803 models, 67 tables; re-keyed and masked 2026-11-13	08b430ff07bd6eb181d869cf1b7b7296399ef9372bba1ed7b1b936441fa36d9a
+# RE-FROZEN 2026-11-13, ONCE, ATTRIBUTED (the names landings: docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 rulings 32
+# and 34; docs/rust-port/PHASE3.md, the names slice's entry; every moved key by item in rust/oracles/plan/
+# attribution-2026-11-13.tsv). Two complete runs of the probe v2 at a1c8d3dbb, Z1 and Z2 (Z2's corpus judge passes re-run
+# as Z2c by a probe copy differing by one unused constant: the action cache had answered them with Z1's outputs), every
+# lane of the freeze, 143 of 145 targets passing each (the two probe-caused failures), agreeing on every key; the counts
+# mask on both sides. Of the 73,411 frozen keys: 920 moved values (5 counts, here; 915 test plan ids, the plan oracle's),
+# 1,719 keys renamed and 5 dropped, all step 4's (a primitive extension's type variables): PCT channel B builds its model
+# from legend-pure's platform tree, walling a source file that does not compile, and essential/lang/cast/cast.pure (whose
+# a::P(8) lite refused) now compiles -- so each of the six channel-B lanes' models has new sources and a new s: id, its
+# query rows renamed (answering as before but one test plan), its second wall round's model row gone (dropped, 5) and its
+# first round's model row's counts moved (5: model.PureModelContext.CheckedLayer 0/14 -> 2391/2672 and the like, the build
+# now complete). No MirJson id moved; mir-ids.tsv changed only by those renamed keys; mir-store.tsv is unchanged. The
+# spec: query rows stay 4,535. ADDED, by the freeze's own rule (every key both runs answer alike is here, but the
+# Postgres lanes' and the temporary-path models', which no two runs share, and //core:ladder_report's, a build action):
+# 7 keys both runs answer alike that no frozen key was, the landings' new test cases' questions in the three
+# core_tests_compiler lanes -- 4 M rows (parsed: models given to buildModel) and 3 Q rows (their compileAllBodies), no
+# MirJson or plan id among them: all 7 step 4's (c38aee9fb), its NameResolverTest case building the engine's four
+# primitive-extension cases' models through buildModel, three compiling (their compileAllBodies) and IntCap() refused
+# (CheckedLayer 0/1, no bodies) -- placed by //core:core_tests_compiler under the probe: none at d46c99057 (L6), all 7 at
+# c38aee9fb, 4307039aa and c67d9552e, equal to these rows. So hits.tsv 73,411 -> 73,413 rows (5 dropped, 7 added).
+# CONFIRMED by a third complete run, F9, at c67d9552e (the landings' guard fix, measured unchanged), against the 73,406
+# keys before the 7 were added: all 73,406 answered and equal, MOVED 0, ABSENT 0 (180,232 rows, 90,288 distinct keys,
+# 143 of 145 targets passing, the two probe-caused failures; its 16,882 run-only keys the 16,851 the freeze leaves out
+# by design, 24 of //core:ladder_report, and these 7); the 7 by the compiler lane at c67d9552e (LG): all answered and
+# equal.
+# Previous SHA-256s: hits.tsv 08b430ff07bd6eb181d869cf1b7b7296399ef9372bba1ed7b1b936441fa36d9a, mir-ids.tsv
+# be50210d06fb28f5d3c00d36dad86c02dcc59ddf3eb27cad7546978edcff4f69.
+hits.tsv.zst	kind, model, query, doors, use, counts: 73,413 rows (B 1, L 24, M 2,791, Q 70,597), 2,802 models, 67 tables; re-keyed and masked 2026-11-13, re-frozen 2026-11-13	2484d246a221a4f279f258f5b4d26bd10bc3610a4a5b00f06865f05923fda26a
 # Each lowering the question made (Lowerer.lower and lowerStoreWrite, in order): the SHA-256 of its MirJson text's UTF-16
 # units. !IllegalStateException:... is MirJson's refusal by design (a tagged value or list, resolved at its query's root;
 # 2,546 lowerings: 2,538 lists, 8 values). No id moved between the two runs (the first freeze's 72 ~moved, a VALUES row holding the host's
 # executionTraceID, are gone with the body driver: a test body is planned before it runs).
-mir-ids.tsv.zst	model, query, doors, use, ids: 51,606 rows, 167,833 lowerings, 40,613 distinct; re-keyed 2026-11-13	be50210d06fb28f5d3c00d36dad86c02dcc59ddf3eb27cad7546978edcff4f69
+mir-ids.tsv.zst	model, query, doors, use, ids: 51,606 rows, 167,833 lowerings, 40,613 distinct; re-keyed 2026-11-13, re-frozen 2026-11-13	57920a8caa6426828468ef7b21e0fa12653a8a6c37800068d3335d92350edc37
 # Every MirJson the ids name, once: Java's answer for "the corpora through a Rust CLI". 876,194,434 characters.
 mir-store.tsv.zst	id TAB MirJson, sorted by id: 40,613 lines	de98afbfde06c21b30364f9fb837f8e2fdbe709064c49d0ecd9711d21dace459

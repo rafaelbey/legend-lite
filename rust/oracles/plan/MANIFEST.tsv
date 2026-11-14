@@ -35,7 +35,7 @@
 # toString was): the query ids above are now test 10,076, service 11,538, spec 3,551 (the vs: ids renamed), fixture 432;
 # no row split or merged, so the plan ids and the rows' count are unchanged. Previous SHA-256:
 # 33c6cef3eae91d5ccca79b69b20619287aabf99bbaecf852886005fed3280c5c.
-plan-ids.tsv.zst	model, query, doors, use, execution plan ids, test plan ids: 51,337 rows; 25,741 execution plans, 25,597 test plans; re-keyed 2026-11-13	d09763813913d58af1a3e81025aaca5342a7a2b6285e04d618357d549bd4ebe1
+plan-ids.tsv.zst	model, query, doors, use, execution plan ids, test plan ids: 51,337 rows; 25,741 execution plans, 25,597 test plans; re-keyed 2026-11-13, re-frozen 2026-11-13 (below)	75df6856c2d76fd1fc6e2b1b3cdb8cf86f31e364f0a2c7edcd69c5982be77392
 # Every execution plan the ids name, once: id TAB E TAB the PlanJson (v31) text, sorted by id. 424,296,853 characters.
 execution-plans.tsv.zst	id TAB E TAB PlanJson, sorted by id: 17,044 lines	1af460bdfdef057d494845ae65ac68373255293657541cfda53e727c04aa6b7d
 # THE HOST JUDGE'S TEST PLANS, DEDUPLICATED (2026-11-11; docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 ruling 18;
@@ -60,10 +60,10 @@ execution-plans.tsv.zst	id TAB E TAB PlanJson, sorted by id: 17,044 lines	1af460
 # --ids rust/oracles/plan/plan-ids.tsv.zst`: all 16,247 plans rebuilt, each hashing to its id; every value's rebuilt text
 # to its key; every frame its row of the frame table; the index every value's frame; the rebuilt archive's SHA-256 the
 # archive's (below); the plans' ids exactly the test plan ids the host judge's rows name in plan-ids.
-test-plans-host.tsv.zst	id TAB T TAB the plan's text outlined, sorted by id: 16,247 lines in 76 frames	d13189c23b9d48cbf274e78bbd428c53d22f5e639a6ac22ac6a74e05035f9912
-test-plan-values.tsv.zst	key TAB the value's text outlined, in the order the plans first reach them: 26,551 lines in 44 frames	08e55e5422e77ab88a0035192e2517d494d3c0c7b281117dcfe97428ae4d9b89
-test-plan-values-index.tsv.zst	a value's key's first 16 hex digits TAB the values frame it is in, sorted: 26,551 lines	1f4a2e02559184e9eef63d732f039e81ef5116050050eaaac8be1ee95586b2ae
-test-plan-frames.tsv	store TAB frame TAB first key TAB byte offset TAB byte length TAB lines, the 120 frames of the two stores (plain text: its own SHA-256)	6bfa497300fdaaabac36104aec54f6a269c9abbf2f8671e0b327b9ac1e18d1f1
+test-plans-host.tsv.zst	id TAB T TAB the plan's text outlined, sorted by id: 16,247 lines in 75 frames; re-frozen 2026-11-13 (below)	92dc670c562f3df0f95f1c0d2d1371d4747c17d137b6a9a31ee216f8993e9fc1
+test-plan-values.tsv.zst	key TAB the value's text outlined, in the order the plans first reach them: 26,551 lines in 44 frames; re-frozen 2026-11-13	3355c0bc89264a31d1c055208737fb7b0d8c5c3f7ce1113666afcbe8e5e57759
+test-plan-values-index.tsv.zst	a value's key's first 16 hex digits TAB the values frame it is in, sorted: 26,551 lines; re-frozen 2026-11-13	b65191d3cdbb9567321466bcc9ccd2119b80d1ecded1697feaf34816458aaf08
+test-plan-frames.tsv	store TAB frame TAB first key TAB byte offset TAB byte length TAB lines, the 119 frames of the two stores (plain text: its own SHA-256); re-frozen 2026-11-13	e317e357b3111c93c6348485b170637326b9679f7ec8b35c2562fb0a2edd0544
 # THE ARCHIVE THEY ARE MADE FROM (kept outside git): the same plans as one stream, id TAB T TAB the TestPlanJson (v11)
 # text, sorted by id: 16,247 lines, 30,212,521,643 characters (the stress suites' plans carry their test data's CSV
 # several times over, about 2.5 MB each, and compress about 900 to 1).
@@ -74,3 +74,29 @@ test-plan-frames.tsv	store TAB frame TAB first key TAB byte offset TAB byte leng
 # 3,973,995,251 characters.
 # /Users/cocobey73/.local/legend-lite/oracle-archive/plan-test-plans-database-judge.tsv.zst (7,959,229 bytes), SHA-256 of
 # its uncompressed text 2deef1c7ac11899ea698138acd182bdfed8d9aca3f1a3abf6247418f1f643f28 (checked 2026-11-11).
+# RE-FROZEN 2026-11-13, ONCE, ATTRIBUTED (the names landings: docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 rulings 32
+# and 34; docs/rust-port/PHASE3.md, the names slice's entry). Every moved key by item, measured state against state, and
+# examples: attribution-2026-11-13.tsv beside this file. The runs: the identity oracle's MANIFEST (Z1 and Z2 at a1c8d3dbb,
+# agreeing on every key; F9 at c67d9552e confirming). The 7 keys the identity oracle adds carry no plan. Moved: 915 test plan ids -- the corpus lanes' 914
+# (judge_host_duckdb 232, judge_host_h2 232, judge_database_duckdb 225, judge_database_h2 225), moved by item 4 (the
+# system-metamodel seed's enumerated-expression columns naming their database in full) and again by item 10's concat (the
+# seed's concat type row gone), and one PCT channel-B test plan, step 4's (its seeded metamodel lists cast.pure's
+# classes, now compiled); 1,719 keys renamed with their channel-B models (step 4, the identity oracle's MANIFEST). No
+# execution plan id moved; execution-plans.tsv is unchanged; the rows' count and the counts above are unchanged. 784 test
+# plan ids are new and 784 named no more: the host store rebuilt from a new archive in which 403 host plans are replaced
+# (the store's 16,247 plans), the database judge's archive with 381 replaced (6,850), every new text taken from Z1's
+# identity-plan files and hashed to its id. The new archives, outside git (plan-test-plans.sha256 beside them; each
+# checked by decompressing it):
+# /Users/cocobey73/.local/legend-lite/oracle-archive/plan-test-plans-host-2026-11-13.tsv.zst (67,639,160 bytes), SHA-256 of
+# its text d504ac02b20100419fdafc76ee1b8f3c9ab10e624a0b22cd811c6284054ff8df, and
+# plan-test-plans-database-judge-2026-11-13.tsv.zst (7,837,760 bytes), 0c1063faf5b0e330e57c54dbf6296b6e446bf6d5d24acf151c5ef0d9443a5b17;
+# the archives named above, kept, are the first freeze's. The four store files MADE by `python3 rust/tools/test-plan-texts.py
+# write <the new host archive> <dir>` (its defaults), twice, byte for byte the same, and CHECKED by `check rust/oracles/plan
+# --sha d504ac02... --ids rust/oracles/plan/plan-ids.tsv.zst`: all 16,247 plans rebuilt to their ids, every value to its
+# key, the rebuilt archive's SHA-256 the new archive's, the store's ids exactly the host rows' (16,247). Previous SHA-256s:
+# plan-ids.tsv d09763813913d58af1a3e81025aaca5342a7a2b6285e04d618357d549bd4ebe1, test-plans-host.tsv
+# d13189c23b9d48cbf274e78bbd428c53d22f5e639a6ac22ac6a74e05035f9912 (76 frames), test-plan-values.tsv
+# 08e55e5422e77ab88a0035192e2517d494d3c0c7b281117dcfe97428ae4d9b89, test-plan-values-index.tsv
+# 1f4a2e02559184e9eef63d732f039e81ef5116050050eaaac8be1ee95586b2ae, test-plan-frames.tsv
+# 6bfa497300fdaaabac36104aec54f6a269c9abbf2f8671e0b327b9ac1e18d1f1.
+attribution-2026-11-13.tsv	the re-freeze's attribution: item, commit, oracle file, keys, what moved, how measured, examples (plain text: its own SHA-256)	f0514f965ea243e91f6550c5dbcfd1c200299d0447645fb3745a4867b44e18f8
