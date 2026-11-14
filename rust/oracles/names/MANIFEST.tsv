@@ -49,7 +49,7 @@ queries.tsv.zst	NameAnswers' queries: query sha TAB model sha TAB hash, 31,297 l
 # 24 refused: two columns of one name), 11,308 view columns' inferred SQL types, each with the scope and the index, no
 # scope, no lookups (r), 1,485,730 column kinds of every table or view spelling's columns and one absent (n). No stack
 # overflow met. 3,402 distinct forms.
-stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names follow-ups, at the end)	ac3f5a7aeb74bf6b15e4a097d5fea1b8a2cd80dd7a08e4f113a3e9c5202f8c79
+stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names follow-ups, at the end)	52f5ea85f97f6020dcbbedf5de490b1d31dbfd1b35dad92bbb970d797f488de6
 # CALLS: one line per call shape, the shape's fields then the hash (NameAnswers.callShapes, callForm: the record codec's
 # JSON of the call Calls builds) -- 14,454 shapes: platform 6,504, like 3,380, renamed 2,452, infixRun 732, among 478,
 # infixRunAmong 478, form 370, exact 58, carrier 2; every name the builder's 206 call sites build (read from them), at the
@@ -147,3 +147,11 @@ duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,29
 # 2. S376's join terminal (a view's join navigation's terminal checked once its joins resolve; the store lookups gain
 #    findJoin): one run at its commit (--live) answered all five files as frozen (nothing moved, nothing re-frozen; the
 #    instrumented measurement found no terminal it refuses whose joins all resolve); lite-names identical.
+# 3. Item 1 corrected (sum's fifth rule, FLOAT and DOUBLE a DOUBLE, relationalExtension.pure:1736-1739, which entry 1's
+#    commit 04dc555aa missed: ENTRY 1'S STORES ANSWERS WERE THE MISREAD'S, a sum over a DOUBLE typed nothing): stores.tsv
+#    moved back 205 of 74,292 lines over 69 texts (ac3f5a7a... -> 52f5ea85...), so it stands 15 lines over 5 texts from
+#    the landings' answers (b1ac44c8...): the asks whose view columns sum a SMALLINT, now INTEGER -- the 15 asks the
+#    re-measured instrumented build counted; models, queries, calls and duplicates unchanged. Texts:
+#    names-stores-texts-java-2026-11-13-follow378c.jsonl.zst (1,714,921 bytes;
+#    b070316be71de958624d51b1ce100c718521321fa2d59d49a9aa24c07e456e96, checked by decompressing it); entry 1's archive
+#    (follow378) kept as it was. lite-names: all five files identical.

@@ -1193,8 +1193,9 @@ fn the_type_inference_safe_type_and_rules_are_the_engines() {
 /// S378's remainder (2026-11-13, the names follow-ups, ruling 34): the operators, `sum`, `average`, a float literal and
 /// `upper`/`lower` typed by the engine's own rules -- `plus` over one argument widens it, `plus` and `minus` over
 /// several are their first argument's type when a safe type is possible, `times` the safe type of its first two,
-/// `divide` and `average` DOUBLE, `sum` by its first argument's kind (a DECIMAL capped at precision 31, no rule for a
-/// FLOAT), a float literal FLOAT, `upper` and `lower` no rule (a view column `Any[0..1]`) (KnowledgeLayerTest's twin).
+/// `divide` and `average` DOUBLE, `sum` by its first argument's kind (a DECIMAL capped at precision 31, a FLOAT a DOUBLE,
+/// no rule for a REAL), a float literal FLOAT, `upper` and `lower` no rule (a view column `Any[0..1]`)
+/// (KnowledgeLayerTest's twin).
 #[test]
 fn the_operators_and_aggregates_are_typed_by_the_engines_rules() {
     use lite_model::RelationalDataType as T;
@@ -1204,12 +1205,12 @@ fn the_operators_and_aggregates_are_typed_by_the_engines_rules() {
             "###Relational\n",
             "Database a::Db (\n",
             "  Table T (ID INTEGER PRIMARY KEY, S SMALLINT, B BIGINT, F FLOAT, D DECIMAL(40,2), N NUMERIC(6,2), ",
-            "V VARCHAR(4))\n",
+            "V VARCHAR(4), R REAL)\n",
             "  View V (P1: plus(T.S), P2: plus(T.ID), P3: plus(T.D), P4: plus(T.F), P5: plus(T.V), ",
             "P6: plus(T.ID, T.F), P7: plus(T.B, T.F), M1: minus(T.N, T.ID), M2: minus(T.ID), ",
             "T1: times(T.ID, T.F, T.V), T2: times(T.ID), D1: divide(T.ID, T.ID), A1: average(T.V), S1: sum(T.S), ",
             "S2: sum(T.B), S3: sum(T.D), S4: sum(T.F), L1: case(equal(T.ID, 1), 1.5, 2.5), U1: upper(T.V), ",
-            "U2: lower(T.V))\n",
+            "U2: lower(T.V), S5: sum(T.R))\n",
             ")\n"
         ));
         let ix = ModelIndex::from(&m).unwrap();
@@ -1268,10 +1269,11 @@ fn the_operators_and_aggregates_are_typed_by_the_engines_rules() {
         assert_eq!(infer(13), integer, "sum of a SMALLINT: INTEGER");
         assert_eq!(infer(14), big_int, "sum of a BIGINT: BIGINT");
         assert_eq!(infer(15), decimal_31_2, "sum of a DECIMAL(40,2): capped at 31");
-        assert_eq!(infer(16), None, "sum of a FLOAT: no rule");
+        assert_eq!(infer(16), double, "sum of a FLOAT: DOUBLE");
         assert_eq!(infer(17), float, "float literals: FLOAT");
         assert_eq!(infer(18), None, "upper: no rule");
         assert_eq!(infer(19), None, "lower: no rule");
+        assert_eq!(infer(20), None, "sum of a REAL: no rule");
         let arena = lite_base::QueryArena::new();
         let sig = view_signatures::of(&arena, &ix, &db, &v).unwrap();
         assert_eq!(

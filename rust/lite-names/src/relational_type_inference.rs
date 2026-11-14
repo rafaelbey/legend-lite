@@ -114,10 +114,11 @@ fn infer_in<'a>(
                     }
                 }
                 "distinct" => first(expanding)?,
-                // sum by its first argument's raw kind, the engine's four rules (relationalExtension.pure:1717-1730):
+                // sum by its first argument's raw kind, the engine's five rules (relationalExtension.pure:1717-1741):
                 // TINYINT, SMALLINT and INTEGER an INTEGER, BIGINT a BIGINT, a DECIMAL or a NUMERIC its own kind with its
-                // precision capped at 31; any other kind (FLOAT and DOUBLE among them) matches no rule, no type. Until
-                // 2026-11-13 its first argument's type, a FLOAT or REAL one DOUBLE (S378, ruling 34)
+                // precision capped at 31, FLOAT and DOUBLE a DOUBLE; any other kind (REAL among them) matches no rule, no
+                // type. Until 2026-11-13 its first argument's type, a FLOAT or REAL one DOUBLE (S378, ruling 34; the
+                // follow-ups' first version read four rules, its fifth missed, and typed a FLOAT or DOUBLE nothing)
                 "sum" => match first(expanding)? {
                     Some(
                         T::RelationalDataTypeTinyInt(_)
@@ -126,6 +127,7 @@ fn infer_in<'a>(
                     ) => Some(integer()),
                     Some(T::RelationalDataTypeBigInt(_)) => Some(big_int()),
                     Some(at @ (T::RelationalDataTypeDecimal(_) | T::RelationalDataTypeNumeric(_))) => Some(capped(&at)),
+                    Some(T::RelationalDataTypeFloat_(_) | T::RelationalDataTypeDouble_(_)) => Some(double()),
                     _ => None,
                 },
                 // average and divide are DOUBLE whatever their arguments, which the engine's one rule each does not read
@@ -297,7 +299,7 @@ fn first_when_safe<'a>(
     Ok(if safe_type_of(types).is_some() { first } else { None })
 }
 
-/// `capped`: plus's and sum's DECIMAL and NUMERIC rules (relationalExtension.pure:1408-1436, :1717-1730): the kind kept,
+/// `capped`: plus's and sum's DECIMAL and NUMERIC rules (relationalExtension.pure:1408-1436, :1717-1741): the kind kept,
 /// its precision `min([31, precision])`, its scale as it is. Asked of a DECIMAL or NUMERIC alone, as Java's refuses
 /// another.
 fn capped(t: &T) -> T {
