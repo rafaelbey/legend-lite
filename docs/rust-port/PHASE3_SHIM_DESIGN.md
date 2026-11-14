@@ -531,6 +531,21 @@ Each with my recommendation first.
     the engine compiles); the engine's assertion, which it makes only when it plans a query reading that column
     (`relationalMappingExecution.pure:205-208`), is matched when the resolver and lowering are ported: lite refuses
     such a query then, in the engine's words.
+36. **A lifted view's columns are checked within a family** (2026-11-14; `PHASE3.md`, the names slice's entry, "the
+    names batch", item 10; register row S376). The engine has no Pure body for a view and checks none: it types each
+    column by its relational inference alone. Lite lifts each view to a function whose declared columns carry the
+    engine's types (`ViewSignatures`), and the typer checks the lifted body against them (`SpecCompiler`'s return
+    conformance), so where the engine's type maps to another Pure type than the translated function returns, lite
+    refused a view the engine compiles (`datePart` the engine's DATE, a StrictDate, where Pure's returns Date;
+    `coalesce` the engine's FLOAT where the body is Number; `plus` the engine's INTEGER, its first argument's, where the
+    body is Float). For a lifted view's function only, the check also accepts a column whose declared type and body
+    type are of one family -- numbers with numbers (Integer, Float, Decimal, Number), dates with dates (Date,
+    StrictDate, DateTime) -- and a query over the view reads the declared type, the engine's; a column whose two types
+    are of different families is still refused (a translation's bug). Measured over the names batch's 74 one-view
+    models, every one compiled by the pinned engine: the 14 shapes refused (10 since the batch's item 1, 4 before) are
+    this rule's; no view column in the texts we hold uses one, so no frozen answer moves. Lite-only, by the owner's
+    word; carried to the typer's slice (G), done first there in Java, before its oracle freezes (`PHASE3.md`, "Carried
+    to the slices not yet begun").
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.

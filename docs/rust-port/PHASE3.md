@@ -1191,8 +1191,9 @@ done, in the order of the design's §3.
         signature now carries the engine's type (DATE a StrictDate; FLOAT, DECIMAL), the lifted body Pure's (Date,
         Number); `case`, `max`, `plus`, `minus` over mixed kinds were refused so before the batch (74 one-view models,
         the engine compiling every one). No view column in the texts we hold uses one. Widen the signature or relax the
-        lift's check: the owner's choice. Also E's, from S376: a missing join in lite's words, and a `{target}` terminal
-        the lift refuses.
+        lift's check: the owner's choice, ruled 2026-11-14 (ruling 36: the check accepts one family's two types, for a
+        lifted view's function only; carried to the typer's slice, at this file's end). Also E's, from S376: a missing
+        join in lite's words, and a `{target}` terminal the lift refuses.
      11. *Gates* (at `b62d7d6e8`, the re-freeze; the docs beside it are no test's input): `cargo test --workspace` (651 passed, 0 failed, 44 ignored), `cargo clippy --workspace --all-targets -- -D warnings` and
         `cargo fmt --check` clean. Bazel `test //... --keep_going --local_test_jobs=2` (1,580 s): 584 targets, 582 passed, 2
         skipped, none failed or timed out; of `rust/BASELINE.tsv`'s passing targets every one passes but the three gone
@@ -1223,3 +1224,19 @@ when that slice lands.
   when it seeds the metamodel, where it keeps no type (ruling 35: lite compiles what the engine compiles); when H and I
   are ported, a query that reads such a column is refused there, in those words, and the frozen answers that move with
   it are re-frozen and attributed then.
+- **The typer (G), first, in Java before its oracle freezes.** *A lifted view's columns are checked within a family*
+  (the owner's ruling 36, 2026-11-14, PHASE3_SHIM_DESIGN.md §10; register row S376). `SpecCompiler`'s return
+  conformance (the `declares return type ... but body returns ...` refusal) also accepts, for a lifted view's function
+  only (the lift's synthesized function, never a user's), a column whose declared type and body type are of one family:
+  numbers (Integer, Float, Decimal, Number) or dates (Date, StrictDate, DateTime); a query over the view reads the
+  declared type, the engine's; a column whose types are of two families is still refused. Its cases are the names
+  batch's 74 one-view models (`port-scratch/namesbatch/cl`, `gen_compile_cases2.py`, `cl.final.out`): the 14 refused
+  there by this check compile (`datePart`, `firstDayOfMonth`, `firstDayOfWeek`, `firstDayOfYear`, and `coalesce`, `if`,
+  `case`, `max`, `plus`, `minus` over mixed kinds), every other answer unchanged; zero reach in the texts we hold.
+- **The resolver (H).** *`ConstructedInstances.ARG_FREE` made consistent with the names batch* (found by the names
+  batch, 2026-11-14; register row S378; the names batch's items 2-4, ruling 34). The set of relational functions whose
+  type the resolver takes not to depend on their arguments (`resolver/ConstructedInstances.java`, `ARG_FREE`, read at
+  the constructed instance's `DynaFunction` arm) still matches a name lower-cased, where the inference now matches it
+  exactly (item 3), and still lists `joinstrings`, whose type now reads its first argument's size (item 4), and `like`,
+  `position`, `charindex`, `locate`, which no longer have a rule (item 2). Measure its reach, then make it the
+  inference's: the exact name, and only the rules whose type reads no argument.
