@@ -1127,6 +1127,81 @@ done, in the order of the design's §3.
         with no safe type (the form lite cannot spell); 116 of the engine map's names lite has no rule for, `joinStrings`'s
         size, a Boolean or date literal, the four rules only lite has, a name matched in lower case; a missing join and a
         missing schema refused in lite's own words; a `{target}` terminal in a view refused by lite's lift.
+   - *The names batch (2026-11-14, the owner's rulings 34 and 35, PHASE3_SHIM_DESIGN.md §10; the engine's sources this
+     work's only spec, every rule's answers ASKED of the engine; every measurement and tool in `port-scratch/namesbatch/`).*
+     What the follow-ups recorded in rows S376 and S378 and did not fix, in Java and Rust together, before the normalizer
+     slice (E) freezes its oracle, so E freezes on the engine's answers. Each item measured first by an instrumented
+     build riding its new code (every node and call of the inference compared with the commit before's; the view
+     signature's switch and refusal instrumented where an item reaches them), the names oracle run at each item's code
+     (all five files as frozen each time, nothing re-frozen), lite-names held by the same cases as Java. Each rule's
+     every arm was asked of legend-engine 4.145.0 -- the pinned release's own generated `inferRelationalType`
+     (failOnMatchFailure false and true), on the engine runner's class path after its own compiler, over one Database
+     whose every view column is a case (123 cases; the engine's own 21 type-inference tests pass there first) -- and
+     the same cases through the legend-lsp daemon (interpreted, a newer checkout whose rule texts are the pinned tree's):
+     both answer all 123 alike. The cases are KnowledgeLayerTest's and tests.rs' `ENGINE_CASES`, one text and one table
+     on both sides; a case the engine fails is no type here (S378).
+     1. *The 30 rules the seeds use* (`b275440ae`; ruling 35): `abs`, `add`, `bitAnd`, `bitShiftLeft`, `bitXor`, `cbrt`,
+        `coalesce`, `convertVarchar128`, `datePart`, `dayOfMonth`, `dayOfYear`, `firstDayOfMonth`,
+        `firstDayOfQuarter`, `firstDayOfWeek`, `firstDayOfYear`, `firstHourOfDay`, `firstMinuteOfHour`,
+        `firstSecondOfMinute`, `if`, `log`, `lpad`, `md5`, `mod`, `monthNumber`, `replace`, `sha256`, `sign`, `sin`,
+        `sqrt`, `weekOfYear` (relationalExtension.pure:193-1891, each cited in the code) -- the follow-ups' list
+        (seeds-M2.tsv), exactly 30, and the list by use too: once they type their arguments no other of the map's names
+        is reached. Reach: 38 seeded texts' 913 op type rows from no type to a type; no column kind, view signature or
+        compile outcome; no ask of the names differential. The follow-ups' 39th text reaches only a `coalesce` over an
+        array, which the engine fails (`Not supported yet: ...LiteralList`): no type either way. The other 86 names are
+        row S378's, ported when a text first uses one. `own_corpus.matched` 3065 -> 3066.
+     2. *The four rules only lite had* (`4edba3458`): `like`, `position`, `charindex`, `locate` have no rule. Reach: 3
+        seeded texts' 24 op type rows INTEGER -> no type.
+     3. *The name matched exactly* (`96985abbb`), in the inference and in `ViewSignatures`' aggregate switch
+        (`->get($d.name)`, :114); lite-names' `java_string` went with its last callers. Reach: none at either site (the
+        switch reached in 223 seeded texts and 667 asks, never by a name spelled otherwise).
+     4. *`joinStrings`* (`cc7169c8c`): the map's rule (:1031-1039), a VARCHAR of max(4000, its first argument's CHAR or
+        VARCHAR size), no rule for another first argument. The brief cited inferRelationalType's `JoinStrings` arm
+        (:173, the parts' sizes summed): that arm types the operation only the engine's query translation builds, never
+        a parsed `joinStrings`; the engine's answers are the map rule's. Reach: none.
+     5. *Boolean and date literals* (`ad3affee6`, record only): neither grammar writes one in a relational operation (the
+        engine's `constant` is `STRING | INTEGER | FLOAT`, RelationalParserGrammar.g4:216; both parsers refuse such a
+        text); none in the front oracle's 52,143 distinct texts, and no JSON text with a Boolean relational literal. No
+        parser change (ruling 29). A Boolean through the JSON door would be typed nothing (the engine's BIT): an
+        inference-only arm, the owner's.
+     6. *The missing schema* (`bbcb4da95`): a view column read through a schema neither its database nor an included one
+        declares is refused `Can't find schema 's' in database 'D'` (validateSchemaExists, HelperRelationalBuilder.java
+        :348-354), the database's own name, asked of the engine. Raised by `ViewSignatures`, not the lift. Reach: none
+        (its refusal reached in 12 seeded texts and 36 asks, every one through a schema that exists).
+        `own_corpus.matched` 3066 -> 3070.
+     7. *`case` with no safe type, an argument no rule types* (`a59b05abb`, no code change; ruling 35): no type when the
+        model compiles; the engine's refusal of a query reading such a column, made when it plans it, is carried to the
+        resolver and lowering ("Carried to the slices not yet begun", at this file's end).
+     8. *Register rows* (`8e9e0718c`): S378 and S376 FIXED where lite now matches, what still differs exact.
+     9. *The one re-freeze, attributed* (`b62d7d6e8`; `rust/oracles/plan/attribution-2026-11-14-names-batch.tsv`). The
+        probe v2 over the corpus lanes at each commit (NB0 at badd55f2e, NB1 b275440ae, NB2 4edba3458, NB3 96985abbb, NB4
+        cc7169c8c, NB6 bbcb4da95; each its own tagged copy of the probe, every one passing its 12 tests) and two complete
+        runs at bbcb4da95 (NBZ1, NBZ2, each its own copy; 143 of 145 targets passing each, the two probe-caused
+        failures). The base answered as frozen (NB0: 16,202 corpus keys). NBZ1 and NBZ2 agree on every key: all 73,413
+        frozen keys answered, none absent, 914 test plan ids moved and nothing else, nothing added. The 914 are the
+        corpus plans' system-metamodel seed, moved by item 1 (NB1 against NB0: the seed's op type rows for the 30 rules'
+        nodes in legend-engine's test mappings, 17 in one plan's text diffed row by row) and again by item 2 (NB2
+        against NB1: the propertyfunc mappings' `position` rows, 6); items 3, 4, 6: 0. Re-frozen: `plan/plan-ids.tsv`
+        (914 ids; 783 new, 403 host and 380 database judge), the host store's four files rebuilt (twice, byte for byte,
+        checked), both new archives kept outside git with their SHA-256; `identity/hits.tsv` and `mir-ids.tsv`
+        re-derived byte for byte as frozen; `rust/oracles/mir` untouched. Each run's folder deleted.
+     10. *Found, the owner's, E's to settle first* (row S376): since item 1 a view column using `datePart`,
+        `firstDayOfMonth`, `firstDayOfWeek`, `firstDayOfYear`, or `coalesce`/`if` over mixed kinds, is refused when its
+        lifted function is compiled (a query over the view, or `compileErrors`), where the engine compiles it: the
+        signature now carries the engine's type (DATE a StrictDate; FLOAT, DECIMAL), the lifted body Pure's (Date,
+        Number); `case`, `max`, `plus`, `minus` over mixed kinds were refused so before the batch (74 one-view models,
+        the engine compiling every one). No view column in the texts we hold uses one. Widen the signature or relax the
+        lift's check: the owner's choice. Also E's, from S376: a missing join in lite's words, and a `{target}` terminal
+        the lift refuses.
+     11. *Gates* (at `b62d7d6e8`, the re-freeze; the docs beside it are no test's input): `cargo test --workspace` (651 passed, 0 failed, 44 ignored), `cargo clippy --workspace --all-targets -- -D warnings` and
+        `cargo fmt --check` clean. Bazel `test //... --keep_going --local_test_jobs=2` (1,580 s): 584 targets, 582 passed, 2
+        skipped, none failed or timed out; of `rust/BASELINE.tsv`'s passing targets every one passes but the three gone
+        with their code and ledgered (`//core:core_tests_ide`, `//core:core_tests_lexer`,
+        `//docs:update_dialect_capability_test`); the 35 targets new since the baseline all pass. The early gates after
+        each item (core's compiler, integration, root, architecture, normalizer and planner suites, the guardrails and
+        census, the ratchets, lite-names' targets and from item 3 every Rust target, the corpus verdict lanes and their
+        roster tests) all passed, the own-corpus ratchet once moved with items 1 and 6.
+        `ledger_check.sh c4a39e06d`: 85 rows ok, none missing.
 
 ## Carried to the slices not yet begun
 
