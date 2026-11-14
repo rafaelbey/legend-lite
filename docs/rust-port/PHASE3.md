@@ -1127,3 +1127,24 @@ done, in the order of the design's §3.
         with no safe type (the form lite cannot spell); 116 of the engine map's names lite has no rule for, `joinStrings`'s
         size, a Boolean or date literal, the four rules only lite has, a name matched in lower case; a missing join and a
         missing schema refused in lite's own words; a `{target}` terminal in a view refused by lite's lift.
+
+## Carried to the slices not yet begun
+
+Work an earlier slice found and ruled for a later one; each item names the ruling and the register row, and is done
+when that slice lands.
+
+- **The resolver (H) and lowering (I).** *A query reading a relational column whose type inference the engine fails is
+  refused when it is planned, in the engine's words* (the owner's ruling 35, 2026-11-14, PHASE3_SHIM_DESIGN.md §10;
+  register row S378). legend-engine runs `inferRelationalType` where a query asks it -- at plan generation,
+  `getRelationalTypeFromRelationalPropertyMapping` (relationalMappingExecution.pure:205-208, a TDS column's source type,
+  :96, :101), as `inferRelationalType(false)`: an operation no rule types answers nothing there, and the column falls
+  back to its property's own type (`inferSourceDataType`, :96-102), but three failures refuse the query whatever the
+  flag -- a relational `case` with no safe type over its branches asserts `Type inference not supported yet! Dyna
+  function: case` (relationalExtension.pure:402-411); an argument no rule types asserts `Type inference not supported
+  yet! Dyna function: <name>` (:111-118: the rules read their arguments with `inferRelationalType($rop)`, the flag
+  true, :120-123); and a rule's own failure (a `toOne` over no type, an `at()` past the arguments, a match with no arm)
+  raises the engine's execution error. It never runs it when the database compiles
+  (HelperRelationalBuilder.java:469-517 types no view column). Lite types these columns when the model compiles and
+  when it seeds the metamodel, where it keeps no type (ruling 35: lite compiles what the engine compiles); when H and I
+  are ported, a query that reads such a column is refused there, in those words, and the frozen answers that move with
+  it are re-frozen and attributed then.
