@@ -150,10 +150,11 @@ fn infer_in<'a>(
                 // count is BIGINT at any arity (relationalExtension.pure:543-551); until 2026-11-13 INTEGER (S378,
                 // ruling 32)
                 "count" => Some(big_int()),
-                // boolean dynafunctions spell BIT (engine H2)
+                // boolean dynafunctions spell BIT (engine H2). like has no rule in the engine's map, so no type; until
+                // 2026-11-14 BIT, a rule only lite had (S378, the names batch, item 2, ruling 34)
                 "and" | "or" | "not" | "equal" | "notequal" | "in" | "isnull" | "isnotnull" | "greaterthan"
-                | "lessthan" | "greaterthanequal" | "lessthanequal" | "isempty" | "isnotempty" | "like"
-                | "startswith" | "endswith" | "contains" => Some(bit()),
+                | "lessthan" | "greaterthanequal" | "lessthanequal" | "isempty" | "isnotempty" | "startswith"
+                | "endswith" | "contains" => Some(bit()),
                 // sqlNull carries the engine's OTHER type
                 "sqlnull" => Some(other()),
                 // engine inferDynaFunctionReturnType: sqlTrue/sqlFalse are BIT literals (ledger cluster 56)
@@ -171,7 +172,10 @@ fn infer_in<'a>(
                 // rule in the engine's map, so no type (until 2026-11-13 they kept their first argument's type: S378,
                 // ruling 34)
                 "toupper" | "tolower" => first(expanding)?,
-                "position" | "length" | "charindex" | "locate" | "indexof" => Some(integer()),
+                // length and indexOf are INTEGER whatever their arguments (relationalExtension.pure:1061-1069,
+                // :961-969); position, charindex and locate have no rule in the engine's map, so no type; until 2026-11-14
+                // INTEGER, rules only lite had (S378, the names batch, item 2, ruling 34)
+                "length" | "indexof" => Some(integer()),
                 // sub is its first argument's type when its first two have one raw kind, else no rule matches
                 // (relationalExtension.pure:1637-1645): no type, never a default. Until 2026-11-13 the safe type over
                 // all its arguments (S378, ruling 32; its INTEGER default went with the names fixes, item 10)

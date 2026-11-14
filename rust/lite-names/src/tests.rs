@@ -1322,6 +1322,8 @@ const ENGINE_CASES: &str = concat!(
     "  View VREPL (RP1: replace(T.V, 'a', 'b'), RP2: replace(T.C, 'a', 'b'), RP3: replace(T.I, 'a', 'b'),\n",
     "    RP4: replace(nope(T.I), 'a', 'b'), RP5: replace('abc', 'a', 'b'), RP6: replace(T.H, 'a', 'b'), RP7: replace(),\n",
     "    RP8: replace(sqlNull(), 'a', 'b'))\n",
+    "  View VLITE (LK1: like(T.V, 'a%'), PO1: position('a', T.V), CI1: charindex('a', T.V), LO1: locate('a', T.V),\n",
+    "    LK2: like())\n",
     ")\n"
 );
 
@@ -1395,6 +1397,19 @@ fn the_thirty_rules_the_seeds_use_are_the_engines() {
                 &["VABS", "VADD", "VBIT", "VCONST", "VCOAL", "VIF", "VLPAD", "VREPL"]
             ),
             expected.join(" ")
+        );
+    });
+}
+
+/// The four rules only lite had (2026-11-14, the names batch, item 2: register row S378, ruling 34): like, position,
+/// charindex and locate are keys of no entry of the engine's map, so no type (`ENGINE_CASES`: the engine answers EMPTY
+/// for each); like was BIT here and the three INTEGER (KnowledgeLayerTest's twin).
+#[test]
+fn the_rules_only_lite_had_are_gone() {
+    on_parse_stack(|| {
+        assert_eq!(
+            inference_table(ENGINE_CASES, &["VLITE"]),
+            "VLITE.LK1=- VLITE.PO1=- VLITE.CI1=- VLITE.LO1=- VLITE.LK2=-"
         );
     });
 }
