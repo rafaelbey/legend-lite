@@ -7,9 +7,9 @@
 //! view columns (`inferRelationalType` over `columnMappings`):
 //! - a plain column carries its table column's Pure type and its NOT NULL / PRIMARY KEY multiplicity (the table lookup
 //!   is the index's, include closure); a plain column of an inner VIEW carries that view's signature column
-//!   (view-on-view); a column the operation reads that its database does not have (plain or nested) is refused in the
-//!   engine's words, as the engine refuses it when the database compiles (S376, 2026-11-13, ruling 32: it was
-//!   `Any[0..1]`);
+//!   (view-on-view); a column the operation reads that its database does not have (plain or nested, a join
+//!   navigation's terminal once its joins resolve) is refused in the engine's words, as the engine refuses it when the
+//!   database compiles (S376, 2026-11-13, rulings 32 and 34: it was `Any[0..1]`);
 //! - an aggregate column, at any arity, carries its reducer's Pure result over the argument's store type (`count`
 //!   `Integer[1]`; `sum` and `average` `[1]`; `max` / `min` `[0..1]`; Integer, Float and the dates keep their type, every
 //!   other number is Number);
@@ -216,8 +216,8 @@ fn inferred(expr: &Op, db: Option<&DatabaseDefinition>, store: &dyn StoreLookups
 }
 
 /// `requireColumns(store, dbFqn, op)`: every column reference of `op` (a function's arguments, a comparison's and a
-/// boolean's sides, a group, a null test, an array literal, a lambda's body; a join navigation's terminal reads the
-/// join's far table and is not one of them) names a table or view of its database and a column of it.
+/// boolean's sides, a group, a null test, an array literal, a lambda's body, a join navigation's terminal once its joins
+/// resolve) names a table or view of its database and a column of it.
 fn require_columns(store: &dyn StoreLookups, db_fqn: &JStr, op: &Op) -> Result<(), Thrown> {
     match op {
         Op::RelationalOperationColumnRef(cr) => {
@@ -252,8 +252,28 @@ fn require_columns(store: &dyn StoreLookups, db_fqn: &JStr, op: &Op) -> Result<(
         Op::RelationalOperationGroup(g) => require_columns(store, db_fqn, &g.inner),
         Op::RelationalOperationArrayLiteral(a) => a.elements.iter().try_for_each(|e| require_columns(store, db_fqn, e)),
         Op::RelationalOperationLambda(l) => require_columns(store, db_fqn, &l.body),
-        Op::RelationalOperationJoinNavigation(_)
-        | Op::RelationalOperationTargetColumnRef(_)
+        // a join navigation's terminal is compiled as any other operation, after the navigation's joins (the engine's
+        // HelperRelationalBuilder.java:1181-1186, :1255, :167-192, :1170-1171; a {target} column a self-join's,
+        // unchecked), in the database of the navigation's last join, which the model writes relative to the navigation's
+        // own: refused in the same words once every join resolves, a missing join refused first by the lift. Until
+        // 2026-11-13 the terminal was not checked (S376's join terminal, the names follow-ups, ruling 34; Java's
+        // comment says more)
+        Op::RelationalOperationJoinNavigation(j) => {
+            let nav_db = j.database_name.clone().unwrap_or_else(|| db_fqn.clone());
+            match &j.terminal {
+                Some(terminal)
+                    if j.chain.iter().all(|hop| {
+                        store
+                            .find_join(Some(hop.database_name.as_ref().unwrap_or(&nav_db)), &hop.join_name)
+                            .is_some()
+                    }) =>
+                {
+                    require_columns(store, &nav_db, terminal)
+                }
+                _ => Ok(()),
+            }
+        }
+        Op::RelationalOperationTargetColumnRef(_)
         | Op::RelationalOperationLiteral(_)
         | Op::RelationalOperationLambdaParam(_) => Ok(()),
     }

@@ -144,3 +144,6 @@ duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,29
 #    names-stores-texts-java-2026-11-13-follow378.jsonl.zst (1,716,342 bytes;
 #    237c79a4e0a7214fef675d624e3b6fa5d1f6d21a9792bb4229302bc9ca660fb3, checked by decompressing it). lite-names: all five
 #    files identical.
+# 2. S376's join terminal (a view's join navigation's terminal checked once its joins resolve; the store lookups gain
+#    findJoin): one run at its commit (--live) answered all five files as frozen (nothing moved, nothing re-frozen; the
+#    instrumented measurement found no terminal it refuses whose joins all resolve); lite-names identical.

@@ -1282,3 +1282,68 @@ fn the_operators_and_aggregates_are_typed_by_the_engines_rules() {
         assert_eq!(sig.columns()[17].to_string(), "L1:Float[0..1]");
     });
 }
+
+/// S376's join terminal (2026-11-13, the names follow-ups, ruling 34): a join navigation's terminal is compiled as any
+/// other operation once the navigation's joins resolve, in the database of its last join, so a terminal reading a column
+/// or table its database lacks refuses the view in the engine's words, plain, nested in the terminal, or with the
+/// navigation inside a function; a navigation whose join is missing is left to the lift (KnowledgeLayerTest's twin).
+#[test]
+fn a_views_join_terminal_reading_a_missing_column_is_refused() {
+    on_parse_stack(|| {
+        let m = model(concat!(
+            "###Relational\n",
+            "Database b::Far (\n",
+            "  Table T3 (ID INTEGER PRIMARY KEY, C VARCHAR(10))\n",
+            "  Table T4 (ID INTEGER PRIMARY KEY)\n",
+            "  Join K(T4.ID = T3.ID)\n",
+            ")\n",
+            "Database a::Main (\n",
+            "  Table T (ID INTEGER PRIMARY KEY, S VARCHAR(10))\n",
+            "  Table T2 (ID INTEGER PRIMARY KEY, C VARCHAR(10))\n",
+            "  Join J(T.ID = T2.ID)\n",
+            "  View V1 (X: T.ID PRIMARY KEY, Y: @J | T2.NOPE)\n",
+            "  View V2 (X: T.ID PRIMARY KEY, Y: @J | U.C)\n",
+            "  View V3 (X: T.ID PRIMARY KEY, Y: @J | concat(T2.C, T2.NOPE))\n",
+            "  View V4 (X: T.ID PRIMARY KEY, Y: concat(T.S, @J | T2.NOPE))\n",
+            "  View V5 (X: T.ID PRIMARY KEY, Y: @Nope | T2.NOPE)\n",
+            "  View V6 (X: T.ID PRIMARY KEY, Y: [a::Main]@J > [b::Far]@K | T3.C)\n",
+            "  View V7 (X: T.ID PRIMARY KEY, Y: [a::Main]@J > [b::Far]@K | T3.NOPE)\n",
+            "  View V8 (X: T.ID PRIMARY KEY, Y: @J | T2.C)\n",
+            ")\n"
+        ));
+        let ix = ModelIndex::from(&m).unwrap();
+        let db = j("a::Main");
+        let arena = lite_base::QueryArena::new();
+        let signature = |name: &str| {
+            let v = ix.find_view(&db, &j(name)).unwrap().clone();
+            match view_signatures::of(&arena, &ix, &db, &v) {
+                Ok(sig) => sig
+                    .columns()
+                    .iter()
+                    .map(|c| c.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                Err(e) => format!("REFUSED {}", e.message().unwrap().lossy()),
+            }
+        };
+        assert_eq!(signature("V1"), "REFUSED Can't find column 'NOPE'");
+        assert_eq!(
+            signature("V2"),
+            "REFUSED Can't find table 'U' in schema 'default' and database 'Main'"
+        );
+        assert_eq!(signature("V3"), "REFUSED Can't find column 'NOPE'");
+        assert_eq!(signature("V4"), "REFUSED Can't find column 'NOPE'");
+        assert_eq!(
+            signature("V5"),
+            "X:Integer[1], Y:meta::pure::metamodel::type::Any[0..1]",
+            "a missing join is the lift's to refuse, first"
+        );
+        assert_eq!(
+            signature("V6"),
+            "X:Integer[1], Y:String[0..1]",
+            "the terminal reads its last join's database"
+        );
+        assert_eq!(signature("V7"), "REFUSED Can't find column 'NOPE'");
+        assert_eq!(signature("V8"), "X:Integer[1], Y:String[0..1]");
+    });
+}

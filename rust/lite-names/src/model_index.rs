@@ -1225,6 +1225,10 @@ pub trait StoreLookups {
     fn find_table_definition(&self, db_fqn: &JStr, name: &JStr) -> Option<&Table>;
     fn find_own_table_definition(&self, db_fqn: &JStr, name: &JStr) -> Option<&Table>;
     fn find_view(&self, db_fqn: &JStr, name: &JStr) -> Option<&View>;
+    /// `findJoin(db, name)`: the join reached from `db` (own first, then the includes); none for no database (added
+    /// 2026-11-13, the names follow-ups, S376's join terminal, ruling 34: a view's join navigation's terminal is checked
+    /// once its joins resolve).
+    fn find_join(&self, db_fqn: Option<&JStr>, join_name: &JStr) -> Option<&Arc<DatabaseDefinitionJoinDefinition>>;
 }
 
 impl StoreLookups for ModelIndex {
@@ -1242,6 +1246,10 @@ impl StoreLookups for ModelIndex {
 
     fn find_view(&self, db_fqn: &JStr, name: &JStr) -> Option<&View> {
         ModelIndex::find_view(self, db_fqn, name)
+    }
+
+    fn find_join(&self, db_fqn: Option<&JStr>, join_name: &JStr) -> Option<&Arc<DatabaseDefinitionJoinDefinition>> {
+        ModelIndex::find_join(self, db_fqn, join_name)
     }
 }
 
