@@ -122,3 +122,12 @@ mir-store.tsv.zst	id TAB MirJson, sorted by id: 40,613 lines	de98afbfde06c21b303
 # unchanged. Added: none -- the keys both runs answer that are not frozen are the 24 of //core:ladder_report, by the
 # freeze's own rule; each run's 16,851 keys of its own are the temporary-path models', by design. The only moves of the
 # re-freeze are the plan oracle's 914 test plan ids (its MANIFEST).
+# THE NAMES BATCH'S RE-FREEZE (2026-11-14, docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 rulings 34 and 35; the plan
+# oracle's MANIFEST and rust/oracles/plan/attribution-2026-11-14-names-batch.tsv): two complete probe v2 runs at
+# bbcb4da95 (NBZ1 and NBZ2, every lane, 143 of 145 targets passing each, the two probe-caused failures) agree on every
+# key and answer all 73,413 frozen keys, none absent; no count and no MirJson id moved, so hits.tsv and mir-ids.tsv,
+# re-derived from the two runs (refreeze2.py), come out byte for byte as frozen (the SHA-256s above) and are not
+# rewritten; mir-store.tsv and rust/oracles/mir are unchanged. Added: none -- the 24 keys both runs answer that are not
+# frozen are //core:ladder_report's, by the freeze's own rule; each run's 16,851 keys of its own are the temporary-path
+# models' (the Postgres lanes' and 168 of the integration and server suites'), by design. The only moves are the plan
+# oracle's 914 test plan ids (its MANIFEST).
