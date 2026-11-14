@@ -114,3 +114,11 @@ hits.tsv.zst	kind, model, query, doors, use, counts: 73,413 rows (B 1, L 24, M 2
 mir-ids.tsv.zst	model, query, doors, use, ids: 51,606 rows, 167,833 lowerings, 40,613 distinct; re-keyed 2026-11-13, re-frozen 2026-11-13	57920a8caa6426828468ef7b21e0fa12653a8a6c37800068d3335d92350edc37
 # Every MirJson the ids name, once: Java's answer for "the corpora through a Rust CLI". 876,194,434 characters.
 mir-store.tsv.zst	id TAB MirJson, sorted by id: 40,613 lines	de98afbfde06c21b30364f9fb837f8e2fdbe709064c49d0ecd9711d21dace459
+# THE NAMES FOLLOW-UPS' RE-FREEZE (2026-11-14, docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 ruling 34; the plan
+# oracle's MANIFEST and rust/oracles/plan/attribution-2026-11-14.tsv): two complete probe v2 runs at c59296c31 (NZ1 and
+# NZ2, every lane, 143 of 145 targets passing each, the two probe-caused failures) agree on every key and answer all
+# 73,413 frozen keys, none absent; no count and no MirJson id moved, so hits.tsv and mir-ids.tsv, re-derived from the
+# two runs (refreeze2.py), come out byte for byte as frozen (the SHA-256s above) and are not rewritten; mir-store.tsv is
+# unchanged. Added: none -- the keys both runs answer that are not frozen are the 24 of //core:ladder_report, by the
+# freeze's own rule; each run's 16,851 keys of its own are the temporary-path models', by design. The only moves of the
+# re-freeze are the plan oracle's 914 test plan ids (its MANIFEST).

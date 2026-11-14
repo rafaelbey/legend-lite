@@ -92,7 +92,7 @@ profile does not.
   same probe with the second render made by Rust.
 - `oracles/identity/`: phase 3's oracle, frozen while the Java compiler exists (docs/rust-port/PHASE3.md step 0, re-frozen
   on the merged tree on 2026-11-11; re-keyed by a key Rust can compute and re-frozen once, attributed, by the names
-  landings on 2026-11-13, PHASE3.md's names slice entry): per question, the hits and misses of the identity tables and the outcomes of the
+  landings on 2026-11-13 and again, attributed, by the names follow-ups on 2026-11-14, PHASE3.md's names slice entry): per question, the hits and misses of the identity tables and the outcomes of the
   identity comparisons (`hits.tsv.zst`), and each lowering's `MirJson` (`mir-ids.tsv.zst`, `mir-store.tsv.zst`), the
   corpora's answer for a Rust CLI. `MANIFEST.tsv` says what each column is.
 - `oracles/plan/`: the plan oracle, made with it (the same rows, keyed alike): per question, the id of each plan Java made,
@@ -101,7 +101,8 @@ profile does not.
   (`execution-plans.tsv.zst`). The host judge's test plans' texts are in git deduplicated (`test-plans-host.tsv.zst`,
   `test-plan-values.tsv.zst`, its index and frame table: each JSON value of 8 KB or more that repeats stored once); the
   database judge's are archived outside git. `MANIFEST.tsv` says where, with their hashes; `attribution-2026-11-13.tsv`
-  names the item behind every key the names landings' re-freeze moved, renamed, dropped or added.
+  names the item behind every key the names landings' re-freeze moved, renamed, dropped or added, and
+  `attribution-2026-11-14.tsv` the names follow-ups'.
 - `oracles/types/`: the type family's answers (`type-facts.tsv`, 26,429 lines: every platform type, every operation of
   core's `compiler_element_type` layer that needs no later layer, every refusal by its exception and message), made by
   `TypeOracle.java` on core's built jars (its header says how) before the Java is deleted; `MANIFEST.tsv` names its
