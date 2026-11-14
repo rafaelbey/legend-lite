@@ -49,7 +49,7 @@ queries.tsv.zst	NameAnswers' queries: query sha TAB model sha TAB hash, 31,297 l
 # 24 refused: two columns of one name), 11,308 view columns' inferred SQL types, each with the scope and the index, no
 # scope, no lookups (r), 1,485,730 column kinds of every table or view spelling's columns and one absent (n). No stack
 # overflow met. 3,402 distinct forms.
-stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names landings, at the end)	b1ac44c80a8d0c2a28265188db7c3d2c5cc2d5fb771d901b0ffad98543e8a506
+stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names follow-ups, at the end)	ac3f5a7aeb74bf6b15e4a097d5fea1b8a2cd80dd7a08e4f113a3e9c5202f8c79
 # CALLS: one line per call shape, the shape's fields then the hash (NameAnswers.callShapes, callForm: the record codec's
 # JSON of the call Calls builds) -- 14,454 shapes: platform 6,504, like 3,380, renamed 2,452, infixRun 732, among 478,
 # infixRunAmong 478, form 370, exact 58, carrier 2; every name the builder's 206 call sites build (read from them), at the
@@ -132,3 +132,15 @@ duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,29
 # 8. The guards (c67d9552e: S378's helpers written out without a default, its raw kind an enum; lite-names' size helper
 #    refusing the kind Java's refuses): one run at its commit answered all five files as frozen (nothing moved, nothing
 #    re-frozen); lite-names identical (//rust/lite-names:names_differential_test at e2d9e87e8).
+# THE NAMES FOLLOW-UPS (2026-11-13, docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 ruling 34; PHASE3.md, the names
+# slice's entry): register rows S378's remainder and S376's join terminal, each re-freezing here what its Java moves, from
+# two runs of that commit's Java (A with --live, B with --texts) byte-identical on every file, lite-names held to the new
+# answers by the differential (cargo, release) before the commit; the texts archived with their SHA-256 in
+# names-texts-java.sha256.
+# 1. S378's remainder (the operators, sum, average, a float literal and upper/lower by the engine's own rules), on the
+#    landings' answers: stores.tsv moved, 220 of 74,292 lines over 74 texts (b1ac44c8... -> ac3f5a7a...: the asks whose
+#    view columns sum a DOUBLE, now no type, or a SMALLINT, now INTEGER, in their inferred types and column kinds -- the
+#    220 asks the instrumented build measured), models, queries, calls and duplicates unchanged. Texts:
+#    names-stores-texts-java-2026-11-13-follow378.jsonl.zst (1,716,342 bytes;
+#    237c79a4e0a7214fef675d624e3b6fa5d1f6d21a9792bb4229302bc9ca660fb3, checked by decompressing it). lite-names: all five
+#    files identical.

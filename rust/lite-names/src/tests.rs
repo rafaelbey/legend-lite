@@ -808,12 +808,14 @@ fn the_store_helpers_answer_over_a_small_database() {
         let v = ix.find_view(&db, &j("V")).unwrap().clone();
         let sig = view_signatures::of(&arena, &ix, &db, &v).unwrap();
         let types: Vec<String> = sig.columns().iter().map(|c| c.to_string()).collect();
+        // TOTAL is plus over a DECIMAL(10,2) and a NUMERIC(5,4): the first argument's type, a safe type over both being
+        // possible (the engine's rule, 2026-11-13, S378, ruling 34; it was their safe type, DECIMAL(12,4))
         assert_eq!(
             types,
             [
                 "ID:Integer[1]",
                 "HIGH:Number[0..1]",
-                "TOTAL:Decimal(12,4)[0..1]",
+                "TOTAL:Decimal(10,2)[0..1]",
                 "LABEL:String[0..1]"
             ]
         );
@@ -1185,5 +1187,98 @@ fn the_type_inference_safe_type_and_rules_are_the_engines() {
         assert_eq!(infer(8), Some(varchar(4)), "sub of two VARCHARs: the first's");
         assert_eq!(infer(9), None, "sub of a VARCHAR and an INTEGER: no rule");
         assert_eq!(infer(10), None, "group_concat: no rule");
+    });
+}
+
+/// S378's remainder (2026-11-13, the names follow-ups, ruling 34): the operators, `sum`, `average`, a float literal and
+/// `upper`/`lower` typed by the engine's own rules -- `plus` over one argument widens it, `plus` and `minus` over
+/// several are their first argument's type when a safe type is possible, `times` the safe type of its first two,
+/// `divide` and `average` DOUBLE, `sum` by its first argument's kind (a DECIMAL capped at precision 31, no rule for a
+/// FLOAT), a float literal FLOAT, `upper` and `lower` no rule (a view column `Any[0..1]`) (KnowledgeLayerTest's twin).
+#[test]
+fn the_operators_and_aggregates_are_typed_by_the_engines_rules() {
+    use lite_model::RelationalDataType as T;
+    use std::sync::Arc;
+    on_parse_stack(|| {
+        let m = model(concat!(
+            "###Relational\n",
+            "Database a::Db (\n",
+            "  Table T (ID INTEGER PRIMARY KEY, S SMALLINT, B BIGINT, F FLOAT, D DECIMAL(40,2), N NUMERIC(6,2), ",
+            "V VARCHAR(4))\n",
+            "  View V (P1: plus(T.S), P2: plus(T.ID), P3: plus(T.D), P4: plus(T.F), P5: plus(T.V), ",
+            "P6: plus(T.ID, T.F), P7: plus(T.B, T.F), M1: minus(T.N, T.ID), M2: minus(T.ID), ",
+            "T1: times(T.ID, T.F, T.V), T2: times(T.ID), D1: divide(T.ID, T.ID), A1: average(T.V), S1: sum(T.S), ",
+            "S2: sum(T.B), S3: sum(T.D), S4: sum(T.F), L1: case(equal(T.ID, 1), 1.5, 2.5), U1: upper(T.V), ",
+            "U2: lower(T.V))\n",
+            ")\n"
+        ));
+        let ix = ModelIndex::from(&m).unwrap();
+        let db = j("a::Db");
+        let scope = Some(&**database(&m, "a::Db"));
+        let v = ix.find_view(&db, &j("V")).unwrap().clone();
+        let infer = |i: usize| {
+            relational_type_inference::infer(
+                &v.column_mappings[i].expression,
+                scope,
+                Some(&ix as &dyn crate::StoreLookups),
+            )
+            .unwrap()
+        };
+        let integer = Some(T::RelationalDataTypeInteger_(Arc::new(
+            lite_model::RelationalDataTypeInteger_ {},
+        )));
+        let big_int = Some(T::RelationalDataTypeBigInt(Arc::new(
+            lite_model::RelationalDataTypeBigInt {},
+        )));
+        let double = Some(T::RelationalDataTypeDouble_(Arc::new(
+            lite_model::RelationalDataTypeDouble_ {},
+        )));
+        let float = Some(T::RelationalDataTypeFloat_(Arc::new(
+            lite_model::RelationalDataTypeFloat_ {},
+        )));
+        let decimal_31_2 = Some(T::RelationalDataTypeDecimal(Arc::new(
+            lite_model::RelationalDataTypeDecimal {
+                precision: 31,
+                scale: 2,
+            },
+        )));
+        assert_eq!(infer(0), integer, "plus of a SMALLINT: INTEGER");
+        assert_eq!(infer(1), big_int, "plus of an INTEGER: BIGINT");
+        assert_eq!(infer(2), decimal_31_2, "plus of a DECIMAL(40,2): capped at 31");
+        assert_eq!(infer(3), double, "plus of a FLOAT: DOUBLE");
+        assert_eq!(infer(4), None, "plus of a VARCHAR: no rule");
+        assert_eq!(infer(5), integer, "plus of an INTEGER and a FLOAT: the first's");
+        assert_eq!(infer(6), None, "plus of a BIGINT and a FLOAT: no safe type, no rule");
+        assert_eq!(
+            infer(7),
+            Some(T::RelationalDataTypeNumeric(Arc::new(
+                lite_model::RelationalDataTypeNumeric { precision: 6, scale: 2 }
+            ))),
+            "minus of a NUMERIC and an INTEGER: the first's"
+        );
+        assert_eq!(infer(8), None, "minus of one argument: no rule");
+        assert_eq!(
+            infer(9),
+            float,
+            "times: the safe type of the first two, the third unread"
+        );
+        assert_eq!(infer(10), None, "times of one argument: no type");
+        assert_eq!(infer(11), double, "divide: DOUBLE");
+        assert_eq!(infer(12), double, "average: DOUBLE");
+        assert_eq!(infer(13), integer, "sum of a SMALLINT: INTEGER");
+        assert_eq!(infer(14), big_int, "sum of a BIGINT: BIGINT");
+        assert_eq!(infer(15), decimal_31_2, "sum of a DECIMAL(40,2): capped at 31");
+        assert_eq!(infer(16), None, "sum of a FLOAT: no rule");
+        assert_eq!(infer(17), float, "float literals: FLOAT");
+        assert_eq!(infer(18), None, "upper: no rule");
+        assert_eq!(infer(19), None, "lower: no rule");
+        let arena = lite_base::QueryArena::new();
+        let sig = view_signatures::of(&arena, &ix, &db, &v).unwrap();
+        assert_eq!(
+            sig.columns()[18].to_string(),
+            "U1:meta::pure::metamodel::type::Any[0..1]",
+            "a column no rule types: Any[0..1]"
+        );
+        assert_eq!(sig.columns()[17].to_string(), "L1:Float[0..1]");
     });
 }

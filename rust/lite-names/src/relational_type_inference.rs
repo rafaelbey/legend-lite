@@ -23,7 +23,8 @@ use lite_error::Phase;
 use lite_model::{
     DatabaseDefinition, DatabaseDefinitionViewDefinitionViewColumnMapping, JValue, RelationalDataType as T,
     RelationalDataTypeBigInt, RelationalDataTypeBit, RelationalDataTypeDecimal, RelationalDataTypeDouble_,
-    RelationalDataTypeInteger_, RelationalDataTypeOther, RelationalDataTypeVarchar, RelationalOperation as Op, cat,
+    RelationalDataTypeFloat_, RelationalDataTypeInteger_, RelationalDataTypeNumeric, RelationalDataTypeOther,
+    RelationalDataTypeVarchar, RelationalOperation as Op, cat,
 };
 
 use crate::error::Thrown;
@@ -47,6 +48,10 @@ fn big_int() -> T {
 
 fn double() -> T {
     T::RelationalDataTypeDouble_(Arc::new(RelationalDataTypeDouble_ {}))
+}
+
+fn float() -> T {
+    T::RelationalDataTypeFloat_(Arc::new(RelationalDataTypeFloat_ {}))
 }
 
 fn other() -> T {
@@ -109,15 +114,24 @@ fn infer_in<'a>(
                     }
                 }
                 "distinct" => first(expanding)?,
-                // sum/avg PROMOTE float-family to DOUBLE (engine inferDynaFunctionReturnType aggregation rule)
-                "sum" | "average" => {
-                    let at = first(expanding)?;
-                    if matches!(at, Some(T::RelationalDataTypeFloat_(_) | T::RelationalDataTypeReal(_))) {
-                        Some(double())
-                    } else {
-                        at
-                    }
-                }
+                // sum by its first argument's raw kind, the engine's four rules (relationalExtension.pure:1717-1730):
+                // TINYINT, SMALLINT and INTEGER an INTEGER, BIGINT a BIGINT, a DECIMAL or a NUMERIC its own kind with its
+                // precision capped at 31; any other kind (FLOAT and DOUBLE among them) matches no rule, no type. Until
+                // 2026-11-13 its first argument's type, a FLOAT or REAL one DOUBLE (S378, ruling 34)
+                "sum" => match first(expanding)? {
+                    Some(
+                        T::RelationalDataTypeTinyInt(_)
+                        | T::RelationalDataTypeSmallInt(_)
+                        | T::RelationalDataTypeInteger_(_),
+                    ) => Some(integer()),
+                    Some(T::RelationalDataTypeBigInt(_)) => Some(big_int()),
+                    Some(at @ (T::RelationalDataTypeDecimal(_) | T::RelationalDataTypeNumeric(_))) => Some(capped(&at)),
+                    _ => None,
+                },
+                // average and divide are DOUBLE whatever their arguments, which the engine's one rule each does not read
+                // (relationalExtension.pure:291-300, :693-702); until 2026-11-13 average kept its first argument's type,
+                // a FLOAT or REAL one DOUBLE, and divide was the safe type over its arguments (S378, ruling 34)
+                "average" | "divide" => Some(double()),
                 // count is BIGINT at any arity (relationalExtension.pure:543-551); until 2026-11-13 INTEGER (S378,
                 // ruling 32)
                 "count" => Some(big_int()),
@@ -138,9 +152,10 @@ fn infer_in<'a>(
                     Some(T::RelationalDataTypeChar_(c)) => Some(varchar(c.size)),
                     _ => None,
                 },
-                // toUpper and toLower keep their first argument's type (:1793-1801, :1843-1851); upper and lower,
-                // which the engine's map has no rule for, are typed as they are
-                "toupper" | "tolower" | "upper" | "lower" => first(expanding)?,
+                // toUpper and toLower keep their first argument's type (:1793-1801, :1843-1851); upper and lower have no
+                // rule in the engine's map, so no type (until 2026-11-13 they kept their first argument's type: S378,
+                // ruling 34)
+                "toupper" | "tolower" => first(expanding)?,
                 "position" | "length" | "charindex" | "locate" | "indexof" => Some(integer()),
                 // sub is its first argument's type when its first two have one raw kind, else no rule matches
                 // (relationalExtension.pure:1637-1645): no type, never a default. Until 2026-11-13 the safe type over
@@ -179,7 +194,12 @@ fn infer_in<'a>(
                     if other { None } else { Some(varchar(size)) }
                 }
                 // case(c1, v1, ..., else): the engine's safe type over the value branches and the last argument
-                // (relationalExtension.pure:402-411); where none is possible the engine asserts, lite answers no type
+                // (relationalExtension.pure:402-411: the branches at 1, 3, ... below 2 * floor((n - 1) / 2), then the
+                // last). Where none is possible the engine ASSERTS, whatever failOnMatchFailure is: its inference fails
+                // where the engine runs it, at plan generation (relationalMappingExecution.pure:205-208), never when the
+                // database compiles. Lite runs it when the model compiles and when it seeds the metamodel, where a
+                // failure would refuse or break what the engine compiles: no type, register row S378's form lite cannot
+                // spell (2026-11-13, ruling 34; Java's comment says more)
                 "case" => {
                     let mut types: Vec<Option<T>> = Vec::new();
                     let mut i = 1;
@@ -192,15 +212,32 @@ fn infer_in<'a>(
                     }
                     safe_type_of(types)
                 }
-                // the numeric operators: the engine's safe type over every argument (its own rules for them differ,
-                // register row S378: plus and minus answer the first argument's type, times the first two's safe
-                // type, divide DOUBLE)
-                "plus" | "minus" | "times" | "divide" => {
-                    let mut types: Vec<Option<T>> = Vec::with_capacity(f.args.len());
-                    for arg in f.args.iter() {
-                        types.push(infer_in(arg, db, ctx, expanding)?);
+                // the numeric operators, each by the engine's own rules (S378, 2026-11-13, ruling 34; until then the
+                // safe type over every argument, a rule only lite had). plus over ONE argument widens it
+                // (relationalExtension.pure:1408-1436: TINYINT and SMALLINT an INTEGER, INTEGER and BIGINT a BIGINT, a
+                // DECIMAL or NUMERIC its own kind capped at precision 31, FLOAT and DOUBLE a DOUBLE, another kind no
+                // rule); plus and minus over several are their FIRST argument's type when a safe type over all of them
+                // is possible, else no rule (:1408-1436, :1209-1218); times is the safe type of its first two
+                // arguments, the rest unread (:1773-1782). divide is DOUBLE, above.
+                "plus" if f.args.len() == 1 => match infer_in(&f.args[0], db, ctx, expanding)? {
+                    Some(T::RelationalDataTypeTinyInt(_) | T::RelationalDataTypeSmallInt(_)) => Some(integer()),
+                    Some(T::RelationalDataTypeInteger_(_) | T::RelationalDataTypeBigInt(_)) => Some(big_int()),
+                    Some(at @ (T::RelationalDataTypeDecimal(_) | T::RelationalDataTypeNumeric(_))) => Some(capped(&at)),
+                    Some(T::RelationalDataTypeFloat_(_) | T::RelationalDataTypeDouble_(_)) => Some(double()),
+                    _ => None,
+                },
+                "plus" | "minus" => first_when_safe(&f.args, db, ctx, expanding)?,
+                "times" => {
+                    if f.args.len() < 2 {
+                        None
+                    } else {
+                        let t0 = infer_in(&f.args[0], db, ctx, expanding)?;
+                        let t1 = infer_in(&f.args[1], db, ctx, expanding)?;
+                        match (t0, t1) {
+                            (Some(a), Some(b)) => safe_type_of([Some(a), Some(b)]),
+                            _ => None,
+                        }
                     }
-                    safe_type_of(types)
                 }
                 _ => None,
             }
@@ -224,7 +261,8 @@ fn infer_in<'a>(
             JValue::String(s) => Some(varchar(s.0.len() as i32)),
             JValue::Integer(_) => Some(integer()),
             JValue::Long(_) => Some(integer()),
-            JValue::Double(_) => Some(double()),
+            // a float literal is FLOAT (relationalExtension.pure:148); until 2026-11-13 DOUBLE (S378, ruling 34)
+            JValue::Double(_) => Some(float()),
             JValue::Boolean(_) | JValue::BigInteger(_) | JValue::BigDecimal(_) => None,
         },
         // boolean expressions spell BIT (engine H2 boolean SQL type)
@@ -237,6 +275,40 @@ fn infer_in<'a>(
         | Op::RelationalOperationLambda(_)
         | Op::RelationalOperationLambdaParam(_) => None,
     })
+}
+
+/// `firstWhenSafe`: plus's and minus's rule over several arguments (relationalExtension.pure:1408-1436, :1209-1218): the
+/// FIRST argument's type when there is more than one argument and a safe type over all of them is possible (an argument
+/// with no type drops out, as `safe_type_of` drops it), else no rule matches (`None`).
+fn first_when_safe<'a>(
+    args: &[Op],
+    db: Option<&'a DatabaseDefinition>,
+    ctx: Option<&'a dyn StoreLookups>,
+    expanding: &mut Expanding,
+) -> Result<Option<T>, Thrown> {
+    if args.len() <= 1 {
+        return Ok(None);
+    }
+    let mut types: Vec<Option<T>> = Vec::with_capacity(args.len());
+    for arg in args.iter() {
+        types.push(infer_in(arg, db, ctx, expanding)?);
+    }
+    let first = types.first().cloned().flatten();
+    Ok(if safe_type_of(types).is_some() { first } else { None })
+}
+
+/// `capped`: plus's and sum's DECIMAL and NUMERIC rules (relationalExtension.pure:1408-1436, :1717-1730): the kind kept,
+/// its precision `min([31, precision])`, its scale as it is. Asked of a DECIMAL or NUMERIC alone, as Java's refuses
+/// another.
+fn capped(t: &T) -> T {
+    match t {
+        T::RelationalDataTypeDecimal(d) => decimal(d.precision.min(31), d.scale),
+        T::RelationalDataTypeNumeric(n) => T::RelationalDataTypeNumeric(Arc::new(RelationalDataTypeNumeric {
+            precision: n.precision.min(31),
+            scale: n.scale,
+        })),
+        _ => unreachable!("a kind other than DECIMAL or NUMERIC asked for a capped precision"),
+    }
 }
 
 // ---- the engine's safe type (S378, 2026-11-13, ruling 32): relationalExtension.pure:1926-2033, exactly
