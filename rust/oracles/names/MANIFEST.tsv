@@ -129,3 +129,6 @@ duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,29
 #    and duplicates unchanged. Texts: names-stores-texts-java-2026-11-13-land378.jsonl.zst (1,714,814 bytes;
 #    c5e6df414d72e15c0508159ebdb74e4076b0e5f96edf48d8759704fb1b9f8e8c, checked by decompressing it). lite-names: all
 #    five files identical.
+# 8. The guards (c67d9552e: S378's helpers written out without a default, its raw kind an enum; lite-names' size helper
+#    refusing the kind Java's refuses): one run at its commit answered all five files as frozen (nothing moved, nothing
+#    re-frozen); lite-names identical (//rust/lite-names:names_differential_test at e2d9e87e8).

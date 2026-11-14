@@ -962,3 +962,95 @@ done, in the order of the design's §3.
         or timed out; of `rust/BASELINE.tsv`'s passing targets every one passes but the three gone with their code and
         ledgered (`//core:core_tests_ide`, `//core:core_tests_lexer`, `//docs:update_dialect_capability_test`); the 35
         targets new since the baseline all pass. `ledger_check.sh c4a39e06d`: 84 rows ok, none missing.
+   - *The names landings (2026-11-13, the owner's rulings 32 to 34, PHASE3_SHIM_DESIGN.md §10; every measurement and
+     tool in `port-scratch/namesland/`).* What the names fixes' stop condition held back lands, in Java and Rust
+     together, one commit per item, the names oracle re-frozen in each commit where its answers move (two byte-identical
+     Java runs, the texts archived), lite-names held to every frozen answer; then the one re-freeze of the probe's
+     oracles, every moved key attributed to its item by measurement.
+     1. *A key Rust can compute* (`3f0bea95e`). The probe keyed a query with no text by the SHA-256 of the RESOLVED
+        spec's Java `toString` (`vs:`), and a model given as records or as a client's PureModelContextData by theirs
+        (`p:`, `protocol:`). The probe's v2 (`rust/tools/identity-hits-probe-v2.patch`, beside v1) keys them by the input
+        AS GIVEN, before resolution, in the lossless record codec's form, the form lite-front's and lite-names' writers
+        write byte for byte: `spec:` the resolve door's input (`NameResolver.resolveQuery`'s query,
+        `resolveQueryIn`'s `[query, imports]`, `Compiler.resolveQuery`'s `[[statements], imports]`), `parsed:` a
+        `ParsedModel`, `pmcd:` a PureModelContextData. The doors keep weak references compared by `==` (no identity hash
+        asked), the keys computed at JVM exit. The protocol emitter's JSON, the first candidate, was measured beside it
+        and lost: 193 rows refused (no rule for a new instance on a variable), 13 groups of old keys with differing
+        answers collapsed. ONE run (K1, at `de483e694`, no fix applied, every lane): all 73,411 frozen keys answered by
+        their old keys and equal; over its 180,217 rows the old -> new map is a bijection (4,665 components renamed, no
+        split, no collapse); 4,659 frozen keys renamed (`vs:` 4,535, `p:` 40, `protocol:` 46 + 19, 22 of 24 `L` set
+        keys), 68,752 kept; `vs:too-deep` 0 rows, frozen and in the run; all 8,762 no-text scopes came through a door.
+        The identity and plan oracles re-keyed by the map (archived, `oracle-archive/identity-rekey-map-2026-11-13`,
+        SHA-256 `5df32e62...`), held to K1 by the new keys: 73,411 of 73,411.
+     2. *The identity-hash counters dropped* (`c467dc205`): `CallInstantiation.equals.frame` and `.origin` leave the
+        frozen identity oracle as `executionTraceID` is masked -- a counts mask at freeze and at compare (84 rows, 69
+        tables -> 67), the probe still writing them.
+     3. *The held-back fixes, re-applied* (each a revert of its revert, its test cases back, the oracle files of a
+        conflicted revert written from the runs, never from either side): item 4 (`05f5682e6`; models 18 lines), item
+        10's concat (`6b98c3dfb`; stores 11 lines, the original's freeze confirmed byte for byte), items 1 and 2 with the
+        root door's three span drops (`ec4889721`; models 55,336 and queries 7,422 lines, the names fixes' freezes
+        confirmed; the Java case's unclaimed section now set on the records, since its `###Unknown` text grew an
+        own-corpus leniency ledger), item 6 (`d46c99057`; no names answer moved).
+     4. *A primitive extension's type variables, fully* (`c38aee9fb`): carried through the rebuild and every type
+        variable's declared type resolved, a class's too; the engine's four cases (legend-pure `TestPrimitiveCompile`,
+        `TestNewInstance`; legend-engine `CompileContext.newGenericType` :756-771) now answered as the engine answers
+        them (three compile, `IntCap()` is refused in the engine's words). Models 21 lines (every one at the platform's
+        dialect); the builtin and platform tables re-dumped from Java, byte for byte as frozen.
+     5. *Item 3 measured* (`bed5107ce`): 30 of the names differential's asks (5 runtime-store pairs in 3 texts) bind
+        several connections to one store under one key, none under several keys; so the merge stays, with register row
+        S379 (the engine refuses both: `HelperRuntimeBuilder.java:197-205`), and `RuntimeDefinition`'s javadoc says
+        what each does.
+     6. *S376 and S378 fixed to the engine* (`4307039aa`, `a1c8d3dbb`; rustfmt `ea9c4759d`). S376: a view reading a
+        column or table its database has not is refused in the engine's words, plain or nested (`Can't find column
+        'c'`, `Can't find table 'T' in schema 'S' and database 'D'`), every such text already refused for another
+        reason; aggregates typed at any arity; stores 36 lines. What remains in the row: a column no rule types is
+        `Any[0..1]` (the engine has no type). S378: the safe type the engine's exactly, count BIGINT, the string
+        transforms a sized VARCHAR, `sub`'s rule, no rule for `group_concat`; stores 266 lines (799 view columns, every
+        one a count INTEGER -> BIGINT). What remains in the row: the operators', `sum`'s and `average`'s own rule shapes,
+        `case`'s assertion, a float literal, `upper`/`lower` -- found while fixing, the owner's. S377 accepted as it is.
+     7. *Guards* (`c67d9552e`): the full suite at `a1c8d3dbb` found three guards red, each on code these landings
+        added; no guard was widened. `ErrorShapeGuardrailTest.defaultLiteralFallbacksOnlyShrink`: S378's size, scale and
+        integer-digit helpers ended in `default -> 0`, now the engine's rules written out (a CHAR's or VARCHAR's size, an
+        OTHER's 0, any other kind refused; `getDecimalScale`'s and `getDecimalIntegerPrecision`'s 0 for a kind no NUMERIC
+        or DECIMAL), lite-names' `size` refusing the same kind. `CodeShapeGuardrailTest.classNamesAreNeverLogic`: `sub`'s
+        rule compared `getClass()`; the raw kind is an enum from an exhaustive switch, the safe-type map keyed by it.
+        `ParserBoundaryArchTest`: `NameResolverTest`'s cases for items 1, 2 and step 4 named the parser's `Dialect`; they
+        parse through the test door (`Own.model`), as item 4's does (a `rust/RETIRED_TESTS.md` row). Measured unchanged:
+        NameAnswers at that commit answers all five names files byte for byte (one run), the builtin and platform tables
+        re-dumped as frozen, and F9 (below) answers the re-frozen oracles exactly. No pin, ratchet or allowlist moved in
+        that commit; across the landings one ratchet rose, `own_corpus.matched` 3038 -> 3063 (item 4 +6, concat +1, items
+        1 and 2 +4, item 6 +8, step 4 +5, S376 +1: each commit's new test elements joining the own corpus and matching
+        the oracle, by `update_ratchets`, each a `rust/RETIRED_TESTS.md` row).
+     8. *The one re-freeze, attributed* (`e2d9e87e8`): two complete probe runs at `a1c8d3dbb` (Z1 and Z2, every lane,
+        143 of 145 targets passing each, the two probe-caused failures; Z2's corpus judge passes re-run as Z2c by a probe
+        copy differing by one unused constant, since the action cache had answered them with Z1's outputs) agree on every
+        key. Attributed by measurement, state against state (`rust/oracles/plan/attribution-2026-11-13.tsv`): item 4
+        moved 914 corpus test plan ids (the system-metamodel seed's enumerated-expression columns naming their database
+        in full; C4 against K1), item 10's concat the same 914 again (the seed's concat type row; C10 against C4), items 1
+        and 2 nothing (F12, every lane: absent 0), item 6 nothing (C6; the six PCT channel-B lanes, P6all), S376 and S378
+        nothing (C376; Z1 against C376 and against P4all), and step 4 the only move outside the corpus: PCT channel B
+        walls a legend-pure source that does not compile, and `essential/lang/cast/cast.pure` (whose `a::P(8)` lite
+        refused) now compiles, so its six lanes' models have new sources and new `s:` ids -- 1,719 keys renamed (each
+        answering as before but one BOTH-judge test plan, which now seeds cast.pure's classes), the second wall round's 5
+        model rows dropped, the first round's 5 model rows' counts moved (P4all against P6all; P4all equal to Z1 on those
+        lanes, 1,725 keys). And 7 keys added, by the freeze's own rule (every key both runs answer alike is frozen, but
+        the Postgres lanes', the temporary-path models' and `//core:ladder_report`'s): step 4's test case builds the
+        engine's four primitive-extension cases through `buildModel`, 4 model rows and the three that compile's
+        `compileAllBodies` rows, no MirJson or plan id -- placed by `//core:core_tests_compiler` under the probe at
+        `d46c99057` (none), `c38aee9fb`, `4307039aa` and `c67d9552e` (all 7, equal). Nothing moved or was added that no
+        item explains. Re-frozen: `identity/hits.tsv` 73,411 -> 73,413 rows (5 dropped, 7 added), `mir-ids.tsv` and
+        `plan/plan-ids.tsv` re-keyed for the renamed rows; 784 new test plan ids (403 host, 381 database judge), the host
+        store rebuilt by `rust/tools/test-plan-texts.py` from a new archive (twice byte for byte, checked: every plan its
+        id, the archive's SHA-256, the host rows' ids exactly), both archives kept outside the repository with their
+        SHA-256; no execution plan or MirJson id moved; `rust/oracles/mir` is render answers no item touches (its Bazel
+        tests pass). *Confirmed*: F9, a third complete run at `c67d9552e`, against the files before the 7 were added:
+        **all 73,406 answered and equal, none moved, none absent** (180,232 rows, 90,288 distinct keys, 143 of 145
+        targets, the two probe-caused failures; its 16,882 run-only keys the 16,851 the freeze leaves out by design, 24
+        of `//core:ladder_report` and the 7); `check_manifest.py`: every identity and plan file as its MANIFEST row. Every
+        run's folder deleted; the verify worktree left clean.
+     9. *Gates* (at `e2d9e87e8`; the docs beside it are no test's input, G17): `cargo test --workspace` (644 passed,
+        0 failed, 44 ignored), `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --check` clean.
+        Bazel `test //... --keep_going --local_test_jobs=2` (1,716 s): 584 targets, 582 passed, 2 skipped, none failed
+        or timed out; of `rust/BASELINE.tsv`'s passing targets every one passes but the three gone with their code and
+        ledgered (`//core:core_tests_ide`, `//core:core_tests_lexer`, `//docs:update_dialect_capability_test`); the 35
+        targets new since the baseline all pass. `ledger_check.sh c4a39e06d`: 85 rows ok, none missing.
