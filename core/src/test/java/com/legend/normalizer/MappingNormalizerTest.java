@@ -5505,4 +5505,47 @@ class MappingNormalizerTest {
         }
         throw new IllegalStateException("no ctor: " + v);
     }
+
+    // ---- the normalizer's second batch, item 1 (MN:539; ruling 37 (b)); moved here from NormalizerBatch2Test
+    // 2026-11-15, unchanged: its text is the clean-sheet (mapping-as-function) form, LITE-DESIGN-mapping-as-function,
+    // which this declared extension host carries (OwnDialectCensusTest) ----
+
+    private static final String CLEAN_SHEET_INCLUDE = """
+            ###Pure
+            Enum w::E { A, B }
+            Class w::P { e: w::E[0..1]; }
+            function w::pf(): w::P[*]
+            {
+              #>{w::Db.T}# -> map(r | ^w::P(e = if($r.CODE == 'a', |w::E.A, |w::E.B)))
+            }
+
+            ###Relational
+            Database w::Db
+            (
+              Table T (ID INTEGER PRIMARY KEY, CODE VARCHAR(20))
+            )
+
+            ###Mapping
+            Mapping w::Base
+            (
+              w::E: EnumerationMapping EM { A: 'a', B: 'b' }
+            )
+            Mapping w::M
+            (
+              include w::Base
+              *w::P: Relational { w::pf }
+            )
+            """;
+
+    @Test
+    @DisplayName("item 1 (MN:539): a clean-sheet mapping's enumeration mappings hold its includes'")
+    void aCleanSheetMappingsEnumerationMappingsHoldItsIncludes() {
+        // LITE-ONLY (the engine has no clean-sheet door): the legacy door's list is include-flattened and its readers
+        // take it so; until 2026-11-15 the clean-sheet door kept its own alone
+        com.legend.compiler.element.PureModelContext ctx =
+                (com.legend.compiler.element.PureModelContext) com.legend.Compiler.compileModel(
+                        CLEAN_SHEET_INCLUDE);
+        assertEquals(List.of("EM"), ctx.findMapping("w::M").orElseThrow().enumerationMappings().stream()
+                .map(com.legend.model.EnumerationMapping::mappingId).toList());
+    }
 }

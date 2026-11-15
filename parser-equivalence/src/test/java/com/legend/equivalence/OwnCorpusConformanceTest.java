@@ -273,7 +273,11 @@ class OwnCorpusConformanceTest {
                 Map.entry("LITE-DESIGN-iq-island", 1),
                 // 20 -> 21 (2026-09-13, REVIEWED, composition step 1): the
                 // routed-navigate witness is a function-form mapping by design
-                Map.entry("LITE-DESIGN-mapping-as-function", 21),
+                // 21 -> 22 (2026-11-15, for the owner's review, the normalizer's second batch, item 1, MN:539):
+                // MappingNormalizerTest.aCleanSheetMappingsEnumerationMappingsHoldItsIncludes, a clean-sheet mapping
+                // including a legacy mapping's enumeration mappings -- the clean-sheet door's own behaviour, which
+                // only its mapping-as-function form can reach (the engine has no clean-sheet door)
+                Map.entry("LITE-DESIGN-mapping-as-function", 22),
                 Map.entry("LITE-DESIGN-sqlite-backend", 2),
                 // PURE-DIALECT-diagram 1 -> row deleted (2026-11-06, the Rust port's phase 2 step 6b): its one row,
                 // lexer/LexerTest#40 (a Diagram with legend-pure's geometry attributes, the lexer's raw-skip fixture),

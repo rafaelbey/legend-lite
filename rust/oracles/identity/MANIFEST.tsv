@@ -121,9 +121,11 @@
 # THE NORMALIZER'S SECOND BATCH, ITEM 0 (end)
 # THE NORMALIZER'S SECOND BATCH, ITEM 6 (2026-11-15; begin)
 # RE-FROZEN, by the freeze's own rule, from two complete probe v2 runs at the batch's last code commit, 77591e8f2 (NB2Z3,
-# NB2Z4; each its own tagged copy, every hunk checked to apply first; 142 of 145 targets passing each, the two
-# probe-caused failures //core:census and //core:guardrails and //core:update_generated_4_test, which the generated
-# claims file left out of date until 08bdce13a, data only): they agree on every frozen key they answer; three frozen keys
+# NB2Z4; each its own tagged copy, every hunk checked to apply first; 142 of 145 targets passing each: //core:guardrails,
+# probe-caused; //core:census, probe-caused and red at the commit for the batch's own reason too (MappingNormalizer's two
+# include-walk reaches from 3970872b3, registered by the batch's suite fix, test sources only); and
+# //core:update_generated_4_test, which the generated claims file left out of date until 08bdce13a, data only): they
+# agree on every frozen key they answer; three frozen keys
 # answer otherwise (their counts: 1a's routed navigation, 4e's two ModelJoin texts now refused strict) and three no run
 # answers (4e's two bodies compiles, item 0's keys attributed to 47d13b73f (d); item 2's changed OneIndexTest module
 # text), each attributed (identity/attribution-2026-11-15-normalizer-batch2-refreeze.tsv). No MirJson, execution plan or test plan id moved.

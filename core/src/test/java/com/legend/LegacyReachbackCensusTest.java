@@ -72,6 +72,13 @@ class LegacyReachbackCensusTest {
             // package-local include probe) are the whole of Phase E's
             // consumption of the authored include graph
             "core/src/main/java/com/legend/normalizer/MappingClosures.java", 2,
+            // CONSTRUCTION (Phase E), registered 2026-11-15 for the owner's review (the normalizer's second batch,
+            // item 1, MN:539, 3970872b3; ruling 37 (b)): a CLEAN-SHEET mapping's enumeration mappings with its
+            // includes' (cleanSheetEnumerationMappings / walkIncludedEnums: the included legacy mapping, and the
+            // package-local include probe) -- MappingClosures' closures are keyed by a LEGACY mapping and do not
+            // answer for a clean-sheet includer; the same two reaches MappingClosures makes, over the same authored
+            // include graph. Routing the walk through MappingClosures is a follow-up (docs/rust-port/PHASE3.md)
+            "core/src/main/java/com/legend/normalizer/MappingNormalizer.java", 2,
             // SURFACE CONTRACT: the Pure metamodel API presents the
             // AUTHORED mapping (includes + own lists; .pure navigation
             // does its own traversal)

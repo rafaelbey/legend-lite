@@ -141,7 +141,10 @@ class OwnDialectCensusTest {
                     java.util.Map.entry("ElementParserTest.java", 17),
                     java.util.Map.entry(
                             "LegacyCleanSheetConvergenceTest.java", 4),
-                    java.util.Map.entry("MappingNormalizerTest.java", 4),
+                    // 4 -> 5 (2026-11-15, for the owner's review, the normalizer's second batch, item 1, MN:539): the
+                    // clean-sheet include text (OwnCorpusConformanceTest's mapping-as-function 21 -> 22), moved here
+                    // from NormalizerBatch2Test, which is no declared host
+                    java.util.Map.entry("MappingNormalizerTest.java", 5),
                     java.util.Map.entry("MessageParityTest.java", 1),
                     java.util.Map.entry("PureModelContextTest.java", 3),
                     java.util.Map.entry("SQLiteIntegrationTest.java", 2),

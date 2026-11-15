@@ -228,6 +228,9 @@ class NormalizerBatch2Test {
 
     // ---- item 1, JCE:415-419 and JCE:843: a walled view a routed navigation never reads; the owner's label ----
 
+    // one text block, the view by %s (2026-11-15, the second batch's suite fix): `""" + view + """` made the second
+    // block a snippet of its own to the parser-equivalence censuses, `)` first, which LEGEND_LITE refuses; the text
+    // built is the same
     private static String routedOverView(String view) {
         return """
                 Class w::P { name: String[0..1]; b: w::B[0..1]; }
@@ -242,8 +245,7 @@ class NormalizerBatch2Test {
                   Join TC(T.BID = C.ID)
                   Join TC2(T.BID = C2.ID)
                   Join TV(T.BID = V.ID)
-                """ + view + """
-                )
+                %s)
                 ###Mapping
                 Mapping w::M
                 (
@@ -253,7 +255,7 @@ class NormalizerBatch2Test {
                   w::B[b3]: Relational { ~mainTable [w::Db]C name: [w::Db]C.NAME }
                   w::P: Relational { ~mainTable [w::Db]T name: [w::Db]T.NAME, b[b3]: [w::Db]@TV, b[b1]: [w::Db]@TC, b[b2]: [w::Db]@TC2 }
                 )
-                """;
+                """.formatted(view);
     }
 
     @Test
@@ -467,43 +469,9 @@ class NormalizerBatch2Test {
         assertEquals(false, sql.contains("OTHER"), sql);
     }
 
-    private static final String CLEAN_SHEET_INCLUDE = """
-            ###Pure
-            Enum w::E { A, B }
-            Class w::P { e: w::E[0..1]; }
-            function w::pf(): w::P[*]
-            {
-              #>{w::Db.T}# -> map(r | ^w::P(e = if($r.CODE == 'a', |w::E.A, |w::E.B)))
-            }
-
-            ###Relational
-            Database w::Db
-            (
-              Table T (ID INTEGER PRIMARY KEY, CODE VARCHAR(20))
-            )
-
-            ###Mapping
-            Mapping w::Base
-            (
-              w::E: EnumerationMapping EM { A: 'a', B: 'b' }
-            )
-            Mapping w::M
-            (
-              include w::Base
-              *w::P: Relational { w::pf }
-            )
-            """;
-
-    @Test
-    @DisplayName("item 1 (MN:539): a clean-sheet mapping's enumeration mappings hold its includes'")
-    void aCleanSheetMappingsEnumerationMappingsHoldItsIncludes() {
-        // LITE-ONLY (the engine has no clean-sheet door): the legacy door's list is include-flattened and its readers
-        // take it so; until 2026-11-15 the clean-sheet door kept its own alone
-        com.legend.compiler.element.PureModelContext ctx =
-                (com.legend.compiler.element.PureModelContext) Compiler.compileModel(CLEAN_SHEET_INCLUDE);
-        assertEquals(List.of("EM"), ctx.findMapping("w::M").orElseThrow().enumerationMappings().stream()
-                .map(com.legend.model.EnumerationMapping::mappingId).toList());
-    }
+    // item 1 (MN:539)'s test, a clean-sheet mapping's enumeration mappings with its includes', is
+    // MappingNormalizerTest's aCleanSheetMappingsEnumerationMappingsHoldItsIncludes (2026-11-15, the second batch's
+    // suite fix): its text is the clean-sheet (mapping-as-function) form, which only a declared extension host may carry
 
     @Test
     @DisplayName("item 1 (RR:131/:184): a lambda that rebinds src or a bound name shadows it")
