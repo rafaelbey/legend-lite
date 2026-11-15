@@ -82,6 +82,9 @@ test_suite(
         "//rust/lite-names:names_differential_test",
         # phase 3's normalizer slice (docs/rust-port/PHASE3.md, 2026-11-14): step E, its skeleton first
         "//rust/lite-normalizer:lite_normalizer_test",
+        # and the differential holding what step E hands on to the live Java's frozen answers (red until every ask is
+        # equal: an unported ask fails it)
+        "//rust/lite-normalizer:normalizer_differential_test",
         # the shim's reader: every Java answer read back by the generated reader is the records written
         "//core:front_reader_test",
         # the planner on java.base alone (P3-19): seconds

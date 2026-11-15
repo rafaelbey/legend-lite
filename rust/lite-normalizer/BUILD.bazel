@@ -30,6 +30,38 @@ rust_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# The normalizer differential (tests/normalizer_differential.rs): every model text of the front oracle, then of the
+# slice's cases, at every dialect asked, run D then E strict and tolerant (resolve_alongside, the association adoption,
+# the index, refuse_duplicates, normalize), each canonical text held to the Java's (the SHA-256 per ask, frozen:
+# //rust/oracles:normalizer_answers; rust/oracles/normalizer/MANIFEST.tsv) -- buckets equal, mismatch and unported (an
+# ask that reaches a body the skeleton has not ported yet, counted per stub site). Fails until every ask is equal: while
+# the fills land, every unported ask fails it (2026-11-14, the normalizer slice, step 5).
+rust_test(
+    name = "normalizer_differential_test",
+    size = "large",
+    srcs = ["tests/normalizer_differential.rs"],
+    args = ["--ignored"],
+    data = [
+        "//rust/oracles:front_questions",
+        "//rust/oracles:normalizer_answers",
+        "//rust/oracles:normalizer_cases",
+    ],
+    edition = "2024",
+    env = {
+        "LITE_NORMALIZER_ANSWERS": "$(rootpath //rust/oracles:normalizer_answers)",
+        "LITE_NORMALIZER_CASES": "$(rootpath //rust/oracles:normalizer_cases)",
+        "LITE_NORMALIZER_QUESTIONS": "$(rootpath //rust/oracles:front_questions)",
+    },
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":lite_normalizer",
+        "//rust/lite-builtin:lite_builtin",
+        "//rust/lite-front:lite_front",
+        "//rust/lite-model:lite_model",
+        "//rust/lite-names:lite_names",
+    ],
+)
+
 # the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards
 filegroup(
     name = "sources",
