@@ -570,6 +570,19 @@ Each with my recommendation first.
     and in tolerant the association walled rather than anchored on a non-root set's table. S391 take the engine's -- a
     real INNER join whatever the condition; measured first. S392 keep lite's precise [1] for key, NOT NULL and aggregate
     columns (a ruled divergence). The fixes of (c) belong to the second batch with (b).
+38. **Four normalizer divergences kept** (2026-11-15; the questions the lead asked during the normalizer's second batch,
+    its brief's item 5: register rows S393, S394, S376's open part, and the duplicate view column, which had no row).
+    All four are ruled divergences: lite keeps its behaviour, no code changes. S393, an include cycle's refusal: lite's
+    words ("mapping include cycle: [w::A, w::B] — a mapping cannot include itself, directly or through its includes"),
+    the cycle in declared order, where the engine says "Detected a circular dependency in element prerequisites graph!
+    Cycle: ..." in its walk's hash order. S394, an XStore association's two lines: the batch's rule, equal modulo the
+    order of an AND's or an OR's operands -- a lite-only rule; PARK-1 stays parked. A view declaring one column twice:
+    refused when the model compiles, as `029a63c12` does, by the 2026-09-22 rule that a view lite cannot build fails the
+    strict build, where the engine compiles the model and fails at plan on any query over the view ("Cannot cast a
+    collection of size 2 to multiplicity [1]"; 18 answers over 6 texts; register row S396). A view's `{target}` terminal
+    (S376's open part): refused when the model compiles, as the lift does, where the engine compiles the view and
+    crashes with a NullPointerException on every query over it (reach 0). The own-package tier of name resolution (the
+    brief's fourth bullet) is not ruled here: runs, reach and a row only, for the owner to rule.
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.
