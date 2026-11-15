@@ -71,6 +71,18 @@ public final class ViewSignatures {
                 columns.add(cm.primaryKey() && !c.multiplicity().equals(Multiplicity.Bounded.ONE)
                         ? new Type.Column(c.name(), c.type(), Multiplicity.Bounded.ONE) : c);
             }
+            // a view declaring one column name twice: refused by name, the view's error (2026-11-15, the normalizer
+            // batch, item 7, ruling 29's second policy: the relation type's raw IllegalArgumentException, "duplicate
+            // column 'A' in relation type"). legend-engine compiles such a view and refuses only a query reading it
+            // ("Cannot cast a collection of size 2 to multiplicity [1]", asked of legend-engine 4.145.0)
+            java.util.Set<String> names = new java.util.HashSet<>();
+            for (Type.Column c : columns) {
+                if (!names.add(c.name())) {
+                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                            "view '" + view.name() + "' of '" + dbFqn + "' declares the column '" + c.name()
+                            + "' twice");
+                }
+            }
             return new Type.RelationType(columns);
         } finally {
             expanding.remove(view);

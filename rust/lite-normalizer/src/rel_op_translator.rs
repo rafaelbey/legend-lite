@@ -26,10 +26,9 @@
 //!   :720's TRANSLATED arm a `NotImplementedException` now); `literalToValueSpec`'s text names the literal's Java class
 //!   (`JValue::java_class`).
 //!
-//! Kept as Java has them (a raw JDK throw a user's text reaches): the hash arm has no arity guard (`md5()` reads
-//! `args.get(0)` of the empty immutable list, :253) and `convertDate` takes zero arguments (`size() <= 2`, :324, then
-//! `as.get(0)`, :329): both are `java.lang.ArrayIndexOutOfBoundsException: Index 0 out of bounds for length 0` (JDK 25's
-//! `ImmutableCollections.ListN.get`, probed).
+//! The hash arm takes one argument and `convertDate` one or two (2026-11-15, the normalizer batch, item 7, ruling 29):
+//! another shape falls through to the TRANSLATED refusal by name; `md5()` and `convertDate()` were a raw
+//! `ArrayIndexOutOfBoundsException`, and `md5(a, b)` dropped `b`.
 
 use std::sync::Arc;
 
@@ -271,18 +270,22 @@ pub fn translate(
             // the armed rewrites, in Java's arm order (translate's :247-390, then translateTail's :404-544); none is
             // an arm whose guard did not match, or a name with no arm: the generic arm below
             let rewritten: Option<p::ValueSpecification> = match dyna(call).and_then(arm) {
-                // DYNA_HASH_TYPES.containsKey (:248); no arity guard (module note). SQL-lane operand: hash(String[1],
+                // DYNA_HASH_TYPES.containsKey (:248), one argument (module note). SQL-lane operand: hash(String[1],
                 // ...) is strict -- the 'position' toOne idiom
                 Some(a @ (Arm::Md5 | Arm::Sha1 | Arm::Sha256)) => {
-                    let operand = to_one(&tr(at(args, 0)?)?);
-                    let hash_type = require(a.hash_type(), None)?;
-                    Some(platform(
-                        "hash",
-                        vec![
-                            operand,
-                            enum_value("meta::pure::functions::hash::HashType", JStr::from(hash_type)),
-                        ],
-                    ))
+                    if n == 1 {
+                        let operand = to_one(&tr(at(args, 0)?)?);
+                        let hash_type = require(a.hash_type(), None)?;
+                        Some(platform(
+                            "hash",
+                            vec![
+                                operand,
+                                enum_value("meta::pure::functions::hash::HashType", JStr::from(hash_type)),
+                            ],
+                        ))
+                    } else {
+                        None
+                    }
                 }
                 // the DYNA returns the day NAME (a string); pure's dayOfWeek returns the enum -- toString is the name
                 Some(Arm::DayOfWeek) => {
@@ -357,9 +360,9 @@ pub fn translate(
                         None
                     }
                 }
-                // zero arguments pass `size() <= 2` (module note)
+                // one or two arguments (module note)
                 Some(Arm::ConvertDate) => {
-                    if n <= 2 {
+                    if (1..=2).contains(&n) {
                         let translated = args_of(call)?;
                         let operands = if translated.len() == 2 {
                             translated
@@ -1215,20 +1218,28 @@ mod tests {
     }
 
     #[test]
-    fn the_hash_arms_spell_the_hash_type_and_take_no_arity_guard() {
+    fn the_hash_arms_spell_the_hash_type_at_one_argument_and_refuse_another_shape_by_name() {
         assert_eq!(
             shown(&call("md5", vec![s("a")])),
             format!("hash({T1}('a'), meta::pure::functions::hash::HashType.MD5)")
         );
-        // extra arguments are ignored, as Java's
+        // another arity falls through to the TRANSLATED refusal by name (2026-11-15, the normalizer batch, item 7,
+        // RefusalsNotCrashesTest's twin): two arguments dropped the second, none was a raw
+        // ArrayIndexOutOfBoundsException
+        let e = tr(&call("sha256", vec![s("a"), s("b")])).unwrap_err();
+        assert!(e.is_not_implemented());
         assert_eq!(
-            shown(&call("sha256", vec![s("a"), s("b")])),
-            format!("hash({T1}('a'), meta::pure::functions::hash::HashType.SHA256)")
+            message(&e),
+            "engine dynafunction 'sha256' is not supported by this platform yet in this shape (2 arguments; \
+             DynaFn.SHA256: no translator arm rewrites it)"
         );
-        // no argument: Java's `args.get(0)` of the empty immutable list
-        let e = tr(&call("sha1", vec![])).unwrap_err();
-        assert_eq!(e.java_class(), "java.lang.ArrayIndexOutOfBoundsException");
-        assert_eq!(message(&e), "Index 0 out of bounds for length 0");
+        let e = tr(&call("md5", vec![])).unwrap_err();
+        assert!(e.is_not_implemented());
+        assert_eq!(
+            message(&e),
+            "engine dynafunction 'md5' is not supported by this platform yet in this shape (0 arguments; DynaFn.MD5: \
+             no translator arm rewrites it)"
+        );
     }
 
     #[test]
@@ -1241,9 +1252,15 @@ mod tests {
             shown(&call("convertDate", vec![s("x"), s("f")])),
             "meta::legend::lite::convertDateFormat('x', 'f')"
         );
+        // no argument: the TRANSLATED refusal by name (2026-11-15, the normalizer batch, item 7; it was a raw
+        // ArrayIndexOutOfBoundsException)
         let e = tr(&call("convertDate", vec![])).unwrap_err();
-        assert_eq!(e.java_class(), "java.lang.ArrayIndexOutOfBoundsException");
-        assert_eq!(message(&e), "Index 0 out of bounds for length 0");
+        assert!(e.is_not_implemented());
+        assert_eq!(
+            message(&e),
+            "engine dynafunction 'convertDate' is not supported by this platform yet in this shape (0 arguments; \
+             DynaFn.CONVERT_DATE: no translator arm rewrites it)"
+        );
         assert_eq!(
             shown(&call("toTimestamp", vec![s("x"), s("f")])),
             "meta::legend::lite::convertDateTimeFormat('x', 'f')"

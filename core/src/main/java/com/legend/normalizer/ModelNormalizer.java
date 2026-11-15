@@ -137,7 +137,7 @@ public final class ModelNormalizer {
                 new ArrayList<>(normalized.elements().size() + lifted.size());
         elements.addAll(normalized.elements());
         elements.addAll(lifted);
-        return new NormalizedModel(resolveSynthesized(parsed, elements), normalized.imports(),
+        return new NormalizedModel(resolveSynthesized(parsed, elements, wallSink), normalized.imports(),
                 normalized.legacySurfaces());
     }
 
@@ -149,7 +149,7 @@ public final class ModelNormalizer {
      *  text would not. Parsed text inside a body is already resolved and
      *  passes through unchanged (resolution is idempotent). */
     private static List<PackageableElement> resolveSynthesized(ParsedModel parsed,
-            List<PackageableElement> elements) {
+            List<PackageableElement> elements, java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         // THE UNIVERSE ONCE per normalization, not once per statement: the
         // JFR profile of //spec:corpus_duckdb (2026-09-26, step 3 homework,
         // receipts plan-audit-2026-09-26/step3/) put 13-15% of the whole lane
@@ -172,10 +172,23 @@ public final class ModelNormalizer {
                         .getOrDefault(fd.synthesizedFrom().ownerFqn(), none);
                 List<com.legend.protocol.spec.ValueSpecification> body = new ArrayList<>(fd.body().size());
                 boolean changed = false;
-                for (var stmt : fd.body()) {
-                    var resolved = com.legend.compiler.NameResolver.resolveQueryIn(stmt, scope, universe);
-                    changed |= resolved != stmt;
-                    body.add(resolved);
+                try {
+                    for (var stmt : fd.body()) {
+                        var resolved = com.legend.compiler.NameResolver.resolveQueryIn(stmt, scope, universe);
+                        changed |= resolved != stmt;
+                        body.add(resolved);
+                    }
+                } catch (com.legend.error.ResolutionException e) {
+                    // a name the body cannot resolve (an ambiguous import) is the error of the element whose text the
+                    // body came from: a strict build refuses the model naming it, a module build walls it and drops
+                    // the function, as every other E wall (2026-11-15, the normalizer batch, item 7c: it escaped a
+                    // module build unattributed)
+                    String owner = fd.synthesizedFrom().ownerFqn();
+                    if (wallSink == null) {
+                        throw new ModelException(LegendCompileException.Phase.RESOLVE, e.getMessage(), owner);
+                    }
+                    wallSink.putIfAbsent(owner, String.valueOf(e.getMessage()).split("\n")[0]);
+                    continue;
                 }
                 out.add(changed ? new FunctionDefinition(fd.qualifiedName(), fd.typeParameters(),
                         fd.multiplicityParameters(), fd.parameters(), fd.returnType(),

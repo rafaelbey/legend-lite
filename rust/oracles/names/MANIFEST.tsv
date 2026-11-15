@@ -19,7 +19,19 @@
 # spellings (t) and 828,951 columns (u), 596,051 filter and 316,904 join lookups, 96,180 views (v) and 2,809 main tables
 # (w), 158,967 legacy set ids (q), 490,673 section scopes (i), 202,484 function ids (f), 31,954 lifted derived
 # properties (l), 123 duplicates (d).
-models.tsv.zst	NameAnswers' models: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names landings, at the end)	b79209c1f670831ecf36eda8ffd1cca2326d709b00c15514acc2b055212db2d7
+# THE NORMALIZER BATCH (2026-11-15; docs/rust-port/PHASE3.md, the normalizer slice's entry, "the normalizer batch";
+# rulings 29 and 34, and the owner's ruling of 2026-11-15 on ruling 30's frozen-answer clause): item 7 changed two
+# names-tier refusals and re-froze two files from two runs of its commit's Java (A and B, byte-identical on every
+# file): KnowledgeLayer.superClass's raw IllegalStateException ("class unresolved on a hierarchy walk (a real model
+# gap): X") is the engine's "Can't find type 'X'" (a ModelException, MODEL), so models.tsv moved 74,260 of 74,292 lines --
+# every ask whose index is asked (NameAnswers asks the knowledge kernel ancestorsAndSelf and lineage of every key, the
+# absent key `absent::Name` among them, which fail with that text), the 32 without an index not; measured on the first
+# 300 asks' texts at the two commits (port-scratch/normbatch/runs/names-l5a, names-l7): every differing line is that
+# failure's text, nothing else -- and ViewSignatures refuses a view declaring one column twice by name ("view 'V' of 'D'
+# declares the column 'A' twice", a ModelException) where Type.RelationType raised an IllegalArgumentException, so
+# stores.tsv moved 18 lines (the 6 texts holding such a view, at three dialects). queries, calls and duplicates
+# unchanged. //rust/lite-names:names_differential_test holds lite-names to the new files.
+models.tsv.zst	NameAnswers' models: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names landings, at the end; re-frozen 2026-11-15 by the normalizer batch, item 7)	516d506f07adf37d8f0b66430f0f6d88d8485c28487640171f8fd75da8669c81
 # QUERIES: one line per distinct (query, model) pair of the identity oracle whose model and query are both t: texts of
 # the front oracle, in first-seen order -- 31,297 pairs, 20,857 query texts, 2,321 model texts. The text: N
 # resolveQuery (the sectionless scope: no model), M resolveQueryIn(query, no imports, the model's universe), I with the
@@ -49,7 +61,7 @@ queries.tsv.zst	NameAnswers' queries: query sha TAB model sha TAB hash, 31,297 l
 # 24 refused: two columns of one name), 11,308 view columns' inferred SQL types, each with the scope and the index, no
 # scope, no lookups (r), 1,485,730 column kinds of every table or view spelling's columns and one absent (n). No stack
 # overflow met. 3,402 distinct forms.
-stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names follow-ups, at the end)	52f5ea85f97f6020dcbbedf5de490b1d31dbfd1b35dad92bbb970d797f488de6
+stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names follow-ups, at the end; re-frozen 2026-11-15 by the normalizer batch, item 7)	ecf69539d0860d3b4f12013446a59ab49d92eef9f7ddc3c3b62d99ea9b64367b
 # CALLS: one line per call shape, the shape's fields then the hash (NameAnswers.callShapes, callForm: the record codec's
 # JSON of the call Calls builds) -- 14,454 shapes: platform 6,504, like 3,380, renamed 2,452, infixRun 732, among 478,
 # infixRunAmong 478, form 370, exact 58, carrier 2; every name the builder's 206 call sites build (read from them), at the

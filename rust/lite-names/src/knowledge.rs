@@ -191,11 +191,12 @@ impl<'m> Knowledge<'m> {
         Ok(out)
     }
 
-    /// `superClass(fqn)`: the class behind a superclass met on a hierarchy walk; unresolved is a real model gap.
+    /// `superClass(fqn)`: the class behind a superclass met on a hierarchy walk; a class extending a class the model has
+    /// not is the model's error in the engine's words (2026-11-15, the normalizer batch, item 7: it was an
+    /// IllegalStateException).
     fn super_class(&self, fqn: &JStr) -> Result<&'m Arc<ClassDefinition>, Thrown> {
-        self.hierarchy_class(Some(fqn)).ok_or_else(|| {
-            Thrown::illegal_state(cat!("class unresolved on a hierarchy walk (a real model gap): ", fqn))
-        })
+        self.hierarchy_class(Some(fqn))
+            .ok_or_else(|| Thrown::model(Phase::Model, cat!("Can't find type '", fqn, "'"), None))
     }
 
     /// `propertyType(cd, name)`: the declared type of property `name` seen from `cd`: its own stored property, else an

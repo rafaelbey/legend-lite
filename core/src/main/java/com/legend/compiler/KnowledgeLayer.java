@@ -234,11 +234,16 @@ public final class KnowledgeLayer {
     // ====================================================================
 
     /** The class behind a superclass FQN met on a hierarchy walk — LOUD
-     * when unresolved: a superclass the index cannot answer is a real
-     * model gap, never a silently empty answer (F7.8). */
+     * when unresolved: a class extending a class the model has not is the
+     * model's error, in legend-engine's words (asked of legend-engine
+     * 4.145.0: "Can't find type 'demo::relation::domain::Employee'"), never a
+     * silently empty answer (F7.8). Until 2026-11-15 a raw
+     * IllegalStateException, "class unresolved on a hierarchy walk (a real
+     * model gap)", from 4 of the normalizer oracle's texts (the normalizer
+     * batch, item 7, ruling 29's second policy). */
     private ClassDefinition superClass(String fqn) {
-        return hierarchyClass(fqn).orElseThrow(() -> new IllegalStateException(
-                "class unresolved on a hierarchy walk (a real model gap): " + fqn));
+        return hierarchyClass(fqn).orElseThrow(() -> new ModelException(LegendCompileException.Phase.MODEL,
+                "Can't find type '" + fqn + "'"));
     }
 
     /** The declared type of property {@code name} as seen from

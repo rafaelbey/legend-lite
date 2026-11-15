@@ -51,7 +51,7 @@ pub fn normalize(
     // E.5 FIRST: the store views as lifted functions -- ONE owner of every view's body
     let views = LiftedViews::new(parsed, model);
     views.lift_all(walls.as_deref_mut())?;
-    let normalized = mapping_normalizer::normalize(parsed, model, walls, &views)?;
+    let normalized = mapping_normalizer::normalize(parsed, model, walls.as_deref_mut(), &views)?;
     let mut lifted: Vec<Arc<FunctionDefinition>> = Vec::new();
     lift_derived_properties(parsed, &mut lifted)?; // E.2
     lift_constraints(parsed, &mut lifted)?; // E.3
@@ -63,7 +63,7 @@ pub fn normalize(
     elements.extend(normalized.elements.iter().cloned());
     elements.extend(lifted.into_iter().map(PackageableElement::FunctionDefinition));
     Ok(NormalizedModel {
-        elements: list(resolve_synthesized(parsed, elements)?),
+        elements: list(resolve_synthesized(parsed, elements, walls)?),
         imports: normalized.imports.clone(),
         legacy_surfaces: normalized.legacy_surfaces.clone(),
     })
@@ -129,6 +129,7 @@ fn same_statement(a: &p::ValueSpecification, b: &p::ValueSpecification) -> bool 
 pub fn resolve_synthesized(
     parsed: &ParsedModel,
     elements: Vec<PackageableElement>,
+    mut walls: Option<&mut LinkedMap<JStr, JStr>>,
 ) -> Result<Vec<PackageableElement>, Thrown> {
     // THE UNIVERSE ONCE per normalization, not once per statement
     let mut universe = SynthesizedUniverse {
@@ -159,11 +160,38 @@ pub fn resolve_synthesized(
         let scope = element_imports.get(&from.owner_fqn).copied().unwrap_or(&none);
         let mut body: Vec<p::ValueSpecification> = Vec::with_capacity(fd.body.len());
         let mut changed = false;
+        let mut unresolved: Option<Thrown> = None;
         for stmt in fd.body.iter() {
-            let resolved = resolve_query_in(stmt, scope.clone(), &universe)?;
+            let resolved = match resolve_query_in(stmt, scope.clone(), &universe) {
+                Ok(r) => r,
+                Err(e) => {
+                    unresolved = Some(e.into());
+                    break;
+                }
+            };
             // Java's `resolved != stmt`, a rebuild detector (census §9.1: answer-neutral either way)
             changed |= !same_statement(&resolved, stmt);
             body.push(resolved);
+        }
+        if let Some(e) = unresolved {
+            // a ResolutionException is the error of the element the body came from: strict, the model's error naming
+            // it; tolerant, a wall and the function dropped (2026-11-15, the normalizer batch, item 7c)
+            if !e.is_resolution() {
+                return Err(e);
+            }
+            match walls.as_deref_mut() {
+                None => {
+                    return Err(Thrown::model(
+                        Phase::Resolve,
+                        e.message_or_null(),
+                        Some(&from.owner_fqn),
+                    ));
+                }
+                Some(w) => {
+                    w.put_if_absent(from.owner_fqn.clone(), e.first_line());
+                    continue;
+                }
+            }
         }
         if changed {
             // Java's ten-argument constructor (no constraints block; a synthesized function has none)
@@ -916,7 +944,7 @@ mod tests {
                 .into_iter()
                 .map(PackageableElement::FunctionDefinition),
         );
-        let out = resolve_synthesized(&parsed, elements).unwrap();
+        let out = resolve_synthesized(&parsed, elements, None).unwrap();
         let function = |i: usize| match &out[i] {
             PackageableElement::FunctionDefinition(f) => f.clone(),
             _ => panic!("a function"),

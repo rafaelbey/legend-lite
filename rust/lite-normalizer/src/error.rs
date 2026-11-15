@@ -128,6 +128,11 @@ impl Thrown {
         matches!(self, Thrown::Compile(e) if e.kind == ErrorKind::Model)
     }
 
+    /// `catch (ResolutionException e)`.
+    pub fn is_resolution(&self) -> bool {
+        matches!(self, Thrown::Compile(e) if e.kind == ErrorKind::Resolution)
+    }
+
     /// `catch (NotImplementedException e)`: a `WalledBodyException` too (its subclass).
     pub fn is_not_implemented(&self) -> bool {
         matches!(self, Thrown::Compile(e) if matches!(e.kind, ErrorKind::NotImplemented | ErrorKind::WalledBody))

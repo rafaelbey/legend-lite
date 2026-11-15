@@ -97,6 +97,26 @@ fn signature<'a, A: Alloc>(
             c
         });
     }
+    // a view declaring one column name twice: refused by name (2026-11-15, the normalizer batch, item 7: the relation
+    // type's raw IllegalArgumentException); the engine compiles such a view and refuses only a query reading it
+    let mut names: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for c in columns.iter() {
+        if !names.insert(c.name) {
+            return Err(Thrown::model(
+                Phase::Model,
+                cat!(
+                    "view '",
+                    &view.name,
+                    "' of '",
+                    db_fqn,
+                    "' declares the column '",
+                    c.name,
+                    "' twice"
+                ),
+                None,
+            ));
+        }
+    }
     RelationType::of(arena, &columns).map_err(Thrown::from_type_error)
 }
 

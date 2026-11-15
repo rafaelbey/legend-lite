@@ -244,8 +244,14 @@ final class RelOpTranslator {
                 yield new AppliedProperty(targetVarOrNull, tref.column());
             }
             case RelationalOperation.Literal lit -> literalToValueSpec(lit.value());
+            // one argument: md5(), and md5(a, b) whose b was dropped, fall through to the TRANSLATED refusal by name
+            // (2026-11-15, the normalizer batch, item 7, ruling 29: md5() reached a raw ArrayIndexOutOfBoundsException).
+            // The engine compiles either and refuses it when it plans a query reading it (asked of legend-engine
+            // 4.145.0: "No matched function in function registry for - md5(<UNKNOWN_TYPE>, <UNKNOWN_TYPE>)"), as the
+            // refusal here is deferred
             case RelationalOperation.FunctionCall call
-                    when dyna(call) instanceof DynaFn hashed && DYNA_HASH_TYPES.containsKey(hashed) ->
+                    when dyna(call) instanceof DynaFn hashed && DYNA_HASH_TYPES.containsKey(hashed)
+                    && call.args().size() == 1 ->
                     // SQL-lane operand: optional column reads null-
                     // propagate; hash(String[1], ...) is strict — the
                     // 'position' toOne idiom
@@ -320,8 +326,11 @@ final class RelOpTranslator {
                     when dyna(call) == DynaFn.PARSE_DATE && call.args().size() == 2 ->
                     Calls.exact(Pure.Lite.PARSE_DATE_FORMAT, translateArgs(call, tableScope,
                             targetVarOrNull, rowBindOrNull, pipeline));
+            // one or two arguments: convertDate() falls through to the TRANSLATED refusal by name (2026-11-15, the
+            // normalizer batch, item 7, ruling 29: it reached a raw ArrayIndexOutOfBoundsException; the engine compiles
+            // it and refuses it when it plans, "No matched function in function registry for - to_date()")
             case RelationalOperation.FunctionCall call
-                    when dyna(call) == DynaFn.CONVERT_DATE && call.args().size() <= 2 -> {
+                    when dyna(call) == DynaFn.CONVERT_DATE && !call.args().isEmpty() && call.args().size() <= 2 -> {
                     List<ValueSpecification> as = translateArgs(call, tableScope,
                             targetVarOrNull, rowBindOrNull, pipeline);
                     yield Calls.exact(Pure.Lite.CONVERT_DATE_FORMAT,

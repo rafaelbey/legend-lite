@@ -345,4 +345,84 @@ class RefusalsNotCrashesTest {
                 + " only so far (mapping=t::M)",
                 pureModule.context().mappingAssociationPoison("t::M", "t::B_C").orElseThrow());
     }
+
+    // ---- KnowledgeLayer: a class extending a class the model has not, met on a hierarchy walk (the batch, item 7) ----
+
+    private static final String EXTENDS_A_MISSING_CLASS = """
+            Class t::Person extends t::Missing { name: String[1]; }
+            ###Relational
+            Database t::DB ( Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), AGE INTEGER) )
+            ###Mapping
+            Mapping t::M ( *t::Person: Relational { ~mainTable [t::DB] T name: [t::DB] T.NAME, age: [t::DB] T.AGE } )
+            """;
+
+    @Test
+    @DisplayName("a class extending a class the model has not is the engine's \"Can't find type\", not an IllegalStateException")
+    void aClassExtendingAMissingClassIsTheEnginesRefusal() {
+        // 2026-11-15 (ruling 29's second policy, ENGINE-SOURCED): the mapping's property `age`, which the class does not
+        // declare, walks its hierarchy to a superclass the model has not -- the engine's words (asked of legend-engine
+        // 4.145.0: "Can't find type 't::Missing'"), where it was a raw IllegalStateException ("class unresolved on a
+        // hierarchy walk (a real model gap)")
+        String refusal = "Can't find type 't::Missing'";
+        assertEquals(List.of("[5:1] " + refusal), strict(EXTENDS_A_MISSING_CLASS));
+    }
+
+    // ---- ModelNormalizer: a synthesized body's unresolvable name, in a mapping D walled (the normalizer batch, item 7) ----
+
+    private static final String SYNTHESIZED_BODY_AMBIGUOUS = """
+            Class t::Person { name: String[1]; firmId: Integer[1]; }
+            Class t::Firm { id: Integer[1]; }
+            Class u::Person { x: String[1]; }
+            ###Mapping
+            import t::*;
+            import u::*;
+            Mapping t::M (
+              Person: Pure { ~src Person name: $src.name }
+            )
+            """;
+
+    @Test
+    @DisplayName("a synthesized body's ambiguous name walls its element in a module build, not a raw ResolutionException")
+    void aSynthesizedBodysAmbiguousNameWallsItsElement() {
+        // 2026-11-15 (the normalizer batch, item 7c, LITE-ONLY): E.6's ResolutionException is attributed to the element
+        // the body came from -- the strict build refuses the model naming it, the module build walls it (D walled
+        // t::M in the same words first, so its wall stands) and drops the function; it escaped the module build
+        String ambiguous = "ambiguous reference 'Person' — matches via imports: [t::Person, u::Person]."
+                + " Use a fully qualified name.";
+        assertEquals(List.of("[7:1] " + ambiguous), strict(SYNTHESIZED_BODY_AMBIGUOUS), "D refuses it first, as before");
+        assertEquals(Map.of("t::M", ambiguous), module(SYNTHESIZED_BODY_AMBIGUOUS).walls());
+    }
+
+    // ---- RelOpTranslator: a hash or convertDate at an arity its arm does not take (the normalizer batch, item 7) ----
+
+    private static String hashed(String call) {
+        return """
+                Class t::Person { name: String[1]; }
+                ###Relational
+                Database t::DB ( Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), A VARCHAR(100)) )
+                ###Mapping
+                Mapping t::M ( *t::Person: Relational { ~mainTable [t::DB] T name: %s } )
+                """.formatted(call);
+    }
+
+    @Test
+    @DisplayName("md5(), md5(a, b) and convertDate() are refused by name, not an ArrayIndexOutOfBoundsException or a dropped argument")
+    void aHashOrConvertDateAtAnotherArityIsRefusedByName() {
+        // 2026-11-15 (ruling 29's second policy; md5(a, b) ENGINE-SOURCED): the engine compiles each and refuses a query
+        // reading it when it plans ("No matched function in function registry for - md5(<UNKNOWN_TYPE>,
+        // <UNKNOWN_TYPE>)", asked of legend-engine 4.145.0), so the refusal defers, a poison of the class, as the
+        // TRANSLATED shape refusal beside it; md5() and convertDate() were a raw ArrayIndexOutOfBoundsException, md5(a, b)
+        // dropped b
+        for (String[] c : new String[][] {
+                {"md5()", "md5", "0 arguments", "MD5"},
+                {"md5([t::DB] T.NAME, [t::DB] T.A)", "md5", "2 arguments", "MD5"},
+                {"convertDate()", "convertDate", "0 arguments", "CONVERT_DATE"}}) {
+            String text = hashed(c[0]);
+            assertEquals(List.of(), strict(text), c[0] + ": a deferred refusal, the class poisoned");
+            Compiler.BuiltModule m = module(text);
+            assertEquals(Map.of(), m.walls());
+            assertEquals("engine dynafunction '" + c[1] + "' is not supported by this platform yet in this shape ("
+                    + c[2] + "; DynaFn." + c[3] + ": no translator arm rewrites it)", poison(m, "t::M", "t::Person"));
+        }
+    }
 }
