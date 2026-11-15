@@ -117,6 +117,8 @@ name = "lite-types"
 version = "0.1.0"
 dependencies = [
  "lite-base",
+ "lite-builtin",
+ "lite-front",
  "lite-javacompat",
  "lite-json",
  "lite-sql",

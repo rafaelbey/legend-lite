@@ -9,6 +9,8 @@ rust-version.workspace = true
 
 [dependencies]
 lite-base = { path = "../lite-base" }
+lite-builtin = { path = "../lite-builtin" }
+lite-front = { path = "../lite-front" }
 lite-javacompat = { path = "../lite-javacompat" }
 lite-sql = { path = "../lite-sql" }
 

@@ -1,10 +1,14 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-//! Java's `Multiplicity`: fixed bounds or a variable, the one algebra over them (range union, path product), and the
-//! one reading of a multiplicity argument's spelling.
+//! Java's `Multiplicity`: fixed bounds or a variable, the one algebra over them (range union, path product), the
+//! one reading of a multiplicity argument's spelling, and (2026-11-15, the element slice, step 3) the one conversion
+//! from the protocol's multiplicity, `Multiplicity.from`.
 
 use std::fmt;
+
+use lite_base::Alloc;
+use lite_front::records as p;
 
 use crate::error::TypeError;
 
@@ -174,6 +178,22 @@ impl<'a> Multiplicity<'a> {
         )))
     }
 
+    /// `Multiplicity.from(m)` (Multiplicity.java:55 at 18feff3fe): a parse-time multiplicity as the type family's,
+    /// the one conversion point -- `Concrete` through [`Bounded::new`] (Java's `new Bounded(lower, upper)`: its two
+    /// `IllegalArgumentException`s, "lower must be >= 0, got L" and "upper (U) must be >= lower (L)"), `Parameter`
+    /// through [`Var::new`] (its "multiplicity parameter name must be non-empty"). The variable's name is put in
+    /// `arena`, its UTF-16 read as UTF-8 (a lone surrogate would not survive: the parser admits none in a name).
+    pub fn from<A: Alloc>(arena: &'a A, m: &p::Multiplicity) -> Result<Multiplicity<'a>, TypeError> {
+        match m {
+            p::Multiplicity::MultiplicityConcrete(c) => {
+                Ok(Multiplicity::Bounded(Bounded::new(c.lower_bound, c.upper_bound)?))
+            }
+            p::Multiplicity::MultiplicityParameter(v) => {
+                Ok(Multiplicity::Var(Var::new(arena.alloc_str(&v.name.lossy()))?))
+            }
+        }
+    }
+
     /// The source spelling: a bound's `text()`, a variable's `[m]`.
     pub fn text(self) -> String {
         match self {
@@ -237,7 +257,70 @@ fn java_strip(s: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
+    use lite_base::QueryArena;
+    use lite_front::jtypes::JStr;
+    use lite_front::records as p;
+
     use super::{Bounded, Multiplicity};
+    use crate::error::Thrown;
+
+    fn concrete(lower_bound: i32, upper_bound: Option<i32>) -> p::Multiplicity {
+        p::Multiplicity::MultiplicityConcrete(Box::new(p::MultiplicityConcrete {
+            lower_bound,
+            upper_bound,
+        }))
+    }
+
+    fn parameter(name: &str) -> p::Multiplicity {
+        p::Multiplicity::MultiplicityParameter(Box::new(p::MultiplicityParameter { name: JStr::from(name) }))
+    }
+
+    #[test]
+    fn from_converts_a_concrete_multiplicity_through_the_bounds_checks() {
+        let cx = QueryArena::new();
+        assert_eq!(
+            Multiplicity::from(&cx, &concrete(0, Some(1))).unwrap(),
+            Multiplicity::ZERO_ONE
+        );
+        assert_eq!(
+            Multiplicity::from(&cx, &concrete(1, None)).unwrap(),
+            Multiplicity::ONE_MANY
+        );
+        assert_eq!(Multiplicity::from(&cx, &concrete(3, Some(7))).unwrap().text(), "[3..7]");
+        // Java's `new Bounded(2, 1)`: the upper bound's refusal, word for word
+        let upper = Multiplicity::from(&cx, &concrete(2, Some(1))).unwrap_err();
+        assert_eq!(
+            (upper.thrown, upper.message.as_str()),
+            (Thrown::IllegalArgument, "upper (1) must be >= lower (2)")
+        );
+        // Java's `new Bounded(-1, null)`: the lower bound's, checked first (a negative lower with an upper below it
+        // is the lower's refusal too)
+        let lower = Multiplicity::from(&cx, &concrete(-1, None)).unwrap_err();
+        assert_eq!(
+            (lower.thrown, lower.message.as_str()),
+            (Thrown::IllegalArgument, "lower must be >= 0, got -1")
+        );
+        let both = Multiplicity::from(&cx, &concrete(-1, Some(-2))).unwrap_err();
+        assert_eq!(both.message, "lower must be >= 0, got -1");
+    }
+
+    #[test]
+    fn from_converts_a_parameter_to_a_variable_in_the_arena() {
+        let cx = QueryArena::new();
+        let m = Multiplicity::from(&cx, &parameter("m")).unwrap();
+        match m {
+            Multiplicity::Var(v) => assert_eq!(v.name(), "m"),
+            Multiplicity::Bounded(_) => panic!("a parameter is a variable"),
+        }
+        assert_eq!(m.text(), "[m]");
+        assert!(!m.is_many());
+        // Java's `new Var("")`
+        let empty = Multiplicity::from(&cx, &parameter("")).unwrap_err();
+        assert_eq!(
+            (empty.thrown, empty.message.as_str()),
+            (Thrown::IllegalArgument, "multiplicity parameter name must be non-empty")
+        );
+    }
 
     #[test]
     fn the_bounds_spell_as_java_spells_them() {

@@ -7,13 +7,14 @@
 //! ported: `TDS_NULL_CELL` (the SQL tree's, `lite_sql::TDS_NULL_CELL`), `TDS_ROW` (`builtin`'s
 //! `NativeFn.TDS_ROW_OWNER`) and `FEATURE` (`platform`'s `Feature.FQN`).
 //!
-//! Not ported with them, for the layer they need (docs/rust-port/PHASE3_CRATES.md): `eraseTdsRow`
-//! (`NativeFn.RowGetter`), `handleRowClass` and `isStatementOnly` (`FunctionId`, `NativeFn`).
+//! [`erase_tds_row`] (`eraseTdsRow`) reads `builtin`'s `NativeFn.RowGetter` (2026-11-15, the element slice, step 3:
+//! the crate reaches lite-builtin now). Not ported with them, for the slice that first calls them
+//! (docs/rust-port/PHASE3_CRATES.md §4, bucket (b)): `handleRowClass` and `isStatementOnly` (`FunctionId`, `NativeFn`).
 
 use lite_base::Alloc;
 
 use crate::primitive::Primitive;
-use crate::ty::{FunctionType, GenericType, Type};
+use crate::ty::{FunctionType, GenericType, RelationType, Type};
 
 macro_rules! constants {
     ($($name:ident = $value:expr;)*) => {
@@ -271,6 +272,19 @@ pub fn concrete_function_definition_type<'a, A: Alloc>(arena: &'a A, ft: &'a Fun
         &[Type::FunctionType(ft)],
         &[],
     ))
+}
+
+/// `eraseTdsRow(t)` (PlatformTypes.java:119 at 18feff3fe; 2026-11-15, the element slice, step 3): TDS erasure -- an
+/// owner of the row-accessor family (`NativeFn.RowGetter`: `TDSRow`, the ResultSet's `execute::Row`) in a type position
+/// is the erased row ([`RelationType::erased_row`], in `arena`), so nothing downstream sees the nominal class; every
+/// other type is itself.
+pub fn erase_tds_row<'a, A: Alloc>(arena: &'a A, t: Type<'a>) -> Type<'a> {
+    match t {
+        Type::ClassType(fqn) if lite_builtin::native_fn::RowGetter::is_owner(fqn) => {
+            Type::RelationType(RelationType::erased_row(arena, fqn))
+        }
+        _ => t,
+    }
 }
 
 /// The function type a function-valued type carries: itself, or the one argument of a carrier spelling;

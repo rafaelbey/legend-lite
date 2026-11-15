@@ -87,6 +87,36 @@ fn the_late_bound_schema_is_a_static() {
 }
 
 #[test]
+fn erasure_makes_each_row_owner_the_erased_row_and_keeps_every_other_type() {
+    let cx = QueryArena::new();
+    // both owners of the row-accessor family: TDSRow and the ResultSet's execute::Row
+    for owner in [platform::TDS_ROW, lite_builtin::native_fn::EXECUTE_ROW_OWNER] {
+        let erased = platform::erase_tds_row(&cx, Type::ClassType(owner));
+        let Type::RelationType(row) = erased else {
+            panic!("{owner} erases to a relation type")
+        };
+        assert!(row.is_late_bound() && row.is_erased_row());
+        // the template keeps the owner's class
+        assert_eq!(row.dynamic_columns()[0].r#type, Type::ClassType(owner));
+        assert_eq!(erased, Type::RelationType(RelationType::erased_row(&cx, owner)));
+    }
+    // a class of no accessor family, a generic over a row owner, a primitive: each is itself
+    for kept in [
+        Type::ClassType("my::app::Row"),
+        Type::ClassType(platform::TABULAR_DATA_SET),
+        Type::GenericType(GenericType::new(
+            &cx,
+            platform::LIST,
+            &[Type::ClassType(platform::TDS_ROW)],
+            &[],
+        )),
+        Type::Primitive(Primitive::String),
+    ] {
+        assert_eq!(platform::erase_tds_row(&cx, kept), kept);
+    }
+}
+
+#[test]
 fn types_are_built_on_many_threads_in_one_model() {
     let model = ModelArena::new();
     let made: Vec<Vec<Type<'_>>> = std::thread::scope(|s| {

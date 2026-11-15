@@ -12,10 +12,12 @@
 //! `rust/oracles/types/type-facts.tsv`, frozen from the Java before it is deleted. A refusal is Java's exception and
 //! message ([`TypeError`]).
 //!
-//! What the layer holds that this crate does not yet, for the layer it needs (docs/rust-port/PHASE3_CRATES.md):
-//! `Multiplicity.from` (the parser's protocol records), `PlatformTypes.eraseTdsRow`, `handleRowClass` and
-//! `isStatementOnly` (`builtin`, `model`). Subtyping is not a type's operation, in Java or here: the lattice is the
-//! classes' `extends` chain, which the model walks (`ModelContext.isSubtype`).
+//! The two operations F needs that read a later layer (2026-11-15, the element slice, step 3; docs/rust-port/
+//! PHASE3_CRATES.md §4, bucket (b)): [`Multiplicity::from`] (the parser's protocol records, lite-front) and
+//! [`platform::erase_tds_row`] (`builtin`'s `NativeFn.RowGetter`, lite-builtin), both on the layer's own line. What the
+//! layer holds that this crate does not yet, for the slice that first calls it: `handleRowClass` and `isStatementOnly`
+//! (`model`'s `FunctionId`, `builtin`'s `NativeFn`). Subtyping is not a type's operation, in Java or here: the lattice
+//! is the classes' `extends` chain, which the model walks (`ModelContext.isSubtype`).
 
 #![forbid(unsafe_code)]
 

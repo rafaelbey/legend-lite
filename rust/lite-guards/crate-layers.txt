@@ -24,7 +24,10 @@ lite-dialect	sql_dialect rust_dialect	1	lite-javacompat lite-json lite-sql
 lite-front	parser protocol rust_parser	2	lite-javacompat
 # 2026-11-11, phase 3 slice 1a (docs/rust-port/PHASE3.md): the foundation and the type family
 lite-base	base	3
-lite-types	compiler_element_type	3	lite-base lite-javacompat lite-sql
+# 2026-11-15, phase 3's element slice, step 3 (docs/rust-port/PHASE3_CRATES.md §4, bucket (b); EF_CENSUS §2's last
+# row): lite-types gains lite-front (Multiplicity.from reads the protocol's multiplicity) and lite-builtin
+# (PlatformTypes.eraseTdsRow reads NativeFn.RowGetter), both on compiler_element_type's line (protocol, builtin)
+lite-types	compiler_element_type	3	lite-base lite-builtin lite-front lite-javacompat lite-sql
 lite-guards	top	3
 # 2026-11-12, phase 3 slice 1b (docs/rust-port/PHASE3.md): the errors, the model and its converters from the protocol
 # records, the platform's declarations with the text's door (door merged into builtin: PHASE3_CRATES.md §1), the platform

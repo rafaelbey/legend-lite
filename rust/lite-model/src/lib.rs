@@ -30,15 +30,19 @@
 //! - The shared accessors of two sealed families the normalizer reads (its skeleton, 2026-11-14):
 //!   `PropertyMapping.propertyName()` and `AssociationMapping.associationName()` ([`normalizer_methods`]); and
 //!   `LinkedHashMap.remove` on [`linked::LinkedMap`].
+//! - The model's reads the element compiler makes (the element slice's step 3, 2026-11-15, EF_CENSUS §8):
+//!   `NormalizationFacts`' keyed lookups ([`element_methods`]). `DatabaseDefinition`'s lookups beyond its default
+//!   schema are `ModelBuilder`'s in Java, so lite-names' `ModelIndex` has them; the record has none of its own but
+//!   the default-schema tables and views (`database.rs`).
 //!
 //! What `com.legend.model` holds that is not here yet, for the slice that first calls it: the lookups on
 //! `MappingDefinition`'s bindings (`ClassBindings`, `AssociationBindings`: the resolver's; `position` re-expressed as a
-//! binding's index) and its facts' keyed reads, `ClassMapping`'s witness-column names, the `RuntimeDefinition`
-//! helpers, and the identity-keyed lookups of `DatabaseDefinition` beyond its default-schema tables and views.
+//! binding's index), `ClassMapping`'s witness-column names and the `RuntimeDefinition` helpers.
 
 #![forbid(unsafe_code)]
 
 pub mod class_mapping;
+pub mod element_methods;
 pub mod elements;
 pub mod error;
 pub mod from_protocol;

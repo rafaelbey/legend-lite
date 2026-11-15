@@ -12,6 +12,8 @@ rust_library(
     visibility = ["//rust:__subpackages__"],
     deps = [
         "//rust/lite-base:lite_base",
+        "//rust/lite-builtin:lite_builtin",
+        "//rust/lite-front:lite_front",
         "//rust/lite-javacompat:lite_javacompat",
         "//rust/lite-sql:lite_sql",
     ],
