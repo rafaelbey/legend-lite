@@ -1395,24 +1395,27 @@ done, in the order of the design's §3.
      (`847a12e7c`, Rust only but a Java comment): GBS:342 compares a Double literal by Java's bits; the model holds a
      derived property definition by `Arc` (FrontCodegen's rule, records regenerated), lite-names' adoption shares it and
      ModelNormalizer:220 is identity (lite-base's `same`); US:797 dedups class mappings by their codec text, every
-     component equals reads (a source position too, which no two sets of one model differ by alone); `Thrown::Unported`
-     and the `unported!` macro removed (the differential's UNPORTED bucket stays, empty); ad86fa895's comment slip fixed
-     ("association lookups", Java and Rust); both differentials equal. Item 11 (`527419708`, S394, LITE-ONLY): Java
-     compares an XStore association's two lines modulo AND/OR commutation by record equality
+     component equals reads (a source position too, which no two sets of one model differ by alone); a Rust unit test
+     pins GBS's (`a_double_literal_matches_by_javas_double_equals`), none US's, and no text reaches either;
+     `Thrown::Unported` and the `unported!` macro removed (the differential's UNPORTED bucket stays, empty); ad86fa895's
+     comment slip fixed ("association lookups", Java and Rust); both differentials equal. Item 11 (`527419708`, S394,
+     LITE-ONLY): Java compares an XStore association's two lines modulo AND/OR commutation by record equality
      (`MappingNormalizer.sameModuloCommutation`) where it ordered the operands by `toString`, positions included -- the
      accident shown on hand-built conditions against the base's jars (`port-scratch/normbatch/i11check`); reach 28 / 10,
      E unmoved. Item 4 (`47d13b73f`, census ASK 10, LITE-ONLY, landed under ruling 37 (a)): (a) a view's wall its first
-     line (none moved: every tagged view wall one line); (b) resolveAllStores' duplicated-include and include-cycle
-     refusals wall their mapping in a tolerant build (a cycle: its first member), E.4's untyped service parameter walls
-     its service, AggregateViewLift's failure poisons its class (functions and bindings withdrawn) where it walled the
-     mapping; (c) a walled mapping's lifted functions leave with it; (d) an association's NotImplementedException defers
-     in a strict build too, as a class's does. E 468 / 157: (b, c) 84 / 29, every tolerant ask tagged; (d) 384 / 128,
-     each now answered strict -- the 243 tagged strict asks unmoved are refused first by another ModelException (read
-     from the run's forms). E.3c's IllegalStateException still escapes (a pipeline-order assertion: a bug is never
-     walled). Item 12 (`b1d8fe8e0`): S376 and S378 marked FIXED with their commits; S393 (the include cycle's order),
-     S394 (the XStore lines' comparison) and S395 (the M2M unmapped class, read: `ClassMappingThirdPassBuilder.java`
-     :96-115) written. Ruling 37 recorded (`503a98560`, docs only): §10's ruling, rows S381-S392 and S395 ruled, the
-     second batch carried.
+     line (none moved: every tagged view wall one line, so the split is unexercised); (b) resolveAllStores'
+     duplicated-include and include-cycle refusals wall their mapping in a tolerant build (a cycle: its first member),
+     E.4's untyped service parameter walls its service (a Rust unit test; no Java one), AggregateViewLift's failure
+     poisons its class (functions and bindings withdrawn) where it walled the mapping; (c) a walled mapping's lifted
+     functions leave with it (no text reaches this once (b) poisons the aggregate view failure, the one that did, and no
+     test exercises it); (d) an association's NotImplementedException defers in a strict build too, as a class's does. E
+     468 / 157: (b) 84 / 29, every tolerant ask tagged (the aggregate view's one ask among them, whose orphan goes with
+     its class); (d) 384 / 128, each now answered strict -- the 243 tagged strict asks unmoved are refused first by
+     another ModelException (read from the run's forms). E.3c's IllegalStateException still escapes (a pipeline-order
+     assertion: a bug is never walled). Item 12 (`b1d8fe8e0`): S376 and S378 marked FIXED with their commits; S393 (the
+     include cycle's order), S394 (the XStore lines' comparison) and S395 (the M2M unmapped class, read:
+     `ClassMappingThirdPassBuilder.java` :96-115) written. Ruling 37 recorded (`503a98560`, docs only): §10's ruling,
+     rows S381-S392 and S395 ruled, the second batch carried.
    - *The batch's re-freezes.* The normalizer oracle: 1,059 moves over the batch, 1,053 distinct asks over 358 texts (2b
      218, 2e 216, 2fg 72, 2i 6, 5a 6, 7 29, 8 9, 2j 35, 4 468), each in its item's commit, each ask one the reach run
      tagged with the item's site, none untagged (`rust/oracles/normalizer/attribution-2026-11-15-normalizer-batch.tsv`,
@@ -1428,11 +1431,17 @@ done, in the order of the design's §3.
      re-frozen and no attribution file is written. Keys answered by both runs that the oracle does not hold, outside the
      freeze's exclusions (24 //core:ladder_report, the Postgres lanes' and 168 integration and server test models'
      temporary-path keys a run): 66 -- 64 in the core_tests_normalizer lanes, 2 in the core_tests_integration lanes,
-     every one a model or query key of a test text this batch added (NormalizerBatchTest, RefusalsNotCrashesTest's new
-     cases, LegendLiteGapTest's `b77a6bf47` texts), none with a plan id; left out of the oracle, which freezes moved
-     answers (namesland/refreeze3.py would add them). A first pair at the same commit (03:48-04:10) ran without the
-     probe -- its LiftedViews hunk no longer applied over item 4's wall line -- and answered nothing; the probe copy's
-     hunk context rebased (normbatch/tools/make_variant4.py), the pair re-run. Every run's output folder deleted.
+     each matched to its text by the probe's own model id (`port-scratch/normbatch/keymap`), none with a plan id: 26 of
+     the slice's step 1 texts (RefusalsNotCrashesTest's 14: their 14 module builds and 11 compiles, new at the slice's
+     own probe, and TRANSLATED_SHAPE's bodies compile), 3 the bodies compiles of three of those texts that item 4 (d)
+     lets a strict build compile (the ModelJoin shapes), and 37 of texts this batch added (NormalizerBatchTest 20,
+     RefusalsNotCrashesTest's new cases 14, IncludeRulesTest's PARK-26 text 1, LegendLiteGapTest's `b77a6bf47` texts 2).
+     Against the slice's count, 16,941 new keys = its 16,903 + these 40 - the 2 bodies compiles of LAMBDA_ARGUMENT and
+     LAMBDA_PARAMETER, which item 8 makes a strict build refuse. None is added to the oracle, which freezes the base's
+     keys and this batch moved none (namesland/refreeze3.py would add them: the lead's). A first pair at the same commit
+     (03:48-04:10) ran without the probe -- its LiftedViews hunk no longer applied over item 4's wall line -- and
+     answered nothing; the probe copy's hunk context rebased (normbatch/tools/make_variant4.py), the pair re-run. Every
+     run's output folder deleted.
    - *Gates* (at `503a98560`, the code of `47d13b73f` with the two docs commits): cargo test --workspace (874 passed, 0
      failed), clippy -D warnings and fmt --check clean (CARGO_TARGET_DIR in the batch's scratch, Rust 1.99.1); the full
      Bazel suite, //... --keep_going --local_test_jobs=2: 584 of 586 targets passed and 2 skipped
