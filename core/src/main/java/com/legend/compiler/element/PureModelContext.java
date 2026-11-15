@@ -414,8 +414,25 @@ public final class PureModelContext implements ModelContext {
 
     @Override
     public Optional<Property> findProperty(String classFqn, String name) {
+        return findProperty(classFqn, name, new java.util.LinkedHashSet<>());
+    }
+
+    /** {@link #findProperty(String, String)} along {@code path}, the classes the lookup is inside, its start first. A
+     *  class met again on its own path is an inheritance cycle: a tolerant build keeps a walled cyclic class
+     *  (ModelIntegrity walls it, POISON-NOT-DROP), and a lookup of a name the cycle does not declare recursed until the
+     *  stack was gone, a StackOverflowError reached from a user's model text by any lookup the typer makes (the front
+     *  oracle's corpus texts reach it). Since 2026-11-15 refused by name, in ModelIntegrity's words for the same cycle
+     *  and attributed as its wall is, to the class the walk starts from (the element slice, step 1 (a): ruling 29's
+     *  second policy, census ASK 11; LITE-ONLY, a tolerant build): a strict build never meets one, ModelIntegrity
+     *  refusing every cycle first. */
+    private Optional<Property> findProperty(String classFqn, String name, java.util.LinkedHashSet<String> path) {
+        if (!path.add(classFqn)) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                    "Inheritance cycle: " + String.join(" -> ", path) + " -> " + classFqn, path.getFirst());
+        }
         Optional<TypedClass> tc = findClass(classFqn);
         if (tc.isEmpty()) {
+            path.remove(classFqn);
             return Optional.empty();
         }
         for (Property p : tc.get().properties()) {
@@ -424,11 +441,12 @@ public final class PureModelContext implements ModelContext {
             }
         }
         for (String superFqn : tc.get().superClassFqns()) {
-            Optional<Property> inherited = findProperty(superFqn, name);
+            Optional<Property> inherited = findProperty(superFqn, name, path);
             if (inherited.isPresent()) {
                 return inherited;
             }
         }
+        path.remove(classFqn);
         // The contract's third leg: ASSOCIATION-INJECTED navigation properties
         // resolve at lookup time from the association index — never stored on
         // TypedClass (Property doc §5 discipline 3). Superclass-declared
