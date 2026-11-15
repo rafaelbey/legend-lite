@@ -19,7 +19,6 @@ use std::sync::Arc;
 
 use lite_builtin::pure::catalog;
 use lite_error::Phase;
-use lite_front::nodes;
 use lite_front::records as p;
 use lite_model::linked::{LinkedMap, list};
 use lite_model::{
@@ -921,14 +920,20 @@ pub fn inbound_arm_steps(
             h as i32,
             md.qualified_name(),
         )?;
-        let ms = Arc::new(nodes::variable(JStr::from("s")));
-        let mt = Arc::new(nodes::variable(JStr::from("t")));
+        let ms = Arc::new(free_variable("s"));
+        let mt = Arc::new(free_variable("t"));
         let mut mid_scope: TableScope = LinkedMap::new();
         mid_scope.put(
             prev_table.clone(),
             match &prev_alias {
                 None => p::ValueSpecification::Variable(ms.clone()),
-                Some(alias) => nodes::property(p::ValueSpecification::Variable(ms.clone()), alias.clone(), None),
+                // `new AppliedProperty(ms, prevAlias)`: no span, no owner class
+                Some(alias) => p::ValueSpecification::AppliedProperty(Arc::new(p::AppliedProperty {
+                    receiver: p::ValueSpecification::Variable(ms.clone()),
+                    property: alias.clone(),
+                    pos: None,
+                    owner_class: None,
+                })),
             },
         );
         if mid_tgt != prev_table {
@@ -1102,6 +1107,16 @@ fn relational_id(r: &Arc<ClassMappingRelational>) -> JStr {
     ResolvedMapping::id_of(&ClassMapping::ClassMappingRelational(r.clone()))
 }
 
+/// `new Variable(name)`: an untyped free reference (no type, multiplicity or span).
+fn free_variable(name: &str) -> p::Variable {
+    p::Variable {
+        name: JStr::from(name),
+        r#type: None,
+        multiplicity: None,
+        pos: None,
+    }
+}
+
 /// Java's `"" + s` of a nullable string: its text, or `"null"`.
 fn null_or(s: Option<&JStr>) -> JStr {
     s.cloned().unwrap_or_else(|| JStr::from("null"))
@@ -1116,5 +1131,801 @@ fn java_simple_name(cm: &ClassMapping) -> &'static str {
         ClassMapping::ClassMappingUnion(_) => "Union",
         ClassMapping::ClassMappingRelationFunction(_) => "RelationFunction",
         ClassMapping::ClassMappingInheritance(_) => "Inheritance",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::rc::Rc;
+
+    use lite_model::linked::empty;
+    use lite_model::text::j;
+    use lite_model::{
+        AssociationMapping, AssociationMappingRelational, AssociationPropertyMapping, ClassMappingPure,
+        JoinChainElement, LegacyMappingDefinitionTableReference as TableRef, PropertyMappingEmbedded,
+        PropertyMappingInlineEmbedded, PropertyMappingLocalProperty, PropertyMappingOtherwiseEmbedded,
+    };
+
+    use super::*;
+    use crate::lifted_views::LiftedViews;
+    use crate::mapping_closures::MappingClosures;
+    use crate::test_support::{cm, column_pm, index, join_pm, legacy, model, relational, union};
+
+    const MODEL: &str = r#"
+###Pure
+Class a::Person
+{
+  name: String[1];
+  firm: a::Firm[0..1];
+  address: a::Address[0..1];
+}
+Class a::Firm
+{
+  name: String[1];
+}
+Class a::Address
+{
+  street: String[1];
+  firm: a::Firm[0..1];
+}
+Class a::Animal
+{
+  name: String[1];
+}
+Class a::Dog extends a::Animal
+{
+  barks: Boolean[1];
+}
+Class a::Cat extends a::Animal
+{
+  purrs: Boolean[1];
+}
+
+###Relational
+Database a::db
+(
+  Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))
+  Table FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))
+  Table PAIR (A INTEGER PRIMARY KEY, B INTEGER PRIMARY KEY)
+  Table LOOSE (NAME VARCHAR(200))
+)
+
+###Mapping
+Mapping a::X
+(
+  a::Firm[zz]: Relational
+  {
+    ~mainTable [a::db]FIRM
+    name: [a::db]FIRM.NAME
+  }
+)
+Mapping a::Y
+(
+  a::Firm[zz]: Relational
+  {
+    ~mainTable [a::db]FIRM
+    name: [a::db]FIRM.NAME
+  }
+)
+Mapping a::Z
+(
+  a::Firm[solo]: Relational
+  {
+    ~mainTable [a::db]FIRM
+    name: [a::db]FIRM.NAME
+  }
+)
+"#;
+
+    /// A hand-made mapping record resolved over the model (no include: its closure is itself).
+    fn resolved<'a>(
+        md: LegacyMappingDefinition,
+        closures: &'a MappingClosures<'a>,
+        views: &'a LiftedViews<'a>,
+    ) -> ResolvedMapping<'a> {
+        let md = Arc::new(md);
+        let closure = closures.closure(&md.qualified_name);
+        ResolvedMapping::new(
+            md.clone(),
+            md,
+            Rc::new(HashMap::new()),
+            Rc::new(LinkedMap::new()),
+            closure,
+            views,
+        )
+    }
+
+    fn over(table: &str, mut r: ClassMappingRelational) -> ClassMappingRelational {
+        r.main_table = Some(Arc::new(TableRef {
+            database: j("a::db"),
+            table: j(table),
+        }));
+        r
+    }
+
+    fn firm_set(id: &str) -> ClassMapping {
+        cm(over("LOOSE", relational("a::Firm", Some(id), vec![])))
+    }
+
+    fn pure_set(class: &str, id: &str) -> ClassMapping {
+        ClassMapping::ClassMappingPure(Arc::new(ClassMappingPure {
+            class_name: j(class),
+            set_id: Some(j(id)),
+            extends_set_id: None,
+            root: false,
+            source_class: None,
+            filter: None,
+            property_bindings: empty(),
+        }))
+    }
+
+    fn person(id: &str, pms: Vec<PropertyMapping>) -> ClassMapping {
+        cm(over("PERSON", relational("a::Person", Some(id), pms)))
+    }
+
+    fn rel(c: &ClassMapping) -> Arc<ClassMappingRelational> {
+        match c {
+            ClassMapping::ClassMappingRelational(r) => r.clone(),
+            _ => panic!("a Relational set"),
+        }
+    }
+
+    fn the_union(c: &ClassMapping) -> Arc<ClassMappingUnion> {
+        match c {
+            ClassMapping::ClassMappingUnion(u) => u.clone(),
+            _ => panic!("a Union set"),
+        }
+    }
+
+    fn hop(name: &str, db: Option<&str>) -> Arc<JoinChainElement> {
+        Arc::new(JoinChainElement {
+            join_name: j(name),
+            join_type: None,
+            database_name: db.map(j),
+            include_self: false,
+        })
+    }
+
+    fn chain(prop: &str, hops: Vec<Arc<JoinChainElement>>) -> Arc<PropertyMappingJoin> {
+        Arc::new(PropertyMappingJoin {
+            property_name: j(prop),
+            database: j("db"),
+            joins: list(hops),
+            target_set_id: None,
+        })
+    }
+
+    fn fn_name(v: &p::ValueSpecification) -> JStr {
+        match v {
+            p::ValueSpecification::AppliedFunction(af) => af.function.clone(),
+            _ => panic!("a call"),
+        }
+    }
+
+    fn args(v: &p::ValueSpecification) -> Vec<p::ValueSpecification> {
+        match v {
+            p::ValueSpecification::AppliedFunction(af) => af.parameters.to_vec(),
+            _ => panic!("a call"),
+        }
+    }
+
+    #[test]
+    fn a_member_function_is_named_by_its_defining_mapping_as_the_driver_names_it() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        let closures = MappingClosures::new(&idx);
+        let views = LiftedViews::new(&parsed, &idx);
+        let md = resolved(
+            legacy("a::M", vec![firm_set("f1"), firm_set("f2"), person("p", vec![])]),
+            &closures,
+            &views,
+        );
+        // the sole set of its class: by class
+        assert_eq!(
+            member_function(&md, &person("p", vec![])).unwrap(),
+            j("a::M$class$a::Person")
+        );
+        // a non-root set of a two-set class: by class and set id
+        assert_eq!(
+            member_function(&md, &firm_set("f1")).unwrap(),
+            j("a::M$class$a::Firm$set$f1")
+        );
+        // a set the closure does not define: named under the closure's first record
+        assert_eq!(
+            member_function(&md, &firm_set("zz")).unwrap(),
+            j("a::M$class$a::Firm$set$zz")
+        );
+        // a root set: by class, however many sets its class has
+        let mut root = over("LOOSE", relational("a::Firm", Some("f1"), vec![]));
+        root.root = true;
+        let pt = PinTarget {
+            defining: Arc::new(legacy("a::R", vec![cm(root.clone()), firm_set("f2")])),
+            set: cm(root),
+        };
+        assert_eq!(member_function_of(&pt).unwrap(), j("a::R$class$a::Firm"));
+    }
+
+    #[test]
+    fn a_pin_resolves_in_the_closure_then_model_wide_by_a_unique_id() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        let closures = MappingClosures::new(&idx);
+        let views = LiftedViews::new(&parsed, &idx);
+        let md = resolved(legacy("a::M", vec![firm_set("f1")]), &closures, &views);
+        assert_eq!(resolve_pin(&md, None, &idx).unwrap(), None);
+        let own = resolve_pin(&md, Some(&j("f1")), &idx).unwrap().expect("own set");
+        assert_eq!(own.defining.qualified_name, j("a::M"));
+        assert_eq!(own.set, firm_set("f1"));
+        let outside = resolve_pin(&md, Some(&j("solo")), &idx).unwrap().expect("a unique id");
+        assert_eq!(outside.defining.qualified_name, j("a::Z"));
+        // two mappings define `zz`: ambiguous, so unresolved; the owners in the model's order
+        assert_eq!(resolve_pin(&md, Some(&j("zz")), &idx).unwrap(), None);
+        let owners: Vec<JStr> = pin_owners(&j("zz"), &idx)
+            .iter()
+            .map(|o| o.defining.qualified_name.clone())
+            .collect();
+        assert_eq!(owners, vec![j("a::X"), j("a::Y")]);
+        assert_eq!(resolve_pin(&md, Some(&j("nope")), &idx).unwrap(), None);
+        assert!(pin_owners(&j("nope"), &idx).is_empty());
+    }
+
+    #[test]
+    fn a_pm_identity_is_its_name_and_route() {
+        assert_eq!(pm_identity(&join_pm("firm", Some("f1"))), j("firm f1"));
+        assert_eq!(pm_identity(&join_pm("firm", None)), j("firm "));
+        assert_eq!(pm_identity(&column_pm("name", "PERSON", "NAME")), j("name "));
+    }
+
+    #[test]
+    fn routed_joins_are_collected_through_embedded_otherwise_inline_and_local_blocks() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        let closures = MappingClosures::new(&idx);
+        let views = LiftedViews::new(&parsed, &idx);
+        let inline_target = person("p4", vec![join_pm("firm", Some("f1"))]);
+        let md = resolved(legacy("a::M", vec![inline_target]), &closures, &views);
+        let embedded = PropertyMapping::PropertyMappingEmbedded(Arc::new(PropertyMappingEmbedded::new(
+            j("address"),
+            list(vec![join_pm("firm", Some("f2")), column_pm("street", "PERSON", "NAME")]),
+        )));
+        let mut routed = LinkedMap::new();
+        let mut owners = LinkedMap::new();
+        collect_routed_joins(&[embedded], &j("a::Person"), &md, &idx, &mut routed, &mut owners).unwrap();
+        assert_eq!(routed.get(&j("firm")).map(Vec::len), Some(1));
+        // the route resolves against the EMBEDDED class
+        assert_eq!(owners.get(&j("firm")), Some(&j("a::Address")));
+
+        // an otherwise block's fallback is a route pinned to its fallback set; an Inline splice and a local property
+        // descend into their bodies
+        let otherwise = PropertyMapping::PropertyMappingOtherwiseEmbedded(Arc::new(PropertyMappingOtherwiseEmbedded {
+            property_name: j("firm"),
+            embedded: empty(),
+            fallback_set_id: j("f3"),
+            fallback: join_pm("firm", None),
+        }));
+        let inline = PropertyMapping::PropertyMappingInlineEmbedded(Arc::new(PropertyMappingInlineEmbedded {
+            property_name: j("other"),
+            set_id: j("p4"),
+        }));
+        let local = PropertyMapping::PropertyMappingLocalProperty(Arc::new(PropertyMappingLocalProperty {
+            property_name: j("local"),
+            r#type: p::TypeExpression::TypeExpressionNameRef(Box::new(p::TypeExpressionNameRef {
+                name: j("a::Firm"),
+                pos: None,
+            })),
+            multiplicity: p::Multiplicity::MultiplicityConcrete(Box::new(p::MultiplicityConcrete {
+                lower_bound: 0,
+                upper_bound: Some(1),
+            })),
+            body: join_pm("local", Some("f1")),
+        }));
+        let mut routed = LinkedMap::new();
+        let mut owners = LinkedMap::new();
+        collect_routed_joins(
+            &[otherwise, inline, local],
+            &j("a::Person"),
+            &md,
+            &idx,
+            &mut routed,
+            &mut owners,
+        )
+        .unwrap();
+        let firm: Vec<Option<JStr>> = routed
+            .get(&j("firm"))
+            .unwrap()
+            .iter()
+            .map(|r| r.target_set_id.clone())
+            .collect();
+        assert_eq!(firm, vec![Some(j("f3")), Some(j("f1"))]);
+        assert_eq!(routed.get(&j("local")).map(Vec::len), Some(1));
+        assert_eq!(
+            owners.iter().cloned().collect::<Vec<_>>(),
+            vec![(j("firm"), j("a::Person")), (j("local"), j("a::Person"))]
+        );
+    }
+
+    #[test]
+    fn a_property_routed_under_two_owners_and_a_splice_cycle_are_loud() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        let closures = MappingClosures::new(&idx);
+        let views = LiftedViews::new(&parsed, &idx);
+        let splice = |prop: &str, set: &str| {
+            PropertyMapping::PropertyMappingInlineEmbedded(Arc::new(PropertyMappingInlineEmbedded {
+                property_name: j(prop),
+                set_id: j(set),
+            }))
+        };
+        let md = resolved(
+            legacy(
+                "a::M",
+                vec![
+                    person("p1", vec![splice("boss", "p2")]),
+                    person("p2", vec![splice("boss", "p1")]),
+                ],
+            ),
+            &closures,
+            &views,
+        );
+        let embedded = PropertyMapping::PropertyMappingEmbedded(Arc::new(PropertyMappingEmbedded::new(
+            j("address"),
+            list(vec![join_pm("firm", Some("f2"))]),
+        )));
+        let (mut routed, mut owners) = (LinkedMap::new(), LinkedMap::new());
+        let e = collect_routed_joins(
+            &[join_pm("firm", Some("f1")), embedded],
+            &j("a::Person"),
+            &md,
+            &idx,
+            &mut routed,
+            &mut owners,
+        )
+        .unwrap_err();
+        assert!(e.is_model());
+        assert_eq!(e.phase(), Some(Phase::Normalize));
+        assert_eq!(
+            e.message(),
+            Some(j(
+                "property 'firm' is routed under two owners, 'a::Person' and 'a::Address', in one class mapping; \
+                 routes are keyed by property name, so the mapping cannot be normalized; mapping=a::M"
+            ))
+        );
+        let (mut routed, mut owners) = (LinkedMap::new(), LinkedMap::new());
+        let mut splicing = LinkedSet::new();
+        let e = collect_routed_joins_splicing(
+            &[splice("boss", "p2")],
+            &j("a::Person"),
+            &md,
+            &idx,
+            &mut routed,
+            &mut owners,
+            &mut splicing,
+        )
+        .unwrap_err();
+        assert!(e.is_model());
+        assert_eq!(
+            e.message(),
+            Some(j(
+                "Cycle materializing Inline embedded set 'p2' via 'boss' on 'a::Person': the splice chain [p2, p1] \
+                 returns to it; mapping=a::M"
+            ))
+        );
+        // every splice left the chain on the way out (Java's finally)
+        assert!(splicing.is_empty());
+    }
+
+    #[test]
+    fn an_embedded_owner_is_the_property_s_class() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        assert_eq!(
+            embedded_owner(&j("a::Person"), &j("address"), &idx).unwrap(),
+            Some(j("a::Address"))
+        );
+        assert_eq!(embedded_owner(&j("a::Person"), &j("name"), &idx).unwrap(), None);
+        assert_eq!(embedded_owner(&j("a::Nobody"), &j("address"), &idx).unwrap(), None);
+    }
+
+    #[test]
+    fn routes_classify_as_members_root_pinned_dead_or_poison() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        let closures = MappingClosures::new(&idx);
+        let views = LiftedViews::new(&parsed, &idx);
+        let mut fu = union("a::Firm", Some("fu"), &["f1", "f2"]);
+        if let ClassMapping::ClassMappingUnion(u) = &mut fu {
+            Arc::make_mut(u).root = true;
+        }
+        let address = cm(over("LOOSE", relational("a::Address", Some("ad1"), vec![])));
+        let routed = |id: &str, pins: &[&str]| {
+            person(
+                id,
+                pins.iter()
+                    .map(|pin| {
+                        if let Some(rest) = pin.strip_prefix("address:") {
+                            join_pm("address", Some(rest))
+                        } else {
+                            join_pm("firm", Some(pin))
+                        }
+                    })
+                    .collect(),
+            )
+        };
+        let sets = vec![
+            firm_set("f1"),
+            firm_set("f2"),
+            firm_set("f3"),
+            fu,
+            address,
+            routed("pa", &["f1", "f2"]),
+            routed("pb", &["f1", "f3"]),
+            routed("pc", &["nope"]),
+            routed("pd", &["zz"]),
+            routed("pe", &["f3"]),
+            routed("pf", &["address:ad1"]),
+        ];
+        let md = resolved(legacy("a::M", sets.clone()), &closures, &views);
+        let expr = p::ValueSpecification::CString(Arc::new(p::CString {
+            value: j("x"),
+            pos: None,
+            multi_line: false,
+        }));
+        let classify = |set: &ClassMapping| {
+            let mut ledger = MappingLedger::new(HashSet::new());
+            let mut p = Pipeline::new(expr.clone(), &mut ledger, &views);
+            classify_union_routes(&md, &rel(set), &idx, &mut p).unwrap();
+            let routes: Vec<(JStr, Vec<RouteTarget>)> = p
+                .union_routes
+                .iter()
+                .map(|(k, v)| (k.clone(), v.iter().map(|r| r.target).collect()))
+                .collect();
+            let dropped = p.dropped_routed_props.clone();
+            drop(p);
+            (routes, dropped, ledger.poisons.iter().cloned().collect::<Vec<_>>())
+        };
+        let firm = j("firm");
+        // every route a member of the target's union: one navigate over the members
+        let (routes, dropped, poisons) = classify(&sets[5]);
+        assert_eq!(
+            routes,
+            vec![(firm.clone(), vec![RouteTarget::Member, RouteTarget::Member])]
+        );
+        assert!(dropped.is_empty() && poisons.is_empty());
+        // a non-member pin beside another pin is dead
+        assert_eq!(classify(&sets[6]).0, vec![(firm.clone(), vec![RouteTarget::Member])]);
+        // an unknown pin drops the property, poisoned on the class
+        let (routes, dropped, poisons) = classify(&sets[7]);
+        assert!(routes.is_empty());
+        assert!(dropped.contains(&firm));
+        assert_eq!(
+            poisons,
+            vec![(
+                PoisonKey::PoisonKeyForClass(Arc::new(PoisonKeyForClass {
+                    class_fqn: j("a::Person")
+                })),
+                j("property 'firm' routes to unknown mapping set 'nope'; the property is dropped from this synthesis")
+            )]
+        );
+        // an ambiguous pin names its owners
+        assert_eq!(
+            classify(&sets[8]).2[0].1,
+            j(
+                "property 'firm' routes to an AMBIGUOUS mapping set 'zz' (not visible through the includes; defined by \
+               [a::X, a::Y]); the property is dropped from this synthesis"
+            )
+        );
+        // a property's ONLY pin to a non-root, non-member set is that set
+        assert_eq!(classify(&sets[9]).0, vec![(firm, vec![RouteTarget::PinnedSingle])]);
+        // a route to the target's sole set is the un-routed navigation
+        let (routes, dropped, poisons) = classify(&sets[10]);
+        assert!(routes.is_empty() && dropped.is_empty() && poisons.is_empty());
+    }
+
+    #[test]
+    fn a_union_stacks_its_members_in_order_and_records_its_facts() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        let closures = MappingClosures::new(&idx);
+        let views = LiftedViews::new(&parsed, &idx);
+        let fu = union("a::Firm", Some("fu"), &["f2", "f1"]);
+        let md = resolved(
+            legacy("a::M", vec![firm_set("f1"), firm_set("f2"), fu.clone()]),
+            &closures,
+            &views,
+        );
+        let mut ledger = MappingLedger::new(HashSet::new());
+        let body = synth_union(&md, &the_union(&fu), &idx, &mut ledger).unwrap();
+        let expected = p::ValueSpecification::AppliedFunction(Arc::new(calls::platform(
+            &j("concatenate"),
+            vec![
+                p::ValueSpecification::AppliedFunction(Arc::new(calls::exact(&j("a::M$class$a::Firm$set$f2"), vec![]))),
+                p::ValueSpecification::AppliedFunction(Arc::new(calls::exact(&j("a::M$class$a::Firm$set$f1"), vec![]))),
+            ],
+        )));
+        assert_eq!(body, expected);
+        let arms: Vec<JStr> = args(&body).iter().map(fn_name).collect();
+        assert_eq!(
+            arms,
+            vec![j("a::M$class$a::Firm$set$f2"), j("a::M$class$a::Firm$set$f1")]
+        );
+        assert_eq!(ledger.operation_members.get(&j("fu")), Some(&vec![j("f2"), j("f1")]));
+        // no member over a keyed table: the fact is an empty thread list
+        assert_eq!(ledger.union_key_threads.get(&j("a::Firm")).map(Vec::len), Some(0));
+        assert!(ledger.mixed_unions.is_empty());
+    }
+
+    #[test]
+    fn a_union_refuses_its_members_in_javas_order_and_a_mixed_union_survives_its_throw() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        let closures = MappingClosures::new(&idx);
+        let views = LiftedViews::new(&parsed, &idx);
+        let md = resolved(
+            legacy(
+                "a::M",
+                vec![
+                    firm_set("f1"),
+                    pure_set("a::Firm", "m2m"),
+                    union("a::Firm", Some("inner"), &["f1"]),
+                    person("p", vec![]),
+                ],
+            ),
+            &closures,
+            &views,
+        );
+        let refusal = |members: &[&str]| {
+            let mut ledger = MappingLedger::new(HashSet::new());
+            let e = synth_union(
+                &md,
+                &the_union(&union("a::Firm", Some("u"), members)),
+                &idx,
+                &mut ledger,
+            )
+            .unwrap_err();
+            (e, ledger.mixed_unions.iter().cloned().collect::<Vec<_>>())
+        };
+        let (e, _) = refusal(&[]);
+        assert!(e.is_not_implemented());
+        assert_eq!(
+            e.message(),
+            Some(j("Operation union with no member sets; class=a::Firm, mapping=a::M"))
+        );
+        let (e, mixed) = refusal(&["f1", "m2m"]);
+        assert!(e.is_not_implemented());
+        assert_eq!(
+            e.message(),
+            Some(j(
+                "Operation union member set 'm2m' of class 'a::Firm' is a Pure (M2M) set \u{2014} the mixed-kind union \
+                 extent synthesizes at the resolver; mapping=a::M"
+            ))
+        );
+        assert_eq!(mixed, vec![(j("a::Firm"), vec![j("f1"), j("m2m")])]);
+        let (e, mixed) = refusal(&["f1", "ghost"]);
+        assert_eq!(
+            e.message(),
+            Some(j(
+                "Operation union member set 'ghost' of class 'a::Firm' is missing; mapping=a::M"
+            ))
+        );
+        assert!(mixed.is_empty());
+        let (e, _) = refusal(&["inner"]);
+        assert_eq!(
+            e.message(),
+            Some(j(
+                "Operation union member set 'inner' of class 'a::Firm' is not a Relational or Relation(~func) set; \
+                 mapping=a::M"
+            ))
+        );
+        let (e, _) = refusal(&["p"]);
+        assert!(e.is_model());
+        assert_eq!(e.phase(), Some(Phase::Normalize));
+        assert_eq!(
+            e.message(),
+            Some(j(
+                "Operation union member set 'p' maps 'a::Person', which is not 'a::Firm' or a subclass; mapping=a::M"
+            ))
+        );
+        // the pair entries are read after every member passed: an unknown association is the closure's refusal
+        let mut with_pairs = legacy("a::M", vec![firm_set("f1")]);
+        with_pairs.association_mappings = list(vec![AssociationMapping::AssociationMappingRelational(Arc::new(
+            AssociationMappingRelational {
+                association_name: j("a::Nope"),
+                property_mappings: list(vec![Arc::new(AssociationPropertyMapping {
+                    source_set_id: Some(j("f1")),
+                    target_set_id: Some(j("p")),
+                    body: join_pm("employees", None),
+                })]),
+            },
+        ))]);
+        let paired = resolved(with_pairs, &closures, &views);
+        let mut ledger = MappingLedger::new(HashSet::new());
+        let e = synth_union(
+            &paired,
+            &the_union(&union("a::Firm", Some("u"), &["f1"])),
+            &idx,
+            &mut ledger,
+        )
+        .unwrap_err();
+        assert!(e.is_model());
+        assert_eq!(e.message(), Some(j("Can't find association 'a::Nope'")));
+        assert!(ledger.operation_members.is_empty());
+        // a stack of no members records its (empty) arms, then refuses
+        let mut ledger = MappingLedger::new(HashSet::new());
+        let e = stack_body(&md, &union("a::Firm", Some("u"), &[]), &[], &mut ledger).unwrap_err();
+        assert_eq!(e, Thrown::null_pointer(Some("an operation with no members")));
+        assert_eq!(ledger.operation_members.get(&j("u")), Some(&Vec::new()));
+    }
+
+    #[test]
+    fn an_inheritance_operation_stacks_its_leaves_mapped_sets() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        let closures = MappingClosures::new(&idx);
+        let views = LiftedViews::new(&parsed, &idx);
+        let ih = Arc::new(ClassMappingInheritance {
+            class_name: j("a::Animal"),
+            set_id: Some(j("an")),
+            extends_set_id: None,
+            root: true,
+        });
+        let cat = cm(over("LOOSE", relational("a::Cat", Some("c"), vec![])));
+        let dog = cm(over("LOOSE", relational("a::Dog", Some("d"), vec![])));
+        let md = resolved(
+            legacy(
+                "a::M",
+                vec![
+                    cat.clone(),
+                    dog.clone(),
+                    ClassMapping::ClassMappingInheritance(ih.clone()),
+                ],
+            ),
+            &closures,
+            &views,
+        );
+        // the model's class order (Dog before Cat), never the mapping's
+        let members: Vec<JStr> = inheritance_members(&md, &ih, &idx)
+            .unwrap()
+            .iter()
+            .map(relational_id)
+            .collect();
+        assert_eq!(members, vec![j("d"), j("c")]);
+        let mut ledger = MappingLedger::new(HashSet::new());
+        let body = synth_inheritance(&md, &ih, &idx, &mut ledger).unwrap();
+        let arms: Vec<JStr> = args(&body).iter().map(fn_name).collect();
+        assert_eq!(arms, vec![j("a::M$class$a::Dog"), j("a::M$class$a::Cat")]);
+        assert_eq!(ledger.operation_members.get(&j("an")), Some(&vec![j("d"), j("c")]));
+        // a member that is no Relational set is refused by its Java class's simple name
+        let md = resolved(
+            legacy(
+                "a::M",
+                vec![
+                    pure_set("a::Cat", "c"),
+                    dog,
+                    ClassMapping::ClassMappingInheritance(ih.clone()),
+                ],
+            ),
+            &closures,
+            &views,
+        );
+        let e = inheritance_members(&md, &ih, &idx).unwrap_err();
+        assert!(e.is_not_implemented());
+        assert_eq!(
+            e.message(),
+            Some(j(
+                "inheritance Operation member for 'a::Cat' is a Pure mapping \u{2014} not supported yet; mapping=a::M"
+            ))
+        );
+        // no mapped subclass at all
+        let md = resolved(
+            legacy("a::M", vec![ClassMapping::ClassMappingInheritance(ih.clone())]),
+            &closures,
+            &views,
+        );
+        let mut ledger = MappingLedger::new(HashSet::new());
+        let e = synth_inheritance(&md, &ih, &idx, &mut ledger).unwrap_err();
+        assert_eq!(
+            e.message(),
+            Some(j(
+                "inheritance Operation for 'a::Animal' finds no mapped subclass sets; mapping=a::M"
+            ))
+        );
+    }
+
+    #[test]
+    fn a_table_key_is_the_sole_primary_key_of_a_physical_main_table() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        let over_table = |t: &str| cm(over(t, relational("a::Firm", Some("f"), vec![])));
+        assert_eq!(table_key(Some(&over_table("FIRM")), &idx).unwrap(), Some(j("ID")));
+        assert_eq!(table_key(Some(&over_table("PAIR")), &idx).unwrap(), None);
+        assert_eq!(table_key(Some(&over_table("LOOSE")), &idx).unwrap(), None);
+        assert_eq!(table_key(Some(&over_table("NOPE")), &idx).unwrap(), None);
+        assert_eq!(
+            table_key(Some(&cm(relational("a::Firm", None, vec![]))), &idx).unwrap(),
+            None
+        );
+        assert_eq!(table_key(None, &idx).unwrap(), None);
+        // no declared ~primaryKey: the table's PRIMARY KEY columns in declaration order; none for no physical table
+        let pair = over("PAIR", relational("a::Firm", Some("f"), vec![]));
+        assert_eq!(member_primary_key(&pair, &idx).unwrap(), vec![j("A"), j("B")]);
+        let view = over("NOPE", relational("a::Firm", Some("f"), vec![]));
+        assert!(member_primary_key(&view, &idx).unwrap().is_empty());
+        assert_eq!(
+            member_primary_key(&relational("a::Firm", Some("f"), vec![]), &idx).unwrap_err(),
+            Thrown::null_pointer(None)
+        );
+    }
+
+    #[test]
+    fn a_shared_key_name_replaces_per_code_point() {
+        assert_eq!(shared_key_name(&j("my.tab-\u{1D11E}"), &j("ID")), j("ID__pk_my_tab__"));
+        let lone = JStr(vec![u16::from(b'a'), 0xD800, u16::from(b'b')]);
+        assert_eq!(shared_key_name(&lone, &j("x")), j("x__pk_a_b"));
+        assert_eq!(shared_key_name(&j("T_1"), &j("id")), j("id__pk_T_1"));
+    }
+
+    #[test]
+    fn chained_routes_are_uniform_when_every_prefix_agrees() {
+        assert!(uniform_chained_routes(&[]));
+        assert!(uniform_chained_routes(&[
+            chain("f", vec![hop("A", None)]),
+            chain("f", vec![hop("B", None)])
+        ]));
+        let ab = chain("f", vec![hop("A", None), hop("B", None)]);
+        assert!(uniform_chained_routes(&[
+            ab.clone(),
+            chain("f", vec![hop("A", None), hop("C", None)])
+        ]));
+        assert!(!uniform_chained_routes(&[
+            ab.clone(),
+            chain("f", vec![hop("X", None), hop("B", None)])
+        ]));
+        assert!(!uniform_chained_routes(&[ab.clone(), chain("f", vec![hop("A", None)])]));
+        // a hop's own database, else its PM's
+        assert!(uniform_chained_routes(&[
+            ab.clone(),
+            chain("f", vec![hop("A", Some("db")), hop("B", None)])
+        ]));
+        assert!(!uniform_chained_routes(&[
+            ab.clone(),
+            chain("f", vec![hop("A", Some("db2")), hop("B", None)])
+        ]));
+        let route = |target: RouteTarget, prop: &str| UnionRoute {
+            target,
+            join: chain(prop, vec![hop("A", None)]),
+        };
+        let joins: Vec<JStr> = member_joins(&[
+            route(RouteTarget::Member, "m1"),
+            route(RouteTarget::Root, "r"),
+            route(RouteTarget::PinnedSingle, "s"),
+            route(RouteTarget::Member, "m2"),
+        ])
+        .iter()
+        .map(|j| j.property_name.clone())
+        .collect();
+        assert_eq!(joins, vec![j("m1"), j("m2")]);
+    }
+
+    #[test]
+    fn an_inbound_arm_has_no_step_for_one_hop_and_is_loud_for_an_unknown_join() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        let closures = MappingClosures::new(&idx);
+        let views = LiftedViews::new(&parsed, &idx);
+        let md = resolved(legacy("a::M", vec![]), &closures, &views);
+        let one = chain("firm", vec![hop("A", None)]);
+        assert!(
+            inbound_arm_steps(&one, &j("firm"), &j("FIRM"), &md, &idx)
+                .unwrap()
+                .is_empty()
+        );
+        let two = chain("firm", vec![hop("A", None), hop("Missing", Some("a::db"))]);
+        let e = inbound_arm_steps(&two, &j("firm"), &j("FIRM"), &md, &idx).unwrap_err();
+        assert!(e.is_model());
+        assert_eq!(
+            e.message(),
+            Some(j("Join 'Missing' not found in db 'a::db'; PM='firm', mapping=a::M"))
+        );
     }
 }

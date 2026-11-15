@@ -83,3 +83,91 @@ pub fn facts(
     }
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+    use std::rc::Rc;
+
+    use lite_model::linked::LinkedMap;
+    use lite_model::text::j;
+    use lite_model::{ClassMappingAggregateView, ClassMappingAggregationAware};
+
+    use super::*;
+    use crate::lifted_views::LiftedViews;
+    use crate::mapping_closures::MappingClosures;
+    use crate::test_support::{index, legacy, model, relational};
+
+    fn view(set_id: Option<&str>, can_aggregate: bool) -> Arc<ClassMappingAggregateView> {
+        Arc::new(ClassMappingAggregateView {
+            index: 0,
+            can_aggregate,
+            group_by_functions: empty(),
+            aggregate_values: empty(),
+            set: Arc::new(relational("a::Sale", set_id, vec![])),
+        })
+    }
+
+    fn aggregate(views: Vec<Arc<ClassMappingAggregateView>>) -> ClassMappingRelational {
+        let mut main = relational("a::Sale", Some("main"), vec![]);
+        main.aggregation = Some(Arc::new(ClassMappingAggregationAware { views: list(views) }));
+        main
+    }
+
+    #[test]
+    fn the_main_binding_carries_each_views_facts_in_order() {
+        assert!(facts(&relational("a::Sale", None, vec![])).unwrap().is_empty());
+        let out = facts(&aggregate(vec![view(Some("v1"), true), view(Some("v2"), false)])).unwrap();
+        let got: Vec<(JStr, bool)> = out.iter().map(|f| (f.set_id.clone(), f.can_aggregate)).collect();
+        assert_eq!(got, vec![(j("v1"), true), (j("v2"), false)]);
+        // a view set with no declared id: Java's requireNonNull
+        assert_eq!(
+            facts(&aggregate(vec![view(Some("v1"), true), view(None, true)])).unwrap_err(),
+            Thrown::null_pointer(Some("view set id"))
+        );
+    }
+
+    #[test]
+    fn a_set_with_no_aggregation_lifts_nothing_but_the_npe() {
+        let parsed = model("###Pure\nClass a::Sale\n{\n  id: Integer[1];\n}\n");
+        let idx = index(&parsed);
+        let closures = MappingClosures::new(&idx);
+        let views = LiftedViews::new(&parsed, &idx);
+        let md = Arc::new(legacy("a::M", vec![]));
+        let rm = ResolvedMapping::new(
+            md.clone(),
+            md.clone(),
+            Rc::new(HashMap::new()),
+            Rc::new(LinkedMap::new()),
+            closures.closure(&md.qualified_name),
+            &views,
+        );
+        let mut lifted = Vec::new();
+        let mut bindings = Vec::new();
+        let mut ledger = MappingLedger::new(HashSet::new());
+        let e = lift(
+            &rm,
+            &relational("a::Sale", Some("main"), vec![]),
+            &idx,
+            &mut lifted,
+            &mut bindings,
+            &HashMap::new(),
+            &mut ledger,
+        )
+        .unwrap_err();
+        assert_eq!(e, Thrown::null_pointer(None));
+        assert!(lifted.is_empty() && bindings.is_empty());
+        // no view: nothing lifted, nothing bound
+        lift(
+            &rm,
+            &aggregate(vec![]),
+            &idx,
+            &mut lifted,
+            &mut bindings,
+            &HashMap::new(),
+            &mut ledger,
+        )
+        .unwrap();
+        assert!(lifted.is_empty() && bindings.is_empty());
+    }
+}
