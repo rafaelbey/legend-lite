@@ -767,4 +767,52 @@ class NormalizerBatch2Test {
         assertEquals(true, m.context().mappingPoison("w::M", "w::P").isPresent()
                 || m.context().mappingSetPoison("w::M", "w::P", "p1").isPresent());
     }
+
+    // ---- item 4 (a), S376: a mapping's own missing join ----
+
+    /** port-scratch/normbatch2/engine/cases/g5b/s376_*.pure: one model, the mapping's lines in {@code %s}. */
+    private static final String MISSING_JOIN = """
+            ###Pure
+            Class w::P { a: String[0..1]; b: String[0..1]; }
+            Class w::F { name: String[0..1]; }
+            Association w::PF { firm: w::F[0..1]; people: w::P[*]; }
+
+            ###Relational
+            Database w::Db
+            (
+              Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+              Table T2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+              Table T3 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20))
+              Join J(T.ID = T2.ID)
+              Join JF(T2.FID = T3.ID)
+              Filter FT3(T3.NAME = 'x')
+            )
+
+            ###Mapping
+            Mapping w::M
+            (
+            %s
+            )
+            """;
+
+    @Test
+    @DisplayName("item 4 (a): a mapping's join its database has not is refused in the engine's words")
+    void aMappingsMissingJoinIsTheEnginesRefusal() {
+        // asked of the engine (HelperRelationalBuilder.getJoin, :190): each of these is "Can't find join 'Nope' in
+        // database 'Db'" when the mapping compiles. Until 2026-11-15 lite's own, "Join 'Nope' not found in db 'w::Db';
+        // PM='null', mapping=w::M" and "AssociationMapping join 'Nope' not found in db 'w::Db'; association='w::PF',
+        // mapping=w::M"
+        String refusal = "[18:1] Can't find join 'Nope' in database 'Db'";
+        String sets = "  w::P: Relational { ~mainTable [w::Db]T a: [w::Db]T.NAME }\n"
+                + "  w::F: Relational { ~mainTable [w::Db]T3 name: [w::Db]T3.NAME }\n";
+        for (String lines : List.of(
+                "  w::P: Relational { ~mainTable [w::Db]T a: [w::Db]T.NAME, b: [w::Db]@Nope | T2.NAME }",
+                "  w::P: Relational { ~mainTable [w::Db]T a: [w::Db]T.NAME, b: [w::Db]@J > @Nope | T3.NAME }",
+                sets + "  w::PF: Relational { AssociationMapping ( firm: [w::Db]@Nope, people: [w::Db]@Nope ) }",
+                sets + "  w::PF: Relational { AssociationMapping ( firm: [w::Db]@J > @Nope, people: [w::Db]@Nope > @J ) }",
+                "  w::P: Relational { ~filter [w::Db] @Nope | [w::Db] FT3 ~mainTable [w::Db]T a: [w::Db]T.NAME }",
+                "  w::P: Relational { ~filter [w::Db] (INNER) @Nope | [w::Db] FT3 ~mainTable [w::Db]T a: [w::Db]T.NAME }")) {
+            assertEquals(List.of(refusal), strict(MISSING_JOIN.formatted(lines)), lines);
+        }
+    }
 }

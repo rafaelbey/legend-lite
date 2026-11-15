@@ -140,6 +140,25 @@ pub fn validate_pm_names(
     Ok(())
 }
 
+/// `MappingValidation.joinNotFound`: a join its database has not, in legend-engine's words, the database by its own
+/// name (`HelperRelationalBuilder.getJoin`, :190; asked of a view's join and of a mapping's: "Can't find join 'Nope' in
+/// database 'Db'"). Until 2026-11-15 lite's own, "Join 'J' not found in db 'D'; PM='p', ..." and "AssociationMapping join
+/// 'J' not found in db 'D'; ..." (a view's: the normalizer batch, item 5; a mapping's: the normalizer's second batch,
+/// item 4 (a); register row S376).
+pub fn join_not_found(join_name: &JStr, db: &JStr) -> Thrown {
+    Thrown::model(
+        Phase::Normalize,
+        cat!(
+            "Can't find join '",
+            join_name,
+            "' in database '",
+            &lite_names::view_signatures::db_name(db),
+            "'"
+        ),
+        None,
+    )
+}
+
 /// `MappingValidation.validateJoinSources`: every join chain a property mapping walks departs from the table it is
 /// at -- the first join contains the set's main table, each next join the table the previous one lands on
 /// (legend-engine 4.145.0 `HelperRelationalBuilder.validatePropertyMappings`, its words: "Mapping error: the join J does

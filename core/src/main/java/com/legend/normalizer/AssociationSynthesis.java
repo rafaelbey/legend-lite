@@ -710,10 +710,10 @@ final class AssociationSynthesis {
         }
         JoinChainElement hop = join.joins().get(0);
         String db = hop.databaseName() != null ? hop.databaseName() : join.database();
+        // in the engine's words since 2026-11-15 (MappingValidation.joinNotFound; the normalizer's second batch, item
+        // 4 (a), S376)
         DatabaseDefinition.JoinDefinition jd = model.findJoin(db, hop.joinName())
-                .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
-                        "AssociationMapping join '" + hop.joinName() + "' not found in db '" + db
-                        + "'; mapping=" + md.qualifiedName()));
+                .orElseThrow(() -> MappingValidation.joinNotFound(hop.joinName(), db));
         LegacyMappingDefinition.TableReference known =
                 java.util.Objects.requireNonNull(a != null ? a : b);
         String other;
@@ -753,11 +753,10 @@ final class AssociationSynthesis {
         if (join.joins().size() == 1) {
             JoinChainElement hop = join.joins().get(0);
             String hopDb = hop.databaseName() != null ? hop.databaseName() : join.database();
+            // in the engine's words since 2026-11-15 (MappingValidation.joinNotFound; the normalizer's second batch,
+            // item 4 (a), S376)
             DatabaseDefinition.JoinDefinition jd = model.findJoin(hopDb, hop.joinName())
-                    .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                            "AssociationMapping join '" + hop.joinName()
-                          + "' not found in db '" + hopDb + "'; association='"
-                          + associationName + "', mapping=" + md.qualifiedName()));
+                    .orElseThrow(() -> MappingValidation.joinNotFound(hop.joinName(), hopDb));
             // The synthesized legacyAssocPredicate call declares tgtRow's row
             // type as classB's ~mainTable; the join must actually land there,
             // or the lambda's column reads would silently mistype.

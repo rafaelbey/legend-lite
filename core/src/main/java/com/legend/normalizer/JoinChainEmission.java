@@ -369,20 +369,11 @@ final class JoinChainEmission {
 
             String hopDb = hop.databaseName() != null ? hop.databaseName()
                     : (chainDb != null ? chainDb : mainDb);
-            // a VIEW's own join (no mapping: the view's lift) missing from its database is refused in the engine's
-            // words, as legend-engine refuses the database when it compiles (HelperRelationalBuilder.getJoin, :190,
-            // the database's own name; asked of legend-engine 4.145.0: "Can't find join 'Nope' in database 'Db'").
-            // Until 2026-11-15 lite's own, "Join 'Nope' not found in db 'w::Db'; PM='A', store=w::Db" (the normalizer batch,
-            // item 5, S376); a mapping's missing join keeps lite's words
+            // a join missing from its database, a view's own (no mapping: the view's lift) or a mapping's, is refused
+            // in the engine's words (MappingValidation.joinNotFound; until 2026-11-15 a mapping's kept lite's, "Join
+            // 'Nope' not found in db 'w::Db'; PM='A', mapping=w::M": the normalizer's second batch, item 4 (a), S376)
             DatabaseDefinition.JoinDefinition jd = model.findJoin(hopDb, hop.joinName())
-                    .orElseThrow(() -> md == null
-                            ? new ModelException(LegendCompileException.Phase.NORMALIZE,
-                                    "Can't find join '" + hop.joinName() + "' in database '"
-                                    + com.legend.protocol.Protocol.splitFqn(hopDb)[1] + "'")
-                            : new ModelException(LegendCompileException.Phase.NORMALIZE,
-                            "Join '" + hop.joinName() + "' not found in db '"
-                          + hopDb + "'; PM='" + propName + "', "
-                          + ViewRelation.owner(md, hopDb)));
+                    .orElseThrow(() -> MappingValidation.joinNotFound(hop.joinName(), hopDb));
             // a SOLE non-source view candidate in the condition is the
             // join's TARGET — expanded as a relation, never substituted
             RelationalOperation joinCond = jd.operation();
@@ -560,10 +551,10 @@ final class JoinChainEmission {
             }
             JoinChainElement hop = inArm ? chain.get(0) : chain.get(chain.size() - 1);
             String db = hop.databaseName() != null ? hop.databaseName() : j.database();
-            DatabaseDefinition.JoinDefinition jd = model.findJoin(db, hop.joinName()).orElseThrow(() ->
-                    new ModelException(LegendCompileException.Phase.NORMALIZE,
-                            "Join '" + hop.joinName() + "' not found in db '" + db
-                            + "'; PM='" + propName + "', mapping=" + md.qualifiedName()));
+            // in the engine's words since 2026-11-15 (MappingValidation.joinNotFound; the normalizer's second batch,
+            // item 4 (a), S376)
+            DatabaseDefinition.JoinDefinition jd = model.findJoin(db, hop.joinName())
+                    .orElseThrow(() -> MappingValidation.joinNotFound(hop.joinName(), db));
             ValueSpecification rows;
             ValueSpecification cond;
             if (inArm) {

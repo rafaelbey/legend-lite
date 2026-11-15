@@ -34,6 +34,7 @@ use crate::error::{Thrown, require};
 use crate::jdk::LinkedSet;
 use crate::mapping_ledger::MappingLedger;
 use crate::mapping_normalizer::{canonical_table, determine_target_table, infer_main_table_quiet, synth_relational};
+use crate::mapping_validation;
 use crate::pipeline::Pipeline;
 use crate::rel_op_translator::{self, TableScope};
 use crate::resolved_mapping::ResolvedMapping;
@@ -1107,22 +1108,10 @@ pub fn inbound_arm_steps(
     for h in (1..j.joins.len()).rev() {
         let mid_hop = &j.joins[h];
         let mid_db = mid_hop.database_name.clone().unwrap_or_else(|| j.database.clone());
-        let mjd = model.find_join(Some(&mid_db), &mid_hop.join_name).ok_or_else(|| {
-            Thrown::model(
-                Phase::Normalize,
-                cat!(
-                    "Join '",
-                    &mid_hop.join_name,
-                    "' not found in db '",
-                    &mid_db,
-                    "'; PM='",
-                    prop,
-                    "', mapping=",
-                    md.qualified_name()
-                ),
-                None,
-            )
-        })?;
+        // in the engine's words since 2026-11-15 (the normalizer's second batch, item 4 (a), S376)
+        let mjd = model
+            .find_join(Some(&mid_db), &mid_hop.join_name)
+            .ok_or_else(|| mapping_validation::join_not_found(&mid_hop.join_name, &mid_db))?;
         let mid_tgt = determine_target_table(
             &mjd.operation,
             Some(&prev_table),
@@ -2188,9 +2177,8 @@ Mapping a::Z
         let two = chain("firm", vec![hop("A", None), hop("Missing", Some("a::db"))]);
         let e = inbound_arm_steps(&two, &j("firm"), &j("FIRM"), &md, &idx).unwrap_err();
         assert!(e.is_model());
-        assert_eq!(
-            e.message(),
-            Some(j("Join 'Missing' not found in db 'a::db'; PM='firm', mapping=a::M"))
-        );
+        // the engine's words since 2026-11-15 (the normalizer's second batch, item 4 (a), S376): it pinned "Join
+        // 'Missing' not found in db 'a::db'; PM='firm', mapping=a::M"
+        assert_eq!(e.message(), Some(j("Can't find join 'Missing' in database 'db'")));
     }
 }

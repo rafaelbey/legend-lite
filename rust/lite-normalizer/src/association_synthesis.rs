@@ -46,6 +46,7 @@ use crate::mapping_normalizer::{
     self, contains_target_column_ref, determine_target_table, infer_main_table_quiet, main_table_or_null,
     name_ref_or_null, require_non_view_target, resolve_view_refs_in_join_keeping,
 };
+use crate::mapping_validation;
 use crate::rel_op_translator::{self, TableScope};
 use crate::resolved_mapping::ResolvedMapping;
 use crate::view_relation;
@@ -768,20 +769,10 @@ pub fn end_anchors(
     // an end class mapped OUTSIDE the closure: the table the single-hop join names for that end
     let hop = &join.joins[0];
     let db = hop.database_name.clone().unwrap_or_else(|| join.database.clone());
-    let jd = model.find_join(Some(&db), &hop.join_name).ok_or_else(|| {
-        Thrown::model(
-            Phase::Normalize,
-            cat!(
-                "AssociationMapping join '",
-                &hop.join_name,
-                "' not found in db '",
-                &db,
-                "'; mapping=",
-                md.qualified_name()
-            ),
-            None,
-        )
-    })?;
+    // in the engine's words since 2026-11-15 (the normalizer's second batch, item 4 (a), S376)
+    let jd = model
+        .find_join(Some(&db), &hop.join_name)
+        .ok_or_else(|| mapping_validation::join_not_found(&hop.join_name, &db))?;
     let known = require(a.as_ref().or(b.as_ref()), None)?;
     let other = if contains_target_column_ref(&jd.operation)? {
         known.table.clone() // a self-join: {target} is the same table
@@ -838,22 +829,10 @@ pub fn build_assoc_predicate_body(
     if join.joins.len() == 1 {
         let hop = &join.joins[0];
         let hop_db = hop.database_name.clone().unwrap_or_else(|| join.database.clone());
-        let jd = model.find_join(Some(&hop_db), &hop.join_name).ok_or_else(|| {
-            Thrown::model(
-                Phase::Normalize,
-                cat!(
-                    "AssociationMapping join '",
-                    &hop.join_name,
-                    "' not found in db '",
-                    &hop_db,
-                    "'; association='",
-                    association_name,
-                    "', mapping=",
-                    md.qualified_name()
-                ),
-                None,
-            )
-        })?;
+        // in the engine's words since 2026-11-15 (the normalizer's second batch, item 4 (a), S376)
+        let jd = model
+            .find_join(Some(&hop_db), &hop.join_name)
+            .ok_or_else(|| mapping_validation::join_not_found(&hop.join_name, &hop_db))?;
         // the synthesized legacyAssocPredicate call declares tgtRow's row type as classB's ~mainTable; the join must
         // actually land there, or the lambda's column reads would silently mistype
         let backing_view = model.find_view(&hop_db, source_table).is_some().then_some(source_table);

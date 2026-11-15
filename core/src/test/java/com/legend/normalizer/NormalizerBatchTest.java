@@ -379,7 +379,9 @@ class NormalizerBatchTest {
         // set's failure walled the whole mapping (w::Cal's set with it) and left the lifted functions appended before
         // it in the model (census ASK 10 (b), (c); legend-engine's own test text, a view set navigating a join the
         // database has not). A strict build refuses it as before.
-        String refusal = "Join 'nonExistent' not found in db 'w::Db'; PM='salesDate', mapping=w::M";
+        // the engine's words since 2026-11-15 (the normalizer's second batch, item 4 (a), S376): "Join 'nonExistent' not
+        // found in db 'w::Db'; PM='salesDate', mapping=w::M" until then
+        String refusal = "Can't find join 'nonExistent' in database 'Db'";
         assertEquals(List.of("[11:1] " + refusal), strict(AGGREGATE_VIEW_MISSING_JOIN));
         Compiler.BuiltModule m = module(AGGREGATE_VIEW_MISSING_JOIN);
         assertEquals(Map.of(), m.walls());

@@ -33,6 +33,7 @@ use crate::error::{Thrown, require};
 use crate::jdk::{LinkedSet, equals_ignore_case};
 use crate::mapping_ledger::MappingLedger;
 use crate::mapping_normalizer;
+use crate::mapping_validation;
 use crate::milestoning_facts;
 use crate::pipeline::Pipeline;
 use crate::rel_op_translator::{self, TableScope};
@@ -478,36 +479,10 @@ pub fn emit_join_chain_routed(
             (None, Some(db)) => db.clone(),
             (None, None) => main_db.clone(),
         };
+        // a join missing from its database, a view's own (no mapping) or a mapping's: the engine's words (since
+        // 2026-11-15 for a mapping's, the normalizer's second batch, item 4 (a), S376)
         let Some(jd) = model.find_join(Some(&hop_db), &hop.join_name) else {
-            // a VIEW's own join (no mapping) missing from its database: the engine's words (HelperRelationalBuilder
-            // .getJoin, the database's own name; 2026-11-15, the normalizer batch, item 5, S376); a mapping's keeps lite's
-            if md.is_none() {
-                return Err(Thrown::model(
-                    Phase::Normalize,
-                    cat!(
-                        "Can't find join '",
-                        &hop.join_name,
-                        "' in database '",
-                        &lite_names::view_signatures::db_name(&hop_db),
-                        "'"
-                    ),
-                    None,
-                ));
-            }
-            return Err(Thrown::model(
-                Phase::Normalize,
-                cat!(
-                    "Join '",
-                    &hop.join_name,
-                    "' not found in db '",
-                    &hop_db,
-                    "'; PM='",
-                    value_of(prop_name),
-                    "', ",
-                    view_relation::owner(md, &hop_db)
-                ),
-                None,
-            ));
+            return Err(mapping_validation::join_not_found(&hop.join_name, &hop_db));
         };
         // a join condition names its two relations by table: a view's columns in their declared spelling
         let mut join_cond = view_relation::declared_spelling(&jd.operation, &hop_db, model)?;
@@ -739,21 +714,9 @@ pub fn route_list(
         // `chain.get(0)` / `chain.get(size - 1)`: a Join PM's chain is never empty (Java's record refuses one)
         let hop = if in_arm { &chain[0] } else { &chain[chain.len() - 1] };
         let db = hop.database_name.as_ref().unwrap_or(&j.database);
+        // in the engine's words since 2026-11-15 (the normalizer's second batch, item 4 (a), S376)
         let Some(jd) = model.find_join(Some(db), &hop.join_name) else {
-            return Err(Thrown::model(
-                Phase::Normalize,
-                cat!(
-                    "Join '",
-                    &hop.join_name,
-                    "' not found in db '",
-                    db,
-                    "'; PM='",
-                    value_of(prop_name),
-                    "', mapping=",
-                    md.qualified_name()
-                ),
-                None,
-            ));
+            return Err(mapping_validation::join_not_found(&hop.join_name, db));
         };
         let (rows, cond) = if in_arm {
             // a PER-ARM chain joins its mids onto the set's table INSIDE the route (walked back from the set); its

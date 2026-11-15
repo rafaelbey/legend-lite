@@ -849,15 +849,10 @@ final class UnionSynthesis {
             JoinChainElement midHop = j.joins().get(h);
             String midDb = midHop.databaseName() != null
                     ? midHop.databaseName() : j.database();
-            DatabaseDefinition.JoinDefinition mjd =
-                    model.findJoin(midDb, midHop.joinName()).orElseThrow(() ->
-                            new ModelException(
-                                    LegendCompileException
-                                            .Phase.NORMALIZE,
-                                    "Join '" + midHop.joinName() + "' not"
-                                    + " found in db '" + midDb + "'; PM='"
-                                    + prop + "', mapping="
-                                    + md.qualifiedName()));
+            // in the engine's words since 2026-11-15 (MappingValidation.joinNotFound; the normalizer's second batch,
+            // item 4 (a), S376)
+            DatabaseDefinition.JoinDefinition mjd = model.findJoin(midDb, midHop.joinName())
+                    .orElseThrow(() -> MappingValidation.joinNotFound(midHop.joinName(), midDb));
             String midTgt = MappingNormalizer.determineTargetTable(mjd.operation(),
                     prevTable, midHop.joinName(), prop, h,
                     "mapping=" + md.qualifiedName());

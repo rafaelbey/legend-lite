@@ -121,6 +121,20 @@ final class MappingValidation {
     }
 
     /**
+     * A join its database has not, in legend-engine's words: the engine refuses it when it compiles the view or the
+     * mapping that names it ({@code HelperRelationalBuilder.getJoin}, :190, the database by its own name; asked of
+     * legend-engine 4.145.0 of a view's join and of a mapping's -- a property's one hop and chain, an association's
+     * line and chain, a ~filter's join, (INNER) or not: "Can't find join 'Nope' in database 'Db'"). Until 2026-11-15
+     * lite's own, "Join 'J' not found in db 'D'; PM='p', ..." and "AssociationMapping join 'J' not found in db 'D';
+     * ..." (a view's: the normalizer batch, item 5; a mapping's: the normalizer's second batch, item 4 (a); register
+     * row S376).
+     */
+    static ModelException joinNotFound(String joinName, String db) {
+        return new ModelException(LegendCompileException.Phase.NORMALIZE,
+                "Can't find join '" + joinName + "' in database '" + com.legend.protocol.Protocol.splitFqn(db)[1] + "'");
+    }
+
+    /**
      * Every join chain a property mapping walks departs from the table it is at: the first join contains the set's
      * main table, each next join the table the previous one lands on -- legend-engine 4.145.0's
      * {@code HelperRelationalBuilder.validatePropertyMappings} (:1918-1937, run for every relational class mapping when
