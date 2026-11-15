@@ -15,6 +15,7 @@ members = [
     "lite-json",
     "lite-model",
     "lite-names",
+    "lite-normalizer",
     "lite-platform",
     "lite-sql",
     "lite-types",

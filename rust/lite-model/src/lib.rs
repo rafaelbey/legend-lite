@@ -27,6 +27,9 @@
 //!   `FunctionDefinition`'s `isSynthesized`, `withSynthesizedFrom` and short forms, `Synthesized`'s
 //!   ([`function_definition`]); `MappingDefinition`'s constructors, the `NONE`s, `LegacyMappingDefinition`'s
 //!   `withClassMappings` and `KeyThread`'s short form ([`mapping_definition`]).
+//! - The shared accessors of two sealed families the normalizer reads (its skeleton, 2026-11-14):
+//!   `PropertyMapping.propertyName()` and `AssociationMapping.associationName()` ([`normalizer_methods`]); and
+//!   `LinkedHashMap.remove` on [`linked::LinkedMap`].
 //!
 //! What `com.legend.model` holds that is not here yet, for the slice that first calls it: the lookups on
 //! `MappingDefinition`'s bindings (`ClassBindings`, `AssociationBindings`: the resolver's; `position` re-expressed as a
@@ -47,6 +50,7 @@ pub mod mapping_from_protocol;
 pub mod model_from_protocol;
 pub mod mongo_declarations;
 pub mod names;
+pub mod normalizer_methods;
 pub mod parsed_model;
 #[rustfmt::skip] // generated, and held byte for byte to its generator: //rust/lite-model:update_generated_test
 pub mod records;

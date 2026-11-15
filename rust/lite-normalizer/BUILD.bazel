@@ -1,0 +1,40 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# legend-lite's model normalizer, ported from core's com.legend.normalizer (src/lib.rs; docs/rust-port/PHASE3.md, the
+# normalizer slice, 2026-11-14): step E, ParsedModel -> NormalizedModel. The skeleton first (every module, shared type
+# and signature; the bodies filled after it).
+rust_library(
+    name = "lite_normalizer",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    version = "0.1.0",
+    visibility = ["//rust:__subpackages__"],
+    deps = [
+        "//rust/lite-base:lite_base",
+        "//rust/lite-builtin:lite_builtin",
+        "//rust/lite-error:lite_error",
+        "//rust/lite-front:lite_front",
+        "//rust/lite-model:lite_model",
+        "//rust/lite-names:lite_names",
+        "//rust/lite-platform:lite_platform",
+        "//rust/lite-types:lite_types",
+    ],
+)
+
+rust_test(
+    name = "lite_normalizer_test",
+    crate = ":lite_normalizer",
+    edition = "2024",
+    visibility = ["//gates:__pkg__"],
+)
+
+# the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards
+filegroup(
+    name = "sources",
+    srcs = glob(["src/**/*.rs"]) + ["Cargo.toml"],
+    visibility = ["//rust/lite-guards:__pkg__"],
+)
+
+guards_package()

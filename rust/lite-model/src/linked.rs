@@ -91,6 +91,18 @@ impl<K: Eq + Hash + Clone, V> LinkedMap<K, V> {
         self.index.get(k).map(|&i| &self.entries[i].1)
     }
 
+    /// `remove`: the removed value; a key put again later takes a new slot at the end, as in a `LinkedHashMap`.
+    pub fn remove(&mut self, k: &K) -> Option<V> {
+        let i = self.index.remove(k)?;
+        let (_, v) = self.entries.remove(i);
+        for slot in self.index.values_mut() {
+            if *slot > i {
+                *slot -= 1;
+            }
+        }
+        Some(v)
+    }
+
     pub fn contains_key(&self, k: &K) -> bool {
         self.index.contains_key(k)
     }
@@ -123,4 +135,25 @@ impl<K: Eq + Hash + Clone, V> LinkedMap<K, V> {
 /// `map.get(key)` on a frozen map: the first entry's value at `key` (the keys of a frozen map are distinct).
 pub fn get<'a, K: PartialEq, V>(map: &'a [(K, V)], key: &K) -> Option<&'a V> {
     map.iter().find(|(k, _)| k == key).map(|(_, v)| v)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LinkedMap;
+
+    #[test]
+    fn a_removed_key_put_again_takes_the_last_slot() {
+        let mut m: LinkedMap<&str, i32> = LinkedMap::new();
+        m.put("a", 1);
+        m.put("b", 2);
+        m.put("c", 3);
+        assert_eq!(m.remove(&"a"), Some(1));
+        assert_eq!(m.remove(&"a"), None);
+        assert_eq!(m.get(&"c"), Some(&3));
+        m.put("a", 4);
+        let order: Vec<_> = m.iter().map(|(k, v)| (*k, *v)).collect();
+        assert_eq!(order, vec![("b", 2), ("c", 3), ("a", 4)]);
+        assert_eq!(m.get(&"b"), Some(&2));
+        assert_eq!(m.len(), 3);
+    }
 }

@@ -1,0 +1,18 @@
+[package]
+name = "lite-normalizer"
+version = "0.1.0"
+description = "legend-lite's model normalizer (core/'s com.legend.normalizer, step E, ported)"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+lite-base = { path = "../lite-base" }
+lite-builtin = { path = "../lite-builtin" }
+lite-error = { path = "../lite-error" }
+lite-front = { path = "../lite-front" }
+lite-model = { path = "../lite-model" }
+lite-names = { path = "../lite-names" }
+lite-platform = { path = "../lite-platform" }
+lite-types = { path = "../lite-types" }

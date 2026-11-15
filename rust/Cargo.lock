@@ -81,6 +81,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "lite-normalizer"
+version = "0.1.0"
+dependencies = [
+ "lite-base",
+ "lite-builtin",
+ "lite-error",
+ "lite-front",
+ "lite-model",
+ "lite-names",
+ "lite-platform",
+ "lite-types",
+]
+
+[[package]]
 name = "lite-platform"
 version = "0.1.0"
 dependencies = [

@@ -38,3 +38,6 @@ lite-platform	platform	3	lite-base lite-builtin lite-error lite-model
 # here, never that every declared part has a crate). lite-names is the first part: the model index and name resolution
 split	compiler	names element spec
 lite-names	compiler/names	3	lite-base lite-builtin lite-error lite-model lite-platform lite-types
+# 2026-11-14, phase 3's normalizer slice (docs/rust-port/PHASE3.md): step E, core's normalizer layer (ModelNormalizer
+# and its package), above the names part of the compiler; its skeleton first
+lite-normalizer	normalizer	3	lite-base lite-builtin lite-error lite-front lite-model lite-names lite-platform lite-types
