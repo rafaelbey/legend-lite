@@ -755,13 +755,16 @@ class NormalizerBatch2Test {
     void aSetWithNoInferableMainTableIsTheEnginesRefusal() {
         // asked of the engine (RelationalCompilerExtension.java:339-355): two tables, or none, are "Can't find the main
         // table for class '<set id>'. Please specify a main table using the ~mainTable directive." ('null' for an
-        // unlabelled set); [Db]T and [Db2]T compile (one alias, the first's). Until 2026-11-15 lite named the class and
-        // the tables, deferred a set reading no table, and refused two databases
+        // unlabelled set); [Db]T and [Db2]T compile (one alias, the first's), which lite refuses (ruling 39, below).
+        // Until 2026-11-15 lite named the class and the tables, and deferred a set reading no table
         assertEquals(List.of("[19:1] Can't find the main table for class 'pid'. Please specify a main table using the"
                 + " ~mainTable directive."), strict(MAIN_TABLE_TWO_TABLES));
         assertEquals(List.of("[19:1] Can't find the main table for class 'null'. Please specify a main table using the"
                 + " ~mainTable directive."), strict(MAIN_TABLE_NONE));
-        assertEquals(List.of(), strict(MAIN_TABLE_TWO_DATABASES));
+        // one table named through two databases: lite's refusal, as main has it -- a ruled divergence (the owner's
+        // ruling 39, 2026-11-15; the engine compiles it and reads w::Db's T). Between de0d0be35 and then it compiled
+        assertEquals(List.of("[19:1] Inconsistent database definitions for the mapping of class 'w::P': [w::Db, w::Db2]"),
+                strict(MAIN_TABLE_TWO_DATABASES));
         // a tolerant build withholds the class and its association: never anchored on the other set's table, nor on
         // the table the join derives for the end (until 2026-11-15's follow-up the join's T2 anchored it)
         Compiler.BuiltModule m = module(MAIN_TABLE_ASSOCIATION);

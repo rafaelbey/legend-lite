@@ -123,9 +123,10 @@ pub fn relational_source_of(rcm: &ClassMappingRelational) -> Result<MappingDefin
     )
 }
 
-/// `MappingNormalizer.inferMainTable` (:1419): the one table the PMs read (by its name, whatever database a reference
-/// spells: the first's); none when they read none; loud for two table names, in legend-engine's words (since
-/// 2026-11-15, the normalizer's second batch, item 3, S390: two databases were refused and the words were lite's).
+/// `MappingNormalizer.inferMainTable` (:1419): the one table the PMs read; none when they read none; loud for two table
+/// names, in legend-engine's words (since 2026-11-15, the normalizer's second batch, item 3, S390), and for one table
+/// named through two databases, in lite's (the owner's ruling 39, 2026-11-15: a ruled divergence, the engine reads the
+/// first's).
 pub fn infer_main_table(rcm: &ClassMappingRelational) -> Result<Option<Arc<TableRef>>, Thrown> {
     let mut refs: Vec<Arc<TableRef>> = Vec::new();
     for pm in rcm.property_mappings.iter() {
@@ -137,6 +138,24 @@ pub fn infer_main_table(rcm: &ClassMappingRelational) -> Result<Option<Arc<Table
     }
     if names.len() > 1 {
         return Err(Thrown::model(Phase::Mapping, main_table_refusal(rcm), None));
+    }
+    // one table named through two databases: lite's refusal, a ruled divergence (ruling 39, 2026-11-15; S390). Java
+    // skips a null database here; a TableReference's database is never null, so every ref enters the check
+    let mut dbs: LinkedSet<JStr> = LinkedSet::new();
+    for r in &refs {
+        dbs.add(r.database.clone());
+    }
+    if dbs.len() > 1 {
+        return Err(Thrown::model(
+            Phase::Normalize,
+            cat!(
+                "Inconsistent database definitions for the mapping of class '",
+                &rcm.class_name,
+                "': ",
+                lite_names::model_index::java_list(&dbs.to_vec())
+            ),
+            None,
+        ));
     }
     let Some(first) = refs.first() else {
         return Ok(None);
@@ -446,7 +465,7 @@ mod tests {
     }
 
     #[test]
-    fn a_table_is_one_by_its_name_whatever_database_spells_it() {
+    fn two_table_names_are_the_engines_refusal_and_two_databases_lites() {
         let expr = PropertyMapping::PropertyMappingExpression(Arc::new(PropertyMappingExpression {
             property_name: j("x"),
             expression: RelationalOperation::RelationalOperationColumnRef(Arc::new(RelationalOperationColumnRef {
@@ -464,7 +483,8 @@ mod tests {
                 "Can't find the main table for class 'null'. Please specify a main table using the ~mainTable directive."
             ))
         );
-        // one table name in two databases: the first's (the engine's alias by schema and table)
+        // one table name in two databases: lite's refusal, as main has it (the owner's ruling 39, 2026-11-15; between
+        // de0d0be35 and then it answered the first's table, the engine's alias by schema and table)
         let same = PropertyMapping::PropertyMappingExpression(Arc::new(PropertyMappingExpression {
             property_name: j("x"),
             expression: RelationalOperation::RelationalOperationColumnRef(Arc::new(RelationalOperationColumnRef {
@@ -474,7 +494,14 @@ mod tests {
             })),
         }));
         let r3 = relational("a::P", None, vec![column_pm("name", "PERSON", "NAME"), same]);
-        assert_eq!(infer_main_table(&r3), Ok(Some(table("db", "PERSON"))));
+        let e = infer_main_table(&r3).unwrap_err();
+        assert_eq!(e.phase(), Some(Phase::Normalize));
+        assert_eq!(
+            e.message(),
+            Some(j(
+                "Inconsistent database definitions for the mapping of class 'a::P': [db, db2]"
+            ))
+        );
         // a column ref with no database names no table
         let bare = PropertyMapping::PropertyMappingExpression(Arc::new(PropertyMappingExpression {
             property_name: j("x"),

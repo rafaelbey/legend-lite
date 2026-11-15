@@ -1610,17 +1610,30 @@ public final class MappingNormalizer {
         for (PropertyMapping pm : rcm.propertyMappings()) {
             collectMainTables(pm, refs);
         }
-        // One table by its name, whatever database a reference spells: legend-engine keys the set's table aliases
-        // by schema and table (HelperRelationalBuilder.java:1172, the first alias of a name kept), so [db1]T and
-        // [db2]T are one alias, the first's -- it compiles such a set and reads db1's T (asked); and two table names
-        // are its refusal, in its words, the set's id as written (RelationalCompilerExtension.java:339-355; asked).
-        // Until 2026-11-15 lite refused two databases ("Inconsistent database definitions for the mapping of class
-        // 'C': [...]") and named the class and the tables in its own words (the normalizer's second batch, item 3,
-        // register row S390)
+        // two table names are legend-engine's refusal, in its words, the set's id as written
+        // (RelationalCompilerExtension.java:339-355; asked); until 2026-11-15 lite named the class and the tables in
+        // its own words (the normalizer's second batch, item 3, register row S390)
         Set<String> names = new LinkedHashSet<>();
         refs.forEach(r -> names.add(canonicalTable(r.table())));
         if (names.size() > 1) {
             throw new ModelException(LegendCompileException.Phase.MAPPING, mainTableRefusal(rcm));
+        }
+        // one table named through two databases ([db1]T and [db2]T) is refused in lite's words: the DATABASE is part
+        // of table identity, and table-name-only dedup would silently pick refs.get(0)'s database. Null (scope-block)
+        // refs inherit the explicit one, so only NON-NULL databases enter the check. A ruled divergence (the owner's
+        // ruling 39, 2026-11-15; register row S390): legend-engine keys the set's table aliases by schema and table
+        // (HelperRelationalBuilder.java:1172), compiling such a set and reading db1's T (asked); the normalizer's
+        // second batch's de0d0be35 took the engine's form, and this restores lite's, as main has it
+        Set<String> dbs = new LinkedHashSet<>();
+        refs.forEach(r -> {
+            if (r.database() != null) {
+                dbs.add(r.database());
+            }
+        });
+        if (dbs.size() > 1) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "Inconsistent database definitions for the mapping of class '"
+                  + rcm.className() + "': " + dbs);
         }
         if (refs.isEmpty()) {
             return null;
