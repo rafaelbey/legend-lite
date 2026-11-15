@@ -83,7 +83,13 @@ pub fn run<'a>(
             }
             Err(e) if e.is_model() => match (wall_sink.as_deref_mut(), e.element()) {
                 (Some(sink), Some(element)) => {
+                    let other = element != md.qualified_name;
                     sink.put_if_absent(element, e.first_line());
+                    // a refusal naming ANOTHER element walls this mapping too (Java's run; since 2026-11-15, the
+                    // normalizer's second batch, item 1, MPP:73-78)
+                    if other {
+                        sink.put_if_absent(md.qualified_name.clone(), e.first_line());
+                    }
                 }
                 _ => return Err(e),
             },
@@ -277,11 +283,17 @@ pub fn flatten_extends(
 /// `MappingPrePass.detectM2MCycles` (:229): loud for an M2M `~src` cycle (`A ~src B`, `B ~src A`, or longer).
 pub fn detect_m2m_cycles(md: &LegacyMappingDefinition) -> Result<(), Thrown> {
     // the walk starts from each target class in DECLARATION order (a later Pure set of the same class replaces the
-    // value, its slot kept): register row S380
+    // value, its slot kept: register row S380) -- but a ROOT set is never replaced by a later unmarked one, a class's
+    // chain being its root set's (since 2026-11-15, the normalizer's second batch, item 1, MPP:237-240)
     let mut pure_by_target: LinkedMap<JStr, Arc<ClassMappingPure>> = LinkedMap::new();
     for cm in md.class_mappings.iter() {
         if let ClassMapping::ClassMappingPure(pcm) = cm {
-            pure_by_target.put(pcm.class_name.clone(), pcm.clone());
+            let keep_earlier = pure_by_target
+                .get(&pcm.class_name)
+                .is_some_and(|earlier| earlier.root && !pcm.root);
+            if !keep_earlier {
+                pure_by_target.put(pcm.class_name.clone(), pcm.clone());
+            }
         }
     }
     for (_, root) in pure_by_target.iter() {

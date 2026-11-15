@@ -37,6 +37,9 @@ final class StoreSubstitutionRewrite {
         if (subs.isEmpty()) {
             return cm;
         }
+        // an include substituting one store twice is refused first, by resolveAllStores (legend-pure's "Store
+        // substitution error: multiple substitutions for"; since 2026-11-15, the normalizer's second batch, item 1,
+        // SSR:40-43): the merge below keeps the last only for a spelling resolveAllStores did not see
         return applyWith(cm, subs.stream().collect(Collectors.toMap(
                 MappingInclude.StoreSubstitution::originalStore,
                 MappingInclude.StoreSubstitution::replacementStore,
@@ -134,9 +137,15 @@ final class StoreSubstitutionRewrite {
                             j.enumMapped());
             case PropertyMapping.Expression e -> new PropertyMapping.Expression(
                     e.propertyName(), op(e.expression(), m));
+            // the block's declared ~primaryKey kept, its stores substituted: legend-engine keeps an embedded set's
+            // declared primary key (read: RelationalParseTreeWalker.java:1289-1290; an include's substitution rewrites
+            // no included set, MappingIncludedMappingHandler.java:39-46). Until 2026-11-15 the rebuilt block lost it
+            // (the normalizer's second batch, item 1, SSR:137; the first batch's 6419dec51 the same loss in
+            // AssociationSynthesis)
             case PropertyMapping.Embedded e -> new PropertyMapping.Embedded(
                     e.propertyName(),
-                    e.propertyMappings().stream().map(x -> pm(x, m)).toList());
+                    e.propertyMappings().stream().map(x -> pm(x, m)).toList(),
+                    e.primaryKey().stream().map(k -> op(k, m)).toList());
             case PropertyMapping.InlineEmbedded ie -> ie;
             case PropertyMapping.OtherwiseEmbedded oe ->
                     new PropertyMapping.OtherwiseEmbedded(oe.propertyName(),
@@ -272,6 +281,27 @@ final class StoreSubstitutionRewrite {
                     throw new ModelException(LegendCompileException.Phase.MODEL,
                             "Duplicated mapping include '" + included + "' in mapping '"
                             + md.qualifiedName() + "'", md.qualifiedName());
+                }
+                // one store substituted twice in one include is legend-pure's refusal, in its words (5.99.0
+                // MappingValidator.java:351-355, the include's substitutions keyed by the store each original resolves
+                // to). Until 2026-11-15 the last pair won (the normalizer's second batch, item 1, SSR:40-43;
+                // ENGINE-SOURCED, read: legend-engine 4.145.0's parser keeps no pair of an include that writes more
+                // than one, CorePureGrammarParser.java:504-516, as lite's engine dialect does, so the several-pair form
+                // is legend-pure's grammar, lite's own dialect). Checked once the include and the store resolve, as
+                // legend-pure checks a substitution's resolved stores: an include of a mapping the model has not keeps
+                // its own refusal ("Can't find mapping")
+                java.util.Set<String> originals = new java.util.HashSet<>();
+                for (MappingInclude.StoreSubstitution sub : inc.substitutions()) {
+                    var originalDb = model.findDatabase(sub.originalStore());
+                    if (fqn == null || originalDb.isEmpty()) {
+                        continue;
+                    }
+                    String original = originalDb.get().qualifiedName();
+                    if (!originals.add(original)) {
+                        throw new ModelException(LegendCompileException.Phase.MODEL,
+                                "Store substitution error: multiple substitutions for " + original,
+                                md.qualifiedName());
+                    }
                 }
                 if (fqn != null) {
                     incs.add(fqn);

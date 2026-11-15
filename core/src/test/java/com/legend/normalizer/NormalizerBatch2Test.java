@@ -142,6 +142,90 @@ class NormalizerBatch2Test {
         assertEquals(Map.of(), m.walls());
     }
 
+    // ---- item 1, MPP:237-240: a class's M2M chain is its root set's ----
+
+    private static String m2mChain(String sets) {
+        return """
+                Class w::S { n: String[0..1]; }
+                Class w::A { n: String[0..1]; }
+                Class w::B { n: String[0..1]; }
+                ###Mapping
+                Mapping w::M
+                (
+                """ + sets + """
+                )
+                """;
+    }
+
+    @Test
+    @DisplayName("item 1 (MPP:237-240): a class's ~src chain is walked through its root set, whatever the declaration order")
+    void anM2mChainIsWalkedThroughEachClasssRootSet() {
+        // asked of the engine: it compiles both orders (it checks no ~src chain at all, register row S380); lite
+        // refused the root-first order because the last set of A stood for A in the cycle walk, until 2026-11-15
+        String rootFirst = "  *w::A[a2]: Pure { ~src w::S n: $src.n }\n  w::A[a1]: Pure { ~src w::B n: $src.n }\n"
+                + "  *w::B: Pure { ~src w::A n: $src.n }\n";
+        String rootLast = "  w::A[a1]: Pure { ~src w::B n: $src.n }\n  *w::A[a2]: Pure { ~src w::S n: $src.n }\n"
+                + "  *w::B: Pure { ~src w::A n: $src.n }\n";
+        assertEquals(List.of(), strict(m2mChain(rootFirst)));
+        assertEquals(List.of(), strict(m2mChain(rootLast)));
+        // a real cycle among root sets is still lite's refusal (S380, the owner's)
+        assertEquals(List.of("[5:1] Circular M2M ~src chain detected in mapping 'w::M': w::A -> w::B -> w::A"),
+                strict(m2mChain("  w::A: Pure { ~src w::B n: $src.n }\n  w::B: Pure { ~src w::A n: $src.n }\n")));
+    }
+
+    // ---- item 1, SSR:40-43 and SSR:137: one store substituted twice; a substituted embedded block's key ----
+
+    private static final String SUBSTITUTED_TWICE = """
+            Class w::P { name: String[0..1]; }
+            ###Relational
+            Database w::Db1 ( Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20)) )
+            Database w::Db2 ( include w::Db1 )
+            Database w::Db3 ( include w::Db1 )
+            ###Mapping
+            Mapping w::Base ( w::P: Relational { ~mainTable [w::Db1]T name: [w::Db1]T.NAME } )
+            Mapping w::M ( include w::Base[w::Db1 -> w::Db2, w::Db1 -> w::Db3] )
+            """;
+
+    @Test
+    @DisplayName("item 1 (SSR:40-43): one store substituted twice in one include is legend-pure's refusal")
+    void oneStoreSubstitutedTwiceIsLegendPuresRefusal() {
+        // legend-pure 5.99.0 MappingValidator.java:351-355 (lite's own dialect, whose grammar is legend-pure's: the
+        // engine's parser keeps no pair of an include that writes several); until 2026-11-15 the last pair won
+        assertEquals(List.of("[8:1] Store substitution error: multiple substitutions for w::Db1"),
+                strict(SUBSTITUTED_TWICE));
+        assertEquals(Map.of("w::M", "Store substitution error: multiple substitutions for w::Db1"),
+                module(SUBSTITUTED_TWICE).walls());
+        // an include of a mapping the model has not keeps its own refusal
+        assertEquals(List.of("[8:1] Can't find mapping 'w::Nope'"),
+                strict(SUBSTITUTED_TWICE.replace("include w::Base[", "include w::Nope[")));
+    }
+
+    @Test
+    @DisplayName("item 1 (SSR:137): a substituted embedded block keeps its ~primaryKey")
+    void aSubstitutedEmbeddedBlockKeepsItsPrimaryKey() {
+        // legend-engine keeps an embedded set's declared primary key and an include's substitution rewrites no included
+        // set (read); until 2026-11-15 the rebuilt block lost it, as AssociationSynthesis' did before 6419dec51
+        com.legend.model.ParsedModel parsed = Compiler.parseModel("""
+                Class w::P { name: String[0..1]; a: w::A[0..1]; }
+                Class w::A { street: String[0..1]; }
+                ###Relational
+                Database w::Db1 ( Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), STREET VARCHAR(20)) )
+                ###Mapping
+                Mapping w::Base ( w::P: Relational { ~mainTable [w::Db1]T name: [w::Db1]T.NAME,
+                  a ( ~primaryKey ([w::Db1]T.ID) street: [w::Db1]T.STREET ) } )
+                """);
+        com.legend.model.LegacyMappingDefinition base = parsed.elements().stream()
+                .filter(com.legend.model.LegacyMappingDefinition.class::isInstance)
+                .map(com.legend.model.LegacyMappingDefinition.class::cast).findFirst().orElseThrow();
+        com.legend.model.ClassMapping.Relational rewritten = (com.legend.model.ClassMapping.Relational)
+                StoreSubstitutionRewrite.apply(base.classMappings().get(0),
+                        List.of(new com.legend.model.MappingInclude.StoreSubstitution("w::Db1", "w::Db2")));
+        com.legend.model.PropertyMapping.Embedded a = (com.legend.model.PropertyMapping.Embedded)
+                rewritten.propertyMappings().get(1);
+        assertEquals(1, a.primaryKey().size());
+        assertEquals("w::Db2", ((com.legend.model.RelationalOperation.ColumnRef) a.primaryKey().get(0)).databaseName());
+    }
+
     // ---- item 1, JCE:415-419 and JCE:843: a walled view a routed navigation never reads; the owner's label ----
 
     private static String routedOverView(String view) {

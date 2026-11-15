@@ -76,6 +76,15 @@ final class MappingPrePass {
                 }
                 wallSink.putIfAbsent(e.element(),
                         String.valueOf(e.getMessage()).split("\n")[0]);
+                // a refusal naming ANOTHER element (an included mapping, an association) walls that element and this
+                // mapping too: the mapping's pre-pass did not complete, so it is absent from the result as every
+                // mapping whose pre-pass fails is. Until 2026-11-15 only the named element was walled, and the mapping
+                // left the build with no wall of its own (the normalizer's second batch, item 1, MPP:73-78; LITE-ONLY:
+                // the engine has no tolerant build)
+                if (!e.element().equals(md.qualifiedName())) {
+                    wallSink.putIfAbsent(md.qualifiedName(),
+                            String.valueOf(e.getMessage()).split("\n")[0]);
+                }
             }
         }
         return pre;
@@ -241,10 +250,18 @@ final class MappingPrePass {
         // `A ~src B, B ~src A` and `B ~src A, A ~src B` answered "model::B -> model::A -> model::B"), an order Rust
         // cannot reproduce (ruling 29's first policy, the normalizer slice's step 1; docs/SEMANTICS_REGISTER.md S380;
         // MappingNormalizerTest m2mSrcChainCycle_textFollowsDeclarationOrder)
+        // A class's chain is its ROOT set's (the `*` set, the one a `~src` of that class reads through), so a root
+        // set is never replaced by a later unmarked one: until 2026-11-15 the LAST Pure set of a class stood for it
+        // whatever its mark, so a non-root set's `~src` decided a cycle its root set has not, by declaration order
+        // (`A[a1] ~src B, *A[a2] ~src S, *B ~src A` refused, the same with a1 first compiled; legend-engine 4.145.0
+        // compiles both -- it checks no ~src chain at all, register row S380 -- the normalizer's second batch, item 1,
+        // MPP:237-240, ENGINE-SOURCED for the outcome; the refusal of a real cycle itself stays S380's, the owner's).
+        // With no set marked, the last still stands, as before.
         Map<String, ClassMapping.Pure> pureByTarget = new LinkedHashMap<>();
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Pure pcm) {
-                pureByTarget.put(pcm.className(), pcm);
+                pureByTarget.merge(pcm.className(), pcm,
+                        (earlier, later) -> earlier.root() && !later.root() ? earlier : later);
             }
         }
         for (ClassMapping.Pure root : pureByTarget.values()) {

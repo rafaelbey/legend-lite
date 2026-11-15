@@ -16,9 +16,11 @@
 //! is "Duplicated mapping include" by its resolved name; an include cycle is named by its members alone (item 2).
 //!
 //! The mapper is called in Java's evaluation order (a constructor's arguments left to right), so the order
-//! `collectDatabases` records the stores in -- which `qualifyStoreRefs` refuses first -- is Java's. Java's
-//! `Embedded` rebuild (:137-139) uses the two-argument constructor, so the block's `~primaryKey` is dropped and
-//! never visited; kept.
+//! `collectDatabases` records the stores in -- which `qualifyStoreRefs` refuses first -- is Java's. The `Embedded`
+//! rebuild keeps the block's `~primaryKey`, its stores substituted after the block's property mappings (Java's
+//! three-argument constructor; until 2026-11-15 the two-argument one dropped it: the normalizer's second batch, item 1,
+//! SSR:137). One store substituted twice in one include is refused by `resolve_all_stores` in legend-pure's words
+//! ("Store substitution error: multiple substitutions for <store>", since 2026-11-15, SSR:40-43).
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -49,7 +51,7 @@ use crate::jdk::LinkedSet;
 pub type StoreMapper<'f> = dyn FnMut(&JStr) -> JStr + 'f;
 
 /// `StoreSubstitutionRewrite.apply` (:35): `cm` with an include's substitutions applied (the last substitution of a
-/// store wins).
+/// store wins only for a spelling `resolve_all_stores` did not see: it refuses one store substituted twice first).
 pub fn apply(cm: &ClassMapping, subs: &[Arc<MappingIncludeStoreSubstitution>]) -> ClassMapping {
     if subs.is_empty() {
         return cm.clone();
@@ -232,10 +234,14 @@ pub fn pm(p: &PropertyMapping, m: &mut StoreMapper<'_>) -> PropertyMapping {
         }
         // Java's two-argument constructor: the block's `~primaryKey` is dropped (the module's note)
         PropertyMapping::PropertyMappingEmbedded(e) => {
-            PropertyMapping::PropertyMappingEmbedded(Arc::new(PropertyMappingEmbedded::new(
-                e.property_name.clone(),
-                list(e.property_mappings.iter().map(|x| pm(x, m)).collect()),
-            )))
+            // Java's three-argument constructor, its arguments in order: the block's mappings, then its ~primaryKey
+            let property_mappings = list(e.property_mappings.iter().map(|x| pm(x, m)).collect());
+            let primary_key = list(e.primary_key.iter().map(|k| op(k, m)).collect());
+            PropertyMapping::PropertyMappingEmbedded(Arc::new(PropertyMappingEmbedded {
+                property_name: e.property_name.clone(),
+                property_mappings,
+                primary_key,
+            }))
         }
         PropertyMapping::PropertyMappingInlineEmbedded(_) => p.clone(),
         PropertyMapping::PropertyMappingOtherwiseEmbedded(oe) => {
@@ -394,6 +400,27 @@ pub fn resolve_all_stores(
                     ),
                     Some(&md.qualified_name),
                 ));
+            }
+            // one store substituted twice in one include: legend-pure's refusal, in its words (5.99.0
+            // MappingValidator.java:351-355; since 2026-11-15, the normalizer's second batch, item 1, SSR:40-43)
+            // checked once the include and the store resolve (an include of a mapping the model has not keeps its
+            // own refusal)
+            let mut originals: HashSet<JStr> = HashSet::new();
+            for sub in inc.substitutions.iter() {
+                let Some(original_db) = model.find_database(&sub.original_store) else {
+                    continue;
+                };
+                if fqn.is_none() {
+                    continue;
+                }
+                let original = original_db.qualified_name.clone();
+                if !originals.insert(original.clone()) {
+                    return Err(Thrown::model(
+                        Phase::Model,
+                        cat!("Store substitution error: multiple substitutions for ", &original),
+                        Some(&md.qualified_name),
+                    ));
+                }
             }
             if let Some(fqn) = fqn {
                 incs.push(fqn);
@@ -668,6 +695,40 @@ mod tests {
     }
 
     #[test]
+    fn one_store_substituted_twice_in_one_include_is_legend_pures_refusal() {
+        // legend-pure 5.99.0 MappingValidator.java:351-355 (the normalizer's second batch, item 1, SSR:40-43,
+        // 2026-11-15): checked once the include and the store resolve
+        let parsed = model(
+            r#"
+###Relational
+Database w::Db1 ( Table T (ID INTEGER PRIMARY KEY) )
+Database w::Db2 ( include w::Db1 )
+Database w::Db3 ( include w::Db1 )
+"#,
+        );
+        let idx = index(&parsed);
+        let base = with_includes("w::Base", Vec::new());
+        let m = with_includes(
+            "w::M",
+            vec![include("w::Base", &[("w::Db1", "w::Db2"), ("w::Db1", "w::Db3")])],
+        );
+        let e = resolve_all_stores(&[base.clone(), m], &idx).unwrap_err();
+        assert!(e.is_model());
+        assert_eq!(e.element(), Some(j("w::M")));
+        assert_eq!(
+            e.message(),
+            Some(j("Store substitution error: multiple substitutions for w::Db1"))
+        );
+        // an include of a mapping the model has not, or a store it has not: no refusal here
+        let n = with_includes(
+            "w::N",
+            vec![include("w::Nope", &[("w::Db1", "w::Db2"), ("w::Db1", "w::Db3")])],
+        );
+        let o = with_includes("w::O", vec![include("w::Base", &[("x", "w::Db2"), ("x", "w::Db3")])]);
+        assert!(resolve_all_stores(&[base, n, o], &idx).is_ok());
+    }
+
+    #[test]
     fn an_include_cycle_names_its_members_alone_in_the_walks_order() {
         let idx = empty_index();
         let a = with_includes("w::A", vec![include("w::B", &[])]);
@@ -785,7 +846,8 @@ mod tests {
     fn the_stores_are_collected_in_javas_reading_order() {
         let mut out = LinkedSet::new();
         collect_databases(&every_place(), &mut out);
-        // the embedded block's `~primaryKey` is dropped by Java's two-argument rebuild: never read
+        // the embedded block's `~primaryKey` is read after its property mappings (until 2026-11-15 Java's two-argument
+        // rebuild dropped it, never read: the normalizer's second batch, item 1, SSR:137)
         assert_eq!(
             out.to_vec(),
             vec![
@@ -798,6 +860,7 @@ mod tests {
                 j("joinDb"),
                 j("hopDb"),
                 j("db"),
+                j("embeddedPkDb"),
             ]
         );
     }
@@ -832,11 +895,16 @@ mod tests {
         };
         assert!(lite_base::same(&before.joins[1], &jn.joins[1]));
         assert!(!lite_base::same(&before.joins[0], &jn.joins[0]));
-        // the embedded block lost its primary key (Java's two-argument constructor)
+        // the embedded block keeps its primary key, its store substituted where a pair names it (until 2026-11-15 the
+        // key was dropped, Java's two-argument constructor: the normalizer's second batch, item 1, SSR:137)
         let PropertyMapping::PropertyMappingEmbedded(e) = &r.property_mappings[1] else {
             unreachable!()
         };
-        assert!(e.primary_key.is_empty());
+        let PropertyMapping::PropertyMappingEmbedded(e0) = &orig.property_mappings[1] else {
+            unreachable!()
+        };
+        assert_eq!(e.primary_key.len(), 1);
+        assert_eq!(e.primary_key[0], e0.primary_key[0]);
         // no substitutions: the very set back
         let ClassMapping::ClassMappingRelational(kept) = apply(&md.class_mappings[0], &[]) else {
             unreachable!()
