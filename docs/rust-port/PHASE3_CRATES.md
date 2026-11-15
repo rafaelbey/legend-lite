@@ -295,3 +295,42 @@ records, as Java's rule exempts `NameResolver`), and any use of the parser's cal
 `applied_full`, `operator_parts`) outside the parser's crate. `with_parameters` keeps the record and is allowed, as
 Java's rule allows `withParameters`. Tests (`tests/`) are out of its scope, as Java's rule checks production classes
 alone. Its detector has its own test (`a_call_construction_is_told_from_a_return_type`).
+
+## 9. What the normalizer slice made (2026-11-14)
+
+`lite-normalizer` (layer `normalizer`, tier 3, above `lite-names`; `rust/lite-guards/crate-layers.txt`: it reaches
+`lite-base`, `lite-builtin`, `lite-error`, `lite-front`, `lite-model`, `lite-names`, `lite-platform`, `lite-types`, and
+nothing of `element` or `spec`): step E, `ModelNormalizer.normalize` and its package, 15,351 lines of source and 8,054 of
+unit tests (179), the differential 1,598. PHASE3.md's normalizer slice entry has the numbers.
+
+| Java (`com.legend.normalizer`, at ad86fa895) | Rust (`lite-normalizer/src`) |
+|---|---|
+| `ModelNormalizer` | `model_normalizer.rs` (E.2-E.6; the entry is `lib.rs`' `normalize`) |
+| `MappingNormalizer` (19 families) | `mapping_normalizer/`: `entry` (1, 2), `clean_sheet` (3), `xstore` (4, 7), `dispatch` (5), `relation_function` (6), `m2m` (8), `relational` (10-12), `table_backed` (13), `fields` (14), `filter` (15), `main_table` (16), `enumeration` (17), `alias_scope` (18), `instances` (19); family 9 is DON'T PORT |
+| `JoinChainEmission`, `UnionSynthesis`, `AssociationSynthesis`, `RelOpTranslator`, `ViewRelation`, `GroupBySynthesis`, `XStorePureEnds`, `ModelJoinNesting`, `RelationReads`, `DeclaredCoercions`, `AggregateViewLift`, `M2mRouteGuards` | one file each, snake_case (`xstore_pure_ends::synthesize` is PARK-1's one function, MN:983-1059 with XS's `synthesize`) |
+| `MappingPrePass`, `MappingClosures`, `ResolvedMapping`, `StoreSubstitutionRewrite`, `ImplicitInheritance`, `MappingValidation`, `LiftedViews`, `Pipeline` (with ROT's `PipelineView`), `MappingLedger`, `MappingFacts`, `SetKeyFacts`, `MilestoningFacts` | one file each |
+| `DynaFnArms` (test-only) and `DynaFnRegistryTest`'s invariants | `dyna_fn.rs`: ONE exhaustive `match` (`arm`), ARMS and LANDINGS computed from it (ruling 31) |
+| `MissProbe` | no module: `Option` at each funnel site, `neverFired` an internal `IllegalStateException` with its text (`error.rs`) |
+| the throws and the catches (census §9.4) | `error.rs`: `Thrown` (`Compile`, `Java { class, message }`, and `Unported`, which no catch takes), the catch predicates by kind, `with_element`, `first_line` |
+
+**Model methods it needed** (in `lite-model` and `lite-front`, never here; census §8): step 3's (`spec_children.rs`'s
+`children`/`mapChildren`, `RelationalOperation`'s `mapChildren`, `Col.isEmbedded`/`bindSrc`, `aggregationAwareMain`,
+`withClassMappings`, `withSynthesizedFrom`/`isSynthesized`, `MappingDefinition`'s canonical and common constructors
+(the bindings' keyed lookups left to H), `KeyThread`'s four-argument form), and the fill's: lite-model's
+`normalizer_methods.rs` (`PropertyMapping.propertyName`, `AssociationMapping.associationName`,
+`AssociationPropertyMapping.propertyName`, `AssociationEndDefinition.targetClassFqn`, `FilterPointer.name`) and
+`LinkedMap::remove`; lite-front's `normalizer_methods_e1.rs` (`ValueSpecification`'s Java `equals` as a key: the
+records derive equality over every field, positions included, where Java's skips them -- PARK-1's agreement check needs
+Java's) and `normalizer_methods_e2.rs` (`ConstraintDefinition.expression`). `MappingDefinition.position` is not built:
+it is H's, an index (census §8).
+
+**Identity** (census §9.1): `LiftedViews`' owners, functions, walls and expanding are `IdMap`/`IdSet` keyed by the
+view's `Arc` (the index hands out one per view); `MappingClosures.first` dropped; `MappingPrePass`' self edge and AS's
+`m == md` re-expressed (`sourceClass == className`, skip index 0). `ModelNormalizer:220`'s `d == dp` could not be
+`same`: `lite-names`' adoption copies the definition, so the check compares the adopted property's statement nodes (by
+value where a body has none) -- a clean fix is adoption sharing the `Arc`, or census §4's typed step (the owner's).
+
+**Left for F** (`lite-element`): `PureModelContext` as the concrete `Model`, `ModelIntegrity`, GraphEdges' F-time
+rule, the element compilers, the `Typed*` records; the keyed `NormalizationFacts` lookups F reads (PMC:488-535) and
+`MappingDefinition.position` (H's); `ModelNormalizer`'s output is what F's `PureModelContext.from` takes, so F's
+differential runs on this crate's answers.

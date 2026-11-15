@@ -1204,6 +1204,128 @@ done, in the order of the design's §3.
         roster tests) all passed, the own-corpus ratchet once moved with items 1 and 6.
         `ledger_check.sh c4a39e06d`: 85 rows ok, none missing.
 
+   **The normalizer slice: step E as `lite-normalizer` (done 2026-11-14;** [`PHASE3_CRATES.md`](PHASE3_CRATES.md)
+   §9**).** E's Java made a refusal wherever a user's text reached a raw JDK exception, its one hash order declared,
+   its two unreached Phase-D fallbacks deleted, then frozen (D then E, 74,364 asks), then ported family by family and
+   held to the freeze byte for byte. Every measurement and tool is in `port-scratch/normalizer/`.
+
+   - *Step 1, the raw exceptions (ruling 29's second policy; one commit per site or group, each with a
+     `RefusalsNotCrashesTest` case).* A discovery run of the oracle's tool at the base named every raw exception a
+     text reaches in D then E: `d2eacfead` ROT:610 (a relational lambda or `$x` at the translator's default arm, an
+     ISE naming the Java class) and `59a5331ce` ROT:720 (a translated dynafunction no arm rewrites) are
+     `NotImplementedException`s by name now (poison-only in a strict build on the property-mapping path: a deferred
+     refusal, as their UNSUPPORTED sibling); `cdb60ee0f` an inline-embedded property of an unknown class and
+     `f25760b47` a join hop to a table its database does not declare (`JoinChainEmission#3`, 3 front-oracle texts) are
+     the model's errors; `a32e83c36` an included mapping's unknown association (`AssociationSynthesis#1`, 14 texts,
+     tolerant only) is "Can't find association 'x'"; `33b0c97f0` MN:943/:1058's bare `orElseThrow()` (an association
+     D left unresolved in a tolerant build) are "XStore/ModelJoin mapping references unknown association"; `7afe52b16`
+     MN:1088, MJN:59 and MJN:117-118 (a ModelJoin's two lambda parameters of one name, a nested hop to a Pure end) are
+     refused before the `Map.of`s, MJN:59 pinned as an invariant. `FallbackLedgerTest`'s never-fired floor 5 -> 3 and
+     the own-corpus ratchet 3070 -> 3134 (the 64 elements of the new test texts, 58 of RefusalsNotCrashesTest's 14 and
+     the M2M case's 6; the parser unchanged, so no existing element moved), each with its dated comment and row. Left
+     unchanged, names- and types-tier code E calls (the owner's): `Type.RelationType`'s duplicate column through
+     `ViewSignatures` (6 texts, 18 asks a mode) and `KnowledgeLayer.superClass`'s ISE (4 texts, 11 asks a mode) -- the
+     29 raw refusals the freeze holds; and `resolveSynthesized` throws D's `ResolutionException`, unattributed, out of
+     a module build (a Pure set's `~src` an ambiguous name).
+   - *Ruling 29's first policy* (`56fc09f1e`, register S380): `MappingPrePass`' M2M index is a `LinkedHashMap`, so the
+     "Circular M2M ~src chain" text starts from the first-declared class (declaration order over a sort: the mapping's
+     own order, no UTF-16 sort for Rust to copy); no frozen oracle held the text.
+   - *Ruling 30's measurement and deletions* (`ad86fa895`). The tool over an uncommitted instrumented build, every ask
+     strict and tolerant (asks reaching, S / T): AS `resolveAssociation`'s import wildcards tried 241 / 265, found 0 / 6
+     (the 6 the slice's own case texts, step 1's tolerant crash); its same-package fallback tried 259 / 277, found 0 / 0;
+     MN's poison-key `.orElse(am.associationName())` 207 / 218; MN's binding `.orElse` 0 / 0; SSR `qualifyStoreRefs`
+     on 5,276 / 5,300 asks, an unqualified spelling no database has on 709 / 727, rewriting 0 / 0. Deleted, each a named
+     refusal now (no text reaches either, so no frozen hash moved): the binding's `.orElse` ("Can't find association")
+     and the rewrite ("Mapping references unknown database 'Db' (name resolution left it unqualified; the import 'p::*'
+     names 'p::Db'); mapping=M"). Kept and ported verbatim, each with its count in a dated comment: the import
+     wildcards, the same-package fallback (tried, never found: the owner's) and the poison key's `.orElse`.
+   - *The oracle* (`5656ecd6f`, ruling 31; `rust/oracles/normalizer/`, its MANIFEST). `frontoracle/NormalizerAnswers`
+     drives D then E only (`resolveAlongside`, the association adoption, `ModelBuilder.from`, `refuseDuplicates`,
+     `ModelNormalizer.normalize`; never F) over every model text of the front oracle at every dialect asked and the
+     slice's 24 case texts -- ten for census §10's oracle-blind sites (view-on-view cycles mapped and alone, a walled
+     view reached from a mapping, two equal views in two schemas, a real `~src` chain, M2M cycles of three and of two in
+     both orders, a duplicate set id across includes, a nested ModelJoin hop) and step 1's 14 -- strict (the first
+     error) and tolerant (the walls, then the answer): slice 1b's codec over the `NormalizedModel` (every element, the
+     binding tables, `NormalizationFacts` in insertion order, `resolvedStores`, the imports, the legacy surfaces).
+     74,364 asks over 26,348 texts; strict 69,104 answered and 5,260 refused (33 in D; in E 5,141 ModelException, 57
+     NotImplementedException, the 29 raw); tolerant 144 refused, 1,739 with E walls. Two runs in parallel on one jar
+     snapshot byte-identical (741 s, 743 s); every one of the 283 record types reached is in the Rust codec; each case's
+     form shows what it was written for. The forms (3.4 GB) archived outside git
+     (`oracle-archive/normalizer-forms-java-2026-11-14.jsonl.zst`, 36.6 MB, with the per-ask tags; SHA-256 in
+     `normalizer-texts-java.sha256`, checked by decompressing). Reach, in texts (asks) of the front oracle, strict: a
+     legacy mapping 7,379 (21,665), table-backed Relational sets 3,967, sets with no main table 1,094, M2M 1,324,
+     relation functions 471, unions 251, inheritance 50, aggregation-aware 25, JSON sources 0; ~filter 323, ~groupBy 42,
+     ~distinct 72, extends 310, includes 707 (store substitution 67), enumeration mappings 511; association mappings
+     Relational 1,534, XStore 404, ModelJoin 164; views 367 (lifted 266); clean-sheet mappings 40; derived properties
+     2,015, constraints 1,053, defaults 153, function PRE/POST 37, services 888; poisons 353, mixed unions 25, union key
+     threads 94, routed targets 63, resolved stores 18; E walls (tolerant) 579. No text's lifted body calls `like`,
+     `charindex`, `locate` or `COUNT`/`SUM`/`ABS` in capitals (the names batch's G refusals: 0 texts).
+   - *The crate* (PHASE3_CRATES.md §9). A skeleton first (every module, shared type and cross-file signature; the
+     frame ported: the error type, `Pipeline`, `MappingLedger`, `MappingFacts`, `ResolvedMapping`, the memos, the
+     `DynaFn` match), then eight helpers filled the families in parallel on disjoint files, each line for line against
+     ad86fa895, and one wrote the differential; every branch cherry-picked here, their worktrees removed. Census §3's
+     DON'T PORT rows are out, §4's RE-EXPRESS rows applied (the census's `Option<&MappingLedger>` is `&mut`: US:392
+     writes a poison through the pipeline). Java class names in answer texts are spelled per variant: AS:418's
+     association mapping kinds, AS:441's and JCE:195's and GBS:164's property-mapping kinds, `targetClassFqn`'s type
+     expression kinds, US:613's set kinds, ROT's `literalToValueSpec` (`java.math.BigInteger`, `java.math.BigDecimal`),
+     `dynaFnName`'s `DynaFn.<NAME>`.
+   - *The differential* (`tests/normalizer_differential.rs`, `//rust/lite-normalizer:normalizer_differential_test`,
+     large, in `//gates:core`): every ask through `lite-names` and `lite-normalizer`, held to the frozen hash, with
+     equal / mismatch / unported buckets and a report against the Java forms. **74,364 of 74,364 asks identical to
+     Java's** at the first full run after the merge, no list of differences (48 s, release, 4 threads); a corrupted
+     frozen hash is caught. The cases alone run under plain `cargo test`.
+   - *Register rows* S381-S392 (census ASK 12's E rows, ported exactly, the engine's answers read from the pinned
+     sources, none run; each for the owner). Read against the code's comments, S382's (Join property mappings are
+     navigated over the grouped relation, and the engine's SQL carries a per-row column for `.all()` and an isolated
+     grouped set), S386's (the engine's H2 `splitPart` drops empty tokens too) and S387's (the old H2 path) claims did
+     not hold as written, and S391 is wider than the census says.
+   - *Guards*: `ParkedWorkLedgerTest`'s PARK-1 and PARK-26 anchors restated against the Rust sites
+     (`rust/lite-guards` `the_parked_work_anchors_hold_in_the_normalizer`: PARK-1's wall words in
+     `xstore_pure_ends.rs` alone, the one function; PARK-26's list count in `store_substitution_rewrite.rs`);
+     `DynaFnRegistryTest`'s invariants are `dyna_fn.rs`' unit tests; rows in `rust/RETIRED_TESTS.md`, the Java tests
+     unchanged and running. `FallbackLedgerTest`'s funnel, `LegacyReachbackCensusTest`'s E rows,
+     `CodeShapeGuardrailTest`'s E allowlists and `ShadowWalkerCensusTest` read Java's sources and have no Rust form
+     (the funnel is an `Option` per site in Rust); they retire with the Java.
+   - *The probe, under the stop condition* (after the last Java change, at `3a5297c80`; nothing under `core`, `spec` or
+     `pct` changed since): the v2 probe, a copy tagged NORM1 (`namesfollow/make_variant.py`), over the full freeze in the
+     verify worktree (`namesland/full_at.sh`, KEEP unset; the Bazel wrapper retried once after a transient remote-cache
+     error, the second invocation 145 of 145 targets, 143 passing, the two probe-caused failures `//core:guardrails` and
+     `//core:census`). `compare2.py` with the counts mask against this worktree's frozen oracles: **all 73,413 frozen
+     keys answered and equal, none moved (counts, MirJson, execution and test plans), none absent**; 16,903 new keys,
+     the run's by design (the parity lanes' and the ladder report's temporary paths) and the 25 of step 1's new test
+     texts (`core_tests_normalizer`'s RefusalsNotCrashesTest and M2M case: 14 module builds, 11 compiles). The run's
+     38 GB folder deleted; the verify worktree clean and detached.
+   - *Java behaviours that look wrong beyond census ASK 13, ported as they are* (lines at ad86fa895; each the owner's):
+     ROT:247-256 the hash arm has no arity guard -- `md5()` is a raw `ArrayIndexOutOfBoundsException` from a user's
+     text (step 1's list missed it), `md5(a, b)` drops `b` -- and ROT:323-330 `convertDate()` with no argument the same;
+     JCE:843 `determineTargetTable`'s text doubles `mapping=` (`mapping=mapping=a::M`, or `mapping=store=<db>`) through
+     `hopTarget`; JCE:624-633 `mintNavSlotAlias` drops a main table's schema; JCE:192-213 and MN:2111-2118 a primitive
+     property passes "non-class property type" (refused a step later, or built as `new(@String, ...)`); JCE:415-419 a
+     walled view refuses a routed navigation that never reads it; JCE:567 vs :585 one route collects the written join
+     and translates the declared one; MN:1695-1699 the INNER-filter rebuild drops `sourceUrl` and any source override;
+     MN:2562-2602 a view-on-view column re-resolves against the mapping's database, not its reference's; MN:340/:404 a
+     `~func` set binds as `ClassBinding.Pure` (no relational source); MN:539 the clean-sheet door does not flatten
+     enumeration mappings with includes; US:467-512 synthUnion's pair-entry merge reaches no answer, only its errors;
+     AS:87 the pre-pass looks an association up directly where synthesis resolves it through imports (an import-only
+     Relational association mapping is refused first); XS:140 a Relational end's pipeline is the class's main source
+     even for a non-root set; MN:1080 and MJN:85-93 a ModelJoin's ends and its nested ModelJoin chosen by class, last
+     match, own mappings only; RR:131/:184 `bindSrc` and `substVars` ignore lambda shadowing; MPP:73-78 a pre-pass
+     ModelException naming another element walls that element, not the mapping; MPP:237-240 a class's last Pure set
+     replaces the earlier, whose chain is not checked; SSR:40-43 one store substituted twice, the last wins; SSR:137
+     a substituted Embedded block loses its `~primaryKey`; ModelNormalizer:171-172 PRE/POST bodies resolve under no
+     imports (their owner is the function's name, the imports are keyed by its id); M2mRouteGuards:121-133 an empty
+     declared set id is not the default; DC/ROT:671 `default.T` is normalized only in the column-reference arm. Also
+     found while reading the engine (the register helper): lite refuses an M2M class-typed property whose class has no
+     set ("targets unmapped class", MN:1235-1241) where the engine accepts one whose transform returns the property's
+     type (`ClassMappingThirdPassBuilder.java`:103-109) -- a divergence with no row.
+   - *The owner's choices, taken conservatively*: the same-package fallback kept (tried, never found); ROT:610/720 as
+     NotImplementedException (deferred, as the sibling); the two raw sites in names- and types-tier code unchanged;
+     `Pipeline`'s ledger `&mut` (US:392); ModelNormalizer:220's identity by statement nodes (a shared `Arc` from the
+     adoption would make it `same`); MN:742's operand order by Java's equality key, which cannot wall two lines by a
+     position accident as Java's `toString` order could (census §4's hedge; no text differs); `Unported` kept as the
+     port's marker; the differential's four threads under Bazel; whether the differential (48 s) stays in the local
+     gate.
+
 ## Carried to the slices not yet begun
 
 Work an earlier slice found and ruled for a later one; each item names the ruling and the register row, and is done
@@ -1240,3 +1362,11 @@ when that slice lands.
   exactly (item 3), and still lists `joinstrings`, whose type now reads its first argument's size (item 4), and `like`,
   `position`, `charindex`, `locate`, which no longer have a rule (item 2). Measure its reach, then make it the
   inference's: the exact name, and only the rules whose type reads no argument.
+- **The normalizer's follow-up (E, in Java and Rust together, after the port; ruling 30).** Census ASK 13's ten
+  behaviours that look wrong, fixed; PARK-26 settled by the engine's answer, asked first; tolerant mode's four wall
+  shapes (census ASK 10 (a)-(d)) fixed; the view lift's two engine differences (a missing join in lite's words where the
+  engine says `Can't find join ...`; a `{target}` terminal the lift refuses where the engine compiles it; S376, S378);
+  the relational spellings the lift emits that G refuses (`like`, `charindex`, `locate`, capitals' `COUNT`/`SUM`/`ABS`,
+  `mod` over floats, `md5` over an integer, `sub` over varchars; the names batch's cases -- no text the normalizer
+  oracle holds has one, 0 texts); and the register rows S381-S392 as the owner rules them. Each re-freezes
+  `rust/oracles/normalizer` with its moved asks attributed.
