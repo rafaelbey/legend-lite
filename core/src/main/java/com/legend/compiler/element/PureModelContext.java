@@ -451,10 +451,20 @@ public final class PureModelContext implements ModelContext {
         // resolve at lookup time from the association index — never stored on
         // TypedClass (Property doc §5 discipline 3). Superclass-declared
         // associations are found through the recursion above.
-        return model.findAssociationEnd(classFqn, name).map(end ->
-                new Property.Stored(end.propertyName(),
-                        classifier.classify(end.targetClass(), java.util.List.of()),
-                        TypeClassifier.multiplicity(end.multiplicity())));
+        return model.findAssociationEnd(classFqn, name).map(end -> {
+            Type target = classifier.classify(end.targetClass(), java.util.List.of());
+            // a tolerant build keeps a walled association whose end's bounds are inverted (ModelIntegrity walls it,
+            // POISON-NOT-DROP): until 2026-11-15 the end's multiplicity threw a raw IllegalArgumentException here, at
+            // the lookup the typer makes; now the integrity check's refusal, in its words and under its element (the
+            // element slice, step 1 (a), PMC:439: ruling 29's second policy, census ASK 11; LITE-ONLY, a tolerant
+            // build: a strict build refuses the association first, step 1 (b))
+            com.legend.model.AssociationDefinition association = model.findAssociationOf(classFqn, name)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "an association end with no association: " + classFqn + "." + name));
+            ModelIntegrity.requireValidBounds(end.multiplicity(), ModelIntegrity.associationEndSite(end, association),
+                    association.qualifiedName());
+            return new Property.Stored(end.propertyName(), target, TypeClassifier.multiplicity(end.multiplicity()));
+        });
     }
 
 

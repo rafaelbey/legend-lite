@@ -51,6 +51,23 @@ class ElementRefusalsTest {
 
     private static final String BOUND = "upper (1) must be >= lower (2)";
 
+    /** An association whose end's bounds are inverted. */
+    private static final String ASSOCIATION_END = "Class w::A { name: String[1]; }\nClass w::B { name: String[1]; }\n"
+            + "Association w::AB { a: w::A[2..1]; b: w::B[*]; }\n";
+
+    @Test
+    @DisplayName("1 (a): a lookup of a walled association end with inverted bounds is refused in the bounds check's words, where it threw raw")
+    void aWalledAssociationEndsInvertedBoundsAreRefusedAtTheLookup() {
+        // PMC:439 (ruling 29's second policy, census ASK 11): until 2026-11-15 an IllegalArgumentException, "upper (1)
+        // must be >= lower (2)", from the end's multiplicity, at any lookup the typer made of the end
+        Compiler.BuiltModule module = Compiler.buildModule(Compiler.parseModel(ASSOCIATION_END));
+        ModelException e = assertThrows(ModelException.class, () -> module.context().findProperty("w::B", "a"));
+        assertEquals("property 'a' of association w::AB: invalid multiplicity — " + BOUND, e.getMessage());
+        assertEquals("w::AB", e.element());
+        // the other end, its bounds whole, is found as before
+        assertEquals("b", module.context().findProperty("w::A", "b").orElseThrow().name());
+    }
+
     @Test
     @DisplayName("1 (b): a parameter's, a return's and an association end's bounds are checked as a property's are")
     void inverseBoundsAreRefusedAtEverySignatureSite() {
@@ -66,8 +83,7 @@ class ElementRefusalsTest {
         ModelException r = assertThrows(ModelException.class, () -> Compiler.compileModel(ret));
         assertEquals("w::g_String_1__String_$2_1$_", r.element());
         assertTrue(r.getMessage().endsWith("return of function w::g: invalid multiplicity — " + BOUND), r.getMessage());
-        String end = "Class w::A { name: String[1]; }\nClass w::B { name: String[1]; }\n"
-                + "Association w::AB { a: w::A[2..1]; b: w::B[*]; }\n";
+        String end = ASSOCIATION_END;
         ModelException a = assertThrows(ModelException.class, () -> Compiler.compileModel(end));
         assertEquals("w::AB", a.element());
         assertTrue(a.getMessage().endsWith("property 'a' of association w::AB: invalid multiplicity — " + BOUND),

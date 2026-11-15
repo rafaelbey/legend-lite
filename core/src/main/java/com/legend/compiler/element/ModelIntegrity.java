@@ -448,6 +448,17 @@ final class ModelIntegrity {
         }
     }
 
+    /** {@link #requireValidBounds(com.legend.protocol.Multiplicity, String)} outside the pass, where no withElement
+     *  attributes the refusal: attributed to {@code element}, as the pass's wall would be (2026-11-15, the element
+     *  slice, step 1 (a), PMC:439). */
+    static void requireValidBounds(com.legend.protocol.Multiplicity m, String site, String element) {
+        try {
+            requireValidBounds(m, site);
+        } catch (com.legend.error.ModelException e) {
+            throw new com.legend.error.ModelException(e.phase(), e.getMessage(), element);
+        }
+    }
+
     /** An association end's site in the bounds check's words: {@code property 'p' of association a::A}. */
     static String associationEndSite(com.legend.model.AssociationDefinition.AssociationEndDefinition end,
             com.legend.model.AssociationDefinition association) {
