@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use lite_builtin::pure::catalog;
 use lite_error::Phase;
+use lite_front::nodes;
 use lite_front::records as p;
 use lite_model::linked::{LinkedMap, list};
 use lite_model::{
@@ -36,7 +37,6 @@ use crate::mapping_normalizer::{canonical_table, determine_target_table, infer_m
 use crate::pipeline::Pipeline;
 use crate::rel_op_translator::{self, TableScope};
 use crate::resolved_mapping::ResolvedMapping;
-use crate::unported;
 
 /// Where a route lands, by the sign of Java's `targetOrdinal` (the only thing any reader asks of it).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -846,14 +846,39 @@ pub fn table_key(cm: Option<&ClassMapping>, model: &ModelIndex) -> Result<Option
 
 /// `UnionSynthesis.uniformChainedRoutes` (:798): whether the member routes' chains are one shape.
 pub fn uniform_chained_routes(member_js: &[Arc<PropertyMappingJoin>]) -> bool {
-    // UNPORTED: UnionSynthesis.uniformChainedRoutes
-    unported!("UnionSynthesis.uniformChainedRoutes")
+    if member_js.is_empty() || !member_js.iter().any(|j| j.joins.len() > 1) {
+        return true;
+    }
+    let first = &member_js[0];
+    for j in member_js {
+        if j.joins.len() != first.joins.len() {
+            return false;
+        }
+        // every hop but the last: the same join name in the same database (a hop's own database, else its PM's)
+        for (a, b) in first
+            .joins
+            .iter()
+            .zip(j.joins.iter())
+            .take(j.joins.len().saturating_sub(1))
+        {
+            let db_a = a.database_name.as_ref().unwrap_or(&first.database);
+            let db_b = b.database_name.as_ref().unwrap_or(&j.database);
+            if a.join_name != b.join_name || db_a != db_b {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 /// `UnionSynthesis.memberJoins` (:825): the joins of the MEMBER routes, in route order.
 pub fn member_joins(routes: &[UnionRoute]) -> Vec<Arc<PropertyMappingJoin>> {
-    // UNPORTED: UnionSynthesis.memberJoins
-    unported!("UnionSynthesis.memberJoins")
+    // Java's `targetOrdinal() >= 0` (census §4: the tag's Member)
+    routes
+        .iter()
+        .filter(|r| r.target == RouteTarget::Member)
+        .map(|r| r.join.clone())
+        .collect()
 }
 
 /// `UnionSynthesis.inboundArmSteps` (:842): a chained route's mid steps pushed into the member's arm (the
@@ -865,7 +890,72 @@ pub fn inbound_arm_steps(
     md: &ResolvedMapping<'_>,
     model: &ModelIndex,
 ) -> Result<Vec<LiftMidStep>, Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.inboundArmSteps"))
+    let mut steps: Vec<LiftMidStep> = Vec::new();
+    let mut prev_table = member_table.clone();
+    let mut prev_alias: Option<JStr> = None;
+    // all hops but the FIRST, reversed: from the target member's table back through the mids
+    for h in (1..j.joins.len()).rev() {
+        let mid_hop = &j.joins[h];
+        let mid_db = mid_hop.database_name.clone().unwrap_or_else(|| j.database.clone());
+        let mjd = model.find_join(Some(&mid_db), &mid_hop.join_name).ok_or_else(|| {
+            Thrown::model(
+                Phase::Normalize,
+                cat!(
+                    "Join '",
+                    &mid_hop.join_name,
+                    "' not found in db '",
+                    &mid_db,
+                    "'; PM='",
+                    prop,
+                    "', mapping=",
+                    md.qualified_name()
+                ),
+                None,
+            )
+        })?;
+        let mid_tgt = determine_target_table(
+            &mjd.operation,
+            Some(&prev_table),
+            &mid_hop.join_name,
+            Some(prop),
+            h as i32,
+            md.qualified_name(),
+        )?;
+        let ms = Arc::new(nodes::variable(JStr::from("s")));
+        let mt = Arc::new(nodes::variable(JStr::from("t")));
+        let mut mid_scope: TableScope = LinkedMap::new();
+        mid_scope.put(
+            prev_table.clone(),
+            match &prev_alias {
+                None => p::ValueSpecification::Variable(ms.clone()),
+                Some(alias) => nodes::property(p::ValueSpecification::Variable(ms.clone()), alias.clone(), None),
+            },
+        );
+        if mid_tgt != prev_table {
+            mid_scope.put(mid_tgt.clone(), p::ValueSpecification::Variable(mt.clone()));
+        }
+        let mid_cond = rel_op_translator::translate(
+            &mjd.operation,
+            &mid_scope,
+            Some(&p::ValueSpecification::Variable(mt.clone())),
+            None,
+            None,
+        )?;
+        let mid_alias = cat!("nl__", prop, "__inb__", &mid_hop.join_name);
+        steps.push(LiftMidStep {
+            alias: mid_alias.clone(),
+            db: mid_db,
+            table: mid_tgt.clone(),
+            cond: Arc::new(p::LambdaFunction {
+                parameters: list(vec![ms, mt]),
+                body: list(vec![mid_cond]),
+                pos: None,
+            }),
+        });
+        prev_table = mid_tgt;
+        prev_alias = Some(mid_alias);
+    }
+    Ok(steps)
 }
 
 /// `UnionSynthesis.ownSharedKeys` (:903): `(db, canonical table, key)` -> the first member over it, for a
