@@ -647,4 +647,27 @@ Mapping a::M
                 .is_none()
         );
     }
+
+    #[test]
+    fn a_double_literal_matches_by_javas_double_equals() {
+        // GBS:342's Objects.equals: a Double literal by Double.equals -- 0.0 and -0.0 two values, every NaN one (2026-11-15,
+        // the normalizer batch, item 10: the derived `==` had both the other way round)
+        let lit = |d: f64| {
+            RelationalOperation::RelationalOperationLiteral(Arc::new(RelationalOperationLiteral {
+                value: lite_model::JValue::Double(d),
+            }))
+        };
+        let call = |a: RelationalOperation| {
+            RelationalOperation::RelationalOperationFunctionCall(Arc::new(RelationalOperationFunctionCall {
+                name: j("plus"),
+                args: Arc::from(vec![a]),
+            }))
+        };
+        assert!(group_by_ops_match(&lit(1.5), &lit(1.5)));
+        assert!(!group_by_ops_match(&lit(1.5), &lit(2.5)));
+        assert!(!group_by_ops_match(&lit(0.0), &lit(-0.0)));
+        assert!(group_by_ops_match(&lit(f64::NAN), &lit(f64::NAN)));
+        assert!(group_by_ops_match(&call(lit(f64::NAN)), &call(lit(f64::NAN))));
+        assert!(!group_by_ops_match(&call(lit(0.0)), &call(lit(-0.0))));
+    }
 }
