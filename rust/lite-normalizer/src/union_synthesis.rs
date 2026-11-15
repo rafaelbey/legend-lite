@@ -14,20 +14,27 @@
 //! must agree. Not ported (census §3, US-7): `MEMBER_WITNESS`, `FILTER_FORM`, `record Thread`, `record ScanSource`
 //! (:701-753). Write-then-throw (`mixedUnions.put` before a throw, :440-441) must stay: the fact survives the error.
 
+use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
+use lite_builtin::pure::catalog;
+use lite_error::Phase;
 use lite_front::records as p;
-use lite_model::linked::LinkedMap;
+use lite_model::linked::{LinkedMap, list};
 use lite_model::{
-    ClassMapping, ClassMappingInheritance, ClassMappingRelational, ClassMappingUnion, JStr, LegacyMappingDefinition,
-    PropertyMapping, PropertyMappingJoin,
+    ClassMapping, ClassMappingInheritance, ClassMappingRelational, ClassMappingUnion, JStr, KeyThread,
+    LegacyMappingDefinition, PoisonKey, PoisonKeyForClass, PropertyMapping, PropertyMappingJoin, RelationalOperation,
+    cat,
 };
-use lite_names::ModelIndex;
+use lite_names::model_index::java_list;
+use lite_names::{ModelIndex, calls, synth_fqn};
 
-use crate::error::Thrown;
+use crate::error::{Thrown, require};
 use crate::jdk::LinkedSet;
 use crate::mapping_ledger::MappingLedger;
+use crate::mapping_normalizer::{canonical_table, determine_target_table, infer_main_table_quiet, synth_relational};
 use crate::pipeline::Pipeline;
+use crate::rel_op_translator::{self, TableScope};
 use crate::resolved_mapping::ResolvedMapping;
 use crate::unported;
 
@@ -71,12 +78,43 @@ pub const TABLE_KEY_SUFFIX: &str = "__pk";
 /// `UnionSynthesis.memberFunction(md, member)` (:62): the FQN the arm calls for `member` (its defining mapping
 /// searched in the closure, own record first; `closure().get(0)` otherwise).
 pub fn member_function(md: &ResolvedMapping<'_>, member: &ClassMapping) -> Result<JStr, Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.memberFunction"))
+    let id = ResolvedMapping::id_of(member);
+    let closure = md.closure();
+    for m in &closure {
+        for cm in m.class_mappings.iter() {
+            if cm.class_name() == member.class_name() && ResolvedMapping::id_of(cm) == id {
+                return member_function_of(&PinTarget {
+                    defining: m.clone(),
+                    set: member.clone(),
+                });
+            }
+        }
+    }
+    // `closure().get(0)`: the closure is this record first, never empty
+    member_function_of(&PinTarget {
+        defining: closure[0].clone(),
+        set: member.clone(),
+    })
 }
 
 /// `UnionSynthesis.memberFunction(pt)` (:75): a pin's member-function FQN (the second spelling of the naming rule).
 pub fn member_function_of(pt: &PinTarget) -> Result<JStr, Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.memberFunction"))
+    let member = &pt.set;
+    let sets_of_class = pt
+        .defining
+        .class_mappings
+        .iter()
+        .filter(|cm| cm.class_name() == member.class_name())
+        .count();
+    Ok(if member.root() || sets_of_class <= 1 {
+        synth_fqn::mapping_class(&pt.defining.qualified_name, member.class_name())?
+    } else {
+        synth_fqn::mapping_class_set(
+            &pt.defining.qualified_name,
+            member.class_name(),
+            &ResolvedMapping::id_of(member),
+        )?
+    })
 }
 
 /// `UnionSynthesis.resolvePin` (:103): the set `set_id` pins, from the queried mapping's closure; none when not
@@ -86,14 +124,43 @@ pub fn resolve_pin(
     set_id: Option<&JStr>,
     model: &ModelIndex,
 ) -> Result<Option<PinTarget>, Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.resolvePin"))
+    let Some(set_id) = set_id else {
+        return Ok(None);
+    };
+    if let Some(own) = md.set(Some(set_id))? {
+        // the defining mapping: matched by class + effective id (the closure hands out SUBSTITUTED copies, never the
+        // same object)
+        let closure = md.closure();
+        for m in &closure {
+            for cm in m.class_mappings.iter() {
+                if cm.class_name() == own.class_name() && *set_id == ResolvedMapping::id_of(cm) {
+                    return Ok(Some(PinTarget {
+                        defining: m.clone(),
+                        set: own,
+                    }));
+                }
+            }
+        }
+        return Ok(Some(PinTarget {
+            defining: closure[0].clone(),
+            set: own,
+        }));
+    }
+    let mut hits = pin_owners(set_id, model);
+    Ok(if hits.len() == 1 { hits.pop() } else { None })
 }
 
 /// `UnionSynthesis.pinOwners` (:130): every mapping of the model defining a set `set_id` (the index's
 /// `legacy_sets_with_id`).
 pub fn pin_owners(set_id: &JStr, model: &ModelIndex) -> Vec<PinTarget> {
-    // UNPORTED: UnionSynthesis.pinOwners
-    unported!("UnionSynthesis.pinOwners")
+    model
+        .legacy_sets_with_id(set_id)
+        .iter()
+        .map(|s| PinTarget {
+            defining: s.defining.clone(),
+            set: s.set.clone(),
+        })
+        .collect()
 }
 
 /// `UnionSynthesis.stackBody` (:143): `m1() -> concatenate(m2()) -> ...` over the members, recorded as the
@@ -109,8 +176,12 @@ pub fn stack_body(
 
 /// `UnionSynthesis.pmIdentity` (:159): a PM's identity for the extends merge, `(name, targetSetId)`.
 pub fn pm_identity(pm: &PropertyMapping) -> JStr {
-    // UNPORTED: UnionSynthesis.pmIdentity
-    unported!("UnionSynthesis.pmIdentity")
+    match pm {
+        PropertyMapping::PropertyMappingJoin(j) if let Some(target) = &j.target_set_id => {
+            cat!(pm.property_name(), " ", target)
+        }
+        _ => cat!(pm.property_name(), " "),
+    }
 }
 
 /// `UnionSynthesis.collectRoutedJoins` (:174, the six-argument form): [`collect_routed_joins_splicing`] with a fresh
@@ -123,7 +194,15 @@ pub fn collect_routed_joins(
     routed_by_prop: &mut LinkedMap<JStr, Vec<Arc<PropertyMappingJoin>>>,
     owner_by_prop: &mut LinkedMap<JStr, JStr>,
 ) -> Result<(), Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.collectRoutedJoins"))
+    collect_routed_joins_splicing(
+        pms,
+        owner_cls,
+        md,
+        model,
+        routed_by_prop,
+        owner_by_prop,
+        &mut LinkedSet::new(),
+    )
 }
 
 /// `UnionSynthesis.collectRoutedJoins` (:186, the seven-argument form): the routed Join PMs per property (through
@@ -139,7 +218,102 @@ pub fn collect_routed_joins_splicing(
     owner_by_prop: &mut LinkedMap<JStr, JStr>,
     splicing: &mut LinkedSet<JStr>,
 ) -> Result<(), Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.collectRoutedJoins"))
+    for pm in pms {
+        match pm {
+            PropertyMapping::PropertyMappingJoin(j) if j.target_set_id.is_some() => {
+                routed_by_prop
+                    .get_or_insert_with(j.property_name.clone(), Vec::new)
+                    .push(j.clone());
+                record_owner(owner_by_prop, &j.property_name, owner_cls, md)?;
+            }
+            PropertyMapping::PropertyMappingEmbedded(emb) => {
+                if let Some(inner) = embedded_owner(owner_cls, &emb.property_name, model)? {
+                    collect_routed_joins_splicing(
+                        &emb.property_mappings,
+                        &inner,
+                        md,
+                        model,
+                        routed_by_prop,
+                        owner_by_prop,
+                        splicing,
+                    )?;
+                }
+            }
+            PropertyMapping::PropertyMappingOtherwiseEmbedded(oe) => {
+                // the fallback join is a pinned route of the property
+                if let PropertyMapping::PropertyMappingJoin(fj) = &oe.fallback {
+                    let pin = fj.target_set_id.clone().unwrap_or_else(|| oe.fallback_set_id.clone());
+                    // Java's four-argument `Join` (its at-least-one-hop check passed when `fj` was built)
+                    routed_by_prop
+                        .get_or_insert_with(oe.property_name.clone(), Vec::new)
+                        .push(Arc::new(PropertyMappingJoin {
+                            property_name: oe.property_name.clone(),
+                            database: fj.database.clone(),
+                            joins: fj.joins.clone(),
+                            target_set_id: Some(pin),
+                        }));
+                    record_owner(owner_by_prop, &oe.property_name, owner_cls, md)?;
+                }
+                if let Some(inner) = embedded_owner(owner_cls, &oe.property_name, model)? {
+                    collect_routed_joins_splicing(
+                        &oe.embedded,
+                        &inner,
+                        md,
+                        model,
+                        routed_by_prop,
+                        owner_by_prop,
+                        splicing,
+                    )?;
+                }
+            }
+            PropertyMapping::PropertyMappingInlineEmbedded(ie) => {
+                if !splicing.add(ie.set_id.clone()) {
+                    return Err(Thrown::model(
+                        Phase::Normalize,
+                        cat!(
+                            "Cycle materializing Inline embedded set '",
+                            &ie.set_id,
+                            "' via '",
+                            &ie.property_name,
+                            "' on '",
+                            owner_cls,
+                            "': the splice chain ",
+                            java_list(&splicing.to_vec()),
+                            " returns to it; mapping=",
+                            md.qualified_name()
+                        ),
+                        None,
+                    ));
+                }
+                // Java's try/finally: the splice leaves the chain whether the descent answers or throws
+                let descended = match md.first_relational(&ie.set_id) {
+                    Some(r2) => collect_routed_joins_splicing(
+                        &r2.property_mappings,
+                        &r2.class_name,
+                        md,
+                        model,
+                        routed_by_prop,
+                        owner_by_prop,
+                        splicing,
+                    ),
+                    None => Ok(()),
+                };
+                splicing.remove(&ie.set_id);
+                descended?;
+            }
+            PropertyMapping::PropertyMappingLocalProperty(lp) => collect_routed_joins_splicing(
+                std::slice::from_ref(&lp.body),
+                owner_cls,
+                md,
+                model,
+                routed_by_prop,
+                owner_by_prop,
+                splicing,
+            )?,
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 /// `UnionSynthesis.recordOwner` (:261): the owner class a routed property resolves against; loud for two owners.
@@ -149,12 +323,46 @@ pub fn record_owner(
     owner_cls: &JStr,
     md: &ResolvedMapping<'_>,
 ) -> Result<(), Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.recordOwner"))
+    match owner_by_prop.get(prop) {
+        None => {
+            owner_by_prop.put(prop.clone(), owner_cls.clone());
+        }
+        Some(prior) if prior != owner_cls => {
+            return Err(Thrown::model(
+                Phase::Normalize,
+                cat!(
+                    "property '",
+                    prop,
+                    "' is routed under two owners, '",
+                    prior,
+                    "' and '",
+                    owner_cls,
+                    "', in one class mapping; routes are keyed by property name, so the mapping cannot be \
+                     normalized; mapping=",
+                    md.qualified_name()
+                ),
+                None,
+            ));
+        }
+        Some(_) => {}
+    }
+    Ok(())
 }
 
 /// `UnionSynthesis.embeddedOwner` (:275): the class an embedded property's sub-PMs belong to.
 pub fn embedded_owner(owner_cls: &JStr, prop: &JStr, model: &ModelIndex) -> Result<Option<JStr>, Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.embeddedOwner"))
+    let k = model.knowledge();
+    // MissProbe.knownMiss: an owner the knowledge cannot answer descends nowhere
+    let pt = match k.hierarchy_class(Some(owner_cls)) {
+        None => None,
+        Some(oc) => k.property_type(Some(oc), prop)?,
+    };
+    Ok(match pt {
+        Some(p::TypeExpression::TypeExpressionNameRef(nr)) if k.hierarchy_class(Some(&nr.name)).is_some() => {
+            Some(nr.name.clone())
+        }
+        _ => None,
+    })
 }
 
 /// `UnionSynthesis.classifyUnionRoutes` (:302): each routed property's routes into `p.union_routes` (member, root or
@@ -166,7 +374,133 @@ pub fn classify_union_routes(
     model: &ModelIndex,
     p: &mut Pipeline<'_>,
 ) -> Result<(), Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.classifyUnionRoutes"))
+    let mut routed_by_prop: LinkedMap<JStr, Vec<Arc<PropertyMappingJoin>>> = LinkedMap::new();
+    let mut owner_by_prop: LinkedMap<JStr, JStr> = LinkedMap::new();
+    collect_routed_joins(
+        &rcm.property_mappings,
+        &rcm.class_name,
+        md,
+        model,
+        &mut routed_by_prop,
+        &mut owner_by_prop,
+    )?;
+    let k = model.knowledge();
+    for (prop, joins) in routed_by_prop.iter() {
+        // RE-EXPRESSED (census §4): Java's `getOrDefault(prop, rcm.className())` is a `get` (`record_owner` keyed every
+        // property); an owner the knowledge cannot answer is MissProbe.miss (no target: every route root or pinned)
+        let owner = k.hierarchy_class(owner_by_prop.get(prop));
+        let pt = match owner {
+            None => None,
+            Some(o) => k.property_type(Some(o), prop)?,
+        };
+        let target_class = match &pt {
+            Some(p::TypeExpression::TypeExpressionNameRef(nr)) if k.hierarchy_class(Some(&nr.name)).is_some() => {
+                Some(nr.name.clone())
+            }
+            _ => None,
+        };
+        let tu = match &target_class {
+            None => None,
+            Some(tc) => md.union_of(Some(tc)),
+        };
+        // FIX-A (audit-17 bucket analysis): an INHERITANCE op is a union at the routing level -- member set ids in the
+        // shared enumeration's order
+        let mut member_ids: Option<Vec<JStr>> = tu.map(|u| u.member_set_ids.to_vec());
+        if member_ids.is_none()
+            && let Some(tc) = &target_class
+            && let Some(tih) = md.inheritance_of(tc)
+        {
+            member_ids = Some(
+                inheritance_members(md, &tih, model)?
+                    .iter()
+                    .map(relational_id)
+                    .collect(),
+            );
+        }
+        let mut routes: Vec<UnionRoute> = Vec::new();
+        let mut poison: Option<JStr> = None;
+        // R-target: several distinct pins resolve to the target's root -- a pin outside is dead; ONE distinct pin is
+        // that set, member of the root or not
+        let distinct_pins = joins
+            .iter()
+            .map(|j| j.target_set_id.clone())
+            .collect::<HashSet<Option<JStr>>>()
+            .len();
+        for j in joins {
+            let Some(pin) = resolve_pin(md, j.target_set_id.as_ref(), model)? else {
+                let owners = match &j.target_set_id {
+                    None => Vec::new(),
+                    Some(set_id) => pin_owners(set_id, model),
+                };
+                poison = Some(if owners.len() > 1 {
+                    let defining: Vec<JStr> = owners.iter().map(|o| o.defining.qualified_name.clone()).collect();
+                    cat!(
+                        "an AMBIGUOUS mapping set '",
+                        null_or(j.target_set_id.as_ref()),
+                        "' (not visible through the includes; defined by ",
+                        java_list(&defining),
+                        ")"
+                    )
+                } else {
+                    cat!("unknown mapping set '", null_or(j.target_set_id.as_ref()), "'")
+                });
+                break;
+            };
+            let set = pin.set;
+            let ord = match &member_ids {
+                None => -1,
+                Some(ids) => md.member_ordinal(ids, j.target_set_id.as_ref())?,
+            };
+            // engine rootClassMappingByClass -- ONE owner, the resolved mapping; a set OUTSIDE this closure is never
+            // this mapping's root: its route names the set's function (pinned-single)
+            let root_or_sole = matches!(set, ClassMapping::ClassMappingRelational(_))
+                && md.set(j.target_set_id.as_ref())?.is_some()
+                && md.is_root_or_sole(&set);
+            if ord >= 0 {
+                routes.push(UnionRoute {
+                    target: RouteTarget::Member,
+                    join: j.clone(),
+                });
+            } else if member_ids.is_some() && distinct_pins > 1 {
+                // the TARGET class is union-mapped, this route's set is not among the members and the property pins
+                // several sets: the router resolves to the root, so the entry is DEAD -- never a root route and never
+                // a poison
+                continue;
+            } else if root_or_sole {
+                routes.push(UnionRoute {
+                    target: RouteTarget::Root,
+                    join: j.clone(),
+                });
+            } else {
+                // a set-pinned route to a NON-root set: a route naming that set's function
+                routes.push(UnionRoute {
+                    target: RouteTarget::PinnedSingle,
+                    join: j.clone(),
+                });
+            }
+        }
+        if let Some(poison) = poison {
+            p.dropped_routed_props.insert(prop.clone());
+            p.ledger_mut()?.poison(
+                PoisonKey::PoisonKeyForClass(Arc::new(PoisonKeyForClass {
+                    class_fqn: rcm.class_name.clone(),
+                })),
+                cat!(
+                    "property '",
+                    prop,
+                    "' routes to ",
+                    &poison,
+                    "; the property is dropped from this synthesis"
+                ),
+            );
+            continue;
+        }
+        if routes.iter().all(|r| r.target == RouteTarget::Root) {
+            continue; // root routes = the un-routed navigation
+        }
+        p.union_routes.put(prop.clone(), routes);
+    }
+    Ok(())
 }
 
 /// `UnionSynthesis.synthUnion` (:412): an Operation union's stack (a mixed-kind union recorded in
@@ -297,4 +631,14 @@ pub fn member_primary_key(mr: &ClassMappingRelational, model: &ModelIndex) -> Re
 pub fn shared_key_name(table: &JStr, col: &JStr) -> JStr {
     // UNPORTED: UnionSynthesis.sharedKeyName
     unported!("UnionSynthesis.sharedKeyName")
+}
+
+/// `ResolvedMapping.idOf` of a Relational set (Java's `ResolvedMapping::idOf` over a `ClassMapping.Relational`).
+fn relational_id(r: &Arc<ClassMappingRelational>) -> JStr {
+    ResolvedMapping::id_of(&ClassMapping::ClassMappingRelational(r.clone()))
+}
+
+/// Java's `"" + s` of a nullable string: its text, or `"null"`.
+fn null_or(s: Option<&JStr>) -> JStr {
+    s.cloned().unwrap_or_else(|| JStr::from("null"))
 }
