@@ -58,8 +58,12 @@ final class LiftedViews {
 
     LiftedViews(ParsedModel parsed, ModelBuilder model) {
         this.model = model;
+        // a Database declared twice (a tolerant build keeps both declarations; a strict one refuses the model) is one
+        // index entry: its views are lifted once (2026-11-15, the normalizer batch, item 2, census ASK 13: each view's
+        // function was emitted twice)
+        java.util.Set<String> seen = new java.util.HashSet<>();
         for (PackageableElement el : parsed.elements()) {
-            if (!(el instanceof DatabaseDefinition db)) {
+            if (!(el instanceof DatabaseDefinition db) || !seen.add(db.qualifiedName())) {
                 continue;
             }
             // the index decided every view's spelling (bare / SCHEMA.NAME) once

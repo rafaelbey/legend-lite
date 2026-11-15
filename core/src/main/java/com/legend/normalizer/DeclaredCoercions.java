@@ -4,12 +4,10 @@
 package com.legend.normalizer;
 
 import com.legend.compiler.spec.Calls;
-import com.legend.compiler.RelationalKinds;
 
 import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.model.ClassDefinition;
-import com.legend.model.DatabaseDefinition;
 import com.legend.model.PropertyMapping;
 import com.legend.model.RelationalOperation;
 import com.legend.protocol.TypeExpression;
@@ -111,8 +109,9 @@ final class DeclaredCoercions {
         if (db == null) {
             return read;
         }
-        DatabaseDefinition.ColumnDefinition cd = model.knowledge().column(db, cr.table(), cr.column()).orElseGet(MissProbe::miss);
-        String colKind = cd == null ? null : RelationalKinds.pureKindOf(cd.dataType());
+        // the terminal column's kind resolves THROUGH a view, as coerceColumnToDeclared's does (2026-11-15, the
+        // normalizer batch, item 2, census ASK 13: a view's column was no table column here, so no assertion)
+        String colKind = model.knowledge().columnKind(db, cr.table(), cr.column());
         if (colKind == null || colKind.equals(declared)) {
             return read;
         }

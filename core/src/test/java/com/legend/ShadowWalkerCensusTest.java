@@ -49,7 +49,9 @@ class ShadowWalkerCensusTest {
             Map.entry("hasMappedSubclass", 1),
             // KIND: the coercion seam still asks the declared platform kind and the
             // physical kind of a column through these two walkers (audit 2026-09-15 P5-1)
-            Map.entry("pureKindOf", 1),
+            // pureKindOf 1 -> 0 (2026-11-15, the normalizer batch, item 2, census ASK 13): declaredAssertion
+            // reads a join terminal's kind through KnowledgeLayer.columnKind, as coerceColumnToDeclared does
+            Map.entry("pureKindOf", 0),
             Map.entry("declaredPlatformKind", 3)));
 
     @Test

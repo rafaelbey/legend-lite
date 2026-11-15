@@ -54,7 +54,10 @@ class FallbackLedgerTest {
      * 2026-09-15 (audit fix A10b). */
     private static final Map<String, Integer> FUNNEL = new TreeMap<>(Map.ofEntries(
             Map.entry("AssociationSynthesis.java", 1),
-            Map.entry("DeclaredCoercions.java", 2),
+            // 2 -> 1 (2026-11-15, the normalizer batch, item 2, census ASK 13): declaredAssertion reads a join
+            // terminal's kind through KnowledgeLayer.columnKind, as coerceColumnToDeclared does, no table-column
+            // lookup's miss any more
+            Map.entry("DeclaredCoercions.java", 1),
             Map.entry("ImplicitInheritance.java", 1),
             Map.entry("JoinChainEmission.java", 4),
             Map.entry("M2mRouteGuards.java", 1),

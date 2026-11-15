@@ -17,7 +17,6 @@ use lite_front::records as p;
 use lite_model::text::{contains, starts_with};
 use lite_model::{JStr, PropertyMappingColumn, PropertyMappingJoinTerminalColumn, RelationalOperation};
 use lite_names::ModelIndex;
-use lite_names::relational_kinds::pure_kind_of;
 
 use crate::error::Thrown;
 use crate::rel_op_translator::{exact, platform, type_named_j};
@@ -99,10 +98,9 @@ pub fn declared_assertion(
         return Ok(read.clone());
     };
     let db = cr.database_name.as_ref().unwrap_or(&jtc.database);
-    let col_kind = model
-        .knowledge()
-        .column(Some(db), Some(&cr.table), &cr.column)
-        .map(|cd| pure_kind_of(&cd.data_type));
+    // the terminal column's kind resolves THROUGH a view, as coerce_column_to_declared's does (2026-11-15, the
+    // normalizer batch, item 2, ASK 13)
+    let col_kind = model.knowledge().column_kind(db, &cr.table, &cr.column)?;
     match col_kind {
         Some(k) if declared != k => Ok(exact(
             lite::TYPE_AS_DECLARED,
@@ -358,7 +356,7 @@ Database a::db
     }
 
     #[test]
-    fn a_join_terminal_column_is_asserted_by_its_tables_kind_only() {
+    fn a_join_terminal_column_is_asserted_by_its_kind_through_a_view() {
         let parsed = model(MODEL);
         let idx = index(&parsed);
         let assert_of = |prop: &str, t: RelationalOperation| {
@@ -371,8 +369,12 @@ Database a::db
         assert_eq!(assert_of("i", col_ref("T", "ID")), "$r");
         assert_eq!(assert_of("q", col_ref("T", "ID")), "$r");
         assert_eq!(assert_of("s", col_ref("T", "NOPE")), "$r");
-        // the asymmetry with coerce_column_to_declared (ASK 12): a view's column is not seen through
-        assert_eq!(assert_of("s", col_ref("V", "VID")), "$r");
+        // a view's column is seen through, as coerce_column_to_declared's (2026-11-15, the normalizer batch, item 2,
+        // census ASK 13: it was not, the asymmetry ASK 12 named)
+        assert_eq!(
+            assert_of("s", col_ref("V", "VID")),
+            "meta::legend::lite::typeAsDeclared($r, @String)"
+        );
         // a terminal that is not a column reference
         let lit = RelationalOperation::RelationalOperationLiteral(Arc::new(RelationalOperationLiteral {
             value: JValue::Long(1),

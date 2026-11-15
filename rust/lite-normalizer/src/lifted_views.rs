@@ -53,10 +53,16 @@ impl<'m> LiftedViews<'m> {
     pub fn new(parsed: &ParsedModel, model: &'m ModelIndex) -> LiftedViews<'m> {
         let mut owners = IdMap::new();
         let mut order = Vec::new();
+        // a Database declared twice is one index entry: its views are lifted once (2026-11-15, the normalizer batch,
+        // item 2, ASK 13: each view's function was emitted twice in a tolerant build)
+        let mut seen: std::collections::HashSet<JStr> = std::collections::HashSet::new();
         for el in parsed.elements.iter() {
             let PackageableElement::DatabaseDefinition(db) = el else {
                 continue;
             };
+            if !seen.insert(db.qualified_name.clone()) {
+                continue;
+            }
             for iv in model.views_of(&db.qualified_name) {
                 owners.insert(iv.definition.clone(), iv.lift.clone());
                 order.push(iv.definition.clone());
