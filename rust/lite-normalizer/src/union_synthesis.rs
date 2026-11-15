@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use lite_builtin::pure::catalog;
 use lite_error::Phase;
+use lite_front::codec::{Codec, Writer};
 use lite_front::records as p;
 use lite_model::linked::{LinkedMap, list};
 use lite_model::{
@@ -745,19 +746,213 @@ pub fn inheritance_members(
 }
 
 /// Java's record equality of two class mappings (`LinkedHashSet<ClassMapping>`, US:797; the normalizer batch, item 10):
-/// two whose lossless codec texts are equal -- the codec writes every component a record's `equals`
-/// reads, a `Double` as `Double.toString` (one-to-one with `Double.equals`: `0.0` and `-0.0` two, every `NaN` one, where
-/// the derived `==` it replaces had them the other way), an open slot with its Java class, a `BigDecimal` as `toString`
-/// (one-to-one with `BigDecimal.equals`). It also writes a protocol node's source position, which a protocol record's
-/// `equals` leaves out: two sets equal but for that compare unequal here, as under the derived `==` -- never two sets of
-/// one model, whose class and set id would be one (refused before E).
+/// their [`record_key`]s are equal.
 fn java_record_equal(a: &ClassMapping, b: &ClassMapping) -> bool {
-    let text = |c: &ClassMapping| {
-        let mut w = lite_front::codec::Writer::new();
-        lite_front::codec::Codec::write(c, &mut w, false);
-        w.finish()
-    };
-    text(a) == text(b)
+    record_key(a) == record_key(b)
+}
+
+/// The components a class mapping's `equals` reads, as one text: two class mappings have one key exactly when Java's
+/// `equals` holds (the normalizer's second batch, item 4 (b), ruling 37 (b), 2026-11-15; it was the set's whole
+/// lossless codec text, which also writes a protocol node's source position, which a protocol record's `equals`
+/// leaves out). A record whose components all have Java's default equality is its codec text (one-to-one with
+/// `equals`: a `Double` as `Double.toString`, so `0.0` and `-0.0` two and every `NaN` one, a `BigDecimal` as
+/// `toString`, an open slot with its Java class); a record holding a `ValueSpecification` or a `TypeExpression` is a
+/// JSON array of its tag and its components in order, each such one by lite-front's `equality_key` (the components
+/// its `equals` reads, its position not among them); `propertyTargetSets` its entries in key order, as `Map.equals`
+/// reads no order. Every arm spelled, no default.
+fn record_key(c: &ClassMapping) -> String {
+    let mut w = Writer::new();
+    class_mapping_key(&mut w, c);
+    w.finish()
+}
+
+fn class_mapping_key(w: &mut Writer, c: &ClassMapping) {
+    match c {
+        ClassMapping::ClassMappingRelational(r) => relational_key(w, r),
+        ClassMapping::ClassMappingPure(p) => key_node(w, "Pure", |w| {
+            key_str(w, &p.class_name);
+            key_opt_str(w, p.set_id.as_ref());
+            key_opt_str(w, p.extends_set_id.as_ref());
+            key_bool(w, p.root);
+            key_opt_str(w, p.source_class.as_ref());
+            key_opt_vs(w, p.filter.as_ref());
+            key_list(w, p.property_bindings.iter(), |w, b| {
+                key_node(w, "PropertyBinding", |w| {
+                    key_str(w, &b.property_name);
+                    key_vs(w, &b.expression);
+                    key_opt_str(w, b.source_set_id.as_ref());
+                    key_opt_str(w, b.target_set_id.as_ref());
+                    key_bool(w, b.explode);
+                    key_bool(w, b.local);
+                    key_opt_str(w, b.enum_mapping_id.as_ref());
+                })
+            });
+        }),
+        ClassMapping::ClassMappingUnion(u) => u.write(w, false),
+        ClassMapping::ClassMappingRelationFunction(f) => key_node(w, "RelationFunction", |w| {
+            key_str(w, &f.class_name);
+            key_opt_str(w, f.set_id.as_ref());
+            key_opt_str(w, f.extends_set_id.as_ref());
+            key_bool(w, f.root);
+            key_opt_str(w, f.func_ref.as_ref());
+            key_opt_vs(w, f.inline_source.as_ref());
+            key_list(w, f.columns.iter(), |w, c| col_key(w, c));
+            key_list(w, f.primary_key.iter(), |w, s| w.string(s));
+        }),
+        ClassMapping::ClassMappingInheritance(i) => i.write(w, false),
+    }
+}
+
+fn relational_key(w: &mut Writer, r: &ClassMappingRelational) {
+    key_node(w, "Relational", |w| {
+        key_str(w, &r.class_name);
+        key_opt_str(w, r.set_id.as_ref());
+        key_opt_str(w, r.extends_set_id.as_ref());
+        key_bool(w, r.root);
+        w.raw(",");
+        match &r.main_table {
+            None => w.raw("null"),
+            Some(t) => t.write(w, false),
+        }
+        w.raw(",");
+        match &r.filter {
+            None => w.raw("null"),
+            Some(f) => f.write(w, false),
+        }
+        key_bool(w, r.distinct);
+        key_list(w, r.group_by.iter(), |w, o| o.write(w, false));
+        key_list(w, r.primary_key.iter(), |w, o| o.write(w, false));
+        key_list(w, r.property_mappings.iter(), property_mapping_key);
+        key_opt_str(w, r.source_url.as_ref());
+        // a map's keys are distinct: its entries in key order are one text exactly when `Map.equals` holds
+        let mut targets: Vec<&(JStr, JStr)> = r.property_target_sets.iter().collect();
+        targets.sort();
+        key_list(w, targets, |w, (k, v)| {
+            w.raw("[");
+            w.string(k);
+            w.raw(",");
+            w.string(v);
+            w.raw("]");
+        });
+        w.raw(",");
+        match &r.aggregation {
+            None => w.raw("null"),
+            Some(a) => key_node(w, "AggregationAware", |w| {
+                key_list(w, a.views.iter(), |w, v| {
+                    key_node(w, "AggregateView", |w| {
+                        w.raw(",");
+                        w.int(i64::from(v.index));
+                        key_bool(w, v.can_aggregate);
+                        key_list(w, v.group_by_functions.iter(), |w, f| w.raw(&f.equality_key()));
+                        key_list(w, v.aggregate_values.iter(), |w, a| {
+                            key_node(w, "AggregateValue", |w| {
+                                key_vs(w, &a.map_fn);
+                                key_vs(w, &a.aggregate_fn);
+                            })
+                        });
+                        w.raw(",");
+                        relational_key(w, &v.set);
+                    })
+                });
+            }),
+        }
+    });
+}
+
+fn property_mapping_key(w: &mut Writer, pm: &PropertyMapping) {
+    match pm {
+        PropertyMapping::PropertyMappingEnumeratedExpression(x) => x.write(w, false),
+        PropertyMapping::PropertyMappingColumn(x) => x.write(w, false),
+        PropertyMapping::PropertyMappingEnumeratedColumn(x) => x.write(w, false),
+        PropertyMapping::PropertyMappingJoin(x) => x.write(w, false),
+        PropertyMapping::PropertyMappingJoinTerminalColumn(x) => x.write(w, false),
+        PropertyMapping::PropertyMappingExpression(x) => x.write(w, false),
+        PropertyMapping::PropertyMappingEmbedded(e) => key_node(w, "Embedded", |w| {
+            key_str(w, &e.property_name);
+            key_list(w, e.property_mappings.iter(), property_mapping_key);
+            key_list(w, e.primary_key.iter(), |w, o| o.write(w, false));
+        }),
+        PropertyMapping::PropertyMappingInlineEmbedded(x) => x.write(w, false),
+        PropertyMapping::PropertyMappingOtherwiseEmbedded(o) => key_node(w, "OtherwiseEmbedded", |w| {
+            key_str(w, &o.property_name);
+            key_list(w, o.embedded.iter(), property_mapping_key);
+            key_str(w, &o.fallback_set_id);
+            w.raw(",");
+            property_mapping_key(w, &o.fallback);
+        }),
+        PropertyMapping::PropertyMappingLocalProperty(l) => key_node(w, "LocalProperty", |w| {
+            key_str(w, &l.property_name);
+            w.raw(",");
+            w.raw(&l.r#type.equality_key());
+            // `Multiplicity` has Java's default equality (lite-front's module note)
+            w.raw(",");
+            l.multiplicity.write(w, false);
+            w.raw(",");
+            property_mapping_key(w, &l.body);
+        }),
+    }
+}
+
+fn col_key(w: &mut Writer, c: &lite_model::ClassMappingRelationFunctionCol) {
+    key_node(w, "Col", |w| {
+        key_str(w, &c.property);
+        key_opt_str(w, c.column.as_ref());
+        key_bool(w, c.local);
+        key_opt_str(w, c.enum_mapping_id.as_ref());
+        key_list(w, c.embedded.iter(), |w, e| col_key(w, e));
+        key_opt_str(w, c.inline_set_id.as_ref());
+        key_opt_vs(w, c.expr.as_ref());
+    });
+}
+
+/// A keyed record: `["Tag"` then each component after a comma, then `]`.
+fn key_node(w: &mut Writer, tag: &str, components: impl FnOnce(&mut Writer)) {
+    w.raw("[\"");
+    w.raw(tag);
+    w.raw("\"");
+    components(w);
+    w.raw("]");
+}
+
+fn key_str(w: &mut Writer, s: &JStr) {
+    w.raw(",");
+    w.string(s);
+}
+
+fn key_opt_str(w: &mut Writer, s: Option<&JStr>) {
+    w.raw(",");
+    match s {
+        None => w.raw("null"),
+        Some(s) => w.string(s),
+    }
+}
+
+fn key_bool(w: &mut Writer, b: bool) {
+    w.raw(",");
+    w.boolean(b);
+}
+
+fn key_vs(w: &mut Writer, v: &p::ValueSpecification) {
+    w.raw(",");
+    w.raw(&v.equality_key());
+}
+
+fn key_opt_vs(w: &mut Writer, v: Option<&p::ValueSpecification>) {
+    match v {
+        None => w.raw(",null"),
+        Some(v) => key_vs(w, v),
+    }
+}
+
+fn key_list<T>(w: &mut Writer, xs: impl IntoIterator<Item = T>, mut item: impl FnMut(&mut Writer, T)) {
+    w.raw(",[");
+    for (i, x) in xs.into_iter().enumerate() {
+        if i > 0 {
+            w.raw(",");
+        }
+        item(w, x);
+    }
+    w.raw("]");
 }
 
 /// `UnionSynthesis.collectInheritanceMembers` (:623): `base`'s mapped subclasses' sets into `chosen` -- Java's
@@ -1922,6 +2117,59 @@ Mapping a::Z
         .map(|j| j.property_name.clone())
         .collect();
         assert_eq!(joins, vec![j("m1"), j("m2")]);
+    }
+
+    /// US:797's record equality is Java's `equals` (the normalizer's second batch, item 4 (b), ruling 37 (b),
+    /// 2026-11-15): a binding's expression read at another position, or the target-set map in another order, is the
+    /// one set (the whole codec text, the comparison before, had each two); a `Double` `0.0` and `-0.0` are two.
+    #[test]
+    fn two_sets_equal_but_for_a_source_position_or_a_map_order_are_one() {
+        let at = |line: i32, v: f64| {
+            p::ValueSpecification::CFloat(Arc::new(p::CFloat {
+                value: v,
+                exact: None,
+                pos: Some(Box::new(p::SourceInfo {
+                    source_id: j(""),
+                    start_line: line,
+                    start_column: 1,
+                    end_line: line,
+                    end_column: 3,
+                })),
+            }))
+        };
+        let pure = |e: p::ValueSpecification| {
+            ClassMapping::ClassMappingPure(Arc::new(ClassMappingPure {
+                class_name: j("a::Firm"),
+                set_id: None,
+                extends_set_id: None,
+                root: true,
+                source_class: None,
+                filter: None,
+                property_bindings: list(vec![Arc::new(lite_model::ClassMappingPurePropertyBinding {
+                    property_name: j("name"),
+                    expression: e,
+                    source_set_id: None,
+                    target_set_id: None,
+                    explode: false,
+                    local: false,
+                    enum_mapping_id: None,
+                })]),
+            }))
+        };
+        assert!(java_record_equal(&pure(at(1, 1.5)), &pure(at(9, 1.5))));
+        assert_ne!(
+            lite_front::codec::write(&pure(at(1, 1.5)), false),
+            lite_front::codec::write(&pure(at(9, 1.5)), false)
+        );
+        assert!(!java_record_equal(&pure(at(1, 0.0)), &pure(at(1, -0.0))));
+        let mut a = relational("a::Firm", None, vec![]);
+        a.property_target_sets = list(vec![(j("x"), j("s1")), (j("y"), j("s2"))]);
+        let mut b = a.clone();
+        b.property_target_sets = list(vec![(j("y"), j("s2")), (j("x"), j("s1"))]);
+        assert!(java_record_equal(&cm(a.clone()), &cm(b)));
+        let mut c = a.clone();
+        c.property_target_sets = list(vec![(j("x"), j("s2")), (j("y"), j("s1"))]);
+        assert!(!java_record_equal(&cm(a), &cm(c)));
     }
 
     #[test]

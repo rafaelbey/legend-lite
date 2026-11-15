@@ -46,6 +46,17 @@ impl ValueSpecification {
     }
 }
 
+impl TypeExpression {
+    /// `TypeExpression.equals`'s components as one text, as [`ValueSpecification::equality_key`] keys a
+    /// specification: equal keys exactly when Java's `equals` holds (the normalizer's second batch, item 4 (b),
+    /// 2026-11-15: a class mapping's local property is typed by one, compared at US:797).
+    pub fn equality_key(&self) -> String {
+        let mut w = Writer::new();
+        type_expression(&mut w, self);
+        w.finish()
+    }
+}
+
 /// A node: `["Tag"` then each component after a comma, then `]` -- a JSON array, so the text parses back to its
 /// components (the key is one-to-one).
 fn node(w: &mut Writer, tag: &str, components: impl FnOnce(&mut Writer)) {
