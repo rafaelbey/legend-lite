@@ -74,6 +74,40 @@ class NormalizerBatchTest {
                 .mappingAssociationPoison("w::M", "w::Nope").orElseThrow());
     }
 
+    // ---- item 2 (census ASK 13): the mapping facts name a set by its effective id ----
+
+    private static final String DEFAULT_ID_MEMBERS = """
+            Class w::P { name: String[0..1]; firm: w::F[0..1]; }
+            Class w::F { id: Integer[0..1]; }
+            ###Relational
+            Database w::Db (
+              Table T1 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+              Table T2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20))
+              Table F (ID INTEGER PRIMARY KEY)
+              Join PF(T1.FID = F.ID)
+            )
+            ###Mapping
+            Mapping w::M (
+              *w::P[u]: Operation { meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(w_P, p2) }
+              w::P: Relational { ~mainTable [w::Db]T1 name: [w::Db]T1.NAME, firm[w_F]: [w::Db]@PF }
+              w::P[p2]: Relational { ~mainTable [w::Db]T2 name: [w::Db]T2.NAME }
+              w::F: Relational { ~mainTable [w::Db]F id: [w::Db]F.ID }
+            )
+            """;
+
+    @Test
+    @DisplayName("item 2: a union member and a routed target written with no set id are named by the class's default id")
+    void theMappingFactsNameASetByItsEffectiveId() {
+        // asked of the engine: it compiles the model and plans the union over w_P and p2; until 2026-11-15 the facts
+        // matched the RAW set id, absent when no id was written, so the union had no members fact and the route no
+        // target class
+        com.legend.model.LegacyMappingDefinition md = Compiler.parseModel(DEFAULT_ID_MEMBERS).elements().stream()
+                .filter(com.legend.model.LegacyMappingDefinition.class::isInstance)
+                .map(com.legend.model.LegacyMappingDefinition.class::cast).findFirst().orElseThrow();
+        assertEquals(Map.of("w::P", List.of("w::P", "w::P")), MappingFacts.unionMembers(md));
+        assertEquals(Map.of("w::P", Map.of("firm", "w::F")), MappingFacts.routedTargetClasses(md));
+    }
+
     // ---- item 2 (census ASK 13): a view-backed set's enumeration over an expression reads through the frame ----
 
     private static final String ENUMERATED_EXPRESSION_UNDER_A_VIEW = """

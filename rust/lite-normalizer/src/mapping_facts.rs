@@ -4,13 +4,16 @@
 //! `MappingFacts` (MappingFacts.java at ad86fa895, ported line for line, EF_CENSUS §1: "the raw id and last-wins
 //! included"): the SURFACE facts Phase F used to re-read off the authored mapping, computed once at Phase E and stamped
 //! on the compiled mapping as `MappingDefinition.NormalizationFacts`. Each rule is the F-side reader's, verbatim, over
-//! the mapping's surface. Members are matched by the RAW `setId()` (absent when the user wrote no brackets), not the
-//! effective id, and `unionMembers` keeps the LAST set of a member id (ASK 13 lists both; ported as Java has them).
+//! the mapping's surface. Members and routes are matched by the EFFECTIVE set id (the id written, else the class's
+//! default, legend-engine's `HelperMappingBuilder.getClassMappingId`), the first set with it answering (2026-11-15, the
+//! normalizer batch, item 2, census ASK 13, ruling 30: both matched the RAW `setId()`, absent when no id was written,
+//! and a union member kept the last match).
 
 use lite_model::linked::LinkedMap;
 use lite_model::{ClassMapping, JStr, LegacyMappingDefinition, PropertyMapping};
 
 use crate::jdk::LinkedSet;
+use crate::resolved_mapping::ResolvedMapping;
 
 /// `MappingFacts.unionMembers` (:31): class -> an Operation union's member CLASSES in member order; absent when a
 /// member set does not resolve within the mapping.
@@ -28,8 +31,9 @@ pub fn union_members(surface: &LegacyMappingDefinition) -> LinkedMap<JStr, Vec<J
         for sid in u.member_set_ids.iter() {
             let mut member_class: Option<&JStr> = None;
             for m2 in surface.class_mappings.iter() {
-                if m2.set_id() == Some(sid) {
+                if ResolvedMapping::id_of(m2) == *sid {
                     member_class = Some(m2.class_name());
+                    break;
                 }
             }
             let Some(member_class) = member_class else {
@@ -91,7 +95,7 @@ fn routed_target_class(lm: &LegacyMappingDefinition, owner_class: &JStr, prop: &
                 && let Some(target) = &j.target_set_id
             {
                 for m2 in lm.class_mappings.iter() {
-                    if Some(target) == m2.set_id() {
+                    if *target == ResolvedMapping::id_of(m2) {
                         if routed.as_ref().is_some_and(|r| r != m2.class_name()) {
                             return None;
                         }
@@ -114,16 +118,18 @@ mod tests {
     use lite_model::text::j;
 
     #[test]
-    fn union_members_match_raw_ids_and_keep_the_last_set() {
+    fn union_members_match_effective_ids_and_take_the_first_set() {
         let a1 = relational("a::A", Some("m1"), vec![]);
         let b1 = relational("a::B", Some("m2"), vec![]);
         let b2 = relational("a::C", Some("m2"), vec![]);
-        let u = union("a::U", Some("u"), &["m1", "m2"]);
+        // a member written with no id is named by its class's default id (2026-11-15, the normalizer batch, item 2)
+        let d = relational("a::D", None, vec![]);
+        let u = union("a::U", Some("u"), &["m1", "m2", "a_D"]);
         let missing = union("a::V", None, &["m1", "nope"]);
-        let md = legacy("a::M", vec![cm(a1), cm(b1), cm(b2), u, missing]);
+        let md = legacy("a::M", vec![cm(a1), cm(b1), cm(b2), cm(d), u, missing]);
         let um = union_members(&md);
         let rows: Vec<(JStr, Vec<JStr>)> = um.iter().cloned().collect();
-        assert_eq!(rows, vec![(j("a::U"), vec![j("a::A"), j("a::C")])]);
+        assert_eq!(rows, vec![(j("a::U"), vec![j("a::A"), j("a::B"), j("a::D")])]);
     }
 
     #[test]
@@ -156,5 +162,13 @@ mod tests {
             vec![cm(owner2), cm(relational("a::Person", Some("p1"), vec![])), cm(q)],
         );
         assert!(routed_target_classes(&md2).get(&j("a::Firm")).is_none());
+        // a route naming a set written with no id by its class's default id (2026-11-15, the normalizer batch, item 2)
+        let owner3 = relational("a::Firm", Some("f"), vec![join_pm("ceo", Some("a_Person"))]);
+        let md3 = legacy("a::M", vec![cm(owner3), cm(relational("a::Person", None, vec![]))]);
+        let rt3 = routed_target_classes(&md3);
+        assert_eq!(
+            rt3.get(&j("a::Firm")).and_then(|f| f.get(&j("ceo"))),
+            Some(&j("a::Person"))
+        );
     }
 }

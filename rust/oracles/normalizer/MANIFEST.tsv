@@ -33,9 +33,10 @@
 # below: item, sha, dialect, the hash before and after; each moved ask one the batch's instrumented reach run tagged
 # with that item's site, none moved untagged). The asks and texts are unchanged (74,364 over 26,348). By item:
 #   2b: 218 asks over 75 texts -- census ASK 13: an unknown XStore / ModelJoin association is "Can't find association 'x'" (a ModelException; it was a NotImplementedException naming the kind)
+#   2e: 216 asks over 72 texts -- census ASK 13: MappingFacts names a union member and a routed target by the effective set id, the first match (it matched the raw setId, absent when no id was written)
 # RE-FROZEN BY THE NORMALIZER BATCH (end)
-attribution-2026-11-15-normalizer-batch.tsv	the batch's re-freezes' attribution: item, text sha, dialect, hash before, hash after (plain text: its own SHA-256)	ecfedbfdbd9403ece764a8996518a482dcbe801ce8edf7b393ff4908e82feb13
-answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines	91829f0e6f4bab26ff762829dc00b6efa4d1a8c5afb9c8e5257b22fbde0d7b82
+attribution-2026-11-15-normalizer-batch.tsv	the batch's re-freezes' attribution: item, text sha, dialect, hash before, hash after (plain text: its own SHA-256)	e6e4ade5e10bd726d58aa0003981b24c4cbfbad56e52e7367bf3f145c0c05dd5
+answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines	cd2afbe3444e4a8fa3b7e4720b0eebd7cb5a02fac1884fc275eb5d1f5293d6ba
 # CASES: the slice's targeted model texts for the oracle-blind sites (EF_CENSUS.md §10 item 3, E's), in the front
 # oracle's question form ({"sha","asks","text"}, the sha the SHA-256 of the text's UTF-16 units, asked at every
 # dialect), written by port-scratch/normalizer/tools/make_cases.py: ten cases -- a view-on-view cycle mapped and alone,

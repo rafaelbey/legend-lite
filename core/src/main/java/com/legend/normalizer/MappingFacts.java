@@ -20,7 +20,12 @@ import java.util.Set;
  * mapping as {@link com.legend.model.MappingDefinition.NormalizationFacts}.
  * Each rule is the F-side reader's, verbatim, over the mapping's surface
  * (the authored mapping plus its identity sets — the object those readers
- * read).
+ * read). A member or a route names a set by its EFFECTIVE id (the id
+ * written, else the class's default, legend-engine's
+ * {@code HelperMappingBuilder.getClassMappingId}), the first set with it
+ * answering (2026-11-15, the normalizer batch, item 2, census ASK 13, ruling 30:
+ * both matched the RAW {@code setId()}, absent when no id was written, and a
+ * union member kept the last match).
  */
 final class MappingFacts {
 
@@ -39,8 +44,9 @@ final class MappingFacts {
             for (String sid : u.memberSetIds()) {
                 String memberClass = null;
                 for (ClassMapping m2 : surface.classMappings()) {
-                    if (sid.equals(m2.setId())) {
+                    if (sid.equals(ResolvedMapping.idOf(m2))) {
                         memberClass = m2.className();
+                        break;
                     }
                 }
                 if (memberClass == null) {
@@ -95,7 +101,7 @@ final class MappingFacts {
                 if (pm instanceof PropertyMapping.Join j && j.propertyName().equals(prop)
                         && j.targetSetId() != null) {
                     for (ClassMapping m2 : lm.classMappings()) {
-                        if (j.targetSetId().equals(m2.setId())) {
+                        if (j.targetSetId().equals(ResolvedMapping.idOf(m2))) {
                             if (routed != null && !routed.equals(m2.className())) {
                                 return null;
                             }
