@@ -20,7 +20,7 @@ pub struct AssociationDefinition {
     pub qualified_name: JStr,
     pub property1: Arc<AssociationDefinitionAssociationEndDefinition>,
     pub property2: Arc<AssociationDefinitionAssociationEndDefinition>,
-    pub derived_properties: Arc<[Box<p::DerivedPropertyDefinition>]>,
+    pub derived_properties: Arc<[Arc<p::DerivedPropertyDefinition>]>,
     pub stereotypes: Arc<[Arc<StereotypeApplication>]>,
     pub tagged_values: Arc<[Arc<TaggedValue>]>,
 }
@@ -392,7 +392,7 @@ pub struct ClassDefinition {
     pub type_variables: Arc<[Box<p::ParameterDefinition>]>,
     pub super_classes: Arc<[p::TypeExpression]>,
     pub properties: Arc<[Arc<ClassDefinitionPropertyDefinition>]>,
-    pub derived_properties: Arc<[Box<p::DerivedPropertyDefinition>]>,
+    pub derived_properties: Arc<[Arc<p::DerivedPropertyDefinition>]>,
     pub constraints: Arc<[Box<p::ConstraintDefinition>]>,
     pub stereotypes: Arc<[Arc<StereotypeApplication>]>,
     pub tagged_values: Arc<[Arc<TaggedValue>]>,

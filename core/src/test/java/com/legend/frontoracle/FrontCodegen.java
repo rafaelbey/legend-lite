@@ -939,7 +939,12 @@ public final class FrontCodegen {
             }
         } else if (names.containsKey(c)) {
             if (c.isRecord()) {
-                return new RustType((family(c) ? "Arc<p::" : "Box<p::") + names.get(c) + ">", v + ".write(w, true);");
+                // a derived property definition is SHARED (2026-11-15, the normalizer batch, item 10): the knowledge
+                // layer's association adoption appends the very definition to its owner and the normalizer checks it by
+                // identity (ModelNormalizer.requireQualifiedPropertiesAdopted's `d == dp`), so it is an Arc, as a
+                // ValueSpecification node is
+                boolean shared = family(c) || c == com.legend.protocol.DerivedPropertyDefinition.class;
+                return new RustType((shared ? "Arc<p::" : "Box<p::") + names.get(c) + ">", v + ".write(w, true);");
             }
             return new RustType("p::" + names.get(c), v + ".write(w, true);");
         }

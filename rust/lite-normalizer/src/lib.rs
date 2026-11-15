@@ -16,8 +16,8 @@
 //! the catches' predicates), [`pipeline`], [`mapping_ledger`], [`mapping_facts`], [`resolved_mapping`],
 //! [`set_key_facts`], [`milestoning_facts`], [`lifted_views`] and [`mapping_closures`] (their memos), [`dyna_fn`]
 //! (Java's `DynaFnArms` as one exhaustive match), and every synthesis family. Held byte for byte to the live Java and
-//! its frozen answers by `tests/normalizer_differential.rs` (rust/oracles/normalizer). [`Thrown::Unported`] stays as
-//! the port's marker for a body not ported (none is): no catch takes it, so a differential would show it.
+//! its frozen answers by `tests/normalizer_differential.rs` (rust/oracles/normalizer). `Thrown::Unported`, the
+//! skeleton's marker for a body not ported, went once nothing produced it (2026-11-15, the normalizer batch, item 10).
 //!
 //! [`ModelIndex`]: lite_names::ModelIndex
 //! [`NormalizedModel`]: lite_model::NormalizedModel

@@ -396,7 +396,7 @@ pub fn adopt_association_qualified_properties(
     parsed: &ParsedModel,
     mut walls: Option<&mut LinkedMap<JStr, JStr>>,
 ) -> Result<ParsedModel, Thrown> {
-    let mut adoptions: LinkedMap<JStr, Vec<Box<p::DerivedPropertyDefinition>>> = LinkedMap::new();
+    let mut adoptions: LinkedMap<JStr, Vec<Arc<p::DerivedPropertyDefinition>>> = LinkedMap::new();
     for el in parsed.elements.iter() {
         let PackageableElement::AssociationDefinition(ad) = el else {
             continue;
@@ -404,7 +404,7 @@ pub fn adopt_association_qualified_properties(
         if ad.derived_properties.is_empty() {
             continue;
         }
-        let mut own: Vec<(JStr, &Box<p::DerivedPropertyDefinition>)> = Vec::new();
+        let mut own: Vec<(JStr, &Arc<p::DerivedPropertyDefinition>)> = Vec::new();
         let mut failed = None;
         for dp in ad.derived_properties.iter() {
             match owner_or_throw(ad, dp) {
@@ -439,7 +439,7 @@ pub fn adopt_association_qualified_properties(
         if let PackageableElement::ClassDefinition(cd) = el
             && let Some(adopted) = adoptions.get(&cd.qualified_name)
         {
-            let mut merged: Vec<Box<p::DerivedPropertyDefinition>> = cd.derived_properties.to_vec();
+            let mut merged: Vec<Arc<p::DerivedPropertyDefinition>> = cd.derived_properties.to_vec();
             merged.extend(adopted.iter().cloned());
             out.push(PackageableElement::ClassDefinition(Arc::new(ClassDefinition {
                 qualified_name: cd.qualified_name.clone(),

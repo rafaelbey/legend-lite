@@ -258,7 +258,7 @@ fn the_shared_model_normalizes_with_every_body_ported() {
     let parsed = model(MODEL);
     let idx: ModelIndex = index(&parsed);
     let e = crate::normalize(&parsed, &idx, None).unwrap_err();
-    assert!(e.is_model() && !e.is_unported(), "{e:?}");
+    assert!(e.is_model(), "{e:?}");
     assert_eq!(
         e.message(),
         Some(j(

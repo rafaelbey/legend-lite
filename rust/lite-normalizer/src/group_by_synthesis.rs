@@ -19,8 +19,8 @@ use lite_builtin::pure::{catalog, lite};
 use lite_front::records as p;
 use lite_model::linked::LinkedMap;
 use lite_model::{
-    ClassMappingRelational, JStr, PropertyMapping, RelationalOperation, RelationalOperationColumnRef,
-    RelationalOperationFunctionCall, RelationalOperationJoinNavigation, cat,
+    ClassMappingRelational, JStr, JValue, PropertyMapping, RelationalOperation, RelationalOperationColumnRef,
+    RelationalOperationFunctionCall, RelationalOperationJoinNavigation, RelationalOperationLiteral, cat,
 };
 use lite_names::calls;
 
@@ -339,8 +339,9 @@ pub fn pm_as_relational_op(pm: &PropertyMapping) -> Option<RelationalOperation> 
 }
 
 /// `GroupBySynthesis.groupByOpsMatch` (:290): whether two key expressions are one (structurally, table-insensitive).
-/// Java's `Objects.equals` on two records is the records' derived equality here; the two differ only on a `Double`
-/// literal's `0.0`/`-0.0` and `NaN` (Java's `Double.equals` compares bits).
+/// Java's `Objects.equals` on two records is [`java_equals`]: the derived equality but for a `Double` literal, which
+/// Java's `Double.equals` compares by its bits (`0.0` and `-0.0` two values, every `NaN` one) -- 2026-11-15, the
+/// normalizer batch, item 10: it was the derived `==`.
 pub fn group_by_ops_match(a: &RelationalOperation, b: &RelationalOperation) -> bool {
     if let (
         RelationalOperation::RelationalOperationColumnRef(ca),
@@ -352,7 +353,32 @@ pub fn group_by_ops_match(a: &RelationalOperation, b: &RelationalOperation) -> b
         let db_ok = ca.database_name.is_none() || cb.database_name.is_none() || ca.database_name == cb.database_name;
         return db_ok && ca.table == cb.table && ca.column == cb.column;
     }
-    a == b
+    java_equals(a, b)
+}
+
+/// Java's record equality of two relational operations (`Objects.equals`): the derived `==` over each operation with
+/// every `Double` literal replaced by its `Double.doubleToLongBits` (a `NaN` its canonical bits), so `0.0` and `-0.0`
+/// differ and two `NaN`s are equal, as `Double.equals` has them (the normalizer batch, item 10).
+fn java_equals(a: &RelationalOperation, b: &RelationalOperation) -> bool {
+    canonical_doubles(a) == canonical_doubles(b)
+}
+
+/// `op` with each `Double` literal spelled by its bits (a marker no other literal holds: a `BigInteger` reads digits).
+fn canonical_doubles(op: &RelationalOperation) -> RelationalOperation {
+    if let RelationalOperation::RelationalOperationLiteral(l) = op
+        && let JValue::Double(d) = l.value
+    {
+        let bits = if d.is_nan() {
+            0x7ff8_0000_0000_0000_u64
+        } else {
+            d.to_bits()
+        };
+        return RelationalOperation::RelationalOperationLiteral(Arc::new(RelationalOperationLiteral {
+            value: JValue::BigInteger(format!("double-bits:{bits:016x}")),
+        }));
+    }
+    op.map_children(|c| Some(canonical_doubles(c)))
+        .unwrap_or_else(|| op.clone())
 }
 
 /// `GroupBySynthesis.keyBaseName` (:305): a key expression's base name (its column's), else none.

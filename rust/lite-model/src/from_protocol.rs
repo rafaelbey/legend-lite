@@ -69,6 +69,13 @@ fn boxed<T: Clone>(v: &[Box<T>]) -> Arc<[Box<T>]> {
     list(v.to_vec())
 }
 
+/// A list of protocol records the model SHARES (a derived property definition: the knowledge layer's adoption appends
+/// the very definition to its owner, and E checks it by identity, Java's `==`; 2026-11-15, the normalizer batch, item
+/// 10): each its own `Arc`.
+fn shared<T: Clone>(v: &[Box<T>]) -> Arc<[Arc<T>]> {
+    list(v.iter().map(|x| Arc::new((**x).clone())).collect())
+}
+
 /// `FromProtocol.toFunctionDefinition`: the unmangled FQN (the wire name is the emitter's).
 pub fn to_function_definition(f: &p::PFunction) -> FunctionDefinition {
     FunctionDefinition {
@@ -116,7 +123,7 @@ pub fn to_association_definition(a: &p::PAssociation) -> Result<AssociationDefin
         qualified_name: name,
         property1,
         property2,
-        derived_properties: boxed(&a.derived_properties),
+        derived_properties: shared(&a.derived_properties),
         stereotypes: stereotypes(&a.stereotypes),
         tagged_values: tagged_values(&a.tagged_values),
     })
@@ -480,7 +487,7 @@ pub fn to_class_definition(c: &p::PClass) -> ClassDefinition {
         type_variables: boxed(&c.type_variables),
         super_classes: list(c.super_types.iter().map(|s| s.r#type.clone()).collect()),
         properties: list(props),
-        derived_properties: boxed(&c.derived_properties),
+        derived_properties: shared(&c.derived_properties),
         constraints: boxed(&c.constraints),
         stereotypes: stereotypes(&c.stereotypes),
         tagged_values: tagged_values(&c.tagged_values),

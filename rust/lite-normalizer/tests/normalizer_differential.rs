@@ -18,10 +18,11 @@
 //! (`[[key,line],...] TAB`) when a tolerant run has any; an error `E TAB class TAB phase TAB element TAB message`. The
 //! hash is the SHA-256 of the form's UTF-16 units, little-endian.
 //!
-//! **Three buckets.** EQUAL, MISMATCH, and UNPORTED: an ask whose strict or tolerant run reaches a body the skeleton has
-//! not ported yet (`Thrown::Unported(site)` at the top, the `unported!` panic of a body that cannot fail, or a wall or
-//! message that carries one's text) is unported, counted per site, never a mismatch. Any other panic is a mismatch
-//! (`!panic`), never an abort of the run.
+//! **Three buckets.** EQUAL, MISMATCH, and UNPORTED: an ask whose strict or tolerant run reaches a body the skeleton had
+//! not ported (a panic or a wall or message carrying the skeleton's `UNPORTED: ` / `not ported yet: ` text) is
+//! unported, counted per site, never a mismatch. Nothing produces either text since the fill (`Thrown::Unported` went
+//! 2026-11-15, the normalizer batch, item 10), so the bucket is empty; it stays as the differential's guard. Any other
+//! panic is a mismatch (`!panic`), never an abort of the run.
 //!
 //! Inputs (env): `LITE_NORMALIZER_QUESTIONS` (rust/oracles/front/questions.jsonl.zst, decompressed),
 //! `LITE_NORMALIZER_CASES` (rust/oracles/normalizer/cases.jsonl), `LITE_NORMALIZER_ANSWERS` (answers.tsv.zst,
@@ -61,7 +62,8 @@ const SHOWN: usize = 25;
 const HISTOGRAM_SHOWN: usize = 30;
 /// Units of context each side of a first difference.
 const CONTEXT: usize = 120;
-/// The text an `unported!` body panics with, and the text of a `Thrown::Unported`'s message.
+/// The text the skeleton's unported bodies panicked with, and the text of the removed `Thrown::Unported`'s message
+/// (neither produced since the fill; the normalizer batch, item 10).
 const UNPORTED_PANIC: &str = "UNPORTED: ";
 const UNPORTED_MESSAGE: &str = "not ported yet: ";
 
@@ -278,10 +280,6 @@ fn run(parsed: &ParsedModel, boot: &HashSet<JStr>, tolerant: bool) -> Run {
                 stage: Stage::Answered,
             }
         }
-        Ok(Err(Thrown::Unported(site))) => Run::Unported {
-            site: site.to_owned(),
-            leaked: false,
-        },
         Ok(Err(e)) => Run::Line {
             text: error(&e),
             stage: if reached_e {
@@ -308,9 +306,7 @@ fn run(parsed: &ParsedModel, boot: &HashSet<JStr>, tolerant: bool) -> Run {
     // a stub's throw a catch took into a wall or a message: unported still, never a mismatch
     if let Run::Line { text, .. } = &r {
         let shown = String::from_utf16_lossy(text);
-        if let Some(site) = site_after(&shown, UNPORTED_MESSAGE)
-            .or_else(|| shown.contains(lite_normalizer::error::UNPORTED).then(|| "?".to_owned()))
-        {
+        if let Some(site) = site_after(&shown, UNPORTED_MESSAGE) {
             return Run::Unported { site, leaked: true };
         }
     }

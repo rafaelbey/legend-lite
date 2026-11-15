@@ -439,7 +439,9 @@ final class StoreSubstitutionRewrite {
                 if (model.hasDatabaseExact(cand)) {
                     if (!cand.equals(current)) {
                         // a store spelling step D left unqualified that an import of the mapping's section names: the
-                        // model's error, in the words of the store lookups beside this one (XStore's, ModelJoin's).
+                        // model's error, in the words of the association lookups beside this one ("XStore mapping
+                        // references unknown association", ModelJoin's: ad86fa895 called them store lookups; corrected
+                        // 2026-11-15, the normalizer batch, item 10).
                         // Until 2026-11-14 this rewrote the spelling to the import's database, a Phase-D fallback no
                         // text reached -- 0 rewrites over the 74,292 front-oracle asks and the slice's cases, strict
                         // and tolerant (ruling 30, the normalizer slice's measuring run; invariant 4)

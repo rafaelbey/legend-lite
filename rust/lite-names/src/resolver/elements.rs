@@ -136,7 +136,7 @@ fn class(cd: &ClassDefinition, outer: &Scope<'_>) -> Rs<Arc<ClassDefinition>> {
     let supers = type_list(&cd.super_classes, &scope)?;
     let properties = arc_list(&cd.properties, |pd| property(pd, &scope))?;
     let derived = arc_list(&cd.derived_properties, |dp| {
-        Ok(derived_property(dp, &scope)?.map(Box::new))
+        Ok(derived_property(dp, &scope)?.map(Arc::new))
     })?;
     let constraints = arc_list(&cd.constraints, |c| Ok(constraint(c, &scope)?.map(Box::new)))?;
     let st = stereotypes(&cd.stereotypes, &scope)?;
@@ -193,7 +193,7 @@ fn association(ad: &AssociationDefinition, scope: &Scope<'_>) -> Rs<Arc<Associat
     let p1 = association_end(&ad.property1, scope)?;
     let p2 = association_end(&ad.property2, scope)?;
     let derived = arc_list(&ad.derived_properties, |dp| {
-        Ok(derived_property(dp, scope)?.map(Box::new))
+        Ok(derived_property(dp, scope)?.map(Arc::new))
     })?;
     let st = stereotypes(&ad.stereotypes, scope)?;
     let tv = tagged_values(&ad.tagged_values, scope)?;

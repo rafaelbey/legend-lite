@@ -11,8 +11,9 @@
 //!
 //! RE-EXPRESSED (census §4): `receiverType` is lite-names' `derived_props::receiver_type` (an identical body; not a
 //! function here); `requireQualifiedPropertiesAdopted`'s `d == dp` (:220, an internal pipeline-order assertion) is
-//! identity, never a derived `==` (an equal un-adopted property would pass) -- the identity of what the adoption
-//! shares ([`adopted_as`]: lite-names' adoption copies the definition's `Box`, sharing its body's nodes).
+//! identity, never a derived `==` (an equal un-adopted property would pass) -- the very definition's `Arc`, which
+//! lite-names' adoption shares, compared by address ([`adopted_as`], lite-base's `same`; 2026-11-15, the normalizer
+//! batch, item 10).
 //!
 //! E.4's `ModelException` and E.3c's `IllegalStateException` are not walled under a wall sink: they escape a tolerant
 //! build, as in Java (census H4 §1, note (d)).
@@ -216,32 +217,12 @@ pub fn resolve_synthesized(
     Ok(out)
 }
 
-/// Java's `d == dp` (:220): `d` is the association's very definition `dp`, adopted. lite-names' adoption
-/// (`knowledge::adopt_association_qualified_properties`) appends a COPY of the definition's `Box` to the owner,
-/// which keeps its body's statement nodes (each an `Arc`), so the identity that survives the adoption is the
-/// nodes': the same definition, or an inline body of the same statements (a reference: the same source node).
-/// Never a derived `==` where a node exists: a property the owner declares that only equals the association's is not
-/// adopted. A shape with no node to compare -- an empty inline body, a reference with no source node -- is compared
-/// by value (the whole definition, its span included): failing an adopted model there would change a valid model's
-/// answer, while passing an equal un-adopted one only weakens an assertion the pipeline's order already holds.
-pub fn adopted_as(d: &p::DerivedPropertyDefinition, dp: &p::DerivedPropertyDefinition) -> bool {
-    if same(&d, &dp) {
-        return true;
-    }
-    match (&d.realization, &dp.realization) {
-        (p::Realization::RealizationInline(a), p::Realization::RealizationInline(b)) => {
-            if a.body.is_empty() && b.body.is_empty() {
-                return d == dp;
-            }
-            a.body.len() == b.body.len() && a.body.iter().zip(b.body.iter()).all(|(x, y)| same_statement(x, y))
-        }
-        (p::Realization::RealizationRef(a), p::Realization::RealizationRef(b)) => match (&a.source, &b.source) {
-            (Some(x), Some(y)) => same_statement(x, y),
-            (None, None) => d == dp,
-            _ => false,
-        },
-        _ => false,
-    }
+/// Java's `d == dp` (:220): `d` is the association's very definition `dp`, adopted -- the same `Arc`, as lite-names'
+/// adoption (`knowledge::adopt_association_qualified_properties`) appends the very definition to its owner (the model
+/// holds a derived property definition by `Arc` since 2026-11-15, the normalizer batch, item 10; until then it held a
+/// `Box`, the adoption appended a copy, and this was the identity of the body's statement nodes, by value where none).
+pub fn adopted_as(d: &Arc<p::DerivedPropertyDefinition>, dp: &Arc<p::DerivedPropertyDefinition>) -> bool {
+    same(d, dp)
 }
 
 /// `ModelNormalizer.requireQualifiedPropertiesAdopted` (:199): every association qualified property is held, by
@@ -278,7 +259,7 @@ pub fn require_qualified_properties_adopted(
 /// One qualified property of `requireQualifiedPropertiesAdopted`'s loop (:216-225).
 fn require_adopted(
     ad: &AssociationDefinition,
-    dp: &p::DerivedPropertyDefinition,
+    dp: &Arc<p::DerivedPropertyDefinition>,
     classes: &LinkedMap<JStr, Arc<ClassDefinition>>,
 ) -> Result<(), Thrown> {
     let owner = knowledge::qualified_property_owner(ad, dp).ok_or_else(|| Thrown::never_fired("ModelNormalizer#1"))?;

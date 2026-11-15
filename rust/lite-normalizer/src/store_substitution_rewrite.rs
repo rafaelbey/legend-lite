@@ -569,7 +569,8 @@ pub fn qualify_store_refs(
             let cand = cat!(w, "::", r);
             if model.has_database_exact(&cand) {
                 // a store spelling step D left unqualified that an import of the mapping's section names: the
-                // model's error, in the words of the store lookups beside this one (XStore's, ModelJoin's); until
+                // model's error, in the words of the association lookups beside this one ("XStore mapping references
+                // unknown association", ModelJoin's: ad86fa895 called them store lookups, corrected 2026-11-15); until
                 // 2026-11-14 a rewrite to the import's database no text reached (ruling 30)
                 return Err(Thrown::model(
                     Phase::Normalize,

@@ -744,6 +744,22 @@ pub fn inheritance_members(
     Ok(members)
 }
 
+/// Java's record equality of two class mappings (`LinkedHashSet<ClassMapping>`, US:797; the normalizer batch, item 10):
+/// two whose lossless codec texts are equal -- the codec writes every component a record's `equals`
+/// reads, a `Double` as `Double.toString` (one-to-one with `Double.equals`: `0.0` and `-0.0` two, every `NaN` one, where
+/// the derived `==` it replaces had them the other way), an open slot with its Java class, a `BigDecimal` as `toString`
+/// (one-to-one with `BigDecimal.equals`). It also writes a protocol node's source position, which a protocol record's
+/// `equals` leaves out: two sets equal but for that compare unequal here, as under the derived `==` -- never two sets of
+/// one model, whose class and set id would be one (refused before E).
+fn java_record_equal(a: &ClassMapping, b: &ClassMapping) -> bool {
+    let text = |c: &ClassMapping| {
+        let mut w = lite_front::codec::Writer::new();
+        lite_front::codec::Codec::write(c, &mut w, false);
+        w.finish()
+    };
+    text(a) == text(b)
+}
+
 /// `UnionSynthesis.collectInheritanceMembers` (:623): `base`'s mapped subclasses' sets into `chosen` -- Java's
 /// `LinkedHashSet<ClassMapping>` (record equality, insertion order): add a set only when no equal one is there. A
 /// shadow walker `ShadowWalkerCensusTest` pinned (the census retires with the Java).
@@ -794,7 +810,7 @@ pub fn collect_inheritance_members(
                 if let Some(cm) = root_by_class.get(&c) {
                     if let ClassMapping::ClassMappingInheritance(_) = cm {
                         collect_inheritance_members(md, &c, model, chosen)?;
-                    } else if !chosen.contains(cm) {
+                    } else if !chosen.iter().any(|c| java_record_equal(c, cm)) {
                         // Java's LinkedHashSet<ClassMapping>: by record equality, first insertion kept
                         chosen.push(cm.clone());
                     }

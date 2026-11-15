@@ -10,9 +10,9 @@
 //!   resolver's `ResolutionException` passed through from lite-names, and so on.
 //! - [`Thrown::Java`]: a JDK exception by its class and message (`IllegalStateException`, the `NullPointerException`
 //!   of an `Objects.requireNonNull`, the `NoSuchElementException` of a bare `orElseThrow()`).
-//! - [`Thrown::Unported`]: a body the skeleton has not ported yet, by its Java site (`Class.method`). **It matches no
-//!   catch predicate**: a per-set, per-class or per-association catch that took it would turn an unported body into a
-//!   poison or a wall, so it always reaches the top. It goes when the last body is ported.
+//!
+//! `Thrown::Unported`, a body the skeleton had not ported yet, went with the last of them: nothing produced it once the
+//! fill was merged (2026-11-15, the normalizer batch, item 10).
 //!
 //! Java's catches, and the predicate each is ported with: `catch (ModelException e)` is [`Thrown::is_model`];
 //! `catch (NotImplementedException e)` is [`Thrown::is_not_implemented`] (a `WalledBodyException` too); `catch
@@ -29,8 +29,6 @@ pub const ILLEGAL_ARGUMENT: &str = "java.lang.IllegalArgumentException";
 pub const NULL_POINTER: &str = "java.lang.NullPointerException";
 pub const NO_SUCH_ELEMENT: &str = "java.util.NoSuchElementException";
 pub const NUMBER_FORMAT: &str = "java.lang.NumberFormatException";
-/// The class an [`Thrown::Unported`] answers by: no Java class, so a differential shows it as the miss it is.
-pub const UNPORTED: &str = "lite.normalizer.Unported";
 
 /// A throw of the normalizer.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,8 +37,6 @@ pub enum Thrown {
     Compile(CompileError),
     /// A JDK exception: its class's binary name and its message.
     Java { class: &'static str, message: Option<JStr> },
-    /// A body not ported yet, by its Java site (`Class.method`). Caught by nothing.
-    Unported(&'static str),
 }
 
 impl Thrown {
@@ -89,21 +85,19 @@ impl Thrown {
         Thrown::Java { class, message }
     }
 
-    /// The thrown class's binary name ([`UNPORTED`] for a body not ported yet).
+    /// The thrown class's binary name.
     pub fn java_class(&self) -> &'static str {
         match self {
             Thrown::Compile(e) => e.kind.java_class(),
             Thrown::Java { class, .. } => class,
-            Thrown::Unported(_) => UNPORTED,
         }
     }
 
-    /// `getMessage()` (an unported body: its site).
+    /// `getMessage()`.
     pub fn message(&self) -> Option<JStr> {
         match self {
             Thrown::Compile(e) => e.message.clone().map(JStr),
             Thrown::Java { message, .. } => message.clone(),
-            Thrown::Unported(site) => Some(cat!("not ported yet: ", *site)),
         }
     }
 
@@ -148,11 +142,6 @@ impl Thrown {
     /// `ErrorKind::is_compile_error`).
     pub fn is_compile(&self) -> bool {
         matches!(self, Thrown::Compile(e) if e.kind.is_compile_error())
-    }
-
-    /// Whether this is a body not ported yet.
-    pub fn is_unported(&self) -> bool {
-        matches!(self, Thrown::Unported(_))
     }
 
     /// `String.valueOf(e.getMessage())`: the message, or `"null"`.
@@ -223,16 +212,6 @@ pub fn require<T>(v: Option<T>, message: Option<&str>) -> Result<T, Thrown> {
     v.ok_or_else(|| Thrown::null_pointer(message))
 }
 
-/// A body the skeleton has not ported, in a function with no `Result` (one that cannot fail in Java): it panics with
-/// its site, loudly; never a value. Each use is marked `// UNPORTED: Class.method` beside it.
-// skeleton: remove when every body is ported
-#[macro_export]
-macro_rules! unported {
-    ($site:literal) => {
-        unimplemented!(concat!("UNPORTED: ", $site))
-    };
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -263,23 +242,9 @@ mod tests {
     }
 
     #[test]
-    fn with_element_leaves_bugs_and_unported_bodies_raw() {
+    fn with_element_leaves_bugs_raw() {
         let ise = Thrown::illegal_state(j("bug")).with_element(&j("a::M"));
         assert_eq!(ise, Thrown::illegal_state(j("bug")));
-        let unported = Thrown::Unported("X.y").with_element(&j("a::M"));
-        assert_eq!(unported, Thrown::Unported("X.y"));
-    }
-
-    #[test]
-    fn unported_matches_no_catch() {
-        let u = Thrown::Unported("MappingNormalizer.synthM2M");
-        assert!(!u.is_model());
-        assert!(!u.is_not_implemented());
-        assert!(!u.is_model_or_not_implemented());
-        assert!(!u.is_compile());
-        assert!(u.is_unported());
-        assert_eq!(u.java_class(), UNPORTED);
-        assert_eq!(u.message(), Some(j("not ported yet: MappingNormalizer.synthM2M")));
     }
 
     #[test]
