@@ -16,14 +16,13 @@ use std::sync::Arc;
 
 use lite_builtin::pure::lite;
 use lite_error::Phase;
-use lite_front::nodes;
 use lite_front::records as p;
 use lite_model::linked::list;
 use lite_model::{
     ClassMappingRelational, DatabaseDefinitionViewDefinition, FilterMapping, FilterPointer, JStr,
-    LegacyMappingDefinitionTableReference as TableRef, PropertyMapping, PropertyMappingColumn,
-    PropertyMappingEmbedded, PropertyMappingEnumeratedColumn, PropertyMappingExpression,
-    PropertyMappingLocalProperty, RelationalOperation, RelationalOperationColumnRef as ColumnRef, cat,
+    LegacyMappingDefinitionTableReference as TableRef, PropertyMapping, PropertyMappingColumn, PropertyMappingEmbedded,
+    PropertyMappingEnumeratedColumn, PropertyMappingExpression, PropertyMappingLocalProperty, RelationalOperation,
+    RelationalOperationColumnRef as ColumnRef, cat,
 };
 use lite_names::{ModelIndex, calls};
 use lite_types::{Multiplicity, RelationType};
@@ -92,7 +91,7 @@ pub fn view_relation_expr(
             ones.insert(JStr::from(c.name));
         }
     }
-    let r = Arc::new(nodes::variable(JStr::from("vr")));
+    let r = variable("vr");
     // VIEW-ON-VIEW: the inferred root is itself a view -- expand it recursively as the SOURCE relation (the outer
     // view's ColumnRefs spell <innerView>.<declaredCol>, the inner relation's output row, so the scope key stays `phys`)
     let source = match model.find_view(db, &phys) {
@@ -219,11 +218,8 @@ pub fn view_relation_expr(
                     )
                 })?;
                 let selector = rel_op_translator::translate(arg0, &scope, None, Some(&r), vp.view())?;
-                let vals = Arc::new(nodes::variable(JStr::from("vals")));
-                let reduced = applied(calls::platform(
-                    &rel_op_translator::dyna_fn_name(fc)?,
-                    vec![var(&vals)],
-                ));
+                let vals = variable("vals");
+                let reduced = applied(calls::platform(&rel_op_translator::dyna_fn_name(fc)?, vec![var(&vals)]));
                 agg_cols.push(col_spec(
                     vc.name.clone(),
                     Some(lambda_fn(&[&r], selector)),
@@ -239,7 +235,7 @@ pub fn view_relation_expr(
                 // DB-side (ANY_VALUE); the engine-style text spells the bare column exactly like the golden (ASK 12,
                 // ported as Java has it)
                 let w_sel = rel_op_translator::translate(expr, &scope, None, Some(&r), vp.view())?;
-                let w_vals = Arc::new(nodes::variable(JStr::from("vals")));
+                let w_vals = variable("vals");
                 let first = applied(calls::platform(&JStr::from("first"), vec![var(&w_vals)]));
                 agg_cols.push(col_spec(
                     vc.name.clone(),
@@ -289,16 +285,19 @@ pub fn view_relation_expr(
         // ~distinct is over the view's DECLARED columns; the grouped path's synthetic k<i> columns are dropped first
         // so groups agreeing on declared columns collapse (audit 18 finding 4)
         if synthetic_key_cols {
-            let vd = Arc::new(nodes::variable(JStr::from("vd")));
+            let vd = variable("vd");
             let mut declared: Vec<Arc<p::ColSpec>> = Vec::with_capacity(view.column_mappings.len());
             for vc in view.column_mappings.iter() {
                 declared.push(col_spec(
                     vc.name.clone(),
-                    Some(lambda_fn(&[&vd], nodes::property(var(&vd), vc.name.clone(), None))),
+                    Some(lambda_fn(&[&vd], property(var(&vd), vc.name.clone()))),
                     None,
                 ));
             }
-            src = applied(calls::platform(&JStr::from("project"), vec![src, col_spec_array(declared)]));
+            src = applied(calls::platform(
+                &JStr::from("project"),
+                vec![src, col_spec_array(declared)],
+            ));
         }
         src = applied(calls::platform(&JStr::from("distinct"), vec![src]));
     }
@@ -398,7 +397,11 @@ fn frame_column(
         {
             reads_table = true;
             if equals_ignore_case(&vcr.column.0, &cr.column.0) {
-                return Ok(Some(column_ref(cr.database_name.clone(), view_name.clone(), vc.name.clone())));
+                return Ok(Some(column_ref(
+                    cr.database_name.clone(),
+                    view_name.clone(),
+                    vc.name.clone(),
+                )));
             }
         }
     }
@@ -585,8 +588,42 @@ fn column_ref(database_name: Option<JStr>, table: JStr, column: JStr) -> Arc<Col
 fn table_reference(db: &JStr, table: JStr) -> p::ValueSpecification {
     applied(calls::platform(
         &JStr::from("tableReference"),
-        vec![nodes::ptr(db.clone(), None), nodes::cstring(table, None)],
+        vec![element_ptr(db.clone()), cstring(table)],
     ))
+}
+
+/// `new Variable(name)`: no type, multiplicity or span.
+fn variable(name: &str) -> Arc<p::Variable> {
+    Arc::new(p::Variable {
+        name: JStr::from(name),
+        r#type: None,
+        multiplicity: None,
+        pos: None,
+    })
+}
+
+/// `new PackageableElementPtr(fullPath)`.
+fn element_ptr(full_path: JStr) -> p::ValueSpecification {
+    p::ValueSpecification::PackageableElementPtr(Arc::new(p::PackageableElementPtr { full_path, pos: None }))
+}
+
+/// `new CString(value)`: not multi-line.
+fn cstring(value: JStr) -> p::ValueSpecification {
+    p::ValueSpecification::CString(Arc::new(p::CString {
+        value,
+        pos: None,
+        multi_line: false,
+    }))
+}
+
+/// `new AppliedProperty(receiver, property)`: no span, no owner class.
+fn property(receiver: p::ValueSpecification, property: JStr) -> p::ValueSpecification {
+    p::ValueSpecification::AppliedProperty(Arc::new(p::AppliedProperty {
+        receiver,
+        property,
+        pos: None,
+        owner_class: None,
+    }))
 }
 
 /// A built call as a value.
@@ -640,4 +677,203 @@ fn col_spec_array(col_specs: Vec<Arc<p::ColSpec>>) -> p::ValueSpecification {
         col_specs: list(col_specs),
         pos: None,
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::rc::Rc;
+
+    use lite_model::linked::LinkedMap;
+    use lite_model::text::j;
+    use lite_model::{
+        LegacyMappingDefinition, PropertyMappingEnumeratedExpression, RelationalOperationFunctionCall,
+        RelationalOperationLiteral,
+    };
+
+    use lite_base::same;
+
+    use super::*;
+    use crate::mapping_closures::MappingClosures;
+    use crate::test_support::{index, join_pm, mapping, model, relational};
+
+    const MODEL: &str = r#"
+###Pure
+Class a::Person
+{
+  name: String[1];
+}
+
+###Relational
+Database a::db
+(
+  Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))
+  View PV (PNAME: PERSON.NAME, PID: PERSON.ID)
+  View PVV (VNAME: PV.PNAME)
+)
+
+###Mapping
+Mapping a::M
+(
+  *a::Person[p]: Relational
+  {
+    ~mainTable [a::db]PERSON
+    name: [a::db]PERSON.NAME
+  }
+)
+"#;
+
+    fn resolved<'a>(
+        md: Arc<LegacyMappingDefinition>,
+        closures: &'a MappingClosures<'a>,
+        views: &'a LiftedViews<'a>,
+    ) -> ResolvedMapping<'a> {
+        let surface = closures.surface(&md);
+        let closure = closures.closure(&surface.qualified_name);
+        ResolvedMapping::new(
+            surface.clone(),
+            surface,
+            Rc::new(HashMap::new()),
+            Rc::new(LinkedMap::new()),
+            closure,
+            views,
+        )
+    }
+
+    fn col(table: &str, column: &str) -> RelationalOperation {
+        RelationalOperation::RelationalOperationColumnRef(column_ref(None, j(table), j(column)))
+    }
+
+    fn arc_of(op: &RelationalOperation) -> &Arc<ColumnRef> {
+        match op {
+            RelationalOperation::RelationalOperationColumnRef(cr) => cr,
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_owner_label_names_the_mapping_else_the_store() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        let closures = MappingClosures::new(&idx);
+        let views = LiftedViews::new(&parsed, &idx);
+        let md = resolved(mapping(&parsed, "a::M"), &closures, &views);
+        assert_eq!(owner(None, &j("a::db")), j("store=a::db"));
+        assert_eq!(owner(Some(&md), &j("a::db")), j("mapping=a::M"));
+    }
+
+    #[test]
+    fn a_declared_one_column_is_trusted_to_one() {
+        let ones: HashSet<JStr> = HashSet::from([j("ID")]);
+        let v = cstring(j("x"));
+        assert_eq!(declared_one(&ones, &j("NAME"), v.clone()), v);
+        let p::ValueSpecification::AppliedFunction(f) = declared_one(&ones, &j("ID"), v.clone()) else {
+            panic!("a call")
+        };
+        assert_eq!(f.function, j(lite::TRUST_ONE));
+        assert_eq!(f.parameters.to_vec(), vec![v]);
+        assert!(f.referents.is_empty(), "Calls.exact: the full name is the one referent");
+    }
+
+    #[test]
+    fn a_view_reference_inlines_its_columns_expression_transitively() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        let db = j("a::db");
+        // a view column reads its view's expression; a view on a view, recursively
+        assert_eq!(
+            inline_view_refs(&col("PV", "PNAME"), &db, &idx).unwrap(),
+            col("PERSON", "NAME")
+        );
+        assert_eq!(
+            inline_view_refs(&col("PVV", "VNAME"), &db, &idx).unwrap(),
+            col("PERSON", "NAME")
+        );
+        // a table's column, and a view column the view does not declare, are the very reference
+        let plain = col("PERSON", "ID");
+        assert!(same(
+            arc_of(&plain),
+            arc_of(&inline_view_refs(&plain, &db, &idx).unwrap())
+        ));
+        let undeclared = col("PV", "NOPE");
+        assert!(same(
+            arc_of(&undeclared),
+            arc_of(&inline_view_refs(&undeclared, &db, &idx).unwrap())
+        ));
+        // inside a call: the view reference rewritten, the other argument kept as the very object
+        let call = RelationalOperation::RelationalOperationFunctionCall(Arc::new(RelationalOperationFunctionCall {
+            name: j("concat"),
+            args: list(vec![col("PV", "PID"), plain.clone()]),
+        }));
+        let RelationalOperation::RelationalOperationFunctionCall(out) = inline_view_refs(&call, &db, &idx).unwrap()
+        else {
+            panic!("a call")
+        };
+        assert_eq!(out.args[0], col("PERSON", "ID"));
+        assert!(same(arc_of(&out.args[1]), arc_of(&plain)));
+        // no view reference anywhere: the very call
+        let untouched =
+            RelationalOperation::RelationalOperationFunctionCall(Arc::new(RelationalOperationFunctionCall {
+                name: j("concat"),
+                args: list(vec![plain.clone()]),
+            }));
+        let (
+            RelationalOperation::RelationalOperationFunctionCall(a),
+            RelationalOperation::RelationalOperationFunctionCall(b),
+        ) = (&untouched, &inline_view_refs(&untouched, &db, &idx).unwrap())
+        else {
+            panic!("calls")
+        };
+        assert!(same(a, b));
+    }
+
+    #[test]
+    fn through_the_frame_joins_and_column_free_kinds_pass_and_the_source_url_goes() {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        let closures = MappingClosures::new(&idx);
+        let views = LiftedViews::new(&parsed, &idx);
+        let md = resolved(mapping(&parsed, "a::M"), &closures, &views);
+        let view = idx.find_view(&j("a::db"), &j("PV")).expect("the view").clone();
+        let enumerated =
+            PropertyMapping::PropertyMappingEnumeratedExpression(Arc::new(PropertyMappingEnumeratedExpression {
+                property_name: j("kind"),
+                enum_mapping_id: None,
+                expression: col("PERSON", "NAME"),
+            }));
+        // an expression with no column reference: no frame lookup, rebuilt equal
+        let literal = PropertyMapping::PropertyMappingExpression(Arc::new(PropertyMappingExpression {
+            property_name: j("lit"),
+            expression: RelationalOperation::RelationalOperationLiteral(Arc::new(RelationalOperationLiteral {
+                value: lite_model::JValue::String(j("x")),
+            })),
+        }));
+        let mut rcm = relational(
+            "a::Person",
+            Some("p"),
+            vec![join_pm("firm", Some("f")), enumerated.clone(), literal.clone()],
+        );
+        rcm.source_url = Some(j("data:x"));
+        let out = through_frame(&rcm, &view, &j("PV"), &md).unwrap();
+        assert_eq!(out.source_url, None);
+        assert_eq!(
+            out.property_mappings.to_vec(),
+            vec![join_pm("firm", Some("f")), enumerated.clone(), literal]
+        );
+        // Java's default arm: an EnumeratedExpression passes as the very PM (its root-table read unrewritten)
+        let PropertyMapping::PropertyMappingEnumeratedExpression(e) = &enumerated else {
+            panic!()
+        };
+        let PropertyMapping::PropertyMappingEnumeratedExpression(o) = &out.property_mappings[1] else {
+            panic!()
+        };
+        assert!(same(e, o));
+        assert_eq!(
+            ClassMappingRelational {
+                source_url: Some(j("data:x")),
+                ..(*out).clone()
+            },
+            rcm
+        );
+    }
 }

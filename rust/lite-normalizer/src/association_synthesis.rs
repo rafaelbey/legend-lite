@@ -23,7 +23,6 @@ use std::sync::Arc;
 
 use lite_builtin::pure::lite;
 use lite_error::Phase;
-use lite_front::nodes;
 use lite_front::records as p;
 use lite_model::linked::{LinkedMap, empty, list};
 use lite_model::names::default_set_id;
@@ -113,8 +112,7 @@ pub fn inject_multi_hop_association_pms(
                 }
             };
             // the OWNER side too: every arm of a union-mapped owner carries its own navigation
-            let op_owner =
-                owner0.is_some_and(|o| view.union_of(Some(o)).is_some() || view.inheritance_of(o).is_some());
+            let op_owner = owner0.is_some_and(|o| view.union_of(Some(o)).is_some() || view.inheritance_of(o).is_some());
             // an end whose written id names a NON-ROOT set navigates to THAT set; the class-level predicate pairs the
             // classes' ROOT extents, so such a pair is routed onto its sets too
             let tgt_set_id = join.target_set_id.as_ref().or(apm.target_set_id.as_ref());
@@ -335,7 +333,12 @@ pub fn record_withheld(
         .unwrap_or_else(|| am.association_name().clone());
     ledger.poison(
         PoisonKey::PoisonKeyForAssociation(Arc::new(PoisonKeyForAssociation { association_fqn })),
-        cat!("no predicate binding was emitted: ", reason, "; mapping=", md.qualified_name()),
+        cat!(
+            "no predicate binding was emitted: ",
+            reason,
+            "; mapping=",
+            md.qualified_name()
+        ),
     );
     Ok(())
 }
@@ -387,9 +390,7 @@ pub fn resolve_association(
     // tolerant asks, found 0 / 0; ported verbatim
     let fqn = md.qualified_name();
     let cut = lite_model::text::last_index_of(&fqn.0, &JStr::from("::").0)?;
-    model
-        .find_association(&cat!(&fqn.0[..cut], "::", name))
-        .cloned()
+    model.find_association(&cat!(&fqn.0[..cut], "::", name)).cloned()
 }
 
 /// `AssociationSynthesis.synthesizeAssociationMapping` (:400): the association's predicate function; none for a
@@ -530,8 +531,8 @@ pub fn synthesize_association_mapping(
         return Ok(None);
     }
 
-    let src_row = Arc::new(nodes::variable(JStr::from("srcRow")));
-    let tgt_row = Arc::new(nodes::variable(JStr::from("tgtRow")));
+    let src_row = variable("srcRow");
+    let tgt_row = variable("tgtRow");
     // A SELF-JOIN between two DIFFERENT classes over ONE table: the join's table-named side is the first line's
     // SOURCE set and {target} its target set -- when that source set maps classB, {target} is classA's row
     let mut target_is_a = false;
@@ -555,8 +556,8 @@ pub fn synthesize_association_mapping(
         &anchors.b.table,
     )?;
 
-    let a = Arc::new(nodes::variable(JStr::from("a")));
-    let b = Arc::new(nodes::variable(JStr::from("b")));
+    let a = variable("a");
+    let b = variable("b");
     // the adapter lambda speaks ROW scope; its row types are the two ends' anchors, said by the relation arguments
     let src_rel = view_relation::source_ref_for(&anchors.a, model, md)?;
     let tgt_rel = view_relation::source_ref_for(&anchors.b, model, md)?;
@@ -572,12 +573,12 @@ pub fn synthesize_association_mapping(
 
     let p_a = FunctionDefinitionParameterDefinition {
         name: JStr::from("a"),
-        r#type: nodes::name_ref(class_a, None),
+        r#type: name_ref(class_a),
         multiplicity: pure_one(),
     };
     let p_b = FunctionDefinitionParameterDefinition {
         name: JStr::from("b"),
-        r#type: nodes::name_ref(class_b, None),
+        r#type: name_ref(class_b),
         multiplicity: pure_one(),
     };
     let function = FunctionDefinition::user_written(
@@ -585,7 +586,7 @@ pub fn synthesize_association_mapping(
         empty(),
         empty(),
         list(vec![Arc::new(p_a), Arc::new(p_b)]),
-        nodes::name_ref(JStr::from("meta::pure::metamodel::type::Boolean"), None),
+        name_ref(JStr::from("meta::pure::metamodel::type::Boolean")),
         pure_one(),
         list(vec![body]),
         empty(),
@@ -709,11 +710,11 @@ pub fn end_anchors(
 }
 
 /// `AssociationSynthesis.buildAssocPredicateBody` (:630, the eleven-argument form): the predicate's body over the two
-/// rows -- the join's chain translated, the target end oriented by `target_is_a`.
+/// rows -- the join's chain translated, the target end oriented by `target_is_a`. (`classA` is unread, as in Java.)
 #[allow(clippy::too_many_arguments)]
 pub fn build_assoc_predicate_body(
     join: &PropertyMappingJoin,
-    class_a: &JStr,
+    _class_a: &JStr,
     class_b: &JStr,
     src_row: &Arc<p::Variable>,
     tgt_row: &Arc<p::Variable>,
@@ -758,7 +759,10 @@ pub fn build_assoc_predicate_body(
         // the synthesized legacyAssocPredicate call declares tgtRow's row type as classB's ~mainTable; the join must
         // actually land there, or the lambda's column reads would silently mistype
         let backing_view = model.find_view(&hop_db, source_table).is_some().then_some(source_table);
-        let keep_target_view = model.find_view(&hop_db, class_b_table).is_some().then_some(class_b_table);
+        let keep_target_view = model
+            .find_view(&hop_db, class_b_table)
+            .is_some()
+            .then_some(class_b_table);
         let cond2 = resolve_view_refs_in_join_keeping(
             &jd.operation,
             &hop_db,
@@ -935,7 +939,448 @@ fn var(v: &Arc<p::Variable>) -> p::ValueSpecification {
     p::ValueSpecification::Variable(v.clone())
 }
 
+/// `new Variable(name)`: no type, multiplicity or span.
+fn variable(name: &str) -> Arc<p::Variable> {
+    Arc::new(p::Variable {
+        name: JStr::from(name),
+        r#type: None,
+        multiplicity: None,
+        pos: None,
+    })
+}
+
+/// `new TypeExpression.NameRef(name)`.
+fn name_ref(name: JStr) -> p::TypeExpression {
+    p::TypeExpression::TypeExpressionNameRef(Box::new(p::TypeExpressionNameRef { name, pos: None }))
+}
+
 /// `Multiplicity.Concrete.PURE_ONE`.
 fn pure_one() -> p::Multiplicity {
-    nodes::concrete(1, Some(1))
+    p::Multiplicity::MultiplicityConcrete(Box::new(p::MultiplicityConcrete {
+        lower_bound: 1,
+        upper_bound: Some(1),
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::rc::Rc;
+
+    use lite_model::text::j;
+    use lite_model::{
+        AssociationMappingCross, AssociationMappingModelJoin, AssociationPropertyMapping, ParsedModel,
+        PropertyMappingColumn, RelationalOperation, RelationalOperationColumnRef,
+    };
+
+    use super::*;
+    use crate::lifted_views::LiftedViews;
+    use crate::mapping_closures::MappingClosures;
+    use crate::test_support::{column_pm, index, join_pm, mapping, model, relational};
+
+    const MODEL: &str = r#"
+###Pure
+Class a::Person
+{
+  name: String[1];
+}
+Class a::Firm
+{
+  name: String[1];
+}
+Class a::Addr
+{
+  city: String[1];
+}
+Association a::PF
+{
+  firm: a::Firm[0..1];
+  employees: a::Person[*];
+}
+Association b::Q
+{
+  q1: a::Firm[0..1];
+  q2: a::Person[*];
+}
+
+###Relational
+Database a::db
+(
+  Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(200), CITY VARCHAR(200))
+  Table FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))
+  Table LINK (PID INTEGER, FID INTEGER)
+  Join PL(PERSON.ID = LINK.PID)
+  Join LF(LINK.FID = FIRM.ID)
+)
+
+###Mapping
+import b::*;
+Mapping a::Base
+(
+  *a::Person[p]: Relational
+  {
+    ~mainTable [a::db]PERSON
+    name: [a::db]PERSON.NAME,
+    address
+    (
+      city: [a::db]PERSON.CITY
+    )
+  }
+  *a::Firm[f]: Relational
+  {
+    ~mainTable [a::db]FIRM
+    name: [a::db]FIRM.NAME
+  }
+)
+Mapping a::Top
+(
+  include a::Base
+  a::PF: Relational
+  {
+    AssociationMapping
+    (
+      firm: [a::db]@PL > @LF,
+      employees: [a::db]@LF > @PL
+    )
+  }
+)
+Mapping a::Plain
+(
+  include a::Base
+)
+"#;
+
+    fn resolved<'a>(
+        md: Arc<LegacyMappingDefinition>,
+        closures: &'a MappingClosures<'a>,
+        views: &'a LiftedViews<'a>,
+    ) -> ResolvedMapping<'a> {
+        let surface = closures.surface(&md);
+        let closure = closures.closure(&surface.qualified_name);
+        ResolvedMapping::new(
+            surface.clone(),
+            surface,
+            Rc::new(HashMap::new()),
+            Rc::new(LinkedMap::new()),
+            closure,
+            views,
+        )
+    }
+
+    fn names(pms: &[PropertyMapping]) -> Vec<JStr> {
+        pms.iter().map(|pm| pm.property_name().clone()).collect()
+    }
+
+    fn relational_of(cm: &ClassMapping) -> &Arc<ClassMappingRelational> {
+        match cm {
+            ClassMapping::ClassMappingRelational(r) => r,
+            other => panic!("not a Relational set: {other:?}"),
+        }
+    }
+
+    fn relational_am(name: &str, pms: Vec<AssociationPropertyMapping>) -> AssociationMapping {
+        AssociationMapping::AssociationMappingRelational(Arc::new(AssociationMappingRelational {
+            association_name: j(name),
+            property_mappings: list(pms.into_iter().map(Arc::new).collect()),
+        }))
+    }
+
+    struct Fixture {
+        parsed: ParsedModel,
+        idx: ModelIndex,
+    }
+
+    fn fixture() -> Fixture {
+        let parsed = model(MODEL);
+        let idx = index(&parsed);
+        Fixture { parsed, idx }
+    }
+
+    #[test]
+    fn multi_hop_ends_with_no_source_set_inject_on_the_owners_sets_and_hoist_them() {
+        let f = fixture();
+        let closures = MappingClosures::new(&f.idx);
+        let views = LiftedViews::new(&f.parsed, &f.idx);
+        let top = resolved(mapping(&f.parsed, "a::Top"), &closures, &views);
+        let out = inject_multi_hop_association_pms(&top, &f.idx).unwrap();
+        // Top maps no class itself: both owner sets are hoisted from the include, each with its end appended (the
+        // owner of `firm` is Person, of `employees` Firm), in the include's declaration order
+        let ids: Vec<JStr> = out.class_mappings.iter().map(ResolvedMapping::id_of).collect();
+        assert_eq!(ids, vec![j("p"), j("f")]);
+        let p = relational_of(&out.class_mappings[0]);
+        assert_eq!(names(&p.property_mappings), vec![j("name"), j("address"), j("firm")]);
+        assert!(
+            p.root,
+            "a hoisted root stays root when this mapping maps the class not at all"
+        );
+        let firm = match &p.property_mappings[2] {
+            PropertyMapping::PropertyMappingJoin(join) => join,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(firm.joins.len(), 2);
+        assert_eq!(firm.target_set_id, None, "an unrouted entry is not stamped");
+        let fs = relational_of(&out.class_mappings[1]);
+        assert_eq!(names(&fs.property_mappings), vec![j("name"), j("employees")]);
+        // the association mapping itself is kept
+        assert_eq!(out.association_mappings.len(), 1);
+    }
+
+    #[test]
+    fn a_mapping_with_no_relational_association_mapping_is_itself() {
+        let f = fixture();
+        let closures = MappingClosures::new(&f.idx);
+        let views = LiftedViews::new(&f.parsed, &f.idx);
+        let plain = resolved(mapping(&f.parsed, "a::Plain"), &closures, &views);
+        let out = inject_multi_hop_association_pms(&plain, &f.idx).unwrap();
+        assert!(lite_base::same(&out, plain.raw()));
+    }
+
+    #[test]
+    fn an_included_association_the_model_lacks_is_the_mapping_error() {
+        let f = fixture();
+        let closures = MappingClosures::new(&f.idx);
+        let views = LiftedViews::new(&f.parsed, &f.idx);
+        let top = mapping(&f.parsed, "a::Top");
+        let bad = Arc::new(LegacyMappingDefinition {
+            association_mappings: list(vec![relational_am("a::Nope", Vec::new())]),
+            ..(*top).clone()
+        });
+        let r = resolved(bad, &closures, &views);
+        let e = inject_multi_hop_association_pms(&r, &f.idx).unwrap_err();
+        assert!(e.is_model());
+        assert_eq!(e.phase(), Some(Phase::Mapping));
+        assert_eq!(e.message(), Some(j("Can't find association 'a::Nope'")));
+    }
+
+    #[test]
+    fn injected_pms_follow_the_lineage_and_nest_into_an_embedded_block_dropping_its_key() {
+        let key = RelationalOperation::RelationalOperationColumnRef(Arc::new(RelationalOperationColumnRef {
+            database_name: None,
+            table: j("FIRM"),
+            column: j("ID"),
+        }));
+        let address = PropertyMapping::PropertyMappingEmbedded(Arc::new(PropertyMappingEmbedded {
+            property_name: j("address"),
+            property_mappings: list(vec![column_pm("city", "FIRM", "CITY")]),
+            primary_key: list(vec![key]),
+        }));
+        let cm = ClassMapping::ClassMappingRelational(Arc::new(relational(
+            "a::Firm",
+            Some("f"),
+            vec![column_pm("name", "FIRM", "NAME"), address],
+        )));
+        let mut by_set: LinkedMap<JStr, LinkedMap<JStr, Vec<PropertyMapping>>> = LinkedMap::new();
+        let mut firm_sets = LinkedMap::new();
+        firm_sets.put(j("f"), vec![join_pm("employees", None)]);
+        firm_sets.put(j("f_address"), vec![join_pm("loc", None)]);
+        by_set.put(j("a::Firm"), firm_sets);
+        let mut base_sets = LinkedMap::new();
+        // an ancestor's entries: one the set's own entry shadows, one inherited, one the set maps itself
+        base_sets.put(
+            j("base"),
+            vec![
+                join_pm("employees", None),
+                join_pm("extra", None),
+                join_pm("name", None),
+            ],
+        );
+        by_set.put(j("a::Base"), base_sets);
+        let mut by_class: LinkedMap<JStr, Vec<PropertyMapping>> = LinkedMap::new();
+        by_class.put(j("a::Firm"), vec![join_pm("byClass", None)]);
+        let out = with_injected_pms(&cm, &by_class, &by_set, &[j("f"), j("base")]).expect("injected");
+        assert_eq!(
+            names(&out.property_mappings),
+            vec![j("name"), j("address"), j("byClass"), j("employees"), j("extra")]
+        );
+        let PropertyMapping::PropertyMappingEmbedded(emb) = &out.property_mappings[1] else {
+            panic!("the embedded block")
+        };
+        assert_eq!(names(&emb.property_mappings), vec![j("city"), j("loc")]);
+        assert!(
+            emb.primary_key.is_empty(),
+            "Java's two-argument Embedded drops the block's ~primaryKey"
+        );
+        // nothing to inject: none; a non-Relational set: none
+        let none: LinkedMap<JStr, LinkedMap<JStr, Vec<PropertyMapping>>> = LinkedMap::new();
+        assert!(with_injected_pms(&cm, &LinkedMap::new(), &none, &[j("f")]).is_none());
+        let union = crate::test_support::union("a::Firm", Some("u"), &["f"]);
+        assert!(with_injected_pms(&union, &by_class, &by_set, &[j("u")]).is_none());
+    }
+
+    #[test]
+    fn with_root_replaces_the_flag_only() {
+        let mut r = relational("a::Firm", Some("f"), vec![column_pm("name", "FIRM", "NAME")]);
+        r.root = true;
+        let out = with_root(&r, false);
+        assert!(!out.root);
+        assert_eq!(
+            ClassMappingRelational {
+                root: true,
+                ..(*out).clone()
+            },
+            r
+        );
+    }
+
+    #[test]
+    fn a_lineage_is_the_extends_chain_itself_first() {
+        let f = fixture();
+        let closures = MappingClosures::new(&f.idx);
+        let views = LiftedViews::new(&f.parsed, &f.idx);
+        let base = mapping(&f.parsed, "a::Base");
+        let mut p2 = relational("a::Person", Some("p2"), Vec::new());
+        p2.extends_set_id = Some(j("p"));
+        let mut cms = base.class_mappings.to_vec();
+        cms.push(ClassMapping::ClassMappingRelational(Arc::new(p2)));
+        let md = Arc::new(base.with_class_mappings(list(cms)));
+        let r = resolved(md.clone(), &closures, &views);
+        let p2 = md.class_mappings.last().unwrap();
+        assert_eq!(lineage_of(p2, &r).unwrap(), vec![j("p2"), j("p")]);
+        assert_eq!(lineage_of(&md.class_mappings[0], &r).unwrap(), vec![j("p")]);
+    }
+
+    #[test]
+    fn an_association_resolves_exactly_then_by_import_then_by_package() {
+        let f = fixture();
+        let closures = MappingClosures::new(&f.idx);
+        let views = LiftedViews::new(&f.parsed, &f.idx);
+        let top = resolved(mapping(&f.parsed, "a::Top"), &closures, &views);
+        let fqn = |name: &str| {
+            resolve_association(&f.idx, &top, &relational_am(name, Vec::new())).map(|a| a.qualified_name.clone())
+        };
+        assert_eq!(fqn("a::PF"), Some(j("a::PF")));
+        // a simple name: the mapping's import wildcards, then its own package
+        assert_eq!(fqn("Q"), Some(j("b::Q")));
+        assert_eq!(fqn("PF"), Some(j("a::PF")));
+        // a qualified name that misses has no fallback
+        assert_eq!(fqn("c::PF"), None);
+        assert_eq!(fqn("Nope"), None);
+    }
+
+    #[test]
+    fn a_withheld_binding_poisons_the_resolved_association() {
+        let f = fixture();
+        let closures = MappingClosures::new(&f.idx);
+        let views = LiftedViews::new(&f.parsed, &f.idx);
+        let top = resolved(mapping(&f.parsed, "a::Top"), &closures, &views);
+        let mut ledger = MappingLedger::new(HashSet::new());
+        record_withheld(&top, &relational_am("PF", Vec::new()), &f.idx, &mut ledger, &j("why")).unwrap();
+        record_withheld(&top, &relational_am("Nope", Vec::new()), &f.idx, &mut ledger, &j("why")).unwrap();
+        let poisons: Vec<(JStr, JStr)> = ledger
+            .poisons
+            .iter()
+            .map(|(k, v)| match k {
+                PoisonKey::PoisonKeyForAssociation(a) => (a.association_fqn.clone(), v.clone()),
+                other => panic!("{other:?}"),
+            })
+            .collect();
+        let reason = j("no predicate binding was emitted: why; mapping=a::Top");
+        assert_eq!(poisons, vec![(j("a::PF"), reason.clone()), (j("Nope"), reason)]);
+    }
+
+    #[test]
+    fn the_synthesis_refusals_name_the_kind_the_association_and_the_body() {
+        let f = fixture();
+        let closures = MappingClosures::new(&f.idx);
+        let views = LiftedViews::new(&f.parsed, &f.idx);
+        let top = resolved(mapping(&f.parsed, "a::Top"), &closures, &views);
+        let mut ledger = MappingLedger::new(HashSet::new());
+        let mut refuse =
+            |am: AssociationMapping| synthesize_association_mapping(&top, &am, &f.idx, &mut ledger).unwrap_err();
+        // an unresolved Cross / ModelJoin association: the kind's Java simple name
+        let cross = refuse(AssociationMapping::AssociationMappingCross(Arc::new(
+            AssociationMappingCross {
+                association_name: j("a::Nope"),
+                property_mappings2: empty(),
+            },
+        )));
+        assert!(cross.is_not_implemented());
+        assert_eq!(
+            cross.message(),
+            Some(j("Association mapping kind Cross not supported; mapping=a::Top"))
+        );
+        let model_join = refuse(AssociationMapping::AssociationMappingModelJoin(Arc::new(
+            AssociationMappingModelJoin {
+                association_name: j("a::Nope"),
+                lambda: Arc::new(p::LambdaFunction {
+                    parameters: empty(),
+                    body: empty(),
+                    pos: None,
+                }),
+            },
+        )));
+        assert_eq!(
+            model_join.message(),
+            Some(j("Association mapping kind ModelJoin not supported; mapping=a::Top"))
+        );
+        let unknown = refuse(relational_am("a::Nope", Vec::new()));
+        assert!(unknown.is_model());
+        assert_eq!(unknown.phase(), Some(Phase::Normalize));
+        assert_eq!(
+            unknown.message(),
+            Some(j(
+                "AssociationMapping references unknown association 'a::Nope'; mapping=a::Top"
+            ))
+        );
+        let empty_pms = refuse(relational_am("a::PF", Vec::new()));
+        assert_eq!(
+            empty_pms.message(),
+            Some(j(
+                "AssociationMapping for 'a::PF' has no property mappings; mapping=a::Top"
+            ))
+        );
+        let column = refuse(relational_am(
+            "a::PF",
+            vec![AssociationPropertyMapping {
+                source_set_id: None,
+                target_set_id: None,
+                body: PropertyMapping::PropertyMappingColumn(Arc::new(PropertyMappingColumn {
+                    property_name: j("firm"),
+                    database: j("a::db"),
+                    table: j("PERSON"),
+                    column: j("ID"),
+                })),
+            }],
+        ));
+        assert!(column.is_not_implemented());
+        assert_eq!(
+            column.message(),
+            Some(j(
+                "AssociationMapping property body kind Column not supported (only Join bodies are bridged); \
+                 mapping=a::Top. See docs/MAPPING_LEGACY_TO_FUNCTION.md \u{a7}5.6."
+            ))
+        );
+    }
+
+    #[test]
+    fn a_multi_hop_association_has_no_predicate() {
+        let f = fixture();
+        let closures = MappingClosures::new(&f.idx);
+        let views = LiftedViews::new(&f.parsed, &f.idx);
+        let top = resolved(mapping(&f.parsed, "a::Top"), &closures, &views);
+        let mut ledger = MappingLedger::new(HashSet::new());
+        let am = top.association_mappings()[0].clone();
+        assert_eq!(
+            synthesize_association_mapping(&top, &am, &f.idx, &mut ledger).unwrap(),
+            None
+        );
+        assert!(ledger.poisons.is_empty());
+    }
+
+    #[test]
+    fn a_sets_anchor_is_its_main_table_or_its_embedded_owners() {
+        let f = fixture();
+        let closures = MappingClosures::new(&f.idx);
+        let views = LiftedViews::new(&f.parsed, &f.idx);
+        let top = resolved(mapping(&f.parsed, "a::Top"), &closures, &views);
+        let table = |id: &str| anchor_of_set(&top, &j(id)).unwrap().map(|t| t.table.clone());
+        assert_eq!(table("p"), Some(j("PERSON")));
+        assert_eq!(table("f"), Some(j("FIRM")));
+        // <ownerId>_<property> of an embedded block: the owner's table
+        assert_eq!(table("p_address"), Some(j("PERSON")));
+        // no such set, and no embedded block of that name
+        assert_eq!(table("p_name"), None);
+        assert_eq!(table("zzz"), None);
+        assert_eq!(table("_p"), None);
+    }
 }
