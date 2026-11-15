@@ -192,19 +192,24 @@ pub fn resolve_synthesized(
 /// (`knowledge::adopt_association_qualified_properties`) appends a COPY of the definition's `Box` to the owner,
 /// which keeps its body's statement nodes (each an `Arc`), so the identity that survives the adoption is the
 /// nodes': the same definition, or an inline body of the same statements (a reference: the same source node).
-/// Never a derived `==`: a property the owner declares that only equals the association's is not adopted.
+/// Never a derived `==` where a node exists: a property the owner declares that only equals the association's is not
+/// adopted. A shape with no node to compare -- an empty inline body, a reference with no source node -- is compared
+/// by value (the whole definition, its span included): failing an adopted model there would change a valid model's
+/// answer, while passing an equal un-adopted one only weakens an assertion the pipeline's order already holds.
 pub fn adopted_as(d: &p::DerivedPropertyDefinition, dp: &p::DerivedPropertyDefinition) -> bool {
     if same(&d, &dp) {
         return true;
     }
     match (&d.realization, &dp.realization) {
         (p::Realization::RealizationInline(a), p::Realization::RealizationInline(b)) => {
-            !a.body.is_empty()
-                && a.body.len() == b.body.len()
-                && a.body.iter().zip(b.body.iter()).all(|(x, y)| same_statement(x, y))
+            if a.body.is_empty() && b.body.is_empty() {
+                return d == dp;
+            }
+            a.body.len() == b.body.len() && a.body.iter().zip(b.body.iter()).all(|(x, y)| same_statement(x, y))
         }
         (p::Realization::RealizationRef(a), p::Realization::RealizationRef(b)) => match (&a.source, &b.source) {
             (Some(x), Some(y)) => same_statement(x, y),
+            (None, None) => d == dp,
             _ => false,
         },
         _ => false,
@@ -841,6 +846,33 @@ mod tests {
             class(&parsed, "a::F").derived_properties
         );
         assert!(require_qualified_properties_adopted(&mixed, None).is_err());
+    }
+
+    #[test]
+    fn a_reference_body_and_an_empty_body_pass_once_adopted() {
+        // a one-element body binds by reference: its source node survives the adoption's copy
+        let by_ref = "Class a::P {}\nClass a::F {}\nAssociation a::PF { p: a::P[*]; f: a::F[1]; q() { a::P }: \
+                      a::P[1]; }\n";
+        let parsed = adopted(by_ref);
+        let ad = parsed
+            .elements
+            .iter()
+            .find_map(|e| match e {
+                PackageableElement::AssociationDefinition(a) => Some(a.clone()),
+                _ => None,
+            })
+            .expect("the association");
+        assert!(matches!(
+            ad.derived_properties[0].realization,
+            p::Realization::RealizationRef(_)
+        ));
+        assert_eq!(require_qualified_properties_adopted(&parsed, None), Ok(()));
+        assert!(require_qualified_properties_adopted(&model(by_ref), None).is_err());
+        // an empty body has no node: compared by value
+        let empty_body = "Class a::P {}\nClass a::F {}\nAssociation a::PF { p: a::P[*]; f: a::F[1]; q() { }: \
+                          a::P[1]; }\n";
+        assert_eq!(require_qualified_properties_adopted(&adopted(empty_body), None), Ok(()));
+        assert!(require_qualified_properties_adopted(&model(empty_body), None).is_err());
     }
 
     fn statement(text: &str) -> p::ValueSpecification {
