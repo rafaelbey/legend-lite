@@ -237,7 +237,8 @@ pub fn compose(
 
 /// `ModelJoinNesting.pairEndVars` (:169): which lambda parameter is end A's and which end B's (Java's `String[2]`):
 /// legend-engine's pairing ([`mapping_validation::engine_pairing`], its first direction) since 2026-11-15 (the
-/// normalizer's second batch, item 4 (e)); a temporal end keeps the exact-type-then-name rule (held).
+/// normalizer's second batch, item 4 (e)); held -- the exact-type-then-name rule kept -- for a temporal end, ends that are
+/// not the association's own classes, and parameter types not spelled as their full paths.
 #[allow(clippy::too_many_arguments)]
 pub fn pair_end_vars(
     assoc_name: &JStr,
@@ -252,14 +253,16 @@ pub fn pair_end_vars(
 ) -> Result<(JStr, JStr), Thrown> {
     let c1 = target_class_fqn(&ad2.property1)?;
     let c2 = target_class_fqn(&ad2.property2)?;
-    if !mapping_validation::temporal_end(&c1, model)? && !mapping_validation::temporal_end(&c2, model)? {
-        // (the source's: property2's class, the target's: property1's)
-        let (src, tgt) = mapping_validation::engine_pairing(&ad2.property2, &ad2.property1, p0, p1, model)?;
-        return Ok(if class_a == &c2 && class_b == &c1 && c1 != c2 {
-            (src, tgt)
-        } else {
-            (tgt, src)
-        });
+    let direct = class_a == &c1 && class_b == &c2;
+    let swapped = class_a == &c2 && class_b == &c1;
+    if (direct || swapped)
+        && !mapping_validation::temporal_end(&c1, model)?
+        && !mapping_validation::temporal_end(&c2, model)?
+    {
+        // (the source's: property2's class, the target's: property1's); none: held, the rule below answers
+        if let Some((src, tgt)) = mapping_validation::engine_pairing(&ad2.property2, &ad2.property1, p0, p1, model)? {
+            return Ok(if direct { (tgt, src) } else { (src, tgt) });
+        }
     }
     // exact type FQN when the ends differ, else the engine's property-name rule -- never suffix matching
     let distinct = class_a != class_b;

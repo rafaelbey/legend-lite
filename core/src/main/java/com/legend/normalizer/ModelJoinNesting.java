@@ -181,19 +181,24 @@ final class ModelJoinNesting {
      * direction), in its words where it cannot pair, since 2026-11-15 (the normalizer's second batch, item 4 (e)):
      * until then exact type FQN when the ends differ, else the property-name rule, else a NotImplementedException --
      * a parameter typed as an end's supertype the engine pairs by subtyping, and one typed otherwise it refuses
-     * rather than reading the names. A temporal end keeps that rule (its milestoned property names, which the engine
-     * pairs by, lite does not hold): held. */
+     * rather than reading the names. Held -- that rule kept -- for a temporal end (its milestoned property names,
+     * which the engine pairs by, lite does not hold), for ends that are not the association's own classes (a nested
+     * hop's subtype), and for parameter types not spelled as their full paths (MappingValidation.enginePairing). */
     static String[] pairEndVars(String assocName,
             AssociationDefinition ad2, String classA, String classB,
             Variable p0, Variable p1, @com.legend.base.Nullable String t0, @com.legend.base.Nullable String t1,
             ModelBuilder model) {
         String c1 = ad2.property1().targetClassFqn();
         String c2 = ad2.property2().targetClassFqn();
-        if (!MappingValidation.temporalEnd(c1, model) && !MappingValidation.temporalEnd(c2, model)) {
-            // [the source's (property2's class), the target's (property1's)]
+        boolean direct = classA.equals(c1) && classB.equals(c2);
+        boolean swapped = classA.equals(c2) && classB.equals(c1);
+        if ((direct || swapped) && !MappingValidation.temporalEnd(c1, model)
+                && !MappingValidation.temporalEnd(c2, model)) {
+            // [the source's (property2's class), the target's (property1's)]; null: held, the rule below answers
             String[] pm1 = MappingValidation.enginePairing(ad2.property2(), ad2.property1(), p0, p1, model);
-            return classA.equals(c2) && classB.equals(c1) && !c1.equals(c2)
-                    ? new String[] {pm1[0], pm1[1]} : new String[] {pm1[1], pm1[0]};
+            if (pm1 != null) {
+                return direct ? new String[] {pm1[1], pm1[0]} : new String[] {pm1[0], pm1[1]};
+            }
         }
         if (!classA.equals(classB) && classA.equals(t0) && classB.equals(t1)) {
             return new String[] {p0.name(), p1.name()};

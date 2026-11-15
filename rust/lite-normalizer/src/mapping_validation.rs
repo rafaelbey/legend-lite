@@ -322,6 +322,10 @@ pub fn require_engine_model_join(
     }
     let pm1 = engine_pairing(&ad.property2, &ad.property1, &ps[0], &ps[1], model)?;
     let pm2 = engine_pairing(&ad.property1, &ad.property2, &ps[0], &ps[1], model)?;
+    // the body is typed only over a pair of sets: an end with no instance set compiles nothing
+    let (Some(pm1), Some(pm2)) = (pm1, pm2) else {
+        return Ok(());
+    };
     if mj.lambda.body.len() != 1 || !plain_sets(md, &c1, model)? || !plain_sets(md, &c2, model)? {
         return Ok(());
     }
@@ -386,29 +390,33 @@ pub fn require_engine_xstore(
 /// `MappingValidation.enginePairing`: `resolveLambdaParamNames` for the direction whose source is `this_end`'s class --
 /// the parameters as (the source's, the target's); typed both and the classes not one: by type (a class its type or a
 /// subtype), the first parameter tried as the source first, else refused; otherwise by name; else refused -- each in the
-/// engine's words.
+/// engine's words. None (held) where the parameters are typed by a name not spelled as its full path (the engine looks
+/// it up as spelled).
 pub fn engine_pairing(
     this_end: &AssociationDefinitionAssociationEndDefinition,
     that_end: &AssociationDefinitionAssociationEndDefinition,
     p0: &p::Variable,
     p1: &p::Variable,
     model: &ModelIndex,
-) -> Result<(JStr, JStr), Thrown> {
+) -> Result<Option<(JStr, JStr)>, Thrown> {
     let this_cls = model_join_nesting::target_class_fqn(this_end)?;
     let that_cls = model_join_nesting::target_class_fqn(that_end)?;
     let is_self = this_cls == that_cls;
     let t0 = p0.r#type.as_ref().and_then(mapping_normalizer::name_ref_or_null);
     let t1 = p1.r#type.as_ref().and_then(mapping_normalizer::name_ref_or_null);
     if !is_self && let (Some(t0), Some(t1)) = (t0, t1) {
+        if !spelled_full(p0) || !spelled_full(p1) {
+            return Ok(None);
+        }
         let p0_is_this = subtype_of(&this_cls, t0, model);
         let p1_is_that = subtype_of(&that_cls, t1, model);
         let p0_is_that = subtype_of(&that_cls, t0, model);
         let p1_is_this = subtype_of(&this_cls, t1, model);
         if p0_is_this && p1_is_that {
-            return Ok((p0.name.clone(), p1.name.clone()));
+            return Ok(Some((p0.name.clone(), p1.name.clone())));
         }
         if p0_is_that && p1_is_this {
-            return Ok((p1.name.clone(), p0.name.clone()));
+            return Ok(Some((p1.name.clone(), p0.name.clone())));
         }
         return Err(Thrown::model(
             Phase::Mapping,
@@ -434,10 +442,10 @@ pub fn engine_pairing(
     let src = &this_end.property_name;
     let tgt = &that_end.property_name;
     if &p0.name == src && &p1.name == tgt {
-        return Ok((p0.name.clone(), p1.name.clone()));
+        return Ok(Some((p0.name.clone(), p1.name.clone())));
     }
     if &p0.name == tgt && &p1.name == src {
-        return Ok((p1.name.clone(), p0.name.clone()));
+        return Ok(Some((p1.name.clone(), p0.name.clone())));
     }
     if is_self {
         return Err(Thrown::model(
@@ -484,6 +492,18 @@ pub fn engine_pairing(
         ),
         None,
     ))
+}
+
+/// `MappingValidation.spelledFull`: whether a parameter's type was written as its full path (its span, one line, as long
+/// as the resolved name).
+fn spelled_full(v: &p::Variable) -> bool {
+    match &v.r#type {
+        Some(p::TypeExpression::TypeExpressionNameRef(nr)) => nr.pos.as_ref().is_some_and(|pos| {
+            pos.start_line == pos.end_line
+                && i64::from(pos.end_column) - i64::from(pos.start_column) + 1 == nr.name.0.len() as i64
+        }),
+        _ => false,
+    }
 }
 
 /// The engine's variables for one direction: the target's name bound first, the source's over it.
@@ -643,9 +663,10 @@ fn subtype_of(child: &JStr, parent: &JStr, model: &ModelIndex) -> bool {
     child == parent || *parent == "meta::pure::metamodel::type::Any" || model.knowledge().is_subtype(child, parent)
 }
 
-/// `MappingValidation.plainSets`: whether every instance set the engine would pair for `cls` (its and its subtypes',
-/// the closure's) is the class's own with no local mapping property.
+/// `MappingValidation.plainSets`: whether `cls` has an instance set in the closure and every instance set the engine
+/// would pair for it (its and its subtypes') is the class's own with no local mapping property.
 fn plain_sets(md: &ResolvedMapping<'_>, cls: &JStr, model: &ModelIndex) -> Result<bool, Thrown> {
+    let mut any = false;
     for (_, cm) in md.visible_sets()?.iter() {
         if matches!(
             cm,
@@ -662,8 +683,9 @@ fn plain_sets(md: &ResolvedMapping<'_>, cls: &JStr, model: &ModelIndex) -> Resul
         if !local_names(cm).is_empty() {
             return Ok(false);
         }
+        any = true;
     }
-    Ok(true)
+    Ok(any)
 }
 
 /// `MappingValidation.soleSet`: `cls`'s one instance set in the closure, if it has exactly one and no subtype is mapped.

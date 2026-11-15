@@ -954,5 +954,12 @@ class NormalizerBatch2Test {
                         .context().mappingAssociationPoison("t::M", "t::Firm_Person").orElseThrow());
         assertEquals(List.of(), strict(ASSOCIATION_LAMBDA.formatted(
                 "t::Firm_Person: ModelJoin { {f: meta::pure::metamodel::type::Any[1], e: t::Person[1]|$e.firmId == 1} }")));
+        // an end with no class mapping: the engine pairs nothing to type the body over, and compiles (e4e/u1, u5)
+        String firmUnmapped = ASSOCIATION_LAMBDA.replace(
+                "  t::Firm: Relational { ~mainTable [t::DB] FIRM id: [t::DB] FIRM.ID, k: [t::DB] FIRM.ID }\n", "");
+        assertEquals(List.of(), strict(firmUnmapped.formatted(
+                "t::Firm_Person: ModelJoin { {f: t::Firm[1], e: t::Person[1]|$f.id == $e.nope} }")));
+        assertEquals(List.of(), strict(firmUnmapped.formatted(
+                "t::Firm_Person: ModelJoin { {p: t::Firm[1], p: t::Person[1]|$p.id == $p.firmId} }")));
     }
 }

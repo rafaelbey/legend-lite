@@ -257,7 +257,10 @@ final class MappingValidation {
         // pm1 (the first property navigated: its owner, the second property's class, the source), then pm2
         String[] pm1 = enginePairing(ad.property2(), ad.property1(), ps.get(0), ps.get(1), model);
         String[] pm2 = enginePairing(ad.property1(), ad.property2(), ps.get(0), ps.get(1), model);
-        if (mj.lambda().body().size() != 1 || !plainSets(md, c1, model) || !plainSets(md, c2, model)) {
+        // the body is typed only over a pair of sets: an end with no instance set compiles nothing (asked: an
+        // unmapped end's ModelJoin compiles, its body unread, port-scratch/normbatch2/engine/cases/e4e/u1, u5)
+        if (pm1 == null || pm2 == null || mj.lambda().body().size() != 1
+                || !plainSets(md, c1, model) || !plainSets(md, c2, model)) {
             return;
         }
         com.legend.protocol.spec.ValueSpecification body = mj.lambda().body().get(0);
@@ -324,9 +327,12 @@ final class MappingValidation {
      * parameters as [the source's, the target's]. Typed both and the ends' classes not one: by type, a parameter
      * taking an end whose class is its type or a subtype ({@code Type.subTypeOf}), the first parameter tried as the
      * source first, else refused; otherwise by name, a parameter named for a property standing for that property's
-     * class; else refused -- each in the engine's words.
+     * class; else refused -- each in the engine's words. Null (held) where the parameters are typed by a name not
+     * spelled as its full path: the engine looks the type up as spelled ({@code pureModel.getType}, no imports), so an
+     * imported bare name is "Can't find type 'X'" and a primitive's message spells it short (asked: e4e/u2-u4),
+     * which lite, reading names step D resolved, cannot write.
      */
-    static String[] enginePairing(com.legend.model.AssociationDefinition.AssociationEndDefinition thisEnd,
+    static String @com.legend.base.Nullable [] enginePairing(com.legend.model.AssociationDefinition.AssociationEndDefinition thisEnd,
             com.legend.model.AssociationDefinition.AssociationEndDefinition thatEnd,
             com.legend.protocol.spec.Variable p0, com.legend.protocol.spec.Variable p1, ModelBuilder model) {
         String thisCls = thisEnd.targetClassFqn();
@@ -335,6 +341,9 @@ final class MappingValidation {
         String t0 = p0.type() instanceof com.legend.protocol.TypeExpression.NameRef n0 ? n0.name() : null;
         String t1 = p1.type() instanceof com.legend.protocol.TypeExpression.NameRef n1 ? n1.name() : null;
         if (!self && t0 != null && t1 != null) {
+            if (!spelledFull(p0) || !spelledFull(p1)) {
+                return null;
+            }
             boolean p0IsThis = subtypeOf(thisCls, t0, model);
             boolean p1IsThat = subtypeOf(thatCls, t1, model);
             boolean p0IsThat = subtypeOf(thatCls, t0, model);
@@ -370,6 +379,13 @@ final class MappingValidation {
                 + p1.name() + ":" + simpleName(thatCls) + "[1] | ...})"
                 + " or rename the parameters to match the association property names ('" + src + "' and '" + tgt
                 + "').");
+    }
+
+    /** Whether a parameter's type was written as its full path: its span, one line, as long as the resolved name. */
+    private static boolean spelledFull(com.legend.protocol.spec.Variable v) {
+        return v.type() instanceof com.legend.protocol.TypeExpression.NameRef nr && nr.pos() != null
+                && nr.pos().startLine() == nr.pos().endLine()
+                && nr.pos().endColumn() - nr.pos().startColumn() + 1 == nr.name().length();
     }
 
     /** The engine's variables for one direction: the target's name bound first, the source's over it (a shared name
@@ -520,10 +536,11 @@ final class MappingValidation {
                 || model.knowledge().isSubtype(child, parent);
     }
 
-    /** Whether every instance set the engine would pair for {@code cls} (its sets and its subtypes', the closure's) is
-     *  the class's own with no local mapping property -- so its class is the engine's {@code _mappingClass() == null}
-     *  type. Operation sets are not instance sets. */
+    /** Whether {@code cls} has an instance set in the closure and every instance set the engine would pair for it (its
+     *  sets and its subtypes') is the class's own with no local mapping property -- so its class is the engine's
+     *  {@code _mappingClass() == null} type. Operation sets are not instance sets. */
     private static boolean plainSets(ResolvedMapping md, String cls, ModelBuilder model) {
+        boolean any = false;
         for (ClassMapping cm : md.visibleSets().values()) {
             if (cm instanceof ClassMapping.Union || cm instanceof ClassMapping.Inheritance) {
                 continue;
@@ -537,8 +554,9 @@ final class MappingValidation {
             if (!localNames(cm).isEmpty()) {
                 return false;
             }
+            any = true;
         }
-        return true;
+        return any;
     }
 
     /** {@code cls}'s one instance set in the closure, if it has exactly one and no subtype is mapped. */
