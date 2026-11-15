@@ -49,6 +49,57 @@ class ElementRefusalsTest {
         assertEquals("w::C", fromC.element());
     }
 
+    private static final String BOUND = "upper (1) must be >= lower (2)";
+
+    @Test
+    @DisplayName("1 (b): a parameter's, a return's and an association end's bounds are checked as a property's are")
+    void inverseBoundsAreRefusedAtEverySignatureSite() {
+        // ruling 30 (census ASK 7 (c); LITE-ONLY): until 2026-11-15 the first two compiled, the bound surfacing as
+        // compileAllBodies' raw wall, and the third compiled; legend-engine 4.145.0, asked, compiles the parameter and
+        // the end and refuses the return only by its body's multiplicity check (the register row)
+        String parameter = "function w::f(x: String[2..1]): String[1]\n{\n  'a'\n}\n";
+        ModelException p = assertThrows(ModelException.class, () -> Compiler.compileModel(parameter));
+        assertEquals("w::f_String_$2_1$__String_1_", p.element());
+        assertTrue(p.getMessage().endsWith("parameter 'x' of function w::f: invalid multiplicity — " + BOUND),
+                p.getMessage());
+        String ret = "function w::g(x: String[1]): String[2..1]\n{\n  $x\n}\n";
+        ModelException r = assertThrows(ModelException.class, () -> Compiler.compileModel(ret));
+        assertEquals("w::g_String_1__String_$2_1$_", r.element());
+        assertTrue(r.getMessage().endsWith("return of function w::g: invalid multiplicity — " + BOUND), r.getMessage());
+        String end = "Class w::A { name: String[1]; }\nClass w::B { name: String[1]; }\n"
+                + "Association w::AB { a: w::A[2..1]; b: w::B[*]; }\n";
+        ModelException a = assertThrows(ModelException.class, () -> Compiler.compileModel(end));
+        assertEquals("w::AB", a.element());
+        assertTrue(a.getMessage().endsWith("property 'a' of association w::AB: invalid multiplicity — " + BOUND),
+                a.getMessage());
+        // the control: a class property's check, its words unchanged
+        ModelException c = assertThrows(ModelException.class,
+                () -> Compiler.compileModel("Class w::C { p: String[2..1]; }\n"));
+        assertTrue(c.getMessage().endsWith("property 'p' of w::C: invalid multiplicity — " + BOUND), c.getMessage());
+        // a tolerant build walls each, under its key
+        assertEquals(Map.of("w::f_String_$2_1$__String_1_",
+                "parameter 'x' of function w::f: invalid multiplicity — " + BOUND),
+                Compiler.buildModule(Compiler.parseModel(parameter)).walls());
+        assertEquals(Map.of("w::AB", "property 'a' of association w::AB: invalid multiplicity — " + BOUND),
+                Compiler.buildModule(Compiler.parseModel(end)).walls());
+    }
+
+    @Test
+    @DisplayName("1 (b): a tolerant build's walled overload is dropped from its set; a set whose every overload breaks rethrows")
+    void aBrokenOverloadIsDroppedAndAnAllBrokenSetRethrows() {
+        // FunctionCompiler.compileAll's swallow (census ASK 7 (a)), ported as it is: a strict build never reaches it now
+        Compiler.BuiltModule module = Compiler.buildModule(Compiler.parseModel(
+                "function w::h(x: String[1]): String[1]\n{\n  $x\n}\n"
+                        + "function w::h(x: Integer[2..1]): String[1]\n{\n  'n'\n}\n"
+                        + "function w::k(x: Integer[2..1]): String[1]\n{\n  'n'\n}\n"));
+        assertEquals(java.util.Set.of("w::h_Integer_$2_1$__String_1_", "w::k_Integer_$2_1$__String_1_"),
+                module.walls().keySet());
+        assertEquals(1, module.context().findFunction("w::h").size());
+        IllegalArgumentException k = assertThrows(IllegalArgumentException.class,
+                () -> module.context().findFunction("w::k"));
+        assertEquals(BOUND, k.getMessage());
+    }
+
     @Test
     @DisplayName("1 (a): a diamond is no cycle: a class met twice on two paths is walked again, not refused")
     void aDiamondIsNoCycle() {

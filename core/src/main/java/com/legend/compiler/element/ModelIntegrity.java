@@ -75,6 +75,10 @@ final class ModelIntegrity {
             classifier.classify(a.property2().targetClass(), List.of());
             classifier.requireArguments(a.property1().targetClass(), List.of());
             classifier.requireArguments(a.property2().targetClass(), List.of());
+            // an end's bounds, as a class property's are (2026-11-15, the element slice, step 1 (b): ruling 30, census
+            // ASK 7 (c); LITE-ONLY -- legend-engine 4.145.0 compiles an end [2..1], asked: register row)
+            requireValidBounds(a.property1().multiplicity(), associationEndSite(a.property1(), a));
+            requireValidBounds(a.property2().multiplicity(), associationEndSite(a.property2(), a));
             requireAnnotations(a.stereotypes(), a.taggedValues(), model);
             requireAnnotations(a.property1().stereotypes(), a.property1().taggedValues(), model);
             requireAnnotations(a.property2().stereotypes(), a.property2().taggedValues(), model);
@@ -360,16 +364,22 @@ final class ModelIntegrity {
         // a declaration's types name their classes' arguments; lite's own synthesized signatures name a mapped class
         // bare (TypeClassifier.requireArguments)
         boolean declared = !(f instanceof com.legend.model.FunctionDefinition fd && fd.isSynthesized());
+        // each parameter's and the return's bounds, as a class property's are (2026-11-15, the element slice, step 1
+        // (b): ruling 30, census ASK 7 (c); LITE-ONLY -- legend-engine 4.145.0 compiles a parameter [2..1] and refuses a
+        // return [2..1] only by its body's multiplicity check, asked: register row). Until then a [2..1] parameter
+        // compiled here and surfaced as compileAllBodies' raw "upper (1) must be >= lower (2)" wall
         for (var p : f.parameters()) {
             classifier.classify(p.type(), f.typeParameters());
             if (declared) {
                 classifier.requireArguments(p.type(), f.typeParameters());
             }
+            requireValidBounds(p.multiplicity(), "parameter '" + p.name() + "' of function " + f.qualifiedName());
         }
         classifier.classify(f.returnType(), f.typeParameters());
         if (declared) {
             classifier.requireArguments(f.returnType(), f.typeParameters());
         }
+        requireValidBounds(f.returnMultiplicity(), "return of function " + f.qualifiedName());
     }
 
     /**
@@ -436,6 +446,12 @@ final class ModelIntegrity {
                     com.legend.error.LegendCompileException.Phase.MODEL,
                     site + ": invalid multiplicity — " + e.getMessage());
         }
+    }
+
+    /** An association end's site in the bounds check's words: {@code property 'p' of association a::A}. */
+    static String associationEndSite(com.legend.model.AssociationDefinition.AssociationEndDefinition end,
+            com.legend.model.AssociationDefinition association) {
+        return "property '" + end.propertyName() + "' of association " + association.qualifiedName();
     }
 
     /** Engine parity: "Found duplicated value 'X' in enumeration 'E'". */

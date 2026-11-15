@@ -82,7 +82,11 @@ final class FunctionCompiler {
                 // silently re-dispatch to a healthy sibling. The fix is a
                 // poison SENTINEL that participates in scoring and throws
                 // when it wins (tracked, task #56). A STRICT build never
-                // gets here — model integrity fails first.
+                // gets here — model integrity fails first: every type and,
+                // since 2026-11-15, every bound a signature names is checked
+                // there (the element slice, step 1 (b), ruling 30; until then
+                // a parameter or return [2..1] reached here in a strict build,
+                // so the claim was false).
                 if (first == null) {
                     first = e;
                 }
