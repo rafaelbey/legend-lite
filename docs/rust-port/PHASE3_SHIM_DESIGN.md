@@ -593,5 +593,22 @@ Each with my recommendation first.
     (the engine's words for a set with no inferable table and for two table names, a tolerant association end on such
     a set withheld). Reach 0 asks of the normalizer oracle.
 
+40. **Four more divergences kept: the own-package tier, a quoted enumeration mapping id, a temporal self-association's
+    pairing, a quoted default schema** (2026-11-15; the questions the lead asked on the normalizer's second batch's
+    report: register rows S398, S397, S399 and S376's quoted `"default"` schema). All four are ruled divergences: lite
+    keeps its behaviour, no code changes. S398, the own-package tier: kept exactly as it is -- a simple name resolves
+    through the element's own package, a tier below the imports and above the core imports and the prelude, so lite
+    compiles a bare same-package name the engine refuses (16 of the 18 kinds asked) and an own-package element shadows
+    a core element of its name (`Enum`), where legend-engine 4.145.0 resolves through the section's imports and the meta
+    imports only (the tier off moves 492 asks over 184 texts of the normalizer oracle). S397, an enumeration mapping id
+    written quoted: lite's parser strips the quotes at the definition as at a reference, so the id is usable, where the
+    engine keeps them and nothing can reference it (the words differ on 18 asks over 6 texts). S399, a ModelJoin over a
+    temporal self-association: lite compiles the model and refuses a query navigating the association, where the engine
+    refuses a parameter name not matching the milestoned association's original property names when the mapping
+    compiles (9 asks over 3 texts); ruled for now, and carried to the milestoning port, to be made exact when lite holds
+    the milestoned properties' original names and order (PHASE3.md, carried items). S376's quoted `"default"` schema:
+    lite folds the quoted spelling into the default schema and compiles, where the engine refuses "Can't find schema
+    '\"default\"' in database 'Db'" (reach 0).
+
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.

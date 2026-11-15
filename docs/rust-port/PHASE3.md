@@ -1551,7 +1551,8 @@ done, in the order of the design's §3.
      S387's class-level poison and H2's locale-dependent numbering; S389's lineage order under multiple inheritance (not
      run); S395's untyped transforms (9 / 3), subclass set ids and the passed-through child the resolver refuses; S397
      (a quoted enumeration mapping id), S398 (the own-package tier), S399 (item 4 (e)'s held pairing) and S376's quoted
-     `"default"` schema, each written for the owner to rule; ModelIntegrity's case check skipping a foreign-prefixed view column (engine "Can't find
+     `"default"` schema, each written for the owner to rule (all four ruled divergences, lite's kept, by the owner's ruling 40,
+     2026-11-15; S399 carried to the milestoning port); ModelIntegrity's case check skipping a foreign-prefixed view column (engine "Can't find
      column 'id'", JCE:567's neighbour); two ModelJoins of one association (the engine compiles, the last used; lite
      refuses); a join-mediated filter reading the main table (the engine refuses at plan, lite plans); a three-table
      join lite compiles that the engine refuses; the clean-sheet arm's wall after lifting, which leaves its lifted
@@ -1609,6 +1610,13 @@ when that slice lands.
   NULL into a class result or a graphFetch is the engine's error, "Error reading in property 'p'. Property of
   multiplicity [1] can not be null" (", PKs: 2" after it for `P.all()`; run on H2, `g5a/c_null*`); a projection
   returns the null, as lite does; lite returns the null in the other two.
+- **The milestoning port, with E: S399** (the owner's ruling 40, 2026-11-15: a ruled divergence for now). A ModelJoin
+  over a temporal self-association refused when the mapping compiles if its lambda's parameter names do not match the
+  milestoned association's original property names, in the engine's words ("Self-association ModelJoin requires lambda
+  parameter names to match the association property names ('reports' and 'reports'), got 'manager' and 'reports'";
+  legend-engine 4.145.0 `HelperMappingBuilder.java`, `resolveOriginalPropertyName`), once lite holds the milestoned
+  properties' original names and order; `MappingValidation.requireEngineModelJoin` and lite-normalizer's
+  `require_engine_model_join` then stop holding a temporal end. Reach: 9 asks over 3 texts (legend-pure's MJBTSelf).
 - **E: a clean-sheet includer's include walk through MappingClosures** (the normalizer's second batch's suite fix,
   `fc8966a9a`; for the owner's review). `MappingNormalizer.cleanSheetEnumerationMappings`' walk (`walkIncludedEnums`,
   `3970872b3`, item 1's MN:539) reaches the legacy surface twice -- `findLegacyMapping` for the included mapping and
