@@ -25,7 +25,17 @@
 # types-tier code E calls: Type.RelationType's duplicate column through ViewSignatures, KnowledgeLayer.superClass).
 # Tolerant: 144 refused, 32 before E (the index, refuseDuplicates) and 112 by E (83 ModelException, the 29 raw); 1,739
 # asks with walls E added. (Corrected 2026-11-14: the tool's own tally counts every refusal after the adoption as E's.)
-answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines	71e68af56e4aa914826c27135e1c10f95c6ffbc028710ad8e3c77cc38d708abc
+# RE-FROZEN BY THE NORMALIZER BATCH (begin)
+# Re-frozen 2026-11-15 on worktree-rust-port-phase0 by the normalizer batch (docs/rust-port/PHASE3.md, the normalizer
+# slice's entry, "the normalizer batch"; PHASE3_SHIM_DESIGN.md section 10 rulings 30 and 34), each item that moved an
+# answer in its own commit, from two Java runs of the same NormalizerAnswers on one jar snapshot (byte-identical,
+# port-scratch/normbatch/tools/freeze_pair.sh), every moved ask attributed (attribution-2026-11-15-normalizer-batch.tsv
+# below: item, sha, dialect, the hash before and after; each moved ask one the batch's instrumented reach run tagged
+# with that item's site, none moved untagged). The asks and texts are unchanged (74,364 over 26,348). By item:
+#   2b: 218 asks over 75 texts -- census ASK 13: an unknown XStore / ModelJoin association is "Can't find association 'x'" (a ModelException; it was a NotImplementedException naming the kind)
+# RE-FROZEN BY THE NORMALIZER BATCH (end)
+attribution-2026-11-15-normalizer-batch.tsv	the batch's re-freezes' attribution: item, text sha, dialect, hash before, hash after (plain text: its own SHA-256)	ecfedbfdbd9403ece764a8996518a482dcbe801ce8edf7b393ff4908e82feb13
+answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines	91829f0e6f4bab26ff762829dc00b6efa4d1a8c5afb9c8e5257b22fbde0d7b82
 # CASES: the slice's targeted model texts for the oracle-blind sites (EF_CENSUS.md §10 item 3, E's), in the front
 # oracle's question form ({"sha","asks","text"}, the sha the SHA-256 of the text's UTF-16 units, asked at every
 # dialect), written by port-scratch/normalizer/tools/make_cases.py: ten cases -- a view-on-view cycle mapped and alone,

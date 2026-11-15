@@ -413,10 +413,14 @@ final class AssociationSynthesis {
                     ad0.property1().targetClassFqn(),
                     ad0.property2().targetClassFqn());
         }
+        // only an XStore or ModelJoin mapping whose association the model has not reaches here (a resolved one returned
+        // above): the model's error in the engine's words, as legend-engine 4.145.0 refuses it when the mapping
+        // compiles (asked of the engine: "Can't find association 'w::Nope'"). Until 2026-11-15 a NotImplementedException naming
+        // the mapping's kind, "Association mapping kind Cross not supported" (census ASK 13, ruling 30; the normalizer
+        // batch, item 2)
         if (!(am instanceof AssociationMapping.Relational rel)) {
-            throw new NotImplementedException(
-                    "Association mapping kind " + am.getClass().getSimpleName()
-                  + " not supported; mapping=" + md.qualifiedName());
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "Can't find association '" + am.associationName() + "'");
         }
         AssociationDefinition ad = resolveAssociation(model, md, am)
                 .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 

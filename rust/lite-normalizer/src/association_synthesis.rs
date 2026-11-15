@@ -9,7 +9,8 @@
 //!
 //! RE-EXPRESSED (census §4): AS:202's `m == md` is "skip index 0" (`closure = [md] ++ closure.mappings()`, and
 //! `mappings()` excludes `md`'s own name, so only index 0 can be `md`). The texts holding
-//! `getClass().getSimpleName()` (:418, :441) spell each kind's Java simple name (`Cross`, `ModelJoin`, ...).
+//! `getClass().getSimpleName()` (:441) spell each kind's Java simple name (`Join`, `Column`, ...); :418's unknown
+//! XStore / ModelJoin association is the engine's "Can't find association" (2026-11-15, the normalizer batch, item 2).
 //! `withInjectedPMs` drops an embedded block's `~primaryKey` (:308-309, ASK 13; lite-model's two-argument
 //! `PropertyMappingEmbedded::new`); `resolveAssociation`'s import wildcards and same-package fallback (:387-397,
 //! ASK 15) stay as Java has them. Not ported (census §3, AS-4): the 8-argument `buildAssocPredicateBody` (:564-573)
@@ -418,14 +419,15 @@ pub fn synthesize_association_mapping(
         return mapping_normalizer::synthesize_xstore_mapping(md, xs, model, &class_a, &class_b).map(Some);
     }
     let AssociationMapping::AssociationMappingRelational(rel) = am else {
-        // an unresolved ModelJoin / Cross association lands here (census H3 note 2: its text names the kind, not the
-        // unknown association), ported as Java has it
-        return Err(Thrown::not_implemented(cat!(
-            "Association mapping kind ",
-            association_mapping_simple_name(am),
-            " not supported; mapping=",
-            md.qualified_name()
-        )));
+        // only an unresolved ModelJoin / Cross association lands here: the model's error in the engine's words (asked
+        // of legend-engine 4.145.0: "Can't find association 'w::Nope'"); until 2026-11-15 a NotImplementedException naming
+        // the kind, "Association mapping kind Cross not supported" (census ASK 13, ruling 30; the normalizer batch,
+        // item 2)
+        return Err(Thrown::model(
+            Phase::Normalize,
+            cat!("Can't find association '", am.association_name(), "'"),
+            None,
+        ));
     };
     let ad = resolve_association(model, md, am).ok_or_else(|| {
         Thrown::model(
@@ -599,15 +601,6 @@ pub fn synthesize_association_mapping(
         forward_property: Some(first_am.property_name().clone()),
     }));
     Ok(Some(function))
-}
-
-/// `am.getClass().getSimpleName()` (:418): the association mapping record's Java simple name.
-fn association_mapping_simple_name(am: &AssociationMapping) -> &'static str {
-    match am {
-        AssociationMapping::AssociationMappingRelational(_) => "Relational",
-        AssociationMapping::AssociationMappingCross(_) => "Cross",
-        AssociationMapping::AssociationMappingModelJoin(_) => "ModelJoin",
-    }
 }
 
 /// `firstAm.body().getClass().getSimpleName()` (:441): the property mapping record's Java simple name.
@@ -1287,18 +1280,17 @@ Mapping a::Plain
         let mut ledger = MappingLedger::new(HashSet::new());
         let mut refuse =
             |am: AssociationMapping| synthesize_association_mapping(&top, &am, &f.idx, &mut ledger).unwrap_err();
-        // an unresolved Cross / ModelJoin association: the kind's Java simple name
+        // an unresolved Cross / ModelJoin association: the model's error in the engine's words (2026-11-15, the
+        // normalizer batch, item 2; it was a NotImplementedException naming the kind's Java simple name)
         let cross = refuse(AssociationMapping::AssociationMappingCross(Arc::new(
             AssociationMappingCross {
                 association_name: j("a::Nope"),
                 property_mappings2: empty(),
             },
         )));
-        assert!(cross.is_not_implemented());
-        assert_eq!(
-            cross.message(),
-            Some(j("Association mapping kind Cross not supported; mapping=a::Top"))
-        );
+        assert!(cross.is_model());
+        assert_eq!(cross.phase(), Some(Phase::Normalize));
+        assert_eq!(cross.message(), Some(j("Can't find association 'a::Nope'")));
         let model_join = refuse(AssociationMapping::AssociationMappingModelJoin(Arc::new(
             AssociationMappingModelJoin {
                 association_name: j("a::Nope"),
@@ -1309,10 +1301,8 @@ Mapping a::Plain
                 }),
             },
         )));
-        assert_eq!(
-            model_join.message(),
-            Some(j("Association mapping kind ModelJoin not supported; mapping=a::Top"))
-        );
+        assert!(model_join.is_model());
+        assert_eq!(model_join.message(), Some(j("Can't find association 'a::Nope'")));
         let unknown = refuse(relational_am("a::Nope", Vec::new()));
         assert!(unknown.is_model());
         assert_eq!(unknown.phase(), Some(Phase::Normalize));
