@@ -171,7 +171,22 @@ pub fn stack_body(
     members: &[ClassMapping],
     ledger: &mut MappingLedger,
 ) -> Result<p::ValueSpecification, Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.stackBody"))
+    let mut out: Option<p::ValueSpecification> = None;
+    let mut ids: Vec<JStr> = Vec::with_capacity(members.len());
+    for m in members {
+        let call = p::ValueSpecification::AppliedFunction(Arc::new(calls::exact(&member_function(md, m)?, Vec::new())));
+        out = Some(match out {
+            None => call,
+            Some(prev) => p::ValueSpecification::AppliedFunction(Arc::new(calls::platform(
+                &JStr::from("concatenate"),
+                vec![prev, call],
+            ))),
+        });
+        ids.push(ResolvedMapping::id_of(m));
+    }
+    // the arms as a FACT beside the body (the binding's memberSetIds), recorded before the no-member refusal
+    ledger.operation_members.put(ResolvedMapping::id_of(operation), ids);
+    require(out, Some("an operation with no members"))
 }
 
 /// `UnionSynthesis.pmIdentity` (:159): a PM's identity for the extends merge, `(name, targetSetId)`.
@@ -511,7 +526,115 @@ pub fn synth_union(
     model: &ModelIndex,
     ledger: &mut MappingLedger,
 ) -> Result<p::ValueSpecification, Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.synthUnion"))
+    if u.member_set_ids.is_empty() {
+        return Err(Thrown::not_implemented(cat!(
+            "Operation union with no member sets; class=",
+            &u.class_name,
+            ", mapping=",
+            md.qualified_name()
+        )));
+    }
+    // member sets resolve by setId ACROSS INCLUDES (the includes' sets, this mapping's own on top: Java's `bySetId`
+    // is `visibleSets()`'s body); a member may map a SUBCLASS of the operation class
+    let by_set_id = md.visible_sets()?;
+    let mut member_sets: Vec<ClassMapping> = Vec::new();
+    for set_id in u.member_set_ids.iter() {
+        let member = by_set_id.get(set_id);
+        if let Some(ClassMapping::ClassMappingPure(_)) = member {
+            // MIXED-KIND union: the member list recorded for the resolver-side arm synthesis BEFORE the throw (the
+            // fact survives the error)
+            ledger.mixed_unions.put(u.class_name.clone(), u.member_set_ids.to_vec());
+            return Err(Thrown::not_implemented(cat!(
+                "Operation union member set '",
+                set_id,
+                "' of class '",
+                &u.class_name,
+                "' is a Pure (M2M) set \u{2014} the mixed-kind union extent synthesizes at the resolver; mapping=",
+                md.qualified_name()
+            )));
+        }
+        let member = match member {
+            Some(m @ (ClassMapping::ClassMappingRelational(_) | ClassMapping::ClassMappingRelationFunction(_))) => m,
+            _ => {
+                return Err(Thrown::not_implemented(cat!(
+                    "Operation union member set '",
+                    set_id,
+                    "' of class '",
+                    &u.class_name,
+                    "' is ",
+                    if member.is_none() {
+                        "missing"
+                    } else {
+                        "not a Relational or Relation(~func) set"
+                    },
+                    "; mapping=",
+                    md.qualified_name()
+                )));
+            }
+        };
+        // a member must map the operation class or a SUBCLASS (audit 8 S8)
+        if !model.knowledge().is_subtype(member.class_name(), &u.class_name) {
+            return Err(Thrown::model(
+                Phase::Normalize,
+                cat!(
+                    "Operation union member set '",
+                    set_id,
+                    "' maps '",
+                    member.class_name(),
+                    "', which is not '",
+                    &u.class_name,
+                    "' or a subclass; mapping=",
+                    md.qualified_name()
+                ),
+                None,
+            ));
+        }
+        member_sets.push(member.clone());
+    }
+    // per-pair AssociationMapping entries ([sourceSet, targetSet]) land on their owning MEMBER set as routed
+    // class-typed Join PMs
+    let pair_entries = md.pair_entries(&u.class_name)?;
+    if !pair_entries.is_empty() {
+        for slot in member_sets.iter_mut() {
+            let ClassMapping::ClassMappingRelational(mr) = &*slot else {
+                continue;
+            };
+            // OWN entries + EXTENDS-routed entries merged, own entries first; the pmIdentity dedup below keeps them
+            // authoritative
+            let mut add: Vec<Arc<PropertyMappingJoin>> = Vec::new();
+            let mut cur = Some(relational_id(mr));
+            let mut seen_sets: HashSet<JStr> = HashSet::new();
+            while let Some(c) = cur
+                && seen_sets.insert(c.clone())
+            {
+                if let Some(lvl) = pair_entries.get(&c) {
+                    add.extend(lvl.iter().cloned());
+                }
+                cur = match md.set(Some(&c))? {
+                    Some(ClassMapping::ClassMappingRelational(ur)) => ur.extends_set_id.clone(),
+                    _ => None,
+                };
+            }
+            if add.is_empty() {
+                continue;
+            }
+            // deduped against the GROWING list (two equal entries are added once)
+            let mut pms: Vec<PropertyMapping> = mr.property_mappings.to_vec();
+            for j in add {
+                let j = PropertyMapping::PropertyMappingJoin(j);
+                if !pms.iter().any(|q| pm_identity(q) == pm_identity(&j)) {
+                    pms.push(j);
+                }
+            }
+            let rebuilt = ClassMappingRelational {
+                property_mappings: list(pms),
+                ..(**mr).clone()
+            };
+            *slot = ClassMapping::ClassMappingRelational(Arc::new(rebuilt));
+        }
+    }
+    record_key_threads_of(md, &u.class_name, &member_sets, model, ledger)?;
+    stack_body(md, &ClassMapping::ClassMappingUnion(u.clone()), &member_sets, ledger)
 }
 
 /// `UnionSynthesis.synthInheritance` (:525): an Inheritance operation's stack over its members.
@@ -521,7 +644,28 @@ pub fn synth_inheritance(
     model: &ModelIndex,
     ledger: &mut MappingLedger,
 ) -> Result<p::ValueSpecification, Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.synthInheritance"))
+    // ENGINE ALGORITHM (router_operations.pure getMappedLeafTypes): the ordered member enumeration is SHARED with
+    // route classification (`inheritance_members`): ordinal alignment by construction
+    let members = inheritance_members(md, ih, model)?;
+    if members.is_empty() {
+        return Err(Thrown::not_implemented(cat!(
+            "inheritance Operation for '",
+            &ih.class_name,
+            "' finds no mapped subclass sets; mapping=",
+            md.qualified_name()
+        )));
+    }
+    let operation = ClassMapping::ClassMappingInheritance(ih.clone());
+    if members.len() == 1 {
+        // the sole member's own synthesis is the class's function (no stack); the fact names the one arm
+        ledger
+            .operation_members
+            .put(ResolvedMapping::id_of(&operation), vec![relational_id(&members[0])]);
+        return synth_relational(md, &members[0], model, ledger);
+    }
+    let members: Vec<ClassMapping> = members.into_iter().map(ClassMapping::ClassMappingRelational).collect();
+    record_key_threads_of(md, &ih.class_name, &members, model, ledger)?;
+    stack_body(md, &operation, &members, ledger)
 }
 
 /// `UnionSynthesis.recordKeyThreadsOf` (:560): the members' key threads into `ledger.union_key_threads`.
@@ -541,7 +685,43 @@ pub fn inheritance_members(
     ih: &ClassMappingInheritance,
     model: &ModelIndex,
 ) -> Result<Vec<Arc<ClassMappingRelational>>, Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.inheritanceMembers"))
+    let mut chosen: Vec<ClassMapping> = Vec::new();
+    collect_inheritance_members(md, &ih.class_name, model, &mut chosen)?;
+    let mut members: Vec<Arc<ClassMappingRelational>> = Vec::new();
+    for cm in &chosen {
+        match cm {
+            ClassMapping::ClassMappingRelational(mr) => members.push(mr.clone()),
+            ClassMapping::ClassMappingUnion(u2) => {
+                // Java's `bySetId` again, built per union member (lazily: a closure walk is loud here only)
+                let by_set_id = md.visible_sets()?;
+                for set_id in u2.member_set_ids.iter() {
+                    if let Some(ClassMapping::ClassMappingRelational(mr2)) = by_set_id.get(set_id) {
+                        members.push(mr2.clone());
+                    } else {
+                        return Err(Thrown::not_implemented(cat!(
+                            "inheritance member union set '",
+                            set_id,
+                            "' is not a Relational set; mapping=",
+                            md.qualified_name()
+                        )));
+                    }
+                }
+            }
+            ClassMapping::ClassMappingPure(_)
+            | ClassMapping::ClassMappingRelationFunction(_)
+            | ClassMapping::ClassMappingInheritance(_) => {
+                return Err(Thrown::not_implemented(cat!(
+                    "inheritance Operation member for '",
+                    cm.class_name(),
+                    "' is a ",
+                    java_simple_name(cm),
+                    " mapping \u{2014} not supported yet; mapping=",
+                    md.qualified_name()
+                )));
+            }
+        }
+    }
+    Ok(members)
 }
 
 /// `UnionSynthesis.collectInheritanceMembers` (:623): `base`'s mapped subclasses' sets into `chosen` -- Java's
@@ -553,7 +733,70 @@ pub fn collect_inheritance_members(
     model: &ModelIndex,
     chosen: &mut Vec<ClassMapping>,
 ) -> Result<(), Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.collectInheritanceMembers"))
+    // ROOT class mapping per class, includes first (own definitions win): Java copies `md.roots()`, read by lookup
+    let root_by_class = md.roots();
+    let k = model.knowledge();
+    // the strict subtree of base (a membership set); then the universe order (model classes, then natives -- the
+    // member order the rosters pin) restricted to it
+    let subtree: HashSet<JStr> = k.subtree(base).into_iter().collect();
+    let mut subs: Vec<JStr> = Vec::new();
+    for cd in model.classes() {
+        if subtree.contains(&cd.qualified_name) {
+            subs.push(cd.qualified_name.clone());
+        }
+    }
+    for nc in catalog().native_classes() {
+        if subtree.contains(&nc.qualified_name) && !subs.contains(&nc.qualified_name) {
+            subs.push(nc.qualified_name.clone());
+        }
+    }
+    // a leaf has no subclass at all
+    let leaves: Vec<JStr> = subs.into_iter().filter(|c| k.direct_subtypes(c).is_empty()).collect();
+    for leaf in leaves {
+        // nearest mapped ancestor at or above the leaf, STRICTLY below base
+        let mut level: VecDeque<JStr> = VecDeque::new();
+        let mut seen: HashSet<JStr> = HashSet::new();
+        level.push_back(leaf);
+        'outer: while !level.is_empty() {
+            let n = level.len();
+            for _ in 0..n {
+                let Some(c) = level.pop_front() else {
+                    break;
+                };
+                if !seen.insert(c.clone()) || c == *base {
+                    continue;
+                }
+                // STRICTLY BELOW base means inside base's subtree (a multiple-inheritance leaf's other parent chain
+                // leaves it)
+                if !subtree.contains(&c) {
+                    continue;
+                }
+                if let Some(cm) = root_by_class.get(&c) {
+                    if let ClassMapping::ClassMappingInheritance(_) = cm {
+                        collect_inheritance_members(md, &c, model, chosen)?;
+                    } else if !chosen.contains(cm) {
+                        // Java's LinkedHashSet<ClassMapping>: by record equality, first insertion kept
+                        chosen.push(cm.clone());
+                    }
+                    break 'outer;
+                }
+                let cd = k.hierarchy_class(Some(&c)).ok_or_else(|| {
+                    Thrown::illegal_state(cat!(
+                        "F7.8: class unresolved at UnionSynthesis#3 (this default NEVER fired on the corpus census; \
+                         a miss here is a real model gap): ",
+                        &c
+                    ))
+                })?;
+                // the declared heads that are plain names (a generic head is climbed by no one here)
+                for sup in cd.super_classes.iter() {
+                    if let p::TypeExpression::TypeExpressionNameRef(nr) = sup {
+                        level.push_back(nr.name.clone());
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// `UnionSynthesis.tableKey` (:768): the sole PRIMARY KEY column of a member set's main table, else none.
@@ -641,4 +884,16 @@ fn relational_id(r: &Arc<ClassMappingRelational>) -> JStr {
 /// Java's `"" + s` of a nullable string: its text, or `"null"`.
 fn null_or(s: Option<&JStr>) -> JStr {
     s.cloned().unwrap_or_else(|| JStr::from("null"))
+}
+
+/// `cm.getClass().getSimpleName()` of a class mapping: its Java record's simple name (`ClassMapping.Pure` is
+/// `"Pure"`), spelled per variant.
+fn java_simple_name(cm: &ClassMapping) -> &'static str {
+    match cm {
+        ClassMapping::ClassMappingRelational(_) => "Relational",
+        ClassMapping::ClassMappingPure(_) => "Pure",
+        ClassMapping::ClassMappingUnion(_) => "Union",
+        ClassMapping::ClassMappingRelationFunction(_) => "RelationFunction",
+        ClassMapping::ClassMappingInheritance(_) => "Inheritance",
+    }
 }
