@@ -266,3 +266,47 @@ fn the_shared_model_normalizes_with_every_body_ported() {
         ))
     );
 }
+
+/// An enumeration mapping id taken twice across a mapping's closure is refused in the engine's words, and a value the
+/// enumeration has not is the engine's "Can't find enum value" (2026-11-15, the normalizer batch, item 2, census ASK 13;
+/// NormalizerBatchTest's twin).
+#[test]
+fn enumeration_mappings_are_refused_in_the_engines_words() {
+    let twice = model(concat!(
+        "Enum w::E { A, B }\n",
+        "Class w::P { e: w::E[0..1]; }\n",
+        "###Relational\n",
+        "Database w::Db ( Table T (ID INTEGER PRIMARY KEY, C VARCHAR(5)) )\n",
+        "###Mapping\n",
+        "Mapping w::Base ( w::E: EnumerationMapping em { A: 'a', B: 'b' } )\n",
+        "###Mapping\n",
+        "Mapping w::M (\n",
+        "  include w::Base\n",
+        "  w::E: EnumerationMapping em { A: 'x', B: 'y' }\n",
+        "  w::P: Relational { ~mainTable [w::Db]T e: EnumerationMapping em: [w::Db]T.C }\n",
+        ")\n"
+    ));
+    let e = crate::normalize(&twice, &index(&twice), None).unwrap_err();
+    assert!(e.is_model());
+    assert_eq!(e.phase(), Some(Phase::Model));
+    assert_eq!(e.element(), Some(j("w::M")));
+    assert_eq!(
+        e.message(),
+        Some(j(
+            "Duplicated enumeration mappings found with ID 'em' in mapping 'w::M'"
+        ))
+    );
+    let value = model(concat!(
+        "Enum w::E { A, B }\n",
+        "Class w::P { e: w::E[0..1]; }\n",
+        "###Relational\n",
+        "Database w::Db ( Table T (ID INTEGER PRIMARY KEY, C VARCHAR(5)) )\n",
+        "###Mapping\n",
+        "Mapping w::M (\n",
+        "  w::E: EnumerationMapping { A: 'x', B: 'y', C: 'z' }\n",
+        "  w::P: Relational { ~mainTable [w::Db]T e: EnumerationMapping w_E: [w::Db]T.C }\n",
+        ")\n"
+    ));
+    let e = crate::normalize(&value, &index(&value), None).unwrap_err();
+    assert_eq!(e.message(), Some(j("Can't find enum value 'C' in enumeration 'w::E'")));
+}

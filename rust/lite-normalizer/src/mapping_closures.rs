@@ -35,6 +35,7 @@ use std::sync::Arc;
 
 use lite_error::Phase;
 use lite_model::linked::{LinkedMap, empty, list};
+use lite_model::names::set_id_of;
 use lite_model::text::{contains, last_index_of};
 use lite_model::{
     AssociationMapping, ClassMapping, ClassMappingInheritance, ClassMappingRelational, ClassMappingUnion,
@@ -447,6 +448,52 @@ impl<'a> Closure<'a> {
                 out.put(cm.class_name().clone(), cm.clone());
             }
         }
+    }
+
+    /// `MappingClosures.Closure.duplicateEnumerationMappingId()`: the first enumeration mapping id taken twice across this
+    /// mapping's closure -- by two mappings, or twice within one (an include's includes first, then its own, then this
+    /// mapping's own, each mapping once) -- by the effective id; none when none. The engine's
+    /// `collectAndValidateEnumerationMappingIds` (MappingValidator.java:197-229; 2026-11-15, the normalizer batch, item 2).
+    pub fn duplicate_enumeration_mapping_id(&self) -> Result<Option<JStr>, Thrown> {
+        let mut owner: LinkedMap<JStr, JStr> = LinkedMap::new();
+        let mut seen: HashSet<JStr> = HashSet::new();
+        self.walk_enumeration_ids(&self.state.fqn, &mut owner, &mut seen)
+    }
+
+    /// `MappingClosures.Closure.walkEnumerationIds`.
+    fn walk_enumeration_ids(
+        &self,
+        mapping_fqn: &JStr,
+        owner: &mut LinkedMap<JStr, JStr>,
+        seen: &mut HashSet<JStr>,
+    ) -> Result<Option<JStr>, Thrown> {
+        if !seen.insert(mapping_fqn.clone()) {
+            return Ok(None);
+        }
+        let md = self
+            .owner
+            .surface_of(mapping_fqn)
+            .ok_or_else(|| missing_mapping(mapping_fqn))?;
+        for inc in md.includes.iter() {
+            if let Some(dup) = self.walk_enumeration_ids(&inc.mapping_path, owner, seen)? {
+                return Ok(Some(dup));
+            }
+        }
+        let mut own: HashSet<JStr> = HashSet::new();
+        for em in md.enumeration_mappings.iter() {
+            let id = set_id_of(em.mapping_id.as_ref(), &em.enum_name);
+            let other = match owner.get(&id) {
+                Some(prev) => prev != mapping_fqn,
+                None => {
+                    owner.put(id.clone(), mapping_fqn.clone());
+                    false
+                }
+            };
+            if other || !own.insert(id.clone()) {
+                return Ok(Some(id));
+            }
+        }
+        Ok(None)
     }
 
     /// `MappingClosures.Closure.enumerationMappings()` (:355): enumeration mappings through the includes, transitively; a bare include path

@@ -350,6 +350,41 @@ final class MappingClosures {
             }
         }
 
+        /** The first enumeration mapping id taken twice across this
+         * mapping's closure -- by two mappings, or twice within one (an
+         * include's includes first, then its own, then this mapping's own,
+         * each mapping once) -- by the effective id (the id written, else the
+         * enumeration's FQN with {@code ::} as {@code _}); null when none. The
+         * engine's {@code collectAndValidateEnumerationMappingIds}
+         * (MappingValidator.java:197-229; 2026-11-15, the normalizer batch,
+         * item 2). */
+        @com.legend.base.Nullable String duplicateEnumerationMappingId() {
+            return walkEnumerationIds(fqn, new HashMap<>(), new HashSet<>());
+        }
+
+        private @com.legend.base.Nullable String walkEnumerationIds(String mappingFqn,
+                Map<String, String> owner, Set<String> seen) {
+            if (!seen.add(mappingFqn)) {
+                return null;
+            }
+            LegacyMappingDefinition md = surfaceOf(mappingFqn).orElseThrow(() -> missingMapping(mappingFqn));
+            for (MappingInclude inc : md.includes()) {
+                String dup = walkEnumerationIds(inc.mappingPath(), owner, seen);
+                if (dup != null) {
+                    return dup;
+                }
+            }
+            Set<String> own = new HashSet<>();
+            for (EnumerationMapping em : md.enumerationMappings()) {
+                String id = com.legend.model.SetId.of(em.mappingId(), em.enumName());
+                String prev = owner.putIfAbsent(id, mappingFqn);
+                if ((prev != null && !prev.equals(mappingFqn)) || !own.add(id)) {
+                    return id;
+                }
+            }
+            return null;
+        }
+
         /** Enumeration mappings through the includes, transitively; a bare
          * include path resolves in the mapping's own package first. */
         List<EnumerationMapping> enumerationMappings() {

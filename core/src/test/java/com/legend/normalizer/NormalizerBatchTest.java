@@ -108,6 +108,48 @@ class NormalizerBatchTest {
         assertEquals(Map.of("w::P", Map.of("firm", "w::F")), MappingFacts.routedTargetClasses(md));
     }
 
+    // ---- item 2 (census ASK 13): enumeration mappings -- an id taken twice, a value the enumeration has not ----
+
+    private static final String ENUMERATION_ID_TWICE = """
+            Enum w::E { A, B }
+            Class w::P { e: w::E[0..1]; }
+            ###Relational
+            Database w::Db ( Table T (ID INTEGER PRIMARY KEY, C VARCHAR(5)) )
+            ###Mapping
+            Mapping w::Base ( w::E: EnumerationMapping em { A: 'a', B: 'b' } )
+            ###Mapping
+            Mapping w::M (
+              include w::Base
+              w::E: EnumerationMapping em { A: 'x', B: 'y' }
+              w::P: Relational { ~mainTable [w::Db]T e: EnumerationMapping em: [w::Db]T.C }
+            )
+            """;
+
+    private static final String ENUMERATION_VALUE_UNKNOWN = """
+            Enum w::E { A, B }
+            Class w::P { e: w::E[0..1]; }
+            ###Relational
+            Database w::Db ( Table T (ID INTEGER PRIMARY KEY, C VARCHAR(5)) )
+            ###Mapping
+            Mapping w::M (
+              w::E: EnumerationMapping { A: 'x', B: 'y', C: 'z' }
+              w::P: Relational { ~mainTable [w::Db]T e: EnumerationMapping w_E: [w::Db]T.C }
+            )
+            """;
+
+    @Test
+    @DisplayName("item 2: an enumeration mapping id taken twice in a closure, and a value the enumeration lacks, in the engine's words")
+    void enumerationMappingsAreRefusedInTheEnginesWords() {
+        // asked of the engine: "Duplicated enumeration mappings found with ID 'em' in mapping 'w::M'"
+        // (MappingValidator); until 2026-11-15 lite accepted the pair, a lookup by the id taking the first
+        String twice = "Duplicated enumeration mappings found with ID 'em' in mapping 'w::M'";
+        assertEquals(List.of("[8:1] " + twice), strict(ENUMERATION_ID_TWICE));
+        assertEquals(Map.of("w::M", twice), module(ENUMERATION_ID_TWICE).walls());
+        // asked of the engine: "Can't find enum value 'C' in enumeration 'w::E'"; until 2026-11-15 lite's own words,
+        // "EnumerationMapping 'null' maps value 'C' ...", an anonymous mapping's id printed as 'null'
+        assertEquals(List.of("[6:1] Can't find enum value 'C' in enumeration 'w::E'"), strict(ENUMERATION_VALUE_UNKNOWN));
+    }
+
     // ---- item 2 (census ASK 13): a view-backed set's enumeration over an expression reads through the frame ----
 
     private static final String ENUMERATED_EXPRESSION_UNDER_A_VIEW = """

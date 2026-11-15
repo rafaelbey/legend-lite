@@ -34,9 +34,10 @@
 # with that item's site, none moved untagged). The asks and texts are unchanged (74,364 over 26,348). By item:
 #   2b: 218 asks over 75 texts -- census ASK 13: an unknown XStore / ModelJoin association is "Can't find association 'x'" (a ModelException; it was a NotImplementedException naming the kind)
 #   2e: 216 asks over 72 texts -- census ASK 13: MappingFacts names a union member and a routed target by the effective set id, the first match (it matched the raw setId, absent when no id was written)
+#   2fg: 72 asks over 24 texts -- census ASK 13: an enumeration mapping id taken twice across a mapping's closure is "Duplicated enumeration mappings found with ID 'x' in mapping 'M'" (the engine's MappingValidator; lite accepted it); an unknown enum value "Can't find enum value" (no ask moved by this one)
 # RE-FROZEN BY THE NORMALIZER BATCH (end)
-attribution-2026-11-15-normalizer-batch.tsv	the batch's re-freezes' attribution: item, text sha, dialect, hash before, hash after (plain text: its own SHA-256)	e6e4ade5e10bd726d58aa0003981b24c4cbfbad56e52e7367bf3f145c0c05dd5
-answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines	cd2afbe3444e4a8fa3b7e4720b0eebd7cb5a02fac1884fc275eb5d1f5293d6ba
+attribution-2026-11-15-normalizer-batch.tsv	the batch's re-freezes' attribution: item, text sha, dialect, hash before, hash after (plain text: its own SHA-256)	d3367bd5f7fb5e47dc96b41ff88eea19fff07f897f0d24e559310a77dafb35b2
+answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines	d9d5184630ef02f7a5a1acd5fce0a5a0fc50f0602d1c86ee2cf956c176a23fe2
 # CASES: the slice's targeted model texts for the oracle-blind sites (EF_CENSUS.md §10 item 3, E's), in the front
 # oracle's question form ({"sha","asks","text"}, the sha the SHA-256 of the text's UTF-16 units, asked at every
 # dialect), written by port-scratch/normalizer/tools/make_cases.py: ten cases -- a view-on-view cycle mapped and alone,

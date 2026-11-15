@@ -2458,12 +2458,15 @@ public final class MappingNormalizer {
                 .map(EnumDefinition::values).orElseGet(MissProbe::miss);
         for (int i = values.size() - 1; i >= 0; i--) {
             EnumerationMapping.EnumValueMapping ev = values.get(i);
+            // in the engine's words (asked of legend-engine 4.145.0: "Can't find enum value 'C' in enumeration
+            // 'w::E'", CompileContext.resolveEnumValue); until 2026-11-15 lite's own, "EnumerationMapping 'em' maps
+            // value 'C' which enumeration 'w::E' does not declare", which printed 'null' for an anonymous mapping's
+            // id (the normalizer batch, item 2, census ASK 13, ruling 30)
             if (knownValues != null && !knownValues.contains(ev.enumValue())) {
                 throw new ModelException(
                         LegendCompileException.Phase.NORMALIZE,
-                        "EnumerationMapping '" + em.mappingId() + "' maps value '"
-                                + ev.enumValue() + "' which enumeration '"
-                                + em.enumName() + "' does not declare");
+                        "Can't find enum value '" + ev.enumValue() + "' in enumeration '"
+                                + em.enumName() + "'");
             }
             ValueSpecification disj = null;
             for (EnumerationMapping.SourceValue sv : ev.sourceValues()) {

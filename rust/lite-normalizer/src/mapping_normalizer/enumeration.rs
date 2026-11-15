@@ -137,16 +137,16 @@ pub fn translate_enumerated_source(
         if let Some(known) = &known_values
             && !known.contains(&ev.enum_value)
         {
+            // in the engine's words (asked of legend-engine 4.145.0, CompileContext.resolveEnumValue); until 2026-11-15
+            // lite's own, which printed 'null' for an anonymous mapping's id (the normalizer batch, item 2, ASK 13)
             return Err(Thrown::model(
                 Phase::Normalize,
                 cat!(
-                    "EnumerationMapping '",
-                    or_null(em.mapping_id.as_ref()),
-                    "' maps value '",
+                    "Can't find enum value '",
                     &ev.enum_value,
-                    "' which enumeration '",
+                    "' in enumeration '",
                     &em.enum_name,
-                    "' does not declare"
+                    "'"
                 ),
                 None,
             ));

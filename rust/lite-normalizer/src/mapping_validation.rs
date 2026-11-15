@@ -43,6 +43,21 @@ pub fn run(r: &ResolvedMapping<'_>, model: &ModelIndex) -> Result<LinkedMap<JStr
             Some(&md.qualified_name),
         ));
     }
+    // an enumeration mapping id taken twice across the closure, in the engine's words, checked next as the engine checks
+    // it (MappingValidator.collectAndValidateEnumerationMappingIds; 2026-11-15, the normalizer batch, item 2, ASK 13)
+    if let Some(dup) = closure.duplicate_enumeration_mapping_id()? {
+        return Err(Thrown::model(
+            Phase::Model,
+            cat!(
+                "Duplicated enumeration mappings found with ID '",
+                &dup,
+                "' in mapping '",
+                &md.qualified_name,
+                "'"
+            ),
+            Some(&md.qualified_name),
+        ));
+    }
     let mut invalid: LinkedMap<JStr, Thrown> = LinkedMap::new();
     for cm in md.class_mappings.iter() {
         let checked = match cm {

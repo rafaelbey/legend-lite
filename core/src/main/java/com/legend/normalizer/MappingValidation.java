@@ -55,6 +55,17 @@ final class MappingValidation {
                     "Duplicated class mappings found with ID " + dupIds
                     + " in mapping '" + md.qualifiedName() + "'", md.qualifiedName());
         }
+        // an enumeration mapping id taken twice across the closure, in the engine's words, checked next as the engine
+        // checks it (MappingValidator.validateMappingElementIds, collectAndValidateEnumerationMappingIds: asked of
+        // legend-engine 4.145.0, "Duplicated enumeration mappings found with ID 'em' in mapping 'w::M'"). Until
+        // 2026-11-15 lite accepted the pair and a lookup by that id took the first (the normalizer batch, item 2,
+        // census ASK 13, ruling 30)
+        String dupEnumId = closure.duplicateEnumerationMappingId();
+        if (dupEnumId != null) {
+            throw new ModelException(LegendCompileException.Phase.MODEL,
+                    "Duplicated enumeration mappings found with ID '" + dupEnumId
+                    + "' in mapping '" + md.qualifiedName() + "'", md.qualifiedName());
+        }
         Map<String, ModelException> invalid = new LinkedHashMap<>();
         for (ClassMapping cm : md.classMappings()) {
             try {
