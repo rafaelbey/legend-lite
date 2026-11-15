@@ -310,3 +310,23 @@ fn enumeration_mappings_are_refused_in_the_engines_words() {
     let e = crate::normalize(&value, &index(&value), None).unwrap_err();
     assert_eq!(e.message(), Some(j("Can't find enum value 'C' in enumeration 'w::E'")));
 }
+
+/// A view's join its database has not is refused in the engine's words, the database's own name (2026-11-15, the
+/// normalizer batch, item 5, S376; NormalizerBatchTest's twin).
+#[test]
+fn a_views_missing_join_is_the_engines_refusal() {
+    let m = model(concat!(
+        "Class w::P { a: String[0..1]; }\n",
+        "###Relational\n",
+        "Database w::Db (\n",
+        "  Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), PID INTEGER)\n",
+        "  Table T2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20))\n",
+        "  View V (ID: T.ID PRIMARY KEY, A: @Nope | T2.NAME)\n",
+        ")\n",
+        "###Mapping\n",
+        "Mapping w::M ( w::P: Relational { ~mainTable [w::Db]V a: [w::Db]V.A } )\n"
+    ));
+    let e = crate::normalize(&m, &index(&m), None).unwrap_err();
+    assert!(e.is_model());
+    assert_eq!(e.message(), Some(j("Can't find join 'Nope' in database 'Db'")));
+}

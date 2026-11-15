@@ -470,6 +470,21 @@ pub fn emit_join_chain_routed(
             (None, None) => main_db.clone(),
         };
         let Some(jd) = model.find_join(Some(&hop_db), &hop.join_name) else {
+            // a VIEW's own join (no mapping) missing from its database: the engine's words (HelperRelationalBuilder
+            // .getJoin, the database's own name; 2026-11-15, the normalizer batch, item 5, S376); a mapping's keeps lite's
+            if md.is_none() {
+                return Err(Thrown::model(
+                    Phase::Normalize,
+                    cat!(
+                        "Can't find join '",
+                        &hop.join_name,
+                        "' in database '",
+                        &lite_names::view_signatures::db_name(&hop_db),
+                        "'"
+                    ),
+                    None,
+                ));
+            }
             return Err(Thrown::model(
                 Phase::Normalize,
                 cat!(

@@ -150,6 +150,32 @@ class NormalizerBatchTest {
         assertEquals(List.of("[6:1] Can't find enum value 'C' in enumeration 'w::E'"), strict(ENUMERATION_VALUE_UNKNOWN));
     }
 
+    // ---- item 5 (S376): a view's missing join in the engine's words ----
+
+    private static final String VIEW_MISSING_JOIN = """
+            Class w::P { a: String[0..1]; }
+            ###Relational
+            Database w::Db (
+              Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), PID INTEGER)
+              Table T2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20))
+              View V (ID: T.ID PRIMARY KEY, A: @Nope | T2.NAME)
+            )
+            ###Mapping
+            Mapping w::M ( w::P: Relational { ~mainTable [w::Db]V a: [w::Db]V.A } )
+            """;
+
+    @Test
+    @DisplayName("item 5: a view's join its database has not is the engine's \"Can't find join\"")
+    void aViewsMissingJoinIsTheEnginesRefusal() {
+        // asked of the engine: "Can't find join 'Nope' in database 'Db'" (HelperRelationalBuilder.getJoin, the
+        // database's own name); until 2026-11-15 lite's own words, "Join 'Nope' not found in db 'w::Db'; PM='A',
+        // store=w::Db"
+        String refusal = "Can't find join 'Nope' in database 'Db'";
+        assertEquals(List.of(refusal), strict(VIEW_MISSING_JOIN));
+        Compiler.BuiltModule m = module(VIEW_MISSING_JOIN);
+        assertEquals(refusal, m.walls().get("w::Db$view$V"));
+    }
+
     // ---- item 2 (census ASK 13): a view-backed set's enumeration over an expression reads through the frame ----
 
     private static final String ENUMERATED_EXPRESSION_UNDER_A_VIEW = """

@@ -360,8 +360,17 @@ final class JoinChainEmission {
 
             String hopDb = hop.databaseName() != null ? hop.databaseName()
                     : (chainDb != null ? chainDb : mainDb);
+            // a VIEW's own join (no mapping: the view's lift) missing from its database is refused in the engine's
+            // words, as legend-engine refuses the database when it compiles (HelperRelationalBuilder.getJoin, :190,
+            // the database's own name; asked of legend-engine 4.145.0: "Can't find join 'Nope' in database 'Db'").
+            // Until 2026-11-15 lite's own, "Join 'Nope' not found in db 'w::Db'; PM='A', store=w::Db" (the normalizer batch,
+            // item 5, S376); a mapping's missing join keeps lite's words
             DatabaseDefinition.JoinDefinition jd = model.findJoin(hopDb, hop.joinName())
-                    .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
+                    .orElseThrow(() -> md == null
+                            ? new ModelException(LegendCompileException.Phase.NORMALIZE,
+                                    "Can't find join '" + hop.joinName() + "' in database '"
+                                    + com.legend.protocol.Protocol.splitFqn(hopDb)[1] + "'")
+                            : new ModelException(LegendCompileException.Phase.NORMALIZE,
                             "Join '" + hop.joinName() + "' not found in db '"
                           + hopDb + "'; PM='" + propName + "', "
                           + ViewRelation.owner(md, hopDb)));

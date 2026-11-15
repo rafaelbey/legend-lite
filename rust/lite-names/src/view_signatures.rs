@@ -318,7 +318,7 @@ fn cant_find_table(spelled: &JStr, db_fqn: &JStr) -> Thrown {
 }
 
 /// A database's own name: what follows its path's last `::`.
-fn db_name(db_fqn: &JStr) -> JStr {
+pub fn db_name(db_fqn: &JStr) -> JStr {
     let db = &db_fqn.0;
     match db.windows(2).rposition(|w| w == [u16::from(b':'), u16::from(b':')]) {
         Some(i) => JStr::from(&db[i + 2..]),
