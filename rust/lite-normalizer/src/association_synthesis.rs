@@ -763,6 +763,11 @@ pub fn end_anchors(
             b: b.clone(),
         }));
     }
+    // an end whose set has no inferable table anchors nothing: the association withheld, never anchored on the table the
+    // join derives for that end (since 2026-11-15, the normalizer's second batch, item 3, S390)
+    if (a.is_none() && tableless(md, class_a, id_a)?) || (b.is_none() && tableless(md, class_b, id_b)?) {
+        return Ok(None);
+    }
     if (a.is_none() && b.is_none()) || join.joins.len() != 1 {
         return Ok(None);
     }
@@ -1011,6 +1016,22 @@ pub fn anchor_of_set(md: &ResolvedMapping<'_>, set_id: &JStr) -> Result<Option<A
 }
 
 /// `AssociationSynthesis.mainTableOfSet` (:787): a set's main table, declared or inferred quietly.
+/// `AssociationSynthesis.tableless`: whether the class's end set in the closure -- the set `set_id` names, else the
+/// class's root -- is a Relational set reading no inferable table (not JSON-sourced): S390's withheld end.
+fn tableless(md: &ResolvedMapping<'_>, class_fqn: &JStr, set_id: Option<&JStr>) -> Result<bool, Thrown> {
+    if let Some(set_id) = set_id
+        && let Some(ClassMapping::ClassMappingRelational(named)) = md.set(Some(set_id))?
+    {
+        return Ok(named.source_url.is_none() && main_table_of_set(&named)?.is_none());
+    }
+    for rcm in md.relational_sets(Some(class_fqn)) {
+        if rcm.root {
+            return Ok(rcm.source_url.is_none() && main_table_of_set(&rcm)?.is_none());
+        }
+    }
+    Ok(false)
+}
+
 pub fn main_table_of_set(rcm: &ClassMappingRelational) -> Result<Option<Arc<TableRef>>, Thrown> {
     match &rcm.main_table {
         Some(mt) => Ok(Some(mt.clone())),

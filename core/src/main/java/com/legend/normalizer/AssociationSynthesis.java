@@ -705,6 +705,13 @@ final class AssociationSynthesis {
         if (a != null && b != null) {
             return new EndAnchors(a, b);
         }
+        // an end whose set has no inferable table anchors nothing: the association is withheld, never anchored on the
+        // table the join derives for that end -- a derivation for an end class mapped outside the closure (since
+        // 2026-11-15, the normalizer's second batch, item 3, register row S390; LITE-ONLY, a tolerant build: a strict
+        // one refuses the set first, in the engine's words)
+        if ((a == null && tableless(md, classA, idA)) || (b == null && tableless(md, classB, idB))) {
+            return null;
+        }
         if ((a == null && b == null) || join.joins().size() != 1) {
             return null;
         }
@@ -875,6 +882,20 @@ final class AssociationSynthesis {
             }
         }
         return anchorTableOf(md, classFqn, model);
+    }
+
+    /** Whether {@code classFqn}'s end set in {@code md}'s closure -- the set {@code setId} names, else the class's root
+     *  -- is a Relational set reading no inferable table (not JSON-sourced): S390's withheld end. */
+    private static boolean tableless(ResolvedMapping md, String classFqn, @com.legend.base.Nullable String setId) {
+        if (setId != null && md.set(setId) instanceof ClassMapping.Relational named) {
+            return named.sourceUrl() == null && mainTableOfSet(named) == null;
+        }
+        for (ClassMapping.Relational rcm : md.relationalSets(classFqn)) {
+            if (rcm.root()) {
+                return rcm.sourceUrl() == null && mainTableOfSet(rcm) == null;
+            }
+        }
+        return false;
     }
 
     /** The table of the set {@code setId} names: a Relational set's

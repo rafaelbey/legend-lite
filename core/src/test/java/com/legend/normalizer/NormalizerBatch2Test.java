@@ -762,10 +762,13 @@ class NormalizerBatch2Test {
         assertEquals(List.of("[19:1] Can't find the main table for class 'null'. Please specify a main table using the"
                 + " ~mainTable directive."), strict(MAIN_TABLE_NONE));
         assertEquals(List.of(), strict(MAIN_TABLE_TWO_DATABASES));
-        // a tolerant build withholds the class and its association: never anchored on the other set's table
+        // a tolerant build withholds the class and its association: never anchored on the other set's table, nor on
+        // the table the join derives for the end (until 2026-11-15's follow-up the join's T2 anchored it)
         Compiler.BuiltModule m = module(MAIN_TABLE_ASSOCIATION);
         assertEquals(true, m.context().mappingPoison("w::M", "w::P").isPresent()
                 || m.context().mappingSetPoison("w::M", "w::P", "p1").isPresent());
+        assertEquals(true, m.context().mappingAssociationPoison("w::M", "w::PF").orElse("")
+                .startsWith("no predicate binding was emitted: "));
     }
 
     // ---- item 4 (a), S376: a mapping's own missing join ----
