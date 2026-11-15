@@ -63,15 +63,36 @@ class LegendLiteGapTest {
                 """);
     }
 
+    // 2026-11-15 (the normalizer batch, item 2: census ASK 13, ruling 30): XStore and ModelJoin association mappings
+    // are no gap -- an association the model declares compiles, as legend-engine 4.145.0 compiles it (asked) -- and the
+    // texts this test held, whose association the model lacks, are the model's error in the engine's words, "Can't
+    // find association 'demo::A_B'" (asked of the engine). The test said "refused by kind" ("kind Cross not supported",
+    // "kind ModelJoin not supported"): those words were the normalizer's NotImplementedException for an unknown
+    // association, never a refusal of the kind (rust/RETIRED_TESTS.md row).
+    private static final String A_B_MODEL = """
+            Class demo::A { p: Integer[1]; }
+            Class demo::B { q: Integer[1]; }
+            Association demo::A_B { b: demo::B[*]; a: demo::A[*]; }
+            ###Relational
+            Database demo::DB ( Table TA (P INTEGER PRIMARY KEY) Table TB (Q INTEGER PRIMARY KEY) )
+            ###Mapping
+            Mapping demo::M (
+              demo::A[a]: Relational { ~mainTable [demo::DB]TA p: [demo::DB]TA.P }
+              demo::B[b]: Relational { ~mainTable [demo::DB]TB q: [demo::DB]TB.Q }
+              %s
+            )
+            """;
+
     @Test
-    @DisplayName("cross-store and model-level association mappings are refused by kind")
-    void associationMappingKinds() {
-        // An honest refusal naming the construct, which is the right behaviour for a gap.
-        rejectsWith("XStore", "kind Cross not supported", """
+    @DisplayName("cross-store and model-join association mappings compile; one of an association the model lacks is refused")
+    void crossStoreAndModelJoinAssociationMappings() {
+        accepts("XStore", A_B_MODEL.formatted("demo::A_B: XStore { b[a, b]: $this.p == $that.q, a[b, a]: $this.q == $that.p }"));
+        accepts("ModelJoin", A_B_MODEL.formatted("demo::A_B: ModelJoin { {a: demo::A[1], b: demo::B[1]|$a.p == $b.q} }"));
+        rejectsWith("an XStore mapping of an association the model lacks", "Can't find association 'demo::A_B'", """
                 ###Mapping
                 Mapping demo::M ( demo::A_B: XStore { x: $this.p == $that.q } )
                 """);
-        rejectsWith("ModelJoin", "kind ModelJoin not supported", """
+        rejectsWith("a ModelJoin mapping of an association the model lacks", "Can't find association 'demo::A_B'", """
                 ###Mapping
                 Mapping demo::M ( demo::A_B: ModelJoin { {a: demo::A[1], b: demo::B[1]|$a.x == $b.y} } )
                 """);
