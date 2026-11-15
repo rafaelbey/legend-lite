@@ -52,6 +52,7 @@ pub mod mapping_tests;
 pub mod model_parser;
 pub mod mongodb_parser;
 pub mod nodes;
+pub mod normalizer_methods_e1;
 pub mod operator_parts;
 pub mod persistence_parser;
 pub mod probes;
