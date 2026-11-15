@@ -75,6 +75,10 @@ pub struct LiftMidStep {
 /// `UnionSynthesis.TABLE_KEY_SUFFIX` (:765): the shared table key's suffix, `<col>__pk`.
 pub const TABLE_KEY_SUFFIX: &str = "__pk";
 
+/// The JDK exceptions of `recordKeyThreads`' cast (:977), unreachable (the note there).
+const CLASS_CAST: &str = "java.lang.ClassCastException";
+const INDEX_OUT_OF_BOUNDS: &str = "java.lang.IndexOutOfBoundsException";
+
 /// `UnionSynthesis.memberFunction(md, member)` (:62): the FQN the arm calls for `member` (its defining mapping
 /// searched in the closure, own record first; `closure().get(0)` otherwise).
 pub fn member_function(md: &ResolvedMapping<'_>, member: &ClassMapping) -> Result<JStr, Thrown> {
@@ -676,7 +680,24 @@ pub fn record_key_threads_of(
     model: &ModelIndex,
     ledger: &mut MappingLedger,
 ) -> Result<(), Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.recordKeyThreadsOf"))
+    // a member without a declared ~mainTable keys on its INFERRED one (Java asks `inferMainTableQuiet` twice, a pure
+    // function of the set: once here)
+    let mut ms: Vec<ClassMapping> = Vec::with_capacity(members.len());
+    for m in members {
+        if let ClassMapping::ClassMappingRelational(mr) = m
+            && mr.main_table.is_none()
+            && let Some(inferred) = infer_main_table_quiet(mr)?
+        {
+            ms.push(ClassMapping::ClassMappingRelational(Arc::new(ClassMappingRelational {
+                main_table: Some(inferred),
+                ..(**mr).clone()
+            })));
+        } else {
+            ms.push(m.clone());
+        }
+    }
+    let shared_keys = own_shared_keys(&ms, model)?;
+    record_key_threads(md, class_name, &ms, &shared_keys, model, ledger)
 }
 
 /// `UnionSynthesis.inheritanceMembers` (:585): an Inheritance operation's member sets, in the walk's order.
@@ -801,7 +822,26 @@ pub fn collect_inheritance_members(
 
 /// `UnionSynthesis.tableKey` (:768): the sole PRIMARY KEY column of a member set's main table, else none.
 pub fn table_key(cm: Option<&ClassMapping>, model: &ModelIndex) -> Result<Option<JStr>, Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.tableKey"))
+    let Some(ClassMapping::ClassMappingRelational(r)) = cm else {
+        return Ok(None);
+    };
+    let Some(main) = &r.main_table else {
+        return Ok(None);
+    };
+    // MissProbe.miss: no physical table (a view) has no shared key
+    let Some(td) = model.knowledge().table(Some(&main.database), Some(&main.table)) else {
+        return Ok(None);
+    };
+    let mut key: Option<JStr> = None;
+    for c in td.columns.iter() {
+        if c.primary_key {
+            if key.is_some() {
+                return Ok(None); // composite key: member-suffixed as before
+            }
+            key = Some(c.name.clone());
+        }
+    }
+    Ok(key)
 }
 
 /// `UnionSynthesis.uniformChainedRoutes` (:798): whether the member routes' chains are one shape.
@@ -831,7 +871,24 @@ pub fn inbound_arm_steps(
 /// `UnionSynthesis.ownSharedKeys` (:903): `(db, canonical table, key)` -> the first member over it, for a
 /// single-table hierarchy's shared key.
 pub fn own_shared_keys(members: &[ClassMapping], model: &ModelIndex) -> Result<LinkedMap<Vec<JStr>, i32>, Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.ownSharedKeys"))
+    let mut by_table: LinkedMap<Vec<JStr>, Vec<i32>> = LinkedMap::new();
+    for (o, m) in members.iter().enumerate() {
+        if let ClassMapping::ClassMappingRelational(mr) = m
+            && let Some(main) = &mr.main_table
+            && let Some(key) = table_key(Some(m), model)?
+        {
+            by_table
+                .get_or_insert_with(vec![main.database.clone(), canonical_table(&main.table), key], Vec::new)
+                .push(o as i32);
+        }
+    }
+    let mut out: LinkedMap<Vec<JStr>, i32> = LinkedMap::new();
+    for (k, ordinals) in by_table.iter() {
+        if ordinals.len() > 1 {
+            out.put(k.clone(), ordinals[0]);
+        }
+    }
+    Ok(out)
 }
 
 /// `UnionSynthesis.prePassedClosure` (:929): the PRE-PASSED records of the closure (each mapping's resolved record
@@ -860,20 +917,94 @@ pub fn record_key_threads(
     model: &ModelIndex,
     ledger: &mut MappingLedger,
 ) -> Result<(), Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.recordKeyThreads"))
+    let k = model.knowledge();
+    let mut threads: Vec<Arc<KeyThread>> = Vec::new();
+    for (o, m) in members.iter().enumerate() {
+        let ClassMapping::ClassMappingRelational(mr) = m else {
+            continue; // a Relation(~func) member has no key table
+        };
+        let Some(main) = &mr.main_table else {
+            continue;
+        };
+        let (db, table) = (&main.database, &main.table);
+        for col in member_primary_key(mr, model)? {
+            if shared_keys.contains_key(&vec![db.clone(), canonical_table(table), col.clone()]) {
+                continue;
+            }
+            let kind = k.column_kind(db, table, &col)?.map(JStr::from);
+            threads.push(Arc::new(KeyThread::new(
+                cat!(&col, "_", o.to_string()),
+                kind,
+                col,
+                o as i32,
+            )));
+        }
+    }
+    // the SHARED table keys ride the same fact (ordinal -1): the stack builder projects them once per member over
+    // the keyed table
+    for (key, first_ordinal) in shared_keys.iter() {
+        let (db, table, col) = (&key[0], &key[1], &key[2]);
+        // Java's `(ClassMapping.Relational) members.get(i)`: `own_shared_keys` indexes only this list's Relational
+        // members, so neither JDK exception is reachable
+        let first = match usize::try_from(*first_ordinal).ok().and_then(|i| members.get(i)) {
+            Some(ClassMapping::ClassMappingRelational(r)) => r,
+            Some(_) => return Err(Thrown::java(CLASS_CAST, None)),
+            None => return Err(Thrown::java(INDEX_OUT_OF_BOUNDS, None)),
+        };
+        let physical_table = &require(first.main_table.as_ref(), None)?.table;
+        threads.push(Arc::new(KeyThread {
+            name: shared_key_name(table, col),
+            pure_kind: k.column_kind(db, physical_table, col)?.map(JStr::from),
+            column: col.clone(),
+            ordinal: -1,
+            store: Some(db.clone()),
+            table: Some(table.clone()),
+        }));
+    }
+    ledger.union_key_threads.put(class_name.clone(), threads);
+    Ok(())
 }
 
 /// `UnionSynthesis.memberPrimaryKey` (:988): a member's key columns -- its `~primaryKey` plain column refs of its
 /// table, else the table's PRIMARY KEY columns in declaration order.
 pub fn member_primary_key(mr: &ClassMappingRelational, model: &ModelIndex) -> Result<Vec<JStr>, Thrown> {
-    Err(Thrown::Unported("UnionSynthesis.memberPrimaryKey"))
+    let main = require(mr.main_table.as_ref(), None)?;
+    let mut declared: Vec<JStr> = Vec::new();
+    for op in mr.primary_key.iter() {
+        if let RelationalOperation::RelationalOperationColumnRef(cr) = op
+            && canonical_table(&cr.table) == canonical_table(&main.table)
+        {
+            declared.push(cr.column.clone());
+        }
+    }
+    if !declared.is_empty() {
+        return Ok(declared);
+    }
+    // MissProbe.miss: a view-backed member has no physical key
+    let Some(td) = model.knowledge().table(Some(&main.database), Some(&main.table)) else {
+        return Ok(Vec::new());
+    };
+    Ok(td
+        .columns
+        .iter()
+        .filter(|c| c.primary_key)
+        .map(|c| c.name.clone())
+        .collect())
 }
 
 /// `UnionSynthesis.sharedKeyName` (:1016): `<col>__pk_<table>`, the table's characters outside `[A-Za-z0-9_]`
 /// replaced per code point (`replaceAll`).
 pub fn shared_key_name(table: &JStr, col: &JStr) -> JStr {
-    // UNPORTED: UnionSynthesis.sharedKeyName
-    unported!("UnionSynthesis.sharedKeyName")
+    // Java's regex reads code points: a surrogate pair is one character outside the class (one `_`), and so is a
+    // lone surrogate
+    let mut spelled: Vec<u16> = Vec::with_capacity(table.0.len());
+    for c in char::decode_utf16(table.0.iter().copied()) {
+        match c {
+            Ok(ch) if ch.is_ascii_alphanumeric() || ch == '_' => spelled.push(ch as u16),
+            _ => spelled.push(u16::from(b'_')),
+        }
+    }
+    cat!(col, TABLE_KEY_SUFFIX, "_", spelled)
 }
 
 /// `ResolvedMapping.idOf` of a Relational set (Java's `ResolvedMapping::idOf` over a `ClassMapping.Relational`).
