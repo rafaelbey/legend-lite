@@ -6,8 +6,9 @@
 //! accepts the mapping (:158-185), is ASK 12's: port as Java has it.
 //!
 //! RE-EXPRESSED (census §4): the two copies of the key-naming loop (`groupedKeyColumnNames` :43-76 and
-//! `applyGroupBy`'s) are one -- [`grouped_key_column_names`], which `apply_group_by` calls (they differ only where
-//! `applyGroupBy` throws, and it runs first on the same set: MN:1744 before :1751).
+//! `applyGroupBy`'s :140-188) are one -- the private `key_names_and_aggregates`, which [`apply_group_by`] and
+//! [`grouped_key_column_names`] both call (the copies differ only where `applyGroupBy` throws, and it runs first on
+//! the same set: MN:1771 before :1778).
 
 use std::collections::HashSet;
 use std::sync::Arc;

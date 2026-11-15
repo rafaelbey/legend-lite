@@ -9,7 +9,7 @@
 //!
 //! RE-EXPRESSED (census §4): JCE:884's `catch (ModelException unmappedTarget)` is
 //! `mapping_normalizer::main_table_or_null(..)?.is_none()` (the throw's one cause; its message is discarded); the
-//! "first Relational set with this id" lookups (:132-139, :758-771) are `ResolvedMapping::first_relational`. The
+//! "first Relational set with this id" lookups (:131-139, :766-777) are `ResolvedMapping::first_relational`. The
 //! dead null checks after `orElseThrow` are not ported. `p.unionRoutes.remove` (:307) mutates the frame mid-emission:
 //! `LinkedMap::remove`. `equalsIgnoreCase` is `jdk::equals_ignore_case` (Java's fold). `nullTolerant`'s
 //! `default -> false` (:1049) is ASK 12's: port as Java has it.
