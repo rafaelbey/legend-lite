@@ -119,7 +119,17 @@
 # batch's item 4 (d), 47d13b73f, newly lets a strict build compile. So hits.tsv 73,413 -> 73,479 rows (66 added).
 # Previous SHA-256: hits.tsv 2484d246a221a4f279f258f5b4d26bd10bc3610a4a5b00f06865f05923fda26a.
 # THE NORMALIZER'S SECOND BATCH, ITEM 0 (end)
-hits.tsv.zst	kind, model, query, doors, use, counts: 73,479 rows (B 1, L 24, M 2,847, Q 70,607), 2,858 models, 67 tables; re-keyed and masked 2026-11-13, re-frozen 2026-11-13, 66 keys added 2026-11-15 (below)	034721145be8273cb846d64085ec8fa44d56f5b75b9722558a4286815664e613
+# THE NORMALIZER'S SECOND BATCH, ITEM 6 (2026-11-15; begin)
+# RE-FROZEN, by the freeze's own rule, from two complete probe v2 runs at the batch's last code commit, 77591e8f2 (NB2Z3,
+# NB2Z4; each its own tagged copy, every hunk checked to apply first; 142 of 145 targets passing each, the two
+# probe-caused failures //core:census and //core:guardrails and //core:update_generated_4_test, which the generated
+# claims file left out of date until 08bdce13a, data only): they agree on every frozen key they answer; three frozen keys
+# answer otherwise (their counts: 1a's routed navigation, 4e's two ModelJoin texts now refused strict) and three no run
+# answers (4e's two bodies compiles, item 0's keys attributed to 47d13b73f (d); item 2's changed OneIndexTest module
+# text), each attributed (identity/attribution-2026-11-15-normalizer-batch2-refreeze.tsv). No MirJson, execution plan or test plan id moved.
+# Previous SHA-256: hits.tsv 034721145be8273cb846d64085ec8fa44d56f5b75b9722558a4286815664e613.
+# THE NORMALIZER'S SECOND BATCH, ITEM 6 (end)
+hits.tsv.zst	kind, model, query, doors, use, counts: 73,476 rows (B 1, L 24, M 2,846, Q 70,605), 2,858 models, 67 tables; re-keyed and masked 2026-11-13, re-frozen 2026-11-13, 66 keys added 2026-11-15 (below), 3 rows re-frozen and 3 dropped 2026-11-15 (item 6, below)	63c52253390ebdb1eb5e38796ce4d1fd7181440f023d33b706d98dd449156184
 # Each lowering the question made (Lowerer.lower and lowerStoreWrite, in order): the SHA-256 of its MirJson text's UTF-16
 # units. !IllegalStateException:... is MirJson's refusal by design (a tagged value or list, resolved at its query's root;
 # 2,546 lowerings: 2,538 lists, 8 values). No id moved between the two runs (the first freeze's 72 ~moved, a VALUES row holding the host's
@@ -144,3 +154,4 @@ mir-store.tsv.zst	id TAB MirJson, sorted by id: 40,613 lines	de98afbfde06c21b303
 # frozen are //core:ladder_report's, by the freeze's own rule; each run's 16,851 keys of its own are the temporary-path
 # models' (the Postgres lanes' and 168 of the integration and server suites'), by design. The only moves are the plan
 # oracle's 914 test plan ids (its MANIFEST).
+attribution-2026-11-15-normalizer-batch2-refreeze.tsv	the normalizer's second batch's item 6: every moved or dropped row of hits.tsv, its item and commit	d0b86dae1bb671d51fde53b535f4d8c550f7bfd348a9c494e7481d2c7e02914b
