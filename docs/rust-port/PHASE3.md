@@ -1347,6 +1347,19 @@ done, in the order of the design's §3.
 Work an earlier slice found and ruled for a later one; each item names the ruling and the register row, and is done
 when that slice lands.
 
+- **The normalizer's second batch (E, before F freezes; ruling 37).** In Java and Rust together, each confirmed against
+  the pinned engine first (run where it is an outcome), under rulings 34 and 37 (a) -- a fix that moves a frozen answer
+  lands with its attributed re-freeze, any behaviour the engine shares left and noted: the ~25 further behaviours the
+  normalizer slice listed (its entry above, "Java behaviours that look wrong beyond census ASK 13"); the M2M
+  unmapped-class divergence (MN:1235-1241, register row S395, written by the normalizer batch); and the register rows
+  ruled to take the engine's form -- S382 (a ~groupBy set's Join property mappings navigated inside the grouped select,
+  multi-hop included: the emission in E, its lowering's share carried to slice I, the wrong comment fixed), S384 (each
+  direction by its own join, measured first), S387 (dayOfWeekNumber's week start matched exactly, the engine run on a
+  Sunday and a Saturday), S388's NULL run (the engine asked of a NULL read for a [1] property; an answer that differs an
+  engine-sourced fix), S389 (pAllVersions only for a temporal p), S390 (the engine's words in strict, the association
+  walled in tolerant), S391 (a real INNER join, measured first); S386's wrong comment fixed with them. Rows S381, S383,
+  S385, S386 and S392 are ruled divergences, kept.
+
 - **The resolver (H) and lowering (I).** *A query reading a relational column whose type inference the engine fails is
   refused when it is planned, in the engine's words* (the owner's ruling 35, 2026-11-14, PHASE3_SHIM_DESIGN.md §10;
   register row S378). legend-engine runs `inferRelationalType` where a query asks it -- at plan generation,

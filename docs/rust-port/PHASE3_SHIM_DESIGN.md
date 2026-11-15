@@ -546,6 +546,30 @@ Each with my recommendation first.
     this rule's; no view column in the texts we hold uses one, so no frozen answer moves. Lite-only, by the owner's
     word; carried to the typer's slice (G), done first there in Java, before its oracle freezes (`PHASE3.md`, "Carried
     to the slices not yet begun").
+37. **The normalizer's lite-only fixes, its further behaviours, and its register rows** (2026-11-15; the questions the
+    lead asked after the normalizer slice, aa13a72da: may a lite-only fix ruling 30 already ordered land when it moves a
+    frozen answer; what of the ~25 further behaviours the slice listed; how is each of rows S381-S392 ruled). (a) Ruling
+    30's frozen-answer clause: a lite-only fix the owner has already ruled (census ASK 13's ten, tolerant mode's wall
+    shapes) that moves a frozen answer LANDS with its attributed re-freeze -- every moved key in every oracle attributed
+    to its item by measurement -- and is reported after, as an engine-sourced fix does under ruling 34; a moved key no
+    item explains is still a stop. (b) The ~25 further Java behaviours that look wrong (`PHASE3.md`, the normalizer
+    slice's entry, "Java behaviours that look wrong beyond census ASK 13", and the M2M unmapped-class divergence,
+    MN:1235-1241, register row S395) are fixed as ASK 13's ten were: each confirmed against the pinned engine (run where
+    it is an outcome), fixed in Java and Rust together under rulings 34 and 37 (a), any the engine shares left and noted
+    -- a second batch, after the normalizer batch and before slice F freezes its oracle (`PHASE3.md`, "Carried to the
+    slices not yet begun"). (c) Rows S381-S392, each in `docs/SEMANTICS_REGISTER.md`: S381 keep lite's (the whole-model
+    search; a ruled divergence). S382 take the engine's form -- the join navigated inside the grouped select, multi-hop
+    included (a new emission in E, lowering's share in slice I); fix the wrong comment. S383 keep lite's first() /
+    ANY_VALUE (a ruled divergence). S384 take the engine's -- each direction by its own join; measured first. S385 keep
+    lite's loud cast (audit 19 F6; a ruled divergence). S386 keep Pure's meaning on every dialect (empty tokens
+    dropped); fix the wrong comment; a ruled divergence on DuckDB if its native split_part keeps empty tokens. S387 take
+    the engine's -- the week start matched exactly ('Sunday' / 'Monday'), refused otherwise in the engine's words, the
+    engine run on Sunday and Saturday and its numbering matched. S388 keep lite's; run the engine on a NULL read for a
+    [1] property, and if its answer differs that is an engine-sourced fix. S389 take the engine's -- pAllVersions only
+    for a temporal p, otherwise refused in the engine's words. S390 the engine's words in strict (naming the set id),
+    and in tolerant the association walled rather than anchored on a non-root set's table. S391 take the engine's -- a
+    real INNER join whatever the condition; measured first. S392 keep lite's precise [1] for key, NOT NULL and aggregate
+    columns (a ruled divergence). The fixes of (c) belong to the second batch with (b).
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.
