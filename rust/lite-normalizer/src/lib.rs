@@ -57,6 +57,8 @@ pub mod set_key_facts;
 pub mod store_substitution_rewrite;
 #[cfg(test)]
 mod test_support;
+#[cfg(test)]
+mod tests;
 pub mod union_synthesis;
 pub mod view_relation;
 pub mod xstore_pure_ends;

@@ -84,7 +84,7 @@ impl<'a> ResolvedMapping<'a> {
         }
     }
 
-    /// `views()` (:75).
+    /// `ResolvedMapping.views()` (:75).
     pub fn views(&self) -> &'a LiftedViews<'a> {
         self.views
     }
@@ -94,7 +94,7 @@ impl<'a> ResolvedMapping<'a> {
         self.closure.owner()
     }
 
-    /// `withMapping(rewritten)` (:79): the same record over a rewritten mapping (a construction step, the multi-hop
+    /// `ResolvedMapping.withMapping(rewritten)` (:79): the same record over a rewritten mapping (a construction step, the multi-hop
     /// injection).
     pub fn with_mapping(&self, rewritten: Arc<LegacyMappingDefinition>) -> ResolvedMapping<'a> {
         ResolvedMapping::new(
@@ -107,7 +107,7 @@ impl<'a> ResolvedMapping<'a> {
         )
     }
 
-    /// `withInvalid(walled)` (:84): the same record with the sets the validation walled (by set id).
+    /// `ResolvedMapping.withInvalid(walled)` (:84): the same record with the sets the validation walled (by set id).
     pub fn with_invalid(&self, walled: LinkedMap<JStr, JStr>) -> ResolvedMapping<'a> {
         ResolvedMapping::new(
             self.md.clone(),
@@ -119,47 +119,47 @@ impl<'a> ResolvedMapping<'a> {
         )
     }
 
-    /// `surface()` (:88).
+    /// `ResolvedMapping.surface()` (:88).
     pub fn surface(&self) -> &Arc<LegacyMappingDefinition> {
         &self.surface
     }
 
-    /// `declaredKeys()` (:89).
+    /// `ResolvedMapping.declaredKeys()` (:89).
     pub fn declared_keys(&self) -> &HashMap<JStr, Arc<DeclaredKeys>> {
         &self.declared_keys
     }
 
-    /// `invalidReason(cm)` (:92): the validation's recorded reason for `cm`'s set.
+    /// `ResolvedMapping.invalidReason(cm)` (:92): the validation's recorded reason for `cm`'s set.
     pub fn invalid_reason(&self, cm: &ClassMapping) -> Option<&JStr> {
         self.invalid.get(&ResolvedMapping::id_of(cm))
     }
 
-    /// `raw()` (:99).
+    /// `ResolvedMapping.raw()` (:99).
     pub fn raw(&self) -> &Arc<LegacyMappingDefinition> {
         &self.md
     }
 
-    /// `qualifiedName()` (:100).
+    /// `ResolvedMapping.qualifiedName()` (:100).
     pub fn qualified_name(&self) -> &JStr {
         &self.md.qualified_name
     }
 
-    /// `classMappings()` (:101).
+    /// `ResolvedMapping.classMappings()` (:101).
     pub fn class_mappings(&self) -> &Arc<[ClassMapping]> {
         &self.md.class_mappings
     }
 
-    /// `includes()` (:102).
+    /// `ResolvedMapping.includes()` (:102).
     pub fn includes(&self) -> &Arc<[Arc<MappingInclude>]> {
         &self.md.includes
     }
 
-    /// `associationMappings()` (:103).
+    /// `ResolvedMapping.associationMappings()` (:103).
     pub fn association_mappings(&self) -> &Arc<[AssociationMapping]> {
         &self.md.association_mappings
     }
 
-    /// `enumerationMappings()` (:104).
+    /// `ResolvedMapping.enumerationMappings()` (:104).
     pub fn enumeration_mappings(&self) -> &Arc<[Arc<EnumerationMapping>]> {
         &self.md.enumeration_mappings
     }
@@ -169,7 +169,7 @@ impl<'a> ResolvedMapping<'a> {
         set_id_of_class_mapping(cm)
     }
 
-    /// `set(setId)` (:116): the set with id `set_id` -- this mapping's own first, else one visible through the includes
+    /// `ResolvedMapping.set(setId)` (:116): the set with id `set_id` -- this mapping's own first, else one visible through the includes
     /// (whose walk is loud for an include the model has not); none for no id or no such set.
     pub fn set(&self, set_id: Option<&JStr>) -> Result<Option<ClassMapping>, Thrown> {
         let Some(set_id) = set_id else { return Ok(None) };
@@ -179,7 +179,7 @@ impl<'a> ResolvedMapping<'a> {
         Ok(self.closure.sets()?.get(set_id).cloned())
     }
 
-    /// `closure()` (:125): this mapping then its includes, depth-first in include order, each once -- RE-EXPRESSED as
+    /// `ResolvedMapping.closure()` (:125): this mapping then its includes, depth-first in include order, each once -- RE-EXPRESSED as
     /// `[md] ++ closure.mappings()` (which excludes `md`'s own name).
     pub fn closure(&self) -> Vec<Arc<LegacyMappingDefinition>> {
         let included = self.closure.mappings();
@@ -189,7 +189,7 @@ impl<'a> ResolvedMapping<'a> {
         out
     }
 
-    /// `relationalSets(classFqn)` (:142): `class_fqn`'s Relational sets across [`ResolvedMapping::closure`] -- this
+    /// `ResolvedMapping.relationalSets(classFqn)` (:142): `class_fqn`'s Relational sets across [`ResolvedMapping::closure`] -- this
     /// mapping's own in declaration order, then each include's.
     pub fn relational_sets(&self, class_fqn: Option<&JStr>) -> Vec<Arc<ClassMappingRelational>> {
         let mut out = Vec::new();
@@ -204,13 +204,13 @@ impl<'a> ResolvedMapping<'a> {
         out
     }
 
-    /// `includedSets()` (:155): set ids visible through the includes (a later include overrides an earlier one;
+    /// `ResolvedMapping.includedSets()` (:155): set ids visible through the includes (a later include overrides an earlier one;
     /// substitutions applied); own sets excluded.
     pub fn included_sets(&self) -> Result<&LinkedMap<JStr, ClassMapping>, Thrown> {
         self.closure.sets()
     }
 
-    /// `visibleSets()` (:160): every visible set by id -- the includes', then this mapping's own on top.
+    /// `ResolvedMapping.visibleSets()` (:160): every visible set by id -- the includes', then this mapping's own on top.
     pub fn visible_sets(&self) -> Result<LinkedMap<JStr, ClassMapping>, Thrown> {
         let mut out = self.closure.sets()?.clone();
         for cm in self.md.class_mappings.iter() {
@@ -219,7 +219,7 @@ impl<'a> ResolvedMapping<'a> {
         Ok(out)
     }
 
-    /// `unionOf(classFqn)` (:170): the Union operation set for `class_fqn` -- own first, else the one found through the
+    /// `ResolvedMapping.unionOf(classFqn)` (:170): the Union operation set for `class_fqn` -- own first, else the one found through the
     /// includes.
     pub fn union_of(&self, class_fqn: Option<&JStr>) -> Option<Arc<ClassMappingUnion>> {
         if let Some(own) = class_fqn.and_then(|c| self.own_by_class.get(c)) {
@@ -232,7 +232,7 @@ impl<'a> ResolvedMapping<'a> {
         self.closure.union(class_fqn)
     }
 
-    /// `inheritanceOf(classFqn)` (:180): the Inheritance operation set for `class_fqn`, the same rule.
+    /// `ResolvedMapping.inheritanceOf(classFqn)` (:180): the Inheritance operation set for `class_fqn`, the same rule.
     pub fn inheritance_of(&self, class_fqn: &JStr) -> Option<Arc<ClassMappingInheritance>> {
         if let Some(own) = self.own_by_class.get(class_fqn) {
             for cm in own {
@@ -244,13 +244,13 @@ impl<'a> ResolvedMapping<'a> {
         self.closure.inheritance(class_fqn)
     }
 
-    /// `roots()` (:191): ROOT set per class -- the includes' (deeper first), this mapping's own overriding; the `*` set
+    /// `ResolvedMapping.roots()` (:191): ROOT set per class -- the includes' (deeper first), this mapping's own overriding; the `*` set
     /// or the class's sole set.
     pub fn roots(&self) -> &LinkedMap<JStr, ClassMapping> {
         &self.roots
     }
 
-    /// `isRootOrSole(set)` (:202): is `set` the ROOT (or sole) set of its class -- the engine's
+    /// `ResolvedMapping.isRootOrSole(set)` (:202): is `set` the ROOT (or sole) set of its class -- the engine's
     /// `rootClassMappingByClass` answer, judged in the OWNING scope (the closure's roots, this mapping's own
     /// overriding).
     pub fn is_root_or_sole(&self, set: &ClassMapping) -> bool {
@@ -259,14 +259,14 @@ impl<'a> ResolvedMapping<'a> {
             .is_some_and(|root| ResolvedMapping::id_of(root) == ResolvedMapping::id_of(set))
     }
 
-    /// `enumerationMappingsWithIncludes()` (:208): own enumeration mappings plus the includes', transitively.
+    /// `ResolvedMapping.enumerationMappingsWithIncludes()` (:208): own enumeration mappings plus the includes', transitively.
     pub fn enumeration_mappings_with_includes(&self) -> Result<Vec<Arc<EnumerationMapping>>, Thrown> {
         let mut out: Vec<Arc<EnumerationMapping>> = self.md.enumeration_mappings.to_vec();
         out.extend(self.closure.enumeration_mappings()?.iter().cloned());
         Ok(out)
     }
 
-    /// `pairEntries(classFqn)` (:216): per-pair association entries for `class_fqn` -- own first, then each
+    /// `ResolvedMapping.pairEntries(classFqn)` (:216): per-pair association entries for `class_fqn` -- own first, then each
     /// include's, depth-first.
     pub fn pair_entries(&self, class_fqn: &JStr) -> Result<LinkedMap<JStr, Vec<Arc<PropertyMappingJoin>>>, Thrown> {
         let mut out: LinkedMap<JStr, Vec<Arc<PropertyMappingJoin>>> = LinkedMap::new();
@@ -278,7 +278,7 @@ impl<'a> ResolvedMapping<'a> {
         Ok(out)
     }
 
-    /// `memberOrdinal(memberIds, setId)` (:226): a union member's ordinal for `set_id` -- the member itself, or the
+    /// `ResolvedMapping.memberOrdinal(memberIds, setId)` (:226): a union member's ordinal for `set_id` -- the member itself, or the
     /// member whose `extends` chain reaches it; -1 otherwise.
     pub fn member_ordinal(&self, member_ids: &[JStr], set_id: Option<&JStr>) -> Result<i32, Thrown> {
         if let Some(direct) = set_id.and_then(|s| member_ids.iter().position(|m| m == s)) {

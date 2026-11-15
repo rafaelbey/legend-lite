@@ -72,7 +72,7 @@ impl<'m> LiftedViews<'m> {
         }
     }
 
-    /// `body(view)` (:76): the view's relation body -- the lifted function's one body expression, computed once.
+    /// `LiftedViews.body(view)` (:76): the view's relation body -- the lifted function's one body expression, computed once.
     /// Fails with the view's own wall when it cannot be expanded (the same error at every site, the lift's or a
     /// mapping's).
     pub fn body(&self, view: &View) -> Result<p::ValueSpecification, Thrown> {
@@ -139,7 +139,7 @@ impl<'m> LiftedViews<'m> {
         Ok(body)
     }
 
-    /// `spell(rt)` (:121): a relation type spelled as the declaration a user would write, `Relation<(name: Type[m],
+    /// `LiftedViews.spell(rt)` (:121): a relation type spelled as the declaration a user would write, `Relation<(name: Type[m],
     /// ...)>` -- a primitive by its name, a precise decimal as `Decimal` (a declaration carries no precision), anything
     /// else by its type name; `[1]` stays `[1]`, any other multiplicity is `[0..1]`.
     fn spell(rt: &RelationType<'_>) -> p::TypeExpression {
@@ -173,7 +173,7 @@ impl<'m> LiftedViews<'m> {
         }))
     }
 
-    /// `liftAll(wallSink)` (:145): E.5, eager like E.2-E.4 -- every view lifted, in declaration order; a wall recorded
+    /// `LiftedViews.liftAll(wallSink)` (:145): E.5, eager like E.2-E.4 -- every view lifted, in declaration order; a wall recorded
     /// under the lifted FQN (its full message, first wall kept) when a sink exists, thrown under the strict entry.
     pub fn lift_all(&self, mut wall_sink: Option<&mut LinkedMap<JStr, JStr>>) -> Result<(), Thrown> {
         for v in &self.order {
@@ -195,7 +195,7 @@ impl<'m> LiftedViews<'m> {
         Ok(())
     }
 
-    /// `functions()` (:161): the lifted functions, in declaration order (walled views absent).
+    /// `LiftedViews.functions()` (:161): the lifted functions, in declaration order (walled views absent).
     pub fn functions(&self) -> Vec<Arc<FunctionDefinition>> {
         let functions = self.functions.borrow();
         self.order.iter().filter_map(|v| functions.get(v).cloned()).collect()

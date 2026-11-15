@@ -99,7 +99,7 @@ impl<'p> Pipeline<'p> {
         }
     }
 
-    /// `ledger()` (:89): loud on a view pipeline.
+    /// `Pipeline.ledger()` (:89): loud on a view pipeline.
     pub fn ledger(&self) -> Result<&MappingLedger, Thrown> {
         self.ledger.as_deref().ok_or_else(no_ledger)
     }
@@ -109,7 +109,7 @@ impl<'p> Pipeline<'p> {
         self.ledger.as_deref_mut().ok_or_else(no_ledger)
     }
 
-    /// `view()` (:98): the translator-facing view of this pipeline (seam b).
+    /// `Pipeline.view()` (:98): the translator-facing view of this pipeline (seam b).
     pub fn view(&self) -> Option<&Pipeline<'p>> {
         Some(self)
     }

@@ -74,7 +74,7 @@ impl<'m> MappingClosures<'m> {
         self.model
     }
 
-    /// `closure(mappingFqn)` (:72): the included part of `mapping_fqn`'s closure (its own part is the caller's
+    /// `MappingClosures.closure(mappingFqn)` (:72): the included part of `mapping_fqn`'s closure (its own part is the caller's
     /// mapping), one state per mapping.
     pub fn closure(&self, mapping_fqn: &JStr) -> Closure<'_> {
         let state = self
@@ -86,7 +86,7 @@ impl<'m> MappingClosures<'m> {
         Closure { owner: self, state }
     }
 
-    /// `surface(authored)` (:85): the SURFACE of the authored mapping -- itself plus the identity
+    /// `MappingClosures.surface(authored)` (:85): the SURFACE of the authored mapping -- itself plus the identity
     /// `ClassMapping.Relational` (`sourceUrl` set) for every class a runtime's JSON connection binds through it, unless
     /// the mapping already maps that class (user-authored wins). Memoized by the mapping's name.
     pub fn surface(&self, authored: &Arc<LegacyMappingDefinition>) -> Arc<LegacyMappingDefinition> {
@@ -101,12 +101,12 @@ impl<'m> MappingClosures<'m> {
             .clone()
     }
 
-    /// `surfaceOf(path)` (:94).
+    /// `MappingClosures.surfaceOf(path)` (:94).
     fn surface_of(&self, path: &JStr) -> Option<Arc<LegacyMappingDefinition>> {
         self.model.find_legacy_mapping(path).map(|m| self.surface(m))
     }
 
-    /// `withJsonIdentitySets(md)` (:98).
+    /// `MappingClosures.withJsonIdentitySets(md)` (:98).
     fn with_json_identity_sets(&self, md: &Arc<LegacyMappingDefinition>) -> Arc<LegacyMappingDefinition> {
         let mut updated: Option<Vec<ClassMapping>> = None;
         for rd in self.model.runtimes() {
@@ -182,7 +182,7 @@ impl ClosureState {
     }
 }
 
-/// `MappingClosures.Closure` (:132): the included part of one mapping's closure.
+/// `MappingClosures.Closure` (:132, the inner class; its constructor :143): the included part of one mapping's closure.
 #[derive(Clone)]
 pub struct Closure<'a> {
     owner: &'a MappingClosures<'a>,
@@ -195,14 +195,14 @@ impl<'a> Closure<'a> {
         self.owner
     }
 
-    /// `includes()` (:147).
+    /// `MappingClosures.Closure.includes()` (:147).
     fn includes(&self) -> Arc<[Arc<MappingInclude>]> {
         self.owner
             .surface_of(&self.state.fqn)
             .map_or_else(empty, |m| m.includes.clone())
     }
 
-    /// `mappings()` (:153): the included mappings, depth-first in include order, each once (the mapping itself
+    /// `MappingClosures.Closure.mappings()` (:153): the included mappings, depth-first in include order, each once (the mapping itself
     /// excluded).
     pub fn mappings(&self) -> &[Arc<LegacyMappingDefinition>] {
         if let Some(known) = self.state.mappings.get() {
@@ -219,7 +219,7 @@ impl<'a> Closure<'a> {
         self.state.mappings.get_or_init(|| list(out))
     }
 
-    /// `walkMappings` (:168).
+    /// `MappingClosures.Closure.walkMappings` (:168).
     fn walk_mappings(
         &self,
         md: &Arc<LegacyMappingDefinition>,
@@ -237,7 +237,7 @@ impl<'a> Closure<'a> {
         }
     }
 
-    /// `relationalSets(classFqn)` (:181): `class_fqn`'s Relational sets across [`Closure::mappings`], in that order
+    /// `MappingClosures.Closure.relationalSets(classFqn)` (:181): `class_fqn`'s Relational sets across [`Closure::mappings`], in that order
     /// then declaration order.
     pub fn relational_sets(&self, class_fqn: Option<&JStr>) -> Vec<Arc<ClassMappingRelational>> {
         let by_class = self.state.relational_sets.get_or_init(|| {
@@ -254,7 +254,7 @@ impl<'a> Closure<'a> {
         class_fqn.and_then(|c| by_class.get(c)).cloned().unwrap_or_default()
     }
 
-    /// `sets()` (:201): set ids visible through the includes, transitively -- a nearer mapping's set overrides a deeper
+    /// `MappingClosures.Closure.sets()` (:201): set ids visible through the includes, transitively -- a nearer mapping's set overrides a deeper
     /// one, a LATER include overrides an earlier one; an include's store substitutions apply to everything pulled
     /// through it (grandparents included). Loud for an include the model has not ("Can't find mapping").
     pub fn sets(&self) -> Result<&LinkedMap<JStr, ClassMapping>, Thrown> {
@@ -266,7 +266,7 @@ impl<'a> Closure<'a> {
         Ok(self.state.sets.get_or_init(|| out))
     }
 
-    /// `walkSets` (:211).
+    /// `MappingClosures.Closure.walkSets` (:211).
     fn walk_sets(
         &self,
         incs: &[Arc<MappingInclude>],
@@ -314,7 +314,7 @@ impl<'a> Closure<'a> {
         })
     }
 
-    /// `union(classFqn)` (:235): the Union operation set for `class_fqn` through the includes in the engine's order (an
+    /// `MappingClosures.Closure.union(classFqn)` (:235): the Union operation set for `class_fqn` through the includes in the engine's order (an
     /// include's includes first, then its own sets; the LATER include after the earlier), the LAST found --
     /// `rootClassMappingByClass`'s `last()` (R1).
     pub fn union(&self, class_fqn: Option<&JStr>) -> Option<Arc<ClassMappingUnion>> {
@@ -322,13 +322,13 @@ impl<'a> Closure<'a> {
         class_fqn.and_then(|c| unions.get(c).cloned())
     }
 
-    /// `inheritance(classFqn)` (:252): the Inheritance operation set for `class_fqn`, the same last-wins rule.
+    /// `MappingClosures.Closure.inheritance(classFqn)` (:252): the Inheritance operation set for `class_fqn`, the same last-wins rule.
     pub fn inheritance(&self, class_fqn: &JStr) -> Option<Arc<ClassMappingInheritance>> {
         let (_, inheritances) = self.ops();
         inheritances.get(class_fqn).cloned()
     }
 
-    /// `walkOps` (:257). An include the model has not contributes nothing here (`surfaceOf(..).ifPresent`).
+    /// `MappingClosures.Closure.walkOps` (:257). An include the model has not contributes nothing here (`surfaceOf(..).ifPresent`).
     fn walk_ops(
         &self,
         md: &LegacyMappingDefinition,
@@ -353,7 +353,7 @@ impl<'a> Closure<'a> {
         }
     }
 
-    /// `duplicateIds()` (:275): set ids taken by more than one DISTINCT set across this mapping's closure (an include's
+    /// `MappingClosures.Closure.duplicateIds()` (:275): set ids taken by more than one DISTINCT set across this mapping's closure (an include's
     /// includes first, then its own; then this mapping's own), each with the two mappings -- the engine's
     /// `collectAndValidateClassMappingIds` (R5). Not memoized (Java's is not).
     pub fn duplicate_ids(&self) -> Result<Vec<JStr>, Thrown> {
@@ -364,7 +364,7 @@ impl<'a> Closure<'a> {
         Ok(dups)
     }
 
-    /// `walkIds` (:284), its `first` map dropped (the module's note).
+    /// `MappingClosures.Closure.walkIds` (:284), its `first` map dropped (the module's note).
     fn walk_ids(
         &self,
         mapping_fqn: &JStr,
@@ -401,7 +401,7 @@ impl<'a> Closure<'a> {
         Ok(())
     }
 
-    /// `roots()` (:312): ROOT class mapping per class through the includes -- deeper includes first, a nearer mapping
+    /// `MappingClosures.Closure.roots()` (:312): ROOT class mapping per class through the includes -- deeper includes first, a nearer mapping
     /// overrides; the root is the `*` set or the class's sole set in that mapping.
     pub fn roots(&self) -> &LinkedMap<JStr, ClassMapping> {
         self.state.roots.get_or_init(|| {
@@ -418,7 +418,7 @@ impl<'a> Closure<'a> {
         })
     }
 
-    /// `walkRoots` (:328).
+    /// `MappingClosures.Closure.walkRoots` (:328).
     fn walk_roots(
         &self,
         md: &LegacyMappingDefinition,
@@ -435,7 +435,7 @@ impl<'a> Closure<'a> {
         Closure::own_roots(md, out);
     }
 
-    /// `Closure.ownRoots(md, out)` (:341): the mapping's own root sets -- the `*` set, or the class's SOLE set (engine
+    /// `MappingClosures.Closure.ownRoots(md, out)` (:341): the mapping's own root sets -- the `*` set, or the class's SOLE set (engine
     /// `rootClassMappingByClass`; corpus mappings often omit `*` on singletons).
     pub fn own_roots(md: &LegacyMappingDefinition, out: &mut LinkedMap<JStr, ClassMapping>) {
         let mut sets_per_class: LinkedMap<JStr, i32> = LinkedMap::new();
@@ -449,7 +449,7 @@ impl<'a> Closure<'a> {
         }
     }
 
-    /// `enumerationMappings()` (:355): enumeration mappings through the includes, transitively; a bare include path
+    /// `MappingClosures.Closure.enumerationMappings()` (:355): enumeration mappings through the includes, transitively; a bare include path
     /// resolves in the mapping's own package first. Loud for an include the model has not.
     pub fn enumeration_mappings(&self) -> Result<&[Arc<EnumerationMapping>], Thrown> {
         if let Some(known) = self.state.enums.get() {
@@ -464,7 +464,7 @@ impl<'a> Closure<'a> {
         Ok(self.state.enums.get_or_init(|| list(out)))
     }
 
-    /// `walkEnums` (:368).
+    /// `MappingClosures.Closure.walkEnums` (:368).
     fn walk_enums(
         &self,
         md: &LegacyMappingDefinition,
@@ -490,7 +490,7 @@ impl<'a> Closure<'a> {
         Ok(())
     }
 
-    /// `pairEntries(classFqn)` (:393): per-pair association entries for `class_fqn` (or a subclass of the end's owner)
+    /// `MappingClosures.Closure.pairEntries(classFqn)` (:393): per-pair association entries for `class_fqn` (or a subclass of the end's owner)
     /// through the includes -- source set id -> the routed Join PMs, each include's, depth-first (the mapping's own
     /// entries are the caller's, [`Closure::own_pairs`]). Memoized per class; loud for an association the model has
     /// not.
@@ -517,7 +517,7 @@ impl<'a> Closure<'a> {
             .clone())
     }
 
-    /// `walkPairs` (:409).
+    /// `MappingClosures.Closure.walkPairs` (:409).
     fn walk_pairs(
         &self,
         md: &LegacyMappingDefinition,
@@ -537,7 +537,7 @@ impl<'a> Closure<'a> {
         Ok(())
     }
 
-    /// `ownPairs(md, classFqn, out)` (:421): the mapping's own pair entries for `class_fqn`; an entry with no target
+    /// `MappingClosures.Closure.ownPairs(md, classFqn, out)` (:421): the mapping's own pair entries for `class_fqn`; an entry with no target
     /// set id of its own is stamped with the association mapping's.
     pub fn own_pairs(
         &self,

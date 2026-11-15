@@ -54,7 +54,7 @@ impl MappingLedger {
         }
     }
 
-    /// `poison(key, reason)` (:39): record `reason` against `key`; a prior reason is kept and this one appended
+    /// `MappingLedger.poison(key, reason)` (:39): record `reason` against `key`; a prior reason is kept and this one appended
     /// (`a.equals(b) ? a : a + "; " + b`).
     pub fn poison(&mut self, key: PoisonKey, reason: JStr) {
         let merged = match self.poisons.get(&key) {
@@ -65,7 +65,7 @@ impl MappingLedger {
         self.poisons.put(key, merged);
     }
 
-    /// `isMapped(classFqn)` (:68): whether `class_fqn` has a set in this mapping's closure.
+    /// `MappingLedger.isMapped(classFqn)` (:68): whether `class_fqn` has a set in this mapping's closure.
     pub fn is_mapped(&self, class_fqn: &JStr) -> bool {
         self.mapped_in_closure.contains(class_fqn)
     }
@@ -84,7 +84,7 @@ impl MappingLedger {
         out
     }
 
-    /// `facts(surface)` (:85): the compiled mapping's facts -- what this synthesis recorded, plus the SURFACE facts
+    /// `MappingLedger.facts(surface)` (:85): the compiled mapping's facts -- what this synthesis recorded, plus the SURFACE facts
     /// Phase F reads off the artifact ([`mapping_facts`]), each map in its insertion order.
     pub fn facts(&self, surface: &LegacyMappingDefinition) -> MappingDefinitionNormalizationFacts {
         MappingDefinitionNormalizationFacts {
