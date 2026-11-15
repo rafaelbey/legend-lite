@@ -642,3 +642,47 @@ fn a_call_construction_is_told_from_a_return_type() {
     assert_eq!(call_constructions("let f: AppliedFunctionX {"), 0);
     assert_eq!(call_constructions("fn f(af: &p::AppliedFunction) {"), 0);
 }
+
+/// `ParkedWorkLedgerTest`'s two anchors over the normalizer, restated against the Rust port (2026-11-14, the
+/// normalizer slice; ruling 30, census ASK 8 and ASK 9): PARK-1's XStore direction rule is ONE Rust function
+/// (`xstore_pure_ends::synthesize`, where Java has it twice, MappingNormalizer and XStorePureEnds), so its wall's words
+/// are in that file alone; PARK-26's list count of an includer's resolved includes is in `store_substitution_rewrite.rs`
+/// alone. The Java anchors keep running while the Java exists (rust/RETIRED_TESTS.md). A moved anchor takes a dated
+/// comment and a rust/RETIRED_TESTS.md row.
+const PARKED_ANCHORS: &[(&str, &str, &str)] = &[
+    (
+        "PARK-1 xstore per-end predicates",
+        "has direction-specific conditions",
+        "rust/lite-normalizer/src/xstore_pure_ends.rs",
+    ),
+    (
+        "PARK-26 a mapping included under two spellings is refused as an include cycle",
+        "incs.push(fqn);",
+        "rust/lite-normalizer/src/store_substitution_rewrite.rs",
+    ),
+];
+
+#[test]
+fn the_parked_work_anchors_hold_in_the_normalizer() {
+    let tree = tree();
+    let mut problems = Vec::new();
+    for (park, anchor, home) in PARKED_ANCHORS {
+        let found: Vec<&str> = tree
+            .files
+            .iter()
+            .filter(|(p, _)| p.starts_with("rust/lite-normalizer/src/") && p.ends_with(".rs"))
+            .filter(|(_, text)| code_lines(text).any(|(_, l)| l.contains(anchor)))
+            .map(|(p, _)| p.as_str())
+            .collect();
+        if found != [*home] {
+            problems.push(format!(
+                "{park}: `{anchor}` found in {found:?}, where {home} alone is pinned"
+            ));
+        }
+    }
+    assert!(
+        problems.is_empty(),
+        "the parked work's anchors moved:\n{}",
+        problems.join("\n")
+    );
+}

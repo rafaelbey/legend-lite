@@ -55,10 +55,11 @@ profile does not.
   view and column of their indexes and every call shape the builder's callers make (`tests/names_differential.rs`
   over `oracles/names/`), and the boot model's subtyping to the live Java's (`tests/subtype_live.rs`, by hand).
 - `lite-normalizer/`: the model normalizer (step E; core's `normalizer` layer): `ModelNormalizer.normalize` and its
-  package, one module per Java class (`MappingNormalizer` a directory of its EF_CENSUS families). Its skeleton since
-  2026-11-14: every function with its final signature, the shared frame ported (the throws and the catches'
-  predicates, `Pipeline`, `MappingLedger`, `MappingFacts`, `ResolvedMapping`, `SetKeyFacts`, `MilestoningFacts`,
-  `LiftedViews`' and `MappingClosures`' memos, `DynaFnArms` as one exhaustive match), every other body unported.
+  package, one module per Java class (`MappingNormalizer` a directory of its EF_CENSUS families), line for line
+  (2026-11-14): the frame (the throws and the catches' predicates, `Pipeline`, `MappingLedger`, `MappingFacts`,
+  `ResolvedMapping`, `SetKeyFacts`, `MilestoningFacts`, `LiftedViews`' and `MappingClosures`' memos, `DynaFnArms` as
+  one exhaustive match) and every synthesis family, held byte for byte to the live Java and its frozen answers by
+  `tests/normalizer_differential.rs` (`rust/oracles/normalizer`: 74,364 asks, every one equal).
 
 - `BASELINE.tsv`: every test target of `bazel test //...` on the pristine tree -- since 2026-11-11 upstream `main` at
   `c4a39e06d`, the merge point (PHASE3_SHIM_DESIGN.md §10, ruling 14; macOS arm64): 552 targets, 550 passed, 2 skipped
