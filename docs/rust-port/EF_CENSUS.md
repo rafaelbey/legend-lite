@@ -529,7 +529,7 @@ harness, and through it the corpus rows of the frozen plan oracle.
 | | (same) E.4's untyped-parameter error and E.3c's ISE | ModelNormalizer |
 | | (same) `AggregateViewLift.lift`'s failure, which walls the whole mapping, not the set | outside the per-class try |
 | (c) | **Orphan lifted functions**: a mapping walled after some of its functions were appended stays out, but those functions stay in the model | -- |
-| (d) | An association `NotImplementedException` goes to `strictErrors` too, contrary to its own comment "TOLERANT (module) builds only" | MN:425-428 |
+| (d) | An association `NotImplementedException` goes to `strictErrors` too, contrary to its own comment "TOLERANT (module) builds only". (2026-11-15: not a tolerant-mode shape alone -- the normalizer batch's fix, `47d13b73f` (d), changed what a STRICT build answers, so it was engine-observable, though tagged LITE-ONLY; the normalizer's second batch, item 4 (e), `e8ac002d0` and `2505f9d1d`, asked legend-engine site by site and refuses in its words where it refuses at compile, PHASE3.md) | MN:425-428 |
 
 | Option | Cost |
 |---|---|

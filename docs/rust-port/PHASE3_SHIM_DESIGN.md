@@ -584,5 +584,14 @@ Each with my recommendation first.
     crashes with a NullPointerException on every query over it (reach 0). The own-package tier of name resolution (the
     brief's fourth bullet) is not ruled here: runs, reach and a row only, for the owner to rule.
 
+39. **One table named through two databases refused** (2026-11-15; the owner ruled it on java_bugFixes and, at the
+    lead's question during the normalizer's second batch, on rust-port too; register row S390, amended). A Relational
+    set with no ~mainTable whose property mappings read [db1]T and [db2]T, both databases defining T, is refused as
+    main refuses it, "Inconsistent database definitions for the mapping of class 'C': [db1, db2]", where legend-engine
+    4.145.0 compiles it and reads db1's T (one alias by schema and table, HelperRelationalBuilder.java:1172): a ruled
+    divergence. `77591e8f2` restores the refusal, superseding that clause of `de0d0be35`; the rest of `de0d0be35` stands
+    (the engine's words for a set with no inferable table and for two table names, a tolerant association end on such
+    a set withheld). Reach 0 asks of the normalizer oracle.
+
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.

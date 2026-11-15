@@ -1408,7 +1408,10 @@ done, in the order of the design's §3.
      E.4's untyped service parameter walls its service (a Rust unit test; no Java one), AggregateViewLift's failure
      poisons its class (functions and bindings withdrawn) where it walled the mapping; (c) a walled mapping's lifted
      functions leave with it (no text reaches this once (b) poisons the aggregate view failure, the one that did, and no
-     test exercises it); (d) an association's NotImplementedException defers in a strict build too, as a class's does. E
+     test exercises it); (d) an association's NotImplementedException defers in a strict build too, as a class's does --
+     a change of what a strict build answers, so ENGINE-OBSERVABLE, not LITE-ONLY as it was tagged (corrected by the
+     second batch, below: its item 4 (e), `e8ac002d0` and `2505f9d1d`, asked the engine site by site and supersedes (d) where the engine
+     refuses at compile). E
      468 / 157: (b) 84 / 29, every tolerant ask tagged (the aggregate view's one ask among them, whose orphan goes with
      its class); (d) 384 / 128, each now answered strict -- the 243 tagged strict asks unmoved are refused first by
      another ModelException (read from the run's forms). E.3c's IllegalStateException still escapes (a pipeline-order
@@ -1465,20 +1468,117 @@ done, in the order of the design's §3.
      by an equality key Java does not have; item 4's include cycle walls its first member only (the refusal's element),
      and its (d) makes a strict build compile what an association's NotImplementedException defers (384 asks, among them
      RefusalsNotCrashesTest's three ModelJoin shapes) -- whether any such shape is the model's error upstream is the
-     second batch's question; E.3c's ISE escapes a tolerant build; US:797's codec equality reads a source position the
+     second batch's question (answered by its item 4 (e): two of the three are, in the engine's words since `e8ac002d0` and `2505f9d1d`); E.3c's ISE escapes a tolerant build; US:797's codec equality reads a source position the
      records' equals leaves out (no two sets of one model differ by it alone). The slice's own choices this batch
      settled: the same-package fallback deleted (item 9); ROT:610 the model's error (item 8; ROT:720 kept deferred); the
      two raw sites in names- and types-tier code fixed (item 7); ModelNormalizer:220 identity by a shared `Arc` (item
      10); MN:742's Java order (item 11); `Unported` removed (item 10). Corrections of the batch's own commits:
      `b77a6bf47` mends the `LegendLiteGapTest` case `fbe06d321` broke; `847a12e7c` corrects ad86fa895's comment ("store
      lookups" -> association lookups); nothing corrects `59787797c`.
+   - *The normalizer's second batch (2026-11-15; rulings 34, 37 (b) and (c), 38 and 39).* The further E behaviours the
+     slice listed, and the register rows ruled to take the engine's form, in Java and Rust together, before F freezes:
+     each tagged ENGINE-SOURCED (legend-engine 4.145.0 asked on the engine runner's class path,
+     `port-scratch/normbatch2/engine`, its cases `engine/cases/g1`-`g6`, `i1`, `i2`; run wherever the answer is an
+     outcome, and executed through its PlanExecutor where it is a result, `engine/g5a-src`) or LITE-ONLY, each measured
+     first by instrumented builds of the base (`port-scratch/normbatch2/reach`, `runs/reach.tsv` and `reach2.tsv`, every
+     normalizer-oracle ask strict and tolerant), each re-freezing what it moved in its own commit from two
+     byte-identical Java runs, every moved ask attributed (`rust/oracles/normalizer/attribution-2026-11-15-normalizer-batch2.tsv`,
+     the MANIFEST's block). The engine's S382 SQL fails on DuckDB, and on H2 by the data: the run that held S382.
+     Item 0 (`0f4f0d0b0`): two complete probe runs at the base (NB2Z1, NB2Z2), each 73,413 of 73,413 frozen keys equal;
+     the 66 keys both answer that the identity oracle did not hold frozen and attributed
+     (`rust/oracles/plan/attribution-2026-11-15-normalizer-batch2-keys66.tsv`: 26 the slice's step 1 texts, 37 the
+     first batch's, 3 `47d13b73f`'s). Item 1, the ~25 behaviours, in four commits: `f5a9ce042` (JCE: a chain that
+     leaves the table it is at is "Mapping error: the join J does not contain the source table T", the engine's
+     validatePropertyMappings, run, and a hop's text names its owner once; an embedded or otherwise-embedded primitive
+     "only complex classes can be the target of an embedded property mapping", run; a schema-qualified main table's
+     slot keeps its schema, run; a routed navigation reads no walled view, LITE-ONLY; E 42 / 14), `1a30c5474` (the
+     pre-pass walls a mapping a refusal names, LITE-ONLY; a class's M2M chain walked through its root set, run; one store
+     substituted twice in one include is legend-pure's "Store substitution error: multiple substitutions for <store>",
+     read; a substituted embedded block keeps its ~primaryKey, read; E unmoved), `c1464bdc1` (an XStore line naming a
+     non-root set navigates through that set, run, E 9 / 3; a ModelJoin's ends are their classes' root sets and a
+     nested hop's ModelJoin is found in an include, run; an included association mapping's name resolves through its
+     own mapping's imports; E otherwise unmoved), `3970872b3` (a view-on-view column in the view's own database, run; a
+     clean-sheet mapping's enumeration mappings with its includes'; a shadowing lambda left alone by bindSrc, run, and
+     substVars; a function condition's imports by its key; the (INNER)-filter rebuild keeps its sourceUrl; E unmoved);
+     left as the engine shares them, noted: US:467-512 (a pair-entry merge no answer reaches), MN:340/:404 (a ~func
+     binding, seen only in a mixed union the engine refuses), M2mRouteGuards' empty id (the engine's rule; `['']` would
+     need the grammar), JCE:567/:585 (no divergence at the site); item 23's quoted `"default"` schema, the parser's or
+     the names tier's, written into S376 for the owner. Item 2 (`685b28f0c`, S395, run): an M2M class-typed property whose class has no
+     set passes a conforming transform through, else "Can't find class mapping"; with item 3's S389 (`pAllVersions`
+     only for a temporal p, else "Can't find property 'pAllVersions' in [T, Any]", run); E 138 / 46. Item 3:
+     `f1989ca67` (S384, each direction by its own join, run, E 9 / 3; S387, the week start exact and refused in the
+     engine's words, run on a Sunday and a Saturday; S386's comment, run); `de0d0be35` (S390, the engine's main-table
+     refusal and one table through two databases, run, E 21 / 7; S382's comments; its two-databases clause superseded
+     by `77591e8f2` under the owner's ruling 39: lite refuses one table named through two databases, as main does, a ruled
+     divergence, reach 0) and `38b21215c` (S390's tolerant half:
+     an association whose end's set has no inferable table withheld, never anchored on the join's table; 0 asks moved,
+     reach 0 in the oracle, its test the case; it completes `de0d0be35`); S382 HELD (the emission waits on the lowering: carried to I); S388 run, NOT fixed (the
+     result reader's, J: carried); S391 measured, NOT done (no text held reaches a wrong row; carried to H with E's
+     share). Item 4: `6a8d9ae58` (a), a mapping's missing join "Can't find join 'J' in database 'D'" at every E site,
+     run (E 540 / 184; completes `59475c162`'s view case); `6ff7c5398` (b), US:797's Rust set equality Java's equals
+     exactly (a position and the target-set map's order no part of it; 234 comparisons over the differential, none
+     where the old and the new differ; Rust only); `749d789da` (c), E.4's untyped-parameter wall's Java test, and the
+     first batch's item 4 (c) truncation deleted as unreachable (supersedes that part of `47d13b73f`; a confirming run
+     equal); (d) a quoted enumeration mapping id measured and written as S397 (33 asks over 11 texts, the words differ
+     on 18 / 6), nothing ported; `e8ac002d0` and its follow-up `2505f9d1d` (e), the lead's addition: the first batch's `47d13b73f` (d) -- an association's
+     NotImplementedException out of a strict build's errors -- changed what a strict build answers, so it was
+     ENGINE-OBSERVABLE, not LITE-ONLY as it was tagged; its strict reach censused by the site that threw (627 asks over
+     211 texts, 411 / 137 reaching one at the batch's head) and the engine asked on every site's texts: where it
+     compiles (a Pure-set end 216 / 72, an end with no Relation or Relational set 117 / 39, a Column-bodied line 9 / 3,
+     a nested hop to a Pure set 3 / 1; corpus fragments it refuses for another file's class, as lite does, 18 / 6) the
+     deferral is kept; where it refuses at compile -- a ModelJoin's parameter pairing (types, a self-association's
+     names, "Cannot pair": 9 / 3 each), a shared parameter name's body under each direction's binding (6 / 2), an
+     XStore line's property (9 / 3), the parameter count -- lite now refuses in its words at its point
+     (`MappingValidation.requireEngineModelJoin`, `requireEngineXStore`, `enginePairing`; exact shapes only), E 42 / 14,
+     superseding (d) at those sites; a temporal self-association's names (9 / 3) held for the owner (S399). Item 5: ruling 38 recorded (`6a3cb3a7d`, docs only); the own-package tier measured and
+     written as S398 for the owner (no resolution changed).
+   - *The second batch's re-freezes.* The normalizer oracle: 801 moves over the batch, 801 distinct asks over 271 texts, each move in its item's
+     commit, each ask one the reach runs tagged with the item's site, none untagged (1a 42, 1c 9, 2 138, 3a 9, 3b 21,
+     4a 540, 4e 42); items 1b, 1d, 3c and 4e's follow-up moved nothing (a pair each), 4b nothing (the differential,
+     Rust only), 4c nothing (a confirming run).
+     The differential equal at every commit (74,364 of 74,364). The names oracle: unmoved (a run of the measuring
+     build with the tier on, every file equal to frozen: models.tsv 74,292 lines, queries.tsv 31,297, stores.tsv 74,292, calls.tsv 14,454, duplicates.tsv 74,292, each equal). The probe: corpus and core lanes
+     (//spec:corpus_duckdb, //spec:corpus_h2, the normalizer and integration lanes) after each item that moved a
+     front-oracle answer -- NB2L1 `f5a9ce042`, NB2L2 `1a30c5474`, NB2L3 `c1464bdc1`, NB2L4 `3970872b3`, NB2L5
+     `685b28f0c`, NB2L6 `f1989ca67`, NB2L7 `de0d0be35`, NB2L8 `6a8d9ae58` -- each 19,276 frozen keys answered, one moved:
+     M s:007b64a7... (the corpus judge lanes' buildModule) `model.LiftedViews.functions` 142/45 -> 138/45, item 1's
+     JCE:415-419 (a variant run, NB2V1, of `f5a9ce042` with that hunk reverted answers it as frozen); then two complete
+     runs at the last code commit, `77591e8f2` (with `08bdce13a`, the generated claims file, data only) (NB2Z3, NB2Z4): each its own tagged probe copy, every hunk checked to apply first; 142 of 145 targets passing each (//core:guardrails, probe-caused; //core:census, probe-caused and red at the commit for the batch's own reason too, which the suite fix `fc8966a9a` mends; and //core:update_generated_4_test, the generated claims file `08bdce13a` brings up to date); of the 73,479 frozen keys 73,473 equal in both, three moved (counts) and three answered by neither -- the 1a row (the corpus judge lanes' module, model.LiftedViews.functions 142/45 -> 138/45), 4e's two shared-name ModelJoin texts (now refused strict: their compileModel counts moved, their bodies compiles, which item 0 added, gone) and item 2's changed OneIndexTest module text (its key replaced) -- re-frozen and dropped with their attribution (`a78a2f390`: `rust/oracles/identity/attribution-2026-11-15-normalizer-batch2-refreeze.tsv`, the identity MANIFEST's item 6 block; hits.tsv 73,479 -> 73,476); no MirJson, execution plan or test plan id moved (mir-ids.tsv, plan-ids.tsv, rust/oracles/mir as frozen). Keys both runs answer that the oracle does not hold, outside the freeze's exclusions: 76, every one of a test text this batch added or changed, none added (38 named by text -- NormalizerBatch2Test's constants and formatted cases -- 36 more in the core_tests_normalizer lanes, NormalizerBatch2Test's composed texts and module builds; OneIndexTest's changed module; LegendLiteGapTest's new passthrough case). Two earlier pairs were stopped before they finished, at `e8ac002d0` and `2505f9d1d`, when a hole and then ruling 39 changed the code; the verify worktree reverted each time. Every run's output folder deleted (the measuring runs' tags kept, `port-scratch/normbatch2/tags`).
+   - *Gates* at `fc8966a9a`, the last commit before this record: `cargo test --workspace` 879 passed, 0 failed; clippy `-D warnings` and `fmt --check` clean; the full Bazel suite 584 of 586 passing (2 skipped), every target BASELINE.tsv passes passing but the three ledgered gone targets; `ledger_check.sh c4a39e06d` no MISSING; the early gates green after each item; no test source names a replaced refusal text but in a dated comment. Not seen by the early gates, and found by the full suite at `a78a2f390`: //core:update_generated_4_test red at `e8ac002d0`, `2505f9d1d` and `77591e8f2` (the generated claims file, regenerated by `08bdce13a`); //parser-equivalence:parser_parity red from `f5a9ce042` (a template's second block a snippet of its own, refused at LEGEND_LITE) and from `3970872b3` (a clean-sheet text in an undeclared host), and //core:census red from `3970872b3` (a clean-sheet includer's two legacy reaches; red under the probe by design, so the item 6 runs hid it), both made green by `fc8966a9a`, test sources alone, the texts they build unchanged
+   - *The owner's choices, taken conservatively*: S382 held (the engine's SQL fails on DuckDB and, by the data, on H2;
+     lite's relation groupBy cannot carry it), S388 not fixed (the reader's), S391 not done (its rows already the
+     engine's for every text held) -- each the lead's; S386's DuckDB past-the-end '' and H2's failing part below 1;
+     S387's class-level poison and H2's locale-dependent numbering; S389's lineage order under multiple inheritance (not
+     run); S395's untyped transforms (9 / 3), subclass set ids and the passed-through child the resolver refuses; S397
+     (a quoted enumeration mapping id), S398 (the own-package tier), S399 (item 4 (e)'s held pairing) and S376's quoted
+     `"default"` schema, each written for the owner to rule; ModelIntegrity's case check skipping a foreign-prefixed view column (engine "Can't find
+     column 'id'", JCE:567's neighbour); two ModelJoins of one association (the engine compiles, the last used; lite
+     refuses); a join-mediated filter reading the main table (the engine refuses at plan, lite plans); a three-table
+     join lite compiles that the engine refuses; the clean-sheet arm's wall after lifting, which leaves its lifted
+     functions (24 tolerant asks over 6 texts, the measuring build), as the legacy arm did before the first batch's 4 (c).
+     Item 4 (e)'s holds (S399): a temporal self-association's parameter names (9 / 3), and the shapes its checks do not
+     decide, where lite answers unchecked as before -- a temporal end, an end whose sets are not plain or a body of
+     several statements, a body beyond equal / and / or / not over property chains, an XStore line naming set ids or a
+     class not mapped by one set (strict reach in the follow-up's message) -- and a typed parameter not spelled as its
+     full path, which the engine refuses as "Can't find type 'X'" (an imported bare name) where lite, reading resolved
+     names, compiles (2 / 1). The owner's ruling 39 (one table named through two databases refused, as main and
+     java_bugFixes refuse it) is applied by `77591e8f2`, superseding `de0d0be35`'s two-databases clause. The suite fix's
+     three pin moves, each dated for the owner's review (`fc8966a9a`): the own-corpus ledger's mapping-as-function 21 -> 22
+     and the dialect census's MappingNormalizerTest extension pin 4 -> 5 (item 1's clean-sheet include test, moved
+     there unchanged), and the reachback census's register gaining MappingNormalizer.java at 2 (its follow-up carried).
+     Corrections and supersessions: `de0d0be35` carries `685b28f0c`'s rustfmt; `38b21215c` completes `de0d0be35`;
+     `e8ac002d0` supersedes `47d13b73f` (d) where the engine refuses at compile (the pairing, a shared name's body, an
+     XStore line's property, the parameter count), and records (d) as engine-observable, not LITE-ONLY; `2505f9d1d`
+     completes `e8ac002d0` (its unmapped-end, spelling and nested-pairing holes);
+     `6a8d9ae58` completes `59475c162`; `749d789da` deletes `47d13b73f`'s item 4 (c) truncation; `6ff7c5398` replaces
+     the first batch's item 10 US:797 codec comparison (`847a12e7c`).
 
 ## Carried to the slices not yet begun
 
 Work an earlier slice found and ruled for a later one; each item names the ruling and the register row, and is done
 when that slice lands.
 
-- **The normalizer's second batch (E, before F freezes; ruling 37).** In Java and Rust together, each confirmed against
+- ~~**The normalizer's second batch (E, before F freezes; ruling 37).** In Java and Rust together, each confirmed against
   the pinned engine first (run where it is an outcome), under rulings 34 and 37 (a) -- a fix that moves a frozen answer
   lands with its attributed re-freeze, any behaviour the engine shares left and noted: the ~25 further behaviours the
   normalizer slice listed (its entry above, "Java behaviours that look wrong beyond census ASK 13"); the M2M
@@ -1489,8 +1589,32 @@ when that slice lands.
   Sunday and a Saturday), S388's NULL run (the engine asked of a NULL read for a [1] property; an answer that differs an
   engine-sourced fix), S389 (pAllVersions only for a temporal p), S390 (the engine's words in strict, the association
   walled in tolerant), S391 (a real INNER join, measured first); S386's wrong comment fixed with them. Rows S381, S383,
-  S385, S386 and S392 are ruled divergences, kept.
+  S385, S386 and S392 are ruled divergences, kept.~~ Done by the normalizer's second batch, 2026-11-15 (the normalizer slice's entry above, "the
+  normalizer's second batch"), but for S382's emission (carried to I), S388's reader (J) and S391's INNER join (H),
+  below.
 
+- **Lowering (I), with E: S382** (ruling 37 (c); held by the normalizer's second batch). A ~groupBy set's Join property
+  mapping navigated inside the grouped select, multi-hop included, as the engine does -- E's emission and the
+  lowering's share together, since lite's relation `groupBy` carries key and aggregate columns only (shown: a `select`
+  of the target's column after a join and a groupBy is "unknown column"). Asked of the engine first, executed
+  (`port-scratch/normbatch2/engine/cases/g5a/d*`): its own SQL fails on DuckDB ("Binder Error: column \"NAME\" must
+  appear in the GROUP BY clause ...") and on H2 by the data; a graphFetch of the property refused at plan. Reach: 12
+  asks over 4 texts reach such a property mapping, none multi-hop.
+- **The resolver (H), with E: S391** (ruling 37 (c); not done by the normalizer's second batch). An (INNER) ~filter a
+  real INNER JOIN in a subselect, whatever its condition: an INNER marker on the filter chain's join slot in E (Java and
+  Rust) and H materializing it. Measured: (INNER) filters 56 asks over 19 texts strict, 83 / 28 tolerant; none whose
+  condition reads no column of the chain's terminal (where LEFT plus WHERE would keep a row INNER drops); 3 / 1 refused
+  as null-tolerant where the engine plans.
+- **The result reader (J): S388** (ruling 37 (c); run, not fixed, by the normalizer's second batch). A [1] property read
+  NULL into a class result or a graphFetch is the engine's error, "Error reading in property 'p'. Property of
+  multiplicity [1] can not be null" (", PKs: 2" after it for `P.all()`; run on H2, `g5a/c_null*`); a projection
+  returns the null, as lite does; lite returns the null in the other two.
+- **E: a clean-sheet includer's include walk through MappingClosures** (the normalizer's second batch's suite fix,
+  `fc8966a9a`; for the owner's review). `MappingNormalizer.cleanSheetEnumerationMappings`' walk (`walkIncludedEnums`,
+  `3970872b3`, item 1's MN:539) reaches the legacy surface twice -- `findLegacyMapping` for the included mapping and
+  for the package-local include probe -- registered in LegacyReachbackCensusTest's `REGISTER` at 2 (CONSTRUCTION);
+  MappingClosures' closures are keyed by a legacy mapping and do not answer for a clean-sheet includer. One include
+  walk for both doors takes the register back to MappingClosures' 2 alone, in Java and Rust together.
 - **The resolver (H) and lowering (I).** *A query reading a relational column whose type inference the engine fails is
   refused when it is planned, in the engine's words* (the owner's ruling 35, 2026-11-14, PHASE3_SHIM_DESIGN.md §10;
   register row S378). legend-engine runs `inferRelationalType` where a query asks it -- at plan generation,
