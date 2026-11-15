@@ -505,6 +505,14 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
                         && "src".equals(var.name())) {
                     return row;
                 }
+                // a lambda whose parameter is named src rebinds it: its body's $src is the parameter, Pure's
+                // innermost-first scoping (legend-engine 4.145.0 ProcessingContext.getInferredVariable; asked: a
+                // binding `$src.N->map(src | $src + 1)` plans `N + 1`). Until 2026-11-15 the body's $src was the row
+                // too (the normalizer's second batch, item 1, RR:131)
+                if (v instanceof com.legend.protocol.spec.LambdaFunction lf
+                        && lf.parameters().stream().anyMatch(p -> "src".equals(p.name()))) {
+                    return v;
+                }
                 return v.mapChildren(c -> bindSrc(c, row));
             }
 

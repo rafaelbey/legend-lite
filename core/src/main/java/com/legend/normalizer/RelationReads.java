@@ -187,6 +187,14 @@ final class RelationReads {
             ValueSpecification r = binds.get(vv.name());
             return r != null ? r : vv;
         }
+        // a lambda rebinding a bound name shadows it in its body (Pure's innermost-first scoping); until 2026-11-15
+        // every occurrence was substituted (the normalizer's second batch, item 1, RR:184)
+        if (v instanceof com.legend.protocol.spec.LambdaFunction lf
+                && lf.parameters().stream().anyMatch(p -> binds.containsKey(p.name()))) {
+            java.util.Map<String, ValueSpecification> inner = new java.util.LinkedHashMap<String, ValueSpecification>(binds);
+            lf.parameters().forEach(p -> inner.remove(p.name()));
+            return inner.isEmpty() ? v : v.mapChildren(x -> substVars(x, inner));
+        }
         return v.mapChildren(x -> substVars(x, binds));
     }
 }

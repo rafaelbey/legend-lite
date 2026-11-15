@@ -154,12 +154,16 @@ pub fn resolve_view_refs_in_join_keeping(
             }
             for vc in view.column_mappings.iter() {
                 if vc.name == cr.column {
-                    // a view-on-view column re-resolves (against `db`) so the chain flattens to the physical root;
-                    // pass 1 (`only_view`) stays one layer
+                    // a view-on-view column re-resolves so the chain flattens to the physical root -- in the database
+                    // that DECLARES the view (until 2026-11-15 against `db`, the hop's: the normalizer's second batch,
+                    // item 1, MN:2562-2602); pass 1 (`only_view`) stays one layer
+                    let view_db = model
+                        .view_lift(cr_db, &cr.table)
+                        .map_or_else(|| cr_db.clone(), |l| l.owner_db.clone());
                     return if only_view.is_none() {
                         resolve_view_refs_in_join_keeping(
                             &vc.expression,
-                            db,
+                            &view_db,
                             source_table,
                             model,
                             md,

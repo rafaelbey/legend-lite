@@ -253,7 +253,8 @@ impl Reads<'_, '_> {
     }
 }
 
-/// `RelationReads.substVars` (:184): the variables `binds` names substituted (no shadowing rule, as Java's).
+/// `RelationReads.substVars` (:184): the variables `binds` names substituted, a lambda rebinding a name shadowing it in
+/// its body (since 2026-11-15, the normalizer's second batch, item 1, RR:184: it had no shadowing rule).
 pub fn subst_vars(v: &p::ValueSpecification, binds: &LinkedMap<JStr, p::ValueSpecification>) -> p::ValueSpecification {
     substituted(v, binds).unwrap_or_else(|| v.clone())
 }
@@ -266,6 +267,20 @@ fn substituted(
 ) -> Option<p::ValueSpecification> {
     if let V::Variable(vv) = v {
         return binds.get(&vv.name).cloned();
+    }
+    if let V::LambdaFunction(lf) = v
+        && lf.parameters.iter().any(|p| binds.contains_key(&p.name))
+    {
+        let mut inner: LinkedMap<JStr, p::ValueSpecification> = LinkedMap::new();
+        for (k, x) in binds.iter() {
+            if !lf.parameters.iter().any(|p| &p.name == k) {
+                inner.put(k.clone(), x.clone());
+            }
+        }
+        if inner.is_empty() {
+            return None;
+        }
+        return v.map_children(|x| substituted(x, &inner));
     }
     v.map_children(|x| substituted(x, binds))
 }
@@ -434,6 +449,26 @@ Mapping t::M (
         assert_eq!(show(&subst_vars(&read("this", "a"), &binds)), "$that.a");
         let other = read("x", "a");
         assert_eq!(subst_vars(&other, &binds), other);
+        // a lambda rebinding `this` shadows it in its body (the normalizer's second batch, item 1, RR:184, 2026-11-15)
+        let shadowing = V::LambdaFunction(Arc::new(p::LambdaFunction {
+            parameters: Arc::from(vec![variable("this")]),
+            body: Arc::from(vec![read("this", "a")]),
+            pos: None,
+        }));
+        assert_eq!(subst_vars(&shadowing, &binds), shadowing);
+        let free = V::LambdaFunction(Arc::new(p::LambdaFunction {
+            parameters: Arc::from(vec![variable("y")]),
+            body: Arc::from(vec![read("this", "a")]),
+            pos: None,
+        }));
+        assert_eq!(
+            show(&subst_vars(&free, &binds)),
+            show(&V::LambdaFunction(Arc::new(p::LambdaFunction {
+                parameters: Arc::from(vec![variable("y")]),
+                body: Arc::from(vec![read("that", "a")]),
+                pos: None,
+            })))
+        );
     }
 
     #[test]

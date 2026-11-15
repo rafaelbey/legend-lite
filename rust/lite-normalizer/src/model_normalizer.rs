@@ -146,6 +146,21 @@ pub fn resolve_synthesized(
     for (key, scope) in parsed.element_imports.iter() {
         element_imports.entry(key).or_insert(scope);
     }
+    // a function's import scope is keyed by its id, its pre- and post-conditions' owner is its name: the name of a
+    // function written once finds its key, an overloaded one none (since 2026-11-15, the normalizer's second batch,
+    // item 1, ModelNormalizer:171-172)
+    let mut function_keys: HashMap<JStr, Option<JStr>> = HashMap::new();
+    for el in parsed.elements.iter() {
+        if let PackageableElement::FunctionDefinition(f) = el
+            && f.synthesized_from.is_none()
+        {
+            let key = ParsedModel::key_of(el);
+            function_keys
+                .entry(f.qualified_name.clone())
+                .and_modify(|k| *k = None)
+                .or_insert(Some(key));
+        }
+    }
     let mut out: Vec<PackageableElement> = Vec::with_capacity(elements.len());
     for el in elements {
         let PackageableElement::FunctionDefinition(fd) = &el else {
@@ -157,8 +172,12 @@ pub fn resolve_synthesized(
             continue;
         };
         // the body was written in its OWNER's section: it resolves under the owner's imports, as the owner's own
-        // text did (a PRE/POST body's owner is the function's name, not its key: `none`, as in Java -- census H4 §1)
-        let scope = element_imports.get(&from.owner_fqn).copied().unwrap_or(&none);
+        // text did (a PRE/POST body's owner is the function's name: its key when the name is written once)
+        let owner_key = match function_keys.get(&from.owner_fqn) {
+            Some(Some(key)) if !element_imports.contains_key(&from.owner_fqn) => key,
+            _ => &from.owner_fqn,
+        };
+        let scope = element_imports.get(owner_key).copied().unwrap_or(&none);
         let mut body: Vec<p::ValueSpecification> = Vec::with_capacity(fd.body.len());
         let mut changed = false;
         let mut unresolved: Option<Thrown> = None;

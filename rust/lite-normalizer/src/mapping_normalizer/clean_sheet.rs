@@ -18,11 +18,11 @@ use lite_model::linked::{empty, list};
 use lite_model::{
     AssociationDefinitionAssociationEndDefinition, CleanSheetMappingDefinition,
     CleanSheetMappingDefinitionAssociationBinding, CleanSheetMappingDefinitionClassBinding,
-    CleanSheetMappingDefinitionKind, Function, FunctionDefinition, FunctionDefinitionParameterDefinition,
-    FunctionDefinitionSynthesized, JStr, MappingDefinition, MappingDefinitionAssociationBinding,
-    MappingDefinitionClassBinding, MappingDefinitionClassBindingDeclaredKeys, MappingDefinitionClassBindingPure,
-    MappingDefinitionClassBindingRelational, MappingDefinitionRelationalSource, MappingDefinitionRelationalSourceTable,
-    SynthHat, cat,
+    CleanSheetMappingDefinitionKind, EnumerationMapping, Function, FunctionDefinition,
+    FunctionDefinitionParameterDefinition, FunctionDefinitionSynthesized, JStr, MappingDefinition,
+    MappingDefinitionAssociationBinding, MappingDefinitionClassBinding, MappingDefinitionClassBindingDeclaredKeys,
+    MappingDefinitionClassBindingPure, MappingDefinitionClassBindingRelational, MappingDefinitionRelationalSource,
+    MappingDefinitionRelationalSourceTable, MappingInclude, SynthHat, cat,
 };
 use lite_names::{ModelIndex, synth_fqn};
 
@@ -114,8 +114,50 @@ pub fn clean_sheet_to_canonical(
         md.includes.clone(),
         list(class_bindings),
         list(assoc_bindings),
-        md.enumeration_mappings.clone(),
+        clean_sheet_enumeration_mappings(md, model),
     ))
+}
+
+/// `MappingNormalizer.cleanSheetEnumerationMappings`: a clean-sheet mapping's enumeration mappings with its includes',
+/// as the legacy door has them (its own, then each included legacy mapping's own and its includes', depth-first, each
+/// once; since 2026-11-15, the normalizer's second batch, item 1, MN:539 -- its own alone before).
+fn clean_sheet_enumeration_mappings(
+    md: &CleanSheetMappingDefinition,
+    model: &ModelIndex,
+) -> Arc<[Arc<EnumerationMapping>]> {
+    let mut out: Vec<Arc<EnumerationMapping>> = md.enumeration_mappings.iter().cloned().collect();
+    let mut seen: HashSet<JStr> = HashSet::new();
+    seen.insert(md.qualified_name.clone());
+    walk_included_enums(&md.qualified_name, &md.includes, model, &mut out, &mut seen);
+    list(out)
+}
+
+fn walk_included_enums(
+    includer: &JStr,
+    includes: &[Arc<MappingInclude>],
+    model: &ModelIndex,
+    out: &mut Vec<Arc<EnumerationMapping>>,
+    seen: &mut HashSet<JStr>,
+) {
+    for inc in includes.iter() {
+        let mut path = inc.mapping_path.clone();
+        if !lite_model::text::contains(&path.0, "::")
+            && let Some(cut) = lite_model::text::last_index_of(&includer.0, &JStr::from("::").0)
+        {
+            let in_pkg = cat!(&includer.0[..cut], "::", &path);
+            if model.find_legacy_mapping(&in_pkg).is_some() {
+                path = in_pkg;
+            }
+        }
+        if !seen.insert(path.clone()) {
+            continue;
+        }
+        let Some(included) = model.find_legacy_mapping(&path) else {
+            continue;
+        };
+        out.extend(included.enumeration_mappings.iter().cloned());
+        walk_included_enums(&path, &included.includes, model, out, seen);
+    }
 }
 
 /// `MappingNormalizer.refBody` (:546): a function-REF binding's realizing body, fetched for the stamp; loud when the

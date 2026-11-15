@@ -92,6 +92,13 @@ fn bound(v: &ValueSpecification, row: &ValueSpecification) -> Option<ValueSpecif
     if is_src(v) {
         return Some(row.clone());
     }
+    // a lambda whose parameter is named src rebinds it (Pure's innermost-first scoping; since 2026-11-15, the
+    // normalizer's second batch, item 1, RR:131)
+    if let ValueSpecification::LambdaFunction(lf) = v
+        && lf.parameters.iter().any(|p| is_named_src(p))
+    {
+        return None;
+    }
     v.map_children(|c| bound(c, row))
 }
 
@@ -206,6 +213,29 @@ mod tests {
         assert_eq!(
             after.pos, None,
             "the rebuilt property drops its position, as Java's rebuild does"
+        );
+    }
+
+    #[test]
+    fn bind_src_leaves_a_lambda_that_rebinds_src() {
+        // Pure's innermost-first scoping: the lambda's `$src` is its parameter (the normalizer's second batch, item 1,
+        // RR:131, 2026-11-15; legend-engine 4.145.0 plans `$src.N->map(src | $src + 1)` as `N + 1`)
+        let v = parse("$src.N->map(src | $src + 1)");
+        let bound = ClassMappingRelationFunctionCol::bind_src(&v, &row());
+        let ValueSpecification::AppliedFunction(af) = &bound else {
+            panic!("a call")
+        };
+        let ValueSpecification::AppliedProperty(n) = &af.parameters[0] else {
+            panic!("the receiver")
+        };
+        assert_eq!(n.receiver, row());
+        let ValueSpecification::AppliedFunction(before) = &v else {
+            panic!("a call")
+        };
+        assert_eq!(
+            json(&af.parameters[1]),
+            json(&before.parameters[1]),
+            "the lambda untouched"
         );
     }
 

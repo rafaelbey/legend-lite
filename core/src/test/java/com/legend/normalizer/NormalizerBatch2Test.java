@@ -416,4 +416,107 @@ class NormalizerBatch2Test {
                 """;
         assertEquals(java.util.Set.of("w::Inner"), module(text).walls().keySet());
     }
+
+    // ---- item 1, MN:2562-2602, MN:539 and RR:131/:184: a view's own database, a clean-sheet door's includes, a
+    // shadowing lambda ----
+
+    private static final String VIEW_ON_VIEW_SHADOWED = """
+            ###Pure
+            Class w::Q { qid: Integer[0..1]; }
+            Class w::P { id: Integer[0..1]; other: Integer[0..1]; }
+            Association w::QP { q: w::Q[0..1]; p: w::P[0..1]; }
+
+            ###Relational
+            Database w::A
+            (
+              Table T (ID INTEGER PRIMARY KEY, OTHER INTEGER)
+              View V1 (ID: T.ID PRIMARY KEY, OTHER: T.OTHER)
+              View V2 (ID: V1.ID PRIMARY KEY)
+            )
+            Database w::B
+            (
+              include w::A
+              Table S (ID INTEGER PRIMARY KEY)
+              View V1 (ID: T.OTHER PRIMARY KEY)
+              Join J(S.ID = V2.ID)
+            )
+
+            ###Mapping
+            Mapping w::M
+            (
+              w::Q: Relational { ~mainTable [w::B]S qid: [w::B]S.ID }
+              w::P: Relational { ~mainTable [w::B]T id: [w::B]T.ID, other: [w::B]T.OTHER }
+              w::QP: Relational { AssociationMapping ( p: [w::B]@J, q: [w::B]@J ) }
+            )
+
+            ###Connection
+            RelationalDatabaseConnection w::C { store: w::B; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+            ###Runtime
+            Runtime w::R { mappings: [w::M]; connections: [ w::B: [ c: w::C ] ]; }
+            """;
+
+    @Test
+    @DisplayName("item 1 (MN:2562-2602): a view-on-view column re-resolves in the database that declares the view")
+    void aViewOnViewColumnReResolvesInItsOwnDatabase() {
+        // asked of the engine: Q.p joins A's V1 (T.ID), the view's own database's, though B declares a V1 of its own
+        // (T.OTHER); until 2026-11-15 the inner view re-resolved against the hop's database, B, and joined T.OTHER
+        String sql = Compiler.query(Compiler.compileModel(VIEW_ON_VIEW_SHADOWED),
+                "w::Q.all()->project([x|$x.qid, x|$x.p.id],['qid','pid'])->from(w::M, w::R)").plan("w::R").sql();
+        assertEquals(true, sql.contains("ON \"t0\".ID = \"t1\".ID"), sql);
+        assertEquals(false, sql.contains("OTHER"), sql);
+    }
+
+    private static final String CLEAN_SHEET_INCLUDE = """
+            ###Pure
+            Enum w::E { A, B }
+            Class w::P { e: w::E[0..1]; }
+            function w::pf(): w::P[*]
+            {
+              #>{w::Db.T}# -> map(r | ^w::P(e = if($r.CODE == 'a', |w::E.A, |w::E.B)))
+            }
+
+            ###Relational
+            Database w::Db
+            (
+              Table T (ID INTEGER PRIMARY KEY, CODE VARCHAR(20))
+            )
+
+            ###Mapping
+            Mapping w::Base
+            (
+              w::E: EnumerationMapping EM { A: 'a', B: 'b' }
+            )
+            Mapping w::M
+            (
+              include w::Base
+              *w::P: Relational { w::pf }
+            )
+            """;
+
+    @Test
+    @DisplayName("item 1 (MN:539): a clean-sheet mapping's enumeration mappings hold its includes'")
+    void aCleanSheetMappingsEnumerationMappingsHoldItsIncludes() {
+        // LITE-ONLY (the engine has no clean-sheet door): the legacy door's list is include-flattened and its readers
+        // take it so; until 2026-11-15 the clean-sheet door kept its own alone
+        com.legend.compiler.element.PureModelContext ctx =
+                (com.legend.compiler.element.PureModelContext) Compiler.compileModel(CLEAN_SHEET_INCLUDE);
+        assertEquals(List.of("EM"), ctx.findMapping("w::M").orElseThrow().enumerationMappings().stream()
+                .map(com.legend.model.EnumerationMapping::mappingId).toList());
+    }
+
+    @Test
+    @DisplayName("item 1 (RR:131/:184): a lambda that rebinds src or a bound name shadows it")
+    void aShadowingLambdaIsLeftAlone() {
+        // Pure's innermost-first scoping (legend-engine 4.145.0 plans `$src.N->map(src | $src + 1)` as N + 1); until
+        // 2026-11-15 the lambda's own $src was replaced by the row too
+        com.legend.protocol.spec.Variable src = new com.legend.protocol.spec.Variable("src");
+        com.legend.protocol.spec.ValueSpecification row = new com.legend.protocol.spec.Variable("row");
+        com.legend.protocol.spec.LambdaFunction shadowing = new com.legend.protocol.spec.LambdaFunction(
+                List.of(src), List.of(new com.legend.protocol.spec.AppliedProperty(src, "N", null)));
+        assertEquals(shadowing, com.legend.model.ClassMapping.RelationFunction.Col.bindSrc(shadowing, row));
+        com.legend.protocol.spec.ValueSpecification read = new com.legend.protocol.spec.AppliedProperty(src, "N", null);
+        assertEquals(new com.legend.protocol.spec.AppliedProperty(row, "N", null),
+                com.legend.model.ClassMapping.RelationFunction.Col.bindSrc(read, row));
+    }
 }

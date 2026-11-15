@@ -163,13 +163,28 @@ public final class ModelNormalizer {
         }
         universe = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(universe));
         com.legend.model.ImportScope none = new com.legend.model.ImportScope.Builder().build();
+        // a function's import scope is keyed by its id (an overload's own), its pre- and post-conditions' owner is its
+        // name: the name of a function written once finds its key (an overloaded name, none -- each overload's text
+        // was resolved by name resolution already, in its own section). Until 2026-11-15 a PRE/POST body resolved
+        // under no imports (the normalizer's second batch, item 1, ModelNormalizer:171-172; LITE-ONLY, a no-op:
+        // resolution is idempotent and D resolved the body first)
+        Map<String, String> functionKeys = new java.util.HashMap<>();
+        for (PackageableElement el : parsed.elements()) {
+            if (el instanceof FunctionDefinition f && f.synthesizedFrom() == null) {
+                functionKeys.merge(f.qualifiedName(), ParsedModel.keyOf(f), (a, b) -> "");
+            }
+        }
         List<PackageableElement> out = new ArrayList<>(elements.size());
         for (PackageableElement el : elements) {
             if (el instanceof FunctionDefinition fd && fd.synthesizedFrom() != null) {
                 // the body was written in its OWNER's section: it resolves under
                 // the owner's imports, as the owner's own text did
-                com.legend.model.ImportScope scope = parsed.elementImports()
-                        .getOrDefault(fd.synthesizedFrom().ownerFqn(), none);
+                String ownerKey = fd.synthesizedFrom().ownerFqn();
+                if (!parsed.elementImports().containsKey(ownerKey)
+                        && !functionKeys.getOrDefault(ownerKey, "").isEmpty()) {
+                    ownerKey = functionKeys.get(ownerKey);
+                }
+                com.legend.model.ImportScope scope = parsed.elementImports().getOrDefault(ownerKey, none);
                 List<com.legend.protocol.spec.ValueSpecification> body = new ArrayList<>(fd.body().size());
                 boolean changed = false;
                 try {

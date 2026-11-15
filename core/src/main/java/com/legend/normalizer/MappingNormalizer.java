@@ -576,7 +576,44 @@ public final class MappingNormalizer {
             }
         }
         return new MappingDefinition(md.qualifiedName(), md.includes(),
-                classBindings, assocBindings, md.enumerationMappings());
+                classBindings, assocBindings, cleanSheetEnumerationMappings(md, model));
+    }
+
+    /** A clean-sheet mapping's enumeration mappings with its includes', as the legacy door's {@code
+     *  enumerationMappingsWithIncludes} has them: its own, then each included legacy mapping's own and its includes',
+     *  depth-first, each mapping once (a bare include path in the includer's package first, as
+     *  MappingClosures.walkEnums reads it). Until 2026-11-15 its own alone, though the compiled mapping's readers
+     *  take the list as include-flattened (the normalizer's second batch, item 1, MN:539; LITE-ONLY: the engine has
+     *  no clean-sheet door). An included mapping the model has not is left to the refusal that names it. */
+    private static List<EnumerationMapping> cleanSheetEnumerationMappings(CleanSheetMappingDefinition md,
+            ModelBuilder model) {
+        List<EnumerationMapping> out = new ArrayList<>(md.enumerationMappings());
+        Set<String> seen = new HashSet<>();
+        seen.add(md.qualifiedName());
+        walkIncludedEnums(md.qualifiedName(), md.includes(), model, out, seen);
+        return out;
+    }
+
+    private static void walkIncludedEnums(String includer, List<MappingInclude> includes, ModelBuilder model,
+            List<EnumerationMapping> out, Set<String> seen) {
+        for (MappingInclude inc : includes) {
+            String path = inc.mappingPath();
+            if (!path.contains("::") && includer.contains("::")) {
+                String inPkg = includer.substring(0, includer.lastIndexOf("::")) + "::" + path;
+                if (model.findLegacyMapping(inPkg).isPresent()) {
+                    path = inPkg;
+                }
+            }
+            if (!seen.add(path)) {
+                continue;
+            }
+            java.util.Optional<LegacyMappingDefinition> included = model.findLegacyMapping(path);
+            if (included.isEmpty()) {
+                continue;
+            }
+            out.addAll(included.get().enumerationMappings());
+            walkIncludedEnums(path, included.get().includes(), model, out, seen);
+        }
     }
 
     /** A function-REF binding's realizing body, fetched for the stamp —
@@ -1777,10 +1814,13 @@ public final class MappingNormalizer {
         if (rcm.filter() instanceof FilterMapping.JoinMediated jmi
                 && jmi.joinType() != null) {
             ValueSpecification innerSrc = JoinChainEmission.innerFilteredSource(rcm, jmi, model, md, ledger);
+            // the set again, its filter removed and every other component kept (until 2026-11-15 its sourceUrl
+            // was dropped too -- never non-null here, a JSON-source set taking its own path first: the normalizer's
+            // second batch, item 1, MN:1695-1699; LITE-ONLY, lite's own record)
             ClassMapping.Relational noFilter = new ClassMapping.Relational(
                     rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
                     rcm.mainTable(), null, rcm.distinct(), rcm.groupBy(),
-                    rcm.primaryKey(), rcm.propertyMappings(), null,
+                    rcm.primaryKey(), rcm.propertyMappings(), rcm.sourceUrl(),
                     rcm.propertyTargetSets(), rcm.aggregation());
             return synthTableBackedParts(md, noFilter, model, ledger, innerSrc);
         }
@@ -2693,9 +2733,19 @@ public final class MappingNormalizer {
                         // .id) — re-resolve so the chain flattens to the
                         // physical root. Pass-1 (onlyView) stays one-layer:
                         // its exact-name contract addresses the backing view
-                        // alone.
+                        // alone. The view's columns re-resolve in the database
+                        // that DECLARES the view, where its text was written:
+                        // legend-engine binds a view's tables when its own
+                        // database compiles (RelationalParseTreeWalker.java
+                        // :1013-1015; asked: an including database's view of
+                        // the same name is never read). Until 2026-11-15 they
+                        // re-resolved against the hop's database (the
+                        // normalizer's second batch, item 1, MN:2562-2602;
+                        // ENGINE-SOURCED, run)
+                        String viewDb = model.viewLift(crDb, cr.table())
+                                .map(ModelBuilder.ViewLift::ownerDb).orElse(crDb);
                         yield onlyView == null
-                                ? resolveViewRefsInJoin(vc.expression(), db,
+                                ? resolveViewRefsInJoin(vc.expression(), viewDb,
                                         sourceTable, model, md, backingView,
                                         null, keepTargetView, anySide)
                                 : vc.expression();

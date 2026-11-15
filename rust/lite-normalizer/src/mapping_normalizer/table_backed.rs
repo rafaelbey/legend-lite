@@ -93,8 +93,9 @@ pub fn synth_table_backed_parts(
             group_by: rcm.group_by.clone(),
             primary_key: rcm.primary_key.clone(),
             property_mappings: rcm.property_mappings.clone(),
-            // Java's rebuild passes null for `sourceUrl` as well
-            source_url: None,
+            // every other component kept (until 2026-11-15 the rebuild dropped `sourceUrl`, never set here: the
+            // normalizer's second batch, item 1, MN:1695-1699)
+            source_url: rcm.source_url.clone(),
             property_target_sets: rcm.property_target_sets.clone(),
             aggregation: rcm.aggregation.clone(),
         });
