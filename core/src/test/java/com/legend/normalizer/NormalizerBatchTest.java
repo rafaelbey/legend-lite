@@ -284,4 +284,56 @@ class NormalizerBatchTest {
         assertEquals(false, MappingNormalizer.sameModuloCommutation(call.apply("minus", List.of(x, y)),
                 call.apply("minus", List.of(y, x))));
     }
+
+    // ---- item 2 (census ASK 13): an aggregate view set's own declared keys ----
+
+    private static final String AGGREGATE_VIEW_PRIMARY_KEY = """
+            Class my::Trade { bookId: Integer[0..1]; notional: Float[0..1]; }
+            ###Relational
+            Database my::Db (
+              Table TRADE (ID INTEGER PRIMARY KEY, BOOK_ID INTEGER, NOTIONAL DOUBLE)
+              Table TRADE_BY_BOOK (BOOK_ID INTEGER PRIMARY KEY, NOTIONAL DOUBLE)
+            )
+            ###Mapping
+            Mapping my::M (
+              *my::Trade[t]: AggregationAware {
+                Views: [
+                  (
+                    ~modelOperation: { ~canAggregate false, ~groupByFunctions ($this.bookId),
+                      ~aggregateValues (( ~mapFn: $this.notional, ~aggregateFn: $mapped->sum() )) },
+                    ~aggregateMapping: Relational {
+                      ~primaryKey ([my::Db] TRADE_BY_BOOK.BOOK_ID)
+                      ~mainTable [my::Db] TRADE_BY_BOOK
+                      bookId: [my::Db] TRADE_BY_BOOK.BOOK_ID, notional: [my::Db] TRADE_BY_BOOK.NOTIONAL
+                    }
+                  )
+                ],
+                ~mainMapping: Relational {
+                  ~mainTable [my::Db] TRADE
+                  bookId: [my::Db] TRADE.BOOK_ID, notional: [my::Db] TRADE.NOTIONAL
+                }
+              }
+            )
+            """;
+
+    @Test
+    @DisplayName("item 2: an AggregationAware set's aggregate view keeps its own declared keys, not NONE")
+    void anAggregateViewSetKeepsItsDeclaredKeys() {
+        // LITE-ONLY (lite's own bookkeeping; landed under the owner's ruling of 2026-11-15 on ruling 30's frozen-answer
+        // clause): until 2026-11-15 the pre-pass captured the main set's declared keys alone, so every aggregate view
+        // set's binding read DeclaredKeys.NONE (census ASK 13, AVL)
+        com.legend.model.ParsedModel parsed = com.legend.testing.Own.model(AGGREGATE_VIEW_PRIMARY_KEY);
+        com.legend.model.NormalizedModel normalized = MappingNormalizer.normalize(parsed,
+                com.legend.compiler.ModelBuilder.from(new com.legend.model.ParsedModel(parsed.elements(),
+                        parsed.imports())),
+                new java.util.LinkedHashMap<>());
+        List<List<String>> declaredPrimaryKeys = normalized.elements().stream()
+                .filter(com.legend.model.MappingDefinition.class::isInstance)
+                .map(com.legend.model.MappingDefinition.class::cast)
+                .flatMap(md -> md.classBindings().stream())
+                .filter(com.legend.model.MappingDefinition.ClassBinding.Relational.class::isInstance)
+                .map(b -> ((com.legend.model.MappingDefinition.ClassBinding.Relational) b).declared().primaryKeyColumns())
+                .toList();
+        assertEquals(true, declaredPrimaryKeys.contains(List.of("BOOK_ID")), String.valueOf(declaredPrimaryKeys));
+    }
 }

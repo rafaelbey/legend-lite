@@ -91,6 +91,13 @@ final class MappingPrePass {
         for (ClassMapping cm0 : surface.classMappings()) {
             if (cm0 instanceof ClassMapping.Relational r0) {
                 declaredKeys.put(SetKeyFacts.setKey(r0), SetKeyFacts.declaredKeysOf(r0));
+                // an AggregationAware set's aggregate views are sets too: their own key text is captured as well
+                // (2026-11-15, the normalizer batch, item 2, census ASK 13: they answered NONE always)
+                if (r0.aggregation() != null) {
+                    for (ClassMapping.AggregateView v : r0.aggregation().views()) {
+                        declaredKeys.put(SetKeyFacts.setKey(v.set()), SetKeyFacts.declaredKeysOf(v.set()));
+                    }
+                }
             }
         }
         // Pre-pass: flatten `extends [parentSetId]` by merging inherited

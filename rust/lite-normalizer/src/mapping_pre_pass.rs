@@ -108,6 +108,13 @@ pub fn pre_pass<'a>(
     for cm0 in surface.class_mappings.iter() {
         if let ClassMapping::ClassMappingRelational(r0) = cm0 {
             declared_keys.insert(set_key(r0), declared_keys_of(r0));
+            // an AggregationAware set's aggregate views' own key text too (2026-11-15, the normalizer batch, item 2,
+            // ASK 13: they answered NONE always)
+            if let Some(agg) = &r0.aggregation {
+                for v in agg.views.iter() {
+                    declared_keys.insert(set_key(&v.set), declared_keys_of(&v.set));
+                }
+            }
         }
     }
     // ONE construction (B3.3): every step rewrites the record under construction and asks its closure questions of
