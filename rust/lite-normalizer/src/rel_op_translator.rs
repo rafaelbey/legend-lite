@@ -48,7 +48,7 @@ use lite_names::model_index::java_list;
 
 use crate::dyna_fn::{Arm, arm};
 use crate::error::{Thrown, require};
-use crate::jdk::{LinkedSet, equals_ignore_case};
+use crate::jdk::LinkedSet;
 use crate::mapping_normalizer;
 use crate::pipeline::{Pipeline, PipelineView};
 
@@ -329,20 +329,27 @@ pub fn translate(
                 Some(Arm::DayOfWeekNumber) => {
                     if n == 1 || n == 2 {
                         let mut week_start = JStr::from("Sunday");
+                        // the week start matched exactly, any other refused in the engine's words (since 2026-11-15,
+                        // the normalizer's second batch, item 3, S387: it was matched ignoring case)
                         if n == 2 {
-                            let Some(ws) = string_literal(&args[1])
-                                .filter(|ws| ignore_case_is(ws, "Monday") || ignore_case_is(ws, "Sunday"))
-                            else {
+                            let Some(ws) = string_literal(&args[1]) else {
                                 return Err(Thrown::not_implemented(JStr::from(
                                     "dayOfWeekNumber requires 'Sunday' or 'Monday' as the week start (engine assert)",
                                 )));
                             };
+                            if !(ws.eq_str("Monday") || ws.eq_str("Sunday")) {
+                                return Err(Thrown::not_implemented(cat!(
+                                    "DayOfWeekNumber Function requires either Sunday or Monday as First Day of Week. Found ",
+                                    ws,
+                                    " instead."
+                                )));
+                            }
                             week_start = ws.clone();
                         }
                         // SQL-lane operand (the 'position' toOne idiom): dayOfWeekNumber's real signature is strict
                         // Date[1]
                         let iso = platform("dayOfWeekNumber", vec![to_one(&tr(&args[0])?)]);
-                        Some(if ignore_case_is(&week_start, "Monday") {
+                        Some(if week_start.eq_str("Monday") {
                             iso
                         } else {
                             infix_run("plus", vec![platform("mod", vec![iso, cinteger(7)]), cinteger(1)])
@@ -418,8 +425,9 @@ pub fn translate(
                 }
                 // a string-typed part index conforms by EMISSION (cast(@Integer)); token/part are strict [1] (the
                 // 'position' toOne idiom; a0 stays bare: pure's first param is [0..1]); SQL's split_part counts parts
-                // from 1, pure's splitPart from 0 -- part - 1 (empty tokens still differ: SQL keeps them, pure drops
-                // them)
+                // from 1, pure's splitPart from 0 -- part - 1. Empty tokens are dropped, Pure's meaning on every
+                // dialect, as the engine's H2 drops them; the engine's DuckDB keeps them, a ruled divergence (ruling
+                // 37, S386; until 2026-11-15 this comment said "SQL keeps them")
                 Some(Arm::SplitPart) => {
                     if n == 3 {
                         let a0 = tr(&args[0])?;
@@ -879,12 +887,6 @@ fn at<T>(list: &[T], i: usize) -> Result<&T, Thrown> {
     })
 }
 
-/// `s.equalsIgnoreCase(lit)`.
-fn ignore_case_is(s: &JStr, lit: &str) -> bool {
-    let lit: Vec<u16> = lit.encode_utf16().collect();
-    equals_ignore_case(&s.0, &lit)
-}
-
 /// `op instanceof Literal lit && lit.value() instanceof String s`: `s`.
 fn string_literal(op: &RelationalOperation) -> Option<&JStr> {
     match op {
@@ -1310,14 +1312,23 @@ mod tests {
             format!("plus!([mod(dayOfWeekNumber({T1}('d')), 7), 1])")
         );
         assert_eq!(
-            shown(&call("dayOfWeekNumber", vec![s("d"), s("mONDAY")])),
+            shown(&call("dayOfWeekNumber", vec![s("d"), s("Monday")])),
             format!("dayOfWeekNumber({T1}('d'))")
+        );
+        // matched exactly, refused in the engine's words (until 2026-11-15 `mONDAY` was 'Monday' and 'Tuesday' was
+        // "dayOfWeekNumber requires 'Sunday' or 'Monday' as the week start (engine assert)": the normalizer's second
+        // batch, item 3, S387)
+        let e = tr(&call("dayOfWeekNumber", vec![tcol("D"), s("mONDAY")])).unwrap_err();
+        assert!(e.is_not_implemented());
+        assert_eq!(
+            message(&e),
+            "DayOfWeekNumber Function requires either Sunday or Monday as First Day of Week. Found mONDAY instead."
         );
         let e = tr(&call("dayOfWeekNumber", vec![tcol("D"), s("Tuesday")])).unwrap_err();
         assert!(e.is_not_implemented());
         assert_eq!(
             message(&e),
-            "dayOfWeekNumber requires 'Sunday' or 'Monday' as the week start (engine assert)"
+            "DayOfWeekNumber Function requires either Sunday or Monday as First Day of Week. Found Tuesday instead."
         );
         assert!(
             tr(&call("dayOfWeekNumber", vec![tcol("D"), int(1)]))

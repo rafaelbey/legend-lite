@@ -16,6 +16,7 @@ import com.legend.model.AssociationMapping;
 import com.legend.model.AssociationPropertyMapping;
 import com.legend.model.ClassDefinition;
 import com.legend.model.ClassMapping;
+import com.legend.model.ComparisonOp;
 import com.legend.model.DatabaseDefinition;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.JoinChainElement;
@@ -108,6 +109,8 @@ final class AssociationSynthesis {
             // composition §11 A2). Only a plain pair between two
             // anchorable classes takes the predicate path.
             Set<String> routedUnionGroups = new HashSet<>();
+            // lines that walk different joins each navigate by their own (S384, below)
+            boolean disagree = linesDisagree(rel, model);
             for (AssociationPropertyMapping apm : rel.propertyMappings()) {
                 if (!(apm.body() instanceof PropertyMapping.Join join)
                         || apm.sourceSetId() == null) {
@@ -170,7 +173,7 @@ final class AssociationSynthesis {
                 boolean routedUnion = apm.sourceSetId() != null
                         && routedUnionGroups.contains(
                                 apm.sourceSetId() + "\u0000" + apm.propertyName());
-                if (join.joins().size() < 2 && !routedUnion) {
+                if (join.joins().size() < 2 && !routedUnion && !disagree) {
                     continue;   // single-hop -> predicate path
                 }
                 String owner = associationOwnerClass(ad, apm.propertyName());
@@ -391,6 +394,77 @@ final class AssociationSynthesis {
      * scope when the header spells a SIMPLE name (the engine grammar:
      * {@code Driver : Relational { AssociationMapping (...) }} inside a
      * file importing the model package). */
+    /** Whether the association mapping's plain single-hop lines (no set ids) walk joins that are not one relation:
+     *  another join whose condition differs beyond operand order and a self-join read from the other end (S384). */
+    static boolean linesDisagree(AssociationMapping.Relational rel, ModelBuilder model) {
+        RelationalOperation first = null;
+        for (AssociationPropertyMapping apm : rel.propertyMappings()) {
+            if (!(apm.body() instanceof PropertyMapping.Join j) || j.joins().size() != 1
+                    || apm.sourceSetId() != null || apm.targetSetId() != null) {
+                continue;
+            }
+            JoinChainElement hop = j.joins().get(0);
+            java.util.Optional<DatabaseDefinition.JoinDefinition> jd = model.findJoin(
+                    hop.databaseName() != null ? hop.databaseName() : j.database(), hop.joinName());
+            if (jd.isEmpty()) {
+                return false;   // the missing join's own refusal names it
+            }
+            RelationalOperation op = jd.get().operation();
+            if (first == null) {
+                first = op;
+            } else if (!sameRelation(first, op)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean sameRelation(RelationalOperation a, RelationalOperation b) {
+        return equalModuloOrder(a, b) || equalModuloOrder(a, readFromTheOtherEnd(b));
+    }
+
+    /** Equality up to the order of an equality's, an inequality's, an AND's or an OR's two operands. */
+    private static boolean equalModuloOrder(RelationalOperation a, RelationalOperation b) {
+        if (a instanceof RelationalOperation.Group g) {
+            return equalModuloOrder(g.inner(), b);
+        }
+        if (b instanceof RelationalOperation.Group g) {
+            return equalModuloOrder(a, g.inner());
+        }
+        if (a instanceof RelationalOperation.Comparison ca && b instanceof RelationalOperation.Comparison cb
+                && ca.op() == cb.op()) {
+            boolean symmetric = ca.op() == ComparisonOp.EQ || ca.op() == ComparisonOp.NEQ;
+            return equalModuloOrder(ca.left(), cb.left()) && equalModuloOrder(ca.right(), cb.right())
+                    || symmetric && equalModuloOrder(ca.left(), cb.right()) && equalModuloOrder(ca.right(), cb.left());
+        }
+        if (a instanceof RelationalOperation.BooleanOp ba && b instanceof RelationalOperation.BooleanOp bb
+                && ba.op() == bb.op()) {
+            return equalModuloOrder(ba.left(), bb.left()) && equalModuloOrder(ba.right(), bb.right())
+                    || equalModuloOrder(ba.left(), bb.right()) && equalModuloOrder(ba.right(), bb.left());
+        }
+        return a.equals(b);
+    }
+
+    /** A self-join's condition read from its other end: its one table and {@code {target}} exchanged. */
+    private static RelationalOperation readFromTheOtherEnd(RelationalOperation op) {
+        java.util.Set<String> tables = op.tables();
+        if (tables.size() != 1 || !MappingNormalizer.containsTargetColumnRef(op)) {
+            return op;
+        }
+        String table = tables.iterator().next();
+        return swapEnds(op, table);
+    }
+
+    private static RelationalOperation swapEnds(RelationalOperation op, String table) {
+        return switch (op) {
+            case RelationalOperation.ColumnRef cr when cr.table().equals(table) ->
+                    new RelationalOperation.TargetColumnRef(cr.column());
+            case RelationalOperation.TargetColumnRef t ->
+                    new RelationalOperation.ColumnRef(null, table, t.column());
+            default -> op.mapChildren(c -> swapEnds(c, table));
+        };
+    }
+
     static java.util.Optional<AssociationDefinition> resolveAssociation(
             ModelBuilder model, ResolvedMapping md,
             AssociationMapping am) {
@@ -475,7 +549,15 @@ final class AssociationSynthesis {
         // docs/MAPPING_LEGACY_TO_FUNCTION.md §5.6.1b). A (A,B)->Boolean predicate
         // cannot bind the intermediate row, so no standalone predicate is
         // emitted — return null and let injectMultiHopAssociationPMs handle it.
-        if (firstJoin.joins().size() >= 2) {
+        // Each line navigates by its OWN join, as legend-engine compiles each property mapping of an association
+        // mapping on its own (RelationalCompilerExtension.java:508-521; asked: `firm: @J1, employees: @J2` over
+        // different columns navigates P.firm by J1 and F.employees by J2, whichever is written first). Lines whose
+        // joins are the same relation (one join, or two whose conditions agree up to operand order or a self-join read
+        // from the other end) keep the one predicate, row-correct for both directions; lines that walk different
+        // joins take the per-end navigation the multi-hop path injects (injectMultiHopAssociationPMs), each line on its
+        // own owner. Until 2026-11-15 the FIRST line's join was the predicate both directions read (the normalizer's
+        // second batch, item 3, register row S384; ruling 37 (c))
+        if (firstJoin.joins().size() >= 2 || linesDisagree(rel, model)) {
             return null;
         }
         // First-PM-wins is RETAINED (audit 23 probed-and-reverted): a

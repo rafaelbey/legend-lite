@@ -34,6 +34,9 @@ use lite_model::{
     LegacyMappingDefinitionTableReference as TableRef, PoisonKey, PoisonKeyForAssociation, PropertyMapping,
     PropertyMappingEmbedded, PropertyMappingJoin, SynthHat, cat,
 };
+use lite_model::{
+    ComparisonOp, RelationalOperation as Op, RelationalOperationColumnRef, RelationalOperationTargetColumnRef,
+};
 use lite_names::{ModelIndex, calls, synth_fqn};
 
 use crate::error::{ILLEGAL_STATE, Thrown, require};
@@ -95,6 +98,8 @@ pub fn inject_multi_hop_association_pms(
         // anchor a predicate) is a ROUTED group -- ALL its entries, single-hop included, inject as target-stamped
         // Join PMs on their source set. Only a plain pair between two anchorable classes takes the predicate path.
         let mut routed_union_groups: HashSet<JStr> = HashSet::new();
+        // lines that walk different joins each navigate by their own (S384)
+        let disagree = lines_disagree(rel, model)?;
         for apm in rel.property_mappings.iter() {
             let PropertyMapping::PropertyMappingJoin(join) = &apm.body else {
                 continue;
@@ -138,7 +143,7 @@ pub fn inject_multi_hop_association_pms(
                 .source_set_id
                 .as_ref()
                 .is_some_and(|s| routed_union_groups.contains(&group_key(s, apm.property_name())));
-            if join.joins.len() < 2 && !routed_union {
+            if join.joins.len() < 2 && !routed_union && !disagree {
                 continue; // single-hop -> predicate path
             }
             let Some(owner) = association_owner_class(ad, apm.property_name()) else {
@@ -374,6 +379,89 @@ pub fn association_owner_class<'d>(ad: &'d AssociationDefinition, prop_name: &JS
     None
 }
 
+/// `AssociationSynthesis.linesDisagree`: whether the association mapping's plain single-hop lines (no set ids) walk
+/// joins that are not one relation (S384).
+pub fn lines_disagree(rel: &AssociationMappingRelational, model: &ModelIndex) -> Result<bool, Thrown> {
+    let mut first: Option<Op> = None;
+    for apm in rel.property_mappings.iter() {
+        let PropertyMapping::PropertyMappingJoin(j) = &apm.body else {
+            continue;
+        };
+        if j.joins.len() != 1 || apm.source_set_id.is_some() || apm.target_set_id.is_some() {
+            continue;
+        }
+        let hop = &j.joins[0];
+        let db = hop.database_name.as_ref().unwrap_or(&j.database);
+        let Some(jd) = model.find_join(Some(db), &hop.join_name) else {
+            // the missing join's own refusal names it
+            return Ok(false);
+        };
+        let op = jd.operation.clone();
+        match &first {
+            None => first = Some(op),
+            Some(f) => {
+                if !same_relation(f, &op)? {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
+fn same_relation(a: &Op, b: &Op) -> Result<bool, Thrown> {
+    Ok(equal_modulo_order(a, b) || equal_modulo_order(a, &read_from_the_other_end(b)?))
+}
+
+/// Equality up to the order of an equality's, an inequality's, an AND's or an OR's two operands.
+fn equal_modulo_order(a: &Op, b: &Op) -> bool {
+    if let Op::RelationalOperationGroup(g) = a {
+        return equal_modulo_order(&g.inner, b);
+    }
+    if let Op::RelationalOperationGroup(g) = b {
+        return equal_modulo_order(a, &g.inner);
+    }
+    match (a, b) {
+        (Op::RelationalOperationComparison(ca), Op::RelationalOperationComparison(cb)) if ca.op == cb.op => {
+            let symmetric = matches!(ca.op, ComparisonOp::EQ | ComparisonOp::NEQ);
+            equal_modulo_order(&ca.left, &cb.left) && equal_modulo_order(&ca.right, &cb.right)
+                || symmetric && equal_modulo_order(&ca.left, &cb.right) && equal_modulo_order(&ca.right, &cb.left)
+        }
+        (Op::RelationalOperationBooleanOp(ba), Op::RelationalOperationBooleanOp(bb)) if ba.op == bb.op => {
+            equal_modulo_order(&ba.left, &bb.left) && equal_modulo_order(&ba.right, &bb.right)
+                || equal_modulo_order(&ba.left, &bb.right) && equal_modulo_order(&ba.right, &bb.left)
+        }
+        _ => a == b,
+    }
+}
+
+/// A self-join's condition read from its other end: its one table and `{target}` exchanged.
+fn read_from_the_other_end(op: &Op) -> Result<Op, Thrown> {
+    let tables = op.tables();
+    if tables.len() != 1 || !contains_target_column_ref(op)? {
+        return Ok(op.clone());
+    }
+    Ok(swap_ends(op, &tables[0]).unwrap_or_else(|| op.clone()))
+}
+
+fn swap_ends(op: &Op, table: &JStr) -> Option<Op> {
+    match op {
+        Op::RelationalOperationColumnRef(cr) if &cr.table == table => Some(Op::RelationalOperationTargetColumnRef(
+            Arc::new(RelationalOperationTargetColumnRef {
+                column: cr.column.clone(),
+            }),
+        )),
+        Op::RelationalOperationTargetColumnRef(t) => Some(Op::RelationalOperationColumnRef(Arc::new(
+            RelationalOperationColumnRef {
+                database_name: None,
+                table: table.clone(),
+                column: t.column.clone(),
+            },
+        ))),
+        _ => op.map_children(|c| swap_ends(c, table)),
+    }
+}
+
 /// `AssociationSynthesis.resolveAssociation` (:379): the association an association mapping names -- exact, else
 /// through the mapping's import wildcards (the own-package fallback after them deleted 2026-11-15, the normalizer
 /// batch, item 9, as the engine has none).
@@ -484,8 +572,10 @@ pub fn synthesize_association_mapping(
         )));
     };
     // multi-hop association: realized as per-end navigation injected into the class realizing functions (Option A);
-    // a (A,B)->Boolean predicate cannot bind the intermediate row
-    if first_join.joins.len() >= 2 {
+    // a (A,B)->Boolean predicate cannot bind the intermediate row. Lines that walk different joins take the same
+    // per-end navigation, each by its own join, as the engine navigates them (since 2026-11-15, the normalizer's
+    // second batch, item 3, S384: the first line's join was the predicate both directions read)
+    if first_join.joins.len() >= 2 || lines_disagree(rel, model)? {
         return Ok(None);
     }
     // ENGINE RULE: an end written with a set id (prop[sourceId, targetId]) anchors on THAT set; an end without one

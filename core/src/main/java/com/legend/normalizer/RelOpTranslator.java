@@ -292,24 +292,37 @@ final class RelOpTranslator {
                     // else asserts (dayOfWeekNumberH2). The pure native
                     // lowers to isodow (Monday=1), so Sunday-based forms
                     // conform by emission: mod(isodow, 7) + 1.
+                    // The week start is matched exactly, 'Monday' or 'Sunday', and
+                    // any other refused in the engine's words, as legend-engine
+                    // asserts when it plans a query reading the property (asked:
+                    // 'monday' and 'Tuesday' -- H2's "DayOfWeekNumber Function
+                    // requires either Sunday or Monday as First Day of Week. Found
+                    // monday instead.", toPostgresModel.pure:624; DuckDB's without
+                    // "Found ...", duckdbExtension.pure:465). Lite withholds the
+                    // class, so a query of it not reading the property is refused
+                    // too (register row S387). Until 2026-11-15 matched ignoring
+                    // case, refused in lite's words (the normalizer's second batch,
+                    // item 3)
                     String weekStart = "Sunday";
                     if (call.args().size() == 2) {
                         if (!(call.args().get(1) instanceof RelationalOperation.Literal lit)
-                                || !(lit.value() instanceof String ws)
-                                || !(ws.equalsIgnoreCase("Monday")
-                                        || ws.equalsIgnoreCase("Sunday"))) {
+                                || !(lit.value() instanceof String ws)) {
                             throw new NotImplementedException(
                                     "dayOfWeekNumber requires 'Sunday' or"
                                   + " 'Monday' as the week start (engine assert)");
                         }
-                        weekStart = (String) lit.value();
+                        if (!(ws.equals("Monday") || ws.equals("Sunday"))) {
+                            throw new NotImplementedException("DayOfWeekNumber Function requires either Sunday or"
+                                    + " Monday as First Day of Week. Found " + ws + " instead.");
+                        }
+                        weekStart = ws;
                     }
                     // SQL-lane operand (the 'position' toOne idiom):
                     // dayOfWeekNumber's real signature is strict Date[1]
                     ValueSpecification iso = Calls.platform("dayOfWeekNumber",
                             List.of(toOne(translate(call.args().get(0), tableScope,
                                     targetVarOrNull, rowBindOrNull, pipeline))));
-                    yield weekStart.equalsIgnoreCase("Monday")
+                    yield weekStart.equals("Monday")
                             ? iso
                             : Calls.infixRun("plus", List.of(
                                     Calls.platform("mod", List.of(iso,
@@ -384,8 +397,14 @@ final class RelOpTranslator {
                     // (every dialect extension spells it verbatim; parts
                     // count from 1), pure's splitPart counts from 0
                     // (splitPart.pure: 'Hello World'->splitPart(' ', 0) is
-                    // 'Hello') — conform by emission, part - 1. (Empty
-                    // tokens still differ: SQL keeps them, pure drops them.)
+                    // 'Hello') — conform by emission, part - 1. Empty tokens are
+                    // dropped, Pure's meaning on every dialect, as the
+                    // engine's H2 drops them (LegendH2Extensions.split_part,
+                    // StringUtils.split; asked: 'a,,b' part 2 is 'b'); the
+                    // engine's DuckDB keeps them (its native split_part: part
+                    // 2 of 'a,,b' is ''), a ruled divergence (ruling 37,
+                    // register row S386). Until 2026-11-15 this comment said
+                    // "SQL keeps them" (the normalizer's second batch, item 3)
                     yield Calls.platform("splitPart", List.of(a0,
                             toOne(a1),
                             Calls.infixRun("minus", List.of(

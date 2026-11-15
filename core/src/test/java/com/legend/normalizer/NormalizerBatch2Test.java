@@ -573,4 +573,76 @@ class NormalizerBatch2Test {
         assertEquals(List.of("[5:1] Can't find property 'nope' in [T, Any]"),
                 strict(m2m(", nope: $src.name", "")));
     }
+
+    // ---- item 3, S387: dayOfWeekNumber's week start; S384: each direction of an association by its own join ----
+
+    private static String dayOfWeek(String weekStart) {
+        return """
+                Class w::P { id: Integer[1]; n: Integer[0..1]; }
+                ###Relational
+                Database w::Db ( Table T (ID INTEGER PRIMARY KEY, D DATE) )
+                ###Mapping
+                Mapping w::M ( w::P: Relational { ~mainTable [w::Db]T id: [w::Db]T.ID, n: dayOfWeekNumber([w::Db]T.D, '""" + weekStart + """
+                ') } )
+                """;
+    }
+
+    @Test
+    @DisplayName("item 3 (S387): dayOfWeekNumber's week start is matched exactly, else the engine's words")
+    void dayOfWeekNumbersWeekStartIsMatchedExactly() {
+        // asked of the engine: 'Sunday' and 'Monday' plan (dow+1 / isodow, the numbering lite's on Sunday and Saturday);
+        // 'monday' and 'Tuesday' fail at plan, "DayOfWeekNumber Function requires either Sunday or Monday as First Day
+        // of Week. Found monday instead." (H2). Until 2026-11-15 'monday' was accepted (matched ignoring case) and
+        // 'Tuesday' refused in lite's words. Lite withholds the class (a deferred refusal): a query of it is refused.
+        assertEquals(java.util.Optional.empty(), module(dayOfWeek("Sunday")).context().mappingPoison("w::M", "w::P"));
+        assertEquals(java.util.Optional.empty(), module(dayOfWeek("Monday")).context().mappingPoison("w::M", "w::P"));
+        assertEquals("DayOfWeekNumber Function requires either Sunday or Monday as First Day of Week. Found monday"
+                + " instead.", module(dayOfWeek("monday")).context().mappingPoison("w::M", "w::P").orElseThrow());
+        assertEquals("DayOfWeekNumber Function requires either Sunday or Monday as First Day of Week. Found Tuesday"
+                + " instead.", module(dayOfWeek("Tuesday")).context().mappingPoison("w::M", "w::P").orElseThrow());
+    }
+
+    private static final String ASSOCIATION_TWO_JOINS = """
+            ###Pure
+            Class w::P { name: String[0..1]; }
+            Class w::F { name: String[0..1]; }
+            Association w::PF { firm: w::F[0..1]; employees: w::P[*]; }
+
+            ###Relational
+            Database w::Db
+            (
+              Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER, FID2 INTEGER)
+              Table T3 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20))
+              Join J1(T.FID = T3.ID)
+              Join J2(T.FID2 = T3.ID)
+            )
+
+            ###Mapping
+            Mapping w::M
+            (
+              w::P: Relational { ~mainTable [w::Db]T name: [w::Db]T.NAME }
+              w::F: Relational { ~mainTable [w::Db]T3 name: [w::Db]T3.NAME }
+              w::PF: Relational { AssociationMapping ( firm: [w::Db]@J1, employees: [w::Db]@J2 ) }
+            )
+
+            ###Connection
+            RelationalDatabaseConnection w::C { store: w::Db; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+            ###Runtime
+            Runtime w::R { mappings: [w::M]; connections: [ w::Db: [ c: w::C ] ]; }
+            """;
+
+    @Test
+    @DisplayName("item 3 (S384): each direction of an association navigates by its own join")
+    void eachDirectionOfAnAssociationNavigatesByItsOwnJoin() {
+        // asked of the engine: P.firm joins on FID (J1), F.employees on FID2 (J2), whichever line is written first;
+        // until 2026-11-15 both directions read the FIRST line's join
+        com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(ASSOCIATION_TWO_JOINS);
+        String firm = Compiler.query(ctx, "w::P.all()->project([x|$x.firm.name],['f'])->from(w::M, w::R)")
+                .plan("w::R").sql();
+        String employees = Compiler.query(ctx, "w::F.all()->project([x|$x.employees.name],['e'])->from(w::M, w::R)")
+                .plan("w::R").sql();
+        assertEquals(true, firm.contains(".FID = ") && !firm.contains("FID2"), firm);
+        assertEquals(true, employees.contains(".FID2 = "), employees);
+    }
 }
