@@ -10,13 +10,14 @@ use lite_front::jtypes::JStr;
 use lite_front::records::TypeExpression;
 
 use crate::cat;
+use crate::error::{Thrown, illegal_state};
 use crate::records::AssociationDefinitionAssociationEndDefinition;
 
 impl AssociationDefinitionAssociationEndDefinition {
     /// `targetClassFqn()`: the end's target class FQN -- its `NameRef`'s name. Anything else is Java's
-    /// `IllegalStateException` (a normalizer bug: name resolution leaves a `NameRef` on every end), whose message is
-    /// the `Err` here, the type spelled by its Java simple name (`targetClass.getClass().getSimpleName()`).
-    pub fn target_class_fqn(&self) -> Result<&JStr, JStr> {
+    /// `IllegalStateException` (a normalizer bug: name resolution leaves a `NameRef` on every end), the type spelled
+    /// by its Java simple name (`targetClass.getClass().getSimpleName()`).
+    pub fn target_class_fqn(&self) -> Result<&JStr, Thrown> {
         let simple = match &self.target_class {
             TypeExpression::TypeExpressionNameRef(nr) => return Ok(&nr.name),
             TypeExpression::TypeExpressionGeneric(_) => "Generic",
@@ -24,13 +25,13 @@ impl AssociationDefinitionAssociationEndDefinition {
             TypeExpression::TypeExpressionRelationType(_) => "RelationType",
             TypeExpression::TypeExpressionSchemaAlgebra(_) => "SchemaAlgebra",
         };
-        Err(cat!(
+        Err(illegal_state(cat!(
             "association end '",
             &self.property_name,
             "' has unresolved target class type ",
             simple,
             " \u{2014} normalizer bug"
-        ))
+        )))
     }
 }
 
@@ -73,9 +74,9 @@ mod tests {
         )));
         assert_eq!(
             e.target_class_fqn(),
-            Err(j(
+            Err(illegal_state(j(
                 "association end 'firm' has unresolved target class type RelationType \u{2014} normalizer bug"
-            ))
+            )))
         );
     }
 }

@@ -16,16 +16,17 @@ use lite_error::Phase;
 use lite_front::records as p;
 use lite_model::linked::{empty, list};
 use lite_model::{
-    CleanSheetMappingDefinition, CleanSheetMappingDefinitionAssociationBinding,
-    CleanSheetMappingDefinitionClassBinding, CleanSheetMappingDefinitionKind, Function, FunctionDefinition,
-    FunctionDefinitionParameterDefinition, FunctionDefinitionSynthesized, JStr, MappingDefinition,
-    MappingDefinitionAssociationBinding, MappingDefinitionClassBinding, MappingDefinitionClassBindingDeclaredKeys,
-    MappingDefinitionClassBindingPure, MappingDefinitionClassBindingRelational, MappingDefinitionRelationalSource,
-    MappingDefinitionRelationalSourceTable, SynthHat, cat,
+    AssociationDefinitionAssociationEndDefinition, CleanSheetMappingDefinition,
+    CleanSheetMappingDefinitionAssociationBinding, CleanSheetMappingDefinitionClassBinding,
+    CleanSheetMappingDefinitionKind, Function, FunctionDefinition, FunctionDefinitionParameterDefinition,
+    FunctionDefinitionSynthesized, JStr, MappingDefinition, MappingDefinitionAssociationBinding,
+    MappingDefinitionClassBinding, MappingDefinitionClassBindingDeclaredKeys, MappingDefinitionClassBindingPure,
+    MappingDefinitionClassBindingRelational, MappingDefinitionRelationalSource, MappingDefinitionRelationalSourceTable,
+    SynthHat, cat,
 };
 use lite_names::{ModelIndex, synth_fqn};
 
-use crate::error::Thrown;
+use crate::error::{ILLEGAL_STATE, Thrown};
 
 /// `MappingNormalizer.cleanSheetToCanonical` (:482): the clean-sheet mapping's binding table; its inline lifts
 /// appended to `lifted`.
@@ -299,9 +300,8 @@ pub fn lift_assoc_inline(
             None,
         )
     })?;
-    // `targetClassFqn()`'s throw is an IllegalStateException (lite-model answers its message)
-    let class_a = ad.property1.target_class_fqn().map_err(Thrown::illegal_state)?;
-    let class_b = ad.property2.target_class_fqn().map_err(Thrown::illegal_state)?;
+    let class_a = target_class_fqn(&ad.property1)?;
+    let class_b = target_class_fqn(&ad.property2)?;
     let p0 = &lam.parameters[0];
     let p1 = &lam.parameters[1];
     let param_a = Arc::new(FunctionDefinitionParameterDefinition {
@@ -330,6 +330,19 @@ pub fn lift_assoc_inline(
         md.qualified_name.clone(),
         ab.association_fqn.clone(),
     ))))
+}
+
+/// `end.targetClassFqn()` (lite-model's): its one throw, the `IllegalStateException`, converted by hand (lite-model's
+/// `Thrown` names its Java class by a `String`), class and message kept.
+fn target_class_fqn(end: &AssociationDefinitionAssociationEndDefinition) -> Result<&JStr, Thrown> {
+    match end.target_class_fqn() {
+        Ok(fqn) => Ok(fqn),
+        Err(lite_model::error::Thrown::Java(e)) if e.class == ILLEGAL_STATE => {
+            Err(Thrown::java(ILLEGAL_STATE, e.message))
+        }
+        // the method throws nothing else; kept total by carrying the throw's description in the same class
+        Err(other) => Err(Thrown::illegal_state(JStr::from(format!("{other:?}")))),
+    }
 }
 
 /// `new TypeExpression.NameRef(name)`.
