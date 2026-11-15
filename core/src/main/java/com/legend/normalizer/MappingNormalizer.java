@@ -733,18 +733,43 @@ public final class MappingNormalizer {
             }
             // AND/OR are commutative: the two direction lines may order
             // conjuncts differently ((eq && date) vs (date && eq) —
-            // crossMapping2); a deterministic operand order makes pure
-            // commutation compare equal (the direction-specific wall stays
-            // for genuinely different predicates)
-            if ((com.legend.compiler.ResolvedNames.names(af, com.legend.builtin.Pure.AND__BOOLEAN_1__BOOLEAN_1.qualifiedName())
-                    || com.legend.compiler.ResolvedNames.names(af, com.legend.builtin.Pure.OR__BOOLEAN_1__BOOLEAN_1.qualifiedName()))
-                    && ps.size() == 2
-                    && ps.get(0).toString().compareTo(ps.get(1).toString()) > 0) {
-                ps = List.of(ps.get(1), ps.get(0));
-            }
+            // crossMapping2); sameModuloCommutation compares them so (the
+            // direction-specific wall stays for genuinely different
+            // predicates). Until 2026-11-15 the operands were ordered here by
+            // toString, source positions included, so two equal lines written at
+            // other places could compare unequal (the normalizer batch, item 11,
+            // ruling 29's first policy, docs/SEMANTICS_REGISTER.md S394)
             return af.withParameters(ps);
         }
         return v;
+    }
+
+    /** Two canonicalized conditions equal modulo the commutation of a binary AND or OR (2026-11-15, the normalizer batch,
+     *  item 11): an AND/OR pair's operands equal in either order, every other node by its record equality with its
+     *  parameters compared so. The verdict every operand order consistent with equality gives -- lite-normalizer's
+     *  order by Java's equality key included -- with no order to compute. */
+    static boolean sameModuloCommutation(ValueSpecification a, ValueSpecification b) {
+        if (!(a instanceof AppliedFunction fa) || !(b instanceof AppliedFunction fb)
+                || fa.parameters().size() != fb.parameters().size()) {
+            return a.equals(b);
+        }
+        // the two calls but their parameters (AppliedFunction.equals: function, parameters, referents)
+        if (!fa.withParameters(List.of()).equals(fb.withParameters(List.of()))) {
+            return false;
+        }
+        List<ValueSpecification> pa = fa.parameters();
+        List<ValueSpecification> pb = fb.parameters();
+        boolean inOrder = true;
+        for (int i = 0; i < pa.size() && inOrder; i++) {
+            inOrder = sameModuloCommutation(pa.get(i), pb.get(i));
+        }
+        if (inOrder) {
+            return true;
+        }
+        return pa.size() == 2
+                && (com.legend.compiler.ResolvedNames.names(fa, com.legend.builtin.Pure.AND__BOOLEAN_1__BOOLEAN_1.qualifiedName())
+                    || com.legend.compiler.ResolvedNames.names(fa, com.legend.builtin.Pure.OR__BOOLEAN_1__BOOLEAN_1.qualifiedName()))
+                && sameModuloCommutation(pa.get(0), pb.get(1)) && sameModuloCommutation(pa.get(1), pb.get(0));
     }
 
     private static boolean rootedAt(ValueSpecification v, String var) {
@@ -1029,7 +1054,7 @@ public final class MappingNormalizer {
         ValueSpecification cond = conds.get(0);
         ValueSpecification canon0 = canonicalizeEqualOperands(cond, srcRow.name());
         for (ValueSpecification c : conds) {
-            if (!canonicalizeEqualOperands(c, srcRow.name()).equals(canon0)) {
+            if (!sameModuloCommutation(canonicalizeEqualOperands(c, srcRow.name()), canon0)) {
                 throw new NotImplementedException(
                         "XStore association '" + xs.associationName()
                         + "' has direction-specific conditions; a single"

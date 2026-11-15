@@ -222,8 +222,8 @@ final class XStorePureEnds {
         ValueSpecification canon0 = MappingNormalizer.canonicalizeEqualOperands(
                 cond, srcRow.name());
         for (ValueSpecification c : conds) {
-            if (!MappingNormalizer.canonicalizeEqualOperands(c, srcRow.name())
-                    .equals(canon0)) {
+            if (!MappingNormalizer.sameModuloCommutation(
+                    MappingNormalizer.canonicalizeEqualOperands(c, srcRow.name()), canon0)) {
                 throw new NotImplementedException(
                         "XStore association '" + xs.associationName()
                         + "' has direction-specific conditions; a single"

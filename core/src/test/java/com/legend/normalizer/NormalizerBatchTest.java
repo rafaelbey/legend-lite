@@ -202,4 +202,86 @@ class NormalizerBatchTest {
         assertEquals(List.of(), strict(ENUMERATED_EXPRESSION_UNDER_A_VIEW));
         assertEquals(Map.of(), module(ENUMERATED_EXPRESSION_UNDER_A_VIEW).walls());
     }
+
+    // ---- item 11 (S394): an XStore association's two lines compared modulo AND/OR commutation ----
+
+    private static String xstoreLines(String firm, String people) {
+        return """
+                Class w::P { name: String[0..1]; fid: Integer[0..1]; }
+                Class w::F { id: Integer[0..1]; alt: Integer[0..1]; }
+                Association w::P_F { firm: w::F[0..1]; people: w::P[*]; }
+                ###Relational
+                Database w::Db ( Table P (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER) Table F (ID INTEGER PRIMARY KEY, ALT INTEGER) )
+                ###Mapping
+                Mapping w::M (
+                  w::P[p]: Relational { ~mainTable [w::Db]P name: [w::Db]P.NAME, fid: [w::Db]P.FID }
+                  w::F[f]: Relational { ~mainTable [w::Db]F id: [w::Db]F.ID, alt: [w::Db]F.ALT }
+                  w::P_F: XStore { firm[p, f]: %s, people[f, p]: %s }
+                )
+                """.formatted(firm, people);
+    }
+
+    @Test
+    @DisplayName("item 11: an XStore association's two lines agree modulo AND/OR commutation, whatever their source positions")
+    void xstoreLinesAgreeModuloCommutation() {
+        // the two lines are one predicate, their conjuncts commuted and each equality's operands swapped: compared
+        // modulo the commutation of AND / OR by record equality since 2026-11-15 (the Rust's verdict since the slice:
+        // its order is Java's equality key); the column-space emission's reads carry no source position, so the
+        // toString order before agreed here too -- the position accident is the unit case below
+        String agree = xstoreLines("$this.fid == $that.id && $this.fid == $that.alt",
+                "$this.alt == $that.fid && $this.id == $that.fid");
+        assertEquals(List.of(), strict(agree));
+        Compiler.BuiltModule m = module(agree);
+        assertEquals(Map.of(), m.walls());
+        assertEquals(java.util.Optional.empty(), m.context().mappingAssociationPoison("w::M", "w::P_F"));
+        // a genuinely different conjunct is still direction-specific
+        String differ = xstoreLines("$this.fid == $that.id && $this.fid == $that.alt",
+                "$this.id == $that.fid && $this.id == $that.fid");
+        assertEquals("XStore association 'w::P_F' has direction-specific conditions; a single shared predicate is"
+                        + " required for now (mapping=w::M)",
+                module(differ).context().mappingAssociationPoison("w::M", "w::P_F").orElseThrow());
+    }
+
+    @Test
+    @DisplayName("item 11: sameModuloCommutation -- an AND/OR pair's operands in either order, nested too; nothing else commutes")
+    void sameModuloCommutationIsRecordEqualityUpToAndOrOrder() {
+        String and = com.legend.builtin.Pure.AND__BOOLEAN_1__BOOLEAN_1.qualifiedName();
+        String or = com.legend.builtin.Pure.OR__BOOLEAN_1__BOOLEAN_1.qualifiedName();
+        java.util.function.BiFunction<String, List<com.legend.protocol.spec.ValueSpecification>,
+                com.legend.protocol.spec.ValueSpecification> call =
+                (f, ps) -> new com.legend.protocol.spec.AppliedFunction(f, ps, List.of());
+        com.legend.protocol.spec.ValueSpecification x = new com.legend.protocol.spec.CString("x");
+        com.legend.protocol.spec.ValueSpecification y = new com.legend.protocol.spec.CString("y");
+        com.legend.protocol.spec.ValueSpecification z = new com.legend.protocol.spec.CString("z");
+        assertEquals(true, MappingNormalizer.sameModuloCommutation(call.apply(and, List.of(x, y)),
+                call.apply(and, List.of(y, x))));
+        assertEquals(true, MappingNormalizer.sameModuloCommutation(
+                call.apply(and, List.of(x, call.apply(or, List.of(y, z)))),
+                call.apply(and, List.of(call.apply(or, List.of(z, y)), x))));
+        assertEquals(false, MappingNormalizer.sameModuloCommutation(call.apply(and, List.of(x, y)),
+                call.apply(and, List.of(x, z))));
+        assertEquals(false, MappingNormalizer.sameModuloCommutation(call.apply(and, List.of(x, y)),
+                call.apply(or, List.of(y, x))));
+        // two equal conditions whose conjuncts share a first operand at other source positions: until 2026-11-15
+        // canonicalizeEqualOperands ordered the conjuncts by toString, which reads that operand's position before the
+        // second operand, so the two canonical forms differed ([id, alt] and [alt, id]; asked of the base's jars,
+        // port-scratch/normbatch/i11check/OldOrder.java) and the association was walled as direction-specific
+        String eqf = com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY.qualifiedName();
+        java.util.function.BiFunction<String, Integer, com.legend.protocol.spec.ValueSpecification> fidIs =
+                (q, col) -> call.apply(eqf, List.of(
+                        new com.legend.protocol.spec.AppliedProperty(new com.legend.protocol.spec.Variable("src"), "fid",
+                                new com.legend.protocol.SourceInfo("m.pure", 1, col, 1, col + 5), null),
+                        new com.legend.protocol.spec.AppliedProperty(new com.legend.protocol.spec.Variable("tgt"), q,
+                                new com.legend.protocol.SourceInfo("m.pure", 1, col + 10, 1, col + 15), null)));
+        com.legend.protocol.spec.ValueSpecification line1 =
+                call.apply(and, List.of(fidIs.apply("id", 10), fidIs.apply("alt", 40)));
+        com.legend.protocol.spec.ValueSpecification line2 =
+                call.apply(and, List.of(fidIs.apply("alt", 70), fidIs.apply("id", 99)));
+        assertEquals(true, MappingNormalizer.sameModuloCommutation(
+                MappingNormalizer.canonicalizeEqualOperands(line1, "src"),
+                MappingNormalizer.canonicalizeEqualOperands(line2, "src")));
+        // a call that does not commute keeps its order
+        assertEquals(false, MappingNormalizer.sameModuloCommutation(call.apply("minus", List.of(x, y)),
+                call.apply("minus", List.of(y, x))));
+    }
 }

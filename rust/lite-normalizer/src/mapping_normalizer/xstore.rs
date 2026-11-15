@@ -11,10 +11,12 @@
 //! ([`XStoreReads`](crate::xstore_pure_ends::XStoreReads)). The two differ only in the read rewrite, the predicate's
 //! two end arguments, and where the empty-lines check sits (with no lines both throw the identical text).
 //!
-//! `canonicalizeEqualOperands` orders AND/OR operands by Java's record `toString()`, compare-only (never emitted):
-//! RE-EXPRESSED with any total order consistent with equality (a derived structural order, or the codec's canonical
-//! text) -- the same agree/disagree verdicts (census §4, with its hedge). The order here is the text of the components
-//! Java's `equals` reads ([`p::ValueSpecification::equality_key`], lite-front's), whose ties are Java's equality.
+//! `canonicalizeEqualOperands` orders AND/OR operands, compare-only (never emitted), by the text of the components
+//! Java's `equals` reads ([`p::ValueSpecification::equality_key`], lite-front's), whose ties are Java's equality: any
+//! total order consistent with equality gives one agree/disagree verdict, two lines' conditions equal modulo the
+//! commutation of AND/OR -- the comparison Java makes directly since 2026-11-15 (`MappingNormalizer
+//! .sameModuloCommutation`; the normalizer batch, item 11, S394), where it ordered by `toString()`, source positions
+//! included (census §4's hedge).
 
 use std::sync::Arc;
 
@@ -64,7 +66,7 @@ pub fn canonicalize_equal_operands(v: &p::ValueSpecification, src_var: &JStr) ->
     {
         ps.swap(0, 1);
     }
-    // RE-EXPRESSED (module note): Java's `ps.get(0).toString().compareTo(ps.get(1).toString()) > 0`
+    // the order of the module note: Java compares modulo commutation instead (sameModuloCommutation), one verdict
     if (names_native(af, AND__BOOLEAN_1__BOOLEAN_1) || names_native(af, OR__BOOLEAN_1__BOOLEAN_1))
         && ps.len() == 2
         && ps[0].equality_key() > ps[1].equality_key()
