@@ -448,6 +448,22 @@ final class ViewRelation {
                 }
                 yield new PropertyMapping.Embedded(em.propertyName(), subs, epk);
             }
+            // an enumeration over an expression and an otherwise-embedded block
+            // read the root's columns as any expression does: through the
+            // frame (2026-11-15, the normalizer batch, item 2, census ASK 13,
+            // ruling 30: the default arm passed them through, and a view-backed
+            // set reading a root-table column there was refused where the
+            // engine compiles it)
+            case PropertyMapping.EnumeratedExpression ee -> new PropertyMapping.EnumeratedExpression(
+                    ee.propertyName(), ee.enumMappingId(), frameRewrite(ee.expression(), view, viewName, md));
+            case PropertyMapping.OtherwiseEmbedded oe -> {
+                List<PropertyMapping> subs = new ArrayList<>(oe.embedded().size());
+                for (PropertyMapping s : oe.embedded()) {
+                    subs.add(pmThroughFrame(s, view, viewName, md));
+                }
+                yield new PropertyMapping.OtherwiseEmbedded(oe.propertyName(), subs, oe.fallbackSetId(),
+                        pmThroughFrame(oe.fallback(), view, viewName, md));
+            }
             // joins depart from the view by name (their conditions are
             // translated against the frame row at emission); the other
             // kinds carry no column of the root

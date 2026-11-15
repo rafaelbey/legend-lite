@@ -11,8 +11,8 @@
 //! `mappings()` excludes `md`'s own name, so only index 0 can be `md`). The texts holding
 //! `getClass().getSimpleName()` (:441) spell each kind's Java simple name (`Join`, `Column`, ...); :418's unknown
 //! XStore / ModelJoin association is the engine's "Can't find association" (2026-11-15, the normalizer batch, item 2).
-//! `withInjectedPMs` drops an embedded block's `~primaryKey` (:308-309, ASK 13; lite-model's two-argument
-//! `PropertyMappingEmbedded::new`); `resolveAssociation`'s import wildcards and same-package fallback (:387-397,
+//! `withInjectedPMs` keeps an embedded block's `~primaryKey` (2026-11-15, the normalizer batch, item 2: it dropped it,
+//! ASK 13); `resolveAssociation`'s import wildcards and same-package fallback (:387-397,
 //! ASK 15) stay as Java has them. Not ported (census §3, AS-4): the 8-argument `buildAssocPredicateBody` (:564-573)
 //! and `anchorNameOf` (:795-801), each called only by the other.
 //!
@@ -293,12 +293,14 @@ pub fn with_injected_pms(
                 {
                     let mut sub: Vec<PropertyMapping> = emb.property_mappings.to_vec();
                     sub.extend(entries.iter().cloned());
-                    // Java's two-argument `new Embedded(name, sub)`: the block's own ~primaryKey is DROPPED here
-                    // (AS:315-316, census note 3 / ASK 13), ported as Java has it
-                    *slot = PropertyMapping::PropertyMappingEmbedded(Arc::new(PropertyMappingEmbedded::new(
-                        emb.property_name.clone(),
-                        list(sub),
-                    )));
+                    // the block keeps its own ~primaryKey, as legend-engine keeps an embedded set's declared primary
+                    // key (2026-11-15, the normalizer batch, item 2, census ASK 13, ruling 30: Java's two-argument
+                    // `new Embedded(name, sub)` dropped it)
+                    *slot = PropertyMapping::PropertyMappingEmbedded(Arc::new(PropertyMappingEmbedded {
+                        property_name: emb.property_name.clone(),
+                        property_mappings: list(sub),
+                        primary_key: emb.primary_key.clone(),
+                    }));
                     nested = true;
                 }
             }
@@ -1146,7 +1148,7 @@ Mapping a::Plain
     }
 
     #[test]
-    fn injected_pms_follow_the_lineage_and_nest_into_an_embedded_block_dropping_its_key() {
+    fn injected_pms_follow_the_lineage_and_nest_into_an_embedded_block_keeping_its_key() {
         let key = RelationalOperation::RelationalOperationColumnRef(Arc::new(RelationalOperationColumnRef {
             database_name: None,
             table: j("FIRM"),
@@ -1189,9 +1191,10 @@ Mapping a::Plain
             panic!("the embedded block")
         };
         assert_eq!(names(&emb.property_mappings), vec![j("city"), j("loc")]);
-        assert!(
-            emb.primary_key.is_empty(),
-            "Java's two-argument Embedded drops the block's ~primaryKey"
+        assert_eq!(
+            emb.primary_key.len(),
+            1,
+            "the block keeps its ~primaryKey (2026-11-15, the normalizer batch, item 2)"
         );
         // nothing to inject: none; a non-Relational set: none
         let none: LinkedMap<JStr, LinkedMap<JStr, Vec<PropertyMapping>>> = LinkedMap::new();

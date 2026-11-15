@@ -312,8 +312,11 @@ final class AssociationSynthesis {
                         List<PropertyMapping> sub =
                                 new ArrayList<>(emb.propertyMappings());
                         sub.addAll(en.getValue());
+                        // the block keeps its own ~primaryKey, as legend-engine keeps an embedded set's declared
+                        // primary key (2026-11-15, the normalizer batch, item 2, census ASK 13, ruling 30: the
+                        // two-argument constructor dropped it)
                         pms.set(i, new PropertyMapping.Embedded(
-                                emb.propertyName(), sub));
+                                emb.propertyName(), sub, emb.primaryKey()));
                         nested = true;
                     }
                 }

@@ -73,4 +73,31 @@ class NormalizerBatchTest {
         assertEquals(refusal, module(MODEL_JOIN_UNKNOWN_ASSOCIATION).context()
                 .mappingAssociationPoison("w::M", "w::Nope").orElseThrow());
     }
+
+    // ---- item 2 (census ASK 13): a view-backed set's enumeration over an expression reads through the frame ----
+
+    private static final String ENUMERATED_EXPRESSION_UNDER_A_VIEW = """
+            Enum w::E { A, B }
+            Class w::P { id: Integer[0..1]; e: w::E[0..1]; }
+            ###Relational
+            Database w::Db (
+              Table T (ID INTEGER PRIMARY KEY, C VARCHAR(5))
+              View V (ID: T.ID PRIMARY KEY, CC: T.C)
+            )
+            ###Mapping
+            Mapping w::M (
+              w::E: EnumerationMapping em { A: 'a', B: 'b' }
+              w::P: Relational { ~mainTable [w::Db]V id: [w::Db]V.ID, e: EnumerationMapping em: concat([w::Db]T.C, '') }
+            )
+            """;
+
+    @Test
+    @DisplayName("item 2: a view-backed set's EnumerationMapping over an expression reads the root through the view's frame")
+    void anEnumeratedExpressionUnderAViewReadsThroughTheFrame() {
+        // asked of the engine: the model compiles; until 2026-11-15 lite refused it ("ColumnRef references table 'T' not
+        // in scope; available=[V]"), the frame rewriting an Expression's T.C to the view's CC but not an
+        // EnumeratedExpression's
+        assertEquals(List.of(), strict(ENUMERATED_EXPRESSION_UNDER_A_VIEW));
+        assertEquals(Map.of(), module(ENUMERATED_EXPRESSION_UNDER_A_VIEW).walls());
+    }
 }

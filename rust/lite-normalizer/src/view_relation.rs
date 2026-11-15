@@ -21,7 +21,8 @@ use lite_model::linked::list;
 use lite_model::{
     ClassMappingRelational, DatabaseDefinitionViewDefinition, FilterMapping, FilterPointer, JStr,
     LegacyMappingDefinitionTableReference as TableRef, PropertyMapping, PropertyMappingColumn, PropertyMappingEmbedded,
-    PropertyMappingEnumeratedColumn, PropertyMappingExpression, PropertyMappingLocalProperty, RelationalOperation,
+    PropertyMappingEnumeratedColumn, PropertyMappingEnumeratedExpression, PropertyMappingExpression,
+    PropertyMappingLocalProperty, PropertyMappingOtherwiseEmbedded, RelationalOperation,
     RelationalOperationColumnRef as ColumnRef, cat,
 };
 use lite_names::{ModelIndex, calls};
@@ -564,14 +565,33 @@ pub fn pm_through_frame(
                 primary_key: list(epk),
             }))
         }
+        // an enumeration over an expression and an otherwise-embedded block read the root's columns as any expression
+        // does: through the frame (2026-11-15, the normalizer batch, item 2, census ASK 13, ruling 30: Java's default arm
+        // passed them through)
+        PropertyMapping::PropertyMappingEnumeratedExpression(ee) => {
+            PropertyMapping::PropertyMappingEnumeratedExpression(Arc::new(PropertyMappingEnumeratedExpression {
+                property_name: ee.property_name.clone(),
+                enum_mapping_id: ee.enum_mapping_id.clone(),
+                expression: frame_rewrite(&ee.expression, view, view_name, md)?,
+            }))
+        }
+        PropertyMapping::PropertyMappingOtherwiseEmbedded(oe) => {
+            let mut subs: Vec<PropertyMapping> = Vec::with_capacity(oe.embedded.len());
+            for s in oe.embedded.iter() {
+                subs.push(pm_through_frame(s, view, view_name, md)?);
+            }
+            PropertyMapping::PropertyMappingOtherwiseEmbedded(Arc::new(PropertyMappingOtherwiseEmbedded {
+                property_name: oe.property_name.clone(),
+                embedded: list(subs),
+                fallback_set_id: oe.fallback_set_id.clone(),
+                fallback: pm_through_frame(&oe.fallback, view, view_name, md)?,
+            }))
+        }
         // joins depart from the view by name (their conditions are translated against the frame row at emission);
-        // the other kinds carry no column of the root -- Java's `default -> pm`, which passes EnumeratedExpression
-        // and OtherwiseEmbedded through unrewritten too (ASK 13, ported as Java has it)
+        // the other kinds carry no column of the root -- Java's `default -> pm`
         PropertyMapping::PropertyMappingJoin(_)
         | PropertyMapping::PropertyMappingJoinTerminalColumn(_)
-        | PropertyMapping::PropertyMappingInlineEmbedded(_)
-        | PropertyMapping::PropertyMappingEnumeratedExpression(_)
-        | PropertyMapping::PropertyMappingOtherwiseEmbedded(_) => pm.clone(),
+        | PropertyMapping::PropertyMappingInlineEmbedded(_) => pm.clone(),
     })
 }
 
@@ -856,24 +876,27 @@ Mapping a::M
         rcm.source_url = Some(j("data:x"));
         let out = through_frame(&rcm, &view, &j("PV"), &md).unwrap();
         assert_eq!(out.source_url, None);
+        // an EnumeratedExpression reads the root through the frame, as an Expression does: PERSON.NAME is the view's
+        // PNAME (2026-11-15, the normalizer batch, item 2; Java's default arm passed it unrewritten)
+        let framed =
+            PropertyMapping::PropertyMappingEnumeratedExpression(Arc::new(PropertyMappingEnumeratedExpression {
+                property_name: j("kind"),
+                enum_mapping_id: None,
+                expression: col("PV", "PNAME"),
+            }));
         assert_eq!(
             out.property_mappings.to_vec(),
-            vec![join_pm("firm", Some("f")), enumerated.clone(), literal]
+            vec![join_pm("firm", Some("f")), framed.clone(), literal.clone()]
         );
-        // Java's default arm: an EnumeratedExpression passes as the very PM (its root-table read unrewritten)
-        let PropertyMapping::PropertyMappingEnumeratedExpression(e) = &enumerated else {
-            panic!()
-        };
-        let PropertyMapping::PropertyMappingEnumeratedExpression(o) = &out.property_mappings[1] else {
-            panic!()
-        };
-        assert!(same(e, o));
         assert_eq!(
             ClassMappingRelational {
                 source_url: Some(j("data:x")),
                 ..(*out).clone()
             },
-            rcm
+            ClassMappingRelational {
+                property_mappings: vec![join_pm("firm", Some("f")), framed, literal].into(),
+                ..rcm.clone()
+            }
         );
     }
 }
