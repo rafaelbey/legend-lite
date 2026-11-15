@@ -130,8 +130,8 @@ pub fn pre_pass<'a>(
 }
 
 /// `MappingPrePass.resolveExtends` (:126): `extends [parentSetId]` flattened into each Relational child (set ids
-/// resolved within the mapping and its includes); loud for a Pure child.
-pub fn resolve_extends(r: &ResolvedMapping<'_>, model: &ModelIndex) -> Result<Arc<LegacyMappingDefinition>, Thrown> {
+/// resolved within the mapping and its includes); loud for a Pure child. (Java's `model` parameter is unread.)
+pub fn resolve_extends(r: &ResolvedMapping<'_>, _model: &ModelIndex) -> Result<Arc<LegacyMappingDefinition>, Thrown> {
     let md = r.raw();
     let any = md.class_mappings.iter().any(|cm| cm.extends_set_id().is_some());
     if !any {
