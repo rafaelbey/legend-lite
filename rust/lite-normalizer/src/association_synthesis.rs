@@ -12,9 +12,9 @@
 //! `getClass().getSimpleName()` (:441) spell each kind's Java simple name (`Join`, `Column`, ...); :418's unknown
 //! XStore / ModelJoin association is the engine's "Can't find association" (2026-11-15, the normalizer batch, item 2).
 //! `withInjectedPMs` keeps an embedded block's `~primaryKey` (2026-11-15, the normalizer batch, item 2: it dropped it,
-//! ASK 13); `resolveAssociation`'s import wildcards and same-package fallback (:387-397,
-//! ASK 15) stay as Java has them. Not ported (census §3, AS-4): the 8-argument `buildAssocPredicateBody` (:564-573)
-//! and `anchorNameOf` (:795-801), each called only by the other.
+//! ASK 13); `resolveAssociation`'s import wildcards stay as Java has them (:387-397, ASK 15); its same-package
+//! fallback is deleted (2026-11-15, the normalizer batch, item 9). Not ported (census §3, AS-4): the 8-argument
+//! `buildAssocPredicateBody` (:564-573) and `anchorNameOf` (:795-801), each called only by the other.
 //!
 //! Every hash set here is membership-only (census H3: `routedUnionGroups`, `ownClasses`, `ownMapped`, `ownSetIds`,
 //! `hoisted`, `seen`, `have`); `byClass` / `bySet` are iterated (the appended PMs' order), so they are `LinkedMap`s.
@@ -371,7 +371,8 @@ pub fn association_owner_class<'d>(ad: &'d AssociationDefinition, prop_name: &JS
 }
 
 /// `AssociationSynthesis.resolveAssociation` (:379): the association an association mapping names -- exact, else
-/// through the mapping's import wildcards, else the mapping's own package (ASK 15's Phase-D fallback, as Java has it).
+/// through the mapping's import wildcards (the own-package fallback after them deleted 2026-11-15, the normalizer
+/// batch, item 9, as the engine has none).
 pub fn resolve_association(
     model: &ModelIndex,
     md: &ResolvedMapping<'_>,
@@ -389,11 +390,10 @@ pub fn resolve_association(
             return Some(hit.clone());
         }
     }
-    // same-package fallback (an unimported sibling). 2026-11-14 (ruling 30's measurement): tried on 259 strict / 277
-    // tolerant asks, found 0 / 0; ported verbatim
-    let fqn = md.qualified_name();
-    let cut = lite_model::text::last_index_of(&fqn.0, &JStr::from("::").0)?;
-    model.find_association(&cat!(&fqn.0[..cut], "::", name)).cloned()
+    // no same-package fallback: the engine resolves a simple name through the section's imports alone (asked of
+    // legend-engine 4.145.0: "Can't find association 'P_F'"). Deleted 2026-11-15 (the normalizer batch, item 9, ruling 30,
+    // census ASK 15): tried on 259 strict / 277 tolerant asks, found 0 / 0 (ruling 30's measurement, 2026-11-14)
+    None
 }
 
 /// `AssociationSynthesis.synthesizeAssociationMapping` (:400): the association's predicate function; none for a
@@ -1236,7 +1236,7 @@ Mapping a::Plain
     }
 
     #[test]
-    fn an_association_resolves_exactly_then_by_import_then_by_package() {
+    fn an_association_resolves_exactly_then_by_import() {
         let f = fixture();
         let closures = MappingClosures::new(&f.idx);
         let views = LiftedViews::new(&f.parsed, &f.idx);
@@ -1245,9 +1245,11 @@ Mapping a::Plain
             resolve_association(&f.idx, &top, &relational_am(name, Vec::new())).map(|a| a.qualified_name.clone())
         };
         assert_eq!(fqn("a::PF"), Some(j("a::PF")));
-        // a simple name: the mapping's import wildcards, then its own package
+        // a simple name: the mapping's import wildcards, and no own-package fallback after them (2026-11-15, the
+        // normalizer batch, item 9: the engine refuses an unimported sibling, "Can't find association 'PF'"; it
+        // resolved to a::PF)
         assert_eq!(fqn("Q"), Some(j("b::Q")));
-        assert_eq!(fqn("PF"), Some(j("a::PF")));
+        assert_eq!(fqn("PF"), None);
         // a qualified name that misses has no fallback
         assert_eq!(fqn("c::PF"), None);
         assert_eq!(fqn("Nope"), None);
@@ -1260,7 +1262,9 @@ Mapping a::Plain
         let views = LiftedViews::new(&f.parsed, &f.idx);
         let top = resolved(mapping(&f.parsed, "a::Top"), &closures, &views);
         let mut ledger = MappingLedger::new(HashSet::new());
-        record_withheld(&top, &relational_am("PF", Vec::new()), &f.idx, &mut ledger, &j("why")).unwrap();
+        // a simple name the mapping's imports resolve (2026-11-15, the normalizer batch, item 9: it was "PF", resolved
+        // through the own-package fallback the item deleted)
+        record_withheld(&top, &relational_am("Q", Vec::new()), &f.idx, &mut ledger, &j("why")).unwrap();
         record_withheld(&top, &relational_am("Nope", Vec::new()), &f.idx, &mut ledger, &j("why")).unwrap();
         let poisons: Vec<(JStr, JStr)> = ledger
             .poisons
@@ -1271,7 +1275,7 @@ Mapping a::Plain
             })
             .collect();
         let reason = j("no predicate binding was emitted: why; mapping=a::Top");
-        assert_eq!(poisons, vec![(j("a::PF"), reason.clone()), (j("Nope"), reason)]);
+        assert_eq!(poisons, vec![(j("b::Q"), reason.clone()), (j("Nope"), reason)]);
     }
 
     #[test]

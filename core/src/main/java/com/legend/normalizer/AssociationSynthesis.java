@@ -393,11 +393,14 @@ final class AssociationSynthesis {
                 return hit;
             }
         }
-        // same-package fallback (an unimported sibling)
-        int cut = md.qualifiedName().lastIndexOf("::");
-        return cut < 0 ? java.util.Optional.empty()
-                : model.findAssociation(
-                        md.qualifiedName().substring(0, cut) + "::" + name);
+        // no same-package fallback: legend-engine resolves a simple name through the section's imports and its meta
+        // imports alone, never the element's own package (CompileContext.Builder.withSection; asked of legend-engine
+        // 4.145.0: a mapping naming an unimported association of its own package by its simple name is "Can't find
+        // association 'P_F'"), so an association found by neither is none, and its caller's refusal names it. Deleted
+        // 2026-11-15 (the normalizer batch, item 9, ruling 30, census ASK 15): it was tried on 259 strict / 277 tolerant
+        // asks of the normalizer oracle and found 0 / 0 (ruling 30's measurement, 2026-11-14) -- name resolution (D)
+        // answers such a name first, through its own-package tier
+        return java.util.Optional.empty();
     }
 
     static @com.legend.base.Nullable FunctionDefinition synthesizeAssociationMapping(ResolvedMapping md,
