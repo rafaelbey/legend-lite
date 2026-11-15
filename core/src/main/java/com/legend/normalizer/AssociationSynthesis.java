@@ -867,6 +867,13 @@ final class AssociationSynthesis {
             if (byId != null) {
                 return byId;
             }
+            // a named Relational set whose main table cannot be inferred anchors nothing (the association is
+            // withheld), never the class's other set's table: until 2026-11-15 it fell back to the class rule (the
+            // normalizer's second batch, item 3, register row S390; LITE-ONLY, a tolerant build -- a strict one
+            // refuses the set first, in the engine's words)
+            if (md.set(setId) instanceof ClassMapping.Relational named && named.sourceUrl() == null) {
+                return null;
+            }
         }
         return anchorTableOf(md, classFqn, model);
     }

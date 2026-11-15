@@ -44,6 +44,11 @@ pub fn synth_relational(
     let mut rcm = rcm.clone();
     if rcm.main_table.is_none() {
         let Some(inferred) = resolved_main_table(&rcm)? else {
+            // a set reading no table and extending none: the model's error, in the engine's words (since 2026-11-15,
+            // S390); a set extending another keeps the deferred refusal
+            if rcm.extends_set_id.is_none() {
+                return Err(Thrown::model(Phase::Mapping, main_table_refusal(&rcm), None));
+            }
             return Err(Thrown::not_implemented(cat!(
                 "Relational mapping without ~mainTable, sourceUrl, or an inferable column binding; class=",
                 &rcm.class_name,
@@ -118,47 +123,20 @@ pub fn relational_source_of(rcm: &ClassMappingRelational) -> Result<MappingDefin
     )
 }
 
-/// `MappingNormalizer.inferMainTable` (:1419): the one table the PMs read; none when they read none; loud for two
-/// databases or two tables.
+/// `MappingNormalizer.inferMainTable` (:1419): the one table the PMs read (by its name, whatever database a reference
+/// spells: the first's); none when they read none; loud for two table names, in legend-engine's words (since
+/// 2026-11-15, the normalizer's second batch, item 3, S390: two databases were refused and the words were lite's).
 pub fn infer_main_table(rcm: &ClassMappingRelational) -> Result<Option<Arc<TableRef>>, Thrown> {
     let mut refs: Vec<Arc<TableRef>> = Vec::new();
     for pm in rcm.property_mappings.iter() {
         collect_main_tables(pm, &mut refs);
-    }
-    // the DATABASE is part of table identity: [db1]T and [db2]T are different tables. (Java skips a null database
-    // here; a TableReference's database is never null, so every ref enters the check.)
-    let mut dbs: LinkedSet<JStr> = LinkedSet::new();
-    for r in &refs {
-        dbs.add(r.database.clone());
-    }
-    if dbs.len() > 1 {
-        return Err(Thrown::model(
-            Phase::Normalize,
-            cat!(
-                "Inconsistent database definitions for the mapping of class '",
-                &rcm.class_name,
-                "': ",
-                lite_names::model_index::java_list(&dbs.to_vec())
-            ),
-            None,
-        ));
     }
     let mut names: LinkedSet<JStr> = LinkedSet::new();
     for r in &refs {
         names.add(canonical_table(&r.table));
     }
     if names.len() > 1 {
-        return Err(Thrown::model(
-            Phase::Normalize,
-            cat!(
-                "Can't find the main table for class '",
-                &rcm.class_name,
-                "': property mappings span tables ",
-                lite_names::model_index::java_list(&names.to_vec()),
-                ". Please specify a main table using the ~mainTable directive."
-            ),
-            None,
-        ));
+        return Err(Thrown::model(Phase::Mapping, main_table_refusal(rcm), None));
     }
     let Some(first) = refs.first() else {
         return Ok(None);
@@ -169,6 +147,20 @@ pub fn infer_main_table(rcm: &ClassMappingRelational) -> Result<Option<Arc<Table
         database: first.database.clone(),
         table: canonical_table(&first.table),
     })))
+}
+
+/// `MappingNormalizer.mainTableRefusal`: legend-engine's refusal of a set whose main table it cannot infer, the set's id
+/// as written (`null` for an unlabelled one).
+pub fn main_table_refusal(rcm: &ClassMappingRelational) -> JStr {
+    cat!(
+        "Can't find the main table for class '",
+        &or_null_id(rcm.set_id.as_ref()),
+        "'. Please specify a main table using the ~mainTable directive."
+    )
+}
+
+fn or_null_id(id: Option<&JStr>) -> JStr {
+    id.cloned().unwrap_or_else(|| JStr::from("null"))
 }
 
 /// `MappingNormalizer.canonicalTable` (:1463): `KnowledgeLayer.canonicalTable` (lite-names').
@@ -439,21 +431,22 @@ mod tests {
             None,
             vec![column_pm("name", "PERSON", "NAME"), column_pm("firm", "FIRM", "NAME")],
         );
+        // in legend-engine's words, the set's id as written (since 2026-11-15, S390: "Can't find the main table for class
+        // 'a::P': property mappings span tables [PERSON, FIRM]. Please specify ...", phase NORMALIZE)
         let e = infer_main_table(&r).unwrap_err();
         assert!(e.is_model());
-        assert_eq!(e.phase(), Some(Phase::Normalize));
+        assert_eq!(e.phase(), Some(Phase::Mapping));
         assert_eq!(
             e.message(),
             Some(j(
-                "Can't find the main table for class 'a::P': property mappings span tables [PERSON, FIRM]. Please \
-                 specify a main table using the ~mainTable directive."
+                "Can't find the main table for class 'null'. Please specify a main table using the ~mainTable directive."
             ))
         );
         assert_eq!(infer_main_table_quiet(&r), Ok(None));
     }
 
     #[test]
-    fn two_databases_are_loud_before_the_tables() {
+    fn a_table_is_one_by_its_name_whatever_database_spells_it() {
         let expr = PropertyMapping::PropertyMappingExpression(Arc::new(PropertyMappingExpression {
             property_name: j("x"),
             expression: RelationalOperation::RelationalOperationColumnRef(Arc::new(RelationalOperationColumnRef {
@@ -462,13 +455,26 @@ mod tests {
                 column: j("ID"),
             })),
         }));
+        // two table names, the engine's refusal (since 2026-11-15, S390: two databases were refused first, "Inconsistent
+        // database definitions for the mapping of class 'a::P': [db, db2]")
         let r = relational("a::P", None, vec![column_pm("name", "PERSON", "NAME"), expr]);
         assert_eq!(
             infer_main_table(&r).unwrap_err().message(),
             Some(j(
-                "Inconsistent database definitions for the mapping of class 'a::P': [db, db2]"
+                "Can't find the main table for class 'null'. Please specify a main table using the ~mainTable directive."
             ))
         );
+        // one table name in two databases: the first's (the engine's alias by schema and table)
+        let same = PropertyMapping::PropertyMappingExpression(Arc::new(PropertyMappingExpression {
+            property_name: j("x"),
+            expression: RelationalOperation::RelationalOperationColumnRef(Arc::new(RelationalOperationColumnRef {
+                database_name: Some(j("db2")),
+                table: j("PERSON"),
+                column: j("ID"),
+            })),
+        }));
+        let r3 = relational("a::P", None, vec![column_pm("name", "PERSON", "NAME"), same]);
+        assert_eq!(infer_main_table(&r3), Ok(Some(table("db", "PERSON"))));
         // a column ref with no database names no table
         let bare = PropertyMapping::PropertyMappingExpression(Arc::new(PropertyMappingExpression {
             property_name: j("x"),

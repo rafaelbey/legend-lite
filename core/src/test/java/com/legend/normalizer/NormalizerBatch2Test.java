@@ -645,4 +645,126 @@ class NormalizerBatch2Test {
         assertEquals(true, firm.contains(".FID = ") && !firm.contains("FID2"), firm);
         assertEquals(true, employees.contains(".FID2 = "), employees);
     }
+
+    // ---- item 3, S390: a set whose main table cannot be inferred ----
+
+    private static final String MAIN_TABLE_TWO_TABLES = """
+            ###Pure
+            Class w::P { a: String[0..1]; b: String[0..1]; }
+            Class w::F { name: String[0..1]; }
+            Association w::PF { firm: w::F[0..1]; people: w::P[*]; }
+
+            ###Relational
+            Database w::Db
+            (
+              Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+              Table T2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+              Table T3 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20))
+              Join J(T.ID = T2.ID)
+              Join JF(T.FID = T3.ID)
+              Join JF2(T2.FID = T3.ID)
+            )
+
+
+            ###Mapping
+            Mapping w::M
+            (
+              w::P[pid]: Relational { a: [w::Db]T.NAME, b: [w::Db]T2.NAME }
+            )
+            """;
+
+    private static final String MAIN_TABLE_NONE = """
+            ###Pure
+            Class w::P { a: String[0..1]; b: String[0..1]; }
+            Class w::F { name: String[0..1]; }
+            Association w::PF { firm: w::F[0..1]; people: w::P[*]; }
+
+            ###Relational
+            Database w::Db
+            (
+              Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+              Table T2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+              Table T3 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20))
+              Join J(T.ID = T2.ID)
+              Join JF(T.FID = T3.ID)
+              Join JF2(T2.FID = T3.ID)
+            )
+
+
+            ###Mapping
+            Mapping w::M
+            (
+              w::P: Relational { a: 'x' }
+            )
+            """;
+
+    private static final String MAIN_TABLE_TWO_DATABASES = """
+            ###Pure
+            Class w::P { a: String[0..1]; b: String[0..1]; }
+            Class w::F { name: String[0..1]; }
+            Association w::PF { firm: w::F[0..1]; people: w::P[*]; }
+
+            ###Relational
+            Database w::Db
+            (
+              Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+              Table T2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+              Table T3 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20))
+              Join J(T.ID = T2.ID)
+              Join JF(T.FID = T3.ID)
+              Join JF2(T2.FID = T3.ID)
+            )
+            Database w::Db2 ( Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20)) )
+
+            ###Mapping
+            Mapping w::M
+            (
+              w::P: Relational { a: [w::Db]T.NAME, b: [w::Db2]T.NAME }
+            )
+            """;
+
+    private static final String MAIN_TABLE_ASSOCIATION = """
+            ###Pure
+            Class w::P { a: String[0..1]; b: String[0..1]; }
+            Class w::F { name: String[0..1]; }
+            Association w::PF { firm: w::F[0..1]; people: w::P[*]; }
+
+            ###Relational
+            Database w::Db
+            (
+              Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+              Table T2 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+              Table T3 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20))
+              Join J(T.ID = T2.ID)
+              Join JF(T.FID = T3.ID)
+              Join JF2(T2.FID = T3.ID)
+            )
+
+            ###Mapping
+            Mapping w::M
+            (
+              *w::P[p1]: Relational { a: [w::Db]T.NAME, b: [w::Db]T2.NAME }
+              w::P[p2]: Relational { ~mainTable [w::Db]T2 a: [w::Db]T2.NAME }
+              *w::F: Relational { ~mainTable [w::Db]T3 name: [w::Db]T3.NAME }
+              w::PF: Relational { AssociationMapping ( firm[p1, w_F]: [w::Db]@JF2, people[w_F, p1]: [w::Db]@JF2 ) }
+            )
+            """;
+
+    @Test
+    @DisplayName("item 3 (S390): no main table inferable is the engine's refusal, naming the set id; one table in two databases compiles")
+    void aSetWithNoInferableMainTableIsTheEnginesRefusal() {
+        // asked of the engine (RelationalCompilerExtension.java:339-355): two tables, or none, are "Can't find the main
+        // table for class '<set id>'. Please specify a main table using the ~mainTable directive." ('null' for an
+        // unlabelled set); [Db]T and [Db2]T compile (one alias, the first's). Until 2026-11-15 lite named the class and
+        // the tables, deferred a set reading no table, and refused two databases
+        assertEquals(List.of("[19:1] Can't find the main table for class 'pid'. Please specify a main table using the"
+                + " ~mainTable directive."), strict(MAIN_TABLE_TWO_TABLES));
+        assertEquals(List.of("[19:1] Can't find the main table for class 'null'. Please specify a main table using the"
+                + " ~mainTable directive."), strict(MAIN_TABLE_NONE));
+        assertEquals(List.of(), strict(MAIN_TABLE_TWO_DATABASES));
+        // a tolerant build withholds the class and its association: never anchored on the other set's table
+        Compiler.BuiltModule m = module(MAIN_TABLE_ASSOCIATION);
+        assertEquals(true, m.context().mappingPoison("w::M", "w::P").isPresent()
+                || m.context().mappingSetPoison("w::M", "w::P", "p1").isPresent());
+    }
 }

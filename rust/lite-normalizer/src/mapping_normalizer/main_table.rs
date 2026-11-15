@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! MappingNormalizer family 16 (EF_CENSUS §1.1): the closure's main-table lookups (the table an association anchors
-//! on). `mainTableOrNull` skips an ambiguous root set and answers a non-root set's table (ASK 12): port as Java has it.
+//! on). `mainTableOrNull` skipped an ambiguous root set and answered a non-root set's table (ASK 12, ported as Java had
+//! it); since 2026-11-15 a root set with no inferable table anchors nothing (the normalizer's second batch, S390).
 
 use std::sync::Arc;
 
@@ -28,9 +29,15 @@ pub fn main_table_or_null(md: &ResolvedMapping<'_>, class_fqn: Option<&JStr>) ->
             Some(declared) => Some(declared.clone()),
             None => infer_main_table_quiet(&rcm)?,
         };
-        // a set whose inference is ambiguous answers none and is skipped, a ROOT one included: the first non-root
-        // set's table is then the answer (ASK 12, kept)
-        let Some(mt) = mt else { continue };
+        // a set whose inference is ambiguous answers none and is skipped; a ROOT one (not JSON-sourced) anchors
+        // nothing, so the class's association is withheld, never anchored on another set's table (since 2026-11-15, the
+        // normalizer's second batch, item 3, S390: it was skipped and the first non-root set's table answered)
+        let Some(mt) = mt else {
+            if rcm.root && rcm.source_url.is_none() {
+                return Ok(None);
+            }
+            continue;
+        };
         if rcm.root {
             return Ok(Some(mt));
         }

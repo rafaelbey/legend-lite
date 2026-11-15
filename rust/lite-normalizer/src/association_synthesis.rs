@@ -988,10 +988,17 @@ pub fn end_anchor(
     set_id: Option<&JStr>,
     model: &ModelIndex,
 ) -> Result<Option<Arc<TableRef>>, Thrown> {
-    if let Some(set_id) = set_id
-        && let Some(by_id) = anchor_of_set(md, set_id)?
-    {
-        return Ok(Some(by_id));
+    if let Some(set_id) = set_id {
+        if let Some(by_id) = anchor_of_set(md, set_id)? {
+            return Ok(Some(by_id));
+        }
+        // a named Relational set whose main table cannot be inferred anchors nothing (the association withheld), never
+        // the class's other set's table (since 2026-11-15, the normalizer's second batch, item 3, S390)
+        if let Some(ClassMapping::ClassMappingRelational(named)) = md.set(Some(set_id))?
+            && named.source_url.is_none()
+        {
+            return Ok(None);
+        }
     }
     anchor_table_of(md, class_fqn, model)
 }

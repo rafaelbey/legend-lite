@@ -157,12 +157,10 @@ pub fn m2m_value_class(
         p::ValueSpecification::Variable(var) if var.name == "src" => src_class.cloned(),
         p::ValueSpecification::NewInstance(ni) => Some(ni.class_name.clone()),
         // `^C(...)` on the wire: new(<C>, NewInstance), the instance its second argument
-        p::ValueSpecification::AppliedFunction(af) if af.parameters.len() == 2 => {
-            match &af.parameters[1] {
-                p::ValueSpecification::NewInstance(ni) => Some(ni.class_name.clone()),
-                _ => None,
-            }
-        }
+        p::ValueSpecification::AppliedFunction(af) if af.parameters.len() == 2 => match &af.parameters[1] {
+            p::ValueSpecification::NewInstance(ni) => Some(ni.class_name.clone()),
+            _ => None,
+        },
         p::ValueSpecification::AppliedProperty(ap) => {
             let receiver = m2m_value_class(&ap.receiver, src_class, model)?;
             let knowledge = model.knowledge();

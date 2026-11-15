@@ -150,11 +150,18 @@ final class GroupBySynthesis {
         for (PropertyMapping pm : rcm.propertyMappings()) {
             if (isAggregatePm(pm)) { aggPms.add(pm); continue; }
             // A JOIN PM (class-typed navigation) is not part of the grouped
-            // ROW — the engine navigates grouped sets through the join
-            // machinery, never the grouped projection. Stage 1 (audit-17
-            // bucket analysis): WITHHOLD the property instead of sinking
-            // the whole class mapping — queries that never touch it run;
-            // touching it raises the ordinary not-mapped error, loud.
+            // ROW here. The engine navigates it INSIDE the grouped select (the
+            // join before the GROUP BY, the target's columns ungrouped:
+            // testGroupBy.pure:82-87, asked of legend-engine 4.145.0, its SQL
+            // failing on DuckDB and, by the data, on H2), which lite's
+            // relation groupBy cannot carry (it holds key and aggregate
+            // columns only), register row S382 -- ruled the engine's form,
+            // held for slice I's lowering (2026-11-15, the normalizer's second
+            // batch; this comment said the engine navigates "never the grouped
+            // projection" until then). Stage 1 (audit-17 bucket analysis):
+            // WITHHOLD the property instead of sinking the whole class mapping
+            // -- queries that never touch it run; touching it raises the
+            // ordinary not-mapped error, loud.
             if (pm instanceof PropertyMapping.Join) {
                 continue;
             }
@@ -177,8 +184,14 @@ final class GroupBySynthesis {
                 // a PER-ROW PM outside the key list (id: ABC.id under
                 // ~groupBy(ABC.aName)): the engine's compiler ACCEPTS the
                 // mapping (the extends/primaryKey corpus fixtures are
-                // written this way) and only the query that reads the
-                // property fails, on the database. Same stage-1 rule as
+                // written this way) and its SQL carries the column
+                // ungrouped whenever it takes it -- a .all() and any query
+                // isolating the grouped set carry it unread
+                // (testGroupBy.pure:29-72), and whether the database takes
+                // an ungrouped column is the database's (asked: H2 by the
+                // data, DuckDB never). Until 2026-11-15 this comment said
+                // "only the query that reads the property fails" (S382,
+                // the normalizer's second batch). Same stage-1 rule as
                 // the Join PM above: WITHHOLD the property, keep the set
                 // — a read raises the ordinary not-mapped wall, loud.
                 continue;

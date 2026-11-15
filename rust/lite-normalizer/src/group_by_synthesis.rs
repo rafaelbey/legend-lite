@@ -82,8 +82,10 @@ fn key_names_and_aggregates(
             agg_pms.push((pm.property_name().clone(), fc));
             continue;
         }
-        // A JOIN PM (class-typed navigation) is not part of the grouped ROW: WITHHOLD the property instead of sinking
-        // the whole class mapping (stage 1, audit-17) -- touching it raises the ordinary not-mapped error, loud.
+        // A JOIN PM (class-typed navigation) is not part of the grouped ROW here (the engine navigates it inside the
+        // grouped select, which lite's relation groupBy cannot carry: S382, ruled the engine's form, held for slice I's
+        // lowering, 2026-11-15): WITHHOLD the property instead of sinking the whole class mapping (stage 1, audit-17) --
+        // touching it raises the ordinary not-mapped error, loud.
         if let PropertyMapping::PropertyMappingJoin(_) = pm {
             continue;
         }
@@ -100,8 +102,10 @@ fn key_names_and_aggregates(
             )));
         };
         let match_idx = (0..key_ops.len()).find(|i| !claimed.contains(i) && group_by_ops_match(&pm_op, &key_ops[*i]));
-        // a PER-ROW PM outside the key list: the engine's compiler ACCEPTS the mapping and only the query reading the
-        // property fails, on the database; the same stage-1 rule as the Join PM above: WITHHOLD it, keep the set
+        // a PER-ROW PM outside the key list: the engine's compiler ACCEPTS the mapping and its SQL carries the column
+        // ungrouped whenever it takes it (a .all() and any query isolating the grouped set, unread too; the database
+        // decides whether it takes it: H2 by the data, DuckDB never -- S382, 2026-11-15, the comment said "only the query
+        // reading the property fails"); the same stage-1 rule as the Join PM above: WITHHOLD it, keep the set
         let Some(match_idx) = match_idx else { continue };
         claimed.insert(match_idx);
         key_names[match_idx] = pm.property_name().clone();

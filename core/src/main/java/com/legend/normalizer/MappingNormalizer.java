@@ -1505,6 +1505,16 @@ public final class MappingNormalizer {
         if (rcm.mainTable() == null) {
             LegacyMappingDefinition.TableReference inferred = resolvedMainTable(rcm);
             if (inferred == null) {
+                // a set reading no table (literals, joins alone) and extending none: the model's error, in
+                // legend-engine's words, as the engine refuses it when the mapping compiles
+                // (RelationalCompilerExtension.java:339-355, the set's id as written: 'null' for an unlabelled one;
+                // asked). Until 2026-11-15 a deferred NotImplementedException (the normalizer's second batch, item
+                // 3, register row S390). A set extending another keeps it: the engine resolves its main table from
+                // the set it extends
+                if (rcm.extendsSetId() == null) {
+                    throw new ModelException(LegendCompileException.Phase.MAPPING,
+                            mainTableRefusal(rcm));
+                }
                 throw new NotImplementedException(
                         "Relational mapping without ~mainTable, sourceUrl, or an"
                       + " inferable column binding; class="
@@ -1590,28 +1600,17 @@ public final class MappingNormalizer {
         for (PropertyMapping pm : rcm.propertyMappings()) {
             collectMainTables(pm, refs);
         }
-        // the DATABASE is part of table identity: [db1]T and [db2]T are
-        // different tables — table-name-only dedup would silently pick
-        // refs.get(0)'s database. Null (scope-block) refs inherit the
-        // explicit one, so only NON-NULL databases enter the check.
-        Set<String> dbs = new LinkedHashSet<>();
-        refs.forEach(r -> {
-            if (r.database() != null) {
-                dbs.add(r.database());
-            }
-        });
-        if (dbs.size() > 1) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    "Inconsistent database definitions for the mapping of class '"
-                  + rcm.className() + "': " + dbs);
-        }
+        // One table by its name, whatever database a reference spells: legend-engine keys the set's table aliases
+        // by schema and table (HelperRelationalBuilder.java:1172, the first alias of a name kept), so [db1]T and
+        // [db2]T are one alias, the first's -- it compiles such a set and reads db1's T (asked); and two table names
+        // are its refusal, in its words, the set's id as written (RelationalCompilerExtension.java:339-355; asked).
+        // Until 2026-11-15 lite refused two databases ("Inconsistent database definitions for the mapping of class
+        // 'C': [...]") and named the class and the tables in its own words (the normalizer's second batch, item 3,
+        // register row S390)
         Set<String> names = new LinkedHashSet<>();
         refs.forEach(r -> names.add(canonicalTable(r.table())));
         if (names.size() > 1) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    "Can't find the main table for class '" + rcm.className()
-                  + "': property mappings span tables " + names
-                  + ". Please specify a main table using the ~mainTable directive.");
+            throw new ModelException(LegendCompileException.Phase.MAPPING, mainTableRefusal(rcm));
         }
         if (refs.isEmpty()) {
             return null;
@@ -1623,6 +1622,12 @@ public final class MappingNormalizer {
         LegacyMappingDefinition.TableReference first = refs.get(0);
         return new LegacyMappingDefinition.TableReference(first.database(),
                 canonicalTable(first.table()));
+    }
+
+    /** legend-engine's refusal of a set whose main table it cannot infer, the set's id as written. */
+    static String mainTableRefusal(ClassMapping.Relational rcm) {
+        return "Can't find the main table for class '" + rcm.setId()
+                + "'. Please specify a main table using the ~mainTable directive.";
     }
 
     /** 'default.T' and 'T' are the same table — the default-schema prefix
@@ -2519,7 +2524,8 @@ public final class MappingNormalizer {
      * multiple set IDs, .all() and every synthesized association predicate
      * anchor on the root; taking the FIRST declared set bound predicates to
      * the wrong table whenever a non-root set was declared first (audit) —
-     * else the first set's that has one. */
+     * else the first set's that has one; a root set with no inferable table
+     * none (since 2026-11-15, S390). */
     static LegacyMappingDefinition.@com.legend.base.Nullable TableReference mainTableOrNull(
             ResolvedMapping md, @com.legend.base.Nullable String classFqn) {
         LegacyMappingDefinition.TableReference first = null;
@@ -2527,6 +2533,12 @@ public final class MappingNormalizer {
             LegacyMappingDefinition.TableReference mt = rcm.mainTable() != null
                     ? rcm.mainTable() : inferMainTableQuiet(rcm);
             if (mt == null) {
+                // a ROOT set whose main table cannot be inferred anchors nothing: the class's association is withheld
+                // (its synthesis refuses), never anchored on another set's table (until 2026-11-15 it was skipped and
+                // the first non-root set's table answered, in a tolerant build: S390)
+                if (rcm.root() && rcm.sourceUrl() == null) {
+                    return null;
+                }
                 continue;
             }
             if (rcm.root()) {
