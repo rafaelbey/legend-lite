@@ -158,3 +158,8 @@ attribution-2026-11-14.tsv	the names follow-ups' re-freeze's attribution: item, 
 # 1a13b13af5abfcdc3ef048873281ac633c9ed83693394280318c80cfcf0f4cb6, test-plan-frames.tsv
 # 0d199b9fcd14655845407a0fe855cfe8a8937c02a81fc6259b1fc743156c1474 (118 frames).
 attribution-2026-11-14-names-batch.tsv	the names batch's re-freeze's attribution: item, commit, oracle file, keys, what moved, how measured, examples (plain text: its own SHA-256)	915e14f77db6429f8c66976715c0bcd98eba175baf2c4f313be4c22ad64032d3
+# THE NORMALIZER'S SECOND BATCH, ITEM 0 (2026-11-15; begin)
+# No row of this oracle moved: two complete probe v2 runs at 1615cfa4c (NB2Z1, NB2Z2) answer every frozen key alike,
+# none moved or absent; the 66 keys both add to rust/oracles/identity/hits.tsv have no execution or test plan id, so
+# plan-ids.tsv is re-derived byte for byte as frozen. Their attribution, key by key (identity/MANIFEST.tsv's block):
+attribution-2026-11-15-normalizer-batch2-keys66.tsv	the normalizer's second batch's item 0: the 66 keys added to identity/hits.tsv, each attributed to its text: item, commit, oracle file, kind, model, query, doors, use, the text, why (plain text: its own SHA-256)	28a95ee330efcbb6900b8365f5c348356a9dbb5acca4eba5d1b3b2d6c2a6d3cc

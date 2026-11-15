@@ -106,7 +106,20 @@
 # equal.
 # Previous SHA-256s: hits.tsv 08b430ff07bd6eb181d869cf1b7b7296399ef9372bba1ed7b1b936441fa36d9a, mir-ids.tsv
 # be50210d06fb28f5d3c00d36dad86c02dcc59ddf3eb27cad7546978edcff4f69.
-hits.tsv.zst	kind, model, query, doors, use, counts: 73,413 rows (B 1, L 24, M 2,791, Q 70,597), 2,802 models, 67 tables; re-keyed and masked 2026-11-13, re-frozen 2026-11-13	2484d246a221a4f279f258f5b4d26bd10bc3610a4a5b00f06865f05923fda26a
+# THE NORMALIZER'S SECOND BATCH, ITEM 0 (2026-11-15; begin)
+# ADDED, by the freeze's own rule, 66 keys: two complete probe v2 runs at 1615cfa4c (NB2Z1, NB2Z2; each its own tagged
+# copy, every hunk checked to apply first; 143 of 145 targets passing each, the two probe-caused failures) answer all
+# 73,413 frozen keys, all equal, MOVED 0, ABSENT 0, and agree on 66 keys no frozen key was, outside the by-design
+# exclusions (the Postgres lanes' and temporary-path models', //core:ladder_report's 24) -- 56 M rows and 10 Q rows of
+# test texts added to core/src/test since the freeze, in the core_tests_normalizer lanes (and their judge variants) and
+# core_tests_integration, none with a MirJson, execution plan or test plan id (mir-ids.tsv and rust/oracles/plan's
+# plan-ids.tsv re-derived byte for byte as frozen). Each attributed to its text by the probe's own model id
+# (rust/oracles/plan/attribution-2026-11-15-normalizer-batch2-keys66.tsv): 26 the normalizer slice's step 1 texts' (corpus
+# growth), 37 the normalizer batch's texts' (corpus growth), 3 the bodies compiles of three slice texts that the first
+# batch's item 4 (d), 47d13b73f, newly lets a strict build compile. So hits.tsv 73,413 -> 73,479 rows (66 added).
+# Previous SHA-256: hits.tsv 2484d246a221a4f279f258f5b4d26bd10bc3610a4a5b00f06865f05923fda26a.
+# THE NORMALIZER'S SECOND BATCH, ITEM 0 (end)
+hits.tsv.zst	kind, model, query, doors, use, counts: 73,479 rows (B 1, L 24, M 2,847, Q 70,607), 2,858 models, 67 tables; re-keyed and masked 2026-11-13, re-frozen 2026-11-13, 66 keys added 2026-11-15 (below)	034721145be8273cb846d64085ec8fa44d56f5b75b9722558a4286815664e613
 # Each lowering the question made (Lowerer.lower and lowerStoreWrite, in order): the SHA-256 of its MirJson text's UTF-16
 # units. !IllegalStateException:... is MirJson's refusal by design (a tagged value or list, resolved at its query's root;
 # 2,546 lowerings: 2,538 lists, 8 values). No id moved between the two runs (the first freeze's 72 ~moved, a VALUES row holding the host's
