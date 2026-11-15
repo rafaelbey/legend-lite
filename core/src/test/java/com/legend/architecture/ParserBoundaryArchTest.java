@@ -127,7 +127,11 @@ class ParserBoundaryArchTest {
             // 2026-11-12, phase 3's names differential (docs/rust-port/PHASE3.md, the names slice): every model text of
             // the front oracle at each dialect it is asked at, and every query text at lite's, through Java's doors,
             // then resolved and indexed as the Rust names layer is -- the dialects are its subject, as ModelAnswers'
-            "com/legend/frontoracle/NameAnswers.java");
+            "com/legend/frontoracle/NameAnswers.java",
+            // 2026-11-14, phase 3's normalizer differential (docs/rust-port/PHASE3.md, the normalizer slice): every model
+            // text of the front oracle at each dialect it is asked at, through Java's door, then resolved (D) and
+            // normalized (E) as the Rust layers are -- the dialects are its subject, as NameAnswers'
+            "com/legend/frontoracle/NormalizerAnswers.java");
 
     @Test
     void theCompilerLayerNeverTouchesTheParser() throws IOException {

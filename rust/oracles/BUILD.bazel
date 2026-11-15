@@ -204,4 +204,23 @@ zstd_decompress(
     visibility = ["//rust:__subpackages__"],
 )
 
+# What step E hands to F, as the live Java answered it (2026-11-14, phase 3's normalizer slice; normalizer/MANIFEST.tsv):
+# the canonical text's SHA-256 per model ask, D then E, strict and tolerant, frozen before the Java goes; and the
+# slice's targeted case texts beside the front oracle's questions. The normalizer differential
+# (//rust/lite-normalizer:normalizer_differential_test) reads them.
+zstd_decompress(
+    name = "normalizer_answers",
+    testonly = True,
+    src = "normalizer/answers.tsv.zst",
+    out = "normalizer/answers.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
+filegroup(
+    name = "normalizer_cases",
+    testonly = True,
+    srcs = ["normalizer/cases.jsonl"],
+    visibility = ["//rust:__subpackages__"],
+)
+
 guards_package()

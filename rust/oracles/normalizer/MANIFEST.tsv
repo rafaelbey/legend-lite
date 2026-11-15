@@ -1,0 +1,33 @@
+# file	what	sha256 of the uncompressed output
+# Made 2026-11-14 on worktree-rust-port-phase0 at ad86fa895 (core's main sources: the names batch's tree, ae95c0f0c, with
+# the normalizer slice's step-1 refusals, d2eacfead..56fc09f1e, and ruling 30's two fallback deletions, ad86fa895;
+# docs/rust-port/PHASE3.md, the normalizer slice) by core/src/test/java/com/legend/frontoracle/NormalizerAnswers.java
+# (its header: the command, the canonical text's grammar) run as a source program on the tree's built jars of
+# //core:planner's closure (//core:normalizer among them), the build's JDK (25.0.4+7-LTS), the Rust parser loaded from
+# //rust/lite-ffi; over the front oracle's questions (rust/oracles/front/questions.jsonl.zst, decompressed) and the
+# slice's targeted cases (cases.jsonl below). What step E hands to F, asked of the live Java after step D (D then E
+# only, what Compiler.normalizeLayer runs; never F): NameResolver.resolveAlongside(parsed, bootFqns, walls),
+# KnowledgeLayer.adoptAssociationQualifiedProperties, ModelBuilder.from, PureModelContext.refuseDuplicates,
+# ModelNormalizer.normalize -- strict (S: the first error, E's or D's) and tolerant (T: one walls map threaded through D
+# and E, as buildModule threads it; `=S` when equal). An answer is the record codec's JSON of the NormalizedModel
+# (every element in order, the compiled mappings with their binding tables, facts and resolved stores, every lifted
+# function, the imports, the legacy surfaces), a tolerant one prefixed by its walls; an error `E TAB class TAB phase TAB
+# element TAB message`. Hashed: SHA-256 of each canonical text's UTF-16 units, little-endian. Run twice in parallel on
+# one jar snapshot (A; B with --texts): answers.tsv and answers.tsv.tags byte-identical (741 s and 743 s). Compressed
+# with `zstd -19 --long=27`. The texts (run B, 3,424,474,764 bytes of forms) are archived outside the repository,
+# ~/.local/legend-lite/oracle-archive/normalizer-forms-java-2026-11-14.jsonl.zst, with the per-ask measurement tags
+# (normalizer-tags-java-2026-11-14.tsv.zst), each SHA-256 in normalizer-texts-java.sha256 beside them.
+# ANSWERS: one line per model ask (["pmcd", dialect]) the door parses, in the questions' order then the cases' --
+# 74,364 asks over 26,348 texts (74,292 of the front oracle's 26,324, the names oracle's asks; 72 of the 24 cases).
+# Strict: 69,104 answered, 5,260 refused (33 by D, a ModelException; 5,141 ModelException, 57 NotImplementedException,
+# 18 IllegalArgumentException and 11 IllegalStateException by E -- the last 29 raw, from names- and types-tier code E
+# calls: Type.RelationType's duplicate column through ViewSignatures, KnowledgeLayer.superClass). Tolerant: 144 refused
+# (115 ModelException, the 29 raw), 1,739 asks with E walls.
+answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines	71e68af56e4aa914826c27135e1c10f95c6ffbc028710ad8e3c77cc38d708abc
+# CASES: the slice's targeted model texts for the oracle-blind sites (EF_CENSUS.md §10 item 3, E's), in the front
+# oracle's question form ({"sha","asks","text"}, the sha the SHA-256 of the text's UTF-16 units, asked at every
+# dialect), written by port-scratch/normalizer/tools/make_cases.py: ten cases -- a view-on-view cycle mapped and alone,
+# a walled view reached from a mapping, two equal views in two schemas, a real ~src chain, an M2M cycle of three and of
+# two in both orders (S380), a duplicate set id across includes, a nested ModelJoin hop -- then the 14 texts of
+# core/src/test/java/com/legend/normalizer/RefusalsNotCrashesTest.java (step 1's refusals), each once.
+cases.jsonl	the slice's 24 case texts (questions' form), read by NormalizerAnswers and the differential	3887a11a2d7b45b16d71bb0b56b9450ce72d1a032c41664a27162f30ce7cdf84
