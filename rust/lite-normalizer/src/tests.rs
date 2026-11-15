@@ -16,7 +16,6 @@ use lite_model::text::j;
 use lite_model::{ClassMapping, JStr, JoinChainElement, LegacyMappingDefinition};
 use lite_names::ModelIndex;
 
-use crate::error::Thrown;
 use crate::lifted_views::LiftedViews;
 use crate::mapping_closures::MappingClosures;
 use crate::mapping_ledger::MappingLedger;
@@ -190,14 +189,10 @@ fn a_view_is_keyed_by_its_identity_and_an_unported_body_is_never_a_wall() {
         same(listed, found),
         "findView and viewsOf hand out one Arc per view (EF_CENSUS §9.1)"
     );
-    let unported = Thrown::Unported("ViewRelation.viewRelationExpr");
-    assert_eq!(views.body(found), Err(unported.clone()));
-    // not memoized as a wall, and the cycle guard released: the same answer again, not "expands through itself"
-    assert_eq!(views.body(found), Err(unported.clone()));
-    let mut sink = LinkedMap::new();
-    assert_eq!(views.lift_all(Some(&mut sink)), Err(unported));
-    assert!(sink.is_empty());
-    assert!(views.functions().is_empty());
+    // 2026-11-14 (the fill, helper d1): the unported-body half (`views.body(found)` answering
+    // `Unported("ViewRelation.viewRelationExpr")`, not memoized, `lift_all` and `functions()` empty) is gone with
+    // that stub: the ported body now reaches JoinChainEmission's panicking `collectJoinNavigations` stub. Once every
+    // fill is merged the body is whole; re-assert it here then (the lifted function's body, memoized once).
     // an equal view that is not the index's own: no database of the model declares it
     let stranger = Arc::new((**found).clone());
     let e = views.body(&stranger).unwrap_err();
