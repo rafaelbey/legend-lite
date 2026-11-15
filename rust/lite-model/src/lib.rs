@@ -51,8 +51,6 @@ pub mod model_from_protocol;
 pub mod mongo_declarations;
 pub mod names;
 pub mod normalizer_methods;
-pub mod normalizer_methods_a;
-pub mod normalizer_methods_d1;
 pub mod parsed_model;
 #[rustfmt::skip] // generated, and held byte for byte to its generator: //rust/lite-model:update_generated_test
 pub mod records;

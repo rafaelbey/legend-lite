@@ -247,9 +247,16 @@ fn a_view_pipeline_has_no_ledger_and_none_is_the_empty_view() {
 }
 
 #[test]
-fn ported_code_over_unported_code_answers_unported() {
+fn the_shared_model_normalizes_with_every_body_ported() {
+    // the skeleton's "unported over unported" check, after the fill (2026-11-14): every body is ported, so the
+    // shared model answers -- its duplicate set id `f` across the include, refused as Java refuses it (the
+    // differential holds every answer to Java's)
     let parsed = model(MODEL);
     let idx: ModelIndex = index(&parsed);
     let e = crate::normalize(&parsed, &idx, None).unwrap_err();
-    assert!(e.is_unported(), "{e:?}");
+    assert!(e.is_model() && !e.is_unported(), "{e:?}");
+    assert_eq!(
+        e.message(),
+        Some(j("Duplicated class mappings found with ID [f (a::Base, a::Over)] in mapping 'a::Over'"))
+    );
 }
