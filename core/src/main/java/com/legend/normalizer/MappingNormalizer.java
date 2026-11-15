@@ -1332,14 +1332,37 @@ public final class MappingNormalizer {
                       + "' is a roadmap feature (source-value decode on"
                       + " the M2M read); mapping=" + md.qualifiedName());
             }
-            String keyName = M2mRouteGuards.m2mBindingKey(pb, tgt, md,
+            String keyName = M2mRouteGuards.m2mBindingKey(pb, tgt, model,
                     b -> model.knowledge().propertyType(tgt, b) != null);
             fields.put(keyName,
-                    new KeyExpression(m2mPropertyValue(pb, tgt, md, model, ledger), false, false));
+                    new KeyExpression(m2mPropertyValue(pb, tgt, pcm.sourceClass(), md, model, ledger), false, false));
         }
         return Calls.platform("map", List.of(source,
                 new LambdaFunction(List.of(srcBind),
                                    List.of(buildNewInstance(pcm.className(), fields)))));
+    }
+
+    /** The class an M2M transform returns, where it can be read without a typer: {@code $src} is the ~src class, a
+     *  property path from it each property's declared class, {@code ^C(...)} is C; anything else null (S395, the
+     *  normalizer's second batch, item 2, 2026-11-15). */
+    static @com.legend.base.Nullable String m2mValueClass(ValueSpecification v, @com.legend.base.Nullable String srcClass,
+            ModelBuilder model) {
+        return switch (v) {
+            case Variable var when "src".equals(var.name()) -> srcClass;
+            case com.legend.protocol.spec.NewInstance ni -> ni.className();
+            // `^C(...)` on the wire: new(<C>, NewInstance), the instance its second argument
+            case AppliedFunction af when af.parameters().size() == 2
+                    && af.parameters().get(1) instanceof com.legend.protocol.spec.NewInstance ni -> ni.className();
+            case com.legend.protocol.spec.AppliedProperty ap -> {
+                String receiver = m2mValueClass(ap.receiver(), srcClass, model);
+                java.util.Optional<ClassDefinition> cd = receiver == null ? java.util.Optional.empty()
+                        : model.knowledge().hierarchyClass(receiver);
+                TypeExpression t = cd.isEmpty() ? null : model.knowledge().propertyType(cd.get(), ap.property());
+                yield t instanceof TypeExpression.NameRef nr
+                        && model.knowledge().hierarchyClass(nr.name()).isPresent() ? nr.name() : null;
+            }
+            default -> null;
+        };
     }
 
     /** Whether an XStore end names a Relational set that is not its class's root (or sole) set. */
@@ -1350,6 +1373,7 @@ public final class MappingNormalizer {
 
     private static ValueSpecification m2mPropertyValue(
             ClassMapping.Pure.PropertyBinding pb, @com.legend.base.Nullable ClassDefinition tgt,
+            @com.legend.base.Nullable String srcClass,
             ResolvedMapping md, ModelBuilder model, MappingLedger ledger) {
         if (tgt == null) return pb.expression();
         TypeExpression propType = model.knowledge().propertyType(tgt, pb.propertyName());
@@ -1361,7 +1385,29 @@ public final class MappingNormalizer {
         String innerFqn = nr.name();
         if (model.knowledge().hierarchyClass(innerFqn).isEmpty()) return pb.expression();
         if (!ledger.isMapped(innerFqn)) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
+            // A class-typed property whose class has no set: legend-engine 4.145.0 accepts it when the line names the
+            // class's default set id (written or defaulted) and the transform's type is the property's type or a
+            // subtype -- "allowComplexPropertyMappingPassThrough", the value passed through
+            // (ClassMappingThirdPassBuilder.java:96-115, checkTransformTypeMatchesPropertyType :273-277) -- and
+            // otherwise refuses the mapping, "Can't find class mapping '<id>'" (asked: `firm: $src.firm` and
+            // `^w::F(...)` compile and plan, `firm: $src` of another class is "Can't find class mapping 'w_F'"). The
+            // transform's type is read here only where it can be without a typer: `$src` (the ~src class), a
+            // property path from it, a new instance; any other transform keeps lite's own refusal (register row
+            // S395). Until 2026-11-15 every such property was refused (the normalizer's second batch, item 2)
+            String target = pb.targetSetId() != null && !pb.targetSetId().isEmpty()
+                    ? pb.targetSetId() : com.legend.model.SetId.defaultFor(innerFqn);
+            String valueClass = m2mValueClass(pb.expression(), srcClass, model);
+            // (a line's id that names another class's set -- a subclass's, which the engine routes to -- keeps lite's
+            // refusal below)
+            if ((valueClass != null || !com.legend.model.SetId.isDefault(target, innerFqn)) && md.set(target) == null) {
+                if (valueClass != null && com.legend.model.SetId.isDefault(target, innerFqn)
+                        && (valueClass.equals(innerFqn) || model.knowledge().isSubtype(valueClass, innerFqn))) {
+                    return pb.expression();
+                }
+                throw new ModelException(LegendCompileException.Phase.MAPPING,
+                        "Can't find class mapping '" + target + "'");
+            }
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "M2M class-typed property '" + pb.propertyName() + "' on '"
                   + tgt.qualifiedName() + "' targets unmapped class '" + innerFqn
                   + "'; map '" + innerFqn + "' or use Embedded. Mapping="

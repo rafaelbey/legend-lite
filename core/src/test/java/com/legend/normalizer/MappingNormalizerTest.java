@@ -761,11 +761,12 @@ class MappingNormalizerTest {
                         + "    department: $src.department "
                         + "  } "
                         + ")");
+        // $src.department is a Department, not a DeptInfo: legend-engine refuses the mapping in its words, "Can't find
+        // class mapping 'model_DeptInfo'" (asked of legend-engine 4.145.0); until 2026-11-15 lite's own "... targets
+        // unmapped class 'model::DeptInfo' ..." (the normalizer's second batch, item 2, register row S395)
         String exMsg = poisonReasons(parsed);
-        assertTrue(exMsg.contains("model::DeptInfo"),
-                () -> "Expected error to name the missing target type; got: " + exMsg);
-        assertTrue(exMsg.contains("unmapped class"),
-                () -> "Expected error to mention 'unmapped class'; got: " + exMsg);
+        assertTrue(exMsg.contains("Can't find class mapping 'model_DeptInfo'"),
+                () -> "Expected the engine's refusal of the missing target set; got: " + exMsg);
     }
 
     @Test

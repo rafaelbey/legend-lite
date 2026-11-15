@@ -176,15 +176,26 @@ class LegendLiteGapTest {
     }
 
     @Test
-    @DisplayName("an M2M complex property passthrough, a class-typed property mapped with no set, is refused")
+    @DisplayName("an M2M complex property passthrough, a class-typed property mapped with no set, compiles as the engine's")
     void m2mComplexPropertyPassthrough() {
         // 8115-m2m-gaps.pure's (2026-10-30, the improvement plan's Phase 5): the engine passes the source object through
-        rejectsWith("a complex property passthrough", "targets unmapped class", """
+        // when the transform's type is the property's (ClassMappingThirdPassBuilder.java:96-115, asked of legend-engine
+        // 4.145.0), and refuses one of another type, "Can't find class mapping 'demo_Firm'". Until 2026-11-15 lite
+        // refused both, "targets unmapped class" (this case asserted that refusal; the normalizer's second batch, item 2,
+        // register row S395). A query fetching the passed-through child is still a plan-time gap of lite's.
+        accepts("a complex property passthrough", """
                 Class demo::Firm { name: String[1]; }
                 Class demo::Src { k: String[1]; firm: demo::Firm[0..1]; }
                 Class demo::Tgt { k: String[1]; firm: demo::Firm[0..1]; }
                 ###Mapping
                 Mapping demo::M ( demo::Tgt: Pure { ~src demo::Src k: $src.k, firm: $src.firm } )
+                """);
+        rejectsWith("a passthrough of another type", "Can't find class mapping 'demo_Firm'", """
+                Class demo::Firm { name: String[1]; }
+                Class demo::Src { k: String[1]; firm: demo::Firm[0..1]; }
+                Class demo::Tgt { k: String[1]; firm: demo::Firm[0..1]; }
+                ###Mapping
+                Mapping demo::M ( demo::Tgt: Pure { ~src demo::Src k: $src.k, firm: $src } )
                 """);
     }
 

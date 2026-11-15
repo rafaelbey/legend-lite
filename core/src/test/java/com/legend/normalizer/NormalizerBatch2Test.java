@@ -519,4 +519,58 @@ class NormalizerBatch2Test {
         assertEquals(new com.legend.protocol.spec.AppliedProperty(row, "N", null),
                 com.legend.model.ClassMapping.RelationFunction.Col.bindSrc(read, row));
     }
+
+    // ---- item 2, S395: an M2M class-typed property whose class has no set; item 3, S389: pAllVersions ----
+
+    private static String m2m(String bindings, String extra) {
+        return """
+                Class w::F { name: String[1]; }
+                Class w::S { name: String[1]; firm: w::F[1]; }
+                Class w::T { name: String[1]; firm: w::F[1]; }
+                """ + extra + """
+                ###Mapping
+                Mapping w::M
+                (
+                  *w::T: Pure { ~src w::S name: $src.name""" + bindings + """
+                 }
+                )
+                """;
+    }
+
+    @Test
+    @DisplayName("item 2 (S395): a class-typed property of a class with no set passes a conforming transform through")
+    void anM2mPropertyOfAnUnmappedClassPassesAConformingTransformThrough() {
+        // asked of legend-engine 4.145.0 (ClassMappingThirdPassBuilder.java:96-115): `$src.firm`, `^w::F(...)` and a
+        // route by the default id compile; a transform of another type, or a route by another id, is "Can't find class
+        // mapping '<id>'". Until 2026-11-15 lite refused each, "M2M class-typed property 'firm' on 'w::T' targets
+        // unmapped class 'w::F'"
+        assertEquals(List.of(), strict(m2m(", firm: $src.firm", "")));
+        assertEquals(List.of(), strict(m2m(", firm: ^w::F(name='x')", "")));
+        assertEquals(List.of(), strict(m2m(", firm[w_F]: $src.firm", "")));
+        assertEquals(List.of("[5:1] Can't find class mapping 'w_F'"), strict(m2m(", firm: $src", "")));
+        assertEquals(List.of("[5:1] Can't find class mapping 'x'"), strict(m2m(", firm[x]: $src.firm", "")));
+    }
+
+    @Test
+    @DisplayName("item 3 (S389): pAllVersions binds only for a p whose type is a temporal class, else the engine's refusal")
+    void anAllVersionsBindingNeedsATemporalPropertyType() {
+        // asked of legend-engine 4.145.0: a p of a class with a temporal stereotype of its own compiles; of another
+        // class, a primitive, or a subclass of a temporal class: "Can't find property 'pAllVersions' in [T, Any]".
+        // Until 2026-11-15 the suffix was stripped whatever p's type
+        assertEquals(List.of(), strict("""
+                Class <<temporal.businesstemporal>> w::F { name: String[1]; }
+                Class w::S { name: String[1]; firm: w::F[*]; }
+                Class w::T { name: String[1]; firm: w::F[*]; }
+                ###Mapping
+                Mapping w::M
+                (
+                  *w::T: Pure { ~src w::S name: $src.name, firmAllVersions: $src.firmAllVersions }
+                  *w::F: Pure { ~src w::F name: $src.name }
+                )
+                """));
+        assertEquals(List.of("[5:1] Can't find property 'nameAllVersions' in [T, Any]"),
+                strict(m2m(", nameAllVersions: $src.name", "")));
+        assertEquals(List.of("[5:1] Can't find property 'nope' in [T, Any]"),
+                strict(m2m(", nope: $src.name", "")));
+    }
 }

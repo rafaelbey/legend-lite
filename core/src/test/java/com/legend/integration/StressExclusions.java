@@ -39,8 +39,9 @@ final class StressExclusions {
             // 2026-10-30, the improvement plan's Phase 5: the M2M pack's enumeration transforms and passthrough, apart
             // from 8114-m2m.pure, which lite loads (the user's choice: exclude them rather than defer them in lite)
             "8115-m2m-gaps.pure",
-            "M2M enum transformer 'EnumerationMapping M2MSide' is a roadmap feature, and a class-typed property "
-                    + "mapped with no set (a passthrough) 'targets unmapped class': both refused by the mapping "
+            // (2026-11-15, the normalizer's second batch, item 2, S395: its class-typed passthrough compiles now, as
+            // the engine's; the enum transformer keeps it out)
+            "M2M enum transformer 'EnumerationMapping M2MSide' is a roadmap feature, refused by the mapping "
                     + "normalizer.",
             // 2026-10-30: the services over 8115's and 75's M2M mappings, generated apart so they leave with them (the
             // improvement plan's Phase 5), as 94-canonical-services.pure leaves with 55

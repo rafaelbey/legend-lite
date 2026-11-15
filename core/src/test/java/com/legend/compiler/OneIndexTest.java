@@ -153,12 +153,15 @@ class OneIndexTest {
                 )
                 ###Mapping
                 Mapping w::M2 (
-                  *w::Person : Pure { ~src w::Person name: $src.name, firm: $src.firm }
+                  *w::Person : Pure { ~src w::Person name: $src.name, firm: $src }
                 )
                 """))).model()).context();
+        // (a transform of another type than the unmapped class's: the engine's "Can't find class mapping 'w_Firm'"; the
+        // case was `firm: $src.firm`, a pass-through the engine accepts, until 2026-11-15 -- the normalizer's second
+        // batch, item 2, register row S395)
         String reason = poisoned.findMapping("w::M2").orElseThrow().facts().poisons()
                 .get(new com.legend.model.PoisonKey.ForClass("w::Person"));
-        assertTrue(reason != null && reason.contains("w::Firm"), String.valueOf(reason));
+        assertTrue(reason != null && reason.contains("w_Firm"), String.valueOf(reason));
         assertEquals(reason, poisoned.mappingPoison("w::M2", "w::Person").orElseThrow());
     }
 

@@ -26,23 +26,50 @@ final class M2mRouteGuards {
      * the declared name; the VALUE keeps its all-versions read). An
      * undeclared key throws (normalize-phase contract).  */
     static String m2mBindingKey(ClassMapping.Pure.PropertyBinding pb,
-            @com.legend.base.Nullable ClassDefinition tgt,
-            ResolvedMapping md,
+            @com.legend.base.Nullable ClassDefinition tgt, ModelBuilder model,
             java.util.function.Predicate<String> declared) {
         if (tgt == null || declared.test(pb.propertyName())) {
             return pb.propertyName();
         }
+        // `pAllVersions` is the edge-point property legend-engine generates for a property `p` whose type is a class
+        // carrying a temporal stereotype of its own (Milestoning.java:186-198, :215-223; HelperModelBuilder.java
+        // :466-470 reads the raw type's own stereotypes): only for such a p does the binding read as p's (asked: a
+        // temporal p compiles; a p of a non-temporal class, of a primitive, or of a subclass of a temporal class is
+        // refused). Until 2026-11-15 the suffix was stripped whatever p's type (the normalizer's second batch, item 3,
+        // register row S389)
         if (pb.propertyName().endsWith("AllVersions")) {
             String base = pb.propertyName().substring(0,
                     pb.propertyName().length() - "AllVersions".length());
-            if (declared.test(base)) {
+            if (declared.test(base) && ownTemporalType(model.knowledge().propertyType(tgt, base), model)) {
                 return base;
             }
         }
+        // a binding of a property the class has not, in the engine's words: "Can't find property 'p' in [T, ..., Any]"
+        // -- the class and its generalizations by simple name, nearest first (HelperModelBuilder.getAppliedProperty
+        // :487-515; the engine's resolution order, single inheritance's order). Until 2026-11-15 lite's own, "M2M
+        // PropertyBinding 'p' is not declared on class 'T'" (S389)
+        StringBuilder order = new StringBuilder();
+        for (ClassDefinition cd : model.knowledge().lineage(tgt.qualifiedName())) {
+            order.append(simpleName(cd.qualifiedName())).append(", ");
+        }
         throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                "M2M PropertyBinding '" + pb.propertyName()
-              + "' is not declared on class '" + tgt.qualifiedName()
-              + "'; mapping=" + md.qualifiedName());
+                "Can't find property '" + pb.propertyName() + "' in [" + order + "Any]");
+    }
+
+    /** Whether {@code type} names a class carrying a temporal (milestoning) stereotype of its own. */
+    private static boolean ownTemporalType(@com.legend.base.Nullable TypeExpression type, ModelBuilder model) {
+        if (!(type instanceof TypeExpression.NameRef nr)) {
+            return false;
+        }
+        java.util.Optional<ClassDefinition> cd = model.knowledge().hierarchyClass(nr.name());
+        return cd.isPresent() && cd.get().stereotypes().stream().anyMatch(st ->
+                com.legend.compiler.element.MilestoningStrategy.ofStereotypeOrNull(st.profileName(),
+                        st.stereotypeName()) != null);
+    }
+
+    private static String simpleName(String fqn) {
+        int i = fqn.lastIndexOf("::");
+        return i < 0 ? fqn : fqn.substring(i + 2);
     }
 
     private M2mRouteGuards() {
@@ -91,6 +118,20 @@ final class M2mRouteGuards {
                 }
             }
             final String tgtSet = pb.targetSetId();
+            if (sets.isEmpty()) {
+                // the routed class has no set: the line's default id is the engine's pass-through, decided with the
+                // transform's type by m2mPropertyValue (S395); any other id is the engine's refusal
+                // (ClassMappingThirdPassBuilder.java:100-107; since 2026-11-15, the normalizer's second batch, item 2)
+                if (tgtSet == null || com.legend.model.SetId.isDefault(tgtSet, routedClass)) {
+                    return;
+                }
+                // an id no set of the closure answers to; one that names another class's set (a subclass's: the
+                // engine looks a route's id up by id alone) keeps lite's refusal below
+                if (md.set(tgtSet) == null) {
+                    throw new ModelException(LegendCompileException.Phase.MAPPING,
+                            "Can't find class mapping '" + tgtSet + "'");
+                }
+            }
             ClassMapping routed = sets.stream()
                     .filter(cm -> setIdMatches(cm, tgtSet))
                     .findFirst().orElseGet(MissProbe::miss);

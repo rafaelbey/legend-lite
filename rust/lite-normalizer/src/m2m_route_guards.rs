@@ -10,7 +10,7 @@ use lite_error::Phase;
 use lite_front::records as p;
 use lite_model::names::is_default_set_id;
 use lite_model::{ClassDefinition, ClassMapping, ClassMappingPure, ClassMappingPurePropertyBinding, JStr, cat, text};
-use lite_names::ModelIndex;
+use lite_names::{MilestoningStrategy, ModelIndex};
 
 use crate::error::Thrown;
 use crate::resolved_mapping::ResolvedMapping;
@@ -21,7 +21,7 @@ use crate::resolved_mapping::ResolvedMapping;
 pub fn m2m_binding_key(
     pb: &ClassMappingPurePropertyBinding,
     tgt: Option<&Arc<ClassDefinition>>,
-    md: &ResolvedMapping<'_>,
+    model: &ModelIndex,
     declared: &dyn Fn(&JStr) -> Result<bool, Thrown>,
 ) -> Result<JStr, Thrown> {
     let Some(tgt) = tgt else {
@@ -30,25 +30,54 @@ pub fn m2m_binding_key(
     if declared(&pb.property_name)? {
         return Ok(pb.property_name.clone());
     }
+    // `pAllVersions` reads as p's binding only for a p whose type is a class carrying a temporal stereotype of its own,
+    // the edge-point property legend-engine generates (since 2026-11-15, the normalizer's second batch, item 3, S389)
     let suffix = "AllVersions";
     if text::ends_with(&pb.property_name.0, suffix) {
         let base = JStr::from(&pb.property_name.0[..pb.property_name.len() - suffix.len()]);
-        if declared(&base)? {
+        if declared(&base)? && own_temporal_type(model.knowledge().property_type(Some(tgt), &base)?.as_ref(), model) {
             return Ok(base);
         }
+    }
+    // a property the class has not, in the engine's words: the class and its generalizations by simple name, nearest
+    // first (since 2026-11-15, S389; it was lite's own "M2M PropertyBinding 'p' is not declared on class 'T'")
+    let mut order = String::new();
+    for cd in model.knowledge().lineage(&tgt.qualified_name)? {
+        order.push_str(&simple_name(&cd.qualified_name).to_string());
+        order.push_str(", ");
     }
     Err(Thrown::model(
         Phase::Normalize,
         cat!(
-            "M2M PropertyBinding '",
+            "Can't find property '",
             &pb.property_name,
-            "' is not declared on class '",
-            &tgt.qualified_name,
-            "'; mapping=",
-            md.qualified_name()
+            "' in [",
+            &JStr::from(order.as_str()),
+            "Any]"
         ),
         None,
     ))
+}
+
+/// `M2mRouteGuards.ownTemporalType`: whether `type` names a class carrying a temporal (milestoning) stereotype of its
+/// own.
+fn own_temporal_type(r#type: Option<&p::TypeExpression>, model: &ModelIndex) -> bool {
+    let Some(p::TypeExpression::TypeExpressionNameRef(nr)) = r#type else {
+        return false;
+    };
+    model.knowledge().hierarchy_class(Some(&nr.name)).is_some_and(|cd| {
+        cd.stereotypes
+            .iter()
+            .any(|st| MilestoningStrategy::of_stereotype_or_null(&st.profile_name, &st.stereotype_name).is_some())
+    })
+}
+
+/// A qualified name's last segment.
+fn simple_name(fqn: &JStr) -> JStr {
+    match text::last_index_of(&fqn.0, &JStr::from("::").0) {
+        Some(i) => JStr::from(&fqn.0[i + 2..]),
+        None => fqn.clone(),
+    }
 }
 
 /// `M2mRouteGuards.requireBenignRoute` (:63): loud unless the binding's `[src, tgt]` route is the source set itself
@@ -101,6 +130,24 @@ pub fn require_benign_route(
                 if cm.class_name() == routed_class {
                     sets.push(cm.clone());
                 }
+            }
+        }
+        // the routed class has no set: the line's default id is the engine's pass-through, decided with the
+        // transform's type by m2m_property_value (S395); any other id is the engine's refusal (since 2026-11-15, the
+        // normalizer's second batch, item 2)
+        if sets.is_empty() {
+            match &pb.target_set_id {
+                None => return Ok(()),
+                Some(id) if is_default_set_id(id, routed_class) => return Ok(()),
+                // an id no set of the closure answers to; one naming another class's set keeps lite's refusal below
+                Some(id) if md.set(Some(id))?.is_none() => {
+                    return Err(Thrown::model(
+                        Phase::Mapping,
+                        cat!("Can't find class mapping '", id, "'"),
+                        None,
+                    ));
+                }
+                Some(_) => {}
             }
         }
         // a set id that matches nothing falls through to the refusal (`MissProbe.miss`)
@@ -322,20 +369,30 @@ Mapping a::M
                 "M2M binding 'firm[q, null]' names source set 'q' but is declared inside set 'null'; mapping=a::M"
             ))
         );
-        // the binding key: the declared name, the base of an AllVersions spelling, else loud
+        // the binding key: the declared name, the base of an AllVersions spelling of a temporal class's property, else
+        // the engine's refusal (since 2026-11-15, the normalizer's second batch, item 3, S389: `nameAllVersions` read as
+        // `name`, a String, and an undeclared name was lite's "M2M PropertyBinding 'x' is not declared on class
+        // 'a::Person'; mapping=a::M")
         let declared = |n: &JStr| Ok::<bool, Thrown>(n.eq_str("name"));
-        let key =
-            |prop: &str| m2m_binding_key(&binding(prop, None, None, not_a_var()), person.as_ref(), &md, &declared);
+        let key = |prop: &str| {
+            m2m_binding_key(
+                &binding(prop, None, None, not_a_var()),
+                person.as_ref(),
+                &idx,
+                &declared,
+            )
+        };
         assert_eq!(key("name"), Ok(j("name")));
-        assert_eq!(key("nameAllVersions"), Ok(j("name")));
         assert_eq!(
-            key("x").unwrap_err().message(),
-            Some(j(
-                "M2M PropertyBinding 'x' is not declared on class 'a::Person'; mapping=a::M"
-            ))
+            key("nameAllVersions").unwrap_err().message(),
+            Some(j("Can't find property 'nameAllVersions' in [Person, Any]"))
         );
         assert_eq!(
-            m2m_binding_key(&binding("x", None, None, not_a_var()), None, &md, &declared),
+            key("x").unwrap_err().message(),
+            Some(j("Can't find property 'x' in [Person, Any]"))
+        );
+        assert_eq!(
+            m2m_binding_key(&binding("x", None, None, not_a_var()), None, &idx, &declared),
             Ok(j("x"))
         );
         // a local field, and its collision

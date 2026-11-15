@@ -10,6 +10,7 @@ use std::sync::Arc;
 use lite_error::Phase;
 use lite_front::records as p;
 use lite_model::linked::{empty, list};
+use lite_model::names::{default_set_id, is_default_set_id};
 use lite_model::text::ends_with;
 use lite_model::{ClassDefinition, ClassMappingPure, ClassMappingPurePropertyBinding, JStr, cat};
 use lite_names::{ModelIndex, calls};
@@ -121,11 +122,11 @@ pub fn synth_m2m(
         }
         let declared =
             |b: &JStr| -> Result<bool, Thrown> { Ok(model.knowledge().property_type(tgt.as_deref(), b)?.is_some()) };
-        let key_name = m2m_route_guards::m2m_binding_key(pb, tgt.as_ref(), md, &declared)?;
+        let key_name = m2m_route_guards::m2m_binding_key(pb, tgt.as_ref(), model, &declared)?;
         fields.put(
             key_name,
             p::KeyExpression {
-                value: m2m_property_value(pb, tgt.as_ref(), md, model, ledger)?,
+                value: m2m_property_value(pb, tgt.as_ref(), pcm.source_class.as_ref(), md, model, ledger)?,
                 is_add: false,
                 is_local: false,
             },
@@ -145,11 +146,50 @@ pub fn synth_m2m(
     )))
 }
 
+/// `MappingNormalizer.m2mValueClass`: the class an M2M transform returns where it can be read without a typer --
+/// `$src` the ~src class, a property path from it each property's declared class, `^C(...)` C; else none (S395).
+pub fn m2m_value_class(
+    v: &p::ValueSpecification,
+    src_class: Option<&JStr>,
+    model: &ModelIndex,
+) -> Result<Option<JStr>, Thrown> {
+    Ok(match v {
+        p::ValueSpecification::Variable(var) if var.name == "src" => src_class.cloned(),
+        p::ValueSpecification::NewInstance(ni) => Some(ni.class_name.clone()),
+        // `^C(...)` on the wire: new(<C>, NewInstance), the instance its second argument
+        p::ValueSpecification::AppliedFunction(af) if af.parameters.len() == 2 => {
+            match &af.parameters[1] {
+                p::ValueSpecification::NewInstance(ni) => Some(ni.class_name.clone()),
+                _ => None,
+            }
+        }
+        p::ValueSpecification::AppliedProperty(ap) => {
+            let receiver = m2m_value_class(&ap.receiver, src_class, model)?;
+            let knowledge = model.knowledge();
+            let cd = receiver.as_ref().and_then(|r| knowledge.hierarchy_class(Some(r)));
+            let t = match cd {
+                Some(cd) => knowledge.property_type(Some(cd), &ap.property)?,
+                None => None,
+            };
+            match t {
+                Some(p::TypeExpression::TypeExpressionNameRef(nr))
+                    if knowledge.hierarchy_class(Some(&nr.name)).is_some() =>
+                {
+                    Some(nr.name.clone())
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    })
+}
+
 /// `MappingNormalizer.m2mPropertyValue` (:1229): one binding's value -- the expression, or a `NewInstanceCast` to a
 /// mapped class-typed property (loud for an unmapped one).
 pub fn m2m_property_value(
     pb: &Arc<ClassMappingPurePropertyBinding>,
     tgt: Option<&Arc<ClassDefinition>>,
+    src_class: Option<&JStr>,
     md: &ResolvedMapping<'_>,
     model: &ModelIndex,
     ledger: &MappingLedger,
@@ -174,6 +214,28 @@ pub fn m2m_property_value(
         return Ok(pb.expression.clone());
     }
     if !ledger.is_mapped(inner_fqn) {
+        // a class-typed property whose class has no set: the engine's pass-through when the line names the class's
+        // default id and the transform's type conforms, else "Can't find class mapping '<id>'"; a transform this reads
+        // no type of keeps lite's refusal (since 2026-11-15, the normalizer's second batch, item 2, S395)
+        let target = match &pb.target_set_id {
+            Some(id) if !id.is_empty() => id.clone(),
+            _ => default_set_id(inner_fqn),
+        };
+        let value_class = m2m_value_class(&pb.expression, src_class, model)?;
+        // (a line's id naming another class's set -- a subclass's -- keeps lite's refusal below)
+        if (value_class.is_some() || !is_default_set_id(&target, inner_fqn)) && md.set(Some(&target))?.is_none() {
+            if let Some(vc) = &value_class
+                && is_default_set_id(&target, inner_fqn)
+                && (vc == inner_fqn || model.knowledge().is_subtype(vc, inner_fqn))
+            {
+                return Ok(pb.expression.clone());
+            }
+            return Err(Thrown::model(
+                Phase::Mapping,
+                cat!("Can't find class mapping '", &target, "'"),
+                None,
+            ));
+        }
         return Err(Thrown::model(
             Phase::Normalize,
             cat!(
@@ -347,7 +409,7 @@ Mapping my::M
         let md = resolved(mapping(&parsed, "my::M"), &closures, &views);
         let ledger = MappingLedger::new(HashSet::from([j("model::Person"), j("model::Firm")]));
         let tgt = idx.knowledge().hierarchy_class(Some(&j("model::Person"))).cloned();
-        let cast = |name: &str| m2m_property_value(&Arc::new(binding(name)), tgt.as_ref(), &md, &idx, &ledger);
+        let cast = |name: &str| m2m_property_value(&Arc::new(binding(name)), tgt.as_ref(), None, &md, &idx, &ledger);
         assert_eq!(
             cast("firm"),
             Ok(p::ValueSpecification::NewInstanceCast(Arc::new(p::NewInstanceCast {
@@ -366,15 +428,15 @@ Mapping my::M
         assert_eq!(cast("name"), Ok(src_name()));
         assert_eq!(cast("nope"), Ok(src_name()));
         assert_eq!(
-            m2m_property_value(&Arc::new(binding("firm")), None, &md, &idx, &ledger),
+            m2m_property_value(&Arc::new(binding("firm")), None, None, &md, &idx, &ledger),
             Ok(src_name())
         );
+        // an unmapped class named by a line's set id that is not its default: the engine's refusal (since 2026-11-15,
+        // the normalizer's second batch, item 2, S395; it was lite's "M2M class-typed property 'boss' on
+        // 'model::Person' targets unmapped class 'model::Boss'; map 'model::Boss' or use Embedded. Mapping=my::M")
         assert_eq!(
             cast("boss").unwrap_err().message(),
-            Some(j(
-                "M2M class-typed property 'boss' on 'model::Person' targets unmapped class 'model::Boss'; map \
-                 'model::Boss' or use Embedded. Mapping=my::M"
-            ))
+            Some(j("Can't find class mapping 'f'"))
         );
     }
 }
