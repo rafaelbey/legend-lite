@@ -14,18 +14,17 @@ use crate::error::Thrown;
 use crate::pipeline::Pipeline;
 use crate::rel_op_translator::TableScope;
 use crate::resolved_mapping::ResolvedMapping;
-use crate::unported;
 
 /// `MappingNormalizer.seedAliasScope` (:2504): each non-class slot's target table bound to `row.<alias>` in `scope`
-/// (first alias wins), a non-main table reached by two slots added to `p.ambiguous_tables` instead.
+/// (first alias wins), a non-main table reached by two slots added to `p.ambiguous_tables` instead (Java's
+/// `requireNonNull` on a per-table count: a `Result`).
 pub fn seed_alias_scope(
     scope: &mut TableScope,
     p: &mut Pipeline<'_>,
     row_bind: &Arc<lite_front::records::Variable>,
     main_table: &JStr,
-) {
-    // UNPORTED: MappingNormalizer.seedAliasScope
-    unported!("MappingNormalizer.seedAliasScope")
+) -> Result<(), Thrown> {
+    Err(Thrown::Unported("MappingNormalizer.seedAliasScope"))
 }
 
 /// `MappingNormalizer.resolveViewRefsInJoin` (:2535, the seven-argument form): [`resolve_view_refs_in_join_keeping`]

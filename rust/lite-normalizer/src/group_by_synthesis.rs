@@ -20,11 +20,15 @@ use crate::pipeline::Pipeline;
 use crate::resolved_mapping::ResolvedMapping;
 use crate::unported;
 
-/// `GroupBySynthesis.groupedKeyColumnNames` (:43): each grouped key's column name -> its key name (the one naming
-/// loop; module note).
-pub fn grouped_key_column_names(rcm: &ClassMappingRelational, main_table: &JStr) -> LinkedMap<JStr, JStr> {
-    // UNPORTED: GroupBySynthesis.groupedKeyColumnNames
-    unported!("GroupBySynthesis.groupedKeyColumnNames")
+/// `GroupBySynthesis.groupedKeyColumnNames` (:43): each grouped main-table key column -> its key name. The one naming
+/// loop (module note) is `applyGroupBy`'s, which refuses a PM no key can carry (:163, the mapping named in its text:
+/// hence `md`); `groupedKeyColumnNames` skipped it, but runs only after `applyGroupBy` passed on the same set.
+pub fn grouped_key_column_names(
+    rcm: &ClassMappingRelational,
+    main_table: &JStr,
+    md: &ResolvedMapping<'_>,
+) -> Result<LinkedMap<JStr, JStr>, Thrown> {
+    Err(Thrown::Unported("GroupBySynthesis.groupedKeyColumnNames"))
 }
 
 /// `GroupBySynthesis.renameGroupedNavCond` (:83): a navigation condition over a grouped set's source reads renamed to
@@ -63,10 +67,10 @@ pub fn apply_group_by(
     Err(Thrown::Unported("GroupBySynthesis.applyGroupBy"))
 }
 
-/// `GroupBySynthesis.isGroupReducer` (:238): whether a call is an aggregate (a PURE reducer name).
-pub fn is_group_reducer(fc: &RelationalOperationFunctionCall) -> bool {
-    // UNPORTED: GroupBySynthesis.isGroupReducer
-    unported!("GroupBySynthesis.isGroupReducer")
+/// `GroupBySynthesis.isGroupReducer` (:238): whether a one-argument call is an aggregate (a PURE name whose catalog
+/// overload takes a collection; `Pure.nativeFunctionsAt` is lite-builtin's fallible `native_functions_at`).
+pub fn is_group_reducer(fc: &RelationalOperationFunctionCall) -> Result<bool, Thrown> {
+    Err(Thrown::Unported("GroupBySynthesis.isGroupReducer"))
 }
 
 /// `GroupBySynthesis.isCollection` (:257): whether a multiplicity's upper bound exceeds one.
@@ -76,9 +80,8 @@ pub fn is_collection(m: &p::Multiplicity) -> bool {
 }
 
 /// `GroupBySynthesis.isAggregatePm` (:263): whether a PM's expression is an aggregate.
-pub fn is_aggregate_pm(pm: &PropertyMapping) -> bool {
-    // UNPORTED: GroupBySynthesis.isAggregatePm
-    unported!("GroupBySynthesis.isAggregatePm")
+pub fn is_aggregate_pm(pm: &PropertyMapping) -> Result<bool, Thrown> {
+    Err(Thrown::Unported("GroupBySynthesis.isAggregatePm"))
 }
 
 /// `GroupBySynthesis.pmAsRelationalOp` (:271): a PM's relational expression, if it has one.

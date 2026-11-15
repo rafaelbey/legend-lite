@@ -13,8 +13,9 @@
 //! - `translate` and `translateTail` are ONE match in the same arm order (the split existed for a method-length guard;
 //!   `translateTail` is reached only from `translate`'s default arm) -- [`translate`] alone, no `translate_tail`.
 //! - The dispatch's dynafunction arms are `crate::dyna_fn::arm`'s [`Arm`](crate::dyna_fn::Arm): `translate` matches
-//!   `arm(d)` EXHAUSTIVELY over `Arm` (no `DynaFn::X` guard of its own), which is `DynaFnRegistryTest`'s
-//!   source-text invariant made structural.
+//!   `arm(d)` EXHAUSTIVELY over `Arm` (no `DynaFn::X` guard of its own: this file names no `DynaFn` member), which is
+//!   `DynaFnRegistryTest`'s source-text invariant made structural. `DYNA_HASH_TYPES` (:47) is
+//!   [`Arm::hash_type`](crate::dyna_fn::Arm::hash_type).
 //! - `PipelineView` is `Option<&Pipeline>` (`crate::pipeline::PipelineView`); `NONE` is `None`.
 //! - `operatorCall`'s `shaped == args` (:771) is the boolean it tests: `args.len() >= 2 && isVariadicRun(fqns)`.
 //! - The raw internal errors a user's text could reach (ASK 11) are refusals in Java since ad86fa895 (ruling 29;
@@ -40,16 +41,6 @@ use crate::unported;
 /// `Map<String, ValueSpecification> tableScope`, a `LinkedHashMap` at every site; its `keySet()` is printed in a
 /// wall text).
 pub type TableScope = LinkedMap<JStr, p::ValueSpecification>;
-
-/// `RelOpTranslator.DYNA_HASH_TYPES` (:47): the hash dynafunctions' algorithm names.
-pub fn dyna_hash_type(d: DynaFn) -> Option<&'static str> {
-    match d {
-        DynaFn::MD5 => Some("MD5"),
-        DynaFn::SHA1 => Some("SHA1"),
-        DynaFn::SHA256 => Some("SHA256"),
-        _ => None,
-    }
-}
 
 /// `RelOpTranslator.dyna` (:52): the registry's entry for the call's name.
 pub fn dyna(call: &RelationalOperationFunctionCall) -> Option<DynaFn> {
@@ -167,10 +158,14 @@ pub fn dyna_fn_name(call: &RelationalOperationFunctionCall) -> Result<JStr, Thro
     Err(Thrown::Unported("RelOpTranslator.dynaFnName"))
 }
 
-/// `RelOpTranslator.variadicRun` (:752): two or more arguments to a variadic-run name as one collection.
-pub fn variadic_run(f: &JStr, fqns: &[JStr], args: Vec<p::ValueSpecification>) -> Vec<p::ValueSpecification> {
-    // UNPORTED: RelOpTranslator.variadicRun
-    unported!("RelOpTranslator.variadicRun")
+/// `RelOpTranslator.variadicRun` (:752): two or more arguments to a variadic-run name as one collection
+/// (`Pure.isVariadicRun` is `lite_builtin::pure::catalog().is_variadic_run`, refusing a bare name).
+pub fn variadic_run(
+    f: &JStr,
+    fqns: &[JStr],
+    args: Vec<p::ValueSpecification>,
+) -> Result<Vec<p::ValueSpecification>, Thrown> {
+    Err(Thrown::Unported("RelOpTranslator.variadicRun"))
 }
 
 /// `RelOpTranslator.dynaFnCandidates` (:761): a PURE dynafunction's catalog FQNs, else none.
@@ -181,7 +176,10 @@ pub fn dyna_fn_candidates(call: &RelationalOperationFunctionCall) -> Vec<JStr> {
 
 /// `RelOpTranslator.operatorCall` (:770): `Calls.among`, or `Calls.infixRunAmong` for a variadic run (module note on
 /// `shaped == args`).
-pub fn operator_call(f: &JStr, candidates: &[JStr], args: Vec<p::ValueSpecification>) -> p::AppliedFunction {
-    // UNPORTED: RelOpTranslator.operatorCall
-    unported!("RelOpTranslator.operatorCall")
+pub fn operator_call(
+    f: &JStr,
+    candidates: &[JStr],
+    args: Vec<p::ValueSpecification>,
+) -> Result<p::AppliedFunction, Thrown> {
+    Err(Thrown::Unported("RelOpTranslator.operatorCall"))
 }

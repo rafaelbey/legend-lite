@@ -88,6 +88,39 @@ impl Arm {
         }
     }
 
+    /// `RelOpTranslator.DYNA_HASH_TYPES.get(dynaFn)` (RelOpTranslator.java:47): a hash arm's algorithm name.
+    pub fn hash_type(self) -> Option<&'static str> {
+        match self {
+            Arm::Md5 => Some("MD5"),
+            Arm::Sha1 => Some("SHA1"),
+            Arm::Sha256 => Some("SHA256"),
+            Arm::Add
+            | Arm::Adjust
+            | Arm::And
+            | Arm::Case
+            | Arm::Concat
+            | Arm::ConvertDate
+            | Arm::ConvertDateTime
+            | Arm::ConvertTimeZone
+            | Arm::ConvertVarchar128
+            | Arm::DayOfWeek
+            | Arm::DayOfWeekNumber
+            | Arm::ExtractFromSemiStructured
+            | Arm::Group
+            | Arm::If
+            | Arm::IndexOf
+            | Arm::IsNotNull
+            | Arm::IsNull
+            | Arm::Or
+            | Arm::ParseDate
+            | Arm::Position
+            | Arm::SplitPart
+            | Arm::Sub
+            | Arm::Substring
+            | Arm::ToTimestamp => None,
+        }
+    }
+
     /// `DynaFnArms.LANDINGS.get(dynaFn)`: the `Pure.Lite` identity a FORMAT arm lands on.
     pub fn landing(self) -> Option<&'static str> {
         match self {
@@ -433,6 +466,18 @@ mod tests {
         ];
         want.sort();
         assert_eq!(got, want);
+    }
+
+    #[test]
+    fn the_hash_arms_name_their_algorithms() {
+        let hashes: Vec<(DynaFn, &str)> = arms()
+            .into_iter()
+            .filter_map(|d| arm(d).and_then(Arm::hash_type).map(|h| (d, h)))
+            .collect();
+        assert_eq!(
+            hashes,
+            vec![(DynaFn::MD5, "MD5"), (DynaFn::SHA1, "SHA1"), (DynaFn::SHA256, "SHA256")]
+        );
     }
 
     /// `DynaFnRegistryTest.resolutionsHold`'s two arm rules.
