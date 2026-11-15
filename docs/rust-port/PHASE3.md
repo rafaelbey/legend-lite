@@ -1255,12 +1255,15 @@ done, in the order of the design's §3.
      (`oracle-archive/normalizer-forms-java-2026-11-14.jsonl.zst`, 36.6 MB, with the per-ask tags; SHA-256 in
      `normalizer-texts-java.sha256`, checked by decompressing). Reach, in texts (asks) of the front oracle, strict: a
      legacy mapping 7,379 (21,665), table-backed Relational sets 3,967, sets with no main table 1,094, M2M 1,324,
-     relation functions 471, unions 251, inheritance 50, aggregation-aware 25, JSON sources 0; ~filter 323, ~groupBy 42,
-     ~distinct 72, extends 310, includes 707 (store substitution 67), enumeration mappings 511; association mappings
-     Relational 1,534, XStore 404, ModelJoin 164; views 367 (lifted 266); clean-sheet mappings 40; derived properties
-     2,015, constraints 1,053, defaults 153, function PRE/POST 37, services 888; poisons 353, mixed unions 25, union key
-     threads 94, routed targets 63, resolved stores 18; E walls (tolerant) 579. No text's lifted body calls `like`,
-     `charindex`, `locate` or `COUNT`/`SUM`/`ABS` in capitals (the names batch's G refusals: 0 texts).
+     relation functions 471, unions 251, inheritance 50, aggregation-aware 25, JSON-source sets 99 (278 asks: counted
+     from the answers' `RelationalSource$Json` bindings, since the index bakes a runtime's JSON connection into the set
+     and the input tags read what E was handed); ~filter 323, ~groupBy 42, ~distinct 72, extends 310, includes 707
+     (store substitution 67), enumeration mappings 511; association mappings Relational 1,534, XStore 404, ModelJoin
+     164; views 367 (lifted 266); clean-sheet mappings 40; derived properties 2,015, constraints 1,053, defaults 153,
+     function PRE/POST 37, services 888; poisons 353, mixed unions 25, union key threads 94, routed targets 63, resolved
+     stores 18; E walls (tolerant) 579. No text's lifted body calls `like`, `charindex`, `locate` or `COUNT`/`SUM`/`ABS`
+     in capitals (the names batch's G refusals: 0 texts; the three that hang on argument types -- `mod` over floats,
+     `md5` over an integer, `sub` over varchars -- were not counted).
    - *The crate* (PHASE3_CRATES.md §9). A skeleton first (every module, shared type and cross-file signature; the
      frame ported: the error type, `Pipeline`, `MappingLedger`, `MappingFacts`, `ResolvedMapping`, the memos, the
      `DynaFn` match), then eight helpers filled the families in parallel on disjoint files, each line for line against
