@@ -1157,7 +1157,13 @@ fn differential(opts: &Opts<'_>) -> Tally {
         r.locators.flush().unwrap();
         r.asks.flush().unwrap();
     }
-    if opts.only.is_none() {
+    if let Some(sha) = &opts.only {
+        assert!(
+            tally.asked > 0,
+            "{}: LITE_NORMALIZER_ONLY={sha} names no text whose asks the door parses",
+            opts.label
+        );
+    } else {
         assert_eq!(
             tally.asked,
             opts.frozen.len().min(opts.limit),
