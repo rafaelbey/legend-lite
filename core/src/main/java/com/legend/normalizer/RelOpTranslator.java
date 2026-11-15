@@ -47,6 +47,11 @@ final class RelOpTranslator {
     private static final Map<DynaFn, String> DYNA_HASH_TYPES =
             Map.of(DynaFn.MD5, "MD5", DynaFn.SHA1, "SHA1", DynaFn.SHA256, "SHA256");
 
+    /** legend-engine's array lambda functions (HelperRelationalBuilder.ARRAY_LAMBDA_FUNCTIONS, :822): the only
+     *  relational functions that take a lambda, as their second argument (2026-11-15, the normalizer batch, item 8). */
+    private static final java.util.Set<String> ARRAY_LAMBDA_FUNCTIONS =
+            java.util.Set.of("array_filter", "array_transform", "array_reduce");
+
     /** The registry entry of a mapping-expression call, or null when the engine
      *  registers no dynafunction of that name (a plain pure function call). */
     private static @com.legend.base.Nullable DynaFn dyna(RelationalOperation.FunctionCall call) {
@@ -129,8 +134,20 @@ final class RelOpTranslator {
             Map<String, ValueSpecification> tableScope,
             @com.legend.base.Nullable ValueSpecification targetVarOrNull, @com.legend.base.Nullable Variable rowBindOrNull,
             PipelineView pipeline) {
-        return call.args().stream()
-                .map(a -> {
+        return java.util.stream.IntStream.range(0, call.args().size())
+                .mapToObj(i -> {
+                    RelationalOperation a = call.args().get(i);
+                    // an array lambda function's lambda (array_filter, array_transform, array_reduce: the lambda
+                    // their second argument, legend-engine's HelperRelationalBuilder.isArrayLambdaFunction) is a
+                    // compiled model the engine plans and this platform cannot translate yet: refused by name,
+                    // deferred (asked of legend-engine 4.145.0: it compiles array_filter over an INTEGER[]
+                    // extraction). Any other lambda is the model's error, the translate arm below (2026-11-15, the
+                    // normalizer batch, item 8)
+                    if (a instanceof RelationalOperation.Lambda lam && i == 1 && ARRAY_LAMBDA_FUNCTIONS.contains(call.name())) {
+                        throw new NotImplementedException(
+                                "a lambda argument (" + String.join(", ", lam.parameters())
+                              + " | ...) in a relational expression is not supported by this platform yet");
+                    }
                     ValueSpecification t = translate(a, tableScope,
                             targetVarOrNull, rowBindOrNull, pipeline);
                     // JOIN CONDITIONS (a target var is bound) stay VERBATIM
@@ -614,17 +631,20 @@ final class RelOpTranslator {
                             .toList());
             case RelationalOperation.JoinNavigation jn -> joinNavigation(jn,
                     tableScope, targetVarOrNull, rowBindOrNull, pipeline);
-            // A lambda argument (the relational grammar's `x | body`, `(a, b | body)`) and its `$x` are parsed and
-            // carried; translating them is a leg of its own, refused by name until then. Until 2026-11-14 both fell
-            // to the default arm, a raw IllegalStateException naming the Java class, from a user's text (ruling 29,
-            // the normalizer slice's step 1; RefusalsNotCrashesTest). A function call's arguments reach here
-            // whatever the function (a translator arm's or the generic one's), and a view column's too.
-            case RelationalOperation.Lambda lam -> throw new NotImplementedException(
+            // A lambda argument (the relational grammar's `x | body`, `(a, b | body)`) anywhere but an array lambda
+            // function's second argument (translateArgs refuses that one, deferred) is the model's error, as
+            // legend-engine refuses the model when it compiles (processRelationalOperationElement's last arm, an
+            // UnsupportedOperationException, "Error in 'w::M'": asked of legend-engine 4.145.0). A `$x` reached here
+            // is out of every lambda (a lambda's body is never translated): the engine's words, "The lambda
+            // parameter 'x' is not in scope" (asked of the engine). Until 2026-11-15 both were NotImplementedExceptions,
+            // a deferred poison (the normalizer slice's step 1; the normalizer batch, item 8, ruling 34). A function
+            // call's arguments reach here whatever the function, and a view column's too.
+            case RelationalOperation.Lambda lam -> throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "a lambda argument (" + String.join(", ", lam.parameters())
-                  + " | ...) in a relational expression is not supported by this platform yet");
-            case RelationalOperation.LambdaParam lp -> throw new NotImplementedException(
-                    "a lambda parameter ($" + lp.name()
-                  + ") in a relational expression is not supported by this platform yet");
+                  + " | ...) in a relational expression is taken only by array_filter, array_transform and"
+                  + " array_reduce, as their second argument");
+            case RelationalOperation.LambdaParam lp -> throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "The lambda parameter '" + lp.name() + "' is not in scope");
             // The kinds left -- a column reference, a {target} column, a literal -- never reach here: translate
             // matches each one itself before it hands an operation to translateTail (the invariant; javac still
             // needs the sealed hierarchy covered). 2026-11-14 (ruling 29): an internal error naming that

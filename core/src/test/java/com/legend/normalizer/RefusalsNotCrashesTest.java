@@ -56,6 +56,17 @@ class RefusalsNotCrashesTest {
             Mapping t::M ( *t::Person: Relational { ~mainTable [t::DB] T name: upper($x) } )
             """;
 
+    // an array lambda function's lambda, its second argument: the engine compiles it (asked of legend-engine 4.145.0,
+    // array_filter over an INTEGER[] extraction), so it stays a deferred poison (2026-11-15, the normalizer batch,
+    // item 8)
+    private static final String LAMBDA_IN_AN_ARRAY_FUNCTION = """
+            Class t::Person { name: String[1]; }
+            ###Relational
+            Database t::DB ( Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(100)) )
+            ###Mapping
+            Mapping t::M ( *t::Person: Relational { ~mainTable [t::DB] T name: array_filter([t::DB] T.NAME, x | $x) } )
+            """;
+
     private static final String LAMBDA_IN_A_VIEW = """
             Class t::Person { name: String[1]; }
             ###Relational
@@ -70,19 +81,30 @@ class RefusalsNotCrashesTest {
     @Test
     @DisplayName("a lambda in a relational expression is refused by name, not an IllegalStateException naming a Java class")
     void aRelationalLambdaIsRefusedByName() {
-        String argument = "a lambda argument (x | ...) in a relational expression is not supported by this platform yet";
-        assertEquals(List.of(), strict(LAMBDA_ARGUMENT), "a roadmap gap defers: the class is poisoned");
+        // 2026-11-15 (the normalizer batch, item 8, ENGINE-SOURCED): a lambda outside an array lambda function's second
+        // argument, and a lambda parameter out of every lambda, are the model's errors, as legend-engine refuses the
+        // model when it compiles (asked of the engine: "Error in 't::M'", an UnsupportedOperationException; "The lambda
+        // parameter 'x' is not in scope"); both were NotImplementedExceptions, a deferred poison
+        String argument = "a lambda argument (x | ...) in a relational expression is taken only by array_filter,"
+                + " array_transform and array_reduce, as their second argument";
+        assertEquals(List.of("[5:1] " + argument), strict(LAMBDA_ARGUMENT), "the engine refuses the model");
         Compiler.BuiltModule argumentModule = module(LAMBDA_ARGUMENT);
         assertEquals(Map.of(), argumentModule.walls());
         assertEquals(argument, poison(argumentModule, "t::M", "t::Person"));
 
-        String parameter = "a lambda parameter ($x) in a relational expression is not supported by this platform yet";
-        assertEquals(List.of(), strict(LAMBDA_PARAMETER));
+        String parameter = "The lambda parameter 'x' is not in scope";
+        assertEquals(List.of("[5:1] " + parameter), strict(LAMBDA_PARAMETER));
         assertEquals(parameter, poison(module(LAMBDA_PARAMETER), "t::M", "t::Person"));
 
-        String inView = "a lambda argument (a, b | ...) in a relational expression is not supported by this platform"
-                + " yet";
+        String inView = "a lambda argument (a, b | ...) in a relational expression is taken only by array_filter,"
+                + " array_transform and array_reduce, as their second argument";
         assertEquals(List.of(inView), strict(LAMBDA_IN_A_VIEW), "the view's lift refuses the model");
+
+        String deferred = "a lambda argument (x | ...) in a relational expression is not supported by this platform yet";
+        assertEquals(List.of(), strict(LAMBDA_IN_AN_ARRAY_FUNCTION), "a roadmap gap defers: the class is poisoned");
+        Compiler.BuiltModule arrayModule = module(LAMBDA_IN_AN_ARRAY_FUNCTION);
+        assertEquals(Map.of(), arrayModule.walls());
+        assertEquals(deferred, poison(arrayModule, "t::M", "t::Person"));
         Compiler.BuiltModule viewModule = module(LAMBDA_IN_A_VIEW);
         assertEquals(Map.of("t::DB$view$V", inView), viewModule.walls());
         assertEquals(inView, poison(viewModule, "t::M", "t::Person"));

@@ -41,7 +41,7 @@ use lite_model::linked::LinkedMap;
 use lite_model::text::ascii_upper;
 use lite_model::{
     ComparisonOp, JStr, JValue, LogicalOp, RelationalOperation, RelationalOperationColumnRef,
-    RelationalOperationFunctionCall, RelationalOperationJoinNavigation, cat,
+    RelationalOperationFunctionCall, RelationalOperationJoinNavigation, RelationalOperationLambda, cat,
 };
 use lite_names::calls;
 use lite_names::model_index::java_list;
@@ -123,7 +123,19 @@ pub fn translate_args(
     pipeline: Option<&Pipeline<'_>>,
 ) -> Result<Vec<p::ValueSpecification>, Thrown> {
     let mut out = Vec::with_capacity(call.args.len());
-    for a in call.args.iter() {
+    for (i, a) in call.args.iter().enumerate() {
+        // an array lambda function's lambda (its second argument) is refused by name, deferred, as the engine compiles
+        // it; any other lambda is the model's error, the translate arm (2026-11-15, the normalizer batch, item 8)
+        if let RelationalOperation::RelationalOperationLambda(lam) = a
+            && i == 1
+            && ARRAY_LAMBDA_FUNCTIONS.iter().any(|f| call.name == *f)
+        {
+            return Err(Thrown::not_implemented(cat!(
+                "a lambda argument (",
+                lambda_parameters(lam),
+                " | ...) in a relational expression is not supported by this platform yet"
+            )));
+        }
         let t = translate(a, table_scope, target_var_or_null, row_bind_or_null, pipeline)?;
         // JOIN CONDITIONS (a target var is bound) stay VERBATIM; only PROPERTY expressions get the scalar conform
         out.push(
@@ -135,6 +147,22 @@ pub fn translate_args(
         );
     }
     Ok(out)
+}
+
+/// legend-engine's array lambda functions (HelperRelationalBuilder.ARRAY_LAMBDA_FUNCTIONS, :822): the only relational
+/// functions that take a lambda, as their second argument (2026-11-15, the normalizer batch, item 8).
+const ARRAY_LAMBDA_FUNCTIONS: [&str; 3] = ["array_filter", "array_transform", "array_reduce"];
+
+/// A lambda's parameters joined by `, ` (Java's `String.join(", ", lam.parameters())`).
+fn lambda_parameters(lam: &RelationalOperationLambda) -> Vec<u16> {
+    let mut params: Vec<u16> = Vec::new();
+    for (i, name) in lam.parameters.iter().enumerate() {
+        if i > 0 {
+            params.extend(", ".encode_utf16());
+        }
+        params.extend_from_slice(&name.0);
+    }
+    params
 }
 
 /// `RelOpTranslator.toOne` (:150): `trustOne(v)`.
@@ -600,28 +628,27 @@ pub fn translate(
         RelationalOperation::RelationalOperationJoinNavigation(jn) => {
             join_navigation(jn, table_scope, target_var_or_null, row_bind_or_null, pipeline)?
         }
-        // a lambda argument and its `$x` are parsed and carried; translating them is a leg of its own, refused by
-        // name (ruling 29, the normalizer slice's step 1)
+        // a lambda anywhere but an array lambda function's second argument (translate_args refuses that one, deferred)
+        // is the model's error, as legend-engine refuses the model; a `$x` reached here is out of every lambda, in the
+        // engine's words (2026-11-15, the normalizer batch, item 8: both were NotImplementedExceptions, deferred)
         RelationalOperation::RelationalOperationLambda(lam) => {
-            let mut params: Vec<u16> = Vec::new();
-            for (i, name) in lam.parameters.iter().enumerate() {
-                if i > 0 {
-                    params.extend(", ".encode_utf16());
-                }
-                params.extend_from_slice(&name.0);
-            }
-            return Err(Thrown::not_implemented(cat!(
-                "a lambda argument (",
-                params,
-                " | ...) in a relational expression is not supported by this platform yet"
-            )));
+            return Err(Thrown::model(
+                Phase::Normalize,
+                cat!(
+                    "a lambda argument (",
+                    lambda_parameters(lam),
+                    " | ...) in a relational expression is taken only by array_filter, array_transform and \
+                     array_reduce, as their second argument"
+                ),
+                None,
+            ));
         }
         RelationalOperation::RelationalOperationLambdaParam(lp) => {
-            return Err(Thrown::not_implemented(cat!(
-                "a lambda parameter ($",
-                lp.name,
-                ") in a relational expression is not supported by this platform yet"
-            )));
+            return Err(Thrown::model(
+                Phase::Normalize,
+                cat!("The lambda parameter '", lp.name, "' is not in scope"),
+                None,
+            ));
         }
     })
 }
@@ -1495,17 +1522,28 @@ mod tests {
             parameters: vec![j("x"), j("y")].into(),
             body: s("a"),
         }));
-        let e = tr(&call("foo", vec![lam])).unwrap_err();
+        // a lambda outside an array lambda function's second argument: the model's error (2026-11-15, the normalizer
+        // batch, item 8, RefusalsNotCrashesTest's twin)
+        let e = tr(&call("foo", vec![lam.clone()])).unwrap_err();
+        assert!(e.is_model());
+        assert_eq!(
+            message(&e),
+            "a lambda argument (x, y | ...) in a relational expression is taken only by array_filter, array_transform \
+             and array_reduce, as their second argument"
+        );
+        // an array lambda function's lambda: refused by name, deferred
+        let e = tr(&call("array_filter", vec![s("a"), lam.clone()])).unwrap_err();
         assert!(e.is_not_implemented());
         assert_eq!(
             message(&e),
             "a lambda argument (x, y | ...) in a relational expression is not supported by this platform yet"
         );
+        // ... at its second argument only
+        assert!(tr(&call("array_filter", vec![lam, s("a")])).unwrap_err().is_model());
         let lp = Op::RelationalOperationLambdaParam(Arc::new(RelationalOperationLambdaParam { name: j("x") }));
-        assert_eq!(
-            message(&tr(&lp).unwrap_err()),
-            "a lambda parameter ($x) in a relational expression is not supported by this platform yet"
-        );
+        let e = tr(&lp).unwrap_err();
+        assert!(e.is_model());
+        assert_eq!(message(&e), "The lambda parameter 'x' is not in scope");
     }
 
     #[test]
