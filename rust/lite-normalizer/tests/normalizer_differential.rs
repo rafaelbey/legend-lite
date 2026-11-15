@@ -1467,11 +1467,11 @@ fn what_step_e_hands_on_answers_as_javas() {
 }
 
 /// The slice's own cases alone (rust/oracles/normalizer/cases.jsonl), held to the frozen lines of their asks -- the
-/// answers' last lines. Ignored while any case reaches a body not ported yet (2026-11-14: every case does, at
-/// `ModelNormalizer.requireQualifiedPropertiesAdopted`); un-ignored, it reads the decompressed answers at
-/// `LITE_NORMALIZER_ANSWERS`, or else decompresses the repository's answers.tsv.zst with the `zstd` command.
+/// answers' last lines. Ignored while any case reached a body not ported yet; since the fill (2026-11-14) every case
+/// answers as Java's, so it runs under plain `cargo test` (Bazel runs the full differential, which holds the same
+/// asks): it reads the decompressed answers at `LITE_NORMALIZER_ANSWERS`, or else decompresses the repository's
+/// answers.tsv.zst with the `zstd` command.
 #[test]
-#[ignore = "every case reaches a body not ported yet (2026-11-14); reads LITE_NORMALIZER_ANSWERS and the cases"]
 fn the_slices_cases_answer_as_javas() {
     let manifest = option_env!("CARGO_MANIFEST_DIR").unwrap_or(".");
     let cases =

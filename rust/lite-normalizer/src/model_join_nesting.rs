@@ -47,7 +47,7 @@ pub fn compose(
     md: &ResolvedMapping<'_>,
     model: &ModelIndex,
     mj: &AssociationMappingModelJoin,
-    ad2: &AssociationDefinition,
+    _ad2: &AssociationDefinition, // Java never reads `ad2` either (ModelJoinNesting.java:43)
     class_a: &JStr,
     class_b: &JStr,
     a_var: &JStr,

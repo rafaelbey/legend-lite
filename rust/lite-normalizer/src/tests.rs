@@ -257,6 +257,8 @@ fn the_shared_model_normalizes_with_every_body_ported() {
     assert!(e.is_model() && !e.is_unported(), "{e:?}");
     assert_eq!(
         e.message(),
-        Some(j("Duplicated class mappings found with ID [f (a::Base, a::Over)] in mapping 'a::Over'"))
+        Some(j(
+            "Duplicated class mappings found with ID [f (a::Base, a::Over)] in mapping 'a::Over'"
+        ))
     );
 }

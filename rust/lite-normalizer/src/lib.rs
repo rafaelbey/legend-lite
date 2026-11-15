@@ -11,21 +11,18 @@
 //! `$constraint$`, `$constraintMsg$`, `$default$`, PRE/POST, `$query`, the views' `$view$`), the canonical binding
 //! tables with their `NormalizationFacts`, and in a tolerant build the walls (lite-names' wall map).
 //!
-//! **The skeleton (2026-11-14).** One module per Java class (`MappingNormalizer` a directory, one file per family
-//! group), every function with its final signature. Ported now, because every fill uses them: [`error`] (the throws
-//! and the catches' predicates), [`pipeline`], [`mapping_ledger`], [`mapping_facts`], [`resolved_mapping`],
+//! **The port (2026-11-14).** One module per Java class (`MappingNormalizer` a directory, one file per census family
+//! group), each function Java's method with its name and line at ad86fa895 in its doc line: [`error`] (the throws and
+//! the catches' predicates), [`pipeline`], [`mapping_ledger`], [`mapping_facts`], [`resolved_mapping`],
 //! [`set_key_facts`], [`milestoning_facts`], [`lifted_views`] and [`mapping_closures`] (their memos), [`dyna_fn`]
-//! (Java's `DynaFnArms` as one exhaustive match), and the small callees those reach. Every other body answers
-//! `Err(Thrown::Unported("Class.method"))` (or, in a function Java cannot fail in, panics with `UNPORTED`) until it
-//! is ported; an unported body is caught by no catch, so it always reaches the top. The map of files, Java line
-//! ranges and re-expressions is port-scratch's `normalizer/skel/MAP.md`.
+//! (Java's `DynaFnArms` as one exhaustive match), and every synthesis family. Held byte for byte to the live Java and
+//! its frozen answers by `tests/normalizer_differential.rs` (rust/oracles/normalizer). [`Thrown::Unported`] stays as
+//! the port's marker for a body not ported (none is): no catch takes it, so a differential would show it.
 //!
 //! [`ModelIndex`]: lite_names::ModelIndex
 //! [`NormalizedModel`]: lite_model::NormalizedModel
 
 #![forbid(unsafe_code)]
-// skeleton: remove when every body is ported (a stub neither reads its parameters nor pushes onto a `&mut Vec`)
-#![allow(unused_variables, dead_code, unused_imports, clippy::ptr_arg)]
 // Java's signatures, argument for argument (a fill keeps them; a bundle struct would be a second shape to learn)
 #![allow(clippy::too_many_arguments)]
 

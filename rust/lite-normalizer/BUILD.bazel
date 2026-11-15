@@ -2,8 +2,7 @@ load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
 load("//tools/guards:defs.bzl", "guards_package")
 
 # legend-lite's model normalizer, ported from core's com.legend.normalizer (src/lib.rs; docs/rust-port/PHASE3.md, the
-# normalizer slice, 2026-11-14): step E, ParsedModel -> NormalizedModel. The skeleton first (every module, shared type
-# and signature; the bodies filled after it).
+# normalizer slice, 2026-11-14): step E, ParsedModel -> NormalizedModel, line for line.
 rust_library(
     name = "lite_normalizer",
     srcs = glob(["src/**/*.rs"]),
@@ -34,8 +33,8 @@ rust_test(
 # slice's cases, at every dialect asked, run D then E strict and tolerant (resolve_alongside, the association adoption,
 # the index, refuse_duplicates, normalize), each canonical text held to the Java's (the SHA-256 per ask, frozen:
 # //rust/oracles:normalizer_answers; rust/oracles/normalizer/MANIFEST.tsv) -- buckets equal, mismatch and unported (an
-# ask that reaches a body the skeleton has not ported yet, counted per stub site). Fails until every ask is equal: while
-# the fills land, every unported ask fails it (2026-11-14, the normalizer slice, step 5).
+# ask that reaches a body not ported, counted per site). Every ask must be equal: 74,364 of 74,364 since the fill
+# (2026-11-14, the normalizer slice, step 5). Large, and in //gates:core, as the names differential (ruling 28).
 rust_test(
     name = "normalizer_differential_test",
     size = "large",
@@ -65,7 +64,7 @@ rust_test(
 # the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards
 filegroup(
     name = "sources",
-    srcs = glob(["src/**/*.rs"]) + ["Cargo.toml"],
+    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]) + ["Cargo.toml"],
     visibility = ["//rust/lite-guards:__pkg__"],
 )
 
