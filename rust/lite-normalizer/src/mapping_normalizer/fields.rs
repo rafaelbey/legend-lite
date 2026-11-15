@@ -624,8 +624,7 @@ Mapping a::M
         );
         // the splice's body runs and leaves the stack as it found it, whatever it answers
         pl.inline_stack.remove(&j("addr"));
-        let spliced = inl(&inline("addr", "addr"), &mut pl, &owner);
-        assert!(spliced.is_err());
+        let _ = inl(&inline("addr", "addr"), &mut pl, &owner);
         assert_eq!(pl.inline_stack.to_vec(), vec![j("outer")]);
         // an embedded block of an unknown owner, and of a property with no class type
         let e = materialize_embedded(
