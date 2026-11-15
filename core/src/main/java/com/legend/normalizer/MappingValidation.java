@@ -8,8 +8,11 @@ import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
 import com.legend.model.ClassDefinition;
 import com.legend.model.ClassMapping;
+import com.legend.model.DatabaseDefinition;
+import com.legend.model.JoinChainElement;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.PropertyMapping;
+import com.legend.model.RelationalOperation;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -70,7 +73,10 @@ final class MappingValidation {
         for (ClassMapping cm : md.classMappings()) {
             try {
                 switch (cm) {
-                    case ClassMapping.Relational rcm -> validatePmNames(rcm, model, md);
+                    case ClassMapping.Relational rcm -> {
+                        validatePmNames(rcm, model, md);
+                        validateJoinSources(rcm, model);
+                    }
                     case ClassMapping.Pure pcm -> validateM2mRoutes(pcm, model, r);
                     case ClassMapping.Union u -> validateUnionMembers(u, r);
                     default -> { }
@@ -112,6 +118,84 @@ final class MappingValidation {
                       + md.qualifiedName());
             }
         }
+    }
+
+    /**
+     * Every join chain a property mapping walks departs from the table it is at: the first join contains the set's
+     * main table, each next join the table the previous one lands on -- legend-engine 4.145.0's
+     * {@code HelperRelationalBuilder.validatePropertyMappings} (:1918-1937, run for every relational class mapping when
+     * the mapping compiles: the join trees of its property mappings, their dyna-function arguments, embedded blocks and
+     * otherwise fallbacks, :1880-1916) and {@code findTargetAliasFromJoinTreeNode} (:1940-1947), whose words these are,
+     * the table by its own name (asked: a chain {@code @AC} from T, "Mapping error: the join AC does not contain the
+     * source table T"). Until 2026-11-15 such a hop was refused only when the class was synthesized, deferred, as
+     * "Join 'AC' references multiple non-source tables [A, C]; multi-table joins not supported" (the normalizer's
+     * second batch, item 1, JCE:843; ruling 37 (b)). A join the database lacks, a set with no main table and a join
+     * whose landing is ambiguous are left to the refusals that already name them.
+     */
+    private static void validateJoinSources(ClassMapping.Relational rcm, ModelBuilder model) {
+        LegacyMappingDefinition.TableReference main = rcm.mainTable() != null ? rcm.mainTable()
+                : MappingNormalizer.inferMainTableQuiet(rcm);
+        if (main == null || rcm.sourceUrl() != null) {
+            return;
+        }
+        String start = MappingNormalizer.canonicalTable(main.table());
+        for (PropertyMapping pm : rcm.propertyMappings()) {
+            validateJoinSources(pm, start, model);
+        }
+    }
+
+    private static void validateJoinSources(PropertyMapping pm, String start, ModelBuilder model) {
+        switch (pm) {
+            case PropertyMapping.Join j -> validateChain(j.joins(), j.database(), start, model);
+            case PropertyMapping.JoinTerminalColumn j -> validateChain(j.joins(), j.database(), start, model);
+            case PropertyMapping.Expression e -> validateNavigations(e.expression(), start, model);
+            case PropertyMapping.EnumeratedExpression e -> validateNavigations(e.expression(), start, model);
+            case PropertyMapping.Embedded e -> e.propertyMappings().forEach(x -> validateJoinSources(x, start, model));
+            case PropertyMapping.OtherwiseEmbedded oe -> {
+                oe.embedded().forEach(x -> validateJoinSources(x, start, model));
+                validateJoinSources(oe.fallback(), start, model);
+            }
+            case PropertyMapping.LocalProperty lp -> validateJoinSources(lp.body(), start, model);
+            default -> { }
+        }
+    }
+
+    private static void validateNavigations(RelationalOperation op, String start, ModelBuilder model) {
+        op.descendants().forEach(o -> {
+            if (o instanceof RelationalOperation.JoinNavigation nav && nav.databaseName() != null) {
+                validateChain(nav.chain(), nav.databaseName(), start, model);
+            }
+        });
+    }
+
+    private static void validateChain(List<JoinChainElement> chain, String db, String start, ModelBuilder model) {
+        String at = start;
+        for (JoinChainElement hop : chain) {
+            String hopDb = hop.databaseName() != null ? hop.databaseName() : db;
+            java.util.Optional<DatabaseDefinition.JoinDefinition> jd = model.findJoin(hopDb, hop.joinName());
+            if (jd.isEmpty()) {
+                // the missing join's own refusal names it, when the set is synthesized
+                return;
+            }
+            java.util.Set<String> tables = new java.util.LinkedHashSet<>();
+            for (String t : jd.get().operation().tables()) {
+                tables.add(MappingNormalizer.canonicalTable(t));
+            }
+            if (!tables.contains(at)) {
+                throw new ModelException(LegendCompileException.Phase.MAPPING, "Mapping error: the join "
+                        + hop.joinName() + " does not contain the source table " + bareTable(at));
+            }
+            tables.remove(at);
+            if (tables.size() > 1) {
+                return;
+            }
+            at = tables.isEmpty() ? at : tables.iterator().next();
+        }
+    }
+
+    /** A table's own name, its schema dropped (the engine prints {@code Table._name()}). */
+    private static String bareTable(String table) {
+        return table.contains(".") ? table.substring(table.lastIndexOf('.') + 1) : table;
     }
 
     /** Every routed M2M binding names a benign route. */

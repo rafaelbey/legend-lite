@@ -775,7 +775,7 @@ pub fn build_assoc_predicate_body(
             &hop.join_name,
             Some(association_name),
             1,
-            md.qualified_name(),
+            &cat!("mapping=", md.qualified_name()),
         )?;
         if target_table != *class_b_table {
             // a join landing on classB's OWN main source is fine even when that source is a VIEW; any OTHER view

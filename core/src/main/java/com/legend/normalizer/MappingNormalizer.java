@@ -2181,6 +2181,14 @@ public final class MappingNormalizer {
                     "Embedded PM '" + propName + "' on '" + ownerClassFqn
                   + "' has non-class property type; mapping=" + md.qualifiedName());
         }
+        // a primitive or an enumeration property: the model's error, in legend-engine's words (4.145.0
+        // HelperRelationalBuilder:1683-1686, asked: an embedded String and an embedded enumeration property). Until
+        // 2026-11-15 it was built as `new(@String, ...)` and refused only when a body was typed (the normalizer's
+        // second batch, item 1, MN:2111-2118; ruling 37 (b)). An Inline splice names its set's class (innerOverride).
+        if (innerOverride == null && model.knowledge().hierarchyClass(innerFqn).isEmpty()) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "only complex classes can be the target of an embedded property mapping");
+        }
         Map<String, KeyExpression> fields = new LinkedHashMap<>();
         for (PropertyMapping sub : subPms) {
             // Join sub-PMs read the slot Pass 1 hoisted into the TOP
@@ -2741,7 +2749,7 @@ public final class MappingNormalizer {
 
     static String determineTargetTable(RelationalOperation cond, @com.legend.base.Nullable String sourceTable,
                                               String joinName, @com.legend.base.Nullable String ownerLabel,
-                                              int hopIndex, String mappingFqn) {
+                                              int hopIndex, String owner) {
         if (containsTargetColumnRef(cond)) {
             return java.util.Objects.requireNonNull(sourceTable,
                     "target-column-ref join condition with unknown source table");
@@ -2754,12 +2762,12 @@ public final class MappingNormalizer {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
                     "Join '" + joinName + "' references no table other than source '"
                   + sourceTable + "' and has no {target} marker; owner=" + ownerLabel
-                  + ", hop " + hopIndex + ", mapping=" + mappingFqn);
+                  + ", hop " + hopIndex + ", " + owner);
         }
         throw new NotImplementedException(
                 "Join '" + joinName + "' references multiple non-source tables "
               + tables + "; multi-table joins not supported. owner=" + ownerLabel
-              + ", hop " + hopIndex + ", mapping=" + mappingFqn);
+              + ", hop " + hopIndex + ", " + owner);
     }
 
     static boolean containsTargetColumnRef(RelationalOperation op) {

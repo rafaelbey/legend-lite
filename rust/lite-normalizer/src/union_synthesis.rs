@@ -934,7 +934,7 @@ pub fn inbound_arm_steps(
             &mid_hop.join_name,
             Some(prop),
             h as i32,
-            md.qualified_name(),
+            &cat!("mapping=", md.qualified_name()),
         )?;
         let ms = Arc::new(free_variable("s"));
         let mt = Arc::new(free_variable("t"));

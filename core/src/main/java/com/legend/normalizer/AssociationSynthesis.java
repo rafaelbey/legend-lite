@@ -669,7 +669,7 @@ final class AssociationSynthesis {
                     model.findView(hopDb, classBTable).isPresent() ? classBTable : null,
                     /*anySide*/ true);
             String targetTable = MappingNormalizer.determineTargetTable(cond2, sourceTable,
-                    hop.joinName(), associationName, 1, md.qualifiedName());
+                    hop.joinName(), associationName, 1, "mapping=" + md.qualifiedName());
             if (!targetTable.equals(classBTable)) {
                 // a join landing on classB's OWN main source is fine even
                 // when that source is a VIEW — the class-source override

@@ -13,14 +13,15 @@ use std::sync::Arc;
 use lite_error::Phase;
 use lite_model::linked::LinkedMap;
 use lite_model::{
-    ClassMapping, ClassMappingPure, ClassMappingRelational, ClassMappingUnion, JStr, LegacyMappingDefinition,
-    PropertyMapping, cat,
+    ClassMapping, ClassMappingPure, ClassMappingRelational, ClassMappingUnion, JStr, JoinChainElement,
+    LegacyMappingDefinition, PropertyMapping, RelationalOperation, cat,
 };
 use lite_names::ModelIndex;
 use lite_names::model_index::java_list;
 
 use crate::error::Thrown;
 use crate::m2m_route_guards;
+use crate::mapping_normalizer;
 use crate::resolved_mapping::ResolvedMapping;
 
 /// `MappingValidation.run` (:43): set id -> its `ModelException`, declaration order.
@@ -61,7 +62,9 @@ pub fn run(r: &ResolvedMapping<'_>, model: &ModelIndex) -> Result<LinkedMap<JStr
     let mut invalid: LinkedMap<JStr, Thrown> = LinkedMap::new();
     for cm in md.class_mappings.iter() {
         let checked = match cm {
-            ClassMapping::ClassMappingRelational(rcm) => validate_pm_names(rcm, model, md),
+            ClassMapping::ClassMappingRelational(rcm) => {
+                validate_pm_names(rcm, model, md).and_then(|()| validate_join_sources(rcm, model))
+            }
             ClassMapping::ClassMappingPure(pcm) => validate_m2m_routes(pcm, model, r),
             ClassMapping::ClassMappingUnion(u) => validate_union_members(u, r),
             // Java's `default -> { }`: the two kinds nothing here validates
@@ -135,6 +138,109 @@ pub fn validate_pm_names(
         }
     }
     Ok(())
+}
+
+/// `MappingValidation.validateJoinSources`: every join chain a property mapping walks departs from the table it is
+/// at -- the first join contains the set's main table, each next join the table the previous one lands on
+/// (legend-engine 4.145.0 `HelperRelationalBuilder.validatePropertyMappings`, its words: "Mapping error: the join J does
+/// not contain the source table T", the table by its own name). Since 2026-11-15 (the normalizer's second batch, item
+/// 1, JCE:843); a join the database lacks, a set with no main table and an ambiguous landing are left to the refusals
+/// that already name them.
+pub fn validate_join_sources(rcm: &ClassMappingRelational, model: &ModelIndex) -> Result<(), Thrown> {
+    let main = match &rcm.main_table {
+        Some(m) => Some(m.clone()),
+        None => mapping_normalizer::infer_main_table_quiet(rcm)?,
+    };
+    let Some(main) = main else {
+        return Ok(());
+    };
+    if rcm.source_url.is_some() {
+        return Ok(());
+    }
+    let start = mapping_normalizer::canonical_table(&main.table);
+    for pm in rcm.property_mappings.iter() {
+        validate_pm_join_sources(pm, &start, model)?;
+    }
+    Ok(())
+}
+
+fn validate_pm_join_sources(pm: &PropertyMapping, start: &JStr, model: &ModelIndex) -> Result<(), Thrown> {
+    match pm {
+        PropertyMapping::PropertyMappingJoin(j) => validate_chain(&j.joins, &j.database, start, model),
+        PropertyMapping::PropertyMappingJoinTerminalColumn(j) => validate_chain(&j.joins, &j.database, start, model),
+        PropertyMapping::PropertyMappingExpression(e) => validate_navigations(&e.expression, start, model),
+        PropertyMapping::PropertyMappingEnumeratedExpression(e) => validate_navigations(&e.expression, start, model),
+        PropertyMapping::PropertyMappingEmbedded(e) => {
+            for x in e.property_mappings.iter() {
+                validate_pm_join_sources(x, start, model)?;
+            }
+            Ok(())
+        }
+        PropertyMapping::PropertyMappingOtherwiseEmbedded(oe) => {
+            for x in oe.embedded.iter() {
+                validate_pm_join_sources(x, start, model)?;
+            }
+            validate_pm_join_sources(&oe.fallback, start, model)
+        }
+        PropertyMapping::PropertyMappingLocalProperty(lp) => validate_pm_join_sources(&lp.body, start, model),
+        _ => Ok(()),
+    }
+}
+
+fn validate_navigations(op: &RelationalOperation, start: &JStr, model: &ModelIndex) -> Result<(), Thrown> {
+    for o in op.descendants() {
+        if let RelationalOperation::RelationalOperationJoinNavigation(nav) = o
+            && let Some(db) = &nav.database_name
+        {
+            validate_chain(&nav.chain, db, start, model)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_chain(chain: &[Arc<JoinChainElement>], db: &JStr, start: &JStr, model: &ModelIndex) -> Result<(), Thrown> {
+    let mut at = start.clone();
+    for hop in chain.iter() {
+        let hop_db = hop.database_name.as_ref().unwrap_or(db);
+        let Some(jd) = model.find_join(Some(hop_db), &hop.join_name) else {
+            return Ok(());
+        };
+        let mut tables: Vec<JStr> = Vec::new();
+        for t in jd.operation.tables() {
+            let c = mapping_normalizer::canonical_table(&t);
+            if !tables.contains(&c) {
+                tables.push(c);
+            }
+        }
+        if !tables.contains(&at) {
+            return Err(Thrown::model(
+                Phase::Mapping,
+                cat!(
+                    "Mapping error: the join ",
+                    &hop.join_name,
+                    " does not contain the source table ",
+                    &bare_table(&at)
+                ),
+                None,
+            ));
+        }
+        tables.retain(|t| t != &at);
+        if tables.len() > 1 {
+            return Ok(());
+        }
+        if let Some(next) = tables.first() {
+            at = next.clone();
+        }
+    }
+    Ok(())
+}
+
+/// A table's own name, its schema dropped (the engine prints `Table._name()`).
+fn bare_table(table: &JStr) -> JStr {
+    match lite_model::text::last_index_of(&table.0, &[u16::from(b'.')]) {
+        Some(dot) => JStr::from(&table.0[dot + 1..]),
+        None => table.clone(),
+    }
 }
 
 /// `MappingValidation.validateM2mRoutes` (:107): every routed M2M binding names a benign route.
@@ -304,6 +410,54 @@ Mapping m::Top
                     j("u"),
                     Some(j("Can't find class mapping 'gone' in mapping 'm::Top'")),
                     Some(Phase::Mapping)
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_join_that_leaves_the_table_its_chain_is_at_is_the_engines_refusal() {
+        // legend-engine 4.145.0's validatePropertyMappings, asked: "Mapping error: the join AC does not contain the
+        // source table T" (the normalizer's second batch, item 1, JCE:843, 2026-11-15)
+        let text = r#"
+###Pure
+Class w::P { name: String[0..1]; b: w::B[0..1]; }
+Class w::B { name: String[0..1]; }
+###Relational
+Database w::Db
+(
+  Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), BID INTEGER)
+  Table A (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), CID INTEGER)
+  Table C (ID INTEGER PRIMARY KEY, NAME VARCHAR(20))
+  Join TA(T.BID = A.ID)
+  Join AC(A.CID = C.ID)
+  Join TC(T.BID = C.ID)
+)
+###Mapping
+Mapping w::M
+(
+  w::P[a]: Relational { ~mainTable [w::Db]T name: [w::Db]T.NAME, b: [w::Db]@AC }
+  w::P[b]: Relational { ~mainTable [w::Db]T name: [w::Db]T.NAME, b: [w::Db]@TA > @TC }
+  w::P[c]: Relational { ~mainTable [w::Db]T name: [w::Db]T.NAME, b: [w::Db]@TA > @AC }
+  w::B: Relational { ~mainTable [w::Db]C name: [w::Db]C.NAME }
+)
+"#;
+        let parsed = model(text);
+        let idx = index(&parsed);
+        let closures = MappingClosures::new(&idx);
+        let views = LiftedViews::new(&parsed, &idx);
+        let invalid = run(&resolved(mapping(&parsed, "w::M"), &closures, &views), &idx).unwrap();
+        let reasons: Vec<(JStr, Option<JStr>)> = invalid.iter().map(|(id, e)| (id.clone(), e.message())).collect();
+        assert_eq!(
+            reasons,
+            vec![
+                (
+                    j("a"),
+                    Some(j("Mapping error: the join AC does not contain the source table T"))
+                ),
+                (
+                    j("b"),
+                    Some(j("Mapping error: the join TC does not contain the source table A"))
                 ),
             ]
         );

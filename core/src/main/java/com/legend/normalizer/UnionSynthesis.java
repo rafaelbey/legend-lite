@@ -860,7 +860,7 @@ final class UnionSynthesis {
                                     + md.qualifiedName()));
             String midTgt = MappingNormalizer.determineTargetTable(mjd.operation(),
                     prevTable, midHop.joinName(), prop, h,
-                    md.qualifiedName());
+                    "mapping=" + md.qualifiedName());
             Variable ms = new Variable("s");
             Variable mt = new Variable("t");
             Map<String, ValueSpecification> midScope = new LinkedHashMap<>();

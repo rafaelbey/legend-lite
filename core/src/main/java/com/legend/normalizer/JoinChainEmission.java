@@ -207,6 +207,15 @@ final class JoinChainEmission {
                   + "' has non-class property type; mapping=" + md.qualifiedName());
         }
         String targetClassFqn = nr.name();
+        // a primitive or an enumeration is a name too: the model's error, in legend-engine's words (4.145.0
+        // HelperRelationalBuilder:1683-1686, asserted when the mapping compiles, the otherwise block's embedded part
+        // through the same method :1473-1478; asked: an otherwise-embedded String and an embedded enumeration
+        // property). Until 2026-11-15 it passed as a class name and was refused a step later as an unmapped target
+        // (the normalizer's second batch, item 1, JCE:192-213; ruling 37 (b))
+        if (model.knowledge().hierarchyClass(targetClassFqn).isEmpty()) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "only complex classes can be the target of an embedded property mapping");
+        }
         if (!p.ledger().isMapped(targetClassFqn)) {
             throw new NotImplementedException(
                     "OtherwiseEmbedded PM '" + oe.propertyName() + "' target class '"
@@ -418,14 +427,6 @@ final class JoinChainEmission {
                 // thunk is the CLASS extent — spell the target's table row
                 // into the call so the cond lambda's T types (the same
                 // conform-by-emission cure as legacyAssocPredicate).
-                // a VIEW target navigates over the view's RELATION (the
-                // same expansion the physical-hop arm uses — engine: views
-                // are subselects, joins accept Table OR View)
-                ValueSpecification targetRows = viewTarget != null
-                        ? p.views.body(model.findView(hopDb, viewTarget).orElseThrow())
-                        : Calls.platform("tableReference", List.of(
-                                        new PackageableElementPtr(hopDb),
-                                        new CString(targetTable)));
                 // ROUTED union navigation: ONE navigate carries the OR over
                 // ALL the property's route entries, each entry's condition
                 // built from ITS OWN join with target-side reads suffixed by
@@ -445,6 +446,19 @@ final class JoinChainEmission {
                                     propName, prevTable, prevAlias, mainTable, s, t, model,
                                     Objects.requireNonNull(owner)))));
                 } else {
+                    // a VIEW target navigates over the view's RELATION (the
+                    // same expansion the physical-hop arm uses — engine: views
+                    // are subselects, joins accept Table OR View). Built on
+                    // this arm alone: a routed navigation never reads it, and
+                    // a walled view's body refuses (until 2026-11-15 it was
+                    // built first, so a tolerant build's walled view refused a
+                    // routed navigation into another set: the normalizer's
+                    // second batch, item 1, JCE:415-419; LITE-ONLY)
+                    ValueSpecification targetRows = viewTarget != null
+                            ? p.views.body(model.findView(hopDb, viewTarget).orElseThrow())
+                            : Calls.platform("tableReference", List.of(
+                                            new PackageableElementPtr(hopDb),
+                                            new CString(targetTable)));
                     p.expr = Calls.exact(Pure.Lite.LEGACY_NAVIGATE,
                             List.of(p.expr, slot, targetRows, navCond));
                 }
@@ -578,7 +592,7 @@ final class JoinChainEmission {
                 String tgt = tables.size() == 1 && model.findView(db, tables.iterator().next()).isPresent()
                         ? tables.iterator().next()
                         : MappingNormalizer.determineTargetTable(jd.operation(), rPrev,
-                                hop.joinName(), propName, chain.size(), md.qualifiedName());
+                                hop.joinName(), propName, chain.size(), "mapping=" + md.qualifiedName());
                 rows = rfMember != null
                         ? MappingNormalizer.relationFunctionPipeline(rfMember, model)
                         : model.findView(db, tgt).isPresent()
@@ -630,8 +644,11 @@ final class JoinChainEmission {
         if (known != null) {
             return known;
         }
-        String tableName = mainTable != null && mainTable.contains(".")
-                ? mainTable.substring(mainTable.lastIndexOf('.') + 1) : mainTable;
+        // the main table as written, its schema kept: `S2.T` is schema S2's T, whose columns the slot shares a row
+        // with. Until 2026-11-15 the schema was stripped, so `S2.T` asked the default schema's T -- another table's
+        // columns, or none -- and the slot could take a name S2.T's own column holds (legend-engine 4.145.0 compiles
+        // and plans such a mapping: the normalizer's second batch, item 1, JCE:624-633; ruling 37 (b))
+        String tableName = mainTable;
         // include-aware: the main table may live in an INCLUDED database
         // (classMappingFilterWithInnerJoin's milestongingDB includes the
         // milestoning db that declares ProductTable.exchange)

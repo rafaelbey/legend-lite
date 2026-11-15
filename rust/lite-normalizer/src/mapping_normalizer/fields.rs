@@ -251,6 +251,15 @@ pub fn materialize_embedded(
             None,
         ));
     };
+    // a primitive or an enumeration property: the model's error, in legend-engine's words (Java's materializeEmbedded;
+    // the normalizer's second batch, item 1, MN:2111-2118, 2026-11-15); an Inline splice names its set's class
+    if inner_override.is_none() && knowledge.hierarchy_class(Some(&inner_fqn)).is_none() {
+        return Err(Thrown::model(
+            Phase::Normalize,
+            JStr::from("only complex classes can be the target of an embedded property mapping"),
+            None,
+        ));
+    }
     let mut fields = Fields::new();
     for sub in sub_pms {
         // a Join sub-PM reads the slot pass 1 hoisted into the TOP pipeline; an UNMAPPED target class has no
@@ -664,6 +673,28 @@ Mapping a::M
             e.message(),
             Some(j(
                 "Embedded PM 'nosuch' on 'a::P' has non-class property type; mapping=a::M"
+            ))
+        );
+        // a primitive is a name too: the model's error, in legend-engine's words (until 2026-11-15 built as
+        // `new(@String, ...)`: the normalizer's second batch, item 1, MN:2111-2118)
+        let e = materialize_embedded(
+            &j("name"),
+            &[],
+            &row(),
+            &scope,
+            &j("T"),
+            &mut pl,
+            &owner,
+            &md,
+            &idx,
+            None,
+        )
+        .unwrap_err();
+        assert!(e.is_model(), "{e:?}");
+        assert_eq!(
+            e.message(),
+            Some(j(
+                "only complex classes can be the target of an embedded property mapping"
             ))
         );
         // an empty block: ^Addr() (no binding to wrap)

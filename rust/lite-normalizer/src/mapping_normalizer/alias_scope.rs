@@ -267,14 +267,16 @@ pub fn require_non_view_target(
 }
 
 /// `MappingNormalizer.determineTargetTable` (:2674): the one non-source table a join condition reads (the source
-/// table for a `{target}` marker); loud for none or several.
+/// table for a `{target}` marker); loud for none or several. `owner` is the whole label, `mapping=<fqn>` or a view's
+/// `store=<db>` (until 2026-11-15 the text added `mapping=` before it, so a hop's text read `mapping=mapping=<fqn>`:
+/// the normalizer's second batch, item 1, JCE:843).
 pub fn determine_target_table(
     cond: &Op,
     source_table: Option<&JStr>,
     join_name: &JStr,
     owner_label: Option<&JStr>,
     hop_index: i32,
-    mapping_fqn: &JStr,
+    owner: &JStr,
 ) -> Result<JStr, Thrown> {
     if contains_target_column_ref(cond)? {
         return require(
@@ -302,8 +304,8 @@ pub fn determine_target_table(
                 or_null(owner_label),
                 ", hop ",
                 hop_index.to_string(),
-                ", mapping=",
-                mapping_fqn
+                ", ",
+                owner
             ),
             None,
         ));
@@ -317,8 +319,8 @@ pub fn determine_target_table(
         or_null(owner_label),
         ", hop ",
         hop_index.to_string(),
-        ", mapping=",
-        mapping_fqn
+        ", ",
+        owner
     )))
 }
 

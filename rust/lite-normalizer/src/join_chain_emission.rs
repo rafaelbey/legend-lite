@@ -293,6 +293,15 @@ pub fn emit_otherwise_embedded_hop(
         ));
     };
     let target_class_fqn = &nr.name;
+    // a primitive or an enumeration is a name too: the model's error, in legend-engine's words (Java's
+    // emitOtherwiseEmbeddedHop; the normalizer's second batch, item 1, JCE:192-213, 2026-11-15)
+    if knowledge.hierarchy_class(Some(target_class_fqn)).is_none() {
+        return Err(Thrown::model(
+            Phase::Normalize,
+            JStr::from("only complex classes can be the target of an embedded property mapping"),
+            None,
+        ));
+    }
     if !p.ledger()?.is_mapped(target_class_fqn) {
         return Err(Thrown::not_implemented(cat!(
             "OtherwiseEmbedded PM '",
@@ -557,15 +566,6 @@ pub fn emit_join_chain_routed(
                 None,
                 None,
             ));
-            // The condition speaks TABLE-row scope while the slot's thunk is the CLASS extent -- spell the target's
-            // table row into the call; a VIEW target navigates over the view's RELATION (computed, as Java does, even
-            // where the routed form below does not use it)
-            let target_rows = match &view_target {
-                Some(vt) => p
-                    .views
-                    .body(model.find_view(&hop_db, vt).ok_or_else(Thrown::no_such_element)?)?,
-                None => table_reference(&hop_db, &target_table),
-            };
             // ROUTED union navigation: ONE navigate carries every route the author wrote (legacy routes as
             // composition) -- each names the target SET'S OWN FUNCTION, its rows and its join as written
             let routes = prop_name.and_then(|n| p.union_routes.get(n)).cloned();
@@ -586,10 +586,22 @@ pub fn emit_join_chain_routed(
                     )?;
                     exact(lite::LEGACY_NAVIGATE, vec![expr, slot, collection(list)])
                 }
-                None => exact(
-                    lite::LEGACY_NAVIGATE,
-                    vec![expr, slot, target_rows, V::LambdaFunction(cond_lambda)],
-                ),
+                None => {
+                    // The condition speaks TABLE-row scope while the slot's thunk is the CLASS extent -- spell the
+                    // target's table row into the call; a VIEW target navigates over the view's RELATION. Built on
+                    // this arm alone, as Java's: a routed navigation never reads it and a walled view's body refuses
+                    // (until 2026-11-15 built first: the normalizer's second batch, item 1, JCE:415-419)
+                    let target_rows = match &view_target {
+                        Some(vt) => p
+                            .views
+                            .body(model.find_view(&hop_db, vt).ok_or_else(Thrown::no_such_element)?)?,
+                        None => table_reference(&hop_db, &target_table),
+                    };
+                    exact(
+                        lite::LEGACY_NAVIGATE,
+                        vec![expr, slot, target_rows, V::LambdaFunction(cond_lambda)],
+                    )
+                }
             };
             p.class_slots.insert(slot_alias.clone());
         } else {
@@ -781,7 +793,7 @@ pub fn route_list(
                     &hop.join_name,
                     prop_name,
                     chain.len() as i32,
-                    md.qualified_name(),
+                    &cat!("mapping=", md.qualified_name()),
                 )?,
             };
             let rows = match (rf_member, model.find_view(db, &tgt)) {
@@ -853,11 +865,9 @@ pub fn mint_nav_slot_alias(
     if let Some(known) = p.nav_slot_by_prop.get(prop_name) {
         return known.clone();
     }
-    // the schema stripped (`SCHEMA.TABLE` asks the default schema's TABLE: the census's surprise, ported)
-    let table_name = match lite_model::text::last_index_of(&main_table.0, &[u16::from(b'.')]) {
-        Some(dot) => JStr::from(&main_table.0[dot + 1..]),
-        None => main_table.clone(),
-    };
+    // the main table as written, its schema kept: `S2.T` is schema S2's T (until 2026-11-15 the schema was stripped, so
+    // `S2.T` asked the default schema's T: the normalizer's second batch, item 1, JCE:624-633; ruling 37 (b))
+    let table_name = main_table.clone();
     // include-aware: the main table may live in an INCLUDED database. A slot named after the platform's RELATION
     // accessors (`columns`, `rows`) would read as the accessor on the row var -- mint clear. The column test ignores
     // case: the slot and the column share one SQL row, where an unquoted `mid` and `MID` are the same name.
@@ -1102,8 +1112,8 @@ pub fn hop_target(
     // view landing is recognizable here too
     let join_cond =
         mapping_normalizer::resolve_view_refs_in_join(join_cond, hop_db, prev_table, model, md, None, None)?;
-    // Java passes `ViewRelation.owner(md, hopDb)` (`mapping=<fqn>`) where the callee prints `mapping=` + its
-    // argument: the text reads `mapping=mapping=<fqn>` (a Java quirk, ported)
+    // the owner's whole label, `mapping=<fqn>` or a view's `store=<db>` (until 2026-11-15 the callee added `mapping=`
+    // before it: `mapping=mapping=<fqn>`, the normalizer's second batch, item 1, JCE:843)
     let nested = JStr::from("<nested>");
     let target_table = mapping_normalizer::determine_target_table(
         &join_cond,
@@ -1689,10 +1699,12 @@ Mapping a::M
             mint_nav_slot_alias(&mut p, &idx, &db, &person, &j("firms")),
             j("firms__")
         );
-        // a schema-qualified main table asks its default-schema namesake
+        // a schema-qualified main table asks ITS schema's table: MODEL declares no schema S, so S.PERSON has no NAME
+        // column to collide with (until 2026-11-15 the schema was stripped and PERSON's NAME answered `name_nav`: the
+        // normalizer's second batch, item 1, JCE:624-633)
         assert_eq!(
             mint_nav_slot_alias(&mut p, &idx, &db, &j("S.PERSON"), &j("name")),
-            j("name_nav")
+            j("name")
         );
         assert_eq!(
             mint_nav_slot_alias(&mut p, &idx, &db, &j("FIRM"), &j("other")),
@@ -2087,13 +2099,15 @@ Mapping a::M
                 "OtherwiseEmbedded PM 'firm': unknown owner class 'a::Nope'; mapping=a::M"
             ))
         );
-        // a primitive's type is a name too: not "non-class", but a class no closure maps
+        // a primitive's type is a name too: the model's error, in legend-engine's words (until 2026-11-15 a class no
+        // closure maps, "OtherwiseEmbedded PM 'name' target class 'meta::pure::metamodel::type::String' is not mapped":
+        // the normalizer's second batch, item 1, JCE:192-213)
         let e = otherwise_err(otherwise("name", join_pm("name", None)), "a::Person");
-        assert!(e.is_not_implemented(), "{e:?}");
+        assert!(e.is_model(), "{e:?}");
         assert_eq!(
             e.message(),
             Some(j(
-                "OtherwiseEmbedded PM 'name' target class 'meta::pure::metamodel::type::String' is not mapped; mapping=a::M"
+                "only complex classes can be the target of an embedded property mapping"
             ))
         );
         // a property the class has not: no type
