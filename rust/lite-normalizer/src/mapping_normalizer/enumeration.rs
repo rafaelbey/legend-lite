@@ -291,7 +291,9 @@ Mapping a::M
     }
 
     fn call_of(v: &VS) -> (JStr, Vec<VS>) {
-        let VS::AppliedFunction(af) = v else { panic!("a call: {v:?}") };
+        let VS::AppliedFunction(af) = v else {
+            panic!("a call: {v:?}")
+        };
         (af.function.clone(), af.parameters.to_vec())
     }
 
@@ -301,7 +303,9 @@ Mapping a::M
     }
 
     fn body(v: &VS) -> VS {
-        let VS::LambdaFunction(l) = v else { panic!("a lambda: {v:?}") };
+        let VS::LambdaFunction(l) = v else {
+            panic!("a lambda: {v:?}")
+        };
         l.body[0].clone()
     }
 
@@ -368,7 +372,9 @@ Mapping a::M
         let unknown = translate_enumerated_source(&j("e"), Some(&j("Q")), &row_read(), &md, &owner, &idx).unwrap_err();
         assert_eq!(
             unknown.message(),
-            Some(j("enum-mapped property 'e' references unknown enum mapping 'Q'; mapping=a::M"))
+            Some(j(
+                "enum-mapped property 'e' references unknown enum mapping 'Q'; mapping=a::M"
+            ))
         );
         // the anonymous path's internal error, its own text
         let ise = translate_enumerated_source(&j("e"), None, &row_read(), &md, &j("a::Nope"), &idx).unwrap_err();

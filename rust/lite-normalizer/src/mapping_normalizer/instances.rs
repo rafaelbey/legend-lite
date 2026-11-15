@@ -119,13 +119,15 @@ pub fn build_new_instance_to_one(
                 "to",
                 vec![
                     v,
-                    VS::TypeAnnotation(p::TypeAnnotation::TypeAnnotationNamed(Arc::new(p::TypeAnnotationNamed {
-                        r#type: p::TypeExpression::TypeExpressionNameRef(Box::new(p::TypeExpressionNameRef {
-                            name: prim.clone(),
+                    VS::TypeAnnotation(p::TypeAnnotation::TypeAnnotationNamed(Arc::new(
+                        p::TypeAnnotationNamed {
+                            r#type: p::TypeExpression::TypeExpressionNameRef(Box::new(p::TypeExpressionNameRef {
+                                name: prim.clone(),
+                                pos: None,
+                            })),
                             pos: None,
-                        })),
-                        pos: None,
-                    }))),
+                        },
+                    ))),
                 ],
             );
         }
@@ -167,7 +169,10 @@ pub fn booleanize_case_literals(v: &p::ValueSpecification) -> p::ValueSpecificat
             return VS::CBoolean(Arc::new(p::CBoolean { value: true, pos: None }));
         }
         if cs.value == "false" {
-            return VS::CBoolean(Arc::new(p::CBoolean { value: false, pos: None }));
+            return VS::CBoolean(Arc::new(p::CBoolean {
+                value: false,
+                pos: None,
+            }));
         }
         return v.clone();
     }
@@ -236,9 +241,13 @@ Class a::P
     }
 
     fn bindings(v: &VS) -> Vec<(JStr, VS)> {
-        let VS::AppliedFunction(af) = v else { panic!("a call: {v:?}") };
+        let VS::AppliedFunction(af) = v else {
+            panic!("a call: {v:?}")
+        };
         assert_eq!(af.function, j("new"));
-        let VS::NewInstance(ni) = &af.parameters[1] else { panic!("^C(...)") };
+        let VS::NewInstance(ni) = &af.parameters[1] else {
+            panic!("^C(...)")
+        };
         ni.properties
             .iter()
             .map(|b| (b.key.clone(), b.expression.value.clone()))
@@ -246,13 +255,18 @@ Class a::P
     }
 
     fn function(v: &VS) -> JStr {
-        let VS::AppliedFunction(af) = v else { panic!("a call: {v:?}") };
+        let VS::AppliedFunction(af) = v else {
+            panic!("a call: {v:?}")
+        };
         af.function.clone()
     }
 
     #[test]
     fn simple_type_name_is_the_text_after_the_last_separator() {
-        assert_eq!(simple_type_name(&j("meta::pure::metamodel::type::Integer")), j("Integer"));
+        assert_eq!(
+            simple_type_name(&j("meta::pure::metamodel::type::Integer")),
+            j("Integer")
+        );
         assert_eq!(simple_type_name(&j("Integer")), j("Integer"));
         assert_eq!(simple_type_name(&j("a::")), j(""));
     }
@@ -260,7 +274,10 @@ Class a::P
     #[test]
     fn no_target_class_is_javas_null_pointer() {
         let e = build_new_instance(None, &Fields::new()).unwrap_err();
-        assert_eq!(e, Thrown::null_pointer(Some("instance construction without a target class")));
+        assert_eq!(
+            e,
+            Thrown::null_pointer(Some("instance construction without a target class"))
+        );
         let parsed = model(MODEL);
         let idx = index(&parsed);
         let mut fields = Fields::new();
@@ -310,19 +327,33 @@ Class a::P
         assert_eq!(bs[4].1, cstring("z"));
         // the Boolean CASE: trustOne(if(true, {|true}, {|'no'})), the literal booleanized, the other string kept
         let VS::AppliedFunction(trust) = &bs[2].1 else { panic!() };
-        let VS::AppliedFunction(iff) = &trust.parameters[0] else { panic!() };
-        let VS::LambdaFunction(then) = &iff.parameters[1] else { panic!() };
-        assert_eq!(then.body[0], VS::CBoolean(Arc::new(p::CBoolean { value: true, pos: None })));
-        let VS::LambdaFunction(other) = &iff.parameters[2] else { panic!() };
+        let VS::AppliedFunction(iff) = &trust.parameters[0] else {
+            panic!()
+        };
+        let VS::LambdaFunction(then) = &iff.parameters[1] else {
+            panic!()
+        };
+        assert_eq!(
+            then.body[0],
+            VS::CBoolean(Arc::new(p::CBoolean { value: true, pos: None }))
+        );
+        let VS::LambdaFunction(other) = &iff.parameters[2] else {
+            panic!()
+        };
         assert_eq!(other.body[0], cstring("no"));
         // the platform-FQN primitive: trustOne(to(get(..), @Integer))
-        let VS::AppliedFunction(trust_n) = &bs[3].1 else { panic!() };
+        let VS::AppliedFunction(trust_n) = &bs[3].1 else {
+            panic!()
+        };
         assert_eq!(function(&trust_n.parameters[0]), j("to"));
         // an exempt value is not trusted
         let mut nav = Fields::new();
         nav.put(
             j("name"),
-            key(VS::AppliedFunction(Arc::new(calls::exact(&j(lite::OTHERWISE), vec![cstring("a")])))),
+            key(VS::AppliedFunction(Arc::new(calls::exact(
+                &j(lite::OTHERWISE),
+                vec![cstring("a")],
+            )))),
         );
         let built = build_new_instance_to_one(Some(&j("a::P")), &nav, &idx).unwrap();
         assert_eq!(function(&bindings(&built)[0].1), j(lite::OTHERWISE));
@@ -332,7 +363,10 @@ Class a::P
     fn booleanize_keeps_any_other_string() {
         assert_eq!(
             booleanize_case_literals(&cstring("false")),
-            VS::CBoolean(Arc::new(p::CBoolean { value: false, pos: None }))
+            VS::CBoolean(Arc::new(p::CBoolean {
+                value: false,
+                pos: None
+            }))
         );
         assert_eq!(booleanize_case_literals(&cstring("TRUE")), cstring("TRUE"));
     }

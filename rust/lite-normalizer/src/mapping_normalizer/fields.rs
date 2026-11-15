@@ -64,7 +64,8 @@ pub fn translate_pm_to_field(
     }
     Ok(match pm {
         PropertyMapping::PropertyMappingEnumeratedExpression(ee) => {
-            let read = rel_op_translator::translate(&ee.expression, table_scope, None, Some(row_bind), pipeline.view())?;
+            let read =
+                rel_op_translator::translate(&ee.expression, table_scope, None, Some(row_bind), pipeline.view())?;
             let value = translate_enumerated_source(
                 &ee.property_name,
                 ee.enum_mapping_id.as_ref(),
@@ -76,25 +77,38 @@ pub fn translate_pm_to_field(
             field(&ee.property_name, value, false)
         }
         PropertyMapping::PropertyMappingColumn(col) => {
-            let read = rel_op_translator::column_read(&col.table, &col.column, table_scope, default_table, pipeline.view())?;
+            let read =
+                rel_op_translator::column_read(&col.table, &col.column, table_scope, default_table, pipeline.view())?;
             pipeline.ledger()?;
             let value = declared_coercions::coerce_column_to_declared(&read, col, owner_class_fqn, model)?;
             field(&col.property_name, value, false)
         }
         PropertyMapping::PropertyMappingEnumeratedColumn(ec) => {
-            let value =
-                translate_enumerated_column(ec, table_scope, default_table, md, Some(&*pipeline), owner_class_fqn, model)?;
+            let value = translate_enumerated_column(
+                ec,
+                table_scope,
+                default_table,
+                md,
+                Some(&*pipeline),
+                owner_class_fqn,
+                model,
+            )?;
             field(&ec.property_name, value, false)
         }
         PropertyMapping::PropertyMappingExpression(expr) => {
             let read =
                 rel_op_translator::translate(&expr.expression, table_scope, None, Some(row_bind), pipeline.view())?;
-            let value =
-                declared_coercions::coerce_to_declared_numeric(&read, &expr.property_name, Some(owner_class_fqn), model)?;
+            let value = declared_coercions::coerce_to_declared_numeric(
+                &read,
+                &expr.property_name,
+                Some(owner_class_fqn),
+                model,
+            )?;
             field(&expr.property_name, value, false)
         }
         PropertyMapping::PropertyMappingJoin(j) => {
-            let target_if_mapped = join_chain_emission::class_typed_target(Some(owner_class_fqn), &j.property_name, model)?;
+            let target_if_mapped =
+                join_chain_emission::class_typed_target(Some(owner_class_fqn), &j.property_name, model)?;
             let slot = if target_if_mapped.is_some() {
                 join_chain_emission::nav_slot_for(pipeline, &j.property_name)?
             } else {
@@ -576,7 +590,9 @@ Mapping a::M
         let e = inl(&inline("addr", "nope"), &mut pl, &owner).unwrap_err();
         assert_eq!(
             e.message(),
-            Some(j("InlineEmbedded PM 'addr' references unknown setId 'nope' in mapping=a::M"))
+            Some(j(
+                "InlineEmbedded PM 'addr' references unknown setId 'nope' in mapping=a::M"
+            ))
         );
         let e = inl(&inline("addr", "dup"), &mut pl, &owner).unwrap_err();
         assert_eq!(
@@ -612,24 +628,63 @@ Mapping a::M
         assert!(spliced.is_err());
         assert_eq!(pl.inline_stack.to_vec(), vec![j("outer")]);
         // an embedded block of an unknown owner, and of a property with no class type
-        let e = materialize_embedded(&j("addr"), &[], &row(), &scope, &j("T"), &mut pl, &j("a::Nope"), &md, &idx, None)
-            .unwrap_err();
+        let e = materialize_embedded(
+            &j("addr"),
+            &[],
+            &row(),
+            &scope,
+            &j("T"),
+            &mut pl,
+            &j("a::Nope"),
+            &md,
+            &idx,
+            None,
+        )
+        .unwrap_err();
         assert_eq!(
             e.message(),
-            Some(j("Embedded PM 'addr' on 'a::Nope' but owner class unknown; mapping=a::M"))
+            Some(j(
+                "Embedded PM 'addr' on 'a::Nope' but owner class unknown; mapping=a::M"
+            ))
         );
         // (a primitive is a name too: only a property with no name type -- here none at all -- is loud)
-        let e = materialize_embedded(&j("nosuch"), &[], &row(), &scope, &j("T"), &mut pl, &owner, &md, &idx, None)
-            .unwrap_err();
+        let e = materialize_embedded(
+            &j("nosuch"),
+            &[],
+            &row(),
+            &scope,
+            &j("T"),
+            &mut pl,
+            &owner,
+            &md,
+            &idx,
+            None,
+        )
+        .unwrap_err();
         assert_eq!(
             e.message(),
-            Some(j("Embedded PM 'nosuch' on 'a::P' has non-class property type; mapping=a::M"))
+            Some(j(
+                "Embedded PM 'nosuch' on 'a::P' has non-class property type; mapping=a::M"
+            ))
         );
         // an empty block: ^Addr() (no binding to wrap)
-        let built = materialize_embedded(&j("addr"), &[], &row(), &scope, &j("T"), &mut pl, &owner, &md, &idx, None)
-            .unwrap();
+        let built = materialize_embedded(
+            &j("addr"),
+            &[],
+            &row(),
+            &scope,
+            &j("T"),
+            &mut pl,
+            &owner,
+            &md,
+            &idx,
+            None,
+        )
+        .unwrap();
         let VS::AppliedFunction(af) = &built else { panic!() };
-        let VS::NewInstance(ni) = &af.parameters[1] else { panic!() };
+        let VS::NewInstance(ni) = &af.parameters[1] else {
+            panic!()
+        };
         assert_eq!(ni.class_name, j("a::Addr"));
     }
 }

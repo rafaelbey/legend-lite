@@ -213,12 +213,14 @@ mod tests {
             Some(j("~filter 'F' not found in db 'a::db'; class=a::P, mapping=a::M"))
         );
         // a local filter of a chain with no database: 'null'
-        rcm.filter = Some(FilterMapping::FilterMappingJoinMediated(Arc::new(FilterMappingJoinMediated {
-            source_db: None,
-            joins: lite_model::linked::empty(),
-            filter: FilterPointer::FilterPointerLocal(Arc::new(FilterPointerLocal { name: j("F") })),
-            join_type: None,
-        })));
+        rcm.filter = Some(FilterMapping::FilterMappingJoinMediated(Arc::new(
+            FilterMappingJoinMediated {
+                source_db: None,
+                joins: lite_model::linked::empty(),
+                filter: FilterPointer::FilterPointerLocal(Arc::new(FilterPointerLocal { name: j("F") })),
+                join_type: None,
+            },
+        )));
         let e = apply_filter(&src, &rcm, &row, &j("a::db"), &j("T"), &mut pl, &idx, &md).unwrap_err();
         assert_eq!(
             e.message(),

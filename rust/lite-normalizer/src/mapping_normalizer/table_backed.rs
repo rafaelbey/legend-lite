@@ -14,8 +14,7 @@ use lite_front::records as p;
 use lite_front::records::ValueSpecification as VS;
 use lite_model::linked::{LinkedMap, empty};
 use lite_model::{
-    ClassMapping, ClassMappingRelational, FilterMapping, FilterPointer, JStr, PropertyMapping, RelationalOperation,
-    cat,
+    ClassMapping, ClassMappingRelational, FilterMapping, FilterPointer, JStr, PropertyMapping, RelationalOperation, cat,
 };
 use lite_names::{ModelIndex, calls};
 
@@ -532,7 +531,13 @@ mod tests {
         let mut rcm = relational(
             "a::P",
             None,
-            vec![join_pm("firm", Some("f1")), join_pm("firm", Some("f1")), local, oe, join_pm("plain", None)],
+            vec![
+                join_pm("firm", Some("f1")),
+                join_pm("firm", Some("f1")),
+                local,
+                oe,
+                join_pm("plain", None),
+            ],
         );
         rcm.property_target_sets = list(vec![(j("firm"), j("f3")), (j("o"), j("fb"))]);
         let pins = property_pins_of(&rcm);

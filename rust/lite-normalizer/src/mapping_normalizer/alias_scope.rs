@@ -13,8 +13,8 @@ use lite_front::records::ValueSpecification as VS;
 use lite_model::linked::LinkedMap;
 use lite_model::{
     JStr, RelationalOperation as Op, RelationalOperationBooleanOp, RelationalOperationComparison,
-    RelationalOperationFunctionCall, RelationalOperationGroup, RelationalOperationIsNotNull,
-    RelationalOperationIsNull, cat,
+    RelationalOperationFunctionCall, RelationalOperationGroup, RelationalOperationIsNotNull, RelationalOperationIsNull,
+    cat,
 };
 use lite_names::ModelIndex;
 use lite_names::model_index::java_list;
@@ -202,10 +202,12 @@ pub fn resolve_view_refs_in_join_keeping(
         ))),
         Op::RelationalOperationFunctionCall(f) => {
             let args = f.args.iter().map(rec).collect::<Result<Vec<Op>, Thrown>>()?;
-            Ok(Op::RelationalOperationFunctionCall(Arc::new(RelationalOperationFunctionCall {
-                name: f.name.clone(),
-                args: args.into(),
-            })))
+            Ok(Op::RelationalOperationFunctionCall(Arc::new(
+                RelationalOperationFunctionCall {
+                    name: f.name.clone(),
+                    args: args.into(),
+                },
+            )))
         }
         // `op.mapChildren(..)`: only the identity of an unchanged node differs, and nothing reads it
         Op::RelationalOperationTargetColumnRef(_)
@@ -213,9 +215,9 @@ pub fn resolve_view_refs_in_join_keeping(
         | Op::RelationalOperationArrayLiteral(_)
         | Op::RelationalOperationJoinNavigation(_)
         | Op::RelationalOperationLambda(_)
-        | Op::RelationalOperationLambdaParam(_) => Ok(op
-            .try_map_children(|x| rec(x).map(Some))?
-            .unwrap_or_else(|| op.clone())),
+        | Op::RelationalOperationLambdaParam(_) => {
+            Ok(op.try_map_children(|x| rec(x).map(Some))?.unwrap_or_else(|| op.clone()))
+        }
     }
 }
 
@@ -424,12 +426,21 @@ Database a::db
         assert!(!contains_target_column_ref(&eq(col("T", "ID"), col("U", "T_ID"))).unwrap());
         // a marker: the source table, loud when there is none
         assert_eq!(
-            determine_target_table(&eq(target("X"), col("T", "ID")), Some(&j("T")), &j("J"), None, 0, &j("m")),
+            determine_target_table(
+                &eq(target("X"), col("T", "ID")),
+                Some(&j("T")),
+                &j("J"),
+                None,
+                0,
+                &j("m")
+            ),
             Ok(j("T"))
         );
         assert_eq!(
             determine_target_table(&eq(target("X"), col("T", "ID")), None, &j("J"), None, 0, &j("m")),
-            Err(Thrown::null_pointer(Some("target-column-ref join condition with unknown source table")))
+            Err(Thrown::null_pointer(Some(
+                "target-column-ref join condition with unknown source table"
+            )))
         );
     }
 
@@ -449,8 +460,8 @@ Database a::db
         let out = resolve_view_refs_in_join(&cond, &db, Some(&j("T")), &idx, None, None, Some(&j("VV"))).unwrap();
         assert_eq!(out, eq(col("V", "vid"), col("U", "T_ID")));
         // either side, the source frame kept verbatim
-        let out = resolve_view_refs_in_join_keeping(&cond, &db, Some(&j("VV")), &idx, None, None, None, None, true)
-            .unwrap();
+        let out =
+            resolve_view_refs_in_join_keeping(&cond, &db, Some(&j("VV")), &idx, None, None, None, None, true).unwrap();
         assert_eq!(out, cond);
         assert!(view_chain_reaches(&j("VV"), Some(&j("T")), &db, None, &idx).unwrap());
         assert!(!view_chain_reaches(&j("VV"), Some(&j("U")), &db, None, &idx).unwrap());
@@ -514,7 +525,9 @@ Database a::db
         // the main table T: its first alias; U: ambiguous, unbound; the class slot: skipped
         let keys: Vec<JStr> = scope.iter().map(|(k, _)| k.clone()).collect();
         assert_eq!(keys, vec![j("T")]);
-        let Some(VS::AppliedProperty(ap)) = scope.get(&j("T")) else { panic!() };
+        let Some(VS::AppliedProperty(ap)) = scope.get(&j("T")) else {
+            panic!()
+        };
         assert_eq!(ap.property, j("t1"));
         assert!(p.ambiguous_tables.contains(&j("U")) && !p.ambiguous_tables.contains(&j("T")));
     }
