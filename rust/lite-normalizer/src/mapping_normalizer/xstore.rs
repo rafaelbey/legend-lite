@@ -25,7 +25,7 @@ use lite_builtin::pure::{NativeId, lite};
 use lite_error::Phase;
 use lite_front::records as p;
 use lite_model::linked::LinkedMap;
-use lite_model::{AssociationMappingCross, AssociationMappingModelJoin, FunctionDefinition, JStr, cat};
+use lite_model::{AssociationMappingCross, AssociationMappingModelJoin, ClassMapping, FunctionDefinition, JStr, cat};
 use lite_names::{ModelIndex, resolved_names};
 
 use crate::error::{Thrown, require};
@@ -136,13 +136,30 @@ pub fn synthesize_xstore_mapping(
     let end_a = xstore_pure_ends::xstore_end_of(md, class_a, set_a, model)?;
     let end_b = xstore_pure_ends::xstore_end_of(md, class_b, set_b, model)?;
     // route A (docs/XSTORE_LEG.md): a Pure-set end, or a table-backed end whose column view is LOSSY, takes the
-    // property-space emission, sets pinned by id; an exact view keeps the column-space emission
-    let reads = if end_a.pure || end_b.pure || end_a.lossy_view || end_b.lossy_view {
+    // property-space emission, sets pinned by id; an exact view keeps the column-space emission. An end on a
+    // Relational set that is not its class's root set takes route A too (since 2026-11-15, the normalizer's second
+    // batch, item 1, XS:140: the column-space route joined the root set's table)
+    let reads = if end_a.pure
+        || end_b.pure
+        || end_a.lossy_view
+        || end_b.lossy_view
+        || non_root_relational_end(md, &end_a)?
+        || non_root_relational_end(md, &end_b)?
+    {
         XStoreReads::PropertySpace
     } else {
         XStoreReads::ColumnSpace
     };
     xstore_pure_ends::synthesize(md, xs, ad, class_a, class_b, &end_a, &end_b, model, reads)
+}
+
+/// `MappingNormalizer.nonRootRelationalEnd`: whether an XStore end names a Relational set that is not its class's root
+/// (or sole) set.
+fn non_root_relational_end(md: &ResolvedMapping<'_>, end: &xstore_pure_ends::XEnd) -> Result<bool, Thrown> {
+    Ok(match md.set(Some(&end.set_id))? {
+        Some(set @ ClassMapping::ClassMappingRelational(_)) => !md.is_root_or_sole(&set),
+        _ => false,
+    })
 }
 
 /// `MappingNormalizer.synthesizeModelJoinMapping` (:1069): a ModelJoin association's predicate function (the lambda's
@@ -169,9 +186,12 @@ pub fn synthesize_model_join_mapping(
         )
     })?;
     // ends resolve like the XStore path: a Relation(~func) set directly, or a TABLE-BACKED Relational set converted to
-    // its column view
-    let end_a = xstore_pure_ends::xstore_end_of(md, class_a, None, model)?;
-    let end_b = xstore_pure_ends::xstore_end_of(md, class_b, None, model)?;
+    // its column view; each its class's ROOT set (until 2026-11-15 the class's first set found in the closure: the
+    // normalizer's second batch, item 1, MN:1080)
+    let root_a = xstore_pure_ends::root_end_id(md, class_a);
+    let root_b = xstore_pure_ends::root_end_id(md, class_b);
+    let end_a = xstore_pure_ends::xstore_end_of(md, class_a, root_a.as_ref(), model)?;
+    let end_b = xstore_pure_ends::xstore_end_of(md, class_b, root_b.as_ref(), model)?;
     if end_a.pure || end_b.pure {
         return Err(Thrown::not_implemented(cat!(
             "ModelJoin association '",

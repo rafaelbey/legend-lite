@@ -69,6 +69,15 @@ final class XStorePureEnds {
         }
     }
 
+    /** The id of {@code classFqn}'s ROOT set when it is a set an end can be (a Relation, Relational or Pure set),
+     *  else null (the first set of the class an end can be): a ModelJoin's ends (since 2026-11-15, the normalizer's
+     *  second batch, item 1, MN:1080 and MJN:85-93). */
+    static @com.legend.base.Nullable String rootEndId(ResolvedMapping md, String classFqn) {
+        ClassMapping root = md.roots().get(classFqn);
+        return root instanceof ClassMapping.RelationFunction || root instanceof ClassMapping.Relational
+                || root instanceof ClassMapping.Pure ? ResolvedMapping.idOf(root) : null;
+    }
+
     static XEnd xstoreEndOf(ResolvedMapping md,
             String classFqn, @com.legend.base.Nullable String setId, ModelBuilder model) {
         // the end sets may live in INCLUDED mappings (modelJoins:

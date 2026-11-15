@@ -52,9 +52,10 @@ attribution-2026-11-15-normalizer-batch.tsv	the batch's re-freezes' attribution:
 # below: item, sha, dialect, the hash before and after; each moved ask one the batch's instrumented reach run tagged
 # with that item's site, none moved untagged). The asks and texts are unchanged (74,364 over 26,348). By item:
 #   1a: 42 asks over 14 texts -- item 1 (ruling 37 (b); the base 0f4f0d0b0), the JCE group: a property mapping's join chain that leaves its table is the engine's "Mapping error: the join J does not contain the source table T" (36 / 12, ENGINE-SOURCED run), a hop's text names its owner once, mapping= not mapping=mapping= (3 / 1, the text), an otherwise-embedded primitive is "only complex classes can be the target of an embedded property mapping" (3 / 1, run); the schema-qualified slot and the walled view's routed navigation move nothing
+#   1c: 9 asks over 3 texts -- item 1, the association group: an XStore line naming a non-root Relational set navigates through that set (route A, its sets pinned by id), as legend-engine joins the set the line names (9 / 3, ENGINE-SOURCED run); AS:87 and the ModelJoin ends move nothing
 # RE-FROZEN BY THE NORMALIZER'S SECOND BATCH (end)
-attribution-2026-11-15-normalizer-batch2.tsv	the second batch's re-freezes' attribution: item, text sha, dialect, hash before, hash after (plain text: its own SHA-256)	970743a6d713290562fbafba3b6e108863b9ff8222a11b9cf54e855926674d54
-answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines	6b59625035dba5973e7bb3daf599c7fe83278e10cb9d12fcccc20f9eb3bc30d9
+attribution-2026-11-15-normalizer-batch2.tsv	the second batch's re-freezes' attribution: item, text sha, dialect, hash before, hash after (plain text: its own SHA-256)	b8f76050bbf953f3edf37b091c4ad055e001bbf073a0b936201e418edf08d81b
+answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines	b0c7a54958c77dfa12f42e3726405a18eff1b8be33f875652d5ddb05e34c3619
 # CASES: the slice's targeted model texts for the oracle-blind sites (EF_CENSUS.md §10 item 3, E's), in the front
 # oracle's question form ({"sha","asks","text"}, the sha the SHA-256 of the text's UTF-16 units, asked at every
 # dialect), written by port-scratch/normalizer/tools/make_cases.py: ten cases -- a view-on-view cycle mapped and alone,

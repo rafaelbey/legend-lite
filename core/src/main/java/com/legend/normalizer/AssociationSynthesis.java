@@ -66,10 +66,14 @@ final class AssociationSynthesis {
         closure.add(md);
         closure.addAll(MappingClosures.of(model).closure(md.qualifiedName()).mappings());
         List<AssociationMapping.Relational> rels = new ArrayList<>();
+        // the mapping each association mapping is written in: its association's simple name resolves through THAT
+        // mapping's imports (2026-11-15, below)
+        List<String> relOwners = new ArrayList<>();
         for (LegacyMappingDefinition m : closure) {
             for (AssociationMapping am : m.associationMappings()) {
                 if (am instanceof AssociationMapping.Relational r) {
                     rels.add(r);
+                    relOwners.add(m.qualifiedName());
                 }
             }
         }
@@ -78,13 +82,21 @@ final class AssociationSynthesis {
         // injections (pair entries bind to their SOURCE set only)
         Map<String, List<PropertyMapping>> byClass = new LinkedHashMap<>();
         Map<String, Map<String, List<PropertyMapping>>> bySet = new LinkedHashMap<>();
-        for (AssociationMapping.Relational rel : rels) {
+        for (int ri = 0; ri < rels.size(); ri++) {
+            AssociationMapping.Relational rel = rels.get(ri);
             // an included mapping's association mapping of an association the model has not: its pre-pass refused it
             // (a strict build stops there; a module walls that mapping), but this mapping's closure still reads its
             // surface. The model's error, in legend-engine's words, as MappingClosures' same lookup says it. Until
             // 2026-11-14 the never-fired funnel's "AssociationSynthesis#1", a raw IllegalStateException from 14 of the
             // front oracle's texts, tolerant only (ruling 29, the normalizer slice's step 1; RefusalsNotCrashesTest)
-            AssociationDefinition ad = model.findAssociation(rel.associationName()).orElseThrow(() ->
+            // The name resolves as the synthesis resolves it -- exact, else through the import wildcards of the
+            // mapping the association mapping is written in -- where it was looked up exactly, so a simple name an
+            // import brings in (a mapping a tolerant build walled in name resolution keeps its text as written) was
+            // refused here first; legend-engine resolves it through the section's imports (CompileContext; asked: such
+            // an association mapping compiles). Until 2026-11-15 (the normalizer's second batch, item 1, AS:87;
+            // ENGINE-SOURCED read, the residue a tolerant build's: a strict one's name resolution qualifies the name
+            // first)
+            AssociationDefinition ad = resolveAssociation(model, relOwners.get(ri), rel.associationName()).orElseThrow(() ->
                     new ModelException(LegendCompileException.Phase.MAPPING,
                             "Can't find association '" + rel.associationName() + "'"));
             // per (source set, property): a pair group whose TARGET class
@@ -382,12 +394,17 @@ final class AssociationSynthesis {
     static java.util.Optional<AssociationDefinition> resolveAssociation(
             ModelBuilder model, ResolvedMapping md,
             AssociationMapping am) {
-        String name = am.associationName();
+        return resolveAssociation(model, md.qualifiedName(), am.associationName());
+    }
+
+    /** {@code name} as the mapping {@code mappingFqn} names it: exact, else through that mapping's import wildcards. */
+    static java.util.Optional<AssociationDefinition> resolveAssociation(
+            ModelBuilder model, String mappingFqn, String name) {
         var direct = model.findAssociation(name);
         if (direct.isPresent() || name.contains("::")) {
             return direct;
         }
-        for (String pkg : model.importsOf(md.qualifiedName()).wildcards()) {
+        for (String pkg : model.importsOf(mappingFqn).wildcards()) {
             var hit = model.findAssociation(pkg + "::" + name);
             if (hit.isPresent()) {
                 return hit;

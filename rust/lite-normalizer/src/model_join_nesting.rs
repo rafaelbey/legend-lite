@@ -24,7 +24,7 @@ use crate::error::{Thrown, require};
 use crate::mapping_normalizer::name_ref_or_null;
 use crate::relation_reads;
 use crate::resolved_mapping::ResolvedMapping;
-use crate::xstore_pure_ends::{variable, xstore_end_of};
+use crate::xstore_pure_ends::{root_end_id, variable, xstore_end_of};
 
 use p::ValueSpecification as V;
 
@@ -89,15 +89,22 @@ pub fn compose(
         } else {
             target_class_fqn(&nad.property2)?
         };
-        // the last ModelJoin of this mapping over the nested association (no break: the last match wins)
+        // the nested association's ModelJoin: this mapping's, else the first include's (depth-first, include order)
+        // that has one, the last of a mapping (until 2026-11-15 this mapping's own alone: the normalizer's second
+        // batch, item 1, MJN:85-93)
         let mut nmj: Option<Arc<AssociationMappingModelJoin>> = None;
-        for am2 in md.association_mappings().iter() {
-            if let AssociationMapping::AssociationMappingModelJoin(cand) = am2
-                && model
-                    .find_association(&cand.association_name)
-                    .is_some_and(|x| x.qualified_name == nad.qualified_name)
-            {
-                nmj = Some(cand.clone());
+        for m in md.closure() {
+            for am2 in m.association_mappings.iter() {
+                if let AssociationMapping::AssociationMappingModelJoin(cand) = am2
+                    && model
+                        .find_association(&cand.association_name)
+                        .is_some_and(|x| x.qualified_name == nad.qualified_name)
+                {
+                    nmj = Some(cand.clone());
+                }
+            }
+            if nmj.is_some() {
+                break;
             }
         }
         let Some(nmj) = nmj else {
@@ -113,7 +120,7 @@ pub fn compose(
                 "' which has no ModelJoin in this mapping — only ModelJoin-backed nested hops compose yet"
             )));
         };
-        let n_end = xstore_end_of(md, &nested_cls, None, model)?;
+        let n_end = xstore_end_of(md, &nested_cls, root_end_id(md, &nested_cls).as_ref(), model)?;
         let n_rf = n_end.cols_view.clone();
         // the nested end is the stock NAVIGATE step ("both XStore and ModelJoin are just navigate()") -- the
         // ColSpec-join spelling every @Join property emission uses, so demand / materialization / prefixing are the

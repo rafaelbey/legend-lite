@@ -273,4 +273,147 @@ class NormalizerBatch2Test {
                 + " not supported. owner=CN, hop 1, store=w::Db"), chain.walls());
         assertEquals(java.util.Optional.empty(), chain.context().mappingPoison("w::M", "w::P"));
     }
+
+    // ---- item 1, AS:87, XS:140, MN:1080 and MJN:85-93: association mappings' ends and names ----
+
+    private static final String XSTORE_NON_ROOT_END = """
+            ###Pure
+            Class w::P { name: String[1]; fid: Integer[1]; }
+            Class w::F { id: Integer[1]; legal: String[1]; }
+            Association w::P_F { firm: w::F[0..1]; people: w::P[*]; }
+
+            ###Relational
+            Database w::Db
+            (
+              Table P1 (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+              Table P2 (ID2 INTEGER PRIMARY KEY, NAME2 VARCHAR(20), FID2 INTEGER)
+              Table F (ID INTEGER PRIMARY KEY, LEGAL VARCHAR(20))
+            )
+
+            ###Mapping
+            Mapping w::M
+            (
+              *w::P[p1]: Relational { ~mainTable [w::Db]P1 name: [w::Db]P1.NAME, fid: [w::Db]P1.FID }
+              w::P[p2]: Relational { ~mainTable [w::Db]P2 name: [w::Db]P2.NAME2, fid: [w::Db]P2.FID2 }
+              *w::F[f]: Relational { ~mainTable [w::Db]F id: [w::Db]F.ID, legal: [w::Db]F.LEGAL }
+              w::P_F: XStore { people[f, p2]: $this.id == $that.fid, firm[p2, f]: $this.fid == $that.id }
+            )
+            """;
+
+    @Test
+    @DisplayName("item 1 (XS:140): an XStore line naming a non-root set navigates to that set's table")
+    void anXStoreLineNamingANonRootSetNavigatesToIt() {
+        // asked of the engine: F.people over `people[f, p2]` joins P2 on FID2; until 2026-11-15 the column-space
+        // emission typed the condition by p2's columns over the root p1's relation: "relation has no column 'FID2'"
+        assertEquals(List.of(), strict(XSTORE_NON_ROOT_END));
+    }
+
+    private static final String MODEL_JOIN_TWO_SETS = """
+            ###Pure
+            Class w::P { name: String[1]; firmId: Integer[1]; }
+            Class w::F { id: Integer[1]; legal: String[1]; }
+            Association w::P_F { employees: w::P[*]; firm: w::F[0..1]; }
+
+            ###Relational
+            Database w::Db
+            (
+              Table P (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+              Table F1 (ID INTEGER PRIMARY KEY, LEGAL VARCHAR(20))
+              Table F2 (ID2 INTEGER PRIMARY KEY, LEGAL2 VARCHAR(20))
+            )
+
+            ###Mapping
+            Mapping w::M
+            (
+              *w::P[p]: Relational { ~mainTable [w::Db]P name: [w::Db]P.NAME, firmId: [w::Db]P.FID }
+              w::F[f2]: Relational { ~mainTable [w::Db]F2 id: [w::Db]F2.ID2, legal: [w::Db]F2.LEGAL2 }
+              *w::F[f1]: Relational { ~mainTable [w::Db]F1 id: [w::Db]F1.ID, legal: [w::Db]F1.LEGAL }
+              w::P_F: ModelJoin { {employees: w::P[1], firm: w::F[1]|$employees.firmId == $firm.id} }
+            )
+            """;
+
+    @Test
+    @DisplayName("item 1 (MN:1080): a ModelJoin's end is its class's root set")
+    void aModelJoinsEndIsItsClasssRootSet() {
+        // asked of the engine: the root F1 set is joined whichever set of F is declared first; until 2026-11-15 the
+        // first set of the class in the closure, so a non-root set declared first typed the condition by its columns:
+        // "relation has no column 'ID2'"
+        assertEquals(List.of(), strict(MODEL_JOIN_TWO_SETS));
+    }
+
+    private static final String NESTED_MODEL_JOIN_IN_AN_INCLUDE = """
+            ###Pure
+            Class w::P { name: String[1]; id: Integer[1]; }
+            Class w::A { city: String[1]; personId: Integer[1]; }
+            Class w::F { legal: String[1]; city: String[1]; }
+            Association w::P_A { person: w::P[1]; address: w::A[1]; }
+            Association w::P_F { employees: w::P[*]; firm: w::F[0..1]; }
+
+            ###Relational
+            Database w::Db
+            (
+              Table P (ID INTEGER PRIMARY KEY, NAME VARCHAR(20) NOT NULL)
+              Table A (ID INTEGER PRIMARY KEY, PID INTEGER NOT NULL, CITY VARCHAR(20) NOT NULL)
+              Table F (ID INTEGER PRIMARY KEY, LEGAL VARCHAR(20) NOT NULL, CITY VARCHAR(20) NOT NULL)
+            )
+
+            ###Mapping
+            Mapping w::Base
+            (
+              *w::P[p]: Relational { ~mainTable [w::Db]P name: [w::Db]P.NAME, id: [w::Db]P.ID }
+              *w::A[a]: Relational { ~mainTable [w::Db]A city: [w::Db]A.CITY, personId: [w::Db]A.PID }
+              *w::F[f]: Relational { ~mainTable [w::Db]F legal: [w::Db]F.LEGAL, city: [w::Db]F.CITY }
+              w::P_A: ModelJoin { {person: w::P[1], address: w::A[1]|$person.id == $address.personId} }
+            )
+
+            Mapping w::M
+            (
+              include mapping w::Base
+              w::P_F: ModelJoin { {employees: w::P[1], firm: w::F[1]|$employees.address.city == $firm.city} }
+            )
+            """;
+
+    @Test
+    @DisplayName("item 1 (MJN:85-93): a nested hop's ModelJoin is found in an included mapping")
+    void aNestedHopsModelJoinIsFoundInAnInclude() {
+        // asked of the engine: it plans P -> A -> F through Base's P_A; until 2026-11-15 only this mapping's own
+        // ModelJoins were searched, and every query navigating firm was refused "nested hop '$p.address' navigates
+        // association 'w::P_A' which has no ModelJoin in this mapping"
+        Compiler.BuiltModule m = module(NESTED_MODEL_JOIN_IN_AN_INCLUDE);
+        assertEquals(java.util.Optional.empty(), m.context().mappingAssociationPoison("w::M", "w::P_F"));
+    }
+
+    @Test
+    @DisplayName("item 1 (AS:87): an included association mapping's name resolves through its own mapping's imports")
+    void anIncludedAssociationMappingsNameResolvesThroughItsImports() {
+        // a tolerant build: name resolution walls w::Inner (an ambiguous F) and keeps its text, so the pre-pass of the
+        // including w::M met P_F as written; it looked the name up exactly and walled w::M "Can't find association
+        // 'P_F'", where the synthesis resolves it through the import that brings it in (as the engine does), until
+        // 2026-11-15
+        String text = """
+                Class w::P { name: String[1]; }
+                Class w::F { legal: String[1]; }
+                Class u::F { x: String[1]; }
+                Association w::P_F { firm: w::F[1]; people: w::P[*]; }
+                ###Relational
+                Database w::Db ( Table P (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), FID INTEGER)
+                  Table F (ID INTEGER PRIMARY KEY, LEGAL VARCHAR(20)) Join PF(P.FID = F.ID) )
+                ###Mapping
+                import w::*;
+                import u::*;
+                Mapping w::Inner
+                (
+                  w::P: Relational { ~mainTable [w::Db]P name: [w::Db]P.NAME }
+                  F: Relational { ~mainTable [w::Db]F legal: [w::Db]F.LEGAL }
+                  P_F: Relational { AssociationMapping ( firm: [w::Db]@PF, people: [w::Db]@PF ) }
+                )
+                ###Mapping
+                import w::*;
+                Mapping w::M
+                (
+                  include mapping w::Inner
+                )
+                """;
+        assertEquals(java.util.Set.of("w::Inner"), module(text).walls().keySet());
+    }
 }

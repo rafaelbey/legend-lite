@@ -81,14 +81,26 @@ final class ModelJoinNesting {
             String nestedCls = nad.property1().propertyName().equals(prop)
                     ? nad.property1().targetClassFqn()
                     : nad.property2().targetClassFqn();
+            // the nested hop's ModelJoin: this mapping's, else the first include's
+            // (depth-first, include order) that has one, the last of a mapping
+            // -- legend-engine compiles the include closure as one mapping and
+            // a mapping's own association mapping first (asked: the nested
+            // ModelJoin in an included mapping plans; one in both, this
+            // mapping's). Until 2026-11-15 this mapping's own alone (the
+            // normalizer's second batch, item 1, MJN:85-93; ENGINE-SOURCED, run)
             AssociationMapping.ModelJoin nmj = null;
-            for (AssociationMapping am2 : md.associationMappings()) {
-                if (am2 instanceof AssociationMapping.ModelJoin cand
-                        && model.findAssociation(cand.associationName())
-                                .map(x -> x.qualifiedName()
-                                        .equals(nad.qualifiedName()))
-                                .orElse(false)) {
-                    nmj = cand;
+            for (com.legend.model.LegacyMappingDefinition m : md.closure()) {
+                for (AssociationMapping am2 : m.associationMappings()) {
+                    if (am2 instanceof AssociationMapping.ModelJoin cand
+                            && model.findAssociation(cand.associationName())
+                                    .map(x -> x.qualifiedName()
+                                            .equals(nad.qualifiedName()))
+                                    .orElse(false)) {
+                        nmj = cand;
+                    }
+                }
+                if (nmj != null) {
+                    break;
                 }
             }
             if (nmj == null) {
@@ -99,7 +111,8 @@ final class ModelJoinNesting {
                         + " in this mapping — only ModelJoin-backed nested"
                         + " hops compose yet");
             }
-            XStorePureEnds.XEnd nEnd = XStorePureEnds.xstoreEndOf(md, nestedCls, null, model);
+            XStorePureEnds.XEnd nEnd = XStorePureEnds.xstoreEndOf(md, nestedCls,
+                    XStorePureEnds.rootEndId(md, nestedCls), model);
             ClassMapping.RelationFunction nRf = nEnd.colsView();
             // the nested end is the stock NAVIGATE step (user call:
             // "both XStore and ModelJoin are just navigate()") — the

@@ -59,6 +59,20 @@ pub enum XStoreReads {
     ColumnSpace,
 }
 
+/// `XStorePureEnds.rootEndId`: the id of `class_fqn`'s ROOT set when it is a set an end can be (a Relation, Relational
+/// or Pure set), else none -- a ModelJoin's ends (since 2026-11-15, the normalizer's second batch, item 1, MN:1080 and
+/// MJN:85-93).
+pub fn root_end_id(md: &ResolvedMapping<'_>, class_fqn: &JStr) -> Option<JStr> {
+    match md.roots().get(class_fqn) {
+        Some(
+            root @ (ClassMapping::ClassMappingRelationFunction(_)
+            | ClassMapping::ClassMappingRelational(_)
+            | ClassMapping::ClassMappingPure(_)),
+        ) => Some(ResolvedMapping::id_of(root)),
+        _ => None,
+    }
+}
+
 /// `XStorePureEnds.xstoreEndOf` (:72): the end of `class_fqn` (`set_id` when given) in the closure -- a Relation set
 /// first, then a Relational set, then a Pure set; loud for none.
 pub fn xstore_end_of(

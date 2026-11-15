@@ -1033,7 +1033,14 @@ public final class MappingNormalizer {
         }
         XStorePureEnds.XEnd endA = XStorePureEnds.xstoreEndOf(md, classA, setA, model);
         XStorePureEnds.XEnd endB = XStorePureEnds.xstoreEndOf(md, classB, setB, model);
-        if (endA.pure() || endB.pure() || endA.lossyView() || endB.lossyView()) {
+        // an end on a Relational set that is not its class's root set takes route A too: the column-space emission's
+        // condition reads the named set's columns, but the resolver joins the end class's ROOT source on that route,
+        // so a non-root end joined the root set's table (silently, or refused "relation has no column"), where
+        // legend-engine joins the set the line names (asked: an XStore line `people[f, p2]` over a non-root P2 set
+        // plans a join of P2's table; PropertyMappingBuilder.java:212-224 looks the line's ids up). Route A pins the
+        // sets by id. Until 2026-11-15 (the normalizer's second batch, item 1, XS:140; ENGINE-SOURCED, run)
+        if (endA.pure() || endB.pure() || endA.lossyView() || endB.lossyView()
+                || nonRootRelationalEnd(md, endA) || nonRootRelationalEnd(md, endB)) {
             // route A (docs/XSTORE_LEG.md): a Pure-set end has no relation
             // at normalize time — property-space emission, sets pinned by id.
             // A table-backed end whose column view is LOSSY takes the same
@@ -1141,9 +1148,16 @@ public final class MappingNormalizer {
                         + "'; mapping=" + md.qualifiedName()));
         // ends resolve like the XStore path: a Relation(~func) set
         // directly, or a TABLE-backED Relational set converted to its
-        // column view (the testRelational*/mixed sub-family)
-        XStorePureEnds.XEnd endA = XStorePureEnds.xstoreEndOf(md, classA, null, model);
-        XStorePureEnds.XEnd endB = XStorePureEnds.xstoreEndOf(md, classB, null, model);
+        // column view (the testRelational*/mixed sub-family). Each end is
+        // its class's ROOT set, as legend-engine navigates a ModelJoin
+        // (asked: two sets of the end class, the non-root one declared
+        // first, joins the root's table); until 2026-11-15 the first set of
+        // the class found in the closure (the normalizer's second batch, item
+        // 1, MN:1080; ENGINE-SOURCED, run)
+        XStorePureEnds.XEnd endA = XStorePureEnds.xstoreEndOf(md, classA,
+                XStorePureEnds.rootEndId(md, classA), model);
+        XStorePureEnds.XEnd endB = XStorePureEnds.xstoreEndOf(md, classB,
+                XStorePureEnds.rootEndId(md, classB), model);
         if (endA.pure() || endB.pure()) {
             throw new NotImplementedException(
                     "ModelJoin association '" + mj.associationName()
@@ -1289,6 +1303,12 @@ public final class MappingNormalizer {
         return Calls.platform("map", List.of(source,
                 new LambdaFunction(List.of(srcBind),
                                    List.of(buildNewInstance(pcm.className(), fields)))));
+    }
+
+    /** Whether an XStore end names a Relational set that is not its class's root (or sole) set. */
+    private static boolean nonRootRelationalEnd(ResolvedMapping md, XStorePureEnds.XEnd end) {
+        ClassMapping set = md.set(end.setId());
+        return set instanceof ClassMapping.Relational && !md.isRootOrSole(set);
     }
 
     private static ValueSpecification m2mPropertyValue(

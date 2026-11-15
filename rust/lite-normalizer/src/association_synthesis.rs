@@ -62,11 +62,12 @@ pub fn inject_multi_hop_association_pms(
     let mut closure: Vec<Arc<LegacyMappingDefinition>> = Vec::new();
     closure.push(md.clone());
     closure.extend(included.mappings().iter().cloned());
-    let mut rels: Vec<Arc<AssociationMappingRelational>> = Vec::new();
+    // each with the mapping it is written in: its association's simple name resolves through THAT mapping's imports
+    let mut rels: Vec<(Arc<AssociationMappingRelational>, JStr)> = Vec::new();
     for m in &closure {
         for am in m.association_mappings.iter() {
             if let AssociationMapping::AssociationMappingRelational(r) = am {
-                rels.push(r.clone());
+                rels.push((r.clone(), m.qualified_name.clone()));
             }
         }
     }
@@ -77,16 +78,19 @@ pub fn inject_multi_hop_association_pms(
     // SOURCE set only)
     let mut by_class: LinkedMap<JStr, Vec<PropertyMapping>> = LinkedMap::new();
     let mut by_set: LinkedMap<JStr, LinkedMap<JStr, Vec<PropertyMapping>>> = LinkedMap::new();
-    for rel in &rels {
+    for (rel, rel_owner) in &rels {
         // an included mapping's association mapping of an association the model has not: the model's error, in
-        // legend-engine's words, as MappingClosures' same lookup says it (AS:82-89)
-        let ad = model.find_association(&rel.association_name).ok_or_else(|| {
+        // legend-engine's words, as MappingClosures' same lookup says it (AS:82-89). The name resolves as the synthesis
+        // resolves it, exact else through the import wildcards of the mapping it is written in (until 2026-11-15
+        // exact only: the normalizer's second batch, item 1, AS:87)
+        let resolved = resolve_association_name(model, rel_owner, &rel.association_name).ok_or_else(|| {
             Thrown::model(
                 Phase::Mapping,
                 cat!("Can't find association '", &rel.association_name, "'"),
                 None,
             )
         })?;
+        let ad: &AssociationDefinition = &resolved;
         // per (source set, property): a pair group whose TARGET class is union- or inheritance-mapped (or cannot
         // anchor a predicate) is a ROUTED group -- ALL its entries, single-hop included, inject as target-stamped
         // Join PMs on their source set. Only a plain pair between two anchorable classes takes the predicate path.
@@ -378,14 +382,23 @@ pub fn resolve_association(
     md: &ResolvedMapping<'_>,
     am: &AssociationMapping,
 ) -> Option<Arc<AssociationDefinition>> {
-    let name = am.association_name();
+    resolve_association_name(model, md.qualified_name(), am.association_name())
+}
+
+/// `AssociationSynthesis.resolveAssociation(model, mappingFqn, name)`: `name` as the mapping `mapping_fqn` names it --
+/// exact, else through that mapping's import wildcards.
+pub fn resolve_association_name(
+    model: &ModelIndex,
+    mapping_fqn: &JStr,
+    name: &JStr,
+) -> Option<Arc<AssociationDefinition>> {
     let direct = model.find_association(name);
     if direct.is_some() || lite_model::text::contains(&name.0, "::") {
         return direct.cloned();
     }
     // 2026-11-14 (ruling 30's measurement, the normalizer slice): the import-wildcard fallback is REACHED -- tried on
     // 241 strict / 265 tolerant asks, found 0 / 6 (the slice's own case texts); ported verbatim
-    for pkg in model.imports_of(md.qualified_name()).wildcards.iter() {
+    for pkg in model.imports_of(mapping_fqn).wildcards.iter() {
         if let Some(hit) = model.find_association(&cat!(pkg, "::", name)) {
             return Some(hit.clone());
         }
