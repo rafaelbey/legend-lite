@@ -70,7 +70,7 @@ fn is_char_or_varchar(t: &T) -> bool {
     matches!(t, T::RelationalDataTypeChar_(_) | T::RelationalDataTypeVarchar(_))
 }
 
-fn varchar(size: i32) -> T {
+fn varchar(size: i64) -> T {
     T::RelationalDataTypeVarchar(Arc::new(RelationalDataTypeVarchar { size }))
 }
 
@@ -166,7 +166,7 @@ fn infer_in<'a>(
                 // type (S378, ruling 32)
                 "substring" | "left" | "right" | "trim" | "ltrim" | "rtrim" => match first(expanding)? {
                     Some(T::RelationalDataTypeVarchar(v)) => Some(varchar(v.size)),
-                    Some(T::RelationalDataTypeChar_(c)) => Some(varchar(c.size)),
+                    Some(T::RelationalDataTypeChar_(c)) => Some(varchar(i64::from(c.size))),
                     _ => None,
                 },
                 // toUpper and toLower keep their first argument's type (:1793-1801, :1843-1851); upper and lower have no
@@ -207,12 +207,12 @@ fn infer_in<'a>(
                 // group_concat has no rule in the engine's map (no type: until 2026-11-13 it was typed as a concat,
                 // S378, ruling 32)
                 "concat" => {
-                    let mut size: i32 = 0;
+                    let mut size: i64 = 0;
                     let mut other = false;
                     for arg in f.args.iter() {
                         match infer_in(arg, db, ctx, expanding)? {
                             Some(T::RelationalDataTypeVarchar(v)) => size = size.wrapping_add(v.size),
-                            Some(T::RelationalDataTypeChar_(c)) => size = size.wrapping_add(c.size),
+                            Some(T::RelationalDataTypeChar_(c)) => size = size.wrapping_add(i64::from(c.size)),
                             Some(_) => other = true,
                             None => {}
                         }
@@ -353,14 +353,16 @@ fn infer_in<'a>(
                 // Integer.parseInt, and past a VARCHAR's size, no type)
                 "lpad" => match f.args.get(1) {
                     Some(Op::RelationalOperationLiteral(l)) => match &l.value {
-                        JValue::Integer(i) => Some(varchar(*i)),
-                        JValue::Long(g) => i32::try_from(*g).ok().map(varchar),
+                        JValue::Integer(i) => Some(varchar(i64::from(*i))),
+                        JValue::Long(g) => i32::try_from(*g).ok().map(|i| varchar(i64::from(i))),
                         _ => None,
                     },
                     _ => None,
                 },
-                // replace is a VARCHAR of twice its first argument's CHAR or VARCHAR size (:1489-1497), Java's int
-                // doubling; another first argument, or none, no type
+                // replace is a VARCHAR of twice its first argument's CHAR or VARCHAR size (:1489-1497); another first
+                // argument, or none, no type. A size is an i64, as the engine's Integer, which does not wrap (2026-11-14,
+                // the normalizer batch, item 1, ruling 34: until then Java's int doubling, a size past 2^30 wrapped, as
+                // concat's and add's sums did; S378)
                 "replace" => match first(expanding)? {
                     Some(at) if is_char_or_varchar(&at) => Some(varchar(size(&at).wrapping_mul(2))),
                     _ => None,
@@ -384,7 +386,7 @@ fn infer_in<'a>(
         }
         Op::RelationalOperationGroup(g) => infer_in(&g.inner, db, ctx, expanding)?,
         Op::RelationalOperationLiteral(l) => match &l.value {
-            JValue::String(s) => Some(varchar(s.0.len() as i32)),
+            JValue::String(s) => Some(varchar(s.0.len() as i64)),
             JValue::Integer(_) => Some(integer()),
             JValue::Long(_) => Some(integer()),
             // a float literal is FLOAT (relationalExtension.pure:148); until 2026-11-13 DOUBLE (S378, ruling 34)
@@ -545,10 +547,12 @@ fn safe_type_of(types: impl IntoIterator<Item = Option<T>>) -> Option<T> {
 }
 
 /// A CHAR's or VARCHAR's size, an OTHER's 0 (getSafeType's own rule); no other kind meets a CHAR or VARCHAR safe type
-/// (only CHAR, VARCHAR and OTHER list them), as Java's `size` refuses.
-fn size(t: &T) -> i32 {
+/// (only CHAR, VARCHAR and OTHER list them), as Java's `size` refuses. An i64, the engine's Integer (getSize,
+/// :2005-2011): every sum, product and maximum of sizes is taken in it (2026-11-14, the normalizer batch, item 1, ruling
+/// 34; until then an i32, Java's int).
+fn size(t: &T) -> i64 {
     match t {
-        T::RelationalDataTypeChar_(c) => c.size,
+        T::RelationalDataTypeChar_(c) => i64::from(c.size),
         T::RelationalDataTypeVarchar(v) => v.size,
         T::RelationalDataTypeOther(_) => 0,
         _ => unreachable!("a kind other than CHAR, VARCHAR or OTHER met a CHAR or VARCHAR safe type"),

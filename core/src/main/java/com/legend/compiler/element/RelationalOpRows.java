@@ -148,7 +148,7 @@ public final class RelationalOpRows {
         String precision = null;
         String scale = null;
         switch (t) {
-            case RelationalDataType.Varchar v -> size = Integer.toString(v.size());
+            case RelationalDataType.Varchar v -> size = Long.toString(v.size());
             case RelationalDataType.Char_ c -> size = Integer.toString(c.size());
             case RelationalDataType.Binary b -> size = Integer.toString(b.size());
             case RelationalDataType.Varbinary v -> size = Integer.toString(v.size());

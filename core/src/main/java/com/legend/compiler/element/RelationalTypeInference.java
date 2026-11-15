@@ -176,7 +176,7 @@ public final class RelationalTypeInference {
                 // group_concat has no rule in the engine's map (no type: until 2026-11-13 it was typed as a
                 // concat, S378, ruling 32)
                 case "concat" -> {
-                    int size = 0;
+                    long size = 0;
                     boolean other = false;
                     for (var arg : f.args()) {
                         RelationalDataType at2 = infer(arg, db, ctx, expanding);
@@ -320,8 +320,9 @@ public final class RelationalTypeInference {
                             : null;
                 }
                 // replace is a VARCHAR of twice its first argument's CHAR or VARCHAR size (:1489-1497); any other first
-                // argument, or none, fails the match, no type. Java's int doubling, as concat's sum (the engine's Integer
-                // does not wrap: a size past 2^30 is the form lite cannot spell)
+                // argument, or none, fails the match, no type. A size is a long, as the engine's Integer, which does not
+                // wrap (2026-11-14, the normalizer batch, item 1, ruling 34: until then Java's int doubling, a size past
+                // 2^30 wrapped, as concat's and add's sums did; S378)
                 case "replace" -> {
                     RelationalDataType at = f.args().isEmpty() ? null : infer(f.args().get(0), db, ctx, expanding);
                     yield at != null && isCharOrVarchar(at) ? new RelationalDataType.Varchar(size(at) * 2) : null;
@@ -527,8 +528,9 @@ public final class RelationalTypeInference {
     }
 
     /** A CHAR's or VARCHAR's size, an OTHER's 0 (getSafeType's own rule); no other kind meets a CHAR or VARCHAR safe
-     *  type (only CHAR, VARCHAR and OTHER list them). */
-    private static int size(RelationalDataType t) {
+     *  type (only CHAR, VARCHAR and OTHER list them). A long, the engine's Integer (getSize, :2005-2011): every sum, product
+     *  and maximum of sizes is taken in it (2026-11-14, the normalizer batch, item 1, ruling 34; until then an int). */
+    private static long size(RelationalDataType t) {
         if (t instanceof RelationalDataType.Char_ c) {
             return c.size();
         }

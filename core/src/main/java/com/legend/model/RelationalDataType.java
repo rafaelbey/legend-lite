@@ -21,7 +21,9 @@ import java.util.Objects;
  *       {@link Real}, {@link Bit}, {@link Timestamp}, {@link Date_},
  *       {@link Distinct}, {@link Other}, {@link SemiStructured}.</li>
  *   <li><b>sized</b> &mdash; {@link Varchar}, {@link Char_}, {@link Binary},
- *       {@link Varbinary} each carry a single {@code size} int.</li>
+ *       {@link Varbinary} each carry a single {@code size} int; a
+ *       {@link Varchar}'s is a {@code long}, an inferred size being a Pure
+ *       Integer (2026-11-14, the normalizer batch, item 1, ruling 34).</li>
  *   <li><b>precision/scale</b> &mdash; {@link Decimal} and {@link Numeric}
  *       carry {@code precision} and {@code scale}.</li>
  *   <li><b>recursive</b> &mdash; {@link Array} wraps an element {@link RelationalDataType};
@@ -87,7 +89,11 @@ public sealed interface RelationalDataType permits
     record SemiStructured() implements RelationalDataType { }
 
     // ---- Sized core types ----
-    record Varchar(int size)   implements RelationalDataType { }
+    /** A VARCHAR's size is a {@code long} (2026-11-14, the normalizer batch, item 1, ruling 34): an inferred size is
+     *  legend-engine's Pure Integer, unbounded -- a VARCHAR(2000000000) replaced is a VARCHAR(4000000000), asked of the
+     *  pinned engine (relationalExtension.pure:1489-1497) -- where an {@code int} wrapped it to -294967296 (S378). A
+     *  declared size is the parser's int. */
+    record Varchar(long size)  implements RelationalDataType { }
     record Char_(int size)     implements RelationalDataType { }
     record Binary(int size)    implements RelationalDataType { }
     record Varbinary(int size) implements RelationalDataType { }

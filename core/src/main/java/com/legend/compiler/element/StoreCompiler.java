@@ -105,7 +105,9 @@ public final class StoreCompiler {
             case RelationalDataType.Distinct ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.DISTINCT);
             case RelationalDataType.Array ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.ARRAY);
             case RelationalDataType.Object_ ignored -> plain(com.legend.sql.SqlDdl.ColumnType.Kind.OBJECT);
-            case RelationalDataType.Varchar v -> new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", v.size());
+            // a DECLARED column's size, the parser's int (an inferred VARCHAR's long size never reaches a DDL type:
+            // 2026-11-14, the normalizer batch, item 1)
+            case RelationalDataType.Varchar v -> new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", Math.toIntExact(v.size()));
             case RelationalDataType.Char_ c -> new com.legend.sql.SqlDdl.ColumnType.Sized("CHAR", c.size());
             case RelationalDataType.Binary b -> new com.legend.sql.SqlDdl.ColumnType.Sized("BINARY", b.size());
             case RelationalDataType.Varbinary v -> new com.legend.sql.SqlDdl.ColumnType.Sized("VARBINARY", v.size());

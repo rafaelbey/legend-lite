@@ -484,8 +484,9 @@ class KnowledgeLayerTest {
      * its own compiler (port-scratch/namesbatch/engine: InferProbe, the engine runner's class path), and the same cases
      * through the legend-lsp daemon (interpreted) answering alike. {@code -} is the engine's EMPTY or a throw (a toOne
      * over no type, an at() past the arguments, a match with no arm): no type here, as for every inference the engine
-     * fails where it is asked (S378). One answer is lite's and differs, said where it stands. lite-names' tests.rs holds
-     * the same text and table. */
+     * fails where it is asked (S378). lite-names' tests.rs holds the same text and table. The view VBIG (2026-11-14, the
+     * normalizer batch, item 1, ruling 34) was asked of the engine with the rest, the whole text again
+     * (port-scratch/normbatch/engine/cases/engine_cases_big.engine.out), every other answer as before. */
     static final String ENGINE_CASES = """
             ###Relational
             Database nb::Db (
@@ -526,6 +527,10 @@ class KnowledgeLayerTest {
               View VJS (JS1: joinStrings(T.V, ','), JS2: joinStrings(T.I, ','), JS3: joinStrings(T.X, ','),
                 JS4: joinStrings(nope(T.I), ','), JS5: joinStrings(T.C, ','), JS6: joinStrings(T.V), JS7: joinStrings(),
                 JS8: joinStrings(sqlNull(), ','), JS9: joinStrings(T.V, T.X))
+              View VBIG (BG1: add(T.H, T.H), BG2: concat(T.H, T.H), BG3: concat(T.H, T.H, T.H, T.H, T.H),
+                BG4: replace(replace(T.H, 'a', 'b'), 'a', 'b'), BG5: concat(replace(T.H, 'a', 'b'), T.V),
+                BG6: coalesce(replace(T.H, 'a', 'b'), T.V), BG7: joinStrings(replace(T.H, 'a', 'b'), ','),
+                BG8: if(equal(T.ID, 1), replace(T.H, 'a', 'b'), T.V), BG9: substring(replace(T.H, 'a', 'b'), 1, 2))
             )
             """;
 
@@ -554,9 +559,9 @@ class KnowledgeLayerTest {
 
     /** The 30 rules the seeded Database texts use (2026-11-14, the names batch, item 1: register row S378, ruling 35;
      * until then each had no rule here, no type), every arm, typed as the engine types them ({@link #ENGINE_CASES}: the
-     * engine's own answers). The one answer that differs: RP6, a VARCHAR(2000000000) replaced, which the engine types
-     * VARCHAR(4000000000) (its Integer) and lite VARCHAR(-294967296) (Java's int doubling, as concat's sum wraps; S378's
-     * form lite cannot spell). */
+     * engine's own answers). RP6, a VARCHAR(2000000000) replaced, is VARCHAR(4000000000), the engine's Integer
+     * (2026-11-14, the normalizer batch, item 1, ruling 34: lite answered VARCHAR(-294967296) until a VARCHAR's size was a
+     * long, Java's int doubling, as concat's sum wrapped; S378). */
     @Test
     @DisplayName("kernel: the 30 engine rules the seeds use are typed as the engine types them")
     void theThirtyRulesTheSeedsUseAreTheEngines() {
@@ -577,7 +582,7 @@ class KnowledgeLayerTest {
                 VIF.IF4=- VIF.IF5=- VIF.IF6=Integer VIF.IF7=Decimal(10,2) VIF.IF8=Float VIF.IF9=Integer VIF.IF10=-
                 VIF.IF11=- VIF.ZZ=Integer VLPAD.LP1=Varchar(10) VLPAD.LP2=- VLPAD.LP3=- VLPAD.LP4=- VLPAD.LP5=Varchar(7)
                 VLPAD.LP6=- VLPAD.LP7=- VREPL.RP1=Varchar(8) VREPL.RP2=Varchar(6) VREPL.RP3=- VREPL.RP4=-
-                VREPL.RP5=Varchar(6) VREPL.RP6=Varchar(-294967296) VREPL.RP7=- VREPL.RP8=-
+                VREPL.RP5=Varchar(6) VREPL.RP6=Varchar(4000000000) VREPL.RP7=- VREPL.RP8=-
                 """.trim().split("\\s+")),
                 inferenceTable(ENGINE_CASES, "VABS", "VADD", "VBIT", "VCONST", "VCOAL", "VIF", "VLPAD", "VREPL"));
     }
@@ -654,6 +659,19 @@ class KnowledgeLayerTest {
                 VJS.JS1=Varchar(4000) VJS.JS2=- VJS.JS3=Varchar(5000) VJS.JS4=- VJS.JS5=Varchar(4000) VJS.JS6=Varchar(4000)
                 VJS.JS7=- VJS.JS8=- VJS.JS9=Varchar(4000)
                 """.trim().split("\\s+")), inferenceTable(ENGINE_CASES, "VJS"));
+    }
+
+    /** Sizes past an int (2026-11-14, the normalizer batch, item 1: register row S378, ruling 34): a VARCHAR's size is the
+     * engine's Integer, so every sum (add, concat), doubling (replace) and maximum (coalesce, if, joinStrings) of sizes
+     * past 2^31 is the engine's ({@link #ENGINE_CASES}' VBIG, asked of the engine), where an int wrapped each. */
+    @Test
+    @DisplayName("kernel: a VARCHAR's size past an int is summed, doubled and compared as the engine's Integer")
+    void varcharSizesPastAnIntAreTheEngines() {
+        assertEquals(String.join(" ", """
+                VBIG.BG1=Varchar(4000000000) VBIG.BG2=Varchar(4000000000) VBIG.BG3=Varchar(10000000000)
+                VBIG.BG4=Varchar(8000000000) VBIG.BG5=Varchar(4000000004) VBIG.BG6=Varchar(4000000000)
+                VBIG.BG7=Varchar(4000000000) VBIG.BG8=Varchar(4000000000) VBIG.BG9=Varchar(4000000000)
+                """.trim().split("\\s+")), inferenceTable(ENGINE_CASES, "VBIG"));
     }
 
     /** S376's join terminal (2026-11-13, the names follow-ups, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 34): a join

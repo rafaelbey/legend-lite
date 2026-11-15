@@ -160,7 +160,7 @@ fn column_type(
     let w = &s.wire_type.0;
     Ok(if is(w, "stringType") {
         T::RelationalDataTypeVarchar(Arc::new(RelationalDataTypeVarchar {
-            size: s.max_length.map_or(UNBOUNDED_TEXT, |n| n as i32),
+            size: i64::from(s.max_length.map_or(UNBOUNDED_TEXT, |n| n as i32)),
         }))
     } else if is(w, "longType") {
         T::RelationalDataTypeBigInt(Arc::new(RelationalDataTypeBigInt {}))

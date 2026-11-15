@@ -849,7 +849,7 @@ fn the_store_helpers_answer_over_a_small_database() {
     });
 }
 
-fn varchar(size: i32) -> lite_model::RelationalDataType {
+fn varchar(size: i64) -> lite_model::RelationalDataType {
     lite_model::RelationalDataType::RelationalDataTypeVarchar(std::sync::Arc::new(
         lite_model::RelationalDataTypeVarchar { size },
     ))
@@ -1329,6 +1329,10 @@ const ENGINE_CASES: &str = concat!(
     "  View VJS (JS1: joinStrings(T.V, ','), JS2: joinStrings(T.I, ','), JS3: joinStrings(T.X, ','),\n",
     "    JS4: joinStrings(nope(T.I), ','), JS5: joinStrings(T.C, ','), JS6: joinStrings(T.V), JS7: joinStrings(),\n",
     "    JS8: joinStrings(sqlNull(), ','), JS9: joinStrings(T.V, T.X))\n",
+    "  View VBIG (BG1: add(T.H, T.H), BG2: concat(T.H, T.H), BG3: concat(T.H, T.H, T.H, T.H, T.H),\n",
+    "    BG4: replace(replace(T.H, 'a', 'b'), 'a', 'b'), BG5: concat(replace(T.H, 'a', 'b'), T.V),\n",
+    "    BG6: coalesce(replace(T.H, 'a', 'b'), T.V), BG7: joinStrings(replace(T.H, 'a', 'b'), ','),\n",
+    "    BG8: if(equal(T.ID, 1), replace(T.H, 'a', 'b'), T.V), BG9: substring(replace(T.H, 'a', 'b'), 1, 2))\n",
     ")\n"
 );
 
@@ -1370,9 +1374,9 @@ fn inference_table(text: &str, views: &[&str]) -> String {
 }
 
 /// The 30 rules the seeded Database texts use (2026-11-14, the names batch, item 1: register row S378, ruling 35; until
-/// then no rule, no type), every arm, typed as the engine types them (`ENGINE_CASES`: the engine's own answers). The
-/// one answer that differs: RP6, a VARCHAR(2000000000) replaced, which the engine types VARCHAR(4000000000) and lite
-/// VARCHAR(-294967296) (Java's int doubling, as concat's sum wraps; S378) (KnowledgeLayerTest's twin).
+/// then no rule, no type), every arm, typed as the engine types them (`ENGINE_CASES`: the engine's own answers). RP6, a
+/// VARCHAR(2000000000) replaced, is VARCHAR(4000000000), the engine's Integer (2026-11-14, the normalizer batch, item 1,
+/// ruling 34: lite answered VARCHAR(-294967296) until a VARCHAR's size was an i64; S378) (KnowledgeLayerTest's twin).
 #[test]
 fn the_thirty_rules_the_seeds_use_are_the_engines() {
     on_parse_stack(|| {
@@ -1393,7 +1397,7 @@ fn the_thirty_rules_the_seeds_use_are_the_engines() {
             "VIF.IF4=- VIF.IF5=- VIF.IF6=Integer VIF.IF7=Decimal(10,2) VIF.IF8=Float VIF.IF9=Integer VIF.IF10=-\n",
             "VIF.IF11=- VIF.ZZ=Integer VLPAD.LP1=Varchar(10) VLPAD.LP2=- VLPAD.LP3=- VLPAD.LP4=- VLPAD.LP5=Varchar(7)\n",
             "VLPAD.LP6=- VLPAD.LP7=- VREPL.RP1=Varchar(8) VREPL.RP2=Varchar(6) VREPL.RP3=- VREPL.RP4=-\n",
-            "VREPL.RP5=Varchar(6) VREPL.RP6=Varchar(-294967296) VREPL.RP7=- VREPL.RP8=-\n"
+            "VREPL.RP5=Varchar(6) VREPL.RP6=Varchar(4000000000) VREPL.RP7=- VREPL.RP8=-\n"
         );
         let expected: Vec<&str> = expected.split_whitespace().collect();
         assert_eq!(
@@ -1517,6 +1521,23 @@ fn join_strings_is_typed_by_the_engines_rule() {
             concat!(
                 "VJS.JS1=Varchar(4000) VJS.JS2=- VJS.JS3=Varchar(5000) VJS.JS4=- VJS.JS5=Varchar(4000) ",
                 "VJS.JS6=Varchar(4000) VJS.JS7=- VJS.JS8=- VJS.JS9=Varchar(4000)"
+            )
+        );
+    });
+}
+
+/// Sizes past an int (2026-11-14, the normalizer batch, item 1: register row S378, ruling 34): a VARCHAR's size is the
+/// engine's Integer, so every sum, doubling and maximum of sizes past 2^31 is the engine's (`ENGINE_CASES`' VBIG, asked of
+/// the engine), where an i32 wrapped each (KnowledgeLayerTest's twin).
+#[test]
+fn varchar_sizes_past_an_int_are_the_engines() {
+    on_parse_stack(|| {
+        assert_eq!(
+            inference_table(ENGINE_CASES, &["VBIG"]),
+            concat!(
+                "VBIG.BG1=Varchar(4000000000) VBIG.BG2=Varchar(4000000000) VBIG.BG3=Varchar(10000000000) ",
+                "VBIG.BG4=Varchar(8000000000) VBIG.BG5=Varchar(4000000004) VBIG.BG6=Varchar(4000000000) ",
+                "VBIG.BG7=Varchar(4000000000) VBIG.BG8=Varchar(4000000000) VBIG.BG9=Varchar(4000000000)"
             )
         );
     });

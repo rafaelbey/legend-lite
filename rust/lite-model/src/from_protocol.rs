@@ -430,7 +430,7 @@ fn data_type(t: &p::PDbType) -> Result<RelationalDataType, Thrown> {
         T::RelationalDataTypeSemiStructured(Arc::new(RelationalDataTypeSemiStructured {}))
     } else if is(k, "Varchar") {
         T::RelationalDataTypeVarchar(Arc::new(RelationalDataTypeVarchar {
-            size: if t.size.is_none() { i32::MAX } else { size },
+            size: i64::from(if t.size.is_none() { i32::MAX } else { size }),
         }))
     } else if is(k, "Char") {
         T::RelationalDataTypeChar_(Arc::new(RelationalDataTypeChar_ { size }))

@@ -5490,7 +5490,9 @@ class MappingNormalizerTest {
                 Object[] args = new Object[c.getParameterCount()];
                 var ps = c.getParameterTypes();
                 for (int i = 0; i < args.length; i++) {
+                    // a long for a VARCHAR's size (2026-11-14, the normalizer batch, item 1: the size is a long)
                     args[i] = ps[i] == int.class ? 1
+                            : ps[i] == long.class ? 1L
                             : ps[i] == com.legend.model.RelationalDataType.class
                                     ? new com.legend.model.RelationalDataType.Integer_()
                                     : null;

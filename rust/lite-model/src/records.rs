@@ -3417,7 +3417,7 @@ impl Codec for RelationalDataTypeVarbinary {
 /// `com.legend.model.RelationalDataType$Varchar`
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RelationalDataTypeVarchar {
-    pub size: i32,
+    pub size: i64,
 }
 
 impl Codec for RelationalDataTypeVarchar {
@@ -3425,7 +3425,7 @@ impl Codec for RelationalDataTypeVarchar {
         w.raw("{");
         if !exact { w.raw("\"@\":"); w.raw("\"model.RelationalDataType$Varchar\""); w.raw(","); }
         w.raw("\"size\":");
-        { let v = &self.size; w.int(i64::from(*v)); }
+        { let v = &self.size; w.int(*v); }
         w.raw("}");
     }
 }
