@@ -7,6 +7,7 @@ members = [
     "lite-base",
     "lite-builtin",
     "lite-dialect",
+    "lite-element",
     "lite-error",
     "lite-ffi",
     "lite-front",
