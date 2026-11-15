@@ -933,4 +933,28 @@ class NormalizerBatch2Test {
         assertEquals(List.of(), strict(firmUnmapped.formatted(
                 "t::Firm_Person: ModelJoin { {p: t::Firm[1], p: t::Person[1]|$p.id == $p.firmId} }")));
     }
+
+    @Test
+    @DisplayName("step 0b (the element slice): a ModelJoin whose parameters pair one way in each direction is deferred, its association poisoned")
+    void aModelJoinPairedOneWayInEachDirectionIsDeferred() {
+        // legend-engine 4.145.0 pairs each direction on its own (resolveLambdaParamNames): with both parameters Any, $a
+        // is each direction's source, "root".K > other.K navigated either way (port-scratch/element/engine/cases/s0b),
+        // which the one predicate lite emits cannot say -- until 2026-11-15 it read the first direction's pairing both
+        // ways, a silent difference. Deferred since, as every association NotImplementedException is: a strict build
+        // compiles, the association poisoned (the element slice, step 0b; java_bugFixes_next's 0bde2ada6). The
+        // pairing decides, not the body: a symmetric body is deferred too
+        String any = "meta::pure::metamodel::type::Any";
+        String deferred = "ModelJoin for 't::Firm_Person': lambda params [a: " + any + ", b: " + any
+                + "] pair with the association ends one way in each direction";
+        for (String body : List.of("$a.k > $b.k", "$a.k == $b.k")) {
+            String text = ASSOCIATION_LAMBDA.formatted("t::Firm_Person: ModelJoin { {a: " + any + "[1], b: " + any
+                    + "[1]|" + body + "} }");
+            assertEquals(List.of(), strict(text), body);
+            assertEquals(deferred, Compiler.compileModel(text).mappingAssociationPoison("t::M", "t::Firm_Person")
+                    .orElseThrow(), body);
+            Compiler.BuiltModule m = module(text);
+            assertEquals(Map.of(), m.walls(), body);
+            assertEquals(deferred, m.context().mappingAssociationPoison("t::M", "t::Firm_Person").orElseThrow(), body);
+        }
+    }
 }

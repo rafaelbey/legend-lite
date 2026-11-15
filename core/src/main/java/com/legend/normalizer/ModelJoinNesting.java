@@ -197,6 +197,23 @@ final class ModelJoinNesting {
             // [the source's (property2's class), the target's (property1's)]; null: held, the rule below answers
             String[] pm1 = MappingValidation.enginePairing(ad2.property2(), ad2.property1(), p0, p1, model);
             if (pm1 != null) {
+                // legend-engine pairs EACH direction on its own (resolveLambdaParamNames, per navigated property):
+                // pm2, the direction whose source is property1's class. The one predicate emitted here reads pm1's
+                // pairing both ways, so where pm2 is not pm1 swapped -- both parameters typed by a type both ends'
+                // classes conform to, {a: Any[1], b: Any[1] | ...}, a shared supertype -- the engine binds the
+                // source's variable to each direction's source and lite's predicate meant its direction 1 alone, a
+                // silent difference wherever the body is asymmetric (asked, legend-engine 4.145.0 on Firm_Person with
+                // both parameters Any: $a.k > $b.k is "root".K > other.K navigated either way,
+                // port-scratch/element/engine/cases/s0b). Deferred since 2026-11-15, as every association
+                // NotImplementedException is (the element slice, step 0b; correcting e8ac002d0 and 2505f9d1d; the owner's
+                // fix on java_bugFixes_next, 0bde2ada6)
+                String[] pm2 = MappingValidation.enginePairing(ad2.property1(), ad2.property2(), p0, p1, model);
+                if (pm2 != null && !(pm2[0].equals(pm1[1]) && pm2[1].equals(pm1[0]))) {
+                    throw new NotImplementedException(
+                            "ModelJoin for '" + assocName + "': lambda params ["
+                            + p0.name() + ": " + t0 + ", " + p1.name() + ": " + t1
+                            + "] pair with the association ends one way in each direction");
+                }
                 return direct ? new String[] {pm1[1], pm1[0]} : new String[] {pm1[0], pm1[1]};
             }
         }

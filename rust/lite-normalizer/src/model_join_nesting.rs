@@ -261,6 +261,30 @@ pub fn pair_end_vars(
     {
         // (the source's: property2's class, the target's: property1's); none: held, the rule below answers
         if let Some((src, tgt)) = mapping_validation::engine_pairing(&ad2.property2, &ad2.property1, p0, p1, model)? {
+            // legend-engine pairs EACH direction on its own (resolveLambdaParamNames): pm2, the direction whose source
+            // is property1's class; where it is not pm1 swapped (both parameters typed by a type both ends' classes
+            // conform to: Any, a shared supertype) the one predicate emitted here would mean the engine's direction 1
+            // alone -- deferred since 2026-11-15, as every association NotImplementedException is (the element slice,
+            // step 0b; correcting e8ac002d0 and 2505f9d1d; java_bugFixes_next's 0bde2ada6)
+            if let Some((src2, tgt2)) =
+                mapping_validation::engine_pairing(&ad2.property1, &ad2.property2, p0, p1, model)?
+                && !(src2 == tgt && tgt2 == src)
+            {
+                let null = j("null");
+                return Err(Thrown::not_implemented(cat!(
+                    "ModelJoin for '",
+                    assoc_name,
+                    "': lambda params [",
+                    &p0.name,
+                    ": ",
+                    t0.unwrap_or(&null),
+                    ", ",
+                    &p1.name,
+                    ": ",
+                    t1.unwrap_or(&null),
+                    "] pair with the association ends one way in each direction"
+                )));
+            }
             return Ok(if direct { (tgt, src) } else { (src, tgt) });
         }
     }

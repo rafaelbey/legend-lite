@@ -383,3 +383,57 @@ fn a_clean_sheet_includers_walk_skips_a_missing_include_where_the_legacy_walk_re
     assert_eq!(walls.get(&j("w::Base")), Some(&j("Can't find mapping 'w::Missing'")));
     assert_eq!(enums_of_m(&nm), vec![j("EM")]);
 }
+
+/// A ModelJoin whose parameters pair one way in each direction -- both typed Any, so legend-engine binds `$a` to each
+/// direction's source (resolveLambdaParamNames per direction) -- is deferred, the association poisoned, where the one
+/// predicate read the first direction's pairing both ways (2026-11-15, the element slice, step 0b; NormalizerBatch2Test's
+/// `aModelJoinPairedOneWayInEachDirectionIsDeferred`; java_bugFixes_next's 0bde2ada6).
+#[test]
+fn a_model_join_paired_one_way_in_each_direction_is_deferred() {
+    let any = "meta::pure::metamodel::type::Any";
+    let deferred = format!(
+        "ModelJoin for 't::Firm_Person': lambda params [a: {any}, b: {any}] pair with the association ends one way in \
+         each direction"
+    );
+    for body in ["$a.k > $b.k", "$a.k == $b.k"] {
+        let m = model(&format!(
+            "Class t::Person {{ name: String[1]; firmId: Integer[1]; k: Integer[1]; }}\n\
+             Class t::Firm {{ id: Integer[1]; k: Integer[1]; }}\n\
+             Association t::Firm_Person {{ firm: t::Firm[0..1]; employees: t::Person[*]; }}\n\
+             ###Relational\n\
+             Database t::DB ( Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER) \
+             Table FIRM (ID INTEGER PRIMARY KEY) )\n\
+             ###Mapping\n\
+             Mapping t::M (\n\
+               t::Person: Relational {{ ~mainTable [t::DB] PERSON name: [t::DB] PERSON.NAME, firmId: [t::DB] \
+             PERSON.FIRM_ID, k: [t::DB] PERSON.FIRM_ID }}\n\
+               t::Firm: Relational {{ ~mainTable [t::DB] FIRM id: [t::DB] FIRM.ID, k: [t::DB] FIRM.ID }}\n\
+               t::Firm_Person: ModelJoin {{ {{a: {any}[1], b: {any}[1]|{body}}} }}\n\
+             )\n"
+        ));
+        for tolerant in [false, true] {
+            let mut walls: LinkedMap<JStr, JStr> = LinkedMap::new();
+            let nm = crate::normalize(&m, &index(&m), if tolerant { Some(&mut walls) } else { None })
+                .expect("a strict and a tolerant build compile, the association poisoned");
+            assert!(walls.is_empty(), "{body}");
+            let poison = nm
+                .elements
+                .iter()
+                .find_map(|el| match el {
+                    lite_model::PackageableElement::MappingDefinition(md) => {
+                        md.facts.poisons.iter().find_map(|(k, v)| match k {
+                            lite_model::PoisonKey::PoisonKeyForAssociation(a)
+                                if a.association_fqn == j("t::Firm_Person") =>
+                            {
+                                Some(v.clone())
+                            }
+                            _ => None,
+                        })
+                    }
+                    _ => None,
+                })
+                .expect("the association poisoned");
+            assert_eq!(poison, j(&deferred), "{body}");
+        }
+    }
+}
