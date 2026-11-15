@@ -1061,6 +1061,10 @@ public final class MappingNormalizer {
                 .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
                         "XStore mapping references unknown association '" + xs.associationName()
                         + "'; mapping=" + md.qualifiedName()));
+        // legend-engine's own compile of each line first, in its words where it refuses (a property its $this or
+        // $that has not): the normalizer's second batch, item 4 (e), ruling 34 -- until 2026-11-15 lite's later
+        // NotImplementedException, deferred in a strict build since 47d13b73f (d)
+        MappingValidation.requireEngineXStore(md, xs, ad, model);
         // the line's [srcSet, tgtSet] ids select the sets: srcSet = the
         // OWNING end's, tgtSet = the line's target end's (engine
         // PropertyMappingBuilder uses them the same way)
@@ -1187,6 +1191,11 @@ public final class MappingNormalizer {
                 .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
                         "ModelJoin mapping references unknown association '" + mj.associationName()
                         + "'; mapping=" + md.qualifiedName()));
+        // legend-engine's own compile of the lambda first, in its words where it refuses (its parameter count, their
+        // pairing with the ends, the body's properties under each direction's binding): the normalizer's second
+        // batch, item 4 (e), ruling 34 -- until 2026-11-15 lite's NotImplementedExceptions below, deferred in a strict
+        // build since 47d13b73f (d)
+        MappingValidation.requireEngineModelJoin(md, mj, ad2, model);
         // ends resolve like the XStore path: a Relation(~func) set
         // directly, or a TABLE-backED Relational set converted to its
         // column view (the testRelational*/mixed sub-family). Each end is
@@ -1208,17 +1217,14 @@ public final class MappingNormalizer {
         }
         ClassMapping.RelationFunction rfA = endA.colsView();
         ClassMapping.RelationFunction rfB = endB.colsView();
-        if (mj.lambda().parameters().size() != 2) {
-            throw new NotImplementedException(
-                    "ModelJoin for '" + mj.associationName() + "' needs a"
-                    + " 2-param lambda; got " + mj.lambda().parameters().size());
-        }
+        // two parameters: requireEngineModelJoin refused any other count, in the engine's words (until 2026-11-15
+        // lite's NotImplementedException "ModelJoin for 'A' needs a 2-param lambda; got n")
         Variable p0 = mj.lambda().parameters().get(0);
         Variable p1 = mj.lambda().parameters().get(1);
         String t0 = p0.type() instanceof TypeExpression.NameRef nr0 ? nr0.name() : null;
         String t1 = p1.type() instanceof TypeExpression.NameRef nr1 ? nr1.name() : null;
         String[] pair = ModelJoinNesting.pairEndVars(mj.associationName(), ad2,
-                classA, classB, p0, p1, t0, t1);
+                classA, classB, p0, p1, t0, t1, model);
         String aVar = pair[0];
         String bVar = pair[1];
         // the lambda's two parameters one name (`{p: A[1], p: B[1]| ...}`, which the grammar admits): one variable

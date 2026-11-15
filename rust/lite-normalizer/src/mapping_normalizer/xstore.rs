@@ -29,6 +29,7 @@ use lite_model::{AssociationMappingCross, AssociationMappingModelJoin, ClassMapp
 use lite_names::{ModelIndex, resolved_names};
 
 use crate::error::{Thrown, require};
+use crate::mapping_validation;
 use crate::model_join_nesting;
 use crate::relation_reads;
 use crate::resolved_mapping::ResolvedMapping;
@@ -117,6 +118,9 @@ pub fn synthesize_xstore_mapping(
             None,
         )
     })?;
+    // legend-engine's own compile of each line first, in its words where it refuses (since 2026-11-15, the
+    // normalizer's second batch, item 4 (e))
+    mapping_validation::require_engine_xstore(md, xs, ad, model)?;
     // the line's [srcSet, tgtSet] ids select the sets: srcSet = the OWNING end's, tgtSet = the line's target end's
     let mut set_a: Option<&JStr> = None;
     let mut set_b: Option<&JStr> = None;
@@ -185,6 +189,9 @@ pub fn synthesize_model_join_mapping(
             None,
         )
     })?;
+    // legend-engine's own compile of the lambda first, in its words where it refuses (since 2026-11-15, the
+    // normalizer's second batch, item 4 (e))
+    mapping_validation::require_engine_model_join(md, mj, ad2, model)?;
     // ends resolve like the XStore path: a Relation(~func) set directly, or a TABLE-BACKED Relational set converted to
     // its column view; each its class's ROOT set (until 2026-11-15 the class's first set found in the closure: the
     // normalizer's second batch, item 1, MN:1080)
@@ -203,20 +210,14 @@ pub fn synthesize_model_join_mapping(
     }
     let rf_a = end_a.cols_view.clone();
     let rf_b = end_b.cols_view.clone();
+    // two parameters: require_engine_model_join refused any other count, in the engine's words (until 2026-11-15
+    // lite's NotImplementedException "ModelJoin for 'A' needs a 2-param lambda; got n")
     let params = &mj.lambda.parameters;
-    if params.len() != 2 {
-        return Err(Thrown::not_implemented(cat!(
-            "ModelJoin for '",
-            name,
-            "' needs a 2-param lambda; got ",
-            params.len().to_string()
-        )));
-    }
     let p0 = &params[0];
     let p1 = &params[1];
     let t0 = p0.r#type.as_ref().and_then(name_ref_or_null);
     let t1 = p1.r#type.as_ref().and_then(name_ref_or_null);
-    let (a_var, b_var) = model_join_nesting::pair_end_vars(name, ad2, class_a, class_b, p0, p1, t0, t1)?;
+    let (a_var, b_var) = model_join_nesting::pair_end_vars(name, ad2, class_a, class_b, p0, p1, t0, t1, model)?;
     // the lambda's two parameters one name: one variable cannot be both ends; refused by name, as the parameter
     // count above is (ruling 29). ModelJoinNesting.compose relies on it.
     if a_var == b_var {

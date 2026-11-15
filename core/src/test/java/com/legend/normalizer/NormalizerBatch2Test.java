@@ -862,4 +862,97 @@ class NormalizerBatch2Test {
                 .map(e -> ((com.legend.model.FunctionDefinition) e).qualifiedName())
                 .filter(n -> n.endsWith("$query")).toList(), "the other service's query lifted");
     }
+
+    // ---- item 4 (e): an association lambda the engine refuses when the mapping compiles ----
+
+    /** port-scratch/normbatch2/engine/cases/e4e/t*.pure: one model, the association mapping in {@code %s}. */
+    private static final String ASSOCIATION_LAMBDA = """
+            ###Pure
+            Class t::Person { name: String[1]; firmId: Integer[1]; k: Integer[1]; }
+            Class t::Firm { id: Integer[1]; k: Integer[1]; }
+            Class t::Employee { id: Integer[1]; managerId: Integer[1]; }
+            Association t::Firm_Person { firm: t::Firm[0..1]; employees: t::Person[*]; }
+            Association t::Employee_Manager { reports: t::Employee[*]; manager: t::Employee[0..1]; }
+            ###Relational
+            Database t::DB ( Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER) Table FIRM (ID INTEGER PRIMARY KEY) Table EMP (ID INTEGER PRIMARY KEY, MANAGER_ID INTEGER) )
+            ###Mapping
+            Mapping t::M (
+              t::Person: Relational { ~mainTable [t::DB] PERSON name: [t::DB] PERSON.NAME, firmId: [t::DB] PERSON.FIRM_ID, k: [t::DB] PERSON.FIRM_ID }
+              t::Firm: Relational { ~mainTable [t::DB] FIRM id: [t::DB] FIRM.ID, k: [t::DB] FIRM.ID }
+              t::Employee: Relational { ~mainTable [t::DB] EMP id: [t::DB] EMP.ID, managerId: [t::DB] EMP.MANAGER_ID }
+              %s
+            )
+            """;
+
+    /** port-scratch/peer47/nested.pure (RefusalsNotCrashesTest's nested case): B_C's parameters share a name. */
+    private static final String NESTED_SHARED_NAME = """
+            ###Pure
+            Class t::A { id: Integer[1]; bId: Integer[1]; }
+            Class t::B { id: Integer[1]; cName: String[1]; }
+            Class t::C { name: String[1]; }
+            Association t::A_B { b: t::B[0..1]; as: t::A[*]; }
+            Association t::B_C { c: t::C[0..1]; bs: t::B[*]; }
+            ###Relational
+            Database t::DB ( Table TA (ID INTEGER PRIMARY KEY, B_ID INTEGER) Table TB (ID INTEGER PRIMARY KEY, C_NAME VARCHAR(100)) Table TC (NAME VARCHAR(100) PRIMARY KEY) )
+            ###Mapping
+            Mapping t::M (
+              t::A: Relational { ~mainTable [t::DB] TA id: [t::DB] TA.ID, bId: [t::DB] TA.B_ID }
+              t::B: Relational { ~mainTable [t::DB] TB id: [t::DB] TB.ID, cName: [t::DB] TB.C_NAME }
+              t::C: Relational { ~mainTable [t::DB] TC name: [t::DB] TC.NAME }
+              t::A_B: ModelJoin { {x: t::A[1], y: t::B[1]|($x.bId == $y.id) && ($y.c.name == 'n')} }
+              t::B_C: ModelJoin { {u: t::B[1], u: t::C[1]|$u.cName == $u.name} }
+            )
+            """;
+
+    @Test
+    @DisplayName("item 4 (e): a ModelJoin or XStore lambda the engine refuses at compile is refused in its words")
+    void anAssociationLambdaTheEngineRefusesIsRefusedInItsWords() {
+        // asked of legend-engine 4.145.0 (HelperMappingBuilder.processModelJoinAssociationMapping, resolveLambdaParamNames,
+        // PropertyMappingBuilder): each refused when the mapping compiles, in these words. Until 2026-11-15 lite's
+        // NotImplementedExceptions, which 47d13b73f (d) deferred in a strict build (the normalizer's second batch,
+        // item 4 (e))
+        String[][] cases = {
+            // a name both parameters share is the source in each direction, the association's SECOND property's
+            // class first: Person, which has no id (the parameters' order does not matter: run both ways)
+            {"t::Firm_Person: ModelJoin { {p: t::Firm[1], p: t::Person[1]|$p.id == $p.firmId} }",
+                "Can't find property 'id' in class 't::Person'"},
+            {"t::Firm_Person: ModelJoin { {p: t::Person[1], p: t::Firm[1]|$p.id == $p.firmId} }",
+                "Can't find property 'id' in class 't::Person'"},
+            // Person has firmId, so the second direction (Firm the source) refuses
+            {"t::Firm_Person: ModelJoin { {p: t::Firm[1], p: t::Person[1]|$p.firmId == $p.firmId} }",
+                "Can't find property 'firmId' in class 't::Firm'"},
+            {"t::Firm_Person: ModelJoin { {f: t::Firm[1], e: t::Person[1]|$f.id == $e.nope} }",
+                "Can't find property 'nope' in class 't::Person'"},
+            {"t::Firm_Person: ModelJoin { {a: t::Person[1], b: t::Person[1]|$a.name == $b.name} }",
+                "ModelJoin lambda parameter types do not match association property types: expected one parameter of"
+                    + " type 'Person' and one of type 'Firm', got 'a:t::Person' and 'b:t::Person'"},
+            {"t::Employee_Manager: ModelJoin { {a: t::Employee[1], b: t::Employee[1]|$b.managerId == $a.id} }",
+                "Self-association ModelJoin requires lambda parameter names to match the association property names"
+                    + " ('manager' and 'reports'), got 'a' and 'b'"},
+            {"t::Firm_Person: ModelJoin { {a, b|$a.id == $b.firmId} }",
+                "Cannot pair ModelJoin lambda parameters 'a' and 'b' with association properties 'employees' and"
+                    + " 'firm'. Either type the parameters explicitly (e.g. {a:Person[1], b:Firm[1] | ...}) or rename"
+                    + " the parameters to match the association property names ('employees' and 'firm')."},
+            {"t::Firm_Person: ModelJoin { {p: t::Firm[1]|$p.id == 1} }",
+                "ModelJoin requires a lambda with exactly 2 parameters, e.g. {a:TypeA[1], b:TypeB[1] | $a.prop =="
+                    + " $b.prop} (param types optional)"},
+            {"t::Firm_Person: XStore { firm: $this.firmId == $that.ixd, employees: $this.id == $that.firmId }",
+                "Can't find property 'ixd' in class 't::Firm'"},
+        };
+        for (String[] c : cases) {
+            assertEquals(List.of("[10:1] " + c[1]), strict(ASSOCIATION_LAMBDA.formatted(c[0])), c[0]);
+        }
+        // the nested hop's own ModelJoin refuses, B the source of its first direction (B_C's second property's class)
+        assertEquals(List.of("[10:1] Can't find property 'name' in class 't::B'"), strict(NESTED_SHARED_NAME));
+        // the engine compiles these, and a query navigating the shared-name one fails when it plans ("Cannot cast a
+        // collection of size 0 to multiplicity [1]"): lite compiles them, the shared-name association poisoned
+        assertEquals(List.of(), strict(ASSOCIATION_LAMBDA.formatted(
+                "t::Firm_Person: ModelJoin { {p: t::Firm[1], p: t::Person[1]|$p.k == $p.k} }")));
+        assertEquals("ModelJoin for 't::Firm_Person' needs two distinct lambda parameter names; got [p, p]",
+                module(ASSOCIATION_LAMBDA.formatted(
+                        "t::Firm_Person: ModelJoin { {p: t::Firm[1], p: t::Person[1]|$p.k == $p.k} }"))
+                        .context().mappingAssociationPoison("t::M", "t::Firm_Person").orElseThrow());
+        assertEquals(List.of(), strict(ASSOCIATION_LAMBDA.formatted(
+                "t::Firm_Person: ModelJoin { {f: meta::pure::metamodel::type::Any[1], e: t::Person[1]|$e.firmId == 1} }")));
+    }
 }

@@ -7,21 +7,28 @@
 //! `catch (ModelException)` keeps the exception (its full message becomes a poison). The switch's `default -> {}`
 //! is spelled as the two no-op kinds (census §1).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use lite_builtin::natives::{
+    AND__BOOLEAN_1__BOOLEAN_1, EQUAL__ANY_MANY__ANY_MANY, NOT__BOOLEAN_1, OR__BOOLEAN_1__BOOLEAN_1,
+};
+use lite_builtin::pure::NativeId;
 use lite_error::Phase;
+use lite_front::records as p;
 use lite_model::linked::LinkedMap;
 use lite_model::{
-    ClassMapping, ClassMappingPure, ClassMappingRelational, ClassMappingUnion, JStr, JoinChainElement,
-    LegacyMappingDefinition, PropertyMapping, RelationalOperation, cat,
+    AssociationDefinition, AssociationDefinitionAssociationEndDefinition, AssociationMappingCross,
+    AssociationMappingModelJoin, ClassDefinition, ClassMapping, ClassMappingPure, ClassMappingRelational,
+    ClassMappingUnion, JStr, JoinChainElement, LegacyMappingDefinition, PropertyMapping, RelationalOperation, cat,
 };
-use lite_names::ModelIndex;
 use lite_names::model_index::java_list;
+use lite_names::{MilestoningStrategy, ModelIndex};
 
 use crate::error::Thrown;
 use crate::m2m_route_guards;
 use crate::mapping_normalizer;
+use crate::model_join_nesting;
 use crate::resolved_mapping::ResolvedMapping;
 
 /// `MappingValidation.run` (:43): set id -> its `ModelException`, declaration order.
@@ -274,6 +281,449 @@ pub fn validate_m2m_routes(
         m2m_route_guards::require_benign_route(pb, pcm, tgt, md, model)?;
     }
     Ok(())
+}
+
+// ==== legend-engine's compile of an association mapping's lambdas (the normalizer's second batch, item 4 (e)) ====
+
+/// A check that cannot be made exact here: lite's own refusal (or deferral) stands.
+const HOLD: &str = "\u{0}hold";
+
+fn hold() -> JStr {
+    JStr::from(HOLD)
+}
+
+/// `MappingValidation.requireEngineModelJoin`: legend-engine's checks of a ModelJoin association mapping's lambda when
+/// the mapping compiles, in its words and order (`HelperMappingBuilder.processModelJoinAssociationMapping`): two
+/// parameters; their pairing with the ends ([`engine_pairing`]); the body typed once per direction, the association's
+/// second property's class the source first, a shared name the source's -- only where that is exact ([`first_missing`]).
+/// Since 2026-11-15 (the normalizer's second batch, item 4 (e), ruling 34).
+pub fn require_engine_model_join(
+    md: &ResolvedMapping<'_>,
+    mj: &AssociationMappingModelJoin,
+    ad: &AssociationDefinition,
+    model: &ModelIndex,
+) -> Result<(), Thrown> {
+    let ps = &mj.lambda.parameters;
+    if ps.len() != 2 {
+        return Err(Thrown::model(
+            Phase::Mapping,
+            JStr::from(
+                "ModelJoin requires a lambda with exactly 2 parameters, e.g. {a:TypeA[1], b:TypeB[1] | $a.prop == \
+                 $b.prop} (param types optional)",
+            ),
+            None,
+        ));
+    }
+    let c1 = model_join_nesting::target_class_fqn(&ad.property1)?;
+    let c2 = model_join_nesting::target_class_fqn(&ad.property2)?;
+    // a temporal end: the engine names and pairs the milestoned properties, whose order lite does not hold -- held
+    if temporal(&c1, model)? || temporal(&c2, model)? {
+        return Ok(());
+    }
+    let pm1 = engine_pairing(&ad.property2, &ad.property1, &ps[0], &ps[1], model)?;
+    let pm2 = engine_pairing(&ad.property1, &ad.property2, &ps[0], &ps[1], model)?;
+    if mj.lambda.body.len() != 1 || !plain_sets(md, &c1, model)? || !plain_sets(md, &c2, model)? {
+        return Ok(());
+    }
+    let body = &mj.lambda.body[0];
+    let none = HashMap::new();
+    let mut miss = first_missing(body, &binding(&pm1.1, &c1, &pm1.0, &c2), &none, model)?;
+    if miss.is_none() {
+        miss = first_missing(body, &binding(&pm2.1, &c2, &pm2.0, &c1), &none, model)?;
+    }
+    match miss {
+        Some(m) if m != hold() => Err(Thrown::model(Phase::Mapping, m, None)),
+        _ => Ok(()),
+    }
+}
+
+/// `MappingValidation.requireEngineXStore`: legend-engine's XStore line compile, in its words
+/// (`PropertyMappingBuilder.visit(XStorePropertyMapping)`): each line in order, `$this` the class owning the line's
+/// property and `$that` the property's class, reading only properties they have -- only where exact; at the first line
+/// it cannot decide, nothing more is checked (since 2026-11-15, the normalizer's second batch, item 4 (e)).
+pub fn require_engine_xstore(
+    md: &ResolvedMapping<'_>,
+    xs: &AssociationMappingCross,
+    ad: &AssociationDefinition,
+    model: &ModelIndex,
+) -> Result<(), Thrown> {
+    for line in xs.property_mappings2.iter() {
+        let (prop, other) = if line.property_name == ad.property1.property_name {
+            (&ad.property1, &ad.property2)
+        } else if line.property_name == ad.property2.property_name {
+            (&ad.property2, &ad.property1)
+        } else {
+            return Ok(());
+        };
+        let this_cls = model_join_nesting::target_class_fqn(other)?;
+        let that_cls = model_join_nesting::target_class_fqn(prop)?;
+        if line.source_set_id.is_some()
+            || line.target_set_id.is_some()
+            || temporal(&this_cls, model)?
+            || temporal(&that_cls, model)?
+        {
+            return Ok(());
+        }
+        let mut bind: HashMap<JStr, JStr> = HashMap::new();
+        let mut locals: HashMap<JStr, HashSet<JStr>> = HashMap::new();
+        for (v, cls) in [(JStr::from("this"), &this_cls), (JStr::from("that"), &that_cls)] {
+            let Some(only) = sole_set(md, cls, model)? else {
+                return Ok(());
+            };
+            bind.insert(v.clone(), cls.clone());
+            locals.insert(v, local_names(&only));
+        }
+        if let Some(m) = first_missing(&line.expression, &bind, &locals, model)? {
+            if m != hold() {
+                return Err(Thrown::model(Phase::Mapping, m, None));
+            }
+            return Ok(());
+        }
+    }
+    Ok(())
+}
+
+/// `MappingValidation.enginePairing`: `resolveLambdaParamNames` for the direction whose source is `this_end`'s class --
+/// the parameters as (the source's, the target's); typed both and the classes not one: by type (a class its type or a
+/// subtype), the first parameter tried as the source first, else refused; otherwise by name; else refused -- each in the
+/// engine's words.
+pub fn engine_pairing(
+    this_end: &AssociationDefinitionAssociationEndDefinition,
+    that_end: &AssociationDefinitionAssociationEndDefinition,
+    p0: &p::Variable,
+    p1: &p::Variable,
+    model: &ModelIndex,
+) -> Result<(JStr, JStr), Thrown> {
+    let this_cls = model_join_nesting::target_class_fqn(this_end)?;
+    let that_cls = model_join_nesting::target_class_fqn(that_end)?;
+    let is_self = this_cls == that_cls;
+    let t0 = p0.r#type.as_ref().and_then(mapping_normalizer::name_ref_or_null);
+    let t1 = p1.r#type.as_ref().and_then(mapping_normalizer::name_ref_or_null);
+    if !is_self && let (Some(t0), Some(t1)) = (t0, t1) {
+        let p0_is_this = subtype_of(&this_cls, t0, model);
+        let p1_is_that = subtype_of(&that_cls, t1, model);
+        let p0_is_that = subtype_of(&that_cls, t0, model);
+        let p1_is_this = subtype_of(&this_cls, t1, model);
+        if p0_is_this && p1_is_that {
+            return Ok((p0.name.clone(), p1.name.clone()));
+        }
+        if p0_is_that && p1_is_this {
+            return Ok((p1.name.clone(), p0.name.clone()));
+        }
+        return Err(Thrown::model(
+            Phase::Mapping,
+            cat!(
+                "ModelJoin lambda parameter types do not match association property types: expected one parameter of \
+                 type '",
+                &simple_name(&this_cls),
+                "' and one of type '",
+                &simple_name(&that_cls),
+                "', got '",
+                &p0.name,
+                ":",
+                t0,
+                "' and '",
+                &p1.name,
+                ":",
+                t1,
+                "'"
+            ),
+            None,
+        ));
+    }
+    let src = &this_end.property_name;
+    let tgt = &that_end.property_name;
+    if &p0.name == src && &p1.name == tgt {
+        return Ok((p0.name.clone(), p1.name.clone()));
+    }
+    if &p0.name == tgt && &p1.name == src {
+        return Ok((p1.name.clone(), p0.name.clone()));
+    }
+    if is_self {
+        return Err(Thrown::model(
+            Phase::Mapping,
+            cat!(
+                "Self-association ModelJoin requires lambda parameter names to match the association property names \
+                 ('",
+                src,
+                "' and '",
+                tgt,
+                "'), got '",
+                &p0.name,
+                "' and '",
+                &p1.name,
+                "'"
+            ),
+            None,
+        ));
+    }
+    Err(Thrown::model(
+        Phase::Mapping,
+        cat!(
+            "Cannot pair ModelJoin lambda parameters '",
+            &p0.name,
+            "' and '",
+            &p1.name,
+            "' with association properties '",
+            src,
+            "' and '",
+            tgt,
+            "'. Either type the parameters explicitly (e.g. {",
+            &p0.name,
+            ":",
+            &simple_name(&this_cls),
+            "[1], ",
+            &p1.name,
+            ":",
+            &simple_name(&that_cls),
+            "[1] | ...}) or rename the parameters to match the association property names ('",
+            src,
+            "' and '",
+            tgt,
+            "')."
+        ),
+        None,
+    ))
+}
+
+/// The engine's variables for one direction: the target's name bound first, the source's over it.
+fn binding(tgt_var: &JStr, tgt_cls: &JStr, src_var: &JStr, src_cls: &JStr) -> HashMap<JStr, JStr> {
+    let mut b = HashMap::new();
+    b.insert(tgt_var.clone(), tgt_cls.clone());
+    b.insert(src_var.clone(), src_cls.clone());
+    b
+}
+
+/// `MappingValidation.firstMissing`: the first property the expression reads of a class that has it not, in the
+/// engine's typing order; none when it reads none; [`HOLD`] outside the shapes where that is exact.
+fn first_missing(
+    v: &p::ValueSpecification,
+    bind: &HashMap<JStr, JStr>,
+    locals: &HashMap<JStr, HashSet<JStr>>,
+    model: &ModelIndex,
+) -> Result<Option<JStr>, Thrown> {
+    match v {
+        p::ValueSpecification::AppliedFunction(root) if boolean_call(root) => missing_in(root, bind, locals, model),
+        _ => Ok(Some(hold())),
+    }
+}
+
+fn boolean_call(af: &p::AppliedFunction) -> bool {
+    let n = af.parameters.len();
+    n == 2
+        && (names_native(af, EQUAL__ANY_MANY__ANY_MANY)
+            || names_native(af, AND__BOOLEAN_1__BOOLEAN_1)
+            || names_native(af, OR__BOOLEAN_1__BOOLEAN_1))
+        || n == 1 && names_native(af, NOT__BOOLEAN_1)
+}
+
+fn names_native(af: &p::AppliedFunction, n: NativeId) -> bool {
+    lite_names::resolved_names::names(af, &n.def().qualified_name.lossy())
+}
+
+fn missing_in(
+    af: &p::AppliedFunction,
+    bind: &HashMap<JStr, JStr>,
+    locals: &HashMap<JStr, HashSet<JStr>>,
+    model: &ModelIndex,
+) -> Result<Option<JStr>, Thrown> {
+    let equal = names_native(af, EQUAL__ANY_MANY__ANY_MANY);
+    for arg in af.parameters.iter() {
+        let r = match arg {
+            p::ValueSpecification::AppliedFunction(call) if boolean_call(call) => {
+                missing_in(call, bind, locals, model)?
+            }
+            _ if !equal => Some(hold()),
+            p::ValueSpecification::CString(_)
+            | p::ValueSpecification::CInteger(_)
+            | p::ValueSpecification::CBoolean(_)
+            | p::ValueSpecification::CFloat(_) => None,
+            _ => chain(arg, bind, locals, model)?.0,
+        };
+        if r.is_some() {
+            return Ok(r);
+        }
+    }
+    Ok(None)
+}
+
+/// `MappingValidation.chain`: a property chain's walk -- its refusal (a missing property's words, or HOLD), else the
+/// class it lands on (none for a primitive or a local mapping property).
+fn chain(
+    v: &p::ValueSpecification,
+    bind: &HashMap<JStr, JStr>,
+    locals: &HashMap<JStr, HashSet<JStr>>,
+    model: &ModelIndex,
+) -> Result<(Option<JStr>, Option<JStr>), Thrown> {
+    let ap = match v {
+        p::ValueSpecification::Variable(var) => {
+            return Ok(match bind.get(&var.name) {
+                Some(c) => (None, Some(c.clone())),
+                None => (Some(hold()), None),
+            });
+        }
+        p::ValueSpecification::AppliedProperty(ap) => ap,
+        _ => return Ok((Some(hold()), None)),
+    };
+    let empty = HashSet::new();
+    let own = match &ap.receiver {
+        p::ValueSpecification::Variable(rv) => locals.get(&rv.name).unwrap_or(&empty),
+        _ => &empty,
+    };
+    let receiver = chain(&ap.receiver, bind, locals, model)?;
+    if receiver.0.is_some() {
+        return Ok(receiver);
+    }
+    let Some(cls) = receiver.1 else {
+        return Ok((Some(hold()), None));
+    };
+    if temporal(&cls, model)? {
+        return Ok((Some(hold()), None));
+    }
+    if own.contains(&ap.property) {
+        return Ok((None, None)); // a local mapping property: its type is not read further
+    }
+    let Some(cd) = model.knowledge().hierarchy_class(Some(&cls)) else {
+        return Ok((Some(hold()), None));
+    };
+    let Some(t) = model.knowledge().property_type(Some(cd), &ap.property)? else {
+        let derived = match lineage_or_none(&cls, model) {
+            None => true,
+            Some(lineage) => lineage
+                .iter()
+                .any(|c| c.derived_properties.iter().any(|d| d.name == ap.property)),
+        };
+        if derived || !own.is_empty() {
+            return Ok((Some(hold()), None));
+        }
+        return Ok((
+            Some(cat!("Can't find property '", &ap.property, "' in class '", &cls, "'")),
+            None,
+        ));
+    };
+    Ok((
+        None,
+        match &t {
+            p::TypeExpression::TypeExpressionNameRef(nr)
+                if model.knowledge().hierarchy_class(Some(&nr.name)).is_some() =>
+            {
+                Some(nr.name.clone())
+            }
+            _ => None,
+        },
+    ))
+}
+
+/// `MappingValidation.temporal`: whether `cls` or a class it extends carries a temporal stereotype -- or its lineage is
+/// not the model's to read: held either way.
+fn temporal(cls: &JStr, model: &ModelIndex) -> Result<bool, Thrown> {
+    Ok(match lineage_or_none(cls, model) {
+        None => true,
+        Some(lineage) => lineage.iter().any(|c| {
+            c.stereotypes
+                .iter()
+                .any(|st| MilestoningStrategy::of_stereotype_or_null(&st.profile_name, &st.stereotype_name).is_some())
+        }),
+    })
+}
+
+/// `MappingValidation.temporalEnd`, for the pairing's caller.
+pub fn temporal_end(cls: &JStr, model: &ModelIndex) -> Result<bool, Thrown> {
+    temporal(cls, model)
+}
+
+/// `MappingValidation.lineageOrNull`: `cls`'s lineage, none where a class of it the model has not.
+fn lineage_or_none(cls: &JStr, model: &ModelIndex) -> Option<Vec<Arc<ClassDefinition>>> {
+    model.knowledge().hierarchy_class(Some(cls))?;
+    model.knowledge().lineage(cls).ok()
+}
+
+/// `Type.subTypeOf`: the class itself, a class it extends, or Any.
+fn subtype_of(child: &JStr, parent: &JStr, model: &ModelIndex) -> bool {
+    child == parent || *parent == "meta::pure::metamodel::type::Any" || model.knowledge().is_subtype(child, parent)
+}
+
+/// `MappingValidation.plainSets`: whether every instance set the engine would pair for `cls` (its and its subtypes',
+/// the closure's) is the class's own with no local mapping property.
+fn plain_sets(md: &ResolvedMapping<'_>, cls: &JStr, model: &ModelIndex) -> Result<bool, Thrown> {
+    for (_, cm) in md.visible_sets()?.iter() {
+        if matches!(
+            cm,
+            ClassMapping::ClassMappingUnion(_) | ClassMapping::ClassMappingInheritance(_)
+        ) {
+            continue;
+        }
+        if cm.class_name() != cls {
+            if model.knowledge().is_subtype(cm.class_name(), cls) {
+                return Ok(false);
+            }
+            continue;
+        }
+        if !local_names(cm).is_empty() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// `MappingValidation.soleSet`: `cls`'s one instance set in the closure, if it has exactly one and no subtype is mapped.
+fn sole_set(md: &ResolvedMapping<'_>, cls: &JStr, model: &ModelIndex) -> Result<Option<ClassMapping>, Thrown> {
+    let mut only: Option<ClassMapping> = None;
+    for (_, cm) in md.visible_sets()?.iter() {
+        if matches!(
+            cm,
+            ClassMapping::ClassMappingUnion(_) | ClassMapping::ClassMappingInheritance(_)
+        ) {
+            continue;
+        }
+        if cm.class_name() == cls {
+            if only.is_some() {
+                return Ok(None);
+            }
+            only = Some(cm.clone());
+        } else if model.knowledge().is_subtype(cm.class_name(), cls) {
+            return Ok(None);
+        }
+    }
+    Ok(only)
+}
+
+/// `MappingValidation.localNames`: a set's local mapping properties' names.
+fn local_names(cm: &ClassMapping) -> HashSet<JStr> {
+    let mut out = HashSet::new();
+    match cm {
+        ClassMapping::ClassMappingRelational(r) => {
+            for pm in r.property_mappings.iter() {
+                if let PropertyMapping::PropertyMappingLocalProperty(lp) = pm {
+                    out.insert(lp.property_name.clone());
+                }
+            }
+        }
+        ClassMapping::ClassMappingPure(p) => {
+            for b in p.property_bindings.iter() {
+                if b.local {
+                    out.insert(b.property_name.clone());
+                }
+            }
+        }
+        ClassMapping::ClassMappingRelationFunction(f) => {
+            for c in f.columns.iter() {
+                if c.local {
+                    out.insert(c.property.clone());
+                }
+            }
+        }
+        ClassMapping::ClassMappingUnion(_) | ClassMapping::ClassMappingInheritance(_) => {}
+    }
+    out
+}
+
+/// A qualified name's last segment.
+fn simple_name(fqn: &JStr) -> JStr {
+    match lite_model::text::last_index_of(&fqn.0, &JStr::from("::").0) {
+        Some(i) => JStr::from(&fqn.0[i + 2..]),
+        None => fqn.clone(),
+    }
 }
 
 #[cfg(test)]

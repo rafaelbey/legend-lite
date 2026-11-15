@@ -130,7 +130,7 @@ final class ModelJoinNesting {
             String nt1 = np1.type() instanceof TypeExpression.NameRef nn1
                     ? nn1.name() : null;
             String[] nPair = pairEndVars(nmj.associationName(), nad,
-                    endCls, nestedCls, np0, np1, nt0, nt1);
+                    endCls, nestedCls, np0, np1, nt0, nt1, model);
             // Two refusals where the maps below threw until 2026-11-14 (ruling 29, the normalizer slice's step 1;
             // RefusalsNotCrashesTest), in this order as those maps were built: the nested lambda's two parameters one
             // name (a raw "duplicate key" IllegalArgumentException), as the top-level ModelJoin refuses it; the nested
@@ -176,12 +176,25 @@ final class ModelJoinNesting {
         return new Composed(pipeA, pipeB, nestedCols);
     }
 
-    /** The end-var pairing shared by top-level and NESTED ModelJoins:
-     * exact type FQN when the ends differ, else the engine's
-     * property-name rule — never suffix matching. */
+    /** The end-var pairing shared by top-level and NESTED ModelJoins, as [end A's, end B's]: legend-engine's
+     * (MappingValidation.enginePairing, the association's second property's class the source -- its first
+     * direction), in its words where it cannot pair, since 2026-11-15 (the normalizer's second batch, item 4 (e)):
+     * until then exact type FQN when the ends differ, else the property-name rule, else a NotImplementedException --
+     * a parameter typed as an end's supertype the engine pairs by subtyping, and one typed otherwise it refuses
+     * rather than reading the names. A temporal end keeps that rule (its milestoned property names, which the engine
+     * pairs by, lite does not hold): held. */
     static String[] pairEndVars(String assocName,
             AssociationDefinition ad2, String classA, String classB,
-            Variable p0, Variable p1, @com.legend.base.Nullable String t0, @com.legend.base.Nullable String t1) {
+            Variable p0, Variable p1, @com.legend.base.Nullable String t0, @com.legend.base.Nullable String t1,
+            ModelBuilder model) {
+        String c1 = ad2.property1().targetClassFqn();
+        String c2 = ad2.property2().targetClassFqn();
+        if (!MappingValidation.temporalEnd(c1, model) && !MappingValidation.temporalEnd(c2, model)) {
+            // [the source's (property2's class), the target's (property1's)]
+            String[] pm1 = MappingValidation.enginePairing(ad2.property2(), ad2.property1(), p0, p1, model);
+            return classA.equals(c2) && classB.equals(c1) && !c1.equals(c2)
+                    ? new String[] {pm1[0], pm1[1]} : new String[] {pm1[1], pm1[0]};
+        }
         if (!classA.equals(classB) && classA.equals(t0) && classB.equals(t1)) {
             return new String[] {p0.name(), p1.name()};
         }

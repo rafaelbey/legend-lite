@@ -343,22 +343,28 @@ class RefusalsNotCrashesTest {
     @Test
     @DisplayName("a ModelJoin's lambda parameters of one name, and a nested hop to a Pure end, are refused, not JDK collection errors")
     void aModelJoinsParametersAndANestedHopsEndAreRefused() {
-        // each a NotImplementedException (a roadmap gap): since 2026-11-15 it defers in a strict build too, the class's
-        // rule -- the association poisoned, a query navigating it refused -- where it went to strictErrors and refused
-        // the strict build (the normalizer batch, item 4 (d), census ASK 10; LITE-ONLY under the owner's ruling of
-        // 2026-11-15 on ruling 30's frozen-answer clause)
-        String top = "ModelJoin for 't::Firm_Person' needs two distinct lambda parameter names; got [p, p]";
-        assertEquals(List.of(), strict(MODEL_JOIN_PARAMETERS_OF_ONE_NAME));
+        // the parameters of one name: legend-engine refuses each when the mapping compiles, the shared name the
+        // source of each direction, the association's second property's class first ("Can't find property 'id' in
+        // class 't::Person'"; B_C's "... 'name' in class 't::B'"; asked: port-scratch/peer47, normbatch2/engine/cases/
+        // e4e), and lite now does (MappingValidation.requireEngineModelJoin; the normalizer's second batch, item 4 (e),
+        // 2026-11-15, superseding 47d13b73f (d) here). Until then each a NotImplementedException that 47d13b73f (d)
+        // deferred in a strict build too (the association poisoned, the strict build compiling), and before it a
+        // strict refusal in lite's words ("ModelJoin for 't::Firm_Person' needs two distinct lambda parameter names;
+        // got [p, p]"). A tolerant build poisons the association with the engine's words. The nested hop's own
+        // NotImplementedException still poisons the association navigating it (A_B), as the engine compiles A_B
+        String top = "Can't find property 'id' in class 't::Person'";
+        assertEquals(List.of("[7:1] " + top), strict(MODEL_JOIN_PARAMETERS_OF_ONE_NAME));
         Compiler.BuiltModule topModule = module(MODEL_JOIN_PARAMETERS_OF_ONE_NAME);
         assertEquals(Map.of(), topModule.walls());
         assertEquals(top, topModule.context().mappingAssociationPoison("t::M", "t::Firm_Person").orElseThrow());
 
         String nested = "nested ModelJoin 't::B_C' needs two distinct lambda parameter names; got [u, u]";
-        assertEquals(List.of(), strict(NESTED_MODEL_JOIN_PARAMETERS_OF_ONE_NAME));
+        assertEquals(List.of("[10:1] Can't find property 'name' in class 't::B'"),
+                strict(NESTED_MODEL_JOIN_PARAMETERS_OF_ONE_NAME));
         Compiler.BuiltModule nestedModule = module(NESTED_MODEL_JOIN_PARAMETERS_OF_ONE_NAME);
         assertEquals(Map.of(), nestedModule.walls());
         assertEquals(nested, nestedModule.context().mappingAssociationPoison("t::M", "t::A_B").orElseThrow());
-        assertEquals("ModelJoin for 't::B_C' needs two distinct lambda parameter names; got [u, u]",
+        assertEquals("Can't find property 'name' in class 't::B'",
                 nestedModule.context().mappingAssociationPoison("t::M", "t::B_C").orElseThrow());
 
         String pureEnd = "nested ModelJoin 't::B_C' has a Pure-set end — the property-space route covers XStore"

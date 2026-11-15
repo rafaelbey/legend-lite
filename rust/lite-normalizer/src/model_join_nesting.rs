@@ -22,6 +22,7 @@ use lite_names::{ModelIndex, calls};
 
 use crate::error::{Thrown, require};
 use crate::mapping_normalizer::name_ref_or_null;
+use crate::mapping_validation;
 use crate::relation_reads;
 use crate::resolved_mapping::ResolvedMapping;
 use crate::xstore_pure_ends::{root_end_id, variable, xstore_end_of};
@@ -136,7 +137,17 @@ pub fn compose(
         let np1 = &nmj.lambda.parameters[1];
         let nt0 = np0.r#type.as_ref().and_then(name_ref_or_null);
         let nt1 = np1.r#type.as_ref().and_then(name_ref_or_null);
-        let n_pair = pair_end_vars(&nmj.association_name, nad, end_cls, &nested_cls, np0, np1, nt0, nt1)?;
+        let n_pair = pair_end_vars(
+            &nmj.association_name,
+            nad,
+            end_cls,
+            &nested_cls,
+            np0,
+            np1,
+            nt0,
+            nt1,
+            model,
+        )?;
         // two refusals where Java's maps threw until 2026-11-14 (ruling 29), in the order those maps were built: the
         // nested lambda's two parameters one name, as the top-level ModelJoin refuses it; the nested end mapped by a
         // Pure set (no column view), in the top-level ModelJoin's words for a Pure-set end
@@ -224,7 +235,9 @@ pub fn compose(
     })
 }
 
-/// `ModelJoinNesting.pairEndVars` (:169): which lambda parameter is end A's and which end B's (Java's `String[2]`).
+/// `ModelJoinNesting.pairEndVars` (:169): which lambda parameter is end A's and which end B's (Java's `String[2]`):
+/// legend-engine's pairing ([`mapping_validation::engine_pairing`], its first direction) since 2026-11-15 (the
+/// normalizer's second batch, item 4 (e)); a temporal end keeps the exact-type-then-name rule (held).
 #[allow(clippy::too_many_arguments)]
 pub fn pair_end_vars(
     assoc_name: &JStr,
@@ -235,7 +248,19 @@ pub fn pair_end_vars(
     p1: &p::Variable,
     t0: Option<&JStr>,
     t1: Option<&JStr>,
+    model: &ModelIndex,
 ) -> Result<(JStr, JStr), Thrown> {
+    let c1 = target_class_fqn(&ad2.property1)?;
+    let c2 = target_class_fqn(&ad2.property2)?;
+    if !mapping_validation::temporal_end(&c1, model)? && !mapping_validation::temporal_end(&c2, model)? {
+        // (the source's: property2's class, the target's: property1's)
+        let (src, tgt) = mapping_validation::engine_pairing(&ad2.property2, &ad2.property1, p0, p1, model)?;
+        return Ok(if class_a == &c2 && class_b == &c1 && c1 != c2 {
+            (src, tgt)
+        } else {
+            (tgt, src)
+        });
+    }
     // exact type FQN when the ends differ, else the engine's property-name rule -- never suffix matching
     let distinct = class_a != class_b;
     if distinct && t0 == Some(class_a) && t1 == Some(class_b) {
@@ -294,7 +319,7 @@ pub(crate) fn last_statement(lambda: &p::LambdaFunction) -> Result<&p::ValueSpec
 
 /// `end.targetClassFqn()` (lite-model's): its one throw, the IllegalStateException, converted by hand (lite-model's
 /// `Thrown` names its Java class by a `String`).
-fn target_class_fqn(end: &AssociationDefinitionAssociationEndDefinition) -> Result<JStr, Thrown> {
+pub(crate) fn target_class_fqn(end: &AssociationDefinitionAssociationEndDefinition) -> Result<JStr, Thrown> {
     match end.target_class_fqn() {
         Ok(fqn) => Ok(fqn.clone()),
         Err(lite_model::Thrown::Java(e)) => Err(Thrown::illegal_state(e.message.unwrap_or_default())),
@@ -450,6 +475,7 @@ Mapping t::M (
                     p1,
                     t0.as_ref().and_then(name_ref_or_null),
                     t1.as_ref().and_then(name_ref_or_null),
+                    idx,
                 )
             };
             assert_eq!(pair(&x, &y, &a, &b).unwrap(), (j("y"), j("x")));
@@ -457,13 +483,17 @@ Mapping t::M (
             // one class at both ends: the engine's property-name rule
             let (pb, pas) = (param("b", None), param("as", None));
             assert_eq!(pair(&pas, &pb, &a, &a).unwrap(), (j("b"), j("as")));
+            // the engine's refusal (since 2026-11-15, the normalizer's second batch, item 4 (e): it was lite's
+            // NotImplementedException, "ModelJoin for 't::A_B': lambda params [m: null, n: t::A] pair with the
+            // association ends neither by exact type nor by the engine's property-name rule")
             let e = pair(&param("m", None), &param("n", Some("t::A")), &a, &b).unwrap_err();
-            assert!(e.is_not_implemented());
+            assert!(e.is_model());
             assert_eq!(
                 e.message(),
                 Some(j(
-                    "ModelJoin for 't::A_B': lambda params [m: null, n: t::A] pair with the association ends \
-                        neither by exact type nor by the engine's property-name rule"
+                    "Cannot pair ModelJoin lambda parameters 'm' and 'n' with association properties 'as' and 'b'. \
+                     Either type the parameters explicitly (e.g. {m:A[1], n:B[1] | ...}) or rename the parameters to \
+                     match the association property names ('as' and 'b')."
                 ))
             );
         });
