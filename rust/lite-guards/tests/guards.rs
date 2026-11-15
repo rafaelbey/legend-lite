@@ -646,21 +646,15 @@ fn a_call_construction_is_told_from_a_return_type() {
 /// `ParkedWorkLedgerTest`'s two anchors over the normalizer, restated against the Rust port (2026-11-14, the
 /// normalizer slice; ruling 30, census ASK 8 and ASK 9): PARK-1's XStore direction rule is ONE Rust function
 /// (`xstore_pure_ends::synthesize`, where Java has it twice, MappingNormalizer and XStorePureEnds), so its wall's words
-/// are in that file alone; PARK-26's list count of an includer's resolved includes is in `store_substitution_rewrite.rs`
-/// alone. The Java anchors keep running while the Java exists (rust/RETIRED_TESTS.md). A moved anchor takes a dated
+/// are in that file alone. PARK-26's anchor (its list count of an includer's resolved includes, in
+/// `store_substitution_rewrite.rs`) left with the row, closed 2026-11-15 by the engine's answer (the normalizer batch, item
+/// 3). The Java anchors keep running while the Java exists (rust/RETIRED_TESTS.md). A moved anchor takes a dated
 /// comment and a rust/RETIRED_TESTS.md row.
-const PARKED_ANCHORS: &[(&str, &str, &str)] = &[
-    (
-        "PARK-1 xstore per-end predicates",
-        "has direction-specific conditions",
-        "rust/lite-normalizer/src/xstore_pure_ends.rs",
-    ),
-    (
-        "PARK-26 a mapping included under two spellings is refused as an include cycle",
-        "incs.push(fqn);",
-        "rust/lite-normalizer/src/store_substitution_rewrite.rs",
-    ),
-];
+const PARKED_ANCHORS: &[(&str, &str, &str)] = &[(
+    "PARK-1 xstore per-end predicates",
+    "has direction-specific conditions",
+    "rust/lite-normalizer/src/xstore_pure_ends.rs",
+)];
 
 #[test]
 fn the_parked_work_anchors_hold_in_the_normalizer() {

@@ -114,6 +114,24 @@ class IncludeRulesTest {
     }
 
     @Test
+    @DisplayName("PARK-26: one mapping included under two spellings is a duplicated include, by the mapping it names")
+    void oneMappingIncludedUnderTwoSpellingsIsADuplicatedInclude() {
+        // asked of legend-engine 4.145.0 (2026-11-15, the normalizer batch, item 3): `include w::A` and `include A`
+        // (A imported) are "Duplicated mapping include 'w::A' in mapping 'w::B'", the resolved name, whatever the
+        // spelling; until then E compared the spellings and counted the pair as an include cycle (PARK-26). Name
+        // resolution spells both w::A before E, so either door answers the engine's words.
+        String twoSpellings = CLASSES + """
+                ###Mapping
+                Mapping w::A ( *w::Person[a] : Relational { ~mainTable [w::DB] PERSON_A name: PERSON_A.NAME } )
+                ###Mapping
+                import w::*;
+                Mapping w::B ( include w::A include A )
+                """;
+        ModelException e = assertThrows(ModelException.class, () -> Compiler.compileModel(twoSpellings));
+        assertTrue(e.getMessage().endsWith("Duplicated mapping include 'w::A' in mapping 'w::B'"), e.getMessage());
+    }
+
+    @Test
     @DisplayName("a mapping defined twice is a duplicate element, never an include cycle")
     void duplicateMappingIsADuplicateElement() {
         // 2026-10-11: the include ordering's cycle check counted the parsed mappings (a duplicate twice)

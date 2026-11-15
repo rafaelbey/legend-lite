@@ -170,11 +170,9 @@ class ParkedWorkLedgerTest {
             Map.entry("PARK-25 the shared element namespace misses services, data, connections, runtimes and clean-sheet mappings",
                     new Anchor("putAtId\\(services, intern\\(sd\\.qualifiedName\\(\\)\\), sd\\)",
                             List.of("ModelBuilder.java"))),
-            // PARK-26 (2026-10-11, the same audit): two spellings of one include resolve to one name, counted twice
-            // and satisfied once, so the mapping is refused as a cycle
-            Map.entry("PARK-26 a mapping included under two spellings is refused as an include cycle",
-                    new Anchor("if \\(fqn != null\\) \\{\\s+incs\\.add\\(fqn\\);",
-                            List.of("StoreSubstitutionRewrite.java"))),
+            // PARK-26 closed 2026-11-15 (the normalizer batch, item 3, ruling 30): one mapping included under two
+            // spellings is "Duplicated mapping include" by the mapping it resolves to, legend-engine's answer, asked
+            // first (IncludeRulesTest.oneMappingIncludedUnderTwoSpellingsIsADuplicatedInclude)
             // PARK-27 (2026-10-11, the protocol program's leg 8 step 2, with the Compiler Rewrite line): a decimal
             // literal beyond DECIMAL(38) rounds at the TYPER, where Pure's Decimal is unbounded and legend-engine
             // compiles any scale -- the width is the store's, met at render; which plan decides where it belongs

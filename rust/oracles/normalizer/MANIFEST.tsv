@@ -35,9 +35,10 @@
 #   2b: 218 asks over 75 texts -- census ASK 13: an unknown XStore / ModelJoin association is "Can't find association 'x'" (a ModelException; it was a NotImplementedException naming the kind)
 #   2e: 216 asks over 72 texts -- census ASK 13: MappingFacts names a union member and a routed target by the effective set id, the first match (it matched the raw setId, absent when no id was written)
 #   2fg: 72 asks over 24 texts -- census ASK 13: an enumeration mapping id taken twice across a mapping's closure is "Duplicated enumeration mappings found with ID 'x' in mapping 'M'" (the engine's MappingValidator; lite accepted it); an unknown enum value "Can't find enum value" (no ask moved by this one)
+#   2i: 6 asks over 2 texts -- census ASK 13: an include cycle names its members alone, in a depth-first walk's order from the first declared mapping never made ready (S393); the 6 asks are 2 texts whose A -> C -> B triangle was listed in name order [A, B, C], now [A, C, B]; each reaches the cycle refusal the reach run tagged (item 3, PARK-26, moved none)
 # RE-FROZEN BY THE NORMALIZER BATCH (end)
-attribution-2026-11-15-normalizer-batch.tsv	the batch's re-freezes' attribution: item, text sha, dialect, hash before, hash after (plain text: its own SHA-256)	d3367bd5f7fb5e47dc96b41ff88eea19fff07f897f0d24e559310a77dafb35b2
-answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines	d9d5184630ef02f7a5a1acd5fce0a5a0fc50f0602d1c86ee2cf956c176a23fe2
+attribution-2026-11-15-normalizer-batch.tsv	the batch's re-freezes' attribution: item, text sha, dialect, hash before, hash after (plain text: its own SHA-256)	aa7152a728432db95ce985f90783047fa853d0c90c51005bfffb546fac5b2afc
+answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines	ab5873b75963742a3e1368057b5384d35894cb729efedbb485dce74ade15b876
 # CASES: the slice's targeted model texts for the oracle-blind sites (EF_CENSUS.md §10 item 3, E's), in the front
 # oracle's question form ({"sha","asks","text"}, the sha the SHA-256 of the text's UTF-16 units, asked at every
 # dialect), written by port-scratch/normalizer/tools/make_cases.py: ten cases -- a view-on-view cycle mapped and alone,

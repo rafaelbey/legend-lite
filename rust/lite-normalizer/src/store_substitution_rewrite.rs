@@ -11,8 +11,9 @@
 //! as the visitor); `qualifyStoreRefs` drops `current` (`findDatabase` is exact-only now: `current` is always none;
 //! at ad86fa895 the method refuses an unqualified store an import names rather than rewriting it). `storeFqn` is
 //! ported as Java writes it (`resolveAllStores` calls it; the identity on every input, so either form answers alike).
-//! PARK-26 (an include under two spellings refused as a cycle: `pending` counts list entries) is ruling 30's,
-//! settled by the engine's answer: until then port the refusal exactly (a Rust in-degree over a SET would accept it).
+//! PARK-26 (an include under two spellings refused as a cycle: `pending` counted list entries) is settled by the
+//! engine's answer, asked first (2026-11-15, the normalizer batch, item 3): one mapping included twice, however spelled,
+//! is "Duplicated mapping include" by its resolved name; an include cycle is named by its members alone (item 2).
 //!
 //! The mapper is called in Java's evaluation order (a constructor's arguments left to right), so the order
 //! `collectDatabases` records the stores in -- which `qualifyStoreRefs` refuses first -- is Java's. Java's
@@ -358,9 +359,8 @@ pub fn collect_databases(md: &LegacyMappingDefinition, out: &mut LinkedSet<JStr>
 /// `StoreSubstitutionRewrite.resolveAllStores` (:247): every mapping's resolved store substitutions (store -> store),
 /// include order, mappings in dependency order; loud for an include listed twice or an include cycle.
 ///
-/// PARK-26 is ported here exactly: `pending` counts an includer's LIST of resolved includes and the decrement fires
-/// once per finished mapping, so one mapping included under two spellings is refused as an include cycle (the
-/// comment at the `incs.push`).
+/// One mapping included twice is refused by the mapping it resolves to, however spelled, as the engine refuses it
+/// (PARK-26 settled, 2026-11-15, the normalizer batch, item 3); an include cycle is named by its members alone (item 2).
 pub fn resolve_all_stores(
     mappings: &[Arc<LegacyMappingDefinition>],
     model: &ModelIndex,
@@ -376,14 +376,18 @@ pub fn resolve_all_stores(
         let mut incs: Vec<JStr> = Vec::new();
         let mut listed: HashSet<JStr> = HashSet::new();
         for inc in md.includes.iter() {
-            // the engine's compiler rejects an include listed twice (MappingCompilerExtension: "Duplicated mapping
-            // include"); here, before the ordering, so it never masquerades as a cycle
-            if !listed.insert(inc.mapping_path.clone()) {
+            // the engine's compiler rejects one mapping included twice (MappingCompilerExtension: "Duplicated mapping
+            // include") BY THE MAPPING the include resolves to, however spelled (asked of legend-engine 4.145.0);
+            // here, before the ordering, so it never masquerades as a cycle. PARK-26 settled (2026-11-15, the
+            // normalizer batch, item 3, ruling 30): the check compared the spellings
+            let fqn = include_fqn(&md.qualified_name, &inc.mapping_path, &by_fqn);
+            let included = fqn.clone().unwrap_or_else(|| inc.mapping_path.clone());
+            if !listed.insert(included.clone()) {
                 return Err(Thrown::model(
                     Phase::Model,
                     cat!(
                         "Duplicated mapping include '",
-                        &inc.mapping_path,
+                        &included,
                         "' in mapping '",
                         &md.qualified_name,
                         "'"
@@ -391,11 +395,7 @@ pub fn resolve_all_stores(
                     Some(&md.qualified_name),
                 ));
             }
-            // PARK-26 (ruling 30; docs/PARKED_WORK_LEDGER.md): `incs` is a LIST, so an include spelled two ways
-            // (`include w::A` and `include A` in package `w`) resolves to one name counted twice here, while the
-            // decrement below fires once per finished mapping -- the includer is refused as an include cycle.
-            // Ported exactly (an in-degree over a set would accept it) until the engine's answer settles it.
-            if let Some(fqn) = include_fqn(&md.qualified_name, &inc.mapping_path, &by_fqn) {
+            if let Some(fqn) = fqn {
                 incs.push(fqn);
             }
         }
@@ -451,11 +451,10 @@ pub fn resolve_all_stores(
     // "Duplicated element" before this phase, Compiler.normalizeLayer); counting the list named an empty cycle
     // (2026-10-11)
     if out.len() != by_fqn.len() {
-        let cycle: Vec<JStr> = by_fqn
-            .iter()
-            .filter(|(k, _)| !out.contains_key(k))
-            .map(|(k, _)| k.clone())
-            .collect();
+        // the cycle's members alone, the engine's answer, by a depth-first walk in declaration order (the engine walks
+        // its hash order: ruling 29's first policy, S393); until 2026-11-15 every mapping never made ready (the
+        // normalizer batch, item 2, ASK 13)
+        let cycle = include_cycle(&by_fqn, &edges, &out)?;
         return Err(Thrown::model(
             Phase::Normalize,
             cat!(
@@ -467,6 +466,56 @@ pub fn resolve_all_stores(
         ));
     }
     Ok(out)
+}
+
+/// `StoreSubstitutionRewrite.includeCycle`: the include cycle among the mappings never made ready -- a depth-first walk
+/// from each in declaration order, along its includes in their order, the path from the first mapping met again on.
+fn include_cycle(
+    by_fqn: &LinkedMap<JStr, Arc<LegacyMappingDefinition>>,
+    edges: &LinkedMap<JStr, Vec<JStr>>,
+    done: &LinkedMap<JStr, LinkedMap<JStr, JStr>>,
+) -> Result<Vec<JStr>, Thrown> {
+    let mut visited: HashSet<JStr> = HashSet::new();
+    for (start, _) in by_fqn.iter() {
+        if done.contains_key(start) || visited.contains(start) {
+            continue;
+        }
+        let mut path: Vec<JStr> = Vec::new();
+        if let Some(cycle) = walk_cycle(start, edges, done, &mut visited, &mut path) {
+            return Ok(cycle);
+        }
+    }
+    Err(Thrown::illegal_state(JStr::from(
+        "include graph: a mapping never made ready reaches no cycle (an internal error)",
+    )))
+}
+
+/// `StoreSubstitutionRewrite.walkCycle`.
+fn walk_cycle(
+    at: &JStr,
+    edges: &LinkedMap<JStr, Vec<JStr>>,
+    done: &LinkedMap<JStr, LinkedMap<JStr, JStr>>,
+    visited: &mut HashSet<JStr>,
+    path: &mut Vec<JStr>,
+) -> Option<Vec<JStr>> {
+    visited.insert(at.clone());
+    path.push(at.clone());
+    let empty: Vec<JStr> = Vec::new();
+    for next in edges.get(at).unwrap_or(&empty).iter() {
+        if done.contains_key(next) {
+            continue;
+        }
+        if let Some(i) = path.iter().position(|p| p == next) {
+            return Some(path[i..].to_vec());
+        }
+        if !visited.contains(next)
+            && let Some(cycle) = walk_cycle(next, edges, done, visited, path)
+        {
+            return Some(cycle);
+        }
+    }
+    path.pop();
+    None
 }
 
 /// `StoreSubstitutionRewrite.includeFqn` (:331): an include path's mapping among `present` (Java's `byFqn.keySet()`:
@@ -618,11 +667,12 @@ mod tests {
     }
 
     #[test]
-    fn an_include_cycle_names_every_mapping_never_ready_in_name_order() {
+    fn an_include_cycle_names_its_members_alone_in_the_walks_order() {
         let idx = empty_index();
         let a = with_includes("w::A", vec![include("w::B", &[])]);
         let b = with_includes("w::B", vec![include("w::A", &[])]);
-        // the includer of a cycle is never ready either: the list over-reports, as Java's does
+        // the includer of a cycle is never ready either, and is no member: the engine names the cycle alone
+        // (2026-11-15, the normalizer batch, item 2)
         let top = with_includes("w::Top", vec![include("w::A", &[])]);
         let free = with_includes("w::Free", Vec::new());
         let e = resolve_all_stores(&[a, b, top, free], &idx).unwrap_err();
@@ -632,24 +682,24 @@ mod tests {
         assert_eq!(
             e.message(),
             Some(j(
-                "mapping include cycle: [w::A, w::B, w::Top] \u{2014} a mapping cannot include itself, directly or \
-                 through its includes"
+                "mapping include cycle: [w::A, w::B] \u{2014} a mapping cannot include itself, directly or through its \
+                 includes"
             ))
         );
     }
 
     #[test]
-    fn park_26_one_mapping_included_under_two_spellings_is_refused_as_a_cycle() {
+    fn one_mapping_included_under_two_spellings_is_a_duplicated_include_by_its_resolved_name() {
+        // PARK-26 settled by the engine's answer (2026-11-15, the normalizer batch, item 3): it was refused as an include
+        // cycle naming w::M
         let idx = empty_index();
         let a = with_includes("w::A", Vec::new());
         let m = with_includes("w::M", vec![include("w::A", &[]), include("A", &[])]);
         let e = resolve_all_stores(&[a, m], &idx).unwrap_err();
+        assert_eq!(e.phase(), Some(Phase::Model));
         assert_eq!(
             e.message(),
-            Some(j(
-                "mapping include cycle: [w::M] \u{2014} a mapping cannot include itself, directly or through its \
-                 includes"
-            ))
+            Some(j("Duplicated mapping include 'w::A' in mapping 'w::M'"))
         );
         assert_eq!(e.element(), Some(j("w::M")));
     }

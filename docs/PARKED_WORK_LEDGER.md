@@ -641,7 +641,22 @@ kinds compiles with the last definition and no word.
 **Anchor.** `putAtId(services, intern(sd.qualifiedName()), sd)` in `ModelBuilder.java`: the first of the plain-intern
 slots.
 
-## PARK-26 — a mapping included under two spellings is refused as an include cycle
+## PARK-26 — CLOSED 2026-11-15: a mapping included under two spellings is refused as an include cycle
+
+**Closed** by the normalizer batch, item 3 (docs/rust-port/PHASE3.md, the normalizer slice's entry; ruling 30, "PARK-26
+settled by the engine's answer, asked first"). Asked of legend-engine 4.145.0 (the pinned release on the engine
+runner's class path, `port-scratch/normbatch/engine/cases/i3_*`): `include w::A` and `include A` with `w::*` imported,
+`include A` twice, `include w::A` twice are each "Duplicated mapping include 'w::A' in mapping 'w::B'" -- by the mapping
+the include resolves to; `include A` with no import is "Can't find mapping 'A'". `StoreSubstitutionRewrite.
+resolveAllStores` (and lite-normalizer's `resolve_all_stores`) now compares the resolved names and says the resolved
+one; the pair is never counted as a cycle. Lite's name resolution (D) spells both includes `w::A` before E, so every
+text answered the engine's words already (the batch's reach run: the two-spellings shape reached in no ask of the
+normalizer oracle). Left, D's and the owner's: lite resolves `include A` with no import through the includer's own
+package where the engine says "Can't find mapping 'A'". The acceptance test: `IncludeRulesTest.
+oneMappingIncludedUnderTwoSpellingsIsADuplicatedInclude`; the anchors left `ParkedWorkLedgerTest` and
+`rust/lite-guards` (`the_parked_work_anchors_hold_in_the_normalizer`).
+
+The row as it stood:
 
 **Recorded** 2026-10-11 by the Bazel program session, from the audit of the duplicate-mapping fix (GATES "A
 duplicate mapping is refused"). `StoreSubstitutionRewrite.resolveAllStores` resolves each include path to a mapping

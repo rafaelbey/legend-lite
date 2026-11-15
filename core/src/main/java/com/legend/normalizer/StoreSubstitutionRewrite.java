@@ -257,15 +257,22 @@ final class StoreSubstitutionRewrite {
             List<String> incs = new java.util.ArrayList<>();
             java.util.Set<String> listed = new java.util.HashSet<>();
             for (MappingInclude inc : md.includes()) {
-                // the engine's compiler rejects an include listed twice
-                // (MappingCompilerExtension: "Duplicated mapping include");
-                // here, before the ordering, so it never masquerades as a cycle
-                if (!listed.add(inc.mappingPath())) {
+                // the engine's compiler rejects one mapping included twice
+                // (MappingCompilerExtension: "Duplicated mapping include") BY
+                // THE MAPPING the include resolves to, however it is spelled:
+                // asked of legend-engine 4.145.0, `include w::A` and `include A`
+                // (A imported) are "Duplicated mapping include 'w::A' in mapping
+                // 'w::B'". Here, before the ordering, so it never masquerades as
+                // a cycle. PARK-26 settled (2026-11-15, the normalizer batch, item 3,
+                // ruling 30): the check compared the spellings, and the pair was
+                // counted twice and refused as an include cycle
+                String fqn = includeFqn(md.qualifiedName(), inc.mappingPath(), byFqn.keySet());
+                String included = fqn != null ? fqn : inc.mappingPath();
+                if (!listed.add(included)) {
                     throw new ModelException(LegendCompileException.Phase.MODEL,
-                            "Duplicated mapping include '" + inc.mappingPath() + "' in mapping '"
+                            "Duplicated mapping include '" + included + "' in mapping '"
                             + md.qualifiedName() + "'", md.qualifiedName());
                 }
-                String fqn = includeFqn(md.qualifiedName(), inc.mappingPath(), byFqn.keySet());
                 if (fqn != null) {
                     incs.add(fqn);
                 }
@@ -315,14 +322,61 @@ final class StoreSubstitutionRewrite {
         // (refused as "Duplicated element" before this phase, Compiler.normalizeLayer); counting the list named
         // an empty cycle (2026-10-11)
         if (out.size() != byFqn.size()) {
-            List<String> cycle = new java.util.ArrayList<>(byFqn.keySet());
-            cycle.removeAll(out.keySet());
+            // THE CYCLE, as the engine names it (asked of legend-engine 4.145.0: "Detected a circular dependency in
+            // element prerequisites graph! Cycle: w::A -> w::B -> w::A", DependencyManagement
+            // .getElementsInCircularDependency, a depth-first walk): its members alone, in the walk's order -- from the
+            // first declared mapping never made ready, along each mapping's includes in their order, until a mapping
+            // on the walk's path is met again. The engine walks its hash order; lite the declaration order (ruling 29's
+            // first policy, docs/SEMANTICS_REGISTER.md S393). Until 2026-11-15 every mapping never made ready, an
+            // includer of the cycle too (the normalizer batch, item 2, census ASK 13, ruling 30)
+            List<String> cycle = includeCycle(byFqn.keySet(), edges, out.keySet());
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "mapping include cycle: " + cycle + " — a mapping cannot"
                     + " include itself, directly or through its includes",
                     cycle.get(0));
         }
         return out;
+    }
+
+    /** The include cycle among the mappings never made ready ({@link #resolveAllStores}' comment): a depth-first walk
+     *  from each such mapping in declaration order, along its includes in their order, the path from the first mapping
+     *  met again to the end. Every mapping never made ready is on a cycle or includes one, so a walk finds one. */
+    private static List<String> includeCycle(java.util.Set<String> names, Map<String, List<String>> edges,
+            java.util.Set<String> done) {
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        for (String start : names) {
+            if (done.contains(start) || visited.contains(start)) {
+                continue;
+            }
+            List<String> cycle = walkCycle(start, edges, done, visited, new java.util.ArrayList<>());
+            if (cycle != null) {
+                return cycle;
+            }
+        }
+        throw new IllegalStateException("include graph: a mapping never made ready reaches no cycle (an internal error)");
+    }
+
+    private static @com.legend.base.Nullable List<String> walkCycle(String at, Map<String, List<String>> edges,
+            java.util.Set<String> done, java.util.Set<String> visited, List<String> path) {
+        visited.add(at);
+        path.add(at);
+        for (String next : edges.getOrDefault(at, List.of())) {
+            if (done.contains(next)) {
+                continue;
+            }
+            int i = path.indexOf(next);
+            if (i >= 0) {
+                return new java.util.ArrayList<>(path.subList(i, path.size()));
+            }
+            if (!visited.contains(next)) {
+                List<String> cycle = walkCycle(next, edges, done, visited, path);
+                if (cycle != null) {
+                    return cycle;
+                }
+            }
+        }
+        path.remove(path.size() - 1);
+        return null;
     }
 
     /** An include path as a mapping FQN among the mappings present: exact,
