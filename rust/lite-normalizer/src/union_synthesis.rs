@@ -1005,7 +1005,8 @@ pub fn pre_passed_closure(
 /// `UnionSynthesis.recordKeyThreads` (:951): the key threads (`<col>_<n>`, `<col>__pk_<table>`) of an operation's
 /// row into `ledger.union_key_threads`; a view-backed member gets none (ASK, low).
 pub fn record_key_threads(
-    md: &ResolvedMapping<'_>,
+    // Java's parameter, never read (US:951)
+    _md: &ResolvedMapping<'_>,
     class_name: &JStr,
     members: &[ClassMapping],
     shared_keys: &LinkedMap<Vec<JStr>, i32>,
