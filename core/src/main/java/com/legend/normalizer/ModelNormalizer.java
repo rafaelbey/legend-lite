@@ -131,7 +131,7 @@ public final class ModelNormalizer {
         liftConstraints(parsed, lifted);        // E.3
         liftDefaults(parsed, lifted);           // E.3b
         liftFunctionConstraints(parsed, lifted); // E.3c
-        liftServiceQueries(parsed, lifted);     // E.4
+        liftServiceQueries(parsed, lifted, wallSink); // E.4
         lifted.addAll(views.functions());       // E.5
         List<PackageableElement> elements =
                 new ArrayList<>(normalized.elements().size() + lifted.size());
@@ -452,14 +452,24 @@ public final class ModelNormalizer {
      * the body (Phase G, demand-driven), not structurally here.
      */
     private static void liftServiceQueries(
-            ParsedModel parsed, List<FunctionDefinition> lifted) {
+            ParsedModel parsed, List<FunctionDefinition> lifted,
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         for (PackageableElement el : parsed.elements()) {
             if (el instanceof ServiceDefinition sd) {
                 // Door 4: a bare-FQN query (`query: my::funcs::q`) binds the
                 // service to a user function and lifts nothing; any other query
                 // expression is the sugar form, lifted to <svc>$query.
                 if (sd.functionBody() instanceof PackageableElementPtr) continue;
-                lifted.add(synthServiceQuery(sd));
+                try {
+                    lifted.add(synthServiceQuery(sd));
+                } catch (ModelException e) {
+                    // a tolerant build walls the service, as every other E wall (2026-11-15, the normalizer
+                    // batch, item 4 (b), census ASK 10: it escaped a tolerant build)
+                    if (wallSink == null) {
+                        throw e;
+                    }
+                    wallSink.putIfAbsent(sd.qualifiedName(), String.valueOf(e.getMessage()).split("\n")[0]);
+                }
             }
         }
     }

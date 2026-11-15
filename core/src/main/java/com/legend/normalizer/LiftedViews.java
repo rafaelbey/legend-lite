@@ -156,7 +156,9 @@ final class LiftedViews {
                 }
                 ModelBuilder.ViewLift owner = java.util.Objects.requireNonNull(
                         owners.get(v), "registered view");
-                wallSink.putIfAbsent(owner.fqn(), String.valueOf(e.getMessage()));
+                // the first line, as every other E wall (2026-11-15, the normalizer batch, item 4 (a), census ASK
+                // 10: the full message)
+                wallSink.putIfAbsent(owner.fqn(), String.valueOf(e.getMessage()).split("\n")[0]);
             }
         }
     }

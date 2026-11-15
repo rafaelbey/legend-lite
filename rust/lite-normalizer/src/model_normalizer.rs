@@ -58,7 +58,7 @@ pub fn normalize(
     lift_constraints(parsed, &mut lifted)?; // E.3
     lift_defaults(parsed, &mut lifted)?; // E.3b
     lift_function_constraints(parsed, &mut lifted)?; // E.3c
-    lift_service_queries(parsed, &mut lifted)?; // E.4
+    lift_service_queries(parsed, &mut lifted, walls.as_deref_mut())?; // E.4
     lifted.extend(views.functions()); // E.5
     let mut elements: Vec<PackageableElement> = Vec::with_capacity(normalized.elements.len() + lifted.len());
     elements.extend(normalized.elements.iter().cloned());
@@ -540,7 +540,11 @@ pub fn synth_constraint_msg_function(
 
 /// `ModelNormalizer.liftServiceQueries` (:441): E.4, each service's query lifted (a bare-FQN query binds a user
 /// function and lifts nothing).
-pub fn lift_service_queries(parsed: &ParsedModel, lifted: &mut Vec<Arc<FunctionDefinition>>) -> Result<(), Thrown> {
+pub fn lift_service_queries(
+    parsed: &ParsedModel,
+    lifted: &mut Vec<Arc<FunctionDefinition>>,
+    mut walls: Option<&mut LinkedMap<JStr, JStr>>,
+) -> Result<(), Thrown> {
     for el in parsed.elements.iter() {
         let PackageableElement::ServiceDefinition(sd) = el else {
             continue;
@@ -550,7 +554,16 @@ pub fn lift_service_queries(parsed: &ParsedModel, lifted: &mut Vec<Arc<FunctionD
         if matches!(sd.function_body, p::ValueSpecification::PackageableElementPtr(_)) {
             continue;
         }
-        lifted.push(Arc::new(synth_service_query(sd)?));
+        match synth_service_query(sd) {
+            Ok(f) => lifted.push(Arc::new(f)),
+            // a tolerant build walls the service, as every other E wall (2026-11-15, the normalizer batch, item 4 (b))
+            Err(e) if e.is_model() && walls.is_some() => {
+                if let Some(w) = walls.as_deref_mut() {
+                    w.put_if_absent(sd.qualified_name.clone(), e.first_line());
+                }
+            }
+            Err(e) => return Err(e),
+        }
     }
     Ok(())
 }
@@ -762,7 +775,7 @@ mod tests {
     fn a_service_query_lifts_unless_it_names_a_function() {
         let parsed = model(SERVICES);
         let mut lifted = Vec::new();
-        lift_service_queries(&parsed, &mut lifted).unwrap();
+        lift_service_queries(&parsed, &mut lifted, None).unwrap();
         assert_eq!(names(&lifted), vec![j("my::Bare$query"), j("my::Typed$query")]);
         assert!(lifted[0].parameters.is_empty());
         assert_eq!(type_name(&lifted[0].return_type), j("meta::pure::metamodel::type::Any"));
@@ -803,6 +816,39 @@ mod tests {
                 "Service 'my::Typed' query parameter 'n' must be typed (name: Type[mult]) to externalize into \
                  my::Typed$query"
             ))
+        );
+        // a tolerant build walls that service and lifts the others; a strict one throws (2026-11-15, the normalizer
+        // batch, item 4 (b): it escaped a tolerant build)
+        let with_untyped = ParsedModel {
+            elements: list(
+                parsed
+                    .elements
+                    .iter()
+                    .map(|e| match e {
+                        PackageableElement::ServiceDefinition(s) if s.qualified_name == j("my::Typed") => {
+                            PackageableElement::ServiceDefinition(untyped.clone())
+                        }
+                        _ => e.clone(),
+                    })
+                    .collect(),
+            ),
+            ..parsed.clone()
+        };
+        let mut walls = LinkedMap::new();
+        let mut lifted = Vec::new();
+        lift_service_queries(&with_untyped, &mut lifted, Some(&mut walls)).unwrap();
+        assert_eq!(names(&lifted), vec![j("my::Bare$query")]);
+        assert_eq!(
+            walls.get(&j("my::Typed")),
+            Some(&j(
+                "Service 'my::Typed' query parameter 'n' must be typed (name: Type[mult]) to externalize into \
+                 my::Typed$query"
+            ))
+        );
+        assert!(
+            lift_service_queries(&with_untyped, &mut Vec::new(), None)
+                .unwrap_err()
+                .is_model()
         );
     }
 

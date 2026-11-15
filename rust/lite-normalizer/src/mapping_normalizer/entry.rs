@@ -66,7 +66,25 @@ pub fn normalize(
             _ => None,
         })
         .collect();
-    let resolved_stores = store_substitution_rewrite::resolve_all_stores(&legacy, model)?;
+    // a tolerant build walls the mapping resolve_all_stores refuses and resolves the rest without it (2026-11-15, the
+    // normalizer batch, item 4 (b))
+    let mut store_walled: HashSet<JStr> = HashSet::new();
+    let resolved_stores = loop {
+        let left: Vec<Arc<LegacyMappingDefinition>> = legacy
+            .iter()
+            .filter(|m| !store_walled.contains(&m.qualified_name))
+            .cloned()
+            .collect();
+        match store_substitution_rewrite::resolve_all_stores(&left, model) {
+            Ok(r) => break r,
+            Err(e) => match (wall_sink.as_deref_mut(), e.element()) {
+                (Some(sink), Some(element)) if e.is_model() && store_walled.insert(element.clone()) => {
+                    sink.put_if_absent(element, e.first_line());
+                }
+                _ => return Err(e),
+            },
+        }
+    };
     // EVERY mapping's pre-pass runs to completion first, then the graph-wide mapped-class fact is fixed -- a mapping's
     // synthesis never depends on which mappings normalized before it
     let closures = MappingClosures::new(model);
@@ -75,6 +93,9 @@ pub fn normalize(
     for el in parsed.elements.iter() {
         match el {
             PackageableElement::LegacyMappingDefinition(md) => {
+                if store_walled.contains(&md.qualified_name) {
+                    continue; // walled by resolve_all_stores (tolerant build)
+                }
                 let Some(pp) = resolved.get(&md.qualified_name) else {
                     continue; // walled by the pre-pass (tolerant build)
                 };
@@ -84,6 +105,7 @@ pub fn normalize(
                 let mut ledger = MappingLedger::new(MappingLedger::mapped_in_closure(pp, &resolved));
                 let stores = resolved_stores.get(&md.qualified_name).unwrap_or(&no_stores);
                 let strict = wall_sink.is_none();
+                let lifted_before = lifted.len();
                 let normalized = with_element(&md.qualified_name, || {
                     let m = normalize_mapping(pp, model, &mut lifted, stores, &mut ledger)?;
                     // THE DRIVER'S policy (B4): a STRICT build rejects what the engine's compiler rejects -- the first
@@ -95,7 +117,12 @@ pub fn normalize(
                 });
                 match normalized {
                     Ok(m) => out.push(PackageableElement::MappingDefinition(Arc::new(m))),
-                    Err(e) if e.is_model() => wall(wall_sink.as_deref_mut(), e)?,
+                    Err(e) if e.is_model() => {
+                        wall(wall_sink.as_deref_mut(), e)?;
+                        // the walled mapping's lifted functions leave with it (2026-11-15, the normalizer batch,
+                        // item 4 (c))
+                        lifted.truncate(lifted_before);
+                    }
                     Err(e) => return Err(e),
                 }
             }
@@ -232,11 +259,27 @@ pub fn normalize_mapping(
             Err(e) => return Err(e),
         };
         lifted.push(f.clone());
-        // outside the per-class catch (Java's order: the views' functions and bindings before the main binding)
+        // inside the per-class fault isolation: a view set's failure poisons the class, the class's and its views'
+        // functions and bindings withdrawn (2026-11-15, the normalizer batch, item 4 (b): it walled the whole mapping)
         if let ClassMapping::ClassMappingRelational(agg_main) = cm
             && agg_main.aggregation.is_some()
         {
-            aggregate_view_lift::lift(&md, agg_main, model, lifted, &mut class_bindings, declared_keys, ledger)?;
+            let lifted_at = lifted.len() - 1;
+            let bound_at = class_bindings.len();
+            match aggregate_view_lift::lift(&md, agg_main, model, lifted, &mut class_bindings, declared_keys, ledger) {
+                Ok(()) => {}
+                Err(e) if e.is_model_or_not_implemented() => {
+                    let reason = e.message_or_null();
+                    if e.is_model() {
+                        ledger.strict_errors.push(e);
+                    }
+                    lifted.truncate(lifted_at);
+                    class_bindings.truncate(bound_at);
+                    ledger.poison(class_key(cm.class_name()), reason);
+                    continue;
+                }
+                Err(e) => return Err(e),
+            }
         }
         let binding = class_binding(
             cm,
@@ -259,7 +302,11 @@ pub fn normalize_mapping(
             // "TOLERANT (module) builds only"; a strict build throws the recorded error, an NIE included)
             Err(e) if e.is_model_or_not_implemented() => {
                 let reason = e.message_or_null();
-                ledger.strict_errors.push(e);
+                // a NotImplementedException defers in both builds, as the per-class catch has it (2026-11-15, the
+                // normalizer batch, item 4 (d): it reached strictErrors too)
+                if e.is_model() {
+                    ledger.strict_errors.push(e);
+                }
                 // the poison key's `.orElse(am.associationName())` (MN:432), a Phase-D fallback ruling 30's measuring
                 // run found reached (2026-11-14): 207 strict and 218 tolerant asks of the front oracle's; ported
                 // verbatim, the owner's to rule (its sibling at the binding, MN:441, reached by none, is a refusal)

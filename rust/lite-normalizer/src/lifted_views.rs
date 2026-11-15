@@ -193,7 +193,8 @@ impl<'m> LiftedViews<'m> {
                         .owners
                         .get(v)
                         .ok_or_else(|| Thrown::null_pointer(Some("registered view")))?;
-                    sink.put_if_absent(owner.fqn()?, e.message_or_null());
+                    // the first line, as every other E wall (2026-11-15, the normalizer batch, item 4 (a))
+                    sink.put_if_absent(owner.fqn()?, e.first_line());
                 }
                 Err(e) => return Err(e),
             }

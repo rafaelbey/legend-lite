@@ -336,4 +336,86 @@ class NormalizerBatchTest {
                 .toList();
         assertEquals(true, declaredPrimaryKeys.contains(List.of("BOOK_ID")), String.valueOf(declaredPrimaryKeys));
     }
+
+    // ---- item 4 (census ASK 10): tolerant mode's walls, consistent with every other E wall ----
+
+    private static final String AGGREGATE_VIEW_MISSING_JOIN = """
+            Class w::Sales { id: Integer[1]; salesDate: w::Cal[1]; revenue: Float[1]; }
+            Class w::Cal { date: Date[1]; fiscalYear: Integer[1]; }
+            ###Relational
+            Database w::Db (
+              Table sales_base (id INT PRIMARY KEY, sales_date DATE, revenue FLOAT)
+              Table calendar (date DATE PRIMARY KEY, fiscal_year INT)
+              Table sales_by_date (sales_date DATE, net_revenue FLOAT)
+              Join sales_calendar (sales_base.sales_date = calendar.date)
+            )
+            ###Mapping
+            Mapping w::M (
+              w::Cal[b]: Relational { ~mainTable [w::Db]calendar date: [w::Db]calendar.date, fiscalYear: [w::Db]calendar.fiscal_year }
+              w::Sales[a]: AggregationAware {
+                Views: [
+                  (
+                    ~modelOperation: { ~canAggregate true, ~groupByFunctions ($this.salesDate),
+                      ~aggregateValues (( ~mapFn: $this.revenue, ~aggregateFn: $mapped->sum() )) },
+                    ~aggregateMapping: Relational {
+                      ~mainTable [w::Db]sales_by_date
+                      salesDate[b]: [w::Db]@nonExistent, revenue: [w::Db]sales_by_date.net_revenue
+                    }
+                  )
+                ],
+                ~mainMapping: Relational {
+                  ~mainTable [w::Db]sales_base
+                  salesDate[b]: [w::Db]@sales_calendar, revenue: [w::Db]sales_base.revenue
+                }
+              }
+            )
+            """;
+
+    @Test
+    @DisplayName("item 4 (b): an aggregate view set's failure poisons its class, its functions withdrawn, as the per-class catch does")
+    void anAggregateViewsFailurePoisonsItsClass() {
+        // LITE-ONLY (the engine has no tolerant mode; landed under the owner's ruling of 2026-11-15 on ruling 30's
+        // frozen-answer clause). Until 2026-11-15 AggregateViewLift ran outside the per-class fault isolation: a view
+        // set's failure walled the whole mapping (w::Cal's set with it) and left the lifted functions appended before
+        // it in the model (census ASK 10 (b), (c); legend-engine's own test text, a view set navigating a join the
+        // database has not). A strict build refuses it as before.
+        String refusal = "Join 'nonExistent' not found in db 'w::Db'; PM='salesDate', mapping=w::M";
+        assertEquals(List.of("[11:1] " + refusal), strict(AGGREGATE_VIEW_MISSING_JOIN));
+        Compiler.BuiltModule m = module(AGGREGATE_VIEW_MISSING_JOIN);
+        assertEquals(Map.of(), m.walls());
+        assertEquals(refusal, m.context().mappingPoison("w::M", "w::Sales").orElseThrow());
+        com.legend.model.ParsedModel parsed = com.legend.testing.Own.model(AGGREGATE_VIEW_MISSING_JOIN);
+        java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
+        com.legend.model.NormalizedModel normalized = MappingNormalizer.normalize(parsed,
+                com.legend.compiler.ModelBuilder.from(new com.legend.model.ParsedModel(parsed.elements(),
+                        parsed.imports())), walls);
+        assertEquals(List.of("w::M$class$w::Cal"), normalized.elements().stream()
+                .filter(com.legend.model.FunctionDefinition.class::isInstance)
+                .map(e -> ((com.legend.model.FunctionDefinition) e).qualifiedName()).toList(),
+                "the poisoned class's main and view functions withdrawn, the other set's kept");
+    }
+
+    private static final String INCLUDES = """
+            Class w::Person { name: String[0..1]; }
+            ###Relational
+            Database w::DB ( Table PERSON_A (ID INTEGER PRIMARY KEY, NAME VARCHAR(20)) )
+            ###Mapping
+            Mapping w::A ( *w::Person[a] : Relational { ~mainTable [w::DB] PERSON_A name: [w::DB] PERSON_A.NAME } )
+            Mapping w::AA ( include w::A include w::A )
+            Mapping w::C1 ( include w::C2 )
+            Mapping w::C2 ( include w::C1 )
+            """;
+
+    @Test
+    @DisplayName("item 4 (b): a duplicated include and an include cycle wall their mappings in a tolerant build")
+    void includeRefusalsWallTheirMappings() {
+        // LITE-ONLY, as above: until 2026-11-15 resolveAllStores' refusals escaped a tolerant build (census ASK 10
+        // (b)); now each walls the mapping it names (an include cycle: its first member) and the rest resolve without
+        // it. A strict build throws the first, as before.
+        assertEquals(List.of("[6:1] Duplicated mapping include 'w::A' in mapping 'w::AA'"), strict(INCLUDES));
+        assertEquals(Map.of("w::AA", "Duplicated mapping include 'w::A' in mapping 'w::AA'",
+                        "w::C1", "mapping include cycle: [w::C1, w::C2] — a mapping cannot include itself, directly or"
+                                + " through its includes"),
+                module(INCLUDES).walls());
+    }
 }

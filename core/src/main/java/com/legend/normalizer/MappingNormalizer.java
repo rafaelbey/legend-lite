@@ -158,10 +158,26 @@ public final class MappingNormalizer {
         java.util.Map<String, LegacyMappingDefinition> legacySurfaces =
                 new java.util.LinkedHashMap<>();
         // store substitutions resolved ONCE for every mapping, include order (stamped on each)
-        java.util.Map<String, java.util.Map<String, String>> resolvedStores =
-                StoreSubstitutionRewrite.resolveAllStores(parsed.elements().stream()
+        // a tolerant build walls the mapping resolveAllStores refuses (a duplicated include, an include cycle's
+        // first member) and resolves the rest without it, as every other E wall; a strict build throws
+        // (2026-11-15, the normalizer batch, item 4 (b), census ASK 10: the refusal escaped a tolerant build)
+        java.util.Set<String> storeWalled = new java.util.HashSet<>();
+        java.util.Map<String, java.util.Map<String, String>> resolvedOnce;
+        while (true) {
+            try {
+                resolvedOnce = StoreSubstitutionRewrite.resolveAllStores(parsed.elements().stream()
                         .filter(LegacyMappingDefinition.class::isInstance)
-                        .map(LegacyMappingDefinition.class::cast).toList(), model);
+                        .map(LegacyMappingDefinition.class::cast)
+                        .filter(m -> !storeWalled.contains(m.qualifiedName())).toList(), model);
+                break;
+            } catch (ModelException e) {
+                if (wallSink == null || e.element() == null || !storeWalled.add(e.element())) {
+                    throw e;
+                }
+                wallSink.putIfAbsent(e.element(), String.valueOf(e.getMessage()).split("\n")[0]);
+            }
+        }
+        java.util.Map<String, java.util.Map<String, String>> resolvedStores = resolvedOnce;
         // EVERY mapping's pre-pass runs to completion first (JSON identity
         // sets, cycles, declared keys, extends, implicit inheritance, store
         // refs, implicit ops), then the graph-wide mapped-class fact is
@@ -171,7 +187,7 @@ public final class MappingNormalizer {
                 MappingPrePass.run(parsed, model, wallSink, views);
         for (PackageableElement el : parsed.elements()) {
             if (el instanceof LegacyMappingDefinition md) {
-                ResolvedMapping pp = resolved.get(md.qualifiedName());
+                ResolvedMapping pp = storeWalled.contains(md.qualifiedName()) ? null : resolved.get(md.qualifiedName());
                 if (pp == null) {
                     continue;   // walled by the pre-pass (tolerant build)
                 }
@@ -182,6 +198,7 @@ public final class MappingNormalizer {
                 // stamped on the compiled mapping — never the shared index.
                 MappingLedger ledger = new MappingLedger(
                         MappingLedger.mappedInClosure(pp, resolved));
+                int liftedBefore = lifted.size();
                 try {
                     out.add(withElement(md.qualifiedName(), () -> {
                         MappingDefinition m = normalizeMapping(pp, model, lifted,
@@ -201,6 +218,9 @@ public final class MappingNormalizer {
                     }
                     wallSink.putIfAbsent(e.element(),
                             String.valueOf(e.getMessage()).split("\n")[0]);
+                    // the walled mapping's lifted functions leave with it (2026-11-15, the normalizer batch, item 4 (c),
+                    // census ASK 10: they stayed, orphans of a mapping the model does not hold)
+                    lifted.subList(liftedBefore, lifted.size()).clear();
                 }
             } else if (el instanceof CleanSheetMappingDefinition canonical) {
                 // Clean-sheet (Door 1/3) mapping: the pre-E surface tree is
@@ -382,7 +402,22 @@ public final class MappingNormalizer {
             lifted.add(fn);
             if (cm instanceof ClassMapping.Relational aggMain
                     && aggMain.aggregation() != null) {
-                AggregateViewLift.lift(md, aggMain, model, lifted, classBindings, declaredKeys, ledger);
+                // inside the per-class fault isolation: a view set's failure poisons the class, the class's and its
+                // views' functions and bindings withdrawn (2026-11-15, the normalizer batch, item 4 (b), census ASK 10:
+                // it walled the whole mapping)
+                int liftedAt = lifted.size() - 1;
+                int boundAt = classBindings.size();
+                try {
+                    AggregateViewLift.lift(md, aggMain, model, lifted, classBindings, declaredKeys, ledger);
+                } catch (NotImplementedException | ModelException e) {
+                    if (e instanceof ModelException) {
+                        ledger.strictErrors.add(e);
+                    }
+                    lifted.subList(liftedAt, lifted.size()).clear();
+                    classBindings.subList(boundAt, classBindings.size()).clear();
+                    ledger.poison(new PoisonKey.ForClass(cm.className()), String.valueOf(e.getMessage()));
+                    continue;
+                }
             }
             classBindings.add(cm instanceof ClassMapping.Relational rSrc
                     ? new MappingDefinition.ClassBinding.Relational(
@@ -424,8 +459,13 @@ public final class MappingNormalizer {
                 // raises the recorded reason via the poison channel.
                 // TOLERANT (module) builds only — a STRICT build must
                 // reject what the engine's compiler rejects (audit 17): the
-                // driver throws the recorded error
-                ledger.strictErrors.add(e);
+                // driver throws the recorded error. A NotImplementedException
+                // (a roadmap gap) defers in both, as the per-class catch has it
+                // (2026-11-15, the normalizer batch, item 4 (d), census ASK 10: it
+                // reached strictErrors too)
+                if (e instanceof ModelException) {
+                    ledger.strictErrors.add(e);
+                }
                 ledger.poison(new PoisonKey.ForAssociation(
                         AssociationSynthesis.resolveAssociation(model, md, am)
                                 .map(a -> a.qualifiedName())

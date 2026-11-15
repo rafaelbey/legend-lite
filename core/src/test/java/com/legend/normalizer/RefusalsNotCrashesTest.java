@@ -343,14 +343,18 @@ class RefusalsNotCrashesTest {
     @Test
     @DisplayName("a ModelJoin's lambda parameters of one name, and a nested hop to a Pure end, are refused, not JDK collection errors")
     void aModelJoinsParametersAndANestedHopsEndAreRefused() {
+        // each a NotImplementedException (a roadmap gap): since 2026-11-15 it defers in a strict build too, the class's
+        // rule -- the association poisoned, a query navigating it refused -- where it went to strictErrors and refused
+        // the strict build (the normalizer batch, item 4 (d), census ASK 10; LITE-ONLY under the owner's ruling of
+        // 2026-11-15 on ruling 30's frozen-answer clause)
         String top = "ModelJoin for 't::Firm_Person' needs two distinct lambda parameter names; got [p, p]";
-        assertEquals(List.of("[7:1] " + top), strict(MODEL_JOIN_PARAMETERS_OF_ONE_NAME));
+        assertEquals(List.of(), strict(MODEL_JOIN_PARAMETERS_OF_ONE_NAME));
         Compiler.BuiltModule topModule = module(MODEL_JOIN_PARAMETERS_OF_ONE_NAME);
         assertEquals(Map.of(), topModule.walls());
         assertEquals(top, topModule.context().mappingAssociationPoison("t::M", "t::Firm_Person").orElseThrow());
 
         String nested = "nested ModelJoin 't::B_C' needs two distinct lambda parameter names; got [u, u]";
-        assertEquals(List.of("[10:1] " + nested), strict(NESTED_MODEL_JOIN_PARAMETERS_OF_ONE_NAME));
+        assertEquals(List.of(), strict(NESTED_MODEL_JOIN_PARAMETERS_OF_ONE_NAME));
         Compiler.BuiltModule nestedModule = module(NESTED_MODEL_JOIN_PARAMETERS_OF_ONE_NAME);
         assertEquals(Map.of(), nestedModule.walls());
         assertEquals(nested, nestedModule.context().mappingAssociationPoison("t::M", "t::A_B").orElseThrow());
@@ -359,7 +363,7 @@ class RefusalsNotCrashesTest {
 
         String pureEnd = "nested ModelJoin 't::B_C' has a Pure-set end — the property-space route covers XStore"
                 + " only so far (mapping=t::M)";
-        assertEquals(List.of("[10:1] " + pureEnd), strict(NESTED_MODEL_JOIN_TO_A_PURE_END));
+        assertEquals(List.of(), strict(NESTED_MODEL_JOIN_TO_A_PURE_END));
         Compiler.BuiltModule pureModule = module(NESTED_MODEL_JOIN_TO_A_PURE_END);
         assertEquals(Map.of(), pureModule.walls());
         assertEquals(pureEnd, pureModule.context().mappingAssociationPoison("t::M", "t::A_B").orElseThrow());
