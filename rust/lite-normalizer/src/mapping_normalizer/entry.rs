@@ -260,6 +260,9 @@ pub fn normalize_mapping(
             Err(e) if e.is_model_or_not_implemented() => {
                 let reason = e.message_or_null();
                 ledger.strict_errors.push(e);
+                // the poison key's `.orElse(am.associationName())` (MN:432), a Phase-D fallback ruling 30's measuring
+                // run found reached (2026-11-14): 207 strict and 218 tolerant asks of the front oracle's; ported
+                // verbatim, the owner's to rule (its sibling at the binding, MN:441, reached by none, is a refusal)
                 let name = association_synthesis::resolve_association(model, &md, am)
                     .map(|a| a.qualified_name.clone())
                     .unwrap_or_else(|| am.association_name().clone());

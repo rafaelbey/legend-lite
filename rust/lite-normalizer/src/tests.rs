@@ -179,7 +179,7 @@ fn a_set_id_taken_by_an_include_and_its_includer_is_a_duplicate() {
 }
 
 #[test]
-fn a_view_is_keyed_by_its_identity_and_an_unported_body_is_never_a_wall() {
+fn a_view_is_keyed_by_its_identity_and_its_body_is_memoized() {
     let parsed = model(MODEL);
     let idx = index(&parsed);
     let views = LiftedViews::new(&parsed, &idx);
@@ -189,10 +189,14 @@ fn a_view_is_keyed_by_its_identity_and_an_unported_body_is_never_a_wall() {
         same(listed, found),
         "findView and viewsOf hand out one Arc per view (EF_CENSUS §9.1)"
     );
-    // 2026-11-14 (the fill, helper d1): the unported-body half (`views.body(found)` answering
-    // `Unported("ViewRelation.viewRelationExpr")`, not memoized, `lift_all` and `functions()` empty) is gone with
-    // that stub: the ported body now reaches JoinChainEmission's panicking `collectJoinNavigations` stub. Once every
-    // fill is merged the body is whole; re-assert it here then (the lifted function's body, memoized once).
+    // the body, whole since the fill (2026-11-14; until then this half held an unported body): answered, the same
+    // answer again from the memo, and one lifted function after lift_all
+    let first = views.body(found).expect("the view's body");
+    assert_eq!(views.body(found).expect("the memo"), first);
+    views.lift_all(None).expect("lift_all");
+    let fns = views.functions();
+    assert_eq!(fns.len(), 1);
+    assert_eq!(fns[0].qualified_name, j("a::db$view$PV"));
     // an equal view that is not the index's own: no database of the model declares it
     let stranger = Arc::new((**found).clone());
     let e = views.body(&stranger).unwrap_err();

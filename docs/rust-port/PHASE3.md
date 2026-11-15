@@ -1247,8 +1247,9 @@ done, in the order of the design's §3.
      both orders, a duplicate set id across includes, a nested ModelJoin hop) and step 1's 14 -- strict (the first
      error) and tolerant (the walls, then the answer): slice 1b's codec over the `NormalizedModel` (every element, the
      binding tables, `NormalizationFacts` in insertion order, `resolvedStores`, the imports, the legacy surfaces).
-     74,364 asks over 26,348 texts; strict 69,104 answered and 5,260 refused (33 in D; in E 5,141 ModelException, 57
-     NotImplementedException, the 29 raw); tolerant 144 refused, 1,739 with E walls. Two runs in parallel on one jar
+     74,364 asks over 26,348 texts; strict 69,104 answered and 5,260 refused -- 188 before E (33 by D, 155 by the index
+     or `refuseDuplicates`) and 5,072 by E (4,986 ModelException, 57 NotImplementedException, the 29 raw); tolerant 144
+     refused (32 before E, 112 by E), 1,739 with walls E added. Two runs in parallel on one jar
      snapshot byte-identical (741 s, 743 s); every one of the 283 record types reached is in the Rust codec; each case's
      form shows what it was written for. The forms (3.4 GB) archived outside git
      (`oracle-archive/normalizer-forms-java-2026-11-14.jsonl.zst`, 36.6 MB, with the per-ask tags; SHA-256 in
@@ -1287,7 +1288,8 @@ done, in the order of the design's §3.
      `CodeShapeGuardrailTest`'s E allowlists and `ShadowWalkerCensusTest` read Java's sources and have no Rust form
      (the funnel is an `Option` per site in Rust); they retire with the Java.
    - *The probe, under the stop condition* (after the last Java change, at `3a5297c80`; nothing under `core`, `spec` or
-     `pct` changed since): the v2 probe, a copy tagged NORM1 (`namesfollow/make_variant.py`), over the full freeze in the
+     `pct` changed since, and of the Rust the JVM loads -- `lite-ffi` and its crates -- only `lite-front` did, by two
+     added modules of `impl` blocks only `lite-normalizer` calls, `normalizer_methods_e1.rs` and `_e2.rs`): the v2 probe, a copy tagged NORM1 (`namesfollow/make_variant.py`), over the full freeze in the
      verify worktree (`namesland/full_at.sh`, KEEP unset; the Bazel wrapper retried once after a transient remote-cache
      error, the second invocation 145 of 145 targets, 143 passing, the two probe-caused failures `//core:guardrails` and
      `//core:census`). `compare2.py` with the counts mask against this worktree's frozen oracles: **all 73,413 frozen
@@ -1295,6 +1297,17 @@ done, in the order of the design's §3.
      the run's by design (the parity lanes' and the ladder report's temporary paths) and the 25 of step 1's new test
      texts (`core_tests_normalizer`'s RefusalsNotCrashesTest and M2M case: 14 module builds, 11 compiles). The run's
      38 GB folder deleted; the verify worktree clean and detached.
+   - *Gates* (at `b3079159e`, the slice's docs commit -- run on `c3573afcf`, its tree byte for byte, before the fill's
+     commits were replayed so that every commit builds; the docs are no test's input, G17): `cargo test --workspace` (872
+     passed, 0 failed, 47 ignored), `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --check`
+     clean. Bazel `test //... --keep_going --local_test_jobs=2` (1,838 s): 586 targets, 584 passed, 2 skipped, none
+     failed or timed out; of `rust/BASELINE.tsv`'s passing targets every one passes but the three gone with their code
+     and ledgered (`//core:core_tests_ide`, `//core:core_tests_lexer`, `//docs:update_dialect_capability_test`); the
+     37 targets new since the baseline all pass, `//rust/lite-normalizer:lite_normalizer_test` and
+     `:normalizer_differential_test` (38.2 s) among them. After the last edits (the view-body test whole again, the
+     poison key's dated count; the MANIFEST's and this entry's refusal split corrected), the crate's, the guards' and
+     the oracles' targets again: 3 of 3 passing (the differential 36.1 s). `ledger_check.sh c4a39e06d`: 88 rows ok,
+     none missing.
    - *Java behaviours that look wrong beyond census ASK 13, ported as they are* (lines at ad86fa895; each the owner's):
      ROT:247-256 the hash arm has no arity guard -- `md5()` is a raw `ArrayIndexOutOfBoundsException` from a user's
      text (step 1's list missed it), `md5(a, b)` drops `b` -- and ROT:323-330 `convertDate()` with no argument the same;
