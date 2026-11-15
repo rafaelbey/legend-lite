@@ -3,8 +3,10 @@
 
 //! MappingNormalizer family 3 (EF_CENSUS §1.1): the clean-sheet door -- every binding of the pre-E surface
 //! (`CleanSheetMappingDefinition`) becomes a canonical binding; inline bodies lambda-lift, ref bindings keep the user's
-//! FQN, every relational binding stamps its source. The 5-argument `MappingDefinition` constructor (enumeration
-//! mappings not flattened with includes, unlike the legacy path) is `MappingDefinition::common`.
+//! FQN, every relational binding stamps its source. The 5-argument `MappingDefinition` constructor is
+//! `MappingDefinition::common`; its enumeration mappings are the mapping's own, then its includes' (since 2026-11-15,
+//! the normalizer's second batch, item 1, MN:539), by `MappingClosures`' one include walk (since 2026-11-15, the
+//! element slice, step 0).
 //!
 //! An inline class body is lifted (into `lifted`) BEFORE its source is stamped, so a stamp that walls the mapping in a
 //! tolerant build leaves the lifted function behind (an orphan, ASK 10): as Java has it.
@@ -22,19 +24,21 @@ use lite_model::{
     FunctionDefinitionParameterDefinition, FunctionDefinitionSynthesized, JStr, MappingDefinition,
     MappingDefinitionAssociationBinding, MappingDefinitionClassBinding, MappingDefinitionClassBindingDeclaredKeys,
     MappingDefinitionClassBindingPure, MappingDefinitionClassBindingRelational, MappingDefinitionRelationalSource,
-    MappingDefinitionRelationalSourceTable, MappingInclude, SynthHat, cat,
+    MappingDefinitionRelationalSourceTable, SynthHat, cat,
 };
 use lite_names::{ModelIndex, synth_fqn};
 
 use crate::error::{ILLEGAL_STATE, Thrown};
+use crate::mapping_closures::MappingClosures;
 
 /// `MappingNormalizer.cleanSheetToCanonical` (:482): the clean-sheet mapping's binding table; its inline lifts
 /// appended to `lifted`.
 pub fn clean_sheet_to_canonical(
     md: &Arc<CleanSheetMappingDefinition>,
-    model: &ModelIndex,
+    closures: &MappingClosures<'_>,
     lifted: &mut Vec<Arc<FunctionDefinition>>,
 ) -> Result<MappingDefinition, Thrown> {
+    let model = closures.model();
     let mut class_bindings: Vec<MappingDefinitionClassBinding> = Vec::with_capacity(md.class_bindings.len());
     for cb in md.class_bindings.iter() {
         let fn_fqn: JStr;
@@ -114,50 +118,22 @@ pub fn clean_sheet_to_canonical(
         md.includes.clone(),
         list(class_bindings),
         list(assoc_bindings),
-        clean_sheet_enumeration_mappings(md, model),
+        clean_sheet_enumeration_mappings(md, closures)?,
     ))
 }
 
 /// `MappingNormalizer.cleanSheetEnumerationMappings`: a clean-sheet mapping's enumeration mappings with its includes',
 /// as the legacy door has them (its own, then each included legacy mapping's own and its includes', depth-first, each
-/// once; since 2026-11-15, the normalizer's second batch, item 1, MN:539 -- its own alone before).
+/// once; since 2026-11-15, the normalizer's second batch, item 1, MN:539 -- its own alone before), through
+/// `MappingClosures`' one include walk (since 2026-11-15, the element slice, step 0: until then `walk_included_enums`
+/// here, the same lookups).
 fn clean_sheet_enumeration_mappings(
     md: &CleanSheetMappingDefinition,
-    model: &ModelIndex,
-) -> Arc<[Arc<EnumerationMapping>]> {
+    closures: &MappingClosures<'_>,
+) -> Result<Arc<[Arc<EnumerationMapping>]>, Thrown> {
     let mut out: Vec<Arc<EnumerationMapping>> = md.enumeration_mappings.iter().cloned().collect();
-    let mut seen: HashSet<JStr> = HashSet::new();
-    seen.insert(md.qualified_name.clone());
-    walk_included_enums(&md.qualified_name, &md.includes, model, &mut out, &mut seen);
-    list(out)
-}
-
-fn walk_included_enums(
-    includer: &JStr,
-    includes: &[Arc<MappingInclude>],
-    model: &ModelIndex,
-    out: &mut Vec<Arc<EnumerationMapping>>,
-    seen: &mut HashSet<JStr>,
-) {
-    for inc in includes.iter() {
-        let mut path = inc.mapping_path.clone();
-        if !lite_model::text::contains(&path.0, "::")
-            && let Some(cut) = lite_model::text::last_index_of(&includer.0, &JStr::from("::").0)
-        {
-            let in_pkg = cat!(&includer.0[..cut], "::", &path);
-            if model.find_legacy_mapping(&in_pkg).is_some() {
-                path = in_pkg;
-            }
-        }
-        if !seen.insert(path.clone()) {
-            continue;
-        }
-        let Some(included) = model.find_legacy_mapping(&path) else {
-            continue;
-        };
-        out.extend(included.enumeration_mappings.iter().cloned());
-        walk_included_enums(&path, &included.includes, model, out, seen);
-    }
+    out.extend(closures.included_enumeration_mappings(&md.qualified_name, &md.includes)?);
+    Ok(list(out))
 }
 
 /// `MappingNormalizer.refBody` (:546): a function-REF binding's realizing body, fetched for the stamp; loud when the
@@ -483,7 +459,12 @@ Mapping acme::Refs
         let parsed = model(DOOR);
         let idx = index(&parsed);
         let mut lifted = Vec::new();
-        let m = clean_sheet_to_canonical(&clean_sheet(&parsed, "acme::M"), &idx, &mut lifted).expect("the table");
+        let m = clean_sheet_to_canonical(
+            &clean_sheet(&parsed, "acme::M"),
+            &MappingClosures::new(&idx),
+            &mut lifted,
+        )
+        .expect("the table");
         assert_eq!(lifted.len(), 2);
         let class_fn = &lifted[0];
         assert_eq!(class_fn.qualified_name, j("acme::M$class$model::Person"));
@@ -535,7 +516,12 @@ Mapping acme::Refs
         let parsed = model(DOOR);
         let idx = index(&parsed);
         let mut lifted = Vec::new();
-        let m = clean_sheet_to_canonical(&clean_sheet(&parsed, "acme::Refs"), &idx, &mut lifted).expect("the table");
+        let m = clean_sheet_to_canonical(
+            &clean_sheet(&parsed, "acme::Refs"),
+            &MappingClosures::new(&idx),
+            &mut lifted,
+        )
+        .expect("the table");
         assert!(lifted.is_empty(), "a ref binding lifts nothing");
         let MappingDefinitionClassBinding::MappingDefinitionClassBindingRelational(b) = &m.class_bindings[0] else {
             panic!("a Relational binding");

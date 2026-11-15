@@ -95,6 +95,52 @@ final class MappingClosures {
         return model.findLegacyMapping(path).map(this::surface);
     }
 
+    /** A CLEAN-SHEET mapping's enumeration mappings through its includes (its own are the caller's), by the one walk
+     *  the legacy door's {@link Closure#enumerationMappings()} takes. The clean-sheet door has no closure of its own
+     *  here -- the closures are keyed by a legacy mapping -- so it enters the walk with its name and its includes; an
+     *  included mapping the model has not is skipped, as that door has always skipped it (left to the refusal that
+     *  names it), where the legacy door refuses it. Until 2026-11-15 the clean-sheet door walked its includes itself
+     *  (MappingNormalizer.walkIncludedEnums, 3970872b3) with the walk's two lookups of its own; one walk for both
+     *  doors (the element slice, step 0: PHASE3.md's carried item, LegacyReachbackCensusTest's REGISTER back to this
+     *  file's 2; no answer moves -- the same lookups over the same authored include graph, a surface differing from
+     *  its authored mapping only in class mappings). */
+    List<EnumerationMapping> includedEnumerationMappings(String includer, List<MappingInclude> includes) {
+        List<EnumerationMapping> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        seen.add(includer);
+        walkEnums(includer, includes, out, seen, false);
+        return out;
+    }
+
+    /** The enumeration mappings {@code includer}'s {@code includes} reach, depth-first, each mapping once; a bare
+     *  include path resolves in the includer's own package first. An include the model has not is refused
+     *  ({@code refuseMissing}, the legacy door) or skipped (the clean-sheet door). */
+    private void walkEnums(String includer, List<MappingInclude> includes, List<EnumerationMapping> out,
+            Set<String> seen, boolean refuseMissing) {
+        for (MappingInclude inc : includes) {
+            String path = inc.mappingPath();
+            if (!path.contains("::") && includer.contains("::")) {
+                String inPkg = includer.substring(0, includer.lastIndexOf("::")) + "::" + path;
+                if (model.findLegacyMapping(inPkg).isPresent()) {
+                    path = inPkg;
+                }
+            }
+            if (!seen.add(path)) {
+                continue;
+            }
+            String includedPath = path;
+            Optional<LegacyMappingDefinition> included = surfaceOf(includedPath);
+            if (included.isEmpty()) {
+                if (refuseMissing) {
+                    throw missingMapping(includedPath);
+                }
+                continue;
+            }
+            out.addAll(included.get().enumerationMappings());
+            walkEnums(included.get().qualifiedName(), included.get().includes(), out, seen, refuseMissing);
+        }
+    }
+
     private LegacyMappingDefinition withJsonIdentitySets(LegacyMappingDefinition md) {
         List<ClassMapping> updated = null;
         for (RuntimeDefinition rd : model.runtimes().toList()) {
@@ -393,32 +439,11 @@ final class MappingClosures {
                 List<EnumerationMapping> out = new ArrayList<>();
                 Set<String> seen = new HashSet<>();
                 seen.add(fqn);
-                surfaceOf(fqn).ifPresent(m -> walkEnums(m, out, seen));
+                surfaceOf(fqn).ifPresent(m -> walkEnums(m.qualifiedName(), m.includes(), out, seen, true));
                 e = List.copyOf(out);
                 enums = e;
             }
             return e;
-        }
-
-        private void walkEnums(LegacyMappingDefinition md, List<EnumerationMapping> out,
-                Set<String> seen) {
-            for (MappingInclude inc : md.includes()) {
-                String path = inc.mappingPath();
-                if (!path.contains("::") && md.qualifiedName().contains("::")) {
-                    String inPkg = md.qualifiedName().substring(0,
-                            md.qualifiedName().lastIndexOf("::")) + "::" + path;
-                    if (model.findLegacyMapping(inPkg).isPresent()) {
-                        path = inPkg;
-                    }
-                }
-                if (!seen.add(path)) {
-                    continue;
-                }
-                String includedPath = path;
-                LegacyMappingDefinition included = surfaceOf(includedPath).orElseThrow(() -> missingMapping(includedPath));
-                out.addAll(included.enumerationMappings());
-                walkEnums(included, out, seen);
-            }
         }
 
         /** Per-pair association entries for {@code classFqn} (or a

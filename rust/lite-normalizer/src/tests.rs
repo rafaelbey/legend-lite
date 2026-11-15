@@ -330,3 +330,56 @@ fn a_views_missing_join_is_the_engines_refusal() {
     assert!(e.is_model());
     assert_eq!(e.message(), Some(j("Can't find join 'Nope' in database 'Db'")));
 }
+
+/// The clean-sheet door's include walk is `MappingClosures`' one walk (2026-11-15, the element slice, step 0): an
+/// included mapping the model has not is skipped by that door, where a legacy includer's walk refuses it -- the answers
+/// the base gave (MappingNormalizerTest's `aCleanSheetIncludersWalkSkipsAMissingIncludeWhereTheLegacyWalkRefusesIt`).
+#[test]
+fn a_clean_sheet_includers_walk_skips_a_missing_include_where_the_legacy_walk_refuses_it() {
+    let text = |base_include: &str, own_include: &str| {
+        let mut s = String::from(concat!(
+            "Enum w::E { A, B }\n",
+            "Class w::P { e: w::E[0..1]; }\n",
+            "function w::pf(): w::P[*]\n",
+            "{\n",
+            "  #>{w::Db.T}# -> map(r | ^w::P(e = if($r.CODE == 'a', |w::E.A, |w::E.B)))\n",
+            "}\n",
+            "###Relational\n",
+            "Database w::Db ( Table T (ID INTEGER PRIMARY KEY, CODE VARCHAR(20)) )\n",
+            "###Mapping\n",
+            "Mapping w::Base (\n",
+        ));
+        s.push_str(base_include);
+        s.push_str("  w::E: EnumerationMapping EM { A: 'a', B: 'b' }\n)\nMapping w::M (\n  include w::Base\n");
+        s.push_str(own_include);
+        s.push_str("  *w::P: Relational { w::pf }\n)\n");
+        model(&s)
+    };
+    let enums_of_m = |nm: &lite_model::NormalizedModel| -> Vec<JStr> {
+        nm.elements
+            .iter()
+            .find_map(|el| match el {
+                lite_model::PackageableElement::MappingDefinition(m) if m.qualified_name == j("w::M") => Some(
+                    m.enumeration_mappings
+                        .iter()
+                        .map(|em| em.mapping_id.clone().expect("an id"))
+                        .collect(),
+                ),
+                _ => None,
+            })
+            .expect("w::M compiled")
+    };
+    let direct = text("", "  include w::Missing\n");
+    let nm =
+        crate::normalize(&direct, &index(&direct), None).expect("a clean-sheet includer's missing include skipped");
+    assert_eq!(enums_of_m(&nm), vec![j("EM")]);
+    let nested = text("  include w::Missing\n", "");
+    let e = crate::normalize(&nested, &index(&nested), None).unwrap_err();
+    assert!(e.is_model());
+    assert_eq!(e.element(), Some(j("w::Base")));
+    assert_eq!(e.message(), Some(j("Can't find mapping 'w::Missing'")));
+    let mut walls: LinkedMap<JStr, JStr> = LinkedMap::new();
+    let nm = crate::normalize(&nested, &index(&nested), Some(&mut walls)).expect("tolerant");
+    assert_eq!(walls.get(&j("w::Base")), Some(&j("Can't find mapping 'w::Missing'")));
+    assert_eq!(enums_of_m(&nm), vec![j("EM")]);
+}

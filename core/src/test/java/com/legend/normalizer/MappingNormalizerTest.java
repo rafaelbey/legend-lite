@@ -5548,4 +5548,29 @@ class MappingNormalizerTest {
         assertEquals(List.of("EM"), ctx.findMapping("w::M").orElseThrow().enumerationMappings().stream()
                 .map(com.legend.model.EnumerationMapping::mappingId).toList());
     }
+
+    @Test
+    @DisplayName("step 0: a clean-sheet includer's include walk skips a mapping the model has not, the legacy door's refuses it")
+    void aCleanSheetIncludersWalkSkipsAMissingIncludeWhereTheLegacyWalkRefusesIt() {
+        // the element slice, step 0 (2026-11-15): the clean-sheet door's include walk is MappingClosures' one walk
+        // (includedEnumerationMappings), entered with the clean-sheet mapping's name and includes; an included mapping
+        // the model has not is skipped by that door, as walkIncludedEnums skipped it before (the base answers the
+        // same three texts the same way), where a legacy includer's own walk refuses it. The texts are
+        // CLEAN_SHEET_INCLUDE's, changed in place (no text block of their own: the dialect census counts them)
+        String direct = CLEAN_SHEET_INCLUDE.replace("  include w::Base\n", "  include w::Base\n  include w::Missing\n");
+        com.legend.compiler.element.PureModelContext ctx =
+                (com.legend.compiler.element.PureModelContext) com.legend.Compiler.compileModel(direct);
+        assertEquals(List.of("EM"), ctx.findMapping("w::M").orElseThrow().enumerationMappings().stream()
+                .map(com.legend.model.EnumerationMapping::mappingId).toList());
+        String nested = CLEAN_SHEET_INCLUDE.replace("Mapping w::Base\n(\n", "Mapping w::Base\n(\n  include w::Missing\n");
+        com.legend.error.ModelException e = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class, () -> com.legend.Compiler.compileModel(nested));
+        assertEquals("w::Base", e.element());
+        assertTrue(e.getMessage().endsWith("Can't find mapping 'w::Missing'"), e.getMessage());
+        com.legend.Compiler.BuiltModule module = com.legend.Compiler.buildModule(
+                com.legend.Compiler.parseModel(nested));
+        assertEquals(java.util.Map.of("w::Base", "Can't find mapping 'w::Missing'"), module.walls());
+        assertEquals(List.of("EM"), module.context().findMapping("w::M").orElseThrow().enumerationMappings().stream()
+                .map(com.legend.model.EnumerationMapping::mappingId).toList());
+    }
 }

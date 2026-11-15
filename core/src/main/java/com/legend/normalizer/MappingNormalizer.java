@@ -26,7 +26,6 @@ import com.legend.model.Function;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.model.MappingDefinition;
-import com.legend.model.MappingInclude;
 import com.legend.model.PackageableElement;
 import com.legend.model.PropertyMapping;
 import com.legend.protocol.Realization;
@@ -585,39 +584,16 @@ public final class MappingNormalizer {
 
     /** A clean-sheet mapping's enumeration mappings with its includes', as the legacy door's {@code
      *  enumerationMappingsWithIncludes} has them: its own, then each included legacy mapping's own and its includes',
-     *  depth-first, each mapping once (a bare include path in the includer's package first, as
-     *  MappingClosures.walkEnums reads it). Until 2026-11-15 its own alone, though the compiled mapping's readers
-     *  take the list as include-flattened (the normalizer's second batch, item 1, MN:539; LITE-ONLY: the engine has
-     *  no clean-sheet door). An included mapping the model has not is left to the refusal that names it. */
+     *  depth-first, each mapping once (a bare include path in the includer's package first). Until 2026-11-15 its own
+     *  alone, though the compiled mapping's readers take the list as include-flattened (the normalizer's second batch,
+     *  item 1, MN:539; LITE-ONLY: the engine has no clean-sheet door). An included mapping the model has not is left
+     *  to the refusal that names it. The walk is MappingClosures' one include walk, the legacy door's (2026-11-15, the
+     *  element slice, step 0: until then this class walked the includes itself, walkIncludedEnums). */
     private static List<EnumerationMapping> cleanSheetEnumerationMappings(CleanSheetMappingDefinition md,
             ModelBuilder model) {
         List<EnumerationMapping> out = new ArrayList<>(md.enumerationMappings());
-        Set<String> seen = new HashSet<>();
-        seen.add(md.qualifiedName());
-        walkIncludedEnums(md.qualifiedName(), md.includes(), model, out, seen);
+        out.addAll(MappingClosures.of(model).includedEnumerationMappings(md.qualifiedName(), md.includes()));
         return out;
-    }
-
-    private static void walkIncludedEnums(String includer, List<MappingInclude> includes, ModelBuilder model,
-            List<EnumerationMapping> out, Set<String> seen) {
-        for (MappingInclude inc : includes) {
-            String path = inc.mappingPath();
-            if (!path.contains("::") && includer.contains("::")) {
-                String inPkg = includer.substring(0, includer.lastIndexOf("::")) + "::" + path;
-                if (model.findLegacyMapping(inPkg).isPresent()) {
-                    path = inPkg;
-                }
-            }
-            if (!seen.add(path)) {
-                continue;
-            }
-            java.util.Optional<LegacyMappingDefinition> included = model.findLegacyMapping(path);
-            if (included.isEmpty()) {
-                continue;
-            }
-            out.addAll(included.get().enumerationMappings());
-            walkIncludedEnums(path, included.get().includes(), model, out, seen);
-        }
     }
 
     /** A function-REF binding's realizing body, fetched for the stamp —

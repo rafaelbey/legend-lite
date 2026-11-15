@@ -107,6 +107,60 @@ impl<'m> MappingClosures<'m> {
         self.model.find_legacy_mapping(path).map(|m| self.surface(m))
     }
 
+    /// `MappingClosures.includedEnumerationMappings(includer, includes)`: a CLEAN-SHEET mapping's enumeration mappings
+    /// through its includes (its own are the caller's), by the one walk the legacy door's
+    /// [`Closure::enumeration_mappings`] takes, entered with the clean-sheet mapping's name and includes (the closures
+    /// are keyed by a legacy mapping); an included mapping the model has not is skipped, as that door always skipped
+    /// it. Until 2026-11-15 the clean-sheet door walked its includes itself (`walk_included_enums`); one walk for both
+    /// doors since (the element slice, step 0), no answer moved.
+    pub fn included_enumeration_mappings(
+        &self,
+        includer: &JStr,
+        includes: &[Arc<MappingInclude>],
+    ) -> Result<Vec<Arc<EnumerationMapping>>, Thrown> {
+        let mut out = Vec::new();
+        let mut seen: HashSet<JStr> = HashSet::new();
+        seen.insert(includer.clone());
+        self.walk_enums(includer, includes, &mut out, &mut seen, false)?;
+        Ok(out)
+    }
+
+    /// `MappingClosures.walkEnums(includer, includes, out, seen, refuseMissing)`: the enumeration mappings
+    /// `includer`'s `includes` reach, depth-first, each mapping once; a bare include path resolves in the includer's
+    /// own package first. An include the model has not is refused (`refuse_missing`, the legacy door) or skipped (the
+    /// clean-sheet door).
+    fn walk_enums(
+        &self,
+        includer: &JStr,
+        includes: &[Arc<MappingInclude>],
+        out: &mut Vec<Arc<EnumerationMapping>>,
+        seen: &mut HashSet<JStr>,
+        refuse_missing: bool,
+    ) -> Result<(), Thrown> {
+        for inc in includes.iter() {
+            let mut path = inc.mapping_path.clone();
+            if !contains(&path.0, "::") && contains(&includer.0, "::") {
+                let cut = last_index_of(&includer.0, &JStr::from("::").0).expect("contains `::`");
+                let in_pkg = cat!(&includer.0[..cut], "::", &path);
+                if self.model.find_legacy_mapping(&in_pkg).is_some() {
+                    path = in_pkg;
+                }
+            }
+            if !seen.insert(path.clone()) {
+                continue;
+            }
+            let Some(included) = self.surface_of(&path) else {
+                if refuse_missing {
+                    return Err(missing_mapping(&path));
+                }
+                continue;
+            };
+            out.extend(included.enumeration_mappings.iter().cloned());
+            self.walk_enums(&included.qualified_name, &included.includes, out, seen, refuse_missing)?;
+        }
+        Ok(())
+    }
+
     /// `MappingClosures.withJsonIdentitySets(md)` (:98).
     fn with_json_identity_sets(&self, md: &Arc<LegacyMappingDefinition>) -> Arc<LegacyMappingDefinition> {
         let mut updated: Option<Vec<ClassMapping>> = None;
@@ -506,35 +560,10 @@ impl<'a> Closure<'a> {
         let mut seen: HashSet<JStr> = HashSet::new();
         seen.insert(self.state.fqn.clone());
         if let Some(m) = self.owner.surface_of(&self.state.fqn) {
-            self.walk_enums(&m, &mut out, &mut seen)?;
+            self.owner
+                .walk_enums(&m.qualified_name, &m.includes, &mut out, &mut seen, true)?;
         }
         Ok(self.state.enums.get_or_init(|| list(out)))
-    }
-
-    /// `MappingClosures.Closure.walkEnums` (:368).
-    fn walk_enums(
-        &self,
-        md: &LegacyMappingDefinition,
-        out: &mut Vec<Arc<EnumerationMapping>>,
-        seen: &mut HashSet<JStr>,
-    ) -> Result<(), Thrown> {
-        for inc in md.includes.iter() {
-            let mut path = inc.mapping_path.clone();
-            if !contains(&path.0, "::") && contains(&md.qualified_name.0, "::") {
-                let cut = last_index_of(&md.qualified_name.0, &JStr::from("::").0).expect("contains `::`");
-                let in_pkg = cat!(&md.qualified_name.0[..cut], "::", &path);
-                if self.owner.model.find_legacy_mapping(&in_pkg).is_some() {
-                    path = in_pkg;
-                }
-            }
-            if !seen.insert(path.clone()) {
-                continue;
-            }
-            let included = self.owner.surface_of(&path).ok_or_else(|| missing_mapping(&path))?;
-            out.extend(included.enumeration_mappings.iter().cloned());
-            self.walk_enums(&included, out, seen)?;
-        }
-        Ok(())
     }
 
     /// `MappingClosures.Closure.pairEntries(classFqn)` (:393): per-pair association entries for `class_fqn` (or a subclass of the end's owner)

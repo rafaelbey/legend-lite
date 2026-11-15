@@ -128,7 +128,7 @@ pub fn normalize(
                 // here -- inline bodies lambda-lift, ref bindings keep the user's FQN, and EVERY relational binding
                 // stamps its source
                 match with_element(&canonical.qualified_name, || {
-                    clean_sheet_to_canonical(canonical, model, &mut lifted)
+                    clean_sheet_to_canonical(canonical, &closures, &mut lifted)
                 }) {
                     Ok(m) => out.push(PackageableElement::MappingDefinition(Arc::new(m))),
                     Err(e) if e.is_model() => wall(wall_sink.as_deref_mut(), e)?,
