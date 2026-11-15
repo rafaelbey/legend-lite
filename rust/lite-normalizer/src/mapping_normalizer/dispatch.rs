@@ -100,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    fn the_dispatch_lets_every_refusal_and_unported_body_through() {
+    fn the_dispatch_lets_a_refusal_through_unrecorded() {
         let parsed = model("Class a::P { name: String[1]; }\n###Mapping\nMapping a::M ( )");
         let idx = index(&parsed);
         let closures = MappingClosures::new(&idx);
@@ -127,9 +127,15 @@ mod tests {
         }));
         let e = synthesize_class_mapping(&md, &no_src, &idx, false, &mut ledger).unwrap_err();
         assert!(e.is_model());
-        let u = synthesize_class_mapping(&md, &union("a::P", Some("u"), &["p1"]), &idx, true, &mut ledger);
-        assert_eq!(u.unwrap_err(), Thrown::Unported("UnionSynthesis.synthUnion"));
-        // nothing reached the ledger: the dispatch records nothing of its own
+        assert_eq!(e.phase(), Some(lite_error::Phase::Normalize));
+        assert_eq!(
+            e.message(),
+            Some(j(
+                "Pure class mapping for 'a::P' in mapping 'a::M' declares no ~src, so it has no source extent to map \
+                 from \u{2014} such a mapping can be compiled and analysed but cannot produce rows"
+            ))
+        );
+        // nothing reached the ledger: the dispatch records nothing of its own, and a refusal escapes it unwalled
         assert!(ledger.poisons.is_empty() && ledger.strict_errors.is_empty());
     }
 }

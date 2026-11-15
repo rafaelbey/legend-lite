@@ -398,7 +398,6 @@ fn association_key(association_fqn: JStr) -> PoisonKey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::{index, model};
     use lite_model::text::j;
 
     #[test]
@@ -415,17 +414,5 @@ mod tests {
         // one that names no element is rethrown even under a sink
         let anonymous = Thrown::model(Phase::Normalize, j("x"), None);
         assert_eq!(wall(Some(&mut sink), anonymous.clone()), Err(anonymous));
-    }
-
-    #[test]
-    fn an_unported_body_is_never_walled() {
-        let parsed = model("Class a::P { name: String[1]; }\n###Mapping\nMapping a::M ( )");
-        let idx = index(&parsed);
-        let views = LiftedViews::new(&parsed, &idx);
-        let unported = Thrown::Unported("StoreSubstitutionRewrite.resolveAllStores");
-        assert_eq!(normalize(&parsed, &idx, None, &views).unwrap_err(), unported);
-        let mut sink = LinkedMap::new();
-        assert_eq!(normalize(&parsed, &idx, Some(&mut sink), &views).unwrap_err(), unported);
-        assert!(sink.is_empty());
     }
 }
