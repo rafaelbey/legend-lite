@@ -198,7 +198,6 @@ public final class MappingNormalizer {
                 // stamped on the compiled mapping — never the shared index.
                 MappingLedger ledger = new MappingLedger(
                         MappingLedger.mappedInClosure(pp, resolved));
-                int liftedBefore = lifted.size();
                 try {
                     out.add(withElement(md.qualifiedName(), () -> {
                         MappingDefinition m = normalizeMapping(pp, model, lifted,
@@ -218,9 +217,14 @@ public final class MappingNormalizer {
                     }
                     wallSink.putIfAbsent(e.element(),
                             String.valueOf(e.getMessage()).split("\n")[0]);
-                    // the walled mapping's lifted functions leave with it (2026-11-15, the normalizer batch, item 4 (c),
-                    // census ASK 10: they stayed, orphans of a mapping the model does not hold)
-                    lifted.subList(liftedBefore, lifted.size()).clear();
+                    // a walled mapping has lifted nothing: every ModelException after its first lifted function is
+                    // caught inside normalizeMapping (per set, per class, its aggregate views, per association), and
+                    // what follows those catches refuses nothing its synthesis has not refused first (a binding's
+                    // stamp re-reads the main table the synthesis resolved, the association binding's lookup is the
+                    // one synthesizeAssociationMapping made). The truncation of its lifted functions that the
+                    // normalizer batch's item 4 (c) put here was reached by one text, an aggregate view's failure,
+                    // which poisons its class since that batch's item 4 (b): no text and no test reached it after.
+                    // Deleted as unreachable 2026-11-15 (the normalizer's second batch, item 4 (c))
                 }
             } else if (el instanceof CleanSheetMappingDefinition canonical) {
                 // Clean-sheet (Door 1/3) mapping: the pre-E surface tree is

@@ -105,7 +105,6 @@ pub fn normalize(
                 let mut ledger = MappingLedger::new(MappingLedger::mapped_in_closure(pp, &resolved));
                 let stores = resolved_stores.get(&md.qualified_name).unwrap_or(&no_stores);
                 let strict = wall_sink.is_none();
-                let lifted_before = lifted.len();
                 let normalized = with_element(&md.qualified_name, || {
                     let m = normalize_mapping(pp, model, &mut lifted, stores, &mut ledger)?;
                     // THE DRIVER'S policy (B4): a STRICT build rejects what the engine's compiler rejects -- the first
@@ -117,12 +116,10 @@ pub fn normalize(
                 });
                 match normalized {
                     Ok(m) => out.push(PackageableElement::MappingDefinition(Arc::new(m))),
-                    Err(e) if e.is_model() => {
-                        wall(wall_sink.as_deref_mut(), e)?;
-                        // the walled mapping's lifted functions leave with it (2026-11-15, the normalizer batch,
-                        // item 4 (c))
-                        lifted.truncate(lifted_before);
-                    }
+                    // a walled mapping has lifted nothing (`MappingNormalizer.normalize`'s note): the truncation the
+                    // normalizer batch's item 4 (c) put here was unreachable, deleted 2026-11-15 (the normalizer's
+                    // second batch, item 4 (c))
+                    Err(e) if e.is_model() => wall(wall_sink.as_deref_mut(), e)?,
                     Err(e) => return Err(e),
                 }
             }

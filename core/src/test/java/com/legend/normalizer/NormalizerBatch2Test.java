@@ -815,4 +815,48 @@ class NormalizerBatch2Test {
             assertEquals(List.of(refusal), strict(MISSING_JOIN.formatted(lines)), lines);
         }
     }
+
+    // ---- item 4 (c): the first batch's untested parts ----
+
+    /** Two services, one whose query's lambda parameter is untyped ({@code n}, no {@code : Type[mult]}). */
+    private static final String UNTYPED_SERVICE_PARAMETER = """
+            Class model::Person { name: String[1]; }
+            ###Service
+            Service my::api::ByName
+            {
+              pattern: '/person/{n}';
+              documentation: '';
+              execution: Single { query: {n | model::Person.all()->filter(p | $p.name == $n)}; mapping: my::M; runtime: my::R; }
+            }
+            Service my::api::All
+            {
+              pattern: '/people';
+              documentation: '';
+              execution: Single { query: |model::Person.all(); mapping: my::M; runtime: my::R; }
+            }
+            """;
+
+    @Test
+    @DisplayName("item 4 (c): E.4's untyped query parameter refuses a strict build and walls its service in a tolerant one")
+    void anUntypedServiceQueryParameterWallsItsService() {
+        // LITE-ONLY (the engine has no tolerant mode): the normalizer batch's item 4 (b) walled the service where the
+        // refusal escaped a tolerant build; its Rust twin was tested (lite-normalizer's service-query test), the Java
+        // not, until 2026-11-15 (the normalizer's second batch, item 4 (c))
+        String refusal = "Service 'my::api::ByName' query parameter 'n' must be typed (name: Type[mult]) to externalize"
+                + " into my::api::ByName$query";
+        com.legend.model.ParsedModel resolved = com.legend.compiler.NameResolver.resolve(
+                com.legend.testing.Own.model(UNTYPED_SERVICE_PARAMETER));
+        com.legend.error.ModelException strict = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.ModelException.class, () -> ModelNormalizer.normalize(resolved,
+                        com.legend.compiler.ModelBuilder.from(resolved), null));
+        assertEquals(refusal, strict.getMessage());
+        Map<String, String> walls = new java.util.LinkedHashMap<>();
+        com.legend.model.NormalizedModel tolerant = ModelNormalizer.normalize(resolved,
+                com.legend.compiler.ModelBuilder.from(resolved), walls);
+        assertEquals(Map.of("my::api::ByName", refusal), walls);
+        assertEquals(List.of("my::api::All$query"), tolerant.elements().stream()
+                .filter(com.legend.model.FunctionDefinition.class::isInstance)
+                .map(e -> ((com.legend.model.FunctionDefinition) e).qualifiedName())
+                .filter(n -> n.endsWith("$query")).toList(), "the other service's query lifted");
+    }
 }
