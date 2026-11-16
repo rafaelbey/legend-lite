@@ -151,7 +151,9 @@ mod tests {
     fn the_same_body_at_two_places_is_one_declaration() {
         on_stack(|| {
             let mut fs = declare("function my::pkg::one(x:Integer[1]):Integer[1] { $x }");
-            fs.extend(declare("\n\n   function my::pkg::one(x:Integer[1]):Integer[1]\n{\n  $x\n}"));
+            fs.extend(declare(
+                "\n\n   function my::pkg::one(x:Integer[1]):Integer[1]\n{\n  $x\n}",
+            ));
             assert_ne!(fs[0], fs[1], "the positions differ");
             assert!(fs[0].java_equals(&fs[1]));
             let t = DeclarationTable::of(fs);
