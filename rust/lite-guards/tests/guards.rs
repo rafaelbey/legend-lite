@@ -680,3 +680,27 @@ fn the_parked_work_anchors_hold_in_the_normalizer() {
         problems.join("\n")
     );
 }
+
+/// The element compiler catches no panic (2026-11-15, the element slice): Java's `ErrorShapeGuardrailTest` pins
+/// `FunctionCompiler.java`'s one `catch (RuntimeException)` (FC:77, the swallow that drops a broken overload), which
+/// census ASK 7 (a) and ruling 30 ported as a typed `Result` -- an `Err` refusal drops the overload, a panic
+/// propagates. So no `catch_unwind` anywhere in lite-element's production sources: a broken overload is an `Err`, never
+/// a caught crash (rust/RETIRED_TESTS.md's row names this as the Java pin's Rust form).
+#[test]
+fn the_element_compiler_catches_no_panic() {
+    let tree = tree();
+    let found: Vec<String> = tree
+        .files
+        .iter()
+        .filter(|(p, _)| p.starts_with("rust/lite-element/src/") && p.ends_with(".rs"))
+        .flat_map(|(p, text)| {
+            code_lines(text)
+                .filter(|(_, l)| has_word(l, "catch_unwind"))
+                .map(move |(n, _)| format!("{p}:{n}"))
+        })
+        .collect();
+    assert!(
+        found.is_empty(),
+        "lite-element catches a panic at {found:?}: FC:77's swallow is a typed Result"
+    );
+}
