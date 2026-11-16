@@ -171,7 +171,9 @@ attribution-2026-11-15-normalizer-batch2-refreeze.tsv	the normalizer's second ba
 # byte for byte as frozen (not rewritten); mir-ids.tsv's six rows moved; mir-store.tsv holds every id the rows name, once:
 # two texts new (taken from P1's identity-mir files, each hashed to its id), two named no more and dropped, 40,613 lines and
 # 876,194,434 characters as before. The tool re-derives all five stores byte for byte from P0 (checked). rust/oracles/mir's
-# dumps (40 lines hold these names as renderer inputs; their answers do not depend on them) are not re-made: for the owner.
+# dumps are not re-made, for the owner: 10 of their lines (mir-dump 6, h2-dump 2, dialects-dump 2) hold the moved names in
+# their inputs, which are no longer what Java lowers for the two tests; each pair stays self-consistent (its answer, main's
+# Java renderer's, renders its own input).
 # Previous SHA-256s: mir-ids.tsv 57920a8caa6426828468ef7b21e0fa12653a8a6c37800068d3335d92350edc37, mir-store.tsv
 # de98afbfde06c21b30364f9fb837f8e2fdbe709064c49d0ecd9711d21dace459.
 attribution-2026-11-16-typer-stage1a-names.tsv	the typer slice's stage 1a item 7: every moved row of mir-ids.tsv, its item, commit and the names that moved (plain text: its own SHA-256)	2e476176cf3e2f060fb1e8c8ef3f4c23996890d538bf8749ec20143d215f9a3c
