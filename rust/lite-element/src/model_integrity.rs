@@ -276,13 +276,14 @@ fn with_element(
     Err(Thrown::Compile(attributed))
 }
 
-/// Whether a `com.legend.error` throw is a `ModelException` (the class `withElement` and the attributed bounds check
-/// catch).
+/// `catch (com.legend.error.ModelException e)` (:238, :457): whether a `com.legend.error` throw is a `ModelException`,
+/// the one class `withElement` and the attributed bounds check catch.
 fn is_model_exception(e: &lite_error::CompileError) -> bool {
     e.kind == lite_error::ErrorKind::Model
 }
 
-/// `new ModelException(Phase.MODEL, message)`: every refusal of the pass's own.
+/// `new ModelException(LegendCompileException.Phase.MODEL, message)` (:133 and every check's throw): a refusal of the
+/// pass's own, naming no element (`withElement` attributes it).
 fn model_exception(message: JStr) -> Thrown {
     Thrown::model(Phase::Model, message, None)
 }
@@ -1688,11 +1689,15 @@ mod tests {
             );
         }
         // ReferenceIntegrityTest.aSupertypeThatDoesNotExistIsRefused (classify's text)
-        let (message, element) = refusal(strict(&index(&format!(
-            "{BASE}Class a::B extends a::Missing\n{{\n}}\n"
-        ))));
-        assert!(message.contains("Unknown type: 'a::Missing'"), "{message}");
-        assert_eq!(element, Some("a::B".to_owned()));
+        assert_eq!(
+            refusal(strict(&index(&format!(
+                "{BASE}Class a::B extends a::Missing\n{{\n}}\n"
+            )))),
+            (
+                "Unknown type: 'a::Missing' is not a known primitive, class, or enum".to_owned(),
+                Some("a::B".to_owned())
+            )
+        );
         // ReferenceIntegrityTest.aClassMayExtendAnotherClassAndAny
         assert_eq!(
             strict(&index(&format!(
@@ -1707,16 +1712,17 @@ mod tests {
                 (graph_edges::Index::of, read_one)"]
     fn a_declared_types_arguments_are_counted() {
         // ReferenceIntegrityTest.aSupertypesArgumentsAreItsParametersWhereWritten and
-        // aGenericClassNamedWithoutItsArgumentsIsRefused: the classifier's texts, reached through the pass
+        // aGenericClassNamedWithoutItsArgumentsIsRefused: the classifier's texts (TC:151, TC:288), whole, reached
+        // through the pass
         let generic = "Class a::G<T>\n{\n  v: T[1];\n}\n";
-        for (text, fragment) in [
+        for (text, expected) in [
             (
                 format!("{generic}Class a::B extends a::G<String, Integer>\n{{\n}}\n"),
                 "Wrong type arguments count (2) for type: G<T>",
             ),
             (
                 format!("{generic}Class a::B extends a::G<a::Missing>\n{{\n}}\n"),
-                "Unknown type: 'a::Missing'",
+                "Unknown type: 'a::Missing' is not a known primitive, class, or enum",
             ),
             (
                 "Class a::B extends a::C<String>\n{\n}\n".to_owned(),
@@ -1732,11 +1738,11 @@ mod tests {
             ),
             (
                 "Class a::B\n{\n  g: a::Missing<String>[1];\n}\n".to_owned(),
-                "Unknown type: 'a::Missing'",
+                "Unknown type: 'a::Missing' is not a known primitive, class, or enum",
             ),
         ] {
             let (message, element) = refusal(strict(&index(&format!("{BASE}{text}"))));
-            assert!(message.contains(fragment), "{text}: {message}");
+            assert_eq!(message, expected, "{text}");
             assert_eq!(element, Some("a::B".to_owned()), "{text}");
         }
         for text in [
@@ -1748,6 +1754,167 @@ mod tests {
                 .to_owned(),
         ] {
             assert_eq!(strict(&index(&format!("{BASE}{text}"))), Ok(()), "{text}");
+        }
+    }
+
+    /// A Pure class binding of `class`, realized by `function`.
+    fn class_binding(class: &str, function: &str) -> lite_model::MappingDefinitionClassBinding {
+        lite_model::MappingDefinitionClassBinding::MappingDefinitionClassBindingPure(Arc::new(
+            MappingDefinitionClassBindingPure {
+                class_fqn: j(class),
+                set_id: None,
+                extends_set_id: None,
+                root: true,
+                function_fqn: j(function),
+                primary_key_columns: empty(),
+            },
+        ))
+    }
+
+    /// An association binding of `association`, realized by `predicate`.
+    fn association_binding(association: &str, predicate: &str) -> Arc<MappingDefinitionAssociationBinding> {
+        Arc::new(MappingDefinitionAssociationBinding {
+            association_fqn: j(association),
+            predicate_function_fqn: j(predicate),
+        })
+    }
+
+    /// The realizers of [`a_mapping_binding_is_realized_by_a_function_of_its_shape`] (after the BASE).
+    const REALIZERS: &str = "Association a::AB\n{\n  c: a::C[1];\n  d: a::C[*];\n}\nfunction a::all(): a::C[*]\n{\n  \
+                             a::C.all()\n}\nfunction a::one(s: String[1]): a::C[*]\n{\n  a::C.all()\n}\nfunction \
+                             a::both(c: a::C[1], d: a::C[1]): Boolean[1]\n{\n  true\n}\nfunction a::half(c: \
+                             a::C[1]): Boolean[1]\n{\n  true\n}\n";
+
+    #[test]
+    #[ignore = "needs helper B's fill (FunctionCompiler: require_function, require_shape, returns_class_many, \
+                returns_boolean_one)"]
+    fn a_mapping_binding_is_realized_by_a_function_of_its_shape() {
+        let mut idx = index(&format!("{BASE}{REALIZERS}"));
+        let mappings = [
+            ("a::M1", vec![class_binding("a::C", "a::nothing")], vec![]),
+            ("a::M2", vec![class_binding("a::C", "a::one")], vec![]),
+            ("a::M3", vec![], vec![association_binding("a::AB", "a::nothing")]),
+            ("a::M4", vec![], vec![association_binding("a::AB", "a::half")]),
+            (
+                "a::M5",
+                vec![class_binding("a::C", "a::all")],
+                vec![association_binding("a::AB", "a::both")],
+            ),
+        ];
+        let elements: Vec<PackageableElement> = mappings
+            .into_iter()
+            .map(|(fqn, classes, associations)| {
+                PackageableElement::MappingDefinition(Arc::new(MappingDefinition::common(
+                    j(fqn),
+                    empty(),
+                    list(classes),
+                    list(associations),
+                    empty(),
+                )))
+            })
+            .collect();
+        idx.add(&elements).unwrap();
+        let classifier = TypeClassifier::new(&idx);
+        let functions = FunctionCompiler::new(&idx, classifier);
+        let mapping = |fqn: &str| check_mapping(idx.find_mapping(&j(fqn)).unwrap(), &idx, &classifier, &functions);
+        assert_eq!(
+            refused(mapping("a::M1")),
+            "mapping 'a::M1' class binding for 'a::C' binds to unknown function 'a::nothing'"
+        );
+        assert_eq!(
+            refused(mapping("a::M2")),
+            "mapping 'a::M2' class binding for 'a::C' must be realized by a function of the form (): Class[*]"
+        );
+        assert_eq!(
+            refused(mapping("a::M3")),
+            "mapping 'a::M3' association binding for 'a::AB' binds to unknown function 'a::nothing'"
+        );
+        assert_eq!(
+            refused(mapping("a::M4")),
+            "mapping 'a::M4' association binding for 'a::AB' must be realized by a function of the form (source, \
+             target): Boolean[1]"
+        );
+        assert_eq!(mapping("a::M5"), Ok(()));
+    }
+
+    /// The behaviour hats of [`a_classs_behaviour_hats_are_realized_by_functions`] (after the BASE).
+    const HATS: &str = "Class a::B\n{\n  d() {1}: Integer[1];\n}\nClass a::D\n[\n  c1: $this.x > 0\n]\n{\n  x: \
+                        Integer[1];\n}\nfunction a::notBool(): String[1]\n{\n  'x'\n}\nfunction a::isBool(): \
+                        Boolean[1]\n{\n  true\n}\n";
+
+    #[test]
+    #[ignore = "needs helper A's fill (classify, require_arguments) and helper B's (require_function, require_shape, \
+                returns_boolean_one)"]
+    fn a_classs_behaviour_hats_are_realized_by_functions() {
+        // with no Phase E the lifted functions are absent, so the sugar form's realizer is unknown
+        let idx = index(&format!("{BASE}{HATS}"));
+        let classifier = TypeClassifier::new(&idx);
+        let functions = FunctionCompiler::new(&idx, classifier);
+        let scratch = QueryArena::new();
+        let class = |cd: &ClassDefinition| check_class(cd, &classifier, &functions, &idx, &scratch);
+        let b = idx.find_class(&j("a::B")).unwrap();
+        assert_eq!(
+            refused(class(b)),
+            "derived property 'd' of a::B binds to unknown function 'a::B$prop$d'"
+        );
+        let d = idx.find_class(&j("a::D")).unwrap();
+        assert_eq!(
+            refused(class(d)),
+            "constraint 'c1' of a::D binds to unknown function 'a::D$constraint$c1'"
+        );
+        // a bound realizer (Door 4's Realization.Ref, which only the protocol's JSON writes): its FQN, not the lifted one
+        let constrained = |r: &str| ClassDefinition {
+            constraints: Arc::from(vec![Box::new(p::ConstraintDefinition {
+                realization: bound(r),
+                ..(*d.constraints[0]).clone()
+            })]),
+            ..(**d).clone()
+        };
+        assert_eq!(
+            refused(class(&constrained("a::notBool"))),
+            "constraint 'c1' of a::D must be realized by a function returning Boolean[1]"
+        );
+        assert_eq!(class(&constrained("a::isBool")), Ok(()));
+        let derived = ClassDefinition {
+            derived_properties: Arc::from(vec![Arc::new(p::DerivedPropertyDefinition {
+                realization: bound("a::notBool"),
+                ..(*b.derived_properties[0]).clone()
+            })]),
+            ..(**b).clone()
+        };
+        assert_eq!(class(&derived), Ok(()));
+    }
+
+    /// A `Realization.Ref` to `function`.
+    fn bound(function: &str) -> p::Realization {
+        p::Realization::RealizationRef(Box::new(p::RealizationRef {
+            function_fqn: j(function),
+            source: None,
+        }))
+    }
+
+    #[test]
+    fn the_realizer_tests_texts_parse() {
+        // the two tests above stop at a stub before every text is read: their setup, held here
+        let idx = index(&format!("{BASE}{REALIZERS}"));
+        assert!(idx.find_association(&j("a::AB")).is_some());
+        for f in ["a::all", "a::one", "a::both", "a::half"] {
+            assert_eq!(idx.find_function(&j(f)).len(), 1, "{f}");
+        }
+        let idx = index(&format!("{BASE}{HATS}"));
+        let b = idx.find_class(&j("a::B")).unwrap();
+        assert!(matches!(
+            b.derived_properties[0].realization,
+            p::Realization::RealizationInline(_)
+        ));
+        let d = idx.find_class(&j("a::D")).unwrap();
+        assert!(matches!(
+            d.constraints[0].realization,
+            p::Realization::RealizationInline(_)
+        ));
+        assert_eq!(d.constraints[0].name.lossy(), "c1");
+        for f in ["a::notBool", "a::isBool"] {
+            assert_eq!(idx.find_function(&j(f)).len(), 1, "{f}");
         }
     }
 
