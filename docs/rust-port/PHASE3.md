@@ -1695,7 +1695,8 @@ done, in the order of the design's §3.
      prelude's profiles); the reduced registrations (PlatformTables') handed to F, as Rust cannot yet build the
      lowering's; the model borrowing its arena; `find_property`, `find_type` and `find_table` allocating in the caller's
      arena; `TypedFunction`'s hand-written `Hash` over a subset; one `IdSet` per kind in `CheckedLayer`; the universe's
-     ordered list in the index's insertion order (the oracle writes it sorted); `lite-normalizer` a dev-dependency of
+     ordered list declared (`elementFqns`' kinds in Java's order, each name at its first place, then the platform's names not
+     already there, sorted in Java's String order; the oracle writes it sorted, so no frozen answer reads this order); `lite-normalizer` a dev-dependency of
      `lite-element` (the guards read `[dependencies]` alone; ruling 26 ratified lite-platform's test-only edge as a
      choice); `JStr::lossy` for names entering the arena (a lone surrogate becomes U+FFFD); the step 0b hold rather than
      an engine-exact emission that needs H; the integrity tests' boot classes stood in for.
@@ -1815,8 +1816,9 @@ when that slice lands.
   of `rust/oracles/plan/test-plans-host.tsv.zst`, its values index or the four archived database-judge plan files holds
   `meta::relational::metamodel::Literal` (prelude.pure:3622, the one `Any`-typed key the platform declares), and the
   three multi-class `byClass` maps there come from `withSubtree`; 8 front-oracle texts declare an `Any`-typed key. The
-  Java is unchanged; `lite-element`'s `resolution_universe()` is in the index's insertion order and F's oracle writes it
-  sorted. When testplan is ported: a declared order (the universe sorted, or the index's order) with a register row, the
+  Java is unchanged; `lite-element`'s `resolution_universe()` is a declared order (`elementFqns`' kinds in Java's order,
+  each name at its first place, then the platform's names not already there, sorted in Java's String order) and F's
+  oracle writes it sorted. When testplan is ported: a declared order (the universe sorted, or the index's order) with a register row, the
   Java changed with it, any test plan it moves re-frozen.
 - **The resolver (H), with E: S1000** (the element slice's step 0b, 2026-11-15; for the owner). A ModelJoin whose two
   parameters pair with the association's ends one way in each direction (both typed by a type both ends conform to:

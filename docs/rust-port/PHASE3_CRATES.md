@@ -377,4 +377,9 @@ G½), `Compiler.resolveQuery`, the typer's slice's own first item (ruling 36, a 
 family, in Java before G's oracle freezes); `ClassLayouts`, `EqualityKeys` beyond `isKeyStereotype` and
 `RelationalOpRows` wait for I, testplan and H. G reads the model through `Model`'s methods: `find_class` hands out a
 borrow, `find_function` the cell's `Arc`s (SpecCompiler's identity memo keys by them), `is_subtype` returns the walk's
-cached failure.
+cached failure. **The typed records' equality, for the owner:** `TypedFunction` derives `PartialEq` (and hashes by hand over a
+subset), and its `definition` and `body` are protocol-holding records whose derived equality reads source positions,
+where Java's record equality leaves them out (the protocol records' `equals`); `Property`'s stored default is the same.
+Nothing in F compares two typed records by value (the differential's doubled `findFunctionById` lines were this, fixed
+with `Function::java_equals`), but G's call equality (`TypedNativeCall`, `TypedUserCall`) and H's value-keyed sets will:
+ported as the brief rules it (derived over every field), the position question G's slice decides first.
