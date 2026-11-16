@@ -120,6 +120,26 @@ class ElementRefusalsTest {
     }
 
     @Test
+    @DisplayName("1 (b): a tolerant build's walled return bound is refused at the function's first use, in the bounds check's words")
+    void aWalledReturnBoundIsRefusedAtItsFirstUse() {
+        // FunctionCompiler.compile's return bound (ruling 29's policy 2, 2026-11-16, the typer slice's stage 1a item 5):
+        // a strict build never reaches it -- the integrity pass refuses the return first (ModelIntegrity.checkFunction,
+        // inverseBoundsAreRefusedAtEverySignatureSite's w::g) -- but a tolerant build walls the function and keeps it,
+        // and its first use met the multiplicity's raw IllegalArgumentException here, BOUND alone
+        Compiler.BuiltModule module = Compiler.buildModule(Compiler.parseModel(
+                "function w::g(x: String[1]): String[2..1]\n{\n  $x\n}\n"));
+        assertEquals(Map.of("w::g_String_1__String_$2_1$_", "return of function w::g: invalid multiplicity — " + BOUND),
+                module.walls());
+        ModelException e = assertThrows(ModelException.class, () -> module.context().findFunction("w::g"));
+        assertEquals("return of function w::g: invalid multiplicity — " + BOUND, e.getMessage());
+        assertEquals("w::g", e.element());
+        // a query calling it, over the tolerant module: the same refusal, at typing
+        ModelException q = assertThrows(ModelException.class,
+                () -> Compiler.query(module.context(), "w::g('a')").resultType());
+        assertEquals("return of function w::g: invalid multiplicity — " + BOUND, q.getMessage());
+    }
+
+    @Test
     @DisplayName("1 (a): a diamond is no cycle: a class met twice on two paths is walked again, not refused")
     void aDiamondIsNoCycle() {
         String diamond = "Class w::Top { t: String[1]; }\n"

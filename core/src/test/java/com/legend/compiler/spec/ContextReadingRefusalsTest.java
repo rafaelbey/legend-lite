@@ -60,6 +60,18 @@ class ContextReadingRefusalsTest {
 
     private static final ModelContext CTX = com.legend.Compiler.compileModel(MODEL);
 
+    /** MODEL with the helpers the url and chain tests read (2026-11-16, the typer slice's stage 1b, part 1.2): a text of
+     *  its own, so MODEL's own questions keep their keys in rust/oracles/identity. */
+    private static final ModelContext HELPERS = com.legend.Compiler.compileModel(MODEL + """
+            ###Pure
+            function t::jrtF(): meta::core::runtime::Runtime[1] { ^meta::core::runtime::Runtime(connectionStores=^meta::core::runtime::ConnectionStore(element='ModelStore', connection=^meta::external::store::model::JsonModelConnection(class=t::S, url=t::url()))) }
+            function t::c0(): meta::core::runtime::Runtime[1] { t::c1() }
+            function t::c1(): meta::core::runtime::Runtime[1] { t::c2() }
+            function t::c2(): meta::core::runtime::Runtime[1] { t::c3() }
+            function t::c3(): meta::core::runtime::Runtime[1] { t::c4() }
+            function t::c4(): meta::core::runtime::Runtime[1] { ^meta::core::runtime::Runtime(connectionStores=^meta::core::runtime::ConnectionStore(element='ModelStore', connection=^meta::external::store::model::ModelChainConnection(mappings=[t::M]))) }
+            """);
+
     private static String typing(String query) {
         return assertThrows(NotImplementedException.class,
                 () -> com.legend.Compiler.query(CTX, query).resultType()).getMessage();
@@ -129,5 +141,72 @@ class ContextReadingRefusalsTest {
                 + " let re-bound to a value of its own name (let c = ...; let c = f($c)); rename one of them",
                 assertThrows(NotImplementedException.class,
                         () -> com.legend.Compiler.programFacts(q.resolved(), CTX)).getMessage());
+    }
+
+    /** An instance runtime over t::Db whose datasource specification is {@code datasourceSpecification}. */
+    private static String instanceRuntime(String datasourceSpecification) {
+        return "^meta::core::runtime::Runtime(connectionStores=^meta::core::runtime::ConnectionStore(element=t::Db,"
+                + " connection=^meta::external::store::relational::runtime::RelationalDatabaseConnection(type=meta::"
+                + "relational::runtime::DatabaseType.H2, datasourceSpecification=" + datasourceSpecification
+                + ", authenticationStrategy=^t::Auth())))";
+    }
+
+    @Test
+    @DisplayName("a typed runtime's computed testDataSetupSqls is refused where it was dropped (the plan went on with setup=[])")
+    void aComputedSetupSqlsInATypedRuntimeIsRefused() {
+        // ContextReading.collectSetups, a test-data specification's testDataSetupSqls (port-scratch/typer/research/
+        // item34, A2a, run): the typed arm; aComputedSetupTextIsRefusedNotDropped's t::rtF is the raw body's
+        assertEquals("testDataSetupSqls is not statically readable: the execution-context reader folds string"
+                + " literals and '+' of them (a helper's body: and its own lets); a computed or let-bound"
+                + " testDataSetupSqls is refused, never dropped", typing("t::P.all()->project([x|$x.name], ['n'])"
+                + "->from(t::M, " + instanceRuntime("^meta::pure::alloy::connections::alloy::specification::"
+                + "LocalH2DatasourceSpecification(testDataSetupSqls=t::setupText())") + ")"));
+    }
+
+    @Test
+    @DisplayName("a typed runtime's computed testDataSetupCsv is refused where it was dropped (the plan went on with setup=[])")
+    void aComputedSetupCsvInATypedRuntimeIsRefused() {
+        // ContextReading.collectSetups, a connection class's testDataSetupCsv (item34, A2b, run): the typed arm;
+        // aComputedSetupTextIsRefusedNotDropped's t::rtCsvF is the raw body's
+        assertEquals("testDataSetupCsv is not statically readable: the execution-context reader folds string"
+                + " literals and '+' of them (a helper's body: and its own lets); a computed or let-bound"
+                + " testDataSetupCsv is refused, never dropped", typing("t::P.all()->project([x|$x.name], ['n'])"
+                + "->from(t::M, " + instanceRuntime("^meta::pure::alloy::connections::alloy::specification::"
+                + "LocalH2DatasourceSpecification(testDataSetupCsv=t::csvText())") + ")"));
+    }
+
+    @Test
+    @DisplayName("a copy's computed testDataSetupCsv override is refused where it was dropped (the plan went on with setup=[])")
+    void aComputedCsvOverrideOfACopyIsRefused() {
+        // ContextReading.collectSetups, a copy's override (item34, A2c, run)
+        assertEquals("testDataSetupCsv is not statically readable: the execution-context reader folds string"
+                + " literals and '+' of them (a helper's body: and its own lets); a computed or let-bound"
+                + " testDataSetupCsv is refused, never dropped", typing("{| let s = ^meta::pure::alloy::connections"
+                + "::alloy::specification::LocalH2DatasourceSpecification(); t::P.all()->project([x|$x.name], ['n'])"
+                + "->from(t::M, " + instanceRuntime("^$s(testDataSetupCsv=t::csvText())") + "); }"));
+    }
+
+    @Test
+    @DisplayName("a helper body's JSON url that is not a string literal is refused where it was dropped")
+    void aComputedUrlInAHelpersBodyIsRefused() {
+        // ContextReading.collectJsonRaw: until 2026-11-16 the source was dropped and the class refused later as
+        // unmapped (port-scratch/typer/research/item34, A2g, run)
+        assertEquals("JsonModelConnection url in a helper's body is not a string literal: the execution-context"
+                + " reader reads it as written; a computed url is refused, never dropped",
+                assertThrows(NotImplementedException.class, () -> com.legend.Compiler.query(HELPERS,
+                        "t::P.all()->project([x|$x.name], ['n'])->from(t::M, t::jrtF())").resultType()).getMessage());
+    }
+
+    @Test
+    @DisplayName("a ModelChainConnection below the depth cap is refused by name; three helpers deep it is still read")
+    void aChainBelowTheDepthCapIsRefused() {
+        // ContextReading.collectChainRaw's cap: until 2026-11-16 the walk stopped there and the query routed without
+        // the chain (port-scratch/typer/research/item34, A3a; the e0 shape of aSetupBelowTheDepthCapIsRefused)
+        assertEquals("the runtime's helper calls nest deeper than the execution-context reader follows (3), and"
+                + " 't::c4' below the third holds ModelChainConnection mappings: refused, never dropped; build the"
+                + " connection nearer the query", assertThrows(NotImplementedException.class,
+                () -> com.legend.Compiler.query(HELPERS, "t::P.all()->project([x|$x.name], ['n'])->from(t::M, t::c0())")
+                        .resultType()).getMessage());
+        assertDoesNotThrow(() -> com.legend.Compiler.query(HELPERS, "t::P.all()->project([x|$x.name], ['n'])->from(t::M, t::c1())").resultType());
     }
 }

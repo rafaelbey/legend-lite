@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -190,5 +191,76 @@ class RawExceptionRefusalsTest {
         assertEquals("String[*]", q.resultType().type().typeName() + q.resultType().multiplicity().text());
         RuntimeException e = assertThrows(RuntimeException.class, () -> q.executionPlan("t::R"));
         assertTrue(!(e instanceof IndexOutOfBoundsException), String.valueOf(e));
+    }
+
+    /** {@code lambda}'s statements through the front door every executor resolves by (the validate desugar's door). */
+    private static com.legend.protocol.spec.ValueSpecification resolve(String lambda) {
+        return com.legend.Compiler.resolveQuery(((com.legend.protocol.spec.LambdaFunction) com.legend.Compiler
+                .parseQuery(lambda)).body(), new com.legend.model.ImportScope(java.util.List.of()), CTX);
+    }
+
+    @Test
+    @DisplayName("an interval frame whose amount is a parameter: refused, NotImplemented, in lite's words")
+    void anIntervalFrameOfANonLiteralAmountIsRefused() {
+        // Frames.intervalBound (it was a raw IllegalStateException). origin/main's fa9ecbe27 (Core C1, a window frame
+        // sized by a parameter) plans rows($n, 0) and a non-interval range sized so, not an interval: main's Frames
+        // keeps an interval's amount literal-only and throws this same text, raw -- so this refusal stays at the next
+        // merge of main (it is aNonLiteralFrameIsRefused's t::frameParam, Frames' non-interval bound, that main's
+        // answer replaces)
+        assertEquals("interval frame bound needs a literal Integer and a DurationUnit literal",
+                typing(NotImplementedException.class, "{n:Integer[1]|#>{t::Db.T}#->extend(over(~A, ~B->ascending(),"
+                        + " _range($n, DurationUnit.DAYS, 0, DurationUnit.DAYS)), ~s:{p,w,r|$r.B}:y|$y->plus())"
+                        + "->from(t::R)}"));
+        // the control: a literal amount is an interval frame
+        assertDoesNotThrow(() -> com.legend.Compiler.query(CTX, "#>{t::Db.T}#->extend(over(~A, ~B->ascending(),"
+                + " _range(1, DurationUnit.DAYS, 0, DurationUnit.DAYS)), ~s:{p,w,r|$r.B}:y|$y->plus())->from(t::R)")
+                .resultType());
+    }
+
+    @Test
+    @DisplayName("importDataFlow over a union whose key thread is Variant: refused, NotImplemented, in its neighbours' words")
+    void anImportDataFlowVariantKeyThreadIsRefused() {
+        // ImportDataFlow.columns (it was a raw IllegalStateException, inside the deferred overload loop: a
+        // NotImplementedException escapes it at once, as the raw throw did; port-scratch/typer/research/item5, 2.22)
+        ModelContext variant = com.legend.Compiler.compileModel("""
+                ###Pure
+                Class t::P { name: String[1]; }
+                ###Relational
+                Database t::Db ( Table T1 (ID SEMISTRUCTURED PRIMARY KEY, NAME VARCHAR(20)) Table T2 (ID SEMISTRUCTURED PRIMARY KEY, NAME VARCHAR(20)) )
+                ###Mapping
+                Mapping t::M
+                (
+                  *t::P: Operation
+                  {
+                    meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(p1, p2)
+                  }
+                  t::P[p1]: Relational { name: [t::Db]T1.NAME }
+                  t::P[p2]: Relational { name: [t::Db]T2.NAME }
+                )
+                ###Connection
+                RelationalDatabaseConnection t::Conn { store: t::Db; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+                ###Runtime
+                Runtime t::R { mappings: [t::M]; connections: [ t::Db: [ c: t::Conn ] ]; }
+                """);
+        assertEquals("importDataFlow: the store declares union key thread 'ID_0' of kind Variant, which the option"
+                + " cannot surface as a result column; mapping=t::M", assertThrows(NotImplementedException.class,
+                () -> com.legend.Compiler.query(variant, "meta::pure::router::execute(|t::P.all()->project([x|$x.name],"
+                        + " ['n']), t::M, t::R.runtimeValue, ^meta::relational::runtime::RelationalExecutionContext("
+                        + "importDataFlow=true), [])").resultType()).getMessage());
+    }
+
+    @Test
+    @DisplayName("validate over a query that reads no class: refused at the desugar, NotImplemented")
+    void aValidateOfAQueryReadingNoClassIsRefused() {
+        // ValidateDesugar: the root scan's raw IllegalStateException ("no getAll root in validate query") is its null
+        // now, refused at desugar (port-scratch/typer/research/item5, 2.23)
+        assertEquals("validate(...): the query reads no class (no ->getAll() in it): validate checks the constraints"
+                + " of the class its query reads", assertThrows(NotImplementedException.class,
+                () -> resolve("{|meta::relational::validation::validate({|1}, t::M, t::R, [])}")).getMessage());
+        // the control: the scan's sibling miss is still swallowed -- the class an if's branch reads is found, and the
+        // desugar goes on to the class (t::P here declares no constraint)
+        assertEquals("validate: class 't::P' has no constraints in the hierarchy to validate",
+                assertThrows(NotImplementedException.class, () -> resolve("{|meta::relational::validation::validate("
+                        + "{|if(true, |t::P.all(), |t::P.all())}, t::M, t::R, [])}")).getMessage());
     }
 }
