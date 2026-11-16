@@ -5,6 +5,7 @@ import com.legend.error.TypeInferenceException;
 import com.legend.platform.WalledBodies;
 import com.legend.platform.CoreFn;
 import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Type;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.TypedParameter;
@@ -251,10 +252,14 @@ public final class SpecCompiler {
                 try {
                     typer.requireConforms(stmt.info(), declaredReturn);
                 } catch (TypeInferenceException e) {
-                    throw new TypeInferenceException("declares return type "
-                            + simpleName(declaredReturn.type().typeName())
-                            + " but body returns " + simpleName(stmt.info().type().typeName())
-                            + " (" + e.getMessage() + ")");
+                    String why = com.legend.compiler.spec.typed.TypedViewRelation.liftedViewName(fn) == null
+                            ? e.getMessage() : beyondViewFamilies(stmt.info(), declaredReturn, e.getMessage());
+                    if (why != null) {
+                        throw new TypeInferenceException("declares return type "
+                                + simpleName(declaredReturn.type().typeName())
+                                + " but body returns " + simpleName(stmt.info().type().typeName())
+                                + " (" + why + ")");
+                    }
                 }
             }
             typed.add(stmt);
@@ -272,6 +277,59 @@ public final class SpecCompiler {
             }
         }
         return new CompiledFunction(fn, typed);
+    }
+
+    /** The owner's ruling 36 (2026-11-14; LITE-ONLY; register row S376): a lifted VIEW's function -- the lift's,
+     *  never a user's -- also conforms when each declared column its body's type does not take is of that body
+     *  column's family, numbers or dates ({@link #viewFamily}): the engine types a view column by its relational
+     *  inference alone, which can name another type of the family than the translated body returns (datePart's DATE,
+     *  a StrictDate, where Pure's returns Date). The body is checked again with each such column read at its declared
+     *  type, the columns paired as the kernel's unifyColumns pairs them; null when that conforms, else its reason --
+     *  so a refusal names the first column of two families, in the kernel's words, past any in-family column before
+     *  it. The body's own type is kept: what an inlined view's node carries is the inliner's (G census, ASK 18). */
+    private @com.legend.base.Nullable String beyondViewFamilies(ExprType body, ExprType declared,
+            @com.legend.base.Nullable String why) {
+        Type.RelationType want = Type.relationSchema(declared.type());
+        Type.RelationType got = Type.relationSchema(body.type());
+        if (want == null || got == null) {
+            return why;
+        }
+        List<Type.Column> read = new ArrayList<>(got.columns());
+        for (Type.Column w : want.columns()) {
+            for (int i = 0; i < read.size(); i++) {
+                Type.Column g = read.get(i);
+                if (InferenceKernel.sameColumn(g.name(), w.name())) {
+                    if (viewFamily(w.type()) != null && viewFamily(w.type()) == viewFamily(g.type())) {
+                        read.set(i, new Type.Column(g.name(), w.type(), g.multiplicity()));
+                    }
+                    break;
+                }
+            }
+        }
+        Type.GenericType carrier = (Type.GenericType) body.type();
+        Type rebuilt = new Type.GenericType(carrier.rawFqn(),
+                List.of(new Type.RelationType(read, got.dynamicColumns())), carrier.multArguments());
+        try {
+            typer.requireConforms(new ExprType(rebuilt, body.multiplicity()), declared);
+            return null;
+        } catch (TypeInferenceException e) {
+            return e.getMessage();
+        }
+    }
+
+    /** Ruling 36's two families: the numbers (Integer, Float, Decimal, Number: exactly the NUMERIC primitives, a
+     *  precise decimal by its base) as NUMERIC, the dates (Date, StrictDate, DateTime) as TEMPORAL; null for every
+     *  other type, LatestDate and StrictTime too (TEMPORAL primitives the ruling's dates do not hold). */
+    private static Type.Primitive.@com.legend.base.Nullable Family viewFamily(Type t) {
+        Type base = t instanceof Type.PrecisionDecimal d ? d.basePrimitive() : t;
+        if (!(base instanceof Type.Primitive p)) {
+            return null;
+        }
+        if (p.isNumeric()) {
+            return Type.Primitive.Family.NUMERIC;
+        }
+        return p == Type.Primitive.DATE || p == Type.Primitive.STRICT_DATE || p == Type.Primitive.DATE_TIME
+                ? Type.Primitive.Family.TEMPORAL : null;
     }
 
     /**
