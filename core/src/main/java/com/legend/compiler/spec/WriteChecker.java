@@ -106,7 +106,9 @@ final class WriteChecker {
         if (!(a.args().get(2) instanceof TypedColSpecArray keys) || keys.names().isEmpty()) {
             throw new TypeInferenceException("merge: its third argument names the key columns, ~[k, ...]");
         }
-        java.util.Set<String> written = new java.util.HashSet<>();
+        // the schema's declared order (ruling 29's policy 1, 2026-11-16, the typer slice's stage 1a item 6; register row
+        // S1010): a HashSet's bucket order reached the refusal's column list
+        java.util.Set<String> written = new java.util.LinkedHashSet<>();
         schema.columns().forEach(c -> written.add(c.name()));
         for (String k : keys.names()) {
             if (!written.contains(k)) {
