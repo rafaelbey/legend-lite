@@ -19,9 +19,13 @@
 use std::sync::Arc;
 
 use lite_front::jtypes::JStr;
+use lite_front::records as p;
 
 use crate::linked;
-use crate::records::{KeyThread, MappingDefinitionNormalizationFacts, PoisonKey};
+use crate::records::{
+    Function, FunctionDefinition, FunctionDefinitionParameterDefinition, KeyThread,
+    MappingDefinitionNormalizationFacts, NativeFunctionDefinition, PoisonKey,
+};
 
 impl MappingDefinitionNormalizationFacts {
     /// `unionMembers().get(classFqn)` (PMC:516): the member classes of the Operation union that maps `class_fqn`, in
@@ -53,6 +57,98 @@ impl MappingDefinitionNormalizationFacts {
     pub fn poison(&self, key: &PoisonKey) -> Option<&JStr> {
         linked::get(&self.poisons, key)
     }
+}
+
+/// `Function.equals` as Java's records define it (2026-11-15, the element slice's integration; found by its
+/// differential): the model's function records (`FunctionDefinition`, `NativeFunctionDefinition`, the
+/// `ParameterDefinition` they hold) use Java's default, all-component record equality, but the protocol records they
+/// hold do not -- a `TypeExpression`'s, a `ValueSpecification`'s and a `ConstraintDefinition`'s `equals` leave out the
+/// source position (and, per record, the parser's spelling marks: [`p::ValueSpecification::equality_key`]'s docs),
+/// a `Realization.Ref`'s reads its function's name alone -- where the generated records derive `PartialEq` over every
+/// field. Two declarations parsed at two places are one function to Java: `DeclarationTable.of`'s `!f.equals(prior)`
+/// (a graph's copy of a catalog native, or of a boot function) and `PureModelContext.findFunctionById`'s
+/// `d.equals(tf.definition())` read this equality.
+impl Function {
+    /// `this.equals(other)` in Java.
+    pub fn java_equals(&self, other: &Function) -> bool {
+        match (self, other) {
+            (Function::FunctionDefinition(a), Function::FunctionDefinition(b)) => a.java_equals(b),
+            (Function::NativeFunctionDefinition(a), Function::NativeFunctionDefinition(b)) => a.java_equals(b),
+            _ => false,
+        }
+    }
+}
+
+impl FunctionDefinition {
+    /// `FunctionDefinition.equals` in Java: its components in order, each by its own Java equality.
+    pub fn java_equals(&self, other: &FunctionDefinition) -> bool {
+        self.qualified_name == other.qualified_name
+            && self.type_parameters == other.type_parameters
+            && self.multiplicity_parameters == other.multiplicity_parameters
+            && parameters_java_equal(&self.parameters, &other.parameters)
+            && self.return_type.equality_key() == other.return_type.equality_key()
+            && self.return_multiplicity == other.return_multiplicity
+            && self.body.len() == other.body.len()
+            && self.body.iter().zip(other.body.iter()).all(|(a, b)| a.java_equals(b))
+            && self.stereotypes == other.stereotypes
+            && self.tagged_values == other.tagged_values
+            && self.synthesized_from == other.synthesized_from
+            && constraints_java_equal(&self.pre_constraints, &other.pre_constraints)
+            && constraints_java_equal(&self.post_constraints, &other.post_constraints)
+    }
+}
+
+impl NativeFunctionDefinition {
+    /// `NativeFunctionDefinition.equals` in Java: its components in order, each by its own Java equality.
+    pub fn java_equals(&self, other: &NativeFunctionDefinition) -> bool {
+        self.qualified_name == other.qualified_name
+            && self.type_parameters == other.type_parameters
+            && self.multiplicity_parameters == other.multiplicity_parameters
+            && parameters_java_equal(&self.parameters, &other.parameters)
+            && self.return_type.equality_key() == other.return_type.equality_key()
+            && self.return_multiplicity == other.return_multiplicity
+            && self.stereotypes == other.stereotypes
+            && self.tagged_values == other.tagged_values
+    }
+}
+
+/// `FunctionDefinition.ParameterDefinition`'s default record equality: its name, its type by `TypeExpression.equals`,
+/// its multiplicity (a protocol record of no position: its derived equality is Java's).
+fn parameters_java_equal(
+    a: &[Arc<FunctionDefinitionParameterDefinition>],
+    b: &[Arc<FunctionDefinitionParameterDefinition>],
+) -> bool {
+    a.len() == b.len()
+        && a.iter().zip(b.iter()).all(|(x, y)| {
+            x.name == y.name && x.r#type.equality_key() == y.r#type.equality_key() && x.multiplicity == y.multiplicity
+        })
+}
+
+/// `ConstraintDefinition.equals` (ConstraintDefinition.java:46): its name, realization, message, enforcement level,
+/// external id and owner -- not its position; a `Realization.Ref` by its function's name alone (Realization.java:63),
+/// a `Realization.Inline` by its body's `ValueSpecification.equals`.
+fn constraints_java_equal(a: &[Box<p::ConstraintDefinition>], b: &[Box<p::ConstraintDefinition>]) -> bool {
+    a.len() == b.len()
+        && a.iter().zip(b.iter()).all(|(x, y)| {
+            x.name == y.name
+                && match (&x.realization, &y.realization) {
+                    (p::Realization::RealizationRef(r), p::Realization::RealizationRef(s)) => {
+                        r.function_fqn == s.function_fqn
+                    }
+                    (p::Realization::RealizationInline(r), p::Realization::RealizationInline(s)) => {
+                        r.body.len() == s.body.len() && r.body.iter().zip(s.body.iter()).all(|(u, v)| u.java_equals(v))
+                    }
+                    _ => false,
+                }
+                && match (&x.message, &y.message) {
+                    (None, None) => true,
+                    (Some(u), Some(v)) => u.java_equals(v),
+                    _ => false,
+                }
+                && x.enforcement_level == y.enforcement_level
+                && x.external_id == y.external_id
+                && x.owner == y.owner
+        })
 }
 
 #[cfg(test)]

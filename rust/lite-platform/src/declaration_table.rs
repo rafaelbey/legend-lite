@@ -40,7 +40,10 @@ impl DeclarationTable {
                 }
                 Some(prior) => {
                     let bodied = matches!(f, Function::FunctionDefinition(_));
-                    if bodied && matches!(prior, Function::FunctionDefinition(_)) && f != *prior {
+                    // `!f.equals(prior)`: Java's record equality, the protocol records' source positions left out
+                    // (`Function::java_equals`; the derived `!=` read them, so a graph's copy of a boot function parsed
+                    // elsewhere was a duplicate -- found by the element differential, 2026-11-15)
+                    if bodied && matches!(prior, Function::FunctionDefinition(_)) && !f.java_equals(prior) {
                         // each id once, in first-met order (2026-11-12, the owner's ruling: a third differing body
                         // reported the id again, in Java and here)
                         if !duplicates.contains(&id.qualified) {
@@ -138,6 +141,22 @@ mod tests {
             let mut fs = declare("function my::pkg::one(x:Integer[1]):Integer[1] { $x }");
             fs.extend(declare("function my::pkg::one(x:Integer[1]):Integer[1] { $x }"));
             assert_eq!(DeclarationTable::of(fs).size(), 1);
+        });
+    }
+
+    /// Java's `equals` leaves the protocol records' source positions out: one function parsed at two places is one
+    /// declaration, never a duplicate (2026-11-15, the element slice: the derived `!=` read the positions, found by
+    /// the element differential on a graph's copy of a boot function).
+    #[test]
+    fn the_same_body_at_two_places_is_one_declaration() {
+        on_stack(|| {
+            let mut fs = declare("function my::pkg::one(x:Integer[1]):Integer[1] { $x }");
+            fs.extend(declare("\n\n   function my::pkg::one(x:Integer[1]):Integer[1]\n{\n  $x\n}"));
+            assert_ne!(fs[0], fs[1], "the positions differ");
+            assert!(fs[0].java_equals(&fs[1]));
+            let t = DeclarationTable::of(fs);
+            assert_eq!(t.size(), 1);
+            assert!(t.duplicates().is_empty());
         });
     }
 

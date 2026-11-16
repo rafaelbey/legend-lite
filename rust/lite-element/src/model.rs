@@ -434,8 +434,10 @@ impl<'m> Model<'m> {
         let mut out = Vec::with_capacity(defs.len());
         for d in &defs {
             for tf in self.find_function(d.qualified_name())? {
-                // `d.equals(tf.definition())`: the record's value equality, as Java's
-                if *d == tf.definition {
+                // `d.equals(tf.definition())`: Java's record equality, which leaves the protocol records' source
+                // positions out (`Function::java_equals`; the derived `PartialEq` reads them: a graph's copy of a
+                // catalog native, parsed elsewhere, was another function -- the element differential, 2026-11-15)
+                if d.java_equals(&tf.definition) {
                     out.push(tf.clone());
                 }
             }
