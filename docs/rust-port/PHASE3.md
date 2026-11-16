@@ -1785,7 +1785,7 @@ when that slice lands.
   when it seeds the metamodel, where it keeps no type (ruling 35: lite compiles what the engine compiles); when H and I
   are ported, a query that reads such a column is refused there, in those words, and the frozen answers that move with
   it are re-frozen and attributed then.
-- **The typer (G), first, in Java before its oracle freezes.** *A lifted view's columns are checked within a family*
+- ~~**The typer (G), first, in Java before its oracle freezes.** *A lifted view's columns are checked within a family*
   (the owner's ruling 36, 2026-11-14, PHASE3_SHIM_DESIGN.md §10; register row S376). `SpecCompiler`'s return
   conformance (the `declares return type ... but body returns ...` refusal) also accepts, for a lifted view's function
   only (the lift's synthesized function, never a user's), a column whose declared type and body type are of one family:
@@ -1793,7 +1793,16 @@ when that slice lands.
   declared type, the engine's; a column whose types are of two families is still refused. Its cases are the names
   batch's 74 one-view models (`port-scratch/namesbatch/cl`, `gen_compile_cases2.py`, `cl.final.out`): the 14 refused
   there by this check compile (`datePart`, `firstDayOfMonth`, `firstDayOfWeek`, `firstDayOfYear`, and `coalesce`, `if`,
-  `case`, `max`, `plus`, `minus` over mixed kinds), every other answer unchanged; zero reach in the texts we hold.
+  `case`, `max`, `plus`, `minus` over mixed kinds), every other answer unchanged; zero reach in the texts we hold.~~
+  Done in Java, the typer's share, `9dba1053a` (2026-11-16; LITE-ONLY): measured over the 74 before and after
+  (`port-scratch/ruling36/runs/cl.{base,r36}.out`), the 14 compile and nothing else moves (the 9 refused elsewhere,
+  the G census's §8.4, refused as before); reach 0 (no line of the seven oracles' stores, the archived test plans or
+  the archived texts holds "declares return type"); the frozen-answer probe at `9dba1053a`
+  (`port-scratch/ruling36/runs/R36.out`): all 73,476 frozen keys answered and equal, MOVED 0, ABSENT 0, no re-freeze;
+  the full suite at `9dba1053a`: 589 targets, 587 pass, 2 skipped, against rust/BASELINE.tsv moved 0 (new 40, gone 3,
+  as at `947978e0b`).
+  The G½ share (the plan's column type) ruled (ii) by the owner, 2026-11-16 (ruling 42): only the newly accepted
+  columns relabelled with the declared type in TypedViewRelation.of; lands in the typer slice's stage 1.
 - **The resolver (H).** *`ConstructedInstances.ARG_FREE` made consistent with the names batch* (found by the names
   batch, 2026-11-14; register row S378; the names batch's items 2-4, ruling 34). The set of relational functions whose
   type the resolver takes not to depend on their arguments (`resolver/ConstructedInstances.java`, `ARG_FREE`, read at
