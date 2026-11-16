@@ -1720,6 +1720,108 @@ done, in the order of the design's §3.
      the 38 GB folder deleted, the verify worktree clean. No test source names a replaced refusal text but in a dated
      comment. Nothing held back by the stop condition.
 
+   **The typer slice, stage 1a: the Java batch before G's oracle freezes (2026-11-16;** the owner's ruling 42,
+   [`PHASE3_SHIM_DESIGN.md`](PHASE3_SHIM_DESIGN.md) §10**).** The G census (`port-scratch/gcensus/REPORT.md`) ruled; the
+   Java changes the owner ordered before step G's typed oracle freezes, each its own commit with Java tests, F's with
+   lite-element's Rust twin; every measurement and tool is in `port-scratch/typer/` (its RESUME.md). Research by four
+   read-only helpers first (`typer/research/`: the policy-2 sites, ContextReading, the view lift's spellings, the
+   observables of ASK 2), each site run on lite at the base and on legend-engine 4.145.0.
+
+   - *Item 1, ASK 18 (ii)* (`cc2f4dd41`, LITE-ONLY; register row S1006): an inlined lifted view's node reads exactly the
+     columns ruling 36 newly accepts at the view's declared type (SpecCompiler.familyRelabelled, the one pairing of
+     ruling 36, and viewInfo; TypedViewRelation.of). Measured: the bare root over `plus(T.I, T.F)` plans X as
+     Integer[1] (it planned Float[1]) where the query says Integer[0..1]; under select(~X) the plan column Integer[0..1]
+     and the MIR output column BIGINT over a DOUBLE plus, no cast (the engine labels such a column Varchar(1024):
+     nothing to match; for the owner).
+   - *Item 2, ASK 17: HELD for the owner* (no commit). The implementation helper stopped on two points the ruled design
+     cannot meet as written: the lowering knows no dialect, so "the engine's words, per dialect" needs a planner-wide
+     fact (H2 `toPostgresModel.pure:277`, every other `dbExtension.pure:192`), and a Nil-typed deferral column is refused
+     at H4 in lite's words; the capitals lifted as ruled plan `SUM` under a view's ~groupBy as `SELECT MIN(...)` (a
+     silent wrong value: ViewRelation asks isGroupReducer by spelling) and `COUNT` meets a raw IllegalStateException --
+     and the engine refuses `COUNT`, `SUM`, `ABS` on DuckDB too (run; item6's "DuckDB plans abs(I)" did not hold: a
+     case-insensitive file system). Reach 0 texts; `typer/item2/` holds the trial (all nine cases compile there). The
+     other parts did not land alone either: md5's type-only assertion types and plans in the trial (DuckDB `md5(I)`, the
+     engine's; H2 `RAWTOHEX(HASH('MD5', I))` where the engine calls `legend_h2_extension_hash_md5`), and the `mod` and
+     `minus` shims, walled by name, refuse the whole view where the engine plans its other columns. Nothing in E
+     changed, so the normalizer oracle was not re-asked.
+   - *Item 3, ASK 4* (`dad2816bc`, LITE-ONLY; S1007): the six texts that printed a Java record's toString say what was
+     written in Pure terms: the engine's "Can't find a match for function ..." words (NoMatch) where it refuses the same
+     call at lambda compile, lite's otherwise.
+   - *Item 4, ASK 12* (`b08fce6b9`, LITE-ONLY; S1008): ContextReading's four silent defaults refused by name, and a let
+     re-bound to a value of its own name (which overflowed or never returned) refused by name in the reader's binding.
+   - *Item 5, ruling 29's policy 2* (`129154736`, LITE-ONLY; S1009): the §10.2 rows a user's input reaches, each a proper
+     refusal; F's two (a table's duplicate column and DECIMAL scale, a tolerant build's broken bound) in Java and
+     lite-element together, the element oracle re-frozen with attribution (30 asks over 10 texts moved, each a raw
+     IllegalArgumentException's text now a ModelException's: 12 a duplicate column, 9 a DECIMAL scale, 9 a broken bound;
+     rust/oracles/element/attribution-2026-11-16-typer-stage1a.tsv; the Rust differential answers all 74,418 asks as the
+     new freeze).
+   - *Item 6, ruling 29's policy 1* (`021d6d905`, LITE-ONLY; S1010): the merge refusal's columns in the schema's order.
+   - *The counter probe* (C1: v2 at dad2816bc with items 4-6 uncommitted and 48 hit counters, one per changed site):
+     all 73,476 frozen keys answered and equal (the counters masked), none absent; item 4's 13 counters fired on no
+     frozen key; item 5's on none but ResultEnvelopeSplice :344 (3 frozen keys, ExecuteFrameTest.relationRootAtOneIsLoud's
+     refusal, whose frozen answer holds no text, unchanged); item 6's on 3 (the integration merge tests, no text frozen),
+     item 3's on 41 (none holding a text), item 1's relabel on no question (LiftedViewFamilyTest's direct calls only). So
+     items 4 to 6 landed with no frozen move (the element oracle's re-freeze aside). Nine of the 48 fired in no question
+     at all, so no Java test reaches their sites: item 4's chain below the depth cap, the copy's csv, the typed csv and
+     sql setups and the raw json url; item 5's Frames :124, ImportDataFlow's Variant key thread, ValidateDesugar's
+     classless query and FunctionCompiler's return bound (its parameter bound fired in direct calls only).
+   - *Item 7, ASK 2, names by place* (`c759ca718`, LITE-ONLY; S1011; its re-freeze `34025529c`): AlphaRename's
+     `_nr<N>` and ColumnHygiene's `<made>_<N>` are each minted by the expansion's own counter from 0, skipping every name
+     its body, its call's arguments and its place use (the typing environment's names; for a static inlining the fold's
+     scope and the names it holds; for a column every column of every relation the call's arguments hold), so a re-typing
+     mints the same names and no fresh binder captures a substituted variable (a StaticFold inlining's `_nr0` captured a
+     user-written `$_nr0`; fixed). The probe before and after (P0 at `021d6d905`: all frozen keys equal; P1, P1b at
+     `c759ca718`, agreeing on every key): six frozen keys moved, names only -- UserFunctionIntegrationTest's
+     aNestedCallsColumnIsTheBodys (`m_2` -> `m_0`) and overItsOwnAnswer (the second fromMean's `t_m_4`, `t_v_5` ->
+     `t_m_2`, `t_v_3`) over three models, two MirJsons and six execution plans, every moved text equal to its old one but
+     for those names (P0 against P1 over all 73,644 keys both answer); no count, no test plan; re-frozen with attribution
+     in rust/oracles/identity and plan (each MANIFEST's block, attribution-2026-11-16-typer-stage1a-names.tsv). `_nr` is
+     in no frozen store. NOT re-made, for the owner: rust/oracles/mir's dumps, of which 10 lines (mir-dump 6, h2-dump 2,
+     dialects-dump 2) hold the moved names -- those inputs are no longer what Java lowers for the two tests; each pair
+     stays self-consistent (its answer renders its own input), and the answers are main's Java renderer's (ReAnswer on
+     main's jars, the dumps' MANIFEST), which this tree no longer has (J answers through Rust). The observables (ASK 2,
+     listed before coding; `port-scratch/typer/research/ask2`): freed by names by place -- the two names, in
+     rust/oracles/identity's mir-ids and mir-store, rust/oracles/plan's execution plans (23 plans hold ColumnHygiene
+     names, 6 moved) and rust/oracles/mir's dumps; `_nr` in none. Still following the typing count, for a Rust typer to reproduce where a re-typing decides a
+     route: `Typer.pretyped` and `withPretyped`'s shadowed set, `Overloads.pretyped`, `SourceSubst.untrackedLetNodes`,
+     ContextReading's typing-time reads, `model.DatabaseDefinition.defaultSchemaTables` (the islands) -- each a count in
+     identity/hits.tsv. Not following it (read): `SpecCompiler.memo`, keyed by a function and asked for a whole
+     function's typed body only after typing -- by G½ (UserCallInliner :596, StatementEffects, SeededStores), H, the
+     planner and testplan, never by the typer; and G½'s tables (`UserCallInliner.reducedTerms`, keyed by a node of the
+     one typed tree G½ walks; `callInstantiations`, its count reads, Evaluation). The pure repeats (Typer:540-547,
+     ColumnsMetaFold:56/:67, SortChecker:73, GroupByChecker:175, JoinChecker:140-141) answer alike each time: the
+     identity differential would flag a Rust typer that types them otherwise. Apart from that list: item 7 itself moved
+     no count (P0 against P1), which says nothing of which counts a typer that types each subtree once would reproduce.
+   - *Probes and gates*: the early gates (`port-scratch/typer/tools/early.sh`: the brief's -- //parser-equivalence:
+     parser_parity, //core:census, every update_generated test, //core:core_tests_integration, //core:guardrails,
+     //core:core_tests -- with the Rust crates, the corpus verdicts and the touched targets) green before every commit;
+     the probe v2 runs C1, P0, P1, P1b (each its own tagged copy, every hunk checked to apply; 143 of 145 targets passing
+     each, //core:census and //core:guardrails probe-caused), above; the 38 GB folders deleted, the verify worktree
+     clean. The full suite at `34025529c`: build clean, 589 targets, 586 passed, 2 skipped, one failed --
+     //python:engine_test, whose `test_page` pinned item 3's old kernel text (`no overload`), a target the early gates
+     do not run; `89fda325f` (LITE-ONLY) reads the engine's words there and counts them as `overload` in the two census
+     reason classes (a rust/RETIRED_TESTS.md row). At `89fda325f`: build clean, 589 targets, 587 passed, 2 skipped
+     (//tools/guards:classpath_test, :markdown_inputs_test), none failed; against rust/BASELINE.tsv moved 0, new 40,
+     gone 3, as at `9dba1053a`. Each Java commit's core/src part checked against origin/main (`git apply --check`):
+     `dad2816bc`, `b08fce6b9`, `021d6d905` and `c759ca718` apply; `cc2f4dd41` does not (it builds on ruling 36's
+     `9dba1053a`, the port's alone) nor `129154736` (Frames.java: origin/main's `fa9ecbe27`, since the merge base, plans
+     a window frame sized by a parameter, which the port's Frames threw as a raw IllegalStateException and item 5 now
+     refuses as a NotImplementedException -- the two will meet at the next merge of main; and `dad2816bc`'s NoMatch, the element
+     slice's ElementRefusalsTest). `34025529c`, `89fda325f`, `be0c7ff46` (the identity MANIFEST's note on the MIR
+     dumps corrected) and this record have no core/src part.
+   - *What the census said that did not hold*: about 20 execution plans held ColumnHygiene names (9 + 11): 23 do, 6
+     moved; item6's "DuckDB plans abs(I)" (item 2, above); LiteralUnroll :190's row is no raw exception a refusal should
+     replace -- the engine answers that input, so the unroll leaves the field unfolded and the plan refuses by name later
+     on H2 (S1009); TypedQuery :99-102 and CypherIslands :395 no input reaches (run). What held: PMC:767's 21 asks over
+     7 texts (12 over 4 a duplicate column, 9 over 3 a DECIMAL scale), Overloads :1346 F's step 1 (d) site (9 asks), and
+     every ASK 12 default refusable with no frozen move.
+   - *Found, not changed (for the owner)*: a function signature naming a relation column twice escapes compileModel
+     raw (ModelIntegrity :372, F); `if(true, |1, |2, |3)` drops its fourth argument and `emptyFirst([k1, k2])` its
+     second key silently; ContextReading reads a raw helper call's first bodied overload whatever its arity, and
+     programFacts reads with the raw-body paths off; a copy's `testDataSetupSqls` override is never read, and the typed
+     fold joins a setup collection with no separator where the raw fold uses a newline (ContextReading :1146-1156); a
+     StaticFold capture of a user-written `$_nr0` (fixed by item 7's avoid-set).
+
 ## Carried to the slices not yet begun
 
 Work an earlier slice found and ruled for a later one; each item names the ruling and the register row, and is done
@@ -1802,7 +1904,8 @@ when that slice lands.
   the full suite at `9dba1053a`: 589 targets, 587 pass, 2 skipped, against rust/BASELINE.tsv moved 0 (new 40, gone 3,
   as at `947978e0b`).
   The G½ share (the plan's column type) ruled (ii) by the owner, 2026-11-16 (ruling 42): only the newly accepted
-  columns relabelled with the declared type in TypedViewRelation.of; lands in the typer slice's stage 1.
+  columns relabelled with the declared type in TypedViewRelation.of; lands in the typer slice's stage 1. Landed:
+  `cc2f4dd41` (the typer slice's stage 1a item 1, register row S1006; its entry above).
 - **The resolver (H).** *`ConstructedInstances.ARG_FREE` made consistent with the names batch* (found by the names
   batch, 2026-11-14; register row S378; the names batch's items 2-4, ruling 34). The set of relational functions whose
   type the resolver takes not to depend on their arguments (`resolver/ConstructedInstances.java`, `ARG_FREE`, read at
@@ -1819,7 +1922,9 @@ when that slice lands.
   plans no query over such a view, the owner's; the relational spellings the lift emits that G refuses (`like`,
   `charindex`, `locate`, capitals' `COUNT`/`SUM`/`ABS`, `mod` over floats, `md5` over an integer, `sub` over varchars;
   0 texts the oracles hold), measured and proposed per call for the typer's slice (G, with ruling 36;
-  `port-scratch/normbatch/item6.md`); ~~the register rows S381-S392 as the owner rules them~~ ruled (ruling 37), their
+  `port-scratch/normbatch/item6.md`; ruled by ruling 42 as ASK 17, and HELD by the typer slice's stage 1a for the
+  owner: the lowering knows no dialect, and the capitals lifted as ruled plan a wrong value -- its entry above, item 2);
+  ~~the register rows S381-S392 as the owner rules them~~ ruled (ruling 37), their
   fixes the normalizer's second batch's (above).
 - **testplan: the resolution universe's order into a test plan** (the element slice's step 1 (c), 2026-11-15; ruling
   29's first policy, ruling 28). `JudgmentFacts:117` iterates `PureModelContext.resolutionUniverse()`, a `HashSet`, when
