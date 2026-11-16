@@ -63,13 +63,14 @@
 //!   lets escape (`Java { class, message }`: a bound's `IllegalArgumentException`, an `IllegalStateException`), so
 //!   the differential writes it as Java does.
 //!
-//! **The skeleton** (2026-11-15): every module, type and cross-file signature in place; a body not yet ported is
-//! `unimplemented!("lite-element skeleton: <Java method>")`, each file self-contained for its fill. Written in full:
-//! [`typed`], the trivial delegations, the element cells' plumbing and the overlay's three overrides.
+//! **The port** (2026-11-15): a skeleton first (every module, type and cross-file signature; [`typed`], the trivial
+//! delegations, the cells' plumbing and the overlay written in full), then five families filled in parallel on
+//! disjoint files, each line for line against 18feff3fe -- the type kernel ([`type_classifier`], [`store_compiler`],
+//! [`equality_keys`]), the element compilers ([`function_compiler`], [`class_compiler`]), the integrity pass
+//! ([`model_integrity`]), GraphEdges' rule ([`graph_edges`]) and the model ([`model`]). Held byte for byte to the live
+//! Java and its frozen answers by `tests/element_differential.rs` (rust/oracles/element: 74,418 of 74,418 asks).
 
 #![forbid(unsafe_code)]
-// skeleton: remove when every body is ported (a stub neither reads its parameters nor reaches its private helpers)
-#![allow(unused_variables, dead_code, unused_imports)]
 
 pub mod class_compiler;
 pub mod equality_keys;
@@ -89,136 +90,3 @@ pub use typed::{
     EnforcementLevel, Property, PropertyDerived, PropertyStored, TypedClass, TypedConstraint, TypedEnum, TypedFunction,
     TypedParameter,
 };
-
-/// The cross-file calls the fill will make, as its callers will write them, so that the compiler holds the fixed
-/// signatures to composing on day one (their bodies are stubs: nothing here runs). Deleted once every call below has
-/// its real site.
-#[cfg(test)]
-#[allow(clippy::too_many_arguments)]
-mod seams {
-    use std::collections::HashSet;
-    use std::sync::Arc;
-
-    use lite_base::{ModelArena, QueryArena};
-    use lite_front::records as p;
-    use lite_model::linked::LinkedMap;
-    use lite_model::{
-        AssociationDefinition, ClassDefinition, ConnectionDefinition, DatabaseDefinitionTableDefinition, FunctionId,
-        JStr, NormalizedModel, RuntimeDefinition,
-    };
-    use lite_names::ModelIndex;
-    use lite_platform::Registrations;
-
-    use crate::function_compiler::FunctionCompiler;
-    use crate::type_classifier::TypeClassifier;
-    use crate::{Model, Thrown, class_compiler, equality_keys, graph_edges, model_integrity, store_compiler};
-
-    /// model_integrity::check's calls into the classifier, the function compiler, the class compiler's shared rule
-    /// and the graph-edge rule.
-    fn integrity(
-        model: &ModelIndex,
-        functions: &FunctionCompiler<'_>,
-        cd: &ClassDefinition,
-        dp: &p::DerivedPropertyDefinition,
-        association: &AssociationDefinition,
-        site: &JStr,
-        walls: &mut LinkedMap<JStr, JStr>,
-    ) -> Result<(), Thrown> {
-        let scratch = QueryArena::new();
-        let classifier: TypeClassifier<'_> = functions.classifier();
-        classifier.classify(&scratch, &dp.r#type, &cd.type_params)?;
-        classifier.require_arguments(&dp.r#type, &cd.type_params)?;
-        let head = TypeClassifier::head_fqn(&cd.super_classes[0])?;
-        let _ = classifier.find_type(&scratch, head);
-        let _ = classifier.class_def(head).is_some() || classifier.is_class_fqn(head);
-        model_integrity::require_valid_bounds(&dp.multiplicity, site)?;
-        let end_site = model_integrity::association_end_site(&association.property1, association);
-        model_integrity::require_valid_bounds(&association.property1.multiplicity, &end_site)?;
-        let fqn = class_compiler::realized_fqn(
-            &dp.realization,
-            lite_names::synth_fqn::prop(&cd.qualified_name, &dp.name)?,
-        );
-        functions.require_function(&fqn, site)?;
-        functions.require_shape(
-            &fqn,
-            FunctionCompiler::returns_boolean_one,
-            site,
-            "returning Boolean[1]",
-        )?;
-        functions.require_shape(
-            &fqn,
-            |f| f.parameters().is_empty() && functions.returns_class_many(f),
-            site,
-            "of the form (): Class[*]",
-        )?;
-        let source = graph_edges::source_of(model);
-        let index = graph_edges::Index::of(&source);
-        graph_edges::read_one(&source, &index, cd)?;
-        model_integrity::check(model, &classifier, functions, Some(walls), None)?;
-        model_integrity::check(model, &classifier, functions, None, None)
-    }
-
-    /// The class compiler's calls: the classifier in the model's arena, the key stereotype.
-    fn class_compile<'m>(
-        classifier: &TypeClassifier<'_>,
-        arena: &'m ModelArena,
-        cd: &ClassDefinition,
-        pd: &lite_model::ClassDefinitionPropertyDefinition,
-    ) -> Result<(), Thrown> {
-        let _ = pd.stereotypes.iter().any(|st| equality_keys::is_key_stereotype(st));
-        let t = classifier.classify(arena, &pd.r#type, &cd.type_params)?;
-        let m = TypeClassifier::multiplicity(arena, &pd.multiplicity)?;
-        let typed: crate::TypedClass<'m> = class_compiler::compile(classifier, arena, cd)?;
-        let _ = (t, m, typed);
-        Ok(())
-    }
-
-    /// The model's: the gate, the boot layer, the overlay through its deref, the lookups that take an arena.
-    fn model_calls<'m>(
-        arena: &'m ModelArena,
-        normalized: &NormalizedModel,
-        boot_index: ModelIndex,
-        index: ModelIndex,
-        registrations: &Registrations,
-        runtime: Arc<RuntimeDefinition>,
-        connection: Arc<ConnectionDefinition>,
-        table: &DatabaseDefinitionTableDefinition,
-        fqn: &JStr,
-    ) -> Result<(), Thrown> {
-        let boot = Model::check_layer(normalized, boot_index, registrations)?;
-        let adopted: HashSet<FunctionId> = HashSet::new();
-        let prior = boot.without(&adopted);
-        let mut walls: LinkedMap<JStr, JStr> = LinkedMap::new();
-        let model: Model<'m> = Model::from(arena, normalized, index, Some(&mut walls), Some(&prior), registrations)?;
-        model_integrity::check(
-            model.index(),
-            &model.classifier(),
-            &model.function_compiler(),
-            None,
-            Some(&prior),
-        )?;
-        let overlay = model.with_execution_overlay(runtime, connection)?;
-        let _ = overlay.find_class(fqn)?;
-        let _ = overlay.find_runtime(fqn).is_some() && overlay.is_execution_context_element(fqn);
-        let _: &Model<'m> = &overlay;
-        let query = QueryArena::new();
-        let _ = model.find_property(&query, fqn, fqn)?;
-        let _ = model.find_type(&query, fqn);
-        let _ = model.find_table(&query, fqn, fqn)?;
-        let _ = store_compiler::table_schema(&query, table)?;
-        let _ = model.is_subtype(fqn, fqn)?;
-        let _: &[Arc<crate::TypedFunction<'m>>] = model.find_function(fqn)?;
-        let _ = model.find_function_by_id(fqn)?;
-        let _ = model.find_enum(fqn);
-        let _ = model.classifier_instances(fqn);
-        let _ = model_integrity::require_valid_bounds_at(
-            &p::Multiplicity::MultiplicityConcrete(Box::new(p::MultiplicityConcrete {
-                lower_bound: 1,
-                upper_bound: Some(1),
-            })),
-            fqn,
-            fqn,
-        );
-        Ok(())
-    }
-}

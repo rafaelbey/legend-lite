@@ -2023,7 +2023,6 @@ mod tests {
     // ---- the sibling families' fills needed: ignored until they land ----
 
     #[test]
-    #[ignore = "needs helper A's fill (TypeClassifier.findType)"]
     fn find_type_classifies_every_kind_and_an_unknown_fqn_is_none() {
         // PureModelContextTest.findTypeClassifiesEveryKind (:52), findTypeUnknownIsEmpty (:73)
         let arena = ModelArena::new();
@@ -2053,7 +2052,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's and helper B's fills (TypeClassifier.classify, ClassCompiler.compile)"]
     fn a_class_cell_is_compiled_on_first_demand_memoized_and_the_unasked_stay_unset() {
         // PureModelContextTest.findClassMaterializesProperties (:83), findClassMemoized (:100),
         // findPropertyResolvesOnClass (:115)
@@ -2076,7 +2074,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's and helper B's fills (the native classes' compile)"]
     fn subtyping_walks_the_native_class_chains() {
         // PureModelContextTest.isSubtypeWalksNativeLattice (:126), its fixture half (the booted half is the
         // planner's: Compiler.buildModel)
@@ -2086,7 +2083,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's, B's and C's fills (the integrity pass)"]
     fn an_unknown_property_type_fails_eagerly_at_the_gate() {
         // PureModelContextTest.unknownPropertyTypeThrows (:144)
         let arena = ModelArena::new();
@@ -2098,7 +2094,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's, B's and C's fills (the integrity pass)"]
     fn the_strict_gate_builds_the_fixture() {
         let arena = ModelArena::new();
         let model = context(&arena, &fixture_text()).expect("the fixture compiles");
@@ -2108,7 +2103,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's, B's and C's fills (the integrity pass)"]
     fn a_walled_cyclic_class_of_a_tolerant_build_is_refused_by_name_at_the_lookup() {
         // ElementRefusalsTest.findPropertyOnAWalledCyclicClassIsRefusedByName (:30)
         let arena = ModelArena::new();
@@ -2163,7 +2157,6 @@ mod tests {
         Association w::AB { a: w::A[2..1]; b: w::B[*]; }\n";
 
     #[test]
-    #[ignore = "needs helper A's, B's and C's fills (classify, the class compile, requireValidBounds)"]
     fn a_walled_association_ends_inverted_bounds_are_refused_at_the_lookup() {
         // ElementRefusalsTest.aWalledAssociationEndsInvertedBoundsAreRefusedAtTheLookup (:60)
         let arena = ModelArena::new();
@@ -2184,7 +2177,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's, B's and C's fills (the integrity pass, the function compiler)"]
     fn a_tolerant_builds_broken_overload_is_dropped_and_an_all_broken_set_rethrows() {
         // ElementRefusalsTest.aBrokenOverloadIsDroppedAndAnAllBrokenSetRethrows (:105)
         let arena = ModelArena::new();
@@ -2208,7 +2200,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's, B's and C's fills (the integrity pass)"]
     fn a_diamond_of_a_strict_build_is_no_cycle() {
         // ElementRefusalsTest.aDiamondIsNoCycle (:121)
         let arena = ModelArena::new();
@@ -2223,7 +2214,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's and helper B's fills (FunctionCompiler.compileAll)"]
     fn the_function_cell_hands_out_the_same_arcs_twice() {
         let arena = ModelArena::new();
         let model = frozen(&arena, UNIVERSE_TEXT);
@@ -2241,7 +2231,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's, B's and C's fills (the integrity pass)"]
     fn a_checked_layer_holds_the_gates_own_elements() {
         let p = parsed(UNIVERSE_TEXT);
         let index = ModelIndex::from(&p).unwrap();
@@ -2252,7 +2241,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's, B's and C's fills (the integrity pass, the class and function compilers)"]
     fn n_threads_on_a_gated_model_answer_as_one_thread() {
         let questions = |model: &Model<'_>| {
             let query = QueryArena::new();

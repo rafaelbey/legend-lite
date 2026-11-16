@@ -341,8 +341,6 @@ fn milestone_2(report: Option<&Path>) -> Option<String> {
 /// the element compiler's families are the skeleton's `unimplemented!` (2026-11-15: five helpers fill them; the lead
 /// removes this ignore when they land). `--ignored` (the Bazel target's) runs it.
 #[test]
-#[ignore = "needs lite-element's families, the skeleton's unimplemented! until they land: \
-            //rust/lite-element:element_differential_test runs it"]
 fn the_boot_answers_as_javas() {
     let report = env_opt("LITE_ELEMENT_REPORT").map(PathBuf::from);
     if let Some(failure) = milestone_2(report.as_deref()) {
@@ -1078,8 +1076,6 @@ fn what_step_f_builds_answers_as_javas() {
 /// skeleton's `unimplemented!` (2026-11-15; the lead removes this ignore when they land, so the cases run under plain
 /// `cargo test`, as the normalizer's do).
 #[test]
-#[ignore = "needs lite-element's families, the skeleton's unimplemented! until they land: \
-            //rust/lite-element:element_differential_test runs it"]
 fn the_slices_cases_answer_as_javas() {
     let cases = oracle_path("LITE_ELEMENT_CASES", "cases.jsonl");
     let frozen = read_frozen(&oracle_text("LITE_ELEMENT_ANSWERS", "answers.tsv"));

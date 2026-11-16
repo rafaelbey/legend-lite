@@ -910,8 +910,13 @@ mod tests {
     /// A model text parsed (lite's dialect), its names resolved and indexed: the graph's own elements as F's index
     /// holds them before E's products join it.
     fn index(text: &str) -> ModelIndex {
+        index_at(text, Dialect::LegendLite)
+    }
+
+    /// `index` at a given dialect (LegendPlatform's grammar reads a class's multiplicity parameters).
+    fn index_at(text: &str, dialect: Dialect) -> ModelIndex {
         let units: Vec<u16> = text.encode_utf16().collect();
-        let parsed = lite_builtin::door::parse(&units, Dialect::LegendLite).expect("the model parses");
+        let parsed = lite_builtin::door::parse(&units, dialect).expect("the model parses");
         let resolved = lite_names::resolver::resolve(&parsed).expect("the model's names resolve");
         ModelIndex::from(&resolved).expect("the model indexes")
     }
@@ -971,6 +976,13 @@ mod tests {
                         String[1];\n}\nEnum a::E\n{\n  A, B\n}\n";
 
     const DB: &str = "###Relational\nDatabase a::Db\n(\n  Table T (X INTEGER)\n)\n";
+
+    /// Stand-ins for the boot layer's classes the Java tests name (`Any`, `Pair`, `Result`): a unit test's index has
+    /// no boot layer, where Java's compile appends it (Compiler.normalizeWithSystem); the native catalog holds the
+    /// primitive classes alone.
+    const ANY: &str = "Class meta::pure::metamodel::type::Any\n{\n}\n";
+    const PAIR: &str = "Class meta::pure::functions::collection::Pair<U,V>\n{\n  first: U[1];\n  second: V[1];\n}\n";
+    const RESULT: &str = "Class meta::pure::mapping::Result<T|m>\n{\n  values: T[m];\n}\n";
 
     // ---- withElement (:234)
 
@@ -1555,7 +1567,6 @@ mod tests {
     // ---- the whole pass, past the fills (ignored until they land)
 
     #[test]
-    #[ignore = "needs helper A's fill (classify, find_type, head_fqn) and helper D's (graph_edges::Index::of, read_one)"]
     fn a_tolerant_build_walls_every_class_of_a_cycle() {
         // ElementRefusalsTest.findPropertyOnAWalledCyclicClassIsRefusedByName: the walls
         let idx = index(
@@ -1582,7 +1593,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's fill (classify, find_type, head_fqn) and helper D's (graph_edges::Index::of, read_one)"]
     fn a_diamond_is_no_cycle() {
         let idx = index(
             "Class w::Top { t: String[1]; }\nClass w::L extends w::Top { }\nClass w::R extends w::Top { }\nClass w::D \
@@ -1593,7 +1603,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's fill (classify, require_arguments) and helper D's (graph_edges::Index::of, read_one)"]
     fn inverse_bounds_are_refused_at_every_signature_site() {
         // ElementRefusalsTest.inverseBoundsAreRefusedAtEverySignatureSite
         let parameter = index("function w::f(x: String[2..1]): String[1]\n{\n  'a'\n}\n");
@@ -1647,8 +1656,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's fill (classify, require_arguments, find_type, head_fqn) and helper D's \
-                (graph_edges::Index::of, read_one)"]
     fn a_classs_own_refusals() {
         // LeniencyD6Test
         assert_eq!(
@@ -1701,15 +1708,13 @@ mod tests {
         // ReferenceIntegrityTest.aClassMayExtendAnotherClassAndAny
         assert_eq!(
             strict(&index(&format!(
-                "{BASE}Class a::B extends a::C\n{{\n}}\nClass a::D extends Any\n{{\n}}\n"
+                "{BASE}{ANY}Class a::B extends a::C\n{{\n}}\nClass a::D extends Any\n{{\n}}\n"
             ))),
             Ok(())
         );
     }
 
     #[test]
-    #[ignore = "needs helper A's fill (classify, require_arguments, find_type, head_fqn) and helper D's \
-                (graph_edges::Index::of, read_one)"]
     fn a_declared_types_arguments_are_counted() {
         // ReferenceIntegrityTest.aSupertypesArgumentsAreItsParametersWhereWritten and
         // aGenericClassNamedWithoutItsArgumentsIsRefused: the classifier's texts (TC:151, TC:288), whole, reached
@@ -1741,7 +1746,7 @@ mod tests {
                 "Unknown type: 'a::Missing' is not a known primitive, class, or enum",
             ),
         ] {
-            let (message, element) = refusal(strict(&index(&format!("{BASE}{text}"))));
+            let (message, element) = refusal(strict(&index(&format!("{BASE}{PAIR}{text}"))));
             assert_eq!(message, expected, "{text}");
             assert_eq!(element, Some("a::B".to_owned()), "{text}");
         }
@@ -1749,12 +1754,20 @@ mod tests {
             format!("{generic}Class a::B extends a::G<String>\n{{\n}}\n"),
             "Class a::B extends Pair<String, Integer>\n{\n}\n".to_owned(),
             format!("{generic}Class a::B\n{{\n  g: a::G<String>[1];\n}}\n"),
-            // the engine's backward compatibility: a written `Result` is Result<Any|1..*>
-            "###Pure\nimport meta::pure::mapping::*;\nfunction a::f(r: Result[1]): Boolean[1]\n{\n  true\n}\n"
-                .to_owned(),
         ] {
-            assert_eq!(strict(&index(&format!("{BASE}{text}"))), Ok(()), "{text}");
+            assert_eq!(strict(&index(&format!("{BASE}{PAIR}{text}"))), Ok(()), "{text}");
         }
+        // the engine's backward compatibility: a written `Result` is Result<Any|1..*> (LegendPlatform reads the
+        // stand-in's multiplicity parameter)
+        let result = "###Pure\nimport meta::pure::mapping::*;\nfunction a::f(r: Result[1]): Boolean[1]\n{\n  true\n}\n";
+        assert_eq!(
+            strict(&index_at(
+                &format!("{BASE}{ANY}{RESULT}{result}"),
+                Dialect::LegendPlatform
+            )),
+            Ok(()),
+            "{result}"
+        );
     }
 
     /// A Pure class binding of `class`, realized by `function`.
@@ -1786,8 +1799,6 @@ mod tests {
                              a::C[1]): Boolean[1]\n{\n  true\n}\n";
 
     #[test]
-    #[ignore = "needs helper B's fill (FunctionCompiler: require_function, require_shape, returns_class_many, \
-                returns_boolean_one)"]
     fn a_mapping_binding_is_realized_by_a_function_of_its_shape() {
         let mut idx = index(&format!("{BASE}{REALIZERS}"));
         let mappings = [
@@ -1843,8 +1854,6 @@ mod tests {
                         Boolean[1]\n{\n  true\n}\n";
 
     #[test]
-    #[ignore = "needs helper A's fill (classify, require_arguments) and helper B's (require_function, require_shape, \
-                returns_boolean_one)"]
     fn a_classs_behaviour_hats_are_realized_by_functions() {
         // with no Phase E the lifted functions are absent, so the sugar form's realizer is unknown
         let idx = index(&format!("{BASE}{HATS}"));
@@ -1919,8 +1928,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's fill (classify, require_arguments, find_type, head_fqn) and helper D's \
-                (graph_edges::Index::of, read_one)"]
     fn the_checks_run_in_their_order() {
         // a bad class, a bad enum, a bad database, a bad runtime: strict gives the class's refusal, tolerant walls
         // each in the pass's order (classes, ..., enums, databases, ..., runtimes), whatever the text's order
@@ -1949,7 +1956,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs helper A's fill (classify, require_arguments) and helper D's (graph_edges::Index::of, read_one)"]
     fn the_reference_integrity_cases_the_pass_refuses() {
         // ReferenceIntegrityTest's F-time cases, each its whole pass's first refusal
         let cases = [
