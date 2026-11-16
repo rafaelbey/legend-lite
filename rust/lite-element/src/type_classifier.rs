@@ -350,15 +350,12 @@ impl<'i> TypeClassifier<'i> {
             ));
         }
         for (d, v) in declared.iter().zip(values) {
-            // the value's type and its text (`String.valueOf(c.value())`, `toPlainString()`, the string itself) in
-            // one match: Java's second switch (:263-270) and its unreachable `IllegalStateException` ("a literal was
-            // classified above") have no arm of their own
-            let (value_type, name) = match v {
-                p::ValueSpecification::CInteger(c) => (Primitive::Integer, string_value_of(&c.value)),
-                p::ValueSpecification::CFloat(c) => (Primitive::Float, string_value_of(&JValue::Double(c.value))),
-                p::ValueSpecification::CDecimal(c) => (Primitive::Decimal, JStr::from(plain_string(&c.value))),
-                p::ValueSpecification::CString(c) => (Primitive::String, c.value.clone()),
-                p::ValueSpecification::CBoolean(c) => (Primitive::Boolean, JStr::from(c.value.to_string())),
+            let value_type = match v {
+                p::ValueSpecification::CInteger(_) => Primitive::Integer,
+                p::ValueSpecification::CFloat(_) => Primitive::Float,
+                p::ValueSpecification::CDecimal(_) => Primitive::Decimal,
+                p::ValueSpecification::CString(_) => Primitive::String,
+                p::ValueSpecification::CBoolean(_) => Primitive::Boolean,
                 _ => {
                     return Err(Thrown::model(
                         Phase::Model,
@@ -377,6 +374,22 @@ impl<'i> TypeClassifier<'i> {
                 .r#type
                 .is_some_and(|t| t == value_type || (t == Primitive::Number && value_type.is_numeric()));
             if !instance {
+                // the value's text, taken only for the refusal, as Java takes it (:263-270)
+                let name = match v {
+                    p::ValueSpecification::CInteger(c) => string_value_of(&c.value),
+                    p::ValueSpecification::CFloat(c) => string_value_of(&JValue::Double(c.value)),
+                    p::ValueSpecification::CDecimal(c) => JStr::from(plain_string(&c.value)),
+                    p::ValueSpecification::CString(c) => c.value.clone(),
+                    p::ValueSpecification::CBoolean(c) => JStr::from(c.value.to_string()),
+                    // unreachable: every other value was refused above. Java's text ends with the record's
+                    // `toString`, which Rust has not: its `Debug` stands in
+                    _ => {
+                        return Err(Thrown::illegal_state(cat!(
+                            "a literal was classified above: ",
+                            format!("{v:?}")
+                        )));
+                    }
+                };
                 return Err(Thrown::model(
                     Phase::Model,
                     cat!(
@@ -736,6 +749,11 @@ mod tests {
         assert_eq!(
             find("meta::pure::functions::relation::SortType"),
             Some(Type::EnumType("meta::pure::functions::relation::SortType"))
+        );
+        // PureModelContextTest.findTypeClassifiesEveryKind's catalog witness
+        assert_eq!(
+            find("meta::pure::functions::date::DateTimeFormat"),
+            Some(Type::EnumType("meta::pure::functions::date::DateTimeFormat"))
         );
         // findType itself erases nothing: a row owner is its class here, classify's NameRef arm erases it
         assert_eq!(
@@ -1130,13 +1148,18 @@ mod tests {
         let generic = "Class a::G<T>\n{\n  v: T[1];\n}\n";
         let pair = "Class meta::pure::functions::collection::Pair<U,V>\n{\n  first: U[1];\n  second: V[1];\n}\n";
         let result = "Class meta::pure::mapping::Result<T|m>\n{\n  values: T[m];\n}\n";
-        let refused = |prefix: &str, declaration: &str, message: &str| {
-            assert_model(
-                arguments_in(Dialect::LegendPlatform, prefix, declaration).unwrap_err(),
-                message,
-            )
+        // lite's dialect, as Java's test reads them; a class's multiplicity parameters are the platform's grammar
+        let refused_at = |dialect: Dialect, prefix: &str, declaration: &str, message: &str| {
+            assert_model(arguments_in(dialect, prefix, declaration).unwrap_err(), message)
         };
-        let accepted =
+        let refused = |prefix: &str, declaration: &str, message: &str| {
+            refused_at(Dialect::LegendLite, prefix, declaration, message)
+        };
+        let refused_platform = |prefix: &str, declaration: &str, message: &str| {
+            refused_at(Dialect::LegendPlatform, prefix, declaration, message)
+        };
+        let accepted = |prefix: &str, declaration: &str| arguments(prefix, declaration).unwrap();
+        let accepted_platform =
             |prefix: &str, declaration: &str| arguments_in(Dialect::LegendPlatform, prefix, declaration).unwrap();
         refused(generic, "a::G", "Wrong type arguments count (0) for type: G<T>");
         refused(
@@ -1160,25 +1183,25 @@ mod tests {
         refused(generic, "a::G<a::G>", "Wrong type arguments count (0) for type: G<T>");
         // a class with multiplicity parameters: the type count first, then the multiplicity count, printed with `|`
         let r = "Class x::R<T,U|m,n>\n{\n  values: T[m];\n  others: U[n];\n}\n";
-        refused(
+        refused_platform(
             r,
             "x::R<String|1>",
             "Wrong type arguments count (1) for type: R<T,U|m,n>",
         );
-        refused(
+        refused_platform(
             r,
             "x::R<String, Integer|1>",
             "Wrong multiplicity arguments count (1) for type: R<T,U|m,n>",
         );
-        accepted(r, "x::R<String, Integer|1, *>");
+        accepted_platform(r, "x::R<String, Integer|1, *>");
         // a bare Result is the engine's Result<Any|1..*>; a bare class of the same shape is not
-        accepted(result, "meta::pure::mapping::Result");
-        refused(
+        accepted_platform(result, "meta::pure::mapping::Result");
+        refused_platform(
             result,
             "meta::pure::mapping::Result<String>",
             "Wrong multiplicity arguments count (0) for type: Result<T|m>",
         );
-        refused(
+        refused_platform(
             "Class x::Q<T|m>\n{\n  values: T[m];\n}\n",
             "x::Q",
             "Wrong type arguments count (0) for type: Q<T|m>",
