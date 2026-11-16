@@ -30,6 +30,8 @@ import java.util.function.UnaryOperator;
 final class ContextReading {
     private final Function<String, List<com.legend.compiler.element.TypedFunction>> overloads;
     private final UnaryOperator<TypedSpec> bind;
+    /** The caller's binding as given; {@link #bind} is it with a re-bound let's cycle refused ({@link #refuseCycle}). */
+    private final UnaryOperator<TypedSpec> rawBind;
     private final UnaryOperator<String> canon;
     private final Function<TypedCopyInstance, @com.legend.base.Nullable String> dbOfCopy;
 
@@ -37,7 +39,8 @@ final class ContextReading {
             UnaryOperator<TypedSpec> bind, UnaryOperator<String> canon,
             Function<TypedCopyInstance, @com.legend.base.Nullable String> dbOfCopy) {
         this.overloads = overloads;
-        this.bind = bind;
+        this.rawBind = bind;
+        this.bind = v -> refuseCycle(v, bind.apply(v));
         this.canon = canon;
         this.dbOfCopy = dbOfCopy;
     }
@@ -506,6 +509,160 @@ final class ContextReading {
         return b == null ? v : b;
     }
 
+    /** {@code bound}, what {@link #rawBind} chased {@code v} to, unless it reads {@code v}'s name again: a let re-bound
+     *  to a value of its own name ({@code let c = ...; let c = f($c)}), whose chase cycled or overflowed the stack, is
+     *  refused by name (the owner's ruling 42, the G census's ASK 12; 2026-11-16, run). */
+    private TypedSpec refuseCycle(TypedSpec v, TypedSpec bound) {
+        if (bound != v && bound != null && v instanceof TypedVariable tv && cyclic(tv.name(), bound)) {
+            throw new NotImplementedException("the execution context's let chase cycles: '$" + tv.name()
+                    + "' is bound to a value that reads '$" + tv.name() + "' again -- a let re-bound to a value of its"
+                    + " own name (let " + tv.name() + " = ...; let " + tv.name() + " = f($" + tv.name()
+                    + ")); rename one of them");
+        }
+        return bound;
+    }
+
+    /** Whether the value {@code bound} a variable named {@code name} chases to reads {@code name} again, through the
+     *  bindings of the variables it reads (by NAME: Lets.bound and the alias channel resolve an occurrence by its
+     *  name alone, from the prefix's end, so a let re-bound to a value of its own name chases back to itself; and
+     *  the alias channel retypes a fresh tree on every chase, so no identity set would see a node twice). A variable
+     *  an enclosing lambda binds is its parameter, never chased. One answer per name for one read. The owner's ruling
+     *  42 (the G census's ASK 12): the walks cycled or overflowed the stack (2026-11-16, run). */
+    private boolean cyclic(String name, TypedSpec bound) {
+        Boolean known = cycles.get(name);
+        if (known == null) {
+            java.util.ArrayDeque<String> stack = new java.util.ArrayDeque<>();
+            stack.push(name);
+            known = reads(bound, name, stack, java.util.Set.of());
+            cycles.put(name, known);
+        }
+        return known;
+    }
+
+    private final Map<String, Boolean> cycles = new java.util.HashMap<>();
+
+    private boolean reads(TypedSpec n, String name, java.util.ArrayDeque<String> stack, java.util.Set<String> shadows) {
+        if (n instanceof TypedVariable v) {
+            if (shadows.contains(v.name()) || lambdaBound.contains(v)) {
+                return false;
+            }
+            if (v.name().equals(name)) {
+                return true;
+            }
+            if (stack.contains(v.name())) {
+                return false;   // a cycle through another name: that name's own chase refuses it
+            }
+            TypedSpec b = rawBind.apply(v);
+            if (b == null || b == v) {
+                return false;
+            }
+            stack.push(v.name());
+            try {
+                return reads(b, name, stack, java.util.Set.of());
+            } finally {
+                stack.pop();
+            }
+        }
+        if (n instanceof TypedLambda l) {
+            java.util.Set<String> inner = new java.util.HashSet<>(shadows);
+            inner.addAll(l.parameters());
+            for (TypedSpec c : l.body()) {
+                if (reads(c, name, stack, inner)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        for (TypedSpec c : n.children()) {
+            if (reads(c, name, stack, shadows)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A value the reader cannot read statically, refused by name (the owner's ruling 42, the G census's ASK 12;
+     *  invariant 4): until 2026-11-16 it was dropped, and the plan went on without it. */
+    private static NotImplementedException unreadable(String what) {
+        return new NotImplementedException(what + " is not statically readable: the execution-context reader folds"
+                + " string literals and '+' of them (a helper's body: and its own lets); a computed or let-bound "
+                + what + " is refused, never dropped");
+    }
+
+    /** A raw helper call whose bare name has several referents (two imports each declaring it): the reader looks an
+     *  unchecked body up by the function it names and cannot choose one, so it refuses by name where it skipped the
+     *  call (the owner's ruling 42, the G census's ASK 12): only when one of them has a body the reader would read. */
+    private void refuseSeveralReferents(com.legend.protocol.spec.AppliedFunction af) {
+        if (af.referents().size() > 1 && af.referents().stream()
+                .anyMatch(r -> overloads.apply(r).stream().anyMatch(f -> f.body().isPresent()))) {
+            throw new NotImplementedException("a helper call '" + af.function() + "' names several functions ("
+                    + String.join(", ", af.referents()) + "): the execution-context reader reads an unchecked body"
+                    + " by the function it names and cannot choose one; call it by its full name");
+        }
+    }
+
+    /** The depth cap reached with something below it, refused by name (the owner's ruling 42, the G census's ASK 12:
+     *  until 2026-11-16 the walk stopped there silently). */
+    private static NotImplementedException tooDeep(com.legend.protocol.spec.AppliedFunction af, String what) {
+        return new NotImplementedException("the runtime's helper calls nest deeper than the execution-context reader"
+                + " follows (3), and '" + af.function() + "' below the third holds " + what + ": refused, never"
+                + " dropped; build the connection nearer the query");
+    }
+
+    /** Whether {@code body}, below the depth cap, holds what {@code here} recognizes: the collector's own walk
+     *  (arguments, construction values, lambda bodies, a nested helper's body through {@link #fnBody}) with no cap,
+     *  each helper read once (a recursive helper stops). */
+    private boolean beyondCap(List<ValueSpecification> body,
+            java.util.function.Predicate<com.legend.protocol.spec.NewInstance> here) {
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (ValueSpecification b : body) {
+            if (holds(b, here, seen)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean holds(ValueSpecification v, java.util.function.Predicate<com.legend.protocol.spec.NewInstance> here,
+            java.util.Set<String> seen) {
+        return switch (v) {
+            case com.legend.protocol.spec.NewInstance ni -> here.test(ni) || ni.properties().stream()
+                    .anyMatch(k -> holds(k.expression().value(), here, seen));
+            case com.legend.protocol.spec.AppliedFunction af -> af.parameters().stream()
+                    .anyMatch(p -> holds(p, here, seen))
+                    || !com.legend.compiler.ResolvedNames.names(af,
+                            com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())
+                            && seen.add(af.function())
+                            && fnBody(af.function()).filter(b -> b.stream().anyMatch(x -> holds(x, here, seen)))
+                                    .isPresent();
+            case com.legend.protocol.spec.LambdaFunction lf -> lf.body().stream().anyMatch(b -> holds(b, here, seen));
+            case com.legend.protocol.spec.PureCollection pc -> pc.values().stream().anyMatch(e -> holds(e, here, seen));
+            default -> false;
+        };
+    }
+
+    /** A setup the setups' collector would collect or refuse: a test-data specification's testDataSetupSqls, any
+     *  construction's testDataSetupCsv. */
+    private boolean setupHere(com.legend.protocol.spec.NewInstance ni) {
+        return com.legend.model.ConnectionSpecification.isTestDataSpecificationClass(ni.className())
+                && ni.first("testDataSetupSqls") != null || ni.first("testDataSetupCsv") != null;
+    }
+
+    /** A ModelChainConnection the chain's collector would read. */
+    private boolean chainHere(com.legend.protocol.spec.NewInstance ni) {
+        return PlatformTypes.isModelChainConnection(ni.className());
+    }
+
+    /** Whether a raw setup text holds a part {@link #foldRawLiteral} cannot fold -- a call, an unbound or computed
+     *  variable -- as opposed to a collection whose parts all fold to nothing ([] or only ''), which drops nothing. */
+    private static boolean rawUnfoldable(ValueSpecification v, Map<String, ValueSpecification> lets) {
+        if (foldRawLiteral(v, lets) != null) {
+            return false;
+        }
+        return !(v instanceof com.legend.protocol.spec.PureCollection pc
+                && pc.values().stream().allMatch(e -> foldRawLiteral(e, lets) != null));
+    }
+
     // ---- chain mappings -------------------------------------------
 
     private void collectChain(TypedSpec n, List<String> out) {
@@ -570,6 +727,15 @@ final class ContextReading {
                 for (var p : af.parameters()) {
                     collectChainRaw(p, out, depth);
                 }
+                if (!com.legend.compiler.ResolvedNames.names(af,
+                        com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())) {
+                    refuseSeveralReferents(af);
+                }
+                if (depth >= 3 && !com.legend.compiler.ResolvedNames.names(af,
+                        com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())
+                        && fnBody(af.function()).filter(b -> beyondCap(b, this::chainHere)).isPresent()) {
+                    throw tooDeep(af, "ModelChainConnection mappings");
+                }
                 if (depth < 3 && !com.legend.compiler.ResolvedNames.names(af,
                         com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())) {
                     var body = fnBody(af.function());
@@ -614,6 +780,9 @@ final class ContextReading {
                 && PlatformTypes.JSON_MODEL_CONNECTION.equals(ni.classFqn())) {
             TypedSpec cls = ni.properties().get("class");
             String url = foldLiteral(ni.properties().get("url"));
+            if (url == null && ni.properties().get("url") != null) {
+                throw unreadable("JsonModelConnection url");
+            }
             if (cls instanceof TypedPackageableRef pr && url != null) {
                 out.put(pr.fullPath(), url);
             }
@@ -630,6 +799,12 @@ final class ContextReading {
                 if (PlatformTypes.isJsonModelConnection(ni.className())) {
                     var cls = ni.first("class");
                     var url = ni.first("url");
+                    if (url != null && !(url.value() instanceof com.legend.protocol.spec.CString)) {
+                        // ruling 42, the G census's ASK 12 (2026-11-16): it was dropped
+                        throw new NotImplementedException("JsonModelConnection url in a helper's body is not a string"
+                                + " literal: the execution-context reader reads it as written; a computed url is"
+                                + " refused, never dropped");
+                    }
                     if (cls != null && cls.value()
                             instanceof com.legend.protocol.spec.PackageableElementPtr pr
                             && url != null && url.value()
@@ -686,11 +861,19 @@ final class ContextReading {
                     instanceof TypedPackageableRef el ? el.fullPath() : dbRef;
             if (com.legend.model.ConnectionSpecification.TEST_DATA_SPECIFICATION_CLASS.equals(ni.classFqn())) {
                 String s = foldLiteral(ni.properties().get("testDataSetupSqls"));
+                if (s == null && ni.properties().get("testDataSetupSqls") != null) {
+                    throw unreadable("testDataSetupSqls");
+                }
                 if (s != null) {
                     out.add(s);
                 }
             }
             String csvText = foldLiteral(ni.properties().get("testDataSetupCsv"));
+            if (csvText == null && ni.properties().get("testDataSetupCsv") != null
+                    && (com.legend.model.ConnectionSpecification.TEST_DATA_SPECIFICATION_CLASS.equals(ni.classFqn())
+                            || PlatformTypes.isRelationalConnectionClass(ni.classFqn()))) {
+                throw unreadable("testDataSetupCsv");
+            }
             if (csvText != null) {
                 csv.add(new ExecutionContext.CsvSetup(csvText, db));
             }
@@ -698,6 +881,10 @@ final class ContextReading {
                 collectSetups(c, out, csv, db);
             }
             return;
+        }
+        if (n instanceof TypedCopyInstance cp0 && cp0.overrides().get("testDataSetupCsv") != null
+                && foldLiteral(cp0.overrides().get("testDataSetupCsv")) == null) {
+            throw unreadable("testDataSetupCsv");
         }
         if (n instanceof TypedCopyInstance cp
                 && foldLiteral(cp.overrides().get("testDataSetupCsv")) instanceof String c2) {
@@ -726,6 +913,15 @@ final class ContextReading {
                 for (var p : af.parameters()) {
                     collectSetupsRaw(p, lets, out, depth, csv, dbRef);
                 }
+                if (!com.legend.compiler.ResolvedNames.names(af,
+                        com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())) {
+                    refuseSeveralReferents(af);
+                }
+                if (depth >= 3 && !com.legend.compiler.ResolvedNames.names(af,
+                        com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())
+                        && fnBody(af.function()).filter(b -> beyondCap(b, this::setupHere)).isPresent()) {
+                    throw tooDeep(af, "setup texts");
+                }
                 if (depth < 3 && !com.legend.compiler.ResolvedNames.names(af,
                         com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())) {
                     var body = fnBody(af.function());
@@ -744,12 +940,20 @@ final class ContextReading {
                         ? ptr.fullPath() : dbRef;
                 if (com.legend.model.ConnectionSpecification.isTestDataSpecificationClass(ni.className())) {
                     var ke = ni.first("testDataSetupSqls");
+                    if (ke != null && rawUnfoldable(ke.value(), lets)) {
+                        throw unreadable("testDataSetupSqls");
+                    }
                     String s = ke == null ? null : foldRawLiteral(ke.value(), lets);
                     if (s != null) {
                         out.add(s);
                     }
                 }
                 var kc = ni.first("testDataSetupCsv");
+                if (kc != null && rawUnfoldable(kc.value(), lets)
+                        && (com.legend.model.ConnectionSpecification.isTestDataSpecificationClass(ni.className())
+                                || PlatformTypes.relationalConnectionSimpleName(ni.className()) != null)) {
+                    throw unreadable("testDataSetupCsv");
+                }
                 String c = kc == null ? null : foldRawLiteral(kc.value(), lets);
                 if (c != null) {
                     csv.add(new ExecutionContext.CsvSetup(c, db));
@@ -854,6 +1058,7 @@ final class ContextReading {
             case com.legend.protocol.spec.EnumValue ev -> ev.value();
             case com.legend.protocol.spec.Variable var -> params.apply(var.name());
             case com.legend.protocol.spec.AppliedFunction af when depth < 3 -> {
+                refuseSeveralReferents(af);
                 String agreed = null;
                 for (com.legend.compiler.element.TypedFunction f : overloads.apply(af.function())) {
                     if (f.parameters().size() != af.parameters().size() || f.body().isEmpty()
@@ -954,6 +1159,7 @@ final class ContextReading {
                         com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())) {
             // an unchecked body names its callee, not the overload: every overload of the call's arity is read, and
             // the database is theirs only when those that declare one agree (testRuntime(db)'s four answer H2)
+            refuseSeveralReferents(af);
             RawType agreed = null;
             for (com.legend.compiler.element.TypedFunction f : overloads.apply(af.function())) {
                 if (f.parameters().size() != af.parameters().size() || f.body().isEmpty()) {
@@ -1040,7 +1246,7 @@ final class ContextReading {
     /** {@code quoteIdentifiers} off a connection instance; the platform-
      * native {@code testRuntime(quoteIdentifiers)} overload carries the
      * flag as its argument (the corpus contract, relationalSetUp.pure). */
-    private boolean quoteIdentifiers(TypedSpec runtimeArg) {
+    private @com.legend.base.Nullable Boolean quoteIdentifiers(TypedSpec runtimeArg) {
         ArrayDeque<TypedSpec> work = new ArrayDeque<>();
         work.add(runtimeArg);
         while (!work.isEmpty()) {
@@ -1057,6 +1263,12 @@ final class ContextReading {
                 Boolean b2 = staticBool(qv);
                 if (b2 != null) {
                     return b2;
+                }
+                // a connection's flag that does not fold is NOT READABLE (null), refused where the plan text reads it
+                // (ExecutionContext.quoteIdentifiersRead), never assumed false (the owner's ruling 42, the G census's
+                // ASK 12; invariant 4): until 2026-11-16 the walk went on and answered false
+                if (PlatformTypes.isRelationalConnectionClass(ni.classFqn())) {
+                    return null;
                 }
             }
             if (t instanceof TypedNativeCall nc

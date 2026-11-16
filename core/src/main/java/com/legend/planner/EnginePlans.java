@@ -337,7 +337,7 @@ public final class EnginePlans {
             flags.addAll(env.features());
             env = env.withFeatures(java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(flags)));
         }
-        boolean quote = pc != null && pc.quoteIdentifiers();
+        boolean quote = pc != null && pc.quoteIdentifiersRead();
         String tz = pc != null ? pc.timeZone() : null;
         com.legend.compiler.spec.typed.ExecutionContext.PlanConnection fromConn = pc == null
                 ? firstFromConnectionName(
@@ -731,7 +731,7 @@ public final class EnginePlans {
         // carries the connection flags inside its body
         com.legend.compiler.spec.typed.ExecutionContext pc2 = ep.args().size() > 2
                 ? BodyPlanner.boundContext(ep.args().get(2), specs) : null;
-        boolean quote = pc2 != null && pc2.quoteIdentifiers();
+        boolean quote = pc2 != null && pc2.quoteIdentifiersRead();
         String tz = pc2 != null ? pc2.timeZone() : null;
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
                 params = new java.util.LinkedHashMap<>();

@@ -35,7 +35,8 @@ import java.util.function.UnaryOperator;
  * @param csvSetups      {@code testDataSetupCsv} blocks with the store they seed
  * @param connectionName the connection instance's plan-text reading ({@link PlanConnection}), null when the
  *                       runtime carries no connection instance
- * @param quoteIdentifiers the connection's quoteIdentifiers flag
+ * @param quoteIdentifiers the connection's quoteIdentifiers flag; null when the connection carries one the reader
+ *                       cannot read statically (refused where it is read, {@link #quoteIdentifiersRead})
  * @param timeZone       the connection's timeZone, null when absent
  * @param databaseType   the connection's DatabaseType name, null when the
  *                       runtime carries no connection instance
@@ -58,7 +59,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
                                List<String> sqlSetups,
                                List<CsvSetup> csvSetups,
                                @com.legend.base.Nullable PlanConnection connectionName,
-                               boolean quoteIdentifiers,
+                               @com.legend.base.Nullable Boolean quoteIdentifiers,
                                @com.legend.base.Nullable String timeZone,
                                @com.legend.base.Nullable String databaseType,
                                @com.legend.base.Nullable TypedNewInstance connectionInstance,
@@ -135,6 +136,18 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
 
     /** No binding at all (a from() the resolver scopes from its outer context). */
     public static final ExecutionContext NONE = of(Optional.empty(), Optional.empty());
+
+    /** The connection's quoteIdentifiers flag as the plan text reads it: refused by name where the connection
+     *  carries one the reader cannot read statically (the owner's ruling 42, the G census's ASK 12; invariant 4: until
+     *  2026-11-16 it was taken as false). */
+    public boolean quoteIdentifiersRead() {
+        if (quoteIdentifiers == null) {
+            throw new com.legend.error.NotImplementedException("the connection's quoteIdentifiers is not statically"
+                    + " readable: the plan text reads a literal flag (or the corpus's if($q->isEmpty(), |false,"
+                    + " |$q->toOne()) over one); a computed one is refused, never assumed false");
+        }
+        return quoteIdentifiers;
+    }
 
     /** References only — nothing to read off a value. */
     public static ExecutionContext of(Optional<TypedPackageableRef> mapping,
