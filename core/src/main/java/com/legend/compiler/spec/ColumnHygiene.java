@@ -35,11 +35,16 @@ import java.util.regex.Pattern;
  * place the body writes it (its column specs and its row reads, {@code $r.name}), to a name of its own that no column
  * of the call's tables and no column the call names has. A name the body reads but never makes is the caller's, and
  * stays. Only a declared table return is hygienic: a function declared {@code Relation<Any>} says nothing of what
- * leaves its body, so nothing in it is renamed. One counter per typer, so expansions within expansions never meet.
+ * leaves its body, so nothing in it is renamed.
+ *
+ * <p>NAMES BY PLACE (the owner's ruling 42, the G census's ASK 2; 2026-11-16, the typer slice's stage 1a item 7): each
+ * expansion counts from 0, skipping the call's taken names, the names the body makes and the names its declared return
+ * writes, so a name is a function of the expansion alone (it was one counter per typer, advanced by failed overload
+ * candidates and re-typings). Expansions within expansions may mint one name, each in its own relation: an expansion's
+ * working columns never leave it (Overloads.holdToDeclared refuses a body that answers one), and an inner call's taken
+ * names hold every column of the relations it reads.
  */
 final class ColumnHygiene {
-
-    private int fresh;
 
     /** The functions a call may be (Overloads' candidates of its name): what says which of its arguments a call of a
      *  function generic over relations writes. */
@@ -81,11 +86,12 @@ final class ColumnHygiene {
         }
         Map<String, String> to = new LinkedHashMap<>();
         Map<String, String> written = new LinkedHashMap<>();
+        int fresh = 0;
         for (String name : made) {
             String candidate;
             do {
                 candidate = name + "_" + fresh++;
-            } while (taken.contains(candidate) || made.contains(candidate));
+            } while (taken.contains(candidate) || made.contains(candidate) || keep.contains(candidate));
             to.put(name, candidate);
             written.put(candidate, name);
         }

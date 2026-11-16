@@ -377,7 +377,13 @@ final class Overloads {
         // `filter(r:TDSRow[1]|…)`) must never be captured by the splice.
         // and a function generic over relations renames the columns its body makes for its own use, before the
         // call's arguments are in it (ColumnHygiene; the user, 2026-10-27)
-        ValueSpecification own = alpha.apply(folded.body().get(0));
+        // names by place (the owner's ruling 42, ASK 2): the expansion's own renamer, its fresh names skipping every
+        // name the body, the call's arguments and the typing environment at the call use, so no fresh binder captures
+        // or shadows a variable in scope there
+        java.util.Set<String> avoid = AlphaRename.namesIn(java.util.stream.Stream.concat(
+                java.util.stream.Stream.of(folded.body().get(0)), af.parameters().stream()).toList());
+        avoid.addAll(env.names());
+        ValueSpecification own = new AlphaRename(avoid).apply(folded.body().get(0));
         boolean generic = RelationGenerics.of(chosen);
         ColumnHygiene.Renamed hygienic = generic
                 ? columns.apply(own, chosen.returnType(), takenColumns(af, a))
@@ -405,13 +411,24 @@ final class Overloads {
     private static java.util.Set<String> takenColumns(AppliedFunction af, Application a) {
         java.util.Set<String> taken = new java.util.HashSet<>();
         for (TypedSpec arg : a.args()) {
-            Type.RelationType r = Type.schemaView(arg.info().type());
-            if (r != null) {
-                r.columns().forEach(c -> taken.add(c.name()));
-            }
+            relationColumnsIn(arg, taken);
         }
         af.parameters().forEach(p -> columnNamesIn(p, taken));
         return taken;
+    }
+
+    /** Every column of every relation in a typed tree (names by place, the owner's ruling 42, ASK 2; 2026-11-16): an
+     *  expansion's per-expansion counter skips them, so a fresh working column never equals a column of a relation the
+     *  call reads, an earlier expansion's working columns inside it included, and two expansions' columns never meet in
+     *  one SELECT. */
+    private static void relationColumnsIn(TypedSpec n, java.util.Set<String> into) {
+        Type.RelationType r = Type.schemaView(n.info().type());
+        if (r != null) {
+            r.columns().forEach(c -> into.add(c.name()));
+        }
+        for (TypedSpec c : n.children()) {
+            relationColumnsIn(c, into);
+        }
     }
 
     private static void columnNamesIn(ValueSpecification v, java.util.Set<String> into) {
@@ -543,24 +560,24 @@ final class Overloads {
             subst.put(chosen.parameters().get(i).name(), af.parameters().get(i));
         }
         return SourceSubst.substitute(
-                alpha.apply(folded.body().get(0)), subst);
+                new AlphaRename(AlphaRename.namesIn(java.util.stream.Stream.concat(
+                        java.util.stream.Stream.of(folded.body().get(0)), af.parameters().stream()).toList()))
+                        .apply(folded.body().get(0)), subst);
     }
 
-    /** Fresh binder names for inlined bodies (one counter per typer). */
-    private final AlphaRename alpha = new AlphaRename();
-
-    /** Fresh working-column names for expanded generic bodies (one counter per typer). */
+    /** Fresh working-column names for expanded generic bodies (names by place: a counter per expansion). */
     private final ColumnHygiene columns = new ColumnHygiene(this::functionCandidates);
 
     /** α-hygiene for a body about to be spliced under caller scope (the
      * UserCallInliner rule at source level) — shared with StaticFold's
      * user-call inlining. */
     ValueSpecification alphaRename(ValueSpecification v) {
-        return alpha.apply(v);
+        return new AlphaRename(AlphaRename.namesIn(List.of(v))).apply(v);
     }
 
-    AlphaRename.Apart renameApart(List<String> parameters, ValueSpecification body) {
-        return alpha.apart(parameters, body);
+    /** {@code body} renamed apart for one static inlining, its fresh names skipping {@code avoid}. */
+    AlphaRename.Apart renameApart(List<String> parameters, ValueSpecification body, java.util.Set<String> avoid) {
+        return new AlphaRename(avoid).apart(parameters, body);
     }
 
     /** The generic application rule without emitting a node — the CHECK

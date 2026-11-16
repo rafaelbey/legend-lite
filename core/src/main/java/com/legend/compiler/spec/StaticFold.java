@@ -63,6 +63,11 @@ final class StaticFold {
     private final Typer typer;
     private final Env env;
 
+    /** Every name the tree being folded holds, and every name this fold's static inlinings minted (names by place, the
+     *  owner's ruling 42, ASK 2): an inlining's fresh names skip them, so a binder minted inside an outer one's lambda
+     *  never repeats the outer's (one SQL lambda inside another, two of one name). */
+    private final java.util.Set<String> held = new java.util.HashSet<>();
+
     StaticFold(Typer typer, Env env) {
         this.typer = Objects.requireNonNull(typer, "typer");
         this.env = env;
@@ -117,6 +122,7 @@ final class StaticFold {
     // =====================================================================
 
     ValueSpecification fold(ValueSpecification v) {
+        held.addAll(AlphaRename.namesIn(List.of(v)));
         return fold(v, Map.of());
     }
 
@@ -124,6 +130,7 @@ final class StaticFold {
      * TDSColumn-metadata fold ({@code X.columns->map(c|$c.name...)} asserts)
      * only rewrites when the whole computation is schema facts. */
     @com.legend.base.Nullable ValueSpecification foldToLiteral(ValueSpecification v) {
+        held.addAll(AlphaRename.namesIn(List.of(v)));
         return reify(eval(v, Map.of()));
     }
 
@@ -291,7 +298,7 @@ final class StaticFold {
         if (given.stream().allMatch(Objects::isNull)) {
             return null;
         }
-        AlphaRename.Apart apart = apart(callee);
+        AlphaRename.Apart apart = apart(callee, af, scope);
         if (apart == null) {
             return null;
         }
@@ -321,12 +328,25 @@ final class StaticFold {
      *  {@code _nr<N>}, {@link AlphaRename#apart}): a caller's variable spelled as a parameter is never captured by that
      *  parameter's binding (the second review, 2026-10-28: {@code swap(a, b)} calling {@code cat($b, $a)} answered
      *  {@code y-y} inside a generic body, {@code y-x} outside it). Null when the body has non-let statements. */
-    private AlphaRename.@com.legend.base.Nullable Apart apart(com.legend.compiler.element.TypedFunction callee) {
+    private AlphaRename.@com.legend.base.Nullable Apart apart(com.legend.compiler.element.TypedFunction callee,
+            AppliedFunction af, Map<String, Object> scope) {
         ValueSpecification single = singleBody(callee);
         if (single == null) {
             return null;
         }
-        return typer.renameApart(callee.parameters().stream().map(com.legend.compiler.element.TypedParameter::name).toList(), single);
+        // names by place (the owner's ruling 42, ASK 2; 2026-11-16): the fresh names skip every name the body and the
+        // call's arguments use, every name the fold's scope binds, every name its typing environment binds, and every
+        // name the folded tree holds or this fold minted ({@link #held}), so an inner inlining never captures or shadows
+        // an outer one
+        java.util.Set<String> avoid = AlphaRename.namesIn(java.util.stream.Stream.concat(
+                java.util.stream.Stream.of(single), af.parameters().stream()).toList());
+        avoid.addAll(scope.keySet());
+        avoid.addAll(env.names());
+        avoid.addAll(held);
+        AlphaRename.Apart apart = typer.renameApart(callee.parameters().stream()
+                .map(com.legend.compiler.element.TypedParameter::name).toList(), single, avoid);
+        held.addAll(AlphaRename.namesIn(List.of(apart.body())));
+        return apart;
     }
 
     /** The callee's body as ONE expression (its lets inlined through the shared
@@ -358,7 +378,7 @@ final class StaticFold {
             }
             given.add(v);
         }
-        AlphaRename.Apart apart = apart(callee);
+        AlphaRename.Apart apart = apart(callee, af, scope);
         if (apart == null) {
             return null;
         }
