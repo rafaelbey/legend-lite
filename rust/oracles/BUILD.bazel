@@ -223,4 +223,39 @@ filegroup(
     visibility = ["//rust:__subpackages__"],
 )
 
+# What step F builds from E's NormalizedModel, as the live Java answered it (2026-11-15, phase 3's element slice;
+# element/MANIFEST.tsv): the canonical text's SHA-256 per model ask, D then E (with the boot layer) then F, strict and
+# tolerant, frozen before the Java goes; the boot layer's own answers and its normalized elements' hashes; and the
+# slice's targeted case texts beside the front oracle's questions. The element differential
+# (//rust/lite-element:element_differential_test) reads them.
+zstd_decompress(
+    name = "element_answers",
+    testonly = True,
+    src = "element/answers.tsv.zst",
+    out = "element/answers.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
+zstd_decompress(
+    name = "element_boot",
+    testonly = True,
+    src = "element/boot.txt.zst",
+    out = "element/boot.txt",
+    visibility = ["//rust:__subpackages__"],
+)
+
+filegroup(
+    name = "element_boot_normalized",
+    testonly = True,
+    srcs = ["element/boot-normalized.tsv"],
+    visibility = ["//rust:__subpackages__"],
+)
+
+filegroup(
+    name = "element_cases",
+    testonly = True,
+    srcs = ["element/cases.jsonl"],
+    visibility = ["//rust:__subpackages__"],
+)
+
 guards_package()

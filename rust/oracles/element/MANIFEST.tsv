@@ -1,0 +1,60 @@
+# file	what	sha256 of the uncompressed output
+# Made 2026-11-15 on worktree-rust-port-phase0 at 18feff3fe (core's main sources: the normalizer's second batch's tree with
+# the element slice's step 0, 0b and step 1 -- 5930cf4db, 4e13412dd, 3a39152ec, 5ec185d05, 18feff3fe; docs/rust-port/
+# PHASE3.md, the element slice) by core/src/test/java/com/legend/frontoracle/ElementAnswers.java (its header: the command,
+# the canonical text's grammar) run as a source program on the tree's built jars of //core:planner's closure, the build's
+# JDK (25.0.4+7-LTS), the Rust parser loaded from //rust/lite-ffi; over the front oracle's questions
+# (rust/oracles/front/questions.jsonl.zst, decompressed) and the slice's targeted cases (cases.jsonl below). What step F
+# builds, asked of the live Java after D and E (never G: Compiler.compileErrors goes on to compileAllBodies whenever the
+# elements compile, so the entry is PureModelContext.from's integrity result): NameResolver.resolveAlongside(parsed,
+# bootFqns, walls), Compiler.normalizeWithSystem(resolved, walls) (by reflection: the compile driver's; the boot layer's
+# prepared elements appended), PureModelContext.from(model, index, walls, boot.checked().without(adopted),
+# registrations) -- strict (S: the first error, D's, E's or F's) and tolerant (T: one walls map threaded through D, E and
+# F, as buildModule threads it; `=S` when equal). F is handed the platform's registrations as rust/oracles/builtin's
+# PlatformTables hands them (no lowering keys, feature overrides or members: slice I's), which F reads for
+# implementations() alone. An answer is `W TAB walls` (tolerant, when any), `A`, then one line per question about the
+# graph's OWN elements (not the boot layer's, by identity) in ingest order, each lazy cell forced, a refusing cell
+# `R TAB class TAB first line` in its place: C findClass (a ClassView: TypedClass but its constraints' external id), N
+# findEnum, F findFunction (each overload's FunctionView: its signature, id, native flag, body present, the definition's
+# codec SHA-256; " same" when the cell hands out one instance per overload), I findFunctionById, P findProperty (the
+# class's declared reach's names, the graph's association ends', one absent), Y findType, S isSubtype (the graph's
+# classes against its classes, Any and Nil, at most 48 by 48+2: 52 texts bounded), D the declaration and
+# implementation tables per function, L their lists less the boot baseline, G the mapping fact readers, B findTable and
+# findTableMilestoning, V findViewFunction, E isExecutionContextElement, K resolutionUniverse().contains, Q isPackage,
+# U resolutionUniverse() iterated SORTED (Java's String order) less the boot baseline (ruling 29's first policy: the
+# universe's HashSet order reaches no frozen answer -- the element slice's step 1 (c), reach 0), X classifierInstances
+# less the baseline; an error `E TAB class TAB phase TAB element TAB message`. Hashed: SHA-256 of each canonical text's
+# UTF-16 units, little-endian. Run twice in parallel on one jar snapshot (A; B with --texts): answers.tsv, its .tags,
+# its .boot.txt and its .boot-normalized.tsv byte-identical (850 s and 845 s). Compressed with `zstd -19 --long=27`. The
+# texts (run B, 1,902,530,542 bytes of forms) are archived outside the repository,
+# ~/.local/legend-lite/oracle-archive/element-forms-java-2026-11-15.jsonl.zst (19.8 MB), with the per-ask measurement tags
+# (element-tags-java-2026-11-15.tsv.zst), each SHA-256 in element-texts-java.sha256 beside them.
+# ANSWERS: one line per model ask (["pmcd", dialect]) the door parses, in the questions' order then the cases' -- 74,418
+# asks over 26,347 texts (74,292 of the front oracle's, the normalizer oracle's asks; 126 of the 43 cases, 19 of which
+# are also front-oracle texts). Strict: 50,529 answered, 23,889 refused (23,836 ModelException, 51
+# NotImplementedException, 2 IllegalArgumentException -- a nested function type's [2..1] bound, which classify meets
+# outside the bounds check: raw, ported as it is and listed). Tolerant: 50,565 equal to strict, 22,147 answered with
+# walls, 1,706 answered otherwise differing from strict. No StackOverflowError (the element slice's step 1 (a)); every
+# raw refusal a cell holds is lite's own text (an IllegalArgumentException from Type's or Multiplicity's constructor:
+# findTable's duplicate column and DECIMAL scale, a walled class's [2..1] property met by findClass, isSubtype and
+# findProperty, an all-broken overload set).
+answers.tsv.zst	ElementAnswers: text sha TAB dialect TAB hash, 74,418 lines	849acc611d851cdf714689d07a24696fe155071cd93de38a0ebe40633e989b36
+# BOOT: the boot layer's own answers -- the empty text's model, built as above, every boot element's cell forced (its C, N,
+# F and I lines), then the baselines every model shares (the sorted resolution universe, the classifiers' instances,
+# the tables' lists) -- and the boot layer as Compiler.boot() normalized it, one line per element (index TAB fqn TAB
+# the SHA-256 of its record-codec text), then its imports', legacy surfaces' and whole NormalizedModel's: what the Rust
+# boot is held to before F's answers can be (1,013 elements).
+boot.txt.zst	ElementAnswers' boot answers and baselines (answers.tsv.boot.txt)	e03c69d13e7f1562b01f8eff441476302b558390ffa4dbbeb571093238c8de5f
+boot-normalized.tsv	the boot layer's NormalizedModel, per element (answers.tsv.boot-normalized.tsv; plain text: its own SHA-256)	21e74e3b9d0587c82a4f4130a881af0b68d7bd47eaabf4b38787ae90b2b3afae
+# CASES: the slice's targeted model texts (EF_CENSUS.md §10 item 3, F's; the brief's step 2), in the front oracle's
+# question form ({"sha","asks","text"}, the sha the SHA-256 of the text's UTF-16 units, asked at every dialect), written
+# by port-scratch/element/tools/make_cases.py: the [2..1] bounds (a function parameter, a return, an association end, a
+# class property -- the control --, a function type's nested parameter); a walled cyclic class reached by findProperty
+# in a tolerant build; overload sets with one broken sibling and with every sibling broken (the swallow); every text of
+# core's GraphEdgesTest (each graph::graph stereotype used rightly and wrongly: GE2); one text per ModelIntegrity check
+# in its order (duplicates, classes, inheritance cycles, functions, duplicate signatures, associations, GraphEdges,
+# enums, databases, mappings, runtimes, services, data spaces), then one text with all thirteen. The gate's own
+# duplicates check (a graph element at a boot FQN) meets no graph text: a prelude shadow is dropped and a system
+# element's redefinition refused before F, so the duplicates case is the layer's, refused before E by the same
+# ModelIntegrity.refuseDuplicates.
+cases.jsonl	the slice's 43 case texts (questions' form), read by ElementAnswers and the differential	a1acde8e34db3e9053421ab465893fa9b0b4f24479f796f9b5fe6cf95fbee458
