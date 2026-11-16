@@ -84,11 +84,11 @@ rust_test(
     ],
 )
 
-# the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards (tests/ joins the glob with
-# the differential, the slice's step 5: an include pattern that matches nothing is a glob error)
+# the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards (tests/ joined the glob with
+# the differential, the slice's step 5, 2026-11-15)
 filegroup(
     name = "sources",
-    srcs = glob(["src/**/*.rs"]) + ["Cargo.toml"],
+    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]) + ["Cargo.toml"],
     visibility = ["//rust/lite-guards:__pkg__"],
 )
 
