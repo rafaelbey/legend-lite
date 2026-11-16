@@ -158,7 +158,10 @@ public final class EagerCorpusCompileProbe {
         if (msg.contains("unknown function")) return "unknown-function";
         if (msg.contains("has no property")) return "unknown-property";
         if (msg.contains("not a known primitive, class, or enum") || msg.contains("Unknown type")) return "unknown-type";
-        if (msg.contains("no overload") || msg.contains("overload")) return "overload";
+        // the typer's no-match refusal in the engine's words since 2026-11-16 (stage 1a item 3, register row S1007)
+        if (msg.contains("no overload") || msg.contains("overload") || msg.contains("Can't find a match for function")) {
+            return "overload";
+        }
         if (msg.contains("engine machinery")) return "walled";
         if (msg.contains("not supported yet") || msg.contains("not resolvable")) return "not-implemented";
         return "kernel/other";

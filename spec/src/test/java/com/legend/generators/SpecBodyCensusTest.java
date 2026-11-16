@@ -310,7 +310,9 @@ public class SpecBodyCensusTest {
         if (msg.contains("Unknown type") || msg.contains("is not a known")) {
             return "unknown-type";
         }
-        if (msg.contains("no overload")) {
+        // the typer's no-match refusal is in the engine's words since 2026-11-16 ("Can't find a match for function",
+        // the typer slice's stage 1a item 3, register row S1007); "no overload" is the arity refusal's
+        if (msg.contains("no overload") || msg.contains("Can't find a match for function")) {
             return "overload";
         }
         if (msg.contains("type variable") || msg.contains("cannot also bind")

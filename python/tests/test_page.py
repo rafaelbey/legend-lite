@@ -1779,7 +1779,9 @@ class Document(Paged):
             grid.filter(('not', ('or', [])))
         with self.assertRaisesRegex(ValueError, "'contains' is not offered on notional, a Float column"):
             grid.filter(('notional', 'contains', '1'))
-        with self.assertRaisesRegex(ValueError, 'no overload'):
+        # the typer's refusal in the engine's words since 2026-11-16 (the typer slice's stage 1a item 3, the owner's
+        # ruling 42, ASK 4; register row S1007): it read "no overload of '...' structurally matches" until then
+        with self.assertRaisesRegex(ValueError, "Can't find a match for function 'lessThan\\(String"):
             grid.filter(('region', 'lessThan', {'relative': 'today'}))
         # each value as JSON carries it, tagged where JSON has no form for it, and judged by DataCube's reader
         # (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D12): Python checks none of it
