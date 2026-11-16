@@ -458,6 +458,7 @@ Each with my recommendation first.
     calling G fails to build, the four Java edges against that order rewired in the slices that port them; `door` is
     merged into `builtin`; a Rust crate may reach what its Java layer reaches or less, held exactly against Cargo and
     Bazel. Where the SQL translators (`protocol/sql`, `iq`, `cypher`) go stays open until the typer's slice is planned.
+    (Settled by ruling 42, 2026-11-16: all three ported before the switch, the Postgres-SQL one with G.)
 22. **Subtyping (`ModelContext.isSubtype`) is held to the live Java in slice 1b**, with the model; no freeze now.
 23. **The flip's and slice 1a's own choices are ratified** (2026-11-11): only `ValueSpecification` nodes `Arc`, the rest
     of the records as they were; a map on a node refused by the generator until its shape is decided; the allocator at
@@ -626,6 +627,52 @@ Each with my recommendation first.
     lite-only, where the engine compiles three of the four. S1005, a qualified call under a wildcard import
     (`import a::*;` then `b::f()`): lite follows legend-pure, which looks a packaged name up by its absolute path only,
     where legend-engine also prefixes each import (`03b791378` kept). No code changes.
+
+42. **The typer's census, ruled** (2026-11-16; the questions the lead asked on the G census, `port-scratch/gcensus/REPORT.md`
+    §6, read at f6a29822e). All as recommended:
+    - **ASK 9, the islands.** `#SQL`, `#IQ` and `#Cypher` are all ported before the switch, so no island or lane is lost:
+      - the Postgres-SQL translator (`protocol/sql`, 13,978 lines) with G;
+      - IQ (`sql/iq`, 27,026) and Cypher (`cypher`, 24,701) as their own slice after it.
+
+      This settles ruling 21's open placement and the roadmap's "a Java copy stays for them": the census found that the
+      `#SQL`/`#IQ` translation calls back into the typer partway through (`SqlIslands:94` → `Typer:218`), which ruling 7's
+      FFI cannot do. Reach: 15,661 of the front oracle's 22,151 query texts (IQ 8,368, Cypher 5,085, SQL 2,232) and 7
+      Bazel lanes.
+    - **ASK 2, the fresh names.** In Java first, `AlphaRename`'s `_nr<N>` and `ColumnHygiene`'s `<made>_<N>` become
+      names by place (or reset per expansion), not by the typing count. The frozen rows that hold them are re-frozen with
+      attribution: 9 + 11 execution-plan rows, the MIR dumps and the identity store; `_nr` is in none. After that, Rust
+      need not reproduce Java's typing count for the names. Whether other observables also follow it, such as the
+      identity hit counts and the memo hit rates, is listed and measured with the change (the typer slice's stage 1a),
+      and so is whether a Rust typer may type each subtree once.
+    - **ASK 18, ruling 36 after G½** (the typer's share landed in `9dba1053a`). `TypedViewRelation.of` relabels only
+      the columns ruling 36 newly accepts with the declared type, about 10 lines, so the plan's column type and the
+      result type agree. Run: the engine's plan labels every such column `Varchar(1024)`, so there is no engine answer
+      to match. Lands in the typer slice's stage 1a.
+    - **ASK 4, Java internals in messages.** In Java, before G's oracle freezes, the texts that print a record's
+      `toString` or an identity hash are reworded into Pure-level words. Rust reproduces the ~15 simple class names from a
+      table.
+    - **ASK 17, the view lift's relational spellings.** `normbatch/item6.md`'s proposals are adopted in G's slice (reach
+      0):
+      - `like`/`charindex`/`locate` become a deferred refusal in the engine's words per dialect;
+      - capitals are lifted to the lower-case calls, keeping the spelling;
+      - the shims `mod(Number, Number): Integer` and `minus(Any, Any)`;
+      - a type-only String assertion for `md5`.
+    - **ASKs 6, 7, 10, 11, 13 and 14, ratified:**
+      - Java's typed-node equality, hand-written: positions out, `Double.compare`, BigDecimal scale-sensitive, Long never
+        equal to BigInteger, maps and sets order-insensitive;
+      - G's oracle text drops source positions;
+      - lite-spec → lite-sql, with `json.rs`'s reader moved down to lite-sql and `RawSql`'s splitter ported there;
+      - the source passes stay in lite-spec;
+      - the splice hook lives in lite-planner behind a `Frames` trait, and G½'s oracle runs without it;
+      - `RunScope.planning` has no Rust form, retired with ledger rows.
+    - **Measured first: ASKs 1, 3, 5, 8, 15, and §10.3's 55 rows.** They are ported as Java answers, under ruling 29,
+      each with a row, and brought to the owner with its reach once G's typed oracle exists.
+
+      ASK 12's four silent defaults are refused by name in Java now (invariant 4), in the same batch as ruling 29's
+      policy 2 (about 20 raw exceptions a user can reach) and policy 1 (`WriteChecker`'s HashSet order becomes the
+      schema's).
+    - **The four main-register rows that misdescribe lite** (S2, S5, S127, S129) are sent to the Java bug-fix session,
+      to correct on its branch.
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.

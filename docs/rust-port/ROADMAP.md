@@ -86,8 +86,10 @@ legend-engine's) and `:round_trip_proof`, `ModelReaderParityTest`, `ModelCompose
 About 130K lines → `lite-core`: normalizer, compiler, builtin, resolver, lowering, plan, planner, the executionplan
 writer, platform, values, lineage, `Compiler` and `TypedQuery`, and the Postgres-SQL→Pure translator, moved here
 from phase 2 (2026-11-05) to sit beside the typer it runs inside -- SAP IQ and Cypher still use its core then, so a
-Java copy stays for them until their wave, or the translator waits for that wave too: decided at phase 3. The
-node-ID design (D1) and the `Arc` decision (D5)
+Java copy stays for them until their wave, or the translator waits for that wave too: decided at phase 3. (Decided
+2026-11-16, `PHASE3_SHIM_DESIGN.md` §10 ruling 42: no Java copy; the translator is ported with the typer, IQ and
+Cypher as their own slice after it, all three before the switch, because their translation calls back into the
+typer partway through.) The node-ID design (D1) and the `Arc` decision (D5)
 are settled before any code. `Compiler.compileModel`, `query`, `compileErrors` and `TypedQuery.plan` become the shim
 over opaque Rust model handles, answering plan JSON to the Java executor. The Java middle and `ModelReader` are
 deleted, and the ~580–770 test methods that inspect its internal objects are retired. This phase has no Java
