@@ -258,4 +258,35 @@ filegroup(
     visibility = ["//rust:__subpackages__"],
 )
 
+# What steps G (the typer) and G-half (the inliner) build, as the live Java answered it (2026-11-16, phase 3's typer
+# slice, stage 1b; typed/MANIFEST.tsv): the canonical text's SHA-256 per model ask (D, E with the boot layer, F, then
+# G over every body, strict and tolerant) and per query pair (G's typed statements, result type and parameters; G-half's
+# inlined body and query lets; programFacts), each query ask marked island or island-free; the typer's own cases; the
+# canonical text's schema (FrontCodegen's typed mode). For the Rust typer's differential (rust/lite-spec, with the port).
+zstd_decompress(
+    name = "typed_models",
+    testonly = True,
+    src = "typed/models.tsv.zst",
+    out = "typed/models.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
+zstd_decompress(
+    name = "typed_queries",
+    testonly = True,
+    src = "typed/queries.tsv.zst",
+    out = "typed/queries.tsv",
+    visibility = ["//rust:__subpackages__"],
+)
+
+filegroup(
+    name = "typed_cases",
+    testonly = True,
+    srcs = [
+        "typed/cases.jsonl",
+        "typed/schema.txt",
+    ],
+    visibility = ["//rust:__subpackages__"],
+)
+
 guards_package()

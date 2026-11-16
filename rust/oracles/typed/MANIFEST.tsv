@@ -1,0 +1,64 @@
+# file	what	sha256 of the uncompressed output
+# Made 2026-11-16 on worktree-rust-port-phase0 at fbc8f01e9 (the typer slice's stage 1b: stage 1a's Java batch and part 1's
+# fixes in; docs/rust-port/PHASE3.md, the typer slice, stage 1b) by core/src/test/java/com/legend/frontoracle/
+# TypedAnswers.java (its header: the command, the canonical text's rules) compiled and run on the tree's built jars of
+# //core:planner's closure, the build's JDK (25.0.4+7-LTS), the Rust parser loaded from //rust/lite-ffi, in four JVMs at
+# once (--shard i/4: the model asks by index, the query asks by their model's text, so every query of one model is
+# answered in one JVM in the pairs' order), merged in ask order. What steps G (the typer) and G-half (the inliner) build,
+# asked of the live Java: ElementAnswers' D, E (with the boot layer) and F, the same registrations (rust/oracles/
+# builtin's PlatformTables'), then G over every body in Compiler.compileAllBodies' order with one SpecCompiler per model
+# (bodiless, boot and relation-generic S112 bodies skipped), each body's CompiledFunction or its refusal (the full
+# message), then the compileErrors list; a query pair's model built strict at lite's dialect, the query typed by
+# Compiler.query (its statements, resultType, parameters), inlined by UserCallInliner without the splice hook (ruling
+# 42, ASK 13; the inlined body and queryLets), and programFacts. The canonical text (TypedAnswers' header): the record
+# codec's form with sharing labels for typed nodes, origins as place labels (p:<path> in the ask's own source tree, v<k>
+# outside it, o<k> a synthesized token), callees as ElementAnswers' FunctionView, maps and sets sorted, source positions
+# dropped (ruling 42, ASK 7), relation types deduplicated by value; no Java toString (grepped: no `Bounded[`,
+# `ExprType[`, `TypedParameter[`, record shape or identity hash in any form). Hashed: SHA-256 of each form's UTF-16
+# units, little-endian. Run twice (A, B; B with --texts and --check-door), every shard exiting 0: answers byte-identical.
+# Run A 529 s, run B 538 s (four JVMs each); every shard exited 0; A's and B's models.tsv and queries.tsv byte-identical
+# (their tags differ by the wall times only, and B's door check). B's --check-door: in every model run (strict 50,664,
+# tolerant 74,520) the replica's compileErrors list is the one Compiler.compileAllBodies answers. One of an earlier pair's
+# shards met a form of 1.27 billion characters (a #Cypher CREATE chain's relation types, repeated): hence the relation
+# rule, the chunked hash and a run that fails on any Throwable.
+# MODEL ASKS: one line per ask (["pmcd", dialect]) the door parses, in the questions' order, then ElementAnswers' cases'
+# (rust/oracles/element/cases.jsonl), then the typer's own (cases.jsonl below) -- 74,556 lines (74,496 distinct
+# (text, dialect) pairs: a case that is also a front-oracle text is asked again). `sha TAB dialect TAB islands TAB hash`,
+# islands the languages of the islands its functions' bodies hold ("-" none). Strict: 23,892 builds refused as F's oracle
+# refuses them (23,839 ModelException, 51 NotImplementedException, 2 IllegalArgumentException), 50,664 typed: 149,014
+# bodies, 10,463 refused (TypeInferenceException 7,442, ResolutionException 2,898, NotImplementedException 82,
+# ModelException 11, IslandSyntaxException 6, and raw: IllegalStateException 22, IndexOutOfBoundsException 2 -- a time
+# literal out of range, an unresolved multiplicity union, an index past a list: ported as they are, listed for the owner).
+# Tolerant: 74,520 typed (236,469 bodies; 10,721 overload sets walled at findFunction).
+# QUERY ASKS: one line per pair, the identity oracle's 31,297 t: pairs (as NameAnswers takes them, from
+# rust/oracles/identity/hits.tsv at 409799123) then the cases' 233 -- 31,530 lines. `query TAB model TAB island TAB
+# hash`, island the first island the parsed query holds (pre-order): of the 31,297, Cypher 10,879, IQ 8,363, SQL 2,216,
+# island-free 9,839 (ruling 42: the Rust differential marks the island asks "awaiting the islands" until they are
+# ported, never comparing them against nothing). G refused 4,970 queries (NotImplementedException 2,406,
+# TypeInferenceException 2,225, IslandSyntaxException 319, SchemaInvariantException 15, ResolutionException 3,
+# ModelException 2); G-half refused 672 of those G typed; programFacts 1.
+# Sharing and origins met: 24,642 shared typed nodes over the model and query lines; origins 199,441 at a place in the
+# ask's own tree, 7,972 a source node outside it, 3,533 synthesized tokens.
+# Timing (a cheap timing mode, never hashed: each phase's wall time per ask in the tags): D-E-F 120 s, G over every body
+# 670 s (strict and tolerant), a query's G 22 s, G-half 232 s, programFacts 27 s, summed over the four JVMs.
+models.tsv.zst	TypedAnswers' model asks: sha TAB dialect TAB islands TAB hash, 74,556 lines	bb8568525fd5360fdba99c0a539719b9764e60fbc931fd73db6f5d39878fdc16
+queries.tsv.zst	TypedAnswers' query asks: query sha TAB model sha TAB island TAB hash, 31,530 lines	7c94c88c406ebdf175e58b36e96819d34772e2151ae8fc10ae06ceaec0c126b9
+# CASES: the typer's own (port-scratch/typer1b/tools/gen_typed_cases.py; JSON per line, the element cases' form with
+# "queries", "site", "note" and, where the owner ruled it, "status"): ruling 36's 74 one-view models (r36.c00-c73, each
+# with the bare view and a select of its column), item6's nine relational spellings (generated from the i6 template with
+# the capitals written as capitals), one case per site stage 1a and stage 1b part 1 fixed (54 cases: the helper's,
+# each checked on lite), and part 1's call written in full. Status, as the owner ruled ASK 17 on 2026-11-16: RULED (lite's
+# compile-time refusal of the view kept, a ruled divergence; the engine refuses the same queries at plan) -- r36.c49 c51
+# c52 c54 c55 c56, item6.like charindex locate COUNT SUM ABS; CARRIED TO I (ASK 17) (lowering will plan the engine's SQL)
+# -- r36.c42 c47 c70, item6.mod md5 sub. Frozen at today's answers.
+cases.jsonl	the typer's own cases: 138 texts (233 queries)	11cf00b5935ee1774e7bc2c278b7178b0b32544cf49d5162d3fd2c45febd5eea
+# SCHEMA: FrontCodegen's typed mode (run by hand: java ... com.legend.frontoracle.FrontCodegen typed OUT MAIN, on the
+# tree's jars), the record types the canonical text writes, their components in order, and the codec's rules -- the
+# Rust writer's (rust/lite-spec's, with the port) schema; no Bazel target checks it for staleness yet.
+schema.txt	the canonical text's schema, 389 lines	9267aad7dacc8a22b1415822cb4696cc6d4accdcbe713781fb242ad509017f60
+# FORMS (outside git, beside the other oracles' archives; run B's, with run A's per-ask tags), SHA-256 of each text in
+# ~/.local/legend-lite/oracle-archive/typed-texts-java.sha256: typed-forms-models-java-2026-11-16-typer-stage1b.jsonl.zst
+# (2,033,824,964 bytes of text, 7.3 MB), typed-forms-queries-java-2026-11-16-typer-stage1b.jsonl.zst (5,769,494,227
+# bytes, 4.9 MB), typed-tags-models-java-... and typed-tags-queries-java-....tsv.zst (`zstd -d --long=31`).
+# MEASURED, NOT FROZEN: a run handing F Compiler.buildModel's registrations (PlatformRegistrations.current(), the
+# lowering's own included; --live-registrations) answers every model and query ask as frozen (MOVED 0).
