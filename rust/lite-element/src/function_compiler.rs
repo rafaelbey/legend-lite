@@ -526,6 +526,16 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn the_public_compile_all_of_no_declaration_is_none() {
+        // through the view's own classifier: nothing to classify, so no refusal and no overload
+        let index = index("function w::h(x: String[1]): String[1] { $x }\n");
+        let fc = compiler(&index);
+        let arena = QueryArena::new();
+        assert_eq!(fc.compile_all(&arena, &j("w::none")), Ok(vec![]));
+        assert_eq!(fc.compile_all(&arena, &j("h")), Ok(vec![]));
+    }
+
+    #[test]
     fn the_overloads_compile_in_candidate_order() {
         let fqn = j("meta::pure::functions::string::toUpper");
         let index = index("function meta::pure::functions::string::toUpper(s: Integer[1]): String[1] { 'n' }\n");
