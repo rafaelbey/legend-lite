@@ -110,6 +110,19 @@ class AnswerTextsTest {
     }
 
     @Test
+    @DisplayName("a multiplicity in a refusal is Pure's [m], never Java's record")
+    void aMultiplicityIsWrittenAsPureWritesIt() {
+        // 2026-11-16 (the owner's ruling 42, ASK 4; the typer slice's stage 1b): NewChecker's and IfChecker's texts
+        // printed Java's Multiplicity record (Bounded[lower=1, upper=1]); TypedAnswers' forms showed it (34 asks)
+        assertEquals("property 'v' of 't::Box' declares multiplicity [1] but the value has [2]",
+                typing(TypeInferenceException.class, "^t::Box(v=[1, 2])"));
+        assertEquals("property 'v' of 't::Box' declares multiplicity [1] but the value has [2]",
+                typing(TypeInferenceException.class, "{| let b = ^t::Box(v=1); ^$b(v=[1, 2]); }"));
+        assertEquals("if condition must be Boolean[1], got multiplicity [2]",
+                typing(TypeInferenceException.class, "if([true, false], |1, |2)"));
+    }
+
+    @Test
     @DisplayName("a post-processor hook, a replaceTables pair and a pair side are named by what they are, not dumped")
     void theContextReaderNamesWhatItCannotRead() {
         assertEquals("sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor"

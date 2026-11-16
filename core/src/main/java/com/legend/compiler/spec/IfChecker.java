@@ -75,7 +75,8 @@ final class IfChecker {
         if (!(cond.info().multiplicity() instanceof Multiplicity.Bounded b)
                 || b.lower() != 1 || b.upper() == null || b.upper() != 1) {
             throw new TypeInferenceException("if condition must be Boolean[1], got multiplicity "
-                    + cond.info().multiplicity());
+                    + cond.info().multiplicity().text());   // Pure's words, not Java's record (Bounded[...]) since
+                    // 2026-11-16 (ruling 42, ASK 4; the typer slice's stage 1b)
         }
         TypedSpec thenBranch = thunkBody(t, args.get(1), env);
         Optional<TypedSpec> elseBranch = args.size() > 2
@@ -120,7 +121,8 @@ final class IfChecker {
             if (!(cond.info().multiplicity() instanceof Multiplicity.Bounded cb)
                     || cb.lower() != 1 || cb.upper() == null || cb.upper() != 1) {
                 throw new TypeInferenceException("if condition must be Boolean[1],"
-                        + " got multiplicity " + cond.info().multiplicity());
+                        + " got multiplicity " + cond.info().multiplicity().text());   // Pure's words, not Java's
+                        // record (Bounded[...]) since 2026-11-16 (ruling 42, ASK 4; the typer slice's stage 1b)
             }
             TypedSpec value = thunkBody(t, pf.parameters().get(1), env);
             result = t.kernel().commonSupertype(result, value.info().type());

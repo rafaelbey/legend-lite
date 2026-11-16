@@ -66,8 +66,9 @@ final class NewChecker {
                         || (actual.upper() != null && actual.upper() <= declared.upper());
                 if (!lowOk || !highOk) {
                     throw new TypeInferenceException("property '" + name + "' of '"
-                            + classFqn + "' declares multiplicity " + declared
-                            + " but the value has " + actual);
+                            + classFqn + "' declares multiplicity " + declared.text()
+                            + " but the value has " + actual.text());   // Pure's words: it printed Java's records
+                            // (Bounded[lower=1, upper=1]) until 2026-11-16 (ruling 42, ASK 4; the typer slice's stage 1b)
                 }
             }
             overrides.put(name, value);
@@ -179,8 +180,9 @@ final class NewChecker {
                         || (actual.upper() != null && actual.upper() <= declared.upper());
                 if (!lowOk || !highOk) {
                     throw new TypeInferenceException("property '" + name + "' of '"
-                            + ni.className() + "' declares multiplicity " + declared
-                            + " but the value has " + actual);
+                            + ni.className() + "' declares multiplicity " + declared.text()
+                            + " but the value has " + actual.text());   // Pure's words: it printed Java's records
+                            // (Bounded[lower=1, upper=1]) until 2026-11-16 (ruling 42, ASK 4; the typer slice's stage 1b)
                 }
             }
             properties.put(name, value);
