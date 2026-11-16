@@ -24,7 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * lifted view's column whose declared and body types are of one family, numbers (Integer, Float, Decimal, Number) or
  * dates (Date, StrictDate, DateTime), for the lift's function only. NUM and DAT are the names batch's shapes c59 and
  * c08, which the pinned engine compiles. No view text yields a column of two families (a translation's bug), so those
- * cases are TWO's lifted function declared with another return.
+ * cases are TWO's lifted function declared with another return. The owner's ruling 42 (the G census's ASK 18 (ii)): an
+ * inlined view's node reads only the newly accepted columns at their declared type.
  */
 class LiftedViewFamilyTest {
 
@@ -37,8 +38,9 @@ class LiftedViewFamilyTest {
             ###Relational
             Database t::Db
             (
-              Table T (ID INTEGER PRIMARY KEY, I INTEGER, F FLOAT, DT DATE, TS TIMESTAMP)
+              Table T (ID INTEGER PRIMARY KEY, I INTEGER, F FLOAT, DT DATE, TS TIMESTAMP, DC DECIMAL(10, 2))
               View NUM (ID: T.ID PRIMARY KEY, X: plus(T.I, T.F))
+              View DEC (ID: T.ID PRIMARY KEY, X: T.DC)
               View DAT (ID: T.ID PRIMARY KEY, X: datePart(T.TS))
               View TWO (ID: T.ID PRIMARY KEY, D: T.DT, N: T.I)
             )
@@ -112,5 +114,40 @@ class LiftedViewFamilyTest {
         FunctionDefinition lift = ((FunctionDefinition) user.definition())
                 .withSynthesizedFrom(new FunctionDefinition.Synthesized(SynthHat.VIEW, "t::Db", "U"));
         assertDoesNotThrow(() -> new SpecCompiler(CTX).compile(declaring(user, Map.of(), lift)));
+    }
+
+    /** The relation columns of a typed node's info, as name:Type[mult]. */
+    private static List<String> columns(com.legend.compiler.element.type.ExprType info) {
+        return Type.relationSchema(info.type()).columns().stream()
+                .map(c -> c.name() + ":" + c.type().typeName() + c.multiplicity().text()).toList();
+    }
+
+    @Test
+    @DisplayName("ruling 42 (ASK 18 (ii)): the view's relation reads the newly accepted column at its declared type"
+            + " (X: Integer, the engine's), its multiplicity the body's; a column that conforms keeps its own")
+    void theViewReadsANewlyAcceptedColumnAtItsDeclaredType() {
+        assertEquals(List.of("ID:Integer[1]", "X:Integer[1]"),
+                columns(new SpecCompiler(CTX).viewRelation(fn("t::Db$view$NUM")).info()));
+        // the compiled body keeps its own type (Float): only the view's node is relabelled
+        List<com.legend.compiler.spec.typed.TypedSpec> body = new SpecCompiler(CTX).compile(fn("t::Db$view$NUM")).body();
+        assertEquals(List.of("ID:Integer[1]", "X:Float[1]"), columns(body.get(body.size() - 1).info()));
+    }
+
+    @Test
+    @DisplayName("a column that conforms as it is is never relabelled: a declared Decimal over the body's Decimal(10,2)")
+    void aConformingColumnIsNotRelabelled() {
+        com.legend.compiler.element.type.ExprType info =
+                new SpecCompiler(CTX).viewRelation(fn("t::Db$view$DEC")).info();
+        assertEquals(new Type.PrecisionDecimal(10, 2), Type.relationSchema(info.type()).columns().get(1).type());
+    }
+
+    @Test
+    @DisplayName("the inliner's view node is relabelled too: #>{t::Db.NUM}# inlined reads X as Integer")
+    void theInlinedViewIsRelabelled() {
+        com.legend.TypedQuery q = com.legend.Compiler.query(CTX, "#>{t::Db.NUM}#");
+        List<com.legend.compiler.spec.typed.TypedSpec> inlined = new UserCallInliner(q.specs()).inlineBody(q.body());
+        com.legend.compiler.spec.typed.TypedSpec last = inlined.get(inlined.size() - 1);
+        assertEquals(com.legend.compiler.spec.typed.TypedViewRelation.class, last.getClass());
+        assertEquals(List.of("ID:Integer[1]", "X:Integer[1]"), columns(last.info()));
     }
 }

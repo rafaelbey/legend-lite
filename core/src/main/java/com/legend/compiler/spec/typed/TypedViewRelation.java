@@ -30,7 +30,8 @@ import java.util.List;
  * @param view the view's bare name (a schema-qualified view's own name —
  *             the engine's alias groups take the bare name)
  * @param body the view's relation (the lifted function's inlined body)
- * @param info the body's relation type
+ * @param info the body's relation type, ruling 36's newly accepted columns at
+ *             the view's declared type ({@link #of})
  */
 public record TypedViewRelation(String view, TypedSpec body, ExprType info)
         implements TypedSpec {
@@ -64,12 +65,16 @@ public record TypedViewRelation(String view, TypedSpec body, ExprType info)
     }
 
     /** THE one mint: the lifted view {@code fn}'s relation, its compiled
-     *  (or inlined) {@code body} named by the view. */
-    public static TypedViewRelation of(TypedFunction fn, TypedSpec body) {
+     *  (or inlined) {@code body} named by the view, carrying {@code info}: the
+     *  body's type with only the columns ruling 36 newly accepts read at the
+     *  view's declared type (SpecCompiler.viewInfo; the owner's ruling 42, the
+     *  G census's ASK 18 (ii)), so the plan's column type and the query's
+     *  result type agree. */
+    public static TypedViewRelation of(TypedFunction fn, TypedSpec body, ExprType info) {
         String view = liftedViewName(fn);
         if (view == null) {
             throw new IllegalArgumentException("not a lifted view function: " + fn.qualifiedName());
         }
-        return new TypedViewRelation(view, body, body.info());
+        return new TypedViewRelation(view, body, info);
     }
 }

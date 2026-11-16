@@ -66,7 +66,8 @@ public final class SpecCompiler {
      *  view accessor). */
     public TypedSpec viewRelation(TypedFunction fn) {
         com.legend.base.RunScope.planning("type a spec");
-        return com.legend.compiler.spec.typed.TypedViewRelation.of(fn, viewBody(fn));
+        TypedSpec body = viewBody(fn);
+        return com.legend.compiler.spec.typed.TypedViewRelation.of(fn, body, viewInfo(fn, body.info()));
     }
 
     /** The model this compiler compiles against (the literal unroll's
@@ -284,22 +285,42 @@ public final class SpecCompiler {
      *  column's family, numbers or dates ({@link #viewFamily}): the engine types a view column by its relational
      *  inference alone, which can name another type of the family than the translated body returns (datePart's DATE,
      *  a StrictDate, where Pure's returns Date). The body is checked again with each such column read at its declared
-     *  type, the columns paired as the kernel's unifyColumns pairs them; null when that conforms, else its reason --
-     *  so a refusal names the first column of two families, in the kernel's words, past any in-family column before
-     *  it. The body's own type is kept: what an inlined view's node carries is the inliner's (G census, ASK 18). */
+     *  type ({@link #familyRelabelled}); null when that conforms, else its reason -- so a refusal names the first
+     *  column of two families, in the kernel's words, past any in-family column before it. The compiled body keeps its
+     *  own type; an inlined view's node carries the relabelled one ({@link #viewInfo}, ruling 42's ASK 18). */
     private @com.legend.base.Nullable String beyondViewFamilies(ExprType body, ExprType declared,
             @com.legend.base.Nullable String why) {
+        ExprType rebuilt = familyRelabelled(body, declared);
+        if (rebuilt == null) {
+            return why;
+        }
+        try {
+            typer.requireConforms(rebuilt, declared);
+            return null;
+        } catch (TypeInferenceException e) {
+            return e.getMessage();
+        }
+    }
+
+    /** The ONE pairing of ruling 36: {@code body}'s relation type with each column ruling 36 newly accepts -- a
+     *  declared column whose body column (paired by name as the kernel's unifyColumns pairs them) does not conform on
+     *  its own but is of the declared type's family ({@link #viewFamily}) -- read at its declared TYPE, its
+     *  multiplicity the body's (unifyColumns checks none); every other column as the body has it. Null where either
+     *  side is no relation. A column that conforms already is never relabelled (a declared Decimal over a body's
+     *  Decimal(10,2), a Number over an Integer), so a body that conforms comes back with its own columns. */
+    private @com.legend.base.Nullable ExprType familyRelabelled(ExprType body, ExprType declared) {
         Type.RelationType want = Type.relationSchema(declared.type());
         Type.RelationType got = Type.relationSchema(body.type());
         if (want == null || got == null) {
-            return why;
+            return null;
         }
         List<Type.Column> read = new ArrayList<>(got.columns());
         for (Type.Column w : want.columns()) {
             for (int i = 0; i < read.size(); i++) {
                 Type.Column g = read.get(i);
                 if (InferenceKernel.sameColumn(g.name(), w.name())) {
-                    if (viewFamily(w.type()) != null && viewFamily(w.type()) == viewFamily(g.type())) {
+                    if (viewFamily(w.type()) != null && viewFamily(w.type()) == viewFamily(g.type())
+                            && !conformsAlone(w.type(), g.type())) {
                         read.set(i, new Type.Column(g.name(), w.type(), g.multiplicity()));
                     }
                     break;
@@ -309,12 +330,31 @@ public final class SpecCompiler {
         Type.GenericType carrier = (Type.GenericType) body.type();
         Type rebuilt = new Type.GenericType(carrier.rawFqn(),
                 List.of(new Type.RelationType(read, got.dynamicColumns())), carrier.multArguments());
+        return new ExprType(rebuilt, body.multiplicity());
+    }
+
+    /** Whether a body column's type conforms to its declared column's on its own: the kernel's per-column unify, the
+     *  check unifyColumns makes (a declared type is concrete: nothing to solve). */
+    private boolean conformsAlone(Type declared, Type body) {
         try {
-            typer.requireConforms(new ExprType(rebuilt, body.multiplicity()), declared);
-            return null;
+            typer.kernel().unify(declared, body, new Bindings());
+            return true;
         } catch (TypeInferenceException e) {
-            return e.getMessage();
+            return false;
         }
+    }
+
+    /** What an inlined lifted VIEW's node carries (the owner's ruling 42, the G census's ASK 18 (ii); LITE-ONLY;
+     *  register row S376): {@code body}, the view's inlined body's type, with only the columns ruling 36 newly accepts
+     *  read at the view's declared type ({@link #familyRelabelled}), so the plan's column type and the query's result
+     *  type agree; {@code body} itself for every other function, and for a view whose body conforms as it is. No cast
+     *  is added: the engine casts nothing either (the G census's run, r3: {@code "root".I + "root".F}). */
+    public ExprType viewInfo(TypedFunction fn, ExprType body) {
+        if (com.legend.compiler.spec.typed.TypedViewRelation.liftedViewName(fn) == null) {
+            return body;
+        }
+        ExprType relabelled = familyRelabelled(body, new ExprType(fn.returnType(), fn.returnMultiplicity()));
+        return relabelled == null ? body : relabelled;
     }
 
     /** Ruling 36's two families: the numbers (Integer, Float, Decimal, Number: exactly the NUMERIC primitives, a

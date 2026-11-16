@@ -643,7 +643,7 @@ public final class UserCallInliner {
             if (com.legend.compiler.spec.typed.TypedViewRelation
                     .liftedViewName(call.callee()) != null) {
                 reduced = com.legend.compiler.spec.typed.TypedViewRelation
-                        .of(call.callee(), reduced);
+                        .of(call.callee(), reduced, specs.viewInfo(call.callee(), reduced.info()));
             }
             return reduced;
         } catch (NotImplementedException e) {
