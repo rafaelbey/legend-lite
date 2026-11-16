@@ -34,6 +34,7 @@ dependencies = [
  "lite-front",
  "lite-model",
  "lite-names",
+ "lite-normalizer",
  "lite-platform",
  "lite-types",
 ]

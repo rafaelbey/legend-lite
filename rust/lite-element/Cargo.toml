@@ -16,3 +16,8 @@ lite-model = { path = "../lite-model" }
 lite-names = { path = "../lite-names" }
 lite-platform = { path = "../lite-platform" }
 lite-types = { path = "../lite-types" }
+
+[dev-dependencies]
+# the element differential's support (tests/support/boot.rs): the planner's boot and normalizeWithSystem compose E (the
+# guards read [dependencies] only: lite-element itself reaches no normalizer)
+lite-normalizer = { path = "../lite-normalizer" }
