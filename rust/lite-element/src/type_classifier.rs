@@ -201,7 +201,10 @@ impl<'i> TypeClassifier<'i> {
                         multiplicity,
                     });
                 }
-                // `new Type.RelationType(cols)`: two columns of one name its raw IllegalArgumentException
+                // `requireDistinctColumns(cols)` (2026-11-16, the typer slice's stage 1b, part 1; ruling 29's policy
+                // 2): two columns of one name refused in legend-pure's words, where `new Type.RelationType(cols)`
+                // threw its raw IllegalArgumentException
+                require_distinct_columns(&cols)?;
                 RelationType::of(arena, &cols)
                     .map(Type::RelationType)
                     .map_err(Thrown::from_type_error)
@@ -561,6 +564,25 @@ fn op(op: p::TypeExpressionOp) -> Op {
         p::TypeExpressionOp::DIFFERENCE => Op::Difference,
         p::TypeExpressionOp::SUBSET => Op::Subset,
     }
+}
+
+/// `requireDistinctColumns(cols)` (TypeClassifier.java; 2026-11-16, the typer slice's stage 1b, part 1): a relation type
+/// naming a column twice, refused in legend-pure's words (`_RelationType.build`, "The relation contains duplicates:
+/// [a]"; legend-engine 4.145.0 refuses such a function signature when it compiles it, run), a `ModelException` the
+/// integrity pass attributes to its element -- several names in the order first met, as Java's `LinkedHashSet` prints.
+fn require_distinct_columns(cols: &[Column<'_>]) -> Result<(), Thrown> {
+    let mut seen = std::collections::HashSet::new();
+    let mut twice: Vec<&str> = Vec::new();
+    for c in cols {
+        if !seen.insert(c.name) && !twice.contains(&c.name) {
+            twice.push(c.name);
+        }
+    }
+    if twice.is_empty() {
+        return Ok(());
+    }
+    let message = format!("The relation contains duplicates: [{}]", twice.join(", "));
+    Err(Thrown::model(Phase::Model, JStr::from(message.as_str()), None))
 }
 
 #[cfg(test)]
@@ -993,18 +1015,21 @@ mod tests {
             ),
             other => panic!("a relation type, not {other:?}"),
         }
-        assert_java(
+        // 2026-11-16 (the typer slice's stage 1b, part 1; ruling 29's policy 2): legend-pure's words, a ModelException --
+        // until then Type's raw IllegalArgumentException, "duplicate column 'a' in relation type"
+        assert_model(
             tc.classify(
                 &cx,
                 &relation(vec![
                     column("a", name_ref(&m3("Integer"))),
                     column("a", name_ref(&m3("String"))),
+                    column("b", name_ref(&m3("String"))),
+                    column("b", name_ref(&m3("String"))),
                 ]),
                 &[],
             )
             .unwrap_err(),
-            lite_names::error::ILLEGAL_ARGUMENT,
-            "duplicate column 'a' in relation type",
+            "The relation contains duplicates: [a, b]",
         );
         // the column's own type is classified before the duplicate is seen
         assert_model(

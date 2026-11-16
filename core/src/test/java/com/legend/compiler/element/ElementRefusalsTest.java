@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.Compiler;
 import com.legend.error.ModelException;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -98,6 +99,23 @@ class ElementRefusalsTest {
                 Compiler.buildModule(Compiler.parseModel(parameter)).walls());
         assertEquals(Map.of("w::AB", "property 'a' of association w::AB: invalid multiplicity — " + BOUND),
                 Compiler.buildModule(Compiler.parseModel(end)).walls());
+    }
+
+    @Test
+    @DisplayName("a signature naming a relation column twice: refused in legend-pure's words, never a raw exception")
+    void aSignatureNamingARelationColumnTwiceIsRefused() {
+        // 2026-11-16 (the typer slice's stage 1b, part 1; ruling 29's policy 2): TypeClassifier's relation arm met
+        // Type's raw IllegalArgumentException ("duplicate column 'A' in relation type"), which escaped compileModel and
+        // compileErrors; legend-engine 4.145.0 refuses the signature when it compiles it, "The relation contains
+        // duplicates: [A]" (run, port-scratch/typer/research/item5, 2.8)
+        String text = "function t::sigDup(r: meta::pure::metamodel::relation::Relation<(A:Integer, A:String)>[1]):"
+                + " Integer[1]\n{\n  1\n}\n";
+        ModelException e = assertThrows(ModelException.class, () -> Compiler.compileModel(text));
+        assertEquals("t::sigDup_Relation_1__Integer_1_", e.element());
+        assertTrue(e.getMessage().endsWith("The relation contains duplicates: [A]"), e.getMessage());
+        assertEquals(List.of("[1:1] The relation contains duplicates: [A]"), Compiler.compileErrors(text));
+        assertEquals(Map.of("t::sigDup_Relation_1__Integer_1_", "The relation contains duplicates: [A]"),
+                Compiler.buildModule(Compiler.parseModel(text)).walls());
     }
 
     @Test

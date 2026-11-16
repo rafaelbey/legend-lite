@@ -141,6 +141,7 @@ final class TypeClassifier {
                 for (TypeExpression.Column c : rt.columns()) {
                     cols.add(new Type.Column(c.name(), classify(c.type(), typeParams), multiplicity(c.multiplicity())));
                 }
+                requireDistinctColumns(cols);
                 yield new Type.RelationType(cols);
             }
             case TypeExpression.SchemaAlgebra sa -> new Type.SchemaAlgebra(
@@ -322,5 +323,27 @@ final class TypeClassifier {
             case DIFFERENCE -> Type.Op.DIFFERENCE;
             case SUBSET -> Type.Op.SUBSET;
         };
+    }
+
+    /**
+     * A relation type naming a column twice, refused in legend-pure's words ({@code _RelationType.build}: "The relation
+     * contains duplicates: [a]"; legend-engine 4.145.0 refuses such a function signature when it compiles it, run:
+     * port-scratch/typer/research/item5, 2.8) -- a ModelException, which the integrity pass attributes to its element.
+     * Until 2026-11-16 Type's constructor threw its raw IllegalArgumentException here, which escaped compileModel and
+     * compileErrors (ruling 29's policy 2; the typer slice's stage 1b, part 1). Several names in the order first met
+     * (legend-pure's set prints in its hash order); checked where the constructor checked, after the columns' types.
+     */
+    static void requireDistinctColumns(List<Type.Column> cols) {
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        java.util.Set<String> twice = new java.util.LinkedHashSet<>();
+        for (Type.Column c : cols) {
+            if (!seen.add(c.name())) {
+                twice.add(c.name());
+            }
+        }
+        if (!twice.isEmpty()) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                    "The relation contains duplicates: " + twice);
+        }
     }
 }
