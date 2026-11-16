@@ -86,6 +86,8 @@ test_suite(
         "//rust/lite-normalizer:normalizer_differential_test",
         # phase 3's element slice (docs/rust-port/PHASE3.md, 2026-11-15): step F, its skeleton first
         "//rust/lite-element:lite_element_test",
+        # and the differential holding what step F builds to the live Java's frozen answers (the boot layer first)
+        "//rust/lite-element:element_differential_test",
         # the shim's reader: every Java answer read back by the generated reader is the records written
         "//core:front_reader_test",
         # the planner on java.base alone (P3-19): seconds

@@ -1980,6 +1980,45 @@ java_run(
     deps = [":front_codegen"],
 )
 
+# The element differential's records in Rust (2026-11-15, docs/rust-port/PHASE3.md, the element slice, step 5:
+# FrontCodegen's element mode): ElementAnswers' projections (ClassView, ConstraintView, FunctionView) and the
+# compiler.element records they hold (Property and its two records, TypedEnum, TypedParameter,
+# TypedConstraint.EnforcementLevel, the Type and Multiplicity families), by reflection, with the lossless codec's writer,
+# each component an Option exactly where its source says @Nullable, so their sources are inputs (ElementAnswers' in the
+# test tree: {TEST}). The generator finds the classes by name: ElementAnswers is :core_tests_lib's (which depends on
+# :front_codegen) and compiler.element is not among :front_codegen's deps, so this run's classpath brings both.
+# //rust/lite-element:update_generated writes it to rust/lite-element/tests/support/oracle_records.rs.
+java_run(
+    name = "element_records_rs",
+    testonly = True,
+    srcs = glob([
+        "src/main/java/com/legend/compiler/element/*.java",
+        "src/main/java/com/legend/compiler/element/type/*.java",
+    ]) + [
+        "src/main/java/com/legend/Compiler.java",
+        "src/test/java/com/legend/ArchitectureTest.java",
+        "src/test/java/com/legend/frontoracle/ElementAnswers.java",
+    ],
+    outs = ["front/element_records.rs"],
+    arguments = [
+        "element",
+        "{OUT}",
+        "{MAIN}",
+        "{TEST}",
+    ],
+    main_class = "com.legend.frontoracle.FrontCodegen",
+    mnemonic = "FrontCodegen",
+    roots = {
+        "src/main/java/com/legend/Compiler.java": "{MAIN}",
+        "src/test/java/com/legend/ArchitectureTest.java": "{TEST}",
+    },
+    visibility = ["//rust/lite-element:__pkg__"],
+    deps = [
+        ":core_tests_lib",
+        ":front_codegen",
+    ],
+)
+
 # The same records' reader in Java (FrontCodegen's java mode): the Rust parser's answer read back into the protocol
 # records, generated because the product bans reflection. Committed as src/main/java/com/legend/ffi/FrontRecords.java
 # (_GENERATED below).

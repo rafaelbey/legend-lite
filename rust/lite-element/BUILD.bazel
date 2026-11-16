@@ -1,5 +1,17 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
 load("//tools/guards:defs.bzl", "guards_package")
+
+# The element differential's records in Rust, generated from ElementAnswers' projections and the compiler.element records
+# they hold (//core:element_records_rs, FrontCodegen's element mode; 2026-11-15): regenerate with
+# `bazel run //rust/lite-element:update_generated`; its diff test (in //:generated) fails when the records move.
+write_source_files(
+    name = "update_generated",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe element differential's records moved -- regenerate: bazel run //rust/lite-element:update_generated",
+    files = {"tests/support/oracle_records.rs": "//core:element_records_rs"},
+    visibility = ["//:__pkg__"],
+)
 
 # legend-lite's element compiler, ported from core's com.legend.compiler.element (src/lib.rs; docs/rust-port/PHASE3.md,
 # the element slice, 2026-11-15): step F, PureModelContext as the concrete Model; its skeleton first. The second part
@@ -28,6 +40,48 @@ rust_test(
     crate = ":lite_element",
     edition = "2024",
     visibility = ["//gates:__pkg__"],
+)
+
+# The element differential (tests/element_differential.rs; the element slice, step 5, 2026-11-15): the boot layer as
+# Compiler.boot() normalizes it (milestone 1: //rust/oracles:element_boot_normalized), its own answers and the baselines
+# (milestone 2: :element_boot), then every model text of the front oracle and of the slice's cases at every dialect asked,
+# run D, the planner's normalizeWithSystem (tests/support/boot.rs) and F (Model::from) strict and tolerant, each
+# canonical text held to the Java's (the SHA-256 per ask, frozen: //rust/oracles:element_answers;
+# rust/oracles/element/MANIFEST.tsv) -- buckets equal and mismatch (a panic is a mismatch, counted by its message).
+# Large, and in //gates:core, as the normalizer's and the names differentials (ruling 28).
+rust_test(
+    name = "element_differential_test",
+    size = "large",
+    srcs = glob(["tests/**/*.rs"]),
+    args = ["--ignored"],
+    crate_root = "tests/element_differential.rs",
+    data = [
+        "//rust/oracles:element_answers",
+        "//rust/oracles:element_boot",
+        "//rust/oracles:element_boot_normalized",
+        "//rust/oracles:element_cases",
+        "//rust/oracles:front_questions",
+    ],
+    edition = "2024",
+    env = {
+        "LITE_ELEMENT_ANSWERS": "$(rootpath //rust/oracles:element_answers)",
+        "LITE_ELEMENT_BOOT": "$(rootpath //rust/oracles:element_boot)",
+        "LITE_ELEMENT_BOOT_NORMALIZED": "$(rootpath //rust/oracles:element_boot_normalized)",
+        "LITE_ELEMENT_CASES": "$(rootpath //rust/oracles:element_cases)",
+        "LITE_ELEMENT_QUESTIONS": "$(rootpath //rust/oracles:front_questions)",
+    },
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":lite_element",
+        "//rust/lite-base:lite_base",
+        "//rust/lite-builtin:lite_builtin",
+        "//rust/lite-front:lite_front",
+        "//rust/lite-model:lite_model",
+        "//rust/lite-names:lite_names",
+        "//rust/lite-normalizer:lite_normalizer",
+        "//rust/lite-platform:lite_platform",
+        "//rust/lite-types:lite_types",
+    ],
 )
 
 # the crate's sources and manifest, for //rust/lite-guards' source and crate-graph guards (tests/ joins the glob with

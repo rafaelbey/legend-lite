@@ -49,6 +49,8 @@ public final class FrontCodegen {
     }
 
     private final Path main;
+    /** The test sources' {@code com/legend} directory (the element mode's: ElementAnswers' records are test code). */
+    private Path test;
     private final Map<Class<?>, String> names = new HashMap<>();
     private final Map<String, Class<?>> byName = new HashMap<>();
     private final Map<Class<?>, Map<String, Boolean>> nullable = new HashMap<>();
@@ -64,7 +66,9 @@ public final class FrontCodegen {
     }
 
     /** {@code rust OUT MAIN}: the Rust records and writer; {@code java OUT MAIN}: the Java reader; {@code model OUT
-     *  MAIN}: the model's records in Rust (2026-11-12, {@link #model}). */
+     *  MAIN}: the model's records in Rust (2026-11-12, {@link #model}); {@code element OUT MAIN TEST}: the element
+     *  differential's mirrors of ElementAnswers' records in Rust (2026-11-15, {@link #element}; TEST the test
+     *  sources' {@code com/legend} directory, where ElementAnswers is). */
     public static void main(String[] args) throws Exception {
         FrontCodegen g = new FrontCodegen(Path.of(args[2]));
         g.discover(List.of(PmcdParser.Parsed.class, ValueSpecification.class, LambdaFunction.class));
@@ -72,7 +76,8 @@ public final class FrontCodegen {
             case "rust" -> g.rust();
             case "java" -> g.java();
             case "model" -> g.model();
-            default -> throw new IllegalArgumentException("a mode is rust, java or model, not " + args[0]);
+            case "element" -> g.element(Path.of(args[3]));
+            default -> throw new IllegalArgumentException("a mode is rust, java, model or element, not " + args[0]);
         };
         Files.writeString(Path.of(args[1]), out, StandardCharsets.UTF_8);
     }
@@ -575,6 +580,10 @@ public final class FrontCodegen {
         }
         String rel = top.getName().substring("com.legend.".length()).replace('.', '/') + ".java";
         Path file = main.resolve(rel);
+        if (!Files.exists(file) && test != null) {
+            // a record of the test sources (the element mode's ElementAnswers)
+            file = test.resolve(rel);
+        }
         String src = sources.computeIfAbsent(file, f -> {
             try {
                 return Files.readString(f, StandardCharsets.UTF_8);
@@ -1005,6 +1014,312 @@ public final class FrontCodegen {
         out.append("    /// Java's `valueOf(name)`: `None` where it throws.\n");
         out.append("    pub fn value_of(name: &[u16]) -> Option<").append(name).append("> {\n");
         out.append("        ").append(name).append("::VALUES.into_iter().find(|v| v.name().encode_utf16().eq(name.iter().copied()))\n");
+        out.append("    }\n}\n\n");
+    }
+
+    // ------------------------------------------------------------------ ElementAnswers' records (element mode)
+
+    /*
+     * THE ELEMENT DIFFERENTIAL'S RECORDS IN RUST (2026-11-15, docs/rust-port/PHASE3.md, the element slice, step 5): Rust
+     * mirrors of what ElementAnswers writes with the record codec -- its projections (ClassView, ConstraintView,
+     * FunctionView) and the records they hold that are neither the model's nor the protocol's: compiler.element's
+     * Property (Stored, Derived), TypedEnum, TypedParameter and TypedConstraint.EnforcementLevel, and the
+     * compiler.element.type family (Type and its records and enums, Param, Column, Op; Multiplicity's) -- with the same
+     * codec's writer, so rust/lite-element's differential writes ElementAnswers' text byte for byte from one schema
+     * (rust/lite-element/tests/support/oracle_records.rs). A model record they hold is spelled as rust/lite-model holds
+     * it (lite_model::, an Arc), a protocol record as rust/lite-front does (p::); the walk stops there. A mirror record
+     * is held as Box<R>, a list as Vec<T>, an Optional as Option<T>. An enum honours its slot's exactness, as the codec
+     * does (RecordCodec.value's leaf): its bare name where the slot declares the enum, {"@":tag,"$":name} where it does
+     * not -- Type.Primitive in a Type slot. The classes are found by name, never linked: ElementAnswers is test code
+     * (core_tests_lib, which depends on this generator's library) and compiler.element is not among this library's deps,
+     * so the rule's run supplies both on its classpath.
+     */
+
+    private final List<Class<?>> elementRecords = new ArrayList<>();
+    private final List<Class<?>> elementSealed = new ArrayList<>();
+    private final List<Class<?>> elementEnums = new ArrayList<>();
+    private final Map<Class<?>, String> elementNames = new HashMap<>();
+
+    /** The element mode's roots, by binary name. */
+    private static final List<String> ELEMENT_ROOTS = List.of(
+            "com.legend.frontoracle.ElementAnswers$ClassView",
+            "com.legend.frontoracle.ElementAnswers$ConstraintView",
+            "com.legend.frontoracle.ElementAnswers$FunctionView",
+            "com.legend.compiler.element.Property",
+            "com.legend.compiler.element.TypedEnum",
+            "com.legend.compiler.element.TypedParameter",
+            "com.legend.compiler.element.type.Type",
+            "com.legend.compiler.element.type.Multiplicity");
+
+    private String element(Path testSources) throws Exception {
+        this.test = testSources;
+        // the model's Rust names, which a mirror spells a model record by
+        discoverModel(List.of(com.legend.model.ParsedModel.class, com.legend.model.NormalizedModel.class,
+                com.legend.model.Function.class, com.legend.model.FunctionId.class,
+                com.legend.model.ClassMember.class));
+        List<Type> roots = new ArrayList<>();
+        for (String n : ELEMENT_ROOTS) {
+            // initialize false: a projection's class is read, its outer class (ElementAnswers, which boots the
+            // compiler in its static initializer) never run
+            roots.add(Class.forName(n, false, FrontCodegen.class.getClassLoader()));
+        }
+        discoverElement(roots);
+        StringBuilder out = new StringBuilder();
+        out.append("""
+                // GENERATED by //core:element_records_rs (core/src/test/java/com/legend/frontoracle/FrontCodegen.java, its
+                // element mode) from ElementAnswers' projections and the compiler.element records they hold -- do not edit;
+                // regenerate with `bazel run //rust/lite-element:update_generated`. A struct per record, its components in
+                // canonical order (`Option` exactly where the record's source says @Nullable, and for an Optional); an enum
+                // per sealed parent and per Java enum; the lossless codec's writer, byte for byte the JVM's (RecordCodec),
+                // an enum written as its slot declares it (a bare name, or tagged where a sealed parent holds it). A mirror
+                // record is held as `Box<R>`, a list as `Vec<T>`; a model record as rust/lite-model holds it, a protocol
+                // record as rust/lite-front does.
+
+                #![allow(clippy::all, non_camel_case_types, unused_variables, unused_imports, dead_code)]
+
+                use std::sync::Arc;
+
+                use lite_front::codec::{Codec, Writer};
+                use lite_front::jtypes::{BigDecimal, JStr, JValue};
+                use lite_front::records as p;
+
+                """);
+        for (Class<?> c : elementRecords) {
+            elementRecord(out, c);
+        }
+        for (Class<?> c : elementSealed) {
+            elementSealedType(out, c);
+        }
+        for (Class<?> c : elementEnums) {
+            elementEnumeration(out, c);
+        }
+        return out.toString();
+    }
+
+    private void discoverElement(List<Type> roots) {
+        Deque<Type> todo = new ArrayDeque<>(roots);
+        Set<Class<?>> done = new HashSet<>();
+        while (!todo.isEmpty()) {
+            Type t = todo.pop();
+            if (t instanceof ParameterizedType p) {
+                for (Type a : p.getActualTypeArguments()) {
+                    todo.push(a);
+                }
+                continue;
+            }
+            if (!(t instanceof Class<?> c) || !done.add(c)) {
+                continue;
+            }
+            if (isModel(c)) {
+                if ((c.isRecord() || c.isSealed() || c.isEnum()) && !modelNames.containsKey(c)) {
+                    throw new IllegalStateException("ElementAnswers holds " + c.getName()
+                            + ", which the model's records do not reach: rust/lite-model has no type for it");
+                }
+                continue;
+            }
+            if (names.containsKey(c)) {
+                // a protocol record: rust/lite-front's
+                continue;
+            }
+            if (!c.getName().startsWith("com.legend.")) {
+                // a leaf or a container: the writer's rules (elementType)
+                continue;
+            }
+            if (c.isRecord()) {
+                elementRecords.add(c);
+                for (RecordComponent rc : c.getRecordComponents()) {
+                    todo.push(rc.getGenericType());
+                }
+            } else if (c.isSealed()) {
+                elementSealed.add(c);
+                for (Class<?> s : c.getPermittedSubclasses()) {
+                    todo.push(s);
+                }
+            } else if (c.isEnum()) {
+                elementEnums.add(c);
+            } else {
+                throw new IllegalStateException("ElementAnswers holds " + c.getName()
+                        + ", neither a record, a sealed interface nor an enum");
+            }
+        }
+        Map<String, Class<?>> byElementName = new HashMap<>();
+        for (List<Class<?>> l : List.of(elementRecords, elementSealed, elementEnums)) {
+            l.sort(java.util.Comparator.comparing(RecordCodec::tag));
+            for (Class<?> c : l) {
+                String n = elementName(c);
+                Class<?> before = byElementName.putIfAbsent(n, c);
+                if (before != null) {
+                    throw new IllegalStateException("two classes map to the Rust name " + n + ": " + before + ", " + c);
+                }
+                elementNames.put(c, n);
+            }
+        }
+    }
+
+    /** A mirror's Rust name: ElementAnswers' projections by their own ({@code ClassView}), every other as
+     *  {@link #rustName} names it ({@code Type$Primitive}: {@code TypePrimitive}). */
+    private static String elementName(Class<?> c) {
+        String tag = RecordCodec.tag(c);
+        String projections = "frontoracle.ElementAnswers$";
+        return tag.startsWith(projections) ? tag.substring(projections.length()).replace("$", "") : rustName(c);
+    }
+
+    private void elementRecord(StringBuilder out, Class<?> c) throws Exception {
+        String name = elementNames.get(c);
+        Map<String, Boolean> nulls = nullability(c);
+        RecordComponent[] comps = c.getRecordComponents();
+        out.append("/// `").append(c.getName()).append("`\n");
+        out.append("#[derive(Clone, Debug, PartialEq)]\npub struct ").append(name).append(" {\n");
+        for (RecordComponent rc : comps) {
+            if (nullableElements(c).get(rc.getName())) {
+                throw new IllegalStateException(c.getName() + "." + rc.getName()
+                        + ": a list of nullable elements has no element-mode rule");
+            }
+            RustType t = elementType(rc.getGenericType(), "v");
+            String spelling = nulls.get(rc.getName()) ? "Option<" + t.spelling() + ">" : t.spelling();
+            out.append("    pub ").append(field(rc.getName())).append(": ").append(spelling).append(",\n");
+        }
+        out.append("}\n\n");
+        out.append("impl Codec for ").append(name).append(" {\n");
+        out.append("    fn write(&self, w: &mut Writer, exact: bool) {\n");
+        out.append("        w.raw(\"{\");\n");
+        String tagLit = jsonLiteral(RecordCodec.tag(c));
+        if (comps.length == 0) {
+            out.append("        if !exact { w.raw(\"\\\"@\\\":\"); w.raw(").append(rustString(tagLit)).append("); }\n");
+        } else {
+            out.append("        if !exact { w.raw(\"\\\"@\\\":\"); w.raw(").append(rustString(tagLit))
+                    .append("); w.raw(\",\"); }\n");
+        }
+        for (int i = 0; i < comps.length; i++) {
+            RecordComponent rc = comps[i];
+            String key = (i > 0 ? "," : "") + jsonLiteral(rc.getName()) + ":";
+            out.append("        w.raw(").append(rustString(key)).append(");\n");
+            String access = "self." + field(rc.getName());
+            RustType t = elementType(rc.getGenericType(), "v");
+            if (nulls.get(rc.getName())) {
+                out.append("        match &").append(access).append(" { None => w.raw(\"null\"), Some(v) => { ")
+                        .append(t.write()).append(" } }\n");
+            } else {
+                out.append("        { let v = &").append(access).append("; ").append(t.write()).append(" }\n");
+            }
+        }
+        out.append("        w.raw(\"}\");\n    }\n}\n\n");
+    }
+
+    /** A declared Java type of a mirror's component in Rust, and the statement that writes {@code v} (an expression of
+     *  a reference to it). */
+    private RustType elementType(Type t, String v) {
+        if (t instanceof ParameterizedType p) {
+            Class<?> raw = (Class<?>) p.getRawType();
+            Type[] a = p.getActualTypeArguments();
+            if (raw == List.class) {
+                RustType e = elementType(a[0], "x");
+                return new RustType("Vec<" + e.spelling() + ">",
+                        "{ w.raw(\"[\"); for (i, x) in " + v + ".iter().enumerate() { if i > 0 { w.raw(\",\"); } "
+                                + e.write() + " } w.raw(\"]\"); }");
+            }
+            if (raw == java.util.Optional.class) {
+                // RecordCodec: the value as its argument's type, or null
+                RustType e = elementType(a[0], "o");
+                return new RustType("Option<" + e.spelling() + ">",
+                        "match " + v + " { None => w.raw(\"null\"), Some(o) => { " + e.write() + " } }");
+            }
+            throw new IllegalArgumentException("no element-mode rule for " + t.getTypeName());
+        }
+        Class<?> c = (Class<?>) t;
+        if (c == int.class || c == Integer.class) {
+            return new RustType("i32", "w.int(i64::from(*" + v + "));");
+        }
+        if (c == long.class || c == Long.class) {
+            return new RustType("i64", "w.int(*" + v + ");");
+        }
+        if (c == boolean.class || c == Boolean.class) {
+            return new RustType("bool", "w.boolean(*" + v + ");");
+        }
+        if (c == String.class) {
+            return new RustType("JStr", "w.string(" + v + ");");
+        }
+        if (isModel(c)) {
+            if (c.isRecord()) {
+                return new RustType("Arc<lite_model::" + modelNames.get(c) + ">", v + ".write(w, true);");
+            }
+            return new RustType("lite_model::" + modelNames.get(c), v + ".write(w, true);");
+        }
+        if (names.containsKey(c)) {
+            if (c.isRecord()) {
+                boolean shared = family(c) || c == com.legend.protocol.DerivedPropertyDefinition.class;
+                return new RustType((shared ? "Arc<p::" : "Box<p::") + names.get(c) + ">", v + ".write(w, true);");
+            }
+            return new RustType("p::" + names.get(c), v + ".write(w, true);");
+        }
+        if (elementNames.containsKey(c)) {
+            if (c.isRecord()) {
+                return new RustType("Box<" + elementNames.get(c) + ">", v + ".write(w, true);");
+            }
+            return new RustType(elementNames.get(c), v + ".write(w, true);");
+        }
+        throw new IllegalArgumentException("no element-mode rule for " + c.getName());
+    }
+
+    private void elementSealedType(StringBuilder out, Class<?> c) {
+        String name = elementNames.get(c);
+        out.append("/// `").append(c.getName()).append("` (sealed)\n");
+        out.append("#[derive(Clone, Debug, PartialEq)]\npub enum ").append(name).append(" {\n");
+        for (Class<?> s : c.getPermittedSubclasses()) {
+            String sn = elementNames.get(s);
+            out.append("    ").append(sn).append("(").append(s.isRecord() ? "Box<" + sn + ">" : sn).append("),\n");
+        }
+        out.append("}\n\n");
+        // a value in a slot declared as this parent is never exact: each record writes its tag, each enum its tagged leaf
+        out.append("impl Codec for ").append(name).append(" {\n");
+        out.append("    fn write(&self, w: &mut Writer, _exact: bool) {\n        match self {\n");
+        for (Class<?> s : c.getPermittedSubclasses()) {
+            out.append("            ").append(name).append("::").append(elementNames.get(s))
+                    .append("(x) => x.write(w, false),\n");
+        }
+        out.append("        }\n    }\n}\n\n");
+    }
+
+    private void elementEnumeration(StringBuilder out, Class<?> c) {
+        String name = elementNames.get(c);
+        Object[] constants = c.getEnumConstants();
+        out.append("/// `").append(c.getName()).append("` (enum)\n");
+        out.append("#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]\npub enum ").append(name).append(" {\n");
+        for (Object k : constants) {
+            out.append("    ").append(((Enum<?>) k).name()).append(",\n");
+        }
+        out.append("}\n\n");
+        // RecordCodec's leaf: the name where the slot declares the enum, else {"@":tag,"$":name}
+        out.append("impl Codec for ").append(name).append(" {\n");
+        out.append("    fn write(&self, w: &mut Writer, exact: bool) {\n");
+        out.append("        let name = match self {\n");
+        for (Object k : constants) {
+            String n = ((Enum<?>) k).name();
+            out.append("            ").append(name).append("::").append(n).append(" => ")
+                    .append(rustString(jsonLiteral(n))).append(",\n");
+        }
+        out.append("        };\n");
+        out.append("        if exact { w.raw(name); return; }\n");
+        out.append("        w.raw(\"{\\\"@\\\":\"); w.raw(").append(rustString(jsonLiteral(RecordCodec.tag(c))))
+                .append("); w.raw(\",\\\"$\\\":\"); w.raw(name); w.raw(\"}\");\n");
+        out.append("    }\n}\n\n");
+        out.append("impl ").append(name).append(" {\n");
+        out.append("    /// Java's `values()`, in declaration order.\n");
+        out.append("    pub const VALUES: [").append(name).append("; ").append(constants.length).append("] = [");
+        for (int i = 0; i < constants.length; i++) {
+            out.append(i > 0 ? ", " : "").append(name).append("::").append(((Enum<?>) constants[i]).name());
+        }
+        out.append("];\n\n");
+        out.append("    /// Java's `name()`.\n    pub fn name(self) -> &'static str {\n        match self {\n");
+        for (Object k : constants) {
+            String n = ((Enum<?>) k).name();
+            out.append("            ").append(name).append("::").append(n).append(" => ").append(rustString(n))
+                    .append(",\n");
+        }
+        out.append("        }\n    }\n\n");
+        out.append("    /// Java's `valueOf(name)`: `None` where it throws.\n");
+        out.append("    pub fn value_of(name: &str) -> Option<").append(name).append("> {\n");
+        out.append("        ").append(name).append("::VALUES.into_iter().find(|v| v.name() == name)\n");
         out.append("    }\n}\n\n");
     }
 

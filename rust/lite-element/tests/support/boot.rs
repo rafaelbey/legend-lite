@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The planner's half of what step F is handed (2026-11-15, the element slice, step 5): `Compiler.boot()`,
-//! `bootFqns()`, `withoutPreludeShadows` and `normalizeWithSystem` (Compiler.java:303-500 at 18feff3fe), composed over
+//! `bootFqns()`, `withoutPreludeShadows` and `normalizeWithSystem` (Compiler.java:273-510 at 18feff3fe), composed over
 //! lite-names, lite-normalizer, lite-platform and lite-builtin, line for line. They are the compile driver's, not
 //! lite-element's API, so they live here, in the differential's test support, until the planner's slice ports them.
 //!
@@ -66,7 +66,7 @@ fn rebuilt(elements: Vec<PackageableElement>, like: &ParsedModel) -> ParsedModel
     }
 }
 
-/// `Compiler.normalizeLayer(resolved, walls)` (Compiler.java:272): the association qualified properties adopted into
+/// `Compiler.normalizeLayer(resolved, walls)` (Compiler.java:273): the association qualified properties adopted into
 /// their owners, THE index, `refuseDuplicates`, then E over it; the model and the index E read.
 pub fn normalize_layer(
     resolved: &ParsedModel,
@@ -89,7 +89,7 @@ pub struct BootNormalized {
     pub functions_by_id: HashMap<FunctionId, Arc<FunctionDefinition>>,
 }
 
-/// `Compiler.boot()`'s body up to `checkLayer` (Compiler.java:303-367): the prelude, refused if it redefines a system
+/// `Compiler.boot()`'s body up to `checkLayer` (Compiler.java:303-370): the prelude, refused if it redefines a system
 /// element; the system metamodel's elements then the prelude's, in a `ParsedModel` made by Java's six-argument
 /// constructor (no source, the empty scope, the prelude's offsets, imports and sources, no unclaimed sections, no
 /// spans); resolved; each prelude function with a system version's id takes that version's body (`PlatformPure.adopt`),
@@ -199,7 +199,7 @@ pub fn boot_model() -> &'static BootNormalized {
     }
 }
 
-/// `Boot.checked` (Compiler.java:369): `PureModelContext.checkLayer(model, index, registrations)` over the normalized
+/// `Boot.checked` (Compiler.java:371): `PureModelContext.checkLayer(model, index, registrations)` over the normalized
 /// boot, once per process. Java hands it the lowering's registrations (`PlatformRegistrations.current()`); Rust has no
 /// lowering yet, so it is handed the registrations the differential hands every model (rust/oracles/builtin's
 /// PlatformTables' set): the checked layer is the boot's elements by identity and its ids, which no registration
@@ -223,7 +223,7 @@ pub fn boot_checked() -> &'static CheckedLayer {
     }
 }
 
-/// `Compiler.bootFqns()` (Compiler.java:381), ElementAnswers' `BOOT_FQNS`: the system metamodel's element names and the
+/// `Compiler.bootFqns()` (Compiler.java:387), ElementAnswers' `BOOT_FQNS`: the system metamodel's element names and the
 /// prelude's.
 pub fn boot_fqns() -> &'static HashSet<JStr> {
     static FQNS: LazyLock<HashSet<JStr>> = LazyLock::new(|| {
@@ -253,7 +253,7 @@ static SHADOWS: LazyLock<Shadows> = LazyLock::new(|| {
     }
 });
 
-/// `Compiler.withoutPreludeShadows(parsed)` (Compiler.java:404): a graph class, enum or profile at a prelude FQN, or a
+/// `Compiler.withoutPreludeShadows(parsed)` (Compiler.java:410): a graph class, enum or profile at a prelude FQN, or a
 /// function with a prelude function's id, is dropped (the prelude wins); the model itself when nothing is.
 pub fn without_prelude_shadows(parsed: &ParsedModel) -> ParsedModel {
     let s = &*SHADOWS;
@@ -279,7 +279,7 @@ pub fn without_prelude_shadows(parsed: &ParsedModel) -> ParsedModel {
     }
 }
 
-/// `Compiler.union(a, b)` (Compiler.java:493): `a` when `b` is empty, else a `LinkedHashMap` of `a` with `b` put in
+/// `Compiler.union(a, b)` (Compiler.java:502): `a` when `b` is empty, else a `LinkedHashMap` of `a` with `b` put in
 /// (a key of both keeps `a`'s place and takes `b`'s value).
 fn union(
     a: &Arc<[(JStr, Arc<LegacyMappingDefinition>)]>,
@@ -305,7 +305,7 @@ pub struct Layer {
     pub own: usize,
 }
 
-/// `Compiler.normalizeWithSystem(resolved, walls)` (Compiler.java:443): the prelude's shadows dropped, a system
+/// `Compiler.normalizeWithSystem(resolved, walls)` (Compiler.java:451): the prelude's shadows dropped, a system
 /// element's redefinition refused, each graph function with a boot version's id adopted (its declaration with the
 /// boot's body; in a tolerant build a refusal walls the id, first reason kept, and the declaration stays as loaded),
 /// E over the graph's own elements, then the boot's elements but the adopted ids' appended, the legacy surfaces the
