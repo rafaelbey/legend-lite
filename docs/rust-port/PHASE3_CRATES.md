@@ -2,7 +2,8 @@
 
 **Status: the map phase 3 builds to, written with slice 1a (PHASE3.md, step 1).** The crates slices 1a and 1b fill exist
 (`lite-base`, `lite-types` and the guards, `lite-guards`; `lite-error`, `lite-model`, `lite-builtin`, `lite-platform`, 2026-11-12;
-`lite-names`, the names slice, 2026-11-12, §7);
+`lite-names`, the names slice, 2026-11-12, §7; `lite-normalizer`, 2026-11-14, §9; `lite-element`, the element slice,
+2026-11-15, §10);
 the rest are named here and made by the slice that first fills each. The owner's ruling it follows: `PHASE3_DESIGN.md` §6 ruling 6 (`lite-core` split along
 `tools/deps/core-layers.txt`, so that "F must not trigger G" is a compile error) and `PHASE3_SHIM_DESIGN.md` §10. Where a
 boundary is a choice the layers file leaves open, it is listed in §5 for the owner.
@@ -29,9 +30,9 @@ says, for each crate that exists, its layers and its exact dependencies, and `li
 | `model` | `lite-model` | `lite-base`, `lite-front` (protocol) | `lite-javacompat`'s white space | **made** (slice 1b): the model records (generated) and the converters from the protocol records; `ModelIndex` is the names slice's |
 | `builtin` with `door` | `lite-builtin` | `lite-base`, `lite-error`, `lite-model`, `lite-front` | | `door` is 67 lines and an exact merge: every layer that reaches `door` reaches `builtin`, and `door`'s deps are within `builtin`'s. **Made** (slice 1b): reaches `lite-error`, `lite-front`, `lite-model` |
 | `platform` | `lite-platform` | `lite-base`, `lite-builtin`, `lite-error`, `lite-model` | | **made** (slice 1b): reaches all four |
-| `compiler_element_type` | `lite-types` | `lite-base`, `lite-builtin`, `lite-model`, `lite-platform`, `lite-front`, `lite-sql` | `lite-sql`'s `SqlType`, `lite-javacompat`'s white space | **made** (slice 1a): reaches `lite-base`, `lite-sql`, `lite-javacompat` today |
+| `compiler_element_type` | `lite-types` | `lite-base`, `lite-builtin`, `lite-model`, `lite-platform`, `lite-front`, `lite-sql` | `lite-sql`'s `SqlType`, `lite-javacompat`'s white space | **made** (slice 1a): reaches `lite-base`, `lite-sql`, `lite-javacompat`; since the element slice (2026-11-15, §10) also `lite-front` and `lite-builtin` (`Multiplicity::from`, `platform::erase_tds_row`) |
 | `database` | `lite-database` | `lite-base`, `lite-error`, `lite-model`, `lite-dialect` | `lite-dialect` | a declared database type to its dialect |
-| `compiler`, split (§2) | `lite-names`, `lite-element`, `lite-spec` | `compiler`'s line, and each part the parts before it | | D and the model index; F; G and G½. **`lite-names` made** (the names slice, 2026-11-12, §7): reaches `lite-base`, `lite-builtin`, `lite-error`, `lite-model`, `lite-platform`, `lite-types`; since the follow-up (2026-11-12, §8) it also holds `Calls`, `RelationalTypeInference`, `ViewSignatures`, `StoreCompiler.columnType` and `MilestoningStrategy`, with no new edge |
+| `compiler`, split (§2) | `lite-names`, `lite-element`, `lite-spec` | `compiler`'s line, and each part the parts before it | | D and the model index; F; G and G½. **`lite-names` made** (the names slice, 2026-11-12, §7): reaches `lite-base`, `lite-builtin`, `lite-error`, `lite-model`, `lite-platform`, `lite-types`; since the follow-up (2026-11-12, §8) it also holds `Calls`, `RelationalTypeInference`, `ViewSignatures`, `StoreCompiler.columnType` and `MilestoningStrategy`, with no new edge. **`lite-element` made** (the element slice, 2026-11-15, §10): reaches `lite-base`, `lite-builtin`, `lite-error`, `lite-front`, `lite-model`, `lite-names`, `lite-platform`, `lite-types`, and no spec crate |
 | `normalizer` | `lite-normalizer` | its line (it reaches all three compiler parts) | | E |
 | `lineage` | `lite-lineage` | its line | | |
 | `validation` | `lite-validation` | its line | | |
@@ -121,7 +122,7 @@ numbers.
 | Bucket | Operations | In slice 1a |
 |---|---|---|
 | (a) a function of `Type`, strings and `SqlType` | `typeName` and every `text()`; `Primitive`'s table (`values`, `byFqn` in its order, `findByFqn`, `typeVariables`, `family`, `isNumeric`, `isTemporal`); `PrecisionDecimal` (its checks, `plus`, `minus`, `times`, `dividedBy`, `adjust`, `basePrimitive`); `relation`, `isRelation`, `classFqn`, `asClassType`, `relationSchema`, `schemaView`, `relationValued`, `requireRelationSchema`, `wireDecided`, `kindOfSqlType`; `RelationType`'s (`lateBound`, `erasedRow`, `isLateBound`, `isErasedRow`, `presentPivotName`, `pivotColumnType`, `trustedColumn`, its duplicate checks); every `PlatformTypes.is*` over a type or a string, `typeValuePath`, `functionTypeOf`, `lambdaType`, `concreteFunctionDefinitionType`, every constant and set; `Multiplicity`'s (`isMany`, `requireBounded`, `union`, `product`, `ofArgument`, the bounds' checks, `isUnbounded`, `isToOne`); `ExprType.one` | **ported**, held to Java's answers |
-| (b) needs a later layer | `Multiplicity.from` (the parser's protocol records: `lite-front`, whose records were being flipped); `PlatformTypes.eraseTdsRow` (`builtin`'s `NativeFn.RowGetter`); `handleRowClass`, `isStatementOnly` (`model`'s `FunctionId`, `builtin`'s `NativeFn`) | left for the slice that ports `builtin` and `model` |
+| (b) needs a later layer | `Multiplicity.from` (the parser's protocol records: `lite-front`, whose records were being flipped); `PlatformTypes.eraseTdsRow` (`builtin`'s `NativeFn.RowGetter`); `handleRowClass`, `isStatementOnly` (`model`'s `FunctionId`, `builtin`'s `NativeFn`) | `Multiplicity.from` and `eraseTdsRow` ported by the element slice (2026-11-15, §10: `lite-types` gained its edges to `lite-front` and `lite-builtin`); `handleRowClass` and `isStatementOnly` left for their callers (the planner and H; the names slice's query pass) |
 | (c) not a type's operation | subtyping: `ModelContext.isSubtype` walks a compiled model's classes (the primitive lattice is `Pure.java`'s `extends` chain; `Type.java` says it is "intentionally not re-encoded here") | not ported, not invented: F's slice ports it with the model, while Java still exists to be asked |
 
 ## 5. For the owner
@@ -334,3 +335,46 @@ value where a body has none) -- a clean fix is adoption sharing the `Arc`, or ce
 rule, the element compilers, the `Typed*` records; the keyed `NormalizationFacts` lookups F reads (PMC:488-535) and
 `MappingDefinition.position` (H's); `ModelNormalizer`'s output is what F's `PureModelContext.from` takes, so F's
 differential runs on this crate's answers.
+
+## 10. What the element slice made (2026-11-15)
+
+`lite-element` (layer `compiler/element`, the split's second part, after `lite-names`; `rust/lite-guards/crate-layers.txt`:
+it reaches `lite-base`, `lite-builtin`, `lite-error`, `lite-front`, `lite-model`, `lite-names`, `lite-platform`,
+`lite-types`, and no spec crate, so F calling G does not build): step F, `PureModelContext.from` and its package,
+8,979 lines with 136 unit tests, the differential 1,175 and its support 2,112. PHASE3.md's element slice entry has the
+numbers.
+
+| Java (`com.legend.compiler.element`, at 18feff3fe) | Rust (`lite-element/src`) |
+|---|---|
+| `PureModelContext` and `ModelContext` (one implementation: no trait) | `model.rs`: `Model<'m>` (its inherent methods, P1-P10), `CheckedLayer`, `Walked`, `Overlay` (ruling 11) |
+| `ModelIntegrity` | `model_integrity.rs` (its 13 checks in Java's order; `refuseDuplicates` is lite-names') |
+| `GraphEdges` (GE1, GE2) | `graph_edges.rs` (GE3, the Cypher view, waits for the Cypher wave) |
+| `TypeClassifier`, `FunctionCompiler`, `ClassCompiler` | `type_classifier.rs`, `function_compiler.rs`, `class_compiler.rs` |
+| `StoreCompiler.tableSchema`, `EqualityKeys.isKeyStereotype` | `store_compiler.rs`, `equality_keys.rs` |
+| `TypedClass`, `Property`, `TypedConstraint`, `TypedEnum`, `TypedParameter`, `TypedFunction` | `typed.rs` |
+
+**The design** (each the conservative path where the choice is a person's; PHASE3.md's entry lists them for the owner):
+the model borrows its `ModelArena` (`&'m`: the crate forbids `unsafe`, so it cannot own what its `Type<'m>`s point into;
+the owning handle and its erasure are the FFI's) and owns its index; the classifier and the compilers are views made
+per call; the element memos are `OnceLock<Result<_, Thrown>>` cells per FQN known at freeze, one `Arc` per overload;
+`Reach` is a mutex map computed outside its lock; the declaration and implementation tables, the packages and the
+universe's ordered list are built at freeze; `CheckedLayer` holds the boot's `Arc`s by identity, one `IdSet` per kind;
+`Model` is `Send + Sync`, checked at compile time; the error type is lite-names' `Thrown` (a raw Java exception Java
+lets escape is `Thrown::Java` with its class).
+
+**Model methods it needed** (never in this crate; census §8): `lite-types`' `Multiplicity::from` and
+`platform::erase_tds_row`; `lite-model`'s `NormalizationFacts` keyed lookups and `Function::java_equals` (Java's record
+equality, the protocol records' positions left out, which `lite-platform`'s `DeclarationTable::of` reads too); the
+`DatabaseDefinition` lookups beyond the default schema were `ModelIndex`'s already.
+
+**The differential's boot.** `Compiler.boot()` and `normalizeWithSystem` (the planner's) are composed in the
+differential's test support (`tests/support/boot.rs`), not this crate's API: the planner's slice moves them into its
+crate. The codec records are FrontCodegen's element mode (`//core:element_records_rs`).
+
+**Left for G** (`lite-spec`): `ModelContext.isDeclaredSubtype` (G½'s, a distinct relation: ASK 16), `Temporal`
+(G, H, lineage, the planner), `StoreCompiler.declaredType`, `StatementInline` and `LiteralMapUnroll` (they reach F and
+G½), `Compiler.resolveQuery`, the typer's slice's own first item (ruling 36, a lifted view's columns checked within a
+family, in Java before G's oracle freezes); `ClassLayouts`, `EqualityKeys` beyond `isKeyStereotype` and
+`RelationalOpRows` wait for I, testplan and H. G reads the model through `Model`'s methods: `find_class` hands out a
+borrow, `find_function` the cell's `Arc`s (SpecCompiler's identity memo keys by them), `is_subtype` returns the walk's
+cached failure.

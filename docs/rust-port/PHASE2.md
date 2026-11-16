@@ -916,7 +916,9 @@ data just before the Java parser is deleted (step 6), and are the gate after it.
      comments, the front oracle's difference list header, the refusal allowlist, `FixtureCorpusParityTest`'s comment), so
      that none is mixed with `main`'s own S128 to S144, S171, S172. Left as written on purpose: ruling 15's own words and the
      two renumbering notes. At the merge the register appends the port's rows after `main`'s S172 (214 rows, no id twice),
-     and `main`'s numbering-blocks note gains the port's S300 to S499.
+     and `main`'s numbering-blocks note gains the port's S300 to S499 (amended by the owner on 2026-11-16: S300 to S399 the
+     port's so far; S400 to S999 left to upstream -- its Deephaven line S400-S499, its bug-fix branches java_bugFixes*
+     S500-S599; S1000 and up the port's).
    - **What conflicted and how each class was resolved** (58 paths). (1) Java this branch deleted and `main` changed -- 27
      files: `Lexer.java` (its keyword map made immutable: behaviour-neutral, as `SectionGrammarRegistry`'s change and the
      protocol records' blank lines are), 17 of `sql/dialect`'s passes and helpers, the four retired dialect tests

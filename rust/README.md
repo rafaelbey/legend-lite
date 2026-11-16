@@ -60,6 +60,12 @@ profile does not.
   `ResolvedMapping`, `SetKeyFacts`, `MilestoningFacts`, `LiftedViews`' and `MappingClosures`' memos, `DynaFnArms` as
   one exhaustive match) and every synthesis family, held byte for byte to the live Java and its frozen answers by
   `tests/normalizer_differential.rs` (`rust/oracles/normalizer`: 74,364 asks, every one equal).
+- `lite-element/`: the element compiler (step F; core's `compiler/element`, the compiler's second part):
+  `PureModelContext.from` and the concrete `Model` it builds (ModelContext's methods as `Model`'s own), the integrity
+  pass, GraphEdges' F-time rule, the type classifier and the element compilers, the typed records, line for line
+  (2026-11-15); the model borrows its arena, its element memos `OnceLock` cells per FQN; held byte for byte to the live
+  Java and its frozen answers by `tests/element_differential.rs` (`rust/oracles/element`: 74,418 asks, every one
+  equal), the boot layer composed as `Compiler.boot()` composes it.
 
 - `BASELINE.tsv`: every test target of `bazel test //...` on the pristine tree -- since 2026-11-11 upstream `main` at
   `c4a39e06d`, the merge point (PHASE3_SHIM_DESIGN.md §10, ruling 14; macOS arm64): 552 targets, 550 passed, 2 skipped

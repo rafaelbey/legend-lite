@@ -1574,6 +1574,149 @@ done, in the order of the design's §3.
      `6a8d9ae58` completes `59475c162`; `749d789da` deletes `47d13b73f`'s item 4 (c) truncation; `6ff7c5398` replaces
      the first batch's item 10 US:797 codec comparison (`847a12e7c`).
 
+   **The element slice: step F as `lite-element` (2026-11-15;** [`PHASE3_CRATES.md`](PHASE3_CRATES.md) §10**).** E's
+   carried include walk routed through one walker, a ModelJoin pairing E read one way corrected to a hold, F's Java made a
+   refusal wherever a user's text reached a raw crash and its missing bounds check added, then F frozen (D, E with the
+   boot layer, F: 74,418 asks), then ported family by family and held to the freeze byte for byte. Every measurement and
+   tool is in `port-scratch/element/`.
+
+   - *Step 0, E's carried include walk* (`5930cf4db`, PLUMBING): `MappingNormalizer.cleanSheetEnumerationMappings`
+     enters `MappingClosures`' one include walk (`includedEnumerationMappings`; the legacy door's
+     `Closure.enumerationMappings` the same walk with its policy): a clean-sheet includer skips an include the model has
+     not, as before, a legacy one refuses it, as before; LegacyReachbackCensusTest's REGISTER back to MappingClosures' 2
+     alone (dated, a RETIRED_TESTS row); Java and Rust tests pin the missing-include policy (direct and nested, strict
+     and tolerant). Nothing moved: NormalizerAnswers 74,364 of 74,364 byte-identical, NameAnswers' five files each
+     byte-identical, the Rust normalizer differential equal.
+   - *Step 0b, the coordinator's addition* (`4e13412dd`, ENGINE-SOURCED, run; correcting `e8ac002d0` and `2505f9d1d`, as
+     java_bugFixes_next's `0bde2ada6`): `ModelJoinNesting.pairEndVars` used the pairing of the direction whose source is
+     property2's class for both directions of E's one predicate; legend-engine pairs each direction on its own, so with
+     both parameters typed by a type both ends conform to (Any, a shared base) its first parameter is each direction's
+     source (run: Firm_Person, `"root".FIRM_ID > "firm_0".ID` and `"root".ID > "person_0".FIRM_ID`), where lite's
+     predicate meant direction 1 both ways. Engine-exact needs a predicate per direction, which E's one
+     `AssociationBinding` and the resolver (H) cannot carry locally: so the hold, java_bugFixes_next's
+     NotImplementedException, deferred (the association poisoned), register row SF1 for the owner, carried to H. A bare
+     `Any` (the engine's "Can't find type 'Any'") unchanged: 2505f9d1d's hold. Reach 0 (normalizer 74,364 equal).
+   - *Step 1, the Java changes before the freeze* (each with a Java test, `core/src/test/.../compiler/element/
+     ElementRefusalsTest`): (a) `3a39152ec` PMC:415-440, `findProperty` on a walled cyclic class (a tolerant build)
+     overflowed the stack, reached by 48 front-oracle asks over 16 texts: refused by name in ModelIntegrity's words for
+     the same cycle, attributed to the walk's start (its path a `LinkedHashSet`, a diamond no cycle); `18feff3fe` PMC:439,
+     a lookup of a walled association end [2..1] threw a raw IllegalArgumentException: the bounds check's refusal under
+     the association. (b) `5ec185d05` ruling 30's bounds check on function parameters, returns and association ends, the
+     property check's rule and words ("parameter 'x' of function w::f: invalid multiplicity — upper (1) must be >= lower
+     (2)", "return of function ...", "property 'a' of association ..."), FunctionCompiler's false comment ":85 a STRICT
+     build never gets here" made true; the engine asked first (SF5: it compiles a parameter, an end and a property
+     [2..1] and refuses a return only by its body check); reach 0 front-oracle texts (the cases alone, lifted functions
+     counted). (c) measured, no Java change: `resolutionUniverse`'s HashSet reaches a test plan only through
+     JudgmentFacts:117's `Any` slot, and no `byClass` of the host test plans, the values index or the four archived
+     database-judge plan files holds `meta::relational::metamodel::Literal` (prelude.pure:3622, the one `Any`-typed key);
+     carried to testplan with that reach. (d) the raw sites beyond (a)'s two, ported as they are and listed: findTable's
+     duplicate column and DECIMAL scale (21 asks over 7 texts), a walled class's [2..1] property met by findClass,
+     isSubtype and findProperty (9 / 3), a nested function type's [2..1] escaping `from` raw even strict (the cases), an
+     all-broken overload set rethrowing the bound's IllegalArgumentException.
+   - *Step 2, the oracle* (`03d5017bc`, ruling 31; `rust/oracles/element/`, its MANIFEST): `frontoracle/ElementAnswers`
+     drives D, E with the boot layer (`Compiler.normalizeWithSystem`, by reflection) and F (`PureModelContext.from`
+     with the boot's checked layer), never G -- `Compiler.compileErrors` goes on to `compileAllBodies` whenever the
+     elements compile, so the entry is `from`'s integrity result; the boot layer is in because the platform's profiles
+     are prelude elements (680 texts use `doc`). 74,418 asks over 26,347 texts, the front oracle's and 43 cases (the
+     bounds, the walled cycle, the swallow, GraphEdgesTest's every text, one per integrity check and one with all
+     thirteen), strict and tolerant; two runs byte-identical (850 s, 845 s); forms 1.9 GB archived (19.8 MB). Reach,
+     front oracle (texts, strict): classes 8,478, functions 12,697, associations 1,964, enums 1,451, databases 6,038,
+     mappings 5,128, runtimes 4,185, services 503, data spaces 1,918; derived properties 1,301, constraints 251,
+     supertypes 1,018; P6 facts 458; isSubtype bounded 52; GE2 refusals 8 (1,822 texts name `graph::graph`); the gate's
+     own duplicates check 0 (a prelude shadow dropped, a system redefinition refused before F).
+   - *Step 3, the model and type methods* (`f69497a5b`, census §8): `lite-types` gains `Multiplicity::from` and
+     `platform::erase_tds_row` (its layer `compiler_element_type` reaches `protocol` and `builtin`: the edges to
+     `lite-front` and `lite-builtin` added, crate-layers.txt dated), `lite-model` the `NormalizationFacts` keyed lookups
+     (`element_methods.rs`); the `DatabaseDefinition` lookups beyond the default schema needed nothing (every one Java
+     makes is `ModelBuilder`'s, which `ModelIndex` answers). The differential added one: `Function::java_equals`
+     (`581367292`, step 5).
+   - *Step 4, the crate* (PHASE3_CRATES.md §10): a skeleton first (`d2559bae1`: every module, type and cross-file
+     signature; `typed.rs` and the cells' plumbing in full), then five helpers filled the families in parallel on
+     disjoint files, line for line against 18feff3fe -- the type kernel (`type_classifier`, `store_compiler`'s
+     `table_schema`, `equality_keys`' `is_key_stereotype`), the element compilers (`function_compiler`, `class_compiler`),
+     the integrity pass (`model_integrity`, its 13 checks in Java's order, `with_element` a fold over the wall sink),
+     GraphEdges' F-time rule (`graph_edges`, GE1 and GE2; GE3 left for the Cypher wave) and the model (`model`: P1-P10,
+     `CheckedLayer`, the overlay) -- and a sixth wrote the differential; every branch cherry-picked here, the worktrees
+     and branches removed. Census §3's DON'T PORT rows are out (PMC's public constructors and 4-argument `from`, MI's
+     3-argument `check`, FC's DecisionProbe hook, GE3, ModelContext's overridden defaults, `TypedNominal`/`TypedElement`,
+     `TypedFunction`'s test constructors, `TypedConstraint.externalId`/`of`), §4's RE-EXPRESS rows applied (ModelContext
+     as `Model`'s inherent methods; `derived` named fields, only `Reach` F's; `packages`, the platform tables built at
+     freeze; the universe a `contains` plus an ordered list; `Walked` the cell's cached refusal; TC:47 `lite_types::ENUM`,
+     TC:111 the name classified directly; MI:434 a direct bounds test, MI:486 a match, MI:553 the literal names; FC:77's
+     swallow a typed `Result`). The design: the model BORROWS its `ModelArena` (no `unsafe` in the crate: the owning
+     handle and its erasure are the FFI's) and owns its index; the classifier and compilers are per-call views; the
+     element memos `OnceLock` cells per FQN known at freeze, a refusal cached, one `Arc` per overload; `Reach` a mutex
+     map computed outside its lock; `CheckedLayer` one `IdSet` per kind over the boot's very `Arc`s (the index adds
+     `Arc`s, never records); a method that makes a `Type` takes the caller's arena; `Model` `Send + Sync`, checked at
+     compile time. `TypedFunction` derives `PartialEq` and hashes by hand over a subset (protocol records are
+     `PartialEq` only; H's resolver hashes calls by value, so a `Hash` is needed). Size: 8,979 lines with their 136 unit tests (model
+     2,274, model_integrity 1,997, graph_edges 1,464, type_classifier 1,326, function_compiler 688, class_compiler 539,
+     typed 314, store_compiler 220, lib 92, equality_keys 65); the differential 1,175 and its support 2,112 (the
+     generated records 653).
+   - *Step 5, the differential* (`tests/element_differential.rs`, `//rust/lite-element:element_differential_test`, large,
+     in `//gates:core`): Rust writes ElementAnswers' canonical text for every ask over lite-names, lite-normalizer (a
+     dev-dependency: `compiler` may not reach `normalizer`) and lite-element, the boot layer composed in its test support
+     as `Compiler.boot()` and `normalizeWithSystem` compose it (the planner's code, not the crate's); the codec records
+     are FrontCodegen's new element mode (`//core:element_records_rs`, `//rust/lite-element:update_generated`).
+     Milestone 1: the boot's NormalizedModel equal to boot-normalized.tsv, all 1,013 elements -- Rust's E over the boot
+     layer, never differentially held before, needed nothing. Milestone 2: boot.txt equal. Then **74,418 of 74,418 asks
+     identical to Java's** (214 s, release, 4 threads; Bazel 189 s), after one fix the trial found: 118 asks over 104 texts
+     differed where Rust compared two function declarations by their derived equality, source positions included, and
+     Java's record `equals` leaves them out (lite-platform's `DeclarationTable::of` and the model's `find_function_by_id`;
+     `Function::java_equals`, Rust only, its own commit).
+   - *Register rows* S1000-S1004, each for the owner (the engine RUN on the harness unless said): S1000 a ModelJoin's
+     per-direction pairing held (step 0b, carried to H); S1001 CC:86's enforcement default (read and run); S1002
+     ModelIntegrity's and TypeClassifier's lite-worded texts against the engine's (run); S1003 GE2's rule, lite-only (run:
+     the engine compiles a misdeclared edge class); S1004 1 (b)'s four `[2..1]` answers. The register's numbering notes,
+     ruling 15 and PHASE2.md's note say the owner's ruling on the blocks of 2026-11-16 (S300 to S399 the port's so far;
+     S400 to S999 left to upstream, its Deephaven line S400-S499 and its bug-fix branches java_bugFixes* S500-S599; S1000
+     and up the port's).
+   - *Guards*: the Java guards that read F's sources keep running against the Java; `ErrorShapeGuardrailTest`'s pin of
+     FC's one catch is restated as lite-guards' `the_element_compiler_catches_no_panic`, `NoEagerUserClassLoadsTest`'s as
+     the model's cell tests (rows in `rust/RETIRED_TESTS.md`); `LegacyReachbackCensusTest`'s F rows,
+     `CodeShapeGuardrailTest`'s PMC allowlist and `ArchitectureTest`'s `PROTOCOL_DESUGAR_DEBT` (TC:111) have no Rust
+     form (re-expressed away) and retire with the Java.
+   - *Java behaviours that look wrong, ported as they are* (lines at 18feff3fe; each the owner's): the raw sites of step
+     1 (d); TC:114 a generic whose head is a primitive or an enum classifies (`String<Integer>`), TC:108 type-variable
+     values beside type arguments ignored, TC:126 `Multiplicity.ofArgument`'s raw exceptions escape, TC:228/:260 an
+     extension variable typed by no primitive accepts no value; CC:71/:83 the lifted FQN made even for a bound
+     realization, CC:28 an unread `functions` field; FC:160 `returnsClassMany` takes a bare name only, FC:143 the shape
+     text for an FQN with no function; MI:131-132/:209-210 any element passes as a store or a connection, MI:85-87 an
+     association's derived properties checked for annotations alone, MI:533-554 only join and filter column references
+     checked; GE:265-279 the to-many loop reads a superclass property the subclass redeclared, GE:195-215 a stored
+     property and an association end of one name share `seen` (the end ignored), GE:248 an unmarked class's derived
+     type markers read on the class alone; PMC:252-256 a walled class joins the reach before its cell is asked, PMC:257
+     a raw exception on the reach escapes even a yes, PMC:320/:330 `contains` admits a function id the iteration never
+     lists, PMC:394-399 `findFunctionById` lists an overload once per equal definition, PMC:774
+     `milestoningWithIncludes`' `seen` starts without the root, PMC:624 an overlay's shadow check reads the base alone;
+     ElementAnswers' header grammar leaves out three things its code writes (the F line's `same`/`apart`, X's `T|F`, the
+     `D@` lines).
+   - *The owner's choices, taken conservatively*: the boot layer in F's oracle (`requireAnnotations` reads the
+     prelude's profiles); the reduced registrations (PlatformTables') handed to F, as Rust cannot yet build the
+     lowering's; the model borrowing its arena; `find_property`, `find_type` and `find_table` allocating in the caller's
+     arena; `TypedFunction`'s hand-written `Hash` over a subset; one `IdSet` per kind in `CheckedLayer`; the universe's
+     ordered list in the index's insertion order (the oracle writes it sorted); `lite-normalizer` a dev-dependency of
+     `lite-element` (the guards read `[dependencies]` alone; ruling 26 ratified lite-platform's test-only edge as a
+     choice); `JStr::lossy` for names entering the arena (a lone surrogate becomes U+FFFD); the step 0b hold rather than
+     an engine-exact emission that needs H; the integrity tests' boot classes stood in for.
+   - *Gates* (the full suite at `f6a29822e` with this record's docs in the tree; after it a rustfmt commit and the
+     docs alone, no test's input): `cargo test --workspace` 1,031 passed, 0 failed, 48 ignored; clippy `-D warnings` and
+     `fmt --check` clean (Rust 1.99.1). Bazel `test //... --keep_going --local_test_jobs=2` (1,811 s): 589 targets, 587
+     passed, 2 skipped (//tools/guards:classpath_test, :markdown_inputs_test), none failed; of `rust/BASELINE.tsv`'s
+     passing targets every one passes but the three gone with their code and ledgered (//core:core_tests_ide,
+     //core:core_tests_lexer, //docs:update_dialect_capability_test); the 40 targets new since the baseline all pass,
+     `//rust/lite-element:lite_element_test`, `:element_differential_test` (189 s) and `:update_generated_test` among
+     them. `ledger_check.sh c4a39e06d`: 98 rows ok, none missing. The early gates (`port-scratch/element/tools/early.sh`:
+     the brief's -- //parser-equivalence:parser_parity, //core:census, every update_generated test, //core:
+     core_tests_integration, //core:guardrails -- with the normalizer batch's set and the touched targets) green before
+     every Java commit, 42 of 42 (a first step 0 run red at //core:census for the uncommitted ElementAnswers, which
+     names a dialect before its allowlist entry: green re-run without it). The probe (EL1, `tools/probe_at.sh` at
+     18feff3fe, the v2 probe in a tagged copy, the complete run, KEEP unset): 143 of 145 targets passing (//core:census
+     and //core:guardrails, probe-caused), all 73,476 frozen keys answered and equal (counts, MirJson, execution and test
+     plans), none moved or absent, 16,969 new keys (the run's by design and the slice's new test texts): no re-freeze;
+     the 38 GB folder deleted, the verify worktree clean. No test source names a replaced refusal text but in a dated
+     comment. Nothing held back by the stop condition.
+
 ## Carried to the slices not yet begun
 
 Work an earlier slice found and ruled for a later one; each item names the ruling and the register row, and is done
@@ -1617,12 +1760,13 @@ when that slice lands.
   legend-engine 4.145.0 `HelperMappingBuilder.java`, `resolveOriginalPropertyName`), once lite holds the milestoned
   properties' original names and order; `MappingValidation.requireEngineModelJoin` and lite-normalizer's
   `require_engine_model_join` then stop holding a temporal end. Reach: 9 asks over 3 texts (legend-pure's MJBTSelf).
-- **E: a clean-sheet includer's include walk through MappingClosures** (the normalizer's second batch's suite fix,
+- ~~**E: a clean-sheet includer's include walk through MappingClosures** (the normalizer's second batch's suite fix,
   `fc8966a9a`; for the owner's review). `MappingNormalizer.cleanSheetEnumerationMappings`' walk (`walkIncludedEnums`,
   `3970872b3`, item 1's MN:539) reaches the legacy surface twice -- `findLegacyMapping` for the included mapping and
   for the package-local include probe -- registered in LegacyReachbackCensusTest's `REGISTER` at 2 (CONSTRUCTION);
   MappingClosures' closures are keyed by a legacy mapping and do not answer for a clean-sheet includer. One include
-  walk for both doors takes the register back to MappingClosures' 2 alone, in Java and Rust together.
+  walk for both doors takes the register back to MappingClosures' 2 alone, in Java and Rust together.~~ Done by the element
+  slice's step 0, `5930cf4db` (the element slice's entry above): the register is MappingClosures' 2 alone, nothing moved.
 - **The resolver (H) and lowering (I).** *A query reading a relational column whose type inference the engine fails is
   refused when it is planned, in the engine's words* (the owner's ruling 35, 2026-11-14, PHASE3_SHIM_DESIGN.md §10;
   register row S378). legend-engine runs `inferRelationalType` where a query asks it -- at plan generation,
@@ -1665,3 +1809,17 @@ when that slice lands.
   0 texts the oracles hold), measured and proposed per call for the typer's slice (G, with ruling 36;
   `port-scratch/normbatch/item6.md`); ~~the register rows S381-S392 as the owner rules them~~ ruled (ruling 37), their
   fixes the normalizer's second batch's (above).
+- **testplan: the resolution universe's order into a test plan** (the element slice's step 1 (c), 2026-11-15; ruling
+  29's first policy, ruling 28). `JudgmentFacts:117` iterates `PureModelContext.resolutionUniverse()`, a `HashSet`, when
+  a key slot is declared `Any`, so a test plan's `byClass` order is Java's hash order there. Reach measured: no `byClass`
+  of `rust/oracles/plan/test-plans-host.tsv.zst`, its values index or the four archived database-judge plan files holds
+  `meta::relational::metamodel::Literal` (prelude.pure:3622, the one `Any`-typed key the platform declares), and the
+  three multi-class `byClass` maps there come from `withSubtree`; 8 front-oracle texts declare an `Any`-typed key. The
+  Java is unchanged; `lite-element`'s `resolution_universe()` is in the index's insertion order and F's oracle writes it
+  sorted. When testplan is ported: a declared order (the universe sorted, or the index's order) with a register row, the
+  Java changed with it, any test plan it moves re-frozen.
+- **The resolver (H), with E: S1000** (the element slice's step 0b, 2026-11-15; for the owner). A ModelJoin whose two
+  parameters pair with the association's ends one way in each direction (both typed by a type both ends conform to:
+  Any, a shared base) is deferred, its association poisoned, where legend-engine answers each direction under its own
+  pairing (`$a` the source both ways). Engine-exact needs a predicate per direction: E emitting two functions, the
+  binding naming both, and H choosing by direction.

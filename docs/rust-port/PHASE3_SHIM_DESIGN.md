@@ -433,7 +433,10 @@ Each with my recommendation first.
     `9c08abbc7`, its replay and re-freeze after it: docs/rust-port/PHASE2.md §4, "The merge of `main` at `c4a39e06d`").
     `main`'s planning code is frozen at that commit for the port.
 15. **The Rust port's register rows take S300 to S499** (2026-11-10), beside the other lines' numbering blocks: at the
-    merge, the port's S128 to S196 are renumbered into it, with every citation.
+    merge, the port's S128 to S196 are renumbered into it, with every citation. **Amended 2026-11-16 (the owner's ruling):** S300 to S399 are the port's
+    so far; S400 to S999 are left to upstream (its Deephaven line holds S400-S499, its bug-fix branches java_bugFixes*
+    hold S500-S599); S1000 and up are the port's (the element slice's first, S1000 to S1004;
+    `docs/SEMANTICS_REGISTER.md`'s numbering note).
 16. **The browser modules are re-frozen from `main`** (2026-11-11): `wasm/planner/` and `sdlc-server/page/` are built by
     TeaVM from pristine `main` at `c4a39e06d` and frozen, so they write `main`'s plan format (v31) and the tab's Output
     into a table works again; the list of inputs where the frozen module and the Rust parser differ is regenerated.
