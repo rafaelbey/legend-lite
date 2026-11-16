@@ -257,7 +257,7 @@ final class ContextReading {
             throw new NotImplementedException(
                     "sqlQueryPostProcessorsConnectionAware hook shape is"
                     + " not a replaceTables lambda — post-processor"
-                    + " recognizer pending for: " + hook);
+                    + " recognizer pending for: " + described(hook));
         }
         for (TypedSpec pair : ppElements(bind.apply(peel(call.args().get(1), bind)), bind)) {
             TypedSpec p = peel(pair, bind);
@@ -265,7 +265,7 @@ final class ContextReading {
                     || !com.legend.compiler.element.type.PlatformTypes.PAIR_FN.equals(pc.callee().qualifiedName())
                     || pc.args().size() != 2) {
                 throw new NotImplementedException("replaceTables pair"
-                        + " argument is not a literal pair(): " + pair);
+                        + " argument is not a literal pair(): " + described(pair));
             }
             composeRename(out, tableName(pc.args().get(0), bind),
                     tableName(pc.args().get(1), bind));
@@ -296,7 +296,25 @@ final class ContextReading {
             return "default".equals(r.schema()) ? r.table() : r.schema() + "." + r.table();
         }
         throw new NotImplementedException("replaceTables pair side is not"
-                + " a schema()/table() navigation: " + nav);
+                + " a schema()/table() navigation: " + described(nav));
+    }
+
+    /** A typed value in a refusal, in Pure terms (the owner's ruling 42, the G census's ASK 4: until 2026-11-16 these
+     *  refusals printed the subtree's Java record, the whole callee with its body and definition, and could print a
+     *  synthesized origin's identity hash): what it is and its type -- a call by its function, a variable by its
+     *  name, a lambda by its last statement, a construction by its class, a collection by its size, any other value
+     *  by its type. */
+    static String described(TypedSpec v) {
+        return switch (v) {
+            case TypedUserCall uc -> "a call to '" + uc.callee().qualifiedName() + "'";
+            case TypedNativeCall nc -> "a call to '" + nc.callee().qualifiedName() + "'";
+            case TypedVariable var -> "$" + var.name();
+            case TypedLambda l -> l.body().isEmpty() ? "an empty lambda"
+                    : "a lambda whose last statement is " + described(l.body().get(l.body().size() - 1));
+            case TypedNewInstance ni -> "a ^" + ni.classFqn() + "(...)";
+            case TypedCollection c -> "a collection of " + c.elements().size();
+            default -> "a value of type " + v.info().type().typeName() + v.info().multiplicity().text();
+        };
     }
 
     /** toOne()/cast wrappers peel — identity for navigation. */

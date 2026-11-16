@@ -47,9 +47,13 @@ class AuditRound3Test {
         // the [0..0] literal fails the lower bound of the [1] slot
         // abs has upstream's FOUR typed overloads since batch 5 (Integer /
         // Float / Decimal / Number): the [] literal fails every one's [1]
-        // slot and the rejection is the multi-overload form
+        // slot and the rejection is the multi-overload form -- in the
+        // engine's words since 2026-11-16 (the owner's ruling 42, the G
+        // census's ASK 4: it printed "no overload of
+        // 'meta::pure::functions::math::abs' structurally matches" and the
+        // arguments' Java records)
         String absMsg = rejects("|abs([])").getMessage();
-        assertTrue(absMsg.contains("no overload of 'meta::pure::functions::math::abs'"), absMsg);
+        assertTrue(absMsg.contains("Can't find a match for function 'abs(Nil[0])'"), absMsg);
         // Function bodies compile at INLINE time (the execute path) — the
         // return-position check fires there; compileQuery types calls from
         // signatures alone.

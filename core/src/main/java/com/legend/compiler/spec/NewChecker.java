@@ -156,11 +156,10 @@ final class NewChecker {
             try {
                 t.kernel().unify(prop.type(), value.info().type(), new Bindings());   // value must conform
             } catch (TypeInferenceException e) {
-                String v = String.valueOf(key.value());
+                // the kernel's words name the value's type; until 2026-11-16 the text also printed the value's
+                // protocol record, cut at 400 characters (the owner's ruling 42, the G census's ASK 4)
                 throw new TypeInferenceException("property '" + name + "' of '"
-                        + ni.className() + "': " + e.getMessage()
-                        + " (value: " + (v.length() > 400 ? v.substring(0, 400) : v)
-                        + ")");
+                        + ni.className() + "': " + e.getMessage());
             }
             // Multiplicity conformance: FULL subsumption, exactly real
             // pure's NewValidator (Multiplicity.subsumes) — the declared

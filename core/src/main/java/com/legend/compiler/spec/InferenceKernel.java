@@ -1144,17 +1144,10 @@ public final class InferenceKernel {
             }
         }
         if (winners.isEmpty()) {
-            StringBuilder detail = new StringBuilder();
-            for (ExprType a : args) {
-                detail.append(detail.length() == 0 ? "" : ", ").append(a);
-            }
-            StringBuilder cands = new StringBuilder();
-            for (TypedFunction c : arityMatches) {
-                cands.append("; ").append(c.parameters());
-            }
-            throw new TypeInferenceException("no overload of '" + name
-                    + "' structurally matches the argument types ("
-                    + detail + ")" + cands);
+            // the engine's words (the owner's ruling 42, the G census's ASK 4; legend-engine 4.145.0 refuses the same
+            // call when it compiles the lambda, run): until 2026-11-16 the text printed the arguments' and the
+            // candidates' Java records (ExprType[...], [TypedParameter[...]])
+            throw new TypeInferenceException(NoMatch.text(name, args, candidates));
         }
         if (winners.size() > 1) {
             // DUPLICATE-SIGNATURE tolerance: distinct FQNs registering the

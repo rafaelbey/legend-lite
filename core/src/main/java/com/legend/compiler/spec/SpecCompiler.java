@@ -509,7 +509,7 @@ public final class SpecCompiler {
                 ? scope.resolveAlias(rhs) : rhs;
     }
 
-    private static String simpleName(String typeName) {
+    static String simpleName(String typeName) {
         int idx = typeName.lastIndexOf("::");
         return idx < 0 ? typeName : typeName.substring(idx + 2);
     }

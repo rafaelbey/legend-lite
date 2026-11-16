@@ -33,6 +33,37 @@ final class TableReferenceChecker {
     private TableReferenceChecker() {
     }
 
+    /** A malformed call's refusal (the owner's ruling 42, the G census's ASK 4: until 2026-11-16 it printed the
+     *  arguments' protocol records). Arguments the signature does not take -- a count or a type no form has: the
+     *  engine's words, as it refuses the same call when it compiles the lambda (legend-engine 4.145.0, run:
+     *  {@code tableReference(t::Db, 1)}), over the arguments' types; arguments of the right types that are not written
+     *  as the call needs them -- the database by name, the schema and table names as string literals, which the engine
+     *  would evaluate -- lite's words, naming the argument. */
+    private static String malformed(Typer t, AppliedFunction af, Env env) {
+        List<ExprType> types = af.parameters().stream().map(p -> t.synth(p, env).info()).toList();
+        int n = types.size();
+        boolean fits = (n == 2 || n == 3)
+                && types.get(0).type().equals(
+                        new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.DATABASE))
+                && types.subList(1, n).stream().allMatch(x -> x.type() == Type.Primitive.STRING);
+        if (!fits) {
+            return NoMatch.text(af.function(), types, t.formCandidates(CoreFn.TABLE_REFERENCE, 3));
+        }
+        if (!(af.parameters().get(0) instanceof PackageableElementPtr)) {
+            return "tableReference names its database by its path (#>{db.TABLE}#, or tableReference(db, 'SCHEMA',"
+                    + " 'TABLE')); argument 1 is a value of type Database";
+        }
+        for (int i = 1; i < n; i++) {
+            if (!(af.parameters().get(i) instanceof CString)) {
+                return "tableReference's schema and table names are string literals written at the call; argument "
+                        + (i + 1) + " is "
+                        + (af.parameters().get(i) instanceof com.legend.protocol.spec.Variable v
+                                ? "$" + v.name() : "a computed String");
+            }
+        }
+        throw new IllegalStateException("typer bug: a well-formed tableReference refused as malformed");
+    }
+
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
         int n = af.parameters().size();
         // Two spellings: the #>{db.TABLE}# desugar (db, 'TABLE') and the
@@ -44,9 +75,7 @@ final class TableReferenceChecker {
                 || !(af.parameters().get(0) instanceof PackageableElementPtr dbRef)
                 || !(af.parameters().get(n - 1) instanceof CString tableName)
                 || (n == 3 && !(af.parameters().get(1) instanceof CString))) {
-            throw new TypeInferenceException(
-                    "tableReference expects (database, ['SCHEMA',] 'TABLE'); got "
-                    + af.parameters());
+            throw new TypeInferenceException(malformed(t, af, env));
         }
         // The names as the MODEL keeps them: bare, the quotes a spelling. The #>{db."my s"."my t"}#
         // desugar carries its parts as written (upstream keeps them quoted and compares the text);
