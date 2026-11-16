@@ -1664,7 +1664,9 @@ done, in the order of the design's §3.
      differed where Rust compared two function declarations by their derived equality, source positions included, and
      Java's record `equals` leaves them out (lite-platform's `DeclarationTable::of` and the model's `find_function_by_id`;
      `Function::java_equals`, Rust only, its own commit).
-   - *Register rows* S1000-S1004, each for the owner (the engine RUN on the harness unless said): S1000 a ModelJoin's
+   - *Register rows* S1000-S1004, each written for the owner to rule (ruled 2026-11-16, ruling 41: S1000 held and
+     carried to H, the other four lite's kept; S1005, the qualified call under an import, ruled with them) (the engine
+     RUN on the harness unless said): S1000 a ModelJoin's
      per-direction pairing held (step 0b, carried to H); S1001 CC:86's enforcement default (read and run); S1002
      ModelIntegrity's and TypeClassifier's lite-worded texts against the engine's (run); S1003 GE2's rule, lite-only (run:
      the engine compiles a misdeclared edge class); S1004 1 (b)'s four `[2..1]` answers. The register's numbering notes,
@@ -1820,7 +1822,8 @@ when that slice lands.
   each name at its first place, then the platform's names not already there, sorted in Java's String order) and F's
   oracle writes it sorted. When testplan is ported: a declared order (the universe sorted, or the index's order) with a register row, the
   Java changed with it, any test plan it moves re-frozen.
-- **The resolver (H), with E: S1000** (the element slice's step 0b, 2026-11-15; for the owner). A ModelJoin whose two
+- **The resolver (H), with E: S1000** (the element slice's step 0b, 2026-11-15; the owner's ruling 41, 2026-11-16:
+  held until H, made engine-exact there). A ModelJoin whose two
   parameters pair with the association's ends one way in each direction (both typed by a type both ends conform to:
   Any, a shared base) is deferred, its association poisoned, where legend-engine answers each direction under its own
   pairing (`$a` the source both ways). Engine-exact needs a predicate per direction: E emitting two functions, the

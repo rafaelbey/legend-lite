@@ -435,8 +435,8 @@ Each with my recommendation first.
 15. **The Rust port's register rows take S300 to S499** (2026-11-10), beside the other lines' numbering blocks: at the
     merge, the port's S128 to S196 are renumbered into it, with every citation. **Amended 2026-11-16 (the owner's ruling):** S300 to S399 are the port's
     so far; S400 to S999 are left to upstream (its Deephaven line holds S400-S499, its bug-fix branches java_bugFixes*
-    hold S500-S599); S1000 and up are the port's (the element slice's first, S1000 to S1004;
-    `docs/SEMANTICS_REGISTER.md`'s numbering note).
+    hold S500-S599); S1000 and up are the port's (the element slice's first, S1000 to S1004; S1005 the qualified call
+    under an import; `docs/SEMANTICS_REGISTER.md`'s numbering note).
 16. **The browser modules are re-frozen from `main`** (2026-11-11): `wasm/planner/` and `sdlc-server/page/` are built by
     TeaVM from pristine `main` at `c4a39e06d` and frozen, so they write `main`'s plan format (v31) and the tab's Output
     into a table works again; the list of inputs where the frozen module and the Rust parser differ is regenerated.
@@ -612,6 +612,20 @@ Each with my recommendation first.
     the milestoned properties' original names and order (PHASE3.md, carried items). S376's quoted `"default"` schema:
     lite folds the quoted spelling into the default schema and compiles, where the engine refuses "Can't find schema
     '\"default\"' in database 'Db'" (reach 0).
+41. **The element slice's five divergences kept or held, and a qualified call under an import** (2026-11-16; the
+    questions the lead asked on the element slice's report: register rows S1000 to S1004; and S1005, ruled first on
+    java_bugFixes, PR #102's review, its row S503, and confirmed here). S1000, a ModelJoin whose two parameters pair
+    with the association's ends one way in each direction: the element slice's hold stays -- the association poisoned,
+    a query navigating either direction refused at plan, no SQL emitted under the wrong pairing -- and the exact form is
+    the resolver's slice's (H): a predicate per direction, the binding naming both, H choosing by the navigated
+    direction, as legend-engine 4.145.0 does (`PHASE3.md`, carried items). S1001, a constraint's enforcement level
+    through the protocol JSON door: lite's case-insensitive `Warn`, and ERROR for any other level, kept. S1002, the
+    integrity pass's refusals: lite's words kept, the verdict and the place the engine's (S300's precedent). S1003, the
+    property-graph edge rule (GE2): lite's check kept, lite-only, where the engine compiles a misdeclared edge class (8
+    front-oracle texts refused). S1004, a `[2..1]` parameter, return or association end: ruling 30's check kept,
+    lite-only, where the engine compiles three of the four. S1005, a qualified call under a wildcard import
+    (`import a::*;` then `b::f()`): lite follows legend-pure, which looks a packaged name up by its absolute path only,
+    where legend-engine also prefixes each import (`03b791378` kept). No code changes.
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.
