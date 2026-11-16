@@ -44,11 +44,13 @@
 //! list; `Walked`'s rethrown exception the cell's cached refusal. DON'T PORT (census §3): the public constructors
 //! (PMC:61, :68) and the wall-sink-only `from` (PMC:169); `ModelContext`'s 25 overridden default bodies.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::Deref;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard, OnceLock, PoisonError};
 
 use lite_base::{Alloc, IdSet, ModelArena};
+use lite_builtin::pure::catalog;
+use lite_error::Phase;
 use lite_model::linked::LinkedMap;
 use lite_model::{
     AssociationDefinition, AssociationDefinitionAssociationEndDefinition, ClassDefinition, ConnectionDefinition,
@@ -56,17 +58,19 @@ use lite_model::{
     DatabaseDefinitionTableDefinition, DatabaseDefinitionTableDefinitionMilestoning, DatabaseDefinitionViewDefinition,
     EnumDefinition, Function, FunctionDefinition, FunctionId, JStr, KeyThread, LegacyMappingDefinition,
     MappingDefinition, MeasureDefinition, NativeFunctionDefinition, NormalizedModel, PoisonKey,
-    PoisonKeyForAssociation, PoisonKeyForClass, PoisonKeyForSet, ProfileDefinition, RuntimeDefinition,
+    PoisonKeyForAssociation, PoisonKeyForClass, PoisonKeyForSet, ProfileDefinition, RuntimeDefinition, cat,
 };
+use lite_names::resolver::platform_fqns;
 use lite_names::{IndexUniverse, ModelIndex, StoreLookups, Thrown, Universe};
 use lite_platform::{DeclarationTable, ImplementationTable, Registrations};
 use lite_types::{RelationType, Type, platform};
 
 use crate::class_compiler;
 use crate::function_compiler::FunctionCompiler;
+use crate::model_integrity;
 use crate::store_compiler;
 use crate::type_classifier::TypeClassifier;
-use crate::typed::{Property, TypedClass, TypedEnum, TypedFunction};
+use crate::typed::{Property, PropertyStored, TypedClass, TypedEnum, TypedFunction};
 
 /// The concrete model (Java's `PureModelContext`): the graph's index, its frozen Knowledge, its lazy typed elements.
 /// `Send + Sync`, shared by the threads planning on it; no `&mut` after freeze.
@@ -213,7 +217,8 @@ impl<'m> Model<'m> {
         prior: Option<&CheckedLayer>,
         registrations: &Registrations,
     ) -> Result<Model<'m>, Thrown> {
-        unimplemented!("lite-element skeleton: PureModelContext.from")
+        let index = gate(normalized, index, wall_sink, prior)?;
+        Ok(Model::freeze(arena, index, registrations))
     }
 
     /// `checkLayer(normalized, index, registrations)` (PMC:132): the layer checked on its own, strictly (a failure is
@@ -224,7 +229,64 @@ impl<'m> Model<'m> {
         index: ModelIndex,
         registrations: &Registrations,
     ) -> Result<CheckedLayer, Thrown> {
-        unimplemented!("lite-element skeleton: PureModelContext.checkLayer")
+        let arena = ModelArena::new();
+        let alone = Model::from(&arena, normalized, index, None, None, registrations)?;
+        Ok(layer_of(alone.index()))
+    }
+
+    /// The freeze (2026-11-15; census §4, Knowledge built at freeze, ruling 4): what Java's constructor (PMC:74-93)
+    /// and its lazy fields leave to first use, built once over the checked index -- the declaration table
+    /// (`declarations`, PMC:645: the catalog's natives, then the model's functions) and the implementation table
+    /// (`implementations`, PMC:656), the element FQNs (`elementFqns`, PMC:345) and the resolution universe's
+    /// iteration in the module's declared order, the packages (`isPackage`, PMC:477), and the element cells: a class
+    /// cell per FQN `classDef` answers (the index's classes, the catalog's native classes), an enum cell per FQN
+    /// `enumDef` answers (the index's enums, the catalog's), a function cell per FQN with a native or a model
+    /// function. Nothing here throws (neither table build does: they collect their dangling and conflicting ids).
+    fn freeze(arena: &'m ModelArena, index: ModelIndex, registrations: &Registrations) -> Model<'m> {
+        let natives = catalog();
+        let declarations = DeclarationTable::of(
+            natives
+                .all()
+                .iter()
+                .map(|n| Function::NativeFunctionDefinition(n.clone()))
+                .chain(index.functions().cloned()),
+        );
+        let implementations = ImplementationTable::build(&declarations, registrations);
+        let element_fqns = element_fqns_of(&index);
+        let packages = packages_of(&element_fqns);
+        let universe = universe_of(&element_fqns);
+        let class_cells = index
+            .classes()
+            .map(|c| &c.qualified_name)
+            .chain(natives.native_classes().iter().map(|c| &c.qualified_name))
+            .map(|fqn| (fqn.clone(), OnceLock::new()))
+            .collect();
+        let enum_cells = index
+            .enums()
+            .map(|e| &e.qualified_name)
+            .chain(natives.native_enums().iter().map(|e| &e.qualified_name))
+            .map(|fqn| (fqn.clone(), OnceLock::new()))
+            .collect();
+        let function_cells = natives
+            .all()
+            .iter()
+            .map(|n| &n.qualified_name)
+            .chain(index.functions().map(Function::qualified_name))
+            .map(|fqn| (fqn.clone(), OnceLock::new()))
+            .collect();
+        Model {
+            arena,
+            index,
+            declarations,
+            implementations,
+            packages,
+            element_fqns: Arc::from(element_fqns),
+            universe: Arc::from(universe),
+            class_cells,
+            enum_cells,
+            function_cells,
+            reach: Mutex::new(HashMap::new()),
+        }
     }
 
     /// The type classifier over the index (PMC:45's field, a view per call).
@@ -262,13 +324,59 @@ impl<'m> Model<'m> {
     /// `isSubtype(childFqn, parentFqn)` (PMC:221): the same name, or `parent` (or `Nil`, the bottom) on the child's
     /// reach; else the reach's first refusal, when it has one; else false.
     pub fn is_subtype(&self, child_fqn: &JStr, parent_fqn: &JStr) -> Result<bool, Thrown> {
-        unimplemented!("lite-element skeleton: PureModelContext.isSubtype")
+        if child_fqn == parent_fqn {
+            return Ok(true);
+        }
+        let r = self.reach(child_fqn)?;
+        // Nil is the BOTTOM type -- a subtype of every type (ModelContext's walk: reaching it answers true whatever
+        // the parent)
+        if r.contains(parent_fqn) || r.contains(&NIL) {
+            return Ok(true);
+        }
+        // a NO walked everything reachable, so a class that failed to compile on the way is this question's failure
+        if let Some(failure) = r.failure() {
+            return Err(failure.clone());
+        }
+        Ok(false)
     }
 
     /// `reach(cls)` (PMC:240): the class's reach, breadth first through each class's compiled supers (its cell),
-    /// `Nil` not walked past; memoized in `reach`, computed outside the lock.
-    fn reach(&self, cls: &JStr) -> Arc<Walked> {
-        unimplemented!("lite-element skeleton: PureModelContext.reach")
+    /// `Nil` not walked past; memoized in `reach`, computed outside the lock. PMC:257 catches a
+    /// `LegendCompileException` alone: such a refusal of a class on the way is the walk's first failure (that class a
+    /// dead end), anything else (a bound's raw `IllegalArgumentException`, a `NotImplementedException`) escapes the
+    /// walk and nothing is memoized, as Java's throw leaves `Reach` unwritten (2026-11-15: so this returns a
+    /// `Result`, where the skeleton's did not).
+    fn reach(&self, cls: &JStr) -> Result<Arc<Walked>, Thrown> {
+        if let Some(known) = self.reach_memo().get(cls) {
+            return Ok(known.clone());
+        }
+        let mut classes: LinkedMap<JStr, ()> = LinkedMap::new();
+        let mut failure: Option<Thrown> = None;
+        let mut work: VecDeque<JStr> = VecDeque::from([cls.clone()]);
+        while let Some(cur) = work.pop_front() {
+            if !classes.put_if_absent(cur.clone(), ()) || cur == *NIL {
+                continue;
+            }
+            match self.find_class(&cur) {
+                Ok(Some(tc)) => work.extend(tc.super_class_fqns.iter().cloned()),
+                Ok(None) => {}
+                Err(e) if is_legend_compile_exception(&e) => {
+                    if failure.is_none() {
+                        failure = Some(e);
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        let walked = Arc::new(Walked { classes, failure });
+        self.reach_memo().entry(cls.clone()).or_insert_with(|| walked.clone());
+        Ok(walked)
+    }
+
+    /// The `Reach` memo's lock (`derived(Reach.class, ...)`, PMC:204-207, :241; a panic is never raised while it is
+    /// held: nothing is computed under it).
+    fn reach_memo(&self) -> MutexGuard<'_, HashMap<JStr, Arc<Walked>>> {
+        self.reach.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     // ---- P4: the element memos ----
@@ -319,7 +427,20 @@ impl<'m> Model<'m> {
     /// `findFunctionById(qualifiedId)` (PMC:387): the typed overloads whose definition is a model function with that
     /// id or the native with it (model ones first), each found in its FQN's overload list by its definition.
     pub fn find_function_by_id(&self, qualified_id: &JStr) -> Result<Vec<Arc<TypedFunction<'m>>>, Thrown> {
-        unimplemented!("lite-element skeleton: PureModelContext.findFunctionById")
+        let mut defs: Vec<Function> = self.index.find_function_by_id(qualified_id).to_vec();
+        if let Some(n) = catalog().native_function_by_id(qualified_id) {
+            defs.push(Function::NativeFunctionDefinition(n.def().clone()));
+        }
+        let mut out = Vec::with_capacity(defs.len());
+        for d in &defs {
+            for tf in self.find_function(d.qualified_name())? {
+                // `d.equals(tf.definition())`: the record's value equality, as Java's
+                if *d == tf.definition {
+                    out.push(tf.clone());
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// `findFunction(fqn)` (PMC:405): every overload at `fqn`, compiled on first demand into its cell
@@ -350,7 +471,72 @@ impl<'m> Model<'m> {
         class_fqn: &JStr,
         name: &JStr,
     ) -> Result<Option<Property<'a>>, Thrown> {
-        unimplemented!("lite-element skeleton: PureModelContext.findProperty")
+        self.find_property_along(arena, class_fqn, name, &mut Vec::new())
+    }
+
+    /// `findProperty(classFqn, name, path)` (PMC:428): the lookup along `path`, the classes it is inside, its start
+    /// first (Java's `LinkedHashSet`, which the walk adds to and removes from at its end only: a stack here). A class
+    /// met again on its own path is the "Inheritance cycle" refusal (a `ModelException`, MODEL, attributed to the
+    /// path's first class); a class met twice on two paths (a diamond) is walked again. The order: the class's own
+    /// declarations, then each supertype's whole lookup (its association ends included), then the ends injected onto
+    /// the class itself -- the target classified first, then its association (none is Java's
+    /// `IllegalStateException`), then its bounds (`require_valid_bounds_at`), then its multiplicity.
+    fn find_property_along<'a, A: Alloc>(
+        &'a self,
+        arena: &'a A,
+        class_fqn: &JStr,
+        name: &JStr,
+        path: &mut Vec<JStr>,
+    ) -> Result<Option<Property<'a>>, Thrown> {
+        if path.contains(class_fqn) {
+            let mut joined: Vec<u16> = Vec::new();
+            for (i, c) in path.iter().enumerate() {
+                if i > 0 {
+                    joined.extend(" -> ".encode_utf16());
+                }
+                joined.extend_from_slice(&c.0);
+            }
+            return Err(Thrown::model(
+                Phase::Model,
+                cat!("Inheritance cycle: ", joined, " -> ", class_fqn),
+                Some(&path[0]),
+            ));
+        }
+        path.push(class_fqn.clone());
+        let Some(tc) = self.find_class(class_fqn)? else {
+            path.pop();
+            return Ok(None);
+        };
+        if let Some(p) = tc.properties.iter().find(|p| p.name() == name) {
+            return Ok(Some(p.clone()));
+        }
+        for super_fqn in tc.super_class_fqns.iter() {
+            if let Some(inherited) = self.find_property_along(arena, super_fqn, name, path)? {
+                return Ok(Some(inherited));
+            }
+        }
+        path.pop();
+        // the contract's third leg: ASSOCIATION-INJECTED navigation properties resolve at lookup time from the
+        // association index, never stored on the typed class; a superclass's are found through the recursion above
+        let Some(end) = self.index.find_association_end(class_fqn, name) else {
+            return Ok(None);
+        };
+        let target = self.classifier().classify(arena, &end.target_class, &[])?;
+        // a tolerant build keeps a walled association whose end's bounds are inverted: the integrity check's refusal,
+        // in its words and under its element (PMC:456-465)
+        let association = self.index.find_association_of(class_fqn, name)?.ok_or_else(|| {
+            Thrown::illegal_state(cat!("an association end with no association: ", class_fqn, ".", name))
+        })?;
+        model_integrity::require_valid_bounds_at(
+            &end.multiplicity,
+            &model_integrity::association_end_site(end, association),
+            &association.qualified_name,
+        )?;
+        Ok(Some(Property::Stored(PropertyStored::new(
+            end.property_name.clone(),
+            target,
+            TypeClassifier::multiplicity(arena, &end.multiplicity)?,
+        ))))
     }
 
     // ---- P5: the name universe ----
@@ -381,7 +567,13 @@ impl<'m> Model<'m> {
     /// `functionFqns()` (PMC:857): every model function's FQN, each once, in the index's order (Java's is a
     /// `HashSet`: the order its one reader, G's eager compile, iterates is G's question).
     pub fn function_fqns(&self) -> Vec<JStr> {
-        unimplemented!("lite-element skeleton: PureModelContext.functionFqns")
+        let mut seen: HashSet<&JStr> = HashSet::new();
+        self.index
+            .functions()
+            .map(Function::qualified_name)
+            .filter(|fqn| seen.insert(*fqn))
+            .cloned()
+            .collect()
     }
 
     // ---- P6: the mapping facts E stamped ----
@@ -475,7 +667,35 @@ impl<'m> Model<'m> {
         runtime: Arc<RuntimeDefinition>,
         connection: Arc<ConnectionDefinition>,
     ) -> Result<Overlay<'_, 'm>, Thrown> {
-        unimplemented!("lite-element skeleton: PureModelContext.withExecutionOverlay")
+        // ADD, never SHADOW: an overlay must not redefine an element the MODEL declares
+        if self.index.find_runtime(&runtime.qualified_name).is_some()
+            || self.index.find_connection(&connection.qualified_name).is_some()
+        {
+            return Err(Thrown::illegal_argument(cat!(
+                "execution overlay would shadow a model-declared element: '",
+                &runtime.qualified_name,
+                "' / '",
+                &connection.qualified_name,
+                "'"
+            )));
+        }
+        // EAGER ref check: a typo'd mapping fails HERE by name, never mid-query
+        for m in runtime.mappings.iter() {
+            if self.find_mapping(m).is_none() && self.find_legacy_mapping(m).is_none() {
+                return Err(Thrown::illegal_argument(cat!(
+                    "execution overlay runtime '",
+                    &runtime.qualified_name,
+                    "' names unknown mapping '",
+                    m,
+                    "'"
+                )));
+            }
+        }
+        Ok(Overlay {
+            base: self,
+            runtime,
+            connection,
+        })
     }
 
     // ---- P8: the platform tables ----
@@ -510,7 +730,35 @@ impl<'m> Model<'m> {
     /// `classifierInstances(classifierFqn)` (PMC:821): a tracked classifier's extent, distinct, in Java's `String`
     /// order (UTF-16 units, TRIAGE B5); none for an untracked one (a user class: the store lane's).
     pub fn classifier_instances(&self, classifier_fqn: &JStr) -> Option<Vec<JStr>> {
-        unimplemented!("lite-element skeleton: PureModelContext.classifierInstances")
+        // the registry table: tracked classifiers answer their extent, everything else none (a user class: the store
+        // lane owns it); the tracked set (`tracks_classifier`) IS this dispatch's domain
+        let natives = catalog();
+        let mut fqns: Vec<JStr> = if classifier_fqn.eq_str(platform::CLASS_METACLASS) {
+            self.index
+                .classes()
+                .map(|c| c.qualified_name.clone())
+                .chain(natives.native_classes().iter().map(|c| c.qualified_name.clone()))
+                .collect()
+        } else if classifier_fqn.eq_str(platform::ENUMERATION) {
+            self.index
+                .enums()
+                .map(|e| e.qualified_name.clone())
+                .chain(natives.native_enums().iter().map(|e| e.qualified_name.clone()))
+                .collect()
+        } else if classifier_fqn.eq_str(ASSOCIATION_METACLASS) {
+            self.index.associations().map(|a| a.qualified_name.clone()).collect()
+        } else if classifier_fqn.eq_str(platform::MAPPING) {
+            self.index.mappings().map(|m| m.qualified_name.clone()).collect()
+        } else if classifier_fqn.eq_str(platform::DATABASE) {
+            // the store extent (metamodel-store tables seed from it)
+            self.index.databases().map(|d| d.qualified_name.clone()).collect()
+        } else {
+            return None;
+        };
+        // `.distinct().sorted()`: Java's `String` order is its UTF-16 units', `JStr`'s `Ord`
+        fqns.sort();
+        fqns.dedup();
+        Some(fqns)
     }
 
     // ---- P10: the store lookups and the delegations ----
@@ -654,17 +902,40 @@ impl<'m> Model<'m> {
         db_fqn: &JStr,
         name: &JStr,
     ) -> Option<&Arc<DatabaseDefinitionTableDefinitionMilestoning>> {
-        unimplemented!("lite-element skeleton: PureModelContext.findTableMilestoning")
+        let db = self.index.find_database(db_fqn)?;
+        self.milestoning_with_includes(db, name, &mut HashSet::new())
     }
 
-    /// `milestoningWithIncludes(db, name, seen)` (PMC:783).
+    /// `milestoningWithIncludes(db, name, seen)` (PMC:783): the milestoning of the table `db` itself declares, when it
+    /// declares one; else each include not yet in `seen` (which starts without the database asked), depth first, the
+    /// first found. A table of `db`'s own with no milestoning block goes on to the includes, as Java's `Optional.map`
+    /// of a null block is empty.
     fn milestoning_with_includes(
         &self,
         db: &DatabaseDefinition,
         name: &JStr,
         seen: &mut HashSet<JStr>,
     ) -> Option<&Arc<DatabaseDefinitionTableDefinitionMilestoning>> {
-        unimplemented!("lite-element skeleton: PureModelContext.milestoningWithIncludes")
+        if let Some(own) = self
+            .index
+            .find_own_table_definition(&db.qualified_name, name)
+            .and_then(|t| t.milestoning.as_ref())
+        {
+            return Some(own);
+        }
+        for include in db.includes.iter() {
+            if !seen.insert(include.clone()) {
+                continue;
+            }
+            let inc = self
+                .index
+                .find_database(include)
+                .and_then(|d| self.milestoning_with_includes(d, name, seen));
+            if inc.is_some() {
+                return inc;
+            }
+        }
+        None
     }
 
     /// `isDatabase(fqn)` (PMC:864).
@@ -694,6 +965,161 @@ impl<'m> Model<'m> {
 
 /// `TRACKED_CLASSIFIERS`' association metaclass (PMC:808), spelled where Java spells it (no platform constant).
 const ASSOCIATION_METACLASS: &str = "meta::pure::metamodel::relationship::Association";
+
+/// `PlatformTypes.NIL` (PMC:229, :252), the bottom type, as the reach's sets hold names.
+static NIL: LazyLock<JStr> = LazyLock::new(|| JStr::from(platform::NIL));
+
+/// The F gate (`from`, PMC:184-189, then the constructor's PMC:92): the index E read gains E's products (`index.add`
+/// of `normalized.elements`: the pass-through structural elements are already there, by identity, and skipped), then
+/// retains each pre-Door-1 mapping surface as an analysis archive, in the surfaces' order; then THE integrity pass
+/// over it, strict without a sink, tolerant with one, `prior` the already-checked layer.
+fn gate(
+    normalized: &NormalizedModel,
+    mut index: ModelIndex,
+    wall_sink: Option<&mut LinkedMap<JStr, JStr>>,
+    prior: Option<&CheckedLayer>,
+) -> Result<ModelIndex, Thrown> {
+    index.add(&normalized.elements)?;
+    for (_, surface) in normalized.legacy_surfaces.iter() {
+        index.retain_legacy_surface(surface);
+    }
+    let classifier = TypeClassifier::new(&index);
+    let functions = FunctionCompiler::new(&index, classifier);
+    model_integrity::check(&index, &classifier, &functions, wall_sink, prior)?;
+    Ok(index)
+}
+
+/// `checkLayer`'s layer (PMC:135-145): the index's classes, functions (each also by its `FunctionId`), associations,
+/// enums, databases and mappings, by identity (the index's very `Arc`s, which the layer holds).
+fn layer_of(index: &ModelIndex) -> CheckedLayer {
+    let mut elements = LayerElements {
+        classes: IdSet::new(),
+        functions: IdSet::new(),
+        native_functions: IdSet::new(),
+        associations: IdSet::new(),
+        enums: IdSet::new(),
+        databases: IdSet::new(),
+        mappings: IdSet::new(),
+    };
+    let mut signature_keys: HashSet<FunctionId> = HashSet::new();
+    for cd in index.classes() {
+        elements.classes.insert(cd.clone());
+    }
+    for f in index.functions() {
+        match f {
+            Function::FunctionDefinition(fd) => elements.functions.insert(fd.clone()),
+            Function::NativeFunctionDefinition(nf) => elements.native_functions.insert(nf.clone()),
+        };
+        signature_keys.insert(FunctionId::of(f));
+    }
+    for a in index.associations() {
+        elements.associations.insert(a.clone());
+    }
+    for e in index.enums() {
+        elements.enums.insert(e.clone());
+    }
+    for db in index.databases() {
+        elements.databases.insert(db.clone());
+    }
+    for md in index.mappings() {
+        elements.mappings.insert(md.clone());
+    }
+    CheckedLayer {
+        elements: Arc::new(elements),
+        signature_keys,
+    }
+}
+
+/// `elementFqns()` (PMC:345), ordered (the module's docs): the index's classes, enums, measures, associations,
+/// mappings, legacy mappings, databases, runtimes and functions, then its primitive extensions, then the catalog's
+/// native enums -- each FQN once, at its first place.
+fn element_fqns_of(index: &ModelIndex) -> Vec<JStr> {
+    let mut out: LinkedMap<JStr, ()> = LinkedMap::new();
+    let mut add = |fqn: &JStr| {
+        out.put_if_absent(fqn.clone(), ());
+    };
+    index.classes().for_each(|e| add(&e.qualified_name));
+    index.enums().for_each(|e| add(&e.qualified_name));
+    index.measures().for_each(|e| add(&e.qualified_name));
+    index.associations().for_each(|e| add(&e.qualified_name));
+    index.mappings().for_each(|e| add(&e.qualified_name));
+    index.legacy_mappings().for_each(|e| add(&e.qualified_name));
+    index.databases().for_each(|e| add(&e.qualified_name));
+    index.runtimes().for_each(|e| add(&e.qualified_name));
+    index.functions().for_each(|f| add(f.qualified_name()));
+    // primitive extensions (Primitive X extends Integer): without them a simple name under a wildcard import never
+    // qualifies (leg 7b R0)
+    index.primitive_extension_fqns().for_each(&mut add);
+    // platform-native enums resolve like parsed ones (`findEnum` reads the native catalog too)
+    catalog().native_enums().iter().for_each(|e| add(&e.qualified_name));
+    out.iter().map(|(fqn, ())| fqn.clone()).collect()
+}
+
+/// `resolutionUniverse()`'s iteration (PMC:329), ordered (the module's docs, census ASK 6 (b)): the element FQNs, then
+/// the platform's names not among them, in Java's `String` order (UTF-16 units: `JStr`'s `Ord`).
+fn universe_of(element_fqns: &[JStr]) -> Vec<JStr> {
+    let members: HashSet<&JStr> = element_fqns.iter().collect();
+    let mut platform_names: Vec<JStr> = platform_fqns()
+        .iter()
+        .filter(|fqn| !members.contains(fqn))
+        .cloned()
+        .collect();
+    platform_names.sort();
+    let mut out = element_fqns.to_vec();
+    out.extend(platform_names);
+    out
+}
+
+/// `isPackage`'s index (PMC:478-490, built at freeze): for each element FQN, its parts (`el.split("::")`), and every
+/// proper prefix of them joined by `::`.
+fn packages_of(element_fqns: &[JStr]) -> HashSet<JStr> {
+    let mut packages: HashSet<JStr> = HashSet::new();
+    for el in element_fqns {
+        let segs = split_colons(&el.0);
+        let mut prefix: Vec<u16> = Vec::new();
+        for (i, seg) in segs.iter().take(segs.len().saturating_sub(1)).enumerate() {
+            if i > 0 {
+                prefix.extend("::".encode_utf16());
+            }
+            prefix.extend_from_slice(seg);
+            packages.insert(JStr(prefix.clone()));
+        }
+    }
+    packages
+}
+
+/// Java's `s.split("::")` (PMC:480, no limit): the parts between the non-overlapping `::`s found from the left, a leading empty
+/// part kept (the match at 0 has width), the trailing empty parts dropped; a text with no `::` is its one part, an
+/// empty text included.
+fn split_colons(s: &[u16]) -> Vec<&[u16]> {
+    const COLON: u16 = b':' as u16;
+    let mut parts: Vec<&[u16]> = Vec::new();
+    let mut start = 0;
+    let mut i = 0;
+    while i + 1 < s.len() {
+        if s[i] == COLON && s[i + 1] == COLON {
+            parts.push(&s[start..i]);
+            i += 2;
+            start = i;
+        } else {
+            i += 1;
+        }
+    }
+    if parts.is_empty() {
+        return vec![s];
+    }
+    parts.push(&s[start..]);
+    while parts.last().is_some_and(|p| p.is_empty()) {
+        parts.pop();
+    }
+    parts
+}
+
+/// PMC:257's `catch (LegendCompileException e)`: a `com.legend.error` class that is a `LegendCompileException` (not a
+/// `NotImplementedException` and its kin, not a raw JDK exception).
+fn is_legend_compile_exception(e: &Thrown) -> bool {
+    matches!(e, Thrown::Compile(c) if c.kind.is_compile_error())
+}
 
 /// `ModelContext extends StoreLookups`: the model answers the store lookups every reader of store facts shares.
 impl StoreLookups for Model<'_> {
@@ -770,5 +1196,1089 @@ impl<'m> Deref for Overlay<'_, 'm> {
 
     fn deref(&self) -> &Model<'m> {
         self.base
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use lite_base::{QueryArena, same};
+    use lite_error::CompileError;
+    use lite_front::doors::Dialect;
+    use lite_model::linked::{empty, list};
+    use lite_model::{PackageableElement, ParsedModel};
+    use lite_types::{Multiplicity, Primitive};
+
+    use super::*;
+
+    fn j(s: &str) -> JStr {
+        JStr::from(s)
+    }
+
+    /// `rust/lite-normalizer/src/test_support.rs`' `model` (copied): a model text parsed and its names resolved
+    /// (strict), as E receives it.
+    fn parsed(text: &str) -> ParsedModel {
+        let units: Vec<u16> = text.encode_utf16().collect();
+        let parsed = lite_builtin::door::parse(&units, Dialect::LegendLite).expect("the model parses");
+        lite_names::resolver::resolve(&parsed).expect("the model's names resolve")
+    }
+
+    /// `PureModelContextTest.asNormalized` (:44): the parsed elements as E's output (no body site to lift, no legacy
+    /// surface), so E would be a no-op.
+    fn as_normalized(parsed: &ParsedModel) -> NormalizedModel {
+        NormalizedModel {
+            elements: parsed.elements.clone(),
+            imports: parsed.imports.clone(),
+            legacy_surfaces: empty(),
+        }
+    }
+
+    fn registrations() -> Registrations {
+        Registrations::of_catalog(catalog().all().to_vec())
+    }
+
+    /// The model frozen over the text's index with no integrity pass (the gate's check is `model_integrity`'s, a
+    /// sibling family): what the model's own lookups answer, apart from the gate.
+    fn frozen<'m>(arena: &'m ModelArena, text: &str) -> Model<'m> {
+        let p = parsed(text);
+        Model::freeze(
+            arena,
+            ModelIndex::from(&p).expect("the model indexes"),
+            &registrations(),
+        )
+    }
+
+    /// `Phases.context(asNormalized(parsed))`: the strict F gate over the text's own index.
+    fn context<'m>(arena: &'m ModelArena, text: &str) -> Result<Model<'m>, Thrown> {
+        let p = parsed(text);
+        Model::from(
+            arena,
+            &as_normalized(&p),
+            ModelIndex::from(&p)?,
+            None,
+            None,
+            &registrations(),
+        )
+    }
+
+    /// The tolerant F gate over the text's own index, its walls in `walls`.
+    fn tolerant<'m>(arena: &'m ModelArena, text: &str, walls: &mut LinkedMap<JStr, JStr>) -> Result<Model<'m>, Thrown> {
+        let p = parsed(text);
+        Model::from(
+            arena,
+            &as_normalized(&p),
+            ModelIndex::from(&p)?,
+            Some(walls),
+            None,
+            &registrations(),
+        )
+    }
+
+    /// A typed class as the class compiler makes one for `Class fqn extends supers.. { props..: String[1]; }`, by
+    /// hand: these tests hold the model's walks over its cells, not the class compiler that fills them.
+    fn typed_class<'m>(arena: &'m ModelArena, fqn: &str, supers: &[&str], props: &[&str]) -> TypedClass<'m> {
+        TypedClass {
+            qualified_name: j(fqn),
+            type_parameters: empty(),
+            super_class_fqns: list(supers.iter().map(|s| j(s)).collect()),
+            super_types: list(supers.iter().map(|s| Type::ClassType(arena.alloc_str(s))).collect()),
+            properties: list(
+                props
+                    .iter()
+                    .map(|p| {
+                        Property::Stored(PropertyStored::new(
+                            j(p),
+                            Type::Primitive(Primitive::String),
+                            Multiplicity::ONE,
+                        ))
+                    })
+                    .collect(),
+            ),
+            constraints: empty(),
+            is_native: false,
+            multiplicity_parameters: empty(),
+        }
+    }
+
+    /// The class cell of `fqn` set to `outcome`, as its first ask would set it.
+    fn prefill<'m>(model: &Model<'m>, fqn: &str, outcome: Result<TypedClass<'m>, Thrown>) {
+        model
+            .class_cells
+            .get(&j(fqn))
+            .expect("a class cell")
+            .set(outcome.map(Arc::new))
+            .expect("an unset cell");
+    }
+
+    fn class_cell_is_set(model: &Model<'_>, fqn: &str) -> bool {
+        model.class_cells.get(&j(fqn)).expect("a class cell").get().is_some()
+    }
+
+    fn refusal(message: &str) -> Thrown {
+        Thrown::model(Phase::Model, j(message), None)
+    }
+
+    fn compile_error(t: &Thrown) -> &CompileError {
+        match t {
+            Thrown::Compile(e) => e,
+            Thrown::Java { .. } => panic!("a com.legend.error class, got {t:?}"),
+        }
+    }
+
+    const STRING: &str = "meta::pure::metamodel::type::String";
+    const INTEGER: &str = "meta::pure::metamodel::type::Integer";
+    const NUMBER: &str = "meta::pure::metamodel::type::Number";
+    const DATE_TIME_FORMAT: &str = "meta::pure::functions::date::DateTimeFormat";
+
+    /// `PureModelContextTest.fixture` (:27).
+    fn fixture_text() -> String {
+        format!(
+            "Class model::Address {{ street: {STRING}[1]; }}\n\
+             Class model::Person {{\n  name: {STRING}[1];\n  age: {INTEGER}[1];\n  home: model::Address[0..1];\n}}\n\
+             Enum model::Color {{ RED, GREEN }}\n"
+        )
+    }
+
+    // ---- P4: the enum cells (no sibling family needed) ----
+
+    #[test]
+    fn an_enum_cell_is_made_on_first_demand_and_holds_its_names_and_values() {
+        let arena = ModelArena::new();
+        let model = frozen(&arena, &fixture_text());
+        let color = j("model::Color");
+        let native = j(DATE_TIME_FORMAT);
+        assert!(model.enum_cells[&color].get().is_none());
+        let typed = model.find_enum(&color).expect("the user enum");
+        assert_eq!(typed.qualified_name, color);
+        assert_eq!(typed.values.to_vec(), vec![j("RED"), j("GREEN")]);
+        // asked once: its cell is set; the native enum, unasked, is not
+        assert!(model.enum_cells[&color].get().is_some());
+        assert!(model.enum_cells[&native].get().is_none());
+        assert!(model.find_enum(&native).is_some());
+        // memoized: the same instance again
+        assert!(same(&model.find_enum(&color).unwrap(), &typed));
+        // an unknown FQN answers none and has no cell
+        assert!(model.find_enum(&j("model::Nope")).is_none());
+        assert!(!model.enum_cells.contains_key(&j("model::Nope")));
+    }
+
+    // ---- P9: the metamodel registry ----
+
+    #[test]
+    fn classifier_instances_are_the_tracked_extents_sorted_and_distinct() {
+        let arena = ModelArena::new();
+        let model = frozen(&arena, &fixture_text());
+        // PureModelContextTest.classifierInstancesClassExtent (:381)
+        let classes = model.classifier_instances(&j(platform::CLASS_METACLASS)).unwrap();
+        assert!(classes.contains(&j("model::Person")) && classes.contains(&j("model::Address")));
+        assert!(classes.contains(&catalog().native_classes()[0].qualified_name));
+        assert!(classes.is_sorted() && classes.windows(2).all(|w| w[0] != w[1]));
+        assert_eq!(
+            classes.len(),
+            2 + catalog()
+                .native_classes()
+                .iter()
+                .map(|c| &c.qualified_name)
+                .collect::<HashSet<_>>()
+                .len()
+        );
+        // classifierInstancesEnumExtent (:400)
+        let enums = model.classifier_instances(&j(platform::ENUMERATION)).unwrap();
+        assert!(enums.contains(&j("model::Color")) && enums.contains(&j(DATE_TIME_FORMAT)));
+        assert!(enums.is_sorted());
+        // classifierInstancesUntrackedIsNull (:412): untracked none, tracked but empty the empty list
+        assert_eq!(model.classifier_instances(&j("model::Person")), None);
+        assert_eq!(model.classifier_instances(&j(ASSOCIATION_METACLASS)), Some(vec![]));
+        assert_eq!(model.classifier_instances(&j(platform::MAPPING)), Some(vec![]));
+        assert_eq!(model.classifier_instances(&j(platform::DATABASE)), Some(vec![]));
+        for tracked in [
+            platform::CLASS_METACLASS,
+            platform::ENUMERATION,
+            ASSOCIATION_METACLASS,
+            platform::MAPPING,
+            platform::DATABASE,
+        ] {
+            assert!(model.tracks_classifier(&j(tracked)));
+        }
+        assert!(!model.tracks_classifier(&j("model::Person")));
+    }
+
+    #[test]
+    fn an_extent_is_in_javas_string_order_utf16_units() {
+        // `String.compareTo`: by unit, case-sensitive (no collation): `B` (0x42) < `_` (0x5F) < `a` (0x61)
+        let arena = ModelArena::new();
+        let model = frozen(&arena, "Class w::a {}\nClass w::_x {}\nClass w::B {}\nClass w::Ba {}\n");
+        let ours: Vec<JStr> = model
+            .classifier_instances(&j(platform::CLASS_METACLASS))
+            .unwrap()
+            .into_iter()
+            .filter(|c| c.lossy().starts_with("w::"))
+            .collect();
+        assert_eq!(ours, vec![j("w::B"), j("w::Ba"), j("w::_x"), j("w::a")]);
+        // by UTF-16 unit, not by code point (the parser's names are ASCII, so the units are shown on `JStr` itself):
+        // U+10400 (0xD801 0xDC00) before U+FF21 (0xFF21)
+        let mut names = vec![j("w::\u{FF21}"), j("w::\u{10400}")];
+        names.sort();
+        assert_eq!(names, vec![j("w::\u{10400}"), j("w::\u{FF21}")]);
+    }
+
+    // ---- P5: the name universe ----
+
+    const UNIVERSE_TEXT: &str = "Class w::P { name: String[1]; }\n\
+        Class w::Q { }\n\
+        Enum w::E { X }\n\
+        Association w::PQ { p: w::P[1]; q: w::Q[*]; }\n\
+        Primitive w::Ext extends Integer\n\
+        function w::f(x: String[1]): String[1] { $x }\n\
+        function w::f(x: Integer[1]): String[1] { 'n' }\n\
+        function w::g(): String[1] { 'g' }\n";
+
+    #[test]
+    fn the_element_fqns_are_javas_kinds_in_order_each_once() {
+        let arena = ModelArena::new();
+        let model = frozen(&arena, UNIVERSE_TEXT);
+        let mut expected = vec![
+            j("w::P"),
+            j("w::Q"),
+            j("w::E"),
+            j("w::PQ"),
+            j("w::f"),
+            j("w::g"),
+            j("w::Ext"),
+        ];
+        let mut seen: HashSet<JStr> = expected.iter().cloned().collect();
+        for e in catalog().native_enums() {
+            if seen.insert(e.qualified_name.clone()) {
+                expected.push(e.qualified_name.clone());
+            }
+        }
+        assert_eq!(model.element_fqns().to_vec(), expected);
+    }
+
+    #[test]
+    fn the_universe_is_the_element_fqns_then_the_platforms_names_sorted() {
+        let arena = ModelArena::new();
+        let model = frozen(&arena, UNIVERSE_TEXT);
+        let universe = model.resolution_universe();
+        let elements = model.element_fqns();
+        assert_eq!(&universe[..elements.len()], elements);
+        let rest = &universe[elements.len()..];
+        assert!(rest.is_sorted());
+        let mut platform: Vec<&JStr> = platform_fqns().iter().filter(|f| !elements.contains(f)).collect();
+        platform.sort();
+        assert_eq!(rest.iter().collect::<Vec<_>>(), platform);
+        // contains: a platform name, a primitive extension, an element, a function's signature id -- which is a
+        // member and is never iterated (Java's contains and iteration disagree, kept)
+        let id = FunctionId::of(&model.index().find_function(&j("w::g"))[0]).qualified;
+        for member in [platform_fqns().iter().next().unwrap(), &j("w::Ext"), &j("w::P"), &id] {
+            assert!(model.resolution_universe_contains(member), "{member:?}");
+            assert!(Universe::contains(&model, member));
+        }
+        assert!(!universe.contains(&id));
+        assert!(!model.resolution_universe_contains(&j("absent::Name")));
+    }
+
+    #[test]
+    fn a_package_is_every_proper_prefix_of_an_element_fqn() {
+        let arena = ModelArena::new();
+        let model = frozen(&arena, &fixture_text());
+        for package in ["model", "meta", "meta::pure", "meta::pure::functions::date"] {
+            assert!(model.is_package(&j(package)), "{package}");
+        }
+        for not in ["model::Person", "absent", "", DATE_TIME_FORMAT, "mod"] {
+            assert!(!model.is_package(&j(not)), "{not}");
+        }
+    }
+
+    #[test]
+    fn a_package_split_is_javas_string_split() {
+        let parts = |s: &str| {
+            split_colons(&j(s).0)
+                .into_iter()
+                .map(|p| String::from_utf16(p).unwrap())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(parts("a::b::C"), ["a", "b", "C"]);
+        assert_eq!(parts("C"), ["C"]);
+        assert_eq!(parts(""), [""]);
+        // a leading empty part is kept, the trailing empty ones dropped, matches are non-overlapping from the left
+        assert_eq!(parts("::a"), ["", "a"]);
+        assert_eq!(parts("a::"), ["a"]);
+        assert_eq!(parts("::"), Vec::<String>::new());
+        assert_eq!(parts("a::::b"), ["a", "", "b"]);
+        assert_eq!(parts("a:::b"), ["a", ":b"]);
+        let packages = |fqns: &[&str]| {
+            let mut out: Vec<String> = packages_of(&fqns.iter().map(|f| j(f)).collect::<Vec<_>>())
+                .into_iter()
+                .map(|p| p.lossy())
+                .collect();
+            out.sort();
+            out
+        };
+        assert_eq!(packages(&["a::b::C"]), ["a", "a::b"]);
+        assert_eq!(packages(&["a::::b"]), ["a", "a::"]);
+        assert_eq!(packages(&["::a"]), [""]);
+        assert_eq!(packages(&["a::", "x", ""]), Vec::<String>::new());
+    }
+
+    #[test]
+    fn the_function_fqns_are_each_model_function_once_in_index_order() {
+        let arena = ModelArena::new();
+        let model = frozen(&arena, UNIVERSE_TEXT);
+        assert_eq!(model.function_fqns(), vec![j("w::f"), j("w::g")]);
+    }
+
+    // ---- P7: the overlay ----
+
+    const OVERLAY_MODEL: &str = "###Relational\nDatabase w::S ( Table T (ID INTEGER) )\n\
+        ###Mapping\nMapping w::M ( )\n\
+        ###Connection\n\
+        RelationalDatabaseConnection w::C { store: w::S; type: H2; specification: LocalH2 {}; auth: DefaultH2; }\n\
+        ###Runtime\nRuntime w::R { mappings: [w::M]; connections: [ w::S: [ id1: w::C ] ]; }\n";
+
+    /// The driver-supplied connections (`o::C`, and `w::C`, a model's name): parsed from a text of their own.
+    fn supplied_connection(fqn: &str) -> Arc<ConnectionDefinition> {
+        let p = parsed(
+            "###Relational\nDatabase o::S ( Table T (ID INTEGER) )\n###Connection\n\
+             RelationalDatabaseConnection o::C { store: o::S; type: H2; specification: LocalH2 {}; auth: DefaultH2; }\n\
+             RelationalDatabaseConnection w::C { store: o::S; type: H2; specification: LocalH2 {}; auth: DefaultH2; }\n",
+        );
+        p.elements
+            .iter()
+            .find_map(|e| match e {
+                PackageableElement::ConnectionDefinition(c) if c.qualified_name == j(fqn) => Some(c.clone()),
+                _ => None,
+            })
+            .expect("the connection")
+    }
+
+    /// A driver-supplied runtime of `mappings`.
+    fn supplied_runtime(fqn: &str, mappings: &[&str]) -> Arc<RuntimeDefinition> {
+        Arc::new(RuntimeDefinition {
+            qualified_name: j(fqn),
+            mappings: list(mappings.iter().map(|m| j(m)).collect()),
+            connection_bindings: empty(),
+            json_connections: empty(),
+            inline_connections: empty(),
+            connection_ids: empty(),
+        })
+    }
+
+    #[test]
+    fn the_overlay_resolves_its_two_elements_and_everything_else_the_models() {
+        let arena = ModelArena::new();
+        let model = frozen(&arena, OVERLAY_MODEL);
+        let runtime = supplied_runtime("o::R", &["w::M"]);
+        let connection = supplied_connection("o::C");
+        let overlay = model
+            .with_execution_overlay(runtime.clone(), connection.clone())
+            .expect("an overlay that adds");
+        // its three overrides
+        assert!(same(overlay.find_runtime(&j("o::R")).unwrap(), &runtime));
+        assert!(same(overlay.find_connection(&j("o::C")).unwrap(), &connection));
+        assert!(overlay.is_execution_context_element(&j("o::R")));
+        assert!(overlay.is_execution_context_element(&j("o::C")));
+        // the model's elements through it, and the model itself unchanged
+        assert!(same(
+            overlay.find_runtime(&j("w::R")).unwrap(),
+            model.find_runtime(&j("w::R")).unwrap()
+        ));
+        assert!(overlay.find_connection(&j("w::C")).is_some());
+        for fqn in ["w::M", "w::R", "w::C", "w::S"] {
+            assert!(overlay.is_execution_context_element(&j(fqn)), "{fqn}");
+            assert!(model.is_execution_context_element(&j(fqn)), "{fqn}");
+        }
+        assert!(model.find_runtime(&j("o::R")).is_none() && model.find_connection(&j("o::C")).is_none());
+        assert!(!model.is_execution_context_element(&j("o::R")));
+        assert!(!overlay.is_execution_context_element(&j("w::Nope")));
+        // it derefs to the model: its lookups and its cells are the model's
+        let base: &Model<'_> = &overlay;
+        assert!(same(&base, &&model));
+        assert!(same(
+            &overlay.find_enum(&j(DATE_TIME_FORMAT)).unwrap(),
+            &model.find_enum(&j(DATE_TIME_FORMAT)).unwrap()
+        ));
+    }
+
+    #[test]
+    fn an_overlay_that_would_shadow_or_names_an_unknown_mapping_is_refused() {
+        let arena = ModelArena::new();
+        let model = frozen(&arena, OVERLAY_MODEL);
+        let refused = |runtime: Arc<RuntimeDefinition>, connection: Arc<ConnectionDefinition>| match model
+            .with_execution_overlay(runtime, connection)
+        {
+            Err(Thrown::Java { class, message }) => (class, message.unwrap().lossy()),
+            Err(e) => panic!("an IllegalArgumentException, got {e:?}"),
+            Ok(_) => panic!("an overlay refused"),
+        };
+        let iae = lite_names::error::ILLEGAL_ARGUMENT;
+        assert_eq!(
+            refused(supplied_runtime("w::R", &["w::M"]), supplied_connection("o::C")),
+            (
+                iae,
+                "execution overlay would shadow a model-declared element: 'w::R' / 'o::C'".to_string()
+            )
+        );
+        assert_eq!(
+            refused(supplied_runtime("o::R", &["w::M"]), supplied_connection("w::C")),
+            (
+                iae,
+                "execution overlay would shadow a model-declared element: 'o::R' / 'w::C'".to_string()
+            )
+        );
+        assert_eq!(
+            refused(
+                supplied_runtime("o::R", &["w::M", "w::Missing"]),
+                supplied_connection("o::C")
+            ),
+            (
+                iae,
+                "execution overlay runtime 'o::R' names unknown mapping 'w::Missing'".to_string()
+            )
+        );
+    }
+
+    // ---- P10: the milestoning delegation ----
+
+    #[test]
+    fn a_tables_milestoning_is_its_own_else_its_includes_each_database_once() {
+        let arena = ModelArena::new();
+        let model = frozen(
+            &arena,
+            "###Relational\n\
+             Database w::Base ( Table T ( milestoning( business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z) ) \
+               ID INTEGER PRIMARY KEY, FROM_Z DATE, THRU_Z DATE ) Table U ( ID INTEGER ) )\n\
+             Database w::Top ( include w::Base Table U ( ID INTEGER ) Table V ( ID INTEGER ) )\n\
+             Database w::X ( include w::Y Table P ( ID INTEGER ) )\n\
+             Database w::Y ( include w::X )\n",
+        );
+        let own = model
+            .find_own_table_definition(&j("w::Base"), &j("T"))
+            .and_then(|t| t.milestoning.as_ref())
+            .expect("the base table's block");
+        assert!(same(model.find_table_milestoning(&j("w::Base"), &j("T")).unwrap(), own));
+        // through the include
+        assert!(same(model.find_table_milestoning(&j("w::Top"), &j("T")).unwrap(), own));
+        // an own table with no block goes on to the includes, which have none either
+        assert!(model.find_table_milestoning(&j("w::Top"), &j("U")).is_none());
+        assert!(model.find_table_milestoning(&j("w::Top"), &j("V")).is_none());
+        // an include cycle ends; an unknown database is none
+        assert!(model.find_table_milestoning(&j("w::X"), &j("Q")).is_none());
+        assert!(model.find_table_milestoning(&j("w::Y"), &j("P")).is_none());
+        assert!(model.find_table_milestoning(&j("absent::Db"), &j("T")).is_none());
+    }
+
+    // ---- P2: subtyping, over cells set by hand ----
+
+    const HIERARCHY: &str = "Class w::Child {}\nClass w::Bad {}\nClass w::Ok {}\nClass w::Child2 {}\n\
+        Class w::Bad2 {}\nClass w::Child3 {}\nClass w::Mid {}\nClass w::Raw {}\nClass w::RawChild {}\n\
+        Class w::Todo {}\nClass w::TodoChild {}\nClass w::N {}\nClass w::Late {}\n";
+
+    fn hierarchy(arena: &ModelArena) -> Model<'_> {
+        let model = frozen(arena, HIERARCHY);
+        prefill(
+            &model,
+            "w::Child",
+            Ok(typed_class(arena, "w::Child", &["w::Bad", "w::Ok"], &[])),
+        );
+        prefill(&model, "w::Bad", Err(refusal("Bad is walled")));
+        prefill(&model, "w::Ok", Ok(typed_class(arena, "w::Ok", &[], &[])));
+        prefill(
+            &model,
+            "w::Child2",
+            Ok(typed_class(arena, "w::Child2", &["w::Bad", "w::Bad2"], &[])),
+        );
+        prefill(&model, "w::Bad2", Err(refusal("Bad2 is walled")));
+        prefill(
+            &model,
+            "w::Child3",
+            Ok(typed_class(arena, "w::Child3", &["w::Mid", "w::Bad2"], &[])),
+        );
+        prefill(&model, "w::Mid", Ok(typed_class(arena, "w::Mid", &["w::Bad"], &[])));
+        prefill(
+            &model,
+            "w::Raw",
+            Err(Thrown::illegal_argument(j("upper (1) must be >= lower (2)"))),
+        );
+        prefill(
+            &model,
+            "w::RawChild",
+            Ok(typed_class(arena, "w::RawChild", &["w::Ok", "w::Raw"], &[])),
+        );
+        prefill(
+            &model,
+            "w::Todo",
+            Err(Thrown::Compile(CompileError::not_implemented(j("not built").0))),
+        );
+        prefill(
+            &model,
+            "w::TodoChild",
+            Ok(typed_class(arena, "w::TodoChild", &["w::Todo"], &[])),
+        );
+        // Nil's own cell (a catalog class) is never asked: not walked past
+        prefill(&model, "w::N", Ok(typed_class(arena, "w::N", &[platform::NIL], &[])));
+        model
+    }
+
+    #[test]
+    fn subtyping_is_the_same_name_or_a_class_on_the_reach_or_nil() {
+        let arena = ModelArena::new();
+        let model = hierarchy(&arena);
+        // the same name, asked of nothing (even an unknown one)
+        assert_eq!(model.is_subtype(&j("absent::A"), &j("absent::A")), Ok(true));
+        assert_eq!(model.is_subtype(&j("w::Ok"), &j("w::Ok")), Ok(true));
+        assert_eq!(model.is_subtype(&j("w::Child"), &j("w::Ok")), Ok(true));
+        // a class with no cell is a dead end, a no
+        assert_eq!(model.is_subtype(&j("absent::A"), &j("w::Ok")), Ok(false));
+        assert_eq!(model.is_subtype(&j("w::Ok"), &j("w::Child")), Ok(false));
+        // Nil, the bottom: reaching it answers yes whatever the parent
+        assert_eq!(model.is_subtype(&j("w::N"), &j("w::Anything")), Ok(true));
+        assert_eq!(model.is_subtype(&j("w::N"), &j(platform::NIL)), Ok(true));
+    }
+
+    #[test]
+    fn a_refusal_on_the_reach_answers_a_no_and_a_raw_throw_escapes_the_walk() {
+        let arena = ModelArena::new();
+        let model = hierarchy(&arena);
+        // a yes stands: the walled class is on the reach (added before its cell is asked), and so is its sibling
+        assert_eq!(model.is_subtype(&j("w::Child"), &j("w::Ok")), Ok(true));
+        assert_eq!(model.is_subtype(&j("w::Child"), &j("w::Bad")), Ok(true));
+        // a no is the walk's first failure
+        assert_eq!(
+            model.is_subtype(&j("w::Child"), &j("w::Other")),
+            Err(refusal("Bad is walled"))
+        );
+        assert_eq!(
+            model.is_subtype(&j("w::Child2"), &j("w::Other")),
+            Err(refusal("Bad is walled"))
+        );
+        // breadth first: Child3 -> Mid, Bad2 -> Bad, so Bad2's refusal is met first
+        assert_eq!(
+            model.is_subtype(&j("w::Child3"), &j("w::Other")),
+            Err(refusal("Bad2 is walled"))
+        );
+        // anything but a LegendCompileException escapes the walk, a yes or a no, and nothing is memoized
+        let raw = Err(Thrown::illegal_argument(j("upper (1) must be >= lower (2)")));
+        assert_eq!(model.is_subtype(&j("w::RawChild"), &j("w::Ok")), raw);
+        assert_eq!(model.is_subtype(&j("w::RawChild"), &j("w::Other")), raw);
+        assert!(!model.reach_memo().contains_key(&j("w::RawChild")));
+        let todo = model.is_subtype(&j("w::TodoChild"), &j("w::Todo"));
+        assert_eq!(
+            compile_error(&todo.unwrap_err()).kind,
+            lite_error::ErrorKind::NotImplemented
+        );
+        assert!(!model.reach_memo().contains_key(&j("w::TodoChild")));
+    }
+
+    #[test]
+    fn a_reach_is_walked_once_and_an_unasked_class_cell_stays_unset() {
+        let arena = ModelArena::new();
+        let model = hierarchy(&arena);
+        let first = model.reach(&j("w::Child3")).unwrap();
+        let again = model.reach(&j("w::Child3")).unwrap();
+        assert!(same(&first, &again));
+        // the walk's order: breadth first, itself included
+        assert_eq!(
+            first.classes.iter().map(|(c, ())| c.clone()).collect::<Vec<_>>(),
+            vec![j("w::Child3"), j("w::Mid"), j("w::Bad2"), j("w::Bad")]
+        );
+        assert_eq!(first.failure(), Some(&refusal("Bad2 is walled")));
+        // Late was never asked: its cell is unset
+        assert!(!class_cell_is_set(&model, "w::Late"));
+    }
+
+    // ---- P4: findProperty, over cells set by hand ----
+
+    /// `ElementRefusalsTest.CYCLE` (:24).
+    const CYCLE: &str = "Class w::A extends w::B { a: String[1]; }\n\
+        Class w::B extends w::A { b: String[1]; }\n\
+        Class w::C extends w::A { c: String[1]; }\n";
+
+    fn cycle(arena: &ModelArena) -> Model<'_> {
+        let model = frozen(arena, CYCLE);
+        prefill(&model, "w::A", Ok(typed_class(arena, "w::A", &["w::B"], &["a"])));
+        prefill(&model, "w::B", Ok(typed_class(arena, "w::B", &["w::A"], &["b"])));
+        prefill(&model, "w::C", Ok(typed_class(arena, "w::C", &["w::A"], &["c"])));
+        model
+    }
+
+    fn found(model: &Model<'_>, class: &str, name: &str) -> Option<String> {
+        let query = QueryArena::new();
+        model
+            .find_property(&query, &j(class), &j(name))
+            .expect("a lookup")
+            .map(|p| p.name().lossy())
+    }
+
+    #[test]
+    fn find_property_on_a_walled_cyclic_class_is_refused_by_name() {
+        // ElementRefusalsTest.findPropertyOnAWalledCyclicClassIsRefusedByName (:30), its lookups
+        let arena = ModelArena::new();
+        let model = cycle(&arena);
+        assert_eq!(found(&model, "w::A", "a").as_deref(), Some("a"));
+        assert_eq!(found(&model, "w::A", "b").as_deref(), Some("b"));
+        assert_eq!(found(&model, "w::C", "a").as_deref(), Some("a"));
+        let query = QueryArena::new();
+        let e = model.find_property(&query, &j("w::A"), &j("nope")).unwrap_err();
+        let e = compile_error(&e);
+        assert_eq!((e.kind, e.phase), (lite_error::ErrorKind::Model, Some(Phase::Model)));
+        assert_eq!(
+            JStr(e.message.clone().unwrap()).lossy(),
+            "Inheritance cycle: w::A -> w::B -> w::A"
+        );
+        assert_eq!(e.element.clone().map(|u| JStr(u).lossy()).as_deref(), Some("w::A"));
+        let from_c = model.find_property(&query, &j("w::C"), &j("nope")).unwrap_err();
+        let from_c = compile_error(&from_c);
+        assert_eq!(
+            JStr(from_c.message.clone().unwrap()).lossy(),
+            "Inheritance cycle: w::C -> w::A -> w::B -> w::A"
+        );
+        assert_eq!(from_c.element.clone().map(|u| JStr(u).lossy()).as_deref(), Some("w::C"));
+        // and the reach over the same cycle terminates with a no
+        assert_eq!(model.is_subtype(&j("w::A"), &j("w::B")), Ok(true));
+        assert_eq!(model.is_subtype(&j("w::A"), &j(platform::ANY)), Ok(false));
+    }
+
+    #[test]
+    fn a_diamond_is_no_cycle_and_the_most_derived_declaration_wins() {
+        // ElementRefusalsTest.aDiamondIsNoCycle (:121), its lookups
+        let arena = ModelArena::new();
+        let model = frozen(
+            &arena,
+            "Class w::Top { t: String[1]; }\nClass w::L extends w::Top { }\nClass w::R extends w::Top { }\n\
+             Class w::D extends w::L, w::R { }\nClass w::S extends w::Top { t: String[1]; s: String[1]; }\n",
+        );
+        prefill(&model, "w::Top", Ok(typed_class(&arena, "w::Top", &[], &["t"])));
+        prefill(&model, "w::L", Ok(typed_class(&arena, "w::L", &["w::Top"], &[])));
+        prefill(&model, "w::R", Ok(typed_class(&arena, "w::R", &["w::Top"], &[])));
+        prefill(&model, "w::D", Ok(typed_class(&arena, "w::D", &["w::L", "w::R"], &[])));
+        prefill(
+            &model,
+            "w::S",
+            Ok(typed_class(&arena, "w::S", &["w::Top"], &["s", "t"])),
+        );
+        assert_eq!(found(&model, "w::D", "nope"), None);
+        assert_eq!(found(&model, "w::D", "t").as_deref(), Some("t"));
+        // an unknown class is none, its ends unasked
+        assert_eq!(found(&model, "absent::K", "t"), None);
+        // the class's own declaration, not the supertype's
+        let query = QueryArena::new();
+        let own = model.find_property(&query, &j("w::S"), &j("t")).unwrap().unwrap();
+        let class_s = model.find_class(&j("w::S")).unwrap().unwrap();
+        assert_eq!(own, class_s.properties[1]);
+    }
+
+    // ---- P4: the function cells, set by hand ----
+
+    /// A typed function over `definition`, as the function compiler makes one, by hand.
+    fn typed_function(definition: &Function) -> TypedFunction<'static> {
+        TypedFunction {
+            qualified_name: definition.qualified_name().clone(),
+            type_parameters: empty(),
+            multiplicity_parameters: empty(),
+            parameters: empty(),
+            return_type: Type::Primitive(Primitive::String),
+            return_multiplicity: Multiplicity::ONE,
+            body: None,
+            is_native: matches!(definition, Function::NativeFunctionDefinition(_)),
+            id: FunctionId::of(definition),
+            definition: definition.clone(),
+        }
+    }
+
+    fn prefill_functions<'m>(model: &Model<'m>, fqn: &JStr, outcome: Result<Vec<TypedFunction<'m>>, Thrown>) {
+        model
+            .function_cells
+            .get(fqn)
+            .expect("a function cell")
+            .set(outcome.map(|v| v.into_iter().map(Arc::new).collect()))
+            .expect("an unset cell");
+    }
+
+    #[test]
+    fn the_function_cell_hands_out_one_arc_per_overload_and_by_id_the_same() {
+        let arena = ModelArena::new();
+        let model = frozen(&arena, UNIVERSE_TEXT);
+        let f = j("w::f");
+        let defs = model.index().find_function(&f).to_vec();
+        assert_eq!(defs.len(), 2);
+        prefill_functions(&model, &f, Ok(defs.iter().map(typed_function).collect()));
+        let first = model.find_function(&f).unwrap();
+        let again = model.find_function(&f).unwrap();
+        assert_eq!(first.len(), 2);
+        assert!(first.iter().zip(again).all(|(a, b)| same(a, b)));
+        // by id: the overload whose definition is equal, the cell's very Arc
+        let by_id = model.find_function_by_id(&FunctionId::of(&defs[1]).qualified).unwrap();
+        assert_eq!(by_id.len(), 1);
+        assert!(same(&by_id[0], &first[1]));
+        // a native by its id
+        let native_id = FunctionId::of(&Function::NativeFunctionDefinition(catalog().all()[0].clone())).qualified;
+        let native = Function::NativeFunctionDefinition(
+            catalog()
+                .native_function_by_id(&native_id)
+                .expect("a native")
+                .def()
+                .clone(),
+        );
+        prefill_functions(&model, native.qualified_name(), Ok(vec![typed_function(&native)]));
+        let natives = model.find_function_by_id(&native_id).unwrap();
+        assert_eq!(natives.len(), 1);
+        assert!(same(
+            &natives[0],
+            &model.find_function(native.qualified_name()).unwrap()[0]
+        ));
+        // an unknown FQN is empty and has no cell; an unknown id is empty
+        assert!(model.find_function(&j("w::nope")).unwrap().is_empty());
+        assert!(!model.function_cells.contains_key(&j("w::nope")));
+        assert!(model.find_function_by_id(&j("w::nope__String_1_")).unwrap().is_empty());
+        // a refusal is cached and returned again
+        let g = j("w::g");
+        let raw = Thrown::illegal_argument(j("upper (1) must be >= lower (2)"));
+        prefill_functions(&model, &g, Err(raw.clone()));
+        assert_eq!(model.find_function(&g).unwrap_err(), raw);
+        assert_eq!(model.find_function(&g).unwrap_err(), raw);
+        let g_id = FunctionId::of(&model.index().find_function(&g)[0]).qualified;
+        assert_eq!(model.find_function_by_id(&g_id).unwrap_err(), raw);
+    }
+
+    // ---- P1: the checked layer ----
+
+    #[test]
+    fn the_layer_holds_its_elements_by_identity_and_its_ids() {
+        let p = parsed(UNIVERSE_TEXT);
+        let index = ModelIndex::from(&p).unwrap();
+        let layer = layer_of(&index);
+        let cd = index.find_class(&j("w::P")).unwrap();
+        assert!(layer.contains_class(cd));
+        // an equal copy is no member: the layer is provenance, by identity
+        assert!(!layer.contains_class(&Arc::new((**cd).clone())));
+        let f = &index.find_function(&j("w::g"))[0];
+        assert!(layer.contains_function(f));
+        assert!(layer.contains_association(index.find_association(&j("w::PQ")).unwrap()));
+        assert!(layer.contains_enum(index.find_enum(&j("w::E")).unwrap()));
+        let ids: HashSet<FunctionId> = index.functions().map(FunctionId::of).collect();
+        assert_eq!(layer.signature_keys(), &ids);
+        assert_eq!(ids.len(), 3);
+        // without: the adopted ids go, the elements stay
+        let adopted: HashSet<FunctionId> = [FunctionId::of(f)].into_iter().collect();
+        let without = layer.without(&adopted);
+        assert_eq!(without.signature_keys().len(), 2);
+        assert!(!without.signature_keys().contains(&FunctionId::of(f)));
+        assert!(without.contains_function(f) && without.contains_class(cd));
+        assert_eq!(layer.without(&HashSet::new()).signature_keys(), &ids);
+    }
+
+    // ---- threads ----
+
+    /// Every question the model answers without a sibling family's fill, as text.
+    fn answers(model: &Model<'_>) -> Vec<String> {
+        let query = QueryArena::new();
+        let mut out = vec![
+            format!("{:?}", model.element_fqns()),
+            format!("{}", model.resolution_universe().len()),
+            format!("{:?}", model.function_fqns()),
+            format!("{:?}", model.classifier_instances(&j(platform::CLASS_METACLASS))),
+            format!("{:?}", model.classifier_instances(&j(platform::ENUMERATION))),
+            format!("{:?}", model.find_enum(&j(DATE_TIME_FORMAT))),
+        ];
+        for class in ["w::A", "w::B", "w::C", "absent::K"] {
+            for parent in ["w::A", "w::B", "w::C", platform::ANY, platform::NIL] {
+                out.push(format!(
+                    "{class} {parent} {:?}",
+                    model.is_subtype(&j(class), &j(parent))
+                ));
+            }
+            for name in ["a", "b", "c", "nope"] {
+                let p = model.find_property(&query, &j(class), &j(name));
+                out.push(format!("{class}.{name} {p:?}"));
+            }
+            out.push(format!(
+                "{class} {} {}",
+                model.is_package(&j(class)),
+                model.resolution_universe_contains(&j(class))
+            ));
+        }
+        out
+    }
+
+    #[test]
+    fn n_threads_asking_every_question_answer_as_one_thread() {
+        let one_arena = ModelArena::new();
+        let one = cycle(&one_arena);
+        let expected = answers(&one);
+        let shared_arena = ModelArena::new();
+        let shared = cycle(&shared_arena);
+        let got: Vec<Vec<String>> = std::thread::scope(|s| {
+            let handles: Vec<_> = (0..8).map(|_| s.spawn(|| answers(&shared))).collect();
+            handles.into_iter().map(|h| h.join().expect("a thread")).collect()
+        });
+        for g in got {
+            assert_eq!(g, expected);
+        }
+    }
+
+    // ---- the sibling families' fills needed: ignored until they land ----
+
+    #[test]
+    #[ignore = "needs helper A's fill (TypeClassifier.findType)"]
+    fn find_type_classifies_every_kind_and_an_unknown_fqn_is_none() {
+        // PureModelContextTest.findTypeClassifiesEveryKind (:52), findTypeUnknownIsEmpty (:73)
+        let arena = ModelArena::new();
+        let model = frozen(&arena, &fixture_text());
+        let query = QueryArena::new();
+        assert!(matches!(
+            model.find_type(&query, &j("model::Person")),
+            Some(Type::ClassType(_))
+        ));
+        assert!(matches!(
+            model.find_type(&query, &j("model::Color")),
+            Some(Type::EnumType(_))
+        ));
+        assert_eq!(
+            model.find_type(&query, &j(STRING)),
+            Some(Type::Primitive(Primitive::String))
+        );
+        assert_eq!(
+            model.find_type(&query, &j(INTEGER)),
+            Some(Type::Primitive(Primitive::Integer))
+        );
+        assert!(matches!(
+            model.find_type(&query, &j(DATE_TIME_FORMAT)),
+            Some(Type::EnumType(_))
+        ));
+        assert_eq!(model.find_type(&query, &j("model::DoesNotExist")), None);
+    }
+
+    #[test]
+    #[ignore = "needs helper A's and helper B's fills (TypeClassifier.classify, ClassCompiler.compile)"]
+    fn a_class_cell_is_compiled_on_first_demand_memoized_and_the_unasked_stay_unset() {
+        // PureModelContextTest.findClassMaterializesProperties (:83), findClassMemoized (:100),
+        // findPropertyResolvesOnClass (:115)
+        let arena = ModelArena::new();
+        let model = frozen(&arena, &fixture_text());
+        let person = model.find_class(&j("model::Person")).unwrap().unwrap();
+        assert_eq!(person.properties.len(), 3);
+        assert_eq!(person.properties[0].name(), &j("name"));
+        assert_eq!(person.properties[0].r#type(), Type::Primitive(Primitive::String));
+        assert_eq!(person.properties[0].multiplicity(), Multiplicity::ONE);
+        assert_eq!(person.properties[2].name(), &j("home"));
+        assert_eq!(person.properties[2].r#type(), Type::ClassType("model::Address"));
+        assert_eq!(person.properties[2].multiplicity(), Multiplicity::ZERO_ONE);
+        assert!(same(&person, &model.find_class(&j("model::Person")).unwrap().unwrap()));
+        // the referent is not loaded: the Address cell is unset
+        assert!(!class_cell_is_set(&model, "model::Address"));
+        assert_eq!(found(&model, "model::Person", "home").as_deref(), Some("home"));
+        assert!(!class_cell_is_set(&model, "model::Address"));
+        assert!(model.find_class(&j("model::Nope")).unwrap().is_none());
+    }
+
+    #[test]
+    #[ignore = "needs helper A's and helper B's fills (the native classes' compile)"]
+    fn subtyping_walks_the_native_class_chains() {
+        // PureModelContextTest.isSubtypeWalksNativeLattice (:126), its fixture half (the booted half is the
+        // planner's: Compiler.buildModel)
+        let arena = ModelArena::new();
+        let model = frozen(&arena, &fixture_text());
+        assert_eq!(model.is_subtype(&j(INTEGER), &j(NUMBER)), Ok(true));
+    }
+
+    #[test]
+    #[ignore = "needs helper A's, B's and C's fills (the integrity pass)"]
+    fn an_unknown_property_type_fails_eagerly_at_the_gate() {
+        // PureModelContextTest.unknownPropertyTypeThrows (:144)
+        let arena = ModelArena::new();
+        let e = context(&arena, "Class model::Bad { x: not::a::RealType[1]; }")
+            .err()
+            .expect("refused");
+        let message = e.message().unwrap().lossy();
+        assert!(e.is_model() && message.contains("Unknown type") && message.contains("not::a::RealType"));
+    }
+
+    #[test]
+    #[ignore = "needs helper A's, B's and C's fills (the integrity pass)"]
+    fn the_strict_gate_builds_the_fixture() {
+        let arena = ModelArena::new();
+        let model = context(&arena, &fixture_text()).expect("the fixture compiles");
+        assert!(model.find_class(&j("model::Person")).unwrap().is_some());
+        assert_eq!(model.find_enum(&j("model::Color")).unwrap().values.len(), 2);
+        assert_eq!(model.classifier_instances(&j(ASSOCIATION_METACLASS)), Some(vec![]));
+    }
+
+    #[test]
+    #[ignore = "needs helper A's, B's and C's fills (the integrity pass)"]
+    fn a_walled_cyclic_class_of_a_tolerant_build_is_refused_by_name_at_the_lookup() {
+        // ElementRefusalsTest.findPropertyOnAWalledCyclicClassIsRefusedByName (:30)
+        let arena = ModelArena::new();
+        let mut walls: LinkedMap<JStr, JStr> = LinkedMap::new();
+        let model = tolerant(&arena, CYCLE, &mut walls).expect("a tolerant build answers");
+        let mut got: Vec<(String, String)> = walls.iter().map(|(k, v)| (k.lossy(), v.lossy())).collect();
+        got.sort();
+        assert_eq!(
+            got,
+            vec![
+                (
+                    "w::A".to_string(),
+                    "Inheritance cycle: w::A -> w::B -> w::A".to_string()
+                ),
+                (
+                    "w::B".to_string(),
+                    "Inheritance cycle: w::B -> w::A -> w::B".to_string()
+                ),
+                (
+                    "w::C".to_string(),
+                    "Inheritance cycle: w::C -> w::A -> w::B -> w::A".to_string()
+                ),
+            ]
+        );
+        assert_eq!(found(&model, "w::A", "a").as_deref(), Some("a"));
+        assert_eq!(found(&model, "w::A", "b").as_deref(), Some("b"));
+        assert_eq!(found(&model, "w::C", "a").as_deref(), Some("a"));
+        let query = QueryArena::new();
+        let e = model.find_property(&query, &j("w::A"), &j("nope")).unwrap_err();
+        assert_eq!(e.message().unwrap().lossy(), "Inheritance cycle: w::A -> w::B -> w::A");
+        assert_eq!(
+            compile_error(&e).element.clone().map(|u| JStr(u).lossy()).as_deref(),
+            Some("w::A")
+        );
+        let from_c = model.find_property(&query, &j("w::C"), &j("nope")).unwrap_err();
+        assert_eq!(
+            from_c.message().unwrap().lossy(),
+            "Inheritance cycle: w::C -> w::A -> w::B -> w::A"
+        );
+        assert_eq!(
+            compile_error(&from_c)
+                .element
+                .clone()
+                .map(|u| JStr(u).lossy())
+                .as_deref(),
+            Some("w::C")
+        );
+    }
+
+    /// `ElementRefusalsTest.ASSOCIATION_END` (:55).
+    const ASSOCIATION_END: &str = "Class w::A { name: String[1]; }\nClass w::B { name: String[1]; }\n\
+        Association w::AB { a: w::A[2..1]; b: w::B[*]; }\n";
+
+    #[test]
+    #[ignore = "needs helper A's, B's and C's fills (classify, the class compile, requireValidBounds)"]
+    fn a_walled_association_ends_inverted_bounds_are_refused_at_the_lookup() {
+        // ElementRefusalsTest.aWalledAssociationEndsInvertedBoundsAreRefusedAtTheLookup (:60)
+        let arena = ModelArena::new();
+        let mut walls: LinkedMap<JStr, JStr> = LinkedMap::new();
+        let model = tolerant(&arena, ASSOCIATION_END, &mut walls).expect("a tolerant build answers");
+        let query = QueryArena::new();
+        let e = model.find_property(&query, &j("w::B"), &j("a")).unwrap_err();
+        assert!(e.is_model());
+        assert_eq!(
+            e.message().unwrap().lossy(),
+            "property 'a' of association w::AB: invalid multiplicity \u{2014} upper (1) must be >= lower (2)"
+        );
+        assert_eq!(
+            compile_error(&e).element.clone().map(|u| JStr(u).lossy()).as_deref(),
+            Some("w::AB")
+        );
+        assert_eq!(found(&model, "w::A", "b").as_deref(), Some("b"));
+    }
+
+    #[test]
+    #[ignore = "needs helper A's, B's and C's fills (the integrity pass, the function compiler)"]
+    fn a_tolerant_builds_broken_overload_is_dropped_and_an_all_broken_set_rethrows() {
+        // ElementRefusalsTest.aBrokenOverloadIsDroppedAndAnAllBrokenSetRethrows (:105)
+        let arena = ModelArena::new();
+        let mut walls: LinkedMap<JStr, JStr> = LinkedMap::new();
+        let model = tolerant(
+            &arena,
+            "function w::h(x: String[1]): String[1]\n{\n  $x\n}\n\
+             function w::h(x: Integer[2..1]): String[1]\n{\n  'n'\n}\n\
+             function w::k(x: Integer[2..1]): String[1]\n{\n  'n'\n}\n",
+            &mut walls,
+        )
+        .expect("a tolerant build answers");
+        let mut keys: Vec<String> = walls.iter().map(|(k, _)| k.lossy()).collect();
+        keys.sort();
+        assert_eq!(keys, ["w::h_Integer_$2_1$__String_1_", "w::k_Integer_$2_1$__String_1_"]);
+        assert_eq!(model.find_function(&j("w::h")).unwrap().len(), 1);
+        assert_eq!(
+            model.find_function(&j("w::k")).unwrap_err(),
+            Thrown::illegal_argument(j("upper (1) must be >= lower (2)"))
+        );
+    }
+
+    #[test]
+    #[ignore = "needs helper A's, B's and C's fills (the integrity pass)"]
+    fn a_diamond_of_a_strict_build_is_no_cycle() {
+        // ElementRefusalsTest.aDiamondIsNoCycle (:121)
+        let arena = ModelArena::new();
+        let model = context(
+            &arena,
+            "Class w::Top { t: String[1]; }\nClass w::L extends w::Top { }\nClass w::R extends w::Top { }\n\
+             Class w::D extends w::L, w::R { }\n",
+        )
+        .expect("a diamond compiles");
+        assert_eq!(found(&model, "w::D", "nope"), None);
+        assert_eq!(found(&model, "w::D", "t").as_deref(), Some("t"));
+    }
+
+    #[test]
+    #[ignore = "needs helper A's and helper B's fills (FunctionCompiler.compileAll)"]
+    fn the_function_cell_hands_out_the_same_arcs_twice() {
+        let arena = ModelArena::new();
+        let model = frozen(&arena, UNIVERSE_TEXT);
+        let f = j("w::f");
+        let first = model.find_function(&f).unwrap();
+        let again = model.find_function(&f).unwrap();
+        assert_eq!(first.len(), 2);
+        assert!(first.iter().zip(again).all(|(a, b)| same(a, b)));
+        let defs = model.index().find_function(&f);
+        for (i, d) in defs.iter().enumerate() {
+            let by_id = model.find_function_by_id(&FunctionId::of(d).qualified).unwrap();
+            assert_eq!(by_id.len(), 1);
+            assert!(same(&by_id[0], &first[i]));
+        }
+    }
+
+    #[test]
+    #[ignore = "needs helper A's, B's and C's fills (the integrity pass)"]
+    fn a_checked_layer_holds_the_gates_own_elements() {
+        let p = parsed(UNIVERSE_TEXT);
+        let index = ModelIndex::from(&p).unwrap();
+        let cd = index.find_class(&j("w::P")).unwrap().clone();
+        let layer = Model::check_layer(&as_normalized(&p), index, &registrations()).expect("the layer checks");
+        assert!(layer.contains_class(&cd));
+        assert_eq!(layer.signature_keys().len(), 3);
+    }
+
+    #[test]
+    #[ignore = "needs helper A's, B's and C's fills (the integrity pass, the class and function compilers)"]
+    fn n_threads_on_a_gated_model_answer_as_one_thread() {
+        let questions = |model: &Model<'_>| {
+            let query = QueryArena::new();
+            let mut out = Vec::new();
+            for class in ["model::Person", "model::Address", INTEGER, "absent::K"] {
+                out.push(format!("{:?}", model.find_class(&j(class)).map(|c| c.cloned())));
+                for parent in ["model::Person", "model::Address", NUMBER, platform::ANY] {
+                    out.push(format!("{:?}", model.is_subtype(&j(class), &j(parent))));
+                }
+                for name in ["name", "home", "nope"] {
+                    out.push(format!("{:?}", model.find_property(&query, &j(class), &j(name))));
+                }
+            }
+            out.push(format!(
+                "{:?}",
+                model.find_function(&j("meta::pure::functions::string::toUpper"))
+            ));
+            out
+        };
+        let one_arena = ModelArena::new();
+        let expected = questions(&context(&one_arena, &fixture_text()).unwrap());
+        let shared_arena = ModelArena::new();
+        let shared = context(&shared_arena, &fixture_text()).unwrap();
+        std::thread::scope(|s| {
+            let handles: Vec<_> = (0..8).map(|_| s.spawn(|| questions(&shared))).collect();
+            for h in handles {
+                assert_eq!(h.join().expect("a thread"), expected);
+            }
+        });
     }
 }
