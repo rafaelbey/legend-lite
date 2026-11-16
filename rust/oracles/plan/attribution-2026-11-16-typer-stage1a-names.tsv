@@ -1,0 +1,23 @@
+# THE TYPER SLICE'S STAGE 1A, ITEM 7: rust/oracles/plan's MOVED ROWS, ATTRIBUTED
+# (2026-11-16; docs/rust-port/PHASE3.md, the typer slice's entry, "stage 1a", item 7; docs/rust-port/PHASE3_SHIM_DESIGN.md
+# section 10 ruling 42 (ASK 2), rulings 34 and 37 (a)). Item 7 (c759ca718) mints AlphaRename's _nr<N> and ColumnHygiene's
+# <made>_<N> by place: each expansion's own counter from 0, skipping every name its body, its call's arguments and its
+# place use. MEASURED by the probe v2 (rust/tools/identity-hits-probe-v2.patch, each run its own tagged copy, every hunk
+# checked to apply) before and after the item: P0 at 021d6d905 (item 6) answered all 73,476 frozen keys as frozen (MOVED
+# 0, ABSENT 0); P1 and P1b at c759ca718 (two complete runs, every lane, 143 of 145 targets passing each, the two
+# probe-caused failures //core:census and //core:guardrails) agree on every key and answer all 73,476, six of them
+# otherwise. P0 against P1 over every key both answer (73,644, frozen or not; port-scratch/typer/tools/runcmp.py): only
+# these six keys moved, no count; each moved MirJson and execution plan text equals its P0 text token for token but for
+# ColumnHygiene names of one base (no two old names met in one new name, no new name equals another name of its text).
+# _nr<N> is in no frozen store and moved nowhere. The six keys are two questions over three models (the DuckDB, H2 and
+# SQLite integration lanes), the only ones whose names a per-typer counter had set past an expansion's own place.
+# Here: plan-ids.tsv's six moved execution plan ids (no test plan id moved: the host store's four files are
+# unchanged); execution-plans.tsv holds every execution plan id the rows name, once (the six new texts from P1's
+# identity-plan files, each hashed to its id; the six named no more dropped). Columns: item, commit, model, query,
+# doors, use, column, frozen, re-frozen, why.
+7	c759ca718	t:14a38beb388666e633e3157472132e8ff422dbe56b9600cb292e0fb89948d305	t:2d7083ffcf31c2e3a06a84205f964b9775982f1b8a645bff0311fb0187b8e436	executionPlan@test::TestRuntime	solo	execution plan ids	a8018927bf719598cf77cd98f193071cac9658db334cb4bff9e1651c3642ffb7	0febf2d5fb1b71d8c7fbdd19397cd16b01e0ef0b998c8f4f1668a792664c07e2	UserFunctionIntegrationTest.overItsOwnAnswer (test::fromMean twice): its SQL's working columns t_m_4 -> t_m_2, t_v_5 -> t_v_3 (names by place)
+7	c759ca718	t:35b87106d82e5be0cbb9acf10a56a3dce9c698ba5cf20190e9250af28329ef53	t:10c333c9ad8de243bccf03e9abc653194a4b76675c0a77cd7e3dda33bcb72f77	executionPlan@test::TestRuntime	solo	execution plan ids	306a00c9cbbabdc537bb27812d077eafd9a2d3f21ddc119fcdbb0b33188bdc62	5e08df14a5f749ed6439a6a39f6c21280a21bc7864b26a01ae3d856a092761f7	UserFunctionIntegrationTest.aNestedCallsColumnIsTheBodys (test::offItsMean over test::meanOf): its SQL's working columns m_2 -> m_0 (names by place)
+7	c759ca718	t:4cac103376a3acc7ac08d3df06110a408ce3c90c2dac1e602074182531d096d0	t:10c333c9ad8de243bccf03e9abc653194a4b76675c0a77cd7e3dda33bcb72f77	executionPlan@test::TestRuntime	solo	execution plan ids	81b33900bdd15126d425322bb66f48b1331561efb449e4b82fc386a73e289114	f0adeed6930dab118f3bd3e91d71a5160feacaaf504a6d64080fddcb266cdd17	UserFunctionIntegrationTest.aNestedCallsColumnIsTheBodys (test::offItsMean over test::meanOf): its SQL's working columns m_2 -> m_0 (names by place)
+7	c759ca718	t:88c621c1cc331a29cb8d6cb0f8fd823cfbe87807b085a03f5ccd4fdc02aae3c0	t:2d7083ffcf31c2e3a06a84205f964b9775982f1b8a645bff0311fb0187b8e436	executionPlan@test::TestRuntime	solo	execution plan ids	2913659c92d3c222124055f249613fb4e4b6c8176072c6b3454c0076c0f09df3	5cac9f2f8fd519d9a67122b248c31ff5bb526dfaa950977ee02fc4389a2096ea	UserFunctionIntegrationTest.overItsOwnAnswer (test::fromMean twice): its SQL's working columns t_m_4 -> t_m_2, t_v_5 -> t_v_3 (names by place)
+7	c759ca718	t:8d7f6b809a4303fd55ec68a0658c70f740a3f653b9333cfc73caf29555d1968a	t:2d7083ffcf31c2e3a06a84205f964b9775982f1b8a645bff0311fb0187b8e436	executionPlan@test::TestRuntime	solo	execution plan ids	d8a4541f459f96ba07cf45274c02664b041a31034e1e2788778c9d73f9869737	e408c382da0db2ff5bd32f1a3a1e2f16fe58cae9aee5b441ea4c15f321080d82	UserFunctionIntegrationTest.overItsOwnAnswer (test::fromMean twice): its SQL's working columns t_m_4 -> t_m_2, t_v_5 -> t_v_3 (names by place)
+7	c759ca718	t:c1b0f95eeb448e929f145c94e92ed57861b8ae405b2521ecb3b174294f019a45	t:10c333c9ad8de243bccf03e9abc653194a4b76675c0a77cd7e3dda33bcb72f77	executionPlan@test::TestRuntime	solo	execution plan ids	23a2e5a35fccc78c9c711c505d9e40bc21f2cc091d63266f68b979093e6ed015	c1cbd6e47df9a7b6453b1145756d0f208ef4756c50f47d22162ed10286b4562c	UserFunctionIntegrationTest.aNestedCallsColumnIsTheBodys (test::offItsMean over test::meanOf): its SQL's working columns m_2 -> m_0 (names by place)

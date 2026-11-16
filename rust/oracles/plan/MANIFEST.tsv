@@ -35,9 +35,9 @@
 # toString was): the query ids above are now test 10,076, service 11,538, spec 3,551 (the vs: ids renamed), fixture 432;
 # no row split or merged, so the plan ids and the rows' count are unchanged. Previous SHA-256:
 # 33c6cef3eae91d5ccca79b69b20619287aabf99bbaecf852886005fed3280c5c.
-plan-ids.tsv.zst	model, query, doors, use, execution plan ids, test plan ids: 51,337 rows; 25,741 execution plans, 25,597 test plans; re-keyed 2026-11-13, re-frozen 2026-11-13, 2026-11-14 and 2026-11-14 again (the names batch; below)	46b3450f89f715e21e42288e94afd78f4f0f96c8dfaf2d4cc8d35821d1fa187c
+plan-ids.tsv.zst	model, query, doors, use, execution plan ids, test plan ids: 51,337 rows; 25,741 execution plans, 25,597 test plans; re-keyed 2026-11-13, re-frozen 2026-11-13, 2026-11-14, 2026-11-14 again (the names batch) and 2026-11-16 (the typer slice's stage 1a item 7; below)	8a8dcabb90ca37e4cb8093f0420c7110264230bc4cf548579f0b60e8af5c368b
 # Every execution plan the ids name, once: id TAB E TAB the PlanJson (v31) text, sorted by id. 424,296,853 characters.
-execution-plans.tsv.zst	id TAB E TAB PlanJson, sorted by id: 17,044 lines	1af460bdfdef057d494845ae65ac68373255293657541cfda53e727c04aa6b7d
+execution-plans.tsv.zst	id TAB E TAB PlanJson, sorted by id: 17,044 lines; re-frozen 2026-11-16 (six plans replaced; below)	c00c7fe3ee887f582db1675b8c2ebca23a14397597701949adbaf4f7e6a5a7da
 # THE HOST JUDGE'S TEST PLANS, DEDUPLICATED (2026-11-11; docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 ruling 18;
 # docs/rust-port/PHASE3.md step 0): every test plan a host-judge row names, once, 16,247 plans of 30,212,521,643
 # characters, rebuilt exactly from four files. THE FORMAT is rust/tools/test-plan-texts.py's header (the writer, the
@@ -163,3 +163,20 @@ attribution-2026-11-14-names-batch.tsv	the names batch's re-freeze's attribution
 # none moved or absent; the 66 keys both add to rust/oracles/identity/hits.tsv have no execution or test plan id, so
 # plan-ids.tsv is re-derived byte for byte as frozen. Their attribution, key by key (identity/MANIFEST.tsv's block):
 attribution-2026-11-15-normalizer-batch2-keys66.tsv	the normalizer's second batch's item 0: the 66 keys added to identity/hits.tsv, each attributed to its text: item, commit, oracle file, kind, model, query, doors, use, the text, why (plain text: its own SHA-256)	28a95ee330efcbb6900b8365f5c348356a9dbb5acca4eba5d1b3b2d6c2a6d3cc
+# THE TYPER SLICE'S STAGE 1A, ITEM 7 (2026-11-16; begin)
+# RE-FROZEN, ATTRIBUTED (docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 ruling 42 (ASK 2), rulings 34 and 37 (a);
+# docs/rust-port/PHASE3.md, the typer slice's entry; the runs: identity/MANIFEST.tsv's block of the same name): item 7,
+# c759ca718, mints ColumnHygiene's working columns by place. Moved: six execution plan ids (two questions over the DuckDB,
+# H2 and SQLite integration models: UserFunctionIntegrationTest.aNestedCallsColumnIsTheBodys, its SQL's m_2 now m_0, and
+# overItsOwnAnswer, the second fromMean's t_m_4 and t_v_5 now t_m_2 and t_v_3), each new text equal to its old one token
+# for token but for those names; no test plan id moved, so the host store's four files and the archives are unchanged.
+# plan-ids.tsv keeps its 51,337 rows, six with a new execution plan id; execution-plans.tsv holds every execution plan id
+# the rows name, once: six new (taken from P1's identity-plan files, each hashed to its id), six named no more and
+# dropped, 17,044 lines and 424,296,853 characters as before. Of the 23 frozen execution plans holding these names
+# (port-scratch/typer/research/ask2/hygiene_plans.tsv), the other 17 keep theirs: each name there was already the first
+# its expansion's own counter reaches, past the call's taken names. Every row,
+# attribution-2026-11-16-typer-stage1a-names.tsv beside this file. Previous SHA-256s: plan-ids.tsv
+# 46b3450f89f715e21e42288e94afd78f4f0f96c8dfaf2d4cc8d35821d1fa187c, execution-plans.tsv
+# 1af460bdfdef057d494845ae65ac68373255293657541cfda53e727c04aa6b7d.
+attribution-2026-11-16-typer-stage1a-names.tsv	the typer slice's stage 1a item 7: every moved execution plan id of plan-ids.tsv, its item, commit and the names that moved (plain text: its own SHA-256)	8634a191148540b28a5ab8dab572d2f31e6be46fe99cc4f53d303644b7f41804
+# THE TYPER SLICE'S STAGE 1A, ITEM 7 (end)
