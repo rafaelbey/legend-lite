@@ -35,9 +35,9 @@
 # toString was): the query ids above are now test 10,076, service 11,538, spec 3,551 (the vs: ids renamed), fixture 432;
 # no row split or merged, so the plan ids and the rows' count are unchanged. Previous SHA-256:
 # 33c6cef3eae91d5ccca79b69b20619287aabf99bbaecf852886005fed3280c5c.
-plan-ids.tsv.zst	model, query, doors, use, execution plan ids, test plan ids: 51,337 rows; 25,741 execution plans, 25,597 test plans; re-keyed 2026-11-13, re-frozen 2026-11-13, 2026-11-14, 2026-11-14 again (the names batch) and 2026-11-16 (the typer slice's stage 1a item 7; below)	8a8dcabb90ca37e4cb8093f0420c7110264230bc4cf548579f0b60e8af5c368b
+plan-ids.tsv.zst	model, query, doors, use, execution plan ids, test plan ids: 51,353 rows; 25,745 execution plans, 25,609 test plans; re-keyed 2026-11-13, re-frozen 2026-11-13, 2026-11-14, 2026-11-14 again (the names batch) and 2026-11-16 (the typer slice's stage 1a item 7; below), 16 rows added 2026-11-16 (the typer slice's stage 1b; below)	fffe899c08a845e2d7d869b833d390f1956cafa0fcfc9eed2a2a53ba07b846bc
 # Every execution plan the ids name, once: id TAB E TAB the PlanJson (v31) text, sorted by id. 424,296,853 characters.
-execution-plans.tsv.zst	id TAB E TAB PlanJson, sorted by id: 17,044 lines; re-frozen 2026-11-16 (six plans replaced; below)	c00c7fe3ee887f582db1675b8c2ebca23a14397597701949adbaf4f7e6a5a7da
+execution-plans.tsv.zst	id TAB E TAB PlanJson, sorted by id: 17,048 lines; re-frozen 2026-11-16 (six plans replaced; below), 4 plans added 2026-11-16 (the typer slice's stage 1b; below)	80bcd0ac2417796a4acab3c807ee4a2d7a9c508ff8c3e6091f03e57fcda4ae43
 # THE HOST JUDGE'S TEST PLANS, DEDUPLICATED (2026-11-11; docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 ruling 18;
 # docs/rust-port/PHASE3.md step 0): every test plan a host-judge row names, once, 16,247 plans of 30,212,521,643
 # characters, rebuilt exactly from four files. THE FORMAT is rust/tools/test-plan-texts.py's header (the writer, the
@@ -180,3 +180,17 @@ attribution-2026-11-15-normalizer-batch2-keys66.tsv	the normalizer's second batc
 # 1af460bdfdef057d494845ae65ac68373255293657541cfda53e727c04aa6b7d.
 attribution-2026-11-16-typer-stage1a-names.tsv	the typer slice's stage 1a item 7: every moved execution plan id of plan-ids.tsv, its item, commit and the names that moved (plain text: its own SHA-256)	8634a191148540b28a5ab8dab572d2f31e6be46fe99cc4f53d303644b7f41804
 # THE TYPER SLICE'S STAGE 1A, ITEM 7 (end)
+# THE TYPER SLICE'S STAGE 1B, PART 1.1 (2026-11-16; begin)
+# ADDED with the identity oracle's 172 keys (its MANIFEST's block; corpus growth, no answer moved): 16 plan-ids.tsv rows
+# -- 4 with a new execution plan (execution-plans.tsv 17,044 -> 17,048 lines, each text taken from Z1's identity-plan
+# files and hashed to its id) and 12 //core:ladder_report questions planned under the database judge
+# (testPlan@l::RT,DATABASE,LITE), each with a new test plan named by no host row: the git store test-plans-host.tsv and
+# its values are unchanged (the host rows' 16,247 ids as before), and the database judge's archive is rebuilt with the
+# 12 added, its 6,850 plans byte for byte as before (namesland/build_archive.py): 6,862 plans,
+# /Users/cocobey73/.local/legend-lite/oracle-archive/plan-test-plans-database-judge-2026-11-16-typer-stage1b.tsv.zst
+# (8,097,517 bytes), SHA-256 of its text 7b4fede91ce15f32da1c6ec224c0249bf48e3122ac9d66cecfed574c457e01e1
+# (plan-test-plans.sha256 beside it). Previous SHA-256s: plan-ids.tsv
+# 8a8dcabb90ca37e4cb8093f0420c7110264230bc4cf548579f0b60e8af5c368b, execution-plans.tsv
+# c00c7fe3ee887f582db1675b8c2ebca23a14397597701949adbaf4f7e6a5a7da.
+attribution-2026-11-16-typer-stage1b-keys172.tsv	the typer slice's stage 1b part 1.1: the 172 keys added to identity/hits.tsv, each attributed to its test text or to //core:ladder_report: item, commit, oracle file, kind, model, query, doors, use, the text, why (plain text: its own SHA-256)	13948c247ed11767627070abaf1f1093c09b8d756d8874aa1a38e129a0da65a2
+# THE TYPER SLICE'S STAGE 1B, PART 1.1 (end)

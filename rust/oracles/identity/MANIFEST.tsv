@@ -131,14 +131,14 @@
 # text), each attributed (identity/attribution-2026-11-15-normalizer-batch2-refreeze.tsv). No MirJson, execution plan or test plan id moved.
 # Previous SHA-256: hits.tsv 034721145be8273cb846d64085ec8fa44d56f5b75b9722558a4286815664e613.
 # THE NORMALIZER'S SECOND BATCH, ITEM 6 (end)
-hits.tsv.zst	kind, model, query, doors, use, counts: 73,476 rows (B 1, L 24, M 2,846, Q 70,605), 2,858 models, 67 tables; re-keyed and masked 2026-11-13, re-frozen 2026-11-13, 66 keys added 2026-11-15 (below), 3 rows re-frozen and 3 dropped 2026-11-15 (item 6, below)	63c52253390ebdb1eb5e38796ce4d1fd7181440f023d33b706d98dd449156184
+hits.tsv.zst	kind, model, query, doors, use, counts: 73,648 rows (B 1, L 24, M 2,929, Q 70,694), 2,940 models, 67 tables; re-keyed and masked 2026-11-13, re-frozen 2026-11-13, 66 keys added 2026-11-15 (below), 3 rows re-frozen and 3 dropped 2026-11-15 (item 6, below), 172 keys added 2026-11-16 (the typer slice's stage 1b; below)	aa44bb7520135b658a139c2bbfdc07b0ab5090af372b8ce3b8df26bc1775c10d
 # Each lowering the question made (Lowerer.lower and lowerStoreWrite, in order): the SHA-256 of its MirJson text's UTF-16
 # units. !IllegalStateException:... is MirJson's refusal by design (a tagged value or list, resolved at its query's root;
 # 2,546 lowerings: 2,538 lists, 8 values). No id moved between the two runs (the first freeze's 72 ~moved, a VALUES row holding the host's
 # executionTraceID, are gone with the body driver: a test body is planned before it runs).
-mir-ids.tsv.zst	model, query, doors, use, ids: 51,606 rows, 167,833 lowerings, 40,613 distinct; re-keyed 2026-11-13, re-frozen 2026-11-13 and 2026-11-16 (the typer slice's stage 1a item 7; below)	ac607aa188f03cbd54967c92bdeb3f0a2fbc2ed73ca1f61c504cea00a3294d6b
-# Every MirJson the ids name, once: Java's answer for "the corpora through a Rust CLI". 876,194,434 characters.
-mir-store.tsv.zst	id TAB MirJson, sorted by id: 40,613 lines; re-frozen 2026-11-16 (two texts replaced; below)	99ca3524e5f7d5d41e1af61135c2cb00f9756da193d6b324279453afd5143638
+mir-ids.tsv.zst	model, query, doors, use, ids: 51,626 rows, 167,882 lowerings, 40,632 distinct; re-keyed 2026-11-13, re-frozen 2026-11-13 and 2026-11-16 (the typer slice's stage 1a item 7; below), 20 rows added 2026-11-16 (the typer slice's stage 1b; below)	ca5b5bd5a906805733b392db0c01e608f12ddab6693e50363c12d196f24b08ce
+# Every MirJson the ids name, once: Java's answer for "the corpora through a Rust CLI". 876,234,819 characters.
+mir-store.tsv.zst	id TAB MirJson, sorted by id: 40,632 lines; re-frozen 2026-11-16 (two texts replaced; below), 19 texts added 2026-11-16 (the typer slice's stage 1b; below)	f1f86f92c2308005cadf57067861b5456bbd38ba2289325c5964f4f6d0e1a012
 # THE NAMES FOLLOW-UPS' RE-FREEZE (2026-11-14, docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 ruling 34; the plan
 # oracle's MANIFEST and rust/oracles/plan/attribution-2026-11-14.tsv): two complete probe v2 runs at c59296c31 (NZ1 and
 # NZ2, every lane, 143 of 145 targets passing each, the two probe-caused failures) agree on every key and answer all
@@ -178,3 +178,22 @@ attribution-2026-11-15-normalizer-batch2-refreeze.tsv	the normalizer's second ba
 # de98afbfde06c21b30364f9fb837f8e2fdbe709064c49d0ecd9711d21dace459.
 attribution-2026-11-16-typer-stage1a-names.tsv	the typer slice's stage 1a item 7: every moved row of mir-ids.tsv, its item, commit and the names that moved (plain text: its own SHA-256)	2e476176cf3e2f060fb1e8c8ef3f4c23996890d538bf8749ec20143d215f9a3c
 # THE TYPER SLICE'S STAGE 1A, ITEM 7 (end)
+# THE TYPER SLICE'S STAGE 1B, PART 1.1 (2026-11-16; begin)
+# ADDED, 172 keys, none of them a moved answer (corpus growth; docs/rust-port/PHASE3.md, the typer slice's stage 1b):
+# stage 1a's two complete runs at c759ca718 (P1, P1b) answered 172 keys this freeze did not hold; their folders gone,
+# two fresh complete probe v2 runs at b12c55f87 (Z1, Z2; each its own tagged copy, every hunk checked to apply first;
+# 143 of 145 targets passing each, the two probe-caused failures) answer all 73,476 frozen keys as frozen (MOVED 0,
+# ABSENT 0) and agree on exactly those 172 (port-scratch/typer1b/tools/freeze172.py; with nothing added it re-derives
+# hits, mir-ids, mir-store and rust/oracles/plan's plan-ids and execution-plans byte for byte). 148 are the questions
+# of test texts added to core/src/test since the last keys were added (0f4f0d0b0): the normalizer's second batch's,
+# the element slice's and stage 1a's (rust/oracles/plan/attribution-2026-11-16-typer-stage1b-keys172.tsv, each matched
+# to its test class). 24 are //core:ladder_report's, which this freeze's rule left out until now as "a build action
+# the cache answers": every probe run is its own tagged copy since the names landings, so the action reruns in each
+# run (Z1, Z2, P1, P1b each collected 0 files older than the run) and its answers are two runs' like any lane's; the
+# rule now leaves out only the Postgres lanes and the temporary-path models, which no two runs share. hits.tsv 73,476
+# -> 73,648 rows (M 2,846 -> 2,929, Q 70,605 -> 70,694); mir-ids.tsv 20 rows added (49 lowerings), mir-store.tsv 19
+# texts (taken from Z1's identity-mir files, each hashed to its id). Previous SHA-256s: hits.tsv
+# 63c52253390ebdb1eb5e38796ce4d1fd7181440f023d33b706d98dd449156184, mir-ids.tsv
+# ac607aa188f03cbd54967c92bdeb3f0a2fbc2ed73ca1f61c504cea00a3294d6b, mir-store.tsv
+# 99ca3524e5f7d5d41e1af61135c2cb00f9756da193d6b324279453afd5143638.
+# THE TYPER SLICE'S STAGE 1B, PART 1.1 (end)
