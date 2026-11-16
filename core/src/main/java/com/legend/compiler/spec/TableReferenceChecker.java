@@ -47,7 +47,7 @@ final class TableReferenceChecker {
                         new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.DATABASE))
                 && types.subList(1, n).stream().allMatch(x -> x.type() == Type.Primitive.STRING);
         if (!fits) {
-            return NoMatch.text(af.function(), types, t.formCandidates(CoreFn.TABLE_REFERENCE, 3));
+            return NoMatch.text(NoMatch.written(af), types, t.formCandidates(CoreFn.TABLE_REFERENCE, 3));
         }
         if (!(af.parameters().get(0) instanceof PackageableElementPtr)) {
             return "tableReference names its database by its path (#>{db.TABLE}#, or tableReference(db, 'SCHEMA',"

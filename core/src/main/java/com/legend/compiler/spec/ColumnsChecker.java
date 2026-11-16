@@ -46,7 +46,7 @@ final class ColumnsChecker {
         t.kernel().resolveOverload(
                 t.model().findFunction(
                         "meta::pure::functions::relation::columns"),
-                List.of(rel.info()));
+                List.of(rel.info()), null, NoMatch.written(af));
         Type.RelationType rt = Type.relationSchema(rel.info().type());
         if (rt == null) {
             throw new TypeInferenceException("columns() needs a relation,"

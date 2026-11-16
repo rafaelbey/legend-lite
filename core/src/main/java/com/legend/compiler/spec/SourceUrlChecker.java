@@ -33,7 +33,7 @@ final class SourceUrlChecker {
         // name is not in the user namespace)
         InferenceKernel.Resolution sig = t.kernel().resolveOverload(
                 t.model().findFunction(com.legend.builtin.Pure.Lite.SOURCE_URL),
-                List.of(ExprType.one(Type.Primitive.STRING)));
+                List.of(ExprType.one(Type.Primitive.STRING)), null, NoMatch.written(af));
 
         Type.RelationType schema = new Type.RelationType(List.of(new Type.Column(
                 "data", new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.VARIANT), Multiplicity.Bounded.ONE)));

@@ -1106,6 +1106,14 @@ public final class InferenceKernel {
      *  relation schema) is bound from the context, never guessed. */
     public Resolution resolveOverload(List<TypedFunction> candidates, List<ExprType> args,
             @com.legend.base.Nullable Type expected) {
+        return resolveOverload(candidates, args, expected, null);
+    }
+
+    /** {@link #resolveOverload(List, List, Type)} for a call whose name as written the caller knows
+     *  ({@code NoMatch.written}): a call no overload takes is refused naming it so, as the engine does (the owner's
+     *  ruling of 2026-11-16 on register row S1007); null, by its short name. */
+    public Resolution resolveOverload(List<TypedFunction> candidates, List<ExprType> args,
+            @com.legend.base.Nullable Type expected, @com.legend.base.Nullable String written) {
         // Diagnostics carry the FUNCTION NAME (from the candidates — every
         // caller has homogeneous candidates); "no overload accepts 2
         // argument(s)" with no callee was an audit finding.
@@ -1146,8 +1154,10 @@ public final class InferenceKernel {
         if (winners.isEmpty()) {
             // the engine's words (the owner's ruling 42, the G census's ASK 4; legend-engine 4.145.0 refuses the same
             // call when it compiles the lambda, run): until 2026-11-16 the text printed the arguments' and the
-            // candidates' Java records (ExprType[...], [TypedParameter[...]])
-            throw new TypeInferenceException(NoMatch.text(name, args, candidates));
+            // candidates' Java records (ExprType[...], [TypedParameter[...]]); the call named as written since the
+            // owner's ruling of 2026-11-16 (register row S1007: it was the short name always)
+            throw new TypeInferenceException(NoMatch.text(written != null ? written : SpecCompiler.simpleName(name),
+                    args, candidates));
         }
         if (winners.size() > 1) {
             // DUPLICATE-SIGNATURE tolerance: distinct FQNs registering the

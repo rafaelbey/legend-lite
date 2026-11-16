@@ -38,7 +38,7 @@ final class LetChecker {
         ExprType nameInfo = t.synth(params.get(0), env).info();   // the literal name, String[1]
         TypedSpec value = t.synth(params.get(1), env);
         InferenceKernel.Resolution r = t.kernel().resolveOverload(
-                t.functionCandidates(af), List.of(nameInfo, value.info()));
+                t.functionCandidates(af), List.of(nameInfo, value.info()), null, NoMatch.written(af));
         return new TypedLet(nameLit.value(), value, r.output());
     }
 }

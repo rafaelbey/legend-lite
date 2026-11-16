@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The owner's ruling 42, the G census's ASK 4 (the typer slice's stage 1a item 3): the refusals that printed a Java
@@ -88,6 +89,27 @@ class AnswerTextsTest {
     }
 
     @Test
+    @DisplayName("a call no overload takes is named as it was written: in full when written in full, else short")
+    void aRefusedCallIsNamedAsItWasWritten() {
+        // the owner's ruling of 2026-11-16 on register row S1007 (the typer slice's stage 1b): legend-engine 4.145.0
+        // names the call as written (run, port-scratch/typer1b/engine); name resolution qualifies a bare call too, so
+        // the spelling is read off the call's span (NoMatch.written)
+        String full = typing(TypeInferenceException.class, "['a','b']->meta::pure::functions::math::minus()");
+        assertTrue(full.startsWith("Can't find a match for function 'meta::pure::functions::math::minus(String[2])'.\n"
+                + "Functions that can match if parameter types or multiplicities are changed:\n"
+                + "\t\tminus(Integer[*]):Integer[1]\n"), full);
+        String bare = typing(TypeInferenceException.class, "minus(['a','b'])");
+        assertTrue(bare.startsWith("Can't find a match for function 'minus(String[2])'.\n"), bare);
+        assertEquals("Can't find a match for function 'meta::pure::functions::lang::if(Boolean[1])'.\n"
+                + "Functions that can match if number of parameters are changed:\n"
+                + "\t\tif(Boolean[1],Function<{->T[m]}>[1],Function<{->T[m]}>[1]):T[m]\n"
+                + "\t\tif(Pair<Function<{->Boolean[1]}>, Function<{->T[m]}>>[*],Function<{->T[m]}>[1]):T[m]\n",
+                typing(TypeInferenceException.class, "meta::pure::functions::lang::if(true)"));
+        String infix = typing(TypeInferenceException.class, "'a' - 'b'");
+        assertTrue(infix.startsWith("Can't find a match for function 'minus("), infix);
+    }
+
+    @Test
     @DisplayName("a post-processor hook, a replaceTables pair and a pair side are named by what they are, not dumped")
     void theContextReaderNamesWhatItCannotRead() {
         assertEquals("sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor"
@@ -112,12 +134,16 @@ class AnswerTextsTest {
     @DisplayName("a malformed tableReference: the engine's words for arguments of the wrong count or type, lite's for"
             + " a name not written as a literal")
     void aMalformedTableReferenceSaysWhatIsWrong() {
-        assertEquals("Can't find a match for function 'tableReference(Database[1],Integer[1])'.\n"
+        // 2026-11-16 (the owner's ruling on register row S1007; the typer slice's stage 1b): the call is named as it
+        // is written, here in full, as the engine names it -- it read 'tableReference(...)' until then
+        assertEquals("Can't find a match for function 'meta::relational::functions::database::tableReference("
+                + "Database[1],Integer[1])'.\n"
                 + "Functions that can match if number of parameters are changed:\n"
                 + "\t\ttableReference(Database[1],String[1],String[1]):Table[1]\n",
                 typing(TypeInferenceException.class,
                         "meta::relational::functions::database::tableReference(t::Db, 1)"));
-        assertEquals("Can't find a match for function 'tableReference(Database[1],Integer[1],Integer[1])'.\n"
+        assertEquals("Can't find a match for function 'meta::relational::functions::database::tableReference("
+                + "Database[1],Integer[1],Integer[1])'.\n"
                 + "Functions that can match if parameter types or multiplicities are changed:\n"
                 + "\t\ttableReference(Database[1],String[1],String[1]):Table[1]\n",
                 typing(TypeInferenceException.class,

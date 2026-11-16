@@ -630,7 +630,7 @@ final class Overloads {
                     + " native or user catalog (unported platform function,"
                     + " or a misspelling)");
         }
-        InferenceKernel.Resolution r = kernel.resolveOverload(candidates, argTypes, expected);
+        InferenceKernel.Resolution r = kernel.resolveOverload(candidates, argTypes, expected, NoMatch.written(af));
         List<TypedSpec> typedArgs = Typer.withOperatorRun(r.chosen(), args);
         return new Application(r.chosen(), typedArgs, NumberKinds.refine(r.chosen(), typedArgs,
                 refineParseDate(r.chosen(), typedArgs, refineDecimalCarrier(r.chosen(), r.output()))));

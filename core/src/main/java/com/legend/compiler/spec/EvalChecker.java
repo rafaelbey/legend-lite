@@ -70,7 +70,7 @@ final class EvalChecker {
             // funcRef->eval(args…)  ==>  funcRef(args…)
             case PackageableElementPtr ref -> referenceEval(t, ref, params.subList(1, params.size()), env);
             case LambdaFunction lam -> lambdaEval(t, lam, params.subList(1, params.size()), env);
-            case ValueSpecification fn -> variableEval(t, fn, params.subList(1, params.size()), env);
+            case ValueSpecification fn -> variableEval(t, af, fn, params.subList(1, params.size()), env);
         };
     }
 
@@ -158,7 +158,8 @@ final class EvalChecker {
     }
 
     /** A function-typed value ($f): the result comes from its declared function type. */
-    private static TypedSpec variableEval(Typer t, ValueSpecification fn, List<ValueSpecification> rawArgs, Env env) {
+    private static TypedSpec variableEval(Typer t, AppliedFunction af, ValueSpecification fn,
+            List<ValueSpecification> rawArgs, Env env) {
         TypedSpec fnTyped = t.synth(fn, env);
         Type declared = fnTyped.info().type();
         // The element compiler declares function params in the WRAPPED Function<{…}> form;
@@ -194,7 +195,7 @@ final class EvalChecker {
         InferenceKernel.Resolution r;
         try {
             r = t.kernel().resolveOverload(
-                    t.formCandidates(CoreFn.EVAL, argTypes.size()), argTypes);
+                    t.formCandidates(CoreFn.EVAL, argTypes.size()), argTypes, null, NoMatch.written(af));
         } catch (TypeInferenceException e) {
             // real pure checks an eval argument's MULTIPLICITY when the value
             // arrives (eval.pure testEvalWithCollectionWithOneElement passes
@@ -212,7 +213,7 @@ final class EvalChecker {
                         ft.params().get(i).multiplicity()));
             }
             r = t.kernel().resolveOverload(
-                    t.formCandidates(CoreFn.EVAL, declaredArgs.size()), declaredArgs);
+                    t.formCandidates(CoreFn.EVAL, declaredArgs.size()), declaredArgs, null, NoMatch.written(af));
         }
         return new TypedEval(fnTyped, args, r.output());
     }
