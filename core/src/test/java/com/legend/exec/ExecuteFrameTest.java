@@ -113,7 +113,9 @@ class ExecuteFrameTest {
     @Test
     @DisplayName("relation root: at(k>0) is loud — the envelope has ONE element")
     void relationRootAtOneIsLoud() {
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
+        // a TypeInferenceException since 2026-11-16 (ruling 29's policy 2, the typer slice's stage 1a item 5): it was a
+        // raw IllegalStateException
+        com.legend.error.TypeInferenceException ex = assertThrows(com.legend.error.TypeInferenceException.class,
                 () -> run("{| let r = meta::pure::router::execute("
                         + "|m::Person.all()->project([p|$p.name], ['name']),"
                         + " m::M, m::RT.runtimeValue, []);\n"

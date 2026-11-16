@@ -58,6 +58,9 @@ class OwnDialectCensusTest {
                     "ModelNormalizerTest.java",
                     // LITE-DESIGN-function-types-generics (§11)
                     "UserFunctionIntegrationTest.java",
+                    // 2026-11-16 (ruling 29's policy 2, the typer slice's stage 1a item 5): two refusals only lite's
+                    // extension grammar reaches -- a generic function's expanded body, a function-typed parameter
+                    "ExtensionGrammarRefusalsTest.java",
                     "UserCallInlinerTest.java", "CompileFunctionTest.java",
                     "TypeCheckerTest.java",
                     // LITE-DESIGN mapping-as-function / inline-association
@@ -167,6 +170,9 @@ class OwnDialectCensusTest {
                     // column filtered by a generic body (signatures 23 -> 24); 16 -> 17 (2026-10-28, REVIEWED, the
                     // second review): test::applyTo, a function-typed parameter (function-types 19 -> 20)
                     java.util.Map.entry("UserFunctionIntegrationTest.java", 17),
+                    // 2026-11-16 (REVIEWED, ruling 29's policy 2, the typer slice's stage 1a item 5): a new host, its
+                    // one text the generic t::sf<T> and the function-typed t::aoj (generics 10 -> 11)
+                    java.util.Map.entry("ExtensionGrammarRefusalsTest.java", 1),
                     // D4 variance pins: the contravariance spec REQUIRES
                     // function-typed parameter signatures
                     // (Function<{Number[1]->String[1]}>) — pure-dialect

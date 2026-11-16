@@ -730,6 +730,11 @@ final class StaticFold {
                     }
                     keyed.add(Map.entry(e, k));
                 }
+                if (keyed.stream().map(en -> en.getValue().getClass()).distinct().count() > 1) {
+                    // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw ClassCastException from the sort
+                    throw new com.legend.error.NotImplementedException(
+                            "sortBy over static keys of different kinds cannot be folded");
+                }
                 @SuppressWarnings({"unchecked", "rawtypes"})
                 Comparator<Map.Entry<Object, Object>> cmp =
                         Comparator.comparing(en -> (Comparable) en.getValue());

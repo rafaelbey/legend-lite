@@ -111,9 +111,12 @@ class ElementRefusalsTest {
         assertEquals(java.util.Set.of("w::h_Integer_$2_1$__String_1_", "w::k_Integer_$2_1$__String_1_"),
                 module.walls().keySet());
         assertEquals(1, module.context().findFunction("w::h").size());
-        IllegalArgumentException k = assertThrows(IllegalArgumentException.class,
+        // the bound's refusal in the integrity pass's words since 2026-11-16 (ruling 29's policy 2, the typer slice's
+        // stage 1a item 5): it was the multiplicity's raw IllegalArgumentException, BOUND alone
+        com.legend.error.ModelException k = assertThrows(com.legend.error.ModelException.class,
                 () -> module.context().findFunction("w::k"));
-        assertEquals(BOUND, k.getMessage());
+        assertTrue(k.getMessage().endsWith("parameter 'x' of function w::k: invalid multiplicity — " + BOUND),
+                k.getMessage());
     }
 
     @Test

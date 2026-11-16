@@ -26,10 +26,25 @@ public final class StoreCompiler {
     private StoreCompiler() {
     }
 
-    /** A table's columns as a bare {@link Type.RelationType} row-struct (doc §G-α). */
+    /** A table's columns as a bare {@link Type.RelationType} row-struct (doc §G-α). A column declared twice, and a
+     *  DECIMAL or NUMERIC whose scale is not in [0, precision], are refused by name, a ModelException naming the
+     *  table and the column (ruling 29's policy 2, 2026-11-16, the typer slice's stage 1a item 5): they were the
+     *  relation type's and the precise decimal's raw IllegalArgumentExceptions, met at the first query reading the
+     *  table (legend-engine 4.145.0 plans both, the duplicate dropped, run: lite's words). */
     static Type.RelationType tableSchema(DatabaseDefinition.TableDefinition table) {
         List<Type.Column> columns = new ArrayList<>(table.columns().size());
+        java.util.Set<String> seen = new java.util.HashSet<>();
         for (var col : table.columns()) {
+            if (col.dataType() instanceof RelationalDataType.Decimal d && !scaleFits(d.precision(), d.scale())
+                    || col.dataType() instanceof RelationalDataType.Numeric n && !scaleFits(n.precision(), n.scale())) {
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                        "table '" + table.name() + "': the column '" + col.name() + "' declares a precision and"
+                                + " scale its type cannot hold (the scale must be in [0, precision])");
+            }
+            if (!seen.add(col.name())) {
+                throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                        "table '" + table.name() + "' declares the column '" + col.name() + "' twice");
+            }
             Multiplicity mult = (col.notNull() || col.primaryKey())
                     ? Multiplicity.Bounded.ONE : Multiplicity.Bounded.ZERO_ONE;
             // the BARE name: relation space names columns as Pure does
@@ -39,6 +54,12 @@ public final class StoreCompiler {
             columns.add(new Type.Column(col.name(), columnType(col.dataType()), mult));
         }
         return new Type.RelationType(columns);
+    }
+
+    /** Whether a precise decimal of {@code precision} and {@code scale} can be made (Type.PrecisionDecimal's own
+     *  check: a precision of at least 0, a scale in [0, precision]). */
+    private static boolean scaleFits(int precision, int scale) {
+        return precision >= 0 && scale >= 0 && scale <= precision;
     }
 
     /**

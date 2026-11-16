@@ -67,8 +67,11 @@ public final class ImportDataFlow {
             // the kind is the store column's Pure primitive NAME (RelationalKinds)
             Type prim = Type.Primitive.findByFqn(
                     "meta::pure::metamodel::type::" + t.pureKind()).orElseThrow(
-                            () -> new IllegalStateException("importDataFlow: recorded"
-                                    + " kind '" + t.pureKind() + "' is not a primitive"));
+                            // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw
+                            // IllegalStateException
+                            () -> new NotImplementedException("importDataFlow: the store declares union key thread '"
+                                    + t.name() + "' of kind " + t.pureKind() + ", which the option cannot surface as a"
+                                    + " result column; mapping=" + mappingFqn));
             out.add(new Type.Column(t.name(), prim, Multiplicity.Bounded.ONE));
         }
         return out;

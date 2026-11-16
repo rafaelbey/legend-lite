@@ -204,9 +204,17 @@ fn compile_with<'a, A: Alloc, C: Classify>(
     let type_params = f.type_parameters();
     let mut params = Vec::with_capacity(f.parameters().len());
     for pd in f.parameters().iter() {
+        // FC:106 (ruling 29's policy 2, 2026-11-16, the typer slice's stage 1a item 5): a broken bound is the
+        // integrity pass's refusal, attributed to the function, where a tolerant build met the raw throw here
+        let r#type = classifier.classify(arena, &pd.r#type, type_params)?;
+        crate::model_integrity::require_valid_bounds_at(
+            &pd.multiplicity,
+            &cat!("parameter '", &pd.name, "' of function ", f.qualified_name()),
+            f.qualified_name(),
+        )?;
         params.push(TypedParameter {
             name: pd.name.clone(),
-            r#type: classifier.classify(arena, &pd.r#type, type_params)?,
+            r#type,
             multiplicity: TypeClassifier::multiplicity(arena, &pd.multiplicity)?,
         });
     }
@@ -215,6 +223,11 @@ fn compile_with<'a, A: Alloc, C: Classify>(
         Function::NativeFunctionDefinition(_) => None,
     };
     let return_type = classifier.classify(arena, f.return_type(), type_params)?;
+    crate::model_integrity::require_valid_bounds_at(
+        f.return_multiplicity(),
+        &cat!("return of function ", f.qualified_name()),
+        f.qualified_name(),
+    )?;
     let return_multiplicity = TypeClassifier::multiplicity(arena, f.return_multiplicity())?;
     Ok(TypedFunction {
         qualified_name: f.qualified_name().clone(),
@@ -484,16 +497,26 @@ pub(crate) mod tests {
             "function w::b(x: String[1]): String[2..1] { 'b' }\n",
         ));
         let arena = QueryArena::new();
+        // a broken bound is the integrity pass's refusal, attributed to the function (ruling 29's policy 2,
+        // 2026-11-16, the typer slice's stage 1a item 5: it was the multiplicity's raw IllegalArgumentException)
         let a = compile_with(&StandIn(&index), &arena, &model_function(&index, "w::a", 0)).expect_err("refused");
         assert_eq!(
             a,
-            Thrown::Java {
-                class: "java.lang.IllegalArgumentException",
-                message: Some(j(BOUND))
-            }
+            Thrown::model(
+                Phase::Model,
+                j(&format!(
+                    "parameter 'x' of function w::a: invalid multiplicity \u{2014} {BOUND}"
+                )),
+                Some(&j("w::a"))
+            )
         );
         let b = compile_with(&StandIn(&index), &arena, &model_function(&index, "w::b", 0)).expect_err("refused");
-        assert_eq!(b.message(), Some(j(BOUND)));
+        assert_eq!(
+            b.message(),
+            Some(j(&format!(
+                "return of function w::b: invalid multiplicity \u{2014} {BOUND}"
+            )))
+        );
     }
 
     #[test]
@@ -515,8 +538,13 @@ pub(crate) mod tests {
         let k = fc
             .compile_all_with(&StandIn(&index), &arena, &j("w::k"))
             .expect_err("every overload is refused");
-        assert_eq!(k.java_class(), "java.lang.IllegalArgumentException");
-        assert_eq!(k.message(), Some(j(BOUND)));
+        assert!(k.is_model(), "{k:?}");
+        assert_eq!(
+            k.message(),
+            Some(j(&format!(
+                "parameter 'x' of function w::k: invalid multiplicity \u{2014} {BOUND}"
+            )))
+        );
         // no overload: none, no refusal
         assert_eq!(
             fc.compile_all_with(&StandIn(&index), &arena, &j("w::none"))

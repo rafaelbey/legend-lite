@@ -520,6 +520,12 @@ final class TdsDesugars {
                 return null;
             }
             List<ValueSpecification> cps = cf.parameters();
+            if (cps.isEmpty()) {
+                // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IndexOutOfBoundsException; ProjectChecker's words for a name-less column
+                throw new TypeInferenceException("a name-less project column must be a"
+                        + " property navigation (its leaf names the column); give"
+                        + " explicit names for computed columns");
+            }
             if (!(cps.get(0) instanceof AppliedFunction w
                     && com.legend.builtin.TdsLegacy.WINDOW.matches(w))) {
                 // plain col (2-arg or 3-arg with doc): name at index 1
@@ -783,7 +789,8 @@ final class TdsDesugars {
             return null;    // schema unknown (executeInDb rows): the ordinary typing serves it
         }
         if (k < 0 || k >= prt.columns().size()) {
-            throw new IllegalStateException(
+            // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IllegalStateException (legend-pure's run-time words, raised at typing)
+            throw new TypeInferenceException(
                     "The system is trying to get an element at offset " + k
                     + " where the collection is of size "
                     + prt.columns().size());

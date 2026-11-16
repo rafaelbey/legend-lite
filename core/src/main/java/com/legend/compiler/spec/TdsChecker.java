@@ -83,6 +83,13 @@ final class TdsChecker {
                 continue;
             }
             List<String> row = splitCells(lines[i]);
+            if (row.size() > names.size()) {
+                // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IndexOutOfBoundsException in the lowering, at plan; the engine refuses it when
+                // it compiles the lambda (legend-engine 4.145.0, run: "Row 2 has too many columns (expected 1)", the
+                // header row 1)
+                throw new TypeInferenceException("Row " + (i + 1) + " has too many columns (expected " + names.size()
+                        + ")");
+            }
             while (row.size() < names.size()) {
                 row.add("");
             }

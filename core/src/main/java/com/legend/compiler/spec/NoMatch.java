@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
  * arity under "if parameter types or multiplicities are changed", the others under "if number of parameters are
  * changed", each {@code name(T[m],...):R[m]} after a newline and two tabs), read; run on
  * {@code |['a','b']->minus()} and {@code |if(true)} (port-scratch/typer/engine). Types print by their simple names, as
- * the engine's {@code GenericType.print(..., false, ...)} does. Two departures, lite's: the function is named by its
+ * the engine's {@code GenericType.print(..., false, ...)} does, a function type's arrow unspaced. Two departures, lite's: the function is named by its
  * simple name (the engine prints the call as written, a full path when written in full), and the candidates come in
  * lite's catalog order (the engine's is its handlers').
  */
@@ -57,6 +57,7 @@ final class NoMatch {
     }
 
     private static String shown(Type t, Multiplicity m) {
-        return t.typeName().replaceAll("(?:[A-Za-z_][A-Za-z0-9_]*::)+", "") + m.text();
+        // a function type as the engine prints it, {->T[m]} (lite's own spelling spaces the arrow)
+        return t.typeName().replaceAll("(?:[A-Za-z_][A-Za-z0-9_]*::)+", "").replace(" -> ", "->") + m.text();
     }
 }

@@ -2193,9 +2193,14 @@ mod tests {
         keys.sort();
         assert_eq!(keys, ["w::h_Integer_$2_1$__String_1_", "w::k_Integer_$2_1$__String_1_"]);
         assert_eq!(model.find_function(&j("w::h")).unwrap().len(), 1);
+        // the integrity pass's refusal since 2026-11-16 (ruling 29's policy 2, the typer slice's stage 1a item 5)
         assert_eq!(
             model.find_function(&j("w::k")).unwrap_err(),
-            Thrown::illegal_argument(j("upper (1) must be >= lower (2)"))
+            Thrown::model(
+                lite_error::Phase::Model,
+                j("parameter 'x' of function w::k: invalid multiplicity \u{2014} upper (1) must be >= lower (2)"),
+                Some(&j("w::k"))
+            )
         );
     }
 

@@ -264,7 +264,10 @@ class OwnCorpusConformanceTest {
                 // 9 -> 10 (2026-10-27, REVIEWED, S112's return check, the A4 review's 3): test::notATable<T>, a
                 // function declared to answer a table whose body answers a number, refused by name
                 // (UserFunctionIntegrationTest.aBodyOfNoTableIsRefused)
-                Map.entry("PURE-DIALECT-generics", 10),
+                // 10 -> 11 (2026-11-16, REVIEWED, ruling 29's policy 2, the typer slice's stage 1a item 5):
+                // ExtensionGrammarRefusalsTest's t::sf<T>, a generic function whose expanded body sorts static keys of
+                // two kinds, StaticFold's ClassCastException refused by name (a MARKED extension-test host)
+                Map.entry("PURE-DIALECT-generics", 11),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),

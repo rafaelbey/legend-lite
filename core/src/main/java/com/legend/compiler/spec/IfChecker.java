@@ -50,6 +50,12 @@ final class IfChecker {
             return multiIf(t, new com.legend.protocol.spec.PureCollection(
                     List.of(args.get(0))), args.get(1), env);
         }
+        if (args.size() < 2) {
+            // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IndexOutOfBoundsException; the engine's words (legend-engine 4.145.0 refuses
+            // if() and if(true) when it compiles the lambda, run)
+            throw new TypeInferenceException(NoMatch.text(af.function(),
+                    args.stream().map(a -> t.synth(a, env).info()).toList(), t.functionCandidates(af)));
+        }
         TypedSpec cond = t.synth(args.get(0), env);
         var ifSigs = t.functionCandidates(af);
         if (ifSigs.isEmpty()) {

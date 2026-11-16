@@ -289,7 +289,8 @@ public final class ResultEnvelopeSplice {
             if (un instanceof TypedProject tp2) {
                 return tp2.docsFold();
             }
-            throw new IllegalStateException("columns.documentation read"
+            // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IllegalStateException
+            throw new com.legend.error.TypeInferenceException("columns.documentation read"
                     + " did not reach a project after the splice (source="
                     + un.getClass().getSimpleName() + ")");
         }
@@ -341,7 +342,8 @@ public final class ResultEnvelopeSplice {
                             && !(w.args().size() == 2 && w.args().get(1)
                                     instanceof TypedCInteger k
                                     && k.value().longValue() == 0)) {
-                        throw new IllegalStateException(
+                        // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IllegalStateException
+                        throw new com.legend.error.TypeInferenceException(
                                 "Result.values->at(k>0) on a relation-rooted"
                                 + " query — the values envelope holds one TDS");
                     }

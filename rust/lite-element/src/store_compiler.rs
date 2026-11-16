@@ -13,15 +13,47 @@ use lite_names::Thrown;
 use lite_names::store_compiler::column_type;
 use lite_types::{Column, Multiplicity, RelationType};
 
-/// `tableSchema(table)` (:30): the table's columns in declaration order, each by its bare name with its column type,
-/// `[1]` when `NOT NULL` or `PRIMARY KEY`, else `[0..1]`; in `arena`. Two columns of one name are the relation type's
-/// `IllegalArgumentException`, a type with no Pure spelling `columnType`'s refusal, both as Java lets them escape.
+/// `tableSchema(table)` (:34): the table's columns in declaration order, each by its bare name with its column type,
+/// `[1]` when `NOT NULL` or `PRIMARY KEY`, else `[0..1]`; in `arena`. A DECIMAL or NUMERIC whose scale is not in
+/// [0, precision], and a column declared twice, are refused by name, a `ModelException` (MODEL) naming the table and
+/// the column, each at its column in declaration order (ruling 29's policy 2, 2026-11-16, the typer slice's stage 1a
+/// item 5: the precise decimal's and the relation type's raw `IllegalArgumentException`s until then); a type with no
+/// Pure spelling is `columnType`'s refusal, as Java lets it escape.
 pub fn table_schema<'a, A: Alloc>(
     arena: &'a A,
     table: &DatabaseDefinitionTableDefinition,
 ) -> Result<&'a RelationType<'a>, Thrown> {
     let mut columns = Vec::with_capacity(table.columns.len());
+    let mut seen = std::collections::HashSet::new();
     for col in table.columns.iter() {
+        let bad_scale = match &col.data_type {
+            lite_model::RelationalDataType::RelationalDataTypeDecimal(d) => !scale_fits(d.precision, d.scale),
+            lite_model::RelationalDataType::RelationalDataTypeNumeric(n) => !scale_fits(n.precision, n.scale),
+            _ => false,
+        };
+        if bad_scale {
+            return Err(Thrown::model(
+                lite_error::Phase::Model,
+                lite_model::JStr::from(format!(
+                    "table '{}': the column '{}' declares a precision and scale its type cannot hold (the scale must \
+                     be in [0, precision])",
+                    table.name.lossy(),
+                    col.name.lossy()
+                )),
+                None,
+            ));
+        }
+        if !seen.insert(col.name.clone()) {
+            return Err(Thrown::model(
+                lite_error::Phase::Model,
+                lite_model::JStr::from(format!(
+                    "table '{}' declares the column '{}' twice",
+                    table.name.lossy(),
+                    col.name.lossy()
+                )),
+                None,
+            ));
+        }
         let multiplicity = if col.not_null || col.primary_key {
             Multiplicity::ONE
         } else {
@@ -38,6 +70,12 @@ pub fn table_schema<'a, A: Alloc>(
         });
     }
     RelationType::of(arena, &columns).map_err(Thrown::from_type_error)
+}
+
+/// `scaleFits(precision, scale)` (:85): `Type.PrecisionDecimal`'s own check, a precision of at least 0 and a scale in
+/// [0, precision].
+fn scale_fits(precision: i32, scale: i32) -> bool {
+    precision >= 0 && scale >= 0 && scale <= precision
 }
 
 #[cfg(test)]
@@ -90,9 +128,8 @@ mod tests {
         }
     }
 
-    fn assert_iae(thrown: Thrown, message: &str) {
-        assert_eq!(thrown.java_class(), lite_names::error::ILLEGAL_ARGUMENT, "{thrown:?}");
-        assert!(matches!(thrown, Thrown::Java { .. }), "{thrown:?}");
+    fn assert_model(thrown: Thrown, message: &str) {
+        assert!(thrown.is_model(), "{thrown:?}");
         assert_eq!(thrown.message().expect("a message").lossy(), message);
     }
 
@@ -189,10 +226,13 @@ mod tests {
     }
 
     #[test]
-    fn a_tables_refusals_are_javas_raw_throws() {
+    fn a_tables_refusals_name_the_table_and_the_column() {
+        // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): until then the relation type's and the
+        // precise decimal's raw IllegalArgumentExceptions (a_tables_refusals_are_javas_raw_throws, retired: a
+        // rust/RETIRED_TESTS.md row)
         let cx = QueryArena::new();
-        // two columns of one name: the relation type's IllegalArgumentException
-        assert_iae(
+        // two columns of one name
+        assert_model(
             table_schema(
                 &cx,
                 &table(vec![
@@ -201,10 +241,10 @@ mod tests {
                 ]),
             )
             .unwrap_err(),
-            "duplicate column 'id' in relation type",
+            "table 'T' declares the column 'id' twice",
         );
-        // a DECIMAL whose scale passes its precision: PrecisionDecimal's, met at its column before any duplicate
-        assert_iae(
+        // a DECIMAL whose scale passes its precision, met at its column before any duplicate
+        assert_model(
             table_schema(
                 &cx,
                 &table(vec![
@@ -214,7 +254,8 @@ mod tests {
                 ]),
             )
             .unwrap_err(),
-            "scale must be in [0, precision], got scale=5, precision=2",
+            "table 'T': the column 'p' declares a precision and scale its type cannot hold (the scale must be in [0, \
+             precision])",
         );
     }
 }

@@ -38,7 +38,21 @@
 # raw refusal a cell holds is lite's own text (an IllegalArgumentException from Type's or Multiplicity's constructor:
 # findTable's duplicate column and DECIMAL scale, a walled class's [2..1] property met by findClass, isSubtype and
 # findProperty, an all-broken overload set).
-answers.tsv.zst	ElementAnswers: text sha TAB dialect TAB hash, 74,418 lines	849acc611d851cdf714689d07a24696fe155071cd93de38a0ebe40633e989b36
+# RE-FROZEN 2026-11-16 (the typer slice's stage 1a, item 5: ruling 29's policy 2 at F, in Java and lite-element
+# together; docs/rust-port/PHASE3.md, its entry): StoreCompiler.tableSchema refuses a column declared twice and a
+# DECIMAL or NUMERIC whose scale is not in [0, precision] by name (a ModelException naming the table and the column;
+# they were the relation type's and the precise decimal's raw IllegalArgumentExceptions), and FunctionCompiler.compile
+# a tolerant build's broken bound in the integrity pass's words (it was the multiplicity's raw IllegalArgumentException,
+# rethrown when every overload is broken). ElementAnswers re-run on the tree with the change (two runs, A and B, on
+# one jar snapshot: answers.tsv, its .tags, .boot.txt and .boot-normalized.tsv byte-identical; 798 s and 816 s):
+# 30 asks over 10 texts moved, every one attributed (attribution-2026-11-16-typer-stage1a.tsv: 12 a duplicate
+# column, 4 texts; 9 a DECIMAL scale, 3 texts; 9 a broken bound, the 3 cases of an all-broken overload set, tolerant);
+# boot.txt and boot-normalized.tsv unchanged; the Rust element differential answers all 74,418 as the new freeze.
+# The forms and tags of this run are archived beside the first freeze's:
+# ~/.local/legend-lite/oracle-archive/element-forms-java-2026-11-16-typer-stage1a.jsonl.zst and
+# element-tags-java-2026-11-16-typer-stage1a.tsv.zst (their SHA-256s in element-texts-java.sha256). Previous SHA-256
+# of answers.tsv: 849acc611d851cdf714689d07a24696fe155071cd93de38a0ebe40633e989b36.
+answers.tsv.zst	ElementAnswers: text sha TAB dialect TAB hash, 74,418 lines; re-frozen 2026-11-16 (the typer slice's stage 1a, item 5)	996e62e599fd967252fbcbf8eac3aed56b6a13b31b266645511ff277ad17b17a
 # BOOT: the boot layer's own answers -- the empty text's model, built as above, every boot element's cell forced (its C, N,
 # F and I lines), then the baselines every model shares (the sorted resolution universe, the classifiers' instances,
 # the tables' lists) -- and the boot layer as Compiler.boot() normalized it, one line per element (index TAB fqn TAB
@@ -58,3 +72,4 @@ boot-normalized.tsv	the boot layer's NormalizedModel, per element (answers.tsv.b
 # element's redefinition refused before F, so the duplicates case is the layer's, refused before E by the same
 # ModelIntegrity.refuseDuplicates.
 cases.jsonl	the slice's 43 case texts (questions' form), read by ElementAnswers and the differential	a1acde8e34db3e9053421ab465893fa9b0b4f24479f796f9b5fe6cf95fbee458
+attribution-2026-11-16-typer-stage1a.tsv	the 2026-11-16 re-freeze's moved asks: line, text sha, dialect, hash before, hash after, the change (plain text: its own SHA-256)	9724bfe06b7e9f2905820674f3671496c6d606cfd9cbbd90f1317f7d97c3ba30

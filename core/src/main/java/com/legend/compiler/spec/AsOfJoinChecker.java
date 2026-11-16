@@ -38,7 +38,9 @@ final class AsOfJoinChecker {
         }
         Application a = t.checkGeneric(af, env);
         if (a.args().size() < 3 || a.args().size() > 4
-                || !(a.args().get(2) instanceof TypedLambda match)) {
+                || !(a.args().get(2) instanceof TypedLambda match)
+                // ruling 29's policy 2 (2026-11-16): a non-lambda condition was a raw ClassCastException
+                || a.args().size() == 4 && !(a.args().get(3) instanceof TypedLambda)) {
             throw new TypeInferenceException(
                     "asOfJoin expects (rel1, rel2, {t,v|match} [, {t,v|cond} [, 'prefix']])");
         }

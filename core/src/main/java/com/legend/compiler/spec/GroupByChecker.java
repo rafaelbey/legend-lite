@@ -114,11 +114,23 @@ final class GroupByChecker {
         }
         List<ValueSpecification> newFunctions = new ArrayList<>();
         for (String i : subSelectIds) {
-            newFunctions.add(functions.values().get(allIds.indexOf(i)));
+            int at = allIds.indexOf(i);
+            if (at >= nf) {
+                // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IndexOutOfBoundsException
+                throw new TypeInferenceException("groupByWithWindowSubset: the subSelectId '" + i + "' is ids[" + at
+                        + "], an aggregate's id, not one of the " + nf + " function(s)' ids");
+            }
+            newFunctions.add(functions.values().get(at));
         }
         List<ValueSpecification> newAggs = new ArrayList<>();
         for (String i : subAggIds) {
-            newAggs.add(aggs.values().get(allIds.indexOf(i) - nf));
+            int at = allIds.indexOf(i);
+            if (at - nf < 0 || at - nf >= aggs.values().size()) {
+                // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IndexOutOfBoundsException
+                throw new TypeInferenceException("groupByWithWindowSubset: the subAggId '" + i + "' is ids[" + at
+                        + "], not one of the " + aggs.values().size() + " aggregate value(s)' ids");
+            }
+            newAggs.add(aggs.values().get(at - nf));
         }
         List<ValueSpecification> newIds = new ArrayList<>();
         for (String i : subSelectIds) {
@@ -246,8 +258,12 @@ final class GroupByChecker {
                 .requireNonNull(aggList(ps.get(2)), "groupBy agg list");
         for (AppliedFunction aggCall : aggCalls) {
             String name = ((CString) aggCall.parameters().get(0)).value();
-            LambdaFunction mapFn = (LambdaFunction) aggCall.parameters().get(1);
-            LambdaFunction aggFn = (LambdaFunction) aggCall.parameters().get(2);
+            if (!(aggCall.parameters().get(1) instanceof LambdaFunction mapFn)
+                    || !(aggCall.parameters().get(2) instanceof LambdaFunction aggFn)) {
+                // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw ClassCastException
+                throw new TypeInferenceException("agg('" + name + "', ...): a TDS groupBy's agg takes a map lambda"
+                        + " and an aggregate lambda, agg('" + name + "', x|..., y|...)");
+            }
             // the row-count idiom agg('cnt', x|$x, y|$y->count()): an
             // IDENTITY selector over the row maps to the constant 1 —
             // count(1) counts rows, exactly the engine's count(*) emission

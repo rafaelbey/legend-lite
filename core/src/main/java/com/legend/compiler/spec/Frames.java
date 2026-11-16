@@ -28,7 +28,8 @@ final class Frames {
 
     static WindowFrame classify(TypedSpec spec) {
         if (!(spec instanceof TypedNativeCall call)) {
-            throw new IllegalStateException("window frame expects rows()/range(), got "
+            // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IllegalStateException
+            throw new com.legend.error.NotImplementedException("window frame expects rows()/range(), got "
                     + spec.getClass().getSimpleName());
         }
         // INTERVAL ranges (_range(n, DurationUnit, m, DurationUnit) and the
@@ -38,7 +39,7 @@ final class Frames {
         // THE FAMILY IS A CLOSED TYPE (NativeFn.Frame, batch 4b): rows / _range
         // are frames, unbounded is a BOUND — an exhaustive switch, no default
         com.legend.builtin.NativeFn.Frame frame = com.legend.builtin.NativeFn.Frame
-                .of(call.callee().id()).orElseThrow(() -> new IllegalStateException(
+                .of(call.callee().id()).orElseThrow(() -> new com.legend.error.NotImplementedException(
                         "window frame expects rows()/_range(), got " + call.callee().qualifiedName()));
         boolean interval = as.stream().anyMatch(a ->
                 a instanceof TypedEnumValue ev
@@ -106,7 +107,8 @@ final class Frames {
                     : new WindowFrame.Bound.UnboundedFollowing();
         }
         // NO fallback: an unrecognized bound is a loud error, never UNBOUNDED.
-        throw new IllegalStateException("window frame bound must be a numeric literal or"
+        // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IllegalStateException
+        throw new com.legend.error.NotImplementedException("window frame bound must be a numeric literal or"
                 + " unbounded(), got " + arg.getClass().getSimpleName());
     }
 
@@ -121,7 +123,8 @@ final class Frames {
             boolean fromSide) {
         Number n = numericBound(amount);
         if (n == null || !(unit instanceof TypedEnumValue ev)) {
-            throw new IllegalStateException("interval frame bound needs a literal"
+            // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IllegalStateException
+            throw new com.legend.error.NotImplementedException("interval frame bound needs a literal"
                     + " Integer and a DurationUnit literal");
         }
         long v = n.longValue();

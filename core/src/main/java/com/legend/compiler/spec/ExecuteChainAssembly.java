@@ -354,8 +354,15 @@ public final class ExecuteChainAssembly {
         if (p.type() == Type.Primitive.DATE
                 || p.type() == Type.Primitive.STRICT_DATE
                 || p.type() == Type.Primitive.DATE_TIME) {
-            return new com.legend.compiler.spec.typed.TypedCDate(
-                    com.legend.values.PureDateLiteral.parse(s.value()), info);
+            try {
+                return new com.legend.compiler.spec.typed.TypedCDate(
+                        com.legend.values.PureDateLiteral.parse(s.value()), info);
+            } catch (IllegalArgumentException e) {
+                // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IllegalArgumentException from the date parser
+                throw new com.legend.error.TypeInferenceException("executeLegendQuery vars: '" + s.value()
+                        + "' is not a date, for a parameter of type " + p.type().typeName() + " (" + e.getMessage()
+                        + ")");
+            }
         }
         return value;
     }
@@ -432,6 +439,10 @@ public final class ExecuteChainAssembly {
     private static String concatenateRefusal(TypedNativeCall cq, List<TypedSpec> letPrefix) {
         TypedSpec lfsArg = Lets.bound(cq.args().get(0), letPrefix);
         List<TypedSpec> els = lfsArg instanceof TypedCollection tc ? tc.elements() : List.of(lfsArg);
+        if (els.isEmpty()) {
+            // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IndexOutOfBoundsException
+            return "concatenateTemporalTdsQueries over an empty collection: there is no query to concatenate";
+        }
         String element = lfsArg.getClass().getSimpleName();
         for (TypedSpec e : els) {
             TypedSpec le = Lets.bound(e, letPrefix);
@@ -492,6 +503,9 @@ public final class ExecuteChainAssembly {
                 return null;
             }
             queries.add(ql.body().get(ql.body().size() - 1));
+        }
+        if (queries.isEmpty()) {
+            return null;   // the empty collection: prepare refuses it by name (concatenateRefusal)
         }
         TypedSpec folded = queries.get(0);
         for (int qi = 1; qi < queries.size(); qi++) {

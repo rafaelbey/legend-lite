@@ -161,6 +161,11 @@ public final class ValidateDesugar {
                     "validate(...): no mapping/runtime argument pair");
         }
         String classFqn = rootClassFqn(query, ctx, imports);
+        if (classFqn == null) {
+            // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IllegalStateException
+            throw new NotImplementedException("validate(...): the query reads no class (no ->getAll() in it):"
+                    + " validate checks the constraints of the class its query reads");
+        }
         ClassDefinition cd = ctx.findClassDefinition(classFqn).orElseThrow(
                 () -> new NotImplementedException("validate: class '"
                         + classFqn + "' has no parsed definition"));
@@ -398,7 +403,7 @@ public final class ValidateDesugar {
 
     /** The query lambda's root class ({@code X.all()} — the deepest
      * {@code getAll} target), import-qualified against the model. */
-    private static String rootClassFqn(ValueSpecification n, ModelContext ctx,
+    private static @com.legend.base.Nullable String rootClassFqn(ValueSpecification n, ModelContext ctx,
             List<String> imports) {
         if (n instanceof AppliedFunction af) {
             if (com.legend.compiler.ResolvedNames.names(af, com.legend.builtin.Pure.GET_ALL__CLASS_1.qualifiedName())
@@ -435,7 +440,10 @@ public final class ValidateDesugar {
             }
             for (ValueSpecification p : af.parameters()) {
                 try {
-                    return rootClassFqn(p, ctx, imports);
+                    String r = rootClassFqn(p, ctx, imports);
+                    if (r != null) {
+                        return r;
+                    }
                 } catch (NotImplementedException e) {
                     throw e;
                 } catch (RuntimeException ignore) {
@@ -446,12 +454,15 @@ public final class ValidateDesugar {
         if (n instanceof LambdaFunction lf) {
             for (ValueSpecification b : lf.body()) {
                 try {
-                    return rootClassFqn(b, ctx, imports);
+                    String r = rootClassFqn(b, ctx, imports);
+                    if (r != null) {
+                        return r;
+                    }
                 } catch (RuntimeException ignore) {
                     // keep scanning
                 }
             }
         }
-        throw new IllegalStateException("no getAll root in validate query");
+        return null;   // no getAll root here: the caller scans on, and desugar refuses a query with none
     }
 }

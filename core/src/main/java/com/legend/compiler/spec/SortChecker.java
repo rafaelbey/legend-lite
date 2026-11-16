@@ -255,7 +255,13 @@ final class SortChecker {
             return List.of(new TypedSort.TypedSortKey(cs.name(), true, null));
         }
         if (vs instanceof AppliedFunction f && isNullPlacement(f) && f.parameters().size() == 1) {
-            TypedSort.TypedSortKey inner = keysFromAst(f.parameters().get(0)).get(0);
+            List<TypedSort.TypedSortKey> innerKeys = keysFromAst(f.parameters().get(0));
+            if (innerKeys.isEmpty()) {
+                // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw IndexOutOfBoundsException
+                throw new TypeInferenceException("emptyFirst/emptyLast in a sort list names no sort key; it takes"
+                        + " one, asc(~col) or desc(~col)");
+            }
+            TypedSort.TypedSortKey inner = innerKeys.get(0);
             return List.of(new TypedSort.TypedSortKey(inner.column(), inner.ascending(),
                     com.legend.compiler.ResolvedNames.form(f).orElseThrow() == CoreFn.EMPTY_FIRST
                             ? TypedSortInfo.NullOrder.FIRST : TypedSortInfo.NullOrder.LAST));
@@ -270,7 +276,12 @@ final class SortChecker {
                     throw new TypeInferenceException(
                             "a sort key's null order must be a literal NullOrder value");
                 }
-                order = TypedSortInfo.NullOrder.valueOf(ev.value());
+                // ruling 29's policy 2 (2026-11-16): an unknown value was NullOrder.valueOf's raw
+                // IllegalArgumentException; the typed path's words
+                order = java.util.Arrays.stream(TypedSortInfo.NullOrder.values())
+                        .filter(o -> o.name().equals(ev.value())).findFirst()
+                        .orElseThrow(() -> new TypeInferenceException("enumeration " + PlatformTypes.NULL_ORDER
+                                + " has no value '" + ev.value() + "'"));
             }
             return List.of(new TypedSort.TypedSortKey(cs.name(),
                     com.legend.compiler.ResolvedNames.form(f).orElseThrow() == CoreFn.ASC, order));

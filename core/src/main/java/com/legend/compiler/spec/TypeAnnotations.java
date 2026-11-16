@@ -133,6 +133,7 @@ final class TypeAnnotations {
                 cols.add(new Type.Column(c.name(), namedType(c.type()),
                         Multiplicity.from(c.multiplicity())));
             }
+            refuseDuplicates(cols);
             return new Type.RelationType(cols);
         }
         if (!(te instanceof TypeExpression.NameRef nr)) {
@@ -183,7 +184,25 @@ final class TypeAnnotations {
             Multiplicity m = Multiplicity.from(c.multiplicity());
             cols.add(new Type.Column(c.name(), annotationType(c.type()), m));
         }
+        refuseDuplicates(cols);
         return new Type.RelationType(cols);
+    }
+
+    /** A relation type written with a column twice, in the engine's words (legend-engine 4.145.0 refuses it when it
+     *  compiles, "The relation contains duplicates: [A]", run): ruling 29's policy 2 (2026-11-16, the typer slice's
+     *  stage 1a item 5): it was the relation type constructor's raw IllegalArgumentException. Lite's class for a
+     *  duplicate column, SchemaInvariantException (the overload loop stops at it). */
+    private static void refuseDuplicates(List<Type.Column> cols) {
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        java.util.Set<String> twice = new java.util.LinkedHashSet<>();
+        for (Type.Column c : cols) {
+            if (!seen.add(c.name())) {
+                twice.add(c.name());
+            }
+        }
+        if (!twice.isEmpty()) {
+            throw new com.legend.error.SchemaInvariantException("The relation contains duplicates: " + twice);
+        }
     }
 
 }

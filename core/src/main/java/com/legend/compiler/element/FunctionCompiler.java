@@ -1,5 +1,7 @@
 package com.legend.compiler.element;
 
+import com.legend.compiler.element.type.Type;
+
 import com.legend.builtin.Pure;
 import com.legend.compiler.ModelBuilder;
 import com.legend.protocol.TypeExpression;
@@ -103,20 +105,26 @@ final class FunctionCompiler {
         List<String> typeParams = f.typeParameters();
         List<TypedParameter> params = new ArrayList<>(f.parameters().size());
         for (FunctionDefinition.ParameterDefinition p : f.parameters()) {
-            params.add(new TypedParameter(
-                    p.name(),
-                    classifier.classify(p.type(), typeParams),
-                    TypeClassifier.multiplicity(p.multiplicity())));
+            // a broken bound is the integrity pass's refusal, in its words, where a tolerant build met it here as
+            // the multiplicity's raw IllegalArgumentException (ruling 29's policy 2, 2026-11-16, the typer slice's
+            // stage 1a item 5: an all-broken overload set rethrew it, at compileAll and at Overloads.candidatesOf)
+            Type type = classifier.classify(p.type(), typeParams);
+            ModelIntegrity.requireValidBounds(p.multiplicity(),
+                    "parameter '" + p.name() + "' of function " + f.qualifiedName(), f.qualifiedName());
+            params.add(new TypedParameter(p.name(), type, TypeClassifier.multiplicity(p.multiplicity())));
         }
         Optional<List<com.legend.protocol.spec.ValueSpecification>> body = f instanceof FunctionDefinition fd
                 ? Optional.of(fd.body())
                 : Optional.empty();
+        Type returnType = classifier.classify(f.returnType(), typeParams);
+        ModelIntegrity.requireValidBounds(f.returnMultiplicity(), "return of function " + f.qualifiedName(),
+                f.qualifiedName());
         return new TypedFunction(
                 f.qualifiedName(),
                 typeParams,
                 f.multiplicityParameters(),
                 params,
-                classifier.classify(f.returnType(), typeParams),
+                returnType,
                 TypeClassifier.multiplicity(f.returnMultiplicity()),
                 body,
                 f instanceof NativeFunctionDefinition,

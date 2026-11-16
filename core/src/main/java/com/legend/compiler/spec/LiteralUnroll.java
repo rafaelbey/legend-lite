@@ -187,6 +187,12 @@ final class LiteralUnroll {
                 }
                 out.addAll(elements(f.get()));   // pure's dot rule CONCATENATES the elements' values
             }
+            if (out.isEmpty()) {
+                // ruling 29's policy 2 (2026-11-16, the typer slice's stage 1a item 5): it was a raw
+                // IndexOutOfBoundsException; no element gives the field a value to type the collection by, so it is
+                // not folded, as a field the literal does not spell is not
+                return Optional.empty();
+            }
             ExprType first = out.get(0).info();
             return Optional.of(new TypedCollection(out, new ExprType(first.type(),
                     Multiplicity.Bounded.ZERO_MANY)));
