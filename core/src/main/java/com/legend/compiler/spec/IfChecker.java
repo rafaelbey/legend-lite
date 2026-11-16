@@ -56,6 +56,13 @@ final class IfChecker {
             throw new TypeInferenceException(NoMatch.text(NoMatch.written(af),
                     args.stream().map(a -> t.synth(a, env).info()).toList(), t.functionCandidates(af)));
         }
+        if (args.size() > 3) {
+            // 2026-11-16 (the typer slice's stage 1b, part 1; ruling 34): a fourth argument and after were dropped
+            // silently (only the third was read); legend-engine 4.145.0 refuses the call when it compiles the lambda
+            // (run, port-scratch/typer/research/item5, 2.9), in its words
+            throw new TypeInferenceException(NoMatch.text(NoMatch.written(af),
+                    args.stream().map(a -> t.synth(a, env).info()).toList(), t.functionCandidates(af)));
+        }
         TypedSpec cond = t.synth(args.get(0), env);
         var ifSigs = t.functionCandidates(af);
         if (ifSigs.isEmpty()) {

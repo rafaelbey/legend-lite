@@ -261,6 +261,12 @@ final class SortChecker {
                 throw new TypeInferenceException("emptyFirst/emptyLast in a sort list names no sort key; it takes"
                         + " one, asc(~col) or desc(~col)");
             }
+            if (innerKeys.size() > 1) {
+                // 2026-11-16 (the typer slice's stage 1b, part 1; ruling 34): a second key and after were dropped
+                // silently (only the first was read); legend-engine 4.145.0 refuses the group lambda when it compiles
+                // it (run, port-scratch/typer/research/item5, 2.12), in its words
+                throw new TypeInferenceException("Can't infer the type of the function parameter within over");
+            }
             TypedSort.TypedSortKey inner = innerKeys.get(0);
             return List.of(new TypedSort.TypedSortKey(inner.column(), inner.ascending(),
                     com.legend.compiler.ResolvedNames.form(f).orElseThrow() == CoreFn.EMPTY_FIRST

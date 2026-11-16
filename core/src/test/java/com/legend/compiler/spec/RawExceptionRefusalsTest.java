@@ -137,6 +137,27 @@ class RawExceptionRefusalsTest {
     }
 
     @Test
+    @DisplayName("if with a fourth argument and emptyFirst of two keys: refused in the engine's words, never dropped")
+    void anArgumentDroppedSilentlyIsRefused() {
+        // 2026-11-16 (the typer slice's stage 1b, part 1; ruling 34): IfChecker read the third argument alone and a
+        // group lambda's emptyFirst its first key alone, dropping the rest; legend-engine 4.145.0 refuses both when it
+        // compiles the lambda (run, port-scratch/typer/research/item5, 2.9 and 2.12), in these words
+        assertEquals("Can't find a match for function 'if(Boolean[1],LambdaFunction<{->Integer[1]}>[1],"
+                + "LambdaFunction<{->Integer[1]}>[1],LambdaFunction<{->Integer[1]}>[1])'.\n"
+                + "Functions that can match if number of parameters are changed:\n"
+                + "\t\tif(Boolean[1],Function<{->T[m]}>[1],Function<{->T[m]}>[1]):T[m]\n"
+                + "\t\tif(Pair<Function<{->Boolean[1]}>, Function<{->T[m]}>>[*],Function<{->T[m]}>[1]):T[m]\n",
+                typing(TypeInferenceException.class, "if(true, |1, |2, |3)"));
+        assertEquals("Can't infer the type of the function parameter within over",
+                typing(TypeInferenceException.class, "#>{t::Db.T}#->groupBy(~A, ~names:g|$g->joinStrings(~NAME, ',',"
+                        + " emptyFirst([~ID->ascending(), ~B->descending()])))->from(t::R)"));
+        // the controls: three arguments, one key
+        assertDoesNotThrow(() -> com.legend.Compiler.query(CTX, "if(true, |1, |2)").resultType());
+        assertDoesNotThrow(() -> com.legend.Compiler.query(CTX, "#>{t::Db.T}#->groupBy(~A, ~names:g|$g->joinStrings("
+                + "~NAME, ',', emptyFirst(~ID->ascending())))->from(t::R)").resultType());
+    }
+
+    @Test
     @DisplayName("a group lambda's sort list: emptyFirst([]) and an unknown NullOrder, refused by name")
     void aGroupLambdasBadSortKeyIsRefused() {
         assertEquals("emptyFirst/emptyLast in a sort list names no sort key; it takes one, asc(~col) or desc(~col)",
