@@ -1822,6 +1822,145 @@ done, in the order of the design's §3.
      fold joins a setup collection with no separator where the raw fold uses a newline (ContextReading :1146-1156); a
      StaticFold capture of a user-written `$_nr0` (fixed by item 7's avoid-set).
 
+   **The typer slice, stage 1b: G's typed oracle, and the owner's measurements (2026-11-16;** the owner's ruling 42,
+   [`PHASE3_SHIM_DESIGN.md`](PHASE3_SHIM_DESIGN.md) §10**).** Step 0, TypedAnswers frozen, and what ruling 42 had
+   measured first; every measurement and tool is in `port-scratch/typer1b/` (its RESUME.md, TABLE.md).
+
+   - *Step 0.1, the 172 keys* (`409799123`, PLUMBING): stage 1a's P1 and P1b answered 172 keys the freeze did not
+     hold; their folders were gone, so two fresh complete probe runs at `b12c55f87` (Z1, Z2: all 73,476 frozen keys
+     equal, MOVED 0, ABSENT 0) agreed on exactly those keys and were frozen with attribution (identity 73,476 ->
+     73,648 rows, 20 MirJson rows, 16 plan rows; 4 execution plans, 12 database-judge test plans in a new archive):
+     148 the questions of test texts added since `0f4f0d0b0`, each matched to its test class, and 24 of
+     //core:ladder_report, which the freeze's rule had left out as "a build action the cache answers" -- tagged probe
+     copies rerun it in every run (0 files older than the run), so the rule now leaves out the Postgres lanes and the
+     temporary-path models alone.
+   - *Step 0b, the owner's ruling on S1007* (`0af0dc04a`, ENGINE-SOURCED): a call no overload takes is named as
+     written, in full when written in full (run); the candidates stay in lite's order. Stage 1a's note that the call
+     carries its written name did not hold -- name resolution qualifies a bare call too -- so `NoMatch.written` reads
+     the spelling off the call's span (the parser's span of a call is its name's). No Rust twin builds the text.
+   - *Step 0.2, the nine unreached sites* (`0bafd7f44`, PLUMBING): a test reaching each (ContextReadingRefusalsTest
+     5, RawExceptionRefusalsTest 3, ElementRefusalsTest 1). FunctionCompiler's return bound is reached only through a
+     tolerant build (ModelIntegrity.checkFunction :382 refuses it first in every strict door, read). Frames :124
+     (intervalBound, :122-129 at this commit): the brief's premise did not hold -- origin/main's `fa9ecbe27` sizes a
+     rows or range frame by a parameter (main's Frames.bound :84-88; this branch refuses it, :109-112,
+     aNonLiteralFrameIsRefused) and keeps an interval's amount literal-only, throwing this same text raw (main's
+     intervalBound :97-103). Run on origin/main `4dfbb5b76` (a throwaway test, never committed): a query `{n:
+     Integer[1]|... ->extend(over(~p, [~o->ascending()], _range($n, DurationUnit.DAYS, 0, DurationUnit.DAYS)),
+     ~s:{p,w,r|$r.v}:y|$y->plus())}` meets a raw IllegalStateException at Frames.java:101, from OverChecker as the
+     query is typed (the literal amount plans); here it is a NotImplementedException refusal (:127). So the refusal
+     stays at the next merge; the test's comment says so.
+   - *Step 0.3, stage 1a's "found, not changed"*: landed -- F's relation type naming a column twice (`2dc93f06b`,
+     ENGINE-SOURCED: legend-pure's "The relation contains duplicates: [A]", run; TypeClassifier and lite-element's
+     twin; the element oracle re-asked, A = B, MOVED 0 of 74,418), `if(true, |1, |2, |3)` and a group lambda's
+     `emptyFirst([k1, k2])` (`7a93fcef3`, ENGINE-SOURCED, ruling 34: the engine's compile-time words, run). To the
+     table, unchanged, each with an engine run and its reach (TABLE.md, CR4): ContextReading's raw helper call read
+     by its first bodied overload whatever the arity, a copy's unread testDataSetupSqls override, the typed fold's
+     missing separator, programFacts reading with the raw-body paths off.
+   - *The counter rule*: C2 (the probe with part 1 uncommitted and a counter at each changed site): all 73,636 frozen
+     keys it answered equal; ABSENT 12, ContextReadingRefusalsTest's MODEL, which the uncommitted tests had extended
+     (its text kept since; C3, the compiler lanes at `7a93fcef3`: the 12 answered and equal); the written-name
+     counter on 2 frozen keys (AnswerTextsTest's tableReference questions, counts alone), every other counter on the
+     new tests alone.
+   - *ASK 4, found by TypedAnswers* (`fbc8f01e9`, LITE-ONLY, ruled): NewChecker's and IfChecker's multiplicity texts
+     printed Java's `Bounded[lower=1, upper=1]` (34 asks); Pure's `[1]` now. R206, the full probe with it: all 73,648
+     frozen keys equal, MOVED 0, ABSENT 0; its counters on 16 keys, 13 frozen (counts alone).
+   - *Part 2, TypedAnswers* (`6626554ef`, PLUMBING; rust/oracles/typed/MANIFEST.tsv): 74,556 model asks (the front
+     oracle's texts at each dialect, ElementAnswers' 43 cases, the typer's own 138: ruling 36's 74 one-view models,
+     item6's nine spellings marked as the owner ruled ASK 17 -- like, charindex, locate, COUNT, SUM, ABS ruled; mod
+     over floats, md5 over an integer, minus over strings carried to I -- and one case per site stage 1a and part 1
+     fixed), G over every body in compileAllBodies' order with the compileErrors list, strict and tolerant; 31,530
+     query asks (the identity oracle's 31,297 t: pairs -- Cypher 10,879, IQ 8,363, SQL 2,216, island-free 9,839, the
+     coordinator's counts reproduced from the parsed queries -- and the cases' 233): G's statements, resultType and
+     parameters, G-half's inlined body and queryLets without the splice hook, programFacts. The canonical text:
+     sharing labels, origins as place labels, callees as FunctionView, maps and sets sorted, positions dropped,
+     relation types deduplicated by value (one #Cypher CREATE wrote 1.27 billion characters without it), no toString
+     (grepped); its schema from FrontCodegen's new typed mode (the text itself is TypedAnswers' reflective codec's:
+     the Rust writer is lite-spec's, with the port). Two runs, four JVMs each (529 s, 538 s), byte-identical; a
+     --check-door run found the replica's compileErrors equal to compileAllBodies' on all 125,184 model runs; F
+     handed Compiler.buildModel's registrations moves no ask. In git 3.0 MB (rust/oracles/typed); the forms 7.8 GB,
+     archived in 12.3 MB. Reach (port-scratch/typer1b/oracle/stage/reach-typed.tsv, 84 typed kinds): TypedVariable
+     8,060 model texts and 11,173 query texts, TypedNativeCall 7,091 and 14,887, TypedPropertyAccess 6,942 and
+     10,592, TypedNewInstance 5,316 and 454, TypedTableReference 4,242 and 6,403, TypedUserCall 1,330 and 155;
+     strict, 23,892 builds refused as F's oracle refuses them and 10,463 of 149,014 bodies, 24 of them by raw Java
+     exceptions no site list names (a time literal out of range, an unresolved multiplicity union, an index past a
+     list: for the owner). A cheap timing mode rides the tags (each phase's wall time per ask, never hashed): D-E-F
+     120 s, G over every body 670 s, a query's G 22 s, G-half 232 s, programFacts 27 s, summed over the four JVMs --
+     the Java twin of §15 item 3 still needs a warm-JVM harness.
+   - *Part 3, measured* (TABLE.md; register rows S1012-S1061): bounded as the brief says. Reach for ASK 15 and R1-R55
+     from one instrumented build (a hit counter at each of 202 sites, `research/sitemap/sites.tsv` and
+     `research/cr4`), asked twice: TypedAnswers at `fbc8f01e9` (three JVMs this time, every hash the freeze's: the
+     counters pure, the answers independent of the sharding) and the full probe R206 (every lane: the doors
+     TypedAnswers does not ask, the plan's and testplan's). The register rows S1012-S1061 carry each R-row's reach;
+     R11, R19, R25 and R28 are main's S5, S2, S129 and S127 as corrected on java_bugFixes_next `a6bbae779`, R55 is
+     S1010 (the register's note). Implement-and-diff in throwaway copies (`variants/*.patch`): ASK 1 (b) moves 91
+     model and 33 query asks and 58 frozen keys; (b') nothing; ASK 3 (b) moves 20 asks -- all its `in` kind check's
+     (18 an `in` left to SQL, 2 an engine corpus body, testPrerouting34, refused), its three defects reached by
+     nothing -- and 19 frozen keys (MirJson, execution plans); ASK 3 (c) 37 asks and at least 158 frozen keys (5,390
+     not asked: spec corpus shards fail under it); ASK 5 29 model asks and at least 295 frozen keys (2,684 not asked:
+     the spec corpus shards fail under it, an effect not measured; of the 295, 104 test plans move -- 66 engine
+     corpus tests, 38 stress services, H2 and DuckDB: the SQL a test runs -- and 16 more MirJson, lowerResolved of
+     stress queries; no execution plan; the other 175 counts alone); ASK 8 (b) 40 model asks and 96 frozen keys'
+     counts, no SQL or object id; typing each subtree once moves no answer anywhere (TypedAnswers, MirJson, execution
+     and test plans) and the counts of seven identity tables in 2,278 frozen keys (ContextReading.scoped 2,096,
+     Anchors.memo 98, ...), so a Rust typer that types each pure repeat once is held to every answer but not to those
+     counts. ASK 15: (b) and (h) are reached by nothing (deletable), (e)'s suffix capture is real on a lite run (a
+     user's `my::p::union(1, 2)` planned as a dedup UNION) and reached by nothing we hold, (g) misses generators in
+     204 frozen test-door questions. S1006: the control `plus(T.I, T.J)` shows the same [1]/[0..1] gap (general, a
+     table item); executed, the Integer-labelled DOUBLE column is refused by the batch with a raw
+     IllegalArgumentException on H2 and DuckDB; it is PR #102's open split -- on origin/main and the PR the column is
+     declared Float, so the uncast BIGINT-over-DOUBLE exists under the port's first-argument rule only (the
+     coordinator's fact from java_bugFixes_next `3f56e6edc`). Recommendations per item in TABLE.md.
+   - *Probes and gates*: the early gates (`port-scratch/typer1b/tools/early.sh`: stage 1a's set with
+     //python:engine_test) green before every commit, 72 of 72 (`0bafd7f44`'s first try failed three -- the parser
+     ratchet, 3356 -> 3367 by update_ratchets, and a helper named h2Runtime that //core:census's dialect-leak check
+     flags -- then green; `2dc93f06b`'s failed the ratchet alone, 3367 -> 3368, and the gate over it green), and for
+     `6626554ef` with //tools/guards:all and //rust/oracles:all, 78 passed, 2 skipped. Probe v2 runs, each its own
+     tagged copy with every hunk checked to apply: Z1, Z2 (complete, at `b12c55f87`) and C2 (143 of 145 targets
+     passing each, //core:census and //core:guardrails probe-caused), R206 (142: those two and an update_generated
+     test its counters change), C3 (the compiler lanes), and the throwaway variants Vask1, Vask1b, Vask3b
+     (cache-answered corpus, rerun as Vask3bR), Vask3c, Vask5, Vask8b, Vonce (143 each but Vask1 128, Vask3c 132,
+     Vask5 135: the variants' own failures); the 35-38 GB folders deleted, the verify worktree clean. The full suite
+     at `6626554ef`: build clean, 589 targets, 580 passed, 2 skipped (//tools/guards:classpath_test,
+     :markdown_inputs_test), none failed, 7 TIMEOUT -- the Mac slept on battery overnight, which caffeinate does not
+     hold (pmset's log), the timed-out walls 104 s to 47,048 s: //core:stress_suites, :stress_suites_h2,
+     :core_tests_integration_sqlite, :front_reader_test, //datacube:verify_app_test, //projects:core-book_test,
+     :index-core_test; the seven re-run awake on AC at the same commit, all passed (the stress suites 705 s and 659
+     s, as the probes' 756-1,166 s). Against rust/BASELINE.tsv, the table as run: moved 6 (each PASSED -> TIMEOUT),
+     new 40 (//core:front_reader_test's TIMEOUT among them), gone 3; with the seven as re-run (a merged table,
+     port-scratch/typer1b/runs/VERIFY_merged.tsv): moved 0, new 40, gone 3, as at `89fda325f`.
+   - *Commits against origin/main* (`git apply --check`, core/src): `409799123` and `6626554ef`'s data have no
+     core/src product part; `2dc93f06b`'s and `fbc8f01e9`'s product parts apply, their tests do not (the port's
+     ElementRefusalsTest, AnswerTextsTest); `0af0dc04a` and `7a93fcef3` do not (IfChecker carries stage 1a's
+     port-only `129154736`), nor `0bafd7f44` (the port's test classes) nor `6626554ef`'s ParserBoundaryArchTest (the
+     port's ElementAnswers entry).
+   - *The lead's choices, for the owner*: `fbc8f01e9` was not in the brief (ASK 4's ruling, applied to texts
+     TypedAnswers' grep found before the freeze); 0af0dc04a's and fbc8f01e9's counters fired on frozen keys (2 and
+     13), each frozen answer counts alone and unchanged -- landed on stage 1a's precedent, where the brief's rule
+     reads "stop on hits"; `2dc93f06b` refuses a duplicate relation column at every F site, not ModelIntegrity :372
+     alone; emptyFirst refuses `[]` in lite's words (S1009) and `[k1, k2]` in the engine's (the brief), misleading as
+     those are there; the canonical text's relation rule; FrontCodegen's typed mode emits the schema, the text being
+     TypedAnswers' codec's; the freeze rule's ladder_report exclusion dropped; the typing-once patch's two risks
+     (REPEAT-14 shares one subtree between a let's typing and a from() context; a let check misses names re-bound
+     behind an alias chain). The cases' notes (rust/oracles/typed/cases.jsonl) record lite at `b12c55f87`, before
+     part 1; the answers are `fbc8f01e9`'s. Two incidents: a misqueued probe overlapped a TypedAnswers variant run
+     for four minutes (killed, the verify worktree reverted; the answers are deterministic), and its tag's corpus
+     actions answered the next run of that tag from the cache (re-run as Vask3bR, complete). Stage 1b's own tests add
+     26 keys the freeze does not hold (not added).
+   - *What did not hold*: stage 1a's P1 and P1b folders were deleted (two fresh runs replaced them);
+     //core:ladder_report's exclusion from the freeze rested on a cache tagged copies defeat; the call's written name
+     is not `af.function()` after resolution (stage 1a's research); main's `fa9ecbe27` does not plan Frames :124's
+     interval amount (the brief); `neverEqual` (S127's correction) is on java_bugFixes_next only -- this branch's
+     `in` fold checks no kind; SORT_BY's raw exception was already a refusal (stage 1a), so ASK 3 (b) had three
+     defects; TRUST_ONE has a fourth site, Overloads.derivedShadow; stage 1a's ASK 4 grep missed NewChecker's and
+     IfChecker's `Bounded[...]` texts (fixed, `fbc8f01e9`), and the census's policy-2 list three raw exceptions
+     TypedAnswers met in G (a time literal out of range, an unresolved multiplicity union, an index past a list; 24
+     strict body refusals, for the owner); the census's estimates of the forms (5-20 GB, 50-200 MB compressed: 7.8
+     GB, 12.3 MB) and the run (2-4 times the element oracle's 850 s: 529 s in four JVMs); TypeAnnotations' second
+     lookup (ASK 15 (b)) and ValidateDesugar's re-qualification (ASK 15 (h)) are reached by nothing -- deletable; the
+     `::`-suffix capture (ASK 15 (e)) is real (run) and reached by no text we hold; the full suite's run did not stay
+     awake -- on battery the Mac slept, caffeinate notwithstanding, and seven targets timed out (re-run awake:
+     passed).
+
 ## Carried to the slices not yet begun
 
 Work an earlier slice found and ruled for a later one; each item names the ruling and the register row, and is done
