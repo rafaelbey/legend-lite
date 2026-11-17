@@ -5,7 +5,6 @@ package com.legend.compiler.spec;
 
 import com.legend.error.TypeInferenceException;
 
-import com.legend.builtin.Pure;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
@@ -14,7 +13,6 @@ import com.legend.protocol.spec.TypeAnnotation;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Type-ANNOTATION resolution — {@code @Integer}, {@code @Pair<String,Integer>},
@@ -148,26 +146,20 @@ final class TypeAnnotations {
         }
         // The legacy TDS surface: a NOMINAL — the value level is the
         // relation carrier (CastChecker treats cast(@TabularDataSet) over
-        // a relation as a schema-preserving assertion). The EXACT FQN wins
-        // outright; the BARE name is a fallback AFTER user types (audit
-        // 22b LOW: a model class named TabularDataSet must not be
-        // shadowed — prelude-fallback ordering).
+        // a relation as a schema-preserving assertion): its FQN, as name
+        // resolution leaves it.
         if (com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET
                 .equals(name)) {
             return new Type.GenericType(
                     com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET,
                     List.of());
         }
+        // the name as name resolution left it, the one lookup (CompileContext.java:89-122, :245-273, read: a type
+        // annotation's name resolves through the imports and the meta imports). Until 2026-11-17 a name not found was
+        // looked up a second time -- a bare TabularDataSet, then meta::pure::metamodel::type::X and the variant
+        // package's X -- after the resolver, a lookup no input reached (the typer slice's stage 1b's counter: no
+        // TypedAnswers ask, no probe question; the owner's ruling 44, ASK 15 (b), deleted in its stage 1c)
         return com.legend.compiler.element.type.PlatformTypes.eraseTdsRow(ctx.findType(name)
-                .or(() -> "TabularDataSet".equals(name)
-                        ? Optional.of((Type) new Type.GenericType(
-                                com.legend.compiler.element.type.PlatformTypes
-                                        .TABULAR_DATA_SET, List.of()))
-                        : Optional.empty())
-                .or(() -> name.contains("::")
-                        ? Optional.empty()
-                        : ctx.findType("meta::pure::metamodel::type::" + name)
-                                .or(() -> ctx.findType(Pure.VARIANT_PKG + "::" + name)))
                 .orElseThrow(() -> new TypeInferenceException(
                         "unknown type '" + name + "' in @" + name)));
     }

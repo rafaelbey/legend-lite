@@ -293,16 +293,9 @@ public final class ValidateDesugar {
                     }
                 }
             }
-            if (fd.isEmpty() && !af.function().contains("::")) {
-                // pre-resolution body: qualify through the test's imports
-                for (String imp : imports) {
-                    fd = ctx.findFunctionDefinition(
-                            imp + "::" + af.function());
-                    if (fd.isPresent()) {
-                        break;
-                    }
-                }
-            }
+            // the call as name resolution left it (its name, else its referents): until 2026-11-17 a bare name found
+            // by neither was qualified again through the test's imports, after the resolver, a branch no input reached
+            // (the typer slice's stage 1b's counter; the owner's ruling 44, ASK 15 (h), deleted in its stage 1c)
             if (fd.isPresent() && !fd.get().body().isEmpty()) {
                 return contextInfo(fd.get().body()
                         .get(fd.get().body().size() - 1), ctx, imports,
@@ -414,27 +407,10 @@ public final class ValidateDesugar {
                 if (ctx.findClassDefinition(name).isPresent()) {
                     return name;
                 }
-                String first = null;
-                for (String imp : imports) {
-                    String q = imp + "::" + name;
-                    var cd = ctx.findClassDefinition(q);
-                    if (cd.isEmpty()) {
-                        continue;
-                    }
-                    // MULTI-IMPORT collision (several Product classes in
-                    // scope): the validate contract requires constraints
-                    // — a CONSTRAINED candidate beats an unconstrained
-                    // first match
-                    if (!constraintsInHierarchy(cd.get(), ctx).isEmpty()) {
-                        return q;
-                    }
-                    if (first == null) {
-                        first = q;
-                    }
-                }
-                if (first != null) {
-                    return first;
-                }
+                // the class as name resolution left it: until 2026-11-17 a name it did not find was qualified again
+                // through the test's imports (a constrained candidate first, else the first match), after the
+                // resolver, a branch no input reached (the typer slice's stage 1b's counter; the owner's ruling 44,
+                // ASK 15 (h), deleted in its stage 1c)
                 throw new NotImplementedException("validate: cannot qualify"
                         + " root class '" + name + "'");
             }
