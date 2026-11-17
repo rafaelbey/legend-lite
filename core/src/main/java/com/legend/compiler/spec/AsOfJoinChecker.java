@@ -18,14 +18,14 @@ import java.util.Optional;
  * {@code match} picks the as-of row plus an optional additional condition;
  * checked generically, output {@code T+V} (a name collision fails loudly).
  *
- * <p>The 5-argument {@code prefix} overload resolves collisions: EVERY
- * right-side column is renamed {@code prefix + name} &mdash; the SAME rule as
- * {@code join}. <strong>Deliberate divergence from engine-lite</strong>, which
- * prefixes only the overlapping columns here while join prefixes all of them;
- * two prefix semantics for one concept is an engine inconsistency we do not
- * carry. The renaming is beyond the signature's {@code T+V} algebra, so the
- * prefix path validates each argument against the registered 5-arity signature
- * and computes the prefixed union bespoke.
+ * <p>The 5-argument {@code prefix} overload (lite's surface; register row S1040) resolves collisions: only a
+ * right-side column whose name the left side also has is renamed {@code prefix + name}, the prefix ending in an
+ * underscore; every other right-side column keeps its name, so the match key reads unprefixed on the left. This is
+ * NOT {@code join}'s prefix rule, which renames every right-side column. The renaming is beyond the signature's
+ * {@code T+V} algebra, so the prefix path validates each argument against the registered 5-arity signature and
+ * computes the prefixed union bespoke. (2026-11-17, the owner's ruling 44, ASK 15 (f): until then this javadoc said
+ * every right-side column was prefixed, as join's are, where the code has prefixed the colliding ones alone; the
+ * code, which six frozen query asks answer, unchanged.)
  */
 final class AsOfJoinChecker {
 
