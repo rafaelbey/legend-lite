@@ -506,8 +506,16 @@ public final class SpecCompiler {
                 ? scope.resolveAlias(rhs) : rhs;
     }
 
+    /** {@code typeName} with its raw head's package cut, never a type argument's: {@code Pair<a::A, a::B>}'s full name
+     *  is {@code Pair<a::A, a::B>}, a function type ({@code {a::A[1]->b::B[1]}}) is as written. Until 2026-11-17 the
+     *  last {@code ::} anywhere was cut, inside the type arguments too, so a return refusal read "declares return type
+     *  B> but ..." (the owner's ruling 44, ASK 15 (c); the typer slice's stage 1c). */
     static String simpleName(String typeName) {
-        int idx = typeName.lastIndexOf("::");
+        int end = 0;
+        while (end < typeName.length() && "<({[ ".indexOf(typeName.charAt(end)) < 0) {
+            end++;
+        }
+        int idx = typeName.substring(0, end).lastIndexOf("::");
         return idx < 0 ? typeName : typeName.substring(idx + 2);
     }
 

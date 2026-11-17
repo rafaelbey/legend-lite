@@ -166,4 +166,22 @@ class AnswerTextsTest {
                 typing(TypeInferenceException.class,
                         "{x:String[1]| meta::relational::functions::database::tableReference(t::Db, $x)}"));
     }
+
+    @Test
+    @DisplayName("a return refusal names a parameterized type whole: Pair<a::A, a::B>, never B> cut inside its arguments")
+    void aReturnRefusalNamesAParameterizedTypeWhole() {
+        // the owner's ruling 44, ASK 15 (c) (the typer slice's stage 1c, 2026-11-17): SpecCompiler.simpleName cut a
+        // type's name at its last '::', inside its type arguments, so the refusal read "declares return type B> but
+        // body returns B>"; it cuts the raw head's package alone (a text of its own: MODEL's questions keep their keys)
+        java.util.Map<String, String> walls = com.legend.Compiler.compileAllBodies(com.legend.Compiler.compileModel("""
+                ###Pure
+                Class a::A {}
+                Class a::B {}
+                function a::pairs(): meta::pure::functions::collection::Pair<a::A, a::B>[1]
+                { ^meta::pure::functions::collection::Pair<a::B, a::A>(first=^a::B(), second=^a::A()) }
+                """));
+        String wall = walls.entrySet().stream().filter(e -> e.getKey().startsWith("a::pairs"))
+                .map(java.util.Map.Entry::getValue).findFirst().orElseThrow(() -> new AssertionError(walls.toString()));
+        assertTrue(wall.contains("declares return type Pair<a::A, a::B> but body returns Pair<a::B, a::A>"), wall);
+    }
 }
