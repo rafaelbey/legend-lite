@@ -184,4 +184,31 @@ class AnswerTextsTest {
                 .map(java.util.Map.Entry::getValue).findFirst().orElseThrow(() -> new AssertionError(walls.toString()));
         assertTrue(wall.contains("declares return type Pair<a::A, a::B> but body returns Pair<a::B, a::A>"), wall);
     }
+
+    @Test
+    @DisplayName("a model function named as a platform form never displaces it: refused in the engine's words, as"
+            + " legend-engine refuses it when the model compiles")
+    void aModelFunctionNamedAsAFormIsRefused() {
+        // the owner's ruling 44, ASK 15 (d), register row S1026 (the typer slice's stage 1c, 2026-11-17): a first
+        // parameter named _this made t::sort take the call; legend-engine 4.145.0 refuses it, the platform's sorts
+        // listed alone (run, port-scratch/typer1c/research/s1026/r7.out), and compiles t::sortz's (r8). The candidates
+        // stay in lite's order (S1007)
+        java.util.Map<String, String> walls = com.legend.Compiler.compileAllBodies(com.legend.Compiler.compileModel("""
+                ###Pure
+                import t::*;
+                Class t::Box { v: Integer[1]; }
+                function t::sort(_this:t::Box[1], k:String[1]):t::Box[1] { $_this }
+                function t::q():Integer[1] { ^t::Box(v=1)->sort('x').v }
+                function t::sortz(_this:t::Box[1], k:String[1]):t::Box[1] { $_this }
+                function t::qz():Integer[1] { ^t::Box(v=1)->sortz('x').v }
+                function t::full():Integer[1] { ^t::Box(v=1)->t::sort('x').v }
+                """));
+        String q = walls.entrySet().stream().filter(e -> e.getKey().startsWith("t::q_"))
+                .map(java.util.Map.Entry::getValue).findFirst().orElseThrow(() -> new AssertionError(walls.toString()));
+        assertTrue(q.contains("Can't find a match for function 'sort(Box[1],String[1])'.\n"
+                + "Functions that can match if parameter types or multiplicities are changed:\n"), q);
+        assertTrue(!q.contains("sort(Box[1],String[1]):Box[1]"), q);
+        assertTrue(walls.keySet().stream().noneMatch(k -> k.startsWith("t::qz_") || k.startsWith("t::full_")),
+                walls.toString());
+    }
 }

@@ -4,6 +4,7 @@
 package com.legend.compiler.spec;
 
 import com.legend.builtin.Pure;
+import com.legend.error.TypeInferenceException;
 import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.Type;
 import com.legend.protocol.spec.AppliedFunction;
@@ -17,23 +18,23 @@ import com.legend.protocol.spec.ValueSpecification;
 import java.util.List;
 
 /**
- * Real pure resolves a call by TYPE; this platform dispatches its special
- * forms by bare name. Where the two disagree — a model function written as
- * the receiver's OWN ({@code join(_this:Database[1], name:String[1])},
- * relational.pure) sharing a name with an operator family (tds::join) —
- * the receiver's function wins, exactly as the derived-property routing in
- * {@link Typer} already does for qualified properties. Split from Typer for
- * size (CodeShape guard). Census batch 150.
+ * A model function written as the receiver's OWN ({@code join(_this:Database[1], name:String[1])}, relational.pure's
+ * convention) sharing a name with a platform operator family (sort, join) whose call fits it: refused in legend-engine's
+ * words, as the engine refuses it when the model compiles -- the platform's functions take the name, a model function of
+ * that name is no candidate (register row S1026; the owner's ruling 44, ASK 15 (d), 2026-11-17). Until then such a
+ * function displaced the special form (census batch 150), where the engine lists the platform's overloads alone. A call
+ * written in full ({@code ->t::sort('x')}) names the model's function and never reaches here. Split from Typer for size
+ * (CodeShape guard).
  */
 final class ReceiverOwnedFunctions {
 
     private ReceiverOwnedFunctions() {
     }
 
-    /** The MODEL function this call names whose first parameter accepts
-     * the receiver's class — null when the receiver is not a plain class
-     * instance (a relation, a TDS, a lambda, a collection) or no such
-     * function exists. */
+    /** Refuses, in the engine's words, a call a MODEL function of a platform form's name would take (its first
+     * parameter accepting the receiver's class, named {@code _this}); null otherwise -- when the receiver is not a
+     * plain class instance (a relation, a TDS, a lambda, a collection) or no such function fits. Never returns a
+     * function since 2026-11-17 (S1026): the caller types the special form. */
     static @com.legend.base.Nullable TypedFunction of(Typer t, AppliedFunction af, Env env) {
         if (af.parameters().isEmpty()) {
             return null;
@@ -107,7 +108,15 @@ final class ReceiverOwnedFunctions {
                 fits = t.kernel().accepts(f.parameters().get(i).type(), pt.info().type());
             }
             if (fits) {
-                return f;
+                // the owner's ruling 44, ASK 15 (d) (the typer slice's stage 1c, 2026-11-17; register row S1026): a model
+                // function of a platform form's name never displaces the form, whatever its first parameter is named --
+                // legend-engine 4.145.0 refuses `^t::Box(v=1)->sort('x')` under `import t::*;` with
+                // `t::sort(_this:t::Box[1], k:String[1])` when the model compiles, listing the platform's sorts alone
+                // (run, port-scratch/typer1c/research/s1026/r7.out; with the first parameter named b, gcensus r4; the
+                // control t::sortz compiles, r8). Until then this call went to the model's t::sort
+                throw new TypeInferenceException(NoMatch.text(NoMatch.written(af),
+                        af.parameters().stream().map(a -> t.synth(a, env).info()).toList(),
+                        cands.stream().filter(TypedFunction::isNative).toList()));
             }
         }
         return null;
