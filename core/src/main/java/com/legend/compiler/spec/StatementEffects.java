@@ -296,7 +296,15 @@ public final class StatementEffects {
         return false;
     }
 
+    /** Whether {@code n} holds a test-data generator: generateTestData or generateSeedDataString, as the typer builds
+     *  them -- a {@link com.legend.compiler.spec.typed.TypedTestDataGen} carrier of the generate or seedString flavor
+     *  (planTestDataGeneration's plan flavor runs nothing) -- or as a native call. Until 2026-11-17 only the native
+     *  call was matched, a node the typer never builds for them, so no generator was seen (the owner's ruling 44, ASK
+     *  15 (g); the typer slice's stage 1c). */
     public static boolean containsTdgGenerator(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedTestDataGen g && !"plan".equals(g.flavor())) {
+            return true;
+        }
         if (n instanceof TypedNativeCall nc
                 && (com.legend.compiler.element.type.PlatformTypes
                         .GENERATE_TEST_DATA.equals(
