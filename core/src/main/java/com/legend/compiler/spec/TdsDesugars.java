@@ -257,6 +257,18 @@ final class TdsDesugars {
         return null;
     }
 
+    /** Whether {@code af} is the platform's form {@code form}: the call resolves to the form's full name (exactly, or
+     *  among a bare call's referents), or is a bare spelling nothing declares, read by its spelling as
+     *  {@link com.legend.compiler.ResolvedNames#form} reads one. A user's function of the form's name is never the
+     *  form: until 2026-11-17 any name ending in {@code ::<the form's name>} matched ({@code Member.matches}), so a
+     *  user's {@code my::p::union(1, 2)} was desugared to the TDS union, typed Integer[*] and planned as a dedup UNION
+     *  of 1 and 2 (run, port-scratch/typer1b/research/ask15e; the owner's ruling 44, ASK 15 (e), the typer slice's
+     *  stage 1c). */
+    static boolean isForm(com.legend.builtin.NativeFn.Member form, AppliedFunction af) {
+        List<String> refs = com.legend.compiler.ResolvedNames.referents(af);
+        return refs.isEmpty() ? form.matches(af.function()) : refs.contains(form.fqn());
+    }
+
     static String stripQuotes(String name) {
         return name.length() >= 2 && name.startsWith("\"") && name.endsWith("\"")
                 ? name.substring(1, name.length() - 1) : name;
@@ -314,8 +326,7 @@ final class TdsDesugars {
         }
         // paginated(set, page, size) — real pure collectionExtension.pure:236
         // body verbatim: slice((page-1)*size, page*size)
-        if (com.legend.builtin.NativeFn.TyperForm.PAGINATED.matches(af.function())
-                && af.parameters().size() == 3) {
+        if (isForm(com.legend.builtin.NativeFn.TyperForm.PAGINATED, af) && af.parameters().size() == 3) {
             ValueSpecification pg = af.parameters().get(1);
             ValueSpecification sz = af.parameters().get(2);
             // arithmetic in the parser's (= the engine's) COLLECTION form:
@@ -336,7 +347,7 @@ final class TdsDesugars {
         // union(a, b) — SQL UNION: distinct over the concatenation (the
         // same shape is pure's collection set-union, so both spellings
         // mean exactly this)
-        if (com.legend.builtin.NativeFn.TyperForm.UNION.matches(af.function()) && af.parameters().size() == 2) {
+        if (isForm(com.legend.builtin.NativeFn.TyperForm.UNION, af) && af.parameters().size() == 2) {
             // union(a, [b,c,d]) — the collection overload chains the
             // concatenation member by member
             ValueSpecification acc = af.parameters().get(0);

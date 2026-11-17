@@ -529,7 +529,7 @@ final class Typer {
                         ? Calls.platform("distinct", List.of(select)) : select, env);
             }
         }
-        if (com.legend.builtin.NativeFn.TyperForm.EXTRACT_ENUM_VALUE.matches(af.function())
+        if (TdsDesugars.isForm(com.legend.builtin.NativeFn.TyperForm.EXTRACT_ENUM_VALUE, af)
                 && af.parameters().size() == 2) {
             TypedSpec folded = desugars.extractEnumValueFold(af, env);
             if (folded != null) {
