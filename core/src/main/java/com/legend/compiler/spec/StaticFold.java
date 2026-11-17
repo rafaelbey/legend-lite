@@ -413,8 +413,13 @@ final class StaticFold {
         }
         return switch (v) {
             case CString s -> s.value();
-            case CInteger i -> i.value().longValue();
-            case com.legend.protocol.spec.CFloat f -> f.value();
+            // a literal beyond a long, and a float literal carrying its exact digits, stay exact: the literal itself
+            // is the value (reify writes it back as it was; no arm computes with it). Until 2026-11-17 they were
+            // longValue(), which wrapped, and the bare double, whose exact digits reify dropped (the owner's ruling 44,
+            // ASK 3 (b); the typer slice's stage 1c)
+            case CInteger i -> i.value() instanceof java.math.BigInteger big && big.bitLength() > 63
+                    ? i : (Object) i.value().longValue();
+            case com.legend.protocol.spec.CFloat f -> f.exact() != null ? f : (Object) f.value();
             case CBoolean b -> b.value();
             case Variable var -> scope.get(var.name());
             case PureCollection pc -> {
@@ -962,6 +967,9 @@ final class StaticFold {
                 yield new PureCollection(vs);
             }
             case LambdaFunction lf -> lf;
+            // an exact literal as it was written (eval's CInteger and CFloat arms; the owner's ruling 44, ASK 3 (b))
+            case CInteger c -> c;
+            case com.legend.protocol.spec.CFloat f -> f;
             case EnumToken t -> t.node();
             // a type, or a function by its reference, as it was written (the second review, 2026-10-28: a function
             // a helper was given and evaluates, $f->eval($s), was left unbound as an enumeration's value had been);

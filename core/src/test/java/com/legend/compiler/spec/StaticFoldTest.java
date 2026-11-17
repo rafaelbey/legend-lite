@@ -15,6 +15,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
  * The static folder's {@code toOne}: a fold may only replace a call by a value the call would certainly produce.
@@ -79,5 +80,26 @@ class StaticFoldTest {
         assertNull(f.foldToLiteral(new AppliedFunction(TO_ONE_MSG, List.of(ints(1, 2), new CString("m")))));
         assertEquals(new CInteger(7L),
                 f.foldToLiteral(new AppliedFunction(TO_ONE_MSG, List.of(ints(7), new CString("m")))));
+    }
+
+    @Test
+    void anIntegerLiteralPastALongIsKeptExact() {
+        // the owner's ruling 44, ASK 3 (b) (the typer slice's stage 1c, 2026-11-17): StaticFold's eval read a literal
+        // past 63 bits by longValue(), so toOne([9223372036854775808]) folded to -9223372036854775808
+        CInteger big = new CInteger(java.math.BigInteger.ONE.shiftLeft(63));
+        assertEquals(big, folder().foldToLiteral(new AppliedFunction(TO_ONE,
+                List.of(new PureCollection(List.of(big))))));
+    }
+
+    @Test
+    void aFloatLiteralKeepsItsExactDigits() {
+        // the owner's ruling 44, ASK 3 (b): a float literal carrying the digits a double does not hold folded to the
+        // bare double, its exact digits dropped when written back
+        com.legend.protocol.spec.CFloat exact = new com.legend.protocol.spec.CFloat(0.1,
+                new java.math.BigDecimal("0.1000000000000000000001"), null);
+        ValueSpecification folded = folder().foldToLiteral(new AppliedFunction(TO_ONE,
+                List.of(new PureCollection(List.of(exact)))));
+        assertEquals(exact, folded);
+        assertSame(exact.exact(), ((com.legend.protocol.spec.CFloat) folded).exact());
     }
 }
