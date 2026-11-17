@@ -47,18 +47,45 @@ public final class SourceSubst {
      * keeps its loud wall (never a silently dropped statement).
      */
     static @com.legend.base.Nullable LambdaFunction inlineLets(LambdaFunction lam) {
+        Folded folded = fold(lam, false);
+        return folded == null ? null : folded.lambda();
+    }
+
+    /** ASK 8 (b) (the owner's ruling 44, 2026-11-17; the typer slice's stage 1c): {@link #inlineLets} and
+     *  {@link #untrackedLetNodes} from ONE substitution, so the set
+     *  holds the very nodes the folded lambda holds (untrackedLetNodes re-substituted each let's value, and subst
+     *  rebuilds every call and construction once the env is not empty: for every let after the first its set held
+     *  copies the typed tree never holds). Null when a non-terminal statement is not a let. */
+    record Folded(LambdaFunction lambda, java.util.Set<Object> untracked) {
+    }
+
+    static @com.legend.base.Nullable Folded inlineLetsTracked(LambdaFunction lam) {
+        return fold(lam, true);
+    }
+
+    /** The one let fold ({@link #inlineLets}): with {@code track}, the untracked nodes of {@link #untrackedLetNodes}'s
+     *  rule collected from the values the fold substitutes (else none). */
+    private static @com.legend.base.Nullable Folded fold(LambdaFunction lam, boolean track) {
+        java.util.Set<Object> out = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        List<ValueSpecification> body = lam.body();
         Map<String, ValueSpecification> env = new LinkedHashMap<>();
-        for (int i = 0; i < lam.body().size() - 1; i++) {
-            CString name = letName(lam.body().get(i));
+        for (int i = 0; i < body.size() - 1; i++) {
+            CString name = letName(body.get(i));
             if (name == null) {
                 return null;
             }
-            env.put(name.value(), substitute(
-                    ((AppliedFunction) lam.body().get(i)).parameters().get(1),
-                    env));
+            ValueSpecification value = substitute(((AppliedFunction) body.get(i)).parameters().get(1), env);
+            env.put(name.value(), value);
+            if (track) {
+                int[] uses = {0, 0};
+                usesOf(name.value(), body.subList(i + 1, body.size()), 0, uses);
+                if (uses[1] > 0 || uses[0] > 1 && holdsLambda(value)) {
+                    constructionsAndCalls(value, out);
+                }
+            }
         }
-        return new LambdaFunction(lam.parameters(),
-                List.of(substitute(lam.body().get(lam.body().size() - 1), env)));
+        return new Folded(new LambdaFunction(lam.parameters(),
+                List.of(substitute(body.get(body.size() - 1), env))), out);
     }
 
     /** The source nodes whose objects the let splice gives more than one evaluation where Pure's let names one

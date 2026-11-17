@@ -1070,12 +1070,14 @@ final class Overloads {
             // source-level let-inlining (pure lets are value bindings —
             // β-substitution is exact, and the single-expression result
             // drops nothing at lowering). Non-let intermediates stay loud.
-            LambdaFunction folded = SourceSubst.inlineLets(lam);
-            if (folded == null) {
+            // ASK 8 (b) (the owner's ruling 44, 2026-11-17; the typer slice's stage 1c): the folded lambda and its
+            // untracked let nodes from one substitution
+            SourceSubst.Folded tracked = SourceSubst.inlineLetsTracked(lam);
+            if (tracked == null) {
                 multiStatement = true;   // the shared body rule, once params are in scope
             } else {
-                untracked = SourceSubst.untrackedLetNodes(lam);
-                lam = folded;
+                untracked = tracked.untracked();
+                lam = tracked.lambda();
             }
         }
 

@@ -133,4 +133,37 @@ class SourceSubstTest {
         assertNull(SourceSubst.inlineLets(new LambdaFunction(List.of(),
                 List.of(new CInteger(1L), new Variable("x")))));
     }
+
+    private static void held(ValueSpecification v, java.util.Set<Object> out) {
+        out.add(v);
+        if (v instanceof AppliedFunction af) {
+            af.parameters().forEach(x -> held(x, out));
+        } else if (v instanceof LambdaFunction lf) {
+            lf.body().forEach(x -> held(x, out));
+        } else if (v instanceof com.legend.protocol.spec.PureCollection pc) {
+            pc.values().forEach(x -> held(x, out));
+        }
+    }
+
+    @Test
+    void theUntrackedNodesAreTheNodesTheFoldedBodyHolds() {
+        // the owner's ruling 44, ASK 8 (b) (the typer slice's stage 1c, 2026-11-17): the untracked set is taken from
+        // the one substitution that folds the body, so it holds the very nodes the body holds -- a construction or
+        // call built by a SECOND let, read inside a nested lambda, was a copy (untrackedLetNodes substitutes each
+        // let's value again, and a call is rebuilt once the env is not empty), so it was tracked as one object
+        LambdaFunction lam = new LambdaFunction(List.of(), List.of(
+                let("a", new AppliedFunction("f", List.of(new CInteger(1L)))),
+                let("b", new AppliedFunction("g", List.of(new Variable("a")))),
+                new AppliedFunction("map", List.of(
+                        new com.legend.protocol.spec.PureCollection(List.of(new CInteger(1L), new CInteger(2L))),
+                        new LambdaFunction(List.of(new Variable("x")), List.of(new Variable("b")))))));
+        SourceSubst.Folded tracked = SourceSubst.inlineLetsTracked(lam);
+        java.util.Set<Object> body = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        held(tracked.lambda().body().get(0), body);
+        org.junit.jupiter.api.Assertions.assertFalse(tracked.untracked().isEmpty());
+        org.junit.jupiter.api.Assertions.assertTrue(body.containsAll(tracked.untracked()), tracked.untracked().toString());
+        // the old reading's set: copies the folded body never holds
+        java.util.Set<Object> old = SourceSubst.untrackedLetNodes(lam);
+        org.junit.jupiter.api.Assertions.assertFalse(body.containsAll(old));
+    }
 }

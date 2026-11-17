@@ -47,11 +47,14 @@ final class LambdaBodies {
         if (lam.body().size() == 1) {
             return t.synth(lam.body().get(0), scope);
         }
-        LambdaFunction folded = SourceSubst.inlineLets(lam);
-        if (folded != null) {
+        // ASK 8 (b) (the owner's ruling 44, 2026-11-17; the typer slice's stage 1c): the folded body and its
+        // untracked let nodes from one substitution, so the set holds the nodes the body holds (until then a
+        // construction built by a second let was a copy the set held and the body did not)
+        SourceSubst.Folded tracked = SourceSubst.inlineLetsTracked(lam);
+        if (tracked != null) {
             // the objects the splice evaluates apart are untracked (docs/OBJECT_IDENTITY_2026_10_20.md §4.4)
-            java.util.Set<Object> untracked = SourceSubst.untrackedLetNodes(lam);
-            TypedSpec body = t.synth(folded.body().get(0), scope);
+            java.util.Set<Object> untracked = tracked.untracked();
+            TypedSpec body = t.synth(tracked.lambda().body().get(0), scope);
             return untracked.isEmpty() ? body : com.legend.compiler.spec.typed.Evaluation.untrack(body, untracked);
         }
         // a LEADING let before a non-let statement (let c = …; assert(..); …):
