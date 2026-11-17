@@ -284,4 +284,33 @@ class RawExceptionRefusalsTest {
                 assertThrows(NotImplementedException.class, () -> resolve("{|meta::relational::validation::validate("
                         + "{|if(true, |t::P.all(), |t::P.all())}, t::M, t::R, [])}")).getMessage());
     }
+
+    /** The walls of {@code model}'s bodies (a text of its own: MODEL's questions keep their keys in rust/oracles). */
+    private static Map<String, String> wallsOf(String model) {
+        return com.legend.Compiler.compileAllBodies(com.legend.Compiler.compileModel(model));
+    }
+
+    private static String wallOf(Map<String, String> walls, String fqn) {
+        return walls.entrySet().stream().filter(e -> e.getKey().startsWith(fqn + "_")).map(Map.Entry::getValue)
+                .findFirst().orElseThrow(() -> new AssertionError(fqn + " is not walled: " + walls));
+    }
+
+    @Test
+    @DisplayName("a time literal out of range is refused in legend-pure's words, never CTime's raw IllegalStateException")
+    void anOutOfRangeTimeLiteralIsRefusedInTheEnginesWords() {
+        // ruling 29's policy 2 (the typer slice's stage 1c, item 5: TypedAnswers met it in 21 asks): legend-engine
+        // 4.145.0 refuses each when the model compiles, "Invalid hour: 200", "Invalid minute: 122", "Invalid second:
+        // 61" (run, port-scratch/typer1c/research/item5)
+        Map<String, String> walls = wallsOf("""
+                ###Pure
+                function test::h(): StrictTime[1] { %200:12:22.88 }
+                function test::m(): StrictTime[1] { %20:122:22.88 }
+                function test::s(): StrictTime[1] { %20:12:61.88 }
+                function test::ok(): StrictTime[1] { %23:59:59.999 }
+                """);
+        assertTrue(wallOf(walls, "test::h").endsWith("Invalid hour: 200"), walls.toString());
+        assertTrue(wallOf(walls, "test::m").endsWith("Invalid minute: 122"), walls.toString());
+        assertTrue(wallOf(walls, "test::s").endsWith("Invalid second: 61"), walls.toString());
+        assertTrue(walls.keySet().stream().noneMatch(k -> k.startsWith("test::ok_")), walls.toString());
+    }
 }

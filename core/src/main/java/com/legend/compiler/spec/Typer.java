@@ -311,7 +311,7 @@ final class Typer {
             // Date literals type by PRECISION (engine's CStrictDate/CDateTime split):
             // year/year-month -> Date, full day -> StrictDate, any time part -> DateTime.
             case CDate lit -> new TypedCDate(lit.value(), ExprType.one(dateType(lit.value())));
-            case CTime lit -> new TypedCTime(lit.requireValue(),
+            case CTime lit -> new TypedCTime(timeValue(lit),
                     ExprType.one(Type.Primitive.STRICT_TIME));
             case CLatestDate ignored -> new TypedCLatestDate(ExprType.one(Type.Primitive.LATEST_DATE));
             case TypeAnnotation ta -> typeRef(ta);
@@ -1956,6 +1956,31 @@ final class Typer {
         // NOTE: class-subtype conformance for user-call arguments is deferred with the user path.
         kernel.unify(expected.type(), actual.type(), new Bindings());
         kernel.unifyMult(expected.multiplicity(), actual.multiplicity(), actual.type(), new Bindings());
+    }
+
+    /** A time literal's value; one out of range refused (ruling 29's policy 2; the typer slice's stage 1c, item 5): an
+     *  hour, minute or second past its range in legend-pure's words, "Invalid hour: 200" (TimeFunctions.validateHour,
+     *  as legend-engine 4.145.0 refuses {@code %200:12:22.88} when the model compiles, run,
+     *  port-scratch/typer1c/research/item5), any other in lite's (a component past an int, which the engine refuses
+     *  when it parses). Until 2026-11-17 CTime.requireValue's raw IllegalStateException, "time literal '%200:12:22.88'
+     *  is out of range". */
+    private static com.legend.values.PureTimeLiteral timeValue(CTime lit) {
+        if (lit.value() != null) {
+            return lit.value();
+        }
+        // a CTime holds its value or its written form (CTime's constructor)
+        String written = java.util.Objects.requireNonNull(lit.written(), "a CTime with neither value nor text");
+        String why = null;
+        try {
+            com.legend.values.PureTimeLiteral.parse(written);
+        } catch (IllegalArgumentException e) {
+            why = e.getMessage();
+        }
+        if (why != null && why.matches("invalid (hour|minute|second): -?[0-9]+")) {
+            throw new TypeInferenceException("I" + why.substring(1));
+        }
+        throw new TypeInferenceException("time literal '%" + written + "' is out of range"
+                + (why == null ? "" : ": " + why));
     }
 
     /**
