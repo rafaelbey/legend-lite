@@ -141,7 +141,12 @@ class IdentityGuardrailTest {
             // 208 -> 205 (2026-10-06, build rebuild Phase 3: measured when the table became the one authority)
             Map.entry("NAME_COMPARE_REVERSED", 78), // 79 -> 78 (2026-10-21, leg 8 step 2, rule A: a model store's negative number is the parser's one literal, so the emitter's negation fold and its "minus" test are gone); 81 -> 79 (2026-10-10, L7 "resolve once" steps 3-4: readers read the record)
             Map.entry("LITERAL_NAME_COMPARE", 65),   // 64 -> 65 (2026-09-27, T4a): protocol/ProtocolUpgrade, upstream's protocol converter for a Result variable ("meta::pure::mapping::Result" on the WIRE, before any resolution)
-            Map.entry("NAME_AFFIX_TEST", 53),
+            Map.entry("NAME_AFFIX_TEST", 48),
+            // 53 -> 48 (2026-11-17, the typer slice's stage 1c, item 0b): NoMatch.written's partial-path branch
+            // (`name.startsWith("::", ...)`) removed, java_bugFixes_next's shape -- it cut a span narrower than the
+            // name where a path segment starts, which no partly written call reached: only a `let` statement's span
+            // (17 or 28 wide) or a prefix `!`'s (12 wide) happened to line up with a `::` boundary. Measured 49 before
+            // (4 of slack in the pin), 48 after
             // 52 -> 53 (2026-10-29, track L, D50d): MixedEncoding.enumerationKind reads a tagged slot's KIND -- the
             // plan format's own vocabulary (the eight primitives' names, DateTime(n), an enumeration's path) -- for
             // an enumeration's; the kind is the plan's text, written by the lowering and read back by it and the

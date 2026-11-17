@@ -56,10 +56,17 @@ final class NoMatch {
     /**
      * The name {@code af} was written with. Name resolution qualifies a bare call to its full name (a platform's and a
      * program's alike: {@code ->minus()} and {@code ->meta::pure::functions::math::minus()} are one resolved call), so
-     * the spelling is read off the parser's span of the call, which is the name's: the resolved name's ending of that
-     * width, where a path segment starts -- the whole name for a call written in full, the short name for a bare one.
-     * A call with no span on one line (read from JSON without positions, or built by the compiler), an operator
-     * written infix, an island, or a width that starts no segment, is named by its short name, as before 2026-11-16.
+     * the spelling is read off the parser's span of the call: a span as wide as the resolved name is the call written
+     * in full, and any other is named by its short name. A packaged name written partly (b::f under an import)
+     * resolves by its user path alone (register row S1005, the owner's ruling 41), so a call that resolved is written
+     * either in full or bare. A span is not always the name's: a {@code let} statement's covers the whole statement
+     * and a prefix {@code !}'s its operand too, so the width says only "in full" or not. A call with no span on one
+     * line (read from JSON without positions, or built by the compiler), an operator written infix or an island is
+     * named by its short name, as before 2026-11-16. (2026-11-17, the typer slice's stage 1c: java_bugFixes_next's
+     * shape, for the next merge of main. Until then a span narrower than the name was cut from its end where a path
+     * segment starts, which no partly written call reached -- but a {@code let} statement 17 or 28 characters wide
+     * was cut to "lang::letFunction" or "functions::lang::letFunction", and a 12-wide prefix {@code !} to
+     * "boolean::not": the branch was taken in 516 of TypedAnswers' asks, and no refusal's text moved.)
      */
     static String written(AppliedFunction af) {
         String name = af.function();
@@ -67,14 +74,7 @@ final class NoMatch {
         if (af.infix() || af.island() || p == null || p.startLine() != p.endLine()) {
             return SpecCompiler.simpleName(name);
         }
-        int width = p.endColumn() - p.startColumn() + 1;
-        if (width == name.length()) {
-            return name;
-        }
-        if (width > 0 && width < name.length() - 2 && name.startsWith("::", name.length() - width - 2)) {
-            return name.substring(name.length() - width);
-        }
-        return SpecCompiler.simpleName(name);
+        return p.endColumn() - p.startColumn() + 1 == name.length() ? name : SpecCompiler.simpleName(name);
     }
 
     /** {@code name(T[m],...):R[m]}, the engine's {@code functionDescriptorToId}. */
