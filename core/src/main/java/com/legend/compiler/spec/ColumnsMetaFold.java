@@ -54,6 +54,7 @@ final class ColumnsMetaFold {
                 && inner.property().equals("columns")
                 && (ap.property().equals("name") || ap.property().equals("type"))) {
             TypedSpec rel = t.synth(inner.receiver(), env);
+            t.typedOnce(inner.receiver(), rel, env);   // typed once (REPEAT-2): declined, accessProperty types it again
             if (Type.schemaView(rel.info().type()) instanceof Type.RelationType rt) {
                 return columnsMeta(rt, ap.property().equals("type"));
             }
@@ -65,6 +66,7 @@ final class ColumnsMetaFold {
                 && inner2.property().equals("columns")
                 && ap.property().equals("documentation")) {
             TypedSpec rel = t.synth(inner2.receiver(), env);
+            t.typedOnce(inner2.receiver(), rel, env);   // typed once (REPEAT-3): declined, accessProperty types it again
             TypedSpec un = rel;
             // column metadata is invariant under ROW ops — walk through
             // from() rescopes and relation-in/relation-out wrappers

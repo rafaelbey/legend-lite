@@ -80,7 +80,8 @@ final class FromChecker {
                         && env.resolveAlias(af.parameters().get(i))
                                 instanceof com.legend.protocol.spec.ValueSpecification raw
                         && !(raw instanceof com.legend.protocol.spec.Variable)) {
-                    value = t.synth(raw, env);
+                    TypedSpec atLet = t.letTyping(raw, env);   // typed once (REPEAT-14): the let's own typing
+                    value = atLet != null ? atLet : t.synth(raw, env);
                 }
                 bound = ExecutionContext.reader()
                         .overloads(t.model()::findFunction)

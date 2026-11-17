@@ -182,6 +182,71 @@ final class Typer {
         if (pre != null) {
             return pre;
         }
+        // typing each subtree once (the owner's ruling 44, ASK 2's open half; the typer slice's stage 1c,
+        // 2026-11-17): a subtree a pure-repeat site typed already, met again in the same environment while the synth
+        // call that typed it runs, is its typing, not a second one (until then typed again, the answer the same)
+        TypedOnce once = typedOnce.isEmpty() ? null : typedOnce.get(vs);
+        if (once != null && once.env() == env) {
+            return once.typing();
+        }
+        int mark = typedOnceUndo.size();
+        try {
+            return synthOnce(vs, env);
+        } finally {
+            while (typedOnceUndo.size() > mark) {
+                Object[] undo = typedOnceUndo.remove(typedOnceUndo.size() - 1);
+                if (undo[1] == null) {
+                    typedOnce.remove((ValueSpecification) undo[0]);
+                } else {
+                    typedOnce.put((ValueSpecification) undo[0], (TypedOnce) undo[1]);
+                }
+            }
+        }
+    }
+
+    /** A subtree's typing and the environment it was typed in (typing each subtree once: the owner's ruling 44,
+     *  ASK 2's open half). */
+    record TypedOnce(TypedSpec typing, Env env) {
+    }
+
+    /** The subtrees typed at the pure-repeat sites (the typer slice's stage 1b site map, REPEAT-1 to REPEAT-17), by
+     *  node; each synth call is a frame, and what is registered while it runs lasts until it returns
+     *  ({@link #typedOnceUndo} the frames' undo log). */
+    private final java.util.IdentityHashMap<ValueSpecification, TypedOnce> typedOnce = new java.util.IdentityHashMap<>();
+    private final java.util.ArrayList<Object[]> typedOnceUndo = new java.util.ArrayList<>();
+
+    /** {@code node}, typed {@code typing} in {@code env} at a REPEAT site, is not typed again in {@code env}
+     *  until the synth call in progress returns (the route the typing decided types it again: a pure repeat). */
+    void typedOnce(ValueSpecification node, TypedSpec typing, Env env) {
+        typedOnceUndo.add(new Object[] {node, typedOnce.put(node, new TypedOnce(typing, env))});
+    }
+
+    /** the let right-hand sides typed at their lets, by node, each with its environment there (REPEAT-14,
+     *  REPEAT-15: the alias channel types a let-bound value again where it is read). */
+    private final java.util.IdentityHashMap<ValueSpecification, TypedOnce> letTyped = new java.util.IdentityHashMap<>();
+
+    /** a let's right-hand side {@code rhs}, typed {@code typing} in {@code atLet}. */
+    void letTyped(ValueSpecification rhs, TypedSpec typing, Env atLet) {
+        letTyped.put(rhs, new TypedOnce(typing, atLet));
+    }
+
+    /** the let's typing of {@code rhs}, when every variable it reads is bound in {@code env} as it was at
+     *  the let (a later let rebinding one, ASK 12's case, types it again, as before); null otherwise. */
+    @com.legend.base.Nullable TypedSpec letTyping(ValueSpecification rhs, Env env) {
+        TypedOnce at = letTyped.isEmpty() ? null : letTyped.get(rhs);
+        if (at == null) {
+            return null;
+        }
+        for (String v : SourceSubst.freeVars(rhs)) {
+            if (!env.lookup(v).equals(at.env().lookup(v))
+                    || env.exprAlias(v).orElse(null) != at.env().exprAlias(v).orElse(null)) {
+                return null;
+            }
+        }
+        return at.typing();
+    }
+
+    private TypedSpec synthOnce(ValueSpecification vs, Env env) {
         return switch (vs) {
             // Path literals normally dissolve at resolution; an unresolved one types as
             // its desugared lambda.
@@ -329,6 +394,7 @@ final class Typer {
                                 continue;
                             }
                             TypedSpec val = synth(lset.parameters().get(1), scope);
+                            letTyped(lset.parameters().get(1), val, scope);   // typed once (REPEAT-14/15)
                             scope = scope.withLet(ln.value(), val.info(),
                                     lset.parameters().get(1));
                             stmts.add(new com.legend.compiler.spec.typed.TypedLet(
@@ -538,13 +604,13 @@ final class Typer {
         // candidate, toSQL(...).toSQLString(t) met toSQLString functions of its
         // arity). A call spelled with -> tries the property only when no
         // function of its arity exists (tds::join beside SchemaState.join(other);
-        // Phase 5 batch 147). The receiver typed here is typed again by the
-        // route taken (applyGeneric), as the generic path's own auto-map probe
-        // types a dot call's receiver before its arguments: a time cost, recorded as
-        // PARKED_WORK_LEDGER PARK-6 (type each receiver once; Phase 3 audit S5, 2026-10-07).
+        // Phase 5 batch 147). The receiver typed here is the route's (typed once, REPEAT-1, since 2026-11-17: the route
+        // taken typed it again, as the generic path's auto-map probe types a dot call's receiver before its arguments;
+        // PARKED_WORK_LEDGER PARK-6, legend-pure's typing order, stays parked; Phase 3 audit S5, 2026-10-07).
         if (!af.parameters().isEmpty() && (af.propertyCall() || functionCandidates(af).stream()
                 .noneMatch(f -> f.parameters().size() == af.parameters().size()))) {
             TypedSpec recv = synth(af.parameters().get(0), env);
+            typedOnce(af.parameters().get(0), recv, env);
             String classFqn = recv.info().type() instanceof Type.ClassType ct ? ct.fqn()
                     : recv.info().type() instanceof Type.GenericType g ? g.rawFqn() : null;
             // by the SIMPLE name, as the two sibling routes do: the name
@@ -1231,8 +1297,8 @@ final class Typer {
             return new TypedPropertyAccess(grecv, colRef, liftedAccessor(getter,
                     grecv.info(), ExprType.one(Type.Primitive.STRING)).output());
         }
-        TypedSpec cell = synth(new AppliedProperty(
-                af.parameters().get(0), colRef), env);
+        AppliedProperty read = new AppliedProperty(af.parameters().get(0), colRef);   // typed once (REPEAT-16): one node
+        TypedSpec cell = synth(read, env);
         // getNullableString returns String[0..1] (tds.pure:82/112) —
         // the optional cell read IS the semantics, no strictening
         if (TdsDesugars.rowGetter(af, com.legend.builtin.NativeFn.RowGetter.GET_NULLABLE_STRING)
@@ -1241,8 +1307,8 @@ final class Typer {
                         && b.lower() == 1)) {
             return cell;
         }
-        return synth(Calls.exact(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
-                new AppliedProperty(af.parameters().get(0), colRef))), env);
+        typedOnce(read, cell, env);   // typed once (REPEAT-16): the cell read under trustOne is the one typed above
+        return synth(Calls.exact(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(read)), env);
     }
 
     /** LATE-BOUND grid reads that cannot resolve statically (Phase 1c):

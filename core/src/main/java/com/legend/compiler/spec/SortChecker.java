@@ -71,6 +71,7 @@ final class SortChecker {
             return null;
         }
         TypedSpec keys = t.synth(ps.get(1), env);
+        t.typedOnce(ps.get(1), keys, env);   // typed once (REPEAT-4): not folded, the generic check types it again
         if (!(keys instanceof TypedCollection tc) || tc.elements().isEmpty()
                 || !tc.elements().stream().allMatch(e -> e instanceof TypedCString)) {
             return null;

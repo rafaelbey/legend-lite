@@ -185,6 +185,16 @@ final class Overloads {
                     List.of(qargs.get(0))));
         }
         com.legend.builtin.DecisionProbe.lifted(af.propertyCall() ? "qp-owned:dot" : "qp-owned:call", simple, d.bodyFunctionFqn(), ctx.findFunction(d.bodyFunctionFqn()).size());
+        // typed once (REPEAT-13): the value arguments checkGeneric typed, typed again by the body call (a lambda or a
+        // function-valued helper typed against the native's signature is not a repeat: typed again, as before)
+        if (a.args().size() == af.parameters().size()) {
+            for (int i = 0; i < af.parameters().size(); i++) {
+                ValueSpecification p = af.parameters().get(i);
+                if (!DeferredArgs.deferredArg(p) && !(p instanceof AppliedFunction call && functionValuedHelperCall(call))) {
+                    t.typedOnce(p, a.args().get(i), env);
+                }
+            }
+        }
         return applyGeneric(Calls.exact(d.bodyFunctionFqn(), qargs), env);
     }
 
@@ -232,7 +242,8 @@ final class Overloads {
             if (v instanceof com.legend.compiler.spec.typed.TypedVariable tv) {
                 com.legend.protocol.spec.ValueSpecification raw = env.aliasOf(tv.name());
                 if (raw != null && !(raw instanceof com.legend.protocol.spec.Variable)) {
-                    return t.synth(raw, env);
+                    TypedSpec atLet = t.letTyping(raw, env);   // typed once (REPEAT-15): the let's own typing
+                    return atLet != null ? atLet : t.synth(raw, env);
                 }
             }
             return v;
@@ -1113,6 +1124,7 @@ final class Overloads {
                     && lf2.parameters().size() == 2
                     && lf2.parameters().get(0) instanceof CString ln) {
                 TypedSpec val = synth(lf2.parameters().get(1), lambdaScope);
+                t.letTyped(lf2.parameters().get(1), val, lambdaScope);   // typed once (REPEAT-14/15)
                 lambdaScope = lambdaScope.withLet(ln.value(), val.info(),
                         lf2.parameters().get(1));
                 typedStmts.add(new com.legend.compiler.spec.typed.TypedLet(

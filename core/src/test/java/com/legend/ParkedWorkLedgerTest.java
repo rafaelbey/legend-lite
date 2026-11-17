@@ -94,8 +94,11 @@ class ParkedWorkLedgerTest {
             Map.entry("PARK-6 arguments typed more than once (the property's body call re-applied)",
                             new Anchor("applyGeneric\\(Calls\\.exact\\(d\\.bodyFunctionFqn\\(\\), qargs\\), env\\)",
                                     List.of("Overloads.java", "Typer.java"))),
+            // re-pointed 2026-11-17 (the typer slice's stage 1c, ASK 2's open half): the receiver typed once and
+            // registered for the route (recvTyped); legend-pure's typing order still parked. Until then
+            // "Type rt = t.synth(recv, env)"
             Map.entry("PARK-6 arguments typed more than once (the receiver-owned check)",
-                            new Anchor("Type rt = t\\.synth\\(recv, env\\)", List.of("ReceiverOwnedFunctions.java"))),
+                            new Anchor("recvTyped = t\\.synth\\(recv, env\\)", List.of("ReceiverOwnedFunctions.java"))),
             Map.entry("PARK-6 arguments typed more than once (the must-inline substitution)",
                             new Anchor("subst\\.put\\(chosen\\.parameters\\(\\)\\.get\\(i\\)\\.name\\(\\), af\\.parameters\\(\\)\\.get\\(i\\)\\)",
                                     List.of("Overloads.java"))),

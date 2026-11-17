@@ -139,6 +139,8 @@ final class JoinChecker {
         }
         TypedSpec l = t.synth(af.parameters().get(0), env);
         TypedSpec r = t.synth(af.parameters().get(1), env);
+        t.typedOnce(af.parameters().get(0), l, env);   // typed once (REPEAT-6): checkGeneric types both inputs again
+        t.typedOnce(af.parameters().get(1), r, env);
         Type.RelationType lr = Type.relationSchema(l.info().type());
         Type.RelationType rr = Type.relationSchema(r.info().type());
         if (lr == null || rr == null) {

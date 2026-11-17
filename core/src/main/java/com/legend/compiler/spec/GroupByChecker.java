@@ -184,7 +184,9 @@ final class GroupByChecker {
                     + keyFns.values().size() + " keys + " + aggs.values().size()
                     + " aggs), got " + aliases.values().size());
         }
-        boolean classSource = t.synth(ps.get(0), env).info().type() instanceof Type.ClassType;
+        TypedSpec source = t.synth(ps.get(0), env);
+        t.typedOnce(ps.get(0), source, env);   // typed once (REPEAT-5): the rewritten call types the same source again
+        boolean classSource = source.info().type() instanceof Type.ClassType;
 
         List<ColSpec> keyCols = new ArrayList<>(keyFns.values().size());
         for (int i = 0; i < keyFns.values().size(); i++) {

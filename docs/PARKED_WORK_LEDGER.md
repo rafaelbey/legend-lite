@@ -218,7 +218,9 @@ arguments. Same results on every lane; typing time measured against main.
 (`recv = synth(af.parameters().get(0), env)`, and `grecv` in the TDS receiver checks) in exactly `Typer.java`,
 `CallShapes.java` and `TdsDesugars.java`; the property's body call re-applied after typing
 (`applyGeneric(Calls.exact(d.bodyFunctionFqn(), qargs), env)`; the spelling since L7 step 3, 2026-10-10, when every built call moved into `Calls`) in exactly `Overloads.java` and `Typer.java`;
-the receiver-owned check's receiver typing (`Type rt = t.synth(recv, env)`) in exactly `ReceiverOwnedFunctions.java`;
+the receiver-owned check's receiver typing (`recvTyped = t.synth(recv, env)`, typed once and registered for the route
+since 2026-11-17, the typer slice's stage 1c; `Type rt = t.synth(recv, env)` until then) in exactly
+`ReceiverOwnedFunctions.java`;
 the must-inline substitution of untyped arguments (`subst.put(chosen.parameters().get(i).name(),
 af.parameters().get(i))`) in exactly `Overloads.java`.
 

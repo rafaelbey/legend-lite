@@ -49,6 +49,7 @@ final class TdsJsonChecker {
             return t.applyGeneric(af, env);
         }
         TypedSpec arg = t.synth(af.parameters().get(0), env);
+        t.typedOnce(af.parameters().get(0), arg, env);   // typed once (REPEAT-10): declined, applyGeneric types it again
         Type.RelationType rt = Type.relationSchema(arg.info().type());
         // the key-value document needs no column types: a TDS-typed value
         // whose schema is only visible after the envelope splice (an

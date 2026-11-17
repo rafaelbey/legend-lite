@@ -2523,7 +2523,9 @@ final class ArchitectureTest {
                     java.util.Map.entry("com.legend.compiler.spec.TdsDesugars", 58),
                     java.util.Map.entry("com.legend.compiler.spec.TdsNullForms", 1),
                     java.util.Map.entry("com.legend.compiler.spec.TypeAnnotations", 1),
-                    java.util.Map.entry("com.legend.compiler.spec.Typer", 17),
+                    // 17 -> 16 (2026-11-17, the typer slice's stage 1c, typing each subtree once: a TDS row cell's
+                    // property read is built once and typed once, REPEAT-16, where it was built twice)
+                    java.util.Map.entry("com.legend.compiler.spec.Typer", 16),
                     java.util.Map.entry("com.legend.lineage.ScanRelations", 2),
                     java.util.Map.entry("com.legend.model.MappingFromProtocol", 4),
                     java.util.Map.entry("com.legend.test.PureTestRunner", 2),

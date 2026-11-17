@@ -69,7 +69,9 @@ final class ReceiverOwnedFunctions {
         if (owned.isEmpty()) {
             return null;
         }
-        Type rt = t.synth(recv, env).info().type();
+        com.legend.compiler.spec.typed.TypedSpec recvTyped = t.synth(recv, env);
+        t.typedOnce(recv, recvTyped, env);   // typed once (REPEAT-11): the route taken types it again
+        Type rt = recvTyped.info().type();
         if (Type.isRelation(rt) || rt instanceof Type.RelationType) {
             return null;
         }
@@ -100,7 +102,9 @@ final class ReceiverOwnedFunctions {
                 if (p instanceof LambdaFunction) {
                     continue;
                 }
-                fits = t.kernel().accepts(f.parameters().get(i).type(), t.synth(p, env).info().type());
+                com.legend.compiler.spec.typed.TypedSpec pt = t.synth(p, env);
+                t.typedOnce(p, pt, env);   // typed once (REPEAT-12): the route taken (and a further candidate) types it again
+                fits = t.kernel().accepts(f.parameters().get(i).type(), pt.info().type());
             }
             if (fits) {
                 return f;

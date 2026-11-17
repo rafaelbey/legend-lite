@@ -133,6 +133,7 @@ final class TdsDesugars {
                 && af.parameters().size() == 2
                 && literalColName(af.parameters().get(1)) != null) {
             TypedSpec nrecv = synth(af.parameters().get(0), env);
+            t.typedOnce(af.parameters().get(0), nrecv, env);   // typed once (REPEAT-7): the isEmpty read or the generic route
             if (Typer.tdsReceiver(nrecv.info().type())) {
                 boolean notNull = rowGetter(af, com.legend.builtin.NativeFn.RowGetter.IS_NOT_NULL);
                 String ncol = java.util.Objects.requireNonNull(
@@ -155,6 +156,7 @@ final class TdsDesugars {
                 && rowGetter(g, com.legend.builtin.NativeFn.RowGetter.GET) && g.parameters().size() == 2
                 && g.parameters().get(1) instanceof CString gc) {
             TypedSpec grecv0 = synth(g.parameters().get(0), env);
+            t.typedOnce(g.parameters().get(0), grecv0, env);   // typed once (REPEAT-8): the desugared if or the generic route
             if (Typer.tdsReceiver(grecv0.info().type())) {
                 if (erasedRow(grecv0)) {
                     TypedSpec cell = erasedCell(grecv0, gc.value());
@@ -187,6 +189,7 @@ final class TdsDesugars {
         if (rowGetter(af, com.legend.builtin.NativeFn.RowGetter.GET) && af.parameters().size() == 2
                 && af.parameters().get(1) instanceof CString gcol) {
             TypedSpec grecv = synth(af.parameters().get(0), env);
+            t.typedOnce(af.parameters().get(0), grecv, env);   // typed once (REPEAT-9): the cell read or the generic route
             if (Typer.tdsReceiver(grecv.info().type())) {
                 if (erasedRow(grecv)) {
                     // the engine's get is Any[1] (tds.pure); the cell under the
@@ -893,6 +896,7 @@ final class TdsDesugars {
      * loud, never a silent string. Null = arg0 not Enumeration-shaped. */
     @com.legend.base.Nullable TypedSpec extractEnumValueFold(AppliedFunction af, Env env) {
         TypedSpec e0 = synth(af.parameters().get(0), env);
+        t.typedOnce(af.parameters().get(0), e0, env);   // typed once (REPEAT-17): declined, the generic path types it again
         if (!(e0.info().type() instanceof Type.GenericType gt)
                 || !gt.rawFqn().equals(com.legend.compiler.element.type.PlatformTypes.ENUMERATION)
                 || gt.arguments().size() != 1
