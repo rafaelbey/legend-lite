@@ -17,4 +17,10 @@ public class SchemaInvariantException extends TypeInferenceException {
     public SchemaInvariantException(String message) {
         super(message);
     }
+
+    /** A rewrapped invariant: Overloads.inlineNormalized's text with the expansion's column names restored, its
+     *  class kept (2026-11-17, the owner's ruling 44, ASK 1 (b')). */
+    public SchemaInvariantException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

@@ -412,7 +412,13 @@ final class Overloads {
             if (hygienic.written().isEmpty() || said == null) {
                 throw e;
             }
-            throw new TypeInferenceException(hygienic.restore(said), e);
+            // the rewrap keeps a schema invariant's class: until 2026-11-17 it was demoted to a plain
+            // TypeInferenceException when the expansion renamed columns, so checkWithDeferred's loop, which stops at
+            // a SchemaInvariantException, tried the next candidate (the owner's ruling 44, ASK 1 (b'); register row
+            // S1012; the typer slice's stage 1c)
+            throw e instanceof SchemaInvariantException
+                    ? new SchemaInvariantException(hygienic.restore(said), e)
+                    : new TypeInferenceException(hygienic.restore(said), e);
         } finally {
             normalizing.pop();
         }
