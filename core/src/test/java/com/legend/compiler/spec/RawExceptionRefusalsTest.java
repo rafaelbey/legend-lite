@@ -330,4 +330,28 @@ class RawExceptionRefusalsTest {
                 """);
         assertTrue(walls.isEmpty(), walls.toString());
     }
+
+    @Test
+    @DisplayName("a collection groupBy whose key is a function value is refused by name, never a raw"
+            + " IndexOutOfBoundsException")
+    void aGroupByOverAFunctionValueIsRefusedByName() {
+        // ruling 29's policy 2 (the typer slice's stage 1c, item 5: TypedAnswers met it in 2 asks; register row S1062):
+        // legend-engine 4.145.0 refuses it when the model compiles with its own raw exception, "Index: 2 Size: 2" (run,
+        // port-scratch/typer1c/research/item5), so lite's words
+        Map<String, String> walls = wallsOf("""
+                ###Pure
+                function test::g(list: String[*]): Any[*]
+                {
+                  $list->groupBy(length_String_1__Integer_1_)
+                }
+                function test::lam(list: String[*]): Any[*]
+                {
+                  $list->groupBy(x | $x->length())
+                }
+                """);
+        assertTrue(wallOf(walls, "test::g").endsWith("groupBy over a collection takes its key function as a lambda"
+                + " literal (groupBy(x | ...)): a function given as a value (a function reference or a variable) is"
+                + " not typed; write the key as a lambda"), walls.toString());
+        assertTrue(walls.keySet().stream().noneMatch(k -> k.startsWith("test::lam_")), walls.toString());
+    }
 }

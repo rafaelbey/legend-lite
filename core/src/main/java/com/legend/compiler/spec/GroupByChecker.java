@@ -68,6 +68,17 @@ final class GroupByChecker {
             af = d.call();
         }
         Application a = t.checkGeneric(af, env);
+        if (a.args().size() < 3) {
+            // a two-argument groupBy whose key is no lambda literal (a function reference, a variable) chose the
+            // collection overload, which the branch above types for a lambda literal alone: refused by name (ruling
+            // 29's policy 2; the typer slice's stage 1c, item 5; register row S1062). Until 2026-11-17 the aggregate
+            // read below met a raw IndexOutOfBoundsException ("Index 2 out of bounds for length 2"). legend-engine
+            // 4.145.0 refuses this input when the model compiles with its own raw exception, "Index: 2 Size: 2"
+            // (Handlers.aggInferenceAll :208, run, port-scratch/typer1c/research/item5): no words to take
+            throw new TypeInferenceException("groupBy over a collection takes its key function as a lambda literal"
+                    + " (groupBy(x | ...)): a function given as a value (a function reference or a variable) is not"
+                    + " typed; write the key as a lambda");
+        }
         List<TypedAggCol> aggs = d == null ? Args.aggCols(a.args().get(2))
                 : GroupLambdaAggs.withOrders(t, Args.aggCols(a.args().get(2)), d.orders(),
                         a.args().get(0), env);
