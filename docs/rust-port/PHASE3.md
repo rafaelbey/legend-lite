@@ -2081,3 +2081,27 @@ when that slice lands.
   Any, a shared base) is deferred, its association poisoned, where legend-engine answers each direction under its own
   pairing (`$a` the source both ways). Engine-exact needs a predicate per direction: E emitting two functions, the
   binding naming both, and H choosing by direction.
+- **The typer slice's stage 1c and its own batches (G, in Java, before the Rust typer; the owner's ruling 44,
+  2026-11-17).** Stage 1c: PR #102's split for a view column's arithmetic (S1006, Java and `lite-names` together, the
+  names oracle re-frozen with attribution) and the result batch's raw refusal of a cell not its column's carrier
+  named; StaticFold's three defects (ASK 3 (b)); typing each subtree once (ASK 2's open half; the seven identity
+  tables' counts re-frozen with attribution); the small fixes (ASK 8 (b); ASK 15 (b)-(h); the context reader's
+  arity, override and newline; programFacts' raw-body paths measured); ASK 1 (b′); the 24 strict refusals TypedAnswers
+  found to be raw exceptions on no list (ruling 29's policy 2); the bug-fix branch's `returnRefusal` shape for
+  SpecCompiler's return conformance (java_bugFixes_next `29e43a0fc`, for the next merge of main). Then, each its own
+  measured batch with its attributed re-freeze: ASK 5, the engine's automap for a [0..1] receiver in place of
+  `trustOne` (main's S5; the lowering that fails the spec corpus's verdicts under it fixed first); ASK 3's `in` kind
+  check and (c)'s narrowing (S2; testPrerouting34's refusal and the corpus failures understood first).
+- **Lowering (I): ASK 17's three calls the engine plans** (the owner's ruling 43, 2026-11-16; reach 0 texts). A view
+  column's `mod` over floats, `md5` over an integer and `minus` over strings, which lite refuses when the lifted
+  view's function is typed, planned as legend-engine 4.145.0 plans them per dialect (DuckDB `cast(fmod(F,G) as
+  integer)`, H2 `legend_h2_extension_hash_md5(I)`, `V - W`; `port-scratch/typer/research/item2/engine/out`, run).
+  `like`, `charindex`, `locate`, `COUNT`, `SUM` and `ABS` keep lite's refusal (ruled).
+- **The next merge of main: the rows-sized window frame** (the owner's ruling 43, 2026-11-16, as applied). The port's
+  `Frames.bound` :109-112 refuses `rows($n, 0)` (stage 1a, `129154736`); origin/main's `fa9ecbe27` plans it, as the
+  engine does, and takes its place at the merge. The interval form's refusal (`intervalBound` :122-129) stays: main
+  throws a raw IllegalStateException there.
+- **testplan: ASK 15 (i)** (the owner's ruling 44, 2026-11-17). VerdictQueries :63/:652/:735/:741 and
+  AssertMessages :123 pick by arity whatever the types (10-20 frozen keys: assertAsPredicate's not/abs and
+  lessThanEqual); pinned as Java when testplan is re-expressed, or picked by type then with the plan oracle's
+  re-freeze.

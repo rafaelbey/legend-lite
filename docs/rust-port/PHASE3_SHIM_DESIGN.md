@@ -674,5 +674,74 @@ Each with my recommendation first.
     - **The four main-register rows that misdescribe lite** (S2, S5, S127, S129) are sent to the Java bug-fix session,
       to correct on its branch.
 
+43. **The typer slice's stage 1a, ruled** (2026-11-16; the questions the lead asked on stage 1a's report, `b12c55f87`,
+    its PHASE3.md entry and register rows S1006-S1011). All as recommended:
+    - **ASK 17, the view lift's relational spellings** (stage 1a item 2, held: ruling 42's premise did not hold. The
+      engine refuses the capitals on DuckDB too, since item6's `ABS` case files held a lower-case `abs`; and lifting the
+      capitals as ruled planned `SUM` under a view's `~groupBy` as `MIN`). Split by the engine's runs
+      (`port-scratch/typer/research/item2/engine/out`, run):
+      - `like`, `charindex`, `locate`, `COUNT`, `SUM` and `ABS`: lite's refusal is kept, a ruled divergence. Every query
+        over such a view is refused, as in the engine, but at compile and in lite's words ("unknown function 'COUNT'"),
+        where the engine compiles the model and refuses at plan in each dialect's words (H2 "Couldn't find DynaFunction
+        to Postgres model translation for SUM()."; DuckDB "dyna function [SUM] is not registered in ...
+        DynaFunctionRegistry").
+      - `mod` over floats, `md5` over an integer and `minus` over strings, which the engine plans: carried to the
+        lowering slice (I), which knows the target dialect, to plan the engine's SQL (DuckDB `cast(fmod(F,G) as
+        integer)`, H2 `legend_h2_extension_hash_md5(I)`, `V - W`). Reach 0 texts.
+    - **S1007, the no-match refusal's form.** The call's name is printed as written, as the engine prints it (the full
+      path for a call written in full), done in the typer slice's stage 1b before G's oracle froze (`0af0dc04a`). The candidates
+      stay in lite's catalog order (the engine's is its handlers' order: for `minus` Integer, Float, Decimal, Number),
+      a ruled divergence.
+    - **S1008, an execution context's value the reader cannot read statically.** Lite's refusals by name are kept, a
+      ruled divergence: lite reads the context without running it, folds what it can, and refuses the rest, where
+      the engine evaluates a computed setup text, csv, url or quoteIdentifiers and plans with it.
+    - **S1009, the inputs that reached a raw Java exception.** Lite's refusals are kept, ruled divergences: a Database
+      declaring a column twice (the engine silently drops the duplicate, which invariant 4 forbids), a DECIMAL scale
+      above its precision, a literal collection's field every element leaves empty, a row cell past the row, and
+      groupByWithWindowSubset's ids past their lists. The window frame sized by a let or `toOne`: as applied with
+      stage 1b's reading and run (`port-scratch/typer1b/RESUME.md`), the ROWS form (`rows($n, 0)`, the port's
+      `Frames.bound` :109-112) takes main's answer at the next merge of main, since origin/main's `fa9ecbe27` plans it
+      (`Frames.bound` :84-88), as the engine does; the INTERVAL form (`_range($n, DurationUnit.DAYS, 0,
+      DurationUnit.DAYS)`, the port's `intervalBound` :122-129) stays refused by name, since origin/main still throws
+      a raw IllegalStateException there (:97-103, reached at :101 from OverChecker, run at `4dfbb5b76`).
+    - The Java bug-fix branch numbers its own rows for these (java_bugFixes_next, the owner's rulings there): S520 is
+      S1004, S521 is S376, S522 is S1008, S523 is S1009 (less the frame), S524 is S1007.
+
+44. **The typer slice's stage 1b, ruled** (2026-11-17; the questions the lead asked on stage 1b's report, `08ab6f7e3`,
+    its measured table `port-scratch/typer1b/TABLE.md`, and register rows S1012-S1061). As recommended, except ASK 5:
+    - **S1006 and PR #102's split.** A view column's arithmetic (`plus`, `minus`, `times`, `divide`) is typed by the
+      type over all its arguments, as the database computes it and as neema2's review of PR #102 asks; the engine's
+      first-argument rule stays for the seeded metamodel rows (ruling 35's table). So `X: plus(T.I, T.F)` is Float,
+      ruling 36's relabel does not fire, and the database's 1.5 reads back (measured: under the first-argument rule,
+      lite's result batch failed with a raw IllegalArgumentException after the JSON writer had sent `[`). In Java and
+      `lite-names` together, the names oracle re-frozen with attribution; the execution refusal of a cell that is not
+      its column's carrier named (ruling 29's policy 2). The typer slice's stage 1c.
+    - **ASK 5, a [0..1] receiver (main's S5).** NOT as recommended: the engine's automap (`HelperValueSpecificationBuilder`
+      :284-316) replaces `trustOne` in its own Java batch now, before the Rust typer: the lowering that fails the spec
+      corpus's verdict lanes under it fixed, the corpus re-judged, and every moved answer (measured in a throwaway
+      copy: at least 295 frozen keys, 120 of them answers -- 104 test plans, 16 lowered queries -- and 2,684 keys not
+      yet asked) re-frozen with attribution.
+    - **ASK 3, StaticFold.** The three fold defects (SF :396's BigInteger, SF :920's inexact float, a string `indexOf`)
+      fixed now (no answer moves). The `in` kind check and (c)'s narrowing -- `in`, cross-kind comparisons and an
+      inlined user `if` left to the SQL, the computing arms confined to schema positions, as the engine plans them --
+      in their own measured batch before the Rust typer, testPrerouting34's refusal and the corpus failures understood
+      first, then an attributed re-freeze.
+    - **ASK 2's open half, typing each subtree once.** Landed in Java first: the 17 pure repeats reuse the first
+      typing (the 5 route-deciding re-typings kept), the seven identity tables' counts re-frozen with attribution
+      (counts only: measured, no answer moves). Java and Rust then type each subtree once, and the identity
+      differential compares every count.
+    - **The small fixes, in Java now:** ASK 8 (b) (a construction built by a second let tracked as its own); ASK 15
+      (b) and (h) deleted (dead), (c) the simple name cut at the raw head, (d) the engine's refusal (S1026), (e) a
+      user's `my::p::union` no longer rewritten to the TDS union (exact referents), (f) the javadoc, (g) programFacts
+      sees a typer-built test-data generator; the context reader's helper overload chosen by arity, a copy's
+      `testDataSetupSqls` override refused by name, a setup list joined with newlines; programFacts' raw-body paths
+      measured, and brought back if anything moves. ASK 15 (i), testplan's type-blind picks, stays Java until testplan
+      is re-expressed.
+    - **ASK 1, overload choice.** Lite's retry loop is kept, a ruled divergence (S1012; legend-pure's loop moved 124
+      typed answers and 58 frozen keys and failed 17 targets); (b′) Overloads :398 keeps the stricter error class.
+    - **R1-R55 (S1012-S1061) ratified:** each ported as Java under its row, a ruled divergence, revisitable with its
+      measured reach; S1026 (R16) as ASK 15 (d) above; R11, R19, R25, R28 and R55 ruled on main's rows S5, S2, S129,
+      S127 and the port's S1010.
+
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.
