@@ -45,11 +45,32 @@ final class ContextReading {
         this.dbOfCopy = dbOfCopy;
     }
 
-    /** A helper's raw body by name: the first overload with one (the chain's, the JSON sources' and the setups'
-     *  rule; the database type reads every overload of the call's arity, {@link #rawDatabaseType}). */
-    private Optional<List<ValueSpecification>> fnBody(String fqn) {
-        return overloads.apply(fqn).stream().map(com.legend.compiler.element.TypedFunction::body)
-                .filter(Optional::isPresent).map(Optional::get).findFirst();
+    /** A raw helper call's bodies: each overload of the call's arity with a body, in declaration order (the database
+     *  type and an enumeration value read them all, {@link #rawDatabaseType}, {@link #rawEnumValue}). Until
+     *  2026-11-17 the chain's and the setups' collectors read the first overload with a body whatever its arity, so
+     *  {@code t::ar(1, 2)} read {@code t::ar(x)}'s body where legend-engine 4.145.0 plans {@code t::ar(x, y)}'s setup
+     *  (run, port-scratch/typer1b/research/cr4; the owner's ruling 44, the typer slice's stage 1c). */
+    private List<List<ValueSpecification>> bodiesOfArity(com.legend.protocol.spec.AppliedFunction af) {
+        return overloads.apply(af.function()).stream()
+                .filter(f -> f.parameters().size() == af.parameters().size() && f.body().isPresent())
+                .map(f -> f.body().get()).toList();
+    }
+
+    /** The raw body a collector follows for a helper call: its one overload of the call's arity with a body. Several
+     *  such overloads (told apart by their parameters' types, which the reader does not type) are refused by name
+     *  where one of them holds what the collector reads ({@code here}), as a call of several referents is
+     *  ({@link #refuseSeveralReferents}, register row S1008); where none does, the first is followed, as nothing in
+     *  any of them is read. */
+    private Optional<List<ValueSpecification>> fnBody(com.legend.protocol.spec.AppliedFunction af,
+            java.util.function.Predicate<com.legend.protocol.spec.NewInstance> here) {
+        List<List<ValueSpecification>> bodies = bodiesOfArity(af);
+        if (bodies.size() > 1 && bodies.stream().anyMatch(b -> beyondCap(b, here))) {
+            throw new NotImplementedException("a helper call '" + af.function() + "' has " + bodies.size()
+                    + " overloads of its arity (" + af.parameters().size() + ") with a body: the execution-context"
+                    + " reader reads an unchecked body by the call's arity and cannot choose one by its arguments'"
+                    + " types; give the helper one overload of that arity");
+        }
+        return bodies.isEmpty() ? Optional.empty() : Optional.of(bodies.get(0));
     }
 
     ExecutionContext read(Optional<TypedPackageableRef> mapping,
@@ -633,8 +654,7 @@ final class ContextReading {
                     || !com.legend.compiler.ResolvedNames.names(af,
                             com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())
                             && seen.add(af.function())
-                            && fnBody(af.function()).filter(b -> b.stream().anyMatch(x -> holds(x, here, seen)))
-                                    .isPresent();
+                            && bodiesOfArity(af).stream().anyMatch(b -> b.stream().anyMatch(x -> holds(x, here, seen)));
             case com.legend.protocol.spec.LambdaFunction lf -> lf.body().stream().anyMatch(b -> holds(b, here, seen));
             case com.legend.protocol.spec.PureCollection pc -> pc.values().stream().anyMatch(e -> holds(e, here, seen));
             default -> false;
@@ -733,12 +753,12 @@ final class ContextReading {
                 }
                 if (depth >= 3 && !com.legend.compiler.ResolvedNames.names(af,
                         com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())
-                        && fnBody(af.function()).filter(b -> beyondCap(b, this::chainHere)).isPresent()) {
+                        && bodiesOfArity(af).stream().anyMatch(b -> beyondCap(b, this::chainHere))) {
                     throw tooDeep(af, "ModelChainConnection mappings");
                 }
                 if (depth < 3 && !com.legend.compiler.ResolvedNames.names(af,
                         com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())) {
-                    var body = fnBody(af.function());
+                    var body = fnBody(af, this::chainHere);
                     if (body.isPresent()) {
                         for (var b : body.get()) {
                             collectChainRaw(b, out, depth + 1);
@@ -860,7 +880,7 @@ final class ContextReading {
             String db = ni.properties().get("element")
                     instanceof TypedPackageableRef el ? el.fullPath() : dbRef;
             if (com.legend.model.ConnectionSpecification.TEST_DATA_SPECIFICATION_CLASS.equals(ni.classFqn())) {
-                String s = foldLiteral(ni.properties().get("testDataSetupSqls"));
+                String s = foldSetupSqls(ni.properties().get("testDataSetupSqls"));
                 if (s == null && ni.properties().get("testDataSetupSqls") != null) {
                     throw unreadable("testDataSetupSqls");
                 }
@@ -885,6 +905,20 @@ final class ContextReading {
         if (n instanceof TypedCopyInstance cp0 && cp0.overrides().get("testDataSetupCsv") != null
                 && foldLiteral(cp0.overrides().get("testDataSetupCsv")) == null) {
             throw unreadable("testDataSetupCsv");
+        }
+        // a copy's testDataSetupSqls override, read as the csv override is: refused by name where it does not fold,
+        // collected where it does (invariant 4; the owner's ruling 44, the typer slice's stage 1c): until 2026-11-17
+        // the copy arm read the csv override alone and this one was dropped, the plan going on without it.
+        // legend-engine 4.145.0 cannot parse ^$s(...) (run, port-scratch/typer1b/research/cr4: a
+        // NullPointerException), so there is no plan of the engine's to match
+        if (n instanceof TypedCopyInstance cp1
+                && com.legend.model.ConnectionSpecification.TEST_DATA_SPECIFICATION_CLASS.equals(cp1.classFqn())
+                && cp1.overrides().get("testDataSetupSqls") != null) {
+            String sqls = foldSetupSqls(cp1.overrides().get("testDataSetupSqls"));
+            if (sqls == null) {
+                throw unreadable("testDataSetupSqls");
+            }
+            out.add(sqls);
         }
         if (n instanceof TypedCopyInstance cp
                 && foldLiteral(cp.overrides().get("testDataSetupCsv")) instanceof String c2) {
@@ -919,12 +953,12 @@ final class ContextReading {
                 }
                 if (depth >= 3 && !com.legend.compiler.ResolvedNames.names(af,
                         com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())
-                        && fnBody(af.function()).filter(b -> beyondCap(b, this::setupHere)).isPresent()) {
+                        && bodiesOfArity(af).stream().anyMatch(b -> beyondCap(b, this::setupHere))) {
                     throw tooDeep(af, "setup texts");
                 }
                 if (depth < 3 && !com.legend.compiler.ResolvedNames.names(af,
                         com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())) {
-                    var body = fnBody(af.function());
+                    var body = fnBody(af, this::setupHere);
                     if (body.isPresent()) {
                         Map<String, ValueSpecification> inner = new java.util.HashMap<>();
                         for (var b : body.get()) {
@@ -1385,6 +1419,29 @@ final class ContextReading {
             return sb.toString();
         }
         return null;
+    }
+
+    /** A test-data specification's testDataSetupSqls folded: a list of texts (not a '+' run) joined with a newline
+     *  between its parts, as the raw fold joins one ({@link #foldRawLiteral}); any other value as {@link #foldLiteral}
+     *  folds it. Until 2026-11-17 a list's texts were joined with no separator, {@code ['a', 'b']} one setup "ab"
+     *  (the owner's ruling 44, the typer slice's stage 1c; legend-engine 4.145.0 plans one setup per element, run,
+     *  port-scratch/typer1b/research/cr4 -- lite's one setup of newline-joined texts is the raw fold's, S1008). */
+    private static @com.legend.base.Nullable String foldSetupSqls(@com.legend.base.Nullable TypedSpec n) {
+        if (n instanceof TypedCollection tc && !tc.operatorRun()) {
+            StringBuilder sb = new StringBuilder();
+            for (TypedSpec a : tc.elements()) {
+                String part = foldLiteral(a);
+                if (part == null) {
+                    return null;
+                }
+                if (sb.length() > 0) {
+                    sb.append('\n');
+                }
+                sb.append(part);
+            }
+            return sb.toString();
+        }
+        return foldLiteral(n);
     }
 
     /** A raw-spec string literal folded through '+' chains, collections

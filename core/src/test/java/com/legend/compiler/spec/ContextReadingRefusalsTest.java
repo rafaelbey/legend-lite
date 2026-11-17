@@ -72,6 +72,23 @@ class ContextReadingRefusalsTest {
             function t::c4(): meta::core::runtime::Runtime[1] { ^meta::core::runtime::Runtime(connectionStores=^meta::core::runtime::ConnectionStore(element='ModelStore', connection=^meta::external::store::model::ModelChainConnection(mappings=[t::M]))) }
             """);
 
+    /** MODEL with helpers of two overloads each (2026-11-17, the typer slice's stage 1c; the owner's ruling 44): a text
+     *  of its own, so MODEL's own questions keep their keys in rust/oracles/identity. t::ar's setup is in its
+     *  two-argument overload, t::br's in its one-argument one (port-scratch/typer1b/research/cr4, cases/m_cr4.pure);
+     *  t::sv's two one-argument overloads differ by their parameter's type alone. */
+    private static final ModelContext ARITY = com.legend.Compiler.compileModel(MODEL + """
+            ###Pure
+            function t::ar(x: Integer[1]): meta::core::runtime::Runtime[1] { ^meta::core::runtime::Runtime(connectionStores=^meta::core::runtime::ConnectionStore(element=t::Db, connection=^meta::external::store::relational::runtime::RelationalDatabaseConnection(type=meta::relational::runtime::DatabaseType.H2, datasourceSpecification=^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification(), authenticationStrategy=^t::Auth()))) }
+            function t::ar(x: Integer[1], y: Integer[1]): meta::core::runtime::Runtime[1] { ^meta::core::runtime::Runtime(connectionStores=^meta::core::runtime::ConnectionStore(element=t::Db, connection=^meta::external::store::relational::runtime::RelationalDatabaseConnection(type=meta::relational::runtime::DatabaseType.H2, datasourceSpecification=^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification(testDataSetupSqls='insert into T (ID) values (1)'), authenticationStrategy=^t::Auth()))) }
+            function t::arCall(): meta::core::runtime::Runtime[1] { t::ar(1, 2) }
+            function t::br(x: Integer[1]): meta::core::runtime::Runtime[1] { ^meta::core::runtime::Runtime(connectionStores=^meta::core::runtime::ConnectionStore(element=t::Db, connection=^meta::external::store::relational::runtime::RelationalDatabaseConnection(type=meta::relational::runtime::DatabaseType.H2, datasourceSpecification=^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification(testDataSetupSqls='insert into T (ID) values (1)'), authenticationStrategy=^t::Auth()))) }
+            function t::br(x: Integer[1], y: Integer[1]): meta::core::runtime::Runtime[1] { ^meta::core::runtime::Runtime(connectionStores=^meta::core::runtime::ConnectionStore(element=t::Db, connection=^meta::external::store::relational::runtime::RelationalDatabaseConnection(type=meta::relational::runtime::DatabaseType.H2, datasourceSpecification=^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification(), authenticationStrategy=^t::Auth()))) }
+            function t::brCall(): meta::core::runtime::Runtime[1] { t::br(1, 2) }
+            function t::sv(x: Integer[1]): meta::core::runtime::Runtime[1] { ^meta::core::runtime::Runtime(connectionStores=^meta::core::runtime::ConnectionStore(element=t::Db, connection=^meta::external::store::relational::runtime::RelationalDatabaseConnection(type=meta::relational::runtime::DatabaseType.H2, datasourceSpecification=^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification(testDataSetupSqls='insert into T (ID) values (1)'), authenticationStrategy=^t::Auth()))) }
+            function t::sv(x: String[1]): meta::core::runtime::Runtime[1] { ^meta::core::runtime::Runtime(connectionStores=^meta::core::runtime::ConnectionStore(element=t::Db, connection=^meta::external::store::relational::runtime::RelationalDatabaseConnection(type=meta::relational::runtime::DatabaseType.H2, datasourceSpecification=^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification(), authenticationStrategy=^t::Auth()))) }
+            function t::svCall(): meta::core::runtime::Runtime[1] { t::sv('s') }
+            """);
+
     private static String typing(String query) {
         return assertThrows(NotImplementedException.class,
                 () -> com.legend.Compiler.query(CTX, query).resultType()).getMessage();
@@ -208,5 +225,58 @@ class ContextReadingRefusalsTest {
                 () -> com.legend.Compiler.query(HELPERS, "t::P.all()->project([x|$x.name], ['n'])->from(t::M, t::c0())")
                         .resultType()).getMessage());
         assertDoesNotThrow(() -> com.legend.Compiler.query(HELPERS, "t::P.all()->project([x|$x.name], ['n'])->from(t::M, t::c1())").resultType());
+    }
+
+    @Test
+    @DisplayName("a raw helper call is read through its overload of the call's arity; two of that arity are refused by name")
+    void aHelperCallIsReadByItsArity() {
+        // the owner's ruling 44 (the typer slice's stage 1c, 2026-11-17): the setups' and the chain's collectors read
+        // the first overload with a body whatever its arity, so t::ar(1, 2) read t::ar(x) (no setup) and t::br(1, 2)
+        // t::br(x)'s setup; legend-engine 4.145.0 plans t::ar(x, y)'s setup and none for t::br (run,
+        // port-scratch/typer1b/research/cr4, out/e_cr4.txt e1-e2). The product door refuses a query's inline setup
+        String q = "t::P.all()->project([x|$x.name], ['n'])->from(t::M, %s)";
+        assertEquals("a from()'s inline test data in a query: seeds are a test's, and the product's query door plans"
+                + " none", assertThrows(NotImplementedException.class, () -> com.legend.Compiler.query(ARITY,
+                        q.formatted("t::arCall()")).executionPlan("t::R")).getMessage());
+        assertDoesNotThrow(() -> com.legend.Compiler.query(ARITY, q.formatted("t::brCall()")).executionPlan("t::R"));
+        assertEquals("a helper call 't::sv' has 2 overloads of its arity (1) with a body: the execution-context reader"
+                + " reads an unchecked body by the call's arity and cannot choose one by its arguments' types; give the"
+                + " helper one overload of that arity", assertThrows(NotImplementedException.class,
+                        () -> com.legend.Compiler.query(ARITY, q.formatted("t::svCall()")).resultType()).getMessage());
+    }
+
+    @Test
+    @DisplayName("a copy's testDataSetupSqls override is read as its csv override is: refused by name where it does"
+            + " not fold, collected where it does (the plan went on with setup=[])")
+    void aCopysSetupSqlsOverrideIsReadAsTheCsvOverrideIs() {
+        // the owner's ruling 44 (the typer slice's stage 1c): the copy arm read testDataSetupCsv alone, so the plan went
+        // on without the setup (port-scratch/typer1b/research/cr4, out/l_cr4.txt q3); legend-engine 4.145.0 cannot
+        // parse ^$s(...) (run, e7)
+        assertEquals("testDataSetupSqls is not statically readable: the execution-context reader folds string"
+                + " literals and '+' of them (a helper's body: and its own lets); a computed or let-bound"
+                + " testDataSetupSqls is refused, never dropped", typing("{| let s = ^meta::pure::alloy::connections"
+                + "::alloy::specification::LocalH2DatasourceSpecification(); t::P.all()->project([x|$x.name], ['n'])"
+                + "->from(t::M, " + instanceRuntime("^$s(testDataSetupSqls=t::setupText())") + "); }"));
+        String literal = "{| let s = ^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification();"
+                + " t::P.all()->project([x|$x.name], ['n'])->from(t::M, "
+                + instanceRuntime("^$s(testDataSetupSqls='insert into T (ID) values (1)')") + "); }";
+        // the product door refuses a query's inline setup by name: the override was read (it planned with setup=[])
+        assertEquals("a from()'s inline test data in a query: seeds are a test's, and the product's query door plans"
+                + " none", assertThrows(NotImplementedException.class,
+                        () -> com.legend.Compiler.query(CTX, literal).executionPlan("t::R")).getMessage());
+    }
+
+    @Test
+    @DisplayName("a typed runtime's list of setup texts is joined with a newline, as a helper body's is")
+    void aTypedSetupListIsJoinedWithANewline() {
+        // the owner's ruling 44 (the typer slice's stage 1c): the typed fold joined ['a', 'b'] with no separator, one
+        // setup "ab", where the raw fold (a helper's body) joins it with a newline; legend-engine 4.145.0 plans one
+        // setup per element (run, port-scratch/typer1b/research/cr4, e3) -- lite's one newline-joined setup is S1008's
+        com.legend.TypedQuery rt = com.legend.Compiler.query(CTX, instanceRuntime("^meta::pure::alloy::connections::"
+                + "alloy::specification::LocalH2DatasourceSpecification(testDataSetupSqls=['insert into T (ID) values"
+                + " (1)', 'insert into T (ID) values (2)'])"));
+        assertEquals(java.util.List.of("insert into T (ID) values (1)\ninsert into T (ID) values (2)"),
+                com.legend.compiler.spec.typed.ExecutionContext.reader().read(java.util.Optional.empty(),
+                        rt.expression()).sqlSetups());
     }
 }
