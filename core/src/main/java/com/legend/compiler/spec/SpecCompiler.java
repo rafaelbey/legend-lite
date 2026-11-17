@@ -253,13 +253,25 @@ public final class SpecCompiler {
                 try {
                     typer.requireConforms(stmt.info(), declaredReturn);
                 } catch (TypeInferenceException e) {
-                    String why = com.legend.compiler.spec.typed.TypedViewRelation.liftedViewName(fn) == null
-                            ? e.getMessage() : beyondViewFamilies(stmt.info(), declaredReturn, e.getMessage());
-                    if (why != null) {
-                        throw new TypeInferenceException("declares return type "
-                                + simpleName(declaredReturn.type().typeName())
-                                + " but body returns " + simpleName(stmt.info().type().typeName())
-                                + " (" + why + ")");
+                    // The owner's ruling 36 (LITE-ONLY; register row S376): a lifted VIEW's function -- the lift's,
+                    // never a user's -- also conforms when each declared column its body does not take is of that
+                    // column's family, numbers or dates; the body is checked again with those columns read at their
+                    // declared types (familyRelabelled), and a refusal then names the first column of two
+                    // families, in the kernel's words, past any in-family column before it. Every other function is
+                    // refused here. The compiled body keeps its own type; an inlined view's node carries the
+                    // relabelled one (viewInfo, ruling 42's ASK 18). (2026-11-17, the typer slice's stage
+                    // 1c item 0: java_bugFixes_next 29e43a0fc's shape -- no reason returned out of a catch, the
+                    // refusal rethrown through returnRefusal -- for the next merge of main; until then a
+                    // beyondViewFamilies helper returned the reason or null)
+                    ExprType relabelled = com.legend.compiler.spec.typed.TypedViewRelation.liftedViewName(fn) == null
+                            ? null : familyRelabelled(stmt.info(), declaredReturn);
+                    if (relabelled == null) {
+                        throw returnRefusal(declaredReturn, stmt.info(), e.getMessage());
+                    }
+                    try {
+                        typer.requireConforms(relabelled, declaredReturn);
+                    } catch (TypeInferenceException again) {
+                        throw returnRefusal(declaredReturn, stmt.info(), again.getMessage());
                     }
                 }
             }
@@ -280,26 +292,11 @@ public final class SpecCompiler {
         return new CompiledFunction(fn, typed);
     }
 
-    /** The owner's ruling 36 (2026-11-14; LITE-ONLY; register row S376): a lifted VIEW's function -- the lift's,
-     *  never a user's -- also conforms when each declared column its body's type does not take is of that body
-     *  column's family, numbers or dates ({@link #viewFamily}): the engine types a view column by its relational
-     *  inference alone, which can name another type of the family than the translated body returns (datePart's DATE,
-     *  a StrictDate, where Pure's returns Date). The body is checked again with each such column read at its declared
-     *  type ({@link #familyRelabelled}); null when that conforms, else its reason -- so a refusal names the first
-     *  column of two families, in the kernel's words, past any in-family column before it. The compiled body keeps its
-     *  own type; an inlined view's node carries the relabelled one ({@link #viewInfo}, ruling 42's ASK 18). */
-    private @com.legend.base.Nullable String beyondViewFamilies(ExprType body, ExprType declared,
+    /** The return-position refusal: it names the contract, the declared return, and the body's type. */
+    private static TypeInferenceException returnRefusal(ExprType declared, ExprType body,
             @com.legend.base.Nullable String why) {
-        ExprType rebuilt = familyRelabelled(body, declared);
-        if (rebuilt == null) {
-            return why;
-        }
-        try {
-            typer.requireConforms(rebuilt, declared);
-            return null;
-        } catch (TypeInferenceException e) {
-            return e.getMessage();
-        }
+        return new TypeInferenceException("declares return type " + simpleName(declared.type().typeName())
+                + " but body returns " + simpleName(body.type().typeName()) + " (" + why + ")");
     }
 
     /** The ONE pairing of ruling 36: {@code body}'s relation type with each column ruling 36 newly accepts -- a
