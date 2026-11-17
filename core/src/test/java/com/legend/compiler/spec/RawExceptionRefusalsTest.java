@@ -313,4 +313,21 @@ class RawExceptionRefusalsTest {
         assertTrue(wallOf(walls, "test::s").endsWith("Invalid second: 61"), walls.toString());
         assertTrue(walls.keySet().stream().noneMatch(k -> k.startsWith("test::ok_")), walls.toString());
     }
+
+    @Test
+    @DisplayName("a collection of function values whose multiplicity parameters differ types, as legend-pure"
+            + " min-subsumes them, never Multiplicity.union's raw IllegalStateException")
+    void functionValuesOfDifferentMultiplicitiesHaveACommonType() {
+        // ruling 34 (the typer slice's stage 1c, item 5: TypedAnswers met it in 6 asks): legend-engine 4.145.0 compiles
+        // this collection and types it NativeFunction<{T[*], Function<{T[1]->V[1]}>[1]->V[*]}>[2] (run,
+        // port-scratch/typer1c/research/item5): a multiplicity parameter beside [*] subsumes to [*]
+        Map<String, String> walls = wallsOf("""
+                ###Pure
+                function test::f(): Function<Any>[*]
+                {
+                  [map_T_m__Function_1__V_m_, map_T_MANY__Function_1__V_MANY_]
+                }
+                """);
+        assertTrue(walls.isEmpty(), walls.toString());
+    }
 }

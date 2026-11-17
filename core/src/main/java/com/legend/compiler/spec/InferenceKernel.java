@@ -1911,8 +1911,7 @@ public final class InferenceKernel {
         // arities join at Any; same arity builds the function type whose
         // params take the CONTRAVARIANT meet (commonSubtype below) and
         // whose return takes the ordinary covariant join, multiplicities
-        // min-subsuming on both (Multiplicity.union IS the engine's
-        // minSubsumingMultiplicity for two).
+        // min-subsuming on both ({@link #minSubsuming}).
         if (a instanceof Type.FunctionType ffa && b instanceof Type.FunctionType ffb) {
             if (ffa.params().size() != ffb.params().size()) {
                 return new Type.ClassType(
@@ -1923,11 +1922,11 @@ public final class InferenceKernel {
                 Type.Param pa = ffa.params().get(i);
                 Type.Param pb = ffb.params().get(i);
                 ps.add(new Type.Param(commonSubtype(pa.type(), pb.type()),
-                        Multiplicity.union(pa.multiplicity(), pb.multiplicity())));
+                        minSubsuming(pa.multiplicity(), pb.multiplicity())));
             }
             return new Type.FunctionType(ps, new Type.Param(
                     commonSupertype(ffa.result().type(), ffb.result().type()),
-                    Multiplicity.union(ffa.result().multiplicity(),
+                    minSubsuming(ffa.result().multiplicity(),
                             ffb.result().multiplicity())));
         }
         // The SCALAR-SUBQUERY ENCODING (a single-column relation in value
@@ -1967,6 +1966,24 @@ public final class InferenceKernel {
             }
         }
         return anyType();
+    }
+
+    /** Two function types' multiplicities, min-subsuming (legend-pure's m3
+     *  {@code Multiplicity.minSubsumingMultiplicity}, read: a multiplicity
+     *  parameter beside another bound subsumes to {@code [*]}): the range union
+     *  of two bounds, a variable with itself that variable, and a variable
+     *  beside a different bound or variable {@code [*]}. Until 2026-11-17 the
+     *  last raised Multiplicity.union's raw IllegalStateException ("cannot
+     *  union multiplicities [m] and [*]"), where legend-engine 4.145.0 compiles
+     *  `[map_T_m__Function_1__V_m_, map_T_MANY__Function_1__V_MANY_]` and types
+     *  it NativeFunction<{T[*], Function<{T[1]->V[1]}>[1]->V[*]}>[2] (run,
+     *  port-scratch/typer1c/research/item5; ruling 34, the typer slice's stage
+     *  1c, item 5). */
+    private static Multiplicity minSubsuming(Multiplicity a, Multiplicity b) {
+        if ((a instanceof Multiplicity.Var || b instanceof Multiplicity.Var) && !a.equals(b)) {
+            return Multiplicity.Bounded.ZERO_MANY;
+        }
+        return Multiplicity.union(a, b);
     }
 
     /**
