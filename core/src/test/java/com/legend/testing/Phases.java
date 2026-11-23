@@ -29,6 +29,7 @@ public final class Phases {
     /** Phase F over an already-normalized model (Phase-F unit fixtures). */
     public static PureModelContext context(NormalizedModel normalized) {
         return PureModelContext.from(normalized, ModelBuilder.from(
-                new ParsedModel(normalized.elements(), normalized.imports())), com.legend.lowering.PlatformRegistrations.current());
+                new ParsedModel(normalized.elements(), normalized.imports())), com.legend.lowering.PlatformRegistrations.current(),
+                com.legend.compiler.element.GrammarLevel.LEGEND_LITE);
     }
 }

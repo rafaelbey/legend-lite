@@ -211,4 +211,30 @@ class AnswerTextsTest {
         assertTrue(walls.keySet().stream().noneMatch(k -> k.startsWith("t::qz_") || k.startsWith("t::full_")),
                 walls.toString());
     }
+
+    @Test
+    @DisplayName("the same function and call at the platform's grammar level: the receiver's function takes it, as"
+            + " legend-pure compiles the engine's own Pure by type")
+    void theSameCallIsTheReceiversAtThePlatformsLevel() {
+        // the coordinator's ruling on S1026 (2026-11-23): legend-engine has two compilers -- its model compiler refuses
+        // t::sort's call (the test above, at lite's level), legend-pure compiles the engine's own Pure, relational.pure's
+        // meta::relational::metamodel::filter and join among it, by type. The graph's grammar level, which its compile
+        // entry names, says which rule holds
+        String text = """
+                ###Pure
+                import t::*;
+                Class t::Box { v: Integer[1]; }
+                function t::sort(_this:t::Box[1], k:String[1]):t::Box[1] { $_this }
+                function t::q():Integer[1] { ^t::Box(v=1)->sort('x').v }
+                """;
+        ModelContext lite = com.legend.Compiler.compileModel(text);
+        assertEquals(com.legend.compiler.element.GrammarLevel.LEGEND_LITE, lite.grammarLevel());
+        assertTrue(com.legend.Compiler.compileAllBodies(lite).keySet().stream().anyMatch(k -> k.startsWith("t::q_")));
+        ModelContext platform = com.legend.testing.Platform.compile(text);
+        assertEquals(com.legend.compiler.element.GrammarLevel.LEGEND_PLATFORM, platform.grammarLevel());
+        // no wall: the call typed, and t::sort(Box, String) is the one function that takes it (the platform's sorts
+        // take no String key, the refusal's own list)
+        java.util.Map<String, String> walls = com.legend.Compiler.compileAllBodies(platform);
+        assertTrue(walls.isEmpty(), walls.toString());
+    }
 }

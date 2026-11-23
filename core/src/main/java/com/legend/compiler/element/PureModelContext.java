@@ -57,7 +57,10 @@ public final class PureModelContext implements ModelContext {
      * records; null on ordinary contexts. */
     private final com.legend.model.@com.legend.base.Nullable RuntimeDefinition overlayRuntime;
     private final com.legend.model.@com.legend.base.Nullable ConnectionDefinition overlayConnection;
+    /** The grammar level the graph was compiled at (2026-11-23, S1026): its compile entry names it. */
+    private final GrammarLevel grammarLevel;
 
+    /** A context at lite's grammar level (the product's). */
     public PureModelContext(ModelBuilder model, com.legend.platform.Registrations registrations) {
         this(model, null, registrations);
     }
@@ -68,14 +71,15 @@ public final class PureModelContext implements ModelContext {
     public PureModelContext(ModelBuilder model,
             java.util.@com.legend.base.Nullable Map<String, String> wallSink,
             com.legend.platform.Registrations registrations) {
-        this(model, wallSink, null, registrations);
+        this(model, wallSink, null, registrations, GrammarLevel.LEGEND_LITE);
     }
 
     private PureModelContext(ModelBuilder model,
             java.util.@com.legend.base.Nullable Map<String, String> wallSink,
             @com.legend.base.Nullable CheckedLayer prior,
-            com.legend.platform.Registrations registrations) {
+            com.legend.platform.Registrations registrations, GrammarLevel grammarLevel) {
         this.model = Objects.requireNonNull(model, "model");
+        this.grammarLevel = Objects.requireNonNull(grammarLevel, "grammarLevel");
         this.registrations = Objects.requireNonNull(registrations, "registrations");
         this.classifier = new TypeClassifier(model);
         this.functions = new FunctionCompiler(model, classifier);
@@ -131,7 +135,8 @@ public final class PureModelContext implements ModelContext {
      * platform bug and throws), over the index Phase E built for it. */
     public static CheckedLayer checkLayer(com.legend.model.NormalizedModel normalized,
             ModelBuilder index, com.legend.platform.Registrations registrations) {
-        PureModelContext alone = from(normalized, index, registrations);
+        // the boot layer, the platform's own sources (Prelude, the system metamodel): legend-pure's level
+        PureModelContext alone = from(normalized, index, registrations, GrammarLevel.LEGEND_PLATFORM);
         CheckedLayer out = new CheckedLayer();
         alone.model.classes().forEach(out.elements::add);
         alone.model.functions().forEach(f -> {
@@ -161,21 +166,23 @@ public final class PureModelContext implements ModelContext {
      * {@code ParsedModel} cannot reach element compilation.
      */
     public static PureModelContext from(com.legend.model.NormalizedModel normalized,
-            ModelBuilder index, com.legend.platform.Registrations registrations) {
-        return from(normalized, index, null, null, registrations);
+            ModelBuilder index, com.legend.platform.Registrations registrations, GrammarLevel grammarLevel) {
+        return from(normalized, index, null, null, registrations, grammarLevel);
     }
 
     /** {@link #from} with a tolerant integrity wall sink (module compile). */
     public static PureModelContext from(com.legend.model.NormalizedModel normalized,
             ModelBuilder index, java.util.@com.legend.base.Nullable Map<String, String> wallSink,
-            com.legend.platform.Registrations registrations) {
-        return from(normalized, index, wallSink, null, registrations);
+            com.legend.platform.Registrations registrations, GrammarLevel grammarLevel) {
+        return from(normalized, index, wallSink, null, registrations, grammarLevel);
     }
 
-    /** {@link #from} over a graph that includes an already-checked layer. */
+    /** {@link #from} over a graph that includes an already-checked layer, at the grammar level its compile entry
+     *  parsed it at ({@link GrammarLevel}; 2026-11-23, S1026). */
     public static PureModelContext from(com.legend.model.NormalizedModel normalized,
             ModelBuilder index, java.util.@com.legend.base.Nullable Map<String, String> wallSink,
-            @com.legend.base.Nullable CheckedLayer prior, com.legend.platform.Registrations registrations) {
+            @com.legend.base.Nullable CheckedLayer prior, com.legend.platform.Registrations registrations,
+            GrammarLevel grammarLevel) {
         // THE Phase-E -> Phase-F gate (T4.1 step 2): the index Phase E read
         // gains Phase E's products — the compiled mappings (their facts
         // stamped on them), the lifted functions — and the boot layer's
@@ -186,7 +193,12 @@ public final class PureModelContext implements ModelContext {
         // (static lineage #44) — F+ compilation never reads them
         normalized.legacySurfaces().values()
                 .forEach(index::retainLegacySurface);
-        return new PureModelContext(index, wallSink, prior, registrations);
+        return new PureModelContext(index, wallSink, prior, registrations, grammarLevel);
+    }
+
+    @Override
+    public GrammarLevel grammarLevel() {
+        return grammarLevel;
     }
 
     @Override
@@ -607,6 +619,7 @@ public final class PureModelContext implements ModelContext {
         this.overlayRuntime = Objects.requireNonNull(runtime, "runtime");
         this.overlayConnection = Objects.requireNonNull(connection, "connection");
         this.registrations = base.registrations;
+        this.grammarLevel = base.grammarLevel;
     }
 
     /**

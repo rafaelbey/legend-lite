@@ -33,6 +33,12 @@ public final class Platform {
         return ModelFromText.parse(source, SUITE);
     }
 
+    /** {@code source} parsed and compiled at this level, the compiled context carrying it (its grammar level,
+     *  2026-11-23, register row S1026: legend-pure's rules where they and the engine's model compiler's differ). */
+    public static com.legend.compiler.element.ModelContext compile(String source) {
+        return com.legend.Compiler.buildModel(model(source), SUITE);
+    }
+
     public static ValueSpecification spec(String source) {
         return SpecParser.parse(source, SUITE);
     }

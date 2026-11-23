@@ -41,7 +41,7 @@
 # ask's own tree, 7,972 a source node outside it, 3,533 synthesized tokens.
 # Timing (a cheap timing mode, never hashed: each phase's wall time per ask in the tags): D-E-F 120 s, G over every body
 # 670 s (strict and tolerant), a query's G 22 s, G-half 232 s, programFacts 27 s, summed over the four JVMs.
-models.tsv.zst	TypedAnswers' model asks: sha TAB dialect TAB islands TAB hash, 74,556 lines; re-frozen 2026-11-17 (the typer slice's stage 1c, ask8b); re-frozen 2026-11-17 (the typer slice's stage 1c, 15c); re-frozen 2026-11-17 (the typer slice's stage 1c, 15d); re-frozen 2026-11-17 (the typer slice's stage 1c, time); re-frozen 2026-11-17 (the typer slice's stage 1c, union); re-frozen 2026-11-17 (the typer slice's stage 1c, groupby); re-frozen 2026-11-17 (the typer slice's stage 1c, s1006)	c7a05abd8eba607ebeed11f7bbe97b443432070f573b61533d90d1b004079e6e
+models.tsv.zst	TypedAnswers' model asks: sha TAB dialect TAB islands TAB hash, 74,556 lines; re-frozen 2026-11-17 (the typer slice's stage 1c, ask8b); re-frozen 2026-11-17 (the typer slice's stage 1c, 15c); re-frozen 2026-11-17 (the typer slice's stage 1c, 15d); re-frozen 2026-11-17 (the typer slice's stage 1c, time); re-frozen 2026-11-17 (the typer slice's stage 1c, union); re-frozen 2026-11-17 (the typer slice's stage 1c, groupby); re-frozen 2026-11-17 (the typer slice's stage 1c, s1006); re-frozen 2026-11-23 (the typer slice's stage 1c, S1026 by grammar level)	a7bad237115e903f8f3f255c90e14e72d6c6b469d381917b218ffb19a7a5a2cf
 queries.tsv.zst	TypedAnswers' query asks: query sha TAB model sha TAB island TAB hash, 31,530 lines; re-frozen 2026-11-17 (the typer slice's stage 1c, s1006)	81ad59a41a3e191d29d24d55212849f443cf26a1cf3518f567354906bafb227b
 # CASES: the typer's own (port-scratch/typer1b/tools/gen_typed_cases.py; JSON per line, the element cases' form with
 # "queries", "site", "note" and, where the owner ruled it, "status"): ruling 36's 74 one-view models (r36.c00-c73, each
@@ -76,3 +76,13 @@ attribution-2026-11-17-typer-stage1c-union.tsv	the typer slice's stage 1c (union
 attribution-2026-11-17-typer-stage1c-groupby.tsv	the typer slice's stage 1c (groupby): every re-frozen answer -- kind, key, the frozen hash, the new one (plain text: its own SHA-256)	b479e0fa19369efc88a12ebad61dcd661e2e43f1b328a628f3a74dc6c9200677
 # THE TYPER SLICE'S STAGE 1C, item 1, S1006 re-ruled: PR #102's relational type inference (2026-11-17; docs/rust-port/PHASE3.md, the typer slice's stage 1c): 23 answers re-frozen with attribution (attribution-2026-11-17-typer-stage1c-s1006.tsv: kind, key, the frozen hash, the new one), each from TypedAnswers re-asked on the commit's code (port-scratch/typer1c/oracle; every other ask answered as frozen). Previous SHA-256s: models.tsv 8550e67284c5a65269960fb1919a347ab75b1e240ca4500db681519f6f7b373d, queries.tsv 7c94c88c406ebdf175e58b36e96819d34772e2151ae8fc10ae06ceaec0c126b9.
 attribution-2026-11-17-typer-stage1c-s1006.tsv	the typer slice's stage 1c (s1006): every re-frozen answer -- kind, key, the frozen hash, the new one (plain text: its own SHA-256)	7b4edc8eec46b2e304d8d24706765e09b4c90b2ad56c762336226eb8f0afe4b0
+# THE TYPER SLICE'S STAGE 1C, S1026 RULED BY GRAMMAR LEVEL (2026-11-23; the coordinator's ruling; docs/rust-port/PHASE3.md,
+# the typer slice's stage 1c): ReceiverOwnedFunctions refuses a model function of a platform form's name at the engine's
+# model compiler's levels (LEGEND_ENGINE, LEGEND_LITE) alone; at LEGEND_PLATFORM the receiver's `_this` function takes
+# the call, as legend-pure compiles the engine's own Pure. 1 answer re-frozen with attribution
+# (attribution-2026-11-23-typer-stage1c-s1026.tsv: kind, key, the frozen hash, the new one): d10b82df at LEGEND_PLATFORM,
+# a text holding relational.pure's meta::relational::metamodel::filter and join, parsed only at the platform's level, back
+# to its hash before 4f2e29310 (that commit's own frozen column, 7188f390...), from TypedAnswers re-asked on the commit's
+# code (port-scratch/typer1c/oracle/C18: every other ask answered as frozen, queries MOVED 0). Previous SHA-256s:
+# models.tsv c7a05abd8eba607ebeed11f7bbe97b443432070f573b61533d90d1b004079e6e, queries.tsv 81ad59a41a3e191d29d24d55212849f443cf26a1cf3518f567354906bafb227b (unchanged).
+attribution-2026-11-23-typer-stage1c-s1026.tsv	the typer slice's stage 1c (S1026 by grammar level): every re-frozen answer -- kind, key, the frozen hash, the new one (plain text: its own SHA-256)	e1decfca4aa193407abd65e63c2e4f6ad72eabe6cc5ef67339563710b119ba21

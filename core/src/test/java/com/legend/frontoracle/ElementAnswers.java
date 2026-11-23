@@ -71,7 +71,7 @@ import java.util.stream.Collectors;
  *   <li>{@code Compiler.normalizeWithSystem(resolved, walls)} (the prelude's shadows dropped, a system element's
  *       redefinition refused, the platform's own Pure adopted, E over the graph's own elements, the boot layer's
  *       prepared elements appended; read by reflection: it is the compile driver's, private);</li>
- *   <li>{@code PureModelContext.from(model, index, walls, boot.checked().without(adopted), registrations)} (F's gate
+ *   <li>{@code PureModelContext.from(model, index, walls, boot.checked().without(adopted), registrations, level)} (F's gate
  *       and its integrity pass, the boot layer checked on its own once per process).</li>
  * </ol>
  * The canonical text:
@@ -320,7 +320,7 @@ public final class ElementAnswers {
                             }
                             asks++;
                             CURRENT[0] = sha + " " + dialect.name();
-                            String form = form(parsed, codec);
+                            String form = form(parsed, codec, dialect);
                             w.write(sha + "\t" + dialect.name() + "\t" + hash(md, form) + "\n");
                             for (Map.Entry<String, Set<String>> m : ASK_TAGS.entrySet()) {
                                 gw.write(sha + "\t" + dialect.name() + "\t" + m.getKey() + "\t"
@@ -351,10 +351,10 @@ public final class ElementAnswers {
     }
 
     /** One ask: {@code S} strict, {@code T} tolerant (or {@code =S}). */
-    static String form(ParsedModel parsed, RecordCodec codec) {
-        String s = run(parsed, null, codec, "S");
+    static String form(ParsedModel parsed, RecordCodec codec, Dialect dialect) {
+        String s = run(parsed, null, codec, "S", dialect);
         Map<String, String> walls = new LinkedHashMap<>();
-        String t = run(parsed, walls, codec, "T");
+        String t = run(parsed, walls, codec, "T", dialect);
         return "S\t" + s + "\nT\t" + (t.equals(s) ? "=S" : t);
     }
 
@@ -362,22 +362,24 @@ public final class ElementAnswers {
     private record Built(PureModelContext ctx, NormalizedModel model) {
     }
 
-    private static Built build(ParsedModel parsed, Map<String, String> walls) {
+    private static Built build(ParsedModel parsed, Map<String, String> walls, Dialect dialect) {
         ParsedModel resolved = NameResolver.resolveAlongside(parsed, BOOT_FQNS, walls);
         Object layer = call(NORMALIZE_WITH_SYSTEM, null, resolved, walls);
         NormalizedModel nm = (NormalizedModel) component(layer, "model");
         com.legend.compiler.ModelBuilder index = (com.legend.compiler.ModelBuilder) component(layer, "index");
         @SuppressWarnings("unchecked")
         Set<FunctionId> adopted = (Set<FunctionId>) component(layer, "adopted");
-        PureModelContext ctx = PureModelContext.from(nm, index, walls, BOOT_CHECKED.without(adopted), REGISTRATIONS);
+        PureModelContext ctx = PureModelContext.from(nm, index, walls, BOOT_CHECKED.without(adopted), REGISTRATIONS,
+                com.legend.compiler.element.GrammarLevel.valueOf(dialect.name()));
         return new Built(ctx, nm);
     }
 
-    private static String run(ParsedModel parsed, Map<String, String> walls, RecordCodec codec, String mode) {
+    private static String run(ParsedModel parsed, Map<String, String> walls, RecordCodec codec, String mode,
+            Dialect dialect) {
         measureBounds(parsed, mode);
         Built built;
         try {
-            built = build(parsed, walls);
+            built = build(parsed, walls, dialect);
         } catch (RuntimeException | StackOverflowError e) {
             count(mode + ":error:" + e.getClass().getName());
             tag(mode, "error:" + e.getClass().getName());
@@ -468,7 +470,7 @@ public final class ElementAnswers {
 
     /** The boot layer's own answers and the baselines, from the empty text's model. */
     private static String boot(RecordCodec codec) {
-        Built built = build(ModelFromText.parse("", Dialect.LEGEND_LITE), null);
+        Built built = build(ModelFromText.parse("", Dialect.LEGEND_LITE), null, Dialect.LEGEND_LITE);
         PureModelContext ctx = built.ctx();
         Set<String> universe = new java.util.HashSet<>(ctx.resolutionUniverse());
         Map<String, Set<String>> classifiers = new LinkedHashMap<>();

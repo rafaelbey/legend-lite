@@ -75,7 +75,7 @@ final class OurResolutions {
                     module.model().elementOffsets(), module.model().elementImports(),
                     module.model().elementSources(), module.model().unclaimedSections());
             try {
-                ctx = Compiler.buildModel(pruned);
+                ctx = Compiler.buildModel(pruned, com.legend.parser.Dialect.LEGEND_PLATFORM);
                 elementSources = module.model().elementSources();
             } catch (com.legend.error.ModelException e) {
                 String el = e.element();

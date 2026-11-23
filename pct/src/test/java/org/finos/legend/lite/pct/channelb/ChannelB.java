@@ -148,7 +148,7 @@ public final class ChannelB {
                         module.model().elementImports(),
                         module.model().elementSources(),
                         module.model().unclaimedSections());
-                ctx = Compiler.buildModel(pruned);
+                ctx = Compiler.buildModel(pruned, com.legend.parser.Dialect.LEGEND_PLATFORM);
                 break;
             } catch (com.legend.error.ModelException e) {
                 String el = e.element();

@@ -246,12 +246,25 @@ public final class Compiler {
      * per-unit texts).
      */
     public static ModelContext buildModel(ParsedModel parsed) {
+        return buildModel(parsed, com.legend.parser.Dialect.LEGEND_LITE);
+    }
+
+    /** {@link #buildModel(ParsedModel)} for a model its caller parsed at {@code level} (the grammar level the
+     *  compiled context carries, {@link com.legend.compiler.element.GrammarLevel}: which upstream compiler's rules
+     *  the typer follows where they differ, register row S1026; 2026-11-23). A caller that parsed its sources at the
+     *  platform's level (the spec's platform files, the corpus's m2 sources) names it; the one-argument form is lite's. */
+    public static ModelContext buildModel(ParsedModel parsed, com.legend.parser.Dialect level) {
         // the system metamodel store rides EVERY build (charter §4: one
         // owner, parsed elements, no parallel lane)
         Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
                 bootFqns(), null), null);
         return PureModelContext.from(layer.model(), layer.index(), null, boot().checked().without(layer.adopted()),
-                com.legend.lowering.PlatformRegistrations.current());
+                com.legend.lowering.PlatformRegistrations.current(), grammarLevelOf(level));
+    }
+
+    /** The compiled context's grammar level for the parser's level: the same three, by name. */
+    private static com.legend.compiler.element.GrammarLevel grammarLevelOf(com.legend.parser.Dialect level) {
+        return com.legend.compiler.element.GrammarLevel.valueOf(Objects.requireNonNull(level, "level").name());
     }
 
     /** A normalized layer with THE index its Phase E read (T4.1 step 2):
@@ -537,11 +550,18 @@ public final class Compiler {
      * still throw — a genuine bug must fail the build.
      */
     public static BuiltModule buildModule(ParsedModel parsed) {
+        return buildModule(parsed, com.legend.parser.Dialect.LEGEND_LITE);
+    }
+
+    /** {@link #buildModule(ParsedModel)} for a module its caller parsed at {@code level} (as
+     *  {@link #buildModel(ParsedModel, com.legend.parser.Dialect)}; 2026-11-23, S1026). */
+    public static BuiltModule buildModule(ParsedModel parsed, com.legend.parser.Dialect level) {
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
         Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
                 bootFqns(), walls), walls);
         PureModelContext ctx = PureModelContext.from(layer.model(), layer.index(), walls,
-                boot().checked().without(layer.adopted()), com.legend.lowering.PlatformRegistrations.current());
+                boot().checked().without(layer.adopted()), com.legend.lowering.PlatformRegistrations.current(),
+                grammarLevelOf(level));
         return new BuiltModule(ctx, walls);
     }
 

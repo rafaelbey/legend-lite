@@ -27,6 +27,10 @@ import java.util.Optional;
  */
 public interface ModelContext extends StoreLookups {
 
+    /** The grammar level the graph was compiled at ({@link GrammarLevel}): which upstream compiler's rules the typer
+     *  follows where legend-pure's and the engine's model compiler's differ (register row S1026). */
+    GrammarLevel grammarLevel();
+
     /** O(1)-ish. The {@link TypedClass} for {@code fqn}, if present. */
     Optional<TypedClass> findClass(String fqn);
 

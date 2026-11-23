@@ -19,22 +19,24 @@ import java.util.List;
 
 /**
  * A model function written as the receiver's OWN ({@code join(_this:Database[1], name:String[1])}, relational.pure's
- * convention) sharing a name with a platform operator family (sort, join) whose call fits it: refused in legend-engine's
- * words, as the engine refuses it when the model compiles -- the platform's functions take the name, a model function of
- * that name is no candidate (register row S1026; the owner's ruling 44, ASK 15 (d), 2026-11-17). Until then such a
- * function displaced the special form (census batch 150), where the engine lists the platform's overloads alone. A call
- * written in full ({@code ->t::sort('x')}) names the model's function and never reaches here. Split from Typer for size
- * (CodeShape guard).
+ * convention) sharing a name with a platform operator family (sort, join) whose call fits it. legend-engine has two
+ * compilers, and the graph's grammar level says which one's rule holds (register row S1026; the owner's ruling 44, ASK
+ * 15 (d), 2026-11-17, and the coordinator's ruling of 2026-11-23): at the engine's model compiler's levels
+ * (LEGEND_ENGINE, LEGEND_LITE) the call is refused in legend-engine's words -- the platform's functions take the name, a
+ * model function of that name is no candidate; at the platform's (LEGEND_PLATFORM: the engine's own Pure, which
+ * legend-pure compiles by type) the receiver's function takes the call, as it did before 2026-11-17 (census batch 150).
+ * A call written in full ({@code ->t::sort('x')}) names the model's function and never reaches here. Split from Typer
+ * for size (CodeShape guard).
  */
 final class ReceiverOwnedFunctions {
 
     private ReceiverOwnedFunctions() {
     }
 
-    /** Refuses, in the engine's words, a call a MODEL function of a platform form's name would take (its first
-     * parameter accepting the receiver's class, named {@code _this}); null otherwise -- when the receiver is not a
-     * plain class instance (a relation, a TDS, a lambda, a collection) or no such function fits. Never returns a
-     * function since 2026-11-17 (S1026): the caller types the special form. */
+    /** The MODEL function of a platform form's name this call would take (its first parameter accepting the
+     * receiver's class, named {@code _this}): at LEGEND_PLATFORM that function, at the model compiler's levels a
+     * refusal in the engine's words (S1026); null otherwise -- when the receiver is not a plain class instance (a
+     * relation, a TDS, a lambda, a collection) or no such function fits, and the caller types the special form. */
     static @com.legend.base.Nullable TypedFunction of(Typer t, AppliedFunction af, Env env) {
         if (af.parameters().isEmpty()) {
             return null;
@@ -108,12 +110,19 @@ final class ReceiverOwnedFunctions {
                 fits = t.kernel().accepts(f.parameters().get(i).type(), pt.info().type());
             }
             if (fits) {
-                // the owner's ruling 44, ASK 15 (d) (the typer slice's stage 1c, 2026-11-17; register row S1026): a model
-                // function of a platform form's name never displaces the form, whatever its first parameter is named --
-                // legend-engine 4.145.0 refuses `^t::Box(v=1)->sort('x')` under `import t::*;` with
-                // `t::sort(_this:t::Box[1], k:String[1])` when the model compiles, listing the platform's sorts alone
-                // (run, port-scratch/typer1c/research/s1026/r7.out; with the first parameter named b, gcensus r4; the
-                // control t::sortz compiles, r8). Until then this call went to the model's t::sort
+                // the grammar level decides (2026-11-23, the coordinator's ruling on S1026): legend-pure compiles the
+                // engine's own Pure by type -- relational.pure's meta::relational::metamodel::filter and join, whose
+                // bodies call $db->filter(...) and ->join(...) -- so at LEGEND_PLATFORM the receiver's function takes
+                // the call, as before 2026-11-17
+                if (!t.model().grammarLevel().followsTheModelCompiler()) {
+                    return f;
+                }
+                // the owner's ruling 44, ASK 15 (d) (the typer slice's stage 1c, 2026-11-17; register row S1026): at the
+                // engine's model compiler's levels a model function of a platform form's name never displaces the
+                // form, whatever its first parameter is named -- legend-engine 4.145.0 refuses `^t::Box(v=1)->sort('x')`
+                // under `import t::*;` with `t::sort(_this:t::Box[1], k:String[1])` when the model compiles, listing
+                // the platform's sorts alone (run, port-scratch/typer1c/research/s1026/r7.out; with the first
+                // parameter named b, gcensus r4; the control t::sortz compiles, r8)
                 throw new TypeInferenceException(NoMatch.text(NoMatch.written(af),
                         af.parameters().stream().map(a -> t.synth(a, env).info()).toList(),
                         cands.stream().filter(TypedFunction::isNative).toList()));

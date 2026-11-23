@@ -232,7 +232,8 @@ public final class TypedAnswers {
     private static final Set<FunctionId> BOOT_IDS =
             ((Map<FunctionId, ?>) component(BOOT_LAYER, "functionsById")).keySet();
 
-    private static PureModelContext build(ParsedModel parsed, Map<String, String> walls) {
+    private static PureModelContext build(ParsedModel parsed, Map<String, String> walls,
+            com.legend.compiler.element.GrammarLevel level) {
         ParsedModel resolved = NameResolver.resolveAlongside(parsed, BOOT_FQNS, walls);
         Object layer = call(NORMALIZE_WITH_SYSTEM, null, resolved, walls);
         NormalizedModel nm = (NormalizedModel) component(layer, "model");
@@ -240,7 +241,7 @@ public final class TypedAnswers {
         @SuppressWarnings("unchecked")
         Set<FunctionId> adopted = (Set<FunctionId>) component(layer, "adopted");
         return PureModelContext.from(nm, index, walls, BOOT_CHECKED.without(adopted),
-                LIVE_REGISTRATIONS ? com.legend.lowering.PlatformRegistrations.current() : REGISTRATIONS);
+                LIVE_REGISTRATIONS ? com.legend.lowering.PlatformRegistrations.current() : REGISTRATIONS, level);
     }
 
     /** {@code --live-registrations}: F handed the registrations Compiler.buildModel hands it (the lowering's own
@@ -271,18 +272,20 @@ public final class TypedAnswers {
         return (System.nanoTime() - t0) / 1000;
     }
 
-    /** One model ask: strict, then tolerant ({@code =S} when equal). */
-    static String modelForm(ParsedModel parsed) {
-        String s = modelRun(parsed, null, "S");
-        String t = modelRun(parsed, new LinkedHashMap<>(), "T");
+    /** One model ask: strict, then tolerant ({@code =S} when equal), at the grammar level the ask parsed it at (its
+     *  dialect, Compiler.buildModel's; 2026-11-23, S1026). */
+    static String modelForm(ParsedModel parsed, com.legend.compiler.element.GrammarLevel level) {
+        String s = modelRun(parsed, null, "S", level);
+        String t = modelRun(parsed, new LinkedHashMap<>(), "T", level);
         return "S\t" + s + "\nT\t" + (t.equals(s) ? "=S" : t);
     }
 
-    private static String modelRun(ParsedModel parsed, Map<String, String> walls, String mode) {
+    private static String modelRun(ParsedModel parsed, Map<String, String> walls, String mode,
+            com.legend.compiler.element.GrammarLevel level) {
         long t0 = System.nanoTime();
         PureModelContext ctx;
         try {
-            ctx = build(parsed, walls);
+            ctx = build(parsed, walls, level);
         } catch (RuntimeException | StackOverflowError e) {
             tag(mode + ":build-error:" + e.getClass().getSimpleName());
             return error(e);
@@ -432,7 +435,8 @@ public final class TypedAnswers {
     /** A query's model: the built strict context, or what refused it. */
     static Object model(String text) {
         try {
-            return build(ModelFromText.parse(text, Dialect.LEGEND_LITE), null);
+            return build(ModelFromText.parse(text, Dialect.LEGEND_LITE), null,
+                    com.legend.compiler.element.GrammarLevel.LEGEND_LITE);
         } catch (RuntimeException | StackOverflowError e) {
             return e;
         }
@@ -1083,7 +1087,7 @@ public final class TypedAnswers {
                 n++;
                 TAGS.clear();
                 String islands = islandTag(parsed);
-                String form = modelForm(parsed);
+                String form = modelForm(parsed, com.legend.compiler.element.GrammarLevel.valueOf(dialect));
                 String prefix = shards > 1 ? idx + "\t" : "";
                 w.write(prefix + sha + "\t" + dialect + "\t" + islands + "\t" + hash(form) + "\n");
                 gw.write(prefix + sha + "\t" + dialect + "\t" + tags() + "\n");

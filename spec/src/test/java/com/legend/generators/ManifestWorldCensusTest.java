@@ -180,7 +180,7 @@ public class ManifestWorldCensusTest {
                     module.model().elementImports(), module.model().elementSources(),
                     module.model().unclaimedSections());
             try {
-                ctx = Compiler.buildModel(pruned);
+                ctx = Compiler.buildModel(pruned, com.legend.parser.Dialect.LEGEND_PLATFORM);
                 loadWalls.addAll(parseWalls);
                 elementSources = module.model().elementSources();
                 duplicates = module.duplicateElements();
@@ -221,7 +221,7 @@ public class ManifestWorldCensusTest {
             Compiler.buildModel(new ParsedModel(keptAgain, again.model().imports(),
                     again.model().source(), again.model().elementOffsets(),
                     again.model().elementImports(), again.model().elementSources(),
-                    again.model().unclaimedSections()));
+                    again.model().unclaimedSections()), com.legend.parser.Dialect.LEGEND_PLATFORM);
             tModel = Math.min(tModel, System.nanoTime() - m0);
         }
         String timing = String.format(java.util.Locale.ROOT, "read %d files %.2fs | parse (best of 3) %.2fs | parse+model on the"

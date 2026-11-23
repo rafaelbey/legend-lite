@@ -293,7 +293,7 @@ public final class MinimalCorpus {
         // declares yields to the prelude later (Compiler.withoutPreludeShadows,
         // the T4 receipt list). Each element keeps its section's imports.
         parsed = withShapes(parsed);
-        Compiler.BuiltModule built = Compiler.buildModule(parsed.model());
+        Compiler.BuiltModule built = Compiler.buildModule(parsed.model(), com.legend.parser.Dialect.LEGEND_PLATFORM);
         Map<String, String> dbBindings = new LinkedHashMap<>();
         for (PackageableElement el : parsed.model().elements()) {
             if (el instanceof com.legend.model.DatabaseDefinition db) {

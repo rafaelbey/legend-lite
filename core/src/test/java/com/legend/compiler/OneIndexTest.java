@@ -109,7 +109,8 @@ class OneIndexTest {
         long functionsBefore = index.functions().count();
         NormalizedModel normalized = ModelNormalizer.normalize(resolved, index, null);
 
-        PureModelContext ctx = PureModelContext.from(normalized, index, com.legend.lowering.PlatformRegistrations.current());
+        PureModelContext ctx = PureModelContext.from(normalized, index, com.legend.lowering.PlatformRegistrations.current(),
+                com.legend.compiler.element.GrammarLevel.LEGEND_LITE);
 
         // the same class object, at the same position — not re-registered
         assertSame(personBefore, index.findClass("w::Person").orElseThrow());

@@ -136,7 +136,8 @@ public class SpecBodyCensusTest {
                     module.model().elementImports(), module.model().elementSources(),
                     module.model().unclaimedSections());
             try {
-                ctx = Compiler.buildModel(pruned);
+                // at the level the sources were parsed at: the platform's own Pure, legend-pure's rules (S1026)
+                ctx = Compiler.buildModel(pruned, com.legend.parser.Dialect.LEGEND_PLATFORM);
                 loadWalls.addAll(parseWalls);
             } catch (com.legend.error.ModelException e) {
                 String el = e.element();
