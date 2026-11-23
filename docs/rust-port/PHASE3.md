@@ -1961,6 +1961,112 @@ done, in the order of the design's §3.
      awake -- on battery the Mac slept, caffeinate notwithstanding, and seven targets timed out (re-run awake:
      passed).
 
+   **The typer slice, stage 1c: the Java batch before the Rust typer (2026-11-17;** the owner's ruling 44 and his
+   re-ruling of S1006 the same day, [`PHASE3_SHIM_DESIGN.md`](PHASE3_SHIM_DESIGN.md) §10**).** Each item its own commit
+   with Java tests, measured first against the frozen stores (TypedAnswers re-asked, the probe v2 run, a hit counter at
+   each changed site); every measurement and tool is in `port-scratch/typer1c/` (its RESUME.md). The first measurement
+   stopped the stage once (item 2, below); the coordinator's decisions then held INDEX_OF, took legend-pure's rule for
+   the multiplicity union, lite's words for groupBy, and read a copy's sqls override as the csv one; the owner re-ruled
+   S1006 to PR #102's rules entire.
+
+   - *Item 0* (`4fb6740f2`, PLUMBING): java_bugFixes_next `29e43a0fc`'s shape for SpecCompiler's return conformance --
+     the refusal rethrown through `returnRefusal`, no reason returned out of a catch, `beyondViewFamilies` gone, the
+     caller calling `familyRelabelled` directly; the same acceptances and texts.
+   - *Item 0b, the coordinator's* (`b98ddb368`, PLUMBING): `NoMatch.written` as java_bugFixes_next `0af0dc04a` has it (a
+     span as wide as the resolved name is in full, any other the short name). The bug-fix line's reasoning held only in
+     part: no partly written call reaches the partial-path branch (S1005), but a counter found it taken in 457 model
+     asks over 181 texts and 59 query asks over 33 texts -- a `let` statement's span (17 or 28 wide) and a prefix `!`'s
+     (12 wide) lined up with a `::` boundary ("lang::letFunction", "functions::lang::letFunction", "boolean::not"); the
+     written name is used in a no-match text alone, and none moved (TypedAnswers re-asked). The javadoc says so;
+     NAME_AFFIX_TEST 53 -> 48.
+   - *Item 1, S1006, re-ruled* (`a21ef2ee9`, `5b0646ebc`, LITE-ONLY under ruling 37 (a)): PR #102's head `b5a6180d6`,
+     all its type-inference rules, one rule for view columns and the seeded metamodel's rows (the numeric operators,
+     case, max and min over numerics the database's promotion over every argument; position INTEGER; an untyped argument
+     no type; a non-string concatenated sized by its text; sum of a REAL a DOUBLE; ViewSignatures' sum by its DynaFn),
+     Java and `lite-names` together, the port's long VARCHAR sizes kept. NUM's `plus(T.I, T.F)` is Float, so ruling 36's
+     relabel no longer fires there (LiftedViewFamilyTest's cases read DAT, as the bug-fix branch's do; the inliner's
+     over a DAT model of its own, so NUM's frozen question stays its model's only one -- the first probe met it as
+     absent when both were asked of one model). Executed on H2 and DuckDB: the database's 1.5 reads back as Float. The
+     result batch's raw refusal (`a21ef2ee9`): a cell its column's type does not carry is a named DataError before any
+     output (JsonRowsWriter opens its array with the first batch; a refusal past the first batch follows the rows
+     written, the sink protocol having no abort; CodeShapeGuardrailTest allowlists the writer's new cursor); the run
+     also met JdbcDecode.refused's raw IllegalStateException for a table column declared INTEGER holding a DOUBLE,
+     before the batch (carried, below). Measured and re-frozen with attribution: the names oracle's stores, 59 asks over
+     21 texts; the element and normalizer oracles, 11 asks over 4 texts each (ActiveOrderView's label String, it was
+     Any; the normalizer's beyond the coordinator's list, approved 2026-11-19); TypedAnswers, 15 model and 8 query asks;
+     the plan oracle's 914 test plan ids (two complete probe runs, S1006Z3 and S1006Z4; 120 of the plans diffed: the
+     seed's type rows and graphKey alone, no fixture, query or verdict SQL). The engine's
+     testDynaCaseWithDecimalInference_Decimal_Double (DECIMAL(4, 1) expected) joins the H2 and DuckDB fail rosters, as
+     on PR #102 (its row S500); lite-names' store-helper test's two pins moved with the rules.
+   - *Item 2, ASK 3 (b)* (`06f51db97`, LITE-ONLY): SF :396 (a literal past a long kept exact) and SF :920 (a float
+     literal's exact digits kept); their counters reached no ask, nothing moved. INDEX_OF HELD by the coordinator, its
+     arm as it was; ruling 45 (2026-11-17) gives indexOf and substring their own later batch. Measured on the way:
+     leaving a string indexOf unfolded moved testPrerouting34's two typed answers to a refusal ("cannot access 'name' on
+     String") -- **stage 1b's TABLE.md gave those two asks to LiteralUnroll's `in` kind check; they were INDEX_OF's**;
+     folding it to the string position moved nothing.
+   - *Item 3, typing each subtree once* (`4cd35ead8`, LITE-ONLY): once.patch as stage 1b measured it (the 17 pure
+     repeats reuse the first typing through `Typer.typedOnce` and the let channel's `letTyping`; the 5 route-deciding
+     re-typings kept). Moved: the counts of the seven tables stage 1b named, 2,338 entries in 2,278 keys
+     (ContextReading.scoped 2,096, Anchors.memo 98, ContextReading.timeZone.seen 54, ContextReading.lambdaBound 48,
+     Typer.pretyped 30, Overloads.pretyped 6, Typer.withPretyped.shadowed 6), re-frozen with attribution
+     (rust/oracles/identity); no typed answer, MirJson, execution plan or test plan.
+   - *Item 4, the small fixes*: ASK 8 (b) (`1acbf3a13`, LITE-ONLY): 40 typed answers (TypedUserCall.untracked) and 96
+     identity counts (SourceSubst.untrackedLetNodes), both re-frozen with attribution, no SQL; ASK 15 (b) and (h)
+     (`d5f0305c0`, PLUMBING): deleted, their counters on nothing (NAME_AFFIX_TEST 48 -> 46); (c) (`a10211fdc`,
+     LITE-ONLY): 32 typed compileErrors texts over 13 texts, the parameterized names now whole; (d) (`4f2e29310`,
+     ENGINE-SOURCED; S1026): the engine's model compiler refuses the `_this` spelling too (run, r7) -- then ruled by
+     grammar level (`b8eb9a3e4`, ENGINE-SOURCED, the coordinator's ruling of 2026-11-23): the refusal holds at
+     LEGEND_ENGINE and LEGEND_LITE, and at LEGEND_PLATFORM the receiver's function takes the call, as legend-pure
+     compiles the engine's own Pure (the compiled context carries its grammar level); its one moved typed answer moved
+     back; (e) (`66490ec3c`, LITE-ONLY): exact referents, stage 1b's run a test, nothing moved; (f) (`f4c24c5d6`,
+     PLUMBING): the javadoc; (g) (`42d5425c5`, LITE-ONLY): the counter fired in stage 1b's 204 frozen test-door keys,
+     but **the predicted programFacts counts did not move**: what moved is SpecCompiler.memo's counts in 4 keys
+     (testGenerateSeedDataWith QuotedColumns' four test-plan doors, 167 -> 157 hits), the fix's reach being testplan's
+     BodyKinds/BodyClass through `containsTdgGenerator`, re-frozen with attribution; the context reader (`510fa8450`,
+     LITE-ONLY): the overload of the call's arity (several of it refused by name where one holds what the collector
+     reads), a copy's sqls override read as its csv one (the coordinator's reading of "as the csv override is"), a typed
+     setup list joined with newlines, nothing moved; ASK 1 (b') (`6ff4435c6`, LITE-ONLY; S1012): nothing moved. CR4.4
+     (programFacts' raw-body paths), measured in a throwaway copy, changed nothing in the tree: TypedAnswers moved
+     nothing (74,496 model and 31,530 query asks), but the probe at `5b0646ebc` with the change (CR44F) found the
+     raw-body reader refusing a helper call that names several functions of its arity -- `join` (relation::join and
+     tds::join) in 2,365 of the H2 host lane's corpus tests, `schema` in 56, `dayOfWeekNumber` in 21: the H2 host lane
+     fails 2,507 tests (its roster holds 274) and DuckDB's 2,494 (109), so the database judge lanes do not run (10,466
+     frozen keys unanswered), and 4,878 frozen keys' counts move (ContextReading's scoped, timeZone.seen and
+     lambdaBound, SpecCompiler.memo); for the owner (port-scratch/typer1c/runs/cr44.log, CR44F.*).
+   - *Item 5, the raw exceptions TypedAnswers found*: the time literal (`5b5c5d073`, ENGINE-SOURCED): legend-pure's
+     words where the engine refuses at compile (run), "Invalid hour: 200" -- 21 asks, raw text to the engine's; the
+     multiplicity union (`41f1d867f`, ENGINE-SOURCED, ruling 34): legend-pure's min-subsuming [*] in InferenceKernel
+     (the engine compiles the input, run; Multiplicity and its lite-types twin untouched) -- 4 asks, six bodies now
+     typed; groupBy over a function value (`c9500b26d`, LITE-ONLY, S1062): lite's words, the engine's being its own raw
+     "Index: 2 Size: 2" -- 2 asks. New row S1063, for the owner: the engine's compiler refuses the lambda and let forms
+     of a collection groupBy that lite (and legend-pure) type, ported as Java.
+   - *Gates, probe and suite*: every commit after its early gates (and //rust/oracles:all), the parser-equivalence
+     ratchet own_corpus.matched moving with each new test's model texts (3368 -> 3404). //spec:spec_tests joined the
+     early gates after the full suite found c07's regression (its census, outside them until then). The final probe at
+     item 1's commit (FINAL at `5b0646ebc`) and at the fix's code (C18P, the probe rebased onto the level-aware build
+     entries): every frozen key answered, MOVED 0, ABSENT 0 (143 of 145 targets, the two the probe causes). The full
+     suite at `b8eb9a3e4`: moved 0, new 40, gone 3, as at b11de17cf; every changed test file named in
+     rust/RETIRED_TESTS.md (29 of 29). Twice the Mac slept on battery under caffeinate (c16's first gates timed out;
+     re-run awake, they found a real guard failure, CodeShapeGuardrailTest's JsonRowsWriter.opened, allowlisted with its
+     reason)
+   - *Commits against origin/main* (`git apply --check`, core/src): applies: `06f51db97`, `1acbf3a13`, `66490ec3c`,
+     `f4c24c5d6`, `42d5425c5`, `6ff4435c6`; does not (each on a file the port changed before, stage 1a or 1b's):
+     `4fb6740f2` (SpecCompiler), `b98ddb368` (NoMatch, not on main), `4cd35ead8` (LetChecker), `d5f0305c0`
+     (IdentityGuardrailTest; its main part applies), `a10211fdc` (SpecCompiler), `4f2e29310` (ReceiverOwnedFunctions),
+     `510fa8450` (ContextReading), `5b5c5d073`, `41f1d867f` and `c9500b26d` (RawExceptionRefusalsTest, not on main;
+     their main parts apply), `a21ef2ee9` (JsonRowsWriter), `5b0646ebc` (RelationalTypeInference, the names batch's),
+     `b8eb9a3e4` (PureModelContext, ReceiverOwnedFunctions)
+   - *What did not hold*: stage 1b's TABLE.md on ASK 3 (b) (above); the bug-fix line's "the partial branch never decides
+     anything" in its literal form (above; nothing it decided reached a text); ASK 15 (g)'s predicted reach (above);
+     stage 1b's S1006 run named the result batch's raw refusal the place a misstated column is met: a table column
+     declared INTEGER whose database holds a DOUBLE is refused earlier, by JdbcDecode (carried, below); and item 1's
+     first probe met NUM's frozen question as absent -- the probe's model use is per compiled context, and c17's test
+     had asked DAT's inlined query of the same one (the test asks DAT of a model of its own now). On the way the Mac
+     slept on battery twice under caffeinate (c16's first gates timed out; re-run awake, they found a real guard
+     failure, fixed); and 4f2e29310's measured claim, "as the engine's compiler refuses it": its one typed answer is a
+     text parsed only at the platform's level, which legend-pure compiles, and the full suite found the census's same
+     two bodies refused (//spec:spec_tests, outside the early gates then): fixed forward by grammar level
+
 ## Carried to the slices not yet begun
 
 Work an earlier slice found and ruled for a later one; each item names the ruling and the register row, and is done
@@ -2082,16 +2188,42 @@ when that slice lands.
   pairing (`$a` the source both ways). Engine-exact needs a predicate per direction: E emitting two functions, the
   binding naming both, and H choosing by direction.
 - **The typer slice's stage 1c and its own batches (G, in Java, before the Rust typer; the owner's ruling 44,
-  2026-11-17).** Stage 1c: PR #102's split for a view column's arithmetic (S1006, Java and `lite-names` together, the
+  2026-11-17).** ~~Stage 1c: PR #102's split for a view column's arithmetic (S1006, Java and `lite-names` together, the
   names oracle re-frozen with attribution) and the result batch's raw refusal of a cell not its column's carrier
   named; StaticFold's three defects (ASK 3 (b)); typing each subtree once (ASK 2's open half; the seven identity
   tables' counts re-frozen with attribution); the small fixes (ASK 8 (b); ASK 15 (b)-(h); the context reader's
   arity, override and newline; programFacts' raw-body paths measured); ASK 1 (b′); the 24 strict refusals TypedAnswers
   found to be raw exceptions on no list (ruling 29's policy 2); the bug-fix branch's `returnRefusal` shape for
-  SpecCompiler's return conformance (java_bugFixes_next `29e43a0fc`, for the next merge of main). Then, each its own
+  SpecCompiler's return conformance (java_bugFixes_next `29e43a0fc`, for the next merge of main).~~ Done: the typer
+  slice, stage 1c (above), S1006 re-ruled to PR #102's rules entire; StaticFold's string indexOf held (ruling 45, with
+  substring, its own batch). Then, each its own
   measured batch with its attributed re-freeze: ASK 5, the engine's automap for a [0..1] receiver in place of
   `trustOne` (main's S5; the lowering that fails the spec corpus's verdicts under it fixed first); ASK 3's `in` kind
-  check and (c)'s narrowing (S2; testPrerouting34's refusal and the corpus failures understood first).
+  check and (c)'s narrowing (S2; testPrerouting34's refusal and the corpus failures understood first); StaticFold's
+  indexOf and substring (ruling 45, 2026-11-17).
+- **The executor (J): a driver's value its column's type does not carry, refused raw** (found by the typer slice's
+  stage 1c, 2026-11-17, executing S1006's view; ruling 29's policy 2; the coordinator, 2026-11-23: carried, the code
+  unchanged). A column the model declares INTEGER whose database holds a DOUBLE is refused by `JdbcDecode.refused`
+  (core/src/main/java/com/legend/exec/JdbcDecode.java :653-659) with a raw IllegalStateException, "column 'D' is
+  declared Integer in slot BIGINT, and the driver's value, a java.lang.Double 1.5, is not of that kind", before the
+  result batch's DataError (stage 1c's `a21ef2ee9`) is reached; nothing is written (run on H2 and DuckDB:
+  port-scratch/typer1c/research/s1006run/run.out, the T2 table). A named refusal in the batch's words, raised before
+  any output, when the executor's layer is ported.
+- **The context reader's raw-body paths (CR4.4): an owner question for the re-plan after stage B** (the typer
+  slice's stage 1c, measured only; the coordinator, 2026-11-23: not landed). programFacts' raw-body reading
+  (Compiler.java :769) choosing a helper call's overload by its arity, as CR4 does for the typed path, is ambiguous by
+  arity alone: measured at `5b0646ebc` with the change (the probe CR44F, TypedAnswers), TypedAnswers moved nothing, but
+  the corpus's host lanes refuse every body calling a helper whose name several functions of its arity share --
+  `join` (relation::join and tds::join) in 2,365 tests, `schema` in 56, `dayOfWeekNumber` in 21: the H2 host lane
+  fails 2,507 tests (its roster 274), DuckDB's 2,494 (109), the database judge lanes do not run (10,466 frozen keys
+  unanswered) and 4,878 frozen keys' counts move (port-scratch/typer1c/runs/cr44.log, CR44F.*). The question: by
+  the call's types, as the typed path, or as now.
+- **The typer (G), in Rust: the grammar level in the typer's context** (the typer slice's stage 1c, 2026-11-23;
+  register row S1026, the coordinator's ruling). Java's compiled context carries the grammar level its compile entry
+  parsed the model at (`GrammarLevel`, `ModelContext.grammarLevel()`, `b8eb9a3e4`): ReceiverOwnedFunctions refuses a
+  model function of a platform form's name at LEGEND_ENGINE and LEGEND_LITE (the engine's model compiler) and types
+  the receiver's `_this` function at LEGEND_PLATFORM (legend-pure's resolution by type). The Rust typer needs the
+  same level in its context, set by the same compile entries.
 - **Lowering (I): ASK 17's three calls the engine plans** (the owner's ruling 43, 2026-11-16; reach 0 texts). A view
   column's `mod` over floats, `md5` over an integer and `minus` over strings, which lite refuses when the lifted
   view's function is typed, planned as legend-engine 4.145.0 plans them per dialect (DuckDB `cast(fmod(F,G) as
