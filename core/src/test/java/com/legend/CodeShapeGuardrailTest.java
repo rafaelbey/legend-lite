@@ -212,6 +212,9 @@ class CodeShapeGuardrailTest {
             // stream announced them, and the cursor of what it has written (the first row's comma, the row count, a
             // graph fetch's first object) -- scoped to one result's stream, as the batcher's
             "CsvWriter.columns", "JsonRowsWriter.columns", "JsonRowsWriter.first", "PureV1Writer.columns",
+            // and whether the JSON writer's "[" is written (2026-11-17, the typer slice's stage 1c: the array opens
+            // with the first batch or the end, so a first batch refused leaves no output) -- the same cursor
+            "JsonRowsWriter.opened",
             // the Arrow writer's encoders, one per column, made when the columns are announced and read per batch
             // (track A, 2026-10-29): the sink protocol's state, as the other writers' columns are
             "ArrowWriter.encoders",

@@ -25,6 +25,8 @@ public final class JsonRowsWriter implements ResultSink {
      *  measurement, 2026-11-01, found the name escaped again for every cell). */
     private List<Named> columns = List.of();
     private boolean first = true;
+    /** Whether the array's {@code [} is written: it opens with the first batch or the end (stage 1c, 2026-11-17). */
+    private boolean opened;
 
     /** A column and its member name as written, its quotes and colon included. */
     private record Named(ExecutionPlan.Column column, String key) {
@@ -42,11 +44,22 @@ public final class JsonRowsWriter implements ResultSink {
             named.add(new Named(c, '"' + Json.escape(CellText.presentedName(c.name())) + "\":"));
         }
         this.columns = List.copyOf(named);
-        out.write('[');
+        // the array opens with the first batch or the end, not here: a first batch the session refuses (a cell its
+        // column's type does not carry, Batch's DataError) leaves no output written (the typer slice's stage 1c,
+        // 2026-11-17; until then "[" was sent before any row). A refusal in a later batch follows the rows written
+        opened = false;
+    }
+
+    private void open() throws IOException {
+        if (!opened) {
+            out.write('[');
+            opened = true;
+        }
     }
 
     @Override
     public void batch(Batch batch) throws IOException {
+        open();
         StringBuilder b = new StringBuilder();
         // each cell's token written into the batch's text as it is made (a compact writer at the root writes its
         // values back to back, the bytes of Json.toCompact for each), not a text of its own per cell
@@ -79,6 +92,7 @@ public final class JsonRowsWriter implements ResultSink {
 
     @Override
     public void end() throws IOException {
+        open();
         out.write(']');
         out.flush();
     }

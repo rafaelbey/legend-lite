@@ -184,10 +184,17 @@ public final class Batch {
                     + ") carries no tag: it is no tagged column");
         }
 
-        static IllegalArgumentException refused(@com.legend.base.Nullable Object cell, ExecutionPlan.Column c) {
-            return new IllegalArgumentException("column '" + c.name() + "' (" + c.type() + ", slot " + c.slot()
-                    + "): a cell " + (cell == null ? "null" : cell.getClass().getSimpleName() + " " + cell)
-                    + " is not its type's carrier");
+        /** A cell the database returned that its column's type does not carry, refused by name (ruling 29's policy 2;
+         *  the typer slice's stage 1c, 2026-11-17): a data error at the executor's boundary -- the plan typed the
+         *  column one way and the database computed another (a view's {@code plus(T.I, T.F)} typed Integer by the
+         *  engine's first-argument rule over a DOUBLE until register row S1006's ruling, a table column declared
+         *  INTEGER over a DOUBLE). Until then a raw IllegalArgumentException, "column 'X' (Integer, slot DOUBLE): a
+         *  cell Double 1.5 is not its type's carrier". */
+        static com.legend.error.DataError refused(@com.legend.base.Nullable Object cell, ExecutionPlan.Column c) {
+            return new com.legend.error.DataError("the database returned " + (cell == null ? "null"
+                    : "the " + cell.getClass().getSimpleName() + " " + cell) + " in column '" + c.name()
+                    + "', which the plan types " + c.type() + " (slot " + c.slot() + "): the value is not one its type"
+                    + " carries -- the model's type for the column is not what the database computes");
         }
     }
 

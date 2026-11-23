@@ -337,4 +337,30 @@ class ResultWritersTest {
         assertEquals("{\"builder\":{\"_type\":\"json\"},\"values\":[]}",
                 write(PureV1Writer.objects(none), none, obj, List.of()));
     }
+
+    @Test
+    void aCellItsColumnsTypeDoesNotCarryIsADataErrorBeforeAnyOutput() {
+        // ruling 29's policy 2 (the typer slice's stage 1c, 2026-11-17): the database's 1.5 under a column the plan types
+        // Integer was a raw IllegalArgumentException after the JSON writer had sent "[" (register row S1006's run,
+        // port-scratch/typer1b/research/s1006); a named data error now, and the writer opens its array with the first
+        // batch, so a first batch refused leaves nothing written
+        Column x = col("X", "Integer", "DOUBLE");
+        StringWriter out = new StringWriter();
+        var refused = assertThrows(com.legend.error.DataError.class, () -> write(
+                new com.legend.result.JsonRowsWriter(out, ExecutionPlan.TdsResult.Shape.RELATION), out, List.of(x),
+                List.of(List.of(1.5))));
+        assertEquals("the database returned the Double 1.5 in column 'X', which the plan types Integer (slot DOUBLE):"
+                + " the value is not one its type carries -- the model's type for the column is not what the database"
+                + " computes", refused.getMessage());
+        assertEquals("", out.toString());
+        // an empty result and a result of rows still write their array
+        StringWriter empty = new StringWriter();
+        assertDoesNotThrowAndEquals("[]", () -> write(new com.legend.result.JsonRowsWriter(empty,
+                ExecutionPlan.TdsResult.Shape.RELATION), empty, List.of(col("I", "Integer", "BIGINT")), List.of()));
+    }
+
+    private static void assertDoesNotThrowAndEquals(String expected,
+            org.junit.jupiter.api.function.ThrowingSupplier<String> s) {
+        assertEquals(expected, org.junit.jupiter.api.Assertions.assertDoesNotThrow(s));
+    }
 }
