@@ -709,13 +709,20 @@ Each with my recommendation first.
 
 44. **The typer slice's stage 1b, ruled** (2026-11-17; the questions the lead asked on stage 1b's report, `08ab6f7e3`,
     its measured table `port-scratch/typer1b/TABLE.md`, and register rows S1012-S1061). As recommended, except ASK 5:
-    - **S1006 and PR #102's split.** A view column's arithmetic (`plus`, `minus`, `times`, `divide`) is typed by the
-      type over all its arguments, as the database computes it and as neema2's review of PR #102 asks; the engine's
-      first-argument rule stays for the seeded metamodel rows (ruling 35's table). So `X: plus(T.I, T.F)` is Float,
-      ruling 36's relabel does not fire, and the database's 1.5 reads back (measured: under the first-argument rule,
-      lite's result batch failed with a raw IllegalArgumentException after the JSON writer had sent `[`). In Java and
-      `lite-names` together, the names oracle re-frozen with attribution; the execution refusal of a cell that is not
-      its column's carrier named (ruling 29's policy 2). The typer slice's stage 1c.
+    - **S1006, PR #102's rules** (re-ruled 2026-11-17: this bullet first said "PR #102's split", but PR #102's head
+      has no split by consumer, and the owner, asked again with that corrected, took its head whole). Lite takes PR
+      #102 head `b5a6180d6`'s relational type inference, one rule for a view's columns and the seeded metamodel rows
+      alike: `plus`, `minus`, `times` and `sub` the database's promotion over every argument (PR #102's S500, which
+      its commit `4993f536a` named S400), `position` INTEGER, `plus` of one argument the engine's widening, `divide`
+      DOUBLE; `case` over numeric branches, `max` and `min` promote; `concat` sizes an argument that is not a string
+      (`130f44eb9`); an untyped argument leaves `max`, `min`, `case`, `concat`, the four operators and the safe-type
+      fold untyped, and a `case` with no common type has none (PR #102's S500 and S501). So `X: plus(T.I, T.F)` is
+      Float, ruling 36's relabel does not fire, and the database's 1.5 reads back as Float on H2 and DuckDB (measured:
+      under the first-argument rule, lite's result batch failed with a raw IllegalArgumentException after the JSON
+      writer had sent `[`). A LITE-ONLY divergence (ruling 37 (a)) under the port's row, which cites PR #102's rows
+      and copies none into S400-S999. In Java and `lite-names` together, the names, element, normalizer, typed and
+      plan oracles re-frozen with attribution; the result batch's refusal of a cell that is not its column's carrier
+      named (ruling 29's policy 2). The typer slice's stage 1c (`a21ef2ee9`, `5b0646ebc`).
     - **ASK 5, a [0..1] receiver (main's S5).** NOT as recommended: the engine's automap (`HelperValueSpecificationBuilder`
       :284-316) replaces `trustOne` in its own Java batch now, before the Rust typer: the lowering that fails the spec
       corpus's verdict lanes under it fixed, the corpus re-judged, and every moved answer (measured in a throwaway
@@ -737,11 +744,65 @@ Each with my recommendation first.
       `testDataSetupSqls` override refused by name, a setup list joined with newlines; programFacts' raw-body paths
       measured, and brought back if anything moves. ASK 15 (i), testplan's type-blind picks, stays Java until testplan
       is re-expressed.
+      As landed (stage 1c, 2026-11-23): (d) holds at the engine's model compiler's grammar levels alone, LEGEND_ENGINE
+      and LEGEND_LITE, and at LEGEND_PLATFORM legend-pure's resolution by type takes the call, as legend-pure compiles
+      the engine's own Pure (`b8eb9a3e4`, the coordinator's ruling on `4f2e29310`, whose message wrongly said the engine
+      refuses a LEGEND_PLATFORM text); the helper overload chosen by arity is not landed, since arity alone is
+      ambiguous (`join` in 2,365 corpus tests, `schema` in 56, `dayOfWeekNumber` in 21), and goes back to the owner
+      after stage B (PHASE3.md).
     - **ASK 1, overload choice.** Lite's retry loop is kept, a ruled divergence (S1012; legend-pure's loop moved 124
       typed answers and 58 frozen keys and failed 17 targets); (b′) Overloads :398 keeps the stricter error class.
     - **R1-R55 (S1012-S1061) ratified:** each ported as Java under its row, a ruled divergence, revisitable with its
       measured reach; S1026 (R16) as ASK 15 (d) above; R11, R19, R25, R28 and R55 ruled on main's rows S5, S2, S129,
       S127 and the port's S1010.
+
+45. **HELD until stage B (ruling 46). Pure's string `indexOf` and `substring`: Pure's meaning by default, the engine's
+    SQL on request** (2026-11-17; the owner's question, measured in `port-scratch/strfns/REPORT.md`: legend-pure's
+    natives are Java's String methods, 0-based, `end` exclusive, -1 on a miss, and pass legend-pure's own tests;
+    legend-engine 4.145.0's SQL answers `indexOf` 1-based in every dialect, refuses the three-argument `indexOf`, and
+    passes Pure's 0-based start and exclusive end to SQL's 1-based start and length for `substring` unless
+    `CORRECT_SQL_SUBSTRING_INDEXING` is set, which it is not by default; its own PCT ledgers the failures). Supersedes
+    S134 (the owner, 2026-11-05: "kept until upstream adds a flag") and S130's default:
+    - **Held (2026-11-23).** The survey of main for ruling 46 found that main's A3 (`ff069d8a8`, `f3553c634`,
+      `c35e90888`, after main's `4dfbb5b76`) already rewrote S130 and S134 by door, not by flag: lite's own doors
+      answer Pure's meaning, legend-engine's door the engine's SQL. The owner sees main's design beside this ruling at
+      stage B and rules again; nothing below is built until then.
+    - **`indexOf`** gains lite's own feature flag, ON by default: `indexOf(s, t)` answers Pure's position (-1 on a miss,
+      0 for an empty search), and `indexOf(s, t, from)` Pure's from-index meaning. A request that sets the flag off
+      gets the engine's SQL: the 1-based answer, and the three-argument form refused as the engine refuses it.
+    - **`substring`**: `CORRECT_SQL_SUBSTRING_INDEXING` defaults to ON in lite (the engine's default is off). A request
+      that sets it off gets the engine's uncorrected SQL.
+    - Both flags are read from the request's execution context, as the substring flag already is, so a user can turn
+      either off per request.
+    - Lite's own three departures go with the flags: StaticFold's string `indexOf` (it folded `'abc'->indexOf('b')` to
+      -1, a one-element collection's answer) gives the value the flag selects; `SubstringClamp` (a start below 1 moved
+      to 1 on DuckDB, Postgres, SQLite and others) is gone when the flag is off, so those databases give the engine's
+      SQL, and under the flag the out-of-range cases Pure throws on (a negative start, an end past the length, start
+      after end) give one documented answer on every dialect, in a register row; the three-argument `indexOf`'s CASE
+      (1-based from, 0 for a NULL column) is replaced.
+    - Its own batch, in Java and the Rust renderers (`lite-dialect`) together, after the typer slice's stage 1c and
+      before the Rust typer: every moved plan, lowering and test plan measured first and re-frozen with attribution;
+      the PCT's known failures for `indexOf` and `substring` expected to pass by default. The engine's SQL differs: a
+      port row, as PR #102's S400 records the engine's arithmetic. The Java bug-fix branch carries main's S130 and
+      S134, so the change goes to main's line through it.
+
+46. **Keeping up with main** (2026-11-23; the read-only survey `port-scratch/mainsync/REPORT.md`: origin/main
+    `2942e9838` is 2,439 commits, +275,486/-40,387, past the port's last merge at `c4a39e06d`, in 13 PRs merged 11-13 to
+    11-21; 339 of them touch layers the port has already moved to Rust; plan JSON v31 to v60, test plan v11 to v37; a
+    trial merge into `c9500b26d` conflicts in 103 paths, and 25 cleanly merged files name classes the port deleted).
+    Ruling 14's freeze of main's planning at `c4a39e06d` was the port's own and never announced on main, so main broke
+    nothing; it no longer holds. All as recommended:
+    - **Merge main now, in two stages**, after the typer slice's stage 1c is verified and pushed, and before the three
+      Java batches (ruling 45's flags, ASK 5's automap, ASK 3's narrowing) and the Rust typer: stage A at main's
+      `4dfbb5b76` (#95 to #105), then stage B at a pinned tip (#118 onward). Each stage is one merge commit resolved by
+      class, the replay of main's changes in the already-ported layers into Rust, and one attributed re-freeze of every
+      oracle that moves, as the merge of `c4a39e06d` was (`8191cac19`, `9c08abbc7`, the replay `0d6352c86` to
+      `29e30e43c`, `d55a29a96`). The three Java batches are re-measured and re-planned after stage B; ruling 45 is held
+      until the owner sees main's A3 (S130 and S134 rewritten by door, not flag) beside it.
+    - **Then merge each of main's PRs as it lands**, each a small merge with its replay and attributed re-freeze.
+    - **The register:** the port's own rows S300-S399 become S1300-S1399 (S376 is S1376), in a commit of their own
+      before stage A, every citation updated; main's numbers stay main's on every merge. The port's new rows stay S1000
+      and up, outside S1300-S1399.
 
 Question 13 follows from ruling 1: `SystemDatabase` on `main` is `exec`'s and stays there, so `PHASE3_DESIGN.md` §6's item on it falls away, and so does `PHASE3.md`'s
 note that `judge/InstanceIds` stays Java.

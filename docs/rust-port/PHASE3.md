@@ -1961,7 +1961,7 @@ done, in the order of the design's §3.
      awake -- on battery the Mac slept, caffeinate notwithstanding, and seven targets timed out (re-run awake:
      passed).
 
-   **The typer slice, stage 1c: the Java batch before the Rust typer (2026-11-17;** the owner's ruling 44 and his
+   **The typer slice, stage 1c: the Java batch before the Rust typer (2026-11-17;** the owner's ruling 44 and their
    re-ruling of S1006 the same day, [`PHASE3_SHIM_DESIGN.md`](PHASE3_SHIM_DESIGN.md) §10**).** Each item its own commit
    with Java tests, measured first against the frozen stores (TypedAnswers re-asked, the probe v2 run, a hit counter at
    each changed site); every measurement and tool is in `port-scratch/typer1c/` (its RESUME.md). The first measurement
