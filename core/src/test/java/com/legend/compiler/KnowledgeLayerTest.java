@@ -407,17 +407,30 @@ class KnowledgeLayerTest {
         var cms = ix.findView("a::Db", "V").orElseThrow().columnMappings();
         java.util.function.IntFunction<com.legend.model.RelationalDataType> infer =
                 i -> com.legend.compiler.element.RelationalTypeInference.infer(cms.get(i).expression(), db, ix);
-        assertEquals(new com.legend.model.RelationalDataType.Float_(), infer.apply(0), "FLOAT with INTEGER: FLOAT");
-        assertEquals(null, infer.apply(1), "BIGINT with FLOAT: no safe type");
+        // a case over numeric branches is the database's promotion since 2026-11-17 (the owner's ruling on register row
+        // S1006: PR #102's rules, its row S500): FLOAT with INTEGER, and BIGINT with FLOAT, a DOUBLE where they were the
+        // engine's safe type, FLOAT and none
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(0),
+                "case over a FLOAT and an INTEGER: DOUBLE, the database's promotion (the engine's: FLOAT; S500)");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(1),
+                "case over a BIGINT and a FLOAT: DOUBLE (the engine's: no safe type, no type; S500)");
         assertEquals(new com.legend.model.RelationalDataType.Varchar(5), infer.apply(2), "two CHARs: VARCHAR(5)");
         assertEquals(new com.legend.model.RelationalDataType.Varchar(4), infer.apply(3), "CHAR(3), VARCHAR(4): VARCHAR(4)");
         assertEquals(new com.legend.model.RelationalDataType.Decimal(6, 2), infer.apply(4), "two NUMERICs: DECIMAL");
         assertEquals(new com.legend.model.RelationalDataType.BigInt(), infer.apply(5), "count: BIGINT");
         assertEquals(new com.legend.model.RelationalDataType.Varchar(3), infer.apply(6), "substring of a CHAR(3)");
         assertEquals(null, infer.apply(7), "substring of an INTEGER: no type");
-        assertEquals(new com.legend.model.RelationalDataType.Varchar(4), infer.apply(8), "sub of two VARCHARs: the first's");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(4), infer.apply(8),
+                "sub of two VARCHARs: their safe type (the engine's: the first's, VARCHAR(4))");
         assertEquals(null, infer.apply(9), "sub of a VARCHAR and an INTEGER: no rule");
         assertEquals(null, infer.apply(10), "group_concat: no rule");
+        var signature = com.legend.compiler.element.ViewSignatures.of(ix, "a::Db", ix.findView("a::Db", "V")
+                .orElseThrow()).columns();
+        assertEquals("SI:meta::pure::metamodel::type::Any[0..1]", signature.get(7).text(), "substring of an INTEGER");
+        assertEquals("SV:String[0..1]", signature.get(8).text(), "sub of two VARCHARs: a String column");
+        assertEquals("SM:meta::pure::metamodel::type::Any[0..1]", signature.get(9).text(),
+                "sub of a VARCHAR and an INTEGER");
+        assertEquals("GC:meta::pure::metamodel::type::Any[0..1]", signature.get(10).text(), "group_concat");
     }
 
     /** S378's remainder (2026-11-13, the names follow-ups, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 34): the
@@ -453,15 +466,19 @@ class KnowledgeLayerTest {
                 "plus of a DECIMAL(40,2): capped at 31");
         assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(3), "plus of a FLOAT: DOUBLE");
         assertEquals(null, infer.apply(4), "plus of a VARCHAR: no rule");
-        assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(5),
-                "plus of an INTEGER and a FLOAT: the first's");
-        assertEquals(null, infer.apply(6), "plus of a BIGINT and a FLOAT: no safe type, no rule");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(5),
+                "plus of an INTEGER and a FLOAT: DOUBLE, as the database returns it (the engine's: the first's; S500)");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(6),
+                "plus of a BIGINT and a FLOAT: DOUBLE (the engine's: no safe type, no rule; S500)");
         assertEquals(new com.legend.model.RelationalDataType.Numeric(6, 2), infer.apply(7),
-                "minus of a NUMERIC and an INTEGER: the first's");
-        assertEquals(null, infer.apply(8), "minus of one argument: no rule");
+                "minus of a NUMERIC(6,2) and an INTEGER: the NUMERIC(6,2) as declared, the safe-type rule's widest"
+                + " (the engine's: NUMERIC(6,2), the first's; a database returns a wider one)");
+        assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(8),
+                "minus of one argument: its own (the engine's: no rule; S500)");
         assertEquals(new com.legend.model.RelationalDataType.Float_(), infer.apply(9),
-                "times: the safe type of the first two, the third unread");
-        assertEquals(null, infer.apply(10), "times of one argument: no type");
+                "times with a VARCHAR third: the engine's rule, FLOAT (the third unread)");
+        assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(10),
+                "times of one argument: its own (the engine's: no type; S500)");
         assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(11), "divide: DOUBLE");
         assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(12), "average: DOUBLE");
         assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(13), "sum of a SMALLINT: INTEGER");
@@ -472,11 +489,13 @@ class KnowledgeLayerTest {
         assertEquals(new com.legend.model.RelationalDataType.Float_(), infer.apply(17), "float literals: FLOAT");
         assertEquals(null, infer.apply(18), "upper: no rule");
         assertEquals(null, infer.apply(19), "lower: no rule");
-        assertEquals(null, infer.apply(20), "sum of a REAL: no rule");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(20),
+                "sum of a REAL: DOUBLE, as of a FLOAT (the engine's: no rule, no type; S500)");
         var signature = com.legend.compiler.element.ViewSignatures.of(ix, "a::Db", ix.findView("a::Db", "V")
                 .orElseThrow()).columns();
         assertEquals("U1:meta::pure::metamodel::type::Any[0..1]", signature.get(18).text(), "a column no rule types: Any[0..1]");
         assertEquals("L1:Float[0..1]", signature.get(17).text());
+        assertEquals("P6:Float[0..1]", signature.get(5).text(), "plus of an INTEGER and a FLOAT: a Float column");
     }
 
     /** The engine's type-inference cases (2026-11-14, the names batch: register row S378, docs/rust-port/
@@ -595,7 +614,10 @@ class KnowledgeLayerTest {
     @Test
     @DisplayName("kernel: like, position, charindex and locate have no rule, as in the engine")
     void theRulesOnlyLiteHadAreGone() {
-        assertEquals("VLITE.LK1=- VLITE.PO1=- VLITE.CI1=- VLITE.LO1=- VLITE.LK2=-", inferenceTable(ENGINE_CASES, "VLITE"));
+        // position INTEGER since 2026-11-17, as the database returns it (the owner's ruling on register row S1006: PR
+        // #102's rules, its row S500; the engine: EMPTY)
+        assertEquals("VLITE.LK1=- VLITE.PO1=Integer VLITE.CI1=- VLITE.LO1=- VLITE.LK2=-",
+                inferenceTable(ENGINE_CASES, "VLITE"));
     }
 
     /** A function's name matched exactly (2026-11-14, the names batch, item 3: register row S378, ruling 34), as the
@@ -781,9 +803,118 @@ class KnowledgeLayerTest {
         var cms = ix.findView("a::Db", "V").orElseThrow().columnMappings();
         java.util.function.IntFunction<com.legend.model.RelationalDataType> infer =
                 i -> com.legend.compiler.element.RelationalTypeInference.infer(cms.get(i).expression(), db, ix);
-        assertEquals(null, infer.apply(0), "an INTEGER operand leaves no type");
-        assertEquals(new com.legend.model.RelationalDataType.Varchar(10), infer.apply(1),
-                "an operand with no type drops out");
+        // since 2026-11-17 (the owner's ruling on register row S1006: PR #102's rules, its row S500): a non-string
+        // operand is concatenated as its text, an untyped one leaves no type
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(21), infer.apply(0),
+                "an INTEGER operand: its widest text, 11 (the engine's: no rule, no type)");
+        assertEquals(null, infer.apply(1), "an operand with no type: no type (the engine's: its inference fails)");
         assertEquals(new com.legend.model.RelationalDataType.Varchar(12), infer.apply(2));
+    }
+
+    /** No step backwards (2026-11-17, the owner's ruling on register row S1006: PR #102's rules and test, its row S500;
+     * 2026-11-15 there): an argument with no type leaves max, min,
+     * plus, case and concat with no type, as the engine's failOnMatchFailure=true inference fails on it
+     * (relationalExtension.pure:120-123) -- until then it dropped out and the rest typed the call ({@code exp} and
+     * {@code parseFloat} have no lite rule; the engine types them DOUBLE and FLOAT, :754-761, :1370-1377). A string or
+     * date operand of plus, minus or sub keeps a type at least the engine's (:1408-1436, :1209-1218, :1637-1645): plus
+     * over VARCHARs their safe type, the larger; sub and minus over DATEs a DATE, over TIMESTAMPs a TIMESTAMP. A case
+     * over a BIGINT and a FLOAT, or a REAL and a REAL, is the database's promotion (the engine's safe type has none).
+     * Each stays typed in the lifted view's signature. */
+    @Test
+    @DisplayName("kernel: an untyped argument leaves no type; strings, dates and numeric cases keep one")
+    void noStepBackwardsInTheTypeInference() {
+        ModelBuilder ix = ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model("""
+                ###Relational
+                Database a::Db (
+                  Table T (ID INTEGER PRIMARY KEY, I INTEGER, F FLOAT, S VARCHAR(10), A VARCHAR(10), B VARCHAR(20), \
+                D DATE, TS TIMESTAMP, BI BIGINT, R REAL, DC DECIMAL(10,2), BT BIT)
+                  View V (MX: max(exp(T.F), T.I), MN: min(T.I, parseFloat(T.S)), PU: plus(T.I, parseFloat(T.S)), \
+                CU: case(equal(T.ID, 1), T.I, exp(T.F)), CO: concat(T.S, exp(T.F)), PV: plus(T.A, T.B), \
+                SD: sub(T.D, T.D), MT: minus(T.TS, T.TS), MD: minus(T.D, T.D), CB: case(equal(T.ID, 1), T.BI, T.F), \
+                CR: case(equal(T.ID, 1), T.R, T.R), CN: concat(T.S, T.I), PI: plus(T.I, T.S), SM: sub(T.D, T.I), \
+                MF: max(T.F, T.I), PF: plus(T.F, T.F), GC: group_concat(T.S), P1: plus(T.S), P2: plus(T.R), \
+                S1: sum(T.R), XB: max(T.BI, T.F), ND: min(T.I, T.DC), XI: max(T.I, T.F), C2: concat(T.I, T.I), \
+                CF: concat(T.S, T.F), CD: concat(T.S, T.D), CT: concat(T.S, T.TS), CM: concat(T.S, T.DC), \
+                CK: concat(T.S, T.BT), S2: sub(T.I), TU: times(T.I, T.F, nope(T.ID)), TD: times(T.DC, T.DC), \
+                SS: sum(T.S), SB: sum(T.BT))
+                )
+                """)));
+        com.legend.model.DatabaseDefinition db = ix.findDatabase("a::Db").orElseThrow();
+        var cms = ix.findView("a::Db", "V").orElseThrow().columnMappings();
+        java.util.function.IntFunction<com.legend.model.RelationalDataType> infer =
+                i -> com.legend.compiler.element.RelationalTypeInference.infer(cms.get(i).expression(), db, ix);
+        assertEquals(null, infer.apply(0), "max with an untyped argument: no type (the engine's: DOUBLE)");
+        assertEquals(null, infer.apply(1), "min with an untyped argument: no type (the engine's: FLOAT)");
+        assertEquals(null, infer.apply(2),
+                "plus with an untyped argument: no type (the engine's: INTEGER, the first's)");
+        assertEquals(null, infer.apply(3), "case with an untyped branch: no type (the engine's: DOUBLE)");
+        assertEquals(null, infer.apply(4), "concat with an untyped operand: no type (the engine's: no rule, no type)");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(20), infer.apply(5),
+                "plus over VARCHAR(10) and VARCHAR(20): VARCHAR(20), their safe type (the engine's: VARCHAR(10))");
+        assertEquals(new com.legend.model.RelationalDataType.Date_(), infer.apply(6),
+                "sub over DATEs: DATE (the engine's: DATE)");
+        assertEquals(new com.legend.model.RelationalDataType.Timestamp(), infer.apply(7),
+                "minus over TIMESTAMPs: TIMESTAMP (the engine's: TIMESTAMP)");
+        assertEquals(new com.legend.model.RelationalDataType.Date_(), infer.apply(8),
+                "minus over DATEs: DATE (the engine's: DATE)");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(9),
+                "case over a BIGINT and a FLOAT: DOUBLE (the engine's: no safe type, no type; S500)");
+        assertEquals(new com.legend.model.RelationalDataType.Real(), infer.apply(10),
+                "case over two REALs: REAL (the engine's: no safe type, no type; S500)");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(21), infer.apply(11),
+                "concat of a VARCHAR(10) and an INTEGER: VARCHAR(21), the INTEGER's 11 (the engine's: no rule)");
+        assertEquals(null, infer.apply(12), "plus of an INTEGER and a VARCHAR: no type (the engine's: no safe type)");
+        assertEquals(null, infer.apply(13), "sub of a DATE and an INTEGER: no type (the engine's: kinds differ)");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(14),
+                "max over a FLOAT and an INTEGER: DOUBLE, the database's promotion (the engine's: FLOAT; S500)");
+        assertEquals(new com.legend.model.RelationalDataType.Float_(), infer.apply(15),
+                "plus over two FLOATs: FLOAT (the engine's: FLOAT, the first's)");
+        assertEquals(null, infer.apply(16),
+                "group_concat: no type, the aggregate outgrows one row's size (the engine's: no rule, no type)");
+        assertEquals(null, infer.apply(17),
+                "plus of one VARCHAR, written sum(x): no type (the engine's: no rule, no type)");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(18),
+                "plus of one REAL, written sum(x): DOUBLE, as of a FLOAT (the engine's: no rule, no type; S500)");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(19),
+                "sum of a REAL: DOUBLE, as of a FLOAT (the engine's: no rule, no type; S500)");
+        var dec = new com.legend.model.RelationalDataType.Decimal(10, 2);
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(20),
+                "max over a BIGINT and a FLOAT: DOUBLE, as GREATEST returns (the engine's: BIGINT, the first's; S500)");
+        assertEquals(dec, infer.apply(21),
+                "min over an INTEGER and a DECIMAL(10,2): the DECIMAL (the engine's: the same)");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(22),
+                "max over an INTEGER and a FLOAT: DOUBLE, the promotion (the engine's: FLOAT, their safe type; S500)");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(22), infer.apply(23),
+                "concat of two INTEGERs: VARCHAR(22), each 11 wide (the engine's: no rule, no type)");
+        assertEquals(null, infer.apply(24), "concat with a FLOAT, of no fixed width: no type (the engine's: none)");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(20), infer.apply(25),
+                "concat with a DATE: its 10 (the engine's: no rule, no type)");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(39), infer.apply(26),
+                "concat with a TIMESTAMP: its 29 (the engine's: no rule, no type)");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(22), infer.apply(27),
+                "concat with a DECIMAL(10,2): its 12, a sign and a point (the engine's: no rule, no type)");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(15), infer.apply(28),
+                "concat with a BIT: its 5, 'false' (the engine's: no rule, no type)");
+        assertEquals(null, infer.apply(29), "sub of one argument: no type, %s-%s writes two (the engine's: none)");
+        assertEquals(null, infer.apply(30),
+                "times with an untyped third: no type, lite's safer answer (the engine's: FLOAT, the third unread)");
+        assertEquals(dec, infer.apply(31),
+                "times of two DECIMAL(10,2)s: DECIMAL(10,2) by the safe-type rule; a database returns a wider one");
+        assertEquals(null, infer.apply(32), "sum of a VARCHAR: no rule (the engine's: no type)");
+        assertEquals(null, infer.apply(33), "sum of a BIT: no rule (the engine's: no type)");
+        var signature = com.legend.compiler.element.ViewSignatures.of(ix, "a::Db", ix.findView("a::Db", "V")
+                .orElseThrow()).columns();
+        assertEquals("MX:meta::pure::metamodel::type::Any[0..1]", signature.get(0).text(), "an untyped argument");
+        assertEquals("PV:String[0..1]", signature.get(5).text(), "plus over VARCHARs: a String column");
+        assertEquals("SD:StrictDate[0..1]", signature.get(6).text(), "sub over DATEs: a StrictDate column");
+        assertEquals("MT:DateTime[0..1]", signature.get(7).text(), "minus over TIMESTAMPs: a DateTime column");
+        assertEquals("CB:Float[0..1]", signature.get(9).text(), "case over a BIGINT and a FLOAT: a Float column");
+        assertEquals("CR:Float[0..1]", signature.get(10).text(), "case over two REALs: a Float column");
+        assertEquals("CN:String[0..1]", signature.get(11).text(), "concat with an INTEGER: a String column");
+        assertEquals("XB:Float[0..1]", signature.get(20).text(), "max over a BIGINT and a FLOAT: a Float column");
+        assertEquals("SS:meta::pure::metamodel::type::Any[0..1]", signature.get(32).text(),
+                "sum of a VARCHAR: Any, not its argument's String[1]");
+        assertEquals("SB:meta::pure::metamodel::type::Any[0..1]", signature.get(33).text(),
+                "sum of a BIT: Any, not its argument's Boolean[1]");
     }
 }

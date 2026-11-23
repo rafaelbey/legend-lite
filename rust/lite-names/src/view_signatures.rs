@@ -172,6 +172,9 @@ fn column<'a, A: Alloc>(
     // 2026-11-14 lower-cased first (S378, the names batch, item 3, ruling 34)
     if let Op::RelationalOperationFunctionCall(fc) = expr {
         let function = String::from_utf16(&fc.name.0).unwrap_or_default();
+        // a sum its rule does not type (over a VARCHAR, a BIT, a DATE) is Any as every untyped column is, never its
+        // argument's type (the owner's ruling of 2026-11-17 on register row S1006, PR #102's rules, its row S501)
+        let untyped_sum = function == "sum" && relational_type_inference::infer(expr, db, Some(store))?.is_none();
         match function.as_str() {
             "count" => {
                 return Ok(Column {
@@ -187,7 +190,7 @@ fn column<'a, A: Alloc>(
                     multiplicity: Multiplicity::ONE,
                 });
             }
-            "sum" | "max" | "min" if !fc.args.is_empty() => {
+            "sum" | "max" | "min" if !fc.args.is_empty() && !untyped_sum => {
                 // Pure's reducer overloads: Integer and Float keep their type; every other number (Decimal, Number)
                 // is Number; max / min over a date keep the date type, over anything else the generic collection
                 // reducer keeps the element type

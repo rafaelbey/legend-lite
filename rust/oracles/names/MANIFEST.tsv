@@ -61,7 +61,7 @@ queries.tsv.zst	NameAnswers' queries: query sha TAB model sha TAB hash, 31,297 l
 # 24 refused: two columns of one name), 11,308 view columns' inferred SQL types, each with the scope and the index, no
 # scope, no lookups (r), 1,485,730 column kinds of every table or view spelling's columns and one absent (n). No stack
 # overflow met. 3,402 distinct forms.
-stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names follow-ups, at the end; re-frozen 2026-11-15 by the normalizer batch, item 7)	ecf69539d0860d3b4f12013446a59ab49d92eef9f7ddc3c3b62d99ea9b64367b
+stores.tsv.zst	NameAnswers' stores: text sha TAB dialect TAB hash, 74,292 lines (re-frozen 2026-11-13 by the names follow-ups, at the end; re-frozen 2026-11-15 by the normalizer batch, item 7); re-frozen 2026-11-17 by the typer slice's stage 1c, item 1 (below)	c704c6bd7228c216454db9f89b37e92841e7618c19fab95b60bf06ba6b2846b0
 # CALLS: one line per call shape, the shape's fields then the hash (NameAnswers.callShapes, callForm: the record codec's
 # JSON of the call Calls builds) -- 14,454 shapes: platform 6,504, like 3,380, renamed 2,452, infixRun 732, among 478,
 # infixRunAmong 478, form 370, exact 58, carrier 2; every name the builder's 206 call sites build (read from them), at the
@@ -185,3 +185,18 @@ duplicates.tsv.zst	NameAnswers' duplicates: text sha TAB dialect TAB hash, 74,29
 # 5. A view reading a schema its database lacks refused in the engine's words (ViewSignatures): one run at its code
 #    (--live) answered all five files as frozen (the instrumented build: every missing-relation refusal it reaches is
 #    through a schema that exists); nothing re-frozen. lite-names identical.
+# THE TYPER SLICE'S STAGE 1C, ITEM 1 (2026-11-17; the owner's re-ruling of register row S1006, PR #102's relational type
+# inference whole -- docs/rust-port/PHASE3.md, the typer slice's stage 1c; ruling 37 (a), LITE-ONLY): the rules moved,
+# Java and lite-names' relational_type_inference.rs and view_signatures.rs together, re-freezing here what the Java
+# moves, from two runs of the commit's Java (A, and B with --live and --texts, on one jar snapshot) byte-identical on
+# every file: stores.tsv moved, 59 of 74,292 lines over 21 texts (ecf69539... -> c704c6bd...), models, queries, calls
+# and duplicates unchanged. Every moved ask attributed (attribution-2026-11-17-typer-stage1c-s1006.tsv: its rule and its
+# form's changed lines, each text's stores form re-asked at the code before and after): 42 asks over 15 texts a
+# concatenation whose column the no-scope and no-lookups asks do not type now has no type (an untyped argument leaves no
+# type), 11 over 4 texts concat(VARCHAR, ' $', INTEGER) VARCHAR(63) and its label String (a non-string operand sized by
+# its widest text), 6 over 2 texts a plus one of whose arguments no ask types (SomeView's prefix) now untyped. Texts:
+# names-stores-texts-java-2026-11-17-typer-stage1c.jsonl.zst (1,714,974 bytes;
+# 8d83bf4c2b4074ee79180b134b82bcef491059576adfeccbab5b34c375c35b99, checked by decompressing it). lite-names: all five
+# files identical (//rust/lite-names:names_differential_test). Previous SHA-256 of stores.tsv:
+# ecf69539d0860d3b4f12013446a59ab49d92eef9f7ddc3c3b62d99ea9b64367b.
+attribution-2026-11-17-typer-stage1c-s1006.tsv	the typer slice's stage 1c item 1 (S1006): every moved ask of stores.tsv -- line, text sha, dialect, frozen hash, new hash, the rule, the change (plain text: its own SHA-256)	002452ab4ea6a4b3eeb1041b508e30e0bd6d6b1900d38289a15c88571173c707

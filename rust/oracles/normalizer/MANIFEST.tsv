@@ -60,7 +60,7 @@ attribution-2026-11-15-normalizer-batch.tsv	the batch's re-freezes' attribution:
 #   4e: 42 asks over 14 texts -- item 4 (e) (ruling 34, ruling 29's second policy), superseding 47d13b73f (d) where legend-engine refuses at compile: a ModelJoin's parameter pairing (types 9 / 3, self-association names 9 / 3, cannot pair 9 / 3), a shared parameter name's body property 6 / 2, an XStore line's property 9 / 3 -- each in the engine's words (42 / 14, ENGINE-SOURCED, read and run)
 # RE-FROZEN BY THE NORMALIZER'S SECOND BATCH (end)
 attribution-2026-11-15-normalizer-batch2.tsv	the second batch's re-freezes' attribution: item, text sha, dialect, hash before, hash after (plain text: its own SHA-256)	f9f9314582a1384ab4d25aef294e62b3ceda0633c8502e89f136e90c06418313
-answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines	95b796d7e839bac3bf75f38a9615c26580b1b5a58577a162ae7a332fd62f99b7
+answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines; re-frozen 2026-11-17 (the typer slice's stage 1c, item 1; below)	6f6f11455add7e0fdf2a62565ad222331baf78ab090b49c6fd3161755e7cf5ae
 # CASES: the slice's targeted model texts for the oracle-blind sites (EF_CENSUS.md §10 item 3, E's), in the front
 # oracle's question form ({"sha","asks","text"}, the sha the SHA-256 of the text's UTF-16 units, asked at every
 # dialect), written by port-scratch/normalizer/tools/make_cases.py: ten cases -- a view-on-view cycle mapped and alone,
@@ -68,3 +68,17 @@ answers.tsv.zst	NormalizerAnswers: text sha TAB dialect TAB hash, 74,364 lines	9
 # two in both orders (S380), a duplicate set id across includes, a nested ModelJoin hop -- then the 14 texts of
 # core/src/test/java/com/legend/normalizer/RefusalsNotCrashesTest.java (step 1's refusals), each once.
 cases.jsonl	the slice's 24 case texts (questions' form), read by NormalizerAnswers and the differential	3887a11a2d7b45b16d71bb0b56b9450ce72d1a032c41664a27162f30ce7cdf84
+# RE-FROZEN BY THE TYPER SLICE'S STAGE 1C (begin)
+# Re-frozen 2026-11-17 on worktree-rust-port-phase0 by the typer slice's stage 1c, item 1 (docs/rust-port/PHASE3.md, its
+# entry; the owner's re-ruling of register row S1006, PR #102's relational type inference whole; ruling 37 (a),
+# LITE-ONLY), from two Java runs of the same NormalizerAnswers on one jar snapshot (A; B with --texts: answers.tsv and
+# answers.tsv.tags byte-identical; 654 s and 664 s), every moved ask attributed
+# (attribution-2026-11-17-typer-stage1c-s1006.tsv below: item, sha, dialect, the hash before and after). The asks and
+# texts are unchanged (74,364 over 26,348). Moved: 11 asks over 4 texts -- the lifted view function of ActiveOrderView
+# (store::DB), its return relation type's label column, concat(VARCHAR, ' $', INTEGER), typed VARCHAR(63) by PR #102's
+# rule for a non-string operand, so String where it was Any; each moved form differs in that alone (the four texts
+# re-asked with their forms at the code before and after, port-scratch/typer1c/research/ s1006norm), the same 11 asks
+# the element oracle moved. lite-normalizer: the differential answers all 74,364 as the new freeze. Previous SHA-256 of
+# answers.tsv: 95b796d7e839bac3bf75f38a9615c26580b1b5a58577a162ae7a332fd62f99b7.
+# RE-FROZEN BY THE TYPER SLICE'S STAGE 1C (end)
+attribution-2026-11-17-typer-stage1c-s1006.tsv	the typer slice's stage 1c item 1's re-freeze's attribution: item, text sha, dialect, hash before, hash after (plain text: its own SHA-256)	c7a7381554462da6a67a59b3e4ae163262a943dd12b43e86ffcfcd1df1f9ec15

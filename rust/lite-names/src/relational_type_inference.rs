@@ -121,10 +121,15 @@ fn infer_in<'a>(
                     let first = types.first().cloned().flatten();
                     if types.len() <= 1 {
                         first
+                    } else if types.iter().any(Option::is_none) {
+                        // an argument with no type leaves no type (the engine's failOnMatchFailure=true map fails on it,
+                        // relationalExtension.pure:120-123; until 2026-11-17 it dropped out: PR #102's e2112a291)
+                        None
                     } else {
-                        // an argument with no type drops out, as the engine's map does; the safe type is the
-                        // engine's fold (S378, 2026-11-13, ruling 32)
-                        safe_type_of(types).or(first)
+                        // over numerics alone the database's promotion (2026-11-17, PR #102's 130f44eb9, its row S500);
+                        // else the safe type, the engine's fold (S378, 2026-11-13, ruling 32), else the first's
+                        let typed: Vec<T> = types.iter().flatten().cloned().collect();
+                        promotion(&typed).or_else(|| safe_type_of(types)).or(first)
                     }
                 }
                 "distinct" => first(expanding)?,
@@ -141,7 +146,10 @@ fn infer_in<'a>(
                     ) => Some(integer()),
                     Some(T::RelationalDataTypeBigInt(_)) => Some(big_int()),
                     Some(at @ (T::RelationalDataTypeDecimal(_) | T::RelationalDataTypeNumeric(_))) => Some(capped(&at)),
-                    Some(T::RelationalDataTypeFloat_(_) | T::RelationalDataTypeDouble_(_)) => Some(double()),
+                    // a REAL too, as lite typed it until 2026-11-13 (2026-11-17, PR #102's 36cd4cd3c, its row S500)
+                    Some(T::RelationalDataTypeFloat_(_) | T::RelationalDataTypeDouble_(_) | T::RelationalDataTypeReal(_)) => {
+                        Some(double())
+                    }
                     _ => None,
                 },
                 // average and divide are DOUBLE whatever their arguments, which the engine's one rule each does not read
@@ -176,22 +184,14 @@ fn infer_in<'a>(
                 // length and indexOf are INTEGER whatever their arguments (relationalExtension.pure:1061-1069,
                 // :961-969); position, charindex and locate have no rule in the engine's map, so no type; until 2026-11-14
                 // INTEGER, rules only lite had (S378, the names batch, item 2, ruling 34)
-                "length" | "indexOf" => Some(integer()),
+                // position INTEGER, as the database returns it (2026-11-17, PR #102's 4993f536a, its row S500)
+                "length" | "indexOf" | "position" => Some(integer()),
                 // sub is its first argument's type when its first two have one raw kind, else no rule matches
                 // (relationalExtension.pure:1637-1645): no type, never a default. Until 2026-11-13 the safe type over
                 // all its arguments (S378, ruling 32; its INTEGER default went with the names fixes, item 10)
-                "sub" => {
-                    if f.args.len() < 2 {
-                        None
-                    } else {
-                        let first = infer_in(&f.args[0], db, ctx, expanding)?;
-                        let second = infer_in(&f.args[1], db, ctx, expanding)?;
-                        match (first, second) {
-                            (Some(a), Some(b)) if std::mem::discriminant(&a) == std::mem::discriminant(&b) => Some(a),
-                            _ => None,
-                        }
-                    }
-                }
+                // sub over numerics the database's promotion, over others the engine's rule as their safe type
+                // (`operator`; 2026-11-17, PR #102's rules, its row S500)
+                "sub" => operator(Arith::Sub, &f.args, db, ctx, expanding)?,
                 // joinStrings is a VARCHAR of the larger of 4000 and its first argument's CHAR or VARCHAR size; another
                 // first argument, or none, no type (relationalExtension.pure:1031-1039: the map's rule types a parsed
                 // joinStrings, a DynaFunction; Java's comment says why not the JoinStrings operation's arm, :173). Until
@@ -206,19 +206,29 @@ fn infer_in<'a>(
                 // operand added 0 (the names fixes, item 10, ruling 28)
                 // group_concat has no rule in the engine's map (no type: until 2026-11-13 it was typed as a concat,
                 // S378, ruling 32)
-                "concat" => {
-                    let mut size: i64 = 0;
-                    let mut other = false;
-                    for arg in f.args.iter() {
-                        match infer_in(arg, db, ctx, expanding)? {
-                            Some(T::RelationalDataTypeVarchar(v)) => size = size.wrapping_add(v.size),
-                            Some(T::RelationalDataTypeChar_(c)) => size = size.wrapping_add(i64::from(c.size)),
-                            Some(_) => other = true,
-                            None => {}
+                // since 2026-11-17 (PR #102's e2112a291 and 130f44eb9, its row S500): an operand with no type leaves no
+                // type; a non-string operand is sized by its kind's widest text (`text_width`), one of no fixed width
+                // leaves no type; an OTHER adds 0. Java's comment says more
+                "concat" => match every_type(&f.args, db, ctx, expanding)? {
+                    None => None,
+                    Some(types) => {
+                        let mut size: i64 = 0;
+                        let mut fixed = true;
+                        for t in types.iter() {
+                            let w = if is_char_or_varchar(t) || matches!(t, T::RelationalDataTypeOther(_)) {
+                                size_of(t)
+                            } else {
+                                i64::from(text_width(t))
+                            };
+                            if w < 0 {
+                                fixed = false;
+                                break;
+                            }
+                            size = size.wrapping_add(w);
                         }
+                        if fixed { Some(varchar(size)) } else { None }
                     }
-                    if other { None } else { Some(varchar(size)) }
-                }
+                },
                 // case(c1, v1, ..., else): the engine's safe type over the value branches and the last argument
                 // (relationalExtension.pure:402-411: the branches at 1, 3, ... below 2 * floor((n - 1) / 2), then the
                 // last). Where none is possible the engine ASSERTS, whatever failOnMatchFailure is: its inference fails
@@ -236,7 +246,14 @@ fn infer_in<'a>(
                     if f.args.len() % 2 == 1 {
                         types.push(infer_in(&f.args[f.args.len() - 1], db, ctx, expanding)?);
                     }
-                    safe_type_of(types)
+                    // a branch with no type leaves no type; numeric branches alone the database's promotion
+                    // (2026-11-17, PR #102's rules, its rows S500, S501)
+                    if types.iter().any(Option::is_none) {
+                        None
+                    } else {
+                        let typed: Vec<T> = types.iter().flatten().cloned().collect();
+                        promotion(&typed).or_else(|| safe_type_of(types))
+                    }
                 }
                 // the numeric operators, each by the engine's own rules (S378, 2026-11-13, ruling 34; until then the
                 // safe type over every argument, a rule only lite had). plus over ONE argument widens it
@@ -245,26 +262,22 @@ fn infer_in<'a>(
                 // rule); plus and minus over several are their FIRST argument's type when a safe type over all of them
                 // is possible, else no rule (:1408-1436, :1209-1218); times is the safe type of its first two
                 // arguments, the rest unread (:1773-1782). divide is DOUBLE, above.
+                // since 2026-11-17 (the owner's ruling on register row S1006: PR #102's rules, 4993f536a, its rows S400
+                // then S500): over numeric operands the database's promotion over every argument, view columns and
+                // the metamodel's seeded rows alike (`operator`); plus over one argument keeps the engine's widening, a
+                // REAL a DOUBLE as sum's
                 "plus" if f.args.len() == 1 => match infer_in(&f.args[0], db, ctx, expanding)? {
                     Some(T::RelationalDataTypeTinyInt(_) | T::RelationalDataTypeSmallInt(_)) => Some(integer()),
                     Some(T::RelationalDataTypeInteger_(_) | T::RelationalDataTypeBigInt(_)) => Some(big_int()),
                     Some(at @ (T::RelationalDataTypeDecimal(_) | T::RelationalDataTypeNumeric(_))) => Some(capped(&at)),
-                    Some(T::RelationalDataTypeFloat_(_) | T::RelationalDataTypeDouble_(_)) => Some(double()),
+                    Some(T::RelationalDataTypeFloat_(_) | T::RelationalDataTypeDouble_(_) | T::RelationalDataTypeReal(_)) => {
+                        Some(double())
+                    }
                     _ => None,
                 },
-                "plus" | "minus" => first_when_safe(&f.args, db, ctx, expanding)?,
-                "times" => {
-                    if f.args.len() < 2 {
-                        None
-                    } else {
-                        let t0 = infer_in(&f.args[0], db, ctx, expanding)?;
-                        let t1 = infer_in(&f.args[1], db, ctx, expanding)?;
-                        match (t0, t1) {
-                            (Some(a), Some(b)) => safe_type_of([Some(a), Some(b)]),
-                            _ => None,
-                        }
-                    }
-                }
+                "plus" => operator(Arith::Plus, &f.args, db, ctx, expanding)?,
+                "minus" => operator(Arith::Minus, &f.args, db, ctx, expanding)?,
+                "times" => operator(Arith::Times, &f.args, db, ctx, expanding)?,
                 // ---- the 30 rules the seeded Database texts use (2026-11-14, the names batch, item 1: register row
                 // S378, ruling 35; until then no rule, no type), each legend-engine 4.145.0's map entry at the lines
                 // cited, every arm's answer asked of the engine (Java's comment says how). Where the engine's inference
@@ -405,24 +418,176 @@ fn infer_in<'a>(
     })
 }
 
-/// `firstWhenSafe`: plus's and minus's rule over several arguments (relationalExtension.pure:1408-1436, :1209-1218): the
-/// FIRST argument's type when there is more than one argument and a safe type over all of them is possible (an argument
-/// with no type drops out, as `safe_type_of` drops it), else no rule matches (`None`).
-fn first_when_safe<'a>(
+/// A numeric operator's member (Java's `DynaFn` PLUS, MINUS, TIMES, SUB in `operator`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Arith {
+    Plus,
+    Minus,
+    Times,
+    Sub,
+}
+
+/// `everyType(args)`: every argument's type, each typed; `None` when any has none (the engine's failOnMatchFailure=true
+/// map fails there).
+fn every_type<'a>(
+    args: &[Op],
+    db: Option<&'a DatabaseDefinition>,
+    ctx: Option<&'a dyn StoreLookups>,
+    expanding: &mut Expanding,
+) -> Result<Option<Vec<T>>, Thrown> {
+    let mut types: Vec<T> = Vec::with_capacity(args.len());
+    let mut untyped = false;
+    for arg in args.iter() {
+        match infer_in(arg, db, ctx, expanding)? {
+            Some(t) => types.push(t),
+            None => untyped = true,
+        }
+    }
+    Ok(if untyped { None } else { Some(types) })
+}
+
+/// `operator(op, args)`: plus, minus and times over several arguments (minus and times over one), sub over two (the
+/// owner's ruling of 2026-11-17 on register row S1006: PR #102's rules, its rows S400 then S500; until then plus and
+/// minus over several were their first argument's type where a safe type was possible, the engine's rule). An argument
+/// with no type leaves no type; numeric operands alone are the database's `promotion`; any other is the engine's rule
+/// as its safe type: plus and minus over several their safe type, times its first two's, sub over two of one raw kind
+/// their safe type or the first's (sub takes two arguments, else no type). Java's comment says more.
+fn operator<'a>(
+    op: Arith,
     args: &[Op],
     db: Option<&'a DatabaseDefinition>,
     ctx: Option<&'a dyn StoreLookups>,
     expanding: &mut Expanding,
 ) -> Result<Option<T>, Thrown> {
-    if args.len() <= 1 {
+    let Some(types) = every_type(args, db, ctx, expanding)? else {
+        return Ok(None);
+    };
+    if op == Arith::Sub && types.len() != 2 {
         return Ok(None);
     }
-    let mut types: Vec<Option<T>> = Vec::with_capacity(args.len());
-    for arg in args.iter() {
-        types.push(infer_in(arg, db, ctx, expanding)?);
+    if let Some(numeric) = promotion(&types) {
+        return Ok(Some(numeric));
     }
-    let first = types.first().cloned().flatten();
-    Ok(if safe_type_of(types).is_some() { first } else { None })
+    let several = types.len() > 1;
+    Ok(match op {
+        Arith::Plus | Arith::Minus => {
+            if several {
+                safe_type_of(types.into_iter().map(Some))
+            } else {
+                None
+            }
+        }
+        Arith::Times => {
+            if several {
+                safe_type_of(types.into_iter().take(2).map(Some))
+            } else {
+                None
+            }
+        }
+        Arith::Sub => {
+            if std::mem::discriminant(&types[0]) != std::mem::discriminant(&types[1]) {
+                None
+            } else {
+                let first = types[0].clone();
+                safe_type_of(types.into_iter().take(2).map(Some)).or(Some(first))
+            }
+        }
+    })
+}
+
+/// `promotion(types)`: the database's numeric promotion over every type (PR #102's row S500), when every type is numeric
+/// or an OTHER and one is numeric; `None` otherwise. An approximate operand makes a DOUBLE, but operands of one
+/// approximate kind keep it; else a DECIMAL or NUMERIC operand as declared, two of them a DECIMAL of the larger integer
+/// digits plus the larger scale; else the widest integer kind.
+fn promotion(types: &[T]) -> Option<T> {
+    let mut acc: Option<T> = None;
+    for t in types.iter() {
+        if matches!(t, T::RelationalDataTypeOther(_)) {
+            continue;
+        }
+        if !is_numeric(t) {
+            return None;
+        }
+        acc = Some(match acc {
+            None => t.clone(),
+            Some(a) => promote(&a, t),
+        });
+    }
+    acc
+}
+
+fn is_numeric(t: &T) -> bool {
+    matches!(
+        t,
+        T::RelationalDataTypeTinyInt(_)
+            | T::RelationalDataTypeSmallInt(_)
+            | T::RelationalDataTypeInteger_(_)
+            | T::RelationalDataTypeBigInt(_)
+            | T::RelationalDataTypeFloat_(_)
+            | T::RelationalDataTypeDouble_(_)
+            | T::RelationalDataTypeReal(_)
+            | T::RelationalDataTypeDecimal(_)
+            | T::RelationalDataTypeNumeric(_)
+    )
+}
+
+fn approximate(t: &T) -> bool {
+    matches!(t, T::RelationalDataTypeFloat_(_) | T::RelationalDataTypeDouble_(_) | T::RelationalDataTypeReal(_))
+}
+
+fn is_decimal_kind(t: &T) -> bool {
+    matches!(t, T::RelationalDataTypeDecimal(_) | T::RelationalDataTypeNumeric(_))
+}
+
+/// Java's `INTEGER_WIDTH.indexOf(kind)`: TINYINT, SMALLINT, INTEGER, BIGINT at 0-3, any other kind -1.
+fn integer_width(t: &T) -> i32 {
+    match t {
+        T::RelationalDataTypeTinyInt(_) => 0,
+        T::RelationalDataTypeSmallInt(_) => 1,
+        T::RelationalDataTypeInteger_(_) => 2,
+        T::RelationalDataTypeBigInt(_) => 3,
+        _ => -1,
+    }
+}
+
+fn promote(a: &T, b: &T) -> T {
+    if approximate(a) || approximate(b) {
+        return if std::mem::discriminant(a) == std::mem::discriminant(b) { a.clone() } else { double() };
+    }
+    let da = is_decimal_kind(a);
+    let dbx = is_decimal_kind(b);
+    if da != dbx {
+        return if da { a.clone() } else { b.clone() };
+    }
+    if da {
+        let scale = scale(a).max(scale(b));
+        return decimal(integer_digits(a).max(integer_digits(b)).wrapping_add(scale), scale);
+    }
+    if integer_width(a) >= integer_width(b) { a.clone() } else { b.clone() }
+}
+
+/// `textWidth(t)`: the widest text a database writes for a value of a kind of fixed width, or -1 (concat's non-string
+/// operands; PR #102's 130f44eb9): TINYINT 4, SMALLINT 6, INTEGER 11, BIGINT 20, a DECIMAL or NUMERIC its precision plus
+/// a sign and a point, BIT 5, DATE 10, TIMESTAMP 29.
+fn text_width(t: &T) -> i32 {
+    match t {
+        T::RelationalDataTypeTinyInt(_) => 4,
+        T::RelationalDataTypeSmallInt(_) => 6,
+        T::RelationalDataTypeInteger_(_) => 11,
+        T::RelationalDataTypeBigInt(_) => 20,
+        T::RelationalDataTypeDecimal(_) | T::RelationalDataTypeNumeric(_) => {
+            integer_digits(t).wrapping_add(scale(t)).wrapping_add(2)
+        }
+        T::RelationalDataTypeBit(_) => 5,
+        T::RelationalDataTypeDate_(_) => 10,
+        T::RelationalDataTypeTimestamp(_) => 29,
+        _ => -1,
+    }
+}
+
+/// A CHAR's, VARCHAR's or OTHER's size (concat's string operands), as `size` reads it.
+fn size_of(t: &T) -> i64 {
+    size(t)
 }
 
 /// `capped`: plus's and sum's DECIMAL and NUMERIC rules (relationalExtension.pure:1408-1436, :1717-1741): the kind kept,
@@ -532,11 +697,15 @@ fn get_safe_type(t1: &T, t2: &T) -> T {
 }
 
 /// The engine's list fold (:1926-1951): from the first type, each next one against the accumulated safe type
-/// (`getSafeType(next, acc)`); `None` when a step has none. A `None` type drops out first, as the engine's `map` drops
-/// an empty answer; no types, `None`.
+/// (`getSafeType(next, acc)`); `None` when a step has none, or when a type is `None`; no types, `None`.
 fn safe_type_of(types: impl IntoIterator<Item = Option<T>>) -> Option<T> {
     let mut acc: Option<T> = None;
-    for t in types.into_iter().flatten() {
+    for t in types.into_iter() {
+        // a `None` type leaves none: the engine's map over the failOnMatchFailure=true inferRelationalType fails on it
+        // (relationalExtension.pure:120-123; until 2026-11-17 it dropped out, PR #102's e2112a291)
+        let Some(t) = t else {
+            return None;
+        };
         acc = Some(match acc {
             None => t,
             Some(a) if is_safe_type_possible(&t, &a) => get_safe_type(&t, &a),

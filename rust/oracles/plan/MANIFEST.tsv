@@ -35,7 +35,7 @@
 # toString was): the query ids above are now test 10,076, service 11,538, spec 3,551 (the vs: ids renamed), fixture 432;
 # no row split or merged, so the plan ids and the rows' count are unchanged. Previous SHA-256:
 # 33c6cef3eae91d5ccca79b69b20619287aabf99bbaecf852886005fed3280c5c.
-plan-ids.tsv.zst	model, query, doors, use, execution plan ids, test plan ids: 51,353 rows; 25,745 execution plans, 25,609 test plans; re-keyed 2026-11-13, re-frozen 2026-11-13, 2026-11-14, 2026-11-14 again (the names batch) and 2026-11-16 (the typer slice's stage 1a item 7; below), 16 rows added 2026-11-16 (the typer slice's stage 1b; below)	fffe899c08a845e2d7d869b833d390f1956cafa0fcfc9eed2a2a53ba07b846bc
+plan-ids.tsv.zst	model, query, doors, use, execution plan ids, test plan ids: 51,353 rows; 25,745 execution plans, 25,609 test plans; re-keyed 2026-11-13, re-frozen 2026-11-13, 2026-11-14, 2026-11-14 again (the names batch) and 2026-11-16 (the typer slice's stage 1a item 7; below), 16 rows added 2026-11-16 (the typer slice's stage 1b; below); 914 test plan ids re-frozen 2026-11-23 (the typer slice's stage 1c item 1; below)	180172493fce412945ce585743a27ea111940f378a8fe7cd7a49d97c9abff547
 # Every execution plan the ids name, once: id TAB E TAB the PlanJson (v31) text, sorted by id. 424,296,853 characters.
 execution-plans.tsv.zst	id TAB E TAB PlanJson, sorted by id: 17,048 lines; re-frozen 2026-11-16 (six plans replaced; below), 4 plans added 2026-11-16 (the typer slice's stage 1b; below)	80bcd0ac2417796a4acab3c807ee4a2d7a9c508ff8c3e6091f03e57fcda4ae43
 # THE HOST JUDGE'S TEST PLANS, DEDUPLICATED (2026-11-11; docs/rust-port/PHASE3_SHIM_DESIGN.md section 10 ruling 18;
@@ -60,10 +60,10 @@ execution-plans.tsv.zst	id TAB E TAB PlanJson, sorted by id: 17,048 lines; re-fr
 # --ids rust/oracles/plan/plan-ids.tsv.zst`: all 16,247 plans rebuilt, each hashing to its id; every value's rebuilt text
 # to its key; every frame its row of the frame table; the index every value's frame; the rebuilt archive's SHA-256 the
 # archive's (below); the plans' ids exactly the test plan ids the host judge's rows name in plan-ids.
-test-plans-host.tsv.zst	id TAB T TAB the plan's text outlined, sorted by id: 16,247 lines in 75 frames; re-frozen 2026-11-13, 2026-11-14 and 2026-11-14 again (the names batch; below)	a1f07df0bafbe256d7ccf062bfa107d319ceb9d94b951d574aefb483322021bd
-test-plan-values.tsv.zst	key TAB the value's text outlined, in the order the plans first reach them: 26,551 lines in 44 frames; re-frozen 2026-11-13, 2026-11-14 and 2026-11-14 again (the names batch)	3f49d0b62658737ea827e4a8af6915a08eb758bda31b0813128ecfeef3181060
-test-plan-values-index.tsv.zst	a value's key's first 16 hex digits TAB the values frame it is in, sorted: 26,551 lines; re-frozen 2026-11-13, 2026-11-14 and 2026-11-14 again (the names batch)	9f1b86774c632f7092a86dc96483a759203745738fafa6984e6c8efc7a4955e8
-test-plan-frames.tsv	store TAB frame TAB first key TAB byte offset TAB byte length TAB lines, the 119 frames of the two stores (plain text: its own SHA-256); re-frozen 2026-11-13, 2026-11-14 and 2026-11-14 again (the names batch)	06e82578355abcd801e5dad6639428d8588dfd9d48052e8183cd82fb5f995631
+test-plans-host.tsv.zst	id TAB T TAB the plan's text outlined, sorted by id: 16,247 lines in 76 frames; re-frozen 2026-11-13, 2026-11-14, 2026-11-14 again (the names batch) and 2026-11-23 (the typer slice's stage 1c, item 1; below)	8c2c207424b1328896343e427507519b7c98d164fa3e470ded440e38a90d8bf2
+test-plan-values.tsv.zst	key TAB the value's text outlined, in the order the plans first reach them: 26,551 lines in 44 frames; re-frozen 2026-11-13, 2026-11-14, 2026-11-14 again (the names batch) and 2026-11-23 (the typer slice's stage 1c, item 1)	a7726fd1d38c28afb04c0ce4ddb66f4243b3a911729c9ef69b114fbd5cc73612
+test-plan-values-index.tsv.zst	a value's key's first 16 hex digits TAB the values frame it is in, sorted: 26,551 lines; re-frozen 2026-11-13, 2026-11-14, 2026-11-14 again (the names batch) and 2026-11-23 (the typer slice's stage 1c, item 1)	c02a5d18bbb9a58b8015193a5feea18693c2625bb86e18b3b54d64ca80ae47f1
+test-plan-frames.tsv	store TAB frame TAB first key TAB byte offset TAB byte length TAB lines, the 120 frames of the two stores (plain text: its own SHA-256); re-frozen 2026-11-13, 2026-11-14, 2026-11-14 again (the names batch) and 2026-11-23 (the typer slice's stage 1c, item 1)	da03254ee8b02feb3991004ebe7e838880f1a09ecfcc07f0a3e8329bf25c2134
 # THE ARCHIVE THEY ARE MADE FROM (kept outside git): the same plans as one stream, id TAB T TAB the TestPlanJson (v11)
 # text, sorted by id: 16,247 lines, 30,212,521,643 characters (the stress suites' plans carry their test data's CSV
 # several times over, about 2.5 MB each, and compress about 900 to 1).
@@ -194,3 +194,45 @@ attribution-2026-11-16-typer-stage1a-names.tsv	the typer slice's stage 1a item 7
 # c00c7fe3ee887f582db1675b8c2ebca23a14397597701949adbaf4f7e6a5a7da.
 attribution-2026-11-16-typer-stage1b-keys172.tsv	the typer slice's stage 1b part 1.1: the 172 keys added to identity/hits.tsv, each attributed to its test text or to //core:ladder_report: item, commit, oracle file, kind, model, query, doors, use, the text, why (plain text: its own SHA-256)	13948c247ed11767627070abaf1f1093c09b8d756d8874aa1a38e129a0da65a2
 # THE TYPER SLICE'S STAGE 1B, PART 1.1 (end)
+# THE TYPER SLICE'S STAGE 1C, ITEM 1 (2026-11-23; begin)
+# RE-FROZEN 2026-11-23, ONCE, ATTRIBUTED (the owner's re-ruling of register row S1006, 2026-11-17: PR #102's relational
+# type inference whole; ruling 37 (a), LITE-ONLY; docs/rust-port/PHASE3.md, the typer slice's stage 1c). Every moved key
+# by item, measured state against state: attribution-2026-11-17-typer-stage1c-s1006.tsv beside this file. The runs: two
+# complete probe v2 runs at item 1's code over the batch (2a76c907d, the scratch commit whose core, lite-names and spec
+# trees are this commit's: S1006Z3 and S1006Z4, each with its own copy of the probe differing by one unused constant;
+# every lane, 143 of 145 targets passing each, the two probe-caused failures (//core:census, //core:guardrails)),
+# agreeing on every key; ALL3 (the batch's other items, every frozen key answered, no plan or MirJson id moved) and
+# S1006 (with item 1) before them. Moved: 914 test plan ids, the corpus lanes' (judge_host_duckdb 232, judge_host_h2
+# 232, judge_database_duckdb 225, judge_database_h2 225), by item 1 alone: the system-metamodel seed's op type rows for
+# the nodes PR #102's rules type otherwise in legend-engine's test mappings (PropertyfuncMapping's and
+# PropertyfuncMappingWithJoin's position nodes and the add over each, INTEGER; simpleRelationalMappingWithConcat's
+# concat, VARCHAR(13); DecimalCompatibilityMapping1's case, DECIMAL(4, 1) to DOUBLE), their relational_elements rows'
+# type ids, and the system database's graphKey with them. Checked before the re-freeze (the coordinator's (a)): 120 of
+# the 914 (30 per judge and database, H2 host first, over 31 fixture packages) parsed and diffed against their frozen
+# texts (port-scratch/typer1c/tools/plan_diff3.py; runs/plan_diff_Z3_120.txt): no fixture, query or verdict SQL moved;
+# in every one the seed's metamodel.data_types gains 9 rows (PropertyfuncMapping's and PropertyfuncMappingWithJoin's
+# position nodes and the add over each, INTEGER; simpleRelationalMappingWithConcat's concat, VARCHAR(13)) and changes 1
+# (DecimalCompatibilityMapping1's case, DECIMAL(4, 1) to DOUBLE), metamodel.relational_elements' 9 rows for those nodes
+# name their type rows (NULL before), and the system database's graphKey moves with them (52a97482... -> 9bbe493f...,
+# where the seed declares it and where a step's target names it; on H2 the seed's rows are INSERT statements, compared
+# row by row). No execution plan id, MirJson id or count moved; execution-plans.tsv is unchanged; plan-ids.tsv keeps its
+# 51,353 rows, 914 of them with a new test plan id. 783 test plan ids are new and 783 named no more: the host store
+# rebuilt from a new archive in which 403 host plans are replaced (the store's 16,247 plans, now 76 and 44 frames), the
+# database judge's archive with 380 replaced (6,862), every new text taken from S1006Z3's identity-plan files and hashed
+# to its id (namesland/build_archive.py). The new archives, outside git (plan-test-plans.sha256 beside them; each
+# checked by decompressing it):
+# /Users/cocobey73/.local/legend-lite/oracle-archive/plan-test-plans-host-2026-11-23-typer-stage1c.tsv.zst (66,479,045
+# bytes), SHA-256 of its text 4d9e96ef7eb86f89e6dbdea0746654a01bb3095f73ea98459d539e7d8d962e82, and
+# plan-test-plans-database-judge-2026-11-23-typer-stage1c.tsv.zst (7,563,147 bytes),
+# 24e826b886b7850e7a57964f6afeadfbe9e3ec7c76103f7e9f9dcf4eb1b68c96; the earlier archives, kept. The four store files
+# MADE by `python3 rust/tools/test-plan-texts.py write <the new host archive> <dir>` (its defaults), twice, byte for
+# byte the same, and CHECKED by `check rust/oracles/plan --sha 4d9e96ef... --ids rust/oracles/plan/plan-ids.tsv.zst`:
+# all 16,247 plans rebuilt to their ids, every value to its key, the rebuilt archive's SHA-256 the new archive's, the
+# store's ids exactly the host rows' (16,247). Previous SHA-256s: plan-ids.tsv
+# fffe899c08a845e2d7d869b833d390f1956cafa0fcfc9eed2a2a53ba07b846bc, test-plans-host.tsv
+# a1f07df0bafbe256d7ccf062bfa107d319ceb9d94b951d574aefb483322021bd, test-plan-values.tsv
+# 3f49d0b62658737ea827e4a8af6915a08eb758bda31b0813128ecfeef3181060, test-plan-values-index.tsv
+# 9f1b86774c632f7092a86dc96483a759203745738fafa6984e6c8efc7a4955e8, test-plan-frames.tsv
+# 06e82578355abcd801e5dad6639428d8588dfd9d48052e8183cd82fb5f995631.
+attribution-2026-11-17-typer-stage1c-s1006.tsv	the typer slice's stage 1c item 1's re-freeze's attribution: item, commit, oracle file, keys, what moved, how measured, examples (plain text: its own SHA-256)	80727d498f7eec8be4fe13e0a4c9ab57eac1ea13a2952c79368fd6193ab490ee
+# THE TYPER SLICE'S STAGE 1C, ITEM 1 (end)

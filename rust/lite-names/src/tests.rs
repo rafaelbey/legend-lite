@@ -808,14 +808,16 @@ fn the_store_helpers_answer_over_a_small_database() {
         let v = ix.find_view(&db, &j("V")).unwrap().clone();
         let sig = view_signatures::of(&arena, &ix, &db, &v).unwrap();
         let types: Vec<String> = sig.columns().iter().map(|c| c.to_string()).collect();
-        // TOTAL is plus over a DECIMAL(10,2) and a NUMERIC(5,4): the first argument's type, a safe type over both being
-        // possible (the engine's rule, 2026-11-13, S378, ruling 34; it was their safe type, DECIMAL(12,4))
+        // TOTAL is plus over a DECIMAL(10,2) and a NUMERIC(5,4): the database's promotion, the larger integer digits
+        // plus the larger scale, DECIMAL(12,4) (PR #102's rule, the owner's re-ruling of S1006, 2026-11-17; Java's
+        // RelationalTypeInference.promote). From 2026-11-13 (S378, ruling 34) it was the engine's first argument's,
+        // DECIMAL(10,2)
         assert_eq!(
             types,
             [
                 "ID:Integer[1]",
                 "HIGH:Number[0..1]",
-                "TOTAL:Decimal(10,2)[0..1]",
+                "TOTAL:Decimal(12,4)[0..1]",
                 "LABEL:String[0..1]"
             ]
         );
@@ -841,10 +843,12 @@ fn the_store_helpers_answer_over_a_small_database() {
                 std::sync::Arc::new(lite_model::RelationalDataTypeVarchar { size: 12 })
             ))
         );
+        // no lookups, T.S is untyped, so the concatenation has no type (PR #102's rule: an untyped argument leaves
+        // none; the owner's re-ruling of S1006, 2026-11-17, the names oracle's 42 such asks); it was VARCHAR(2), 0 + 2
         assert_eq!(
             relational_type_inference::infer(label, scope, None).unwrap(),
-            Some(varchar(2)),
-            "no lookups: 0 + 2"
+            None,
+            "no lookups: an untyped argument"
         );
     });
 }
@@ -925,8 +929,10 @@ fn a_concatenation_of_a_non_string_has_no_type() {
             )
             .unwrap()
         };
-        assert_eq!(infer(0), None, "an INTEGER operand leaves no type");
-        assert_eq!(infer(1), Some(varchar(10)), "an operand with no type drops out");
+        // since 2026-11-17 (the owner's ruling on register row S1006: PR #102's rules, its row S500): a non-string operand
+        // is concatenated as its text, an untyped one leaves no type
+        assert_eq!(infer(0), Some(varchar(21)), "an INTEGER operand: its widest text, 11");
+        assert_eq!(infer(1), None, "an operand with no type: no type");
         assert_eq!(infer(2), Some(varchar(12)));
     });
 }
@@ -1130,7 +1136,8 @@ fn a_view_reading_a_missing_column_is_refused_and_an_aggregate_is_typed_at_any_a
 /// S378 (2026-11-13, the names landings, ruling 32): the type inference's safe type is the engine's safeTypeMap,
 /// isSafeTypePossible and getSafeType exactly; count is BIGINT; substring and its family a VARCHAR sized by their first
 /// argument's CHAR or VARCHAR, no type for another; sub its first argument's type when its first two share a kind, else
-/// none; group_concat no rule (KnowledgeLayerTest's twin).
+/// none; group_concat no rule (KnowledgeLayerTest's twin). Since 2026-11-17 (the owner's re-ruling of S1006, PR #102's
+/// rules) an untyped argument leaves no type and a fold over numerics is the database's promotion (the pins below).
 #[test]
 fn the_type_inference_safe_type_and_rules_are_the_engines() {
     use lite_model::RelationalDataType as T;
@@ -1160,13 +1167,11 @@ fn the_type_inference_safe_type_and_rules_are_the_engines() {
             .unwrap()
         };
         let varchar = |size| T::RelationalDataTypeVarchar(Arc::new(lite_model::RelationalDataTypeVarchar { size }));
-        assert_eq!(
-            infer(0),
-            Some(T::RelationalDataTypeFloat_(Arc::new(
-                lite_model::RelationalDataTypeFloat_ {}
-            )))
-        );
-        assert_eq!(infer(1), None, "BIGINT with FLOAT: no safe type");
+        // a case over numeric branches is the database's promotion since 2026-11-17 (the owner's ruling on register row
+        // S1006: PR #102's rules, its row S500)
+        let double = Some(T::RelationalDataTypeDouble_(Arc::new(lite_model::RelationalDataTypeDouble_ {})));
+        assert_eq!(infer(0), double.clone(), "case over a FLOAT and an INTEGER: DOUBLE (the engine's: FLOAT)");
+        assert_eq!(infer(1), double, "case over a BIGINT and a FLOAT: DOUBLE (the engine's: no type)");
         assert_eq!(infer(2), Some(varchar(5)), "two CHARs: VARCHAR(5)");
         assert_eq!(infer(3), Some(varchar(4)), "CHAR(3), VARCHAR(4): VARCHAR(4)");
         assert_eq!(
@@ -1184,7 +1189,7 @@ fn the_type_inference_safe_type_and_rules_are_the_engines() {
         );
         assert_eq!(infer(6), Some(varchar(3)), "substring of a CHAR(3)");
         assert_eq!(infer(7), None, "substring of an INTEGER: no type");
-        assert_eq!(infer(8), Some(varchar(4)), "sub of two VARCHARs: the first's");
+        assert_eq!(infer(8), Some(varchar(4)), "sub of two VARCHARs: their safe type (the engine's: the first's)");
         assert_eq!(infer(9), None, "sub of a VARCHAR and an INTEGER: no rule");
         assert_eq!(infer(10), None, "group_concat: no rule");
     });
@@ -1195,7 +1200,8 @@ fn the_type_inference_safe_type_and_rules_are_the_engines() {
 /// several are their first argument's type when a safe type is possible, `times` the safe type of its first two,
 /// `divide` and `average` DOUBLE, `sum` by its first argument's kind (a DECIMAL capped at precision 31, a FLOAT a DOUBLE,
 /// no rule for a REAL), a float literal FLOAT, `upper` and `lower` no rule (a view column `Any[0..1]`)
-/// (KnowledgeLayerTest's twin).
+/// (KnowledgeLayerTest's twin). Since 2026-11-17 (the owner's re-ruling of S1006, PR #102's rules): the operators over
+/// numerics are the database's promotion over every argument, `sum` of a REAL a DOUBLE (the pins below).
 #[test]
 fn the_operators_and_aggregates_are_typed_by_the_engines_rules() {
     use lite_model::RelationalDataType as T;
@@ -1248,8 +1254,10 @@ fn the_operators_and_aggregates_are_typed_by_the_engines_rules() {
         assert_eq!(infer(2), decimal_31_2, "plus of a DECIMAL(40,2): capped at 31");
         assert_eq!(infer(3), double, "plus of a FLOAT: DOUBLE");
         assert_eq!(infer(4), None, "plus of a VARCHAR: no rule");
-        assert_eq!(infer(5), integer, "plus of an INTEGER and a FLOAT: the first's");
-        assert_eq!(infer(6), None, "plus of a BIGINT and a FLOAT: no safe type, no rule");
+        // since 2026-11-17 (the owner's ruling on register row S1006: PR #102's rules, its row S500): the numeric
+        // operators over numerics are the database's promotion over every argument
+        assert_eq!(infer(5), double, "plus of an INTEGER and a FLOAT: DOUBLE (the engine's: the first's)");
+        assert_eq!(infer(6), double, "plus of a BIGINT and a FLOAT: DOUBLE (the engine's: no rule)");
         assert_eq!(
             infer(7),
             Some(T::RelationalDataTypeNumeric(Arc::new(
@@ -1257,13 +1265,13 @@ fn the_operators_and_aggregates_are_typed_by_the_engines_rules() {
             ))),
             "minus of a NUMERIC and an INTEGER: the first's"
         );
-        assert_eq!(infer(8), None, "minus of one argument: no rule");
+        assert_eq!(infer(8), integer, "minus of one argument: its own (the engine's: no rule)");
         assert_eq!(
             infer(9),
             float,
             "times: the safe type of the first two, the third unread"
         );
-        assert_eq!(infer(10), None, "times of one argument: no type");
+        assert_eq!(infer(10), integer, "times of one argument: its own (the engine's: no type)");
         assert_eq!(infer(11), double, "divide: DOUBLE");
         assert_eq!(infer(12), double, "average: DOUBLE");
         assert_eq!(infer(13), integer, "sum of a SMALLINT: INTEGER");
@@ -1273,7 +1281,7 @@ fn the_operators_and_aggregates_are_typed_by_the_engines_rules() {
         assert_eq!(infer(17), float, "float literals: FLOAT");
         assert_eq!(infer(18), None, "upper: no rule");
         assert_eq!(infer(19), None, "lower: no rule");
-        assert_eq!(infer(20), None, "sum of a REAL: no rule");
+        assert_eq!(infer(20), double, "sum of a REAL: DOUBLE, as of a FLOAT (the engine's: no rule)");
         let arena = lite_base::QueryArena::new();
         let sig = view_signatures::of(&arena, &ix, &db, &v).unwrap();
         assert_eq!(
@@ -1282,6 +1290,96 @@ fn the_operators_and_aggregates_are_typed_by_the_engines_rules() {
             "a column no rule types: Any[0..1]"
         );
         assert_eq!(sig.columns()[17].to_string(), "L1:Float[0..1]");
+        assert_eq!(sig.columns()[5].to_string(), "P6:Float[0..1]", "plus of an INTEGER and a FLOAT: a Float column");
+    });
+}
+
+/// No step backwards (2026-11-17, the owner's ruling on register row S1006: PR #102's rules, its row S500;
+/// KnowledgeLayerTest's `noStepBackwardsInTheTypeInference`, its twin): an untyped argument leaves no type; strings,
+/// dates and numeric cases keep one; a non-string concatenated is sized by its widest text.
+#[test]
+fn no_step_backwards_in_the_type_inference() {
+    use lite_model::RelationalDataType as T;
+    use std::sync::Arc;
+    on_parse_stack(|| {
+        let m = model(concat!(
+            "###Relational\n",
+            "Database a::Db (\n",
+            "  Table T (ID INTEGER PRIMARY KEY, I INTEGER, F FLOAT, S VARCHAR(10), A VARCHAR(10), B VARCHAR(20), ",
+            "D DATE, TS TIMESTAMP, BI BIGINT, R REAL, DC DECIMAL(10,2), BT BIT)\n",
+            "  View V (MX: max(exp(T.F), T.I), MN: min(T.I, parseFloat(T.S)), PU: plus(T.I, parseFloat(T.S)), ",
+            "CU: case(equal(T.ID, 1), T.I, exp(T.F)), CO: concat(T.S, exp(T.F)), PV: plus(T.A, T.B), ",
+            "SD: sub(T.D, T.D), MT: minus(T.TS, T.TS), MD: minus(T.D, T.D), CB: case(equal(T.ID, 1), T.BI, T.F), ",
+            "CR: case(equal(T.ID, 1), T.R, T.R), CN: concat(T.S, T.I), PI: plus(T.I, T.S), SM: sub(T.D, T.I), ",
+            "MF: max(T.F, T.I), PF: plus(T.F, T.F), GC: group_concat(T.S), P1: plus(T.S), P2: plus(T.R), ",
+            "S1: sum(T.R), XB: max(T.BI, T.F), ND: min(T.I, T.DC), XI: max(T.I, T.F), C2: concat(T.I, T.I), ",
+            "CF: concat(T.S, T.F), CD: concat(T.S, T.D), CT: concat(T.S, T.TS), CM: concat(T.S, T.DC), ",
+            "CK: concat(T.S, T.BT), S2: sub(T.I), TU: times(T.I, T.F, nope(T.ID)), TD: times(T.DC, T.DC), ",
+            "SS: sum(T.S), SB: sum(T.BT))\n",
+            ")\n"
+        ));
+        let ix = ModelIndex::from(&m).unwrap();
+        let db = j("a::Db");
+        let scope = Some(&**database(&m, "a::Db"));
+        let v = ix.find_view(&db, &j("V")).unwrap().clone();
+        let infer = |i: usize| {
+            relational_type_inference::infer(
+                &v.column_mappings[i].expression,
+                scope,
+                Some(&ix as &dyn crate::StoreLookups),
+            )
+            .unwrap()
+        };
+        let varchar = |size| Some(T::RelationalDataTypeVarchar(Arc::new(lite_model::RelationalDataTypeVarchar { size })));
+        let double = Some(T::RelationalDataTypeDouble_(Arc::new(lite_model::RelationalDataTypeDouble_ {})));
+        let float = Some(T::RelationalDataTypeFloat_(Arc::new(lite_model::RelationalDataTypeFloat_ {})));
+        let date = Some(T::RelationalDataTypeDate_(Arc::new(lite_model::RelationalDataTypeDate_ {})));
+        let timestamp = Some(T::RelationalDataTypeTimestamp(Arc::new(lite_model::RelationalDataTypeTimestamp {})));
+        let real = Some(T::RelationalDataTypeReal(Arc::new(lite_model::RelationalDataTypeReal {})));
+        let dec = Some(T::RelationalDataTypeDecimal(Arc::new(lite_model::RelationalDataTypeDecimal {
+            precision: 10,
+            scale: 2,
+        })));
+        for i in [0, 1, 2, 3, 4] {
+            assert_eq!(infer(i), None, "an untyped argument leaves no type ({i})");
+        }
+        assert_eq!(infer(5), varchar(20), "plus over VARCHAR(10) and VARCHAR(20): their safe type");
+        assert_eq!(infer(6), date, "sub over DATEs");
+        assert_eq!(infer(7), timestamp, "minus over TIMESTAMPs");
+        assert_eq!(infer(8), date, "minus over DATEs");
+        assert_eq!(infer(9), double, "case over a BIGINT and a FLOAT");
+        assert_eq!(infer(10), real, "case over two REALs");
+        assert_eq!(infer(11), varchar(21), "concat of a VARCHAR(10) and an INTEGER");
+        assert_eq!(infer(12), None, "plus of an INTEGER and a VARCHAR");
+        assert_eq!(infer(13), None, "sub of a DATE and an INTEGER");
+        assert_eq!(infer(14), double, "max over a FLOAT and an INTEGER");
+        assert_eq!(infer(15), float, "plus over two FLOATs");
+        assert_eq!(infer(16), None, "group_concat");
+        assert_eq!(infer(17), None, "plus of one VARCHAR");
+        assert_eq!(infer(18), double, "plus of one REAL");
+        assert_eq!(infer(19), double, "sum of a REAL");
+        assert_eq!(infer(20), double, "max over a BIGINT and a FLOAT");
+        assert_eq!(infer(21), dec, "min over an INTEGER and a DECIMAL(10,2)");
+        assert_eq!(infer(22), double, "max over an INTEGER and a FLOAT");
+        assert_eq!(infer(23), varchar(22), "concat of two INTEGERs");
+        assert_eq!(infer(24), None, "concat with a FLOAT");
+        assert_eq!(infer(25), varchar(20), "concat with a DATE");
+        assert_eq!(infer(26), varchar(39), "concat with a TIMESTAMP");
+        assert_eq!(infer(27), varchar(22), "concat with a DECIMAL(10,2)");
+        assert_eq!(infer(28), varchar(15), "concat with a BIT");
+        assert_eq!(infer(29), None, "sub of one argument");
+        assert_eq!(infer(30), None, "times with an untyped third");
+        assert_eq!(infer(31), dec, "times of two DECIMAL(10,2)s");
+        assert_eq!(infer(32), None, "sum of a VARCHAR");
+        assert_eq!(infer(33), None, "sum of a BIT");
+        let arena = lite_base::QueryArena::new();
+        let sig = view_signatures::of(&arena, &ix, &db, &v).unwrap();
+        assert_eq!(sig.columns()[0].to_string(), "MX:meta::pure::metamodel::type::Any[0..1]");
+        assert_eq!(sig.columns()[5].to_string(), "PV:String[0..1]");
+        assert_eq!(sig.columns()[9].to_string(), "CB:Float[0..1]");
+        assert_eq!(sig.columns()[20].to_string(), "XB:Float[0..1]");
+        assert_eq!(sig.columns()[32].to_string(), "SS:meta::pure::metamodel::type::Any[0..1]");
+        assert_eq!(sig.columns()[33].to_string(), "SB:meta::pure::metamodel::type::Any[0..1]");
     });
 }
 
@@ -1418,7 +1516,8 @@ fn the_rules_only_lite_had_are_gone() {
     on_parse_stack(|| {
         assert_eq!(
             inference_table(ENGINE_CASES, &["VLITE"]),
-            "VLITE.LK1=- VLITE.PO1=- VLITE.CI1=- VLITE.LO1=- VLITE.LK2=-"
+            // position INTEGER since 2026-11-17 (the owner's ruling on register row S1006: PR #102's rules)
+            "VLITE.LK1=- VLITE.PO1=Integer VLITE.CI1=- VLITE.LO1=- VLITE.LK2=-"
         );
     });
 }

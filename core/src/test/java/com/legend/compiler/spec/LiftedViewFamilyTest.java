@@ -25,7 +25,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * dates (Date, StrictDate, DateTime), for the lift's function only. NUM and DAT are the names batch's shapes c59 and
  * c08, which the pinned engine compiles. No view text yields a column of two families (a translation's bug), so those
  * cases are TWO's lifted function declared with another return. The owner's ruling 42 (the G census's ASK 18 (ii)): an
- * inlined view's node reads only the newly accepted columns at their declared type.
+ * inlined view's node reads only the newly accepted columns at their declared type. Since 2026-11-17 (the owner's
+ * ruling on register row S1006, PR #102's rules) NUM's {@code plus(T.I, T.F)} is declared Float, as its body is, so no
+ * family rule is needed there: the relabelling cases read DAT (declared StrictDate, the body Date), as the Java bug-fix
+ * branch's do.
  */
 class LiftedViewFamilyTest {
 
@@ -48,6 +51,17 @@ class LiftedViewFamilyTest {
 
     private static final PureModelContext CTX =
             (PureModelContext) com.legend.Compiler.buildModel(com.legend.testing.Own.model(MODEL));
+
+    /** DAT alone, for the inliner's relabel case (2026-11-17): a query asked of a context of its own, so that NUM's
+     *  question stays the only one asked of CTX, as rust/oracles/identity holds it (a model one query uses). */
+    private static final String DAT_MODEL = """
+            ###Relational
+            Database t::Db
+            (
+              Table T (ID INTEGER PRIMARY KEY, TS TIMESTAMP)
+              View DAT (ID: T.ID PRIMARY KEY, X: datePart(T.TS))
+            )
+            """;
 
     private static TypedFunction fn(String fqn) {
         List<TypedFunction> fns = CTX.findFunction(fqn);
@@ -72,9 +86,13 @@ class LiftedViewFamilyTest {
     }
 
     @Test
-    @DisplayName("numbers are one family: plus(T.I, T.F) declared Integer (the engine's), its body Float")
+    @DisplayName("a number view compiles: plus(T.I, T.F) declared Float, as its body is")
     void aNumberColumnTakesAnotherNumber() {
+        // 2026-11-17 (the owner's ruling on register row S1006, PR #102's rules): it was declared Integer (the engine's
+        // first-argument rule) over a Float body, the family rule's case; the relabel is DAT's now
         assertDoesNotThrow(() -> new SpecCompiler(CTX).compile(fn("t::Db$view$NUM")));
+        assertEquals(List.of("ID:Integer[1]", "X:Float[1]"),
+                columns(new SpecCompiler(CTX).viewRelation(fn("t::Db$view$NUM")).info()));
     }
 
     @Test
@@ -124,13 +142,14 @@ class LiftedViewFamilyTest {
 
     @Test
     @DisplayName("ruling 42 (ASK 18 (ii)): the view's relation reads the newly accepted column at its declared type"
-            + " (X: Integer, the engine's), its multiplicity the body's; a column that conforms keeps its own")
+            + " (X: StrictDate, the engine's DATE), its multiplicity the body's; a column that conforms keeps its own")
     void theViewReadsANewlyAcceptedColumnAtItsDeclaredType() {
-        assertEquals(List.of("ID:Integer[1]", "X:Integer[1]"),
-                columns(new SpecCompiler(CTX).viewRelation(fn("t::Db$view$NUM")).info()));
-        // the compiled body keeps its own type (Float): only the view's node is relabelled
-        List<com.legend.compiler.spec.typed.TypedSpec> body = new SpecCompiler(CTX).compile(fn("t::Db$view$NUM")).body();
-        assertEquals(List.of("ID:Integer[1]", "X:Float[1]"), columns(body.get(body.size() - 1).info()));
+        // 2026-11-17: DAT's, where it was NUM's (plus(T.I, T.F), declared Float since: no relabel)
+        assertEquals(List.of("ID:Integer[1]", "X:StrictDate[1]"),
+                columns(new SpecCompiler(CTX).viewRelation(fn("t::Db$view$DAT")).info()));
+        // the compiled body keeps its own type (Date): only the view's node is relabelled
+        List<com.legend.compiler.spec.typed.TypedSpec> body = new SpecCompiler(CTX).compile(fn("t::Db$view$DAT")).body();
+        assertEquals(List.of("ID:Integer[1]", "X:Date[1]"), columns(body.get(body.size() - 1).info()));
     }
 
     @Test
@@ -142,12 +161,20 @@ class LiftedViewFamilyTest {
     }
 
     @Test
-    @DisplayName("the inliner's view node is relabelled too: #>{t::Db.NUM}# inlined reads X as Integer")
+    @DisplayName("the inliner's view node is relabelled too: #>{t::Db.DAT}# inlined reads X as StrictDate")
     void theInlinedViewIsRelabelled() {
-        com.legend.TypedQuery q = com.legend.Compiler.query(CTX, "#>{t::Db.NUM}#");
+        // 2026-11-17: DAT's, where it was NUM's (plus(T.I, T.F), declared Float since: no relabel)
+        PureModelContext datCtx =
+                (PureModelContext) com.legend.Compiler.buildModel(com.legend.testing.Own.model(DAT_MODEL));
+        com.legend.TypedQuery q = com.legend.Compiler.query(datCtx, "#>{t::Db.DAT}#");
         List<com.legend.compiler.spec.typed.TypedSpec> inlined = new UserCallInliner(q.specs()).inlineBody(q.body());
         com.legend.compiler.spec.typed.TypedSpec last = inlined.get(inlined.size() - 1);
         assertEquals(com.legend.compiler.spec.typed.TypedViewRelation.class, last.getClass());
-        assertEquals(List.of("ID:Integer[1]", "X:Integer[1]"), columns(last.info()));
+        assertEquals(List.of("ID:Integer[1]", "X:StrictDate[1]"), columns(last.info()));
+        // NUM's inlined node, asked as before (its question kept: rust/oracles/identity holds it), reads X as the
+        // Float it is declared now, no relabel
+        com.legend.TypedQuery num = com.legend.Compiler.query(CTX, "#>{t::Db.NUM}#");
+        List<com.legend.compiler.spec.typed.TypedSpec> numInlined = new UserCallInliner(num.specs()).inlineBody(num.body());
+        assertEquals(List.of("ID:Integer[1]", "X:Float[1]"), columns(numInlined.get(numInlined.size() - 1).info()));
     }
 }
